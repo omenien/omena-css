@@ -306,11 +306,37 @@ function deriveSassSymbolResolution(
   };
 }
 
+function stripParserOnlySassSeedFacts(sass: ParserSassSeedFactsV0): ParserSassSeedFactsV0 {
+  return {
+    variableDeclNames: sass.variableDeclNames,
+    variableParameterNames: sass.variableParameterNames,
+    variableRefNames: sass.variableRefNames,
+    selectorsWithVariableRefsNames: sass.selectorsWithVariableRefsNames,
+    selectorsWithResolvedVariableRefsNames: sass.selectorsWithResolvedVariableRefsNames,
+    selectorsWithUnresolvedVariableRefsNames: sass.selectorsWithUnresolvedVariableRefsNames,
+    mixinDeclNames: sass.mixinDeclNames,
+    mixinIncludeNames: sass.mixinIncludeNames,
+    selectorsWithMixinIncludesNames: sass.selectorsWithMixinIncludesNames,
+    selectorsWithResolvedMixinIncludesNames: sass.selectorsWithResolvedMixinIncludesNames,
+    selectorsWithUnresolvedMixinIncludesNames: sass.selectorsWithUnresolvedMixinIncludesNames,
+    functionDeclNames: sass.functionDeclNames,
+    functionCallNames: sass.functionCallNames,
+    selectorsWithFunctionCallsNames: sass.selectorsWithFunctionCallsNames,
+    selectorSymbolFacts: sass.selectorSymbolFacts,
+    moduleUseSources: sass.moduleUseSources,
+    moduleUseEdges: sass.moduleUseEdges,
+    moduleForwardSources: sass.moduleForwardSources,
+    moduleImportSources: sass.moduleImportSources,
+    sameFileResolution: sass.sameFileResolution,
+  };
+}
+
 function deriveSummaryFromProducer(
   producer: ParserCanonicalProducerSignalV0,
 ): ParserConsumerBoundarySummaryV0 {
   const intermediate = producer.canonicalCandidate.cssModulesIntermediate;
   const evaluator = producer.evaluatorCandidates.results;
+  const sassSummary = stripParserOnlySassSeedFacts(intermediate.sass);
   const referencedNames = uniqueSorted([
     ...intermediate.keyframes.animationRefNames,
     ...intermediate.keyframes.animationNameRefNames,
@@ -387,8 +413,8 @@ function deriveSummaryFromProducer(
       referencedNames,
       missingCandidateNames: referencedNames.filter((name) => !declaredKeyframes.has(name)),
     },
-    sassSymbolSeed: intermediate.sass,
-    sassSymbolResolution: deriveSassSymbolResolution(intermediate.sass),
+    sassSymbolSeed: sassSummary,
+    sassSymbolResolution: deriveSassSymbolResolution(sassSummary),
   };
 }
 

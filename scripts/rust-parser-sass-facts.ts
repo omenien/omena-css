@@ -4,6 +4,7 @@ import { parseStyleDocument } from "../server/engine-core-ts/src/core/scss/scss-
 
 export interface ParserSassSeedFactsV0 {
   readonly variableDeclNames: readonly string[];
+  readonly symbolDeclFacts?: readonly unknown[];
   readonly variableParameterNames: readonly string[];
   readonly variableRefNames: readonly string[];
   readonly selectorsWithVariableRefsNames: readonly string[];
@@ -58,8 +59,9 @@ export interface ParserSassSelectorSymbolFactV0 {
   readonly selectorName: string;
   readonly symbolKind: "variable" | "mixin" | "function";
   readonly name: string;
+  readonly namespace: string | null;
   readonly role: "reference" | "include" | "call";
-  readonly resolution: "resolved" | "unresolved";
+  readonly resolution: "resolved" | "unresolved" | "external";
   readonly byteSpan: ParserByteSpanV0;
   readonly range: ParserRangeV0;
 }
@@ -71,13 +73,16 @@ export function deriveSassSummary(
   const variableDeclNames = [...source.matchAll(/(^|[{\s;])\$([A-Za-z_-][A-Za-z0-9_-]*)\s*:/g)].map(
     (match) => match[2]!,
   );
-  const variableRefNames = findSassVariableReferenceMatches(source).map((match) => match.name);
+  const variableRefMatches = findSassVariableReferenceMatches(source);
+  const variableRefNames = variableRefMatches.map((match) => match.name);
   const mixinDeclNames = [...source.matchAll(/@mixin\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
     (match) => match[1]!,
   );
-  const mixinIncludeNames = [...source.matchAll(/@include\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)]
-    .filter((match) => !isSassModuleQualifiedCallable(source, (match.index ?? 0) + match[0].length))
-    .map((match) => match[1]!);
+  const mixinIncludeNames = [
+    ...source.matchAll(/@include\s+(?:([A-Za-z_-][A-Za-z0-9_-]*)\.)?([A-Za-z_-][A-Za-z0-9_-]*)/g),
+  ]
+    .filter((match) => !match[1])
+    .map((match) => match[2]!);
   const functionDeclNames = [...source.matchAll(/@function\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)].map(
     (match) => match[1]!,
   );
@@ -139,7 +144,9 @@ export function deriveSassSummary(
     moduleForwardSources: uniqueSorted(sourceForAtRule("forward")),
     moduleImportSources: uniqueSorted(sourceForAtRule("import")),
     sameFileResolution: deriveSameFileResolution(source, filePath, {
-      variableRefNames: sortedVariableRefNames,
+      variableRefNames: uniqueSorted(
+        variableRefMatches.filter((match) => match.namespace === null).map((match) => match.name),
+      ),
       mixinDeclNames: sortedMixinDeclNames,
       mixinIncludeNames: sortedMixinIncludeNames,
       functionDeclNames: sortedFunctionDeclNames,
@@ -189,24 +196,23 @@ function deriveSassSelectorAttachments(
     const variableRefMatches = [...body.matchAll(/\$([A-Za-z_-][A-Za-z0-9_-]*)/g)]
       .map((variableMatch) => {
         const start = bodyStart + (variableMatch.index ?? 0);
+        const namespace = sassModuleQualifiedNamespaceBefore(source, start);
         return {
           name: variableMatch[1]!,
+          namespace,
           codeUnitStart: start,
           codeUnitEnd: start + variableMatch[0].length,
           location: symbolLocation(source, start, start + variableMatch[0].length),
         };
       })
-      .filter(
-        (variableMatch) =>
-          !isSassVariableDeclarationLike(source, variableMatch.codeUnitEnd) &&
-          !isSassModuleQualifiedReference(source, variableMatch.codeUnitStart),
-      );
+      .filter((variableMatch) => !isSassVariableDeclarationLike(source, variableMatch.codeUnitEnd));
     const variableRefs = variableRefMatches.map((variableMatch) => variableMatch.name);
     if (variableRefs.length > 0) {
       selectorsWithVariableRefsNames.push(selectorName);
       if (
         variableRefMatches.some(
-          ({ name, location }) =>
+          ({ name, namespace, location }) =>
+            namespace === null &&
             resolveSassVariableReference(sassVariableDecls, name, location.range) === "resolved",
         )
       ) {
@@ -214,18 +220,23 @@ function deriveSassSelectorAttachments(
       }
       if (
         variableRefMatches.some(
-          ({ name, location }) =>
+          ({ name, namespace, location }) =>
+            namespace === null &&
             resolveSassVariableReference(sassVariableDecls, name, location.range) === "unresolved",
         )
       ) {
         selectorsWithUnresolvedVariableRefsNames.push(selectorName);
       }
-      for (const { name, location } of variableRefMatches) {
-        const resolution = resolveSassVariableReference(sassVariableDecls, name, location.range);
+      for (const { name, namespace, location } of variableRefMatches) {
+        const resolution =
+          namespace === null
+            ? resolveSassVariableReference(sassVariableDecls, name, location.range)
+            : "external";
         selectorSymbolFacts.push({
           selectorName,
           symbolKind: "variable",
           name,
+          namespace,
           role: "reference",
           resolution,
           ...location,
@@ -233,18 +244,22 @@ function deriveSassSelectorAttachments(
       }
     }
 
-    const mixinIncludeMatches = [...body.matchAll(/@include\s+([A-Za-z_-][A-Za-z0-9_-]*)/g)]
-      .map((includeMatch) => {
-        const name = includeMatch[1]!;
-        const start = bodyStart + (includeMatch.index ?? 0) + includeMatch[0].indexOf(name);
-        return {
-          name,
-          codeUnitEnd: start + name.length,
-          location: symbolLocation(source, start, start + name.length),
-        };
-      })
-      .filter((includeMatch) => !isSassModuleQualifiedCallable(source, includeMatch.codeUnitEnd));
-    const mixinIncludes = mixinIncludeMatches.map((includeMatch) => includeMatch.name);
+    const mixinIncludeMatches = [
+      ...body.matchAll(/@include\s+(?:([A-Za-z_-][A-Za-z0-9_-]*)\.)?([A-Za-z_-][A-Za-z0-9_-]*)/g),
+    ].map((includeMatch) => {
+      const namespace = includeMatch[1] ?? null;
+      const name = includeMatch[2]!;
+      const start = bodyStart + (includeMatch.index ?? 0) + includeMatch[0].indexOf(name);
+      return {
+        name,
+        namespace,
+        codeUnitEnd: start + name.length,
+        location: symbolLocation(source, start, start + name.length),
+      };
+    });
+    const mixinIncludes = mixinIncludeMatches
+      .filter((includeMatch) => includeMatch.namespace === null)
+      .map((includeMatch) => includeMatch.name);
     if (mixinIncludes.length > 0) {
       selectorsWithMixinIncludesNames.push(selectorName);
       if (mixinIncludes.some((name) => mixinTargets.has(name))) {
@@ -253,13 +268,20 @@ function deriveSassSelectorAttachments(
       if (mixinIncludes.some((name) => !mixinTargets.has(name))) {
         selectorsWithUnresolvedMixinIncludesNames.push(selectorName);
       }
-      for (const { name, location } of mixinIncludeMatches) {
+    }
+    if (mixinIncludeMatches.length > 0) {
+      if (mixinIncludes.length === 0) {
+        selectorsWithMixinIncludesNames.push(selectorName);
+      }
+      for (const { name, namespace, location } of mixinIncludeMatches) {
         selectorSymbolFacts.push({
           selectorName,
           symbolKind: "mixin",
           name,
+          namespace,
           role: "include",
-          resolution: mixinTargets.has(name) ? "resolved" : "unresolved",
+          resolution:
+            namespace === null ? (mixinTargets.has(name) ? "resolved" : "unresolved") : "external",
           ...location,
         });
       }
@@ -278,15 +300,38 @@ function deriveSassSelectorAttachments(
         })
         .filter((callMatch) => !isSassModuleQualifiedReference(source, callMatch.codeUnitStart)),
     );
-    if (functionCalls.length > 0) {
+    const moduleFunctionCalls = [
+      ...body.matchAll(/\b([A-Za-z_-][A-Za-z0-9_-]*)\.([A-Za-z_-][A-Za-z0-9_-]*)\s*\(/g),
+    ].map((callMatch) => {
+      const namespace = callMatch[1]!;
+      const name = callMatch[2]!;
+      const start = bodyStart + (callMatch.index ?? 0) + namespace.length + 1;
+      return {
+        name,
+        namespace,
+        location: symbolLocation(source, start, start + name.length),
+      };
+    });
+    if (functionCalls.length > 0 || moduleFunctionCalls.length > 0) {
       selectorsWithFunctionCallsNames.push(selectorName);
       selectorSymbolFacts.push(
         ...functionCalls.map(({ name, location }) => ({
           selectorName,
           symbolKind: "function" as const,
           name,
+          namespace: null,
           role: "call" as const,
           resolution: "resolved" as const,
+          byteSpan: location.byteSpan,
+          range: location.range,
+        })),
+        ...moduleFunctionCalls.map(({ name, namespace, location }) => ({
+          selectorName,
+          symbolKind: "function" as const,
+          name,
+          namespace,
+          role: "call" as const,
+          resolution: "external" as const,
           byteSpan: location.byteSpan,
           range: location.range,
         })),
@@ -387,7 +432,8 @@ function deriveSameFileResolution(
     resolvedVariableRefNames: uniqueSorted(
       variableRefMatches
         .filter(
-          ({ name, location }) =>
+          ({ name, namespace, location }) =>
+            namespace === null &&
             resolveSassVariableReference(sassVariableDecls, name, location.range) === "resolved",
         )
         .map((match) => match.name),
@@ -395,7 +441,8 @@ function deriveSameFileResolution(
     unresolvedVariableRefNames: uniqueSorted(
       variableRefMatches
         .filter(
-          ({ name, location }) =>
+          ({ name, namespace, location }) =>
+            namespace === null &&
             resolveSassVariableReference(sassVariableDecls, name, location.range) === "unresolved",
         )
         .map((match) => match.name),
@@ -408,6 +455,7 @@ function deriveSameFileResolution(
 
 function findSassVariableReferenceMatches(source: string): Array<{
   readonly name: string;
+  readonly namespace: string | null;
   readonly codeUnitStart: number;
   readonly location: Pick<ParserSassSelectorSymbolFactV0, "byteSpan" | "range">;
 }> {
@@ -416,25 +464,23 @@ function findSassVariableReferenceMatches(source: string): Array<{
       const start = match.index ?? 0;
       return {
         name: match[1]!,
+        namespace: sassModuleQualifiedNamespaceBefore(source, start),
         codeUnitStart: start,
         codeUnitEnd: start + match[0].length,
         location: symbolLocation(source, start, start + match[0].length),
       };
     })
-    .filter(
-      (match) =>
-        !isSassVariableDeclarationLike(source, match.codeUnitEnd) &&
-        !isSassModuleQualifiedReference(source, match.codeUnitStart),
-    );
+    .filter((match) => !isSassVariableDeclarationLike(source, match.codeUnitEnd));
 }
 
 function isSassModuleQualifiedReference(source: string, start: number): boolean {
-  if (start <= 1 || source[start - 1] !== ".") return false;
-  return /[A-Za-z_-][A-Za-z0-9_-]*$/.test(source.slice(0, start - 1));
+  return sassModuleQualifiedNamespaceBefore(source, start) !== null;
 }
 
-function isSassModuleQualifiedCallable(source: string, end: number): boolean {
-  return source[end] === ".";
+function sassModuleQualifiedNamespaceBefore(source: string, start: number): string | null {
+  if (start <= 1 || source[start - 1] !== ".") return null;
+  const match = /([A-Za-z_-][A-Za-z0-9_-]*)$/.exec(source.slice(0, start - 1));
+  return match?.[1] ?? null;
 }
 
 function deriveSassUseEdges(source: string): ParserSassModuleUseFactV0[] {

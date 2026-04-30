@@ -1080,9 +1080,12 @@ function omitParserOnlySelectorDefinitionFacts(
   summary: ParserIndexSummaryV0,
 ): ParserIndexSummaryV0 {
   const { definitionFacts, ...selectors } = summary.selectors;
+  const { symbolDeclFacts, ...sass } = summary.sass;
   void definitionFacts;
+  void symbolDeclFacts;
   return {
     ...summary,
     selectors,
+    sass,
   };
 }

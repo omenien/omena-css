@@ -435,7 +435,40 @@ struct SourceStylePropertyAccessFact {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SourceSelectorReferenceFact {
     byte_span: ParserByteSpanV0,
+    selector_name: Option<String>,
+    match_kind: SourceSelectorReferenceMatchKind,
     target_style_uri: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum SourceSelectorReferenceMatchKind {
+    Exact,
+    Prefix,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct SourceClassValue {
+    exact: Vec<String>,
+    prefixes: Vec<String>,
+}
+
+impl SourceClassValue {
+    fn is_empty(&self) -> bool {
+        self.exact.is_empty() && self.prefixes.is_empty()
+    }
+
+    fn merge(&mut self, other: SourceClassValue) {
+        self.exact.extend(other.exact);
+        self.prefixes.extend(other.prefixes);
+        self.canonicalize();
+    }
+
+    fn canonicalize(&mut self) {
+        self.exact.sort();
+        self.exact.dedup();
+        self.prefixes.sort();
+        self.prefixes.dedup();
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -472,6 +505,8 @@ pub struct LspStyleHoverCandidate {
     pub source: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target_style_uri: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1406,6 +1441,18 @@ fn resolve_lsp_definition(state: &LspShellState, params: Option<&Value>) -> Valu
     else {
         return Value::Null;
     };
+    if is_sass_symbol_reference_kind(candidate.kind) {
+        let definitions = sass_symbol_definitions_for_candidate(state, document, candidate);
+        if definitions.is_empty() {
+            return Value::Null;
+        }
+        return json!(
+            definitions
+                .into_iter()
+                .map(|(uri, definition)| json!({ "uri": uri, "range": definition.range }))
+                .collect::<Vec<_>>()
+        );
+    }
     let target = if candidate.kind == "customPropertyReference" {
         candidates
             .iter()
@@ -1457,6 +1504,22 @@ fn resolve_lsp_references(state: &LspShellState, params: Option<&Value>) -> Valu
             })
             .map(|target| json!({ "uri": document.uri.as_str(), "range": target.range }))
             .collect()
+    } else if is_sass_symbol_candidate_kind(candidate.kind) {
+        let mut locations = Vec::new();
+        if include_declaration {
+            locations.extend(
+                sass_symbol_definitions_for_candidate(state, document, candidate)
+                    .into_iter()
+                    .map(|(uri, definition)| json!({ "uri": uri, "range": definition.range })),
+            );
+        }
+        locations.extend(
+            candidates
+                .iter()
+                .filter(|target| sass_symbol_reference_matches(candidate, target))
+                .map(|target| json!({ "uri": document.uri.as_str(), "range": target.range })),
+        );
+        locations
     } else if candidate.kind == "selector" {
         let mut locations = if include_declaration {
             vec![json!({ "uri": document.uri.as_str(), "range": candidate.range })]
@@ -1609,6 +1672,7 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
     let diagnostics: Vec<Value> = resolve_source_provider_candidates(state, document)
         .unresolved
         .into_iter()
+        .filter(|candidate| candidate.kind == "sourceSelectorReference")
         .filter_map(|candidate| {
             let (target_style_uri, target_style_document) = source_selector_diagnostic_target(
                 state,
@@ -1824,6 +1888,8 @@ fn selector_reference_locations_by_name_from_open_documents(
     target_style_uri: Option<&str>,
 ) -> BTreeMap<String, Vec<Value>> {
     let mut locations_by_name: BTreeMap<String, Vec<Value>> = BTreeMap::new();
+    let definitions =
+        style_selector_definitions_from_open_documents(state, "", workspace_folder_uri);
     for document in state.documents.values() {
         if is_style_document_uri(document.uri.as_str()) {
             continue;
@@ -1835,13 +1901,19 @@ fn selector_reference_locations_by_name_from_open_documents(
             if !source_candidate_matches_target_style(&candidate, target_style_uri) {
                 continue;
             }
-            locations_by_name
-                .entry(candidate.name)
-                .or_default()
-                .push(json!({
-                    "uri": document.uri.as_str(),
-                    "range": candidate.range,
-                }));
+            for selector_name in source_candidate_selector_names(
+                &candidate,
+                definitions.as_slice(),
+                target_style_uri,
+            ) {
+                locations_by_name
+                    .entry(selector_name)
+                    .or_default()
+                    .push(json!({
+                        "uri": document.uri.as_str(),
+                        "range": candidate.range,
+                    }));
+            }
         }
     }
     for locations in locations_by_name.values_mut() {
@@ -1850,6 +1922,31 @@ fn selector_reference_locations_by_name_from_open_documents(
             .dedup_by(|left, right| location_identity_key(left) == location_identity_key(right));
     }
     locations_by_name
+}
+
+fn source_candidate_selector_names(
+    candidate: &LspStyleHoverCandidate,
+    definitions: &[(String, LspStyleHoverCandidate)],
+    target_style_uri: Option<&str>,
+) -> Vec<String> {
+    if candidate.kind != "sourceSelectorPrefixReference" {
+        return vec![candidate.name.clone()];
+    }
+    let mut names: Vec<String> = definitions
+        .iter()
+        .filter(|(uri, definition)| {
+            source_candidate_matches_selector(candidate, definition.name.as_str())
+                && candidate
+                    .target_style_uri
+                    .as_deref()
+                    .or(target_style_uri)
+                    .is_none_or(|target_uri| target_uri == uri)
+        })
+        .map(|(_, definition)| definition.name.clone())
+        .collect();
+    names.sort();
+    names.dedup();
+    names
 }
 
 fn source_candidate_matches_target_style(
@@ -1862,6 +1959,265 @@ fn source_candidate_matches_target_style(
             .as_deref()
             .is_none_or(|candidate_target_uri| candidate_target_uri == target_uri)
     })
+}
+
+fn is_sass_symbol_candidate_kind(kind: &str) -> bool {
+    sass_symbol_kind_from_candidate_kind(kind).is_some()
+}
+
+fn is_sass_symbol_reference_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        "sassVariableReference"
+            | "sassMixinInclude"
+            | "sassFunctionCall"
+            | "sassMixinReference"
+            | "sassFunctionReference"
+            | "sassSymbolReference"
+    )
+}
+
+fn is_sass_symbol_declaration_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        "sassVariableDeclaration"
+            | "sassMixinDeclaration"
+            | "sassFunctionDeclaration"
+            | "sassSymbolDeclaration"
+    )
+}
+
+fn sass_symbol_kind_from_candidate_kind(kind: &str) -> Option<&'static str> {
+    match kind {
+        "sassVariableDeclaration" | "sassVariableReference" => Some("variable"),
+        "sassMixinDeclaration" | "sassMixinInclude" | "sassMixinReference" => Some("mixin"),
+        "sassFunctionDeclaration" | "sassFunctionCall" | "sassFunctionReference" => {
+            Some("function")
+        }
+        "sassSymbolDeclaration" | "sassSymbolReference" => Some("symbol"),
+        _ => None,
+    }
+}
+
+fn sass_symbol_definitions_for_candidate(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    candidate: &LspStyleHoverCandidate,
+) -> Vec<(String, LspStyleHoverCandidate)> {
+    let Some(symbol_kind) = sass_symbol_kind_from_candidate_kind(candidate.kind) else {
+        return Vec::new();
+    };
+    if is_sass_symbol_declaration_kind(candidate.kind) {
+        return vec![(document.uri.clone(), candidate.clone())];
+    }
+
+    let mut definitions = if candidate.namespace.is_none() {
+        sass_symbol_declarations_in_document(document, symbol_kind, candidate)
+    } else {
+        Vec::new()
+    };
+    if candidate.namespace.is_none() && !definitions.is_empty() {
+        return definitions;
+    }
+
+    for target_uri in sass_module_target_uris_for_candidate(state, document, candidate) {
+        let Some(target_document) = state.document(target_uri.as_str()) else {
+            continue;
+        };
+        definitions.extend(sass_symbol_declarations_with_forwards(
+            state,
+            target_document,
+            symbol_kind,
+            candidate,
+            &mut BTreeSet::new(),
+        ));
+    }
+    definitions.sort_by_key(|(uri, target)| {
+        (
+            uri.clone(),
+            target.range.start.line,
+            target.range.start.character,
+        )
+    });
+    definitions.dedup_by(|left, right| {
+        left.0 == right.0
+            && left.1.kind == right.1.kind
+            && left.1.name == right.1.name
+            && left.1.range == right.1.range
+    });
+    definitions
+}
+
+fn sass_symbol_declarations_in_document(
+    document: &LspTextDocumentState,
+    symbol_kind: &str,
+    candidate: &LspStyleHoverCandidate,
+) -> Vec<(String, LspStyleHoverCandidate)> {
+    document
+        .style_candidates
+        .iter()
+        .filter(|target| {
+            is_sass_symbol_declaration_kind(target.kind)
+                && sass_symbol_kind_from_candidate_kind(target.kind) == Some(symbol_kind)
+                && target.name == candidate.name
+        })
+        .cloned()
+        .map(|target| (document.uri.clone(), target))
+        .collect()
+}
+
+fn sass_module_target_uris_for_candidate(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    candidate: &LspStyleHoverCandidate,
+) -> Vec<String> {
+    let Some(sheet) = parse_style_module(document.uri.as_str(), document.text.as_str()) else {
+        return Vec::new();
+    };
+    let index = summarize_css_modules_intermediate(&sheet);
+    let mut uris = Vec::new();
+    for edge in index.sass.module_use_edges.iter().filter(|edge| {
+        if let Some(namespace) = candidate.namespace.as_deref() {
+            edge.namespace.as_deref() == Some(namespace)
+        } else {
+            edge.namespace_kind == "wildcard"
+        }
+    }) {
+        if edge.source.starts_with("sass:") {
+            continue;
+        }
+        if let Some(uri) = style_uri_for_style_specifier(
+            document.uri.as_str(),
+            document.workspace_folder_uri.as_deref(),
+            edge.source.as_str(),
+        ) {
+            uris.push(uri);
+        }
+    }
+    for forward_source in &index.sass.module_forward_sources {
+        if forward_source.starts_with("sass:") {
+            continue;
+        }
+        if let Some(uri) = style_uri_for_style_specifier(
+            document.uri.as_str(),
+            document.workspace_folder_uri.as_deref(),
+            forward_source.as_str(),
+        ) {
+            uris.push(uri.clone());
+            if let Some(target_document) = state.document(uri.as_str()) {
+                uris.extend(sass_forward_module_target_uris(
+                    target_document,
+                    &mut BTreeSet::new(),
+                ));
+            }
+        }
+    }
+    uris.sort();
+    uris.dedup();
+    uris
+}
+
+fn sass_symbol_declarations_with_forwards(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    symbol_kind: &str,
+    candidate: &LspStyleHoverCandidate,
+    visited: &mut BTreeSet<String>,
+) -> Vec<(String, LspStyleHoverCandidate)> {
+    if !visited.insert(document.uri.clone()) {
+        return Vec::new();
+    }
+    let mut definitions = sass_symbol_declarations_in_document(document, symbol_kind, candidate);
+    let Some(sheet) = parse_style_module(document.uri.as_str(), document.text.as_str()) else {
+        return definitions;
+    };
+    let index = summarize_css_modules_intermediate(&sheet);
+    for forward_source in index.sass.module_forward_sources {
+        if forward_source.starts_with("sass:") {
+            continue;
+        }
+        let Some(uri) = style_uri_for_style_specifier(
+            document.uri.as_str(),
+            document.workspace_folder_uri.as_deref(),
+            forward_source.as_str(),
+        ) else {
+            continue;
+        };
+        let Some(target_document) = state.document(uri.as_str()) else {
+            continue;
+        };
+        definitions.extend(sass_symbol_declarations_with_forwards(
+            state,
+            target_document,
+            symbol_kind,
+            candidate,
+            visited,
+        ));
+    }
+    definitions
+}
+
+fn sass_forward_module_target_uris(
+    document: &LspTextDocumentState,
+    visited: &mut BTreeSet<String>,
+) -> Vec<String> {
+    if !visited.insert(document.uri.clone()) {
+        return Vec::new();
+    }
+    let Some(sheet) = parse_style_module(document.uri.as_str(), document.text.as_str()) else {
+        return Vec::new();
+    };
+    let index = summarize_css_modules_intermediate(&sheet);
+    let mut uris = Vec::new();
+    for forward_source in index.sass.module_forward_sources {
+        if forward_source.starts_with("sass:") {
+            continue;
+        }
+        if let Some(uri) = style_uri_for_style_specifier(
+            document.uri.as_str(),
+            document.workspace_folder_uri.as_deref(),
+            forward_source.as_str(),
+        ) {
+            uris.push(uri.clone());
+        }
+    }
+    uris.sort();
+    uris.dedup();
+    uris
+}
+
+fn sass_symbol_reference_matches(
+    candidate: &LspStyleHoverCandidate,
+    target: &LspStyleHoverCandidate,
+) -> bool {
+    is_sass_symbol_reference_kind(target.kind) && sass_symbol_target_matches(candidate, target)
+}
+
+fn sass_symbol_target_matches(
+    candidate: &LspStyleHoverCandidate,
+    target: &LspStyleHoverCandidate,
+) -> bool {
+    candidate.name == target.name
+        && candidate.namespace == target.namespace
+        && sass_symbol_kind_from_candidate_kind(candidate.kind)
+            == sass_symbol_kind_from_candidate_kind(target.kind)
+}
+
+fn render_sass_symbol_label(candidate: &LspStyleHoverCandidate) -> String {
+    let namespace_prefix = candidate
+        .namespace
+        .as_deref()
+        .map(|namespace| format!("{namespace}."))
+        .unwrap_or_default();
+    match sass_symbol_kind_from_candidate_kind(candidate.kind) {
+        Some("variable") => format!("{namespace_prefix}${}", candidate.name),
+        Some("mixin") if is_sass_symbol_declaration_kind(candidate.kind) => {
+            format!("@mixin {}", candidate.name)
+        }
+        Some("mixin") => format!("@include {namespace_prefix}{}", candidate.name),
+        Some("function") => format!("{namespace_prefix}{}()", candidate.name),
+        _ => candidate.name.clone(),
+    }
 }
 
 fn reference_lens_title(count: usize) -> String {
@@ -1993,6 +2349,9 @@ fn rename_target_matches(
         "customPropertyReference" | "customPropertyDeclaration" => {
             target.name == candidate.name && target.kind.starts_with("customProperty")
         }
+        kind if is_sass_symbol_candidate_kind(kind) => {
+            sass_symbol_target_matches(candidate, target)
+        }
         _ => false,
     }
 }
@@ -2012,6 +2371,25 @@ fn resolve_lsp_hover(state: &LspShellState, params: Option<&Value>) -> Value {
     let Some(document) = state.document(document_uri.as_str()) else {
         return Value::Null;
     };
+    if is_sass_symbol_reference_kind(candidate.kind)
+        && let Some((target_uri, target)) =
+            sass_symbol_definitions_for_candidate(state, document, candidate)
+                .into_iter()
+                .next()
+        && let Some(target_document) = state.document(target_uri.as_str())
+    {
+        return json!({
+            "contents": {
+                "kind": "markdown",
+                "value": render_style_hover_candidate_markdown(
+                    target_uri.as_str(),
+                    target_document.text.as_str(),
+                    &target,
+                ),
+            },
+            "range": candidate.range,
+        });
+    }
 
     json!({
         "contents": {
@@ -2113,12 +2491,32 @@ fn resolve_source_lsp_references(
             .map(|(uri, definition)| json!({ "uri": uri, "range": definition.range })),
         );
     }
-    locations.extend(selector_reference_locations_from_open_documents(
-        state,
-        candidate.name.as_str(),
-        document.workspace_folder_uri.as_deref(),
-        candidate.target_style_uri.as_deref(),
-    ));
+    if candidate.kind == "sourceSelectorPrefixReference" {
+        let definitions = style_selector_definitions_from_open_documents(
+            state,
+            "",
+            document.workspace_folder_uri.as_deref(),
+        );
+        for selector_name in source_candidate_selector_names(
+            &candidate,
+            definitions.as_slice(),
+            candidate.target_style_uri.as_deref(),
+        ) {
+            locations.extend(selector_reference_locations_from_open_documents(
+                state,
+                selector_name.as_str(),
+                document.workspace_folder_uri.as_deref(),
+                candidate.target_style_uri.as_deref(),
+            ));
+        }
+    } else {
+        locations.extend(selector_reference_locations_from_open_documents(
+            state,
+            candidate.name.as_str(),
+            document.workspace_folder_uri.as_deref(),
+            candidate.target_style_uri.as_deref(),
+        ));
+    }
     locations.sort_by_key(location_sort_key);
 
     if locations.is_empty() {
@@ -2271,7 +2669,7 @@ fn source_candidate_has_style_definition(
     definitions: &[(String, LspStyleHoverCandidate)],
 ) -> bool {
     definitions.iter().any(|(uri, definition)| {
-        definition.name == candidate.name
+        source_candidate_matches_selector(candidate, definition.name.as_str())
             && candidate
                 .target_style_uri
                 .as_deref()
@@ -2292,13 +2690,7 @@ fn source_selector_candidates_from_index(
     let mut candidates: Vec<LspStyleHoverCandidate> = index
         .selector_references
         .iter()
-        .map(|reference| {
-            source_reference_candidate(
-                document,
-                reference.byte_span,
-                reference.target_style_uri.clone(),
-            )
-        })
+        .map(|reference| source_reference_candidate(document, reference))
         .collect();
     candidates.sort();
     candidates.dedup();
@@ -2320,6 +2712,7 @@ fn build_source_syntax_index(document: &LspTextDocumentState) -> SourceSyntaxInd
         imported_style_targets.as_slice(),
         imports.classnames_bind_bindings.as_slice(),
     );
+    let local_class_values = collect_local_class_value_bindings(source);
 
     let mut index = SourceSyntaxIndex {
         imported_style_bindings: imports.imported_style_bindings,
@@ -2339,17 +2732,25 @@ fn build_source_syntax_index(document: &LspTextDocumentState) -> SourceSyntaxInd
             &mut index.selector_references,
         );
     }
+    collect_class_name_expression_reference_facts(
+        source,
+        &local_class_values,
+        &mut index.selector_references,
+    );
     for access in &index.style_property_accesses {
         index.selector_references.push(SourceSelectorReferenceFact {
             byte_span: access.byte_span,
+            selector_name: None,
+            match_kind: SourceSelectorReferenceMatchKind::Exact,
             target_style_uri: access.target_style_uri.clone(),
         });
     }
     for binding in classnames_bind_targets {
-        collect_string_literal_call_reference_facts(
+        collect_classnames_bind_call_reference_facts(
             source,
             binding.binding.as_str(),
             Some(binding.style_uri.as_str()),
+            &local_class_values,
             &mut index.selector_references,
         );
     }
@@ -2359,16 +2760,29 @@ fn build_source_syntax_index(document: &LspTextDocumentState) -> SourceSyntaxInd
 }
 
 fn canonicalize_source_selector_references(references: &mut Vec<SourceSelectorReferenceFact>) {
-    let mut targets_by_span: BTreeMap<(usize, usize), BTreeSet<Option<String>>> = BTreeMap::new();
+    let mut targets_by_reference: BTreeMap<
+        (
+            usize,
+            usize,
+            Option<String>,
+            SourceSelectorReferenceMatchKind,
+        ),
+        BTreeSet<Option<String>>,
+    > = BTreeMap::new();
     for reference in references.iter() {
-        targets_by_span
-            .entry((reference.byte_span.start, reference.byte_span.end))
+        targets_by_reference
+            .entry((
+                reference.byte_span.start,
+                reference.byte_span.end,
+                reference.selector_name.clone(),
+                reference.match_kind,
+            ))
             .or_default()
             .insert(reference.target_style_uri.clone());
     }
 
     let mut canonical = Vec::new();
-    for ((start, end), targets) in targets_by_span {
+    for ((start, end, selector_name, match_kind), targets) in targets_by_reference {
         let has_targeted_reference = targets.iter().any(Option::is_some);
         for target_style_uri in targets {
             if has_targeted_reference && target_style_uri.is_none() {
@@ -2376,6 +2790,8 @@ fn canonicalize_source_selector_references(references: &mut Vec<SourceSelectorRe
             }
             canonical.push(SourceSelectorReferenceFact {
                 byte_span: ParserByteSpanV0 { start, end },
+                selector_name: selector_name.clone(),
+                match_kind,
                 target_style_uri,
             });
         }
@@ -2406,7 +2822,7 @@ fn collect_source_imports(document: &LspTextDocumentState) -> SourceImportIndex 
                 imports.classnames_bind_bindings.push(import.binding);
             } else if StyleLanguage::from_module_path(import.specifier.as_str()).is_some()
                 && let Some(style_uri) =
-                    style_uri_for_import_specifier(document.uri.as_str(), import.specifier.as_str())
+                    style_uri_for_import_specifier(document, import.specifier.as_str())
             {
                 imports.imported_style_bindings.push(ImportedStyleBinding {
                     binding: import.binding,
@@ -2556,47 +2972,9 @@ fn collect_class_name_string_literal_spans(source: &str) -> Vec<ParserByteSpanV0
                     cursor = next_offset;
                 }
             }
-            Some(b'{') => {
-                let expression_start = value_offset + 1;
-                if let Some(expression_end) = jsx_expression_end(source, expression_start) {
-                    spans.extend(collect_js_string_literal_spans(
-                        source,
-                        expression_start,
-                        expression_end,
-                    ));
-                    cursor = (expression_end + 1).min(source.len());
-                }
-            }
+            Some(b'{') => {}
             _ => {}
         }
-    }
-    spans
-}
-
-fn collect_js_string_literal_spans(
-    source: &str,
-    start: usize,
-    end: usize,
-) -> Vec<ParserByteSpanV0> {
-    let mut spans = Vec::new();
-    let mut cursor = start;
-    while cursor < end {
-        cursor = skip_js_trivia_until(source, cursor, end);
-        let Some(byte) = source.as_bytes().get(cursor).copied() else {
-            break;
-        };
-        if matches!(byte, b'\'' | b'"')
-            && let Some((literal_start, literal_end, next_offset)) =
-                js_string_literal_span(source, cursor, end)
-        {
-            spans.push(ParserByteSpanV0 {
-                start: literal_start,
-                end: literal_end,
-            });
-            cursor = next_offset;
-            continue;
-        }
-        cursor += 1;
     }
     spans
 }
@@ -2742,10 +3120,44 @@ fn parse_classnames_bind_utility_binding(
     ))
 }
 
-fn collect_string_literal_call_reference_facts(
+fn collect_class_name_expression_reference_facts(
+    source: &str,
+    local_class_values: &BTreeMap<String, SourceClassValue>,
+    references: &mut Vec<SourceSelectorReferenceFact>,
+) {
+    let mut cursor = 0usize;
+    while let Some(identifier) = next_code_identifier(source, cursor) {
+        cursor = identifier.end;
+        if identifier.text != "className" {
+            continue;
+        }
+        let equals_offset = skip_js_trivia(source, identifier.end);
+        if source.as_bytes().get(equals_offset) != Some(&b'=') {
+            continue;
+        }
+        let value_offset = skip_js_trivia(source, equals_offset + 1);
+        if source.as_bytes().get(value_offset) == Some(&b'{') {
+            let expression_start = value_offset + 1;
+            if let Some(expression_end) = jsx_expression_end(source, expression_start) {
+                collect_selector_references_from_js_expression(
+                    source,
+                    expression_start,
+                    expression_end,
+                    None,
+                    local_class_values,
+                    references,
+                );
+                cursor = (expression_end + 1).min(source.len());
+            }
+        }
+    }
+}
+
+fn collect_classnames_bind_call_reference_facts(
     source: &str,
     binding: &str,
     target_style_uri: Option<&str>,
+    local_class_values: &BTreeMap<String, SourceClassValue>,
     references: &mut Vec<SourceSelectorReferenceFact>,
 ) {
     let mut cursor = 0usize;
@@ -2759,16 +3171,936 @@ fn collect_string_literal_call_reference_facts(
             continue;
         }
         let call_end = js_call_end(source, open_paren).unwrap_or(source.len());
-        for literal_span in collect_js_string_literal_spans(source, open_paren + 1, call_end) {
-            push_string_literal_selector_references(
+        for (argument_start, argument_end) in
+            split_top_level_js_segments(source, open_paren + 1, call_end, b',')
+        {
+            collect_selector_references_from_js_expression(
                 source,
-                literal_span,
-                target_style_uri.map(ToString::to_string),
+                argument_start,
+                argument_end,
+                target_style_uri,
+                local_class_values,
                 references,
             );
         }
         cursor = call_end.saturating_add(1).min(source.len());
     }
+}
+
+fn collect_selector_references_from_js_expression(
+    source: &str,
+    start: usize,
+    end: usize,
+    target_style_uri: Option<&str>,
+    local_class_values: &BTreeMap<String, SourceClassValue>,
+    references: &mut Vec<SourceSelectorReferenceFact>,
+) {
+    let (start, end) = trim_js_expression(source, start, end);
+    let (start, end) = unwrap_js_parenthesized_expression(source, start, end);
+    if start >= end {
+        return;
+    }
+
+    if let Some((literal_start, literal_end, next_offset)) =
+        js_string_literal_span(source, start, end)
+        && trim_js_expression(source, next_offset, end).0 >= end
+    {
+        push_js_literal_selector_references(
+            source,
+            literal_start,
+            literal_end,
+            source.as_bytes().get(start).copied() == Some(b'`'),
+            target_style_uri,
+            references,
+        );
+        return;
+    }
+
+    if source.as_bytes().get(start) == Some(&b'{')
+        && matching_js_block_end(source, start, b'{', b'}') == Some(end - 1)
+    {
+        collect_object_literal_selector_references(
+            source,
+            start,
+            end,
+            target_style_uri,
+            local_class_values,
+            references,
+        );
+        return;
+    }
+
+    if source.as_bytes().get(start) == Some(&b'[')
+        && matching_js_block_end(source, start, b'[', b']') == Some(end - 1)
+    {
+        for (element_start, element_end) in
+            split_top_level_js_segments(source, start + 1, end - 1, b',')
+        {
+            let element_start = skip_js_trivia_until(source, element_start, element_end);
+            let element_start = if source[element_start..element_end].starts_with("...") {
+                element_start + 3
+            } else {
+                element_start
+            };
+            collect_selector_references_from_js_expression(
+                source,
+                element_start,
+                element_end,
+                target_style_uri,
+                local_class_values,
+                references,
+            );
+        }
+        return;
+    }
+
+    if let Some((_, true_start, true_end, false_start, false_end)) =
+        top_level_conditional_parts(source, start, end)
+    {
+        collect_selector_references_from_js_expression(
+            source,
+            true_start,
+            true_end,
+            target_style_uri,
+            local_class_values,
+            references,
+        );
+        collect_selector_references_from_js_expression(
+            source,
+            false_start,
+            false_end,
+            target_style_uri,
+            local_class_values,
+            references,
+        );
+        return;
+    }
+
+    if let Some(operator_offset) = find_top_level_js_operator(source, start, end, "&&")
+        .or_else(|| find_top_level_js_operator(source, start, end, "||"))
+    {
+        collect_selector_references_from_js_expression(
+            source,
+            operator_offset + 2,
+            end,
+            target_style_uri,
+            local_class_values,
+            references,
+        );
+        return;
+    }
+
+    if let Some(value) =
+        source_class_value_from_js_expression(source, start, end, local_class_values)
+        && !value.is_empty()
+    {
+        push_source_class_value_reference(
+            ParserByteSpanV0 { start, end },
+            value,
+            target_style_uri,
+            references,
+        );
+        return;
+    }
+
+    if let Some(prefix) =
+        static_string_prefix_for_js_expression(source, start, end, local_class_values)
+        && !prefix.is_empty()
+    {
+        push_selector_reference(
+            ParserByteSpanV0 { start, end },
+            Some(prefix),
+            SourceSelectorReferenceMatchKind::Prefix,
+            target_style_uri,
+            references,
+        );
+    }
+}
+
+fn collect_local_class_value_bindings(source: &str) -> BTreeMap<String, SourceClassValue> {
+    let mut values = BTreeMap::new();
+    let mut cursor = 0usize;
+    while let Some(keyword) = next_code_identifier(source, cursor) {
+        cursor = keyword.end;
+        if !matches!(keyword.text, "const" | "let" | "var") {
+            continue;
+        }
+        let binding_start = skip_js_trivia(source, keyword.end);
+        let Some((binding, binding_end)) = read_js_identifier(source, binding_start) else {
+            continue;
+        };
+        let equals_offset = skip_js_trivia(source, binding_end);
+        if source.as_bytes().get(equals_offset) != Some(&b'=') {
+            continue;
+        }
+        let expression_start = skip_js_trivia(source, equals_offset + 1);
+        let expression_end = js_statement_expression_end(source, expression_start);
+        if let Some(value) =
+            source_class_value_from_js_expression(source, expression_start, expression_end, &values)
+            && !value.is_empty()
+        {
+            values.insert(binding.to_string(), value);
+        }
+        let (_, property_values) = source_class_value_from_object_literal(
+            source,
+            expression_start,
+            expression_end,
+            &values,
+        );
+        for (property, value) in property_values {
+            if !value.is_empty() {
+                values.insert(format!("{binding}.{property}"), value);
+            }
+        }
+        cursor = expression_end.min(source.len());
+    }
+    values
+}
+
+fn source_class_value_from_js_expression(
+    source: &str,
+    start: usize,
+    end: usize,
+    local_class_values: &BTreeMap<String, SourceClassValue>,
+) -> Option<SourceClassValue> {
+    let (start, end) = trim_js_expression(source, start, end);
+    let (start, end) = unwrap_js_parenthesized_expression(source, start, end);
+    if start >= end {
+        return None;
+    }
+
+    if let Some((literal_start, literal_end, next_offset)) =
+        js_string_literal_span(source, start, end)
+        && trim_js_expression(source, next_offset, end).0 >= end
+    {
+        return Some(source_class_value_from_js_literal(
+            source,
+            literal_start,
+            literal_end,
+            source.as_bytes().get(start).copied() == Some(b'`'),
+        ));
+    }
+
+    if source.as_bytes().get(start) == Some(&b'{')
+        && matching_js_block_end(source, start, b'{', b'}') == Some(end - 1)
+    {
+        let (value, _) =
+            source_class_value_from_object_literal(source, start, end, local_class_values);
+        return Some(value);
+    }
+
+    if source.as_bytes().get(start) == Some(&b'[')
+        && matching_js_block_end(source, start, b'[', b']') == Some(end - 1)
+    {
+        let mut value = SourceClassValue::default();
+        for (element_start, element_end) in
+            split_top_level_js_segments(source, start + 1, end - 1, b',')
+        {
+            let element_start = skip_js_trivia_until(source, element_start, element_end);
+            let element_start = if source[element_start..element_end].starts_with("...") {
+                element_start + 3
+            } else {
+                element_start
+            };
+            if let Some(element_value) = source_class_value_from_js_expression(
+                source,
+                element_start,
+                element_end,
+                local_class_values,
+            ) {
+                value.merge(element_value);
+            }
+        }
+        return Some(value);
+    }
+
+    if let Some((_, true_start, true_end, false_start, false_end)) =
+        top_level_conditional_parts(source, start, end)
+    {
+        let mut value = SourceClassValue::default();
+        if let Some(true_value) =
+            source_class_value_from_js_expression(source, true_start, true_end, local_class_values)
+        {
+            value.merge(true_value);
+        }
+        if let Some(false_value) = source_class_value_from_js_expression(
+            source,
+            false_start,
+            false_end,
+            local_class_values,
+        ) {
+            value.merge(false_value);
+        }
+        return Some(value);
+    }
+
+    if let Some(operator_offset) = find_top_level_js_operator(source, start, end, "&&")
+        .or_else(|| find_top_level_js_operator(source, start, end, "||"))
+    {
+        return source_class_value_from_js_expression(
+            source,
+            operator_offset + 2,
+            end,
+            local_class_values,
+        );
+    }
+
+    if let Some(path) = js_expression_path(source, start, end)
+        && let Some(value) = local_class_values.get(path.as_str())
+    {
+        return Some(value.clone());
+    }
+
+    static_string_prefix_for_js_expression(source, start, end, local_class_values).map(|prefix| {
+        let mut value = SourceClassValue::default();
+        if !prefix.is_empty() {
+            value.prefixes.push(prefix);
+        }
+        value
+    })
+}
+
+fn source_class_value_from_js_literal(
+    source: &str,
+    literal_start: usize,
+    literal_end: usize,
+    is_template: bool,
+) -> SourceClassValue {
+    let mut value = SourceClassValue::default();
+    if is_template
+        && let Some(relative_interpolation) = source[literal_start..literal_end].find("${")
+    {
+        let prefix_end = literal_start + relative_interpolation;
+        push_template_prefix_value(source, literal_start, prefix_end, &mut value);
+    } else {
+        value
+            .exact
+            .extend(class_token_strings(source, literal_start, literal_end));
+    }
+    value.canonicalize();
+    value
+}
+
+fn source_class_value_from_object_literal(
+    source: &str,
+    start: usize,
+    end: usize,
+    local_class_values: &BTreeMap<String, SourceClassValue>,
+) -> (SourceClassValue, BTreeMap<String, SourceClassValue>) {
+    let (start, end) = trim_js_expression(source, start, end);
+    let (start, end) = unwrap_js_parenthesized_expression(source, start, end);
+    let mut object_value = SourceClassValue::default();
+    let mut property_values = BTreeMap::new();
+    if source.as_bytes().get(start) != Some(&b'{')
+        || matching_js_block_end(source, start, b'{', b'}') != Some(end.saturating_sub(1))
+    {
+        return (object_value, property_values);
+    }
+
+    for (property_start, property_end) in
+        split_top_level_js_segments(source, start + 1, end - 1, b',')
+    {
+        let (property_start, property_end) =
+            trim_js_expression(source, property_start, property_end);
+        if property_start >= property_end {
+            continue;
+        }
+        if source[property_start..property_end].starts_with("...") {
+            if let Some(spread_value) = source_class_value_from_js_expression(
+                source,
+                property_start + 3,
+                property_end,
+                local_class_values,
+            ) {
+                object_value.merge(spread_value);
+            }
+            continue;
+        }
+        let colon = find_top_level_js_byte(source, property_start, property_end, b':');
+        let key_end = colon.unwrap_or(property_end);
+        let key_value =
+            source_class_value_from_object_key(source, property_start, key_end, local_class_values);
+        object_value.merge(key_value.clone());
+        if let Some(property_name) = object_property_name(source, property_start, key_end) {
+            let property_value = colon
+                .and_then(|colon| {
+                    source_class_value_from_js_expression(
+                        source,
+                        colon + 1,
+                        property_end,
+                        local_class_values,
+                    )
+                })
+                .filter(|value| !value.is_empty())
+                .unwrap_or(key_value);
+            property_values.insert(property_name, property_value);
+        }
+    }
+    object_value.canonicalize();
+    (object_value, property_values)
+}
+
+fn collect_object_literal_selector_references(
+    source: &str,
+    start: usize,
+    end: usize,
+    target_style_uri: Option<&str>,
+    local_class_values: &BTreeMap<String, SourceClassValue>,
+    references: &mut Vec<SourceSelectorReferenceFact>,
+) {
+    for (property_start, property_end) in
+        split_top_level_js_segments(source, start + 1, end - 1, b',')
+    {
+        let (property_start, property_end) =
+            trim_js_expression(source, property_start, property_end);
+        if property_start >= property_end {
+            continue;
+        }
+        if source[property_start..property_end].starts_with("...") {
+            collect_selector_references_from_js_expression(
+                source,
+                property_start + 3,
+                property_end,
+                target_style_uri,
+                local_class_values,
+                references,
+            );
+            continue;
+        }
+        let colon = find_top_level_js_byte(source, property_start, property_end, b':');
+        let key_end = colon.unwrap_or(property_end);
+        collect_selector_references_from_object_key(
+            source,
+            property_start,
+            key_end,
+            target_style_uri,
+            local_class_values,
+            references,
+        );
+    }
+}
+
+fn collect_selector_references_from_object_key(
+    source: &str,
+    start: usize,
+    end: usize,
+    target_style_uri: Option<&str>,
+    local_class_values: &BTreeMap<String, SourceClassValue>,
+    references: &mut Vec<SourceSelectorReferenceFact>,
+) {
+    let (start, end) = trim_js_expression(source, start, end);
+    if start >= end {
+        return;
+    }
+    if source.as_bytes().get(start) == Some(&b'[')
+        && matching_js_block_end(source, start, b'[', b']') == Some(end - 1)
+    {
+        collect_selector_references_from_js_expression(
+            source,
+            start + 1,
+            end - 1,
+            target_style_uri,
+            local_class_values,
+            references,
+        );
+        return;
+    }
+    if let Some((literal_start, literal_end, next_offset)) =
+        js_string_literal_span(source, start, end)
+        && trim_js_expression(source, next_offset, end).0 >= end
+    {
+        push_js_literal_selector_references(
+            source,
+            literal_start,
+            literal_end,
+            source.as_bytes().get(start).copied() == Some(b'`'),
+            target_style_uri,
+            references,
+        );
+        return;
+    }
+    if let Some((identifier, identifier_end)) = read_js_identifier(source, start)
+        && trim_js_expression(source, identifier_end, end).0 >= end
+    {
+        push_selector_reference(
+            ParserByteSpanV0 { start, end },
+            Some(identifier.to_string()),
+            SourceSelectorReferenceMatchKind::Exact,
+            target_style_uri,
+            references,
+        );
+    }
+}
+
+fn source_class_value_from_object_key(
+    source: &str,
+    start: usize,
+    end: usize,
+    local_class_values: &BTreeMap<String, SourceClassValue>,
+) -> SourceClassValue {
+    let (start, end) = trim_js_expression(source, start, end);
+    if start >= end {
+        return SourceClassValue::default();
+    }
+    if source.as_bytes().get(start) == Some(&b'[')
+        && matching_js_block_end(source, start, b'[', b']') == Some(end - 1)
+    {
+        return source_class_value_from_js_expression(
+            source,
+            start + 1,
+            end - 1,
+            local_class_values,
+        )
+        .unwrap_or_default();
+    }
+    if let Some((literal_start, literal_end, next_offset)) =
+        js_string_literal_span(source, start, end)
+        && trim_js_expression(source, next_offset, end).0 >= end
+    {
+        return source_class_value_from_js_literal(
+            source,
+            literal_start,
+            literal_end,
+            source.as_bytes().get(start).copied() == Some(b'`'),
+        );
+    }
+    if let Some((identifier, identifier_end)) = read_js_identifier(source, start)
+        && trim_js_expression(source, identifier_end, end).0 >= end
+    {
+        let mut value = SourceClassValue::default();
+        value.exact.push(identifier.to_string());
+        return value;
+    }
+    SourceClassValue::default()
+}
+
+fn object_property_name(source: &str, start: usize, end: usize) -> Option<String> {
+    let (start, end) = trim_js_expression(source, start, end);
+    if let Some((literal_start, literal_end, next_offset)) =
+        js_string_literal_span(source, start, end)
+        && trim_js_expression(source, next_offset, end).0 >= end
+    {
+        return source.get(literal_start..literal_end).map(str::to_string);
+    }
+    let (identifier, identifier_end) = read_js_identifier(source, start)?;
+    (trim_js_expression(source, identifier_end, end).0 >= end).then(|| identifier.to_string())
+}
+
+fn push_source_class_value_reference(
+    byte_span: ParserByteSpanV0,
+    value: SourceClassValue,
+    target_style_uri: Option<&str>,
+    references: &mut Vec<SourceSelectorReferenceFact>,
+) {
+    for selector_name in value.exact {
+        push_selector_reference(
+            byte_span,
+            Some(selector_name),
+            SourceSelectorReferenceMatchKind::Exact,
+            target_style_uri,
+            references,
+        );
+    }
+    for prefix in value.prefixes {
+        push_selector_reference(
+            byte_span,
+            Some(prefix),
+            SourceSelectorReferenceMatchKind::Prefix,
+            target_style_uri,
+            references,
+        );
+    }
+}
+
+fn push_selector_reference(
+    byte_span: ParserByteSpanV0,
+    selector_name: Option<String>,
+    match_kind: SourceSelectorReferenceMatchKind,
+    target_style_uri: Option<&str>,
+    references: &mut Vec<SourceSelectorReferenceFact>,
+) {
+    references.push(SourceSelectorReferenceFact {
+        byte_span,
+        selector_name,
+        match_kind,
+        target_style_uri: target_style_uri.map(ToString::to_string),
+    });
+}
+
+fn push_js_literal_selector_references(
+    source: &str,
+    literal_start: usize,
+    literal_end: usize,
+    is_template: bool,
+    target_style_uri: Option<&str>,
+    references: &mut Vec<SourceSelectorReferenceFact>,
+) {
+    if is_template
+        && let Some(relative_interpolation) = source[literal_start..literal_end].find("${")
+    {
+        push_template_prefix_selector_references(
+            source,
+            literal_start,
+            literal_start + relative_interpolation,
+            target_style_uri,
+            references,
+        );
+        return;
+    }
+
+    push_string_literal_selector_references(
+        source,
+        ParserByteSpanV0 {
+            start: literal_start,
+            end: literal_end,
+        },
+        target_style_uri.map(ToString::to_string),
+        references,
+    );
+}
+
+fn push_template_prefix_selector_references(
+    source: &str,
+    literal_start: usize,
+    prefix_end: usize,
+    target_style_uri: Option<&str>,
+    references: &mut Vec<SourceSelectorReferenceFact>,
+) {
+    let spans = class_token_byte_spans(source, literal_start, prefix_end);
+    let prefix_ends_with_space = source[..prefix_end]
+        .chars()
+        .last()
+        .is_none_or(char::is_whitespace);
+    for (index, span) in spans.iter().enumerate() {
+        let is_open_prefix = index + 1 == spans.len() && !prefix_ends_with_space;
+        push_selector_reference(
+            *span,
+            Some(source[span.start..span.end].to_string()),
+            if is_open_prefix {
+                SourceSelectorReferenceMatchKind::Prefix
+            } else {
+                SourceSelectorReferenceMatchKind::Exact
+            },
+            target_style_uri,
+            references,
+        );
+    }
+}
+
+fn push_template_prefix_value(
+    source: &str,
+    literal_start: usize,
+    prefix_end: usize,
+    value: &mut SourceClassValue,
+) {
+    let spans = class_token_byte_spans(source, literal_start, prefix_end);
+    let prefix_ends_with_space = source[..prefix_end]
+        .chars()
+        .last()
+        .is_none_or(char::is_whitespace);
+    for (index, span) in spans.iter().enumerate() {
+        let token = source[span.start..span.end].to_string();
+        if index + 1 == spans.len() && !prefix_ends_with_space {
+            value.prefixes.push(token);
+        } else {
+            value.exact.push(token);
+        }
+    }
+}
+
+fn class_token_strings(source: &str, literal_start: usize, literal_end: usize) -> Vec<String> {
+    class_token_byte_spans(source, literal_start, literal_end)
+        .into_iter()
+        .map(|span| source[span.start..span.end].to_string())
+        .collect()
+}
+
+fn trim_js_expression(source: &str, start: usize, end: usize) -> (usize, usize) {
+    let mut start = start.min(source.len());
+    let mut end = end.min(source.len());
+    start = skip_js_trivia_until(source, start, end);
+    while end > start
+        && source
+            .as_bytes()
+            .get(end - 1)
+            .is_some_and(u8::is_ascii_whitespace)
+    {
+        end -= 1;
+    }
+    (start, end)
+}
+
+fn unwrap_js_parenthesized_expression(source: &str, start: usize, end: usize) -> (usize, usize) {
+    let mut current_start = start;
+    let mut current_end = end;
+    loop {
+        let (trimmed_start, trimmed_end) = trim_js_expression(source, current_start, current_end);
+        if source.as_bytes().get(trimmed_start) == Some(&b'(')
+            && matching_js_block_end(source, trimmed_start, b'(', b')')
+                == Some(trimmed_end.saturating_sub(1))
+        {
+            current_start = trimmed_start + 1;
+            current_end = trimmed_end - 1;
+            continue;
+        }
+        return (trimmed_start, trimmed_end);
+    }
+}
+
+fn js_statement_expression_end(source: &str, start: usize) -> usize {
+    let mut cursor = start;
+    let mut depth = 0usize;
+    while cursor < source.len() {
+        match source.as_bytes().get(cursor).copied() {
+            Some(b'\'' | b'"' | b'`') => {
+                cursor =
+                    skip_js_string_literal(source, cursor, source.len()).unwrap_or(source.len());
+            }
+            Some(b'(' | b'[' | b'{') => {
+                depth += 1;
+                cursor += 1;
+            }
+            Some(b')' | b']' | b'}') => {
+                depth = depth.saturating_sub(1);
+                cursor += 1;
+            }
+            Some(b';') if depth == 0 => return cursor,
+            Some(b'\n') if depth == 0 => return cursor,
+            Some(_) => cursor += 1,
+            None => break,
+        }
+    }
+    source.len()
+}
+
+fn matching_js_block_end(source: &str, open_offset: usize, open: u8, close: u8) -> Option<usize> {
+    if source.as_bytes().get(open_offset) != Some(&open) {
+        return None;
+    }
+    let mut cursor = open_offset + 1;
+    let mut depth = 1usize;
+    while cursor < source.len() {
+        match source.as_bytes().get(cursor).copied()? {
+            b'\'' | b'"' | b'`' => {
+                cursor = skip_js_string_literal(source, cursor, source.len())?;
+            }
+            byte if byte == open => {
+                depth += 1;
+                cursor += 1;
+            }
+            byte if byte == close => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(cursor);
+                }
+                cursor += 1;
+            }
+            _ => cursor += 1,
+        }
+    }
+    None
+}
+
+fn split_top_level_js_segments(
+    source: &str,
+    start: usize,
+    end: usize,
+    delimiter: u8,
+) -> Vec<(usize, usize)> {
+    let mut segments = Vec::new();
+    let mut segment_start = start;
+    let mut cursor = start;
+    let mut depth = 0usize;
+    while cursor < end {
+        match source.as_bytes().get(cursor).copied() {
+            Some(b'\'' | b'"' | b'`') => {
+                cursor = skip_js_string_literal(source, cursor, end).unwrap_or(end);
+            }
+            Some(b'(' | b'[' | b'{') => {
+                depth += 1;
+                cursor += 1;
+            }
+            Some(b')' | b']' | b'}') => {
+                depth = depth.saturating_sub(1);
+                cursor += 1;
+            }
+            Some(byte) if byte == delimiter && depth == 0 => {
+                segments.push((segment_start, cursor));
+                segment_start = cursor + 1;
+                cursor += 1;
+            }
+            Some(_) => cursor += 1,
+            None => break,
+        }
+    }
+    if segment_start <= end {
+        segments.push((segment_start, end));
+    }
+    segments
+}
+
+fn find_top_level_js_byte(source: &str, start: usize, end: usize, needle: u8) -> Option<usize> {
+    let mut cursor = start;
+    let mut depth = 0usize;
+    while cursor < end {
+        match source.as_bytes().get(cursor).copied()? {
+            b'\'' | b'"' | b'`' => {
+                cursor = skip_js_string_literal(source, cursor, end).unwrap_or(end);
+            }
+            b'(' | b'[' | b'{' => {
+                depth += 1;
+                cursor += 1;
+            }
+            b')' | b']' | b'}' => {
+                depth = depth.saturating_sub(1);
+                cursor += 1;
+            }
+            byte if byte == needle && depth == 0 => return Some(cursor),
+            _ => cursor += 1,
+        }
+    }
+    None
+}
+
+fn find_top_level_js_operator(
+    source: &str,
+    start: usize,
+    end: usize,
+    operator: &str,
+) -> Option<usize> {
+    let mut cursor = start;
+    let mut depth = 0usize;
+    while cursor < end {
+        match source.as_bytes().get(cursor).copied()? {
+            b'\'' | b'"' | b'`' => {
+                cursor = skip_js_string_literal(source, cursor, end).unwrap_or(end);
+            }
+            b'(' | b'[' | b'{' => {
+                depth += 1;
+                cursor += 1;
+            }
+            b')' | b']' | b'}' => {
+                depth = depth.saturating_sub(1);
+                cursor += 1;
+            }
+            _ if depth == 0 && source[cursor..end].starts_with(operator) => return Some(cursor),
+            _ => cursor += 1,
+        }
+    }
+    None
+}
+
+fn top_level_conditional_parts(
+    source: &str,
+    start: usize,
+    end: usize,
+) -> Option<(usize, usize, usize, usize, usize)> {
+    let question = find_top_level_js_byte(source, start, end, b'?')?;
+    let mut cursor = question + 1;
+    let mut depth = 0usize;
+    let mut nested_conditional_depth = 0usize;
+    while cursor < end {
+        match source.as_bytes().get(cursor).copied()? {
+            b'\'' | b'"' | b'`' => {
+                cursor = skip_js_string_literal(source, cursor, end).unwrap_or(end);
+            }
+            b'(' | b'[' | b'{' => {
+                depth += 1;
+                cursor += 1;
+            }
+            b')' | b']' | b'}' => {
+                depth = depth.saturating_sub(1);
+                cursor += 1;
+            }
+            b'?' if depth == 0 => {
+                nested_conditional_depth += 1;
+                cursor += 1;
+            }
+            b':' if depth == 0 && nested_conditional_depth == 0 => {
+                return Some((question, question + 1, cursor, cursor + 1, end));
+            }
+            b':' if depth == 0 => {
+                nested_conditional_depth = nested_conditional_depth.saturating_sub(1);
+                cursor += 1;
+            }
+            _ => cursor += 1,
+        }
+    }
+    None
+}
+
+fn js_expression_path(source: &str, start: usize, end: usize) -> Option<String> {
+    let (start, end) = trim_js_expression(source, start, end);
+    let (first, mut cursor) = read_js_identifier(source, start)?;
+    let mut path = vec![first.to_string()];
+    loop {
+        cursor = skip_js_trivia_until(source, cursor, end);
+        match source.as_bytes().get(cursor).copied() {
+            Some(b'.') => {
+                let member_start = skip_js_trivia_until(source, cursor + 1, end);
+                let (member, member_end) = read_js_identifier(source, member_start)?;
+                path.push(member.to_string());
+                cursor = member_end;
+            }
+            Some(b'[') => {
+                if let Some((literal_start, literal_end, bracket_end)) =
+                    bracket_string_literal_access(source, cursor)
+                    && bracket_end <= end
+                {
+                    path.push(source[literal_start..literal_end].to_string());
+                    cursor = bracket_end;
+                } else {
+                    return None;
+                }
+            }
+            _ => break,
+        }
+    }
+    (trim_js_expression(source, cursor, end).0 >= end).then(|| path.join("."))
+}
+
+fn static_string_prefix_for_js_expression(
+    source: &str,
+    start: usize,
+    end: usize,
+    local_class_values: &BTreeMap<String, SourceClassValue>,
+) -> Option<String> {
+    let (start, end) = trim_js_expression(source, start, end);
+    let (start, end) = unwrap_js_parenthesized_expression(source, start, end);
+    if let Some((literal_start, literal_end, next_offset)) =
+        js_string_literal_span(source, start, end)
+        && trim_js_expression(source, next_offset, end).0 >= end
+    {
+        if source.as_bytes().get(start).copied() == Some(b'`')
+            && let Some(relative_interpolation) = source[literal_start..literal_end].find("${")
+        {
+            return Some(source[literal_start..literal_start + relative_interpolation].to_string());
+        }
+        return Some(source[literal_start..literal_end].to_string());
+    }
+    if let Some(path) = js_expression_path(source, start, end)
+        && let Some(value) = local_class_values.get(path.as_str())
+    {
+        if value.exact.len() == 1 && value.prefixes.is_empty() {
+            return value.exact.first().cloned();
+        }
+        if value.prefixes.len() == 1 && value.exact.is_empty() {
+            return value.prefixes.first().cloned();
+        }
+    }
+    if let Some(plus_offset) = find_top_level_js_operator(source, start, end, "+") {
+        let left =
+            static_string_prefix_for_js_expression(source, start, plus_offset, local_class_values)?;
+        let right = static_string_prefix_for_js_expression(
+            source,
+            plus_offset + 1,
+            end,
+            local_class_values,
+        )
+        .unwrap_or_default();
+        return Some(format!("{left}{right}"));
+    }
+    None
 }
 
 fn js_call_end(source: &str, open_paren: usize) -> Option<usize> {
@@ -2816,6 +4148,8 @@ fn push_string_literal_selector_references(
     for span in class_token_byte_spans(source, literal_span.start, literal_span.end) {
         references.push(SourceSelectorReferenceFact {
             byte_span: span,
+            selector_name: None,
+            match_kind: SourceSelectorReferenceMatchKind::Exact,
             target_style_uri: target_style_uri.clone(),
         });
     }
@@ -2902,26 +4236,185 @@ fn skip_js_block_comment(source: &str, mut cursor: usize, limit: usize) -> usize
     limit
 }
 
-fn style_uri_for_import_specifier(source_uri: &str, specifier: &str) -> Option<String> {
-    if !specifier.starts_with('.') {
+fn style_uri_for_import_specifier(
+    document: &LspTextDocumentState,
+    specifier: &str,
+) -> Option<String> {
+    style_uri_for_style_specifier(
+        document.uri.as_str(),
+        document.workspace_folder_uri.as_deref(),
+        specifier,
+    )
+}
+
+fn style_uri_for_style_specifier(
+    source_uri: &str,
+    workspace_folder_uri: Option<&str>,
+    specifier: &str,
+) -> Option<String> {
+    if specifier.starts_with('.') {
+        let source_path = file_uri_to_path(source_uri)?;
+        let imported_path = normalize_path(source_path.parent()?.join(specifier));
+        return style_uri_for_style_candidate_base(imported_path.as_path());
+    }
+
+    style_uri_for_tsconfig_path_alias(workspace_folder_uri, specifier)
+}
+
+fn style_uri_for_tsconfig_path_alias(
+    workspace_folder_uri: Option<&str>,
+    specifier: &str,
+) -> Option<String> {
+    let workspace_path = file_uri_to_path(workspace_folder_uri?)?;
+    for config_path in [
+        workspace_path.join("tsconfig.json"),
+        workspace_path.join("jsconfig.json"),
+    ] {
+        if let Some(style_uri) =
+            style_uri_for_tsconfig_path_alias_config(config_path.as_path(), specifier)
+        {
+            return Some(style_uri);
+        }
+    }
+    None
+}
+
+fn style_uri_for_tsconfig_path_alias_config(config_path: &Path, specifier: &str) -> Option<String> {
+    let config_text = fs::read_to_string(config_path).ok()?;
+    let config = serde_json::from_str::<Value>(config_text.as_str()).ok()?;
+    let compiler_options = config.get("compilerOptions")?;
+    let paths = compiler_options.get("paths")?.as_object()?;
+    let config_dir = config_path.parent()?;
+    let base_url = compiler_options
+        .get("baseUrl")
+        .and_then(Value::as_str)
+        .unwrap_or(".");
+    let base_path = normalize_path(config_dir.join(base_url));
+    let mut candidates = Vec::new();
+
+    for (pattern, targets) in paths {
+        let Some((capture, score)) = tsconfig_path_pattern_match(pattern.as_str(), specifier)
+        else {
+            continue;
+        };
+        let Some(targets) = targets.as_array() else {
+            continue;
+        };
+        for target in targets.iter().filter_map(Value::as_str) {
+            let candidate_path =
+                tsconfig_path_target_candidate(base_path.as_path(), target, capture.as_deref());
+            for resolved_path in style_candidate_paths(candidate_path.as_path()) {
+                candidates.push((score, resolved_path.exists(), resolved_path));
+            }
+        }
+    }
+
+    candidates.sort_by(|left, right| {
+        right
+            .1
+            .cmp(&left.1)
+            .then_with(|| right.0.cmp(&left.0))
+            .then_with(|| left.2.cmp(&right.2))
+    });
+    candidates
+        .into_iter()
+        .map(|(_, _, path)| path_to_file_uri(path.as_path()))
+        .next()
+}
+
+fn tsconfig_path_pattern_match(pattern: &str, specifier: &str) -> Option<(Option<String>, usize)> {
+    let Some(star_index) = pattern.find('*') else {
+        return (pattern == specifier).then_some((None, pattern.len()));
+    };
+    if pattern[star_index + 1..].contains('*') {
         return None;
     }
-    let source_path = file_uri_to_path(source_uri)?;
-    let imported_path = normalize_path(source_path.parent()?.join(specifier));
-    Some(path_to_file_uri(imported_path.as_path()))
+    let prefix = &pattern[..star_index];
+    let suffix = &pattern[star_index + 1..];
+    if !specifier.starts_with(prefix) || !specifier.ends_with(suffix) {
+        return None;
+    }
+    let capture_end = specifier.len().saturating_sub(suffix.len());
+    if capture_end < prefix.len() {
+        return None;
+    }
+    Some((
+        specifier.get(prefix.len()..capture_end).map(str::to_string),
+        prefix.len() + suffix.len(),
+    ))
+}
+
+fn tsconfig_path_target_candidate(
+    base_path: &Path,
+    target_pattern: &str,
+    capture: Option<&str>,
+) -> PathBuf {
+    let target = if target_pattern.contains('*') {
+        target_pattern.replace('*', capture.unwrap_or_default())
+    } else {
+        target_pattern.to_string()
+    };
+    let target_path = PathBuf::from(target);
+    if target_path.is_absolute() {
+        normalize_path(target_path)
+    } else {
+        normalize_path(base_path.join(target_path))
+    }
+}
+
+fn style_uri_for_style_candidate_base(base_path: &Path) -> Option<String> {
+    let candidates = style_candidate_paths(base_path);
+    candidates
+        .iter()
+        .find(|path| path.exists())
+        .or_else(|| candidates.first())
+        .map(|path| path_to_file_uri(path.as_path()))
+}
+
+fn style_candidate_paths(base_path: &Path) -> Vec<PathBuf> {
+    let normalized = normalize_path(base_path.to_path_buf());
+    if is_indexable_style_path(normalized.as_path()) {
+        return vec![normalized];
+    }
+
+    let mut candidates = Vec::new();
+    for extension in ["scss", "sass", "css"] {
+        candidates.push(normalized.with_extension(extension));
+        if let Some(file_name) = normalized.file_name().and_then(|value| value.to_str()) {
+            candidates.push(
+                normalized
+                    .with_file_name(format!("_{file_name}"))
+                    .with_extension(extension),
+            );
+        }
+        candidates.push(normalized.join(format!("index.{extension}")));
+        candidates.push(normalized.join(format!("_index.{extension}")));
+    }
+    candidates.sort();
+    candidates.dedup();
+    candidates
+        .into_iter()
+        .filter(|path| is_indexable_style_path(path.as_path()))
+        .collect()
 }
 
 fn source_reference_candidate(
     document: &LspTextDocumentState,
-    byte_span: ParserByteSpanV0,
-    target_style_uri: Option<String>,
+    reference: &SourceSelectorReferenceFact,
 ) -> LspStyleHoverCandidate {
+    let name = reference.selector_name.clone().unwrap_or_else(|| {
+        document.text[reference.byte_span.start..reference.byte_span.end].to_string()
+    });
     LspStyleHoverCandidate {
-        kind: "sourceSelectorReference",
-        name: document.text[byte_span.start..byte_span.end].to_string(),
-        range: parser_range_for_byte_span(document.text.as_str(), byte_span),
+        kind: match reference.match_kind {
+            SourceSelectorReferenceMatchKind::Exact => "sourceSelectorReference",
+            SourceSelectorReferenceMatchKind::Prefix => "sourceSelectorPrefixReference",
+        },
+        name,
+        range: parser_range_for_byte_span(document.text.as_str(), reference.byte_span),
         source: "openedSourceDocumentIndex",
-        target_style_uri,
+        target_style_uri: reference.target_style_uri.clone(),
+        namespace: None,
     }
 }
 
@@ -3121,7 +4614,7 @@ fn style_selector_definitions_for_source_candidate(
 ) -> Vec<(String, LspStyleHoverCandidate)> {
     style_selector_definitions_from_open_documents(
         state,
-        candidate.name.as_str(),
+        source_candidate_definition_lookup_name(candidate),
         workspace_folder_uri,
     )
     .into_iter()
@@ -3131,7 +4624,29 @@ fn style_selector_definitions_for_source_candidate(
             .as_deref()
             .is_none_or(|target_uri| target_uri == uri)
     })
+    .filter(|(_, definition)| {
+        source_candidate_matches_selector(candidate, definition.name.as_str())
+    })
     .collect()
+}
+
+fn source_candidate_definition_lookup_name(candidate: &LspStyleHoverCandidate) -> &str {
+    if candidate.kind == "sourceSelectorPrefixReference" {
+        ""
+    } else {
+        candidate.name.as_str()
+    }
+}
+
+fn source_candidate_matches_selector(
+    candidate: &LspStyleHoverCandidate,
+    selector_name: &str,
+) -> bool {
+    if candidate.kind == "sourceSelectorPrefixReference" {
+        selector_name.starts_with(candidate.name.as_str())
+    } else {
+        selector_name == candidate.name
+    }
 }
 
 fn first_style_document_for_workspace<'a>(
@@ -3356,6 +4871,16 @@ fn render_style_hover_candidate_markdown(
                 candidate.name, location, snippet
             )
         }
+        kind if is_sass_symbol_candidate_kind(kind) => {
+            let snippet =
+                line_snippet_at_position(source, candidate.range.start).unwrap_or_default();
+            format!(
+                "**`{}`** - _{}_\n\n```scss\n{}\n```",
+                render_sass_symbol_label(candidate),
+                location,
+                snippet
+            )
+        }
         _ => candidate.name.clone(),
     }
 }
@@ -3499,6 +5024,12 @@ fn collect_style_hover_candidates(
         &mut seen,
         &mut candidates,
     );
+    collect_sass_symbol_hover_candidates(
+        index.sass.symbol_decl_facts.as_slice(),
+        index.sass.selector_symbol_facts.as_slice(),
+        &mut seen,
+        &mut candidates,
+    );
     candidates.sort();
     Some((style_language_label(sheet.language), candidates))
 }
@@ -3516,6 +5047,7 @@ fn collect_style_selector_hover_candidates_from_parser_facts(
                 range: fact.range,
                 source: "engineStyleParserSelectorDefinitionFacts",
                 target_style_uri: None,
+                namespace: None,
             });
         }
     }
@@ -3536,6 +5068,7 @@ fn collect_custom_property_hover_candidates(
                 range: fact.range,
                 source: "openedStyleDocumentIndex",
                 target_style_uri: None,
+                namespace: None,
             });
         }
     }
@@ -3549,9 +5082,76 @@ fn collect_custom_property_hover_candidates(
                     range: parser_range_for_byte_span(source, byte_span),
                     source: "openedStyleDocumentIndex",
                     target_style_uri: None,
+                    namespace: None,
                 });
             }
         }
+    }
+}
+
+fn collect_sass_symbol_hover_candidates(
+    decl_facts: &[engine_style_parser::ParserIndexSassSymbolDeclFactV0],
+    ref_facts: &[engine_style_parser::ParserIndexSassSelectorSymbolFactV0],
+    seen: &mut BTreeSet<(usize, usize, String)>,
+    candidates: &mut Vec<LspStyleHoverCandidate>,
+) {
+    for fact in decl_facts {
+        if seen.insert((
+            fact.byte_span.start,
+            fact.byte_span.end,
+            format!("{}:{}", fact.symbol_kind, fact.name),
+        )) {
+            candidates.push(LspStyleHoverCandidate {
+                kind: sass_symbol_declaration_candidate_kind(fact.symbol_kind),
+                name: fact.name.clone(),
+                range: fact.range,
+                source: "engineStyleParserSassSymbolFacts",
+                target_style_uri: None,
+                namespace: None,
+            });
+        }
+    }
+
+    for fact in ref_facts {
+        if seen.insert((
+            fact.byte_span.start,
+            fact.byte_span.end,
+            format!(
+                "{}:{}:{}",
+                fact.symbol_kind,
+                fact.namespace.as_deref().unwrap_or_default(),
+                fact.name
+            ),
+        )) {
+            candidates.push(LspStyleHoverCandidate {
+                kind: sass_symbol_reference_candidate_kind(fact.symbol_kind, fact.role),
+                name: fact.name.clone(),
+                range: fact.range,
+                source: "engineStyleParserSassSymbolFacts",
+                target_style_uri: None,
+                namespace: fact.namespace.clone(),
+            });
+        }
+    }
+}
+
+fn sass_symbol_declaration_candidate_kind(symbol_kind: &str) -> &'static str {
+    match symbol_kind {
+        "variable" => "sassVariableDeclaration",
+        "mixin" => "sassMixinDeclaration",
+        "function" => "sassFunctionDeclaration",
+        _ => "sassSymbolDeclaration",
+    }
+}
+
+fn sass_symbol_reference_candidate_kind(symbol_kind: &str, role: &str) -> &'static str {
+    match (symbol_kind, role) {
+        ("variable", _) => "sassVariableReference",
+        ("mixin", "include") => "sassMixinInclude",
+        ("function", "call") => "sassFunctionCall",
+        ("mixin", _) => "sassMixinReference",
+        ("function", _) => "sassFunctionReference",
+        _ => "sassSymbolReference",
     }
 }
 
@@ -4705,6 +6305,365 @@ mod tests {
     }
 
     #[test]
+    fn resolves_sass_internal_symbols_through_wildcard_import_targets() {
+        let workspace_path = std::env::temp_dir().join(format!(
+            "omena-lsp-sass-symbols-{}-{}",
+            std::process::id(),
+            current_time_millis()
+        ));
+        let source_style_path = workspace_path.join("src/Card.module.scss");
+        let target_style_path = workspace_path.join("src/shared/_utils.scss");
+        fs::create_dir_all(target_style_path.parent().unwrap()).unwrap();
+        fs::create_dir_all(source_style_path.parent().unwrap()).unwrap();
+        fs::write(
+            workspace_path.join("tsconfig.json"),
+            r#"{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "$shared/*": ["src/shared/*"]
+    }
+  }
+}"#,
+        )
+        .unwrap();
+        let source_text = "@import \"$shared/utils\";\n.title {\n  @include defign_typography20;\n  border-top: 1px solid $defign_gray200;\n}\n";
+        let target_text =
+            "$defign_gray200: #eee;\n@mixin defign_typography20 { font-size: 20px; }\n";
+        fs::write(source_style_path.as_path(), source_text).unwrap();
+        fs::write(target_style_path.as_path(), target_text).unwrap();
+
+        let workspace_uri = path_to_file_uri(workspace_path.as_path());
+        let source_uri = path_to_file_uri(source_style_path.as_path());
+        let target_uri = path_to_file_uri(target_style_path.as_path());
+        let mixin_position = parser_position_for_byte_offset(
+            source_text,
+            source_text.find("defign_typography20").unwrap(),
+        );
+        let variable_position = parser_position_for_byte_offset(
+            source_text,
+            source_text.find("$defign_gray200").unwrap() + 1,
+        );
+
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": workspace_uri,
+                            "name": "workspace-a",
+                        },
+                    ],
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": source_text,
+                    },
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": target_uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": target_text,
+                    },
+                },
+            }),
+        );
+
+        let mixin_definition = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                    },
+                    "position": mixin_position,
+                },
+            }),
+        );
+        assert_eq!(
+            mixin_definition
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/uri")),
+            Some(&json!(target_uri)),
+        );
+        assert_eq!(
+            mixin_definition
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/range")),
+            Some(&json!({
+                "start": {
+                    "line": 1,
+                    "character": 7,
+                },
+                "end": {
+                    "line": 1,
+                    "character": 26,
+                },
+            })),
+        );
+
+        let variable_definition = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                    },
+                    "position": variable_position,
+                },
+            }),
+        );
+        assert_eq!(
+            variable_definition
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/uri")),
+            Some(&json!(target_uri)),
+        );
+        assert_eq!(
+            variable_definition
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/range")),
+            Some(&json!({
+                "start": {
+                    "line": 0,
+                    "character": 1,
+                },
+                "end": {
+                    "line": 0,
+                    "character": 15,
+                },
+            })),
+        );
+
+        let variable_hover = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                    },
+                    "position": variable_position,
+                },
+            }),
+        );
+        assert_eq!(
+            variable_hover
+                .as_ref()
+                .and_then(|value| value.pointer("/result/contents/kind")),
+            Some(&json!("markdown")),
+        );
+        assert_eq!(
+            variable_hover
+                .as_ref()
+                .and_then(|value| value.pointer("/result/range")),
+            Some(&json!({
+                "start": {
+                    "line": 3,
+                    "character": 24,
+                },
+                "end": {
+                    "line": 3,
+                    "character": 39,
+                },
+            })),
+        );
+
+        let _ = fs::remove_dir_all(workspace_path.as_path());
+    }
+
+    #[test]
+    fn resolves_sass_namespace_symbols_through_forwarded_alias_targets() {
+        let workspace_path = std::env::temp_dir().join(format!(
+            "omena-lsp-sass-forward-symbols-{}-{}",
+            std::process::id(),
+            current_time_millis()
+        ));
+        let source_path = workspace_path.join("src").join("App.module.scss");
+        let index_path = workspace_path
+            .join("src")
+            .join("shared")
+            .join("_index.scss");
+        let tokens_path = workspace_path
+            .join("src")
+            .join("shared")
+            .join("_tokens.scss");
+        fs::create_dir_all(tokens_path.parent().unwrap()).unwrap();
+        fs::write(
+            workspace_path.join("tsconfig.json"),
+            r#"{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "$shared/*": ["src/shared/*"]
+    }
+  }
+}"#,
+        )
+        .unwrap();
+        fs::write(index_path.as_path(), r#"@forward "./tokens";"#).unwrap();
+        let target_text = r#"$gap: 1rem;
+@mixin raised { box-shadow: none; }
+@function tone($value) { @return $value; }
+"#;
+        fs::write(tokens_path.as_path(), target_text).unwrap();
+        let source_text = r#"@use "$shared/index" as tokens;
+.button {
+  color: tokens.$gap;
+  @include tokens.raised;
+  border-color: tokens.tone(tokens.$gap);
+}
+"#;
+        fs::write(source_path.as_path(), source_text).unwrap();
+
+        let workspace_uri = path_to_file_uri(workspace_path.as_path());
+        let source_uri = path_to_file_uri(source_path.as_path());
+        let index_uri = path_to_file_uri(index_path.as_path());
+        let tokens_uri = path_to_file_uri(tokens_path.as_path());
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": workspace_uri,
+                            "name": "workspace-a",
+                        },
+                    ],
+                },
+            }),
+        );
+        for (uri, text) in [
+            (source_uri.as_str(), source_text),
+            (index_uri.as_str(), r#"@forward "./tokens";"#),
+            (tokens_uri.as_str(), target_text),
+        ] {
+            handle_lsp_message(
+                &mut state,
+                json!({
+                    "jsonrpc": "2.0",
+                    "method": "textDocument/didOpen",
+                    "params": {
+                        "textDocument": {
+                            "uri": uri,
+                            "languageId": "scss",
+                            "version": 1,
+                            "text": text,
+                        },
+                    },
+                }),
+            );
+        }
+
+        let gap_position =
+            parser_position_for_byte_offset(source_text, source_text.find("$gap").unwrap());
+        let gap_definition = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                    },
+                    "position": gap_position,
+                },
+            }),
+        );
+        assert_eq!(
+            gap_definition
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/uri")),
+            Some(&json!(tokens_uri)),
+        );
+
+        let mixin_position =
+            parser_position_for_byte_offset(source_text, source_text.find("raised").unwrap());
+        let mixin_definition = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                    },
+                    "position": mixin_position,
+                },
+            }),
+        );
+        assert_eq!(
+            mixin_definition
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/uri")),
+            Some(&json!(tokens_uri)),
+        );
+
+        let function_position =
+            parser_position_for_byte_offset(source_text, source_text.find("tone").unwrap());
+        let function_definition = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                    },
+                    "position": function_position,
+                },
+            }),
+        );
+        assert_eq!(
+            function_definition
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/uri")),
+            Some(&json!(tokens_uri)),
+        );
+
+        let _ = fs::remove_dir_all(workspace_path.as_path());
+    }
+
+    #[test]
     fn resolves_classnames_bind_source_definition_from_opened_documents() {
         let mut state = LspShellState::default();
         handle_lsp_message(
@@ -4792,6 +6751,331 @@ mod tests {
                     "character": 5,
                 },
             })),
+        );
+    }
+
+    #[test]
+    fn resolves_classnames_bind_source_definition_through_tsconfig_path_alias() {
+        let workspace_path = std::env::temp_dir().join(format!(
+            "omena-lsp-path-alias-{}-{}",
+            std::process::id(),
+            current_time_millis()
+        ));
+        let target_style_path = workspace_path
+            .join("src")
+            .join("domain")
+            .join("components")
+            .join("some-component.module.scss");
+        fs::create_dir_all(target_style_path.parent().unwrap()).unwrap();
+        fs::write(
+            workspace_path.join("tsconfig.json"),
+            r#"{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "$domain/*": ["src/domain/*"]
+    }
+  }
+}"#,
+        )
+        .unwrap();
+        fs::write(target_style_path.as_path(), ".article { display: block; }").unwrap();
+
+        let workspace_uri = path_to_file_uri(workspace_path.as_path());
+        let source_uri = path_to_file_uri(workspace_path.join("src/App.tsx").as_path());
+        let target_style_uri = path_to_file_uri(target_style_path.as_path());
+        let unrelated_style_uri =
+            path_to_file_uri(workspace_path.join("src/other.module.scss").as_path());
+
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": workspace_uri,
+                            "name": "workspace-a",
+                        },
+                    ],
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                        "languageId": "typescriptreact",
+                        "version": 1,
+                        "text": "import bind from \"classnames/bind\";\nimport styles from \"$domain/components/some-component.module.scss\";\nconst cx = bind.bind(styles);\nexport const className = cx(\"article\");",
+                    },
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": target_style_uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ".article { display: block; }",
+                    },
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": unrelated_style_uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ".article { color: red; }",
+                    },
+                },
+            }),
+        );
+
+        let source_index = state
+            .document(source_uri.as_str())
+            .map(|document| document.source_syntax_index.clone());
+        assert_eq!(
+            source_index
+                .as_ref()
+                .map(|index| index.imported_style_bindings.as_slice()),
+            Some(
+                [ImportedStyleBinding {
+                    binding: "styles".to_string(),
+                    style_uri: target_style_uri.clone(),
+                }]
+                .as_slice()
+            ),
+        );
+
+        let definition_response = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                    },
+                    "position": {
+                        "line": 3,
+                        "character": 31,
+                    },
+                },
+            }),
+        );
+
+        assert_eq!(
+            definition_response
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/uri")),
+            Some(&json!(target_style_uri)),
+        );
+        assert_eq!(
+            definition_response
+                .as_ref()
+                .and_then(|value| value.pointer("/result/1/uri")),
+            None,
+        );
+
+        let _ = fs::remove_dir_all(workspace_path.as_path());
+    }
+
+    #[test]
+    fn resolves_classnames_bind_dynamic_source_expressions() {
+        let source_text = r#"import bind from "classnames/bind";
+import styles from "./styles.module.scss";
+const cx = bind.bind(styles);
+const tone = "item--primary";
+const icon = { glyph: "item__icon" };
+const prefix = "item--";
+export const view = <div className={cx(tone, icon.glyph, `item--${variant}`, { "item--danger": danger, item__label: true }, ok && "item--ok", active ? "item--on" : "item--off", prefix + state)} />;
+"#;
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": "file:///workspace-a",
+                            "name": "workspace-a",
+                        },
+                    ],
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.tsx",
+                        "languageId": "typescriptreact",
+                        "version": 1,
+                        "text": source_text,
+                    },
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/styles.module.scss",
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ".item--primary {}\n.item__icon {}\n.item--large {}\n.item--danger {}\n.item__label {}\n.item--ok {}\n.item--on {}\n.item--off {}\n.item--muted {}\n",
+                    },
+                },
+            }),
+        );
+
+        let tone_position =
+            parser_position_for_byte_offset(source_text, source_text.find("tone,").unwrap());
+        let tone_definition = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.tsx",
+                    },
+                    "position": tone_position,
+                },
+            }),
+        );
+        assert_eq!(
+            tone_definition
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/range")),
+            Some(&json!({
+                "start": {
+                    "line": 0,
+                    "character": 1,
+                },
+                "end": {
+                    "line": 0,
+                    "character": 14,
+                },
+            })),
+        );
+
+        let icon_position =
+            parser_position_for_byte_offset(source_text, source_text.find("icon.glyph").unwrap());
+        let icon_definition = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.tsx",
+                    },
+                    "position": icon_position,
+                },
+            }),
+        );
+        assert_eq!(
+            icon_definition
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/range")),
+            Some(&json!({
+                "start": {
+                    "line": 1,
+                    "character": 1,
+                },
+                "end": {
+                    "line": 1,
+                    "character": 11,
+                },
+            })),
+        );
+
+        let template_position =
+            parser_position_for_byte_offset(source_text, source_text.find("`item--").unwrap() + 1);
+        let template_definition = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.tsx",
+                    },
+                    "position": template_position,
+                },
+            }),
+        );
+        let template_targets = template_definition
+            .as_ref()
+            .and_then(|value| value.pointer("/result"))
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        assert!(
+            template_targets
+                .iter()
+                .any(|target| target.pointer("/range/start/line") == Some(&json!(2)))
+        );
+        assert!(
+            !template_targets
+                .iter()
+                .any(|target| target.pointer("/range/start/line") == Some(&json!(1)))
+        );
+
+        let object_key_position =
+            parser_position_for_byte_offset(source_text, source_text.find("item__label").unwrap());
+        let object_key_definition = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.tsx",
+                    },
+                    "position": object_key_position,
+                },
+            }),
+        );
+        assert_eq!(
+            object_key_definition
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/range/start/line")),
+            Some(&json!(4)),
         );
     }
 

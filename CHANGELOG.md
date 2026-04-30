@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Rust LSP source/style path coverage** - expanded Rust LSP request handling across tsconfig/jsconfig style path aliases, dynamic `classnames/bind` values, Sass wildcard imports, Sass namespace `@use`, and forwarded Sass module definitions.
+- **Parser Sass module facts** - `engine-style-parser` now tracks module-qualified Sass symbol references as external selector facts without folding them into same-file resolution.
+
+### Fixed
+
+- **Dynamic source selector references** - `classnames/bind` references now resolve exact local constants, object properties, object keys, logical/conditional expressions, and template/concat prefixes without falling back to cross-module candidates.
+- **Sass symbol navigation paths** - Sass variable, mixin, and function references now resolve through wildcard imports, namespaced module uses, tsconfig path aliases, partials, index files, and direct forward chains.
+
 ## [4.6.0] - 2026-04-30
 
 ### Changed

@@ -455,6 +455,7 @@ pub struct ParserIndexCustomPropertyRefFactV0 {
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexSassFactsV0 {
     pub variable_decl_names: Vec<String>,
+    pub symbol_decl_facts: Vec<ParserIndexSassSymbolDeclFactV0>,
     pub variable_parameter_names: Vec<String>,
     pub variable_ref_names: Vec<String>,
     pub selectors_with_variable_refs_names: Vec<String>,
@@ -530,8 +531,19 @@ pub struct ParserIndexSassSelectorSymbolFactV0 {
     pub selector_name: String,
     pub symbol_kind: &'static str,
     pub name: String,
+    pub namespace: Option<String>,
     pub role: &'static str,
     pub resolution: &'static str,
+    pub byte_span: ParserByteSpanV0,
+    pub range: ParserRangeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserIndexSassSymbolDeclFactV0 {
+    pub symbol_kind: &'static str,
+    pub name: String,
+    pub role: &'static str,
     pub byte_span: ParserByteSpanV0,
     pub range: ParserRangeV0,
 }
@@ -690,6 +702,7 @@ struct IndexSummaryAcc {
     selectors_with_custom_property_refs_under_layer_names: Vec<String>,
     sass_variable_decl_names: Vec<String>,
     sass_variable_decl_facts: Vec<SassVariableDeclFact>,
+    sass_symbol_decl_facts: Vec<ParserIndexSassSymbolDeclFactV0>,
     sass_variable_parameter_names: Vec<String>,
     sass_variable_ref_names: Vec<String>,
     sass_variable_ref_facts: Vec<SassVariableRefFact>,
@@ -930,6 +943,8 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
         .dedup();
     acc.sass_variable_decl_names.sort();
     acc.sass_variable_decl_names.dedup();
+    acc.sass_symbol_decl_facts.sort();
+    acc.sass_symbol_decl_facts.dedup();
     acc.sass_variable_parameter_names.sort();
     acc.sass_variable_parameter_names.dedup();
     acc.sass_variable_ref_names.sort();
@@ -1091,6 +1106,7 @@ pub fn summarize_css_modules_intermediate(sheet: &Stylesheet) -> ParserIndexSumm
         },
         sass: ParserIndexSassFactsV0 {
             variable_decl_names: acc.sass_variable_decl_names,
+            symbol_decl_facts: acc.sass_symbol_decl_facts,
             variable_parameter_names: acc.sass_variable_parameter_names,
             variable_ref_names: acc.sass_variable_ref_names,
             selectors_with_variable_refs_names: acc.sass_selectors_with_variable_refs_names,
@@ -1388,6 +1404,7 @@ pub fn summarize_semantic_boundary(sheet: &Stylesheet) -> ParserSemanticBoundary
     } = selectors;
     let ParserIndexSassFactsV0 {
         variable_decl_names,
+        symbol_decl_facts: _,
         variable_parameter_names,
         variable_ref_names,
         selectors_with_variable_refs_names: _,
@@ -1716,6 +1733,7 @@ struct RuleReferenceFacts {
 struct RuleSassSymbolFact {
     symbol_kind: &'static str,
     name: String,
+    namespace: Option<String>,
     role: &'static str,
     resolution: &'static str,
     byte_span: ParserByteSpanV0,
@@ -1724,6 +1742,7 @@ struct RuleSassSymbolFact {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SassNameSpan {
     name: String,
+    namespace: Option<String>,
     byte_span: ParserByteSpanV0,
 }
 
@@ -1743,6 +1762,7 @@ struct SassVariableDeclFact {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SassVariableRefFact {
     name: String,
+    namespace: Option<String>,
     byte_span: ParserByteSpanV0,
 }
 
@@ -2166,7 +2186,9 @@ fn collect_rule_reference_facts(
                         parse_sass_callable_name_with_span(&at_rule.params, params_span.start)
                     {
                         facts.has_sass_mixin_includes = true;
-                        let resolution = if sass_ref_ctx.mixin_targets.contains(&name_span.name) {
+                        let resolution = if name_span.namespace.is_some() {
+                            "external"
+                        } else if sass_ref_ctx.mixin_targets.contains(&name_span.name) {
                             facts.has_resolved_sass_mixin_includes = true;
                             "resolved"
                         } else {
@@ -2176,6 +2198,7 @@ fn collect_rule_reference_facts(
                         facts.sass_symbol_facts.push(RuleSassSymbolFact {
                             symbol_kind: "mixin",
                             name: name_span.name,
+                            namespace: name_span.namespace,
                             role: "include",
                             resolution,
                             byte_span: name_span.byte_span,
@@ -2225,7 +2248,9 @@ fn extend_rule_sass_value_ref_facts(
     if !variable_refs.is_empty() {
         facts.has_sass_variable_refs = true;
         for name_span in variable_refs {
-            let resolution = if resolve_sass_variable_ref(
+            let resolution = if name_span.namespace.is_some() {
+                "external"
+            } else if resolve_sass_variable_ref(
                 &name_span.name,
                 name_span.byte_span,
                 sass_ref_ctx.variable_decls,
@@ -2239,6 +2264,7 @@ fn extend_rule_sass_value_ref_facts(
             facts.sass_symbol_facts.push(RuleSassSymbolFact {
                 symbol_kind: "variable",
                 name: name_span.name,
+                namespace: name_span.namespace,
                 role: "reference",
                 resolution,
                 byte_span: name_span.byte_span,
@@ -2258,8 +2284,13 @@ fn extend_rule_sass_value_ref_facts(
                     .map(|name_span| RuleSassSymbolFact {
                         symbol_kind: "function",
                         name: name_span.name,
+                        namespace: name_span.namespace.clone(),
                         role: "call",
-                        resolution: "resolved",
+                        resolution: if name_span.namespace.is_some() {
+                            "external"
+                        } else {
+                            "resolved"
+                        },
                         byte_span: name_span.byte_span,
                     }),
             );
@@ -2482,8 +2513,19 @@ fn collect_index_names(
                     }
                 }
                 AtRuleKind::Mixin => {
-                    if let Some(name) = parse_sass_callable_name(&at_rule.params) {
-                        acc.sass_mixin_decl_names.push(name);
+                    let params_span = at_rule_params_span(source, node, at_rule);
+                    if let Some(name_span) =
+                        parse_sass_callable_name_with_span(&at_rule.params, params_span.start)
+                    {
+                        acc.sass_mixin_decl_names.push(name_span.name.clone());
+                        acc.sass_symbol_decl_facts
+                            .push(ParserIndexSassSymbolDeclFactV0 {
+                                symbol_kind: "mixin",
+                                name: name_span.name,
+                                role: "declaration",
+                                byte_span: name_span.byte_span,
+                                range: source_range_for_byte_span(source, name_span.byte_span),
+                            });
                     }
                     let parameter_names = parse_sass_parameter_names(&at_rule.params);
                     acc.sass_variable_decl_facts
@@ -2494,13 +2536,28 @@ fn collect_index_names(
                     acc.sass_variable_parameter_names.extend(parameter_names);
                 }
                 AtRuleKind::Include => {
-                    if let Some(name) = parse_sass_callable_name(&at_rule.params) {
-                        acc.sass_mixin_include_names.push(name);
+                    if let Some(name_span) = parse_sass_callable_name_with_span(
+                        &at_rule.params,
+                        at_rule_params_span(source, node, at_rule).start,
+                    ) && name_span.namespace.is_none()
+                    {
+                        acc.sass_mixin_include_names.push(name_span.name);
                     }
                 }
                 AtRuleKind::Function => {
-                    if let Some(name) = parse_sass_callable_name(&at_rule.params) {
-                        acc.sass_function_decl_names.push(name);
+                    let params_span = at_rule_params_span(source, node, at_rule);
+                    if let Some(name_span) =
+                        parse_sass_callable_name_with_span(&at_rule.params, params_span.start)
+                    {
+                        acc.sass_function_decl_names.push(name_span.name.clone());
+                        acc.sass_symbol_decl_facts
+                            .push(ParserIndexSassSymbolDeclFactV0 {
+                                symbol_kind: "function",
+                                name: name_span.name,
+                                role: "declaration",
+                                byte_span: name_span.byte_span,
+                                range: source_range_for_byte_span(source, name_span.byte_span),
+                            });
                     }
                     let parameter_names = parse_sass_parameter_names(&at_rule.params);
                     acc.sass_variable_decl_facts
@@ -2548,12 +2605,24 @@ fn collect_index_names(
                     }
                 }
                 if let Some(name) = parse_sass_variable_decl_name(&declaration.property) {
+                    let byte_span = ParserByteSpanV0 {
+                        start: node.span.start + 1,
+                        end: node.span.start + declaration.property.len(),
+                    };
                     acc.sass_variable_decl_facts.push(SassVariableDeclFact {
                         name: name.clone(),
                         scope: current_sass_scope
                             .map(SassVariableScope::Span)
                             .unwrap_or(SassVariableScope::File),
                     });
+                    acc.sass_symbol_decl_facts
+                        .push(ParserIndexSassSymbolDeclFactV0 {
+                            symbol_kind: "variable",
+                            name: name.clone(),
+                            role: "declaration",
+                            byte_span,
+                            range: source_range_for_byte_span(source, byte_span),
+                        });
                     acc.sass_variable_decl_names.push(name);
                 }
             }
@@ -2727,6 +2796,7 @@ fn collect_sass_ref_facts(
                 acc.sass_variable_ref_facts
                     .extend(variable_refs.into_iter().map(|span| SassVariableRefFact {
                         name: span.name,
+                        namespace: span.namespace,
                         byte_span: span.byte_span,
                     }));
                 acc.sass_function_call_names
@@ -2746,6 +2816,7 @@ fn collect_sass_ref_facts(
                     acc.sass_variable_ref_facts
                         .extend(variable_refs.into_iter().map(|span| SassVariableRefFact {
                             name: span.name,
+                            namespace: span.namespace,
                             byte_span: span.byte_span,
                         }));
                     acc.sass_function_call_names
@@ -2778,6 +2849,9 @@ fn summarize_sass_same_file_resolution(
     let mut resolved_variable_ref_names = BTreeSet::new();
     let mut unresolved_variable_ref_names = BTreeSet::new();
     for fact in &acc.sass_variable_ref_facts {
+        if fact.namespace.is_some() {
+            continue;
+        }
         if resolve_sass_variable_ref(&fact.name, fact.byte_span, &acc.sass_variable_decl_facts) {
             resolved_variable_ref_names.insert(fact.name.clone());
         } else {
@@ -3049,6 +3123,7 @@ fn collect_index_selector_attachment_facts_with_context(
                                 selector_name: selector_name.clone(),
                                 symbol_kind: fact.symbol_kind,
                                 name: fact.name.clone(),
+                                namespace: fact.namespace.clone(),
                                 role: fact.role,
                                 resolution: fact.resolution,
                                 byte_span: fact.byte_span,
@@ -3281,21 +3356,26 @@ fn parse_sass_variable_decl_name(property: &str) -> Option<String> {
     (!name.is_empty() && name.chars().all(is_sass_ident_continue)).then(|| name.to_string())
 }
 
-fn parse_sass_callable_name(params: &str) -> Option<String> {
-    parse_sass_callable_name_with_span(params, 0).map(|span| span.name)
-}
-
 fn parse_sass_callable_name_with_span(params: &str, base_start: usize) -> Option<SassNameSpan> {
     let trimmed_start = params.find(|ch: char| !ch.is_whitespace())?;
     let trimmed = &params[trimmed_start..];
     let end = trimmed
         .find(|ch: char| ch.is_whitespace() || ch == '(')
         .unwrap_or(trimmed.len());
-    let name = &trimmed[..end];
+    let raw_name = &trimmed[..end];
+    let (namespace, name, name_offset) = if let Some((namespace, name)) = raw_name.split_once('.') {
+        if !is_valid_sass_namespace(namespace) {
+            return None;
+        }
+        (Some(namespace.to_string()), name, namespace.len() + 1)
+    } else {
+        (None, raw_name, 0)
+    };
     (!name.is_empty() && name.chars().all(is_sass_ident_continue)).then(|| SassNameSpan {
         name: name.to_string(),
+        namespace,
         byte_span: ParserByteSpanV0 {
-            start: base_start + trimmed_start,
+            start: base_start + trimmed_start + name_offset,
             end: base_start + trimmed_start + end,
         },
     })
@@ -3487,9 +3567,7 @@ fn find_sass_variable_ref_spans(raw: &str, base_start: usize) -> Vec<SassNameSpa
         }
 
         if ch == '$' {
-            if is_sass_module_qualified_reference(raw, byte_index) {
-                continue;
-            }
+            let namespace = sass_module_qualified_namespace_before(raw, byte_index);
             let name_start = byte_index + ch.len_utf8();
             let mut name_end = name_start;
             let mut name = String::new();
@@ -3504,6 +3582,7 @@ fn find_sass_variable_ref_spans(raw: &str, base_start: usize) -> Vec<SassNameSpa
             if !name.is_empty() {
                 refs.push(SassNameSpan {
                     name,
+                    namespace,
                     byte_span: ParserByteSpanV0 {
                         start: base_start + byte_index,
                         end: base_start + name_end,
@@ -3519,6 +3598,7 @@ fn find_sass_variable_ref_spans(raw: &str, base_start: usize) -> Vec<SassNameSpa
 fn find_sass_function_calls(raw: &str, known_function_names: &BTreeSet<String>) -> Vec<String> {
     find_sass_function_call_spans(raw, 0, known_function_names)
         .into_iter()
+        .filter(|span| span.namespace.is_none())
         .map(|span| span.name)
         .collect()
 }
@@ -3550,10 +3630,8 @@ fn find_sass_function_call_spans(
         }
 
         if is_sass_ident_start(ch) {
-            if is_sass_module_qualified_reference(raw, byte_index) {
-                continue;
-            }
             let mut name = String::from(ch);
+            let name_start = byte_index;
             let mut name_end = byte_index + ch.len_utf8();
             while let Some(&(next_index, next_ch)) = chars.peek() {
                 if !is_sass_ident_continue(next_ch) {
@@ -3563,17 +3641,45 @@ fn find_sass_function_call_spans(
                 name_end = next_index + next_ch.len_utf8();
                 chars.next();
             }
+            let mut namespace = None;
+            if matches!(chars.peek(), Some(&(_, '.'))) {
+                chars.next();
+                let Some(&(member_start, member_first)) = chars.peek() else {
+                    continue;
+                };
+                if !is_sass_ident_start(member_first) {
+                    continue;
+                }
+                namespace = Some(name);
+                name = String::new();
+                name_end = member_start;
+                while let Some(&(next_index, next_ch)) = chars.peek() {
+                    if !is_sass_ident_continue(next_ch) {
+                        break;
+                    }
+                    name.push(next_ch);
+                    name_end = next_index + next_ch.len_utf8();
+                    chars.next();
+                }
+            }
             while let Some(&(_, next_ch)) = chars.peek() {
                 if !next_ch.is_whitespace() {
                     break;
                 }
                 chars.next();
             }
-            if matches!(chars.peek(), Some(&(_, '('))) && known_function_names.contains(&name) {
+            if matches!(chars.peek(), Some(&(_, '(')))
+                && (namespace.is_some() || known_function_names.contains(&name))
+            {
+                let span_start = namespace
+                    .as_ref()
+                    .map(|namespace| name_start + namespace.len() + 1)
+                    .unwrap_or(name_start);
                 calls.push(SassNameSpan {
                     name,
+                    namespace,
                     byte_span: ParserByteSpanV0 {
-                        start: base_start + byte_index,
+                        start: base_start + span_start,
                         end: base_start + name_end,
                     },
                 });
@@ -3584,15 +3690,15 @@ fn find_sass_function_call_spans(
     calls
 }
 
-fn is_sass_module_qualified_reference(raw: &str, start: usize) -> bool {
+fn sass_module_qualified_namespace_before(raw: &str, start: usize) -> Option<String> {
     if start <= 1 || !raw[..start].ends_with('.') {
-        return false;
+        return None;
     }
     let namespace = raw[..start - 1]
         .rsplit(|ch: char| !is_sass_ident_continue(ch))
         .next()
         .unwrap_or("");
-    is_valid_sass_namespace(namespace)
+    is_valid_sass_namespace(namespace).then(|| namespace.to_string())
 }
 
 fn find_identifier_matches(raw: &str, known_names: &BTreeSet<String>) -> Vec<String> {
@@ -5053,6 +5159,7 @@ $gap: 1rem;
                     selector_name: "btn".to_string(),
                     symbol_kind: "function",
                     name: "tone".to_string(),
+                    namespace: None,
                     role: "call",
                     resolution: "resolved",
                     byte_span: span_after(source, "border-color:", "tone")?,
@@ -5062,6 +5169,7 @@ $gap: 1rem;
                     selector_name: "btn".to_string(),
                     symbol_kind: "mixin",
                     name: "raised".to_string(),
+                    namespace: None,
                     role: "include",
                     resolution: "resolved",
                     byte_span: span_after(source, "@include", "raised")?,
@@ -5071,6 +5179,7 @@ $gap: 1rem;
                     selector_name: "btn".to_string(),
                     symbol_kind: "variable",
                     name: "gap".to_string(),
+                    namespace: None,
                     role: "reference",
                     resolution: "resolved",
                     byte_span: span_after(source, ".btn { color", "$gap")?,
@@ -5080,6 +5189,7 @@ $gap: 1rem;
                     selector_name: "btn".to_string(),
                     symbol_kind: "variable",
                     name: "gap".to_string(),
+                    namespace: None,
                     role: "reference",
                     resolution: "resolved",
                     byte_span: span_after(source, "@include raised(", "$gap")?,
@@ -5089,6 +5199,7 @@ $gap: 1rem;
                     selector_name: "btn".to_string(),
                     symbol_kind: "variable",
                     name: "gap".to_string(),
+                    namespace: None,
                     role: "reference",
                     resolution: "resolved",
                     byte_span: span_after(source, "border-color: tone(", "$gap")?,
@@ -5098,6 +5209,7 @@ $gap: 1rem;
                     selector_name: "ghost".to_string(),
                     symbol_kind: "mixin",
                     name: "absent".to_string(),
+                    namespace: None,
                     role: "include",
                     resolution: "unresolved",
                     byte_span: span_after(source, ".ghost", "absent")?,
@@ -5107,6 +5219,7 @@ $gap: 1rem;
                     selector_name: "ghost".to_string(),
                     symbol_kind: "variable",
                     name: "gap".to_string(),
+                    namespace: None,
                     role: "reference",
                     resolution: "resolved",
                     byte_span: span_after(source, "absent(", "$gap")?,
@@ -5116,6 +5229,7 @@ $gap: 1rem;
                     selector_name: "ghost".to_string(),
                     symbol_kind: "variable",
                     name: "missing".to_string(),
+                    namespace: None,
                     role: "reference",
                     resolution: "unresolved",
                     byte_span: span_after(source, ".ghost { color", "$missing")?,
@@ -5420,6 +5534,7 @@ $gap: 1rem;
                     selector_name: "btn".to_string(),
                     symbol_kind: "mixin",
                     name: "raised".to_string(),
+                    namespace: None,
                     role: "include",
                     resolution: "resolved",
                     byte_span: span_after(source, "@include", "raised")?,
@@ -5429,6 +5544,7 @@ $gap: 1rem;
                     selector_name: "btn".to_string(),
                     symbol_kind: "variable",
                     name: "gap".to_string(),
+                    namespace: None,
                     role: "reference",
                     resolution: "resolved",
                     byte_span: span_after(source, ".btn { color", "$gap")?,
@@ -5438,6 +5554,7 @@ $gap: 1rem;
                     selector_name: "btn".to_string(),
                     symbol_kind: "variable",
                     name: "gap".to_string(),
+                    namespace: None,
                     role: "reference",
                     resolution: "resolved",
                     byte_span: span_after(source, "@include raised(", "$gap")?,
@@ -5447,6 +5564,7 @@ $gap: 1rem;
                     selector_name: "ghost".to_string(),
                     symbol_kind: "variable",
                     name: "missing".to_string(),
+                    namespace: None,
                     role: "reference",
                     resolution: "unresolved",
                     byte_span: span_after(source, ".ghost { color", "$missing")?,
@@ -5518,6 +5636,7 @@ $gap: 1rem;
                 selector_name: "two".to_string(),
                 symbol_kind: "variable",
                 name: "gap".to_string(),
+                namespace: None,
                 role: "reference",
                 resolution: "unresolved",
                 byte_span: span_after(source, ".two", "$gap")?,
@@ -5528,7 +5647,8 @@ $gap: 1rem;
     }
 
     #[test]
-    fn index_summary_skips_module_qualified_sass_refs_from_same_file_resolution() {
+    fn index_summary_tracks_module_qualified_sass_refs_outside_same_file_resolution()
+    -> Result<(), String> {
         let source = r#"@use "./tokens" as tokens;
 @mixin raised { box-shadow: none; }
 @function tone($value) { @return $value; }
@@ -5541,7 +5661,7 @@ $gap: 1rem;
         let sheet = parse_stylesheet(StyleLanguage::Scss, source);
         let summary = super::summarize_css_modules_intermediate(&sheet);
 
-        assert_eq!(summary.sass.variable_ref_names, vec!["value"]);
+        assert_eq!(summary.sass.variable_ref_names, vec!["gap", "value"]);
         assert_eq!(
             summary
                 .sass
@@ -5560,17 +5680,61 @@ $gap: 1rem;
         assert_eq!(summary.sass.function_call_names, Vec::<String>::new());
         assert_eq!(
             summary.sass.selectors_with_variable_refs_names,
-            Vec::<String>::new()
+            vec!["button"]
         );
         assert_eq!(
             summary.sass.selectors_with_mixin_includes_names,
-            Vec::<String>::new()
+            vec!["button"]
         );
         assert_eq!(
             summary.sass.selectors_with_function_calls_names,
-            Vec::<String>::new()
+            vec!["button"]
         );
-        assert_eq!(summary.sass.selector_symbol_facts, Vec::new());
+        assert_eq!(
+            summary.sass.selector_symbol_facts,
+            vec![
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "button".to_string(),
+                    symbol_kind: "function",
+                    name: "tone".to_string(),
+                    namespace: Some("tokens".to_string()),
+                    role: "call",
+                    resolution: "external",
+                    byte_span: span_after(source, "border-color:", "tone")?,
+                    range: range_after(source, "border-color:", "tone")?,
+                },
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "button".to_string(),
+                    symbol_kind: "mixin",
+                    name: "raised".to_string(),
+                    namespace: Some("tokens".to_string()),
+                    role: "include",
+                    resolution: "external",
+                    byte_span: span_after(source, "@include tokens.", "raised")?,
+                    range: range_after(source, "@include tokens.", "raised")?,
+                },
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "button".to_string(),
+                    symbol_kind: "variable",
+                    name: "gap".to_string(),
+                    namespace: Some("tokens".to_string()),
+                    role: "reference",
+                    resolution: "external",
+                    byte_span: span_after(source, "color: tokens.", "$gap")?,
+                    range: range_after(source, "color: tokens.", "$gap")?,
+                },
+                ParserIndexSassSelectorSymbolFactV0 {
+                    selector_name: "button".to_string(),
+                    symbol_kind: "variable",
+                    name: "gap".to_string(),
+                    namespace: Some("tokens".to_string()),
+                    role: "reference",
+                    resolution: "external",
+                    byte_span: span_after(source, "tokens.tone(", "$gap")?,
+                    range: range_after(source, "tokens.tone(", "$gap")?,
+                },
+            ]
+        );
         assert_eq!(
             summary.sass.module_use_edges,
             vec![ParserIndexSassModuleUseFactV0 {
@@ -5579,6 +5743,7 @@ $gap: 1rem;
                 namespace: Some("tokens".to_string()),
             }]
         );
+        Ok(())
     }
 
     #[test]
@@ -5593,6 +5758,7 @@ $gap: 1rem;
                 selector_name: "btn".to_string(),
                 symbol_kind: "variable",
                 name: "gap".to_string(),
+                namespace: None,
                 role: "reference",
                 resolution: "resolved",
                 byte_span: ParserByteSpanV0 { start: 46, end: 50 },
