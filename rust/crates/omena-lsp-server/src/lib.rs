@@ -189,7 +189,7 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
             "diagnosticsPush",
             "codeLensRefresh",
         ],
-        next_decoupling_targets: vec!["thinVsCodeClientHost", "multiEditorDistribution"],
+        next_decoupling_targets: vec!["multiEditorDistribution"],
     }
 }
 
@@ -237,6 +237,8 @@ pub fn thin_client_endpoint_contract() -> ThinClientEndpointV0 {
         host_responsibilities: vec![
             "resolvePackagedRustBinary",
             "resolveStandaloneRustCommand",
+            "buildThinClientServerOptions",
+            "declareStaticDocumentSelector",
             "startLanguageClient",
             "registerStaticFileWatchers",
             "translateShowReferencesArguments",
@@ -3684,7 +3686,7 @@ mod tests {
                 .contains(&"jsonRpcTypeFactProviderImplementation")
         );
         assert!(
-            summary
+            !summary
                 .next_decoupling_targets
                 .contains(&"thinVsCodeClientHost")
         );
@@ -3699,6 +3701,12 @@ mod tests {
             "omena-lsp-server.thin-client-endpoint"
         );
         assert!(!summary.thin_client_endpoint.node_fallback_allowed);
+        assert!(
+            summary
+                .thin_client_endpoint
+                .host_responsibilities
+                .contains(&"buildThinClientServerOptions")
+        );
         assert!(
             summary
                 .thin_client_endpoint

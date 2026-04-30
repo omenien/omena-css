@@ -9,7 +9,9 @@ import {
   readClientTypeFactBackendSetting,
 } from "./type-fact-backend-config";
 import {
+  buildThinClientDocumentSelector,
   buildThinClientRuntimeEndpoint,
+  buildThinClientServerOptions,
   readClientLspServerRuntimeSetting,
   resolveLspServerRuntimeSelection,
 } from "./lsp-server-runtime-config";
@@ -45,33 +47,14 @@ export function activate(context: vscode.ExtensionContext): void {
     context.extensionPath,
   );
 
-  const serverOptions: ServerOptions = {
-    run: {
-      command: thinClientEndpoint.command,
-      args: [...thinClientEndpoint.args],
-      options: { env: serverEnv, cwd: thinClientEndpoint.cwd },
-    },
-    debug: {
-      command: thinClientEndpoint.command,
-      args: [...thinClientEndpoint.args],
-      options: { env: serverEnv, cwd: thinClientEndpoint.cwd },
-    },
-  };
+  const serverOptions: ServerOptions = buildThinClientServerOptions(thinClientEndpoint, serverEnv);
   const rustLspFileEvents = thinClientEndpoint.fileWatcherGlobs.map((glob) =>
     vscode.workspace.createFileSystemWatcher(glob),
   );
   context.subscriptions.push(...rustLspFileEvents);
 
   const clientOptions: LanguageClientOptions = {
-    documentSelector: [
-      { scheme: "file", language: "typescriptreact" },
-      { scheme: "file", language: "javascriptreact" },
-      { scheme: "file", language: "typescript" },
-      { scheme: "file", language: "javascript" },
-      { scheme: "file", language: "scss" },
-      { scheme: "file", language: "less" },
-      { scheme: "file", language: "css" },
-    ],
+    documentSelector: buildThinClientDocumentSelector(),
     synchronize: {
       configurationSection: ["cssModuleExplainer", "cssModules"],
       fileEvents: rustLspFileEvents,

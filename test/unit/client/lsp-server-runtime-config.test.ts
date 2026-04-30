@@ -2,7 +2,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildRustLspFileWatcherGlobs,
+  buildThinClientDocumentSelector,
   buildThinClientRuntimeEndpoint,
+  buildThinClientServerOptions,
   readClientLspServerRuntimeSetting,
   resolveLspServerRuntimeSelection,
   resolveOmenaLspServerPath,
@@ -85,8 +87,41 @@ describe("client LSP server runtime config", () => {
     });
     expect(endpoint?.fileWatcherGlobs).toEqual(buildRustLspFileWatcherGlobs());
     expect(endpoint?.hostResponsibilities).toContain("resolveStandaloneRustCommand");
+    expect(endpoint?.hostResponsibilities).toContain("buildThinClientServerOptions");
+    expect(endpoint?.hostResponsibilities).toContain("declareStaticDocumentSelector");
     expect(endpoint?.hostResponsibilities).toContain("startLanguageClient");
     expect(endpoint?.rustResponsibilities).toContain("ownTsgoClientLifecycle");
+  });
+
+  it("builds server options owned by the thin client host contract", () => {
+    const endpoint = buildThinClientRuntimeEndpoint(
+      {
+        runtime: "omena-lsp-server",
+        command: "/repo/dist/bin/darwin-arm64/omena-lsp-server",
+        args: [],
+      },
+      "/repo",
+    );
+    const options = buildThinClientServerOptions(endpoint, {
+      CME_TYPE_FACT_BACKEND: "tsgo",
+    } as NodeJS.ProcessEnv);
+
+    expect(options.run.command).toBe("/repo/dist/bin/darwin-arm64/omena-lsp-server");
+    expect(options.run.options.cwd).toBe("/repo");
+    expect(options.run.options.env.CME_TYPE_FACT_BACKEND).toBe("tsgo");
+    expect(options.debug).toEqual(options.run);
+  });
+
+  it("builds the static Rust LSP document selector outside extension activation", () => {
+    expect(buildThinClientDocumentSelector().map((item) => item.language)).toEqual([
+      "typescriptreact",
+      "javascriptreact",
+      "typescript",
+      "javascript",
+      "scss",
+      "less",
+      "css",
+    ]);
   });
 
   it("declares static file watchers for the Rust LSP runtime", () => {

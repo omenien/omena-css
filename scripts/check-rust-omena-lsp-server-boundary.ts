@@ -231,8 +231,8 @@ assert.ok(
   rustSummary.queryReuse.requestPathPolicy.includes("providerRequestsConsumeDocumentIndexes"),
 );
 assert.ok(
-  rustSummary.nextDecouplingTargets.includes("thinVsCodeClientHost"),
-  "Rust LSP boundary must keep the thin VS Code client endpoint visible",
+  !rustSummary.nextDecouplingTargets.includes("thinVsCodeClientHost"),
+  "implemented thin VS Code client host should not remain listed as a next target",
 );
 assert.ok(
   rustSummary.nextDecouplingTargets.includes("multiEditorDistribution"),

@@ -1,5 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
+import type { Executable } from "vscode-languageclient/node";
+import type { DocumentSelector } from "vscode-languageserver-protocol";
 
 export type ClientLspServerRuntimeSetting = "auto" | "omena-lsp-server";
 
@@ -23,12 +25,44 @@ export interface ThinClientRuntimeEndpoint {
   readonly rustResponsibilities: readonly string[];
 }
 
+export interface ThinClientServerOptions {
+  readonly run: Executable;
+  readonly debug: Executable;
+}
+
 export function buildRustLspFileWatcherGlobs(): readonly string[] {
   return [
     "**/*.module.{scss,css,less}",
     "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts}",
     "**/tsconfig*.json",
     "**/jsconfig*.json",
+  ];
+}
+
+export function buildThinClientServerOptions(
+  endpoint: ThinClientRuntimeEndpoint,
+  serverEnv: NodeJS.ProcessEnv,
+): ThinClientServerOptions {
+  const command: Executable = {
+    command: endpoint.command,
+    args: [...endpoint.args],
+    options: { env: serverEnv, cwd: endpoint.cwd },
+  };
+  return {
+    run: command,
+    debug: command,
+  };
+}
+
+export function buildThinClientDocumentSelector(): DocumentSelector {
+  return [
+    { scheme: "file", language: "typescriptreact" },
+    { scheme: "file", language: "javascriptreact" },
+    { scheme: "file", language: "typescript" },
+    { scheme: "file", language: "javascript" },
+    { scheme: "file", language: "scss" },
+    { scheme: "file", language: "less" },
+    { scheme: "file", language: "css" },
   ];
 }
 
@@ -70,6 +104,8 @@ export function buildThinClientRuntimeEndpoint(
     hostResponsibilities: [
       "resolvePackagedRustBinary",
       "resolveStandaloneRustCommand",
+      "buildThinClientServerOptions",
+      "declareStaticDocumentSelector",
       "startLanguageClient",
       "registerStaticFileWatchers",
       "translateShowReferencesArguments",
