@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omena_incremental::{
     IncrementalComputationPlanV0, IncrementalGraphInputV0, IncrementalNodeInputV0,
-    IncrementalRevisionV0, IncrementalSnapshotV0, plan_incremental_computation,
-    snapshot_from_graph_input,
+    IncrementalRevisionV0, IncrementalSnapshotV0, OmenaIncrementalDatabaseV0,
+    plan_incremental_computation, snapshot_from_graph_input,
 };
 use serde::Serialize;
 
@@ -841,6 +841,31 @@ pub fn analyze_class_value_flow_incremental_with_reuse(
         reused_previous_analysis,
         incremental_plan,
         next_snapshot,
+        analysis,
+    }
+}
+
+pub fn analyze_class_value_flow_incremental_with_database(
+    graph: &ClassValueFlowGraphV0,
+    incremental_database: &mut OmenaIncrementalDatabaseV0,
+    previous_analysis: Option<&ClassValueFlowAnalysisV0>,
+    revision: u64,
+) -> ClassValueFlowIncrementalAnalysisV0 {
+    let incremental_input = class_value_flow_incremental_input(graph, revision);
+    let update = incremental_database.plan_and_upsert_graph_input(&incremental_input);
+    let reused_previous_analysis =
+        update.incremental_plan.dirty_node_count == 0 && previous_analysis.is_some();
+    let analysis = match (update.incremental_plan.dirty_node_count, previous_analysis) {
+        (0, Some(previous_analysis)) => previous_analysis.clone(),
+        _ => analyze_class_value_flow(graph),
+    };
+
+    ClassValueFlowIncrementalAnalysisV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.incremental-flow-analysis",
+        reused_previous_analysis,
+        incremental_plan: update.incremental_plan,
+        next_snapshot: update.next_snapshot,
         analysis,
     }
 }
@@ -2170,6 +2195,7 @@ mod tests {
         SelectorProjectionCertaintyV0, abstract_class_value_from_facts, analyze_class_value_flow,
         analyze_class_value_flow_incremental,
         analyze_class_value_flow_incremental_batch_with_reuse,
+        analyze_class_value_flow_incremental_with_database,
         analyze_class_value_flow_incremental_with_reuse, analyze_one_cfa_call_site_flows,
         bottom_class_value, char_inclusion_class_value, composite_class_value,
         concatenate_abstract_class_values, derive_selector_projection_certainty, exact_class_value,
@@ -2183,6 +2209,7 @@ mod tests {
         top_class_value, value_certainty_from_facts, value_certainty_shape_kind_from_facts,
         value_certainty_shape_label_from_facts,
     };
+    use omena_incremental::OmenaIncrementalDatabaseV0;
     use std::collections::BTreeMap;
 
     #[test]
@@ -2892,6 +2919,47 @@ mod tests {
         let reused = analyze_class_value_flow_incremental_with_reuse(
             &graph,
             Some(&first.next_snapshot),
+            Some(&first.analysis),
+            2,
+        );
+
+        assert_eq!(reused.incremental_plan.dirty_node_count, 0);
+        assert!(reused.reused_previous_analysis);
+        assert_eq!(reused.analysis, first.analysis);
+    }
+
+    #[test]
+    fn reuses_previous_class_value_flow_analysis_through_salsa_database() {
+        let graph = ClassValueFlowGraphV0 {
+            context_key: Some("Button.tsx:render@primary".to_string()),
+            nodes: vec![
+                flow_assign_node("then", external_facts("exact").with_values(["btn-primary"])),
+                flow_assign_node("else", external_facts("exact").with_values(["card"])),
+                ClassValueFlowNodeV0 {
+                    id: "merge".to_string(),
+                    predecessors: vec!["then".to_string(), "else".to_string()],
+                    transfer: ClassValueFlowTransferV0::Join,
+                },
+            ],
+        };
+        let mut incremental_database = OmenaIncrementalDatabaseV0::default();
+        let first = analyze_class_value_flow_incremental_with_database(
+            &graph,
+            &mut incremental_database,
+            None,
+            1,
+        );
+
+        assert_eq!(
+            first.next_snapshot.product,
+            "omena-incremental.salsa-snapshot"
+        );
+        assert_eq!(first.incremental_plan.dirty_node_count, 3);
+        assert!(!first.reused_previous_analysis);
+
+        let reused = analyze_class_value_flow_incremental_with_database(
+            &graph,
+            &mut incremental_database,
             Some(&first.analysis),
             2,
         );

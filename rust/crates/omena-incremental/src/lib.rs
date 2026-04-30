@@ -96,6 +96,15 @@ pub struct IncrementalCancellationSnapshotV0 {
     pub cancelled_request_ids: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncrementalDatabaseUpdateV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub incremental_plan: IncrementalComputationPlanV0,
+    pub next_snapshot: IncrementalSnapshotV0,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IncrementalCancellationRegistryV0 {
     limit: usize,
@@ -116,6 +125,7 @@ pub struct SalsaIncrementalNodeInputV0 {
 pub struct OmenaIncrementalDatabaseV0 {
     db: salsa::DatabaseImpl,
     node_inputs_by_id: BTreeMap<String, SalsaIncrementalNodeInputV0>,
+    current_snapshot: Option<IncrementalSnapshotV0>,
 }
 
 pub fn summarize_omena_incremental_boundary() -> OmenaIncrementalBoundarySummaryV0 {
@@ -140,6 +150,7 @@ pub fn summarize_omena_incremental_boundary() -> OmenaIncrementalBoundarySummary
             "salsaPersistentDatabase",
             "salsaTrackedNodeSnapshotQuery",
             "salsaFieldGranularReuse",
+            "salsaPlanAndSnapshotUpdate",
         ],
     }
 }
@@ -321,6 +332,26 @@ impl OmenaIncrementalDatabaseV0 {
 
     pub fn node_input(&self, id: &str) -> Option<SalsaIncrementalNodeInputV0> {
         self.node_inputs_by_id.get(id).copied()
+    }
+
+    pub fn current_snapshot(&self) -> Option<&IncrementalSnapshotV0> {
+        self.current_snapshot.as_ref()
+    }
+
+    pub fn plan_and_upsert_graph_input(
+        &mut self,
+        input: &IncrementalGraphInputV0,
+    ) -> IncrementalDatabaseUpdateV0 {
+        let incremental_plan = plan_incremental_computation(input, self.current_snapshot.as_ref());
+        let next_snapshot = self.upsert_graph_input(input);
+        self.current_snapshot = Some(next_snapshot.clone());
+
+        IncrementalDatabaseUpdateV0 {
+            schema_version: "0",
+            product: "omena-incremental.salsa-database-update",
+            incremental_plan,
+            next_snapshot,
+        }
     }
 
     pub fn upsert_graph_input(&mut self, input: &IncrementalGraphInputV0) -> IncrementalSnapshotV0 {
@@ -539,6 +570,28 @@ mod tests {
         );
         assert_eq!(SALSA_DIGEST_QUERY_RUNS.load(Ordering::Relaxed), 1);
         assert_eq!(SALSA_DEPENDENCY_QUERY_RUNS.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn salsa_database_update_owns_plan_and_snapshot_progression() {
+        let mut db = OmenaIncrementalDatabaseV0::default();
+        let input = sample_input("a:v1", "b:v1", 1);
+        let first = db.plan_and_upsert_graph_input(&input);
+
+        assert_eq!(first.product, "omena-incremental.salsa-database-update");
+        assert_eq!(first.incremental_plan.dirty_node_count, 2);
+        assert_eq!(
+            first.next_snapshot.product,
+            "omena-incremental.salsa-snapshot"
+        );
+        assert!(db.current_snapshot().is_some());
+
+        let unchanged = db.plan_and_upsert_graph_input(&sample_input("a:v1", "b:v1", 2));
+        assert_eq!(unchanged.incremental_plan.dirty_node_count, 0);
+
+        let changed = db.plan_and_upsert_graph_input(&sample_input("a:v2", "b:v1", 3));
+        assert_eq!(changed.incremental_plan.changed_input_count, 1);
+        assert_eq!(changed.incremental_plan.dependency_dirty_count, 1);
     }
 
     #[test]
