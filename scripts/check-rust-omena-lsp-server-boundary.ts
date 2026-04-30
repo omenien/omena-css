@@ -57,6 +57,14 @@ interface RustOmenaLspServerBoundarySummary {
     readonly requestPathPolicy: readonly string[];
     readonly providerSurfaces: readonly string[];
   };
+  readonly workspaceRuntimeRegistry: {
+    readonly product: string;
+    readonly owner: string;
+    readonly folderStateOwner: string;
+    readonly ownershipPolicy: readonly string[];
+    readonly indexedDocumentPolicy: readonly string[];
+    readonly requestPathPolicy: readonly string[];
+  };
   readonly thinClientEndpoint: {
     readonly product: string;
     readonly standalonePackage: string;
@@ -153,6 +161,36 @@ assert.ok(
 );
 assert.ok(rustSummary.sourceProviderAdapter.providerSurfaces.includes("textDocument/definition"));
 assertDefaultHostPathHasNoNodeWorkspaceResolver(repoRoot);
+assert.equal(
+  rustSummary.workspaceRuntimeRegistry.product,
+  "omena-lsp-server.workspace-runtime-registry",
+);
+assert.equal(
+  rustSummary.workspaceRuntimeRegistry.owner,
+  "omena-lsp-server/runtime/workspaceRuntimeRegistry",
+);
+assert.ok(
+  rustSummary.workspaceRuntimeRegistry.ownershipPolicy.includes("longestWorkspaceRootOwnsDocument"),
+);
+assert.ok(
+  rustSummary.workspaceRuntimeRegistry.ownershipPolicy.includes(
+    "filePathComponentBoundariesBeforeUriPrefix",
+  ),
+);
+assert.ok(
+  rustSummary.workspaceRuntimeRegistry.indexedDocumentPolicy.includes(
+    "openedDocumentsRemainAuthoritative",
+  ),
+);
+assert.ok(
+  rustSummary.workspaceRuntimeRegistry.requestPathPolicy.includes(
+    "noNodeWorkspaceRuntimeManagerOnRustLspPath",
+  ),
+);
+assert.ok(
+  !rustSummary.nextDecouplingTargets.includes("rustWorkspaceRuntimeRegistry"),
+  "implemented workspace runtime registry should not remain listed as a next target",
+);
 assert.ok(
   rustSummary.nextDecouplingTargets.includes("thinVsCodeClientHost"),
   "Rust LSP boundary must keep the thin VS Code client endpoint visible",

@@ -1,3 +1,5 @@
+mod workspace_runtime_registry;
+
 use engine_style_parser::{
     ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage, parse_style_module,
     summarize_css_modules_intermediate,
@@ -11,6 +13,10 @@ use std::{
     fs,
     path::{Component, Path, PathBuf},
     time::{Instant, SystemTime, UNIX_EPOCH},
+};
+use workspace_runtime_registry::{
+    WorkspaceRuntimeRegistry, WorkspaceRuntimeRegistryBoundaryV0,
+    workspace_runtime_registry_contract,
 };
 
 pub const NODE_TEXT_DOCUMENT_SYNC_KIND: u8 = 2;
@@ -39,6 +45,7 @@ pub struct OmenaLspServerBoundarySummaryV0 {
     pub blocking_work_policy: Vec<&'static str>,
     pub tsgo_client_boundary: OmenaTsgoClientBoundarySummaryV0,
     pub source_provider_adapter: SourceProviderDirectRustAdapterV0,
+    pub workspace_runtime_registry: WorkspaceRuntimeRegistryBoundaryV0,
     pub thin_client_endpoint: ThinClientEndpointV0,
     pub node_parity_contracts: Vec<&'static str>,
     pub next_decoupling_targets: Vec<&'static str>,
@@ -159,6 +166,7 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
         ],
         tsgo_client_boundary: summarize_omena_tsgo_client_boundary(),
         source_provider_adapter: source_provider_direct_rust_adapter_contract(),
+        workspace_runtime_registry: workspace_runtime_registry_contract(),
         thin_client_endpoint: thin_client_endpoint_contract(),
         node_parity_contracts: vec![
             "initializeCapabilities",
@@ -169,7 +177,6 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
             "codeLensRefresh",
         ],
         next_decoupling_targets: vec![
-            "rustWorkspaceRuntimeRegistry",
             "rustDiagnosticsScheduler",
             "tsgoJsonRpcProviderImplementation",
             "incrementalQueryReuse",
@@ -502,7 +509,7 @@ pub struct LspShellState {
     configuration_change_count: usize,
     documents: BTreeMap<String, LspTextDocumentState>,
     open_document_uris: BTreeSet<String>,
-    workspace_folders: BTreeMap<String, LspWorkspaceFolderState>,
+    workspace_runtime_registry: WorkspaceRuntimeRegistry,
     watched_file_changes: Vec<LspWatchedFileChangeState>,
 }
 
@@ -512,7 +519,7 @@ impl LspShellState {
     }
 
     pub fn workspace_folder_count(&self) -> usize {
-        self.workspace_folders.len()
+        self.workspace_runtime_registry.len()
     }
 
     pub fn document(&self, uri: &str) -> Option<&LspTextDocumentState> {
@@ -520,7 +527,7 @@ impl LspShellState {
     }
 
     pub fn workspace_folder(&self, uri: &str) -> Option<&LspWorkspaceFolderState> {
-        self.workspace_folders.get(uri)
+        self.workspace_runtime_registry.get(uri)
     }
 
     pub fn snapshot(&self) -> LspShellStateSnapshot {
@@ -536,7 +543,7 @@ impl LspShellState {
             configuration_change_count: self.configuration_change_count,
             watched_file_event_count: self.watched_file_changes.len(),
             documents: self.documents.values().cloned().collect(),
-            workspace_folders: self.workspace_folders.values().cloned().collect(),
+            workspace_folders: self.workspace_runtime_registry.folder_snapshots(),
             watched_file_changes: self.watched_file_changes.clone(),
         }
     }
@@ -891,7 +898,7 @@ fn publish_diagnostics_notification(uri: &str, diagnostics: Value) -> Value {
 }
 
 fn initialize_workspace_folders(state: &mut LspShellState, params: Option<&Value>) {
-    state.workspace_folders.clear();
+    state.workspace_runtime_registry.clear();
     if let Some(folders) = params
         .and_then(|value| value.get("workspaceFolders"))
         .and_then(Value::as_array)
@@ -906,13 +913,9 @@ fn initialize_workspace_folders(state: &mut LspShellState, params: Option<&Value
         .and_then(|value| value.get("rootUri"))
         .and_then(Value::as_str)
     {
-        state.workspace_folders.insert(
-            root_uri.to_string(),
-            LspWorkspaceFolderState {
-                uri: root_uri.to_string(),
-                name: root_uri.to_string(),
-            },
-        );
+        state
+            .workspace_runtime_registry
+            .insert(root_uri.to_string(), root_uri.to_string());
     }
 }
 
@@ -925,7 +928,7 @@ fn index_workspace_style_files_with_budget(
     state: &mut LspShellState,
     budget: &mut WorkspaceStyleIndexBudget,
 ) {
-    let folders: Vec<LspWorkspaceFolderState> = state.workspace_folders.values().cloned().collect();
+    let folders = state.workspace_runtime_registry.folder_snapshots();
     for folder in folders {
         if budget.should_stop() {
             break;
@@ -1233,7 +1236,7 @@ fn did_change_workspace_folders(state: &mut LspShellState, params: Option<&Value
     {
         for folder in removed {
             if let Some(uri) = folder.get("uri").and_then(Value::as_str) {
-                state.workspace_folders.remove(uri);
+                state.workspace_runtime_registry.remove(uri);
                 remove_indexed_documents_for_workspace(state, uri);
             }
         }
@@ -1375,45 +1378,28 @@ fn insert_workspace_folder(state: &mut LspShellState, folder: &Value) {
     let Some(uri) = folder.get("uri").and_then(Value::as_str) else {
         return;
     };
-    state.workspace_folders.insert(
+    state.workspace_runtime_registry.insert(
         uri.to_string(),
-        LspWorkspaceFolderState {
-            uri: uri.to_string(),
-            name: folder
-                .get("name")
-                .and_then(Value::as_str)
-                .unwrap_or(uri)
-                .to_string(),
-        },
+        folder
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or(uri)
+            .to_string(),
     );
 }
 
 fn refresh_document_workspace_owners(state: &mut LspShellState) {
-    let workspace_folders = state.workspace_folders.clone();
+    let workspace_runtime_registry = state.workspace_runtime_registry.clone();
     for document in state.documents.values_mut() {
         document.workspace_folder_uri =
-            resolve_workspace_folder_uri_from_map(&workspace_folders, document.uri.as_str());
+            workspace_runtime_registry.resolve_owner_uri(document.uri.as_str());
     }
 }
 
 fn resolve_workspace_folder_uri(state: &LspShellState, document_uri: &str) -> Option<String> {
-    resolve_workspace_folder_uri_from_map(&state.workspace_folders, document_uri)
-}
-
-fn resolve_workspace_folder_uri_from_map(
-    workspace_folders: &BTreeMap<String, LspWorkspaceFolderState>,
-    document_uri: &str,
-) -> Option<String> {
-    workspace_folders
-        .keys()
-        .filter(|workspace_uri| {
-            document_uri == workspace_uri.as_str()
-                || document_uri
-                    .strip_prefix(workspace_uri.as_str())
-                    .is_some_and(|suffix| suffix.starts_with('/'))
-        })
-        .max_by_key(|workspace_uri| workspace_uri.len())
-        .cloned()
+    state
+        .workspace_runtime_registry
+        .resolve_owner_uri(document_uri)
 }
 
 fn summarize_style_document(uri: &str, text: Option<&str>) -> Option<LspStyleDocumentSummary> {

@@ -5,7 +5,9 @@
 ### Changed
 
 - **Workspace resolver cleanup** - removed the legacy synchronous `WorkspaceTypeResolver` implementation and `createDefaultProgram` helper from `engine-core-ts`; host/runtime code now accepts only explicit `TypeResolver` injection and defaults to the tsgo-backed path.
+- **Rust LSP workspace runtime registry** - moved workspace-folder ownership and indexed-style-document lifecycle policy behind an `omena-lsp-server` registry contract, with longest-root ownership and open-document preservation declared in the boundary gate.
 - **Shadow CI tsgo lane** - aligned checker release-gate shadow with the tsgo-only rust gate evidence variants and made the ESLint plugin smoke gate build its required server dist artifacts on fresh CI checkouts.
+- **Extension host smoke determinism** - pinned the VS Code test host to the extension `engines.vscode` baseline by default and raised the `@vscode/test-electron` request timeout so CI does not fail while resolving the latest VS Code version.
 
 ## [4.5.0] - 2026-04-30
 
