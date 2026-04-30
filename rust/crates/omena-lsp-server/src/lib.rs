@@ -184,7 +184,6 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
             "codeLensRefresh",
         ],
         next_decoupling_targets: vec![
-            "tsgoJsonRpcProviderImplementation",
             "incrementalQueryReuse",
             "thinVsCodeClientHost",
             "multiEditorDistribution",
@@ -3685,9 +3684,15 @@ mod tests {
                 .contains(&"noFullWorkspaceProgramOnRequestPath")
         );
         assert!(
-            summary
+            !summary
                 .next_decoupling_targets
                 .contains(&"tsgoJsonRpcProviderImplementation")
+        );
+        assert!(
+            summary
+                .tsgo_client_boundary
+                .ready_surfaces
+                .contains(&"jsonRpcTypeFactProviderImplementation")
         );
         assert!(
             summary

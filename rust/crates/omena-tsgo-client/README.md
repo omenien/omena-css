@@ -11,6 +11,7 @@ The crate is intentionally narrow:
 - encode and drain tsgo's `Content-Length` JSON-RPC transport frames;
 - write and read JSON-RPC frames against the managed tsgo process I/O;
 - build typed type-fact RPC requests for tsgo's source-fact methods;
+- execute the Rust JSON-RPC type-fact provider sequence over a transport;
 - reduce tsgo literal and union type responses into CME-compatible type facts;
 - keep the LSP request path policy explicit;
 - provide a phase-3 boundary gate before the VS Code client becomes thin.

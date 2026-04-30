@@ -70,6 +70,7 @@ assert.ok(summary.readySurfaces.includes("phase3SourceProviderExitGate"));
 assert.ok(summary.readySurfaces.includes("persistentWorkspaceProcessPool"));
 assert.ok(summary.readySurfaces.includes("jsonRpcContentLengthTransport"));
 assert.ok(summary.readySurfaces.includes("jsonRpcProcessIo"));
+assert.ok(summary.readySurfaces.includes("jsonRpcTypeFactProviderImplementation"));
 assert.ok(summary.readySurfaces.includes("typeFactRpcClient"));
 assert.ok(summary.readySurfaces.includes("typeFactResultReducer"));
 assert.ok(summary.nextDecouplingTargets.includes("sourceProviderDirectRustAdapter"));

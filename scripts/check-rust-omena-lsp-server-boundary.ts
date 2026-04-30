@@ -117,8 +117,8 @@ assert.ok(
   "Rust LSP boundary must explicitly reject full workspace program work on request paths",
 );
 assert.ok(
-  rustSummary.nextDecouplingTargets.includes("tsgoJsonRpcProviderImplementation"),
-  "Rust LSP boundary must keep the tsgo provider implementation visible",
+  !rustSummary.nextDecouplingTargets.includes("tsgoJsonRpcProviderImplementation"),
+  "implemented tsgo JSON-RPC provider should not remain listed as a next target",
 );
 assert.ok(
   rustSummary.nextDecouplingTargets.includes("incrementalQueryReuse"),
