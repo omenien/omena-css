@@ -1,6 +1,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use salsa::Setter;
 use serde::Serialize;
+
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+#[cfg(test)]
+static SALSA_DIGEST_QUERY_RUNS: AtomicUsize = AtomicUsize::new(0);
+#[cfg(test)]
+static SALSA_DEPENDENCY_QUERY_RUNS: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -9,6 +18,7 @@ pub struct OmenaIncrementalBoundarySummaryV0 {
     pub product: &'static str,
     pub engine_name: &'static str,
     pub invalidation_model: &'static str,
+    pub query_model: &'static str,
     pub node_identity: Vec<&'static str>,
     pub dirty_reasons: Vec<&'static str>,
     pub ready_surfaces: Vec<&'static str>,
@@ -92,12 +102,29 @@ pub struct IncrementalCancellationRegistryV0 {
     cancelled_request_ids: BTreeSet<String>,
 }
 
+#[salsa::input(debug)]
+pub struct SalsaIncrementalNodeInputV0 {
+    #[returns(ref)]
+    id: String,
+    #[returns(ref)]
+    digest: String,
+    #[returns(ref)]
+    dependency_ids: Vec<String>,
+}
+
+#[derive(Default)]
+pub struct OmenaIncrementalDatabaseV0 {
+    db: salsa::DatabaseImpl,
+    node_inputs_by_id: BTreeMap<String, SalsaIncrementalNodeInputV0>,
+}
+
 pub fn summarize_omena_incremental_boundary() -> OmenaIncrementalBoundarySummaryV0 {
     OmenaIncrementalBoundarySummaryV0 {
         schema_version: "0",
         product: "omena-incremental.boundary",
         engine_name: "omena-incremental",
         invalidation_model: "stableNodeId+inputDigest+dependencyPropagation",
+        query_model: "salsaInput+trackedQueryFieldGranularReuse",
         node_identity: vec!["id", "digest", "dependencyIds"],
         dirty_reasons: vec![
             "newNode",
@@ -110,6 +137,9 @@ pub fn summarize_omena_incremental_boundary() -> OmenaIncrementalBoundarySummary
             "incrementalSnapshot",
             "incrementalComputationPlan",
             "incrementalCancellationRegistry",
+            "salsaPersistentDatabase",
+            "salsaTrackedNodeSnapshotQuery",
+            "salsaFieldGranularReuse",
         ],
     }
 }
@@ -200,6 +230,40 @@ pub fn plan_incremental_computation(
     }
 }
 
+#[salsa::tracked(returns(clone))]
+pub fn summarize_salsa_incremental_node_snapshot(
+    db: &dyn salsa::Database,
+    node: SalsaIncrementalNodeInputV0,
+) -> IncrementalSnapshotNodeV0 {
+    IncrementalSnapshotNodeV0 {
+        id: node.id(db).clone(),
+        digest: node.digest(db).clone(),
+        dependency_ids: normalized_ids(node.dependency_ids(db)),
+    }
+}
+
+#[salsa::tracked(returns(clone))]
+pub fn read_salsa_incremental_node_digest(
+    db: &dyn salsa::Database,
+    node: SalsaIncrementalNodeInputV0,
+) -> String {
+    #[cfg(test)]
+    SALSA_DIGEST_QUERY_RUNS.fetch_add(1, Ordering::Relaxed);
+
+    node.digest(db).clone()
+}
+
+#[salsa::tracked(returns(clone))]
+pub fn read_salsa_incremental_node_dependency_ids(
+    db: &dyn salsa::Database,
+    node: SalsaIncrementalNodeInputV0,
+) -> Vec<String> {
+    #[cfg(test)]
+    SALSA_DEPENDENCY_QUERY_RUNS.fetch_add(1, Ordering::Relaxed);
+
+    normalized_ids(node.dependency_ids(db))
+}
+
 fn normalized_snapshot_nodes(input: &IncrementalGraphInputV0) -> Vec<IncrementalSnapshotNodeV0> {
     let mut nodes = input
         .nodes
@@ -246,6 +310,66 @@ fn propagate_dependency_dirty(
 
         if !changed {
             break;
+        }
+    }
+}
+
+impl OmenaIncrementalDatabaseV0 {
+    pub fn salsa_database(&self) -> &salsa::DatabaseImpl {
+        &self.db
+    }
+
+    pub fn node_input(&self, id: &str) -> Option<SalsaIncrementalNodeInputV0> {
+        self.node_inputs_by_id.get(id).copied()
+    }
+
+    pub fn upsert_graph_input(&mut self, input: &IncrementalGraphInputV0) -> IncrementalSnapshotV0 {
+        let normalized_nodes = normalized_snapshot_nodes(input);
+        let current_ids = normalized_nodes
+            .iter()
+            .map(|node| node.id.as_str())
+            .collect::<BTreeSet<_>>();
+        self.node_inputs_by_id
+            .retain(|id, _node| current_ids.contains(id.as_str()));
+
+        for node in &normalized_nodes {
+            self.upsert_node_input(node);
+        }
+
+        let nodes = self
+            .node_inputs_by_id
+            .values()
+            .copied()
+            .map(|node| summarize_salsa_incremental_node_snapshot(&self.db, node))
+            .collect::<Vec<_>>();
+
+        IncrementalSnapshotV0 {
+            schema_version: "0",
+            product: "omena-incremental.salsa-snapshot",
+            revision: input.revision,
+            nodes,
+        }
+    }
+
+    fn upsert_node_input(&mut self, node: &IncrementalSnapshotNodeV0) {
+        let Some(node_input) = self.node_inputs_by_id.get(node.id.as_str()).copied() else {
+            let node_input = SalsaIncrementalNodeInputV0::new(
+                &self.db,
+                node.id.clone(),
+                node.digest.clone(),
+                node.dependency_ids.clone(),
+            );
+            self.node_inputs_by_id.insert(node.id.clone(), node_input);
+            return;
+        };
+
+        if node_input.digest(&self.db).as_str() != node.digest.as_str() {
+            node_input.set_digest(&mut self.db).to(node.digest.clone());
+        }
+        if node_input.dependency_ids(&self.db).as_slice() != node.dependency_ids.as_slice() {
+            node_input
+                .set_dependency_ids(&mut self.db)
+                .to(node.dependency_ids.clone());
         }
     }
 }
@@ -297,20 +421,32 @@ impl IncrementalCancellationRegistryV0 {
 mod tests {
     use super::{
         IncrementalCancellationRegistryV0, IncrementalGraphInputV0, IncrementalNodeInputV0,
-        IncrementalRevisionV0, plan_incremental_computation, snapshot_from_graph_input,
-        summarize_omena_incremental_boundary,
+        IncrementalRevisionV0, OmenaIncrementalDatabaseV0, SALSA_DEPENDENCY_QUERY_RUNS,
+        SALSA_DIGEST_QUERY_RUNS, plan_incremental_computation,
+        read_salsa_incremental_node_dependency_ids, read_salsa_incremental_node_digest,
+        snapshot_from_graph_input, summarize_omena_incremental_boundary,
     };
+    use std::sync::atomic::Ordering;
 
     #[test]
     fn summarizes_incremental_boundary() {
         let summary = summarize_omena_incremental_boundary();
 
         assert_eq!(summary.product, "omena-incremental.boundary");
+        assert_eq!(
+            summary.query_model,
+            "salsaInput+trackedQueryFieldGranularReuse"
+        );
         assert!(summary.dirty_reasons.contains(&"dependencyDirty"));
         assert!(
             summary
                 .ready_surfaces
                 .contains(&"incrementalCancellationRegistry")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"salsaTrackedNodeSnapshotQuery")
         );
     }
 
@@ -347,6 +483,62 @@ mod tests {
         assert_eq!(plan.dependency_dirty_count, 1);
         assert_eq!(node_reasons(&plan, "a"), vec!["inputDigestChanged"]);
         assert_eq!(node_reasons(&plan, "b"), vec!["dependencyDirty"]);
+    }
+
+    #[test]
+    fn salsa_database_reuses_digest_query_when_only_dependencies_change() {
+        SALSA_DIGEST_QUERY_RUNS.store(0, Ordering::Relaxed);
+        SALSA_DEPENDENCY_QUERY_RUNS.store(0, Ordering::Relaxed);
+
+        let mut db = OmenaIncrementalDatabaseV0::default();
+        let input = IncrementalGraphInputV0 {
+            revision: IncrementalRevisionV0 { value: 1 },
+            nodes: vec![IncrementalNodeInputV0 {
+                id: "a".to_string(),
+                digest: "a:v1".to_string(),
+                dependency_ids: Vec::new(),
+            }],
+        };
+        let snapshot = db.upsert_graph_input(&input);
+        assert_eq!(snapshot.product, "omena-incremental.salsa-snapshot");
+
+        let Some(node) = db.node_input("a") else {
+            return;
+        };
+        assert_eq!(
+            read_salsa_incremental_node_digest(db.salsa_database(), node),
+            "a:v1"
+        );
+        assert_eq!(
+            read_salsa_incremental_node_dependency_ids(db.salsa_database(), node),
+            Vec::<String>::new()
+        );
+        assert_eq!(SALSA_DIGEST_QUERY_RUNS.load(Ordering::Relaxed), 1);
+        assert_eq!(SALSA_DEPENDENCY_QUERY_RUNS.load(Ordering::Relaxed), 1);
+
+        let next_input = IncrementalGraphInputV0 {
+            revision: IncrementalRevisionV0 { value: 2 },
+            nodes: vec![IncrementalNodeInputV0 {
+                id: "a".to_string(),
+                digest: "a:v1".to_string(),
+                dependency_ids: vec!["root".to_string()],
+            }],
+        };
+        db.upsert_graph_input(&next_input);
+
+        let Some(node) = db.node_input("a") else {
+            return;
+        };
+        assert_eq!(
+            read_salsa_incremental_node_digest(db.salsa_database(), node),
+            "a:v1"
+        );
+        assert_eq!(
+            read_salsa_incremental_node_dependency_ids(db.salsa_database(), node),
+            vec!["root".to_string()]
+        );
+        assert_eq!(SALSA_DIGEST_QUERY_RUNS.load(Ordering::Relaxed), 1);
+        assert_eq!(SALSA_DEPENDENCY_QUERY_RUNS.load(Ordering::Relaxed), 2);
     }
 
     #[test]

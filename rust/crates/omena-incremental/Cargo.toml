@@ -13,3 +13,4 @@ workspace = true
 
 [dependencies]
 serde.workspace = true
+salsa.workspace = true
