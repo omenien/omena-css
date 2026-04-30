@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
-import { resolveStyleReferenceLenses } from "../../../server/engine-host-node/src/style-reference-lens-query";
+import {
+  resolveStyleReferenceLenses,
+  resolveStyleReferenceLensesAsync,
+} from "../../../server/engine-host-node/src/style-reference-lens-query";
 import type { StyleSemanticGraphSummaryV0 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
@@ -221,6 +224,64 @@ describe("resolveStyleReferenceLenses", () => {
     ]);
   });
 
+  it("reads rust style semantic graph references once for all selectors in a style file", () => {
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      "/fake/src/Button.module.scss",
+      new Map([
+        ["indicator", infoAtLine("indicator", 5)],
+        ["active", infoAtLine("active", 10)],
+      ]),
+    );
+    let graphReads = 0;
+
+    const result = resolveStyleReferenceLenses(
+      "/fake/src/Button.module.scss",
+      styleDocument,
+      makeDeps(),
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        readRustStyleSemanticGraphForWorkspaceTarget: () => {
+          graphReads += 1;
+          return makeReferenceGraphWithSelectors(["indicator", "active"]);
+        },
+        readRustSelectorUsagePayloadsForWorkspaceTarget: () => [],
+      },
+    );
+
+    expect(graphReads).toBe(1);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.title).toBe("3 references (1 direct, dynamic)");
+  });
+
+  it("reads async rust style semantic graph references once for all selectors in a style file", async () => {
+    const styleDocument = buildStyleDocumentFromSelectorMap(
+      "/fake/src/Button.module.scss",
+      new Map([
+        ["indicator", infoAtLine("indicator", 5)],
+        ["active", infoAtLine("active", 10)],
+      ]),
+    );
+    let graphReads = 0;
+
+    const result = await resolveStyleReferenceLensesAsync(
+      "/fake/src/Button.module.scss",
+      styleDocument,
+      makeDeps(),
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        readRustStyleSemanticGraphForWorkspaceTargetAsync: async () => {
+          graphReads += 1;
+          return makeReferenceGraphWithSelectors(["indicator", "active"]);
+        },
+        readRustSelectorUsagePayloadsForWorkspaceTargetAsync: async () => [],
+      },
+    );
+
+    expect(graphReads).toBe(1);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.title).toBe("3 references (1 direct, dynamic)");
+  });
+
   it("rechecks rust selector-usage when rust graph has an empty selector reference summary", () => {
     const styleDocument = buildStyleDocumentFromSelectorMap(
       "/fake/src/Button.module.scss",
@@ -329,6 +390,53 @@ function makeReferenceGraph(): StyleSemanticGraphSummaryV0 {
     sourceInputEvidence: {},
     promotionEvidence: {},
     losslessCstContract: {},
+  };
+}
+
+function makeReferenceGraphWithSelectors(
+  selectorNames: readonly string[],
+): StyleSemanticGraphSummaryV0 {
+  const base = makeReferenceGraph();
+  const referencedSelector = base.selectorReferenceEngine.selectors[0]!;
+  const selectors = selectorNames.map((localName) =>
+    localName === referencedSelector.localName
+      ? referencedSelector
+      : {
+          ...referencedSelector,
+          canonicalId: `selector:${localName}`,
+          localName,
+          totalReferences: 0,
+          directReferenceCount: 0,
+          editableDirectReferenceCount: 0,
+          exactReferenceCount: 0,
+          inferredOrBetterReferenceCount: 0,
+          hasExpandedReferences: false,
+          hasStyleDependencyReferences: false,
+          hasAnyReferences: false,
+          sites: [],
+          editableDirectSites: [],
+        },
+  );
+  return {
+    ...base,
+    selectorIdentityEngine: {
+      ...base.selectorIdentityEngine,
+      canonicalIdCount: selectorNames.length,
+      canonicalIds: selectorNames.map((localName) => ({
+        canonicalId: `selector:${localName}`,
+        localName,
+        identityKind: "localClass",
+        rewriteSafety: "safe",
+        blockers: [],
+      })),
+    },
+    selectorReferenceEngine: {
+      ...base.selectorReferenceEngine,
+      selectorCount: selectorNames.length,
+      referencedSelectorCount: 1,
+      unreferencedSelectorCount: Math.max(0, selectorNames.length - 1),
+      selectors,
+    },
   };
 }
 

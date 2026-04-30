@@ -23,10 +23,11 @@ import {
 } from "./selector-usage-query-backend";
 import {
   buildSelectorReferenceRenderSummaryFromRustGraph,
-  resolveRustStyleSelectorReferenceSummaryForWorkspaceTargetAsync,
-  resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget,
+  resolveRustStyleSelectorReferenceSummariesForWorkspaceTargetAsync,
+  resolveRustStyleSelectorReferenceSummariesForWorkspaceTarget,
   type StyleSelectorReferenceQueryOptions,
 } from "./style-selector-reference-query";
+import type { StyleSemanticGraphSelectorReferenceSummaryV0 } from "./style-semantic-graph-query-backend";
 
 export interface StyleReferenceLensSummary {
   readonly position: Position;
@@ -84,13 +85,14 @@ export function resolveStyleReferenceLenses(
     filePath,
     queryOptions,
   );
+  const rustGraphReferenceLensSummariesByName = resolveRustGraphReferenceLensSummariesByName(
+    deps,
+    filePath,
+    queryOptions,
+  );
   for (const selector of listCanonicalSelectors(styleDocument)) {
-    const graphLensResolution = resolveRustGraphReferenceLensSummary(
-      deps,
-      filePath,
-      selector.canonicalName,
-      queryOptions,
-    );
+    const graphLensResolution =
+      rustGraphReferenceLensSummariesByName?.get(selector.canonicalName) ?? null;
     const selectorUsageLensResolution =
       canUseRustSelectorUsage &&
       (!graphLensResolution || !graphLensResolution.usage.hasAnyReferences)
@@ -165,14 +167,12 @@ export async function resolveStyleReferenceLensesAsync(
     filePath,
     queryOptions,
   );
+  const rustGraphReferenceLensSummariesByName =
+    await resolveRustGraphReferenceLensSummariesByNameAsync(deps, filePath, queryOptions);
   const selectorLenses = await Promise.all(
     listCanonicalSelectors(styleDocument).map(async (selector) => {
-      const graphLensResolution = await resolveRustGraphReferenceLensSummaryAsync(
-        deps,
-        filePath,
-        selector.canonicalName,
-        queryOptions,
-      );
+      const graphLensResolution =
+        rustGraphReferenceLensSummariesByName?.get(selector.canonicalName) ?? null;
       const selectorUsageLensResolution =
         canUseRustSelectorUsage &&
         (!graphLensResolution || !graphLensResolution.usage.hasAnyReferences)
@@ -287,7 +287,7 @@ function createRustSelectorUsagePayloadReaderAsync(
   };
 }
 
-function resolveRustGraphReferenceLensSummary(
+function resolveRustGraphReferenceLensSummariesByName(
   deps: Pick<
     ProviderDeps,
     | "analysisCache"
@@ -298,56 +298,65 @@ function resolveRustGraphReferenceLensSummary(
     | "readStyleFile"
   >,
   filePath: string,
-  canonicalName: string,
   options: StyleReferenceLensQueryOptions,
+): ReadonlyMap<
+  string,
+  {
+    readonly usage: SelectorUsageRenderSummary;
+    readonly locations: readonly ShowReferencesLocation[];
+  }
+> | null {
+  const selectors = resolveRustStyleSelectorReferenceSummariesForWorkspaceTarget(
+    {
+      filePath,
+    },
+    deps,
+    options,
+  );
+  if (!selectors) return null;
+  return new Map(
+    selectors.map((selector) => [selector.localName, buildRustGraphReferenceLensSummary(selector)]),
+  );
+}
+
+async function resolveRustGraphReferenceLensSummariesByNameAsync(
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "settings"
+    | "readStyleFile"
+  >,
+  filePath: string,
+  options: StyleReferenceLensQueryOptions,
+): Promise<ReadonlyMap<
+  string,
+  {
+    readonly usage: SelectorUsageRenderSummary;
+    readonly locations: readonly ShowReferencesLocation[];
+  }
+> | null> {
+  const selectors = await resolveRustStyleSelectorReferenceSummariesForWorkspaceTargetAsync(
+    {
+      filePath,
+    },
+    deps,
+    options,
+  );
+  if (!selectors) return null;
+  return new Map(
+    selectors.map((selector) => [selector.localName, buildRustGraphReferenceLensSummary(selector)]),
+  );
+}
+
+function buildRustGraphReferenceLensSummary(
+  selector: StyleSemanticGraphSelectorReferenceSummaryV0,
 ): {
   readonly usage: SelectorUsageRenderSummary;
   readonly locations: readonly ShowReferencesLocation[];
-} | null {
-  const selector = resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget(
-    {
-      filePath,
-      canonicalName,
-    },
-    deps,
-    options,
-  );
-  if (!selector) return null;
-  return {
-    usage: buildSelectorReferenceRenderSummaryFromRustGraph(selector),
-    locations: selector.sites.map((site) => ({
-      uri: pathToFileUrl(site.filePath),
-      range: site.range,
-    })),
-  };
-}
-
-async function resolveRustGraphReferenceLensSummaryAsync(
-  deps: Pick<
-    ProviderDeps,
-    | "analysisCache"
-    | "styleDocumentForPath"
-    | "typeResolver"
-    | "workspaceRoot"
-    | "settings"
-    | "readStyleFile"
-  >,
-  filePath: string,
-  canonicalName: string,
-  options: StyleReferenceLensQueryOptions,
-): Promise<{
-  readonly usage: SelectorUsageRenderSummary;
-  readonly locations: readonly ShowReferencesLocation[];
-} | null> {
-  const selector = await resolveRustStyleSelectorReferenceSummaryForWorkspaceTargetAsync(
-    {
-      filePath,
-      canonicalName,
-    },
-    deps,
-    options,
-  );
-  if (!selector) return null;
+} {
   return {
     usage: buildSelectorReferenceRenderSummaryFromRustGraph(selector),
     locations: selector.sites.map((site) => ({
