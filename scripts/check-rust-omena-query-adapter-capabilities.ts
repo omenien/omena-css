@@ -51,6 +51,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "expressionDomainIncrementalFlowAnalysis",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.expressionDomainIncrementalFlowAnalysis,
+      inputContract: "EngineInputV2 + OmenaQueryExpressionDomainFlowRuntimeV0",
+      outputProduct: "omena-query.expression-domain-incremental-flow-analysis",
+    },
+  ],
+  [
     "selectorUsage",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.selectorUsageCanonicalProducer,
@@ -96,6 +104,7 @@ void (async () => {
     "backendCapabilityMatrix",
     "canonicalProducerWrapperBoundary",
     "expressionDomainFlowAnalysisRunner",
+    "expressionDomainSalsaRuntime",
     "expressionSemanticsDerivationPayload",
     "fragmentBundleBoundary",
     "runnerCommandContract",

@@ -2,7 +2,8 @@ use engine_input_producers::{
     EngineInputV2, ExpressionDomainFlowAnalysisV0, ExpressionSemanticsCanonicalProducerSignalV0,
     ExpressionSemanticsQueryFragmentsV0, SelectorUsageCanonicalProducerSignalV0,
     SelectorUsageQueryFragmentsV0, SourceResolutionCanonicalProducerSignalV0,
-    SourceResolutionQueryFragmentsV0, summarize_expression_domain_flow_analysis_input,
+    SourceResolutionQueryFragmentsV0, collect_expression_domain_flow_graphs,
+    summarize_expression_domain_flow_analysis_input,
     summarize_expression_semantics_canonical_producer_signal_input,
     summarize_expression_semantics_query_fragments_input,
     summarize_selector_usage_canonical_producer_signal_input,
@@ -12,13 +13,17 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::{Component, Path, PathBuf};
 
 use engine_style_parser::{Stylesheet, parse_style_module, summarize_css_modules_intermediate};
-use omena_abstract_value::{AbstractValueDomainSummaryV0, summarize_omena_abstract_value_domain};
+use omena_abstract_value::{
+    AbstractValueDomainSummaryV0, ClassValueFlowAnalysisV0, ClassValueFlowIncrementalAnalysisV0,
+    analyze_class_value_flow_incremental_with_database, summarize_omena_abstract_value_domain,
+};
 use omena_bridge::{
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
     StyleSemanticGraphSummaryV0, collect_omena_bridge_design_token_workspace_declarations,
     summarize_omena_bridge_style_semantic_graph_for_path_with_scoped_workspace_declarations,
     summarize_omena_bridge_style_semantic_graph_from_source,
 };
+use omena_incremental::OmenaIncrementalDatabaseV0;
 use omena_resolver::{
     OmenaResolverSourceResolutionRuntimeIndexV0,
     summarize_omena_resolver_canonical_producer_signal, summarize_omena_resolver_query_fragments,
@@ -104,6 +109,34 @@ pub struct OmenaQueryStyleSemanticGraphBatchEntryV0 {
     pub graph: Option<StyleSemanticGraphSummaryV0>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_version: String,
+    pub revision: u64,
+    pub graph_count: usize,
+    pub dirty_graph_count: usize,
+    pub reused_graph_count: usize,
+    pub analyses: Vec<OmenaQueryExpressionDomainIncrementalFlowAnalysisEntryV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryExpressionDomainIncrementalFlowAnalysisEntryV0 {
+    pub graph_id: String,
+    pub file_path: String,
+    pub analysis: ClassValueFlowIncrementalAnalysisV0,
+}
+
+#[derive(Default)]
+pub struct OmenaQueryExpressionDomainFlowRuntimeV0 {
+    revision: u64,
+    databases_by_graph_id: BTreeMap<String, OmenaIncrementalDatabaseV0>,
+    previous_analyses_by_graph_id: BTreeMap<String, ClassValueFlowAnalysisV0>,
+}
+
 pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBoundarySummaryV0 {
     let fragment_bundle = summarize_omena_query_fragment_bundle(input);
     let expression_semantics_query_count = fragment_bundle.expression_semantics.fragments.len();
@@ -125,6 +158,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "omena-resolver.source-resolution-runtime-index",
             "engine-input-producers.selector-usage-query-fragments",
             "engine-input-producers.expression-domain-flow-analysis",
+            "omena-query.expression-domain-incremental-flow-analysis",
         ],
         expression_semantics_query_count,
         source_resolution_query_count,
@@ -138,6 +172,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "sourceResolutionResolverBoundary",
             "sourceResolutionRuntimeIndex",
             "expressionDomainFlowAnalysisBoundary",
+            "expressionDomainSalsaRuntime",
             "queryBoundarySummary",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
@@ -214,6 +249,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 output_product: "engine-input-producers.expression-domain-flow-analysis",
             },
             SelectedQueryRunnerCommandV0 {
+                surface: "expressionDomainIncrementalFlowAnalysis",
+                command: "input-expression-domain-incremental-flow-analysis",
+                input_contract: "EngineInputV2 + OmenaQueryExpressionDomainFlowRuntimeV0",
+                output_product: "omena-query.expression-domain-incremental-flow-analysis",
+            },
+            SelectedQueryRunnerCommandV0 {
                 surface: "selectorUsage",
                 command: "input-selector-usage-canonical-producer",
                 input_contract: "EngineInputV2",
@@ -247,6 +288,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "sourceResolutionRuntimeIndex",
             "expressionSemanticsDerivationPayload",
             "expressionDomainFlowAnalysisRunner",
+            "expressionDomainSalsaRuntime",
         ],
         routing_status: "declaredOnly",
     }
@@ -273,6 +315,86 @@ pub fn summarize_omena_query_expression_domain_flow_analysis(
     input: &EngineInputV2,
 ) -> ExpressionDomainFlowAnalysisV0 {
     summarize_expression_domain_flow_analysis_input(input)
+}
+
+pub fn summarize_omena_query_expression_domain_incremental_flow_analysis(
+    input: &EngineInputV2,
+    runtime: &mut OmenaQueryExpressionDomainFlowRuntimeV0,
+) -> OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 {
+    runtime.analyze_input(input)
+}
+
+impl OmenaQueryExpressionDomainFlowRuntimeV0 {
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    pub fn graph_count(&self) -> usize {
+        self.databases_by_graph_id.len()
+    }
+
+    pub fn analyze_input(
+        &mut self,
+        input: &EngineInputV2,
+    ) -> OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 {
+        self.revision += 1;
+        let revision = self.revision;
+        let flow_graphs = collect_expression_domain_flow_graphs(input);
+        let live_graph_ids = flow_graphs
+            .iter()
+            .map(|entry| entry.graph_id.clone())
+            .collect::<BTreeSet<_>>();
+
+        self.databases_by_graph_id
+            .retain(|graph_id, _| live_graph_ids.contains(graph_id));
+        self.previous_analyses_by_graph_id
+            .retain(|graph_id, _| live_graph_ids.contains(graph_id));
+
+        let analyses = flow_graphs
+            .into_iter()
+            .map(|entry| {
+                let database = self
+                    .databases_by_graph_id
+                    .entry(entry.graph_id.clone())
+                    .or_default();
+                let previous_analysis = self.previous_analyses_by_graph_id.get(&entry.graph_id);
+                let analysis = analyze_class_value_flow_incremental_with_database(
+                    &entry.graph,
+                    database,
+                    previous_analysis,
+                    revision,
+                );
+                self.previous_analyses_by_graph_id
+                    .insert(entry.graph_id.clone(), analysis.analysis.clone());
+
+                OmenaQueryExpressionDomainIncrementalFlowAnalysisEntryV0 {
+                    graph_id: entry.graph_id,
+                    file_path: entry.file_path,
+                    analysis,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let dirty_graph_count = analyses
+            .iter()
+            .filter(|entry| entry.analysis.incremental_plan.dirty_node_count > 0)
+            .count();
+        let reused_graph_count = analyses
+            .iter()
+            .filter(|entry| entry.analysis.reused_previous_analysis)
+            .count();
+
+        OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 {
+            schema_version: "0",
+            product: "omena-query.expression-domain-incremental-flow-analysis",
+            input_version: input.version.clone(),
+            revision,
+            graph_count: analyses.len(),
+            dirty_graph_count,
+            reused_graph_count,
+            analyses,
+        }
+    }
 }
 
 pub fn summarize_omena_query_source_resolution_query_fragments(
@@ -680,8 +802,9 @@ mod tests {
     };
 
     use super::{
-        SelectedQueryAdapterCapabilitiesV0, summarize_omena_query_boundary,
-        summarize_omena_query_expression_domain_flow_analysis,
+        OmenaQueryExpressionDomainFlowRuntimeV0, SelectedQueryAdapterCapabilitiesV0,
+        summarize_omena_query_boundary, summarize_omena_query_expression_domain_flow_analysis,
+        summarize_omena_query_expression_domain_incremental_flow_analysis,
         summarize_omena_query_expression_semantics_canonical_producer_signal,
         summarize_omena_query_expression_semantics_query_fragments,
         summarize_omena_query_fragment_bundle,
@@ -743,8 +866,18 @@ mod tests {
         );
         assert!(
             summary
+                .delegated_fragment_products
+                .contains(&"omena-query.expression-domain-incremental-flow-analysis")
+        );
+        assert!(
+            summary
                 .ready_surfaces
                 .contains(&"expressionDomainFlowAnalysisBoundary")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"expressionDomainSalsaRuntime")
         );
         assert!(
             summary
@@ -841,6 +974,9 @@ mod tests {
                 .iter()
                 .any(|command| command.command == "input-expression-domain-flow-analysis")
         );
+        assert!(summary.runner_commands.iter().any(|command| {
+            command.command == "input-expression-domain-incremental-flow-analysis"
+        }));
         assert!(
             summary
                 .runner_commands
@@ -867,6 +1003,11 @@ mod tests {
             summary
                 .adapter_readiness
                 .contains(&"expressionDomainFlowAnalysisRunner")
+        );
+        assert!(
+            summary
+                .adapter_readiness
+                .contains(&"expressionDomainSalsaRuntime")
         );
         assert!(
             summary
@@ -898,6 +1039,37 @@ mod tests {
                 .analyses
                 .iter()
                 .all(|entry| entry.analysis.converged)
+        );
+    }
+
+    #[test]
+    fn reuses_expression_domain_flow_analysis_through_salsa_runtime() {
+        let input = sample_input();
+        let mut runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
+
+        let first =
+            summarize_omena_query_expression_domain_incremental_flow_analysis(&input, &mut runtime);
+        assert_eq!(
+            first.product,
+            "omena-query.expression-domain-incremental-flow-analysis"
+        );
+        assert_eq!(first.revision, 1);
+        assert_eq!(first.graph_count, 2);
+        assert_eq!(first.dirty_graph_count, 2);
+        assert_eq!(first.reused_graph_count, 0);
+        assert_eq!(runtime.graph_count(), 2);
+
+        let second =
+            summarize_omena_query_expression_domain_incremental_flow_analysis(&input, &mut runtime);
+        assert_eq!(second.revision, 2);
+        assert_eq!(second.graph_count, 2);
+        assert_eq!(second.dirty_graph_count, 0);
+        assert_eq!(second.reused_graph_count, 2);
+        assert!(
+            second
+                .analyses
+                .iter()
+                .all(|entry| entry.analysis.reused_previous_analysis)
         );
     }
 

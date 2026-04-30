@@ -30,6 +30,7 @@ export const SELECTED_QUERY_RUNNER_COMMANDS = {
   sourceResolutionRuntime: "input-omena-resolver-source-resolution-runtime",
   expressionSemanticsCanonicalProducer: "input-expression-semantics-canonical-producer",
   expressionDomainFlowAnalysis: "input-expression-domain-flow-analysis",
+  expressionDomainIncrementalFlowAnalysis: "input-expression-domain-incremental-flow-analysis",
   selectorUsageCanonicalProducer: "input-selector-usage-canonical-producer",
   styleSemanticGraph: "style-semantic-graph",
   styleSemanticGraphBatch: "style-semantic-graph-batch",

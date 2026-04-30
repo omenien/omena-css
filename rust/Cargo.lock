@@ -222,6 +222,7 @@ dependencies = [
  "engine-style-parser",
  "omena-abstract-value",
  "omena-bridge",
+ "omena-incremental",
  "omena-resolver",
  "serde",
 ]

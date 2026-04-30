@@ -6,9 +6,10 @@ use crate::{
     ExpressionDomainCanonicalProducerSignalV0, ExpressionDomainEvaluatorCandidatePayloadV0,
     ExpressionDomainEvaluatorCandidateV0, ExpressionDomainEvaluatorCandidatesV0,
     ExpressionDomainFlowAnalysisEntryV0, ExpressionDomainFlowAnalysisV0,
-    ExpressionDomainFragmentV0, ExpressionDomainFragmentsV0, ExpressionDomainPlanSummaryV0,
-    TypeFactEntryV2, abstract_value_facts, collect_constraint_detail_counts,
-    map_reduced_expression_value_domain_derivation, map_reduced_expression_value_domain_kind,
+    ExpressionDomainFlowGraphEntryV0, ExpressionDomainFragmentV0, ExpressionDomainFragmentsV0,
+    ExpressionDomainPlanSummaryV0, TypeFactEntryV2, abstract_value_facts,
+    collect_constraint_detail_counts, map_reduced_expression_value_domain_derivation,
+    map_reduced_expression_value_domain_kind,
 };
 
 struct ExpressionDomainInputRows {
@@ -213,6 +214,26 @@ pub fn summarize_expression_domain_canonical_producer_signal_input(
 pub fn summarize_expression_domain_flow_analysis_input(
     input: &EngineInputV2,
 ) -> ExpressionDomainFlowAnalysisV0 {
+    let analyses = collect_expression_domain_flow_graphs(input)
+        .into_iter()
+        .map(|entry| ExpressionDomainFlowAnalysisEntryV0 {
+            graph_id: entry.graph_id,
+            file_path: entry.file_path,
+            analysis: omena_abstract_value::analyze_class_value_flow(&entry.graph),
+        })
+        .collect();
+
+    ExpressionDomainFlowAnalysisV0 {
+        schema_version: "0",
+        product: "engine-input-producers.expression-domain-flow-analysis",
+        input_version: input.version.clone(),
+        analyses,
+    }
+}
+
+pub fn collect_expression_domain_flow_graphs(
+    input: &EngineInputV2,
+) -> Vec<ExpressionDomainFlowGraphEntryV0> {
     let mut by_file = BTreeMap::<String, Vec<&TypeFactEntryV2>>::new();
     for entry in &input.type_facts {
         by_file
@@ -221,7 +242,7 @@ pub fn summarize_expression_domain_flow_analysis_input(
             .push(entry);
     }
 
-    let analyses = by_file
+    by_file
         .into_iter()
         .map(|(file_path, mut entries)| {
             entries.sort_by(|a, b| a.expression_id.cmp(&b.expression_id));
@@ -253,26 +274,19 @@ pub fn summarize_expression_domain_flow_analysis_input(
                 nodes,
             };
 
-            ExpressionDomainFlowAnalysisEntryV0 {
+            ExpressionDomainFlowGraphEntryV0 {
                 graph_id,
                 file_path,
-                analysis: omena_abstract_value::analyze_class_value_flow(&graph),
+                graph,
             }
         })
-        .collect();
-
-    ExpressionDomainFlowAnalysisV0 {
-        schema_version: "0",
-        product: "engine-input-producers.expression-domain-flow-analysis",
-        input_version: input.version.clone(),
-        analyses,
-    }
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        summarize_expression_domain_candidates_input,
+        collect_expression_domain_flow_graphs, summarize_expression_domain_candidates_input,
         summarize_expression_domain_canonical_candidate_bundle_input,
         summarize_expression_domain_canonical_producer_signal_input,
         summarize_expression_domain_evaluator_candidates_input,
@@ -448,6 +462,31 @@ mod tests {
                     ]
                 }
             ))
+        );
+    }
+
+    #[test]
+    fn exposes_expression_domain_flow_graphs_for_query_runtime_reuse() {
+        let mut input = sample_input();
+        input.type_facts = vec![
+            exact_type_fact("expr-branch-a", "btn-primary"),
+            exact_type_fact("expr-branch-b", "btn-secondary"),
+        ];
+
+        let graphs = collect_expression_domain_flow_graphs(&input);
+
+        assert_eq!(graphs.len(), 1);
+        assert_eq!(graphs[0].graph_id, "/tmp/App.tsx:expression-domain-flow");
+        assert_eq!(
+            graphs[0].graph.context_key.as_deref(),
+            Some(graphs[0].graph_id.as_str())
+        );
+        assert!(
+            graphs[0]
+                .graph
+                .nodes
+                .iter()
+                .any(|node| node.id == "file-merge")
         );
     }
 

@@ -13,6 +13,7 @@ mod source_side;
 mod test_support;
 mod type_facts;
 
+pub use expression_domain::collect_expression_domain_flow_graphs;
 pub use expression_domain::summarize_expression_domain_candidates_input;
 pub use expression_domain::summarize_expression_domain_canonical_candidate_bundle_input;
 pub use expression_domain::summarize_expression_domain_canonical_producer_signal_input;
@@ -329,6 +330,13 @@ pub struct ExpressionDomainFlowAnalysisEntryV0 {
     pub graph_id: String,
     pub file_path: String,
     pub analysis: omena_abstract_value::ClassValueFlowAnalysisV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExpressionDomainFlowGraphEntryV0 {
+    pub graph_id: String,
+    pub file_path: String,
+    pub graph: omena_abstract_value::ClassValueFlowGraphV0,
 }
 
 #[derive(Debug, Serialize)]

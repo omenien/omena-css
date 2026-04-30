@@ -31,6 +31,10 @@ Current public products:
   `input-expression-domain-flow-analysis` runner command. This exposes the
   `omena-abstract-value` flow product through the query boundary while keeping
   the lower-level product name stable.
+- selected-query expression-domain incremental flow runtime for the
+  `input-expression-domain-incremental-flow-analysis` runner command. This
+  keeps per-graph `omena-incremental` Salsa databases alive across daemon
+  requests so repeated query analysis can reuse clean graph results.
 - selected-query style semantic graph adapter wrappers. These preserve the
   `omena-semantic.style-semantic-graph` products while delegating graph assembly
   to `omena-bridge`.
