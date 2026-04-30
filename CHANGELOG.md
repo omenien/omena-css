@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [4.10.0] - 2026-05-01
+
+### Added
+
+- **CFG and k-CFA abstract-value surfaces** - `omena-abstract-value` now exposes control-flow-graph pruning and k-limited call-site batch analyses for class value flow facts, giving downstream tooling explicit entry points for flow-sensitive selector semantics beyond the original one-CFA check.
+- **Selected-query CFG analysis lane** - `engine-input-producers`, `omena-query`, `engine-shadow-runner`, and the Node selected-query backend now expose an expression-domain control-flow analysis command so CFG facts can travel through the same production query boundary as the incremental flow runtime.
+
+### Changed
+
+- **Abstract-value release gate** - the focused Rust check now covers the broader CFA family instead of only the original one-CFA surface.
+
 ## [4.9.0] - 2026-05-01
 
 ### Changed
