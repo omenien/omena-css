@@ -10,6 +10,7 @@
 - **tsgo JSON-RPC type-fact provider** - added a Rust provider orchestration layer that executes initialize, snapshot, project mapping, type lookup, union expansion, and release over the managed `omena-tsgo-client` transport.
 - **Rust LSP query reuse boundary** - extracted document-owned reusable indexes for style summaries, hover candidates, source syntax, and source selector candidates so provider requests consume refreshed document state instead of rescanning raw text.
 - **Thin VS Code client host** - moved Rust LSP server option and document-selector construction into the thin-client runtime contract so extension activation only resolves settings, creates watchers, translates VS Code-only command arguments, and starts the client.
+- **Rust LSP multi-editor distribution** - promoted Neovim/Zed/VS Code support from docs-only guidance into the `omena-lsp-server` boundary contract, with standalone Rust server endpoints and no Node LSP primary endpoint in the multi-editor path.
 - **Shadow CI tsgo lane** - aligned checker release-gate shadow with the tsgo-only rust gate evidence variants and made the ESLint plugin smoke gate build its required server dist artifacts on fresh CI checkouts.
 - **Extension host smoke determinism** - pinned the VS Code test host to the extension `engines.vscode` baseline by default and raised the `@vscode/test-electron` request timeout so CI does not fail while resolving the latest VS Code version.
 

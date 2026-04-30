@@ -86,6 +86,15 @@ interface RustOmenaLspServerBoundarySummary {
     readonly splitRepository: string;
     readonly cargoInstallCommand: string;
   };
+  readonly multiEditorDistribution: {
+    readonly product: string;
+    readonly owner: string;
+    readonly distributionModel: string;
+    readonly supportedEditors: readonly string[];
+    readonly installSurfaces: readonly string[];
+    readonly documentation: readonly string[];
+    readonly endpointPolicy: readonly string[];
+  };
   readonly nextDecouplingTargets: readonly string[];
 }
 
@@ -235,8 +244,8 @@ assert.ok(
   "implemented thin VS Code client host should not remain listed as a next target",
 );
 assert.ok(
-  rustSummary.nextDecouplingTargets.includes("multiEditorDistribution"),
-  "Rust LSP boundary must keep the multi-editor distribution endpoint visible",
+  !rustSummary.nextDecouplingTargets.includes("multiEditorDistribution"),
+  "implemented multi-editor distribution should not remain listed as a next target",
 );
 assert.equal(rustSummary.thinClientEndpoint.product, "omena-lsp-server.thin-client-endpoint");
 assert.equal(rustSummary.thinClientEndpoint.standalonePackage, "omena-lsp-server");
@@ -247,6 +256,34 @@ assert.equal(
 assert.equal(
   rustSummary.thinClientEndpoint.cargoInstallCommand,
   "cargo install omena-lsp-server --version 0.1.3",
+);
+assert.equal(
+  rustSummary.multiEditorDistribution.product,
+  "omena-lsp-server.multi-editor-distribution",
+);
+assert.equal(rustSummary.multiEditorDistribution.owner, "omena-lsp-server/distribution");
+assert.equal(
+  rustSummary.multiEditorDistribution.distributionModel,
+  "standaloneRustLspServerWithThinEditorHosts",
+);
+assert.deepEqual(rustSummary.multiEditorDistribution.supportedEditors.toSorted(), [
+  "neovim",
+  "vscode",
+  "zed",
+]);
+assert.ok(
+  rustSummary.multiEditorDistribution.installSurfaces.includes("cargoInstallOmenaLspServer"),
+);
+assert.ok(rustSummary.multiEditorDistribution.installSurfaces.includes("repoLocalDistBin"));
+assert.ok(rustSummary.multiEditorDistribution.documentation.includes("docs/clients/neovim.md"));
+assert.ok(rustSummary.multiEditorDistribution.documentation.includes("docs/clients/zed.md"));
+assert.ok(
+  rustSummary.multiEditorDistribution.endpointPolicy.includes(
+    "standaloneRustServerIsPrimaryMultiEditorEndpoint",
+  ),
+);
+assert.ok(
+  rustSummary.multiEditorDistribution.endpointPolicy.includes("nodeLspServerIsNotPrimaryEndpoint"),
 );
 assert.deepEqual(
   rustSummary.migrationPhases.map((phase) => phase.phase),

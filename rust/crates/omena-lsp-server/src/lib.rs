@@ -58,6 +58,7 @@ pub struct OmenaLspServerBoundarySummaryV0 {
     pub diagnostics_scheduler: RustDiagnosticsSchedulerBoundaryV0,
     pub query_reuse: RustQueryReuseBoundaryV0,
     pub thin_client_endpoint: ThinClientEndpointV0,
+    pub multi_editor_distribution: MultiEditorDistributionV0,
     pub node_parity_contracts: Vec<&'static str>,
     pub next_decoupling_targets: Vec<&'static str>,
 }
@@ -150,6 +151,18 @@ pub struct ThinClientEndpointV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct MultiEditorDistributionV0 {
+    pub product: &'static str,
+    pub owner: &'static str,
+    pub distribution_model: &'static str,
+    pub supported_editors: Vec<&'static str>,
+    pub install_surfaces: Vec<&'static str>,
+    pub documentation: Vec<&'static str>,
+    pub endpoint_policy: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SourceProviderDirectRustAdapterV0 {
     pub product: &'static str,
     pub candidate_owner: &'static str,
@@ -181,6 +194,7 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
         diagnostics_scheduler: rust_diagnostics_scheduler_contract(),
         query_reuse: rust_query_reuse_contract(),
         thin_client_endpoint: thin_client_endpoint_contract(),
+        multi_editor_distribution: multi_editor_distribution_contract(),
         node_parity_contracts: vec![
             "initializeCapabilities",
             "textDocumentSync",
@@ -189,7 +203,7 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
             "diagnosticsPush",
             "codeLensRefresh",
         ],
-        next_decoupling_targets: vec!["multiEditorDistribution"],
+        next_decoupling_targets: vec![],
     }
 }
 
@@ -250,6 +264,31 @@ pub fn thin_client_endpoint_contract() -> ThinClientEndpointV0 {
             "ownDiagnosticsScheduling",
             "ownProviderExecution",
             "ownTsgoClientLifecycle",
+        ],
+    }
+}
+
+pub fn multi_editor_distribution_contract() -> MultiEditorDistributionV0 {
+    MultiEditorDistributionV0 {
+        product: "omena-lsp-server.multi-editor-distribution",
+        owner: "omena-lsp-server/distribution",
+        distribution_model: "standaloneRustLspServerWithThinEditorHosts",
+        supported_editors: vec!["vscode", "neovim", "zed"],
+        install_surfaces: vec![
+            "vsixBundledDistBinary",
+            "cargoInstallOmenaLspServer",
+            "repoLocalDistBin",
+        ],
+        documentation: vec![
+            "client/src/extension.ts",
+            "docs/clients/neovim.md",
+            "docs/clients/zed.md",
+        ],
+        endpoint_policy: vec![
+            "standaloneRustServerIsPrimaryMultiEditorEndpoint",
+            "nodeLspServerIsNotPrimaryEndpoint",
+            "editorClientsDoNotImplementProviderSemantics",
+            "editorsMayRunBesideNativeTypeScriptServer",
         ],
     }
 }
@@ -3691,6 +3730,11 @@ mod tests {
                 .contains(&"thinVsCodeClientHost")
         );
         assert!(
+            !summary
+                .next_decoupling_targets
+                .contains(&"multiEditorDistribution")
+        );
+        assert!(
             summary
                 .migration_phases
                 .iter()
@@ -3712,6 +3756,22 @@ mod tests {
                 .thin_client_endpoint
                 .rust_responsibilities
                 .contains(&"ownTsgoClientLifecycle")
+        );
+        assert_eq!(
+            summary.multi_editor_distribution.product,
+            "omena-lsp-server.multi-editor-distribution"
+        );
+        assert!(
+            summary
+                .multi_editor_distribution
+                .supported_editors
+                .contains(&"neovim")
+        );
+        assert!(
+            summary
+                .multi_editor_distribution
+                .endpoint_policy
+                .contains(&"nodeLspServerIsNotPrimaryEndpoint")
         );
         assert!(
             summary
