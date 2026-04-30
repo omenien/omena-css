@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [4.6.0] - 2026-04-30
+
 ### Changed
 
 - **Workspace resolver cleanup** - removed the legacy synchronous `WorkspaceTypeResolver` implementation and `createDefaultProgram` helper from `engine-core-ts`; host/runtime code now accepts only explicit `TypeResolver` injection and defaults to the tsgo-backed path.
