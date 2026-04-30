@@ -158,6 +158,20 @@ pub struct ClassValueFlowGraphV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClassValueControlFlowGraphV0 {
+    pub context_key: Option<String>,
+    pub entry_block_id: String,
+    pub blocks: Vec<ClassValueControlFlowBlockV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClassValueControlFlowBlockV0 {
+    pub id: String,
+    pub nodes: Vec<ClassValueFlowNodeV0>,
+    pub successor_block_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClassValueFlowNodeV0 {
     pub id: String,
     pub predecessors: Vec<String>,
@@ -215,6 +229,33 @@ pub struct ClassValueFlowIncrementalBatchEntryV0 {
     pub analysis: ClassValueFlowIncrementalAnalysisV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassValueControlFlowAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub context_sensitivity: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_key: Option<String>,
+    pub block_count: usize,
+    pub edge_count: usize,
+    pub reachable_block_count: usize,
+    pub unreachable_block_ids: Vec<String>,
+    pub flow_analysis: ClassValueFlowAnalysisV0,
+    pub blocks: Vec<ClassValueControlFlowBlockResultV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassValueControlFlowBlockResultV0 {
+    pub block_id: String,
+    pub reachable: bool,
+    pub node_ids: Vec<String>,
+    pub successor_block_ids: Vec<String>,
+    pub exit_value_kind: &'static str,
+    pub exit_value: AbstractClassValueV0,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OneCfaCallSiteFlowInputV0 {
     pub callee_key: String,
@@ -255,6 +296,39 @@ pub struct OneCfaCalleeFlowSummaryV0 {
     pub call_site_count: usize,
     pub joined_exit_value_kind: &'static str,
     pub joined_exit_value: AbstractClassValueV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KLimitedCallSiteFlowInputV0 {
+    pub callee_key: String,
+    pub call_site_stack: Vec<String>,
+    pub graph: ClassValueFlowGraphV0,
+    pub exit_node_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KLimitedCallSiteFlowAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub context_sensitivity: String,
+    pub max_context_depth: usize,
+    pub call_site_count: usize,
+    pub callee_count: usize,
+    pub entries: Vec<KLimitedCallSiteFlowEntryV0>,
+    pub callee_summaries: Vec<OneCfaCalleeFlowSummaryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KLimitedCallSiteFlowEntryV0 {
+    pub callee_key: String,
+    pub call_site_stack: Vec<String>,
+    pub context_key: String,
+    pub exit_node_id: String,
+    pub exit_value_kind: &'static str,
+    pub exit_value: AbstractClassValueV0,
+    pub analysis: ClassValueFlowAnalysisV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -326,7 +400,13 @@ pub fn summarize_omena_abstract_value_flow_analysis() -> AbstractValueFlowAnalys
         product: "omena-abstract-value.flow-analysis",
         context_sensitivity: "1-cfa",
         incremental_engine: "omena-incremental",
-        analysis_scopes: vec!["singleContext", "multiContextBatch", "callSiteBatch"],
+        analysis_scopes: vec![
+            "singleContext",
+            "multiContextBatch",
+            "callSiteBatch",
+            "kLimitedCallSiteBatch",
+            "controlFlowGraph",
+        ],
         reuse_policy: "reuse previous context analysis when its omena-incremental plan is clean",
         transfer_kinds: vec!["assignFacts", "refineFacts", "concatFacts", "join"],
         max_iterations: MAX_FLOW_ANALYSIS_ITERATIONS,
@@ -811,6 +891,89 @@ pub fn analyze_class_value_flow(graph: &ClassValueFlowGraphV0) -> ClassValueFlow
     }
 }
 
+pub fn analyze_class_value_control_flow_graph(
+    graph: &ClassValueControlFlowGraphV0,
+) -> ClassValueControlFlowAnalysisV0 {
+    let reachable_block_ids = reachable_control_flow_block_ids(graph);
+    let reachable_node_ids = graph
+        .blocks
+        .iter()
+        .filter(|block| reachable_block_ids.contains(&block.id))
+        .flat_map(|block| block.nodes.iter().map(|node| node.id.clone()))
+        .collect::<BTreeSet<_>>();
+    let flow_graph = ClassValueFlowGraphV0 {
+        context_key: graph.context_key.clone(),
+        nodes: graph
+            .blocks
+            .iter()
+            .filter(|block| reachable_block_ids.contains(&block.id))
+            .flat_map(|block| {
+                block.nodes.iter().map(|node| ClassValueFlowNodeV0 {
+                    id: node.id.clone(),
+                    predecessors: node
+                        .predecessors
+                        .iter()
+                        .filter(|id| reachable_node_ids.contains(id.as_str()))
+                        .cloned()
+                        .collect(),
+                    transfer: node.transfer.clone(),
+                })
+            })
+            .collect(),
+    };
+    let flow_analysis = analyze_class_value_flow(&flow_graph);
+    let unreachable_block_ids = graph
+        .blocks
+        .iter()
+        .filter(|block| !reachable_block_ids.contains(&block.id))
+        .map(|block| block.id.clone())
+        .collect::<Vec<_>>();
+    let blocks = graph
+        .blocks
+        .iter()
+        .map(|block| {
+            let reachable = reachable_block_ids.contains(&block.id);
+            let exit_value = if reachable {
+                block
+                    .nodes
+                    .iter()
+                    .rev()
+                    .find_map(|node| flow_analysis_node_value(&flow_analysis, &node.id))
+                    .cloned()
+                    .unwrap_or_else(bottom_class_value)
+            } else {
+                bottom_class_value()
+            };
+
+            ClassValueControlFlowBlockResultV0 {
+                block_id: block.id.clone(),
+                reachable,
+                node_ids: block.nodes.iter().map(|node| node.id.clone()).collect(),
+                successor_block_ids: block.successor_block_ids.clone(),
+                exit_value_kind: abstract_class_value_kind(&exit_value),
+                exit_value,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    ClassValueControlFlowAnalysisV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.control-flow-analysis",
+        context_sensitivity: "1-cfa",
+        context_key: graph.context_key.clone(),
+        block_count: graph.blocks.len(),
+        edge_count: graph
+            .blocks
+            .iter()
+            .map(|block| block.successor_block_ids.len())
+            .sum(),
+        reachable_block_count: reachable_block_ids.len(),
+        unreachable_block_ids,
+        flow_analysis,
+        blocks,
+    }
+}
+
 pub fn analyze_class_value_flow_incremental(
     graph: &ClassValueFlowGraphV0,
     previous_snapshot: Option<&IncrementalSnapshotV0>,
@@ -953,6 +1116,48 @@ pub fn analyze_one_cfa_call_site_flows(
     }
 }
 
+pub fn analyze_k_limited_call_site_flows(
+    inputs: &[KLimitedCallSiteFlowInputV0],
+    max_context_depth: usize,
+) -> KLimitedCallSiteFlowAnalysisV0 {
+    let max_context_depth = max_context_depth.max(1);
+    let entries = inputs
+        .iter()
+        .map(|input| {
+            let context_key = k_limited_context_key(input, max_context_depth);
+            let mut graph = input.graph.clone();
+            graph.context_key = Some(context_key.clone());
+            let analysis = analyze_class_value_flow(&graph);
+            let exit_value = flow_analysis_node_value(&analysis, &input.exit_node_id)
+                .cloned()
+                .unwrap_or_else(bottom_class_value);
+            let exit_value_kind = abstract_class_value_kind(&exit_value);
+
+            KLimitedCallSiteFlowEntryV0 {
+                callee_key: input.callee_key.clone(),
+                call_site_stack: input.call_site_stack.clone(),
+                context_key,
+                exit_node_id: input.exit_node_id.clone(),
+                exit_value_kind,
+                exit_value,
+                analysis,
+            }
+        })
+        .collect::<Vec<_>>();
+    let callee_summaries = summarize_k_limited_callees(&entries);
+
+    KLimitedCallSiteFlowAnalysisV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.k-limited-call-site-flow",
+        context_sensitivity: format!("{max_context_depth}-cfa"),
+        max_context_depth,
+        call_site_count: entries.len(),
+        callee_count: callee_summaries.len(),
+        entries,
+        callee_summaries,
+    }
+}
+
 pub fn class_value_flow_incremental_input(
     graph: &ClassValueFlowGraphV0,
     revision: u64,
@@ -980,6 +1185,48 @@ fn flow_graph_batch_context_key(graph: &ClassValueFlowGraphV0, index: usize) -> 
 
 fn one_cfa_context_key(input: &OneCfaCallSiteFlowInputV0) -> String {
     format!("{}@{}", input.callee_key, input.call_site_id)
+}
+
+fn k_limited_context_key(input: &KLimitedCallSiteFlowInputV0, max_context_depth: usize) -> String {
+    let retained_stack = input
+        .call_site_stack
+        .iter()
+        .rev()
+        .take(max_context_depth)
+        .cloned()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>();
+    let stack = if retained_stack.is_empty() {
+        "<root>".to_string()
+    } else {
+        retained_stack.join(" > ")
+    };
+
+    format!("{}@{}", input.callee_key, stack)
+}
+
+fn reachable_control_flow_block_ids(graph: &ClassValueControlFlowGraphV0) -> BTreeSet<String> {
+    let blocks_by_id = graph
+        .blocks
+        .iter()
+        .map(|block| (block.id.as_str(), block))
+        .collect::<BTreeMap<_, _>>();
+    let mut reachable = BTreeSet::new();
+    let mut worklist = vec![graph.entry_block_id.clone()];
+
+    while let Some(block_id) = worklist.pop() {
+        if !reachable.insert(block_id.clone()) {
+            continue;
+        }
+        let Some(block) = blocks_by_id.get(block_id.as_str()) else {
+            continue;
+        };
+        worklist.extend(block.successor_block_ids.iter().cloned());
+    }
+
+    reachable
 }
 
 fn flow_analysis_node_value<'a>(
@@ -1025,6 +1272,35 @@ fn one_cfa_call_site_derivation(
 
 fn summarize_one_cfa_callees(
     entries: &[OneCfaCallSiteFlowEntryV0],
+) -> Vec<OneCfaCalleeFlowSummaryV0> {
+    let mut by_callee = BTreeMap::<String, Vec<AbstractClassValueV0>>::new();
+    for entry in entries {
+        by_callee
+            .entry(entry.callee_key.clone())
+            .or_default()
+            .push(entry.exit_value.clone());
+    }
+
+    by_callee
+        .into_iter()
+        .map(|(callee_key, values)| {
+            let call_site_count = values.len();
+            let joined_exit_value = values
+                .into_iter()
+                .reduce(|left, right| join_abstract_class_values(&left, &right))
+                .unwrap_or_else(bottom_class_value);
+            OneCfaCalleeFlowSummaryV0 {
+                callee_key,
+                call_site_count,
+                joined_exit_value_kind: abstract_class_value_kind(&joined_exit_value),
+                joined_exit_value,
+            }
+        })
+        .collect()
+}
+
+fn summarize_k_limited_callees(
+    entries: &[KLimitedCallSiteFlowEntryV0],
 ) -> Vec<OneCfaCalleeFlowSummaryV0> {
     let mut by_callee = BTreeMap::<String, Vec<AbstractClassValueV0>>::new();
     for entry in entries {
@@ -2189,25 +2465,27 @@ fn is_constrained_selector_shape(facts: &ExternalStringTypeFactsV0) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        AbstractClassValueProvenanceV0, AbstractClassValueV0, ClassValueFlowGraphV0,
-        ClassValueFlowNodeV0, ClassValueFlowTransferV0, CompositeClassValueInputV0,
-        ExternalStringTypeFactsV0, MAX_FINITE_CLASS_VALUES, OneCfaCallSiteFlowInputV0,
-        SelectorProjectionCertaintyV0, abstract_class_value_from_facts, analyze_class_value_flow,
+        AbstractClassValueProvenanceV0, AbstractClassValueV0, ClassValueControlFlowBlockV0,
+        ClassValueControlFlowGraphV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
+        ClassValueFlowTransferV0, CompositeClassValueInputV0, ExternalStringTypeFactsV0,
+        KLimitedCallSiteFlowInputV0, MAX_FINITE_CLASS_VALUES, OneCfaCallSiteFlowInputV0,
+        SelectorProjectionCertaintyV0, abstract_class_value_from_facts,
+        analyze_class_value_control_flow_graph, analyze_class_value_flow,
         analyze_class_value_flow_incremental,
         analyze_class_value_flow_incremental_batch_with_reuse,
         analyze_class_value_flow_incremental_with_database,
-        analyze_class_value_flow_incremental_with_reuse, analyze_one_cfa_call_site_flows,
-        bottom_class_value, char_inclusion_class_value, composite_class_value,
-        concatenate_abstract_class_values, derive_selector_projection_certainty, exact_class_value,
-        finite_set_class_value, finite_values_from_facts, intersect_abstract_class_values,
-        join_abstract_class_values, prefix_class_value, prefix_suffix_class_value,
-        project_abstract_value_selectors, reduced_abstract_class_value_from_facts,
-        reduced_class_value_derivation_from_facts, reduced_value_domain_kind_from_facts,
-        selector_certainty_from_facts, selector_certainty_shape_kind_from_facts,
-        selector_certainty_shape_label_from_facts, suffix_class_value,
-        summarize_omena_abstract_value_domain, summarize_omena_abstract_value_flow_analysis,
-        top_class_value, value_certainty_from_facts, value_certainty_shape_kind_from_facts,
-        value_certainty_shape_label_from_facts,
+        analyze_class_value_flow_incremental_with_reuse, analyze_k_limited_call_site_flows,
+        analyze_one_cfa_call_site_flows, bottom_class_value, char_inclusion_class_value,
+        composite_class_value, concatenate_abstract_class_values,
+        derive_selector_projection_certainty, exact_class_value, finite_set_class_value,
+        finite_values_from_facts, intersect_abstract_class_values, join_abstract_class_values,
+        prefix_class_value, prefix_suffix_class_value, project_abstract_value_selectors,
+        reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
+        reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
+        selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
+        suffix_class_value, summarize_omena_abstract_value_domain,
+        summarize_omena_abstract_value_flow_analysis, top_class_value, value_certainty_from_facts,
+        value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
     };
     use omena_incremental::OmenaIncrementalDatabaseV0;
     use std::collections::BTreeMap;
@@ -2234,6 +2512,12 @@ mod tests {
         assert_eq!(flow_summary.incremental_engine, "omena-incremental");
         assert!(flow_summary.analysis_scopes.contains(&"multiContextBatch"));
         assert!(flow_summary.analysis_scopes.contains(&"callSiteBatch"));
+        assert!(
+            flow_summary
+                .analysis_scopes
+                .contains(&"kLimitedCallSiteBatch")
+        );
+        assert!(flow_summary.analysis_scopes.contains(&"controlFlowGraph"));
         assert_eq!(
             flow_summary.reuse_policy,
             "reuse previous context analysis when its omena-incremental plan is clean"
@@ -2838,6 +3122,112 @@ mod tests {
     }
 
     #[test]
+    fn analyzes_k_cfa_limited_call_site_flows_with_context_stack_discrimination() {
+        let analysis = analyze_k_limited_call_site_flows(
+            &[
+                KLimitedCallSiteFlowInputV0 {
+                    callee_key: "classForVariant".to_string(),
+                    call_site_stack: vec![
+                        "RouteA.tsx:render".to_string(),
+                        "Button.tsx:className".to_string(),
+                    ],
+                    graph: flow_exit_graph("btn-primary"),
+                    exit_node_id: "exit".to_string(),
+                },
+                KLimitedCallSiteFlowInputV0 {
+                    callee_key: "classForVariant".to_string(),
+                    call_site_stack: vec![
+                        "RouteB.tsx:render".to_string(),
+                        "Button.tsx:className".to_string(),
+                    ],
+                    graph: flow_exit_graph("btn-secondary"),
+                    exit_node_id: "exit".to_string(),
+                },
+            ],
+            2,
+        );
+
+        assert_eq!(
+            analysis.product,
+            "omena-abstract-value.k-limited-call-site-flow"
+        );
+        assert_eq!(analysis.context_sensitivity, "2-cfa");
+        assert_eq!(analysis.max_context_depth, 2);
+        assert_eq!(
+            analysis.entries[0].context_key,
+            "classForVariant@RouteA.tsx:render > Button.tsx:className"
+        );
+        assert_eq!(
+            analysis.entries[1].context_key,
+            "classForVariant@RouteB.tsx:render > Button.tsx:className"
+        );
+        assert_eq!(
+            analysis.callee_summaries[0].joined_exit_value,
+            AbstractClassValueV0::FiniteSet {
+                values: vec!["btn-primary".to_string(), "btn-secondary".to_string()]
+            }
+        );
+    }
+
+    #[test]
+    fn analyzes_control_flow_graph_with_reachability_pruning() {
+        let graph = ClassValueControlFlowGraphV0 {
+            context_key: Some("Button.tsx:render@cfg".to_string()),
+            entry_block_id: "entry".to_string(),
+            blocks: vec![
+                ClassValueControlFlowBlockV0 {
+                    id: "entry".to_string(),
+                    nodes: vec![flow_assign_node(
+                        "base",
+                        external_facts("exact").with_values(["btn-primary"]),
+                    )],
+                    successor_block_ids: vec!["merge".to_string()],
+                },
+                ClassValueControlFlowBlockV0 {
+                    id: "dead".to_string(),
+                    nodes: vec![flow_assign_node(
+                        "ghost",
+                        external_facts("exact").with_values(["card"]),
+                    )],
+                    successor_block_ids: vec!["merge".to_string()],
+                },
+                ClassValueControlFlowBlockV0 {
+                    id: "merge".to_string(),
+                    nodes: vec![ClassValueFlowNodeV0 {
+                        id: "exit".to_string(),
+                        predecessors: vec!["base".to_string(), "ghost".to_string()],
+                        transfer: ClassValueFlowTransferV0::Join,
+                    }],
+                    successor_block_ids: Vec::new(),
+                },
+            ],
+        };
+
+        let analysis = analyze_class_value_control_flow_graph(&graph);
+
+        assert_eq!(
+            analysis.product,
+            "omena-abstract-value.control-flow-analysis"
+        );
+        assert_eq!(analysis.block_count, 3);
+        assert_eq!(analysis.edge_count, 2);
+        assert_eq!(analysis.reachable_block_count, 2);
+        assert_eq!(analysis.unreachable_block_ids, vec!["dead".to_string()]);
+        assert_eq!(
+            flow_value(&analysis.flow_analysis, "exit"),
+            Some(&exact_class_value("btn-primary"))
+        );
+        assert_eq!(
+            analysis
+                .blocks
+                .iter()
+                .find(|block| block.block_id == "dead")
+                .map(|block| (&block.reachable, &block.exit_value)),
+            Some((&false, &bottom_class_value()))
+        );
+    }
+
+    #[test]
     fn analyzes_class_value_flow_on_incremental_plan() {
         let graph = ClassValueFlowGraphV0 {
             context_key: Some("Button.tsx:render@primary".to_string()),
@@ -3254,6 +3644,34 @@ mod tests {
             id: id.to_string(),
             predecessors: Vec::new(),
             transfer: ClassValueFlowTransferV0::AssignFacts(facts),
+        }
+    }
+
+    fn flow_exit_graph(value: &str) -> ClassValueFlowGraphV0 {
+        ClassValueFlowGraphV0 {
+            context_key: None,
+            nodes: vec![
+                flow_assign_node(
+                    "value",
+                    ExternalStringTypeFactsV0 {
+                        kind: "exact".to_string(),
+                        constraint_kind: None,
+                        values: Some(vec![value.to_string()]),
+                        prefix: None,
+                        suffix: None,
+                        min_len: None,
+                        max_len: None,
+                        char_must: None,
+                        char_may: None,
+                        may_include_other_chars: None,
+                    },
+                ),
+                ClassValueFlowNodeV0 {
+                    id: "exit".to_string(),
+                    predecessors: vec!["value".to_string()],
+                    transfer: ClassValueFlowTransferV0::Join,
+                },
+            ],
         }
     }
 

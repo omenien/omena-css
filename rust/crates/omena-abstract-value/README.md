@@ -15,6 +15,10 @@ Current public product:
   class-value flow.
 - `analyze_class_value_flow` — V0 1-CFA flow analysis over explicit
   class-value flow graphs with assign/refine/join transfers.
+- `analyze_class_value_control_flow_graph` — CFG-aware flow analysis that
+  prunes unreachable blocks before evaluating class-value transfer facts.
+- `analyze_k_limited_call_site_flows` — k-limited call-site context analysis
+  for dynamic class helpers that need deeper-than-1-CFA discrimination.
 - `analyze_class_value_flow_incremental` — the same flow analysis surfaced with
   an `omena-incremental` recomputation plan and next snapshot.
 - `analyze_class_value_flow_incremental_with_reuse` — incremental flow analysis

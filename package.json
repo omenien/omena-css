@@ -78,7 +78,7 @@
     "check:rust-workspace": "cargo fmt --manifest-path rust/Cargo.toml --all --check && cargo check --manifest-path rust/Cargo.toml && cargo clippy --manifest-path rust/Cargo.toml --all-targets --all-features -- -D warnings",
     "check:rust-omena-abstract-value-domain": "cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value",
     "check:rust-omena-abstract-value-incremental-flow": "cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value flow",
-    "check:rust-omena-abstract-value-one-cfa": "cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value one_cfa",
+    "check:rust-omena-abstract-value-one-cfa": "cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value cfa",
     "check:rust-omena-abstract-value-git-consumer": "./scripts/check-rust-omena-abstract-value-git-consumer.sh",
     "check:rust-omena-abstract-value-split-boundary": "pnpm cme-check run rust/omena-abstract-value/domain && pnpm cme-check run rust/omena-abstract-value/incremental-flow && pnpm cme-check run rust/omena-abstract-value/one-cfa && pnpm cme-check run rust/omena-abstract-value/git-consumer",
     "check:rust-omena-incremental-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-incremental",
