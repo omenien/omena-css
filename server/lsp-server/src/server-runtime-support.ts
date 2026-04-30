@@ -1,8 +1,5 @@
-import {
-  CodeLensRefreshRequest,
-  type Connection,
-  type TextDocuments,
-} from "vscode-languageserver/node";
+import { CodeLensRefreshRequest } from "vscode-languageserver-protocol/node";
+import type { Connection, TextDocuments } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import { pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
 import type { RuntimeSink } from "../../engine-host-node/src/runtime";
@@ -19,7 +16,16 @@ export function readStyleTextFromOpenDocuments(
 export function createRuntimeSink(
   connection: Connection,
   supportsCodeLensRefresh: boolean,
+  options: { readonly codeLensRefreshDebounceMs?: number } = {},
 ): RuntimeSink {
+  const codeLensRefreshDebounceMs = options.codeLensRefreshDebounceMs ?? 50;
+  let pendingCodeLensRefresh: ReturnType<typeof setTimeout> | null = null;
+
+  const sendCodeLensRefresh = (): void => {
+    pendingCodeLensRefresh = null;
+    void connection.sendRequest(CodeLensRefreshRequest.type).catch(() => {});
+  };
+
   return {
     info(message: string): void {
       connection.console.info(message);
@@ -32,7 +38,8 @@ export function createRuntimeSink(
     },
     requestCodeLensRefresh(): void {
       if (!supportsCodeLensRefresh) return;
-      void connection.sendRequest(CodeLensRefreshRequest.type).catch(() => {});
+      if (pendingCodeLensRefresh) return;
+      pendingCodeLensRefresh = setTimeout(sendCodeLensRefresh, codeLensRefreshDebounceMs);
     },
   };
 }
