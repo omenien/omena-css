@@ -1,4 +1,5 @@
 mod diagnostics_scheduler;
+mod query_reuse;
 mod workspace_runtime_registry;
 
 use diagnostics_scheduler::{
@@ -11,6 +12,9 @@ use engine_style_parser::{
 };
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_tsgo_client::{OmenaTsgoClientBoundarySummaryV0, summarize_omena_tsgo_client_boundary};
+use query_reuse::{
+    RustQueryReuseBoundaryV0, refresh_document_reusable_indexes, rust_query_reuse_contract,
+};
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::{
@@ -52,6 +56,7 @@ pub struct OmenaLspServerBoundarySummaryV0 {
     pub source_provider_adapter: SourceProviderDirectRustAdapterV0,
     pub workspace_runtime_registry: WorkspaceRuntimeRegistryBoundaryV0,
     pub diagnostics_scheduler: RustDiagnosticsSchedulerBoundaryV0,
+    pub query_reuse: RustQueryReuseBoundaryV0,
     pub thin_client_endpoint: ThinClientEndpointV0,
     pub node_parity_contracts: Vec<&'static str>,
     pub next_decoupling_targets: Vec<&'static str>,
@@ -174,6 +179,7 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
         source_provider_adapter: source_provider_direct_rust_adapter_contract(),
         workspace_runtime_registry: workspace_runtime_registry_contract(),
         diagnostics_scheduler: rust_diagnostics_scheduler_contract(),
+        query_reuse: rust_query_reuse_contract(),
         thin_client_endpoint: thin_client_endpoint_contract(),
         node_parity_contracts: vec![
             "initializeCapabilities",
@@ -183,11 +189,7 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
             "diagnosticsPush",
             "codeLensRefresh",
         ],
-        next_decoupling_targets: vec![
-            "incrementalQueryReuse",
-            "thinVsCodeClientHost",
-            "multiEditorDistribution",
-        ],
+        next_decoupling_targets: vec!["thinVsCodeClientHost", "multiEditorDistribution"],
     }
 }
 
@@ -1007,21 +1009,8 @@ fn lsp_text_document_state(
         source_syntax_index: SourceSyntaxIndex::default(),
         source_selector_candidates: Vec::new(),
     };
-    refresh_document_indexes(&mut document);
+    refresh_document_reusable_indexes(&mut document);
     document
-}
-
-fn refresh_document_indexes(document: &mut LspTextDocumentState) {
-    document.style_summary =
-        summarize_style_document(document.uri.as_str(), Some(document.text.as_str()));
-    document.style_candidates =
-        collect_style_hover_candidates(document.uri.as_str(), document.text.as_str())
-            .map(|(_, candidates)| candidates)
-            .unwrap_or_default();
-    let source_syntax_index = build_source_syntax_index(document);
-    document.source_selector_candidates =
-        source_selector_candidates_from_index(document, &source_syntax_index);
-    document.source_syntax_index = source_syntax_index;
 }
 
 fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
@@ -1081,7 +1070,7 @@ fn did_change_text_document(state: &mut LspShellState, params: Option<&Value>) {
         }
     }
     if text_changed {
-        refresh_document_indexes(existing);
+        refresh_document_reusable_indexes(existing);
     }
 }
 

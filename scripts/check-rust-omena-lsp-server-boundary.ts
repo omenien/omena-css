@@ -72,6 +72,14 @@ interface RustOmenaLspServerBoundarySummary {
     readonly eventPolicy: readonly string[];
     readonly requestPathPolicy: readonly string[];
   };
+  readonly queryReuse: {
+    readonly product: string;
+    readonly owner: string;
+    readonly reuseModel: string;
+    readonly cachedSurfaces: readonly string[];
+    readonly invalidationPolicy: readonly string[];
+    readonly requestPathPolicy: readonly string[];
+  };
   readonly thinClientEndpoint: {
     readonly product: string;
     readonly standalonePackage: string;
@@ -121,8 +129,8 @@ assert.ok(
   "implemented tsgo JSON-RPC provider should not remain listed as a next target",
 );
 assert.ok(
-  rustSummary.nextDecouplingTargets.includes("incrementalQueryReuse"),
-  "Rust LSP boundary must keep the next incremental reuse target visible",
+  !rustSummary.nextDecouplingTargets.includes("incrementalQueryReuse"),
+  "implemented query reuse should not remain listed as a next target",
 );
 assert.equal(rustSummary.tsgoClientBoundary.product, "omena-tsgo-client.boundary");
 assert.equal(rustSummary.tsgoClientBoundary.runtimeModel, "longLivedWorkspaceProcess");
@@ -212,6 +220,15 @@ assert.ok(
 assert.ok(
   !rustSummary.nextDecouplingTargets.includes("rustDiagnosticsScheduler"),
   "implemented diagnostics scheduler should not remain listed as a next target",
+);
+assert.equal(rustSummary.queryReuse.product, "omena-lsp-server.query-reuse");
+assert.equal(rustSummary.queryReuse.owner, "omena-lsp-server/documentQueryReuse");
+assert.equal(rustSummary.queryReuse.reuseModel, "documentRevisionOwnedReusableIndexes");
+assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("sourceSyntaxIndex"));
+assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("styleHoverCandidates"));
+assert.ok(rustSummary.queryReuse.invalidationPolicy.includes("refreshOnDocumentContentChange"));
+assert.ok(
+  rustSummary.queryReuse.requestPathPolicy.includes("providerRequestsConsumeDocumentIndexes"),
 );
 assert.ok(
   rustSummary.nextDecouplingTargets.includes("thinVsCodeClientHost"),
