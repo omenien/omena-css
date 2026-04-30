@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [4.11.0] - 2026-05-01
+
+### Changed
+
+- **CodeLens warm-path optimization** - style CodeLens now resolves Rust style semantic graph references once per style file and reuses selector summaries across lenses, preventing per-selector graph request fan-out on larger modules.
+- **CodeLens refresh coalescing** - LSP CodeLens refresh requests are now debounced and safe against disposed JSON-RPC connections, reducing refresh storms after semantic-reference updates.
+
+### Added
+
+- **Cross-file Sass symbol rename** - renaming a Sass module member reference now updates the resolved declaration plus incoming `@use`/wildcard member sites recorded in the style dependency graph.
+
 ## [4.10.0] - 2026-05-01
 
 ### Added
