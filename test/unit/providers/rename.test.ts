@@ -34,6 +34,7 @@ import {
   expandSelectorMapWithTransform,
   parseStyleSelectorMap,
 } from "../../_fixtures/style-documents";
+import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 
 const SCSS_PATH = "/fake/src/Button.module.scss";
 const SCSS_URI = "file:///fake/src/Button.module.scss";
@@ -211,6 +212,71 @@ describe("handlePrepareRename", () => {
 });
 
 describe("handleRename", () => {
+  it("renames a Sass module member reference across the target declaration and incoming use site", () => {
+    const tokensPath = "/fake/src/_tokens.scss";
+    const tokensUri = "file:///fake/src/_tokens.scss";
+    const fixture = workspace({
+      [tokensPath]: `$brand: red;\n`,
+      [SCSS_PATH]: `@use "./tokens" as tokens;\n.button { color: tokens.$br/*at:ref*/and; }\n`,
+    });
+    const tokensDocument = parseStyleDocument(fixture.file(tokensPath).content, tokensPath);
+    const sourceDocument = parseStyleDocument(fixture.file(SCSS_PATH).content, SCSS_PATH);
+    const styleContents = new Map([
+      [tokensPath, fixture.file(tokensPath).content],
+      [SCSS_PATH, fixture.file(SCSS_PATH).content],
+    ]);
+    const styleDocuments = new Map([
+      [tokensPath, tokensDocument],
+      [SCSS_PATH, sourceDocument],
+    ]);
+    const incomingRef = sourceDocument.sassModuleMemberRefs[0]!;
+
+    const deps = makeDeps({
+      styleDocumentForPath: (path) => styleDocuments.get(path) ?? null,
+      readStyleFile: (path) => styleContents.get(path) ?? null,
+      styleDependencyGraph: {
+        record: vi.fn(),
+        forget: vi.fn(),
+        forgetWithinRoot: vi.fn(),
+        getIncoming: () => [],
+        getOutgoing: () => [],
+        getIncomingSassModuleMemberRefs: () => [
+          {
+            filePath: SCSS_PATH,
+            namespace: "tokens",
+            symbolKind: "variable",
+            name: "brand",
+            range: incomingRef.range,
+          },
+        ],
+        getAllCustomPropertyDecls: () => [],
+        getCustomPropertyDecls: () => [],
+        getCustomPropertyRefs: () => [],
+      },
+    });
+
+    const prep = handlePrepareRename(stylePositionParams(fixture, SCSS_URI, "ref"), deps);
+    expect(prep?.placeholder).toBe("$brand");
+
+    const result = handleRename(styleRenameParams(fixture, SCSS_URI, "accent", "ref"), deps);
+
+    expect(result?.changes?.[tokensUri]).toEqual([
+      {
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: 0, character: 6 },
+        },
+        newText: "$accent",
+      },
+    ]);
+    expect(result?.changes?.[SCSS_URI]).toEqual([
+      {
+        range: incomingRef.range,
+        newText: "$accent",
+      },
+    ]);
+  });
+
   it("builds WorkspaceEdit with SCSS selector and TS/TSX reference edits", () => {
     const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
     semanticReferenceIndex.record("file:///fake/src/App.tsx", [

@@ -10,8 +10,11 @@ import {
   findSassSymbolAtCursor,
   findSassSymbolDeclAtCursor,
   findSassSymbolDeclForSymbol,
+  findSassModuleMemberRefAtCursor,
   findSelectorAtCursor,
   listSassSymbolsForDecl,
+  resolveSassModuleMemberRefTarget,
+  resolveSassWildcardSymbolTarget,
   readSelectorRewriteSafetySummary,
 } from "../../engine-core-ts/src/core/query";
 import type { ResolvedReferenceSite } from "../../engine-core-ts/src/core/query/find-references";
@@ -82,6 +85,7 @@ export function readStyleRenameTargetAtCursor(
   deps: Pick<
     ProviderDeps,
     | "analysisCache"
+    | "aliasResolver"
     | "settings"
     | "semanticReferenceIndex"
     | "styleDependencyGraph"
@@ -101,7 +105,7 @@ export function readStyleRenameTargetAtCursor(
     options,
   );
   if (selectorResult.kind !== "miss") return selectorResult;
-  return readSassSymbolRenameTargetAtCursor(filePath, line, character, styleDocument);
+  return readSassSymbolRenameTargetAtCursor(filePath, line, character, styleDocument, deps);
 }
 
 function readStyleSelectorRenameTargetAtCursor(
@@ -112,6 +116,7 @@ function readStyleSelectorRenameTargetAtCursor(
   deps: Pick<
     ProviderDeps,
     | "analysisCache"
+    | "aliasResolver"
     | "settings"
     | "semanticReferenceIndex"
     | "styleDependencyGraph"
@@ -184,6 +189,7 @@ function readSassSymbolRenameTargetAtCursor(
   line: number,
   character: number,
   styleDocument: StyleDocumentHIR,
+  deps: Pick<ProviderDeps, "aliasResolver" | "readStyleFile" | "styleDocumentForPath">,
 ): SassSymbolRenameReadResult {
   const decl = findSassSymbolDeclAtCursor(styleDocument, line, character);
   if (decl) {
@@ -201,10 +207,57 @@ function readSassSymbolRenameTargetAtCursor(
     };
   }
 
+  const moduleMemberRef = findSassModuleMemberRefAtCursor(styleDocument, line, character);
+  if (moduleMemberRef) {
+    const target = resolveSassModuleMemberRefTarget(
+      deps.styleDocumentForPath,
+      filePath,
+      styleDocument,
+      moduleMemberRef,
+      deps.aliasResolver,
+      { readFile: deps.readStyleFile },
+    );
+    if (!target) return { kind: "miss" };
+    return {
+      kind: "target",
+      target: makeSassSymbolRenameTarget(
+        target.filePath,
+        target.styleDocument,
+        target.decl.syntax,
+        target.decl.symbolKind,
+        target.decl.name,
+        target.decl,
+        moduleMemberRef.range,
+      ),
+    };
+  }
+
   const symbol = findSassSymbolAtCursor(styleDocument, line, character);
   if (!symbol) return { kind: "miss" };
   const targetDecl = findSassSymbolDeclForSymbol(styleDocument, symbol);
-  if (!targetDecl) return { kind: "miss" };
+  if (!targetDecl) {
+    const wildcardTarget = resolveSassWildcardSymbolTarget(
+      deps.styleDocumentForPath,
+      filePath,
+      styleDocument,
+      symbol,
+      deps.aliasResolver,
+      { readFile: deps.readStyleFile },
+    );
+    if (!wildcardTarget) return { kind: "miss" };
+    return {
+      kind: "target",
+      target: makeSassSymbolRenameTarget(
+        wildcardTarget.filePath,
+        wildcardTarget.styleDocument,
+        wildcardTarget.decl.syntax,
+        wildcardTarget.decl.symbolKind,
+        wildcardTarget.decl.name,
+        wildcardTarget.decl,
+        symbol.range,
+      ),
+    };
+  }
   return {
     kind: "target",
     target: makeSassSymbolRenameTarget(
@@ -227,6 +280,7 @@ export function planStyleRenameAtCursor(
   deps: Pick<
     ProviderDeps,
     | "analysisCache"
+    | "aliasResolver"
     | "settings"
     | "semanticReferenceIndex"
     | "styleDependencyGraph"
@@ -248,7 +302,7 @@ export function planStyleRenameAtCursor(
   );
   if (result.kind !== "target") return null;
   if (isSassSymbolRenameTarget(result.target)) {
-    return planSassSymbolRename(result.target, newName);
+    return planSassSymbolRename(result.target, newName, deps);
   }
   return planSelectorRename(result.target, newName);
 }
@@ -286,26 +340,54 @@ const SASS_IDENTIFIER_RE = /^[a-zA-Z_][\w-]*$/;
 function planSassSymbolRename(
   target: SassSymbolRenameTarget,
   newName: string,
+  deps: Pick<ProviderDeps, "styleDependencyGraph">,
 ): SassSymbolRenamePlanResult {
   const nextName = normalizeSassSymbolNewName(target.symbolKind, newName, target.symbolSyntax);
   if (!nextName) return { kind: "blocked", reason: "invalidNewName" };
 
   const newText = formatSassSymbolText(target.symbolKind, nextName, target.symbolSyntax);
   const edits: PlannedTextEdit[] = [];
-  edits.push({
+  pushSassSymbolRenameEdit(edits, {
     uri: target.scssUri,
     range: target.targetDecl.range,
     newText,
   });
   for (const symbol of listSassSymbolsForDecl(target.styleDocument, target.targetDecl)) {
-    edits.push({
+    pushSassSymbolRenameEdit(edits, {
       uri: target.scssUri,
       range: symbol.range,
       newText,
     });
   }
+  for (const ref of deps.styleDependencyGraph.getIncomingSassModuleMemberRefs(
+    target.scssPath,
+    target.symbolKind,
+    target.name,
+  )) {
+    pushSassSymbolRenameEdit(edits, {
+      uri: pathToFileUrl(ref.filePath),
+      range: ref.range,
+      newText,
+    });
+  }
 
   return { kind: "plan", plan: { target, edits } };
+}
+
+function pushSassSymbolRenameEdit(edits: PlannedTextEdit[], edit: PlannedTextEdit): void {
+  if (
+    edits.some(
+      (existing) =>
+        existing.uri === edit.uri &&
+        existing.range.start.line === edit.range.start.line &&
+        existing.range.start.character === edit.range.start.character &&
+        existing.range.end.line === edit.range.end.line &&
+        existing.range.end.character === edit.range.end.character,
+    )
+  ) {
+    return;
+  }
+  edits.push(edit);
 }
 
 function normalizeSassSymbolNewName(
