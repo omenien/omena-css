@@ -18,6 +18,7 @@ import {
   listCheckerCodeBundles,
   type CheckerCodeBundle,
 } from "../../engine-core-ts/src/core/checker/checker-code-bundles";
+import { listCheckerRuleDescriptors } from "../../engine-core-ts/src/core/checker/checker-rule-registry";
 import { buildCheckerJsonReport, type CheckerReportJsonV1 } from "./checker-report";
 import {
   buildRustStyleRecoveryCanonicalProducer,
@@ -66,6 +67,10 @@ export async function runCheckerCli(
   }
   if ("bundleText" in parsed) {
     io.stdout(parsed.bundleText);
+    return 0;
+  }
+  if ("ruleText" in parsed) {
+    io.stdout(parsed.ruleText);
     return 0;
   }
   if ("error" in parsed) {
@@ -139,6 +144,7 @@ async function parseCliArgs(
   | ParsedCliOptions
   | { readonly helpText: string }
   | { readonly bundleText: string }
+  | { readonly ruleText: string }
   | { readonly error: string }
 > {
   const cwd = io.cwd();
@@ -174,6 +180,7 @@ async function parseCliArgs(
     if (arg === "--") continue;
     if (arg === "--help" || arg === "-h") return { helpText: buildHelpText() };
     if (arg === "--list-bundles") return { bundleText: buildBundleHelpText() };
+    if (arg === "--list-rules") return { ruleText: buildRuleHelpText() };
 
     if (arg === "--root") {
       const value = argv[index + 1];
@@ -635,6 +642,7 @@ function buildHelpText(): string {
     "  --include-bundle <bundle>    Restrict findings to one named code bundle",
     `                               Available: ${buildBundleValueHelpText()}`,
     "  --list-bundles               Print named code bundles and exit",
+    "  --list-rules                 Print checker rule metadata and exit",
     "  --exclude-code <code>        Remove one rule code from output (repeatable)",
     "  --source-file <path>         Restrict source checking to one file (repeatable)",
     "  --style-file <path>          Restrict style checking to one file (repeatable)",
@@ -656,6 +664,17 @@ function buildBundleHelpText(): string {
   return [
     "Named checker code bundles:",
     ...listCheckerCodeBundles().map(({ bundle, codes }) => `  ${bundle}: ${codes.join(", ")}`),
+    "",
+  ].join("\n");
+}
+
+function buildRuleHelpText(): string {
+  return [
+    "Checker rules:",
+    ...listCheckerRuleDescriptors().map(
+      (rule) =>
+        `  ${rule.code}: category=${rule.category}, severity=${rule.defaultSeverity}, fixability=${rule.fixability}, presets=${rule.presets.join("|") || "none"}`,
+    ),
     "",
   ].join("\n");
 }

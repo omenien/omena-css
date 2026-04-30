@@ -466,6 +466,24 @@ describe("runCheckerCli", () => {
     expect(output).toContain("style-unused:");
   });
 
+  it("prints checker rule metadata", async () => {
+    const workspaceRoot = makeWorkspace({});
+    const stdout: string[] = [];
+
+    const exitCode = await runCheckerCli([workspaceRoot, "--list-rules"], {
+      stdout: (message) => stdout.push(message),
+      stderr: () => {},
+      cwd: () => workspaceRoot,
+    });
+
+    expect(exitCode).toBe(0);
+    const output = stdout.join("");
+    expect(output).toContain("Checker rules:");
+    expect(output).toContain("missing-static-class: category=source");
+    expect(output).toContain("unused-selector: category=style");
+    expect(output).toContain("fixability=codeAction");
+  });
+
   it("emits rust style-recovery producer and consistency in json output", async () => {
     const stdout: string[] = [];
 

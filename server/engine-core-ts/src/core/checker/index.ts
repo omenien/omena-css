@@ -23,4 +23,14 @@ export {
   listCheckerCodeBundles,
   type CheckerCodeBundle,
 } from "./checker-code-bundles";
+export {
+  getCheckerRuleDescriptor,
+  isCheckerRuleCode,
+  listCheckerRuleCodes,
+  listCheckerRuleDescriptors,
+  type CheckerRuleCode,
+  type CheckerRuleDescriptor,
+  type CheckerRuleFixability,
+  type CheckerRulePreset,
+} from "./checker-rule-registry";
 export { runCheckerRules, type CheckerRule, type CheckerRuleContext } from "./rule-template";
