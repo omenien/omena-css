@@ -21,6 +21,7 @@ pub struct OmenaTsgoClientBoundarySummaryV0 {
     pub api_methods: Vec<TsgoApiMethodV0>,
     pub type_fact_contract: TypeFactContractV0,
     pub lifecycle: TsgoClientLifecycleV0,
+    pub recovery_policy: TsgoRecoveryPolicyV0,
     pub ready_surfaces: Vec<&'static str>,
     pub cme_coupled_surfaces: Vec<&'static str>,
     pub next_decoupling_targets: Vec<&'static str>,
@@ -62,6 +63,21 @@ pub struct TsgoClientLifecycleV0 {
     pub snapshot_release_method: &'static str,
     pub cancellation_boundary: &'static str,
     pub stale_result_policy: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TsgoRecoveryPolicyV0 {
+    pub retry_scope: &'static str,
+    pub max_batch_attempts: usize,
+    pub recoverable_errors: Vec<&'static str>,
+    pub recovery_action: &'static str,
+    pub snapshot_policy: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TsgoProviderRetryPolicyV0 {
+    pub max_batch_attempts: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -209,6 +225,10 @@ pub trait TsgoJsonRpcProviderTransportV0 {
         workspace_root: &str,
         request: &TsgoJsonRpcOutboundRequestV0,
     ) -> Result<Option<serde_json::Value>, TsgoJsonRpcIoErrorV0>;
+
+    fn recover_workspace(&mut self, _workspace_root: &str) -> Result<bool, TsgoJsonRpcIoErrorV0> {
+        Ok(false)
+    }
 }
 
 #[derive(Debug)]
@@ -251,6 +271,13 @@ pub fn summarize_omena_tsgo_client_boundary() -> OmenaTsgoClientBoundarySummaryV
             cancellation_boundary: "before getTypeAtPosition batch",
             stale_result_policy: "discard when document version or config hash changes",
         },
+        recovery_policy: TsgoRecoveryPolicyV0 {
+            retry_scope: "wholeTypeFactBatch",
+            max_batch_attempts: 2,
+            recoverable_errors: vec!["io", "missingResponse", "unexpectedResponseId"],
+            recovery_action: "restartWorkspaceProcessThenReplayBatch",
+            snapshot_policy: "discardPreviousSnapshotAndOpenFreshSnapshot",
+        },
         ready_surfaces: vec![
             "tsgoApiInvocationArgs",
             "typeFactRequestContract",
@@ -260,6 +287,8 @@ pub fn summarize_omena_tsgo_client_boundary() -> OmenaTsgoClientBoundarySummaryV
             "jsonRpcContentLengthTransport",
             "jsonRpcProcessIo",
             "jsonRpcTypeFactProviderImplementation",
+            "recoverableBatchRetry",
+            "workspaceProcessRecovery",
             "typeFactRpcClient",
             "typeFactResultReducer",
             "phase3SourceProviderExitGate",
@@ -273,6 +302,14 @@ pub fn summarize_omena_tsgo_client_boundary() -> OmenaTsgoClientBoundarySummaryV
             "incrementalSnapshotDiff",
             "sourceProviderDirectRustAdapter",
         ],
+    }
+}
+
+impl Default for TsgoProviderRetryPolicyV0 {
+    fn default() -> Self {
+        Self {
+            max_batch_attempts: 2,
+        }
     }
 }
 
@@ -686,6 +723,15 @@ impl fmt::Display for TsgoJsonRpcProviderErrorV0 {
 
 impl std::error::Error for TsgoJsonRpcProviderErrorV0 {}
 
+impl TsgoJsonRpcProviderErrorV0 {
+    pub fn is_recoverable(&self) -> bool {
+        matches!(
+            self,
+            Self::Io(_) | Self::MissingResponse { .. } | Self::UnexpectedResponseId { .. }
+        )
+    }
+}
+
 impl From<io::Error> for TsgoJsonRpcIoErrorV0 {
     fn from(error: io::Error) -> Self {
         Self::Io(error)
@@ -732,6 +778,24 @@ impl TsgoWorkspaceProcessPoolV0 {
         self.processes
             .insert(process.config.workspace_root.clone(), process);
         Ok(snapshot)
+    }
+
+    pub fn restart_workspace_process(
+        &mut self,
+        workspace_root: &str,
+    ) -> io::Result<Option<TsgoWorkspaceProcessSnapshotV0>> {
+        let Some(mut previous) = self.processes.remove(workspace_root) else {
+            return Ok(None);
+        };
+        let config = previous.config.clone();
+        previous.shutdown()?;
+
+        self.generation_counter += 1;
+        let process = ManagedTsgoWorkspaceProcessV0::spawn(config, self.generation_counter)?;
+        let snapshot = process.snapshot(false);
+        self.processes
+            .insert(process.config.workspace_root.clone(), process);
+        Ok(Some(snapshot))
     }
 
     pub fn shutdown_workspace(&mut self, workspace_root: &str) -> io::Result<bool> {
@@ -781,6 +845,12 @@ impl TsgoJsonRpcProviderTransportV0 for TsgoWorkspaceProcessPoolV0 {
     ) -> Result<Option<serde_json::Value>, TsgoJsonRpcIoErrorV0> {
         TsgoWorkspaceProcessPoolV0::send_json_rpc_request(self, workspace_root, request)
     }
+
+    fn recover_workspace(&mut self, workspace_root: &str) -> Result<bool, TsgoJsonRpcIoErrorV0> {
+        self.restart_workspace_process(workspace_root)
+            .map(|snapshot| snapshot.is_some())
+            .map_err(TsgoJsonRpcIoErrorV0::Io)
+    }
 }
 
 impl Drop for TsgoWorkspaceProcessPoolV0 {
@@ -805,6 +875,38 @@ where
     }
 
     pub fn collect_type_facts(
+        &mut self,
+        request: &TsgoTypeFactRequestV0,
+    ) -> Result<Vec<TsgoTypeFactResultEntryV0>, TsgoJsonRpcProviderErrorV0> {
+        self.collect_type_facts_with_policy(request, TsgoProviderRetryPolicyV0::default())
+    }
+
+    pub fn collect_type_facts_with_policy(
+        &mut self,
+        request: &TsgoTypeFactRequestV0,
+        retry_policy: TsgoProviderRetryPolicyV0,
+    ) -> Result<Vec<TsgoTypeFactResultEntryV0>, TsgoJsonRpcProviderErrorV0> {
+        let max_attempts = retry_policy.max_batch_attempts.max(1);
+        let mut attempt = 1;
+
+        loop {
+            match self.collect_type_facts_once(request) {
+                Ok(entries) => return Ok(entries),
+                Err(error) if attempt < max_attempts && error.is_recoverable() => {
+                    if !self
+                        .transport
+                        .recover_workspace(request.workspace_root.as_str())?
+                    {
+                        return Err(error);
+                    }
+                    attempt += 1;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    fn collect_type_facts_once(
         &mut self,
         request: &TsgoTypeFactRequestV0,
     ) -> Result<Vec<TsgoTypeFactResultEntryV0>, TsgoJsonRpcProviderErrorV0> {
@@ -1098,12 +1200,13 @@ mod tests {
     use super::{
         TSGO_TYPE_FLAGS_UNION, TsgoJsonRpcIoErrorV0, TsgoJsonRpcOutboundRequestV0,
         TsgoJsonRpcProviderTransportV0, TsgoJsonRpcTypeFactProviderV0, TsgoProcessCommandV0,
-        TsgoTypeFactRequestV0, TsgoTypeFactRpcClientV0, TsgoTypeFactTargetV0,
-        TsgoWorkspaceProcessConfigV0, TsgoWorkspaceProcessPoolV0, build_tsgo_api_args,
-        build_tsgo_process_command, drain_tsgo_json_rpc_frames, encode_tsgo_json_rpc_message,
-        encode_tsgo_json_rpc_request, plan_tsgo_type_fact_collection, read_tsgo_json_rpc_message,
-        reduce_tsgo_type_response, summarize_omena_tsgo_client_boundary,
-        summarize_tsgo_json_rpc_transport, write_tsgo_json_rpc_request,
+        TsgoProviderRetryPolicyV0, TsgoTypeFactRequestV0, TsgoTypeFactRpcClientV0,
+        TsgoTypeFactTargetV0, TsgoWorkspaceProcessConfigV0, TsgoWorkspaceProcessPoolV0,
+        build_tsgo_api_args, build_tsgo_process_command, drain_tsgo_json_rpc_frames,
+        encode_tsgo_json_rpc_message, encode_tsgo_json_rpc_request, plan_tsgo_type_fact_collection,
+        read_tsgo_json_rpc_message, reduce_tsgo_type_response,
+        summarize_omena_tsgo_client_boundary, summarize_tsgo_json_rpc_transport,
+        write_tsgo_json_rpc_request,
     };
     use serde_json::json;
     use std::{collections::VecDeque, io};
@@ -1137,6 +1240,16 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"typeFactRpcClient"));
         assert!(summary.ready_surfaces.contains(&"typeFactResultReducer"));
+        assert!(summary.ready_surfaces.contains(&"recoverableBatchRetry"));
+        assert!(summary.ready_surfaces.contains(&"workspaceProcessRecovery"));
+        assert_eq!(summary.recovery_policy.retry_scope, "wholeTypeFactBatch");
+        assert_eq!(summary.recovery_policy.max_batch_attempts, 2);
+        assert!(
+            summary
+                .recovery_policy
+                .recoverable_errors
+                .contains(&"missingResponse")
+        );
         assert!(
             summary
                 .next_decoupling_targets
@@ -1452,6 +1565,55 @@ mod tests {
     }
 
     #[test]
+    fn json_rpc_type_fact_provider_recovers_whole_batch_after_missing_response()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let request = TsgoTypeFactRequestV0 {
+            workspace_root: "/repo".to_string(),
+            config_path: "/repo/tsconfig.json".to_string(),
+            targets: vec![TsgoTypeFactTargetV0 {
+                file_path: "/repo/src/App.tsx".to_string(),
+                expression_id: "expr-1".to_string(),
+                position: 12,
+            }],
+        };
+        let transport = FakeTsgoTransport::new_script(vec![
+            Some(json!(null)),
+            None,
+            Some(json!(null)),
+            Some(json!({ "snapshot": "snapshot-2" })),
+            Some(json!({ "id": "project-1" })),
+            Some(json!({ "value": "recovered" })),
+            Some(json!(null)),
+        ]);
+        let mut provider = TsgoJsonRpcTypeFactProviderV0::new(transport);
+
+        let entries = provider.collect_type_facts_with_policy(
+            &request,
+            TsgoProviderRetryPolicyV0 {
+                max_batch_attempts: 2,
+            },
+        )?;
+        let transport = provider.into_transport();
+
+        assert_eq!(transport.reset_count, 1);
+        assert_eq!(
+            transport.methods,
+            vec![
+                "initialize",
+                "updateSnapshot",
+                "initialize",
+                "updateSnapshot",
+                "getDefaultProjectForFile",
+                "getTypeAtPosition",
+                "release",
+            ]
+        );
+        assert_eq!(entries[0].resolved_type.kind, "union");
+        assert_eq!(entries[0].resolved_type.values, vec!["recovered"]);
+        Ok(())
+    }
+
+    #[test]
     fn process_pool_reuses_running_workspace_process() -> io::Result<()> {
         let mut pool = TsgoWorkspaceProcessPoolV0::default();
         let config = test_process_config("reuse", 30);
@@ -1483,6 +1645,27 @@ mod tests {
         assert!(!second.reused);
         assert_ne!(first.generation, second.generation);
         assert_ne!(first.args, second.args);
+        assert!(pool.shutdown_workspace(first.workspace_root.as_str())?);
+        Ok(())
+    }
+
+    #[test]
+    fn process_pool_restarts_existing_workspace_for_recovery() -> io::Result<()> {
+        let mut pool = TsgoWorkspaceProcessPoolV0::default();
+        let config = test_process_config("recover", 30);
+
+        let first = pool.ensure_workspace_process(config)?;
+        let Some(recovered) = pool.restart_workspace_process(first.workspace_root.as_str())? else {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "expected existing workspace process to restart",
+            ));
+        };
+
+        assert_eq!(pool.len(), 1);
+        assert!(!recovered.reused);
+        assert_eq!(first.workspace_root, recovered.workspace_root);
+        assert_ne!(first.generation, recovered.generation);
         assert!(pool.shutdown_workspace(first.workspace_root.as_str())?);
         Ok(())
     }
@@ -1560,15 +1743,21 @@ mod tests {
 
     #[derive(Debug)]
     struct FakeTsgoTransport {
-        responses: VecDeque<serde_json::Value>,
+        responses: VecDeque<Option<serde_json::Value>>,
         methods: Vec<String>,
+        reset_count: usize,
     }
 
     impl FakeTsgoTransport {
         fn new(responses: Vec<serde_json::Value>) -> Self {
+            Self::new_script(responses.into_iter().map(Some).collect())
+        }
+
+        fn new_script(responses: Vec<Option<serde_json::Value>>) -> Self {
             Self {
                 responses: VecDeque::from(responses),
                 methods: Vec::new(),
+                reset_count: 0,
             }
         }
     }
@@ -1580,15 +1769,26 @@ mod tests {
             request: &TsgoJsonRpcOutboundRequestV0,
         ) -> Result<Option<serde_json::Value>, TsgoJsonRpcIoErrorV0> {
             self.methods.push(request.method.clone());
-            let result = self
+            let Some(result) = self
                 .responses
                 .pop_front()
-                .unwrap_or(serde_json::Value::Null);
+                .unwrap_or(Some(serde_json::Value::Null))
+            else {
+                return Ok(None);
+            };
             Ok(Some(json!({
                 "jsonrpc": "2.0",
                 "id": request.id,
                 "result": result,
             })))
+        }
+
+        fn recover_workspace(
+            &mut self,
+            _workspace_root: &str,
+        ) -> Result<bool, TsgoJsonRpcIoErrorV0> {
+            self.reset_count += 1;
+            Ok(true)
         }
     }
 }

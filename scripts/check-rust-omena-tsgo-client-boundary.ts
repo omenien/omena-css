@@ -31,6 +31,13 @@ interface OmenaTsgoClientBoundarySummary {
     readonly snapshotReleaseMethod: string;
     readonly cancellationBoundary: string;
   };
+  readonly recoveryPolicy: {
+    readonly retryScope: string;
+    readonly maxBatchAttempts: number;
+    readonly recoverableErrors: readonly string[];
+    readonly recoveryAction: string;
+    readonly snapshotPolicy: string;
+  };
   readonly readySurfaces: readonly string[];
   readonly cmeCoupledSurfaces: readonly string[];
   readonly nextDecouplingTargets: readonly string[];
@@ -66,11 +73,22 @@ assert.match(summary.typeFactContract.projectMissBehavior, /unresolvable/u);
 assert.equal(summary.lifecycle.openProjectMethod, "updateSnapshot");
 assert.equal(summary.lifecycle.snapshotReleaseMethod, "release");
 assert.match(summary.lifecycle.cancellationBoundary, /getTypeAtPosition/u);
+assert.equal(summary.recoveryPolicy.retryScope, "wholeTypeFactBatch");
+assert.equal(summary.recoveryPolicy.maxBatchAttempts, 2);
+assert.deepEqual(summary.recoveryPolicy.recoverableErrors, [
+  "io",
+  "missingResponse",
+  "unexpectedResponseId",
+]);
+assert.equal(summary.recoveryPolicy.recoveryAction, "restartWorkspaceProcessThenReplayBatch");
+assert.equal(summary.recoveryPolicy.snapshotPolicy, "discardPreviousSnapshotAndOpenFreshSnapshot");
 assert.ok(summary.readySurfaces.includes("phase3SourceProviderExitGate"));
 assert.ok(summary.readySurfaces.includes("persistentWorkspaceProcessPool"));
 assert.ok(summary.readySurfaces.includes("jsonRpcContentLengthTransport"));
 assert.ok(summary.readySurfaces.includes("jsonRpcProcessIo"));
 assert.ok(summary.readySurfaces.includes("jsonRpcTypeFactProviderImplementation"));
+assert.ok(summary.readySurfaces.includes("recoverableBatchRetry"));
+assert.ok(summary.readySurfaces.includes("workspaceProcessRecovery"));
 assert.ok(summary.readySurfaces.includes("typeFactRpcClient"));
 assert.ok(summary.readySurfaces.includes("typeFactResultReducer"));
 assert.ok(summary.nextDecouplingTargets.includes("sourceProviderDirectRustAdapter"));
