@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [4.8.0] - 2026-05-01
+
+### Changed
+
+- **tsgo IPC recovery** - `omena-tsgo-client` now retries recoverable JSON-RPC type-fact batches by restarting the workspace process and replaying the batch with a fresh snapshot, covering I/O failures, missing responses, and unexpected response ids without re-entering the old TypeScript fallback path.
+
 ## [4.7.0] - 2026-05-01
 
 ### Changed
