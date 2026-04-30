@@ -1,8 +1,9 @@
 use engine_input_producers::{
-    EngineInputV2, ExpressionDomainFlowAnalysisV0, ExpressionSemanticsCanonicalProducerSignalV0,
-    ExpressionSemanticsQueryFragmentsV0, SelectorUsageCanonicalProducerSignalV0,
-    SelectorUsageQueryFragmentsV0, SourceResolutionCanonicalProducerSignalV0,
-    SourceResolutionQueryFragmentsV0, collect_expression_domain_flow_graphs,
+    EngineInputV2, ExpressionDomainControlFlowAnalysisV0, ExpressionDomainFlowAnalysisV0,
+    ExpressionSemanticsCanonicalProducerSignalV0, ExpressionSemanticsQueryFragmentsV0,
+    SelectorUsageCanonicalProducerSignalV0, SelectorUsageQueryFragmentsV0,
+    SourceResolutionCanonicalProducerSignalV0, SourceResolutionQueryFragmentsV0,
+    collect_expression_domain_flow_graphs, summarize_expression_domain_control_flow_analysis_input,
     summarize_expression_domain_flow_analysis_input,
     summarize_expression_semantics_canonical_producer_signal_input,
     summarize_expression_semantics_query_fragments_input,
@@ -158,6 +159,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "omena-resolver.source-resolution-runtime-index",
             "engine-input-producers.selector-usage-query-fragments",
             "engine-input-producers.expression-domain-flow-analysis",
+            "engine-input-producers.expression-domain-control-flow-analysis",
             "omena-query.expression-domain-incremental-flow-analysis",
         ],
         expression_semantics_query_count,
@@ -172,6 +174,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "sourceResolutionResolverBoundary",
             "sourceResolutionRuntimeIndex",
             "expressionDomainFlowAnalysisBoundary",
+            "expressionDomainControlFlowAnalysisBoundary",
             "expressionDomainSalsaRuntime",
             "queryBoundarySummary",
         ],
@@ -249,6 +252,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 output_product: "engine-input-producers.expression-domain-flow-analysis",
             },
             SelectedQueryRunnerCommandV0 {
+                surface: "expressionDomainControlFlowAnalysis",
+                command: "input-expression-domain-control-flow-analysis",
+                input_contract: "EngineInputV2",
+                output_product: "engine-input-producers.expression-domain-control-flow-analysis",
+            },
+            SelectedQueryRunnerCommandV0 {
                 surface: "expressionDomainIncrementalFlowAnalysis",
                 command: "input-expression-domain-incremental-flow-analysis",
                 input_contract: "EngineInputV2 + OmenaQueryExpressionDomainFlowRuntimeV0",
@@ -288,6 +297,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "sourceResolutionRuntimeIndex",
             "expressionSemanticsDerivationPayload",
             "expressionDomainFlowAnalysisRunner",
+            "expressionDomainControlFlowAnalysisRunner",
             "expressionDomainSalsaRuntime",
         ],
         routing_status: "declaredOnly",
@@ -315,6 +325,12 @@ pub fn summarize_omena_query_expression_domain_flow_analysis(
     input: &EngineInputV2,
 ) -> ExpressionDomainFlowAnalysisV0 {
     summarize_expression_domain_flow_analysis_input(input)
+}
+
+pub fn summarize_omena_query_expression_domain_control_flow_analysis(
+    input: &EngineInputV2,
+) -> ExpressionDomainControlFlowAnalysisV0 {
+    summarize_expression_domain_control_flow_analysis_input(input)
 }
 
 pub fn summarize_omena_query_expression_domain_incremental_flow_analysis(
@@ -803,7 +819,9 @@ mod tests {
 
     use super::{
         OmenaQueryExpressionDomainFlowRuntimeV0, SelectedQueryAdapterCapabilitiesV0,
-        summarize_omena_query_boundary, summarize_omena_query_expression_domain_flow_analysis,
+        summarize_omena_query_boundary,
+        summarize_omena_query_expression_domain_control_flow_analysis,
+        summarize_omena_query_expression_domain_flow_analysis,
         summarize_omena_query_expression_domain_incremental_flow_analysis,
         summarize_omena_query_expression_semantics_canonical_producer_signal,
         summarize_omena_query_expression_semantics_query_fragments,
@@ -867,12 +885,22 @@ mod tests {
         assert!(
             summary
                 .delegated_fragment_products
+                .contains(&"engine-input-producers.expression-domain-control-flow-analysis")
+        );
+        assert!(
+            summary
+                .delegated_fragment_products
                 .contains(&"omena-query.expression-domain-incremental-flow-analysis")
         );
         assert!(
             summary
                 .ready_surfaces
                 .contains(&"expressionDomainFlowAnalysisBoundary")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"expressionDomainControlFlowAnalysisBoundary")
         );
         assert!(
             summary
@@ -974,6 +1002,11 @@ mod tests {
                 .iter()
                 .any(|command| command.command == "input-expression-domain-flow-analysis")
         );
+        assert!(
+            summary.runner_commands.iter().any(|command| {
+                command.command == "input-expression-domain-control-flow-analysis"
+            })
+        );
         assert!(summary.runner_commands.iter().any(|command| {
             command.command == "input-expression-domain-incremental-flow-analysis"
         }));
@@ -1003,6 +1036,11 @@ mod tests {
             summary
                 .adapter_readiness
                 .contains(&"expressionDomainFlowAnalysisRunner")
+        );
+        assert!(
+            summary
+                .adapter_readiness
+                .contains(&"expressionDomainControlFlowAnalysisRunner")
         );
         assert!(
             summary
@@ -1039,6 +1077,27 @@ mod tests {
                 .analyses
                 .iter()
                 .all(|entry| entry.analysis.converged)
+        );
+    }
+
+    #[test]
+    fn owns_expression_domain_control_flow_analysis_wrapper_without_changing_product() {
+        let input = sample_input();
+        let summary = summarize_omena_query_expression_domain_control_flow_analysis(&input);
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(
+            summary.product,
+            "engine-input-producers.expression-domain-control-flow-analysis"
+        );
+        assert_eq!(summary.input_version, "2");
+        assert_eq!(summary.analyses.len(), 2);
+        assert!(
+            summary
+                .analyses
+                .iter()
+                .all(|entry| entry.analysis.product
+                    == "omena-abstract-value.control-flow-analysis")
         );
     }
 

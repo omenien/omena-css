@@ -17,6 +17,7 @@ pub use expression_domain::collect_expression_domain_flow_graphs;
 pub use expression_domain::summarize_expression_domain_candidates_input;
 pub use expression_domain::summarize_expression_domain_canonical_candidate_bundle_input;
 pub use expression_domain::summarize_expression_domain_canonical_producer_signal_input;
+pub use expression_domain::summarize_expression_domain_control_flow_analysis_input;
 pub use expression_domain::summarize_expression_domain_evaluator_candidates_input;
 pub use expression_domain::summarize_expression_domain_flow_analysis_input;
 pub use expression_domain::summarize_expression_domain_fragments_input;
@@ -337,6 +338,23 @@ pub struct ExpressionDomainFlowGraphEntryV0 {
     pub graph_id: String,
     pub file_path: String,
     pub graph: omena_abstract_value::ClassValueFlowGraphV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainControlFlowAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_version: String,
+    pub analyses: Vec<ExpressionDomainControlFlowAnalysisEntryV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainControlFlowAnalysisEntryV0 {
+    pub graph_id: String,
+    pub file_path: String,
+    pub analysis: omena_abstract_value::ClassValueControlFlowAnalysisV0,
 }
 
 #[derive(Debug, Serialize)]

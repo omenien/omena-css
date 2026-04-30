@@ -28,6 +28,7 @@ use engine_input_producers::{
 };
 use omena_query::{
     OmenaQueryExpressionDomainFlowRuntimeV0, summarize_omena_query_boundary,
+    summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_semantics_canonical_producer_signal,
@@ -538,6 +539,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_omena_query_expression_domain_flow_analysis(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("input-expression-domain-control-flow-analysis") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_query_expression_domain_control_flow_analysis(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("input-expression-domain-incremental-flow-analysis") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let mut runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
@@ -859,6 +865,12 @@ fn run_daemon_selected_query_command(
                     &input,
                     expression_domain_runtime,
                 ),
+            )?)
+        }
+        "input-expression-domain-control-flow-analysis" => {
+            let input: EngineInputV2 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_query_expression_domain_control_flow_analysis(&input),
             )?)
         }
         "input-selector-usage-canonical-producer" => {

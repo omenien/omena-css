@@ -51,6 +51,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "expressionDomainControlFlowAnalysis",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.expressionDomainControlFlowAnalysis,
+      inputContract: "EngineInputV2",
+      outputProduct: "engine-input-producers.expression-domain-control-flow-analysis",
+    },
+  ],
+  [
     "expressionDomainIncrementalFlowAnalysis",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.expressionDomainIncrementalFlowAnalysis,
@@ -103,6 +111,7 @@ void (async () => {
   assert.deepEqual([...summary.adapterReadiness].toSorted(), [
     "backendCapabilityMatrix",
     "canonicalProducerWrapperBoundary",
+    "expressionDomainControlFlowAnalysisRunner",
     "expressionDomainFlowAnalysisRunner",
     "expressionDomainSalsaRuntime",
     "expressionSemanticsDerivationPayload",
