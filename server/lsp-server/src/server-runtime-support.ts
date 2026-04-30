@@ -23,7 +23,11 @@ export function createRuntimeSink(
 
   const sendCodeLensRefresh = (): void => {
     pendingCodeLensRefresh = null;
-    void connection.sendRequest(CodeLensRefreshRequest.type).catch(() => {});
+    try {
+      void connection.sendRequest(CodeLensRefreshRequest.type).catch(() => {});
+    } catch {
+      // The client may dispose the JSON-RPC connection while a debounced refresh is pending.
+    }
   };
 
   return {
