@@ -446,6 +446,14 @@ enum SourceSelectorReferenceMatchKind {
     Prefix,
 }
 
+type SourceReferenceDedupeKey = (
+    usize,
+    usize,
+    Option<String>,
+    SourceSelectorReferenceMatchKind,
+);
+type SourceReferenceTargetMap = BTreeMap<SourceReferenceDedupeKey, BTreeSet<Option<String>>>;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct SourceClassValue {
     exact: Vec<String>,
@@ -2760,15 +2768,7 @@ fn build_source_syntax_index(document: &LspTextDocumentState) -> SourceSyntaxInd
 }
 
 fn canonicalize_source_selector_references(references: &mut Vec<SourceSelectorReferenceFact>) {
-    let mut targets_by_reference: BTreeMap<
-        (
-            usize,
-            usize,
-            Option<String>,
-            SourceSelectorReferenceMatchKind,
-        ),
-        BTreeSet<Option<String>>,
-    > = BTreeMap::new();
+    let mut targets_by_reference: SourceReferenceTargetMap = BTreeMap::new();
     for reference in references.iter() {
         targets_by_reference
             .entry((
@@ -5277,6 +5277,26 @@ fn style_language_label(language: StyleLanguage) -> &'static str {
 mod tests {
     use super::*;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    fn fixture_parent<'a>(
+        path: &'a Path,
+        context: &'static str,
+    ) -> Result<&'a Path, Box<dyn std::error::Error>> {
+        path.parent()
+            .ok_or_else(|| std::io::Error::other(context).into())
+    }
+
+    fn fixture_find(
+        source: &str,
+        needle: &str,
+        context: &'static str,
+    ) -> Result<usize, Box<dyn std::error::Error>> {
+        source
+            .find(needle)
+            .ok_or_else(|| std::io::Error::other(context).into())
+    }
+
     #[test]
     fn declares_current_node_lsp_capability_contract() {
         let capabilities = current_node_lsp_capability_contract();
@@ -6305,7 +6325,7 @@ mod tests {
     }
 
     #[test]
-    fn resolves_sass_internal_symbols_through_wildcard_import_targets() {
+    fn resolves_sass_internal_symbols_through_wildcard_import_targets() -> TestResult {
         let workspace_path = std::env::temp_dir().join(format!(
             "omena-lsp-sass-symbols-{}-{}",
             std::process::id(),
@@ -6313,8 +6333,14 @@ mod tests {
         ));
         let source_style_path = workspace_path.join("src/Card.module.scss");
         let target_style_path = workspace_path.join("src/shared/_utils.scss");
-        fs::create_dir_all(target_style_path.parent().unwrap()).unwrap();
-        fs::create_dir_all(source_style_path.parent().unwrap()).unwrap();
+        fs::create_dir_all(fixture_parent(
+            target_style_path.as_path(),
+            "target style fixture path has parent directory",
+        )?)?;
+        fs::create_dir_all(fixture_parent(
+            source_style_path.as_path(),
+            "source style fixture path has parent directory",
+        )?)?;
         fs::write(
             workspace_path.join("tsconfig.json"),
             r#"{
@@ -6325,24 +6351,31 @@ mod tests {
     }
   }
 }"#,
-        )
-        .unwrap();
+        )?;
         let source_text = "@import \"$shared/utils\";\n.title {\n  @include defign_typography20;\n  border-top: 1px solid $defign_gray200;\n}\n";
         let target_text =
             "$defign_gray200: #eee;\n@mixin defign_typography20 { font-size: 20px; }\n";
-        fs::write(source_style_path.as_path(), source_text).unwrap();
-        fs::write(target_style_path.as_path(), target_text).unwrap();
+        fs::write(source_style_path.as_path(), source_text)?;
+        fs::write(target_style_path.as_path(), target_text)?;
 
         let workspace_uri = path_to_file_uri(workspace_path.as_path());
         let source_uri = path_to_file_uri(source_style_path.as_path());
         let target_uri = path_to_file_uri(target_style_path.as_path());
         let mixin_position = parser_position_for_byte_offset(
             source_text,
-            source_text.find("defign_typography20").unwrap(),
+            fixture_find(
+                source_text,
+                "defign_typography20",
+                "source fixture contains mixin include",
+            )?,
         );
         let variable_position = parser_position_for_byte_offset(
             source_text,
-            source_text.find("$defign_gray200").unwrap() + 1,
+            fixture_find(
+                source_text,
+                "$defign_gray200",
+                "source fixture contains variable reference",
+            )? + 1,
         );
 
         let mut state = LspShellState::default();
@@ -6502,10 +6535,11 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(workspace_path.as_path());
+        Ok(())
     }
 
     #[test]
-    fn resolves_sass_namespace_symbols_through_forwarded_alias_targets() {
+    fn resolves_sass_namespace_symbols_through_forwarded_alias_targets() -> TestResult {
         let workspace_path = std::env::temp_dir().join(format!(
             "omena-lsp-sass-forward-symbols-{}-{}",
             std::process::id(),
@@ -6520,7 +6554,10 @@ mod tests {
             .join("src")
             .join("shared")
             .join("_tokens.scss");
-        fs::create_dir_all(tokens_path.parent().unwrap()).unwrap();
+        fs::create_dir_all(fixture_parent(
+            tokens_path.as_path(),
+            "tokens fixture path has parent directory",
+        )?)?;
         fs::write(
             workspace_path.join("tsconfig.json"),
             r#"{
@@ -6531,14 +6568,13 @@ mod tests {
     }
   }
 }"#,
-        )
-        .unwrap();
-        fs::write(index_path.as_path(), r#"@forward "./tokens";"#).unwrap();
+        )?;
+        fs::write(index_path.as_path(), r#"@forward "./tokens";"#)?;
         let target_text = r#"$gap: 1rem;
 @mixin raised { box-shadow: none; }
 @function tone($value) { @return $value; }
 "#;
-        fs::write(tokens_path.as_path(), target_text).unwrap();
+        fs::write(tokens_path.as_path(), target_text)?;
         let source_text = r#"@use "$shared/index" as tokens;
 .button {
   color: tokens.$gap;
@@ -6546,7 +6582,7 @@ mod tests {
   border-color: tokens.tone(tokens.$gap);
 }
 "#;
-        fs::write(source_path.as_path(), source_text).unwrap();
+        fs::write(source_path.as_path(), source_text)?;
 
         let workspace_uri = path_to_file_uri(workspace_path.as_path());
         let source_uri = path_to_file_uri(source_path.as_path());
@@ -6591,8 +6627,14 @@ mod tests {
             );
         }
 
-        let gap_position =
-            parser_position_for_byte_offset(source_text, source_text.find("$gap").unwrap());
+        let gap_position = parser_position_for_byte_offset(
+            source_text,
+            fixture_find(
+                source_text,
+                "$gap",
+                "source fixture contains namespaced variable",
+            )?,
+        );
         let gap_definition = handle_lsp_message(
             &mut state,
             json!({
@@ -6614,8 +6656,14 @@ mod tests {
             Some(&json!(tokens_uri)),
         );
 
-        let mixin_position =
-            parser_position_for_byte_offset(source_text, source_text.find("raised").unwrap());
+        let mixin_position = parser_position_for_byte_offset(
+            source_text,
+            fixture_find(
+                source_text,
+                "raised",
+                "source fixture contains namespaced mixin",
+            )?,
+        );
         let mixin_definition = handle_lsp_message(
             &mut state,
             json!({
@@ -6637,8 +6685,14 @@ mod tests {
             Some(&json!(tokens_uri)),
         );
 
-        let function_position =
-            parser_position_for_byte_offset(source_text, source_text.find("tone").unwrap());
+        let function_position = parser_position_for_byte_offset(
+            source_text,
+            fixture_find(
+                source_text,
+                "tone",
+                "source fixture contains namespaced function",
+            )?,
+        );
         let function_definition = handle_lsp_message(
             &mut state,
             json!({
@@ -6661,6 +6715,7 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(workspace_path.as_path());
+        Ok(())
     }
 
     #[test]
@@ -6755,7 +6810,7 @@ mod tests {
     }
 
     #[test]
-    fn resolves_classnames_bind_source_definition_through_tsconfig_path_alias() {
+    fn resolves_classnames_bind_source_definition_through_tsconfig_path_alias() -> TestResult {
         let workspace_path = std::env::temp_dir().join(format!(
             "omena-lsp-path-alias-{}-{}",
             std::process::id(),
@@ -6766,7 +6821,10 @@ mod tests {
             .join("domain")
             .join("components")
             .join("some-component.module.scss");
-        fs::create_dir_all(target_style_path.parent().unwrap()).unwrap();
+        fs::create_dir_all(fixture_parent(
+            target_style_path.as_path(),
+            "target style fixture path has parent directory",
+        )?)?;
         fs::write(
             workspace_path.join("tsconfig.json"),
             r#"{
@@ -6777,9 +6835,8 @@ mod tests {
     }
   }
 }"#,
-        )
-        .unwrap();
-        fs::write(target_style_path.as_path(), ".article { display: block; }").unwrap();
+        )?;
+        fs::write(target_style_path.as_path(), ".article { display: block; }")?;
 
         let workspace_uri = path_to_file_uri(workspace_path.as_path());
         let source_uri = path_to_file_uri(workspace_path.join("src/App.tsx").as_path());
@@ -6898,10 +6955,11 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(workspace_path.as_path());
+        Ok(())
     }
 
     #[test]
-    fn resolves_classnames_bind_dynamic_source_expressions() {
+    fn resolves_classnames_bind_dynamic_source_expressions() -> TestResult {
         let source_text = r#"import bind from "classnames/bind";
 import styles from "./styles.module.scss";
 const cx = bind.bind(styles);
@@ -6958,8 +7016,14 @@ export const view = <div className={cx(tone, icon.glyph, `item--${variant}`, { "
             }),
         );
 
-        let tone_position =
-            parser_position_for_byte_offset(source_text, source_text.find("tone,").unwrap());
+        let tone_position = parser_position_for_byte_offset(
+            source_text,
+            fixture_find(
+                source_text,
+                "tone,",
+                "source fixture contains tone reference",
+            )?,
+        );
         let tone_definition = handle_lsp_message(
             &mut state,
             json!({
@@ -6990,8 +7054,14 @@ export const view = <div className={cx(tone, icon.glyph, `item--${variant}`, { "
             })),
         );
 
-        let icon_position =
-            parser_position_for_byte_offset(source_text, source_text.find("icon.glyph").unwrap());
+        let icon_position = parser_position_for_byte_offset(
+            source_text,
+            fixture_find(
+                source_text,
+                "icon.glyph",
+                "source fixture contains object property reference",
+            )?,
+        );
         let icon_definition = handle_lsp_message(
             &mut state,
             json!({
@@ -7022,8 +7092,14 @@ export const view = <div className={cx(tone, icon.glyph, `item--${variant}`, { "
             })),
         );
 
-        let template_position =
-            parser_position_for_byte_offset(source_text, source_text.find("`item--").unwrap() + 1);
+        let template_position = parser_position_for_byte_offset(
+            source_text,
+            fixture_find(
+                source_text,
+                "`item--",
+                "source fixture contains template prefix reference",
+            )? + 1,
+        );
         let template_definition = handle_lsp_message(
             &mut state,
             json!({
@@ -7055,8 +7131,14 @@ export const view = <div className={cx(tone, icon.glyph, `item--${variant}`, { "
                 .any(|target| target.pointer("/range/start/line") == Some(&json!(1)))
         );
 
-        let object_key_position =
-            parser_position_for_byte_offset(source_text, source_text.find("item__label").unwrap());
+        let object_key_position = parser_position_for_byte_offset(
+            source_text,
+            fixture_find(
+                source_text,
+                "item__label",
+                "source fixture contains object key reference",
+            )?,
+        );
         let object_key_definition = handle_lsp_message(
             &mut state,
             json!({
@@ -7077,6 +7159,7 @@ export const view = <div className={cx(tone, icon.glyph, `item--${variant}`, { "
                 .and_then(|value| value.pointer("/result/0/range/start/line")),
             Some(&json!(4)),
         );
+        Ok(())
     }
 
     #[test]

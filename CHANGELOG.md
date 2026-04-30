@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [4.7.0] - 2026-05-01
+
 ### Changed
 
 - **Rust LSP source/style path coverage** - expanded Rust LSP request handling across tsconfig/jsconfig style path aliases, dynamic `classnames/bind` values, Sass wildcard imports, Sass namespace `@use`, and forwarded Sass module definitions.
