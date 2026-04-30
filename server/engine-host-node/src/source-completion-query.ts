@@ -1,6 +1,11 @@
 import { readCompletionContext } from "../../engine-core-ts/src/core/query";
 import type { SelectorDeclHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import type { CursorParams, ProviderDeps } from "../../engine-core-ts/src/provider-deps";
+import {
+  classValueMatchesCandidate,
+  prefixClassValue,
+  type AbstractClassValue,
+} from "../../engine-core-ts/src/core/abstract-value/class-value-domain";
 
 export function resolveSourceCompletionSelectors(
   params: CursorParams,
@@ -25,7 +30,11 @@ export function resolveSourceCompletionSelectors(
 
   const styleDocument = deps.styleDocumentForPath(ctx.scssModulePath);
   if (!styleDocument || styleDocument.selectors.length === 0) return [];
-  return styleDocument.selectors;
+  const expectedValueDomain = readCompletionExpectedValueDomain(textBefore);
+  if (!expectedValueDomain) return styleDocument.selectors;
+  return styleDocument.selectors.filter((selector) =>
+    classValueMatchesCandidate(expectedValueDomain, selector.name),
+  );
 }
 
 function getTextBefore(content: string, line: number, character: number): string {
@@ -36,4 +45,65 @@ function getTextBefore(content: string, line: number, character: number): string
     offset = nl + 1;
   }
   return content.slice(0, offset + character);
+}
+
+function readCompletionExpectedValueDomain(textBefore: string): AbstractClassValue | null {
+  const prefix = readCompletionPrefix(textBefore);
+  return prefix ? prefixClassValue(prefix) : null;
+}
+
+function readCompletionPrefix(textBefore: string): string | null {
+  return (
+    readStylesPropertyAccessPrefix(textBefore) ??
+    readBracketStringAccessPrefix(textBefore) ??
+    readStringClassTokenPrefix(textBefore) ??
+    readObjectKeyPrefix(textBefore)
+  );
+}
+
+function readStylesPropertyAccessPrefix(textBefore: string): string | null {
+  const match = /(?:^|[^\p{L}\p{N}_$])[\p{L}_$][\p{L}\p{N}_$]*\.([\p{L}\p{N}_-]*)$/u.exec(
+    textBefore,
+  );
+  return match?.[1] ?? null;
+}
+
+function readBracketStringAccessPrefix(textBefore: string): string | null {
+  const match = /\[\s*(['"`])([^'"`\]]*)$/u.exec(textBefore);
+  if (!match) return null;
+  return readLastClassTokenPrefix(match[2]!);
+}
+
+function readStringClassTokenPrefix(textBefore: string): string | null {
+  let quoteIndex = -1;
+  for (let index = textBefore.length - 1; index >= 0; index -= 1) {
+    const ch = textBefore[index];
+    if ((ch === "'" || ch === '"' || ch === "`") && !isEscaped(textBefore, index)) {
+      quoteIndex = index;
+      break;
+    }
+    if (ch === "\n" || ch === "\r") break;
+  }
+  if (quoteIndex < 0) return null;
+  const prefix = textBefore.slice(quoteIndex + 1);
+  if (/[),\]}]/u.test(prefix)) return null;
+  return readLastClassTokenPrefix(prefix);
+}
+
+function readObjectKeyPrefix(textBefore: string): string | null {
+  const match = /(?:[{,]\s*)([\p{L}_-][\p{L}\p{N}_-]*)$/u.exec(textBefore);
+  return match?.[1] ?? null;
+}
+
+function readLastClassTokenPrefix(value: string): string | null {
+  const match = /(?:^|\s)([\p{L}\p{N}_-]*)$/u.exec(value);
+  return match ? match[1]! : null;
+}
+
+function isEscaped(text: string, index: number): boolean {
+  let slashCount = 0;
+  for (let cursor = index - 1; cursor >= 0 && text[cursor] === "\\"; cursor -= 1) {
+    slashCount += 1;
+  }
+  return slashCount % 2 === 1;
 }

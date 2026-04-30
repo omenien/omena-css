@@ -7,6 +7,7 @@ import {
   concatenateClassValues,
   concatenateWithUnknownLeft,
   concatenateWithUnknownRight,
+  classValueMatchesCandidate,
   charInclusionClassValue,
   compositeClassValue,
   enumerateFiniteClassValues,
@@ -396,6 +397,27 @@ describe("class-value-domain", () => {
     expect(enumerateFiniteClassValues(prefixSuffixClassValue("btn-", "-chip"))).toBeNull();
     expect(enumerateFiniteClassValues(charInclusionClassValue("a", "abc"))).toBeNull();
     expect(enumerateFiniteClassValues(TOP_CLASS_VALUE)).toBeNull();
+  });
+
+  it("matches selector candidates against abstract value domains", () => {
+    expect(classValueMatchesCandidate(exactClassValue("btn-primary"), "btn-primary")).toBe(true);
+    expect(classValueMatchesCandidate(finiteSetClassValue(["btn-primary", "card"]), "card")).toBe(
+      true,
+    );
+    expect(classValueMatchesCandidate(prefixClassValue("btn-"), "btn-primary")).toBe(true);
+    expect(classValueMatchesCandidate(suffixClassValue("-active"), "btn-active")).toBe(true);
+    expect(
+      classValueMatchesCandidate(prefixSuffixClassValue("btn-", "-active"), "btn-large-active"),
+    ).toBe(true);
+    expect(classValueMatchesCandidate(charInclusionClassValue("ab", "abc"), "cab")).toBe(true);
+    expect(
+      classValueMatchesCandidate(
+        compositeClassValue({ prefix: "btn-", mustChars: "a", mayChars: "abtmn-priy" }),
+        "btn-primary",
+      ),
+    ).toBe(true);
+    expect(classValueMatchesCandidate(prefixClassValue("btn-"), "card")).toBe(false);
+    expect(classValueMatchesCandidate(charInclusionClassValue("z", "abc"), "cab")).toBe(false);
   });
 
   it("propagates character inclusion through concat and join", () => {

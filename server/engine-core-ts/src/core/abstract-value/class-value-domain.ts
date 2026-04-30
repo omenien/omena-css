@@ -759,6 +759,36 @@ export function enumerateFiniteClassValues(value: AbstractClassValue): readonly 
   }
 }
 
+export function classValueMatchesCandidate(value: AbstractClassValue, candidate: string): boolean {
+  switch (value.kind) {
+    case "bottom":
+      return false;
+    case "exact":
+      return candidate === value.value;
+    case "finiteSet":
+      return value.values.includes(candidate);
+    case "prefix":
+      return candidate.startsWith(value.prefix);
+    case "suffix":
+      return candidate.endsWith(value.suffix);
+    case "prefixSuffix":
+      return (
+        candidate.length >= value.minLength &&
+        candidate.startsWith(value.prefix) &&
+        candidate.endsWith(value.suffix)
+      );
+    case "charInclusion":
+      return matchesCharConstraints(value, candidate);
+    case "composite":
+      return matchesCompositeConstraints(value, candidate);
+    case "top":
+      return true;
+    default:
+      value satisfies never;
+      return true;
+  }
+}
+
 function joinPrefixWithValue(
   prefixValue: PrefixClassValue,
   other: Exclude<

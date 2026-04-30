@@ -2542,7 +2542,8 @@ fn resolve_source_lsp_completion(
     let Some(position) = lsp_position_from_params(params) else {
         return Value::Null;
     };
-    let Some(target_style_uri) = source_completion_target_style_uri_at_position(document, position)
+    let Some((target_style_uri, value_prefix)) =
+        source_completion_context_at_position(document, position)
     else {
         return Value::Null;
     };
@@ -2559,6 +2560,11 @@ fn resolve_source_lsp_completion(
             .is_none_or(|target_uri| target_uri == uri)
     })
     .map(|(_, definition)| definition.name)
+    .filter(|label| {
+        value_prefix
+            .as_deref()
+            .is_none_or(|prefix| label.starts_with(prefix))
+    })
     .collect();
     let items: Vec<Value> = labels
         .into_iter()
@@ -2580,32 +2586,95 @@ fn resolve_source_lsp_completion(
     })
 }
 
-fn source_completion_target_style_uri_at_position(
+fn source_completion_context_at_position(
     document: &LspTextDocumentState,
     position: ParserPositionV0,
-) -> Option<Option<String>> {
+) -> Option<(Option<String>, Option<String>)> {
     let offset = byte_offset_for_parser_position(document.text.as_str(), position)?;
+    if let Some(access) = document
+        .source_syntax_index
+        .style_property_accesses
+        .iter()
+        .find(|access| offset >= access.byte_span.start && offset <= access.byte_span.end)
+    {
+        return Some((
+            access.target_style_uri.clone(),
+            source_completion_prefix_from_span(document.text.as_str(), access.byte_span, offset),
+        ));
+    }
+    if let Some(reference) = document
+        .source_syntax_index
+        .selector_references
+        .iter()
+        .find(|reference| offset >= reference.byte_span.start && offset <= reference.byte_span.end)
+    {
+        return Some((
+            reference.target_style_uri.clone(),
+            source_completion_prefix_from_span(document.text.as_str(), reference.byte_span, offset),
+        ));
+    }
     if document
         .source_syntax_index
         .class_string_literals
         .iter()
         .any(|span| offset >= span.start && offset <= span.end)
     {
-        return Some(None);
+        let span = document
+            .source_syntax_index
+            .class_string_literals
+            .iter()
+            .find(|span| offset >= span.start && offset <= span.end)
+            .copied()?;
+        return Some((
+            None,
+            source_completion_class_token_prefix_from_span(document.text.as_str(), span, offset),
+        ));
     }
-    styles_property_access_completion_target_style_uri(document, offset)
+    None
 }
 
-fn styles_property_access_completion_target_style_uri(
-    document: &LspTextDocumentState,
+fn source_completion_prefix_from_span(
+    source: &str,
+    span: ParserByteSpanV0,
     offset: usize,
-) -> Option<Option<String>> {
-    document
-        .source_syntax_index
-        .style_property_accesses
-        .iter()
-        .find(|access| offset >= access.byte_span.start && offset <= access.byte_span.end)
-        .map(|access| access.target_style_uri.clone())
+) -> Option<String> {
+    let end = offset.min(span.end);
+    if end < span.start {
+        return None;
+    }
+    let prefix = source.get(span.start..end)?;
+    if prefix.is_empty() {
+        return None;
+    }
+    if prefix.chars().all(is_css_identifier_continue) {
+        Some(prefix.to_string())
+    } else {
+        None
+    }
+}
+
+fn source_completion_class_token_prefix_from_span(
+    source: &str,
+    span: ParserByteSpanV0,
+    offset: usize,
+) -> Option<String> {
+    let end = offset.min(span.end);
+    if end < span.start {
+        return None;
+    }
+    let prefix = source.get(span.start..end)?;
+    let token = prefix
+        .rsplit(|ch: char| ch.is_ascii_whitespace())
+        .next()
+        .unwrap_or_default();
+    if token.is_empty() {
+        return None;
+    }
+    if token.chars().all(is_css_identifier_continue) {
+        Some(token.to_string())
+    } else {
+        None
+    }
 }
 
 fn source_selector_candidate_for_params(
@@ -6807,6 +6876,91 @@ mod tests {
                 },
             })),
         );
+    }
+
+    #[test]
+    fn narrows_source_completion_candidates_by_property_access_prefix() -> TestResult {
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": "file:///workspace-a",
+                            "name": "workspace-a",
+                        },
+                    ],
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.tsx",
+                        "languageId": "typescriptreact",
+                        "version": 1,
+                        "text": "import styles from \"./App.module.scss\";\nconst view = styles.ro;",
+                    },
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.module.scss",
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ".root { display: block; }\n.row { display: flex; }\n.active { color: red; }",
+                    },
+                },
+            }),
+        );
+
+        let completion_response = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/completion",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.tsx",
+                    },
+                    "position": {
+                        "line": 1,
+                        "character": 22,
+                    },
+                },
+            }),
+        );
+
+        let items = completion_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/items"))
+            .and_then(Value::as_array)
+            .ok_or_else(|| std::io::Error::other("completion response should contain items"))?;
+        let labels: Vec<String> = items
+            .iter()
+            .filter_map(|item| {
+                item.get("label")
+                    .and_then(Value::as_str)
+                    .map(ToString::to_string)
+            })
+            .collect();
+        assert_eq!(labels, vec!["root".to_string(), "row".to_string()]);
+        Ok(())
     }
 
     #[test]

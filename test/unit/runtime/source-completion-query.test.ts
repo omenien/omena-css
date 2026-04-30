@@ -15,6 +15,13 @@ const cx = classNames.bind(styles);
 const el = cx('
 `;
 
+const PREFIX_TSX = `
+import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const el = cx('btn-
+`;
+
 const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] =>
   sourceFile.text.includes("classnames/bind") && sourceFile.text.includes(".module.")
     ? [
@@ -47,6 +54,8 @@ function makeDeps(): ProviderDeps {
       new Map([
         ["indicator", info("indicator")],
         ["active", info("active")],
+        ["btn-primary", info("btn-primary")],
+        ["btn-secondary", info("btn-secondary")],
       ]),
   });
 }
@@ -65,7 +74,31 @@ describe("resolveSourceCompletionSelectors", () => {
       makeDeps(),
     );
 
-    expect(result.map((selector) => selector.name).toSorted()).toEqual(["active", "indicator"]);
+    expect(result.map((selector) => selector.name).toSorted()).toEqual([
+      "active",
+      "btn-primary",
+      "btn-secondary",
+      "indicator",
+    ]);
+  });
+
+  it("narrows selector candidates by the in-progress class value prefix", () => {
+    const result = resolveSourceCompletionSelectors(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: PREFIX_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 4,
+        character: 19,
+        version: 1,
+      },
+      makeDeps(),
+    );
+
+    expect(result.map((selector) => selector.name).toSorted()).toEqual([
+      "btn-primary",
+      "btn-secondary",
+    ]);
   });
 
   it("returns an empty list outside a class utility call", () => {

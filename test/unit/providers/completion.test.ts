@@ -384,9 +384,8 @@ const el = clsx(styles.ac/*|*/
 `,
     });
     const result = handleCompletion(completionCursor(partialWorkspace), clsxMakeDeps());
-    // Returns all items; VS Code filters by prefix client-side
     expect(result).not.toBeNull();
-    expect(result!.map((r) => r.label).toSorted()).toEqual(["active", "btn"]);
+    expect(result!.map((r) => r.label)).toEqual(["active"]);
   });
 
   it("returns null when cursor is outside clsx() call", () => {
