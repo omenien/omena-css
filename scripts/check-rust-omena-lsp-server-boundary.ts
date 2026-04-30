@@ -65,6 +65,13 @@ interface RustOmenaLspServerBoundarySummary {
     readonly indexedDocumentPolicy: readonly string[];
     readonly requestPathPolicy: readonly string[];
   };
+  readonly diagnosticsScheduler: {
+    readonly product: string;
+    readonly owner: string;
+    readonly schedulingModel: string;
+    readonly eventPolicy: readonly string[];
+    readonly requestPathPolicy: readonly string[];
+  };
   readonly thinClientEndpoint: {
     readonly product: string;
     readonly standalonePackage: string;
@@ -190,6 +197,21 @@ assert.ok(
 assert.ok(
   !rustSummary.nextDecouplingTargets.includes("rustWorkspaceRuntimeRegistry"),
   "implemented workspace runtime registry should not remain listed as a next target",
+);
+assert.equal(rustSummary.diagnosticsScheduler.product, "omena-lsp-server.diagnostics-scheduler");
+assert.equal(rustSummary.diagnosticsScheduler.owner, "omena-lsp-server/diagnosticsScheduler");
+assert.equal(rustSummary.diagnosticsScheduler.schedulingModel, "deterministicNotificationPlanner");
+assert.ok(
+  rustSummary.diagnosticsScheduler.eventPolicy.includes("refreshSourceDiagnosticsForStyleChanges"),
+);
+assert.ok(
+  rustSummary.diagnosticsScheduler.requestPathPolicy.includes(
+    "noNodeDiagnosticsSchedulerOnRustLspPath",
+  ),
+);
+assert.ok(
+  !rustSummary.nextDecouplingTargets.includes("rustDiagnosticsScheduler"),
+  "implemented diagnostics scheduler should not remain listed as a next target",
 );
 assert.ok(
   rustSummary.nextDecouplingTargets.includes("thinVsCodeClientHost"),
