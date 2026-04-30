@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [4.9.0] - 2026-05-01
+
+### Changed
+
+- **Salsa incremental database** - `omena-incremental` now exposes a persistent Salsa-backed database with tracked node snapshot queries, field-granular reuse, and plan/snapshot progression owned by the database instead of external manual snapshot plumbing.
+- **Query runtime reuse** - `omena-query` now exposes an expression-domain incremental flow runtime that keeps per-graph Salsa databases alive across engine-shadow-runner daemon requests and reuses clean abstract-value flow analyses.
+
+### Fixed
+
+- **Selected-query incremental boundary** - expression-domain flow graph construction is now shareable between producer summaries and query runtime reuse, so the selected-query layer can consume the same graph facts without rebuilding a parallel analysis path.
+
 ## [4.8.0] - 2026-05-01
 
 ### Changed
