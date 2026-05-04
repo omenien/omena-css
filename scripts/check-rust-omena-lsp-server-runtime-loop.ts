@@ -39,6 +39,21 @@ interface RuntimeProbeResponse {
   readonly now: number;
 }
 
+interface TimedHotRequestResult {
+  readonly kind: string;
+  readonly label: string;
+  readonly durationMs: number;
+  readonly result: unknown;
+}
+
+interface RequestLatencySummary {
+  readonly kind: string;
+  readonly count: number;
+  readonly p50Ms: number;
+  readonly p95Ms: number;
+  readonly maxMs: number;
+}
+
 async function main(): Promise<void> {
   const workspaceRoot = mkdtempSync(path.join(os.tmpdir(), "cme-rust-omena-lsp-runtime-loop-"));
   const srcDir = path.join(workspaceRoot, "src");
@@ -129,6 +144,7 @@ async function main(): Promise<void> {
         `diagnosticNotifications=${diagnostics.length}`,
         `p95=${percentile(probeLatencies, 95).toFixed(2)}ms`,
         `max=${Math.max(...probeLatencies).toFixed(2)}ms`,
+        `requestLatency=[${formatRequestLatencySummaries(loadResults)}]`,
       ].join(" ") + "\n",
     );
   } finally {
@@ -163,34 +179,47 @@ function buildHotRequestLoad(
   sourceUri: string,
   sourceText: string,
   styleUri: string,
-): Array<Promise<unknown>> {
-  const requests: Array<Promise<unknown>> = [];
+): Array<Promise<TimedHotRequestResult>> {
+  const requests: Array<Promise<TimedHotRequestResult>> = [];
   for (let index = 0; index < SELECTOR_COUNT; index += 1) {
     requests.push(
-      requestWithTimeout(
+      timedHotRequest(
         connection.sendRequest(
           "textDocument/hover",
           sourceHoverParams(sourceUri, sourceText, index),
         ),
         `source-hover:${index}`,
+        "source-hover",
       ),
     );
     if (index % 2 === 0) {
       requests.push(
-        requestWithTimeout(
+        timedHotRequest(
           connection.sendRequest(
             "textDocument/definition",
             sourceHoverParams(sourceUri, sourceText, index),
           ),
           `source-definition:${index}`,
+          "source-definition",
         ),
       );
     }
     if (index % 5 === 0) {
       requests.push(
-        requestWithTimeout(
+        timedHotRequest(
           connection.sendRequest("textDocument/references", styleReferenceParams(styleUri, index)),
           `style-references:${index}`,
+          "style-references",
+        ),
+      );
+      requests.push(
+        timedHotRequest(
+          connection.sendRequest(
+            "textDocument/completion",
+            sourceCompletionParams(sourceUri, sourceText, index),
+          ),
+          `source-completion:${index}`,
+          "source-completion",
         ),
       );
     }
@@ -235,11 +264,11 @@ function assertProbeMetrics(latencies: readonly number[]): void {
   }
 }
 
-function assertHotRequestResults(results: readonly unknown[]): void {
+function assertHotRequestResults(results: readonly TimedHotRequestResult[]): void {
   if (results.length === 0) {
     throw new Error("No hot omena-lsp-server requests completed.");
   }
-  const nullCount = results.filter((result) => result === null).length;
+  const nullCount = results.filter(({ result }) => result === null).length;
   if (nullCount > results.length / 2) {
     throw new Error(`Too many null hot request results: ${nullCount}/${results.length}`);
   }
@@ -252,11 +281,35 @@ function sourceHoverParams(uri: string, text: string, tokenIndex: number) {
   };
 }
 
+function sourceCompletionParams(uri: string, text: string, tokenIndex: number) {
+  return {
+    textDocument: { uri },
+    position: sourceTokenPrefixPosition(text, tokenIndex),
+  };
+}
+
 function styleReferenceParams(uri: string, tokenIndex: number) {
   return {
     textDocument: { uri },
     position: { line: tokenIndex, character: 2 },
     context: { includeDeclaration: false },
+  };
+}
+
+function sourceTokenPrefixPosition(
+  text: string,
+  tokenIndex: number,
+): { line: number; character: number } {
+  const token = `"token${tokenIndex}"`;
+  const index = text.indexOf(token);
+  if (index < 0) {
+    throw new Error(`Unable to find ${token}`);
+  }
+  const before = text.slice(0, index + 1 + "token".length);
+  const lines = before.split("\n");
+  return {
+    line: lines.length - 1,
+    character: lines.at(-1)!.length,
   };
 }
 
@@ -318,6 +371,21 @@ async function requestWithTimeout<T>(promise: Promise<T>, label: string): Promis
   }
 }
 
+async function timedHotRequest<T>(
+  promise: Promise<T>,
+  label: string,
+  kind: string,
+): Promise<TimedHotRequestResult> {
+  const started = performance.now();
+  const result = await requestWithTimeout(promise, label);
+  return {
+    kind,
+    label,
+    durationMs: performance.now() - started,
+    result,
+  };
+}
+
 function waitForExit(child: ReturnType<typeof spawn>): Promise<number | null> {
   return new Promise((resolve) => {
     child.once("exit", (code) => resolve(code));
@@ -333,6 +401,38 @@ function percentile(values: readonly number[], p: number): number {
   const sorted = values.toSorted((left, right) => left - right);
   const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
   return sorted[index] ?? 0;
+}
+
+function summarizeRequestLatencies(
+  results: readonly TimedHotRequestResult[],
+): readonly RequestLatencySummary[] {
+  const byKind = new Map<string, number[]>();
+  for (const result of results) {
+    const values = byKind.get(result.kind);
+    if (values) {
+      values.push(result.durationMs);
+    } else {
+      byKind.set(result.kind, [result.durationMs]);
+    }
+  }
+  return [...byKind.entries()]
+    .map(([kind, values]) => ({
+      kind,
+      count: values.length,
+      p50Ms: percentile(values, 50),
+      p95Ms: percentile(values, 95),
+      maxMs: Math.max(...values),
+    }))
+    .toSorted((left, right) => left.kind.localeCompare(right.kind));
+}
+
+function formatRequestLatencySummaries(results: readonly TimedHotRequestResult[]): string {
+  return summarizeRequestLatencies(results)
+    .map(
+      (summary) =>
+        `${summary.kind}:n=${summary.count},p50=${summary.p50Ms.toFixed(2)}ms,p95=${summary.p95Ms.toFixed(2)}ms,max=${summary.maxMs.toFixed(2)}ms`,
+    )
+    .join(";");
 }
 
 function parsePositiveInteger(value: string | undefined, fallback: number): number {
