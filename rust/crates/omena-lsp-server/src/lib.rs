@@ -1428,6 +1428,24 @@ fn style_hover_candidates_for_document(
     Some((summary.language, document.style_candidates.clone()))
 }
 
+fn style_text_for_uri(state: &LspShellState, uri: &str) -> Option<String> {
+    state
+        .document(uri)
+        .map(|document| document.text.clone())
+        .or_else(|| fs::read_to_string(file_uri_to_path(uri)?).ok())
+}
+
+fn style_hover_candidates_for_uri(
+    state: &LspShellState,
+    uri: &str,
+) -> Option<(&'static str, Vec<LspStyleHoverCandidate>)> {
+    if let Some(document) = state.document(uri) {
+        return style_hover_candidates_for_document(document);
+    }
+    let text = style_text_for_uri(state, uri)?;
+    collect_style_hover_candidates(uri, text.as_str())
+}
+
 fn resolve_lsp_definition(state: &LspShellState, params: Option<&Value>) -> Value {
     let document_uri = document_uri_from_params(params);
     let Some(position) = lsp_position_from_params(params) else {
@@ -2029,15 +2047,11 @@ fn sass_symbol_definitions_for_candidate(
     }
 
     for target_uri in sass_module_target_uris_for_candidate(state, document, candidate) {
-        let Some(target_document) = state.document(target_uri.as_str()) else {
-            continue;
-        };
-        definitions.extend(sass_symbol_declarations_with_forwards(
+        definitions.extend(sass_symbol_declarations_for_uri(
             state,
-            target_document,
+            target_uri.as_str(),
             symbol_kind,
             candidate,
-            &mut BTreeSet::new(),
         ));
     }
     definitions.sort_by_key(|(uri, target)| {
@@ -2054,6 +2068,35 @@ fn sass_symbol_definitions_for_candidate(
             && left.1.range == right.1.range
     });
     definitions
+}
+
+fn sass_symbol_declarations_for_uri(
+    state: &LspShellState,
+    target_uri: &str,
+    symbol_kind: &str,
+    candidate: &LspStyleHoverCandidate,
+) -> Vec<(String, LspStyleHoverCandidate)> {
+    if let Some(target_document) = state.document(target_uri) {
+        return sass_symbol_declarations_with_forwards(
+            state,
+            target_document,
+            symbol_kind,
+            candidate,
+            &mut BTreeSet::new(),
+        );
+    }
+    let Some((_, candidates)) = style_hover_candidates_for_uri(state, target_uri) else {
+        return Vec::new();
+    };
+    candidates
+        .into_iter()
+        .filter(|target| {
+            is_sass_symbol_declaration_kind(target.kind)
+                && sass_symbol_kind_from_candidate_kind(target.kind) == Some(symbol_kind)
+                && target.name == candidate.name
+        })
+        .map(|target| (target_uri.to_string(), target))
+        .collect()
 }
 
 fn sass_symbol_declarations_in_document(
@@ -2384,14 +2427,14 @@ fn resolve_lsp_hover(state: &LspShellState, params: Option<&Value>) -> Value {
             sass_symbol_definitions_for_candidate(state, document, candidate)
                 .into_iter()
                 .next()
-        && let Some(target_document) = state.document(target_uri.as_str())
+        && let Some(target_text) = style_text_for_uri(state, target_uri.as_str())
     {
         return json!({
             "contents": {
                 "kind": "markdown",
                 "value": render_style_hover_candidate_markdown(
                     target_uri.as_str(),
-                    target_document.text.as_str(),
+                    target_text.as_str(),
                     &target,
                 ),
             },
@@ -2433,12 +2476,8 @@ fn resolve_source_lsp_hover(
     let value = definition
         .as_ref()
         .and_then(|(uri, definition)| {
-            state.document(uri).map(|style_document| {
-                render_style_hover_candidate_markdown(
-                    uri.as_str(),
-                    style_document.text.as_str(),
-                    definition,
-                )
+            style_text_for_uri(state, uri).map(|text| {
+                render_style_hover_candidate_markdown(uri.as_str(), text.as_str(), definition)
             })
         })
         .unwrap_or_else(|| format!("**`.{}`**", candidate.name));
@@ -2712,11 +2751,19 @@ fn resolve_source_provider_candidates(
     state: &LspShellState,
     document: &LspTextDocumentState,
 ) -> SourceProviderCandidateResolution {
-    let definitions = style_selector_definitions_from_open_documents(
+    let source_candidates = collect_source_class_reference_candidates(document);
+    let mut definitions = style_selector_definitions_from_open_documents(
         state,
         "",
         document.workspace_folder_uri.as_deref(),
     );
+    for candidate in &source_candidates {
+        if let Some(target_uri) = candidate.target_style_uri.as_deref()
+            && !definitions.iter().any(|(uri, _)| uri == target_uri)
+        {
+            definitions.extend(style_selector_definitions_from_uri(state, target_uri));
+        }
+    }
     let selector_names: BTreeSet<String> = definitions
         .iter()
         .map(|(_, definition)| definition.name.clone())
@@ -2728,11 +2775,9 @@ fn resolve_source_provider_candidates(
         };
     }
     let (mut matched, mut unresolved): (Vec<_>, Vec<_>) =
-        collect_source_class_reference_candidates(document)
-            .into_iter()
-            .partition(|candidate| {
-                source_candidate_has_style_definition(candidate, definitions.as_slice())
-            });
+        source_candidates.into_iter().partition(|candidate| {
+            source_candidate_has_style_definition(candidate, definitions.as_slice())
+        });
     matched.sort();
     unresolved.sort();
     SourceProviderCandidateResolution {
@@ -2956,7 +3001,7 @@ fn parse_source_import_declaration(
             cursor = identifier_end;
             continue;
         }
-        cursor += 1;
+        cursor = advance_js_scan_cursor(source, cursor, source.len());
     }
 
     let clause = source.get(clause_start..clause_end?)?;
@@ -3216,7 +3261,7 @@ fn collect_class_name_expression_reference_facts(
                     local_class_values,
                     references,
                 );
-                cursor = (expression_end + 1).min(source.len());
+                cursor = advance_js_scan_cursor(source, expression_end, source.len());
             }
         }
     }
@@ -3885,8 +3930,8 @@ fn class_token_strings(source: &str, literal_start: usize, literal_end: usize) -
 }
 
 fn trim_js_expression(source: &str, start: usize, end: usize) -> (usize, usize) {
-    let mut start = start.min(source.len());
-    let mut end = end.min(source.len());
+    let mut start = char_boundary_ceil(source, start);
+    let mut end = char_boundary_floor(source, end);
     start = skip_js_trivia_until(source, start, end);
     while end > start
         && source
@@ -3897,6 +3942,36 @@ fn trim_js_expression(source: &str, start: usize, end: usize) -> (usize, usize) 
         end -= 1;
     }
     (start, end)
+}
+
+fn char_boundary_floor(source: &str, index: usize) -> usize {
+    let mut index = index.min(source.len());
+    while index > 0 && !source.is_char_boundary(index) {
+        index -= 1;
+    }
+    index
+}
+
+fn char_boundary_ceil(source: &str, index: usize) -> usize {
+    let mut index = index.min(source.len());
+    while index < source.len() && !source.is_char_boundary(index) {
+        index += 1;
+    }
+    index
+}
+
+fn advance_js_scan_cursor(source: &str, cursor: usize, limit: usize) -> usize {
+    let cursor = char_boundary_ceil(source, cursor);
+    let limit = char_boundary_floor(source, limit);
+    if cursor >= limit {
+        return limit;
+    }
+    char_boundary_ceil(source, cursor + 1).min(limit)
+}
+
+fn advance_js_escaped_char(source: &str, slash_offset: usize, limit: usize) -> usize {
+    let after_slash = advance_js_scan_cursor(source, slash_offset, limit);
+    advance_js_scan_cursor(source, after_slash, limit)
 }
 
 fn unwrap_js_parenthesized_expression(source: &str, start: usize, end: usize) -> (usize, usize) {
@@ -3917,7 +3992,7 @@ fn unwrap_js_parenthesized_expression(source: &str, start: usize, end: usize) ->
 }
 
 fn js_statement_expression_end(source: &str, start: usize) -> usize {
-    let mut cursor = start;
+    let mut cursor = char_boundary_ceil(source, start);
     let mut depth = 0usize;
     while cursor < source.len() {
         match source.as_bytes().get(cursor).copied() {
@@ -3927,15 +4002,15 @@ fn js_statement_expression_end(source: &str, start: usize) -> usize {
             }
             Some(b'(' | b'[' | b'{') => {
                 depth += 1;
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, source.len());
             }
             Some(b')' | b']' | b'}') => {
                 depth = depth.saturating_sub(1);
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, source.len());
             }
             Some(b';') if depth == 0 => return cursor,
             Some(b'\n') if depth == 0 => return cursor,
-            Some(_) => cursor += 1,
+            Some(_) => cursor = advance_js_scan_cursor(source, cursor, source.len()),
             None => break,
         }
     }
@@ -3946,7 +4021,7 @@ fn matching_js_block_end(source: &str, open_offset: usize, open: u8, close: u8) 
     if source.as_bytes().get(open_offset) != Some(&open) {
         return None;
     }
-    let mut cursor = open_offset + 1;
+    let mut cursor = advance_js_scan_cursor(source, open_offset, source.len());
     let mut depth = 1usize;
     while cursor < source.len() {
         match source.as_bytes().get(cursor).copied()? {
@@ -3955,16 +4030,16 @@ fn matching_js_block_end(source: &str, open_offset: usize, open: u8, close: u8) 
             }
             byte if byte == open => {
                 depth += 1;
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, source.len());
             }
             byte if byte == close => {
                 depth -= 1;
                 if depth == 0 {
                     return Some(cursor);
                 }
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, source.len());
             }
-            _ => cursor += 1,
+            _ => cursor = advance_js_scan_cursor(source, cursor, source.len()),
         }
     }
     None
@@ -3977,8 +4052,9 @@ fn split_top_level_js_segments(
     delimiter: u8,
 ) -> Vec<(usize, usize)> {
     let mut segments = Vec::new();
-    let mut segment_start = start;
-    let mut cursor = start;
+    let end = char_boundary_floor(source, end);
+    let mut segment_start = char_boundary_ceil(source, start).min(end);
+    let mut cursor = segment_start;
     let mut depth = 0usize;
     while cursor < end {
         match source.as_bytes().get(cursor).copied() {
@@ -3987,18 +4063,18 @@ fn split_top_level_js_segments(
             }
             Some(b'(' | b'[' | b'{') => {
                 depth += 1;
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, end);
             }
             Some(b')' | b']' | b'}') => {
                 depth = depth.saturating_sub(1);
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, end);
             }
             Some(byte) if byte == delimiter && depth == 0 => {
                 segments.push((segment_start, cursor));
-                segment_start = cursor + 1;
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, end);
+                segment_start = cursor;
             }
-            Some(_) => cursor += 1,
+            Some(_) => cursor = advance_js_scan_cursor(source, cursor, end),
             None => break,
         }
     }
@@ -4009,7 +4085,8 @@ fn split_top_level_js_segments(
 }
 
 fn find_top_level_js_byte(source: &str, start: usize, end: usize, needle: u8) -> Option<usize> {
-    let mut cursor = start;
+    let end = char_boundary_floor(source, end);
+    let mut cursor = char_boundary_ceil(source, start).min(end);
     let mut depth = 0usize;
     while cursor < end {
         match source.as_bytes().get(cursor).copied()? {
@@ -4018,14 +4095,14 @@ fn find_top_level_js_byte(source: &str, start: usize, end: usize, needle: u8) ->
             }
             b'(' | b'[' | b'{' => {
                 depth += 1;
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, end);
             }
             b')' | b']' | b'}' => {
                 depth = depth.saturating_sub(1);
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, end);
             }
             byte if byte == needle && depth == 0 => return Some(cursor),
-            _ => cursor += 1,
+            _ => cursor = advance_js_scan_cursor(source, cursor, end),
         }
     }
     None
@@ -4037,7 +4114,8 @@ fn find_top_level_js_operator(
     end: usize,
     operator: &str,
 ) -> Option<usize> {
-    let mut cursor = start;
+    let end = char_boundary_floor(source, end);
+    let mut cursor = char_boundary_ceil(source, start).min(end);
     let mut depth = 0usize;
     while cursor < end {
         match source.as_bytes().get(cursor).copied()? {
@@ -4046,14 +4124,20 @@ fn find_top_level_js_operator(
             }
             b'(' | b'[' | b'{' => {
                 depth += 1;
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, end);
             }
             b')' | b']' | b'}' => {
                 depth = depth.saturating_sub(1);
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, end);
             }
-            _ if depth == 0 && source[cursor..end].starts_with(operator) => return Some(cursor),
-            _ => cursor += 1,
+            _ if depth == 0
+                && source
+                    .get(cursor..end)
+                    .is_some_and(|rest| rest.starts_with(operator)) =>
+            {
+                return Some(cursor);
+            }
+            _ => cursor = advance_js_scan_cursor(source, cursor, end),
         }
     }
     None
@@ -4065,7 +4149,8 @@ fn top_level_conditional_parts(
     end: usize,
 ) -> Option<(usize, usize, usize, usize, usize)> {
     let question = find_top_level_js_byte(source, start, end, b'?')?;
-    let mut cursor = question + 1;
+    let end = char_boundary_floor(source, end);
+    let mut cursor = advance_js_scan_cursor(source, question, end);
     let mut depth = 0usize;
     let mut nested_conditional_depth = 0usize;
     while cursor < end {
@@ -4075,24 +4160,30 @@ fn top_level_conditional_parts(
             }
             b'(' | b'[' | b'{' => {
                 depth += 1;
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, end);
             }
             b')' | b']' | b'}' => {
                 depth = depth.saturating_sub(1);
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, end);
             }
             b'?' if depth == 0 => {
                 nested_conditional_depth += 1;
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, end);
             }
             b':' if depth == 0 && nested_conditional_depth == 0 => {
-                return Some((question, question + 1, cursor, cursor + 1, end));
+                return Some((
+                    question,
+                    advance_js_scan_cursor(source, question, end),
+                    cursor,
+                    advance_js_scan_cursor(source, cursor, end),
+                    end,
+                ));
             }
             b':' if depth == 0 => {
                 nested_conditional_depth = nested_conditional_depth.saturating_sub(1);
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, end);
             }
-            _ => cursor += 1,
+            _ => cursor = advance_js_scan_cursor(source, cursor, end),
         }
     }
     None
@@ -4176,7 +4267,7 @@ fn js_call_end(source: &str, open_paren: usize) -> Option<usize> {
     if source.as_bytes().get(open_paren) != Some(&b'(') {
         return None;
     }
-    let mut cursor = open_paren + 1;
+    let mut cursor = advance_js_scan_cursor(source, open_paren, source.len());
     let mut depth = 1usize;
     while cursor < source.len() {
         match source.as_bytes().get(cursor).copied()? {
@@ -4185,17 +4276,17 @@ fn js_call_end(source: &str, open_paren: usize) -> Option<usize> {
             }
             b'(' => {
                 depth += 1;
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, source.len());
             }
             b')' => {
                 depth -= 1;
                 if depth == 0 {
                     return Some(cursor);
                 }
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, source.len());
             }
             _ => {
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, source.len());
             }
         }
     }
@@ -4242,7 +4333,7 @@ fn next_code_identifier(source: &str, mut cursor: usize) -> Option<CodeIdentifie
             let (text, end) = read_js_identifier(source, cursor)?;
             return Some(CodeIdentifier { text, end });
         }
-        cursor += 1;
+        cursor = advance_js_scan_cursor(source, cursor, source.len());
     }
     None
 }
@@ -4284,23 +4375,25 @@ fn skip_ascii_whitespace_until(source: &str, mut offset: usize, limit: usize) ->
 }
 
 fn skip_js_line_comment(source: &str, mut cursor: usize, limit: usize) -> usize {
+    let limit = char_boundary_floor(source, limit);
     while cursor < limit {
         if source.as_bytes().get(cursor) == Some(&b'\n') {
-            return cursor + 1;
+            return advance_js_scan_cursor(source, cursor, limit);
         }
-        cursor += 1;
+        cursor = advance_js_scan_cursor(source, cursor, limit);
     }
     limit
 }
 
 fn skip_js_block_comment(source: &str, mut cursor: usize, limit: usize) -> usize {
+    let limit = char_boundary_floor(source, limit);
     while cursor + 1 < limit {
         if source.as_bytes().get(cursor) == Some(&b'*')
             && source.as_bytes().get(cursor + 1) == Some(&b'/')
         {
             return cursor + 2;
         }
-        cursor += 1;
+        cursor = advance_js_scan_cursor(source, cursor, limit);
     }
     limit
 }
@@ -4533,7 +4626,7 @@ fn skip_ascii_whitespace(source: &str, mut offset: usize) -> usize {
 }
 
 fn jsx_expression_end(source: &str, start: usize) -> Option<usize> {
-    let mut cursor = start;
+    let mut cursor = char_boundary_ceil(source, start);
     let mut nested_braces = 0usize;
     while cursor < source.len() {
         match source.as_bytes().get(cursor).copied()? {
@@ -4542,17 +4635,17 @@ fn jsx_expression_end(source: &str, start: usize) -> Option<usize> {
             }
             b'{' => {
                 nested_braces += 1;
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, source.len());
             }
             b'}' => {
                 if nested_braces == 0 {
                     return Some(cursor);
                 }
                 nested_braces -= 1;
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, source.len());
             }
             _ => {
-                cursor += 1;
+                cursor = advance_js_scan_cursor(source, cursor, source.len());
             }
         }
     }
@@ -4575,17 +4668,18 @@ fn js_string_literal_span(
 
 fn skip_js_string_literal(source: &str, quote_offset: usize, limit: usize) -> Option<usize> {
     let quote = source.as_bytes().get(quote_offset).copied()?;
+    let limit = char_boundary_floor(source, limit);
     let mut cursor = quote_offset + 1;
     while cursor < limit {
         let byte = source.as_bytes().get(cursor).copied()?;
         if byte == b'\\' {
-            cursor = (cursor + 2).min(limit);
+            cursor = advance_js_escaped_char(source, cursor, limit);
             continue;
         }
         if byte == quote {
             return Some(cursor + 1);
         }
-        cursor += 1;
+        cursor = advance_js_scan_cursor(source, cursor, limit);
     }
     None
 }
@@ -4615,8 +4709,9 @@ fn bracket_string_literal_access(
 }
 
 fn read_css_identifier_end(source: &str, start: usize) -> usize {
+    let start = char_boundary_ceil(source, start);
     let mut end = start;
-    for (relative_index, ch) in source[start..].char_indices() {
+    for (relative_index, ch) in source.get(start..).unwrap_or_default().char_indices() {
         if !is_css_identifier_continue(ch) {
             break;
         }
@@ -4626,13 +4721,14 @@ fn read_css_identifier_end(source: &str, start: usize) -> usize {
 }
 
 fn read_js_identifier(source: &str, start: usize) -> Option<(&str, usize)> {
-    let first = source[start..].chars().next()?;
+    let start = char_boundary_ceil(source, start);
+    let first = source.get(start..)?.chars().next()?;
     if !is_js_identifier_start(first) {
         return None;
     }
     let mut end = start + first.len_utf8();
     let scan_start = end;
-    for (relative_index, ch) in source[scan_start..].char_indices() {
+    for (relative_index, ch) in source.get(scan_start..)?.char_indices() {
         if !is_js_identifier_continue(ch) {
             break;
         }
@@ -4676,27 +4772,48 @@ fn style_selector_definitions_from_open_documents(
     definitions
 }
 
+fn style_selector_definitions_from_uri(
+    state: &LspShellState,
+    uri: &str,
+) -> Vec<(String, LspStyleHoverCandidate)> {
+    style_hover_candidates_for_uri(state, uri)
+        .map(|(_, candidates)| {
+            candidates
+                .into_iter()
+                .filter(|candidate| candidate.kind == "selector")
+                .map(|candidate| (uri.to_string(), candidate))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn style_selector_definitions_for_source_candidate(
     state: &LspShellState,
     candidate: &LspStyleHoverCandidate,
     workspace_folder_uri: Option<&str>,
 ) -> Vec<(String, LspStyleHoverCandidate)> {
-    style_selector_definitions_from_open_documents(
+    let mut definitions = style_selector_definitions_from_open_documents(
         state,
         source_candidate_definition_lookup_name(candidate),
         workspace_folder_uri,
-    )
-    .into_iter()
-    .filter(|(uri, _)| {
-        candidate
-            .target_style_uri
-            .as_deref()
-            .is_none_or(|target_uri| target_uri == uri)
-    })
-    .filter(|(_, definition)| {
-        source_candidate_matches_selector(candidate, definition.name.as_str())
-    })
-    .collect()
+    );
+    if let Some(target_uri) = candidate.target_style_uri.as_deref()
+        && !definitions.iter().any(|(uri, _)| uri == target_uri)
+    {
+        definitions.extend(style_selector_definitions_from_uri(state, target_uri));
+    }
+    definitions
+        .into_iter()
+        .filter(|(uri, _)| {
+            candidate
+                .target_style_uri
+                .as_deref()
+                .is_none_or(|target_uri| target_uri == uri)
+        })
+        .filter(|(_, definition)| {
+            source_candidate_matches_selector(candidate, definition.name.as_str())
+        })
+        .collect()
 }
 
 fn source_candidate_definition_lookup_name(candidate: &LspStyleHoverCandidate) -> &str {
@@ -4810,8 +4927,20 @@ fn workspace_folder_compatible(
         workspace_folder_uri,
         document.workspace_folder_uri.as_deref(),
     ) {
-        (Some(left), Some(right)) => left == right,
+        (Some(left), Some(right)) => workspace_folder_uri_equivalent(left, right),
         _ => true,
+    }
+}
+
+fn workspace_folder_uri_equivalent(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
+    match (file_uri_to_path(left), file_uri_to_path(right)) {
+        (Some(left_path), Some(right_path)) => {
+            normalize_path(left_path) == normalize_path(right_path)
+        }
+        _ => false,
     }
 }
 
@@ -4977,7 +5106,7 @@ fn rule_snippet_around_position(source: &str, position: ParserPositionV0) -> Opt
             }
             _ => {}
         }
-        cursor += 1;
+        cursor = advance_js_scan_cursor(source, cursor, source.len());
     }
     None
 }
@@ -7113,6 +7242,167 @@ mod tests {
     }
 
     #[test]
+    fn source_hover_renders_unopened_target_style_rule_from_disk() -> TestResult {
+        let workspace_path = std::env::temp_dir().join(format!(
+            "omena-lsp-disk-style-hover-{}-{}",
+            std::process::id(),
+            current_time_millis()
+        ));
+        let src_dir = workspace_path.join("src");
+        let source_path = src_dir.join("App.tsx");
+        let style_path = src_dir.join("App.module.scss");
+        fs::create_dir_all(src_dir.as_path())?;
+        fs::write(style_path.as_path(), ".foo { color: red; }\n")?;
+
+        let workspace_uri = path_to_file_uri(workspace_path.as_path());
+        let source_uri = path_to_file_uri(source_path.as_path());
+        let source_text = "import bind from \"classnames/bind\";\nimport styles from \"./App.module.scss\";\nconst cx = bind.bind(styles);\nexport const view = <div className={cx(\"foo\")} />;";
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": workspace_uri,
+                            "name": "workspace",
+                        },
+                    ],
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                        "languageId": "typescriptreact",
+                        "version": 1,
+                        "text": source_text,
+                    },
+                },
+            }),
+        );
+
+        let hover_response = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": {
+                        "uri": path_to_file_uri(source_path.as_path()),
+                    },
+                    "position": parser_position_for_byte_offset(
+                        source_text,
+                        fixture_find(source_text, "\"foo\"", "source fixture contains foo")? + 1,
+                    ),
+                },
+            }),
+        );
+        let hover_text = hover_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/contents/value"))
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        assert!(
+            hover_text.contains("color: red"),
+            "hover text: {hover_text}"
+        );
+
+        let _ = fs::remove_dir_all(workspace_path.as_path());
+        Ok(())
+    }
+
+    #[test]
+    fn sass_symbol_hover_renders_unopened_target_definition_from_disk() -> TestResult {
+        let workspace_path = std::env::temp_dir().join(format!(
+            "omena-lsp-disk-sass-hover-{}-{}",
+            std::process::id(),
+            current_time_millis()
+        ));
+        let src_dir = workspace_path.join("src");
+        let source_style_path = src_dir.join("App.module.scss");
+        let token_style_path = src_dir.join("_tokens.scss");
+        fs::create_dir_all(src_dir.as_path())?;
+        fs::write(token_style_path.as_path(), "$brand: #fff;\n")?;
+
+        let workspace_uri = path_to_file_uri(workspace_path.as_path());
+        let source_style_uri = path_to_file_uri(source_style_path.as_path());
+        let source_style_text = "@use \"./tokens\" as *;\n.foo { color: $brand; }\n";
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": workspace_uri,
+                            "name": "workspace",
+                        },
+                    ],
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": source_style_uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": source_style_text,
+                    },
+                },
+            }),
+        );
+
+        let hover_response = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": {
+                        "uri": path_to_file_uri(source_style_path.as_path()),
+                    },
+                    "position": parser_position_for_byte_offset(
+                        source_style_text,
+                        fixture_find(
+                            source_style_text,
+                            "$brand",
+                            "style fixture contains brand variable",
+                        )? + 1,
+                    ),
+                },
+            }),
+        );
+        let hover_text = hover_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/contents/value"))
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        assert!(hover_text.contains("$brand: #fff"));
+
+        let _ = fs::remove_dir_all(workspace_path.as_path());
+        Ok(())
+    }
+
+    #[test]
     fn resolves_classnames_bind_dynamic_source_expressions() -> TestResult {
         let source_text = r#"import bind from "classnames/bind";
 import styles from "./styles.module.scss";
@@ -7420,6 +7710,172 @@ export const view = <div className={cx(tone, icon.glyph, `item--${variant}`, { "
                     "character": 5,
                 },
             })),
+        );
+    }
+
+    #[test]
+    fn js_recovery_scanners_keep_multibyte_escape_boundaries() -> TestResult {
+        let source = r#"const escaped = "\비";
+const view = <div className={cx("root", active && `상태-${tone}`)} />;"#;
+        let escaped_quote = fixture_find(source, r#""\비""#, "escaped fixture exists")?;
+        let escaped_end = skip_js_string_literal(source, escaped_quote, source.len())
+            .ok_or_else(|| std::io::Error::other("escaped string should be skipped"))?;
+        assert!(source.is_char_boundary(escaped_end));
+
+        let expression_start = fixture_find(source, "cx(", "cx call exists")? + "cx(".len();
+        let expression_end = js_call_end(source, expression_start - 1)
+            .ok_or_else(|| std::io::Error::other("cx call ends"))?;
+        let segments = split_top_level_js_segments(source, expression_start, expression_end, b',');
+        assert_eq!(segments.len(), 2);
+        for (start, end) in segments {
+            assert!(source.is_char_boundary(start));
+            assert!(source.is_char_boundary(end));
+        }
+
+        let operator = find_top_level_js_operator(source, expression_start, expression_end, "&&")
+            .ok_or_else(|| {
+            std::io::Error::other(
+                "conditional operator should be found without slicing inside UTF-8",
+            )
+        })?;
+        assert!(source.is_char_boundary(operator));
+        Ok(())
+    }
+
+    #[test]
+    fn opens_source_with_multibyte_escaped_strings_without_panicking() {
+        let source_text = r#"import bind from "classnames/bind";
+import styles from "./styles.module.scss";
+const cx = bind.bind(styles);
+const label = "\비";
+export const view = <div className={cx("root", label && `상태-${tone}`)} />;
+"#;
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": "file:///workspace-a",
+                            "name": "workspace-a",
+                        },
+                    ],
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": "file:///workspace-a/src/App.tsx",
+                        "languageId": "typescriptreact",
+                        "version": 1,
+                        "text": source_text,
+                    },
+                },
+            }),
+        );
+
+        let source_index = state
+            .document("file:///workspace-a/src/App.tsx")
+            .map(|document| document.source_syntax_index.clone());
+        assert!(
+            source_index
+                .as_ref()
+                .is_some_and(|index| !index.selector_references.is_empty())
+        );
+    }
+
+    #[test]
+    fn workspace_folder_compatibility_normalizes_percent_encoded_route_groups() {
+        assert!(workspace_folder_uri_equivalent(
+            "file:///workspace/app/(marketing)",
+            "file:///workspace/app/%28marketing%29",
+        ));
+    }
+
+    #[test]
+    fn codelens_keeps_references_when_workspace_owner_uri_encoding_differs() {
+        let workspace_uri = "file:///workspace/(group-a)";
+        let encoded_workspace_uri = "file:///workspace/%28group-a%29";
+        let source_uri = "file:///workspace/%28group-a%29/src/App.tsx";
+        let style_uri = "file:///workspace/(group-a)/src/App.module.scss";
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": workspace_uri,
+                            "name": "group-a",
+                        },
+                    ],
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                        "languageId": "typescriptreact",
+                        "version": 1,
+                        "text": "import bind from \"classnames/bind\";\nimport styles from \"./App.module.scss\";\nconst cx = bind.bind(styles);\nexport const view = <div className={cx(\"foo\")} />;",
+                    },
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": style_uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": ".foo { color: red; }",
+                    },
+                },
+            }),
+        );
+        if let Some(document) = state.documents.get_mut(source_uri) {
+            document.workspace_folder_uri = Some(encoded_workspace_uri.to_string());
+        }
+
+        let code_lens_response = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/codeLens",
+                "params": {
+                    "textDocument": {
+                        "uri": style_uri,
+                    },
+                },
+            }),
+        );
+        assert_eq!(
+            code_lens_response
+                .as_ref()
+                .and_then(|value| value.pointer("/result/0/command/title")),
+            Some(&json!("1 reference")),
         );
     }
 
