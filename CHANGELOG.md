@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [4.12.0] - 2026-05-05
+
+### Added
+
+- **Value-domain-aware source completion** - source completions now use class-value domain matching to narrow CSS Module selector suggestions for property access, bracket access, string-token, and object-key prefixes.
+- **Checker rule registry** - the checker exposes a rule descriptor registry plus `--list-rules`, making current diagnostics discoverable by code, category, default severity, fixability, and preset.
+- **LSP runtime latency baseline** - Rust and selected-query LSP runtime loops now report per-request p50/p95/max latency for hover, definition, references, and completion alongside the existing event-loop probe budget.
+
+### Fixed
+
+- **Rust LSP UTF-8 recovery safety** - JS recovery scanners now advance through UTF-8 character boundaries, preventing the char-boundary panic class triggered by multibyte strings and escaped characters.
+- **Next.js route-group CodeLens ownership** - workspace-folder compatibility now normalizes percent-encoded file URIs before comparison, preserving references and CodeLens inside App Router `(group)` directories.
+- **Resolved target hover rendering** - source hovers and Sass symbol hovers can render unopened resolved style targets from disk instead of falling back to placeholder output when the target file is not open.
+
 ## [4.11.0] - 2026-05-01
 
 ### Changed
