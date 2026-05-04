@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [4.14.0] - 2026-05-05
+
+### Added
+
+- **BinderPluginV0 boundary** - `omena-bridge` now exposes a built-in `BinderPluginV0` boundary for source-side class-name tracking, with the current CSS Modules + `classnames/bind` / `classnames` / `clsx` behavior declared as the default built-in plugin.
+
+### Changed
+
+- **Production source analysis routing** - Node runtime and checker analysis now route CSS Modules binding, class utility detection, and class-reference extraction through the default binder plugin instead of wiring the cx/style scanners as separate production dependencies.
+
 ## [4.13.0] - 2026-05-05
 
 ### Added
