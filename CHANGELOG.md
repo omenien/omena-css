@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [4.13.0] - 2026-05-05
+
+### Added
+
+- **tsgo-backed typed `cx()` projection** - Rust LSP source requests now consume `omena-tsgo-client` type facts for finite literal unions and template holes, projecting typed `classnames/bind` arguments such as `size` and ``font-size-${fontSize}`` onto canonical selector definitions.
+- **Sass partial-evaluation selector catalog** - Rust LSP style indexing now surfaces map + `$prefix` Sass include outputs such as `color-green` / `color-blue` as generated selector candidates, allowing source prefix lookups like ``color-${color}`` to resolve instead of returning silently.
+
+### Fixed
+
+- **Sass semantic hover rendering** - Sass variable and mixin hovers now render resolved declaration values and callable bodies from the target definition instead of showing only the include/reference placeholder line.
+
 ## [4.12.0] - 2026-05-05
 
 ### Added
