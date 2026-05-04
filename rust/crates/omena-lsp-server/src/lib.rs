@@ -7,8 +7,8 @@ use diagnostics_scheduler::{
     rust_diagnostics_scheduler_contract,
 };
 use engine_style_parser::{
-    ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage, parse_style_module,
-    summarize_css_modules_intermediate,
+    AtRuleKind, ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage,
+    SyntaxNodePayload, parse_style_module, summarize_css_modules_intermediate,
 };
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_tsgo_client::{
@@ -224,6 +224,7 @@ pub fn source_provider_direct_rust_adapter_contract() -> SourceProviderDirectRus
             "consumeParserCanonicalSelectorFacts",
             "consumeParserSelectorDefinitionFacts",
             "consumeTsgoTypeFactsForTypedCxProjection",
+            "consumeSassPartialEvaluatorGeneratedSelectors",
             "useOpenedDocumentIndexesBeforeWorkspaceFallback",
             "unresolvedCandidatesRemainFastDiagnostics",
         ],
@@ -5481,17 +5482,86 @@ fn render_style_hover_candidate_markdown(
             )
         }
         kind if is_sass_symbol_candidate_kind(kind) => {
+            render_sass_symbol_hover_markdown(source, candidate, location.as_str())
+        }
+        _ => candidate.name.clone(),
+    }
+}
+
+fn render_sass_symbol_hover_markdown(
+    source: &str,
+    candidate: &LspStyleHoverCandidate,
+    location: &str,
+) -> String {
+    let label = render_sass_symbol_label(candidate);
+    match sass_symbol_kind_from_candidate_kind(candidate.kind) {
+        Some("variable") if is_sass_symbol_declaration_kind(candidate.kind) => {
+            let snippet =
+                line_snippet_at_position(source, candidate.range.start).unwrap_or_default();
+            if let Some(value) = sass_variable_value_from_declaration_line(snippet.as_str()) {
+                return format!(
+                    "**`{}`** - _{}_\n\nValue: `{}`\n\n```scss\n{}\n```",
+                    label, location, value, snippet
+                );
+            }
+            format!(
+                "**`{}`** - _{}_\n\n```scss\n{}\n```",
+                label, location, snippet
+            )
+        }
+        Some("mixin" | "function") if is_sass_symbol_declaration_kind(candidate.kind) => {
+            let rendered = sass_callable_definition_render_parts(source, candidate.range.start)
+                .or_else(|| {
+                    line_snippet_at_position(source, candidate.range.start)
+                        .map(|line| (label.clone(), line))
+                })
+                .unwrap_or_else(|| (label.clone(), String::new()));
+            format!(
+                "**`{}`** - _{}_\n\n```scss\n{}\n```",
+                rendered.0, location, rendered.1
+            )
+        }
+        _ => {
             let snippet =
                 line_snippet_at_position(source, candidate.range.start).unwrap_or_default();
             format!(
                 "**`{}`** - _{}_\n\n```scss\n{}\n```",
-                render_sass_symbol_label(candidate),
-                location,
-                snippet
+                label, location, snippet
             )
         }
-        _ => candidate.name.clone(),
     }
+}
+
+fn sass_variable_value_from_declaration_line(line: &str) -> Option<String> {
+    let (_, value) = line.split_once(':')?;
+    let value = value
+        .trim()
+        .trim_end_matches(';')
+        .trim()
+        .trim_end_matches("!default")
+        .trim();
+    (!value.is_empty()).then(|| value.to_string())
+}
+
+fn sass_callable_definition_render_parts(
+    source: &str,
+    position: ParserPositionV0,
+) -> Option<(String, String)> {
+    let line_start = byte_offset_for_parser_position(
+        source,
+        ParserPositionV0 {
+            line: position.line,
+            character: 0,
+        },
+    )?;
+    let open_brace = source[line_start..].find('{')? + line_start;
+    let close_brace = matching_js_block_end(source, open_brace, b'{', b'}')?;
+    let signature = source[line_start..open_brace].trim().to_string();
+    let body = source[open_brace + 1..close_brace].trim();
+    if signature.is_empty() || body.is_empty() {
+        return None;
+    }
+    Some((signature, trim_hover_snippet(body)))
 }
 
 fn rule_snippet_around_position(source: &str, position: ParserPositionV0) -> Option<String> {
@@ -5639,6 +5709,12 @@ fn collect_style_hover_candidates(
         &mut seen,
         &mut candidates,
     );
+    collect_sass_partial_evaluator_selector_candidates(
+        sheet.source.as_str(),
+        sheet.nodes.as_slice(),
+        &mut seen,
+        &mut candidates,
+    );
     candidates.sort();
     Some((style_language_label(sheet.language), candidates))
 }
@@ -5742,6 +5818,136 @@ fn collect_sass_symbol_hover_candidates(
             });
         }
     }
+}
+
+fn collect_sass_partial_evaluator_selector_candidates(
+    source: &str,
+    nodes: &[engine_style_parser::SyntaxNode],
+    seen: &mut BTreeSet<(usize, usize, String)>,
+    candidates: &mut Vec<LspStyleHoverCandidate>,
+) {
+    for node in nodes {
+        if let Some(SyntaxNodePayload::AtRule(at_rule)) = &node.payload
+            && at_rule.kind == AtRuleKind::Include
+        {
+            let range_span = ParserByteSpanV0 {
+                start: node.header_span.unwrap_or(node.span).start,
+                end: node.header_span.unwrap_or(node.span).end,
+            };
+            for selector_name in infer_sass_include_generated_selector_names(&at_rule.params) {
+                if seen.insert((range_span.start, range_span.end, selector_name.clone())) {
+                    candidates.push(LspStyleHoverCandidate {
+                        kind: "selector",
+                        name: selector_name,
+                        range: parser_range_for_byte_span(source, range_span),
+                        source: "sassPartialEvaluatorGeneratedSelectors",
+                        target_style_uri: None,
+                        namespace: None,
+                    });
+                }
+            }
+        }
+        collect_sass_partial_evaluator_selector_candidates(
+            source,
+            &node.children,
+            seen,
+            candidates,
+        );
+    }
+}
+
+fn infer_sass_include_generated_selector_names(params: &str) -> Vec<String> {
+    let Some(prefix) = sass_named_argument_string_value(params, "prefix") else {
+        return Vec::new();
+    };
+    if prefix.is_empty() || !prefix.chars().all(is_css_identifier_continue) {
+        return Vec::new();
+    }
+    let mut selectors = sass_first_map_string_keys(params)
+        .into_iter()
+        .filter(|key| !key.is_empty() && key.chars().all(is_css_identifier_continue))
+        .map(|key| format!("{prefix}-{key}"))
+        .collect::<Vec<_>>();
+    selectors.sort();
+    selectors.dedup();
+    selectors
+}
+
+fn sass_named_argument_string_value(params: &str, name: &str) -> Option<String> {
+    let needle = format!("${name}");
+    let mut cursor = 0usize;
+    while let Some(relative_match) = params[cursor..].find(needle.as_str()) {
+        let name_start = cursor + relative_match;
+        let name_end = name_start + needle.len();
+        if !sass_identifier_boundary(params, name_start, name_end) {
+            cursor = name_end;
+            continue;
+        }
+        let colon_offset = skip_ascii_whitespace(params, name_end);
+        if params.as_bytes().get(colon_offset) != Some(&b':') {
+            cursor = name_end;
+            continue;
+        }
+        let value_start = skip_ascii_whitespace(params, colon_offset + 1);
+        return sass_string_literal_value(params, value_start).map(|(value, _)| value);
+    }
+    None
+}
+
+fn sass_first_map_string_keys(params: &str) -> Vec<String> {
+    let mut cursor = 0usize;
+    while cursor < params.len() {
+        let Some(open_relative) = params[cursor..].find('(') else {
+            break;
+        };
+        let open = cursor + open_relative;
+        let Some(close) = matching_js_block_end(params, open, b'(', b')') else {
+            break;
+        };
+        let keys = sass_map_string_keys(params, open + 1, close);
+        if !keys.is_empty() {
+            return keys;
+        }
+        cursor = open + 1;
+    }
+    Vec::new()
+}
+
+fn sass_map_string_keys(params: &str, start: usize, end: usize) -> Vec<String> {
+    split_top_level_js_segments(params, start, end, b',')
+        .into_iter()
+        .filter_map(|(entry_start, entry_end)| {
+            let key_start = skip_ascii_whitespace(params, entry_start);
+            let (key, key_end) = sass_string_literal_value(params, key_start)?;
+            let colon_offset = skip_ascii_whitespace(params, key_end);
+            (colon_offset < entry_end && params.as_bytes().get(colon_offset) == Some(&b':'))
+                .then_some(key)
+        })
+        .collect()
+}
+
+fn sass_string_literal_value(source: &str, quote_offset: usize) -> Option<(String, usize)> {
+    let quote = source.as_bytes().get(quote_offset).copied()?;
+    if !matches!(quote, b'\'' | b'"') {
+        return None;
+    }
+    let literal_end = skip_js_string_literal(source, quote_offset, source.len())?;
+    let value_end = literal_end.saturating_sub(1);
+    source
+        .get(quote_offset + 1..value_end)
+        .map(|value| (value.to_string(), literal_end))
+}
+
+fn sass_identifier_boundary(source: &str, start: usize, end: usize) -> bool {
+    let before = source
+        .get(..start)
+        .and_then(|prefix| prefix.chars().next_back())
+        .is_none_or(|ch| !is_css_identifier_continue(ch) && ch != '$');
+    let after = source
+        .get(end..)
+        .and_then(|suffix| suffix.chars().next())
+        .is_none_or(|ch| !is_css_identifier_continue(ch));
+    before && after
 }
 
 fn sass_symbol_declaration_candidate_kind(symbol_kind: &str) -> &'static str {
@@ -7142,6 +7348,35 @@ mod tests {
                 },
             })),
         );
+        let variable_hover_text = variable_hover
+            .as_ref()
+            .and_then(|value| value.pointer("/result/contents/value"))
+            .and_then(Value::as_str)
+            .ok_or_else(|| std::io::Error::other("variable hover should render markdown"))?;
+        assert!(variable_hover_text.contains("Value: `#eee`"));
+        assert!(variable_hover_text.contains("$defign_gray200: #eee;"));
+
+        let mixin_hover = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "textDocument/hover",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                    },
+                    "position": mixin_position,
+                },
+            }),
+        );
+        let mixin_hover_text = mixin_hover
+            .as_ref()
+            .and_then(|value| value.pointer("/result/contents/value"))
+            .and_then(Value::as_str)
+            .ok_or_else(|| std::io::Error::other("mixin hover should render markdown"))?;
+        assert!(mixin_hover_text.contains("@mixin defign_typography20"));
+        assert!(mixin_hover_text.contains("font-size: 20px;"));
 
         let _ = fs::remove_dir_all(workspace_path.as_path());
         Ok(())
@@ -7581,6 +7816,105 @@ export function Badge({ size, fontSize }: BadgeProps) {
             .ok_or_else(|| std::io::Error::other("size hover should render markdown"))?;
         assert!(hover_text.contains("`.medium`"));
         assert!(hover_text.contains("`.small`"));
+        Ok(())
+    }
+
+    #[test]
+    fn indexes_sass_map_prefix_include_generated_selectors_for_source_prefixes() -> TestResult {
+        let source_uri = "file:///workspace-a/src/App.tsx";
+        let style_uri = "file:///workspace-a/src/App.module.scss";
+        let source_text = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+export const view = <span className={cx(color && `color-${color}`)} />;
+"#;
+        let style_text = r#"@include setAllStyle(
+  ("green": #0f0, "blue": #00f),
+  background-color,
+  ".primary.fill",
+  $prefix: "color"
+);
+"#;
+        let mut state = LspShellState::default();
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "workspaceFolders": [
+                        {
+                            "uri": "file:///workspace-a",
+                            "name": "workspace-a",
+                        },
+                    ],
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                        "languageId": "typescriptreact",
+                        "version": 1,
+                        "text": source_text,
+                    },
+                },
+            }),
+        );
+        handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "method": "textDocument/didOpen",
+                "params": {
+                    "textDocument": {
+                        "uri": style_uri,
+                        "languageId": "scss",
+                        "version": 1,
+                        "text": style_text,
+                    },
+                },
+            }),
+        );
+
+        let color_position = parser_position_for_byte_offset(
+            source_text,
+            fixture_find(
+                source_text,
+                "color-${color}",
+                "source fixture contains color template prefix",
+            )?,
+        );
+        let definition = handle_lsp_message(
+            &mut state,
+            json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "textDocument/definition",
+                "params": {
+                    "textDocument": {
+                        "uri": source_uri,
+                    },
+                    "position": color_position,
+                },
+            }),
+        );
+        let results = definition
+            .as_ref()
+            .and_then(|value| value.pointer("/result"))
+            .and_then(Value::as_array)
+            .ok_or_else(|| {
+                std::io::Error::other("color prefix definition should return results")
+            })?;
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].get("uri"), Some(&json!(style_uri)));
+        assert_eq!(results[1].get("uri"), Some(&json!(style_uri)));
         Ok(())
     }
 
