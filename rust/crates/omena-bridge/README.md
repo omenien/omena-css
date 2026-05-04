@@ -28,6 +28,10 @@ Current public products:
   evidence product, kept stable for existing host consumers while ownership
   moves behind this crate. The evidence includes parser-backed design-token
   seed facts from CSS custom properties.
+- `omena-bridge.binder-plugin-boundary` — built-in `BinderPluginV0` boundary
+  for source-side class-name tracking. The default plugin keeps the current CSS
+  Modules + `classnames/bind`/`classnames`/`clsx` behavior behind one boundary;
+  external plugin ABI is intentionally not stable yet.
 
 Primary check:
 

@@ -4,7 +4,8 @@ use engine_input_producers::{
     TypeFactEntryV2,
 };
 use omena_bridge::{
-    StyleSemanticGraphSummaryV0, summarize_omena_bridge_boundary,
+    StyleSemanticGraphSummaryV0, summarize_omena_bridge_binder_plugin_boundary,
+    summarize_omena_bridge_boundary,
     summarize_omena_bridge_style_semantic_graph_from_source,
 };
 
@@ -99,6 +100,7 @@ mod tests {
     #[test]
     fn consumes_remote_bridge_boundary_via_git_dependency() {
         let boundary = summarize_omena_bridge_boundary();
+        let binder_boundary = summarize_omena_bridge_binder_plugin_boundary();
 
         assert_eq!(
             consume_bridge_boundary_product(),
@@ -113,6 +115,13 @@ mod tests {
                 .bridge_owned_surfaces
                 .contains(&"styleSemanticGraphFromSource")
         );
+        assert_eq!(
+            boundary.binder_plugin_product,
+            "omena-bridge.binder-plugin-boundary"
+        );
+        assert_eq!(binder_boundary.contract_name, "BinderPluginV0");
+        assert_eq!(binder_boundary.default_plugin.id, "css-modules-classnames-bind");
+        assert!(!binder_boundary.external_plugin_abi_stable);
         assert!(boundary.cme_coupled_surfaces.contains(&"EngineInputV2"));
     }
 

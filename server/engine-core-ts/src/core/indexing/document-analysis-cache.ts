@@ -3,6 +3,7 @@ import type ts from "typescript";
 import type { StyleImport } from "@css-module-explainer/shared";
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import { buildSourceBindingGraph } from "../binder/source-binding-graph";
+import type { BinderPluginV0 } from "../binder/binder-plugin";
 import type { SourceBinderResult } from "../binder/scope-types";
 import { buildSourceBinder } from "../binder/binder-builder";
 import type { CxBinding } from "../cx/cx-types";
@@ -55,6 +56,13 @@ export interface AnalysisEntry {
 export interface DocumentAnalysisCacheDeps {
   readonly sourceFileCache: SourceFileCache;
   /**
+   * Built-in class-name binding plugin entrypoint. Production
+   * runtimes should prefer this over wiring cx/style scans
+   * separately so future domains (Tailwind, vanilla-extract, Vue
+   * modules) can enter through the same boundary.
+   */
+  readonly binderPlugin?: BinderPluginV0;
+  /**
    * Single-pass scan of the file's top-level import declarations
    * and cx binding initializers. Returns both the style-import
    * map (with `resolved`/`missing` variants derived from
@@ -62,7 +70,7 @@ export interface DocumentAnalysisCacheDeps {
    * bindings in one traversal, eliminating the previous
    * double-walk pattern.
    */
-  readonly scanCxImports: (
+  readonly scanCxImports?: (
     sourceFile: ts.SourceFile,
     filePath: string,
     fileExists: (p: string) => boolean,
@@ -185,20 +193,20 @@ export class DocumentAnalysisCache {
   private analyze(content: string, filePath: string, version: number, hash: string): AnalysisEntry {
     const sourceFile = this.deps.sourceFileCache.get(filePath, content);
     const sourceBinder = buildSourceBinder(sourceFile);
-    // Single-pass scan: resolves style imports (with `missing`
-    // variants via `fileExists`) and collects cx bindings in one
-    // traversal of the source file. Files without `classnames/bind`
-    // still get a populated `stylesBindings` so source-expression
-    // parsing can resolve `styles.x` accesses.
-    const { stylesBindings, bindings } = this.deps.scanCxImports(
+    const pluginAnalysis = this.deps.binderPlugin?.analyzeSource({
       sourceFile,
       filePath,
-      this.deps.fileExists,
-      this.deps.aliasResolver,
-    );
-    const cxBindings = resolveCxBindings(bindings, sourceBinder, sourceFile);
-
-    const classUtilNames = this.deps.detectClassUtilImports?.(sourceFile) ?? [];
+      sourceBinder,
+      fileExists: this.deps.fileExists,
+      aliasResolver: this.deps.aliasResolver,
+    });
+    const legacyAnalysis = pluginAnalysis
+      ? null
+      : this.analyzeLegacyBindings(sourceFile, filePath, sourceBinder);
+    const stylesBindings = pluginAnalysis?.stylesBindings ?? legacyAnalysis!.stylesBindings;
+    const cxBindings = pluginAnalysis?.cxBindings ?? legacyAnalysis!.cxBindings;
+    const classUtilNames = pluginAnalysis?.classUtilNames ?? legacyAnalysis!.classUtilNames;
+    const classExpressions = pluginAnalysis?.classExpressions ?? legacyAnalysis!.classExpressions;
     const sourceDependencyPaths = collectSourceDependencyPaths(
       sourceFile,
       filePath,
@@ -210,9 +218,7 @@ export class DocumentAnalysisCache {
       stylesBindings,
       classUtilNames,
       sourceBinder,
-      classExpressions:
-        this.deps.parseClassExpressions?.(sourceFile, cxBindings, stylesBindings, sourceBinder) ??
-        [],
+      classExpressions,
     });
     const sourceBindingGraph = buildSourceBindingGraph(sourceDocument, sourceBinder);
 
@@ -227,5 +233,34 @@ export class DocumentAnalysisCache {
       classUtilNames,
       sourceDependencyPaths,
     };
+  }
+
+  private analyzeLegacyBindings(
+    sourceFile: ts.SourceFile,
+    filePath: string,
+    sourceBinder: SourceBinderResult,
+  ): {
+    readonly stylesBindings: ReadonlyMap<string, StyleImport>;
+    readonly cxBindings: readonly ResolvedCxBinding[];
+    readonly classUtilNames: readonly string[];
+    readonly classExpressions: readonly ClassExpressionHIR[];
+  } {
+    if (!this.deps.scanCxImports) {
+      throw new Error("DocumentAnalysisCache requires binderPlugin or scanCxImports");
+    }
+    // Legacy injection path kept for focused unit tests. Production
+    // runtimes now route through BinderPluginV0.
+    const { stylesBindings, bindings } = this.deps.scanCxImports(
+      sourceFile,
+      filePath,
+      this.deps.fileExists,
+      this.deps.aliasResolver,
+    );
+    const cxBindings = resolveCxBindings(bindings, sourceBinder, sourceFile);
+    const classUtilNames = this.deps.detectClassUtilImports?.(sourceFile) ?? [];
+    const classExpressions =
+      this.deps.parseClassExpressions?.(sourceFile, cxBindings, stylesBindings, sourceBinder) ?? [];
+
+    return { stylesBindings, cxBindings, classUtilNames, classExpressions };
   }
 }

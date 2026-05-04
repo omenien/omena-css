@@ -3,6 +3,7 @@ import type ts from "typescript";
 import type { StyleImport } from "@css-module-explainer/shared";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
 import type { ResolvedCxBinding } from "../../../server/engine-core-ts/src/core/cx/resolved-bindings";
+import { cssModulesClassnamesBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/binder-plugin";
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import {
@@ -49,6 +50,26 @@ function makeCache() {
 }
 
 describe("DocumentAnalysisCache", () => {
+  it("can route production analysis through BinderPluginV0 without legacy scan deps", () => {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const cache = new DocumentAnalysisCache({
+      sourceFileCache,
+      binderPlugin: cssModulesClassnamesBinderPluginV0,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      max: 10,
+    });
+
+    const entry = cache.get("file:///fake/Button.tsx", SOURCE, "/fake/Button.tsx", 1);
+
+    expect(entry.sourceDocument.utilityBindings).toMatchObject([
+      { kind: "classnamesBind", localName: "cx", stylesLocalName: "styles" },
+    ]);
+    expect(entry.sourceDocument.classExpressions).toMatchObject([
+      { kind: "literal", className: "indicator" },
+    ]);
+  });
+
   it("prefers direct class-expression parsing when available", () => {
     const sourceFileCache = new SourceFileCache({ max: 10 });
     const parseClassExpressions = vi.fn(() => [

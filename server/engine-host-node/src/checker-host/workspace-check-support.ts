@@ -12,11 +12,7 @@ import {
   AliasResolver,
   loadWorkspaceTsconfigPathAliases,
 } from "../../../engine-core-ts/src/core/cx/alias-resolver";
-import {
-  detectClassUtilImports,
-  scanCxImports,
-} from "../../../engine-core-ts/src/core/cx/binding-detector";
-import { parseClassExpressions } from "../../../engine-core-ts/src/core/cx/class-ref-parser";
+import { cssModulesClassnamesBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/binder-plugin";
 import { DocumentAnalysisCache } from "../../../engine-core-ts/src/core/indexing/document-analysis-cache";
 import { collectSemanticReferenceContribution } from "../../../engine-core-ts/src/core/semantic/reference-collector";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../engine-core-ts/src/core/semantic/workspace-reference-index";
@@ -164,9 +160,7 @@ export function createWorkspaceAnalysisHost(params: {
 
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
-    scanCxImports,
-    parseClassExpressions,
-    detectClassUtilImports,
+    binderPlugin: cssModulesClassnamesBinderPluginV0,
     fileExists: existsSync,
     aliasResolver,
     max: 500,
