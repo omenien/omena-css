@@ -335,11 +335,8 @@ pub fn reduce_tsgo_type_response(
     type_response: &serde_json::Value,
     union_members: &[serde_json::Value],
 ) -> TsgoResolvedTypeV0 {
-    if let Some(value) = type_response
-        .get("value")
-        .and_then(serde_json::Value::as_str)
-    {
-        return union_tsgo_type([value.to_string()]);
+    if let Some(value) = literal_type_response_value(type_response) {
+        return union_tsgo_type([value]);
     }
 
     let flags = type_response
@@ -1005,11 +1002,8 @@ where
         snapshot: &str,
         type_response: &serde_json::Value,
     ) -> Result<TsgoResolvedTypeV0, TsgoJsonRpcProviderErrorV0> {
-        if let Some(value) = type_response
-            .get("value")
-            .and_then(serde_json::Value::as_str)
-        {
-            return Ok(union_tsgo_type([value.to_string()]));
+        if let Some(value) = literal_type_response_value(type_response) {
+            return Ok(union_tsgo_type([value]));
         }
 
         let flags = type_response
@@ -1090,6 +1084,26 @@ where
 
 fn find_header_end(buffer: &[u8]) -> Option<usize> {
     buffer.windows(4).position(|window| window == b"\r\n\r\n")
+}
+
+fn literal_type_response_value(type_response: &serde_json::Value) -> Option<String> {
+    let value = type_response.get("value")?;
+    if let Some(value) = value.as_str() {
+        return Some(value.to_string());
+    }
+    if let Some(value) = value.as_i64() {
+        return Some(value.to_string());
+    }
+    if let Some(value) = value.as_u64() {
+        return Some(value.to_string());
+    }
+    if let Some(value) = value.as_f64()
+        && value.is_finite()
+        && value.fract() == 0.0
+    {
+        return Some(format!("{value:.0}"));
+    }
+    None
 }
 
 fn content_length_from_header(header: &str) -> Result<usize, TsgoJsonRpcFrameErrorV0> {
@@ -1443,6 +1457,17 @@ mod tests {
 
         assert_eq!(resolved.kind, "union");
         assert_eq!(resolved.values, vec!["root"]);
+    }
+
+    #[test]
+    fn reduces_numeric_literal_type_response_to_string_union() {
+        let resolved = reduce_tsgo_type_response(
+            &json!({ "id": "type-1", "flags": TSGO_TYPE_FLAGS_UNION }),
+            &[json!({ "value": 10 }), json!({ "value": 12 })],
+        );
+
+        assert_eq!(resolved.kind, "union");
+        assert_eq!(resolved.values, vec!["10", "12"]);
     }
 
     #[test]
