@@ -342,6 +342,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "urlValueCstNodes",
             "conditionalAtRulePreludeCstNodes",
             "mediaQueryCstNodes",
+            "importPreludeCstNodes",
+            "layerScopePreludeCstNodes",
             "unicodeRangeTokenization",
             "badStringTokenRecovery",
             "badStringValueBogusNodes",
@@ -1051,6 +1053,7 @@ impl<'text> Parser<'text> {
             SyntaxKind::ContainerRule => {
                 self.parse_at_rule_prelude_node(SyntaxKind::ContainerCondition)
             }
+            SyntaxKind::ImportRule => self.parse_import_prelude(),
             SyntaxKind::LayerRule => self.parse_at_rule_prelude_node(SyntaxKind::LayerName),
             SyntaxKind::ScopeRule => self.parse_at_rule_prelude_node(SyntaxKind::ScopeRange),
             _ => self.consume_at_rule_prelude_tokens(),
@@ -1083,6 +1086,63 @@ impl<'text> Parser<'text> {
                 Some(_) => self.token_current(),
                 None => break,
             }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_import_prelude(&mut self) {
+        self.eat_trivia();
+        self.parse_import_source();
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(kind) if is_at_rule_prelude_boundary(kind) => break,
+                Some(kind) if kind.is_trivia() => self.token_current(),
+                Some(SyntaxKind::Ident) if self.current_text() == Some("layer") => {
+                    self.parse_import_tail_node(SyntaxKind::LayerName)
+                }
+                Some(SyntaxKind::Ident)
+                    if self.current_text() == Some("supports")
+                        && self.next_kind() == Some(SyntaxKind::LeftParen) =>
+                {
+                    self.parse_import_tail_node(SyntaxKind::SupportsCondition)
+                }
+                Some(_) => {
+                    self.parse_media_query_list();
+                    break;
+                }
+                None => break,
+            }
+        }
+    }
+
+    fn parse_import_source(&mut self) {
+        match self.current_kind() {
+            Some(SyntaxKind::Url) => {
+                self.builder.start_node(SyntaxKind::UrlValue);
+                self.token_current();
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::Ident)
+                if self
+                    .current_text()
+                    .is_some_and(|text| text.eq_ignore_ascii_case("url"))
+                    && self.next_kind() == Some(SyntaxKind::LeftParen) =>
+            {
+                self.builder.start_node(SyntaxKind::UrlValue);
+                self.parse_function_call();
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::String) => self.token_current(),
+            Some(_) => {}
+            None => {}
+        }
+    }
+
+    fn parse_import_tail_node(&mut self, kind: SyntaxKind) {
+        self.builder.start_node(kind);
+        self.token_current();
+        if self.current_kind() == Some(SyntaxKind::LeftParen) {
+            self.parse_balanced_parenthesized_prelude(None);
         }
         self.builder.finish_node();
     }
@@ -2775,6 +2835,39 @@ mod tests {
     }
 
     #[test]
+    fn parses_import_layer_supports_media_prelude() {
+        let result = parse(
+            "@import url(\"theme.css\") layer(app.theme) supports(display: grid) screen and (min-width: 40rem);",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::ImportRule));
+        assert!(kinds.contains(&SyntaxKind::UrlValue));
+        assert!(kinds.contains(&SyntaxKind::LayerName));
+        assert!(kinds.contains(&SyntaxKind::SupportsCondition));
+        assert!(kinds.contains(&SyntaxKind::MediaQueryList));
+        assert!(kinds.contains(&SyntaxKind::MediaFeature));
+    }
+
+    #[test]
+    fn parses_layer_and_scope_preludes() {
+        let result = parse(
+            "@layer reset, app.ui; @scope (.card) to (.card-content) { .title { color: red; } }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::LayerRule));
+        assert!(kinds.contains(&SyntaxKind::LayerName));
+        assert!(kinds.contains(&SyntaxKind::ScopeRule));
+        assert!(kinds.contains(&SyntaxKind::ScopeRange));
+        assert!(kinds.contains(&SyntaxKind::RuleList));
+    }
+
+    #[test]
     fn parses_registered_keyframes_and_declaration_at_rules() {
         let keyframes = parse(
             "@keyframes fade { from { opacity: 0; } to { opacity: 1; } }",
@@ -3108,6 +3201,12 @@ mod tests {
                 .contains(&"conditionalAtRulePreludeCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"mediaQueryCstNodes"));
+        assert!(summary.ready_surfaces.contains(&"importPreludeCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"layerScopePreludeCstNodes")
+        );
         assert!(summary.ready_surfaces.contains(&"unicodeRangeTokenization"));
         assert!(summary.ready_surfaces.contains(&"badStringTokenRecovery"));
         assert!(summary.ready_surfaces.contains(&"badStringValueBogusNodes"));
