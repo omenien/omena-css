@@ -10,6 +10,7 @@ import {
 
 const APP_URI = "file:///fake/workspace/src/App.tsx";
 const BUTTON_SCSS_URI = "file:///fake/workspace/src/Button.module.scss";
+const THEME_SCSS_URI = "file:///fake/workspace/src/theme.module.scss";
 const OUT_OF_DOCUMENT_POSITION = { line: 99, character: 0 };
 
 const BUTTON_SCSS_WORKSPACE = workspace({
@@ -46,6 +47,22 @@ const SASS_SYMBOL_WORKSPACE = workspace({
 });
 
 const SASS_SYMBOL_SCSS = SASS_SYMBOL_WORKSPACE.file(BUTTON_SCSS_URI).content;
+
+const CUSTOM_PROPERTY_WORKSPACE = workspace({
+  [THEME_SCSS_URI]: `:root {
+  --brand: red;
+}
+`,
+  [BUTTON_SCSS_URI]: `@use "./theme.module.scss";
+.button {
+  color: var(--/*at:customProperty*/brand);
+  border-color: var(--brand);
+}
+`,
+});
+
+const THEME_SCSS = CUSTOM_PROPERTY_WORKSPACE.file(THEME_SCSS_URI).content;
+const CUSTOM_PROPERTY_SCSS = CUSTOM_PROPERTY_WORKSPACE.file(BUTTON_SCSS_URI).content;
 
 function fixturePositionParams(source: CmeWorkspace, filePath: string, markerName?: string) {
   return textDocumentPositionFixture({
@@ -255,6 +272,66 @@ describe("rename protocol", () => {
     expect(scssEdits).toHaveLength(2);
     expect(scssEdits.map((textEdit) => textEdit.newText)).toEqual(["theme-tone", "theme-tone"]);
     expect(scssEdits.map((textEdit) => textEdit.range.start.line)).toEqual([2, 7]);
+  });
+
+  it("rename from a CSS custom property reference updates workspace declarations and refs", async () => {
+    client = createInProcessServer({
+      readStyleFile: (filePath) =>
+        filePath.endsWith("theme.module.scss")
+          ? THEME_SCSS
+          : filePath.endsWith("Button.module.scss")
+            ? CUSTOM_PROPERTY_SCSS
+            : null,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: THEME_SCSS_URI,
+        languageId: "scss",
+        version: 1,
+        text: THEME_SCSS,
+      },
+    });
+    client.didOpen({
+      textDocument: {
+        uri: BUTTON_SCSS_URI,
+        languageId: "scss",
+        version: 1,
+        text: CUSTOM_PROPERTY_SCSS,
+      },
+    });
+
+    const prep = await client.prepareRename(
+      fixturePositionParams(CUSTOM_PROPERTY_WORKSPACE, BUTTON_SCSS_URI, "customProperty"),
+    );
+    expect(prep).not.toBeNull();
+    expect(prep!.placeholder).toBe("--brand");
+
+    const edit = await client.rename(
+      fixtureRenameParams(
+        CUSTOM_PROPERTY_WORKSPACE,
+        BUTTON_SCSS_URI,
+        "--surface",
+        "customProperty",
+      ),
+    );
+    expect(edit).not.toBeNull();
+    const changes = edit!.changes!;
+    expect(changes[THEME_SCSS_URI]).toEqual([
+      {
+        range: {
+          start: { line: 1, character: 2 },
+          end: { line: 1, character: 9 },
+        },
+        newText: "--surface",
+      },
+    ]);
+    expect(changes[BUTTON_SCSS_URI]?.map((textEdit) => textEdit.newText)).toEqual([
+      "--surface",
+      "--surface",
+    ]);
   });
 
   it("prepareRename rejects dynamic source expressions with a message", async () => {

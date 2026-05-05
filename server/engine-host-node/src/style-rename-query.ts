@@ -7,12 +7,16 @@ import {
 } from "../../engine-core-ts/src/core/rewrite/selector-rename";
 import { readStyleSelectorRewritePolicy } from "../../engine-core-ts/src/core/rewrite/read-style-rewrite-policy";
 import {
+  findCustomPropertyDeclAtCursor,
+  findCustomPropertyRefAtCursor,
   findSassSymbolAtCursor,
   findSassSymbolDeclAtCursor,
   findSassSymbolDeclForSymbol,
   findSassModuleMemberRefAtCursor,
   findSelectorAtCursor,
+  listCustomPropertyRefs,
   listSassSymbolsForDecl,
+  resolveCustomPropertyDeclTarget,
   resolveSassModuleMemberRefTarget,
   resolveSassWildcardSymbolTarget,
   readSelectorRewriteSafetySummary,
@@ -20,6 +24,8 @@ import {
 import type { ResolvedReferenceSite } from "../../engine-core-ts/src/core/query/find-references";
 import type { SelectorReferenceRewritePolicy } from "../../engine-core-ts/src/core/query/read-selector-rewrite-safety";
 import type {
+  CustomPropertyDeclHIR,
+  CustomPropertyRefHIR,
   SassSymbolDeclHIR,
   StylePreprocessorSymbolSyntax,
   StyleDocumentHIR,
@@ -69,13 +75,41 @@ export type SassSymbolRenameReadResult =
   | { readonly kind: "target"; readonly target: SassSymbolRenameTarget }
   | { readonly kind: "miss" };
 
-export type StyleRenameReadResult = SelectorRenameReadResult | SassSymbolRenameReadResult;
+export interface CustomPropertyRenameTarget {
+  readonly scssPath: string;
+  readonly scssUri: string;
+  readonly styleDocument: StyleDocumentHIR;
+  readonly name: string;
+  readonly targetDecl: Pick<
+    CustomPropertyDeclHIR,
+    "name" | "value" | "range" | "ruleRange" | "context"
+  >;
+  readonly targetDeclPath: string;
+  readonly placeholder: string;
+  readonly placeholderRange: CustomPropertyDeclHIR["range"] | CustomPropertyRefHIR["range"];
+}
+
+export type CustomPropertyRenameReadResult =
+  | { readonly kind: "target"; readonly target: CustomPropertyRenameTarget }
+  | { readonly kind: "miss" };
+
+export type StyleRenameReadResult =
+  | SelectorRenameReadResult
+  | SassSymbolRenameReadResult
+  | CustomPropertyRenameReadResult;
 
 export type SassSymbolRenamePlanResult =
   | { readonly kind: "plan"; readonly plan: TextRewritePlan<SassSymbolRenameTarget> }
   | { readonly kind: "blocked"; readonly reason: RenameEditBlockReason };
 
-export type StyleRenamePlanResult = SelectorRenamePlanResult | SassSymbolRenamePlanResult;
+export type CustomPropertyRenamePlanResult =
+  | { readonly kind: "plan"; readonly plan: TextRewritePlan<CustomPropertyRenameTarget> }
+  | { readonly kind: "blocked"; readonly reason: RenameEditBlockReason };
+
+export type StyleRenamePlanResult =
+  | SelectorRenamePlanResult
+  | SassSymbolRenamePlanResult
+  | CustomPropertyRenamePlanResult;
 
 export function readStyleRenameTargetAtCursor(
   filePath: string,
@@ -105,6 +139,14 @@ export function readStyleRenameTargetAtCursor(
     options,
   );
   if (selectorResult.kind !== "miss") return selectorResult;
+  const customPropertyResult = readCustomPropertyRenameTargetAtCursor(
+    filePath,
+    line,
+    character,
+    styleDocument,
+    deps,
+  );
+  if (customPropertyResult.kind !== "miss") return customPropertyResult;
   return readSassSymbolRenameTargetAtCursor(filePath, line, character, styleDocument, deps);
 }
 
@@ -272,6 +314,57 @@ function readSassSymbolRenameTargetAtCursor(
   };
 }
 
+function readCustomPropertyRenameTargetAtCursor(
+  filePath: string,
+  line: number,
+  character: number,
+  styleDocument: StyleDocumentHIR,
+  deps: Pick<
+    ProviderDeps,
+    "aliasResolver" | "readStyleFile" | "styleDependencyGraph" | "styleDocumentForPath"
+  >,
+): CustomPropertyRenameReadResult {
+  const decl = findCustomPropertyDeclAtCursor(styleDocument, line, character);
+  if (decl) {
+    return {
+      kind: "target",
+      target: makeCustomPropertyRenameTarget(
+        filePath,
+        styleDocument,
+        decl.name,
+        decl,
+        filePath,
+        decl.range,
+      ),
+    };
+  }
+
+  const ref = findCustomPropertyRefAtCursor(styleDocument, line, character);
+  if (!ref) return { kind: "miss" };
+
+  const target = resolveCustomPropertyDeclTarget(
+    deps.styleDocumentForPath,
+    filePath,
+    styleDocument,
+    ref,
+    deps.styleDependencyGraph,
+    deps.aliasResolver,
+    { readFile: deps.readStyleFile },
+  );
+
+  return {
+    kind: "target",
+    target: makeCustomPropertyRenameTarget(
+      filePath,
+      styleDocument,
+      ref.name,
+      target?.decl ?? refToDeclarationLike(ref),
+      target?.filePath ?? filePath,
+      ref.range,
+    ),
+  };
+}
+
 export function planStyleRenameAtCursor(
   filePath: string,
   line: number,
@@ -301,6 +394,9 @@ export function planStyleRenameAtCursor(
     options,
   );
   if (result.kind !== "target") return null;
+  if (isCustomPropertyRenameTarget(result.target)) {
+    return planCustomPropertyRename(result.target, newName, deps);
+  }
   if (isSassSymbolRenameTarget(result.target)) {
     return planSassSymbolRename(result.target, newName, deps);
   }
@@ -335,7 +431,124 @@ function isSassSymbolRenameTarget(
   return "symbolKind" in target;
 }
 
+function isCustomPropertyRenameTarget(
+  target: SelectorRenameTarget | SassSymbolRenameTarget | CustomPropertyRenameTarget,
+): target is CustomPropertyRenameTarget {
+  return "targetDecl" in target && "targetDeclPath" in target;
+}
+
 const SASS_IDENTIFIER_RE = /^[a-zA-Z_][\w-]*$/;
+const CUSTOM_PROPERTY_IDENTIFIER_RE = /^--[a-zA-Z_][\w-]*$/;
+
+function makeCustomPropertyRenameTarget(
+  filePath: string,
+  styleDocument: StyleDocumentHIR,
+  name: string,
+  targetDecl: Pick<CustomPropertyDeclHIR, "name" | "value" | "range" | "ruleRange" | "context">,
+  targetDeclPath: string,
+  placeholderRange: CustomPropertyDeclHIR["range"] | CustomPropertyRefHIR["range"],
+): CustomPropertyRenameTarget {
+  return {
+    scssPath: filePath,
+    scssUri: pathToFileUrl(filePath),
+    styleDocument,
+    name,
+    targetDecl,
+    targetDeclPath,
+    placeholder: name,
+    placeholderRange,
+  };
+}
+
+function refToDeclarationLike(
+  ref: CustomPropertyRefHIR,
+): Pick<CustomPropertyDeclHIR, "name" | "value" | "range" | "ruleRange" | "context"> {
+  return {
+    name: ref.name,
+    value: "",
+    range: ref.range,
+    ruleRange: ref.range,
+    context: ref.context,
+  };
+}
+
+function planCustomPropertyRename(
+  target: CustomPropertyRenameTarget,
+  newName: string,
+  deps: Pick<ProviderDeps, "styleDependencyGraph" | "styleDocumentForPath">,
+): CustomPropertyRenamePlanResult {
+  const nextName = normalizeCustomPropertyNewName(newName);
+  if (!nextName) return { kind: "blocked", reason: "invalidNewName" };
+
+  const edits: PlannedTextEdit[] = [];
+  pushCustomPropertyRenameEdit(edits, {
+    uri: pathToFileUrl(target.targetDeclPath),
+    range: target.targetDecl.range,
+    newText: nextName,
+  });
+
+  const targetDocument = deps.styleDocumentForPath(target.targetDeclPath);
+  if (targetDocument) {
+    for (const decl of targetDocument.customPropertyDecls) {
+      if (decl.name !== target.name) continue;
+      pushCustomPropertyRenameEdit(edits, {
+        uri: pathToFileUrl(target.targetDeclPath),
+        range: decl.range,
+        newText: nextName,
+      });
+    }
+    for (const ref of listCustomPropertyRefs(targetDocument, target.name)) {
+      pushCustomPropertyRenameEdit(edits, {
+        uri: pathToFileUrl(target.targetDeclPath),
+        range: ref.range,
+        newText: nextName,
+      });
+    }
+  }
+
+  for (const decl of target.styleDocument.customPropertyDecls) {
+    if (decl.name !== target.name) continue;
+    pushCustomPropertyRenameEdit(edits, {
+      uri: target.scssUri,
+      range: decl.range,
+      newText: nextName,
+    });
+  }
+  for (const ref of listCustomPropertyRefs(target.styleDocument, target.name)) {
+    pushCustomPropertyRenameEdit(edits, {
+      uri: target.scssUri,
+      range: ref.range,
+      newText: nextName,
+    });
+  }
+
+  for (const decl of deps.styleDependencyGraph.getCustomPropertyDecls(target.name)) {
+    pushCustomPropertyRenameEdit(edits, {
+      uri: pathToFileUrl(decl.filePath),
+      range: decl.range,
+      newText: nextName,
+    });
+  }
+  for (const ref of deps.styleDependencyGraph.getCustomPropertyRefs(target.name)) {
+    pushCustomPropertyRenameEdit(edits, {
+      uri: pathToFileUrl(ref.filePath),
+      range: ref.range,
+      newText: nextName,
+    });
+  }
+
+  return { kind: "plan", plan: { target, edits } };
+}
+
+function pushCustomPropertyRenameEdit(edits: PlannedTextEdit[], edit: PlannedTextEdit): void {
+  pushSassSymbolRenameEdit(edits, edit);
+}
+
+function normalizeCustomPropertyNewName(newName: string): string | null {
+  const trimmed = newName.trim();
+  const candidate = trimmed.startsWith("--") ? trimmed : `--${trimmed}`;
+  return CUSTOM_PROPERTY_IDENTIFIER_RE.test(candidate) ? candidate : null;
+}
 
 function planSassSymbolRename(
   target: SassSymbolRenameTarget,
