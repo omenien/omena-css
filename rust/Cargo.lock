@@ -298,7 +298,6 @@ dependencies = [
 name = "omena-lsp-server"
 version = "0.1.0"
 dependencies = [
- "omena-bridge",
  "omena-incremental",
  "omena-query",
  "omena-tsgo-client",

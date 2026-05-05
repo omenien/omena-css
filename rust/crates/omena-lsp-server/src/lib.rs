@@ -6,19 +6,16 @@ use diagnostics_scheduler::{
     RustDiagnosticsSchedulerBoundaryV0, diagnostics_schedule_event, run_diagnostics_schedule,
     rust_diagnostics_scheduler_contract,
 };
-use omena_bridge::{
-    SourceImportedStyleBindingV0 as ImportedStyleBinding,
-    SourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
-    SourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
-    SourceSyntaxIndexV0 as SourceSyntaxIndex, SourceTypeFactTargetV0 as SourceTypeFactTarget,
-    canonicalize_source_selector_references, resolve_omena_bridge_style_uri_for_specifier,
-    summarize_omena_bridge_source_syntax_index,
-};
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
+    OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
     OmenaQuerySourceSelectorCandidateV0, OmenaQuerySourceSelectorReferenceEditTargetV0,
-    OmenaQueryStyleHoverCandidateV0, OmenaQueryStyleSelectorDefinitionV0, ParserByteSpanV0,
-    ParserPositionV0, ParserRangeV0, StyleLanguage,
+    OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
+    OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
+    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex,
+    OmenaQuerySourceTypeFactTargetV0 as SourceTypeFactTarget, OmenaQueryStyleHoverCandidateV0,
+    OmenaQueryStyleSelectorDefinitionV0, ParserByteSpanV0, ParserPositionV0, ParserRangeV0,
+    StyleLanguage, canonicalize_omena_query_source_selector_references,
     is_omena_query_sass_symbol_candidate_kind as is_sass_symbol_candidate_kind,
     is_omena_query_sass_symbol_declaration_kind as is_sass_symbol_declaration_kind,
     is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,
@@ -29,8 +26,10 @@ use omena_query::{
     resolve_omena_query_source_candidate_selector_names,
     resolve_omena_query_source_provider_candidates,
     resolve_omena_query_style_selector_definitions_for_source_candidate,
+    resolve_omena_query_style_uri_for_specifier,
     summarize_omena_query_missing_custom_property_diagnostics,
     summarize_omena_query_missing_selector_diagnostic, summarize_omena_query_sass_module_sources,
+    summarize_omena_query_source_import_declarations, summarize_omena_query_source_syntax_index,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_style_hover_render_parts,
 };
@@ -237,12 +236,12 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
 pub fn source_provider_direct_rust_adapter_contract() -> SourceProviderDirectRustAdapterV0 {
     SourceProviderDirectRustAdapterV0 {
         product: "omena-lsp-server.source-provider-direct-rust-adapter",
-        candidate_owner: "omena-bridge/sourceSyntaxIndex",
+        candidate_owner: "omena-query/sourceSyntaxIndex",
         style_definition_owner: "omena-query/styleHoverCandidates",
         type_fact_owner: "omena-tsgo-client",
         request_path_policy: vec![
             "noNodeWorkspaceTypeResolverOnSourceProviderPath",
-            "buildBridgeSourceSyntaxIndexOnDocumentChange",
+            "buildQuerySourceSyntaxIndexOnDocumentChange",
             "dedupeTargetAwareSourceCandidates",
             "consumeQueryStyleHoverCandidates",
             "consumeQuerySassModuleSources",
@@ -1232,7 +1231,7 @@ fn apply_source_type_fact_results_to_document(
             );
         }
     }
-    canonicalize_source_selector_references(&mut references);
+    canonicalize_omena_query_source_selector_references(&mut references);
     let Some(document) = state.documents.get_mut(uri) else {
         return;
     };
@@ -1977,7 +1976,7 @@ fn resolve_lsp_code_actions(params: Option<&Value>) -> Value {
                     "changes": Value::Object(changes),
                 },
                 "data": {
-                    "source": "omenaBridgeSourceSyntaxIndex",
+                    "source": "omenaQuerySourceSyntaxIndex",
                     "diagnosticIndex": index,
                 },
             }))
@@ -2246,7 +2245,7 @@ fn sass_module_target_uris_for_candidate(
         &sources,
         candidate.namespace.as_deref(),
     ) {
-        if let Some(uri) = resolve_omena_bridge_style_uri_for_specifier(
+        if let Some(uri) = resolve_omena_query_style_uri_for_specifier(
             document.uri.as_str(),
             document.workspace_folder_uri.as_deref(),
             source.as_str(),
@@ -2255,7 +2254,7 @@ fn sass_module_target_uris_for_candidate(
         }
     }
     for forward_source in resolve_omena_query_sass_forward_sources(&sources) {
-        if let Some(uri) = resolve_omena_bridge_style_uri_for_specifier(
+        if let Some(uri) = resolve_omena_query_style_uri_for_specifier(
             document.uri.as_str(),
             document.workspace_folder_uri.as_deref(),
             forward_source.as_str(),
@@ -2291,7 +2290,7 @@ fn sass_symbol_declarations_with_forwards(
         return definitions;
     };
     for forward_source in resolve_omena_query_sass_forward_sources(&sources) {
-        let Some(uri) = resolve_omena_bridge_style_uri_for_specifier(
+        let Some(uri) = resolve_omena_query_style_uri_for_specifier(
             document.uri.as_str(),
             document.workspace_folder_uri.as_deref(),
             forward_source.as_str(),
@@ -2326,7 +2325,7 @@ fn sass_forward_module_target_uris(
     };
     let mut uris = Vec::new();
     for forward_source in resolve_omena_query_sass_forward_sources(&sources) {
-        if let Some(uri) = resolve_omena_bridge_style_uri_for_specifier(
+        if let Some(uri) = resolve_omena_query_style_uri_for_specifier(
             document.uri.as_str(),
             document.workspace_folder_uri.as_deref(),
             forward_source.as_str(),
@@ -2947,7 +2946,7 @@ fn build_source_syntax_index(document: &LspTextDocumentState) -> SourceSyntaxInd
     }
 
     let imports = collect_source_imports(document);
-    summarize_omena_bridge_source_syntax_index(
+    summarize_omena_query_source_syntax_index(
         document.text.as_str(),
         imports.imported_style_bindings,
         imports.classnames_bind_bindings,
@@ -2966,12 +2965,12 @@ fn collect_source_imports(document: &LspTextDocumentState) -> SourceImportIndex 
         imported_style_bindings: Vec::new(),
         classnames_bind_bindings: Vec::new(),
     };
-    let summary = omena_bridge::summarize_omena_bridge_source_import_declarations(source);
+    let summary = summarize_omena_query_source_import_declarations(source);
     for import in summary.imports {
         if import.specifier == "classnames/bind" {
             imports.classnames_bind_bindings.push(import.binding);
         } else if StyleLanguage::from_module_path(import.specifier.as_str()).is_some()
-            && let Some(style_uri) = resolve_omena_bridge_style_uri_for_specifier(
+            && let Some(style_uri) = resolve_omena_query_style_uri_for_specifier(
                 document.uri.as_str(),
                 document.workspace_folder_uri.as_deref(),
                 import.specifier.as_str(),
@@ -3008,7 +3007,7 @@ fn source_reference_candidate(
         },
         name,
         range: parser_range_for_byte_span(document.text.as_str(), reference.byte_span),
-        source: "omenaBridgeSourceSyntaxIndex",
+        source: "omenaQuerySourceSyntaxIndex",
         target_style_uri: reference.target_style_uri.clone(),
         namespace: None,
     }

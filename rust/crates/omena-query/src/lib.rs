@@ -29,6 +29,15 @@ use omena_bridge::{
     summarize_omena_bridge_style_semantic_graph_for_path_with_scoped_workspace_declarations,
     summarize_omena_bridge_style_semantic_graph_from_source,
 };
+pub use omena_bridge::{
+    SourceImportDeclarationSummaryV0 as OmenaQuerySourceImportDeclarationSummaryV0,
+    SourceImportDeclarationV0 as OmenaQuerySourceImportDeclarationV0,
+    SourceImportedStyleBindingV0 as OmenaQuerySourceImportedStyleBindingV0,
+    SourceSelectorReferenceFactV0 as OmenaQuerySourceSelectorReferenceFactV0,
+    SourceSelectorReferenceMatchKindV0 as OmenaQuerySourceSelectorReferenceMatchKindV0,
+    SourceSyntaxIndexV0 as OmenaQuerySourceSyntaxIndexV0,
+    SourceTypeFactTargetV0 as OmenaQuerySourceTypeFactTargetV0,
+};
 use omena_incremental::OmenaIncrementalDatabaseV0;
 use omena_resolver::{
     OmenaResolverSourceResolutionRuntimeIndexV0,
@@ -36,6 +45,42 @@ use omena_resolver::{
     summarize_omena_resolver_source_resolution_runtime,
 };
 use serde::Serialize;
+
+pub fn summarize_omena_query_source_import_declarations(
+    source: &str,
+) -> OmenaQuerySourceImportDeclarationSummaryV0 {
+    omena_bridge::summarize_omena_bridge_source_import_declarations(source)
+}
+
+pub fn resolve_omena_query_style_uri_for_specifier(
+    base_document_uri: &str,
+    workspace_folder_uri: Option<&str>,
+    specifier: &str,
+) -> Option<String> {
+    omena_bridge::resolve_omena_bridge_style_uri_for_specifier(
+        base_document_uri,
+        workspace_folder_uri,
+        specifier,
+    )
+}
+
+pub fn summarize_omena_query_source_syntax_index(
+    source: &str,
+    imported_style_bindings: Vec<OmenaQuerySourceImportedStyleBindingV0>,
+    classnames_bind_bindings: Vec<String>,
+) -> OmenaQuerySourceSyntaxIndexV0 {
+    omena_bridge::summarize_omena_bridge_source_syntax_index(
+        source,
+        imported_style_bindings,
+        classnames_bind_bindings,
+    )
+}
+
+pub fn canonicalize_omena_query_source_selector_references(
+    references: &mut Vec<OmenaQuerySourceSelectorReferenceFactV0>,
+) {
+    omena_bridge::canonicalize_source_selector_references(references);
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -3311,21 +3356,21 @@ $accent: red;
                     kind: "sourceSelectorReference",
                     name: "root".to_string(),
                     range: source_range,
-                    source: "omenaBridgeSourceSyntaxIndex",
+                    source: "omenaQuerySourceSyntaxIndex",
                     target_style_uri: Some("file:///workspace/src/App.module.scss".to_string()),
                 },
                 super::OmenaQuerySourceSelectorCandidateV0 {
                     kind: "sourceSelectorPrefixReference",
                     name: "btn-".to_string(),
                     range: source_range,
-                    source: "omenaBridgeSourceSyntaxIndex",
+                    source: "omenaQuerySourceSyntaxIndex",
                     target_style_uri: Some("file:///workspace/src/App.module.scss".to_string()),
                 },
                 super::OmenaQuerySourceSelectorCandidateV0 {
                     kind: "sourceSelectorReference",
                     name: "ghost".to_string(),
                     range: source_range,
-                    source: "omenaBridgeSourceSyntaxIndex",
+                    source: "omenaQuerySourceSyntaxIndex",
                     target_style_uri: Some("file:///workspace/src/Other.module.scss".to_string()),
                 },
             ],
@@ -3391,6 +3436,43 @@ $accent: red;
             .collect::<Vec<_>>(),
             vec!["btn-primary".to_string()]
         );
+    }
+
+    #[test]
+    fn source_syntax_index_adapter_is_query_owned_without_changing_product() {
+        let style_uri = super::resolve_omena_query_style_uri_for_specifier(
+            "file:///workspace/src/Button.tsx",
+            Some("file:///workspace"),
+            "./Button.module.scss",
+        )
+        .expect("relative CSS Module specifier should resolve");
+        assert_eq!(style_uri, "file:///workspace/src/Button.module.scss");
+
+        let import_summary = super::summarize_omena_query_source_import_declarations(
+            "import styles from './Button.module.scss';",
+        );
+        assert_eq!(import_summary.import_count, 1);
+        assert_eq!(import_summary.imports[0].binding, "styles");
+
+        let source = "import styles from './Button.module.scss';\nconst el = styles.root;\n";
+        let mut index = super::summarize_omena_query_source_syntax_index(
+            source,
+            vec![super::OmenaQuerySourceImportedStyleBindingV0 {
+                binding: "styles".to_string(),
+                style_uri,
+            }],
+            Vec::new(),
+        );
+        assert_eq!(index.product, "omena-bridge.source-syntax-index");
+        assert_eq!(index.selector_references.len(), 1);
+        let reference = &index.selector_references[0];
+        assert_eq!(
+            &source[reference.byte_span.start..reference.byte_span.end],
+            "root"
+        );
+
+        super::canonicalize_omena_query_source_selector_references(&mut index.selector_references);
+        assert_eq!(index.selector_references.len(), 1);
     }
 
     #[test]

@@ -1051,7 +1051,7 @@ assert.deepEqual(lspSourceCodeActionResponse.result, [
       },
     },
     data: {
-      source: "omenaBridgeSourceSyntaxIndex",
+      source: "omenaQuerySourceSyntaxIndex",
       diagnosticIndex: 0,
     },
   },

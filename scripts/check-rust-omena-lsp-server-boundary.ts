@@ -113,6 +113,10 @@ assert.ok(
   !/^\s*engine-style-parser\s*=/.test(lspServerCargoToml),
   "omena-lsp-server must consume style parser facts through omena-query, not a direct engine-style-parser dependency",
 );
+assert.ok(
+  !/^\s*omena-bridge\s*=/.test(lspServerCargoToml),
+  "omena-lsp-server must consume source syntax and style URI facts through omena-query, not a direct omena-bridge dependency",
+);
 
 assert.deepEqual(rustSummary.capabilities, nodeCapabilities);
 assert.deepEqual(
@@ -159,7 +163,7 @@ assert.equal(
   rustSummary.sourceProviderAdapter.product,
   "omena-lsp-server.source-provider-direct-rust-adapter",
 );
-assert.equal(rustSummary.sourceProviderAdapter.candidateOwner, "omena-bridge/sourceSyntaxIndex");
+assert.equal(rustSummary.sourceProviderAdapter.candidateOwner, "omena-query/sourceSyntaxIndex");
 assert.equal(
   rustSummary.sourceProviderAdapter.styleDefinitionOwner,
   "omena-query/styleHoverCandidates",
@@ -172,7 +176,7 @@ assert.ok(
 );
 assert.ok(
   rustSummary.sourceProviderAdapter.requestPathPolicy.includes(
-    "buildBridgeSourceSyntaxIndexOnDocumentChange",
+    "buildQuerySourceSyntaxIndexOnDocumentChange",
   ),
 );
 assert.ok(
