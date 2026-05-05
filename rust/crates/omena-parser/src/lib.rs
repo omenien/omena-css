@@ -364,6 +364,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "badStringTokenRecovery",
             "badStringValueBogusNodes",
             "coreBogusPopulationSlice",
+            "dialectBogusPopulationSlice",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -562,7 +563,14 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_compound_selector(&mut self) {
-        self.builder.start_node(SyntaxKind::CompoundSelector);
+        let starts_valid = self
+            .current_kind()
+            .is_some_and(|kind| selector_component_can_start(kind) || is_interpolation_start(kind));
+        self.builder.start_node(if starts_valid {
+            SyntaxKind::CompoundSelector
+        } else {
+            SyntaxKind::BogusCompoundSelector
+        });
         let start = self.position;
         while !self.at_end() {
             match self.current_kind() {
@@ -603,6 +611,12 @@ impl<'text> Parser<'text> {
         }
         if self.position == start {
             self.token_current();
+        }
+        if !starts_valid {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "expected selector component",
+            );
         }
         self.builder.finish_node();
     }
@@ -779,8 +793,21 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_combinator(&mut self) {
-        self.builder.start_node(SyntaxKind::Combinator);
+        let has_rhs = self
+            .next_non_trivia_kind()
+            .is_some_and(|kind| selector_component_can_start(kind) || is_interpolation_start(kind));
+        self.builder.start_node(if has_rhs {
+            SyntaxKind::Combinator
+        } else {
+            SyntaxKind::BogusCombinator
+        });
         self.token_current();
+        if !has_rhs {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "expected selector after combinator",
+            );
+        }
         self.builder.finish_node();
     }
 
@@ -825,7 +852,12 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_variable_declaration(&mut self, kind: SyntaxKind) {
-        self.builder.start_node(kind);
+        let has_colon = self.find_before_recovery(
+            SyntaxKind::Colon,
+            &[SyntaxKind::Semicolon, SyntaxKind::RightBrace],
+        );
+        self.builder
+            .start_node(variable_declaration_node_kind(kind, has_colon));
         self.token_current();
         if self.current_kind() == Some(SyntaxKind::Colon) {
             self.token_current();
@@ -840,6 +872,10 @@ impl<'text> Parser<'text> {
                 self.builder.finish_node();
             }
         } else {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "expected variable declaration colon",
+            );
             self.consume_until_recovery(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
         }
         if self.current_kind() == Some(SyntaxKind::Semicolon) {
@@ -886,7 +922,20 @@ impl<'text> Parser<'text> {
             SyntaxKind::BogusDeclaration
         };
         self.builder.start_node(kind);
-        self.builder.start_node(SyntaxKind::PropertyName);
+        let property_kind = if matches!(
+            self.current_kind(),
+            Some(
+                SyntaxKind::Colon
+                    | SyntaxKind::Semicolon
+                    | SyntaxKind::LeftBrace
+                    | SyntaxKind::RightBrace
+            )
+        ) {
+            SyntaxKind::BogusPropertyName
+        } else {
+            SyntaxKind::PropertyName
+        };
+        self.builder.start_node(property_kind);
         while !self.at_end() {
             match self.current_kind() {
                 Some(SyntaxKind::Colon | SyntaxKind::Semicolon | SyntaxKind::RightBrace) => break,
@@ -903,6 +952,12 @@ impl<'text> Parser<'text> {
             }
         }
         self.builder.finish_node();
+        if property_kind == SyntaxKind::BogusPropertyName {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "expected declaration property name",
+            );
+        }
 
         if self.current_kind() == Some(SyntaxKind::Colon) {
             self.token_current();
@@ -925,7 +980,8 @@ impl<'text> Parser<'text> {
             return;
         };
 
-        self.builder.start_node(spec.node_kind);
+        self.builder
+            .start_node(self.current_dialect_at_rule_node_kind(spec));
         if self.current_kind() == Some(SyntaxKind::AtKeyword) {
             self.token_current();
         }
@@ -996,7 +1052,13 @@ impl<'text> Parser<'text> {
             match self.current_kind() {
                 Some(kind) if recovery.contains(&kind) => break,
                 Some(SyntaxKind::Ident) if self.current_text() == Some("when") && !guard_open => {
-                    self.builder.start_node(SyntaxKind::LessMixinGuard);
+                    self.builder.start_node(
+                        if self.current_less_guard_has_condition_before(recovery) {
+                            SyntaxKind::LessMixinGuard
+                        } else {
+                            SyntaxKind::BogusLessGuard
+                        },
+                    );
                     guard_open = true;
                     self.token_current();
                 }
@@ -1170,7 +1232,15 @@ impl<'text> Parser<'text> {
 
     fn parse_at_rule(&mut self) {
         let spec = self.current_text().and_then(at_rule_spec);
-        self.builder.start_node(SyntaxKind::AtRule);
+        let at_rule_kind = if spec.is_none() && self.current_text() == Some("@") {
+            SyntaxKind::BogusAtRule
+        } else {
+            SyntaxKind::AtRule
+        };
+        self.builder.start_node(at_rule_kind);
+        if at_rule_kind == SyntaxKind::BogusAtRule {
+            self.error_at_current(ParseErrorCode::UnexpectedCharacter, "expected at-rule name");
+        }
         if let Some(spec) = spec {
             self.builder.start_node(spec.node_kind);
         }
@@ -1624,6 +1694,39 @@ impl<'text> Parser<'text> {
         } else {
             kind
         }
+    }
+
+    fn current_dialect_at_rule_node_kind(&self, spec: AtRuleSpec) -> SyntaxKind {
+        if !self.find_before_recovery(
+            SyntaxKind::LeftBrace,
+            &[SyntaxKind::Semicolon, SyntaxKind::RightBrace],
+        ) {
+            return match spec.node_kind {
+                SyntaxKind::ScssMixinDeclaration => SyntaxKind::BogusScssMixin,
+                SyntaxKind::ScssFunctionDeclaration => SyntaxKind::BogusScssFunction,
+                SyntaxKind::ScssControlIf
+                | SyntaxKind::ScssControlElse
+                | SyntaxKind::ScssControlEach
+                | SyntaxKind::ScssControlFor
+                | SyntaxKind::ScssControlWhile => SyntaxKind::BogusScssControl,
+                _ => spec.node_kind,
+            };
+        }
+        spec.node_kind
+    }
+
+    fn current_less_guard_has_condition_before(&self, recovery: &[SyntaxKind]) -> bool {
+        let mut index = self.position + 1;
+        while let Some(token) = self.tokens.get(index) {
+            if recovery.contains(&token.kind) {
+                return false;
+            }
+            if token.kind == SyntaxKind::LeftParen {
+                return true;
+            }
+            index += 1;
+        }
+        false
     }
 
     fn current_prelude_is_bogus(&self, kind: SyntaxKind) -> bool {
@@ -3095,6 +3198,17 @@ fn bogus_prelude_node_kind(kind: SyntaxKind) -> Option<SyntaxKind> {
     }
 }
 
+fn variable_declaration_node_kind(kind: SyntaxKind, has_colon: bool) -> SyntaxKind {
+    if has_colon {
+        return kind;
+    }
+    match kind {
+        SyntaxKind::ScssVariableDeclaration => SyntaxKind::BogusScssVariable,
+        SyntaxKind::LessVariableDeclaration => SyntaxKind::BogusLessVariable,
+        _ => kind,
+    }
+}
+
 fn is_attribute_matcher(kind: SyntaxKind) -> bool {
     matches!(
         kind,
@@ -3488,6 +3602,42 @@ mod tests {
             node_kinds(&missing_keyframe_block.syntax()).contains(&SyntaxKind::BogusKeyframeBlock)
         );
         assert!(node_kinds(&unclosed_rule.syntax()).contains(&SyntaxKind::BogusDeclarationList));
+    }
+
+    #[test]
+    fn populates_dialect_and_selector_bogus_nodes() {
+        let invalid_compound = parse("%bad { color: red; }", StyleDialect::Css);
+        let dangling_combinator = parse(".a > { color: red; }", StyleDialect::Css);
+        let missing_property = parse(".a { : red; }", StyleDialect::Css);
+        let missing_at_rule_name = parse("@ ;", StyleDialect::Css);
+        let missing_scss_variable_colon = parse("$gap;", StyleDialect::Scss);
+        let missing_less_variable_colon = parse("@gap;", StyleDialect::Less);
+        let missing_scss_blocks =
+            parse("@mixin card; @function double; @if $x;", StyleDialect::Scss);
+        let missing_less_guard_condition =
+            parse(".theme() when { color: red; }", StyleDialect::Less);
+
+        assert!(
+            node_kinds(&invalid_compound.syntax()).contains(&SyntaxKind::BogusCompoundSelector)
+        );
+        assert!(node_kinds(&dangling_combinator.syntax()).contains(&SyntaxKind::BogusCombinator));
+        assert!(node_kinds(&missing_property.syntax()).contains(&SyntaxKind::BogusPropertyName));
+        assert!(node_kinds(&missing_at_rule_name.syntax()).contains(&SyntaxKind::BogusAtRule));
+        assert!(
+            node_kinds(&missing_scss_variable_colon.syntax())
+                .contains(&SyntaxKind::BogusScssVariable)
+        );
+        assert!(
+            node_kinds(&missing_less_variable_colon.syntax())
+                .contains(&SyntaxKind::BogusLessVariable)
+        );
+        assert!(node_kinds(&missing_scss_blocks.syntax()).contains(&SyntaxKind::BogusScssMixin));
+        assert!(node_kinds(&missing_scss_blocks.syntax()).contains(&SyntaxKind::BogusScssFunction));
+        assert!(node_kinds(&missing_scss_blocks.syntax()).contains(&SyntaxKind::BogusScssControl));
+        assert!(
+            node_kinds(&missing_less_guard_condition.syntax())
+                .contains(&SyntaxKind::BogusLessGuard)
+        );
     }
 
     #[test]
@@ -4158,6 +4308,11 @@ mod tests {
         assert!(summary.ready_surfaces.contains(&"badStringTokenRecovery"));
         assert!(summary.ready_surfaces.contains(&"badStringValueBogusNodes"));
         assert!(summary.ready_surfaces.contains(&"coreBogusPopulationSlice"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"dialectBogusPopulationSlice")
+        );
         assert!(
             summary
                 .ready_surfaces
