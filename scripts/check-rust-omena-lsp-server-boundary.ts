@@ -108,7 +108,7 @@ const lspServerCargoToml = readFileSync(
 
 assert.equal(rustSummary.schemaVersion, "0");
 assert.equal(rustSummary.product, "omena-lsp-server.boundary");
-assert.equal(rustSummary.migrationStatus, "thinClient");
+assert.equal(rustSummary.migrationStatus, "rustStable");
 assert.ok(
   !/^\s*engine-style-parser\s*=/.test(lspServerCargoToml),
   "omena-lsp-server must consume style parser facts through omena-query, not a direct engine-style-parser dependency",

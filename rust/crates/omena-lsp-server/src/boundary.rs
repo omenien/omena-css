@@ -146,7 +146,7 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
         schema_version: "0",
         product: "omena-lsp-server.boundary",
         server_name: "css-module-explainer",
-        migration_status: "thinClient",
+        migration_status: "rustStable",
         transport_contract: "LSP stdio or IPC JSON-RPC",
         capabilities: current_node_lsp_capability_contract(),
         handler_surfaces: lsp_handler_surfaces(),

@@ -72,6 +72,19 @@ It covers Rust parser/semantic/abstract-value micro-benchmarks and an LSP
 macro-benchmark for hover, definition, completion, references, and event-loop
 latency.
 
+## Current Release Frame
+
+`5.0.0` marks the Rust stable core closure for the compiler-grade CSS Modules
+semantic engine. The packaged extension defaults to the Rust `omena-lsp-server`,
+the Rust selected-query runtime, and the bundled `tsgo` type-fact path; the VS
+Code host remains a thin client responsible for process orchestration, UI
+commands, and file watching.
+
+This is the milestone 5/6 declaration point: the Rust core, query-owned LSP
+boundary, value-domain completion, refactor automation, M-tier rule surfaces,
+Z5 performance baseline, full reduced-product model, and provenance hover
+surface are release-framed as the stable product baseline for the next chapter.
+
 ## Configuration
 
 All settings live under the `cssModuleExplainer.*` namespace.
@@ -244,9 +257,9 @@ Current checker policy:
   - prebuilt mode can resolve an explicit `CME_ENGINE_SHADOW_RUNNER_PATH`, a packaged `dist/bin/<platform>-<arch>/engine-shadow-runner`, or the warmed `rust/target/debug` runner
   - it is regression evidence for keeping the packaged runner matrix safe while `rust-selected-query` is the packaged default
   - GitHub Actions runs the same lane in the `Rust Selected Query Default Candidate` shadow workflow on `master`
-- `pnpm check:rust-phase-2-swap-readiness` is the current v4.1 release-candidate cut-line gate
+- `pnpm check:rust-phase-2-swap-readiness` remains the historical Phase 2 swap evidence gate
   - it runs `pnpm check:provider-host-routing-boundary`, `pnpm check:rust-omena-lsp-server-lane`, `pnpm check:rust-selected-query-default-candidate`, and `pnpm check:rust-checker-release-gate-shadow`
-  - this is Phase 2 swap candidate evidence, not an omena-semantic V1 freeze or an end-state freeze
+  - the v5 release gate is `pnpm release:verify`, which includes the broader Rust release bundle, tsgo release bundle, plugin consumers, tests, and VSIX packaging checks
 - `pnpm build` now prepares the current-platform release `engine-shadow-runner` and default-candidate `omena-lsp-server` binaries at `dist/bin/<platform>-<arch>/`
 - `pnpm check:packaged-engine-shadow-runner-matrix` verifies packaged runner targets before VSIX packaging; CI and publish require Linux, macOS, and Windows runner artifacts
 - `pnpm check:packaged-selected-query-default` verifies the generated VSIX file set still makes packaged runtime choose `rust-selected-query` and `omena-lsp-server` by default, excludes checkout-only Rust/source markers, and preserves the required runner matrix
@@ -401,7 +414,7 @@ Current checker policy:
   - broader Rust lane bundle: `pnpm check:rust-lane-bundle`
   - release-facing Rust bundle: `pnpm check:rust-release-bundle`
   - full snapshot parity: `pnpm check:rust-shadow-compare`
-- Current `4.1.2` framing is the Phase 2 swap runtime-hardening milestone on top of the Rust-backed semantic core GA baseline:
+- Current `5.0.0` framing is the Rust stable core closure on top of the Rust-backed semantic core GA baseline:
   - `expression-semantics` and `source-resolution` still carry family-level canonical-producer signals and a shared top-level source-side lane
   - `expression-domain` carries input-only canonical artifacts plus type-fact-backed evaluator-candidate coverage on the Rust shadow path
   - a top-level `semantic` lane now consolidates `source-side + expression-domain` into one canonical-candidate / evaluator-candidate / canonical-producer path
@@ -413,8 +426,8 @@ Current checker policy:
   - LSP providers now consume `engine-host-node` query helpers instead of importing `core/query` internals directly, and `pnpm check:provider-host-routing-boundary` guards that provider boundary
   - `cssModuleExplainer.lspServerRuntime=auto` now selects the bundled or built Rust `omena-lsp-server` and fails fast when no binary is available; the legacy Node LSP server is only selected through explicit `cssModuleExplainer.lspServerRuntime=node`. The Rust path carries provider parity coverage for style providers, source selector providers, source/style diagnostics, quick fixes, watched-file style index updates, and imported-module source reference scoping
   - style providers now consume Rust-backed semantic graph read models for selector identity, references, diagnostics, completions, rename safety, hover metadata, and style-module usage through host-side caches
-  - `pnpm check:rust-phase-2-swap-readiness` batches provider host-routing, selected-query default-candidate, LSP runtime-loop daemon evidence, and checker release-gate shadow evidence as the v4.1.x cut line
-  - the Omena Rust split crates are published and externally consumable through crates.io, but this is not yet an omena-semantic or bridge V1 freeze
+  - `pnpm check:rust-phase-2-swap-readiness` remains the historical Phase 2 swap batch; `pnpm release:verify` is the current v5 release gate
+  - the Omena Rust split crates are published and externally consumable through crates.io; v5 treats them as the stable internal product baseline, not a separate semver-1.0 crate freeze
   - `CME_TYPE_FACT_BACKEND` now defaults to `tsgo`, packaged runtime carries its own tsgo binary, and `typescript-current` is retained as an explicit comparison fallback
   - `tsgo` is wired into release-batch, real-project corpus, LSP smoke, protocol/editing, server build, workspace build, and Phase C edge-readiness checks
   - the current release-shaped TS 7 aggregate is `pnpm check:tsgo-release-bundle`, and `pnpm release:verify` includes it

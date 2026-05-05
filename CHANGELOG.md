@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-05-06
+
+### Changed
+
+- **Rust stable core closure** - declared the v5 Rust core milestone after the 4.15-4.19 feature chapters landed the query-owned LSP boundary, refactor automation, M-tier rule surfaces, Z5 performance baseline, full reduced-product/provenance work, and hover provenance UI.
+- **Rust LSP migration status** - promoted the `omena-lsp-server` boundary from `thinClient` migration status to `rustStable` while keeping the thin-client endpoint as the packaged VSIX and multi-editor runtime model.
+- **Release positioning** - updated the README release frame from the old 4.1.x swap-candidate wording to the v5 compiler-grade CSS Modules semantic engine posture.
+
 ## [4.19.0] - 2026-05-05
 
 ### Added
