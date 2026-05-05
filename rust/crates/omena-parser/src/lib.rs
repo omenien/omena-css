@@ -21,6 +21,33 @@ pub struct ParseResult {
     dialect: StyleDialect,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LexResult {
+    tokens: Vec<LexedToken>,
+    errors: Vec<ParseError>,
+    dialect: StyleDialect,
+}
+
+impl LexResult {
+    pub fn tokens(&self) -> &[LexedToken] {
+        &self.tokens
+    }
+
+    pub fn errors(&self) -> &[ParseError] {
+        &self.errors
+    }
+
+    pub fn dialect(&self) -> StyleDialect {
+        self.dialect
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LexedToken {
+    pub kind: SyntaxKind,
+    pub range: TextRange,
+}
+
 impl ParseResult {
     pub fn green(&self) -> &GreenNode {
         &self.green
@@ -144,11 +171,32 @@ impl DialectExtension for BuiltinDialectExtension {
 struct Token<'text> {
     kind: SyntaxKind,
     text: &'text str,
+    range: TextRange,
 }
 
 pub fn parse(text: &str, dialect: StyleDialect) -> ParseResult {
     let extension = BuiltinDialectExtension::new(dialect);
     parse_with_extension(text, &extension)
+}
+
+pub fn lex(text: &str, dialect: StyleDialect) -> LexResult {
+    let extension = BuiltinDialectExtension::new(dialect);
+    lex_with_extension(text, &extension)
+}
+
+pub fn lex_with_extension(text: &str, extension: &impl DialectExtension) -> LexResult {
+    let (tokens, errors) = tokenize(text, extension);
+    LexResult {
+        tokens: tokens
+            .into_iter()
+            .map(|token| LexedToken {
+                kind: token.kind,
+                range: token.range,
+            })
+            .collect(),
+        errors,
+        dialect: extension.dialect(),
+    }
 }
 
 pub fn parse_with_extension(text: &str, extension: &impl DialectExtension) -> ParseResult {
@@ -173,6 +221,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
         dialect_count: 4,
         shared_name_kind_count: NameKind::ALL.len(),
         ready_surfaces: vec![
+            "lexResult",
             "parseResult",
             "panicFreeTokenizer",
             "cstreeGreenBuilder",
@@ -692,6 +741,7 @@ where
         self.tokens.push(Token {
             kind,
             text: &self.text[start..end],
+            range: text_range(start, end),
         });
     }
 
@@ -810,6 +860,36 @@ mod tests {
         assert!(scss.errors().is_empty());
         assert!(less.errors().is_empty());
         assert!(less_at_rule.errors().is_empty());
+    }
+
+    #[test]
+    fn exposes_lex_result_for_tokenizer_gates() {
+        let scss = lex("$gap: 1rem;", StyleDialect::Scss);
+        let less = lex("@gap: 1rem;", StyleDialect::Less);
+        let less_at_rule = lex("@media screen {}", StyleDialect::Less);
+        let css_slashes = lex("// not a css comment", StyleDialect::Css);
+        let scss_slashes = lex("// scss comment", StyleDialect::Scss);
+
+        assert_eq!(
+            scss.tokens().first().map(|token| token.kind),
+            Some(SyntaxKind::ScssVariable)
+        );
+        assert_eq!(
+            less.tokens().first().map(|token| token.kind),
+            Some(SyntaxKind::LessVariable)
+        );
+        assert_eq!(
+            less_at_rule.tokens().first().map(|token| token.kind),
+            Some(SyntaxKind::AtKeyword),
+        );
+        assert_eq!(
+            css_slashes.tokens().first().map(|token| token.kind),
+            Some(SyntaxKind::Slash)
+        );
+        assert_eq!(
+            scss_slashes.tokens().first().map(|token| token.kind),
+            Some(SyntaxKind::LineComment),
+        );
     }
 
     #[test]
