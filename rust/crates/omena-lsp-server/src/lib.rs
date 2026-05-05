@@ -6,7 +6,6 @@ use diagnostics_scheduler::{
     RustDiagnosticsSchedulerBoundaryV0, diagnostics_schedule_event, run_diagnostics_schedule,
     rust_diagnostics_scheduler_contract,
 };
-use engine_style_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage};
 use omena_bridge::{
     SourceImportedStyleBindingV0 as ImportedStyleBinding,
     SourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
@@ -18,7 +17,8 @@ use omena_bridge::{
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
     OmenaQuerySourceSelectorCandidateV0, OmenaQuerySourceSelectorReferenceEditTargetV0,
-    OmenaQueryStyleHoverCandidateV0, OmenaQueryStyleSelectorDefinitionV0,
+    OmenaQueryStyleHoverCandidateV0, OmenaQueryStyleSelectorDefinitionV0, ParserByteSpanV0,
+    ParserPositionV0, ParserRangeV0, StyleLanguage,
     is_omena_query_sass_symbol_candidate_kind as is_sass_symbol_candidate_kind,
     is_omena_query_sass_symbol_declaration_kind as is_sass_symbol_declaration_kind,
     is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,

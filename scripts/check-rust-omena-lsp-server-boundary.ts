@@ -101,10 +101,18 @@ interface RustOmenaLspServerBoundarySummary {
 const rustSummary = readRustBoundarySummary();
 const nodeCapabilities = buildServerCapabilities();
 const repoRoot = process.cwd();
+const lspServerCargoToml = readFileSync(
+  path.join(repoRoot, "rust/crates/omena-lsp-server/Cargo.toml"),
+  "utf8",
+);
 
 assert.equal(rustSummary.schemaVersion, "0");
 assert.equal(rustSummary.product, "omena-lsp-server.boundary");
 assert.equal(rustSummary.migrationStatus, "thinClient");
+assert.ok(
+  !/^\s*engine-style-parser\s*=/.test(lspServerCargoToml),
+  "omena-lsp-server must consume style parser facts through omena-query, not a direct engine-style-parser dependency",
+);
 
 assert.deepEqual(rustSummary.capabilities, nodeCapabilities);
 assert.deepEqual(
