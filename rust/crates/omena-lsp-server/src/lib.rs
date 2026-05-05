@@ -3067,7 +3067,7 @@ fn char_boundary_ceil(source: &str, index: usize) -> usize {
     index
 }
 
-fn advance_js_scan_cursor(source: &str, cursor: usize, limit: usize) -> usize {
+fn advance_style_snippet_cursor(source: &str, cursor: usize, limit: usize) -> usize {
     let cursor = char_boundary_ceil(source, cursor);
     let limit = char_boundary_floor(source, limit);
     if cursor >= limit {
@@ -3076,34 +3076,39 @@ fn advance_js_scan_cursor(source: &str, cursor: usize, limit: usize) -> usize {
     char_boundary_ceil(source, cursor + 1).min(limit)
 }
 
-fn advance_js_escaped_char(source: &str, slash_offset: usize, limit: usize) -> usize {
-    let after_slash = advance_js_scan_cursor(source, slash_offset, limit);
-    advance_js_scan_cursor(source, after_slash, limit)
+fn advance_style_snippet_escaped_char(source: &str, slash_offset: usize, limit: usize) -> usize {
+    let after_slash = advance_style_snippet_cursor(source, slash_offset, limit);
+    advance_style_snippet_cursor(source, after_slash, limit)
 }
 
-fn matching_js_block_end(source: &str, open_offset: usize, open: u8, close: u8) -> Option<usize> {
+fn matching_style_snippet_block_end(
+    source: &str,
+    open_offset: usize,
+    open: u8,
+    close: u8,
+) -> Option<usize> {
     if source.as_bytes().get(open_offset) != Some(&open) {
         return None;
     }
-    let mut cursor = advance_js_scan_cursor(source, open_offset, source.len());
+    let mut cursor = advance_style_snippet_cursor(source, open_offset, source.len());
     let mut depth = 1usize;
     while cursor < source.len() {
         match source.as_bytes().get(cursor).copied()? {
             b'\'' | b'"' | b'`' => {
-                cursor = skip_js_string_literal(source, cursor, source.len())?;
+                cursor = skip_style_snippet_string_literal(source, cursor, source.len())?;
             }
             byte if byte == open => {
                 depth += 1;
-                cursor = advance_js_scan_cursor(source, cursor, source.len());
+                cursor = advance_style_snippet_cursor(source, cursor, source.len());
             }
             byte if byte == close => {
                 depth -= 1;
                 if depth == 0 {
                     return Some(cursor);
                 }
-                cursor = advance_js_scan_cursor(source, cursor, source.len());
+                cursor = advance_style_snippet_cursor(source, cursor, source.len());
             }
-            _ => cursor = advance_js_scan_cursor(source, cursor, source.len()),
+            _ => cursor = advance_style_snippet_cursor(source, cursor, source.len()),
         }
     }
     None
@@ -3129,20 +3134,24 @@ fn source_reference_candidate(
     }
 }
 
-fn skip_js_string_literal(source: &str, quote_offset: usize, limit: usize) -> Option<usize> {
+fn skip_style_snippet_string_literal(
+    source: &str,
+    quote_offset: usize,
+    limit: usize,
+) -> Option<usize> {
     let quote = source.as_bytes().get(quote_offset).copied()?;
     let limit = char_boundary_floor(source, limit);
     let mut cursor = quote_offset + 1;
     while cursor < limit {
         let byte = source.as_bytes().get(cursor).copied()?;
         if byte == b'\\' {
-            cursor = advance_js_escaped_char(source, cursor, limit);
+            cursor = advance_style_snippet_escaped_char(source, cursor, limit);
             continue;
         }
         if byte == quote {
             return Some(cursor + 1);
         }
-        cursor = advance_js_scan_cursor(source, cursor, limit);
+        cursor = advance_style_snippet_cursor(source, cursor, limit);
     }
     None
 }
@@ -3597,7 +3606,7 @@ fn sass_callable_definition_render_parts(
         },
     )?;
     let open_brace = source[line_start..].find('{')? + line_start;
-    let close_brace = matching_js_block_end(source, open_brace, b'{', b'}')?;
+    let close_brace = matching_style_snippet_block_end(source, open_brace, b'{', b'}')?;
     let signature = source[line_start..open_brace].trim().to_string();
     let body = source[open_brace + 1..close_brace].trim();
     if signature.is_empty() || body.is_empty() {
@@ -3629,7 +3638,7 @@ fn rule_snippet_around_position(source: &str, position: ParserPositionV0) -> Opt
             }
             _ => {}
         }
-        cursor = advance_js_scan_cursor(source, cursor, source.len());
+        cursor = advance_style_snippet_cursor(source, cursor, source.len());
     }
     None
 }
