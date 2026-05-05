@@ -11,7 +11,7 @@
 - **Checker registry boundary split** - `omena-checker` now owns the Rust-side checker rule descriptor and code-bundle registry boundary, establishing the rule catalog transition point before diagnostic execution moves out of the TypeScript checker runtime.
 - **OXC-backed source import producer** - `omena-bridge` now derives source import declarations from the OXC TypeScript/TSX AST instead of an import-token scanner, starting the parser-backed source producer migration called out by the Rust LSP boundary review.
 - **Bridge-owned style import resolution** - Rust LSP source and Sass module paths now delegate relative and tsconfig/jsconfig style specifier resolution to `omena-bridge`, reducing path-alias and style-candidate expansion logic inside `omena-lsp-server`.
-- **OXC-backed source syntax facts** - `omena-bridge` now derives CSS Module `styles.foo` / `styles["foo"]` source property references and `classnames/bind` utility bindings from the OXC TSX AST instead of source-token scanners, continuing the `omena-lsp-server` layer split from the §182 boundary review.
+- **OXC-backed source syntax facts** - `omena-bridge` now derives JSX `className` string literals, CSS Module `styles.foo` / `styles["foo"]` source property references, and `classnames/bind` utility bindings from the OXC TSX AST instead of source-token scanners, continuing the `omena-lsp-server` layer split from the §182 boundary review.
 
 ### Fixed
 

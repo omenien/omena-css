@@ -3,9 +3,9 @@ use oxc_allocator::Allocator;
 use oxc_ast::ast::{
     Argument, ArrayExpression, ArrayExpressionElement, BindingPattern, CallExpression,
     ChainElement, Class, ClassElement, ComputedMemberExpression, ConditionalExpression,
-    Declaration, Expression, JSXAttributeValue, JSXChild, JSXExpression, LogicalExpression,
-    ObjectExpression, ObjectPropertyKind, ParenthesizedExpression, Program, Statement,
-    StaticMemberExpression, TSAsExpression, TSNonNullExpression, TSSatisfiesExpression,
+    Declaration, Expression, JSXAttributeName, JSXAttributeValue, JSXChild, JSXExpression,
+    LogicalExpression, ObjectExpression, ObjectPropertyKind, ParenthesizedExpression, Program,
+    Statement, StaticMemberExpression, TSAsExpression, TSNonNullExpression, TSSatisfiesExpression,
     VariableDeclarator,
 };
 use oxc_parser::{Parser, ParserReturn};
@@ -129,7 +129,7 @@ pub fn summarize_omena_bridge_source_syntax_index(
         schema_version: "0",
         product: "omena-bridge.source-syntax-index",
         imported_style_bindings,
-        class_string_literals: collect_class_name_string_literal_spans(source),
+        class_string_literals: ast_facts.class_string_literals,
         style_property_accesses: ast_facts.style_property_accesses,
         selector_references: Vec::new(),
         type_fact_targets: Vec::new(),
@@ -234,39 +234,8 @@ fn property_access_style_targets(
     }
 }
 
-fn collect_class_name_string_literal_spans(source: &str) -> Vec<ParserByteSpanV0> {
-    let mut spans = Vec::new();
-    let mut cursor = 0usize;
-    while let Some(identifier) = next_code_identifier(source, cursor) {
-        cursor = identifier.end;
-        if identifier.text != "className" {
-            continue;
-        }
-        let equals_offset = skip_js_trivia(source, identifier.end);
-        if source.as_bytes().get(equals_offset) != Some(&b'=') {
-            continue;
-        }
-        let value_offset = skip_js_trivia(source, equals_offset + 1);
-        match source.as_bytes().get(value_offset).copied() {
-            Some(b'\'' | b'"' | b'`') => {
-                if let Some((literal_start, literal_end, next_offset)) =
-                    js_string_literal_span(source, value_offset, source.len())
-                {
-                    spans.push(ParserByteSpanV0 {
-                        start: literal_start,
-                        end: literal_end,
-                    });
-                    cursor = next_offset;
-                }
-            }
-            Some(b'{') => {}
-            _ => {}
-        }
-    }
-    spans
-}
-
 struct SourceSyntaxAstFacts {
+    class_string_literals: Vec<ParserByteSpanV0>,
     style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
 }
@@ -283,6 +252,7 @@ fn collect_source_syntax_ast_facts(
     } = Parser::new(&allocator, source, SourceType::tsx()).parse();
     if panicked {
         return SourceSyntaxAstFacts {
+            class_string_literals: Vec::new(),
             style_property_accesses: Vec::new(),
             classnames_bind_utility_bindings: Vec::new(),
         };
@@ -293,12 +263,14 @@ fn collect_source_syntax_ast_facts(
         property_access_targets,
         style_targets,
         classnames_bind_imports,
+        class_string_literals: Vec::new(),
         style_property_accesses: Vec::new(),
         classnames_bind_utility_bindings: Vec::new(),
     };
     collector.collect_program(&program);
     collector.canonicalize();
     SourceSyntaxAstFacts {
+        class_string_literals: collector.class_string_literals,
         style_property_accesses: collector.style_property_accesses,
         classnames_bind_utility_bindings: collector.classnames_bind_utility_bindings,
     }
@@ -309,6 +281,7 @@ struct SourceSyntaxAstCollector<'a> {
     property_access_targets: &'a [SourceStyleBindingTarget],
     style_targets: &'a [SourceStyleBindingTarget],
     classnames_bind_imports: &'a [String],
+    class_string_literals: Vec<ParserByteSpanV0>,
     style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
 }
@@ -790,6 +763,11 @@ impl<'a> SourceSyntaxAstCollector<'a> {
         for attribute in &element.opening_element.attributes {
             match attribute {
                 oxc_ast::ast::JSXAttributeItem::Attribute(attribute) => {
+                    if is_jsx_class_name_attribute(&attribute.name)
+                        && let Some(value) = &attribute.value
+                    {
+                        self.collect_class_name_string_literal_attribute(value);
+                    }
                     if let Some(value) = &attribute.value {
                         self.collect_jsx_attribute_value(value);
                     }
@@ -818,6 +796,15 @@ impl<'a> SourceSyntaxAstCollector<'a> {
                 }
             }
             JSXAttributeValue::StringLiteral(_) => {}
+        }
+    }
+
+    fn collect_class_name_string_literal_attribute(&mut self, value: &JSXAttributeValue<'a>) {
+        let JSXAttributeValue::StringLiteral(literal) = value else {
+            return;
+        };
+        if let Some(span) = self.string_literal_content_span(literal.span) {
+            self.class_string_literals.push(span);
         }
     }
 
@@ -1031,7 +1018,26 @@ impl<'a> SourceSyntaxAstCollector<'a> {
         (!text.is_empty() && text.chars().all(is_css_identifier_continue)).then_some(content)
     }
 
+    fn string_literal_content_span(&self, span: Span) -> Option<ParserByteSpanV0> {
+        let span = parser_byte_span(span);
+        if span.end <= span.start + 1 {
+            return None;
+        }
+        let content = ParserByteSpanV0 {
+            start: span.start + 1,
+            end: span.end - 1,
+        };
+        self.source.get(content.start..content.end)?;
+        Some(content)
+    }
+
     fn canonicalize(&mut self) {
+        self.class_string_literals.sort_by(|left, right| {
+            left.start
+                .cmp(&right.start)
+                .then_with(|| left.end.cmp(&right.end))
+        });
+        self.class_string_literals.dedup();
         self.style_property_accesses.sort_by(|left, right| {
             left.byte_span
                 .start
@@ -1058,6 +1064,10 @@ fn parser_byte_span(span: Span) -> ParserByteSpanV0 {
         start: span.start as usize,
         end: span.end as usize,
     }
+}
+
+fn is_jsx_class_name_attribute(name: &JSXAttributeName<'_>) -> bool {
+    matches!(name, JSXAttributeName::Identifier(identifier) if identifier.name.as_str() == "className")
 }
 
 fn binding_pattern_identifier_name<'a>(pattern: &'a BindingPattern<'a>) -> Option<&'a str> {
@@ -2742,6 +2752,34 @@ export const view = <div className={cx("root")} />;"#;
                 && reference.target_style_uri.as_deref()
                     == Some("file:///workspace/App.module.scss")
         }));
+    }
+
+    #[test]
+    fn collects_class_name_string_literals_from_oxc_ast() {
+        let source = r#"const text = "className=\"fake\"";
+export const view = <div className="root item--primary" data-token="ignored" />;"#;
+
+        let index = summarize_omena_bridge_source_syntax_index(source, Vec::new(), Vec::new());
+
+        let literal_values = index
+            .class_string_literals
+            .iter()
+            .map(|span| &source[span.start..span.end])
+            .collect::<Vec<_>>();
+
+        assert_eq!(literal_values, vec!["root item--primary"]);
+        assert!(
+            index
+                .selector_references
+                .iter()
+                .any(|reference| { selector_reference_name(source, reference) == "root" })
+        );
+        assert!(
+            index
+                .selector_references
+                .iter()
+                .any(|reference| { selector_reference_name(source, reference) == "item--primary" })
+        );
     }
 
     #[test]
