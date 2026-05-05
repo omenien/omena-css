@@ -9,7 +9,7 @@ use oxc_ast::ast::{
     VariableDeclarator,
 };
 use oxc_parser::{Parser, ParserReturn};
-use oxc_span::{SourceType, Span};
+use oxc_span::{GetSpan, SourceType, Span};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -77,6 +77,12 @@ struct ClassnamesBindUtilityBinding {
     style_uri: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ClassnamesBindCallArgument {
+    binding: String,
+    byte_span: ParserByteSpanV0,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct SourceClassValue {
     exact: Vec<String>,
@@ -123,14 +129,19 @@ pub fn summarize_omena_bridge_source_syntax_index(
         imported_style_targets.as_slice(),
         classnames_bind_bindings.as_slice(),
     );
+    let class_string_literals = ast_facts.class_string_literals;
+    let style_property_accesses = ast_facts.style_property_accesses;
+    let class_name_expression_spans = ast_facts.class_name_expression_spans;
+    let classnames_bind_targets = ast_facts.classnames_bind_utility_bindings;
+    let classnames_bind_call_arguments = ast_facts.classnames_bind_call_arguments;
     let local_class_values = collect_local_class_value_bindings(source);
 
     let mut index = SourceSyntaxIndexV0 {
         schema_version: "0",
         product: "omena-bridge.source-syntax-index",
         imported_style_bindings,
-        class_string_literals: ast_facts.class_string_literals,
-        style_property_accesses: ast_facts.style_property_accesses,
+        class_string_literals,
+        style_property_accesses,
         selector_references: Vec::new(),
         type_fact_targets: Vec::new(),
     };
@@ -143,12 +154,17 @@ pub fn summarize_omena_bridge_source_syntax_index(
             &mut index.selector_references,
         );
     }
-    collect_class_name_expression_reference_facts(
-        source,
-        &local_class_values,
-        &mut index.selector_references,
-        &mut index.type_fact_targets,
-    );
+    for span in class_name_expression_spans {
+        collect_selector_references_from_js_expression(
+            source,
+            span.start,
+            span.end,
+            None,
+            &local_class_values,
+            &mut index.selector_references,
+            &mut index.type_fact_targets,
+        );
+    }
     for access in &index.style_property_accesses {
         index
             .selector_references
@@ -159,15 +175,21 @@ pub fn summarize_omena_bridge_source_syntax_index(
                 target_style_uri: access.target_style_uri.clone(),
             });
     }
-    for binding in ast_facts.classnames_bind_utility_bindings {
-        collect_classnames_bind_call_reference_facts(
-            source,
-            binding.binding.as_str(),
-            Some(binding.style_uri.as_str()),
-            &local_class_values,
-            &mut index.selector_references,
-            &mut index.type_fact_targets,
-        );
+    for argument in classnames_bind_call_arguments {
+        if let Some(binding) = classnames_bind_targets
+            .iter()
+            .find(|binding| binding.binding == argument.binding)
+        {
+            collect_selector_references_from_js_expression(
+                source,
+                argument.byte_span.start,
+                argument.byte_span.end,
+                Some(binding.style_uri.as_str()),
+                &local_class_values,
+                &mut index.selector_references,
+                &mut index.type_fact_targets,
+            );
+        }
     }
     canonicalize_source_selector_references(&mut index.selector_references);
 
@@ -237,7 +259,9 @@ fn property_access_style_targets(
 struct SourceSyntaxAstFacts {
     class_string_literals: Vec<ParserByteSpanV0>,
     style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
+    class_name_expression_spans: Vec<ParserByteSpanV0>,
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
+    classnames_bind_call_arguments: Vec<ClassnamesBindCallArgument>,
 }
 
 fn collect_source_syntax_ast_facts(
@@ -254,7 +278,9 @@ fn collect_source_syntax_ast_facts(
         return SourceSyntaxAstFacts {
             class_string_literals: Vec::new(),
             style_property_accesses: Vec::new(),
+            class_name_expression_spans: Vec::new(),
             classnames_bind_utility_bindings: Vec::new(),
+            classnames_bind_call_arguments: Vec::new(),
         };
     }
 
@@ -265,14 +291,18 @@ fn collect_source_syntax_ast_facts(
         classnames_bind_imports,
         class_string_literals: Vec::new(),
         style_property_accesses: Vec::new(),
+        class_name_expression_spans: Vec::new(),
         classnames_bind_utility_bindings: Vec::new(),
+        classnames_bind_call_arguments: Vec::new(),
     };
     collector.collect_program(&program);
     collector.canonicalize();
     SourceSyntaxAstFacts {
         class_string_literals: collector.class_string_literals,
         style_property_accesses: collector.style_property_accesses,
+        class_name_expression_spans: collector.class_name_expression_spans,
         classnames_bind_utility_bindings: collector.classnames_bind_utility_bindings,
+        classnames_bind_call_arguments: collector.classnames_bind_call_arguments,
     }
 }
 
@@ -283,7 +313,9 @@ struct SourceSyntaxAstCollector<'a> {
     classnames_bind_imports: &'a [String],
     class_string_literals: Vec<ParserByteSpanV0>,
     style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
+    class_name_expression_spans: Vec<ParserByteSpanV0>,
     classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
+    classnames_bind_call_arguments: Vec<ClassnamesBindCallArgument>,
 }
 
 impl<'a> SourceSyntaxAstCollector<'a> {
@@ -767,6 +799,7 @@ impl<'a> SourceSyntaxAstCollector<'a> {
                         && let Some(value) = &attribute.value
                     {
                         self.collect_class_name_string_literal_attribute(value);
+                        self.collect_class_name_expression_attribute(value);
                     }
                     if let Some(value) = &attribute.value {
                         self.collect_jsx_attribute_value(value);
@@ -805,6 +838,15 @@ impl<'a> SourceSyntaxAstCollector<'a> {
         };
         if let Some(span) = self.string_literal_content_span(literal.span) {
             self.class_string_literals.push(span);
+        }
+    }
+
+    fn collect_class_name_expression_attribute(&mut self, value: &JSXAttributeValue<'a>) {
+        let JSXAttributeValue::ExpressionContainer(container) = value else {
+            return;
+        };
+        if let Some(span) = jsx_expression_span(&container.expression) {
+            self.class_name_expression_spans.push(span);
         }
     }
 
@@ -898,6 +940,17 @@ impl<'a> SourceSyntaxAstCollector<'a> {
     }
 
     fn collect_call_expression(&mut self, expression: &CallExpression<'a>) {
+        if let Some(binding) = expression_identifier_name(&expression.callee) {
+            for argument in &expression.arguments {
+                if let Some(byte_span) = argument_expression_span(argument) {
+                    self.classnames_bind_call_arguments
+                        .push(ClassnamesBindCallArgument {
+                            binding: binding.to_string(),
+                            byte_span,
+                        });
+                }
+            }
+        }
         self.collect_expression(&expression.callee);
         for argument in &expression.arguments {
             self.collect_argument(argument);
@@ -1056,6 +1109,15 @@ impl<'a> SourceSyntaxAstCollector<'a> {
             .dedup_by(|left, right| {
                 left.binding == right.binding && left.style_uri == right.style_uri
             });
+        self.classnames_bind_call_arguments.sort_by(|left, right| {
+            left.binding
+                .cmp(&right.binding)
+                .then_with(|| left.byte_span.start.cmp(&right.byte_span.start))
+                .then_with(|| left.byte_span.end.cmp(&right.byte_span.end))
+        });
+        self.classnames_bind_call_arguments.dedup_by(|left, right| {
+            left.binding == right.binding && left.byte_span == right.byte_span
+        });
     }
 }
 
@@ -1068,6 +1130,20 @@ fn parser_byte_span(span: Span) -> ParserByteSpanV0 {
 
 fn is_jsx_class_name_attribute(name: &JSXAttributeName<'_>) -> bool {
     matches!(name, JSXAttributeName::Identifier(identifier) if identifier.name.as_str() == "className")
+}
+
+fn jsx_expression_span(expression: &JSXExpression<'_>) -> Option<ParserByteSpanV0> {
+    match expression {
+        JSXExpression::EmptyExpression(_) => None,
+        _ => Some(parser_byte_span(expression.span())),
+    }
+}
+
+fn argument_expression_span(argument: &Argument<'_>) -> Option<ParserByteSpanV0> {
+    match argument {
+        Argument::SpreadElement(spread) => Some(parser_byte_span(spread.argument.span())),
+        _ => Some(parser_byte_span(argument.span())),
+    }
 }
 
 fn binding_pattern_identifier_name<'a>(pattern: &'a BindingPattern<'a>) -> Option<&'a str> {
@@ -1119,77 +1195,6 @@ fn argument_identifier_name<'a>(argument: &'a Argument<'a>) -> Option<&'a str> {
             expression_identifier_name(&expression.expression)
         }
         _ => None,
-    }
-}
-
-fn collect_class_name_expression_reference_facts(
-    source: &str,
-    local_class_values: &BTreeMap<String, SourceClassValue>,
-    references: &mut Vec<SourceSelectorReferenceFactV0>,
-    type_fact_targets: &mut Vec<SourceTypeFactTargetV0>,
-) {
-    let mut cursor = 0usize;
-    while let Some(identifier) = next_code_identifier(source, cursor) {
-        cursor = identifier.end;
-        if identifier.text != "className" {
-            continue;
-        }
-        let equals_offset = skip_js_trivia(source, identifier.end);
-        if source.as_bytes().get(equals_offset) != Some(&b'=') {
-            continue;
-        }
-        let value_offset = skip_js_trivia(source, equals_offset + 1);
-        if source.as_bytes().get(value_offset) == Some(&b'{') {
-            let expression_start = value_offset + 1;
-            if let Some(expression_end) = jsx_expression_end(source, expression_start) {
-                collect_selector_references_from_js_expression(
-                    source,
-                    expression_start,
-                    expression_end,
-                    None,
-                    local_class_values,
-                    references,
-                    type_fact_targets,
-                );
-                cursor = advance_js_scan_cursor(source, expression_end, source.len());
-            }
-        }
-    }
-}
-
-fn collect_classnames_bind_call_reference_facts(
-    source: &str,
-    binding: &str,
-    target_style_uri: Option<&str>,
-    local_class_values: &BTreeMap<String, SourceClassValue>,
-    references: &mut Vec<SourceSelectorReferenceFactV0>,
-    type_fact_targets: &mut Vec<SourceTypeFactTargetV0>,
-) {
-    let mut cursor = 0usize;
-    while let Some(identifier) = next_code_identifier(source, cursor) {
-        cursor = identifier.end;
-        if identifier.text != binding {
-            continue;
-        }
-        let open_paren = skip_js_trivia(source, identifier.end);
-        if source.as_bytes().get(open_paren) != Some(&b'(') {
-            continue;
-        }
-        let call_end = js_call_end(source, open_paren).unwrap_or(source.len());
-        for (argument_start, argument_end) in
-            split_top_level_js_segments(source, open_paren + 1, call_end, b',')
-        {
-            collect_selector_references_from_js_expression(
-                source,
-                argument_start,
-                argument_end,
-                target_style_uri,
-                local_class_values,
-                references,
-                type_fact_targets,
-            );
-        }
-        cursor = call_end.saturating_add(1).min(source.len());
     }
 }
 
@@ -2536,33 +2541,6 @@ fn skip_js_block_comment(source: &str, mut cursor: usize, limit: usize) -> usize
         cursor = advance_js_scan_cursor(source, cursor, limit);
     }
     limit
-}
-
-fn jsx_expression_end(source: &str, start: usize) -> Option<usize> {
-    let mut cursor = char_boundary_ceil(source, start);
-    let mut nested_braces = 0usize;
-    while cursor < source.len() {
-        match source.as_bytes().get(cursor).copied()? {
-            b'\'' | b'"' | b'`' => {
-                cursor = skip_js_string_literal(source, cursor, source.len())?;
-            }
-            b'{' => {
-                nested_braces += 1;
-                cursor = advance_js_scan_cursor(source, cursor, source.len());
-            }
-            b'}' => {
-                if nested_braces == 0 {
-                    return Some(cursor);
-                }
-                nested_braces -= 1;
-                cursor = advance_js_scan_cursor(source, cursor, source.len());
-            }
-            _ => {
-                cursor = advance_js_scan_cursor(source, cursor, source.len());
-            }
-        }
-    }
-    None
 }
 
 fn js_string_literal_span(
