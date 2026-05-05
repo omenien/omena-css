@@ -34,6 +34,7 @@ pub use source_evidence::{
 pub use source_imports::{
     SourceImportDeclarationSummaryV0, SourceImportDeclarationV0,
     summarize_omena_bridge_source_import_declarations,
+    summarize_omena_bridge_source_import_declarations_for_path,
 };
 pub use source_syntax::{
     SourceImportedStyleBindingV0, SourceSelectorReferenceFactV0,

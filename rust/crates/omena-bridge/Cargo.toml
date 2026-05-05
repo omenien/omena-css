@@ -15,4 +15,8 @@ workspace = true
 engine-input-producers = { path = "../engine-input-producers" }
 engine-style-parser = { path = "../engine-style-parser" }
 omena-semantic = { path = "../omena-semantic" }
+oxc_allocator = "0.128.0"
+oxc_ast = "0.128.0"
+oxc_parser = "0.128.0"
+oxc_span = "0.128.0"
 serde.workspace = true
