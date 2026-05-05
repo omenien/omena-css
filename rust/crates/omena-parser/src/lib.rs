@@ -225,6 +225,10 @@ impl ParsedCst {
         self.nodes(CommaSeparatedComponentValueListCstNode::cast)
     }
 
+    pub fn custom_property_values(&self) -> Vec<CustomPropertyValueCstNode> {
+        self.nodes(CustomPropertyValueCstNode::cast)
+    }
+
     pub fn at_rules(&self) -> Vec<AtRuleCstNode> {
         self.nodes(AtRuleCstNode::cast)
     }
@@ -305,6 +309,7 @@ typed_cst_node!(
     CommaSeparatedComponentValueListCstNode,
     SyntaxKind::CommaSeparatedComponentValueList
 );
+typed_cst_node!(CustomPropertyValueCstNode, SyntaxKind::CustomPropertyValue);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AtRuleCstNode {
@@ -697,6 +702,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "componentValueListCstNodes",
             "commaSeparatedComponentValueListCstNodes",
             "customPropertyAnyValueComponentList",
+            "customPropertyValueCstNodes",
             "functionalPseudoSelectorListCstNodes",
             "missingBlockCloseBogusTrivia",
             "initialDialectStatementNodes",
@@ -1579,12 +1585,14 @@ impl<'text> Parser<'text> {
                     SyntaxKind::SassDedent,
                 ]);
             } else if starts_custom_property {
+                self.builder.start_node(SyntaxKind::CustomPropertyValue);
                 self.parse_component_value_list_until(&[
                     SyntaxKind::Semicolon,
                     SyntaxKind::SassOptionalSemicolon,
                     SyntaxKind::RightBrace,
                     SyntaxKind::SassDedent,
                 ]);
+                self.builder.finish_node();
             } else {
                 self.parse_value_or_value_list_until(&[
                     SyntaxKind::Semicolon,
@@ -6561,6 +6569,7 @@ mod tests {
 
         assert!(result.errors().is_empty());
         assert!(tokens.contains(&SyntaxKind::CustomPropertyName));
+        assert!(kinds.contains(&SyntaxKind::CustomPropertyValue));
         assert!(kinds.contains(&SyntaxKind::SimpleBlock));
         assert_eq!(component_value_list_count, 2);
         assert!(!kinds.contains(&SyntaxKind::BogusValue));
@@ -7159,6 +7168,7 @@ mod tests {
         )
         .cst()
         .comma_separated_component_value_lists();
+        let custom_property_values = result.cst().custom_property_values();
         let at_rules = cst.at_rules();
 
         assert_eq!(
@@ -7173,6 +7183,7 @@ mod tests {
         assert!(!simple_blocks.is_empty());
         assert!(!component_value_lists.is_empty());
         assert!(!comma_separated_component_value_lists.is_empty());
+        assert_eq!(custom_property_values.len(), 1);
         assert!(!at_rules.is_empty());
         assert!(
             at_rules
@@ -7498,6 +7509,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"customPropertyAnyValueComponentList")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"customPropertyValueCstNodes")
         );
         assert!(
             summary

@@ -332,6 +332,7 @@ syntax_kinds! {
     SimpleBlock = 0x1069,
     ComponentValueList = 0x106a,
     CommaSeparatedComponentValueList = 0x106b,
+    CustomPropertyValue = 0x106c,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,
