@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [4.17.0] - 2026-05-05
+
+### Added
+
+- **CSS Modules `@value` completion** - style completions now suggest local and imported `@value` tokens in declaration values and local `@value` declaration values, while preserving Sass function completions in the same contexts.
+- **M-tier ESLint rules** - `eslint-plugin-css-module-explainer` now exposes `no-impossible-selector` and `no-imprecise-value` as precise split rules over the existing dynamic class diagnostics, with `configs.mTier` enabling the non-duplicating split.
+- **Stylelint token recovery rules** - `stylelint-plugin-css-module-explainer` now exposes `missing-custom-property` and `missing-sass-symbol`, completing the current style-side recovery/token rule surface.
+
+### Changed
+
+- **Stylelint checker reuse** - stylelint rules now reuse a cached style checker report per workspace/config instead of spawning the checker once per rule, keeping the expanded rule library practical for smoke and editor-adjacent use.
+
 ## [4.16.0] - 2026-05-05
 
 ### Added
