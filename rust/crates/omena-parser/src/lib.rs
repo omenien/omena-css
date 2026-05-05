@@ -349,6 +349,9 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "mathFunctionCstNodes",
             "scssInterpolationTokenization",
             "scssInterpolationCstNodes",
+            "lessInterpolationTokenization",
+            "lessInterpolationCstNodes",
+            "interpolationBogusRecovery",
             "unicodeRangeTokenization",
             "badStringTokenRecovery",
             "badStringValueBogusNodes",
@@ -380,6 +383,7 @@ struct Tokenizer<'text, 'extension, E> {
     extension: &'extension E,
     offset: usize,
     scss_interpolation_depth: usize,
+    less_interpolation_depth: usize,
     tokens: Vec<Token<'text>>,
     errors: Vec<ParseError>,
 }
@@ -555,12 +559,15 @@ impl<'text> Parser<'text> {
                 Some(SyntaxKind::Ident) => self.parse_type_selector(),
                 Some(SyntaxKind::Star) => self.parse_universal_selector(),
                 Some(SyntaxKind::Ampersand) => self.parse_nesting_selector(),
-                Some(SyntaxKind::ScssInterpolationStart) => self.parse_interpolation(&[
-                    SyntaxKind::Comma,
-                    SyntaxKind::LeftBrace,
-                    SyntaxKind::RightBrace,
-                    SyntaxKind::Semicolon,
-                ]),
+                Some(kind) if is_interpolation_start(kind) => self.parse_interpolation(
+                    kind,
+                    &[
+                        SyntaxKind::Comma,
+                        SyntaxKind::LeftBrace,
+                        SyntaxKind::RightBrace,
+                        SyntaxKind::Semicolon,
+                    ],
+                ),
                 Some(SyntaxKind::LeftBracket) => self.parse_attribute_selector(),
                 Some(SyntaxKind::Colon) => {
                     self.parse_pseudo_selector(SyntaxKind::PseudoClassSelector)
@@ -785,11 +792,14 @@ impl<'text> Parser<'text> {
         while !self.at_end() {
             match self.current_kind() {
                 Some(SyntaxKind::Colon | SyntaxKind::Semicolon | SyntaxKind::RightBrace) => break,
-                Some(SyntaxKind::ScssInterpolationStart) => self.parse_interpolation(&[
-                    SyntaxKind::Colon,
-                    SyntaxKind::Semicolon,
-                    SyntaxKind::RightBrace,
-                ]),
+                Some(kind) if is_interpolation_start(kind) => self.parse_interpolation(
+                    kind,
+                    &[
+                        SyntaxKind::Colon,
+                        SyntaxKind::Semicolon,
+                        SyntaxKind::RightBrace,
+                    ],
+                ),
                 Some(_) => self.token_current(),
                 None => break,
             }
@@ -948,7 +958,7 @@ impl<'text> Parser<'text> {
                 self.token_current();
                 self.builder.finish_node();
             }
-            Some(SyntaxKind::ScssInterpolationStart) => self.parse_interpolation(recovery),
+            Some(kind) if is_interpolation_start(kind) => self.parse_interpolation(kind, recovery),
             Some(SyntaxKind::ScssVariable) => {
                 self.builder.start_node(SyntaxKind::ScssVariableReference);
                 self.token_current();
@@ -1084,11 +1094,14 @@ impl<'text> Parser<'text> {
             match self.current_kind() {
                 Some(kind) if is_at_rule_prelude_boundary(kind) => break,
                 Some(SyntaxKind::Comma) => self.token_current(),
-                Some(SyntaxKind::ScssInterpolationStart) => self.parse_interpolation(&[
-                    SyntaxKind::Comma,
-                    SyntaxKind::LeftBrace,
-                    SyntaxKind::Semicolon,
-                ]),
+                Some(kind) if is_interpolation_start(kind) => self.parse_interpolation(
+                    kind,
+                    &[
+                        SyntaxKind::Comma,
+                        SyntaxKind::LeftBrace,
+                        SyntaxKind::Semicolon,
+                    ],
+                ),
                 Some(_) => self.parse_media_query(),
                 None => break,
             }
@@ -1106,11 +1119,14 @@ impl<'text> Parser<'text> {
                 Some(SyntaxKind::LeftParen) => {
                     self.parse_balanced_parenthesized_prelude(Some(SyntaxKind::MediaFeature))
                 }
-                Some(SyntaxKind::ScssInterpolationStart) => self.parse_interpolation(&[
-                    SyntaxKind::Comma,
-                    SyntaxKind::LeftBrace,
-                    SyntaxKind::Semicolon,
-                ]),
+                Some(kind) if is_interpolation_start(kind) => self.parse_interpolation(
+                    kind,
+                    &[
+                        SyntaxKind::Comma,
+                        SyntaxKind::LeftBrace,
+                        SyntaxKind::Semicolon,
+                    ],
+                ),
                 Some(_) => self.token_current(),
                 None => break,
             }
@@ -1181,8 +1197,8 @@ impl<'text> Parser<'text> {
             match self.current_kind() {
                 Some(kind) if is_at_rule_prelude_boundary(kind) => break,
                 Some(SyntaxKind::LeftParen) => self.parse_balanced_parenthesized_prelude(None),
-                Some(SyntaxKind::ScssInterpolationStart) => {
-                    self.parse_interpolation(&[SyntaxKind::LeftBrace, SyntaxKind::Semicolon])
+                Some(kind) if is_interpolation_start(kind) => {
+                    self.parse_interpolation(kind, &[SyntaxKind::LeftBrace, SyntaxKind::Semicolon])
                 }
                 Some(_) => self.token_current(),
                 None => break,
@@ -1196,8 +1212,8 @@ impl<'text> Parser<'text> {
             match self.current_kind() {
                 Some(kind) if is_at_rule_prelude_boundary(kind) => break,
                 Some(SyntaxKind::LeftParen) => self.parse_balanced_parenthesized_prelude(None),
-                Some(SyntaxKind::ScssInterpolationStart) => {
-                    self.parse_interpolation(&[SyntaxKind::LeftBrace, SyntaxKind::Semicolon])
+                Some(kind) if is_interpolation_start(kind) => {
+                    self.parse_interpolation(kind, &[SyntaxKind::LeftBrace, SyntaxKind::Semicolon])
                 }
                 Some(_) => self.token_current(),
                 None => break,
@@ -1224,8 +1240,8 @@ impl<'text> Parser<'text> {
                     }
                 }
                 Some(kind) if depth == 0 && is_at_rule_prelude_boundary(kind) => break,
-                Some(SyntaxKind::ScssInterpolationStart) => {
-                    self.parse_interpolation(&[SyntaxKind::LeftBrace, SyntaxKind::Semicolon])
+                Some(kind) if is_interpolation_start(kind) => {
+                    self.parse_interpolation(kind, &[SyntaxKind::LeftBrace, SyntaxKind::Semicolon])
                 }
                 Some(_) => self.token_current(),
                 None => break,
@@ -1236,19 +1252,23 @@ impl<'text> Parser<'text> {
         }
     }
 
-    fn parse_interpolation(&mut self, recovery: &[SyntaxKind]) {
-        let closed = self.find_before_recovery(SyntaxKind::ScssInterpolationEnd, recovery);
+    fn parse_interpolation(&mut self, start_kind: SyntaxKind, recovery: &[SyntaxKind]) {
+        let Some(end_kind) = interpolation_end_kind(start_kind) else {
+            self.token_current();
+            return;
+        };
+        let closed = self.find_before_recovery(end_kind, recovery);
         self.builder.start_node(if closed {
             SyntaxKind::Interpolation
         } else {
             SyntaxKind::BogusInterpolation
         });
-        if self.current_kind() == Some(SyntaxKind::ScssInterpolationStart) {
+        if self.current_kind() == Some(start_kind) {
             self.token_current();
         }
         while !self.at_end() {
             match self.current_kind() {
-                Some(SyntaxKind::ScssInterpolationEnd) => {
+                Some(kind) if kind == end_kind => {
                     self.token_current();
                     break;
                 }
@@ -1534,6 +1554,7 @@ where
             extension,
             offset: 0,
             scss_interpolation_depth: 0,
+            less_interpolation_depth: 0,
             tokens: Vec::new(),
             errors: Vec::new(),
         }
@@ -1552,6 +1573,9 @@ where
                 }
                 '#' if self.starts_with("#{") && self.supports_scss_interpolation() => {
                     self.consume_scss_interpolation_start(start)
+                }
+                '@' if self.starts_with("@{") && self.supports_less_interpolation() => {
+                    self.consume_less_interpolation_start(start)
                 }
                 '!' if self.starts_with_ascii_keyword("!important") => {
                     self.consume_static(SyntaxKind::Important, start, "!important".len())
@@ -1583,6 +1607,9 @@ where
                 '{' => self.consume_static(SyntaxKind::LeftBrace, start, 1),
                 '}' if self.scss_interpolation_depth > 0 => {
                     self.consume_scss_interpolation_end(start)
+                }
+                '}' if self.less_interpolation_depth > 0 => {
+                    self.consume_less_interpolation_end(start)
                 }
                 '}' => self.consume_static(SyntaxKind::RightBrace, start, 1),
                 '(' => self.consume_static(SyntaxKind::LeftParen, start, 1),
@@ -1699,6 +1726,18 @@ where
         self.offset += '}'.len_utf8();
         self.scss_interpolation_depth = self.scss_interpolation_depth.saturating_sub(1);
         self.push(SyntaxKind::ScssInterpolationEnd, start, self.offset);
+    }
+
+    fn consume_less_interpolation_start(&mut self, start: usize) {
+        self.offset += "@{".len();
+        self.less_interpolation_depth += 1;
+        self.push(SyntaxKind::LessInterpolationStart, start, self.offset);
+    }
+
+    fn consume_less_interpolation_end(&mut self, start: usize) {
+        self.offset += '}'.len_utf8();
+        self.less_interpolation_depth = self.less_interpolation_depth.saturating_sub(1);
+        self.push(SyntaxKind::LessInterpolationEnd, start, self.offset);
     }
 
     fn consume_string(&mut self, quote: char) {
@@ -1969,6 +2008,10 @@ where
         )
     }
 
+    fn supports_less_interpolation(&self) -> bool {
+        self.extension.dialect() == StyleDialect::Less
+    }
+
     fn starts_unicode_range(&self) -> bool {
         let mut chars = self.text[self.offset..].chars();
         matches!(chars.next(), Some('u' | 'U'))
@@ -2026,6 +2069,21 @@ fn is_css_at_rule_name(text: &str) -> bool {
             | "@starting-style"
             | "@supports"
     )
+}
+
+fn is_interpolation_start(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::ScssInterpolationStart | SyntaxKind::LessInterpolationStart
+    )
+}
+
+fn interpolation_end_kind(start_kind: SyntaxKind) -> Option<SyntaxKind> {
+    match start_kind {
+        SyntaxKind::ScssInterpolationStart => Some(SyntaxKind::ScssInterpolationEnd),
+        SyntaxKind::LessInterpolationStart => Some(SyntaxKind::LessInterpolationEnd),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2853,6 +2911,22 @@ mod tests {
     }
 
     #[test]
+    fn tokenizes_less_interpolation_delimiters() {
+        let less = lex(
+            ".button-@{variant} { color: @{color}; }",
+            StyleDialect::Less,
+        );
+        let css = lex(".button-@{variant} { color: red; }", StyleDialect::Css);
+        let less_kinds: Vec<SyntaxKind> = less.tokens().iter().map(|token| token.kind).collect();
+        let css_kinds: Vec<SyntaxKind> = css.tokens().iter().map(|token| token.kind).collect();
+
+        assert!(less.errors().is_empty());
+        assert!(less_kinds.contains(&SyntaxKind::LessInterpolationStart));
+        assert!(less_kinds.contains(&SyntaxKind::LessInterpolationEnd));
+        assert!(!css_kinds.contains(&SyntaxKind::LessInterpolationStart));
+    }
+
+    #[test]
     fn tokenizes_newline_bad_strings() {
         let result = lex(".a { content: \"bad\nstill-here: red; }", StyleDialect::Css);
         let kinds: Vec<SyntaxKind> = result.tokens().iter().map(|token| token.kind).collect();
@@ -3128,6 +3202,44 @@ mod tests {
     }
 
     #[test]
+    fn structures_less_interpolation_in_selector_property_and_value() {
+        let result = parse(
+            ".button-@{variant} { @{prop}: @{value}; }",
+            StyleDialect::Less,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let interpolation_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::Interpolation)
+            .count();
+
+        assert!(result.errors().is_empty());
+        assert_eq!(interpolation_count, 3);
+        assert!(kinds.contains(&SyntaxKind::ClassSelector));
+        assert!(kinds.contains(&SyntaxKind::PropertyName));
+        assert!(kinds.contains(&SyntaxKind::Value));
+    }
+
+    #[test]
+    fn structures_unclosed_interpolation_as_bogus() {
+        let scss = parse(".button-#{$variant", StyleDialect::Scss);
+        let less = parse(".button-@{variant", StyleDialect::Less);
+
+        assert!(node_kinds(&scss.syntax()).contains(&SyntaxKind::BogusInterpolation));
+        assert!(node_kinds(&less.syntax()).contains(&SyntaxKind::BogusInterpolation));
+        assert!(
+            scss.errors()
+                .iter()
+                .any(|error| error.code == ParseErrorCode::UnexpectedCharacter)
+        );
+        assert!(
+            less.errors()
+                .iter()
+                .any(|error| error.code == ParseErrorCode::UnexpectedCharacter)
+        );
+    }
+
+    #[test]
     fn structures_css_value_unary_and_precedence_expressions() {
         let result = parse(".a { margin: -(1rem + 2px) * 3; }", StyleDialect::Css);
         let kinds = node_kinds(&result.syntax());
@@ -3371,6 +3483,21 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"scssInterpolationCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"lessInterpolationTokenization")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"lessInterpolationCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"interpolationBogusRecovery")
         );
         assert!(summary.ready_surfaces.contains(&"unicodeRangeTokenization"));
         assert!(summary.ready_surfaces.contains(&"badStringTokenRecovery"));
