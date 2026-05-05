@@ -89,7 +89,7 @@ pub fn resolve_abstract_value_selectors(
 pub fn derive_selector_projection_certainty(
     value: &AbstractClassValueV0,
     matched_selector_count: usize,
-    selector_universe_count: usize,
+    _selector_universe_count: usize,
 ) -> SelectorProjectionCertaintyV0 {
     match value {
         AbstractClassValueV0::Bottom => SelectorProjectionCertaintyV0::Possible,
@@ -116,8 +116,6 @@ pub fn derive_selector_projection_certainty(
         | AbstractClassValueV0::Composite { .. } => {
             if matched_selector_count == 0 {
                 SelectorProjectionCertaintyV0::Possible
-            } else if matched_selector_count == selector_universe_count {
-                SelectorProjectionCertaintyV0::Exact
             } else {
                 SelectorProjectionCertaintyV0::Inferred
             }

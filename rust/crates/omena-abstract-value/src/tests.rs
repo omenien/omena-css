@@ -138,6 +138,11 @@ fn maps_constrained_external_string_facts_to_stable_shape_labels() {
         "constrained prefix `btn-` + suffix `-active`"
     );
     assert_eq!(selector_certainty_from_facts(&edge, 1, 3), "inferred");
+    assert_eq!(selector_certainty_from_facts(&edge, 3, 3), "inferred");
+    assert_eq!(
+        selector_certainty_from_facts(&external_facts("top"), 3, 3),
+        "possible"
+    );
     assert_eq!(
         selector_certainty_shape_kind_from_facts(&edge, 1, 3),
         "constrained"
@@ -280,6 +285,21 @@ fn rejects_incompatible_reduced_product_constraints() {
         intersect_abstract_class_values(
             &prefix_class_value("btn-", None),
             &char_inclusion_class_value("", "abc", None, false),
+        ),
+        AbstractClassValueV0::Bottom
+    );
+}
+
+#[test]
+fn treats_closed_empty_character_domain_as_bottom() {
+    assert_eq!(
+        char_inclusion_class_value("", "", None, false),
+        AbstractClassValueV0::Bottom
+    );
+    assert_eq!(
+        intersect_abstract_class_values(
+            &prefix_class_value("btn-", None),
+            &char_inclusion_class_value("", "", None, false),
         ),
         AbstractClassValueV0::Bottom
     );
@@ -1438,7 +1458,7 @@ fn derives_projection_certainty_from_domain_and_selector_coverage() {
     );
     assert_eq!(
         derive_selector_projection_certainty(&prefix_class_value("btn-", None), 3, 3,),
-        SelectorProjectionCertaintyV0::Exact
+        SelectorProjectionCertaintyV0::Inferred
     );
     assert_eq!(
         derive_selector_projection_certainty(&AbstractClassValueV0::Top, 3, 3),

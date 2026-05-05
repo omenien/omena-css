@@ -145,7 +145,7 @@ pub fn value_certainty_shape_label_from_facts(facts: &ExternalStringTypeFactsV0)
 pub fn selector_certainty_from_facts(
     facts: &ExternalStringTypeFactsV0,
     matched_selector_count: usize,
-    selector_universe_count: usize,
+    _selector_universe_count: usize,
 ) -> &'static str {
     match facts.kind.as_str() {
         "unknown" => "possible",
@@ -161,15 +161,14 @@ pub fn selector_certainty_from_facts(
                 "inferred"
             }
         }
-        "constrained" | "top" => {
+        "constrained" => {
             if matched_selector_count == 0 {
                 "possible"
-            } else if matched_selector_count == selector_universe_count {
-                "exact"
             } else {
                 "inferred"
             }
         }
+        "top" => "possible",
         _ => "possible",
     }
 }

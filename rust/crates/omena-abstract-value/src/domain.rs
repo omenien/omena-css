@@ -123,7 +123,7 @@ pub fn char_inclusion_class_value(
         return top_class_value();
     }
     if !may_include_other_chars && may_chars.is_empty() {
-        return top_class_value();
+        return bottom_class_value();
     }
 
     AbstractClassValueV0::CharInclusion {
