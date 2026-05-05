@@ -19,8 +19,9 @@ Current scope:
 - Functional pseudo-classes that carry selector lists (`:is`, `:where`,
   `:has`, `:not`, `:local`, `:global`) now surface nested selector-list CST
   nodes and isolate malformed selector-list items as Bogus selectors.
-- `:nth-child()` and `:nth-last-child()` expose `of <selector-list>` arguments
-  as structured CST nodes instead of opaque pseudo-selector argument tokens.
+- `:nth-child()`, `:nth-last-child()`, `:nth-of-type()`, and
+  `:nth-last-of-type()` expose formula arguments, including `of
+  <selector-list>`, as structured CST nodes.
 - `:has()` arguments are represented as relative selector lists, preserving
   leading combinators for downstream selector semantics.
 - Attribute selectors expose dedicated name, matcher, value, and modifier

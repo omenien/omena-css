@@ -709,6 +709,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "customPropertyValueCstNodes",
             "functionalPseudoSelectorListCstNodes",
             "nthSelectorOfSelectorListCstNodes",
+            "nthSelectorFormulaCstNodes",
             "hasRelativeSelectorListCstNodes",
             "missingBlockCloseBogusTrivia",
             "initialDialectStatementNodes",
@@ -5318,7 +5319,10 @@ fn is_selector_list_pseudo_class(text: &str) -> bool {
 }
 
 fn is_nth_pseudo_class(text: &str) -> bool {
-    matches!(text, "nth-child" | "nth-last-child")
+    matches!(
+        text,
+        "nth-child" | "nth-last-child" | "nth-of-type" | "nth-last-of-type"
+    )
 }
 
 fn selector_item_token_is_recoverable(kind: SyntaxKind) -> bool {
@@ -7214,6 +7218,17 @@ mod tests {
     }
 
     #[test]
+    fn parses_nth_of_type_arguments_as_formula_cst_nodes() {
+        let result = parse("li:nth-of-type(2n + 1) { color: red; }", StyleDialect::Css);
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::NthSelectorArgument));
+        assert!(kinds.contains(&SyntaxKind::NthSelectorFormula));
+        assert!(!kinds.contains(&SyntaxKind::NthSelectorOfSelectorList));
+    }
+
+    #[test]
     fn parses_has_arguments_as_relative_selector_lists() {
         let result = parse(
             ".card:has(> .icon, + [data-active], :has(~ .nested)) { color: red; }",
@@ -7742,6 +7757,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"nthSelectorOfSelectorListCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"nthSelectorFormulaCstNodes")
         );
         assert!(
             summary
