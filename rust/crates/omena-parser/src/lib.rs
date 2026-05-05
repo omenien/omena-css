@@ -334,6 +334,9 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "specializedValueFunctionCstNodes",
             "cssModuleScopeFunctionCstNodes",
             "scssStructuredBlockAtRules",
+            "lessMixinDeclarationCstNodes",
+            "lessMixinCallCstNodes",
+            "lessMixinGuardCstNodes",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -427,7 +430,9 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_rule(&mut self) {
-        let kind = if self.find_before_recovery(
+        let kind = if self.current_starts_less_mixin_declaration() {
+            SyntaxKind::LessMixinDeclaration
+        } else if self.find_before_recovery(
             SyntaxKind::LeftBrace,
             &[SyntaxKind::Semicolon, SyntaxKind::RightBrace],
         ) {
@@ -437,7 +442,11 @@ impl<'text> Parser<'text> {
         };
 
         self.builder.start_node(kind);
-        self.parse_selector_list();
+        if kind == SyntaxKind::LessMixinDeclaration {
+            self.parse_less_mixin_header();
+        } else {
+            self.parse_selector_list();
+        }
         if self.current_kind() == Some(SyntaxKind::LeftBrace) {
             self.token_current();
             self.builder.start_node(SyntaxKind::DeclarationList);
@@ -699,6 +708,7 @@ impl<'text> Parser<'text> {
                     self.parse_dialect_at_rule()
                 }
                 Some(SyntaxKind::AtKeyword) => self.parse_at_rule(),
+                Some(_) if self.current_starts_less_mixin_call() => self.parse_less_mixin_call(),
                 Some(_) if self.current_starts_nested_rule() => self.parse_rule(),
                 Some(SyntaxKind::ScssVariable)
                     if matches!(self.dialect, StyleDialect::Scss | StyleDialect::Sass) =>
@@ -804,6 +814,43 @@ impl<'text> Parser<'text> {
             }
         }
         self.builder.finish_node();
+    }
+
+    fn parse_less_mixin_header(&mut self) {
+        self.builder.start_node(SyntaxKind::SelectorList);
+        self.parse_until_recovery_with_optional_less_guard(&[SyntaxKind::LeftBrace]);
+        self.builder.finish_node();
+    }
+
+    fn parse_less_mixin_call(&mut self) {
+        self.builder.start_node(SyntaxKind::LessMixinCall);
+        self.parse_until_recovery_with_optional_less_guard(&[
+            SyntaxKind::Semicolon,
+            SyntaxKind::RightBrace,
+        ]);
+        if self.current_kind() == Some(SyntaxKind::Semicolon) {
+            self.token_current();
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_until_recovery_with_optional_less_guard(&mut self, recovery: &[SyntaxKind]) {
+        let mut guard_open = false;
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(kind) if recovery.contains(&kind) => break,
+                Some(SyntaxKind::Ident) if self.current_text() == Some("when") && !guard_open => {
+                    self.builder.start_node(SyntaxKind::LessMixinGuard);
+                    guard_open = true;
+                    self.token_current();
+                }
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+        if guard_open {
+            self.builder.finish_node();
+        }
     }
 
     fn parse_value_until(&mut self, recovery: &[SyntaxKind]) {
@@ -1081,6 +1128,20 @@ impl<'text> Parser<'text> {
         false
     }
 
+    fn find_before_stop(&self, target: SyntaxKind, stop: &[SyntaxKind]) -> bool {
+        let mut index = self.position;
+        while let Some(token) = self.tokens.get(index) {
+            if token.kind == target {
+                return true;
+            }
+            if stop.contains(&token.kind) {
+                return false;
+            }
+            index += 1;
+        }
+        false
+    }
+
     fn current_starts_nested_rule(&self) -> bool {
         matches!(
             self.current_kind(),
@@ -1100,6 +1161,46 @@ impl<'text> Parser<'text> {
                 SyntaxKind::RightBrace,
             ],
         )
+    }
+
+    fn current_starts_less_mixin_declaration(&self) -> bool {
+        self.dialect == StyleDialect::Less
+            && matches!(
+                self.current_kind(),
+                Some(SyntaxKind::Dot | SyntaxKind::Hash)
+            )
+            && self.find_before_stop(
+                SyntaxKind::LeftParen,
+                &[
+                    SyntaxKind::LeftBrace,
+                    SyntaxKind::Semicolon,
+                    SyntaxKind::RightBrace,
+                ],
+            )
+            && self.find_before_recovery(
+                SyntaxKind::LeftBrace,
+                &[SyntaxKind::Semicolon, SyntaxKind::RightBrace],
+            )
+    }
+
+    fn current_starts_less_mixin_call(&self) -> bool {
+        self.dialect == StyleDialect::Less
+            && matches!(
+                self.current_kind(),
+                Some(SyntaxKind::Dot | SyntaxKind::Hash)
+            )
+            && self.find_before_stop(
+                SyntaxKind::LeftParen,
+                &[
+                    SyntaxKind::Semicolon,
+                    SyntaxKind::RightBrace,
+                    SyntaxKind::LeftBrace,
+                ],
+            )
+            && !self.find_before_recovery(
+                SyntaxKind::LeftBrace,
+                &[SyntaxKind::Semicolon, SyntaxKind::RightBrace],
+            )
     }
 
     fn token_current(&mut self) {
@@ -2412,6 +2513,22 @@ mod tests {
     }
 
     #[test]
+    fn parses_less_mixin_declarations_calls_and_guards() {
+        let result = parse(
+            ".theme(@color) when (iscolor(@color)) { color: @color; .rounded(); } .card { .theme(#fff); }",
+            StyleDialect::Less,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::LessMixinDeclaration));
+        assert!(kinds.contains(&SyntaxKind::LessMixinGuard));
+        assert!(kinds.contains(&SyntaxKind::LessMixinCall));
+        assert!(kinds.contains(&SyntaxKind::LessVariableReference));
+        assert!(kinds.contains(&SyntaxKind::Rule));
+    }
+
+    #[test]
     fn extracts_initial_style_facts_from_parser_surface() {
         let facts = collect_style_facts(
             "@use \"tokens\"; $gap: 1rem; .card#main { --space: $gap; }",
@@ -2579,6 +2696,13 @@ mod tests {
                 .ready_surfaces
                 .contains(&"scssStructuredBlockAtRules")
         );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"lessMixinDeclarationCstNodes")
+        );
+        assert!(summary.ready_surfaces.contains(&"lessMixinCallCstNodes"));
+        assert!(summary.ready_surfaces.contains(&"lessMixinGuardCstNodes"));
         assert!(
             summary
                 .ready_surfaces
