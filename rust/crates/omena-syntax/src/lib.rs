@@ -214,6 +214,7 @@ syntax_kinds! {
     LessNamespaceSeparator = 0x0415,
     LessInterpolationStart = 0x0416,
     LessInterpolationEnd = 0x0417,
+    LessPropertyVariableToken = 0x0418,
 
     Stylesheet = 0x1000,
     Rule = 0x1001,

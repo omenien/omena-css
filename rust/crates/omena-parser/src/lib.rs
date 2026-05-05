@@ -340,6 +340,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "lessExtendPseudoCstNodes",
             "lessDetachedRulesetCstNodes",
             "lessNamespaceAccessCstNodes",
+            "lessPropertyVariableTokenization",
+            "lessPropertyVariableCstNodes",
             "lessEscapedStringTokenization",
             "lessEscapedStringValueCstNodes",
             "importantAnnotationTokenization",
@@ -1071,6 +1073,11 @@ impl<'text> Parser<'text> {
             }
             Some(SyntaxKind::LessVariable) => {
                 self.builder.start_node(SyntaxKind::LessVariableReference);
+                self.token_current();
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::LessPropertyVariableToken) => {
+                self.builder.start_node(SyntaxKind::LessPropertyVariable);
                 self.token_current();
                 self.builder.finish_node();
             }
@@ -1806,6 +1813,9 @@ where
                 '$' if self.starts_with("$=") => {
                     self.consume_static(SyntaxKind::SuffixMatch, start, 2)
                 }
+                '$' if self.starts_less_property_variable() => {
+                    self.consume_prefixed_name(SyntaxKind::LessPropertyVariableToken)
+                }
                 '&' if self.starts_with("&&") => {
                     self.consume_static(SyntaxKind::DoubleAmpersand, start, 2)
                 }
@@ -2144,6 +2154,14 @@ where
         };
         rest = rest.trim_start_matches(char::is_whitespace);
         matches!(rest.chars().next(), Some('"' | '\''))
+    }
+
+    fn starts_less_property_variable(&self) -> bool {
+        self.extension.dialect() == StyleDialect::Less
+            && self.text[self.offset + '$'.len_utf8()..]
+                .chars()
+                .next()
+                .is_some_and(is_name_start)
     }
 
     fn consume_unexpected(&mut self, char: char) {
@@ -3137,6 +3155,24 @@ mod tests {
     }
 
     #[test]
+    fn tokenizes_less_property_variables_without_breaking_suffix_matchers() {
+        let less = lex(
+            ".a { background: $color; [data-x$=y] {} }",
+            StyleDialect::Less,
+        );
+        let scss = lex(".a { background: $color; }", StyleDialect::Scss);
+        let less_kinds: Vec<SyntaxKind> = less.tokens().iter().map(|token| token.kind).collect();
+        let scss_kinds: Vec<SyntaxKind> = scss.tokens().iter().map(|token| token.kind).collect();
+
+        assert!(less.errors().is_empty());
+        assert!(scss.errors().is_empty());
+        assert!(less_kinds.contains(&SyntaxKind::LessPropertyVariableToken));
+        assert!(less_kinds.contains(&SyntaxKind::SuffixMatch));
+        assert!(!less_kinds.contains(&SyntaxKind::ScssVariable));
+        assert!(scss_kinds.contains(&SyntaxKind::ScssVariable));
+    }
+
+    #[test]
     fn tokenizes_newline_bad_strings() {
         let result = lex(".a { content: \"bad\nstill-here: red; }", StyleDialect::Css);
         let kinds: Vec<SyntaxKind> = result.tokens().iter().map(|token| token.kind).collect();
@@ -3439,6 +3475,17 @@ mod tests {
         assert!(result.errors().is_empty());
         assert!(kinds.contains(&SyntaxKind::Value));
         assert!(token_kinds.contains(&SyntaxKind::LessEscapedString));
+    }
+
+    #[test]
+    fn structures_less_property_variables_as_values() {
+        let result = parse(".a { color: red; background: $color; }", StyleDialect::Less);
+        let kinds = node_kinds(&result.syntax());
+        let token_kinds = token_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::LessPropertyVariable));
+        assert!(token_kinds.contains(&SyntaxKind::LessPropertyVariableToken));
     }
 
     #[test]
@@ -3764,6 +3811,16 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"lessNamespaceAccessCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"lessPropertyVariableTokenization")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"lessPropertyVariableCstNodes")
         );
         assert!(
             summary
