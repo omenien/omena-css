@@ -659,6 +659,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "shapeFunctionCstNodes",
             "envAttrFunctionCstNodes",
             "mathFunctionCstNodes",
+            "mathFunctionArityChecks",
             "scssInterpolationTokenization",
             "scssInterpolationCstNodes",
             "lessInterpolationTokenization",
@@ -2502,7 +2503,10 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_function_call(&mut self, recovery: &[SyntaxKind]) {
-        let specialized_kind = self.current_text().and_then(specialized_function_kind);
+        let function_name = self.current_text().map(str::to_owned);
+        let function_range = self.current_range();
+        let argument_count = self.current_function_top_level_argument_count_before(recovery);
+        let specialized_kind = function_name.as_deref().and_then(specialized_function_kind);
         let closed = self.current_function_has_closing_paren_before(recovery);
         let function_kind = if closed {
             SyntaxKind::FunctionCall
@@ -2535,10 +2539,67 @@ impl<'text> Parser<'text> {
                 );
             }
         }
+        if let (Some(function_name), Some(argument_count)) = (function_name, argument_count) {
+            self.validate_function_argument_count(&function_name, argument_count, function_range);
+        }
         if specialized_kind.is_some() {
             self.builder.finish_node();
         }
         self.builder.finish_node();
+    }
+
+    fn current_function_top_level_argument_count_before(
+        &self,
+        recovery: &[SyntaxKind],
+    ) -> Option<usize> {
+        if self.next_kind() != Some(SyntaxKind::LeftParen) {
+            return None;
+        }
+
+        let mut index = self.position + 2;
+        let mut depth = 0usize;
+        let mut comma_count = 0usize;
+        let mut saw_argument = false;
+        while let Some(token) = self.tokens.get(index) {
+            match token.kind {
+                kind if depth == 0 && recovery.contains(&kind) => return None,
+                SyntaxKind::RightParen if depth == 0 => {
+                    return Some(if saw_argument { comma_count + 1 } else { 0 });
+                }
+                SyntaxKind::Comma if depth == 0 => {
+                    comma_count += 1;
+                    saw_argument = false;
+                }
+                kind if kind.is_trivia() => {}
+                SyntaxKind::LeftBrace | SyntaxKind::LeftBracket | SyntaxKind::LeftParen => {
+                    depth += 1;
+                    saw_argument = true;
+                }
+                SyntaxKind::RightBrace | SyntaxKind::RightBracket | SyntaxKind::RightParen => {
+                    depth = depth.saturating_sub(1);
+                    saw_argument = true;
+                }
+                _ => saw_argument = true,
+            }
+            index += 1;
+        }
+        None
+    }
+
+    fn validate_function_argument_count(
+        &mut self,
+        function_name: &str,
+        argument_count: usize,
+        range: TextRange,
+    ) {
+        if function_argument_count_is_valid(function_name, argument_count) {
+            return;
+        }
+        self.errors.push(ParseError {
+            code: ParseErrorCode::ExpectedValue,
+            range,
+            message: "invalid function argument count",
+        });
     }
 
     fn parse_bracketed_value(&mut self, recovery: &[SyntaxKind]) {
@@ -5693,6 +5754,42 @@ fn specialized_function_kind(text: &str) -> Option<SyntaxKind> {
     }
 }
 
+fn function_argument_count_is_valid(function_name: &str, argument_count: usize) -> bool {
+    if function_name.eq_ignore_ascii_case("calc") {
+        return argument_count == 1;
+    }
+    if matches_ignore_ascii_case(function_name, &["min", "max", "hypot"]) {
+        return argument_count >= 1;
+    }
+    if function_name.eq_ignore_ascii_case("clamp") {
+        return argument_count == 3;
+    }
+    if function_name.eq_ignore_ascii_case("round") {
+        return (2..=3).contains(&argument_count);
+    }
+    if function_name.eq_ignore_ascii_case("log") {
+        return (1..=2).contains(&argument_count);
+    }
+    if matches_ignore_ascii_case(function_name, &["mod", "rem", "pow", "atan2"]) {
+        return argument_count == 2;
+    }
+    if matches_ignore_ascii_case(
+        function_name,
+        &[
+            "sin", "cos", "tan", "asin", "acos", "atan", "sqrt", "exp", "abs", "sign",
+        ],
+    ) {
+        return argument_count == 1;
+    }
+    true
+}
+
+fn matches_ignore_ascii_case(value: &str, candidates: &[&str]) -> bool {
+    candidates
+        .iter()
+        .any(|candidate| value.eq_ignore_ascii_case(candidate))
+}
+
 fn css_module_scope_function_kind(text: &str) -> Option<SyntaxKind> {
     match text {
         "local" => Some(SyntaxKind::CssModuleLocalBlock),
@@ -6914,6 +7011,26 @@ mod tests {
     }
 
     #[test]
+    fn validates_values_l4_math_function_argument_counts() {
+        let valid = parse(
+            ".a { width: calc(1px + 2px); min-width: min(1px, 2px); max-width: max(1px); margin: round(nearest, 10px, 3px); padding: hypot(3px, 4px); opacity: log(8, 2); }",
+            StyleDialect::Css,
+        );
+        let invalid = parse(
+            ".a { width: calc(1px, 2px); min-width: min(); max-width: clamp(1px, 2px); margin: mod(10px); padding: sin(); opacity: atan2(1); }",
+            StyleDialect::Css,
+        );
+        let invalid_argument_count = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid function argument count")
+            .count();
+
+        assert!(valid.errors().is_empty());
+        assert_eq!(invalid_argument_count, 6);
+    }
+
+    #[test]
     fn structures_css_value_atoms_and_function_argument_lists() {
         let result = parse(
             ".a { color: #fff; width: clamp(1rem, calc(2px + 3px), 4rem); opacity: 50%; z-index: 1; font-family: system, \"Demo\"; unicode-range: U+00A0-00FF; }",
@@ -7846,6 +7963,7 @@ mod tests {
         assert!(summary.ready_surfaces.contains(&"shapeFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"envAttrFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"mathFunctionCstNodes"));
+        assert!(summary.ready_surfaces.contains(&"mathFunctionArityChecks"));
         assert!(
             summary
                 .ready_surfaces
