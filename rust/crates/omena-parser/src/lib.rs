@@ -227,6 +227,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "cstreeGreenBuilder",
             "tokenSetRecoveryScaffold",
             "dialectExtensionScaffold",
+            "selectorCstSkeleton",
         ],
         not_ready_surfaces: vec![
             "fullRecursiveDescentGrammar",
@@ -344,9 +345,174 @@ impl<'text> Parser<'text> {
                 Some(SyntaxKind::LeftBrace | SyntaxKind::RightBrace | SyntaxKind::Semicolon) => {
                     break;
                 }
+                Some(SyntaxKind::Comma) => self.token_current(),
+                Some(_) => self.parse_selector(),
+                None => break,
+            }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_selector(&mut self) {
+        self.builder.start_node(SyntaxKind::Selector);
+        self.builder.start_node(SyntaxKind::ComplexSelector);
+        self.parse_complex_selector();
+        self.builder.finish_node();
+        self.builder.finish_node();
+    }
+
+    fn parse_complex_selector(&mut self) {
+        let mut has_component = false;
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(kind) if is_selector_boundary(kind) => break,
+                Some(SyntaxKind::Whitespace) => {
+                    if has_component
+                        && self
+                            .next_non_trivia_kind()
+                            .is_some_and(|kind| !is_selector_boundary(kind) && !is_combinator(kind))
+                    {
+                        self.parse_whitespace_combinator();
+                        has_component = false;
+                    } else {
+                        self.token_current();
+                    }
+                }
+                Some(kind) if is_combinator(kind) => {
+                    self.parse_combinator();
+                    has_component = false;
+                }
+                Some(_) => {
+                    self.parse_compound_selector();
+                    has_component = true;
+                }
+                None => break,
+            }
+        }
+    }
+
+    fn parse_compound_selector(&mut self) {
+        self.builder.start_node(SyntaxKind::CompoundSelector);
+        let start = self.position;
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(kind)
+                    if is_selector_boundary(kind)
+                        || kind == SyntaxKind::Whitespace
+                        || is_combinator(kind) =>
+                {
+                    break;
+                }
+                Some(SyntaxKind::Dot) => self.parse_class_selector(),
+                Some(SyntaxKind::Hash) => self.parse_id_selector(),
+                Some(SyntaxKind::Ident) => self.parse_type_selector(),
+                Some(SyntaxKind::Star) => self.parse_universal_selector(),
+                Some(SyntaxKind::Ampersand) => self.parse_nesting_selector(),
+                Some(SyntaxKind::LeftBracket) => self.parse_attribute_selector(),
+                Some(SyntaxKind::Colon) => {
+                    self.parse_pseudo_selector(SyntaxKind::PseudoClassSelector)
+                }
+                Some(SyntaxKind::DoubleColon) => {
+                    self.parse_pseudo_selector(SyntaxKind::PseudoElementSelector)
+                }
                 Some(_) => self.token_current(),
                 None => break,
             }
+        }
+        if self.position == start {
+            self.token_current();
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_class_selector(&mut self) {
+        self.builder.start_node(SyntaxKind::ClassSelector);
+        self.token_current();
+        if matches!(
+            self.current_kind(),
+            Some(SyntaxKind::Ident | SyntaxKind::CustomPropertyName)
+        ) {
+            self.token_current();
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_id_selector(&mut self) {
+        self.builder.start_node(SyntaxKind::IdSelector);
+        self.token_current();
+        self.builder.finish_node();
+    }
+
+    fn parse_type_selector(&mut self) {
+        self.builder.start_node(SyntaxKind::TypeSelector);
+        self.token_current();
+        self.builder.finish_node();
+    }
+
+    fn parse_universal_selector(&mut self) {
+        self.builder.start_node(SyntaxKind::UniversalSelector);
+        self.token_current();
+        self.builder.finish_node();
+    }
+
+    fn parse_nesting_selector(&mut self) {
+        self.builder.start_node(SyntaxKind::NestingSelectorNode);
+        self.token_current();
+        self.builder.finish_node();
+    }
+
+    fn parse_attribute_selector(&mut self) {
+        self.builder.start_node(SyntaxKind::AttributeSelector);
+        self.token_current();
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::RightBracket) => {
+                    self.token_current();
+                    break;
+                }
+                Some(kind) if is_selector_boundary(kind) => break,
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_pseudo_selector(&mut self, kind: SyntaxKind) {
+        self.builder.start_node(kind);
+        self.token_current();
+        if self.current_kind() == Some(SyntaxKind::Ident) {
+            self.token_current();
+        }
+        if self.current_kind() == Some(SyntaxKind::LeftParen) {
+            self.token_current();
+            self.builder.start_node(SyntaxKind::PseudoSelectorArgument);
+            while !self.at_end() {
+                match self.current_kind() {
+                    Some(SyntaxKind::RightParen) => break,
+                    Some(kind) if is_selector_boundary(kind) => break,
+                    Some(_) => self.token_current(),
+                    None => break,
+                }
+            }
+            self.builder.finish_node();
+            if self.current_kind() == Some(SyntaxKind::RightParen) {
+                self.token_current();
+            }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_combinator(&mut self) {
+        self.builder.start_node(SyntaxKind::Combinator);
+        self.token_current();
+        self.builder.finish_node();
+    }
+
+    fn parse_whitespace_combinator(&mut self) {
+        self.builder.start_node(SyntaxKind::Combinator);
+        while self.current_kind() == Some(SyntaxKind::Whitespace) {
+            self.token_current();
         }
         self.builder.finish_node();
     }
@@ -530,6 +696,17 @@ impl<'text> Parser<'text> {
         self.tokens.get(self.position + 1).map(|token| token.kind)
     }
 
+    fn next_non_trivia_kind(&self) -> Option<SyntaxKind> {
+        let mut index = self.position + 1;
+        while let Some(token) = self.tokens.get(index) {
+            if !token.kind.is_trivia() {
+                return Some(token.kind);
+            }
+            index += 1;
+        }
+        None
+    }
+
     fn at_end(&self) -> bool {
         self.position >= self.tokens.len()
     }
@@ -596,6 +773,9 @@ where
                 '%' => self.consume_static(SyntaxKind::Percent, start, 1),
                 '=' => self.consume_static(SyntaxKind::Equals, start, 1),
                 '~' => self.consume_static(SyntaxKind::Tilde, start, 1),
+                '|' if self.starts_with("||") => {
+                    self.consume_static(SyntaxKind::ColumnCombinator, start, 2)
+                }
                 '|' => self.consume_static(SyntaxKind::Pipe, start, 1),
                 '^' => self.consume_static(SyntaxKind::Caret, start, 1),
                 '&' => self.consume_static(SyntaxKind::Ampersand, start, 1),
@@ -842,6 +1022,23 @@ fn is_css_at_rule_name(text: &str) -> bool {
     )
 }
 
+fn is_selector_boundary(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Comma | SyntaxKind::LeftBrace | SyntaxKind::RightBrace | SyntaxKind::Semicolon
+    )
+}
+
+fn is_combinator(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::GreaterThan
+            | SyntaxKind::Plus
+            | SyntaxKind::Tilde
+            | SyntaxKind::ColumnCombinator
+    )
+}
+
 fn text_range(start: usize, end: usize) -> TextRange {
     TextRange::new(TextSize::from(start as u32), TextSize::from(end as u32))
 }
@@ -966,12 +1163,43 @@ mod tests {
     }
 
     #[test]
+    fn decomposes_selector_lists_into_selector_nodes() {
+        let result = parse(
+            ".card:hover > #title, article.card || .icon[data-active] { color: red; }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::Selector));
+        assert!(kinds.contains(&SyntaxKind::ComplexSelector));
+        assert!(kinds.contains(&SyntaxKind::CompoundSelector));
+        assert!(kinds.contains(&SyntaxKind::ClassSelector));
+        assert!(kinds.contains(&SyntaxKind::IdSelector));
+        assert!(kinds.contains(&SyntaxKind::TypeSelector));
+        assert!(kinds.contains(&SyntaxKind::PseudoClassSelector));
+        assert!(kinds.contains(&SyntaxKind::AttributeSelector));
+        assert!(kinds.contains(&SyntaxKind::Combinator));
+    }
+
+    #[test]
+    fn decomposes_nested_and_pseudo_element_selectors() {
+        let result = parse("&::before { content: \"\"; }", StyleDialect::Scss);
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::NestingSelectorNode));
+        assert!(kinds.contains(&SyntaxKind::PseudoElementSelector));
+    }
+
+    #[test]
     fn summarizes_green_field_parser_boundary() {
         let summary = summarize_parser_boundary();
 
         assert_eq!(summary.product, "omena-parser.boundary");
         assert_eq!(summary.dialect_count, 4);
         assert_eq!(summary.shared_name_kind_count, 8);
+        assert!(summary.ready_surfaces.contains(&"selectorCstSkeleton"));
         assert!(summary.not_ready_surfaces.contains(&"productCutover"));
     }
 
