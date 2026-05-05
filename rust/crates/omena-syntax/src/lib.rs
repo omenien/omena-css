@@ -325,6 +325,7 @@ syntax_kinds! {
     NumberValue = 0x1064,
     PercentageValue = 0x1065,
     BracketedValue = 0x1066,
+    ImportantAnnotation = 0x1067,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,

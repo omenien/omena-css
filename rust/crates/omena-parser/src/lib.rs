@@ -402,6 +402,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "midTypingNoPanicPropertySlice",
             "typedNumericValueAtomCstNodes",
             "bracketedValueCstNodes",
+            "importantAnnotationCstNodes",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -1690,6 +1691,11 @@ impl<'text> Parser<'text> {
             }
             Some(SyntaxKind::BadString) => {
                 self.builder.start_node(SyntaxKind::BogusValue);
+                self.token_current();
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::Important) => {
+                self.builder.start_node(SyntaxKind::ImportantAnnotation);
                 self.token_current();
                 self.builder.finish_node();
             }
@@ -5372,6 +5378,7 @@ mod tests {
         assert!(result.errors().is_empty());
         assert!(kinds.contains(&SyntaxKind::Declaration));
         assert!(kinds.contains(&SyntaxKind::Value));
+        assert!(kinds.contains(&SyntaxKind::ImportantAnnotation));
         assert!(token_kinds(&result.syntax()).contains(&SyntaxKind::Important));
     }
 
@@ -6047,6 +6054,11 @@ mod tests {
                 .contains(&"typedNumericValueAtomCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"bracketedValueCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"importantAnnotationCstNodes")
+        );
         assert!(
             summary
                 .ready_surfaces
