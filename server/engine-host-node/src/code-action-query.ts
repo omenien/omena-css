@@ -186,9 +186,11 @@ function planExtractCustomProperty(args: {
   readonly documentUri: string;
   readonly documentContent?: string;
   readonly range?: Range;
+  readonly diagnostics: readonly CodeActionDiagnosticInput[];
 }): CodeActionPlan | null {
   const filePath = fileUrlToPath(args.documentUri);
   if (findLangForPath(filePath) === null) return null;
+  if (args.diagnostics.length > 0) return null;
   if (!args.documentContent || !args.range || rangeIsEmpty(args.range)) return null;
 
   const selected = sliceRange(args.documentContent, args.range);
