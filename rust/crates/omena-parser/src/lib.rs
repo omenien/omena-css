@@ -339,6 +339,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "lessMixinGuardCstNodes",
             "lessExtendPseudoCstNodes",
             "lessDetachedRulesetCstNodes",
+            "lessNamespaceAccessCstNodes",
             "lessEscapedStringTokenization",
             "lessEscapedStringValueCstNodes",
             "importantAnnotationTokenization",
@@ -786,6 +787,9 @@ impl<'text> Parser<'text> {
                     self.parse_dialect_at_rule()
                 }
                 Some(SyntaxKind::AtKeyword) => self.parse_at_rule(),
+                Some(_) if self.current_starts_less_namespace_access() => {
+                    self.parse_less_namespace_access()
+                }
                 Some(_) if self.current_starts_less_mixin_call() => self.parse_less_mixin_call(),
                 Some(_) if self.current_starts_nested_rule() => self.parse_rule(),
                 Some(SyntaxKind::ScssVariable)
@@ -945,6 +949,27 @@ impl<'text> Parser<'text> {
             SyntaxKind::Semicolon,
             SyntaxKind::RightBrace,
         ]);
+        if self.current_kind() == Some(SyntaxKind::Semicolon) {
+            self.token_current();
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_less_namespace_access(&mut self) {
+        self.builder.start_node(SyntaxKind::LessNamespaceAccess);
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::Semicolon | SyntaxKind::RightBrace | SyntaxKind::LeftBrace) => {
+                    break;
+                }
+                Some(_) if self.current_starts_less_mixin_call() => {
+                    self.parse_less_mixin_call();
+                    break;
+                }
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
         if self.current_kind() == Some(SyntaxKind::Semicolon) {
             self.token_current();
         }
@@ -1549,6 +1574,30 @@ impl<'text> Parser<'text> {
                             .get(index)
                             .is_some_and(|token| token.text == "extend")
                 })
+    }
+
+    fn current_starts_less_namespace_access(&self) -> bool {
+        self.dialect == StyleDialect::Less
+            && matches!(
+                self.current_kind(),
+                Some(SyntaxKind::Dot | SyntaxKind::Hash)
+            )
+            && self.find_before_recovery(
+                SyntaxKind::GreaterThan,
+                &[
+                    SyntaxKind::Semicolon,
+                    SyntaxKind::LeftBrace,
+                    SyntaxKind::RightBrace,
+                ],
+            )
+            && self.find_before_recovery(
+                SyntaxKind::LeftParen,
+                &[
+                    SyntaxKind::Semicolon,
+                    SyntaxKind::LeftBrace,
+                    SyntaxKind::RightBrace,
+                ],
+            )
     }
 
     fn current_left_brace_has_match(&self) -> bool {
@@ -3504,6 +3553,33 @@ mod tests {
     }
 
     #[test]
+    fn parses_less_namespace_access_calls() {
+        let result = parse(
+            ".card { #bundle > .rounded(); color: blue; }",
+            StyleDialect::Less,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::LessNamespaceAccess));
+        assert!(kinds.contains(&SyntaxKind::LessMixinCall));
+        assert!(kinds.contains(&SyntaxKind::Declaration));
+    }
+
+    #[test]
+    fn keeps_nested_selectors_separate_from_less_namespace_access() {
+        let result = parse(
+            ".card { #child > .leaf { color: red; } }",
+            StyleDialect::Less,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::Rule));
+        assert!(!kinds.contains(&SyntaxKind::LessNamespaceAccess));
+    }
+
+    #[test]
     fn extracts_initial_style_facts_from_parser_surface() {
         let facts = collect_style_facts(
             "@use \"tokens\"; $gap: 1rem; .card#main { --space: $gap; }",
@@ -3683,6 +3759,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"lessDetachedRulesetCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"lessNamespaceAccessCstNodes")
         );
         assert!(
             summary
