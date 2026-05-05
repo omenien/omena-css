@@ -4,6 +4,8 @@ import type { CursorParams, ProviderDeps } from "../../engine-core-ts/src/provid
 import {
   classValueMatchesCandidate,
   prefixClassValue,
+  prefixSuffixClassValue,
+  suffixClassValue,
   type AbstractClassValue,
 } from "../../engine-core-ts/src/core/abstract-value/class-value-domain";
 
@@ -30,7 +32,8 @@ export function resolveSourceCompletionSelectors(
 
   const styleDocument = deps.styleDocumentForPath(ctx.scssModulePath);
   if (!styleDocument || styleDocument.selectors.length === 0) return [];
-  const expectedValueDomain = readCompletionExpectedValueDomain(textBefore);
+  const textAfter = getTextAfter(params.content, params.line, params.character);
+  const expectedValueDomain = readCompletionExpectedValueDomain(textBefore, textAfter);
   if (!expectedValueDomain) return styleDocument.selectors;
   return styleDocument.selectors.filter((selector) =>
     classValueMatchesCandidate(expectedValueDomain, selector.name),
@@ -47,9 +50,26 @@ function getTextBefore(content: string, line: number, character: number): string
   return content.slice(0, offset + character);
 }
 
-function readCompletionExpectedValueDomain(textBefore: string): AbstractClassValue | null {
+function getTextAfter(content: string, line: number, character: number): string {
+  let offset = 0;
+  for (let i = 0; i < line; i++) {
+    const nl = content.indexOf("\n", offset);
+    if (nl === -1) return "";
+    offset = nl + 1;
+  }
+  return content.slice(offset + character);
+}
+
+function readCompletionExpectedValueDomain(
+  textBefore: string,
+  textAfter: string,
+): AbstractClassValue | null {
   const prefix = readCompletionPrefix(textBefore);
-  return prefix ? prefixClassValue(prefix) : null;
+  const suffix = readCompletionSuffix(textAfter);
+  if (prefix && suffix) return prefixSuffixClassValue(prefix, suffix);
+  if (prefix) return prefixClassValue(prefix);
+  if (suffix) return suffixClassValue(suffix);
+  return null;
 }
 
 function readCompletionPrefix(textBefore: string): string | null {
@@ -98,6 +118,11 @@ function readObjectKeyPrefix(textBefore: string): string | null {
 function readLastClassTokenPrefix(value: string): string | null {
   const match = /(?:^|\s)([\p{L}\p{N}_-]*)$/u.exec(value);
   return match ? match[1]! : null;
+}
+
+function readCompletionSuffix(textAfter: string): string | null {
+  const match = /^([\p{L}\p{N}_-]+)/u.exec(textAfter);
+  return match?.[1] ?? null;
 }
 
 function isEscaped(text: string, index: number): boolean {

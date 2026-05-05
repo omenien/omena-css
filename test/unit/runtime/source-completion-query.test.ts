@@ -22,6 +22,13 @@ const cx = classNames.bind(styles);
 const el = cx('btn-
 `;
 
+const PREFIX_SUFFIX_TSX = `
+import classNames from 'classnames/bind';
+import styles from './Button.module.scss';
+const cx = classNames.bind(styles);
+const el = cx('btn--active
+`;
+
 const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] =>
   sourceFile.text.includes("classnames/bind") && sourceFile.text.includes(".module.")
     ? [
@@ -38,7 +45,9 @@ const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] =>
       ]
     : [];
 
-function makeDeps(): ProviderDeps {
+function makeDeps(
+  selectorNames = ["indicator", "active", "btn-primary", "btn-secondary"],
+): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
@@ -51,12 +60,7 @@ function makeDeps(): ProviderDeps {
   return makeBaseDeps({
     analysisCache,
     selectorMapForPath: () =>
-      new Map([
-        ["indicator", info("indicator")],
-        ["active", info("active")],
-        ["btn-primary", info("btn-primary")],
-        ["btn-secondary", info("btn-secondary")],
-      ]),
+      new Map(selectorNames.map((selectorName) => [selectorName, info(selectorName)])),
   });
 }
 
@@ -98,6 +102,31 @@ describe("resolveSourceCompletionSelectors", () => {
     expect(result.map((selector) => selector.name).toSorted()).toEqual([
       "btn-primary",
       "btn-secondary",
+    ]);
+  });
+
+  it("narrows selector candidates by in-progress prefix and suffix tokens", () => {
+    const result = resolveSourceCompletionSelectors(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: PREFIX_SUFFIX_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 4,
+        character: 19,
+        version: 1,
+      },
+      makeDeps([
+        "btn-primary",
+        "btn-disabled",
+        "btn-primary-active",
+        "btn-secondary-active",
+        "card-active",
+      ]),
+    );
+
+    expect(result.map((selector) => selector.name).toSorted()).toEqual([
+      "btn-primary-active",
+      "btn-secondary-active",
     ]);
   });
 
