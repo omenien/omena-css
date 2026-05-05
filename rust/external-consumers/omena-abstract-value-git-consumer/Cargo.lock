@@ -161,7 +161,7 @@ dependencies = [
 [[package]]
 name = "omena-abstract-value"
 version = "0.1.7"
-source = "git+https://github.com/omenien/omena-abstract-value.git?rev=f27f50f#f27f50f159aafa7348d66296b34cef5bc9b8ba2b"
+source = "git+https://github.com/omenien/omena-abstract-value.git?rev=4788c79#4788c793cf4b34f2a4b6712f9fa1f2bbeb3fce9a"
 dependencies = [
  "omena-incremental",
  "serde",
