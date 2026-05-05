@@ -5,6 +5,7 @@
 ### Changed
 
 - **Checker tier catalog** - `omena-checker` now classifies the rule registry into M/S/T tiers with boundary summary counts, and the transitional checker CLI rule help prints S/T tier metadata for TypeScript-owned runtime diagnostics.
+- **CME explain CLI surface** - added `pnpm cme explain ...` as the product-facing command for expression value-domain/provenance explanations, with `pnpm cme explain expression ...` kept as the explicit subcommand form.
 - **Reduced product overlap semantics** - `omena-abstract-value` now computes prefix/suffix reduced-product minimum lengths with overlap awareness and accounts for required character constraints, so `Pr ⊗ Su` and `Pr/Su ⊗ CI` intersections no longer exclude valid selectors or understate required selector length.
 - **Query adapter status** - `omena-query.selected-query-adapter-capabilities` now reports the selected-query adapter as `runtimeBacked`, matching the packaged runner/protocol/default-candidate path instead of the older declaration-only transition status.
 
