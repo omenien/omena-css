@@ -368,6 +368,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "cssModuleValueCstNodes",
             "cssModuleComposesCstNodes",
             "cssModuleBogusRecovery",
+            "valueListCstNodes",
+            "valueListBogusRecovery",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -877,7 +879,10 @@ impl<'text> Parser<'text> {
                 self.parse_less_detached_ruleset();
             } else {
                 self.builder.start_node(SyntaxKind::Value);
-                self.parse_value_until(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
+                self.parse_value_or_value_list_until(&[
+                    SyntaxKind::Semicolon,
+                    SyntaxKind::RightBrace,
+                ]);
                 self.builder.finish_node();
             }
         } else {
@@ -980,7 +985,10 @@ impl<'text> Parser<'text> {
             if kind == SyntaxKind::CssModuleComposesDeclaration {
                 self.parse_composes_value_until(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
             } else {
-                self.parse_value_until(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
+                self.parse_value_or_value_list_until(&[
+                    SyntaxKind::Semicolon,
+                    SyntaxKind::RightBrace,
+                ]);
             }
             self.builder.finish_node();
         } else {
@@ -1262,6 +1270,34 @@ impl<'text> Parser<'text> {
             }
             self.parse_value_expression(0, recovery);
         }
+    }
+
+    fn parse_value_or_value_list_until(&mut self, recovery: &[SyntaxKind]) {
+        if self.current_value_has_top_level_comma_before(recovery) {
+            self.parse_value_list_until(recovery);
+        } else {
+            self.parse_value_until(recovery);
+        }
+    }
+
+    fn parse_value_list_until(&mut self, recovery: &[SyntaxKind]) {
+        self.builder
+            .start_node(if self.current_value_list_is_bogus(recovery) {
+                SyntaxKind::BogusValueList
+            } else {
+                SyntaxKind::ValueList
+            });
+        let item_recovery = value_list_item_recovery(recovery);
+        while !self.at_end() {
+            self.eat_value_trivia();
+            match self.current_kind() {
+                Some(kind) if recovery.contains(&kind) => break,
+                Some(SyntaxKind::Comma) => self.token_current(),
+                Some(_) => self.parse_value_expression(0, &item_recovery),
+                None => break,
+            }
+        }
+        self.builder.finish_node();
     }
 
     fn parse_value_expression(&mut self, min_binding_power: u8, recovery: &[SyntaxKind]) {
@@ -1924,6 +1960,65 @@ impl<'text> Parser<'text> {
             index += 1;
         }
         false
+    }
+
+    fn current_value_has_top_level_comma_before(&self, recovery: &[SyntaxKind]) -> bool {
+        let mut paren_depth = 0usize;
+        let mut bracket_depth = 0usize;
+        for token in self.tokens.iter().skip(self.position) {
+            match token.kind {
+                kind if paren_depth == 0 && bracket_depth == 0 && recovery.contains(&kind) => {
+                    return false;
+                }
+                SyntaxKind::LeftParen => paren_depth += 1,
+                SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+                SyntaxKind::LeftBracket => bracket_depth += 1,
+                SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+                SyntaxKind::Comma if paren_depth == 0 && bracket_depth == 0 => return true,
+                _ => {}
+            }
+        }
+        false
+    }
+
+    fn current_value_list_is_bogus(&self, recovery: &[SyntaxKind]) -> bool {
+        let mut paren_depth = 0usize;
+        let mut bracket_depth = 0usize;
+        let mut expecting_item = true;
+        for token in self.tokens.iter().skip(self.position) {
+            if token.kind.is_trivia() {
+                continue;
+            }
+            match token.kind {
+                kind if paren_depth == 0 && bracket_depth == 0 && recovery.contains(&kind) => {
+                    return expecting_item;
+                }
+                SyntaxKind::LeftParen => {
+                    paren_depth += 1;
+                    expecting_item = false;
+                }
+                SyntaxKind::RightParen => {
+                    paren_depth = paren_depth.saturating_sub(1);
+                    expecting_item = false;
+                }
+                SyntaxKind::LeftBracket => {
+                    bracket_depth += 1;
+                    expecting_item = false;
+                }
+                SyntaxKind::RightBracket => {
+                    bracket_depth = bracket_depth.saturating_sub(1);
+                    expecting_item = false;
+                }
+                SyntaxKind::Comma if paren_depth == 0 && bracket_depth == 0 => {
+                    if expecting_item {
+                        return true;
+                    }
+                    expecting_item = true;
+                }
+                _ => expecting_item = false,
+            }
+        }
+        expecting_item
     }
 
     fn current_prelude_is_bogus(&self, kind: SyntaxKind) -> bool {
@@ -3388,6 +3483,16 @@ fn function_argument_recovery(recovery: &[SyntaxKind]) -> Vec<SyntaxKind> {
     kinds
 }
 
+fn value_list_item_recovery(recovery: &[SyntaxKind]) -> Vec<SyntaxKind> {
+    let mut kinds = vec![SyntaxKind::Comma];
+    for kind in recovery {
+        if !kinds.contains(kind) {
+            kinds.push(*kind);
+        }
+    }
+    kinds
+}
+
 fn bogus_prelude_node_kind(kind: SyntaxKind) -> Option<SyntaxKind> {
     match kind {
         SyntaxKind::MediaQuery => Some(SyntaxKind::BogusMediaQuery),
@@ -4049,6 +4154,28 @@ mod tests {
     }
 
     #[test]
+    fn structures_top_level_value_lists_without_function_comma_confusion() {
+        let result = parse(
+            ".a { font-family: system, sans-serif; color: color-mix(in oklch, red, blue); }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::ValueList));
+        assert!(!kinds.contains(&SyntaxKind::BogusValueList));
+        assert!(kinds.contains(&SyntaxKind::ColorValue));
+    }
+
+    #[test]
+    fn recovers_bogus_top_level_value_lists() {
+        let result = parse(".a { font-family: system, ; }", StyleDialect::Css);
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(kinds.contains(&SyntaxKind::BogusValueList));
+    }
+
+    #[test]
     fn keeps_important_annotation_in_declaration_values() {
         let result = parse(".a { color: red !important; }", StyleDialect::Css);
         let kinds = node_kinds(&result.syntax());
@@ -4553,6 +4680,8 @@ mod tests {
                 .contains(&"cssModuleComposesCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"cssModuleBogusRecovery"));
+        assert!(summary.ready_surfaces.contains(&"valueListCstNodes"));
+        assert!(summary.ready_surfaces.contains(&"valueListBogusRecovery"));
         assert!(
             summary
                 .ready_surfaces
