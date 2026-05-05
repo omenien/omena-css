@@ -18,7 +18,9 @@ use omena_bridge::{
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
     OmenaQuerySourceSelectorCandidateV0, OmenaQueryStyleHoverCandidateV0,
-    OmenaQueryStyleSelectorDefinitionV0, resolve_omena_query_source_provider_candidates,
+    OmenaQueryStyleSelectorDefinitionV0, resolve_omena_query_source_candidate_selector_names,
+    resolve_omena_query_source_provider_candidates,
+    resolve_omena_query_style_selector_definitions_for_source_candidate,
     summarize_omena_query_missing_custom_property_diagnostics,
     summarize_omena_query_missing_selector_diagnostic, summarize_omena_query_sass_module_sources,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
@@ -2099,24 +2101,15 @@ fn source_candidate_selector_names(
     definitions: &[(String, LspStyleHoverCandidate)],
     target_style_uri: Option<&str>,
 ) -> Vec<String> {
-    if candidate.kind != "sourceSelectorPrefixReference" {
-        return vec![candidate.name.clone()];
-    }
-    let mut names: Vec<String> = definitions
+    let query_definitions = definitions
         .iter()
-        .filter(|(uri, definition)| {
-            source_candidate_matches_selector(candidate, definition.name.as_str())
-                && candidate
-                    .target_style_uri
-                    .as_deref()
-                    .or(target_style_uri)
-                    .is_none_or(|target_uri| target_uri == uri)
-        })
-        .map(|(_, definition)| definition.name.clone())
-        .collect();
-    names.sort();
-    names.dedup();
-    names
+        .map(|(uri, definition)| query_style_selector_definition(uri, definition))
+        .collect::<Vec<_>>();
+    resolve_omena_query_source_candidate_selector_names(
+        &query_source_selector_candidate_from_lsp(candidate),
+        query_definitions.as_slice(),
+        target_style_uri,
+    )
 }
 
 fn source_candidate_matches_target_style(
@@ -3120,16 +3113,32 @@ fn style_selector_definitions_for_source_candidate(
     {
         definitions.extend(style_selector_definitions_from_uri(state, target_uri));
     }
+    let query_definitions = definitions
+        .iter()
+        .map(|(uri, definition)| query_style_selector_definition(uri, definition))
+        .collect::<Vec<_>>();
+    let matched_identities = resolve_omena_query_style_selector_definitions_for_source_candidate(
+        &query_source_selector_candidate_from_lsp(candidate),
+        query_definitions.as_slice(),
+    )
+    .into_iter()
+    .map(|definition| {
+        query_definition_identity(
+            definition.uri.as_str(),
+            definition.name.as_str(),
+            definition.range,
+        )
+    })
+    .collect::<BTreeSet<_>>();
+
     definitions
         .into_iter()
-        .filter(|(uri, _)| {
-            candidate
-                .target_style_uri
-                .as_deref()
-                .is_none_or(|target_uri| target_uri == uri)
-        })
-        .filter(|(_, definition)| {
-            source_candidate_matches_selector(candidate, definition.name.as_str())
+        .filter(|(uri, definition)| {
+            matched_identities.contains(&query_definition_identity(
+                uri.as_str(),
+                definition.name.as_str(),
+                definition.range,
+            ))
         })
         .collect()
 }
@@ -3183,17 +3192,6 @@ fn source_candidate_definition_lookup_name(candidate: &LspStyleHoverCandidate) -
         ""
     } else {
         candidate.name.as_str()
-    }
-}
-
-fn source_candidate_matches_selector(
-    candidate: &LspStyleHoverCandidate,
-    selector_name: &str,
-) -> bool {
-    if candidate.kind == "sourceSelectorPrefixReference" {
-        selector_name.starts_with(candidate.name.as_str())
-    } else {
-        selector_name == candidate.name
     }
 }
 
@@ -3607,6 +3605,21 @@ fn query_style_selector_definition(
         name: definition.name.clone(),
         range: definition.range,
     }
+}
+
+fn query_definition_identity(
+    uri: &str,
+    name: &str,
+    range: ParserRangeV0,
+) -> (String, String, usize, usize, usize, usize) {
+    (
+        uri.to_string(),
+        name.to_string(),
+        range.start.line,
+        range.start.character,
+        range.end.line,
+        range.end.character,
+    )
 }
 
 fn is_css_identifier_continue(ch: char) -> bool {

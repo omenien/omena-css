@@ -803,6 +803,53 @@ pub fn resolve_omena_query_source_provider_candidates(
     }
 }
 
+pub fn resolve_omena_query_style_selector_definitions_for_source_candidate(
+    candidate: &OmenaQuerySourceSelectorCandidateV0,
+    definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+) -> Vec<OmenaQueryStyleSelectorDefinitionV0> {
+    let mut matched = definitions
+        .iter()
+        .filter(|definition| source_selector_candidate_matches_definition(candidate, definition))
+        .cloned()
+        .collect::<Vec<_>>();
+    matched.sort_by_key(|definition| {
+        (
+            definition.uri.clone(),
+            definition.range.start.line,
+            definition.range.start.character,
+            definition.name.clone(),
+        )
+    });
+    matched.dedup();
+    matched
+}
+
+pub fn resolve_omena_query_source_candidate_selector_names(
+    candidate: &OmenaQuerySourceSelectorCandidateV0,
+    definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+    target_style_uri: Option<&str>,
+) -> Vec<String> {
+    if candidate.kind != "sourceSelectorPrefixReference" {
+        return vec![candidate.name.clone()];
+    }
+
+    let mut names = definitions
+        .iter()
+        .filter(|definition| source_selector_candidate_matches_definition(candidate, definition))
+        .filter(|definition| {
+            candidate
+                .target_style_uri
+                .as_deref()
+                .or(target_style_uri)
+                .is_none_or(|target_uri| target_uri == definition.uri)
+        })
+        .map(|definition| definition.name.clone())
+        .collect::<Vec<_>>();
+    names.sort();
+    names.dedup();
+    names
+}
+
 pub fn summarize_omena_query_sass_module_sources(
     style_path: &str,
     style_source: &str,
@@ -2920,6 +2967,38 @@ $accent: red;
                 .map(|candidate| candidate.name.as_str())
                 .collect::<Vec<_>>(),
             vec!["ghost"]
+        );
+
+        let prefix_candidate = &resolution.matched[0];
+        let definitions = vec![
+            super::OmenaQueryStyleSelectorDefinitionV0 {
+                uri: "file:///workspace/src/App.module.scss".to_string(),
+                name: "root".to_string(),
+                range: definition_range,
+            },
+            super::OmenaQueryStyleSelectorDefinitionV0 {
+                uri: "file:///workspace/src/App.module.scss".to_string(),
+                name: "btn-primary".to_string(),
+                range: definition_range,
+            },
+        ];
+        assert_eq!(
+            super::resolve_omena_query_source_candidate_selector_names(
+                prefix_candidate,
+                definitions.as_slice(),
+                None,
+            ),
+            vec!["btn-primary".to_string()]
+        );
+        assert_eq!(
+            super::resolve_omena_query_style_selector_definitions_for_source_candidate(
+                prefix_candidate,
+                definitions.as_slice(),
+            )
+            .into_iter()
+            .map(|definition| definition.name)
+            .collect::<Vec<_>>(),
+            vec!["btn-primary".to_string()]
         );
     }
 
