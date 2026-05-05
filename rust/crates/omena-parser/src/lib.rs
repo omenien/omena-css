@@ -100,6 +100,8 @@ pub enum ParseEntryPoint {
     DeclarationList,
     Declaration,
     Value,
+    ComponentValue,
+    SimpleBlock,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -202,6 +204,14 @@ impl ParsedCst {
         self.nodes(ValueCstNode::cast)
     }
 
+    pub fn component_values(&self) -> Vec<ComponentValueCstNode> {
+        self.nodes(ComponentValueCstNode::cast)
+    }
+
+    pub fn simple_blocks(&self) -> Vec<SimpleBlockCstNode> {
+        self.nodes(SimpleBlockCstNode::cast)
+    }
+
     pub fn at_rules(&self) -> Vec<AtRuleCstNode> {
         self.nodes(AtRuleCstNode::cast)
     }
@@ -275,6 +285,8 @@ typed_cst_node!(SelectorCstNode, SyntaxKind::Selector);
 typed_cst_node!(DeclarationCstNode, SyntaxKind::Declaration);
 typed_cst_node!(DeclarationListCstNode, SyntaxKind::DeclarationList);
 typed_cst_node!(ValueCstNode, SyntaxKind::Value);
+typed_cst_node!(ComponentValueCstNode, SyntaxKind::ComponentValue);
+typed_cst_node!(SimpleBlockCstNode, SyntaxKind::SimpleBlock);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AtRuleCstNode {
@@ -655,8 +667,12 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "exponentNumericTokenization",
             "badUrlWhitespaceRecovery",
             "parserEntryPointApiSlice",
+            "componentValueEntryPointApiSlice",
+            "simpleBlockEntryPointApiSlice",
             "typedCstWrapperSlice",
             "typedBogusCstWrapperSlice",
+            "componentValueCstNodes",
+            "simpleBlockCstNodes",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -734,6 +750,8 @@ impl<'text> Parser<'text> {
                 self.parse_value_or_value_list_until(&[]);
                 self.builder.finish_node();
             }
+            ParseEntryPoint::ComponentValue => self.parse_component_value(&[]),
+            ParseEntryPoint::SimpleBlock => self.parse_simple_block_entry_point(&[]),
         }
         self.parse_entry_point_trailing_bogus();
         self.builder.finish_node();
@@ -1892,6 +1910,104 @@ impl<'text> Parser<'text> {
         self.builder.finish_node();
     }
 
+    fn parse_component_value(&mut self, recovery: &[SyntaxKind]) {
+        self.builder.start_node(SyntaxKind::ComponentValue);
+        self.parse_component_value_inner(recovery);
+        self.builder.finish_node();
+    }
+
+    fn parse_component_value_inner(&mut self, recovery: &[SyntaxKind]) {
+        self.eat_value_trivia();
+        match self.current_kind() {
+            Some(kind) if recovery.contains(&kind) => {
+                self.empty_bogus_node(
+                    SyntaxKind::BogusValue,
+                    ParseErrorCode::ExpectedValue,
+                    "expected component value",
+                );
+            }
+            Some(SyntaxKind::LeftBrace | SyntaxKind::LeftBracket | SyntaxKind::LeftParen) => {
+                self.parse_simple_block(recovery)
+            }
+            Some(SyntaxKind::Ident) if self.next_kind() == Some(SyntaxKind::LeftParen) => {
+                self.parse_function_call(recovery)
+            }
+            Some(kind) if is_component_value_atom_start(kind) => self.parse_value_prefix(recovery),
+            Some(_) => self.token_current(),
+            None => {
+                self.empty_bogus_node(
+                    SyntaxKind::BogusValue,
+                    ParseErrorCode::ExpectedValue,
+                    "expected component value",
+                );
+            }
+        }
+    }
+
+    fn parse_simple_block_entry_point(&mut self, recovery: &[SyntaxKind]) {
+        self.eat_value_trivia();
+        match self.current_kind() {
+            Some(SyntaxKind::LeftBrace | SyntaxKind::LeftBracket | SyntaxKind::LeftParen) => {
+                self.parse_simple_block(recovery)
+            }
+            Some(_) | None => {
+                self.empty_bogus_node(
+                    SyntaxKind::BogusSimpleBlock,
+                    ParseErrorCode::ExpectedValue,
+                    "expected simple block",
+                );
+            }
+        }
+    }
+
+    fn parse_simple_block(&mut self, recovery: &[SyntaxKind]) {
+        let Some(open_kind) = self.current_kind() else {
+            self.empty_bogus_node(
+                SyntaxKind::BogusSimpleBlock,
+                ParseErrorCode::ExpectedValue,
+                "expected simple block",
+            );
+            return;
+        };
+        let Some(close_kind) = matching_simple_block_close(open_kind) else {
+            self.empty_bogus_node(
+                SyntaxKind::BogusSimpleBlock,
+                ParseErrorCode::ExpectedValue,
+                "expected simple block",
+            );
+            return;
+        };
+
+        let block_kind = if self.current_simple_block_has_matching_close(recovery) {
+            SyntaxKind::SimpleBlock
+        } else {
+            SyntaxKind::BogusSimpleBlock
+        };
+        self.builder.start_node(block_kind);
+        self.token_current();
+
+        let block_recovery = simple_block_recovery(close_kind, recovery);
+        while !self.at_end() {
+            self.eat_value_trivia();
+            match self.current_kind() {
+                Some(kind) if kind == close_kind => break,
+                Some(kind) if recovery.contains(&kind) => break,
+                Some(_) => self.parse_component_value(&block_recovery),
+                None => break,
+            }
+        }
+
+        if self.current_kind() == Some(close_kind) {
+            self.token_current();
+        } else {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "unterminated simple block",
+            );
+        }
+        self.builder.finish_node();
+    }
+
     fn parse_value_expression(&mut self, min_binding_power: u8, recovery: &[SyntaxKind]) {
         self.eat_value_trivia();
         let checkpoint = self.builder.checkpoint();
@@ -2006,6 +2122,7 @@ impl<'text> Parser<'text> {
                 self.token_current();
                 self.builder.finish_node();
             }
+            Some(SyntaxKind::LeftBrace) => self.parse_simple_block(recovery),
             Some(SyntaxKind::LeftParen) => self.parse_parenthesized_expression(recovery),
             Some(SyntaxKind::LeftBracket) => self.parse_bracketed_value(recovery),
             Some(kind) if recovery.contains(&kind) => {
@@ -2717,6 +2834,36 @@ impl<'text> Parser<'text> {
                 }
                 kind if depth == 1 && recovery.contains(&kind) => return false,
                 _ => {}
+            }
+        }
+        false
+    }
+
+    fn current_simple_block_has_matching_close(&self, recovery: &[SyntaxKind]) -> bool {
+        let Some(open_kind) = self.current_kind() else {
+            return false;
+        };
+        if matching_simple_block_close(open_kind).is_none() {
+            return false;
+        }
+
+        let mut expected_closes = Vec::new();
+        for token in self.tokens.iter().skip(self.position) {
+            if let Some(close_kind) = matching_simple_block_close(token.kind) {
+                expected_closes.push(close_kind);
+                continue;
+            }
+
+            if expected_closes.last().copied() == Some(token.kind) {
+                expected_closes.pop();
+                if expected_closes.is_empty() {
+                    return true;
+                }
+                continue;
+            }
+
+            if expected_closes.len() == 1 && recovery.contains(&token.kind) {
+                return false;
             }
         }
         false
@@ -4054,6 +4201,30 @@ fn is_interpolation_start(kind: SyntaxKind) -> bool {
     )
 }
 
+fn is_component_value_atom_start(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Ident
+            | SyntaxKind::CustomPropertyName
+            | SyntaxKind::Number
+            | SyntaxKind::Percentage
+            | SyntaxKind::Dimension
+            | SyntaxKind::String
+            | SyntaxKind::LessEscapedString
+            | SyntaxKind::UnicodeRange
+            | SyntaxKind::Hash
+            | SyntaxKind::Url
+            | SyntaxKind::BadUrl
+            | SyntaxKind::BadString
+            | SyntaxKind::Important
+            | SyntaxKind::ScssVariable
+            | SyntaxKind::LessVariable
+            | SyntaxKind::LessPropertyVariableToken
+            | SyntaxKind::ScssInterpolationStart
+            | SyntaxKind::LessInterpolationStart
+    )
+}
+
 fn interpolation_end_kind(start_kind: SyntaxKind) -> Option<SyntaxKind> {
     match start_kind {
         SyntaxKind::ScssInterpolationStart => Some(SyntaxKind::ScssInterpolationEnd),
@@ -4928,6 +5099,25 @@ fn bracketed_value_recovery(recovery: &[SyntaxKind]) -> Vec<SyntaxKind> {
     kinds
 }
 
+fn simple_block_recovery(close_kind: SyntaxKind, recovery: &[SyntaxKind]) -> Vec<SyntaxKind> {
+    let mut kinds = vec![close_kind];
+    for kind in recovery {
+        if !kinds.contains(kind) {
+            kinds.push(*kind);
+        }
+    }
+    kinds
+}
+
+fn matching_simple_block_close(open_kind: SyntaxKind) -> Option<SyntaxKind> {
+    match open_kind {
+        SyntaxKind::LeftBrace => Some(SyntaxKind::RightBrace),
+        SyntaxKind::LeftBracket => Some(SyntaxKind::RightBracket),
+        SyntaxKind::LeftParen => Some(SyntaxKind::RightParen),
+        _ => None,
+    }
+}
+
 fn value_list_item_recovery(recovery: &[SyntaxKind]) -> Vec<SyntaxKind> {
     let mut kinds = vec![SyntaxKind::Comma];
     for kind in recovery {
@@ -5080,16 +5270,41 @@ mod tests {
             StyleDialect::Css,
             ParseEntryPoint::Value,
         );
+        let component_value = parse_entry_point(
+            "calc(100% - var(--gap))",
+            StyleDialect::Css,
+            ParseEntryPoint::ComponentValue,
+        );
+        let simple_block = parse_entry_point(
+            "{ color: red; [data-state] }",
+            StyleDialect::Css,
+            ParseEntryPoint::SimpleBlock,
+        );
+        let unclosed_simple_block = parse_entry_point(
+            "{ color: red",
+            StyleDialect::Css,
+            ParseEntryPoint::SimpleBlock,
+        );
 
         assert!(rule.errors().is_empty());
         assert!(declaration_list.errors().is_empty());
         assert!(declaration.errors().is_empty());
         assert!(value.errors().is_empty());
+        assert!(component_value.errors().is_empty());
+        assert!(simple_block.errors().is_empty());
+        assert_eq!(unclosed_simple_block.errors().len(), 1);
         assert!(node_kinds(&rule.syntax()).contains(&SyntaxKind::Rule));
         assert!(node_kinds(&declaration_list.syntax()).contains(&SyntaxKind::DeclarationList));
         assert!(node_kinds(&declaration.syntax()).contains(&SyntaxKind::Declaration));
         assert!(node_kinds(&value.syntax()).contains(&SyntaxKind::Value));
         assert!(node_kinds(&value.syntax()).contains(&SyntaxKind::CalcFunction));
+        assert!(node_kinds(&component_value.syntax()).contains(&SyntaxKind::ComponentValue));
+        assert!(node_kinds(&component_value.syntax()).contains(&SyntaxKind::FunctionCall));
+        assert!(node_kinds(&simple_block.syntax()).contains(&SyntaxKind::SimpleBlock));
+        assert!(node_kinds(&simple_block.syntax()).contains(&SyntaxKind::ComponentValue));
+        assert!(
+            node_kinds(&unclosed_simple_block.syntax()).contains(&SyntaxKind::BogusSimpleBlock)
+        );
     }
 
     #[test]
@@ -6611,6 +6826,20 @@ mod tests {
         let selectors = cst.selectors();
         let declarations = cst.declarations();
         let values = cst.values();
+        let component_values = parse_entry_point(
+            "calc(1px + 2px)",
+            StyleDialect::Css,
+            ParseEntryPoint::ComponentValue,
+        )
+        .cst()
+        .component_values();
+        let simple_blocks = parse_entry_point(
+            "{ color: red; (width >= 1px) }",
+            StyleDialect::Css,
+            ParseEntryPoint::SimpleBlock,
+        )
+        .cst()
+        .simple_blocks();
         let at_rules = cst.at_rules();
 
         assert_eq!(
@@ -6621,6 +6850,8 @@ mod tests {
         assert_eq!(selectors.len(), 2);
         assert_eq!(declarations.len(), 3);
         assert_eq!(values.len(), 3);
+        assert!(!component_values.is_empty());
+        assert!(!simple_blocks.is_empty());
         assert!(!at_rules.is_empty());
         assert!(
             at_rules
@@ -6899,12 +7130,24 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"badUrlWhitespaceRecovery"));
         assert!(summary.ready_surfaces.contains(&"parserEntryPointApiSlice"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"componentValueEntryPointApiSlice")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"simpleBlockEntryPointApiSlice")
+        );
         assert!(summary.ready_surfaces.contains(&"typedCstWrapperSlice"));
         assert!(
             summary
                 .ready_surfaces
                 .contains(&"typedBogusCstWrapperSlice")
         );
+        assert!(summary.ready_surfaces.contains(&"componentValueCstNodes"));
+        assert!(summary.ready_surfaces.contains(&"simpleBlockCstNodes"));
         assert!(
             summary
                 .ready_surfaces

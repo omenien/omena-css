@@ -328,6 +328,8 @@ syntax_kinds! {
     PercentageValue = 0x1065,
     BracketedValue = 0x1066,
     ImportantAnnotation = 0x1067,
+    ComponentValue = 0x1068,
+    SimpleBlock = 0x1069,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,
@@ -404,6 +406,7 @@ syntax_kinds! {
     BogusScssModuleConfig = 0x2024,
     BogusAtRulePrelude = 0x2025,
     BogusBracketedValue = 0x2026,
+    BogusSimpleBlock = 0x2027,
 
     Root = 0x2100,
     Eof = 0x2101,
