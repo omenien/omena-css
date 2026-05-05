@@ -333,6 +333,9 @@ syntax_kinds! {
     ComponentValueList = 0x106a,
     CommaSeparatedComponentValueList = 0x106b,
     CustomPropertyValue = 0x106c,
+    AttributeName = 0x106d,
+    AttributeValue = 0x106e,
+    AttributeModifier = 0x106f,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,

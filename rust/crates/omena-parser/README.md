@@ -19,6 +19,8 @@ Current scope:
 - Functional pseudo-classes that carry selector lists (`:is`, `:where`,
   `:has`, `:not`, `:local`, `:global`) now surface nested selector-list CST
   nodes and isolate malformed selector-list items as Bogus selectors.
+- Attribute selectors expose dedicated name, matcher, value, and modifier
+  nodes, including Selectors L4 case-sensitivity flags.
 - Missing block-close recovery markers represented as `BogusTrivia`.
 - Panic-free tokenizer for CSS-family source slices using char-boundary-safe cursor movement.
 - Initial dialect classification for CSS, SCSS, Sass, and Less tokens.

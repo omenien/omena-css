@@ -611,6 +611,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "prattValueExpressionSkeleton",
             "attributeMatcherTokenization",
             "attributeMatcherCstNodes",
+            "attributeNameValueModifierCstNodes",
             "specializedValueFunctionCstNodes",
             "valueAtomCstNodes",
             "identifierValueCstNodes",
@@ -1148,6 +1149,8 @@ impl<'text> Parser<'text> {
         };
         self.builder.start_node(kind);
         self.token_current();
+        let mut saw_matcher = false;
+        let mut saw_value = false;
         let mut closed = false;
         while !self.at_end() {
             match self.current_kind() {
@@ -1156,8 +1159,23 @@ impl<'text> Parser<'text> {
                     closed = true;
                     break;
                 }
-                Some(kind) if is_attribute_matcher(kind) => self.parse_attribute_matcher(),
+                Some(kind) if is_attribute_matcher(kind) => {
+                    self.parse_attribute_matcher();
+                    saw_matcher = true;
+                }
                 Some(kind) if is_selector_boundary(kind) => break,
+                Some(kind) if !saw_matcher && attribute_name_token_can_start(kind) => {
+                    self.parse_attribute_name()
+                }
+                Some(kind)
+                    if saw_matcher && !saw_value && attribute_value_token_can_start(kind) =>
+                {
+                    self.parse_attribute_value();
+                    saw_value = true;
+                }
+                Some(SyntaxKind::Ident | SyntaxKind::CustomPropertyName) if saw_value => {
+                    self.parse_attribute_modifier()
+                }
                 Some(_) => self.token_current(),
                 None => break,
             }
@@ -1173,6 +1191,32 @@ impl<'text> Parser<'text> {
 
     fn parse_attribute_matcher(&mut self) {
         self.builder.start_node(SyntaxKind::AttributeMatcher);
+        self.token_current();
+        self.builder.finish_node();
+    }
+
+    fn parse_attribute_name(&mut self) {
+        self.builder.start_node(SyntaxKind::AttributeName);
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::RightBracket) => break,
+                Some(kind) if is_attribute_matcher(kind) || is_selector_boundary(kind) => break,
+                Some(kind) if attribute_name_token_can_continue(kind) => self.token_current(),
+                Some(_) => break,
+                None => break,
+            }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_attribute_value(&mut self) {
+        self.builder.start_node(SyntaxKind::AttributeValue);
+        self.token_current();
+        self.builder.finish_node();
+    }
+
+    fn parse_attribute_modifier(&mut self) {
+        self.builder.start_node(SyntaxKind::AttributeModifier);
         self.token_current();
         self.builder.finish_node();
     }
@@ -5394,6 +5438,36 @@ fn is_attribute_matcher(kind: SyntaxKind) -> bool {
     )
 }
 
+fn attribute_name_token_can_start(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Ident | SyntaxKind::CustomPropertyName | SyntaxKind::Star
+    )
+}
+
+fn attribute_name_token_can_continue(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Ident
+            | SyntaxKind::CustomPropertyName
+            | SyntaxKind::Star
+            | SyntaxKind::Pipe
+            | SyntaxKind::ColumnCombinator
+    )
+}
+
+fn attribute_value_token_can_start(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Ident
+            | SyntaxKind::CustomPropertyName
+            | SyntaxKind::String
+            | SyntaxKind::Hash
+            | SyntaxKind::Number
+            | SyntaxKind::Dimension
+    )
+}
+
 fn is_combinator(kind: SyntaxKind) -> bool {
     matches!(
         kind,
@@ -7066,7 +7140,7 @@ mod tests {
     #[test]
     fn decomposes_attribute_matchers_into_cst_nodes() {
         let result = parse(
-            ".a[data-state~=\"active\"][lang|=\"en\"][href^=\"/docs\"][href$=\".pdf\"][class*=\"btn\"] { color: red; }",
+            ".a[data-state~=\"active\"][lang|=\"en\"][href^=\"/docs\"][href$=\".pdf\"][class*=\"btn\"][data-mode=\"x\" i] { color: red; }",
             StyleDialect::Css,
         );
         let kinds = node_kinds(&result.syntax());
@@ -7074,10 +7148,21 @@ mod tests {
             .iter()
             .filter(|kind| **kind == SyntaxKind::AttributeMatcher)
             .count();
+        let name_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::AttributeName)
+            .count();
+        let value_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::AttributeValue)
+            .count();
 
         assert!(result.errors().is_empty());
         assert!(kinds.contains(&SyntaxKind::AttributeSelector));
-        assert_eq!(matcher_count, 5);
+        assert_eq!(matcher_count, 6);
+        assert_eq!(name_count, 6);
+        assert_eq!(value_count, 6);
+        assert!(kinds.contains(&SyntaxKind::AttributeModifier));
     }
 
     #[test]
@@ -7238,6 +7323,11 @@ mod tests {
                 .contains(&"attributeMatcherTokenization")
         );
         assert!(summary.ready_surfaces.contains(&"attributeMatcherCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"attributeNameValueModifierCstNodes")
+        );
         assert!(
             summary
                 .ready_surfaces
