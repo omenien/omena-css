@@ -47,6 +47,7 @@ pnpm cme-check bundle rust/z5-performance-baseline-readiness
 Criterion currently measures:
 
 - `z5/parser`: `engine-style-parser::parse_style_module`
+- `z5/omena-parser`: `omena-parser::parse` for the green-field parser track
 - `z5/semantic`: `omena-semantic::summarize_style_semantic_boundary`
 - `z5/abstract-value`: 1-CFA flow analysis, one-CFA call-site batching, and reduced-product intersection
 
@@ -91,6 +92,9 @@ The following numbers were captured on 2026-05-05 with:
 | abstract-value | `flow-1cfa-256-nodes`          | 170.95-173.33 us   |
 | abstract-value | `one-cfa-40-call-sites`        | 1.9678-1.9803 ms   |
 | abstract-value | `reduced-product-intersection` | 244.27-254.65 ns   |
+
+`z5/omena-parser` was added after this snapshot. Recapture the snapshot before
+publishing parser-track comparative claims.
 
 The LSP macro-benchmark snapshot used:
 

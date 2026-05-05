@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 engine-style-parser = { path = "../engine-style-parser" }
 omena-abstract-value = { path = "../omena-abstract-value" }
+omena-parser = { path = "../omena-parser" }
 omena-semantic = { path = "../omena-semantic" }
 
 [dev-dependencies]

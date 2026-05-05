@@ -540,6 +540,7 @@ dependencies = [
  "criterion",
  "engine-style-parser",
  "omena-abstract-value",
+ "omena-parser",
  "omena-semantic",
 ]
 

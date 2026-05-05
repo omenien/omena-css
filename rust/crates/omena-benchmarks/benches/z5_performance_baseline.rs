@@ -8,11 +8,13 @@ use omena_abstract_value::{
     analyze_one_cfa_call_site_flows, finite_set_class_value, intersect_abstract_class_values,
     prefix_class_value,
 };
+use omena_parser::{StyleDialect, parse as parse_omena_style};
 use omena_semantic::summarize_style_semantic_boundary;
 
 struct StyleSample {
     name: &'static str,
     path: &'static str,
+    dialect: StyleDialect,
     source: String,
 }
 
@@ -30,6 +32,22 @@ fn parser_benchmarks(c: &mut Criterion) {
                 black_box(parse_style_module(
                     black_box(sample.path),
                     black_box(&sample.source),
+                ))
+            });
+        });
+    }
+    group.finish();
+}
+
+fn omena_parser_benchmarks(c: &mut Criterion) {
+    let samples = style_corpus();
+    let mut group = c.benchmark_group("z5/omena-parser");
+    for sample in &samples {
+        group.bench_function(sample.name, |b| {
+            b.iter(|| {
+                black_box(parse_omena_style(
+                    black_box(&sample.source),
+                    black_box(sample.dialect),
                 ))
             });
         });
@@ -104,16 +122,19 @@ fn style_corpus() -> Vec<StyleSample> {
         StyleSample {
             name: "nextjs14-dashboard-scss",
             path: "DashboardCard.module.scss",
+            dialect: StyleDialect::Scss,
             source: build_nextjs14_dashboard_scss(96),
         },
         StyleSample {
             name: "vite-component-css",
             path: "MarketingGrid.module.css",
+            dialect: StyleDialect::Css,
             source: build_vite_component_css(128),
         },
         StyleSample {
             name: "scss-heavy-design-system",
             path: "DesignSystem.module.scss",
+            dialect: StyleDialect::Scss,
             source: build_scss_heavy_design_system(72),
         },
     ]
@@ -293,6 +314,7 @@ fn prefix_fact(index: usize) -> ExternalStringTypeFactsV0 {
 criterion_group!(
     benches,
     parser_benchmarks,
+    omena_parser_benchmarks,
     semantic_benchmarks,
     abstract_value_benchmarks
 );
