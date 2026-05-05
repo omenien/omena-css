@@ -35,6 +35,15 @@ pub(crate) fn concatenate_reduced_product_class_values(
         .map(|facts| facts.into_abstract_value(AbstractClassValueProvenanceV0::CompositeConcat))
 }
 
+pub(crate) fn reduced_product_class_value_is_subset(
+    left: &AbstractClassValueV0,
+    right: &AbstractClassValueV0,
+) -> Option<bool> {
+    let left = ClassValueReductionFacts::from_abstract_value(left)?;
+    let right = ClassValueReductionFacts::from_abstract_value(right)?;
+    Some(left.is_subset_of(&right))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ClassValueReductionFacts {
     prefix: Option<String>,
@@ -192,6 +201,47 @@ impl ClassValueReductionFacts {
             must_chars,
             allowed_chars,
         })
+    }
+
+    fn is_subset_of(&self, other: &Self) -> bool {
+        if let Some(other_prefix) = other.prefix.as_deref()
+            && !self
+                .prefix
+                .as_deref()
+                .is_some_and(|prefix| prefix.starts_with(other_prefix))
+        {
+            return false;
+        }
+
+        if let Some(other_suffix) = other.suffix.as_deref()
+            && !self
+                .suffix
+                .as_deref()
+                .is_some_and(|suffix| suffix.ends_with(other_suffix))
+        {
+            return false;
+        }
+
+        if let Some(other_min_length) = other.min_length
+            && self.lower_bound_length() < other_min_length
+        {
+            return false;
+        }
+
+        if !char_set_is_subset(&other.must_chars, &self.guaranteed_chars()) {
+            return false;
+        }
+
+        if let Some(other_allowed_chars) = other.allowed_chars.as_deref() {
+            let Some(self_allowed_chars) = self.allowed_chars.as_deref() else {
+                return false;
+            };
+            if !char_set_is_subset(self_allowed_chars, other_allowed_chars) {
+                return false;
+            }
+        }
+
+        true
     }
 
     fn lower_bound_length(&self) -> usize {

@@ -16,7 +16,7 @@ pub use types::*;
 use domain::{meaningful_longest_common_prefix, meaningful_longest_common_suffix};
 use reduced_product::{
     concatenate_reduced_product_class_values, intersect_reduced_product_class_values,
-    join_reduced_product_class_values,
+    join_reduced_product_class_values, reduced_product_class_value_is_subset,
 };
 use selector_projection::abstract_value_matches_string;
 
@@ -56,10 +56,10 @@ pub fn join_abstract_class_values(
     left: &AbstractClassValueV0,
     right: &AbstractClassValueV0,
 ) -> AbstractClassValueV0 {
-    if abstract_value_is_subset(left, right) {
+    if abstract_class_value_is_subset(left, right) {
         return right.clone();
     }
-    if abstract_value_is_subset(right, left) {
+    if abstract_class_value_is_subset(right, left) {
         return left.clone();
     }
 
@@ -338,7 +338,10 @@ fn intersect_non_top_class_values(
     intersect_reduced_product_class_values(left, right).unwrap_or_else(bottom_class_value)
 }
 
-fn abstract_value_is_subset(left: &AbstractClassValueV0, right: &AbstractClassValueV0) -> bool {
+pub fn abstract_class_value_is_subset(
+    left: &AbstractClassValueV0,
+    right: &AbstractClassValueV0,
+) -> bool {
     if left == right {
         return true;
     }
@@ -352,6 +355,7 @@ fn abstract_value_is_subset(left: &AbstractClassValueV0, right: &AbstractClassVa
                     .iter()
                     .all(|value| abstract_value_matches_string(right, value))
             }) || constrained_value_is_subset(left, right)
+                || reduced_product_class_value_is_subset(left, right).unwrap_or(false)
         }
     }
 }

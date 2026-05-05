@@ -3,7 +3,7 @@ use super::{
     ClassValueControlFlowGraphV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
     ClassValueFlowTransferV0, CompositeClassValueInputV0, ExternalStringTypeFactsV0,
     KLimitedCallSiteFlowInputV0, MAX_FINITE_CLASS_VALUES, OneCfaCallSiteFlowInputV0,
-    SelectorProjectionCertaintyV0, abstract_class_value_from_facts,
+    SelectorProjectionCertaintyV0, abstract_class_value_from_facts, abstract_class_value_is_subset,
     analyze_class_value_control_flow_graph, analyze_class_value_flow,
     analyze_class_value_flow_incremental, analyze_class_value_flow_incremental_batch_with_reuse,
     analyze_class_value_flow_incremental_with_database,
@@ -347,6 +347,34 @@ fn reduced_product_laws_hold_over_selector_projection() {
         intersect_abstract_class_values(&finite, &bottom_class_value()),
         bottom_class_value()
     );
+}
+
+#[test]
+fn exposes_reduced_product_subset_relation_for_composite_domains() {
+    let composite = composite_class_value(CompositeClassValueInputV0 {
+        prefix: Some("btn-".to_string()),
+        suffix: Some("-active".to_string()),
+        min_length: Some("btn--active".len()),
+        must_chars: "ab".to_string(),
+        may_chars: "-abceintv".to_string(),
+        may_include_other_chars: false,
+        provenance: None,
+    });
+    let prefix = prefix_class_value("btn-", None);
+    let suffix = suffix_class_value("-active", None);
+    let chars = char_inclusion_class_value("ab", "-abceintv", None, false);
+    let looser_chars = char_inclusion_class_value("a", "-abceintvz", None, false);
+    let incompatible_chars = char_inclusion_class_value("z", "-abceintvz", None, false);
+
+    assert!(abstract_class_value_is_subset(&composite, &prefix));
+    assert!(abstract_class_value_is_subset(&composite, &suffix));
+    assert!(abstract_class_value_is_subset(&composite, &chars));
+    assert!(abstract_class_value_is_subset(&composite, &looser_chars));
+    assert!(!abstract_class_value_is_subset(
+        &composite,
+        &incompatible_chars
+    ));
+    assert!(!abstract_class_value_is_subset(&prefix, &composite));
 }
 
 #[test]
