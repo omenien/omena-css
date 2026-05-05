@@ -712,6 +712,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "deterministicPanicFreeCorpus",
             "losslessCstTextRoundTripSmoke",
             "parseResultSourceTextSurface",
+            "parseSourceParseRoundTripSmoke",
             "typedNumericValueAtomCstNodes",
             "bracketedValueCstNodes",
             "importantAnnotationCstNodes",
@@ -7684,6 +7685,10 @@ mod tests {
             assert_eq!(syntax.kind(), SyntaxKind::Root);
             assert_eq!(source_text(&syntax).as_deref(), Some(source));
             assert_eq!(result.source_text().as_deref(), Some(source));
+
+            let reparsed = parse(&result.source_text().unwrap_or_default(), dialect);
+            assert_eq!(reparsed.source_text().as_deref(), Some(source));
+            assert_eq!(reparsed.syntax().kind(), SyntaxKind::Root);
         }
     }
 
@@ -8254,6 +8259,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"parseResultSourceTextSurface")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"parseSourceParseRoundTripSmoke")
         );
         assert!(
             summary
