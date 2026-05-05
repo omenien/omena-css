@@ -58,6 +58,14 @@ const fixtures: readonly Fixture[] = [
     dependencyNames: ["engine-input-producers", "omena-bridge", "omena-engine-input-producers"],
   },
   {
+    label: "omena-checker",
+    manifestPath: path.join(
+      repoRoot,
+      "rust/external-consumers/omena-checker-git-consumer/Cargo.toml",
+    ),
+    dependencyNames: ["omena-checker"],
+  },
+  {
     label: "omena-resolver",
     manifestPath: path.join(
       repoRoot,

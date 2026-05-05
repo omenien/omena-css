@@ -132,6 +132,21 @@ const splitRepos: readonly SplitRepo[] = [
   },
   {
     kind: "publish-ready",
+    label: "checker",
+    repo: "omenien/omena-checker",
+    packageName: "omena-checker",
+    expectedVersion: "0.1.0",
+    libName: "omena_checker",
+    expectedRegistryDependencies: [
+      {
+        dependencyName: "omena-abstract-value",
+        packageName: "omena-abstract-value",
+        version: "0.1.8",
+      },
+    ],
+  },
+  {
+    kind: "publish-ready",
     label: "query",
     repo: "omenien/omena-query",
     packageName: "omena-query",
