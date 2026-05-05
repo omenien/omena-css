@@ -330,6 +330,8 @@ syntax_kinds! {
     ImportantAnnotation = 0x1067,
     ComponentValue = 0x1068,
     SimpleBlock = 0x1069,
+    ComponentValueList = 0x106a,
+    CommaSeparatedComponentValueList = 0x106b,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,

@@ -96,11 +96,14 @@ pub enum ParseErrorCode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParseEntryPoint {
     Stylesheet,
+    RuleList,
     Rule,
     DeclarationList,
     Declaration,
     Value,
     ComponentValue,
+    ComponentValueList,
+    CommaSeparatedComponentValueList,
     SimpleBlock,
 }
 
@@ -212,6 +215,16 @@ impl ParsedCst {
         self.nodes(SimpleBlockCstNode::cast)
     }
 
+    pub fn component_value_lists(&self) -> Vec<ComponentValueListCstNode> {
+        self.nodes(ComponentValueListCstNode::cast)
+    }
+
+    pub fn comma_separated_component_value_lists(
+        &self,
+    ) -> Vec<CommaSeparatedComponentValueListCstNode> {
+        self.nodes(CommaSeparatedComponentValueListCstNode::cast)
+    }
+
     pub fn at_rules(&self) -> Vec<AtRuleCstNode> {
         self.nodes(AtRuleCstNode::cast)
     }
@@ -287,6 +300,11 @@ typed_cst_node!(DeclarationListCstNode, SyntaxKind::DeclarationList);
 typed_cst_node!(ValueCstNode, SyntaxKind::Value);
 typed_cst_node!(ComponentValueCstNode, SyntaxKind::ComponentValue);
 typed_cst_node!(SimpleBlockCstNode, SyntaxKind::SimpleBlock);
+typed_cst_node!(ComponentValueListCstNode, SyntaxKind::ComponentValueList);
+typed_cst_node!(
+    CommaSeparatedComponentValueListCstNode,
+    SyntaxKind::CommaSeparatedComponentValueList
+);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AtRuleCstNode {
@@ -667,12 +685,17 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "exponentNumericTokenization",
             "badUrlWhitespaceRecovery",
             "parserEntryPointApiSlice",
+            "ruleListEntryPointApiSlice",
             "componentValueEntryPointApiSlice",
+            "componentValueListEntryPointApiSlice",
+            "commaSeparatedComponentValueListEntryPointApiSlice",
             "simpleBlockEntryPointApiSlice",
             "typedCstWrapperSlice",
             "typedBogusCstWrapperSlice",
             "componentValueCstNodes",
             "simpleBlockCstNodes",
+            "componentValueListCstNodes",
+            "commaSeparatedComponentValueListCstNodes",
             "missingBlockCloseBogusTrivia",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
@@ -739,6 +762,11 @@ impl<'text> Parser<'text> {
                 self.parse_stylesheet_items();
                 self.builder.finish_node();
             }
+            ParseEntryPoint::RuleList => {
+                self.builder.start_node(SyntaxKind::RuleList);
+                self.parse_rule_list_items();
+                self.builder.finish_node();
+            }
             ParseEntryPoint::Rule => self.parse_rule(),
             ParseEntryPoint::DeclarationList => {
                 self.builder.start_node(SyntaxKind::DeclarationList);
@@ -752,6 +780,10 @@ impl<'text> Parser<'text> {
                 self.builder.finish_node();
             }
             ParseEntryPoint::ComponentValue => self.parse_component_value(&[]),
+            ParseEntryPoint::ComponentValueList => self.parse_component_value_list_until(&[]),
+            ParseEntryPoint::CommaSeparatedComponentValueList => {
+                self.parse_comma_separated_component_value_list_until(&[])
+            }
             ParseEntryPoint::SimpleBlock => self.parse_simple_block_entry_point(&[]),
         }
         self.parse_entry_point_trailing_bogus();
@@ -1914,6 +1946,35 @@ impl<'text> Parser<'text> {
     fn parse_component_value(&mut self, recovery: &[SyntaxKind]) {
         self.builder.start_node(SyntaxKind::ComponentValue);
         self.parse_component_value_inner(recovery);
+        self.builder.finish_node();
+    }
+
+    fn parse_component_value_list_until(&mut self, recovery: &[SyntaxKind]) {
+        self.builder.start_node(SyntaxKind::ComponentValueList);
+        while !self.at_end() {
+            self.eat_value_trivia();
+            match self.current_kind() {
+                Some(kind) if recovery.contains(&kind) => break,
+                Some(_) => self.parse_component_value(recovery),
+                None => break,
+            }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_comma_separated_component_value_list_until(&mut self, recovery: &[SyntaxKind]) {
+        self.builder
+            .start_node(SyntaxKind::CommaSeparatedComponentValueList);
+        let item_recovery = comma_separated_component_value_list_item_recovery(recovery);
+        while !self.at_end() {
+            self.eat_value_trivia();
+            match self.current_kind() {
+                Some(kind) if recovery.contains(&kind) => break,
+                Some(SyntaxKind::Comma) => self.token_current(),
+                Some(_) => self.parse_component_value(&item_recovery),
+                None => break,
+            }
+        }
         self.builder.finish_node();
     }
 
@@ -5135,6 +5196,16 @@ fn value_list_item_recovery(recovery: &[SyntaxKind]) -> Vec<SyntaxKind> {
     kinds
 }
 
+fn comma_separated_component_value_list_item_recovery(recovery: &[SyntaxKind]) -> Vec<SyntaxKind> {
+    let mut kinds = vec![SyntaxKind::Comma];
+    for kind in recovery {
+        if !kinds.contains(kind) {
+            kinds.push(*kind);
+        }
+    }
+    kinds
+}
+
 fn bogus_prelude_node_kind(kind: SyntaxKind) -> Option<SyntaxKind> {
     match kind {
         SyntaxKind::MediaQuery => Some(SyntaxKind::BogusMediaQuery),
@@ -5257,6 +5328,11 @@ mod tests {
 
     #[test]
     fn exposes_css_syntax_parser_entry_points() {
+        let rule_list = parse_entry_point(
+            ".button { color: red; } @media (width >= 1px) { .card { color: blue; } }",
+            StyleDialect::Css,
+            ParseEntryPoint::RuleList,
+        );
         let rule = parse_entry_point(
             ".button { color: red; }",
             StyleDialect::Css,
@@ -5282,6 +5358,16 @@ mod tests {
             StyleDialect::Css,
             ParseEntryPoint::ComponentValue,
         );
+        let component_value_list = parse_entry_point(
+            "red + calc(1px + 2px) [data-state]",
+            StyleDialect::Css,
+            ParseEntryPoint::ComponentValueList,
+        );
+        let comma_separated_component_value_list = parse_entry_point(
+            "red, calc(1px + 2px), [data-state]",
+            StyleDialect::Css,
+            ParseEntryPoint::CommaSeparatedComponentValueList,
+        );
         let simple_block = parse_entry_point(
             "{ color: red; [data-state] }",
             StyleDialect::Css,
@@ -5293,13 +5379,17 @@ mod tests {
             ParseEntryPoint::SimpleBlock,
         );
 
+        assert!(rule_list.errors().is_empty());
         assert!(rule.errors().is_empty());
         assert!(declaration_list.errors().is_empty());
         assert!(declaration.errors().is_empty());
         assert!(value.errors().is_empty());
         assert!(component_value.errors().is_empty());
+        assert!(component_value_list.errors().is_empty());
+        assert!(comma_separated_component_value_list.errors().is_empty());
         assert!(simple_block.errors().is_empty());
         assert_eq!(unclosed_simple_block.errors().len(), 1);
+        assert!(node_kinds(&rule_list.syntax()).contains(&SyntaxKind::RuleList));
         assert!(node_kinds(&rule.syntax()).contains(&SyntaxKind::Rule));
         assert!(node_kinds(&declaration_list.syntax()).contains(&SyntaxKind::DeclarationList));
         assert!(node_kinds(&declaration.syntax()).contains(&SyntaxKind::Declaration));
@@ -5307,6 +5397,13 @@ mod tests {
         assert!(node_kinds(&value.syntax()).contains(&SyntaxKind::CalcFunction));
         assert!(node_kinds(&component_value.syntax()).contains(&SyntaxKind::ComponentValue));
         assert!(node_kinds(&component_value.syntax()).contains(&SyntaxKind::FunctionCall));
+        assert!(
+            node_kinds(&component_value_list.syntax()).contains(&SyntaxKind::ComponentValueList)
+        );
+        assert!(
+            node_kinds(&comma_separated_component_value_list.syntax())
+                .contains(&SyntaxKind::CommaSeparatedComponentValueList)
+        );
         assert!(node_kinds(&simple_block.syntax()).contains(&SyntaxKind::SimpleBlock));
         assert!(node_kinds(&simple_block.syntax()).contains(&SyntaxKind::ComponentValue));
         assert!(
@@ -6854,6 +6951,20 @@ mod tests {
         )
         .cst()
         .simple_blocks();
+        let component_value_lists = parse_entry_point(
+            "red calc(1px + 2px)",
+            StyleDialect::Css,
+            ParseEntryPoint::ComponentValueList,
+        )
+        .cst()
+        .component_value_lists();
+        let comma_separated_component_value_lists = parse_entry_point(
+            "red, calc(1px + 2px)",
+            StyleDialect::Css,
+            ParseEntryPoint::CommaSeparatedComponentValueList,
+        )
+        .cst()
+        .comma_separated_component_value_lists();
         let at_rules = cst.at_rules();
 
         assert_eq!(
@@ -6866,6 +6977,8 @@ mod tests {
         assert_eq!(values.len(), 3);
         assert!(!component_values.is_empty());
         assert!(!simple_blocks.is_empty());
+        assert!(!component_value_lists.is_empty());
+        assert!(!comma_separated_component_value_lists.is_empty());
         assert!(!at_rules.is_empty());
         assert!(
             at_rules
@@ -7147,7 +7260,22 @@ mod tests {
         assert!(
             summary
                 .ready_surfaces
+                .contains(&"ruleListEntryPointApiSlice")
+        );
+        assert!(
+            summary
+                .ready_surfaces
                 .contains(&"componentValueEntryPointApiSlice")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"componentValueListEntryPointApiSlice")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"commaSeparatedComponentValueListEntryPointApiSlice")
         );
         assert!(
             summary
@@ -7162,6 +7290,16 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"componentValueCstNodes"));
         assert!(summary.ready_surfaces.contains(&"simpleBlockCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"componentValueListCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"commaSeparatedComponentValueListCstNodes")
+        );
         assert!(
             summary
                 .ready_surfaces
