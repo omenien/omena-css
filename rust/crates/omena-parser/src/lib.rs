@@ -682,6 +682,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "differentialCorpusSeed",
             "lightningCssDifferentialCorpusSlice",
             "midTypingNoPanicPropertySlice",
+            "deterministicPanicFreeCorpus",
             "typedNumericValueAtomCstNodes",
             "bracketedValueCstNodes",
             "importantAnnotationCstNodes",
@@ -7475,6 +7476,55 @@ mod tests {
     }
 
     #[test]
+    fn parses_deterministic_malformed_byte_corpus_without_panicking() {
+        let mut byte_fixtures = vec![
+            Vec::new(),
+            b"\0".to_vec(),
+            b"\xef\xbb\xbf.card { color: red; }".to_vec(),
+            b".a { content: \"unterminated".to_vec(),
+            b".a { background: url(foo bar) }".to_vec(),
+            b"@media screen { .a { color: red".to_vec(),
+            b".a { --x: { [ ( ; }".to_vec(),
+            vec![0xff, b'.', b'a', b' ', b'{', b'}'],
+            vec![0xe1, 0x84, b'.', b'a', b'{', b'c', b':', b'r'],
+        ];
+        for seed in 0..32u32 {
+            byte_fixtures.push(deterministic_byte_fixture(seed));
+        }
+
+        for bytes in byte_fixtures {
+            let source = String::from_utf8_lossy(&bytes).into_owned();
+            for dialect in [
+                StyleDialect::Css,
+                StyleDialect::Scss,
+                StyleDialect::Sass,
+                StyleDialect::Less,
+            ] {
+                let parse_result = std::panic::catch_unwind(|| parse(&source, dialect));
+                assert!(
+                    parse_result.is_ok(),
+                    "parse panicked for dialect={dialect:?} source={source:?}"
+                );
+                let Ok(parse_result) = parse_result else {
+                    continue;
+                };
+
+                let lex_result = std::panic::catch_unwind(|| lex(&source, dialect));
+                assert!(
+                    lex_result.is_ok(),
+                    "lex panicked for dialect={dialect:?} source={source:?}"
+                );
+                let Ok(lex_result) = lex_result else {
+                    continue;
+                };
+
+                assert_eq!(parse_result.syntax().kind(), SyntaxKind::Root);
+                assert_lex_ranges_are_char_boundaries(&source, lex_result.tokens());
+            }
+        }
+    }
+
+    #[test]
     fn extracts_nested_bem_style_facts_with_parent_context() {
         let facts = collect_style_facts(
             ".card { &__icon { &--small { color: red; } } --space: 1rem; color: var(--space); }",
@@ -8025,6 +8075,11 @@ mod tests {
         assert!(
             summary
                 .ready_surfaces
+                .contains(&"deterministicPanicFreeCorpus")
+        );
+        assert!(
+            summary
+                .ready_surfaces
                 .contains(&"typedNumericValueAtomCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"bracketedValueCstNodes"));
@@ -8192,6 +8247,32 @@ mod tests {
             .map(|(offset, _)| offset)
             .chain(std::iter::once(source.len()))
             .collect()
+    }
+
+    fn deterministic_byte_fixture(seed: u32) -> Vec<u8> {
+        let mut state = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        let len = (state as usize % 96) + 1;
+        let mut bytes = Vec::with_capacity(len);
+        for _ in 0..len {
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            bytes.push((state >> 24) as u8);
+        }
+        bytes
+    }
+
+    fn assert_lex_ranges_are_char_boundaries(source: &str, tokens: &[LexedToken]) {
+        for token in tokens {
+            let start = u32::from(token.range.start()) as usize;
+            let end = u32::from(token.range.end()) as usize;
+            assert!(
+                source.is_char_boundary(start),
+                "token start is not a char boundary: token={token:?} source={source:?}"
+            );
+            assert!(
+                source.is_char_boundary(end),
+                "token end is not a char boundary: token={token:?} source={source:?}"
+            );
+        }
     }
 
     fn node_kinds(node: &SyntaxNode<SyntaxKind>) -> Vec<SyntaxKind> {
