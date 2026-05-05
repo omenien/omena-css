@@ -13,6 +13,7 @@ use serde::Serialize;
 mod promotion_evidence;
 mod selector_references;
 mod source_evidence;
+mod source_imports;
 
 pub use promotion_evidence::{
     SemanticPromotionEvidenceItemV0, SemanticPromotionEvidenceSummaryV0,
@@ -28,6 +29,10 @@ pub use source_evidence::{
     BindingOriginEvidenceV0, CertaintyReasonEvidenceV0, ReferenceSiteIdentityEvidenceV0,
     SourceInputPromotionEvidenceSummaryV0, StyleModuleEdgeEvidenceV0,
     ValueDomainExplanationEvidenceV0, summarize_omena_bridge_source_input_evidence,
+};
+pub use source_imports::{
+    SourceImportDeclarationSummaryV0, SourceImportDeclarationV0,
+    summarize_omena_bridge_source_import_declarations,
 };
 
 pub fn collect_omena_bridge_design_token_workspace_declarations(
@@ -110,6 +115,7 @@ pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
             "styleSemanticGraphFromSource",
             "selectorReferenceEngine",
             "sourceInputEvidence",
+            "sourceImportDeclarations",
             "promotionEvidenceWithSourceInput",
             "binderPluginBoundary",
         ],
@@ -265,6 +271,7 @@ mod tests {
         summarize_omena_bridge_binder_plugin_boundary, summarize_omena_bridge_boundary,
         summarize_omena_bridge_promotion_evidence_with_source_input,
         summarize_omena_bridge_selector_reference_engine,
+        summarize_omena_bridge_source_import_declarations,
         summarize_omena_bridge_source_input_evidence, summarize_omena_bridge_style_semantic_graph,
         summarize_omena_bridge_style_semantic_graph_from_source,
     };
@@ -318,6 +325,11 @@ mod tests {
         assert!(
             boundary
                 .bridge_owned_surfaces
+                .contains(&"sourceImportDeclarations")
+        );
+        assert!(
+            boundary
+                .bridge_owned_surfaces
                 .contains(&"binderPluginBoundary")
         );
         assert!(
@@ -366,6 +378,34 @@ mod tests {
             boundary
                 .next_plugin_targets
                 .contains(&"tailwind-utility-domain")
+        );
+    }
+
+    #[test]
+    fn summarizes_source_import_declarations_for_css_modules_binding_inputs() {
+        let summary = summarize_omena_bridge_source_import_declarations(
+            r#"
+import bind from "classnames/bind";
+import styles from "./Button.module.scss";
+import * as tokens from "./tokens.module.css";
+import { type BadgeProps } from "./types";
+const lazy = import("./ignored.module.scss");
+"#,
+        );
+
+        assert_eq!(summary.product, "omena-bridge.source-import-declarations");
+        assert_eq!(summary.import_count, 3);
+        assert_eq!(
+            summary
+                .imports
+                .iter()
+                .map(|import| (import.binding.as_str(), import.specifier.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("bind", "classnames/bind"),
+                ("styles", "./Button.module.scss"),
+                ("tokens", "./tokens.module.css"),
+            ]
         );
     }
 

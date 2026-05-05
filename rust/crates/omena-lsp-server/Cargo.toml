@@ -12,6 +12,7 @@ workspace = true
 
 [dependencies]
 engine-style-parser = { path = "../engine-style-parser" }
+omena-bridge = { path = "../omena-bridge" }
 omena-incremental = { path = "../omena-incremental" }
 omena-tsgo-client = { path = "../omena-tsgo-client" }
 serde.workspace = true

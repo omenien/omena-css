@@ -208,6 +208,7 @@ name = "omena-lsp-server"
 version = "0.1.0"
 dependencies = [
  "engine-style-parser",
+ "omena-bridge",
  "omena-incremental",
  "omena-tsgo-client",
  "serde",

@@ -3136,24 +3136,18 @@ fn collect_source_imports(document: &LspTextDocumentState) -> SourceImportIndex 
         imported_style_bindings: Vec::new(),
         classnames_bind_bindings: Vec::new(),
     };
-    let mut cursor = 0usize;
-    while let Some(identifier) = next_code_identifier(source, cursor) {
-        cursor = identifier.end;
-        if identifier.text != "import" {
-            continue;
-        }
-        if let Some(import) = parse_source_import_declaration(document, identifier.end) {
-            if import.specifier == "classnames/bind" {
-                imports.classnames_bind_bindings.push(import.binding);
-            } else if StyleLanguage::from_module_path(import.specifier.as_str()).is_some()
-                && let Some(style_uri) =
-                    style_uri_for_import_specifier(document, import.specifier.as_str())
-            {
-                imports.imported_style_bindings.push(ImportedStyleBinding {
-                    binding: import.binding,
-                    style_uri,
-                });
-            }
+    let summary = omena_bridge::summarize_omena_bridge_source_import_declarations(source);
+    for import in summary.imports {
+        if import.specifier == "classnames/bind" {
+            imports.classnames_bind_bindings.push(import.binding);
+        } else if StyleLanguage::from_module_path(import.specifier.as_str()).is_some()
+            && let Some(style_uri) =
+                style_uri_for_import_specifier(document, import.specifier.as_str())
+        {
+            imports.imported_style_bindings.push(ImportedStyleBinding {
+                binding: import.binding,
+                style_uri,
+            });
         }
     }
     imports
@@ -3165,81 +3159,6 @@ fn collect_source_imports(document: &LspTextDocumentState) -> SourceImportIndex 
     imports.classnames_bind_bindings.sort();
     imports.classnames_bind_bindings.dedup();
     imports
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct SourceImportDeclaration {
-    binding: String,
-    specifier: String,
-}
-
-fn parse_source_import_declaration(
-    document: &LspTextDocumentState,
-    after_import: usize,
-) -> Option<SourceImportDeclaration> {
-    let source = document.text.as_str();
-    let mut cursor = skip_js_trivia(source, after_import);
-    match source.as_bytes().get(cursor).copied()? {
-        b'(' | b'\'' | b'"' => return None,
-        _ => {}
-    }
-
-    let clause_start = cursor;
-    let mut clause_end = None;
-    let mut specifier = None;
-    while cursor < source.len() {
-        cursor = skip_js_trivia(source, cursor);
-        let Some(byte) = source.as_bytes().get(cursor).copied() else {
-            break;
-        };
-        if matches!(byte, b'\'' | b'"') {
-            if clause_end.is_some()
-                && let Some((literal_start, literal_end, _)) =
-                    js_string_literal_span(source, cursor, source.len())
-            {
-                specifier = source.get(literal_start..literal_end).map(str::to_string);
-            }
-            break;
-        }
-        if byte == b';' {
-            break;
-        }
-        if byte.is_ascii_alphabetic() || matches!(byte, b'_' | b'$') {
-            let (identifier, identifier_end) = read_js_identifier(source, cursor)?;
-            if identifier == "from" && clause_end.is_none() {
-                clause_end = Some(cursor);
-            }
-            cursor = identifier_end;
-            continue;
-        }
-        cursor = advance_js_scan_cursor(source, cursor, source.len());
-    }
-
-    let clause = source.get(clause_start..clause_end?)?;
-    Some(SourceImportDeclaration {
-        binding: import_binding_from_clause(clause)?.to_string(),
-        specifier: specifier?,
-    })
-}
-
-fn import_binding_from_clause(clause: &str) -> Option<&str> {
-    let clause = clause.trim();
-    if clause.is_empty() || clause.starts_with('{') {
-        return None;
-    }
-    if let Some(namespace_clause) = clause.strip_prefix('*') {
-        let namespace_clause = namespace_clause.trim_start();
-        let namespace_clause = namespace_clause.strip_prefix("as")?.trim_start();
-        let (binding, _) = read_js_identifier(namespace_clause, 0)?;
-        return Some(binding);
-    }
-
-    let default_clause = clause.split(',').next()?.trim();
-    let (binding, _) = read_js_identifier(default_clause, 0)?;
-    if binding == "type" {
-        return None;
-    }
-    Some(binding)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
