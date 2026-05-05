@@ -337,6 +337,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "lessMixinDeclarationCstNodes",
             "lessMixinCallCstNodes",
             "lessMixinGuardCstNodes",
+            "lessExtendPseudoCstNodes",
             "lessEscapedStringTokenization",
             "lessEscapedStringValueCstNodes",
             "importantAnnotationTokenization",
@@ -571,6 +572,9 @@ impl<'text> Parser<'text> {
                     ],
                 ),
                 Some(SyntaxKind::LeftBracket) => self.parse_attribute_selector(),
+                Some(SyntaxKind::Colon) if self.current_starts_less_extend_rule() => {
+                    self.parse_less_extend_rule()
+                }
                 Some(SyntaxKind::Colon) => {
                     self.parse_pseudo_selector(SyntaxKind::PseudoClassSelector)
                 }
@@ -712,6 +716,48 @@ impl<'text> Parser<'text> {
         }
         if css_module_scope_kind.is_some() {
             self.builder.finish_node();
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_less_extend_rule(&mut self) {
+        self.builder.start_node(SyntaxKind::LessExtendRule);
+        if self.current_kind() == Some(SyntaxKind::Colon) {
+            self.token_current();
+        }
+        if self.current_text() == Some("extend") {
+            self.token_current();
+        } else {
+            self.empty_bogus_node(
+                SyntaxKind::BogusSelector,
+                ParseErrorCode::ExpectedSelectorName,
+                "expected Less extend selector",
+            );
+        }
+        if self.current_kind() == Some(SyntaxKind::LeftParen) {
+            self.token_current();
+            self.builder.start_node(SyntaxKind::PseudoSelectorArgument);
+            while !self.at_end() {
+                match self.current_kind() {
+                    Some(SyntaxKind::RightParen) => break,
+                    Some(kind) if is_selector_boundary(kind) => break,
+                    Some(kind) if is_interpolation_start(kind) => self.parse_interpolation(
+                        kind,
+                        &[
+                            SyntaxKind::RightParen,
+                            SyntaxKind::Comma,
+                            SyntaxKind::LeftBrace,
+                            SyntaxKind::Semicolon,
+                        ],
+                    ),
+                    Some(_) => self.token_current(),
+                    None => break,
+                }
+            }
+            self.builder.finish_node();
+            if self.current_kind() == Some(SyntaxKind::RightParen) {
+                self.token_current();
+            }
         }
         self.builder.finish_node();
     }
@@ -1402,20 +1448,6 @@ impl<'text> Parser<'text> {
         false
     }
 
-    fn find_before_stop(&self, target: SyntaxKind, stop: &[SyntaxKind]) -> bool {
-        let mut index = self.position;
-        while let Some(token) = self.tokens.get(index) {
-            if token.kind == target {
-                return true;
-            }
-            if stop.contains(&token.kind) {
-                return false;
-            }
-            index += 1;
-        }
-        false
-    }
-
     fn current_starts_nested_rule(&self) -> bool {
         matches!(
             self.current_kind(),
@@ -1439,18 +1471,7 @@ impl<'text> Parser<'text> {
 
     fn current_starts_less_mixin_declaration(&self) -> bool {
         self.dialect == StyleDialect::Less
-            && matches!(
-                self.current_kind(),
-                Some(SyntaxKind::Dot | SyntaxKind::Hash)
-            )
-            && self.find_before_stop(
-                SyntaxKind::LeftParen,
-                &[
-                    SyntaxKind::LeftBrace,
-                    SyntaxKind::Semicolon,
-                    SyntaxKind::RightBrace,
-                ],
-            )
+            && self.current_starts_less_callable_signature()
             && self.find_before_recovery(
                 SyntaxKind::LeftBrace,
                 &[SyntaxKind::Semicolon, SyntaxKind::RightBrace],
@@ -1459,22 +1480,43 @@ impl<'text> Parser<'text> {
 
     fn current_starts_less_mixin_call(&self) -> bool {
         self.dialect == StyleDialect::Less
-            && matches!(
-                self.current_kind(),
-                Some(SyntaxKind::Dot | SyntaxKind::Hash)
-            )
-            && self.find_before_stop(
-                SyntaxKind::LeftParen,
-                &[
-                    SyntaxKind::Semicolon,
-                    SyntaxKind::RightBrace,
-                    SyntaxKind::LeftBrace,
-                ],
-            )
+            && self.current_starts_less_callable_signature()
             && !self.find_before_recovery(
                 SyntaxKind::LeftBrace,
                 &[SyntaxKind::Semicolon, SyntaxKind::RightBrace],
             )
+    }
+
+    fn current_starts_less_callable_signature(&self) -> bool {
+        match self.current_kind() {
+            Some(SyntaxKind::Dot) => {
+                let Some((index, SyntaxKind::Ident | SyntaxKind::CustomPropertyName)) =
+                    self.non_trivia_token_from(self.position + 1)
+                else {
+                    return false;
+                };
+                self.non_trivia_token_from(index + 1)
+                    .is_some_and(|(_, kind)| kind == SyntaxKind::LeftParen)
+            }
+            Some(SyntaxKind::Hash) => self
+                .non_trivia_token_from(self.position + 1)
+                .is_some_and(|(_, kind)| kind == SyntaxKind::LeftParen),
+            _ => false,
+        }
+    }
+
+    fn current_starts_less_extend_rule(&self) -> bool {
+        self.dialect == StyleDialect::Less
+            && self.current_kind() == Some(SyntaxKind::Colon)
+            && self
+                .non_trivia_token_from(self.position + 1)
+                .is_some_and(|(index, kind)| {
+                    kind == SyntaxKind::Ident
+                        && self
+                            .tokens
+                            .get(index)
+                            .is_some_and(|token| token.text == "extend")
+                })
     }
 
     fn token_current(&mut self) {
@@ -1535,6 +1577,16 @@ impl<'text> Parser<'text> {
         while let Some(token) = self.tokens.get(index) {
             if !token.kind.is_trivia() {
                 return Some(token.kind);
+            }
+            index += 1;
+        }
+        None
+    }
+
+    fn non_trivia_token_from(&self, mut index: usize) -> Option<(usize, SyntaxKind)> {
+        while let Some(token) = self.tokens.get(index) {
+            if !token.kind.is_trivia() {
+                return Some((index, token.kind));
             }
             index += 1;
         }
@@ -3349,6 +3401,29 @@ mod tests {
     }
 
     #[test]
+    fn parses_less_extend_pseudo_class_without_mixin_confusion() {
+        let less = parse(
+            ".nav:extend(.inline all) { color: red; }",
+            StyleDialect::Less,
+        );
+        let css = parse(
+            ".nav:extend(.inline all) { color: red; }",
+            StyleDialect::Css,
+        );
+        let less_kinds = node_kinds(&less.syntax());
+        let css_kinds = node_kinds(&css.syntax());
+
+        assert!(less.errors().is_empty());
+        assert!(css.errors().is_empty());
+        assert!(less_kinds.contains(&SyntaxKind::Rule));
+        assert!(less_kinds.contains(&SyntaxKind::LessExtendRule));
+        assert!(less_kinds.contains(&SyntaxKind::PseudoSelectorArgument));
+        assert!(!less_kinds.contains(&SyntaxKind::LessMixinDeclaration));
+        assert!(!css_kinds.contains(&SyntaxKind::LessExtendRule));
+        assert!(css_kinds.contains(&SyntaxKind::PseudoClassSelector));
+    }
+
+    #[test]
     fn extracts_initial_style_facts_from_parser_surface() {
         let facts = collect_style_facts(
             "@use \"tokens\"; $gap: 1rem; .card#main { --space: $gap; }",
@@ -3523,6 +3598,7 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"lessMixinCallCstNodes"));
         assert!(summary.ready_surfaces.contains(&"lessMixinGuardCstNodes"));
+        assert!(summary.ready_surfaces.contains(&"lessExtendPseudoCstNodes"));
         assert!(
             summary
                 .ready_surfaces
