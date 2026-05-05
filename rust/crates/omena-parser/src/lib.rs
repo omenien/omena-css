@@ -340,6 +340,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "importantAnnotationTokenization",
             "urlTokenization",
             "urlValueCstNodes",
+            "conditionalAtRulePreludeCstNodes",
+            "mediaQueryCstNodes",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -997,6 +999,11 @@ impl<'text> Parser<'text> {
         if self.current_kind() == Some(SyntaxKind::AtKeyword) {
             self.token_current();
         }
+        if let Some(spec) = spec {
+            self.parse_at_rule_prelude(spec.node_kind);
+        } else {
+            self.consume_at_rule_prelude_tokens();
+        }
 
         while !self.at_end() {
             match self.current_kind() {
@@ -1025,6 +1032,103 @@ impl<'text> Parser<'text> {
             self.builder.finish_node();
         }
         self.builder.finish_node();
+    }
+
+    fn parse_at_rule_prelude(&mut self, node_kind: SyntaxKind) {
+        match node_kind {
+            SyntaxKind::MediaRule => self.parse_media_query_list(),
+            SyntaxKind::SupportsRule => {
+                self.parse_at_rule_prelude_node(SyntaxKind::SupportsCondition)
+            }
+            SyntaxKind::ContainerRule => {
+                self.parse_at_rule_prelude_node(SyntaxKind::ContainerCondition)
+            }
+            SyntaxKind::LayerRule => self.parse_at_rule_prelude_node(SyntaxKind::LayerName),
+            SyntaxKind::ScopeRule => self.parse_at_rule_prelude_node(SyntaxKind::ScopeRange),
+            _ => self.consume_at_rule_prelude_tokens(),
+        }
+    }
+
+    fn parse_media_query_list(&mut self) {
+        self.builder.start_node(SyntaxKind::MediaQueryList);
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(kind) if is_at_rule_prelude_boundary(kind) => break,
+                Some(SyntaxKind::Comma) => self.token_current(),
+                Some(_) => self.parse_media_query(),
+                None => break,
+            }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_media_query(&mut self) {
+        self.builder.start_node(SyntaxKind::MediaQuery);
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(kind) if is_at_rule_prelude_boundary(kind) || kind == SyntaxKind::Comma => {
+                    break;
+                }
+                Some(SyntaxKind::LeftParen) => {
+                    self.parse_balanced_parenthesized_prelude(Some(SyntaxKind::MediaFeature))
+                }
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_at_rule_prelude_node(&mut self, kind: SyntaxKind) {
+        self.builder.start_node(kind);
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(kind) if is_at_rule_prelude_boundary(kind) => break,
+                Some(SyntaxKind::LeftParen) => self.parse_balanced_parenthesized_prelude(None),
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+        self.builder.finish_node();
+    }
+
+    fn consume_at_rule_prelude_tokens(&mut self) {
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(kind) if is_at_rule_prelude_boundary(kind) => break,
+                Some(SyntaxKind::LeftParen) => self.parse_balanced_parenthesized_prelude(None),
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+    }
+
+    fn parse_balanced_parenthesized_prelude(&mut self, node_kind: Option<SyntaxKind>) {
+        if let Some(kind) = node_kind {
+            self.builder.start_node(kind);
+        }
+        let mut depth = 0usize;
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::LeftParen) => {
+                    depth += 1;
+                    self.token_current();
+                }
+                Some(SyntaxKind::RightParen) => {
+                    self.token_current();
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                Some(kind) if depth == 0 && is_at_rule_prelude_boundary(kind) => break,
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+        if node_kind.is_some() {
+            self.builder.finish_node();
+        }
     }
 
     fn parse_group_at_rule_block(&mut self) {
@@ -2292,6 +2396,10 @@ fn is_selector_boundary(kind: SyntaxKind) -> bool {
     )
 }
 
+fn is_at_rule_prelude_boundary(kind: SyntaxKind) -> bool {
+    matches!(kind, SyntaxKind::LeftBrace | SyntaxKind::Semicolon)
+}
+
 fn is_attribute_matcher(kind: SyntaxKind) -> bool {
     matches!(
         kind,
@@ -2545,6 +2653,28 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::RuleList));
         assert!(kinds.contains(&SyntaxKind::Rule));
         assert!(kinds.contains(&SyntaxKind::ClassSelector));
+    }
+
+    #[test]
+    fn parses_conditional_at_rule_preludes() {
+        let result = parse(
+            "@media screen and (min-width: 40rem), print { .card { color: red; } } @supports (display: grid) { .grid { display: grid; } } @container card (inline-size > 40rem) { .item { color: blue; } }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::MediaQueryList));
+        assert_eq!(
+            kinds
+                .iter()
+                .filter(|kind| **kind == SyntaxKind::MediaQuery)
+                .count(),
+            2
+        );
+        assert!(kinds.contains(&SyntaxKind::MediaFeature));
+        assert!(kinds.contains(&SyntaxKind::SupportsCondition));
+        assert!(kinds.contains(&SyntaxKind::ContainerCondition));
     }
 
     #[test]
@@ -2860,6 +2990,12 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"urlTokenization"));
         assert!(summary.ready_surfaces.contains(&"urlValueCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"conditionalAtRulePreludeCstNodes")
+        );
+        assert!(summary.ready_surfaces.contains(&"mediaQueryCstNodes"));
         assert!(
             summary
                 .ready_surfaces
