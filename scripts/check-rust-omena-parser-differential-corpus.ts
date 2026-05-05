@@ -112,6 +112,18 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "css-conditional-level-five-at-rules",
+    dialect: "css",
+    source: `@when media(width >= 1px) { .a { color: red; } } @else { .b { color: blue; } }`,
+    expected: {
+      classSelectorNames: ["a", "b"],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: [],
+      atRuleNames: ["@else", "@when"],
+    },
+  },
+  {
     label: "scss-nested-property-blocks",
     dialect: "scss",
     source: `.card { font: { size: 1rem; weight: 700; } }`,

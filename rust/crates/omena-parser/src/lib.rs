@@ -3868,7 +3868,14 @@ fn matching_sass_dedent(tokens: &[Token<'_>], open: usize, end: usize) -> Option
 fn style_wrapper_at_rule(name: &str) -> bool {
     matches!(
         name,
-        "@media" | "@supports" | "@layer" | "@scope" | "@container" | "@starting-style"
+        "@media"
+            | "@supports"
+            | "@when"
+            | "@else"
+            | "@layer"
+            | "@scope"
+            | "@container"
+            | "@starting-style"
     )
 }
 
