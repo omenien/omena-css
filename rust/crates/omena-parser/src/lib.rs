@@ -82,6 +82,9 @@ pub enum ParseErrorCode {
     UnterminatedBlockComment,
     UnterminatedString,
     UnexpectedCharacter,
+    ExpectedSelectorName,
+    UnterminatedAttributeSelector,
+    ExpectedValue,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -245,6 +248,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "atRuleRegistrySkeleton",
             "prattValueExpressionSkeleton",
             "initialDialectStatementNodes",
+            "recoveryBogusSkeleton",
         ],
         not_ready_surfaces: vec![
             "fullRecursiveDescentGrammar",
@@ -463,6 +467,12 @@ impl<'text> Parser<'text> {
             Some(SyntaxKind::Ident | SyntaxKind::CustomPropertyName)
         ) {
             self.token_current();
+        } else {
+            self.empty_bogus_node(
+                SyntaxKind::BogusSelector,
+                ParseErrorCode::ExpectedSelectorName,
+                "expected class selector name",
+            );
         }
         self.builder.finish_node();
     }
@@ -492,18 +502,39 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_attribute_selector(&mut self) {
-        self.builder.start_node(SyntaxKind::AttributeSelector);
+        let kind = if self.find_before_recovery(
+            SyntaxKind::RightBracket,
+            &[
+                SyntaxKind::Comma,
+                SyntaxKind::LeftBrace,
+                SyntaxKind::RightBrace,
+                SyntaxKind::Semicolon,
+            ],
+        ) {
+            SyntaxKind::AttributeSelector
+        } else {
+            SyntaxKind::BogusSelector
+        };
+        self.builder.start_node(kind);
         self.token_current();
+        let mut closed = false;
         while !self.at_end() {
             match self.current_kind() {
                 Some(SyntaxKind::RightBracket) => {
                     self.token_current();
+                    closed = true;
                     break;
                 }
                 Some(kind) if is_selector_boundary(kind) => break,
                 Some(_) => self.token_current(),
                 None => break,
             }
+        }
+        if !closed {
+            self.error_at_current(
+                ParseErrorCode::UnterminatedAttributeSelector,
+                "unterminated attribute selector",
+            );
         }
         self.builder.finish_node();
     }
@@ -513,6 +544,12 @@ impl<'text> Parser<'text> {
         self.token_current();
         if self.current_kind() == Some(SyntaxKind::Ident) {
             self.token_current();
+        } else {
+            self.empty_bogus_node(
+                SyntaxKind::BogusSelector,
+                ParseErrorCode::ExpectedSelectorName,
+                "expected pseudo selector name",
+            );
         }
         if self.current_kind() == Some(SyntaxKind::LeftParen) {
             self.token_current();
@@ -673,6 +710,7 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_value_expression(&mut self, min_binding_power: u8, recovery: &[SyntaxKind]) {
+        self.eat_value_trivia();
         let checkpoint = self.builder.checkpoint();
         self.parse_value_prefix(recovery);
 
@@ -722,9 +760,21 @@ impl<'text> Parser<'text> {
                 self.builder.finish_node();
             }
             Some(SyntaxKind::LeftParen) => self.parse_parenthesized_expression(),
-            Some(kind) if recovery.contains(&kind) => {}
+            Some(kind) if recovery.contains(&kind) => {
+                self.empty_bogus_node(
+                    SyntaxKind::BogusValue,
+                    ParseErrorCode::ExpectedValue,
+                    "expected value",
+                );
+            }
             Some(_) => self.token_current(),
-            None => {}
+            None => {
+                self.empty_bogus_node(
+                    SyntaxKind::BogusValue,
+                    ParseErrorCode::ExpectedValue,
+                    "expected value",
+                );
+            }
         }
     }
 
@@ -917,8 +967,34 @@ impl<'text> Parser<'text> {
         }
     }
 
+    fn empty_bogus_node(&mut self, kind: SyntaxKind, code: ParseErrorCode, message: &'static str) {
+        self.builder.start_node(kind);
+        self.builder.finish_node();
+        self.error_at_current(code, message);
+    }
+
+    fn error_at_current(&mut self, code: ParseErrorCode, message: &'static str) {
+        self.errors.push(ParseError {
+            code,
+            range: self.current_range(),
+            message,
+        });
+    }
+
     fn current_kind(&self) -> Option<SyntaxKind> {
         self.tokens.get(self.position).map(|token| token.kind)
+    }
+
+    fn current_range(&self) -> TextRange {
+        if let Some(token) = self.tokens.get(self.position) {
+            return token.range;
+        }
+        let end = self
+            .tokens
+            .last()
+            .map(|token| token.range.end())
+            .unwrap_or_else(|| TextSize::from(0));
+        TextRange::new(end, end)
     }
 
     fn current_text(&self) -> Option<&'text str> {
@@ -1453,6 +1529,34 @@ mod tests {
     }
 
     #[test]
+    fn builds_bogus_nodes_for_selector_and_value_recovery() {
+        let missing_class_name = parse(". { color: red; }", StyleDialect::Css);
+        let missing_attribute_end = parse(".a[data-active { color: red; }", StyleDialect::Css);
+        let missing_value_rhs = parse(".a { width: calc(1 + ); }", StyleDialect::Css);
+
+        assert_eq!(
+            missing_class_name.errors().first().map(|error| error.code),
+            Some(ParseErrorCode::ExpectedSelectorName)
+        );
+        assert_eq!(
+            missing_attribute_end
+                .errors()
+                .first()
+                .map(|error| error.code),
+            Some(ParseErrorCode::UnterminatedAttributeSelector)
+        );
+        assert!(
+            missing_value_rhs
+                .errors()
+                .iter()
+                .any(|error| error.code == ParseErrorCode::ExpectedValue)
+        );
+        assert!(node_kinds(&missing_class_name.syntax()).contains(&SyntaxKind::BogusSelector));
+        assert!(node_kinds(&missing_attribute_end.syntax()).contains(&SyntaxKind::BogusSelector));
+        assert!(node_kinds(&missing_value_rhs.syntax()).contains(&SyntaxKind::BogusValue));
+    }
+
+    #[test]
     fn parses_registered_group_at_rule_blocks() {
         let result = parse(
             "@media screen and (min-width: 40rem) { .card { color: red; } }",
@@ -1589,6 +1693,7 @@ mod tests {
                 .ready_surfaces
                 .contains(&"initialDialectStatementNodes")
         );
+        assert!(summary.ready_surfaces.contains(&"recoveryBogusSkeleton"));
         assert!(summary.not_ready_surfaces.contains(&"productCutover"));
     }
 
