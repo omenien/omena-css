@@ -1,4 +1,14 @@
 use engine_style_parser::ParserByteSpanV0;
+use oxc_allocator::Allocator;
+use oxc_ast::ast::{
+    Argument, ArrayExpression, ArrayExpressionElement, CallExpression, ChainElement, Class,
+    ClassElement, ComputedMemberExpression, ConditionalExpression, Declaration, Expression,
+    JSXAttributeValue, JSXChild, JSXExpression, LogicalExpression, ObjectExpression,
+    ObjectPropertyKind, ParenthesizedExpression, Program, Statement, StaticMemberExpression,
+    TSAsExpression, TSNonNullExpression, TSSatisfiesExpression,
+};
+use oxc_parser::{Parser, ParserReturn};
+use oxc_span::{SourceType, Span};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -261,50 +271,719 @@ fn collect_style_property_access_facts(
     source: &str,
     targets: &[SourceStyleBindingTarget],
 ) -> Vec<SourceStylePropertyAccessFactV0> {
-    let mut facts = Vec::new();
-    let mut cursor = 0usize;
-    while let Some(identifier) = next_code_identifier(source, cursor) {
-        cursor = identifier.end;
-        let Some(target) = targets
-            .iter()
-            .find(|target| target.binding == identifier.text)
-        else {
-            continue;
-        };
-        let member_offset = skip_js_trivia(source, identifier.end);
-        if source.as_bytes().get(member_offset) == Some(&b'.') {
-            let start = member_offset + 1;
-            let end = read_css_identifier_end(source, start);
-            if end > start {
-                facts.push(SourceStylePropertyAccessFactV0 {
-                    byte_span: ParserByteSpanV0 { start, end },
-                    target_style_uri: target.target_style_uri.clone(),
-                });
-                cursor = end;
-            }
-            continue;
-        }
-        if source.as_bytes().get(member_offset) == Some(&b'[')
-            && let Some((literal_start, literal_end, bracket_end)) =
-                bracket_string_literal_access(source, member_offset)
-        {
-            if literal_end > literal_start
-                && source[literal_start..literal_end]
-                    .chars()
-                    .all(is_css_identifier_continue)
-            {
-                facts.push(SourceStylePropertyAccessFactV0 {
-                    byte_span: ParserByteSpanV0 {
-                        start: literal_start,
-                        end: literal_end,
-                    },
-                    target_style_uri: target.target_style_uri.clone(),
-                });
-            }
-            cursor = bracket_end.min(source.len());
+    let allocator = Allocator::default();
+    let ParserReturn {
+        program, panicked, ..
+    } = Parser::new(&allocator, source, SourceType::tsx()).parse();
+    if panicked {
+        return Vec::new();
+    }
+
+    let mut collector = StylePropertyAccessAstCollector {
+        source,
+        targets,
+        facts: Vec::new(),
+    };
+    collector.collect_program(&program);
+    collector.canonicalize();
+    collector.facts
+}
+
+struct StylePropertyAccessAstCollector<'a> {
+    source: &'a str,
+    targets: &'a [SourceStyleBindingTarget],
+    facts: Vec<SourceStylePropertyAccessFactV0>,
+}
+
+impl<'a> StylePropertyAccessAstCollector<'a> {
+    fn collect_program(&mut self, program: &Program<'a>) {
+        for statement in &program.body {
+            self.collect_statement(statement);
         }
     }
-    facts
+
+    fn collect_statement(&mut self, statement: &Statement<'a>) {
+        match statement {
+            Statement::BlockStatement(statement) => {
+                for statement in &statement.body {
+                    self.collect_statement(statement);
+                }
+            }
+            Statement::ExpressionStatement(statement) => {
+                self.collect_expression(&statement.expression);
+            }
+            Statement::ReturnStatement(statement) => {
+                if let Some(argument) = &statement.argument {
+                    self.collect_expression(argument);
+                }
+            }
+            Statement::IfStatement(statement) => {
+                self.collect_expression(&statement.test);
+                self.collect_statement(&statement.consequent);
+                if let Some(alternate) = &statement.alternate {
+                    self.collect_statement(alternate);
+                }
+            }
+            Statement::ForStatement(statement) => {
+                if let Some(init) = &statement.init {
+                    self.collect_for_statement_init(init);
+                }
+                if let Some(test) = &statement.test {
+                    self.collect_expression(test);
+                }
+                if let Some(update) = &statement.update {
+                    self.collect_expression(update);
+                }
+                self.collect_statement(&statement.body);
+            }
+            Statement::ForInStatement(statement) => {
+                self.collect_expression(&statement.right);
+                self.collect_statement(&statement.body);
+            }
+            Statement::ForOfStatement(statement) => {
+                self.collect_expression(&statement.right);
+                self.collect_statement(&statement.body);
+            }
+            Statement::WhileStatement(statement) => {
+                self.collect_expression(&statement.test);
+                self.collect_statement(&statement.body);
+            }
+            Statement::DoWhileStatement(statement) => {
+                self.collect_statement(&statement.body);
+                self.collect_expression(&statement.test);
+            }
+            Statement::SwitchStatement(statement) => {
+                self.collect_expression(&statement.discriminant);
+                for switch_case in &statement.cases {
+                    if let Some(test) = &switch_case.test {
+                        self.collect_expression(test);
+                    }
+                    for consequent in &switch_case.consequent {
+                        self.collect_statement(consequent);
+                    }
+                }
+            }
+            Statement::ThrowStatement(statement) => {
+                self.collect_expression(&statement.argument);
+            }
+            Statement::TryStatement(statement) => {
+                for statement in &statement.block.body {
+                    self.collect_statement(statement);
+                }
+                if let Some(handler) = &statement.handler {
+                    for statement in &handler.body.body {
+                        self.collect_statement(statement);
+                    }
+                }
+                if let Some(finalizer) = &statement.finalizer {
+                    for statement in &finalizer.body {
+                        self.collect_statement(statement);
+                    }
+                }
+            }
+            Statement::VariableDeclaration(declaration) => {
+                self.collect_variable_declaration(declaration);
+            }
+            Statement::FunctionDeclaration(function) => {
+                self.collect_function_body(function.body.as_deref());
+            }
+            Statement::ClassDeclaration(class) => {
+                self.collect_class(class);
+            }
+            Statement::ExportNamedDeclaration(declaration) => {
+                if let Some(declaration) = &declaration.declaration {
+                    self.collect_declaration(declaration);
+                }
+            }
+            Statement::ExportDefaultDeclaration(declaration) => {
+                self.collect_export_default_declaration(&declaration.declaration);
+            }
+            Statement::TSExportAssignment(declaration) => {
+                self.collect_expression(&declaration.expression);
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_declaration(&mut self, declaration: &Declaration<'a>) {
+        match declaration {
+            Declaration::VariableDeclaration(declaration) => {
+                self.collect_variable_declaration(declaration);
+            }
+            Declaration::FunctionDeclaration(function) => {
+                self.collect_function_body(function.body.as_deref());
+            }
+            Declaration::ClassDeclaration(class) => {
+                self.collect_class(class);
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_export_default_declaration(
+        &mut self,
+        declaration: &oxc_ast::ast::ExportDefaultDeclarationKind<'a>,
+    ) {
+        match declaration {
+            oxc_ast::ast::ExportDefaultDeclarationKind::FunctionDeclaration(function) => {
+                self.collect_function_body(function.body.as_deref());
+            }
+            oxc_ast::ast::ExportDefaultDeclarationKind::ClassDeclaration(class) => {
+                self.collect_class(class);
+            }
+            oxc_ast::ast::ExportDefaultDeclarationKind::StaticMemberExpression(member) => {
+                self.collect_static_member_expression(member);
+            }
+            oxc_ast::ast::ExportDefaultDeclarationKind::ComputedMemberExpression(member) => {
+                self.collect_computed_member_expression(member);
+            }
+            oxc_ast::ast::ExportDefaultDeclarationKind::CallExpression(expression) => {
+                self.collect_call_expression(expression);
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_for_statement_init(&mut self, init: &oxc_ast::ast::ForStatementInit<'a>) {
+        match init {
+            oxc_ast::ast::ForStatementInit::VariableDeclaration(declaration) => {
+                self.collect_variable_declaration(declaration);
+            }
+            oxc_ast::ast::ForStatementInit::StaticMemberExpression(member) => {
+                self.collect_static_member_expression(member);
+            }
+            oxc_ast::ast::ForStatementInit::ComputedMemberExpression(member) => {
+                self.collect_computed_member_expression(member);
+            }
+            oxc_ast::ast::ForStatementInit::CallExpression(expression) => {
+                self.collect_call_expression(expression);
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_variable_declaration(
+        &mut self,
+        declaration: &oxc_ast::ast::VariableDeclaration<'a>,
+    ) {
+        for declarator in &declaration.declarations {
+            if let Some(init) = &declarator.init {
+                self.collect_expression(init);
+            }
+        }
+    }
+
+    fn collect_function_body(&mut self, body: Option<&oxc_ast::ast::FunctionBody<'a>>) {
+        let Some(body) = body else {
+            return;
+        };
+        for statement in &body.statements {
+            self.collect_statement(statement);
+        }
+    }
+
+    fn collect_class(&mut self, class: &Class<'a>) {
+        if let Some(super_class) = &class.super_class {
+            self.collect_expression(super_class);
+        }
+        for element in &class.body.body {
+            match element {
+                ClassElement::MethodDefinition(method) => {
+                    self.collect_function_body(method.value.body.as_deref());
+                }
+                ClassElement::PropertyDefinition(property) => {
+                    if property.computed {
+                        self.collect_property_key(&property.key);
+                    }
+                    if let Some(value) = &property.value {
+                        self.collect_expression(value);
+                    }
+                }
+                ClassElement::AccessorProperty(property) => {
+                    if property.computed {
+                        self.collect_property_key(&property.key);
+                    }
+                    if let Some(value) = &property.value {
+                        self.collect_expression(value);
+                    }
+                }
+                ClassElement::StaticBlock(block) => {
+                    for statement in &block.body {
+                        self.collect_statement(statement);
+                    }
+                }
+                ClassElement::TSIndexSignature(_) => {}
+            }
+        }
+    }
+
+    fn collect_expression(&mut self, expression: &Expression<'a>) {
+        match expression {
+            Expression::StaticMemberExpression(member) => {
+                self.collect_static_member_expression(member);
+            }
+            Expression::ComputedMemberExpression(member) => {
+                self.collect_computed_member_expression(member);
+            }
+            Expression::PrivateFieldExpression(member) => {
+                self.collect_expression(&member.object);
+            }
+            Expression::ArrayExpression(expression) => {
+                self.collect_array_expression(expression);
+            }
+            Expression::ObjectExpression(expression) => {
+                self.collect_object_expression(expression);
+            }
+            Expression::CallExpression(expression) => {
+                self.collect_call_expression(expression);
+            }
+            Expression::NewExpression(expression) => {
+                self.collect_expression(&expression.callee);
+                for argument in &expression.arguments {
+                    self.collect_argument(argument);
+                }
+            }
+            Expression::ChainExpression(expression) => {
+                self.collect_chain_element(&expression.expression);
+            }
+            Expression::ConditionalExpression(expression) => {
+                self.collect_conditional_expression(expression);
+            }
+            Expression::BinaryExpression(expression) => {
+                self.collect_expression(&expression.left);
+                self.collect_expression(&expression.right);
+            }
+            Expression::LogicalExpression(expression) => {
+                self.collect_logical_expression(expression);
+            }
+            Expression::AssignmentExpression(expression) => {
+                self.collect_expression(&expression.right);
+            }
+            Expression::SequenceExpression(expression) => {
+                for expression in &expression.expressions {
+                    self.collect_expression(expression);
+                }
+            }
+            Expression::ParenthesizedExpression(expression) => {
+                self.collect_parenthesized_expression(expression);
+            }
+            Expression::UnaryExpression(expression) => {
+                self.collect_expression(&expression.argument);
+            }
+            Expression::AwaitExpression(expression) => {
+                self.collect_expression(&expression.argument);
+            }
+            Expression::TemplateLiteral(expression) => {
+                for expression in &expression.expressions {
+                    self.collect_expression(expression);
+                }
+            }
+            Expression::TaggedTemplateExpression(expression) => {
+                self.collect_expression(&expression.tag);
+                for expression in &expression.quasi.expressions {
+                    self.collect_expression(expression);
+                }
+            }
+            Expression::ArrowFunctionExpression(expression) => {
+                self.collect_function_body(Some(&expression.body));
+            }
+            Expression::FunctionExpression(expression) => {
+                self.collect_function_body(expression.body.as_deref());
+            }
+            Expression::ClassExpression(class) => {
+                self.collect_class(class);
+            }
+            Expression::ImportExpression(expression) => {
+                self.collect_expression(&expression.source);
+                if let Some(options) = &expression.options {
+                    self.collect_expression(options);
+                }
+            }
+            Expression::JSXElement(element) => {
+                self.collect_jsx_element(element);
+            }
+            Expression::JSXFragment(fragment) => {
+                for child in &fragment.children {
+                    self.collect_jsx_child(child);
+                }
+            }
+            Expression::TSAsExpression(expression) => {
+                self.collect_ts_as_expression(expression);
+            }
+            Expression::TSSatisfiesExpression(expression) => {
+                self.collect_ts_satisfies_expression(expression);
+            }
+            Expression::TSTypeAssertion(expression) => {
+                self.collect_expression(&expression.expression);
+            }
+            Expression::TSNonNullExpression(expression) => {
+                self.collect_ts_non_null_expression(expression);
+            }
+            Expression::TSInstantiationExpression(expression) => {
+                self.collect_expression(&expression.expression);
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_array_expression_element(&mut self, element: &ArrayExpressionElement<'a>) {
+        match element {
+            ArrayExpressionElement::SpreadElement(spread) => {
+                self.collect_expression(&spread.argument);
+            }
+            ArrayExpressionElement::StaticMemberExpression(member) => {
+                self.collect_static_member_expression(member);
+            }
+            ArrayExpressionElement::ComputedMemberExpression(member) => {
+                self.collect_computed_member_expression(member);
+            }
+            ArrayExpressionElement::CallExpression(expression) => {
+                self.collect_call_expression(expression);
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_argument(&mut self, argument: &Argument<'a>) {
+        match argument {
+            Argument::SpreadElement(spread) => {
+                self.collect_expression(&spread.argument);
+            }
+            Argument::StaticMemberExpression(member) => {
+                self.collect_static_member_expression(member);
+            }
+            Argument::ComputedMemberExpression(member) => {
+                self.collect_computed_member_expression(member);
+            }
+            Argument::CallExpression(expression) => {
+                self.collect_call_expression(expression);
+            }
+            Argument::ConditionalExpression(expression) => {
+                self.collect_conditional_expression(expression);
+            }
+            Argument::LogicalExpression(expression) => {
+                self.collect_logical_expression(expression);
+            }
+            Argument::ArrayExpression(expression) => {
+                self.collect_array_expression(expression);
+            }
+            Argument::ObjectExpression(expression) => {
+                self.collect_object_expression(expression);
+            }
+            Argument::ParenthesizedExpression(expression) => {
+                self.collect_parenthesized_expression(expression);
+            }
+            Argument::TSAsExpression(expression) => {
+                self.collect_ts_as_expression(expression);
+            }
+            Argument::TSSatisfiesExpression(expression) => {
+                self.collect_ts_satisfies_expression(expression);
+            }
+            Argument::TSNonNullExpression(expression) => {
+                self.collect_ts_non_null_expression(expression);
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_chain_element(&mut self, element: &ChainElement<'a>) {
+        match element {
+            ChainElement::CallExpression(expression) => {
+                self.collect_expression(&expression.callee);
+                for argument in &expression.arguments {
+                    self.collect_argument(argument);
+                }
+            }
+            ChainElement::StaticMemberExpression(member) => {
+                self.collect_static_member_expression(member);
+            }
+            ChainElement::ComputedMemberExpression(member) => {
+                self.collect_computed_member_expression(member);
+            }
+            ChainElement::PrivateFieldExpression(member) => {
+                self.collect_expression(&member.object);
+            }
+            ChainElement::TSNonNullExpression(expression) => {
+                self.collect_expression(&expression.expression);
+            }
+        }
+    }
+
+    fn collect_property_key(&mut self, key: &oxc_ast::ast::PropertyKey<'a>) {
+        match key {
+            oxc_ast::ast::PropertyKey::StaticMemberExpression(member) => {
+                self.collect_static_member_expression(member);
+            }
+            oxc_ast::ast::PropertyKey::ComputedMemberExpression(member) => {
+                self.collect_computed_member_expression(member);
+            }
+            oxc_ast::ast::PropertyKey::CallExpression(expression) => {
+                self.collect_call_expression(expression);
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_jsx_element(&mut self, element: &oxc_ast::ast::JSXElement<'a>) {
+        for attribute in &element.opening_element.attributes {
+            match attribute {
+                oxc_ast::ast::JSXAttributeItem::Attribute(attribute) => {
+                    if let Some(value) = &attribute.value {
+                        self.collect_jsx_attribute_value(value);
+                    }
+                }
+                oxc_ast::ast::JSXAttributeItem::SpreadAttribute(attribute) => {
+                    self.collect_expression(&attribute.argument);
+                }
+            }
+        }
+        for child in &element.children {
+            self.collect_jsx_child(child);
+        }
+    }
+
+    fn collect_jsx_attribute_value(&mut self, value: &JSXAttributeValue<'a>) {
+        match value {
+            JSXAttributeValue::ExpressionContainer(container) => {
+                self.collect_jsx_expression(&container.expression);
+            }
+            JSXAttributeValue::Element(element) => {
+                self.collect_jsx_element(element);
+            }
+            JSXAttributeValue::Fragment(fragment) => {
+                for child in &fragment.children {
+                    self.collect_jsx_child(child);
+                }
+            }
+            JSXAttributeValue::StringLiteral(_) => {}
+        }
+    }
+
+    fn collect_jsx_child(&mut self, child: &JSXChild<'a>) {
+        match child {
+            JSXChild::Element(element) => {
+                self.collect_jsx_element(element);
+            }
+            JSXChild::Fragment(fragment) => {
+                for child in &fragment.children {
+                    self.collect_jsx_child(child);
+                }
+            }
+            JSXChild::ExpressionContainer(container) => {
+                self.collect_jsx_expression(&container.expression);
+            }
+            JSXChild::Spread(spread) => {
+                self.collect_expression(&spread.expression);
+            }
+            JSXChild::Text(_) => {}
+        }
+    }
+
+    fn collect_jsx_expression(&mut self, expression: &JSXExpression<'a>) {
+        match expression {
+            JSXExpression::StaticMemberExpression(member) => {
+                self.collect_static_member_expression(member);
+            }
+            JSXExpression::ComputedMemberExpression(member) => {
+                self.collect_computed_member_expression(member);
+            }
+            JSXExpression::CallExpression(expression) => {
+                self.collect_call_expression(expression);
+            }
+            JSXExpression::ConditionalExpression(expression) => {
+                self.collect_conditional_expression(expression);
+            }
+            JSXExpression::LogicalExpression(expression) => {
+                self.collect_logical_expression(expression);
+            }
+            JSXExpression::ArrayExpression(expression) => {
+                self.collect_array_expression(expression);
+            }
+            JSXExpression::ObjectExpression(expression) => {
+                self.collect_object_expression(expression);
+            }
+            JSXExpression::ParenthesizedExpression(expression) => {
+                self.collect_parenthesized_expression(expression);
+            }
+            JSXExpression::TSAsExpression(expression) => {
+                self.collect_ts_as_expression(expression);
+            }
+            JSXExpression::TSSatisfiesExpression(expression) => {
+                self.collect_ts_satisfies_expression(expression);
+            }
+            JSXExpression::TSNonNullExpression(expression) => {
+                self.collect_ts_non_null_expression(expression);
+            }
+            JSXExpression::JSXElement(element) => {
+                self.collect_jsx_element(element);
+            }
+            JSXExpression::JSXFragment(fragment) => {
+                for child in &fragment.children {
+                    self.collect_jsx_child(child);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_array_expression(&mut self, expression: &ArrayExpression<'a>) {
+        for element in &expression.elements {
+            self.collect_array_expression_element(element);
+        }
+    }
+
+    fn collect_object_expression(&mut self, expression: &ObjectExpression<'a>) {
+        for property in &expression.properties {
+            match property {
+                ObjectPropertyKind::ObjectProperty(property) => {
+                    if property.computed {
+                        self.collect_property_key(&property.key);
+                    }
+                    self.collect_expression(&property.value);
+                }
+                ObjectPropertyKind::SpreadProperty(spread) => {
+                    self.collect_expression(&spread.argument);
+                }
+            }
+        }
+    }
+
+    fn collect_call_expression(&mut self, expression: &CallExpression<'a>) {
+        self.collect_expression(&expression.callee);
+        for argument in &expression.arguments {
+            self.collect_argument(argument);
+        }
+    }
+
+    fn collect_conditional_expression(&mut self, expression: &ConditionalExpression<'a>) {
+        self.collect_expression(&expression.test);
+        self.collect_expression(&expression.consequent);
+        self.collect_expression(&expression.alternate);
+    }
+
+    fn collect_logical_expression(&mut self, expression: &LogicalExpression<'a>) {
+        self.collect_expression(&expression.left);
+        self.collect_expression(&expression.right);
+    }
+
+    fn collect_parenthesized_expression(&mut self, expression: &ParenthesizedExpression<'a>) {
+        self.collect_expression(&expression.expression);
+    }
+
+    fn collect_ts_as_expression(&mut self, expression: &TSAsExpression<'a>) {
+        self.collect_expression(&expression.expression);
+    }
+
+    fn collect_ts_satisfies_expression(&mut self, expression: &TSSatisfiesExpression<'a>) {
+        self.collect_expression(&expression.expression);
+    }
+
+    fn collect_ts_non_null_expression(&mut self, expression: &TSNonNullExpression<'a>) {
+        self.collect_expression(&expression.expression);
+    }
+
+    fn collect_static_member_expression(&mut self, member: &StaticMemberExpression<'a>) {
+        if let Some(target) = self.target_for_object(&member.object)
+            && let Some(byte_span) = self.css_identifier_span(member.property.span)
+        {
+            self.facts.push(SourceStylePropertyAccessFactV0 {
+                byte_span,
+                target_style_uri: target.target_style_uri.clone(),
+            });
+        }
+        self.collect_expression(&member.object);
+    }
+
+    fn collect_computed_member_expression(&mut self, member: &ComputedMemberExpression<'a>) {
+        if let Some(target) = self.target_for_object(&member.object)
+            && let Some(byte_span) = self.static_string_expression_content_span(&member.expression)
+        {
+            self.facts.push(SourceStylePropertyAccessFactV0 {
+                byte_span,
+                target_style_uri: target.target_style_uri.clone(),
+            });
+        }
+        self.collect_expression(&member.object);
+        self.collect_expression(&member.expression);
+    }
+
+    fn target_for_object(&self, expression: &Expression<'a>) -> Option<&SourceStyleBindingTarget> {
+        match expression {
+            Expression::Identifier(identifier) => self
+                .targets
+                .iter()
+                .find(|target| target.binding == identifier.name.as_str()),
+            Expression::ParenthesizedExpression(expression) => {
+                self.target_for_object(&expression.expression)
+            }
+            Expression::TSAsExpression(expression) => {
+                self.target_for_object(&expression.expression)
+            }
+            Expression::TSSatisfiesExpression(expression) => {
+                self.target_for_object(&expression.expression)
+            }
+            Expression::TSTypeAssertion(expression) => {
+                self.target_for_object(&expression.expression)
+            }
+            Expression::TSNonNullExpression(expression) => {
+                self.target_for_object(&expression.expression)
+            }
+            Expression::TSInstantiationExpression(expression) => {
+                self.target_for_object(&expression.expression)
+            }
+            _ => None,
+        }
+    }
+
+    fn static_string_expression_content_span(
+        &self,
+        expression: &Expression<'a>,
+    ) -> Option<ParserByteSpanV0> {
+        match expression {
+            Expression::StringLiteral(literal) => self.css_identifier_content_span(literal.span),
+            Expression::TemplateLiteral(literal) if literal.expressions.is_empty() => {
+                self.css_identifier_content_span(literal.span)
+            }
+            _ => None,
+        }
+    }
+
+    fn css_identifier_span(&self, span: Span) -> Option<ParserByteSpanV0> {
+        let span = parser_byte_span(span);
+        let text = self.source.get(span.start..span.end)?;
+        (!text.is_empty() && text.chars().all(is_css_identifier_continue)).then_some(span)
+    }
+
+    fn css_identifier_content_span(&self, span: Span) -> Option<ParserByteSpanV0> {
+        let span = parser_byte_span(span);
+        if span.end <= span.start + 1 {
+            return None;
+        }
+        let content = ParserByteSpanV0 {
+            start: span.start + 1,
+            end: span.end - 1,
+        };
+        let text = self.source.get(content.start..content.end)?;
+        (!text.is_empty() && text.chars().all(is_css_identifier_continue)).then_some(content)
+    }
+
+    fn canonicalize(&mut self) {
+        self.facts.sort_by(|left, right| {
+            left.byte_span
+                .start
+                .cmp(&right.byte_span.start)
+                .then_with(|| left.byte_span.end.cmp(&right.byte_span.end))
+                .then_with(|| left.target_style_uri.cmp(&right.target_style_uri))
+        });
+        self.facts.dedup();
+    }
+}
+
+fn parser_byte_span(span: Span) -> ParserByteSpanV0 {
+    ParserByteSpanV0 {
+        start: span.start as usize,
+        end: span.end as usize,
+    }
 }
 
 fn collect_classnames_bind_utility_bindings(
@@ -1891,18 +2570,6 @@ fn bracket_string_literal_access(
     Some((literal_start, literal_end, closing_bracket + 1))
 }
 
-fn read_css_identifier_end(source: &str, start: usize) -> usize {
-    let start = char_boundary_ceil(source, start);
-    let mut end = start;
-    for (relative_index, ch) in source.get(start..).unwrap_or_default().char_indices() {
-        if !is_css_identifier_continue(ch) {
-            break;
-        }
-        end = start + relative_index + ch.len_utf8();
-    }
-    end
-}
-
 fn read_js_identifier(source: &str, start: usize) -> Option<(&str, usize)> {
     let start = char_boundary_ceil(source, start);
     let first = source.get(start..)?.chars().next()?;
@@ -1976,6 +2643,41 @@ export function App({ tone }: { tone: "warm" | "cool" }) {
                 && target.prefix == "tone-"
                 && target.target_style_uri.as_deref() == Some("file:///workspace/App.module.scss")
         }));
+    }
+
+    #[test]
+    fn collects_style_property_accesses_from_oxc_ast() {
+        let source = r#"import styles from "./App.module.scss";
+const text = "styles.fake";
+export function View() {
+  return <div className={styles.root} data-token={styles["item--primary"]} />;
+}"#;
+
+        let index = summarize_omena_bridge_source_syntax_index(
+            source,
+            vec![SourceImportedStyleBindingV0 {
+                binding: "styles".to_string(),
+                style_uri: "file:///workspace/App.module.scss".to_string(),
+            }],
+            Vec::new(),
+        );
+
+        let access_names = index
+            .style_property_accesses
+            .iter()
+            .map(|access| &source[access.byte_span.start..access.byte_span.end])
+            .collect::<Vec<_>>();
+
+        assert_eq!(access_names, vec!["root", "item--primary"]);
+        assert!(index.style_property_accesses.iter().all(|access| {
+            access.target_style_uri.as_deref() == Some("file:///workspace/App.module.scss")
+        }));
+        assert!(
+            !index
+                .selector_references
+                .iter()
+                .any(|reference| selector_reference_name(source, reference) == "fake")
+        );
     }
 
     #[test]
