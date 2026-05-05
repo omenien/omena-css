@@ -400,6 +400,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "sassIndentedStyleFacts",
             "differentialCorpusSeed",
             "midTypingNoPanicPropertySlice",
+            "typedNumericValueAtomCstNodes",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -1641,7 +1642,17 @@ impl<'text> Parser<'text> {
             Some(SyntaxKind::Ident) if self.next_kind() == Some(SyntaxKind::LeftParen) => {
                 self.parse_function_call(recovery)
             }
-            Some(SyntaxKind::Number | SyntaxKind::Percentage | SyntaxKind::Dimension) => {
+            Some(SyntaxKind::Number) => {
+                self.builder.start_node(SyntaxKind::NumberValue);
+                self.token_current();
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::Percentage) => {
+                self.builder.start_node(SyntaxKind::PercentageValue);
+                self.token_current();
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::Dimension) => {
                 self.builder.start_node(SyntaxKind::DimensionValue);
                 self.token_current();
                 self.builder.finish_node();
@@ -5242,6 +5253,14 @@ mod tests {
             .iter()
             .filter(|kind| **kind == SyntaxKind::DimensionValue)
             .count();
+        let number_value_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::NumberValue)
+            .count();
+        let percentage_value_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::PercentageValue)
+            .count();
 
         assert!(result.errors().is_empty());
         assert!(kinds.contains(&SyntaxKind::ColorValue));
@@ -5251,7 +5270,9 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::IdentifierValue));
         assert!(kinds.contains(&SyntaxKind::StringValue));
         assert!(kinds.contains(&SyntaxKind::UnicodeRangeValue));
-        assert!(dimension_value_count >= 5);
+        assert!(dimension_value_count >= 4);
+        assert!(number_value_count >= 1);
+        assert!(percentage_value_count >= 1);
     }
 
     #[test]
@@ -5952,6 +5973,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"midTypingNoPanicPropertySlice")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"typedNumericValueAtomCstNodes")
         );
         assert!(
             summary

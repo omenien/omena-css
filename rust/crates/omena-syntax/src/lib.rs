@@ -322,6 +322,8 @@ syntax_kinds! {
     IdentifierValue = 0x1061,
     StringValue = 0x1062,
     UnicodeRangeValue = 0x1063,
+    NumberValue = 0x1064,
+    PercentageValue = 0x1065,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,
