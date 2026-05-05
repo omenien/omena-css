@@ -1,4 +1,6 @@
 import {
+  canRewriteStyleDependencyReferences,
+  collectDirectStyleDependencyRenameSites,
   planSelectorRename,
   readExpressionRenameTarget,
   type SelectorRenameReadResult,
@@ -181,7 +183,30 @@ function finalizeRustSourceRenameTarget(
     ? buildSelectorReferenceRewriteSafetyFromRustGraph(baseRewriteSafety, graphReferences)
     : baseRewriteSafety;
   if (rewriteSafety.hasBlockingStyleDependencyReferences) {
-    return { kind: "blocked", reason: "styleDependencyReferences" };
+    const styleDependencySites = collectDirectStyleDependencyRenameSites(
+      deps,
+      scssPath,
+      rewritePolicy.summary.canonicalName,
+    );
+    if (!canRewriteStyleDependencyReferences(rewriteSafety, styleDependencySites)) {
+      return { kind: "blocked", reason: "styleDependencyReferences" };
+    }
+    const target: SelectorRenameTarget = {
+      scssPath,
+      scssUri: pathToFileUrl(scssPath),
+      styleDocument,
+      selector,
+      styleRewritePolicy: rewritePolicy.summary,
+      placeholder: expression.className,
+      placeholderRange: expression.range,
+      rewriteSafety,
+      styleDependencySites,
+      aliasMode,
+    };
+    return {
+      kind: "target",
+      target,
+    };
   }
   if (rewriteSafety.hasBlockingExpandedReferences) {
     return { kind: "blocked", reason: "expandedReferences" };

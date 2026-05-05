@@ -49,6 +49,77 @@ describe("style rename query", () => {
     expect(planStyleRenameAtCursor(SCSS_PATH, 99, 0, styleDocument!, deps, "status")).toBeNull();
   });
 
+  it("renames selectors through direct cross-file composes references", () => {
+    const basePath = "/fake/src/Base.module.scss";
+    const baseScss = `.base { color: red; }\n`;
+    const buttonScss = `.button {
+  composes: base from "./Base.module.scss";
+}
+`;
+    const baseDocument = parseStyleDocument(baseScss, basePath);
+    const buttonDocument = parseStyleDocument(buttonScss, SCSS_PATH);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(basePath, baseDocument);
+    styleDependencyGraph.record(SCSS_PATH, buttonDocument);
+    const deps = makeBaseDeps({
+      styleDependencyGraph,
+      styleDocumentForPath: (filePath) => {
+        if (filePath === basePath) return baseDocument;
+        if (filePath === SCSS_PATH) return buttonDocument;
+        return null;
+      },
+    });
+
+    const plan = planStyleRenameAtCursor(basePath, 0, 2, baseDocument, deps, "surface");
+    expect(plan?.kind).toBe("plan");
+    expect(plan?.kind === "plan" ? plan.plan.edits : []).toMatchObject([
+      {
+        uri: "file:///fake/src/Base.module.scss",
+        range: { start: { line: 0, character: 1 }, end: { line: 0, character: 5 } },
+        newText: "surface",
+      },
+      {
+        uri: "file:///fake/src/Button.module.scss",
+        range: { start: { line: 1, character: 12 }, end: { line: 1, character: 16 } },
+        newText: "surface",
+      },
+    ]);
+  });
+
+  it("blocks selector rename when composes references are transitive", () => {
+    const basePath = "/fake/src/Base.module.scss";
+    const resetPath = "/fake/src/Reset.module.scss";
+    const baseScss = `.base { color: red; }\n`;
+    const resetScss = `.reset {
+  composes: base from "./Base.module.scss";
+}
+`;
+    const buttonScss = `.button {
+  composes: reset from "./Reset.module.scss";
+}
+`;
+    const baseDocument = parseStyleDocument(baseScss, basePath);
+    const resetDocument = parseStyleDocument(resetScss, resetPath);
+    const buttonDocument = parseStyleDocument(buttonScss, SCSS_PATH);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(basePath, baseDocument);
+    styleDependencyGraph.record(resetPath, resetDocument);
+    styleDependencyGraph.record(SCSS_PATH, buttonDocument);
+    const deps = makeBaseDeps({
+      styleDependencyGraph,
+      styleDocumentForPath: (filePath) => {
+        if (filePath === basePath) return baseDocument;
+        if (filePath === resetPath) return resetDocument;
+        if (filePath === SCSS_PATH) return buttonDocument;
+        return null;
+      },
+    });
+
+    const target = readStyleRenameTargetAtCursor(basePath, 0, 2, baseDocument, deps);
+    expect(target).toEqual({ kind: "blocked", reason: "styleDependencyReferences" });
+    expect(planStyleRenameAtCursor(basePath, 0, 2, baseDocument, deps, "surface")).toBeNull();
+  });
+
   it("reads and plans same-file Sass variable rename edits", () => {
     const scss = `$gap: 1rem;
 .button {

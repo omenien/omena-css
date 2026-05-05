@@ -1,4 +1,6 @@
 import {
+  canRewriteStyleDependencyReferences,
+  collectDirectStyleDependencyRenameSites,
   planSelectorRename,
   type RenameEditBlockReason,
   type SelectorRenamePlanResult,
@@ -290,7 +292,30 @@ function readStyleSelectorRenameTargetAtCursor(
     options,
   );
   if (rewriteSafety.hasBlockingStyleDependencyReferences) {
-    return { kind: "blocked", reason: "styleDependencyReferences" };
+    const styleDependencySites = collectDirectStyleDependencyRenameSites(
+      deps,
+      filePath,
+      rewritePolicy.summary.canonicalName,
+    );
+    if (!canRewriteStyleDependencyReferences(rewriteSafety, styleDependencySites)) {
+      return { kind: "blocked", reason: "styleDependencyReferences" };
+    }
+    const target: SelectorRenameTarget = {
+      scssPath: filePath,
+      scssUri: pathToFileUrl(filePath),
+      styleDocument,
+      selector,
+      styleRewritePolicy: rewritePolicy.summary,
+      placeholder: selector.name,
+      placeholderRange: selector.bemSuffix?.rawTokenRange ?? selector.range,
+      rewriteSafety,
+      styleDependencySites,
+      aliasMode,
+    };
+    return {
+      kind: "target",
+      target,
+    };
   }
   if (rewriteSafety.hasBlockingExpandedReferences) {
     return { kind: "blocked", reason: "expandedReferences" };

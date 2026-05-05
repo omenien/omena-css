@@ -16,6 +16,7 @@ export interface StyleDependencySelectorRef {
   readonly filePath: string;
   readonly canonicalName: string;
   readonly reason: StyleDependencyReason;
+  readonly range?: Range;
 }
 
 interface StyleDependencyEdge {
@@ -24,6 +25,7 @@ interface StyleDependencyEdge {
   readonly toFilePath: string;
   readonly toCanonicalName: string;
   readonly reason: StyleDependencyReason;
+  readonly range?: Range;
 }
 
 export interface SassModuleMemberDependencyRef {
@@ -202,11 +204,13 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
           filePath: edge.toFilePath,
           canonicalName: edge.toCanonicalName,
           reason: edge.reason,
+          ...(edge.range ? { range: edge.range } : {}),
         });
         push(this.incoming, selectorKey(edge.toFilePath, edge.toCanonicalName), {
           filePath: edge.fromFilePath,
           canonicalName: edge.fromCanonicalName,
           reason: edge.reason,
+          ...(edge.range ? { range: edge.range } : {}),
         });
       }
       for (const edge of edges.sassModuleMemberEdges) {
@@ -284,31 +288,42 @@ function collectEdges(
       if (!ref.from) {
         for (const className of ref.classNames) {
           if (!canonicalNames.has(className)) continue;
-          edges.push({
+          const edge: StyleDependencyEdge = {
             fromFilePath: filePath,
             fromCanonicalName: selector.canonicalName,
             toFilePath: filePath,
             toCanonicalName: className,
             reason: "localComposes",
-          });
+          };
+          const range = composesClassRange(ref, className);
+          edges.push(range ? { ...edge, range } : edge);
         }
         continue;
       }
       if (!isRelativeSpecifier(ref.from)) continue;
       const targetPath = path.resolve(path.dirname(filePath), ref.from);
       for (const className of ref.classNames) {
-        edges.push({
+        const edge: StyleDependencyEdge = {
           fromFilePath: filePath,
           fromCanonicalName: selector.canonicalName,
           toFilePath: targetPath,
           toCanonicalName: className,
           reason: "crossFileComposes",
-        });
+        };
+        const range = composesClassRange(ref, className);
+        edges.push(range ? { ...edge, range } : edge);
       }
     }
   }
 
   return edges;
+}
+
+function composesClassRange(
+  ref: StyleDocumentHIR["selectors"][number]["composes"][number],
+  className: string,
+): Range | null {
+  return ref.classTokens?.find((token) => token.className === className)?.range ?? null;
 }
 
 function collectSassModuleMemberEdges(

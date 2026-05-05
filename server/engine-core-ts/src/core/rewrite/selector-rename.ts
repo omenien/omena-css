@@ -1,7 +1,7 @@
 import type { BemSuffixInfo, Range } from "@css-module-explainer/shared";
 import type { ClassExpressionHIR } from "../hir/source-types";
 import type { SelectorDeclHIR, StyleDocumentHIR } from "../hir/style-types";
-import type { ReferenceQueryEnv } from "../query/find-references";
+import type { ReferenceQueryEnv, ResolvedReferenceSite } from "../query/find-references";
 import { findSelectorAtCursor } from "../query/find-style-selector";
 import {
   readSelectorRewriteSafetySummary,
@@ -45,6 +45,7 @@ export interface SelectorRenameTarget {
   readonly placeholder: string;
   readonly placeholderRange: Range;
   readonly rewriteSafety: SelectorRewriteSafetySummary;
+  readonly styleDependencySites?: readonly ResolvedReferenceSite[];
   readonly aliasMode: ClassnameTransformMode;
 }
 
@@ -146,6 +147,13 @@ export function planSelectorRename(
       newText,
     });
   }
+  for (const site of target.styleDependencySites ?? []) {
+    edits.push({
+      uri: site.uri,
+      range: site.range,
+      newText: newName,
+    });
+  }
 
   return { kind: "plan", plan: { target, edits } };
 }
@@ -200,7 +208,29 @@ function finalizeSelectorRenameTarget(
     rewritePolicy.summary.canonicalName,
   );
   if (rewriteSafety.hasBlockingStyleDependencyReferences) {
-    return { kind: "blocked", reason: "styleDependencyReferences" };
+    const styleDependencySites = collectDirectStyleDependencyRenameSites(
+      env,
+      args.scssPath,
+      rewritePolicy.summary.canonicalName,
+    );
+    if (!canRewriteStyleDependencyReferences(rewriteSafety, styleDependencySites)) {
+      return { kind: "blocked", reason: "styleDependencyReferences" };
+    }
+    return {
+      kind: "target",
+      target: {
+        scssPath: args.scssPath,
+        scssUri: pathToFileUrl(args.scssPath),
+        styleDocument: args.styleDocument,
+        selector: args.selector,
+        styleRewritePolicy: rewritePolicy.summary,
+        placeholder: args.placeholder,
+        placeholderRange: args.placeholderRange,
+        rewriteSafety,
+        styleDependencySites,
+        aliasMode,
+      },
+    };
   }
   if (rewriteSafety.hasBlockingExpandedReferences) {
     return { kind: "blocked", reason: "expandedReferences" };
@@ -220,6 +250,42 @@ function finalizeSelectorRenameTarget(
       aliasMode,
     },
   };
+}
+
+export function collectDirectStyleDependencyRenameSites(
+  deps: ReferenceQueryEnv,
+  scssPath: string,
+  canonicalName: string,
+): readonly ResolvedReferenceSite[] {
+  if (!deps.styleDependencyGraph) return [];
+  return deps.styleDependencyGraph.getIncoming(scssPath, canonicalName).flatMap((incoming) =>
+    incoming.range
+      ? [
+          {
+            uri: pathToFileUrl(incoming.filePath),
+            range: incoming.range,
+            className: canonicalName,
+            selectorCertainty: "exact" as const,
+            expansion: "direct" as const,
+            referenceKind: "styleDependency" as const,
+          },
+        ]
+      : [],
+  );
+}
+
+export function canRewriteStyleDependencyReferences(
+  rewriteSafety: SelectorRewriteSafetySummary,
+  styleDependencySites: readonly ResolvedReferenceSite[],
+): boolean {
+  const styleDependencyReferenceCount = rewriteSafety.usage.allSites.filter(
+    (site) => site.referenceKind === "styleDependency",
+  ).length;
+  return (
+    styleDependencyReferenceCount > 0 &&
+    styleDependencySites.length === styleDependencyReferenceCount &&
+    !rewriteSafety.hasBlockingExpandedReferences
+  );
 }
 
 function pickAliasForm(mode: ClassnameTransformMode, newName: string): string | null {
