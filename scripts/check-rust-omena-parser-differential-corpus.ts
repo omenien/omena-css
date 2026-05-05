@@ -254,6 +254,12 @@ const TOKEN_TEXT_CORPUS = [
     ],
   },
   {
+    label: "css-syntax-input-preprocessing-token-text",
+    dialect: "css",
+    source: `\u{feff}.a\0b { background: url(foo\0bar); }`,
+    expectedTokenTexts: ["a\u{fffd}b", "url(foo\u{fffd}bar)"],
+  },
+  {
     label: "scss-dialect-token-text",
     dialect: "scss",
     source: `$gap: 1rem;\n.card-#{$variant} { color: $gap; }`,
@@ -366,6 +372,14 @@ function normalizeVariableName(name: string): string {
 
 function sortedUnique(values: readonly string[]): string[] {
   return [...new Set(values)].toSorted();
+}
+
+function normalizeCssSyntaxInputText(text: string): string {
+  return text.replaceAll("\0", "\u{fffd}");
+}
+
+function sourceByteSlice(source: string, start: number, end: number): string {
+  return Buffer.from(source, "utf8").subarray(start, end).toString("utf8");
 }
 
 function assertCommonFacts(actual: OmenaParserStyleFactsV0, label: string): void {
@@ -508,10 +522,12 @@ void (async () => {
     assert.equal(actual.parserErrorCount, 0, `${entry.label} should lex without errors`);
     for (const token of actual.tokens) {
       assert.equal(
-        entry.source.slice(token.start, token.end),
+        normalizeCssSyntaxInputText(sourceByteSlice(entry.source, token.start, token.end)),
         token.text,
         `${entry.label} token text must match source range for ${token.kind}`,
       );
+      assert.ok(!token.text.includes("\0"), `${entry.label} token text must replace NULL`);
+      assert.ok(!token.text.includes("\u{feff}"), `${entry.label} token text must skip BOM`);
     }
     for (const expectedText of entry.expectedTokenTexts) {
       assert.ok(

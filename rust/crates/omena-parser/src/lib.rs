@@ -531,7 +531,7 @@ pub fn lex_with_extension(text: &str, extension: &impl DialectExtension) -> LexR
             .map(|token| LexedToken {
                 kind: token.kind,
                 range: token.range,
-                text: token.text.to_string(),
+                text: public_token_text(token.text),
             })
             .collect(),
         errors,
@@ -3643,9 +3643,7 @@ where
         while let Some(current) = self.current_char() {
             let start = self.offset;
             match current {
-                '\u{feff}' => {
-                    self.consume_static(SyntaxKind::Whitespace, start, current.len_utf8())
-                }
+                '\u{feff}' if start == 0 => self.bump_current(),
                 '\r' | '\n' if self.extension.dialect() == StyleDialect::Sass => {
                     self.consume_sass_indented_newline(start)
                 }
@@ -4468,8 +4466,19 @@ where
     }
 }
 
+fn public_token_text(text: &str) -> String {
+    text.chars()
+        .map(css_syntax_preprocessed_char)
+        .collect::<String>()
+}
+
+fn css_syntax_preprocessed_char(char: char) -> char {
+    if char == '\0' { '\u{fffd}' } else { char }
+}
+
 fn is_name_start(char: char) -> bool {
-    char == '\0' || char == '_' || char == '-' || char.is_alphabetic() || !char.is_ascii()
+    let char = css_syntax_preprocessed_char(char);
+    char == '_' || char == '-' || char.is_alphabetic() || !char.is_ascii()
 }
 
 fn is_name_continue(char: char) -> bool {
@@ -4477,6 +4486,7 @@ fn is_name_continue(char: char) -> bool {
 }
 
 fn is_non_printable_code_point(char: char) -> bool {
+    let char = css_syntax_preprocessed_char(char);
     matches!(char, '\u{0000}'..='\u{0008}' | '\u{000b}' | '\u{000e}'..='\u{001f}' | '\u{007f}')
 }
 
@@ -6046,9 +6056,36 @@ mod tests {
     #[test]
     fn tokenizes_null_and_bom_without_unexpected_errors() {
         let result = parse("\u{feff}.a\0b { content: \0; }", StyleDialect::Css);
+        let lexed = lex(
+            "\u{feff}.a\0b { background: url(foo\0bar); }",
+            StyleDialect::Css,
+        );
         let token_kinds = token_kinds(&result.syntax());
+        let ident = lexed
+            .tokens()
+            .iter()
+            .find(|token| token.kind == SyntaxKind::Ident)
+            .map(|token| token.text.as_str());
+        let url = lexed
+            .tokens()
+            .iter()
+            .find(|token| token.kind == SyntaxKind::Url)
+            .map(|token| token.text.as_str());
 
         assert!(result.errors().is_empty());
+        assert!(lexed.errors().is_empty());
+        assert_eq!(
+            lexed.tokens().first().map(|token| token.kind),
+            Some(SyntaxKind::Dot)
+        );
+        assert_eq!(ident, Some("a\u{fffd}b"));
+        assert_eq!(url, Some("url(foo\u{fffd}bar)"));
+        assert!(
+            !lexed
+                .tokens()
+                .iter()
+                .any(|token| token.text.contains('\0') || token.text.contains('\u{feff}'))
+        );
         assert!(token_kinds.contains(&SyntaxKind::Whitespace));
         assert!(token_kinds.contains(&SyntaxKind::Ident));
         assert!(node_kinds(&result.syntax()).contains(&SyntaxKind::ClassSelector));
