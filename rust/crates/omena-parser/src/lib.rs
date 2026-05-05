@@ -70,6 +70,10 @@ impl ParseResult {
     pub fn dialect(&self) -> StyleDialect {
         self.dialect
     }
+
+    pub fn cst(&self) -> ParsedCst {
+        ParsedCst::new(self.syntax())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -158,6 +162,191 @@ pub struct ParsedAtRuleFact {
     pub name: String,
     pub node_kind: Option<SyntaxKind>,
     pub range: TextRange,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedCst {
+    root: SyntaxNode<SyntaxKind>,
+}
+
+impl ParsedCst {
+    pub fn new(root: SyntaxNode<SyntaxKind>) -> Self {
+        Self { root }
+    }
+
+    pub fn root(&self) -> &SyntaxNode<SyntaxKind> {
+        &self.root
+    }
+
+    pub fn stylesheet(&self) -> Option<StylesheetCstNode> {
+        self.first_node(StylesheetCstNode::cast)
+    }
+
+    pub fn rules(&self) -> Vec<RuleCstNode> {
+        self.nodes(RuleCstNode::cast)
+    }
+
+    pub fn selectors(&self) -> Vec<SelectorCstNode> {
+        self.nodes(SelectorCstNode::cast)
+    }
+
+    pub fn declarations(&self) -> Vec<DeclarationCstNode> {
+        self.nodes(DeclarationCstNode::cast)
+    }
+
+    pub fn declaration_lists(&self) -> Vec<DeclarationListCstNode> {
+        self.nodes(DeclarationListCstNode::cast)
+    }
+
+    pub fn values(&self) -> Vec<ValueCstNode> {
+        self.nodes(ValueCstNode::cast)
+    }
+
+    pub fn at_rules(&self) -> Vec<AtRuleCstNode> {
+        self.nodes(AtRuleCstNode::cast)
+    }
+
+    fn first_node<T>(&self, cast: impl Fn(SyntaxNode<SyntaxKind>) -> Option<T>) -> Option<T> {
+        let mut nodes = Vec::new();
+        collect_typed_nodes(&self.root, &cast, &mut nodes);
+        nodes.into_iter().next()
+    }
+
+    fn nodes<T>(&self, cast: impl Fn(SyntaxNode<SyntaxKind>) -> Option<T>) -> Vec<T> {
+        let mut nodes = Vec::new();
+        collect_typed_nodes(&self.root, &cast, &mut nodes);
+        nodes
+    }
+}
+
+pub trait TypedCstNode: Sized {
+    fn cast(syntax: SyntaxNode<SyntaxKind>) -> Option<Self>;
+    fn syntax(&self) -> &SyntaxNode<SyntaxKind>;
+
+    fn kind(&self) -> SyntaxKind {
+        self.syntax().kind()
+    }
+
+    fn text_range(&self) -> TextRange {
+        self.syntax().text_range()
+    }
+
+    fn into_syntax(self) -> SyntaxNode<SyntaxKind>;
+}
+
+macro_rules! typed_cst_node {
+    ($name:ident, $kind:expr) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $name {
+            syntax: SyntaxNode<SyntaxKind>,
+        }
+
+        impl $name {
+            pub const KIND: SyntaxKind = $kind;
+        }
+
+        impl TypedCstNode for $name {
+            fn cast(syntax: SyntaxNode<SyntaxKind>) -> Option<Self> {
+                (syntax.kind() == Self::KIND).then_some(Self { syntax })
+            }
+
+            fn syntax(&self) -> &SyntaxNode<SyntaxKind> {
+                &self.syntax
+            }
+
+            fn into_syntax(self) -> SyntaxNode<SyntaxKind> {
+                self.syntax
+            }
+        }
+    };
+}
+
+typed_cst_node!(StylesheetCstNode, SyntaxKind::Stylesheet);
+typed_cst_node!(RuleCstNode, SyntaxKind::Rule);
+typed_cst_node!(SelectorCstNode, SyntaxKind::Selector);
+typed_cst_node!(DeclarationCstNode, SyntaxKind::Declaration);
+typed_cst_node!(DeclarationListCstNode, SyntaxKind::DeclarationList);
+typed_cst_node!(ValueCstNode, SyntaxKind::Value);
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AtRuleCstNode {
+    syntax: SyntaxNode<SyntaxKind>,
+}
+
+impl TypedCstNode for AtRuleCstNode {
+    fn cast(syntax: SyntaxNode<SyntaxKind>) -> Option<Self> {
+        is_at_rule_node_kind(syntax.kind()).then_some(Self { syntax })
+    }
+
+    fn syntax(&self) -> &SyntaxNode<SyntaxKind> {
+        &self.syntax
+    }
+
+    fn into_syntax(self) -> SyntaxNode<SyntaxKind> {
+        self.syntax
+    }
+}
+
+pub fn is_at_rule_node_kind(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::AtRule
+            | SyntaxKind::MediaRule
+            | SyntaxKind::SupportsRule
+            | SyntaxKind::ContainerRule
+            | SyntaxKind::LayerRule
+            | SyntaxKind::ScopeRule
+            | SyntaxKind::KeyframesRule
+            | SyntaxKind::FontFaceRule
+            | SyntaxKind::PageRule
+            | SyntaxKind::NamespaceRule
+            | SyntaxKind::ImportRule
+            | SyntaxKind::CharsetRule
+            | SyntaxKind::PropertyRule
+            | SyntaxKind::StartingStyleRule
+            | SyntaxKind::PageMarginRule
+            | SyntaxKind::WhenRule
+            | SyntaxKind::ElseRule
+            | SyntaxKind::CounterStyleRule
+            | SyntaxKind::FontPaletteValuesRule
+            | SyntaxKind::ColorProfileRule
+            | SyntaxKind::PositionTryRule
+            | SyntaxKind::FontFeatureValuesRule
+            | SyntaxKind::FontFeatureValuesStylisticRule
+            | SyntaxKind::FontFeatureValuesStylesetRule
+            | SyntaxKind::FontFeatureValuesCharacterVariantRule
+            | SyntaxKind::FontFeatureValuesSwashRule
+            | SyntaxKind::FontFeatureValuesOrnamentsRule
+            | SyntaxKind::FontFeatureValuesAnnotationRule
+            | SyntaxKind::FontFeatureValuesHistoricalFormsRule
+            | SyntaxKind::ViewTransitionRule
+            | SyntaxKind::NestRule
+            | SyntaxKind::CustomMediaRule
+            | SyntaxKind::ScssUseRule
+            | SyntaxKind::ScssForwardRule
+            | SyntaxKind::ScssMixinDeclaration
+            | SyntaxKind::ScssIncludeRule
+            | SyntaxKind::ScssFunctionDeclaration
+            | SyntaxKind::ScssReturnRule
+            | SyntaxKind::ScssAtRootRule
+            | SyntaxKind::ScssErrorRule
+            | SyntaxKind::ScssWarnRule
+            | SyntaxKind::ScssDebugRule
+            | SyntaxKind::ScssContentRule
+    )
+}
+
+fn collect_typed_nodes<T>(
+    node: &SyntaxNode<SyntaxKind>,
+    cast: &impl Fn(SyntaxNode<SyntaxKind>) -> Option<T>,
+    nodes: &mut Vec<T>,
+) {
+    if let Some(typed) = cast(node.clone()) {
+        nodes.push(typed);
+    }
+    for child in node.children() {
+        collect_typed_nodes(child, cast, nodes);
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -439,6 +628,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "exponentNumericTokenization",
             "badUrlWhitespaceRecovery",
             "parserEntryPointApiSlice",
+            "typedCstWrapperSlice",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -2113,10 +2303,7 @@ impl<'text> Parser<'text> {
     }
 
     fn consume_at_rule_prelude_tokens(&mut self) {
-        if self
-            .current_kind()
-            .is_none_or(|kind| is_at_rule_prelude_boundary(kind))
-        {
+        if self.current_kind().is_none_or(is_at_rule_prelude_boundary) {
             return;
         }
         self.builder
@@ -6385,6 +6572,41 @@ mod tests {
     }
 
     #[test]
+    fn exposes_typed_cst_wrapper_slice() {
+        let result = parse(
+            ".card { color: red; --accent: blue; } @media (width >= 1px) { .button { color: var(--accent); } }",
+            StyleDialect::Css,
+        );
+        let cst = result.cst();
+        let stylesheet = cst.stylesheet();
+        let rules = cst.rules();
+        let selectors = cst.selectors();
+        let declarations = cst.declarations();
+        let values = cst.values();
+        let at_rules = cst.at_rules();
+
+        assert_eq!(
+            stylesheet.as_ref().map(TypedCstNode::kind),
+            Some(SyntaxKind::Stylesheet)
+        );
+        assert_eq!(rules.len(), 2);
+        assert_eq!(selectors.len(), 2);
+        assert_eq!(declarations.len(), 3);
+        assert_eq!(values.len(), 3);
+        assert!(!at_rules.is_empty());
+        assert!(
+            at_rules
+                .iter()
+                .any(|at_rule| at_rule.kind() == SyntaxKind::MediaRule)
+        );
+        assert!(
+            stylesheet
+                .and_then(|node| RuleCstNode::cast(node.into_syntax()))
+                .is_none()
+        );
+    }
+
+    #[test]
     fn summarizes_green_field_parser_boundary() {
         let summary = summarize_parser_boundary();
 
@@ -6636,6 +6858,7 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"badUrlWhitespaceRecovery"));
         assert!(summary.ready_surfaces.contains(&"parserEntryPointApiSlice"));
+        assert!(summary.ready_surfaces.contains(&"typedCstWrapperSlice"));
         assert!(
             summary
                 .ready_surfaces
