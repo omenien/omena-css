@@ -133,7 +133,7 @@ fn summarizes_query_boundary_over_producer_fragments() {
 #[test]
 fn exposes_omena_parser_style_fact_surface() {
     let summary = summarize_omena_query_omena_parser_style_facts(
-        "@use \"tokens\"; $gap: 1rem; .card#main { --space: $gap; }",
+        "@use \"tokens\"; $gap: 1rem; %surface { color: red; } .card#main { --space: $gap; }",
         omena_parser::StyleDialect::Scss,
     );
 
@@ -142,6 +142,7 @@ fn exposes_omena_parser_style_fact_surface() {
     assert_eq!(summary.dialect, "scss");
     assert_eq!(summary.class_selector_names, vec!["card"]);
     assert_eq!(summary.id_selector_names, vec!["main"]);
+    assert_eq!(summary.placeholder_selector_names, vec!["surface"]);
     assert!(summary.variable_names.contains(&"$gap".to_string()));
     assert!(
         summary

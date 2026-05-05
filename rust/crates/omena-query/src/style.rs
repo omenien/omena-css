@@ -34,6 +34,7 @@ pub fn summarize_omena_query_omena_parser_style_facts(
     let facts = collect_style_facts(style_source, dialect);
     let mut class_selector_names = Vec::new();
     let mut id_selector_names = Vec::new();
+    let mut placeholder_selector_names = Vec::new();
     let mut variable_names = BTreeSet::new();
     let mut custom_property_names = BTreeSet::new();
 
@@ -41,7 +42,7 @@ pub fn summarize_omena_query_omena_parser_style_facts(
         match selector.kind {
             ParsedSelectorFactKind::Class => class_selector_names.push(selector.name),
             ParsedSelectorFactKind::Id => id_selector_names.push(selector.name),
-            ParsedSelectorFactKind::Placeholder => {}
+            ParsedSelectorFactKind::Placeholder => placeholder_selector_names.push(selector.name),
         }
     }
 
@@ -66,6 +67,7 @@ pub fn summarize_omena_query_omena_parser_style_facts(
         dialect: omena_parser_style_dialect_label(dialect),
         class_selector_names,
         id_selector_names,
+        placeholder_selector_names,
         variable_names: variable_names.into_iter().collect(),
         custom_property_names: custom_property_names.into_iter().collect(),
         at_rule_names: facts

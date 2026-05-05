@@ -27,6 +27,7 @@ interface OmenaParserStyleFactsV0 {
   readonly dialect: OmenaParserDialect;
   readonly classSelectorNames: readonly string[];
   readonly idSelectorNames: readonly string[];
+  readonly placeholderSelectorNames: readonly string[];
   readonly variableNames: readonly string[];
   readonly customPropertyNames: readonly string[];
   readonly atRuleNames: readonly string[];
@@ -66,6 +67,7 @@ const SASS_INDENTED_CORPUS = [
     source: `.card\n  color: red // comment\n  &__icon\n    color: $tone\n$gap: 1rem\n`,
     expected: {
       classSelectorNames: ["card", "card__icon"],
+      placeholderSelectorNames: [],
       variableNames: ["$gap", "$tone"],
       customPropertyNames: [],
       atRuleNames: [],
@@ -77,6 +79,7 @@ const SASS_INDENTED_CORPUS = [
     source: `@media (min-width: 1px)\n  .card\n    color: red\n`,
     expected: {
       classSelectorNames: ["card"],
+      placeholderSelectorNames: [],
       variableNames: [],
       customPropertyNames: [],
       atRuleNames: ["@media"],
@@ -88,6 +91,57 @@ const SASS_INDENTED_CORPUS = [
   readonly source: string;
   readonly expected: {
     readonly classSelectorNames: readonly string[];
+    readonly placeholderSelectorNames: readonly string[];
+    readonly variableNames: readonly string[];
+    readonly customPropertyNames: readonly string[];
+    readonly atRuleNames: readonly string[];
+  };
+}[];
+
+const PARSER_ONLY_CORPUS = [
+  {
+    label: "scss-nested-property-blocks",
+    dialect: "scss",
+    source: `.card { font: { size: 1rem; weight: 700; } }`,
+    expected: {
+      classSelectorNames: ["card"],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: [],
+      atRuleNames: [],
+    },
+  },
+  {
+    label: "scss-module-config-preludes",
+    dialect: "scss",
+    source: `@use "./tokens" with ($gap: 1rem, $tone: blue);\n@forward "./theme" with ($space: 2rem);\n.card { color: $gap; }`,
+    expected: {
+      classSelectorNames: ["card"],
+      placeholderSelectorNames: [],
+      variableNames: ["$gap", "$space", "$tone"],
+      customPropertyNames: [],
+      atRuleNames: ["@forward", "@use"],
+    },
+  },
+  {
+    label: "scss-placeholder-selector-and-extend",
+    dialect: "scss",
+    source: `%surface { color: red; }\n.card { @extend %surface; }`,
+    expected: {
+      classSelectorNames: ["card"],
+      placeholderSelectorNames: ["surface"],
+      variableNames: [],
+      customPropertyNames: [],
+      atRuleNames: ["@extend"],
+    },
+  },
+] as const satisfies readonly {
+  readonly label: string;
+  readonly dialect: "scss";
+  readonly source: string;
+  readonly expected: {
+    readonly classSelectorNames: readonly string[];
+    readonly placeholderSelectorNames: readonly string[];
     readonly variableNames: readonly string[];
     readonly customPropertyNames: readonly string[];
     readonly atRuleNames: readonly string[];
@@ -233,6 +287,11 @@ void (async () => {
       `${entry.label} Sass-indented selector drift`,
     );
     assert.deepEqual(
+      sortedUnique(actual.placeholderSelectorNames),
+      sortedUnique(entry.expected.placeholderSelectorNames),
+      `${entry.label} Sass-indented placeholder selector drift`,
+    );
+    assert.deepEqual(
       sortedUnique(actual.variableNames),
       sortedUnique(entry.expected.variableNames),
       `${entry.label} Sass-indented variable drift`,
@@ -250,6 +309,45 @@ void (async () => {
 
     process.stdout.write(
       `validated Sass-indented corpus: selectors=${actual.classSelectorNames.length} variables=${actual.variableNames.length}\n\n`,
+    );
+  }
+
+  for (const entry of PARSER_ONLY_CORPUS) {
+    process.stdout.write(`== omena-parser-differential-corpus:${entry.label} ==\n`);
+
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const actual = await runOmenaParserStyleFacts(entry.dialect, entry.source);
+
+    assertCommonFacts(actual, entry.label);
+    assert.equal(actual.dialect, entry.dialect);
+    assert.deepEqual(
+      sortedUnique(actual.classSelectorNames),
+      sortedUnique(entry.expected.classSelectorNames),
+      `${entry.label} parser-only class selector drift`,
+    );
+    assert.deepEqual(
+      sortedUnique(actual.placeholderSelectorNames),
+      sortedUnique(entry.expected.placeholderSelectorNames),
+      `${entry.label} parser-only placeholder selector drift`,
+    );
+    assert.deepEqual(
+      sortedUnique(actual.variableNames),
+      sortedUnique(entry.expected.variableNames),
+      `${entry.label} parser-only variable drift`,
+    );
+    assert.deepEqual(
+      sortedUnique(actual.customPropertyNames),
+      sortedUnique(entry.expected.customPropertyNames),
+      `${entry.label} parser-only custom property drift`,
+    );
+    assert.deepEqual(
+      sortedUnique(actual.atRuleNames),
+      sortedUnique(entry.expected.atRuleNames),
+      `${entry.label} parser-only at-rule drift`,
+    );
+
+    process.stdout.write(
+      `validated parser-only corpus: selectors=${actual.classSelectorNames.length} placeholders=${actual.placeholderSelectorNames.length}\n\n`,
     );
   }
 })().catch((error: unknown) => {

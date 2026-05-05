@@ -100,6 +100,7 @@ pub struct OmenaQueryOmenaParserStyleFactsV0 {
     pub dialect: &'static str,
     pub class_selector_names: Vec<String>,
     pub id_selector_names: Vec<String>,
+    pub placeholder_selector_names: Vec<String>,
     pub variable_names: Vec<String>,
     pub custom_property_names: Vec<String>,
     pub at_rule_names: Vec<String>,
