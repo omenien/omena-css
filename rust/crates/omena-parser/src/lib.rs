@@ -89,6 +89,15 @@ pub enum ParseErrorCode {
     ExpectedValue,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParseEntryPoint {
+    Stylesheet,
+    Rule,
+    DeclarationList,
+    Declaration,
+    Value,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParserBoundarySummary {
     pub product: &'static str,
@@ -245,8 +254,16 @@ enum AtRuleBlockKind {
 }
 
 pub fn parse(text: &str, dialect: StyleDialect) -> ParseResult {
+    parse_entry_point(text, dialect, ParseEntryPoint::Stylesheet)
+}
+
+pub fn parse_entry_point(
+    text: &str,
+    dialect: StyleDialect,
+    entry_point: ParseEntryPoint,
+) -> ParseResult {
     let extension = BuiltinDialectExtension::new(dialect);
-    parse_with_extension(text, &extension)
+    parse_entry_point_with_extension(text, &extension, entry_point)
 }
 
 pub fn lex(text: &str, dialect: StyleDialect) -> LexResult {
@@ -270,10 +287,18 @@ pub fn lex_with_extension(text: &str, extension: &impl DialectExtension) -> LexR
 }
 
 pub fn parse_with_extension(text: &str, extension: &impl DialectExtension) -> ParseResult {
+    parse_entry_point_with_extension(text, extension, ParseEntryPoint::Stylesheet)
+}
+
+pub fn parse_entry_point_with_extension(
+    text: &str,
+    extension: &impl DialectExtension,
+    entry_point: ParseEntryPoint,
+) -> ParseResult {
     let (tokens, errors) = tokenize(text, extension);
     let token_count = tokens.len();
     let mut parser = Parser::new(tokens, errors, extension.dialect());
-    let green = parser.parse();
+    let green = parser.parse_entry_point(entry_point);
 
     ParseResult {
         green,
@@ -413,6 +438,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "signedNumericTokenization",
             "exponentNumericTokenization",
             "badUrlWhitespaceRecovery",
+            "parserEntryPointApiSlice",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -467,15 +493,48 @@ impl<'text> Parser<'text> {
     }
 
     fn parse(&mut self) -> GreenNode {
+        self.parse_entry_point(ParseEntryPoint::Stylesheet)
+    }
+
+    fn parse_entry_point(&mut self, entry_point: ParseEntryPoint) -> GreenNode {
         self.builder.start_node(SyntaxKind::Root);
-        self.builder.start_node(SyntaxKind::Stylesheet);
-        self.parse_stylesheet_items();
-        self.builder.finish_node();
+        match entry_point {
+            ParseEntryPoint::Stylesheet => {
+                self.builder.start_node(SyntaxKind::Stylesheet);
+                self.parse_stylesheet_items();
+                self.builder.finish_node();
+            }
+            ParseEntryPoint::Rule => self.parse_rule(),
+            ParseEntryPoint::DeclarationList => {
+                self.builder.start_node(SyntaxKind::DeclarationList);
+                self.parse_declaration_list();
+                self.builder.finish_node();
+            }
+            ParseEntryPoint::Declaration => self.parse_declaration(),
+            ParseEntryPoint::Value => {
+                self.builder.start_node(SyntaxKind::Value);
+                self.parse_value_or_value_list_until(&[]);
+                self.builder.finish_node();
+            }
+        }
+        self.parse_entry_point_trailing_bogus();
         self.builder.finish_node();
 
         let builder = std::mem::take(&mut self.builder);
         let (green, _) = builder.finish();
         green
+    }
+
+    fn parse_entry_point_trailing_bogus(&mut self) {
+        self.eat_trivia();
+        if self.at_end() {
+            return;
+        }
+        self.builder.start_node(SyntaxKind::BogusRecovery);
+        while !self.at_end() {
+            self.token_current();
+        }
+        self.builder.finish_node();
     }
 
     fn into_errors(self) -> Vec<ParseError> {
@@ -4785,6 +4844,40 @@ mod tests {
     }
 
     #[test]
+    fn exposes_css_syntax_parser_entry_points() {
+        let rule = parse_entry_point(
+            ".button { color: red; }",
+            StyleDialect::Css,
+            ParseEntryPoint::Rule,
+        );
+        let declaration_list = parse_entry_point(
+            "color: red; width: calc(1px + 2px);",
+            StyleDialect::Css,
+            ParseEntryPoint::DeclarationList,
+        );
+        let declaration = parse_entry_point(
+            "color: red;",
+            StyleDialect::Css,
+            ParseEntryPoint::Declaration,
+        );
+        let value = parse_entry_point(
+            "clamp(1rem, calc(2px + 3px), 4rem)",
+            StyleDialect::Css,
+            ParseEntryPoint::Value,
+        );
+
+        assert!(rule.errors().is_empty());
+        assert!(declaration_list.errors().is_empty());
+        assert!(declaration.errors().is_empty());
+        assert!(value.errors().is_empty());
+        assert!(node_kinds(&rule.syntax()).contains(&SyntaxKind::Rule));
+        assert!(node_kinds(&declaration_list.syntax()).contains(&SyntaxKind::DeclarationList));
+        assert!(node_kinds(&declaration.syntax()).contains(&SyntaxKind::Declaration));
+        assert!(node_kinds(&value.syntax()).contains(&SyntaxKind::Value));
+        assert!(node_kinds(&value.syntax()).contains(&SyntaxKind::CalcFunction));
+    }
+
+    #[test]
     fn tokenizes_multibyte_source_without_boundary_errors() {
         let result = parse(".카드 { --간격: \"좋음\"; }", StyleDialect::Css);
 
@@ -6542,6 +6635,7 @@ mod tests {
                 .contains(&"exponentNumericTokenization")
         );
         assert!(summary.ready_surfaces.contains(&"badUrlWhitespaceRecovery"));
+        assert!(summary.ready_surfaces.contains(&"parserEntryPointApiSlice"));
         assert!(
             summary
                 .ready_surfaces
