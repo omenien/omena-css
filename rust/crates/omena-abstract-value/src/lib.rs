@@ -477,7 +477,15 @@ pub fn concatenate_abstract_class_values(
                 suffix, min_length, ..
             },
         ) => prefix_suffix_class_value(prefix, suffix, Some(prefix.len() + min_length), None),
-        _ => top_class_value(),
+        _ => match (
+            ClassValueReductionFacts::from_abstract_value(left),
+            ClassValueReductionFacts::from_abstract_value(right),
+        ) {
+            (Some(left), Some(right)) => left
+                .concat(&right)
+                .map_or_else(top_class_value, |facts| facts.into_abstract_value()),
+            _ => top_class_value(),
+        },
     }
 }
 
@@ -1112,6 +1120,30 @@ impl ClassValueReductionFacts {
         let suffix = join_suffixes(self.suffix.as_deref(), other.suffix.as_deref());
         let min_length = Some(self.lower_bound_length().min(other.lower_bound_length()));
         let must_chars = intersect_char_sets(&self.guaranteed_chars(), &other.guaranteed_chars());
+        let allowed_chars = join_allowed_char_sets(
+            self.allowed_chars.as_deref(),
+            other.allowed_chars.as_deref(),
+        );
+
+        if prefix.is_none() && suffix.is_none() && must_chars.is_empty() && allowed_chars.is_none()
+        {
+            return None;
+        }
+
+        Some(Self {
+            prefix,
+            suffix,
+            min_length,
+            must_chars,
+            allowed_chars,
+        })
+    }
+
+    fn concat(&self, other: &Self) -> Option<Self> {
+        let prefix = self.prefix.clone();
+        let suffix = other.suffix.clone();
+        let min_length = Some(self.lower_bound_length() + other.lower_bound_length());
+        let must_chars = union_char_sets(&self.guaranteed_chars(), &other.guaranteed_chars());
         let allowed_chars = join_allowed_char_sets(
             self.allowed_chars.as_deref(),
             other.allowed_chars.as_deref(),

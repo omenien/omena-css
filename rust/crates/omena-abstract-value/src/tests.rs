@@ -543,6 +543,87 @@ fn concatenates_abstract_values_for_template_edges() {
 }
 
 #[test]
+fn concatenates_reduced_product_constraints_without_widening_to_top() {
+    let left = composite_class_value(CompositeClassValueInputV0 {
+        prefix: Some("btn-".to_string()),
+        suffix: None,
+        min_length: Some("btn-primary".len()),
+        must_chars: "r".to_string(),
+        may_chars: "btn-primary".to_string(),
+        may_include_other_chars: true,
+        provenance: None,
+    });
+    let right = char_inclusion_class_value("ae", "active", None, false);
+
+    let concatenated = concatenate_abstract_class_values(&left, &right);
+
+    assert_eq!(
+        concatenated,
+        AbstractClassValueV0::Composite {
+            prefix: Some("btn-".to_string()),
+            suffix: None,
+            min_length: Some("btn-primary".len() + 2),
+            must_chars: "-abenrt".to_string(),
+            may_chars: "-abenrt".to_string(),
+            may_include_other_chars: true,
+            provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
+        }
+    );
+    assert_eq!(
+        projected_names(
+            &concatenated,
+            &selector_universe(["btn-primary-active", "btn-icon", "card-active"]),
+        ),
+        vec!["btn-primary-active".to_string()]
+    );
+}
+
+#[test]
+fn flow_concat_preserves_reduced_product_shape() {
+    let graph = ClassValueFlowGraphV0 {
+        context_key: Some("Button.tsx:render@composite-concat".to_string()),
+        nodes: vec![
+            ClassValueFlowNodeV0 {
+                id: "base".to_string(),
+                predecessors: Vec::new(),
+                transfer: ClassValueFlowTransferV0::AssignFacts(
+                    external_facts("constrained")
+                        .with_constraint_kind("composite")
+                        .with_prefix("btn-")
+                        .with_char_must("r")
+                        .with_min_len("btn-primary".len()),
+                ),
+            },
+            ClassValueFlowNodeV0 {
+                id: "active".to_string(),
+                predecessors: vec!["base".to_string()],
+                transfer: ClassValueFlowTransferV0::ConcatFacts(
+                    external_facts("constrained")
+                        .with_constraint_kind("charInclusion")
+                        .with_char_must("ae")
+                        .with_char_may("active"),
+                ),
+            },
+        ],
+    };
+
+    let analysis = analyze_class_value_flow(&graph);
+
+    assert_eq!(
+        flow_value(&analysis, "active"),
+        Some(&AbstractClassValueV0::Composite {
+            prefix: Some("btn-".to_string()),
+            suffix: None,
+            min_length: Some("btn-primary".len() + 2),
+            must_chars: "-abenrt".to_string(),
+            may_chars: "-abceinrtv".to_string(),
+            may_include_other_chars: false,
+            provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
+        })
+    );
+}
+
+#[test]
 fn analyzes_flow_concat_facts_before_refinement() {
     let graph = ClassValueFlowGraphV0 {
         context_key: Some("Button.tsx:render@concat".to_string()),
@@ -1331,6 +1412,8 @@ trait ExternalFactsTestExt {
     fn with_prefix(self, value: &'static str) -> Self;
     fn with_suffix(self, value: &'static str) -> Self;
     fn with_min_len(self, value: usize) -> Self;
+    fn with_char_must(self, value: &'static str) -> Self;
+    fn with_char_may(self, value: &'static str) -> Self;
 }
 
 impl ExternalFactsTestExt for ExternalStringTypeFactsV0 {
@@ -1356,6 +1439,16 @@ impl ExternalFactsTestExt for ExternalStringTypeFactsV0 {
 
     fn with_min_len(mut self, value: usize) -> Self {
         self.min_len = Some(value);
+        self
+    }
+
+    fn with_char_must(mut self, value: &'static str) -> Self {
+        self.char_must = Some(value.to_string());
+        self
+    }
+
+    fn with_char_may(mut self, value: &'static str) -> Self {
+        self.char_may = Some(value.to_string());
         self
     }
 }
