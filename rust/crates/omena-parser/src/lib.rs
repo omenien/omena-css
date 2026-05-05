@@ -411,6 +411,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "hashDelimiterTokenization",
             "cssDashIdentTokenization",
             "signedNumericTokenization",
+            "exponentNumericTokenization",
             "badUrlWhitespaceRecovery",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
@@ -3256,6 +3257,13 @@ where
             self.bump_current();
             self.consume_digits();
         }
+        if self.current_starts_number_exponent() {
+            self.bump_current();
+            if matches!(self.current_char(), Some('+' | '-')) {
+                self.bump_current();
+            }
+            self.consume_digits();
+        }
         if self.current_char() == Some('%') {
             self.offset += 1;
             self.push(SyntaxKind::Percentage, start, self.offset);
@@ -3557,6 +3565,17 @@ where
 
     fn current_starts_number(&self) -> bool {
         self.starts_number_at(self.offset)
+    }
+
+    fn current_starts_number_exponent(&self) -> bool {
+        let Some('e' | 'E') = self.current_char() else {
+            return false;
+        };
+        let exponent_offset = self.offset + 'e'.len_utf8();
+        self.char_at(exponent_offset)
+            .is_some_and(|char| char.is_ascii_digit())
+            || (matches!(self.char_at(exponent_offset), Some('+' | '-'))
+                && self.char_after_offset_is_ascii_digit(exponent_offset))
     }
 
     fn starts_number_at(&self, offset: usize) -> bool {
@@ -4981,6 +5000,40 @@ mod tests {
             trailing_dot_kinds,
             vec![SyntaxKind::Number, SyntaxKind::Dot]
         );
+    }
+
+    #[test]
+    fn tokenizes_exponent_numbers_before_dimension_suffixes() {
+        let exponent = lex("1e3", StyleDialect::Css);
+        let signed_exponent = lex("1e-3", StyleDialect::Css);
+        let exponent_dimension = lex("1e3px", StyleDialect::Css);
+        let plain_dimension = lex("1em", StyleDialect::Css);
+        let exponent_kinds: Vec<SyntaxKind> =
+            exponent.tokens().iter().map(|token| token.kind).collect();
+        let signed_exponent_kinds: Vec<SyntaxKind> = signed_exponent
+            .tokens()
+            .iter()
+            .map(|token| token.kind)
+            .collect();
+        let exponent_dimension_kinds: Vec<SyntaxKind> = exponent_dimension
+            .tokens()
+            .iter()
+            .map(|token| token.kind)
+            .collect();
+        let plain_dimension_kinds: Vec<SyntaxKind> = plain_dimension
+            .tokens()
+            .iter()
+            .map(|token| token.kind)
+            .collect();
+
+        assert!(exponent.errors().is_empty());
+        assert!(signed_exponent.errors().is_empty());
+        assert!(exponent_dimension.errors().is_empty());
+        assert!(plain_dimension.errors().is_empty());
+        assert_eq!(exponent_kinds, vec![SyntaxKind::Number]);
+        assert_eq!(signed_exponent_kinds, vec![SyntaxKind::Number]);
+        assert_eq!(exponent_dimension_kinds, vec![SyntaxKind::Dimension]);
+        assert_eq!(plain_dimension_kinds, vec![SyntaxKind::Dimension]);
     }
 
     #[test]
@@ -6482,6 +6535,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"signedNumericTokenization")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"exponentNumericTokenization")
         );
         assert!(summary.ready_surfaces.contains(&"badUrlWhitespaceRecovery"));
         assert!(
