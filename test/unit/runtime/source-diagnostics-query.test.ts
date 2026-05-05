@@ -119,6 +119,42 @@ function makeSymbolRefDeps(options: { readonly typeResolver?: TypeResolver } = {
   });
 }
 
+function makeProjectedSymbolRefDeps(): ProviderDeps {
+  const sourceFileCache = new SourceFileCache({ max: 10 });
+  const analysisCache = new DocumentAnalysisCache({
+    sourceFileCache,
+    fileExists: () => true,
+    aliasResolver: EMPTY_ALIAS_RESOLVER,
+    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
+    parseClassExpressions: (_sf, bindings) =>
+      buildTestClassExpressions({
+        filePath: "/fake/ws/src/Button.tsx",
+        bindings,
+        expressions:
+          bindings.length === 0
+            ? []
+            : [
+                {
+                  kind: "symbolRef",
+                  origin: "cxCall",
+                  rawReference: "size",
+                  rootName: "size",
+                  pathSegments: [],
+                  range: { start: { line: 5, character: 17 }, end: { line: 5, character: 21 } },
+                  scssModulePath: bindings[0]!.scssModulePath,
+                },
+              ],
+      }),
+    max: 10,
+  });
+  return makeBaseDeps({
+    analysisCache,
+    selectorMapForPath: () => new Map([["btn-primary", info("btn-primary")]]),
+    typeResolver: throwingTypeResolver(),
+    workspaceRoot: "/fake/ws",
+  });
+}
+
 function makeMultiSymbolRefDeps(): ProviderDeps {
   const sourceFileCache = new SourceFileCache({ max: 10 });
   const analysisCache = new DocumentAnalysisCache({
@@ -324,6 +360,59 @@ describe("resolveSourceDiagnosticFindings", () => {
       "missing-resolved-class-values",
       "missing-resolved-class-values",
     ]);
+  });
+
+  it("uses selected-query selector projections before reporting missing rust domains", () => {
+    let projectionReads = 0;
+
+    const findings = resolveSourceDiagnosticFindings(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: SYMBOL_REF_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        version: 1,
+      },
+      makeProjectedSymbolRefDeps(),
+      {
+        env: {
+          CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        } as NodeJS.ProcessEnv,
+        readRustExpressionSemanticsPayload: () => ({
+          expressionId: "class-expr:0",
+          expressionKind: "symbolRef",
+          styleFilePath: "/fake/ws/src/Button.module.scss",
+          selectorNames: [],
+          candidateNames: [],
+          valueDomainKind: "constrained",
+          selectorCertainty: "possible",
+          valueCertainty: "inferred",
+          selectorCertaintyShapeKind: "unknown",
+          selectorCertaintyShapeLabel: "unknown",
+          valueCertaintyShapeKind: "constrained",
+          valueCertaintyShapeLabel: "constrained composite",
+          valueConstraintKind: "composite",
+          valuePrefix: "btn-",
+          valueMinLen: "btn-primary".length,
+        }),
+        readRustExpressionDomainSelectorProjections: () => {
+          projectionReads += 1;
+          return [
+            {
+              graphId: "/fake/ws/src/Button.tsx:expression-domain-flow",
+              filePath: "/fake/ws/src/Button.tsx",
+              nodeId: "class-expr:0",
+              targetStylePaths: ["/fake/ws/src/Button.module.scss"],
+              valueKind: "composite",
+              selectorNames: ["btn-primary"],
+              certainty: "inferred",
+            },
+          ];
+        },
+      },
+    );
+
+    expect(projectionReads).toBe(1);
+    expect(findings).toEqual([]);
   });
 });
 

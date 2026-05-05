@@ -14,6 +14,11 @@ import {
   type resolveRustExpressionSemanticsPayload,
 } from "./expression-semantics-query-backend";
 import {
+  resolveRustExpressionDomainSelectorProjections,
+  resolveRustExpressionDomainSelectorProjectionsAsync,
+  type ExpressionDomainSelectorProjectionEntryV0,
+} from "./expression-domain-selector-projection-query-backend";
+import {
   resolveSelectedQueryBackendKind,
   usesRustExpressionSemanticsBackend,
 } from "./selected-query-backend";
@@ -25,6 +30,8 @@ export interface SourceDiagnosticsQueryOptions {
   readonly readRustExpressionSemanticsPayloads?: typeof resolveRustExpressionSemanticsPayloads;
   readonly readRustExpressionSemanticsPayloadAsync?: typeof resolveRustExpressionSemanticsPayloadAsync;
   readonly readRustExpressionSemanticsPayloadsAsync?: typeof resolveRustExpressionSemanticsPayloadsAsync;
+  readonly readRustExpressionDomainSelectorProjections?: typeof resolveRustExpressionDomainSelectorProjections;
+  readonly readRustExpressionDomainSelectorProjectionsAsync?: typeof resolveRustExpressionDomainSelectorProjectionsAsync;
   readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
 }
 
@@ -43,10 +50,15 @@ export function resolveSourceDiagnosticFindings(
 ): readonly SourceCheckerFinding[] {
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
   if (usesRustExpressionSemanticsBackend(selectedQueryBackend)) {
+    const readRustSelectorProjection =
+      selectedQueryBackend === "rust-selected-query"
+        ? createRustExpressionDomainSelectorProjectionReader(params, deps, options)
+        : NO_RUST_SELECTOR_PROJECTION_READER;
     return resolveSourceDiagnosticFindingsViaRustSemantics(
       params,
       deps,
       createRustExpressionSemanticsPayloadReader(params, deps, options),
+      readRustSelectorProjection,
     );
   }
 
@@ -80,10 +92,15 @@ export async function resolveSourceDiagnosticFindingsAsync(
 ): Promise<readonly SourceCheckerFinding[]> {
   const selectedQueryBackend = resolveSelectedQueryBackendKind(options.env);
   if (usesRustExpressionSemanticsBackend(selectedQueryBackend)) {
+    const readRustSelectorProjection =
+      selectedQueryBackend === "rust-selected-query"
+        ? createRustExpressionDomainSelectorProjectionReaderAsync(params, deps, options)
+        : NO_RUST_SELECTOR_PROJECTION_READER_ASYNC;
     return resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
       params,
       deps,
       createRustExpressionSemanticsPayloadReaderAsync(params, deps, options),
+      readRustSelectorProjection,
     );
   }
 
@@ -114,6 +131,7 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
     | "logError"
   >,
   readRustSemanticsPayload: typeof resolveRustExpressionSemanticsPayload,
+  readRustSelectorProjection: resolveRustExpressionDomainSelectorProjection,
 ): readonly SourceCheckerFinding[] {
   const entry = deps.analysisCache.get(
     params.documentUri,
@@ -165,7 +183,7 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
         deps,
         filePath: params.filePath,
       });
-      const payload = readRustSemanticsPayload(
+      const rawPayload = readRustSemanticsPayload(
         {
           uri: params.documentUri,
           content: params.content,
@@ -176,6 +194,20 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
         expression.scssModulePath,
         deps,
       );
+      const projection = readRustSelectorProjection(
+        {
+          uri: params.documentUri,
+          content: params.content,
+          filePath: params.filePath,
+          version: params.version,
+        },
+        expression.id,
+        expression.scssModulePath,
+        deps,
+      );
+      const payload = rawPayload
+        ? withExpressionDomainSelectorProjection(rawPayload, projection)
+        : rawPayload;
       if (!payload || !payload.styleFilePath) {
         const fallback = fallbackFinding();
         if (fallback) {
@@ -275,6 +307,12 @@ async function resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
     scssModulePath: string,
     deps: Parameters<typeof resolveRustExpressionSemanticsPayloadAsync>[3],
   ) => Promise<ExpressionSemanticsEvaluatorCandidatePayloadV0 | null>,
+  readRustSelectorProjection: (
+    document: Parameters<typeof resolveRustExpressionSemanticsPayloadAsync>[0],
+    expressionId: string,
+    scssModulePath: string,
+    deps: Parameters<typeof resolveRustExpressionSemanticsPayloadAsync>[3],
+  ) => Promise<ExpressionDomainSelectorProjectionEntryV0 | null>,
 ): Promise<readonly SourceCheckerFinding[]> {
   const entry = deps.analysisCache.get(
     params.documentUri,
@@ -327,7 +365,7 @@ async function resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
             deps,
             filePath: params.filePath,
           });
-          const payload = await readRustSemanticsPayload(
+          const rawPayload = await readRustSemanticsPayload(
             {
               uri: params.documentUri,
               content: params.content,
@@ -338,6 +376,20 @@ async function resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
             expression.scssModulePath,
             deps,
           );
+          const projection = await readRustSelectorProjection(
+            {
+              uri: params.documentUri,
+              content: params.content,
+              filePath: params.filePath,
+              version: params.version,
+            },
+            expression.id,
+            expression.scssModulePath,
+            deps,
+          );
+          const payload = rawPayload
+            ? withExpressionDomainSelectorProjection(rawPayload, projection)
+            : rawPayload;
           if (!payload || !payload.styleFilePath) {
             const fallback = fallbackFinding();
             return fallback ? [mapInvalidClassFinding(fallback, styleDocument.filePath)] : [];
@@ -460,6 +512,55 @@ function createRustExpressionSemanticsPayloadReader(
   };
 }
 
+type resolveRustExpressionDomainSelectorProjection = (
+  document: Parameters<typeof resolveRustExpressionSemanticsPayload>[0],
+  expressionId: string,
+  scssModulePath: string,
+  deps: Parameters<typeof resolveRustExpressionSemanticsPayload>[3],
+) => ExpressionDomainSelectorProjectionEntryV0 | null;
+
+const NO_RUST_SELECTOR_PROJECTION_READER: resolveRustExpressionDomainSelectorProjection = () =>
+  null;
+
+const NO_RUST_SELECTOR_PROJECTION_READER_ASYNC = async () => null;
+
+function createRustExpressionDomainSelectorProjectionReader(
+  params: DocumentParams,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+  options: SourceDiagnosticsQueryOptions,
+): resolveRustExpressionDomainSelectorProjection {
+  const readProjections =
+    options.readRustExpressionDomainSelectorProjections ??
+    resolveRustExpressionDomainSelectorProjections;
+  const projectionsByStylePath = new Map<
+    string,
+    ReadonlyMap<string, ExpressionDomainSelectorProjectionEntryV0>
+  >();
+
+  return (_document, expressionId, scssModulePath) => {
+    let projectionsByNodeId = projectionsByStylePath.get(scssModulePath);
+    if (!projectionsByNodeId) {
+      const projections = readProjections(
+        {
+          uri: params.documentUri,
+          content: params.content,
+          filePath: params.filePath,
+          version: params.version,
+        },
+        scssModulePath,
+        deps,
+      );
+      projectionsByNodeId = indexSelectorProjectionsForStyle(projections, scssModulePath);
+      projectionsByStylePath.set(scssModulePath, projectionsByNodeId);
+    }
+
+    return projectionsByNodeId.get(expressionId) ?? null;
+  };
+}
+
 function createRustExpressionSemanticsPayloadReaderAsync(
   params: DocumentParams,
   deps: Pick<
@@ -504,6 +605,71 @@ function createRustExpressionSemanticsPayloadReaderAsync(
     }
 
     return (await payloadsByExpressionId).get(expressionId) ?? null;
+  };
+}
+
+function createRustExpressionDomainSelectorProjectionReaderAsync(
+  params: DocumentParams,
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >,
+  options: SourceDiagnosticsQueryOptions,
+): (
+  document: Parameters<typeof resolveRustExpressionSemanticsPayloadAsync>[0],
+  expressionId: string,
+  scssModulePath: string,
+  deps: Parameters<typeof resolveRustExpressionSemanticsPayloadAsync>[3],
+) => Promise<ExpressionDomainSelectorProjectionEntryV0 | null> {
+  const readProjections =
+    options.readRustExpressionDomainSelectorProjectionsAsync ??
+    resolveRustExpressionDomainSelectorProjectionsAsync;
+  const projectionsByStylePath = new Map<
+    string,
+    Promise<ReadonlyMap<string, ExpressionDomainSelectorProjectionEntryV0>>
+  >();
+
+  return async (_document, expressionId, scssModulePath) => {
+    let projectionsByNodeId = projectionsByStylePath.get(scssModulePath);
+    if (!projectionsByNodeId) {
+      projectionsByNodeId = readProjections(
+        {
+          uri: params.documentUri,
+          content: params.content,
+          filePath: params.filePath,
+          version: params.version,
+        },
+        scssModulePath,
+        deps,
+        options.runRustSelectedQueryBackendJsonAsync,
+      ).then((projections) => indexSelectorProjectionsForStyle(projections, scssModulePath));
+      projectionsByStylePath.set(scssModulePath, projectionsByNodeId);
+    }
+
+    return (await projectionsByNodeId).get(expressionId) ?? null;
+  };
+}
+
+function indexSelectorProjectionsForStyle(
+  projections: readonly ExpressionDomainSelectorProjectionEntryV0[],
+  scssModulePath: string,
+): ReadonlyMap<string, ExpressionDomainSelectorProjectionEntryV0> {
+  return new Map(
+    projections
+      .filter((projection) => projection.targetStylePaths.includes(scssModulePath))
+      .map((projection) => [projection.nodeId, projection] as const),
+  );
+}
+
+function withExpressionDomainSelectorProjection(
+  payload: ExpressionSemanticsEvaluatorCandidatePayloadV0,
+  projection: ExpressionDomainSelectorProjectionEntryV0 | null,
+): ExpressionSemanticsEvaluatorCandidatePayloadV0 {
+  if (!projection || projection.selectorNames.length === 0) return payload;
+  return {
+    ...payload,
+    selectorNames: projection.selectorNames,
+    selectorCertainty: projection.certainty,
   };
 }
 
