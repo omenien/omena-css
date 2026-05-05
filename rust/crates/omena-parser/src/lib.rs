@@ -153,22 +153,14 @@ pub fn parse(text: &str, dialect: StyleDialect) -> ParseResult {
 
 pub fn parse_with_extension(text: &str, extension: &impl DialectExtension) -> ParseResult {
     let (tokens, errors) = tokenize(text, extension);
-    let mut builder = GreenNodeBuilder::<SyntaxKind>::new();
-
-    builder.start_node(SyntaxKind::Root);
-    builder.start_node(SyntaxKind::Stylesheet);
-    for token in &tokens {
-        builder.token(token.kind, token.text);
-    }
-    builder.finish_node();
-    builder.finish_node();
-
-    let (green, _) = builder.finish();
+    let token_count = tokens.len();
+    let mut parser = Parser::new(tokens, errors);
+    let green = parser.parse();
 
     ParseResult {
         green,
-        errors,
-        token_count: tokens.len(),
+        errors: parser.into_errors(),
+        token_count,
         dialect: extension.dialect(),
     }
 }
@@ -212,6 +204,243 @@ struct Tokenizer<'text, 'extension, E> {
     offset: usize,
     tokens: Vec<Token<'text>>,
     errors: Vec<ParseError>,
+}
+
+struct Parser<'text> {
+    tokens: Vec<Token<'text>>,
+    position: usize,
+    builder: GreenNodeBuilder<'static, 'static, SyntaxKind>,
+    errors: Vec<ParseError>,
+}
+
+impl<'text> Parser<'text> {
+    fn new(tokens: Vec<Token<'text>>, errors: Vec<ParseError>) -> Self {
+        Self {
+            tokens,
+            position: 0,
+            builder: GreenNodeBuilder::new(),
+            errors,
+        }
+    }
+
+    fn parse(&mut self) -> GreenNode {
+        self.builder.start_node(SyntaxKind::Root);
+        self.builder.start_node(SyntaxKind::Stylesheet);
+        self.parse_stylesheet_items();
+        self.builder.finish_node();
+        self.builder.finish_node();
+
+        let builder = std::mem::take(&mut self.builder);
+        let (green, _) = builder.finish();
+        green
+    }
+
+    fn into_errors(self) -> Vec<ParseError> {
+        self.errors
+    }
+
+    fn parse_stylesheet_items(&mut self) {
+        while !self.at_end() {
+            self.eat_trivia();
+            if self.at_end() {
+                break;
+            }
+            match self.current_kind() {
+                Some(SyntaxKind::AtKeyword) => self.parse_at_rule(),
+                Some(SyntaxKind::RightBrace) => self.token_current(),
+                Some(_) => self.parse_rule(),
+                None => break,
+            }
+        }
+    }
+
+    fn parse_rule(&mut self) {
+        let kind = if self.find_before_recovery(
+            SyntaxKind::LeftBrace,
+            &[SyntaxKind::Semicolon, SyntaxKind::RightBrace],
+        ) {
+            SyntaxKind::Rule
+        } else {
+            SyntaxKind::BogusRule
+        };
+
+        self.builder.start_node(kind);
+        self.parse_selector_list();
+        if self.current_kind() == Some(SyntaxKind::LeftBrace) {
+            self.token_current();
+            self.builder.start_node(SyntaxKind::DeclarationList);
+            self.parse_declaration_list();
+            self.builder.finish_node();
+            if self.current_kind() == Some(SyntaxKind::RightBrace) {
+                self.token_current();
+            }
+        } else {
+            self.consume_until_recovery(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
+            if self.current_kind() == Some(SyntaxKind::Semicolon) {
+                self.token_current();
+            }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_selector_list(&mut self) {
+        let kind = if self.current_kind() == Some(SyntaxKind::LeftBrace) {
+            SyntaxKind::BogusSelectorList
+        } else {
+            SyntaxKind::SelectorList
+        };
+        self.builder.start_node(kind);
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::LeftBrace | SyntaxKind::RightBrace | SyntaxKind::Semicolon) => {
+                    break;
+                }
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_declaration_list(&mut self) {
+        while !self.at_end() {
+            self.eat_trivia();
+            match self.current_kind() {
+                Some(SyntaxKind::RightBrace) | None => break,
+                Some(SyntaxKind::AtKeyword) => self.parse_at_rule(),
+                Some(SyntaxKind::LeftBrace) => {
+                    self.builder.start_node(SyntaxKind::BogusDeclaration);
+                    self.token_current();
+                    self.builder.finish_node();
+                }
+                Some(_) => self.parse_declaration(),
+            }
+        }
+    }
+
+    fn parse_declaration(&mut self) {
+        let kind = if self.find_before_recovery(
+            SyntaxKind::Colon,
+            &[
+                SyntaxKind::Semicolon,
+                SyntaxKind::RightBrace,
+                SyntaxKind::LeftBrace,
+            ],
+        ) {
+            SyntaxKind::Declaration
+        } else {
+            SyntaxKind::BogusDeclaration
+        };
+        self.builder.start_node(kind);
+        self.builder.start_node(SyntaxKind::PropertyName);
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::Colon | SyntaxKind::Semicolon | SyntaxKind::RightBrace) => break,
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+        self.builder.finish_node();
+
+        if self.current_kind() == Some(SyntaxKind::Colon) {
+            self.token_current();
+            self.builder.start_node(SyntaxKind::Value);
+            self.consume_until_recovery(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
+            self.builder.finish_node();
+        } else {
+            self.consume_until_recovery(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
+        }
+
+        if self.current_kind() == Some(SyntaxKind::Semicolon) {
+            self.token_current();
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_at_rule(&mut self) {
+        self.builder.start_node(SyntaxKind::AtRule);
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::Semicolon) => {
+                    self.token_current();
+                    break;
+                }
+                Some(SyntaxKind::LeftBrace) => {
+                    self.consume_balanced_block();
+                    break;
+                }
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+        self.builder.finish_node();
+    }
+
+    fn consume_balanced_block(&mut self) {
+        let mut depth = 0usize;
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::LeftBrace) => {
+                    depth += 1;
+                    self.token_current();
+                }
+                Some(SyntaxKind::RightBrace) => {
+                    self.token_current();
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+    }
+
+    fn eat_trivia(&mut self) {
+        while matches!(self.current_kind(), Some(kind) if kind.is_trivia()) {
+            self.token_current();
+        }
+    }
+
+    fn consume_until_recovery(&mut self, recovery: &[SyntaxKind]) {
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(kind) if recovery.contains(&kind) => break,
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+    }
+
+    fn find_before_recovery(&self, target: SyntaxKind, recovery: &[SyntaxKind]) -> bool {
+        let mut index = self.position;
+        while let Some(token) = self.tokens.get(index) {
+            if token.kind == target {
+                return true;
+            }
+            if recovery.contains(&token.kind) {
+                return false;
+            }
+            index += 1;
+        }
+        false
+    }
+
+    fn token_current(&mut self) {
+        if let Some(token) = self.tokens.get(self.position).copied() {
+            self.builder.token(token.kind, token.text);
+            self.position += 1;
+        }
+    }
+
+    fn current_kind(&self) -> Option<SyntaxKind> {
+        self.tokens.get(self.position).map(|token| token.kind)
+    }
+
+    fn at_end(&self) -> bool {
+        self.position >= self.tokens.len()
+    }
 }
 
 impl<'text, 'extension, E> Tokenizer<'text, 'extension, E>
@@ -536,6 +765,14 @@ mod tests {
         assert_eq!(result.dialect(), StyleDialect::Css);
         assert!(result.errors().is_empty());
         assert!(result.token_count() > 0);
+
+        let kinds = node_kinds(&result.syntax());
+        assert!(kinds.contains(&SyntaxKind::Rule));
+        assert!(kinds.contains(&SyntaxKind::SelectorList));
+        assert!(kinds.contains(&SyntaxKind::DeclarationList));
+        assert!(kinds.contains(&SyntaxKind::Declaration));
+        assert!(kinds.contains(&SyntaxKind::PropertyName));
+        assert!(kinds.contains(&SyntaxKind::Value));
     }
 
     #[test]
@@ -584,6 +821,17 @@ mod tests {
     }
 
     #[test]
+    fn builds_at_rule_and_bogus_nodes_for_partial_input() {
+        let at_rule = parse("@media screen { .a { color: red; } }", StyleDialect::Css);
+        let missing_colon = parse(".a { color red; }", StyleDialect::Css);
+        let missing_block = parse(".a color: red;", StyleDialect::Css);
+
+        assert!(node_kinds(&at_rule.syntax()).contains(&SyntaxKind::AtRule));
+        assert!(node_kinds(&missing_colon.syntax()).contains(&SyntaxKind::BogusDeclaration));
+        assert!(node_kinds(&missing_block.syntax()).contains(&SyntaxKind::BogusRule));
+    }
+
+    #[test]
     fn summarizes_green_field_parser_boundary() {
         let summary = summarize_parser_boundary();
 
@@ -591,5 +839,13 @@ mod tests {
         assert_eq!(summary.dialect_count, 4);
         assert_eq!(summary.shared_name_kind_count, 8);
         assert!(summary.not_ready_surfaces.contains(&"productCutover"));
+    }
+
+    fn node_kinds(node: &SyntaxNode<SyntaxKind>) -> Vec<SyntaxKind> {
+        let mut kinds = vec![node.kind()];
+        for child in node.children() {
+            kinds.extend(node_kinds(child));
+        }
+        kinds
     }
 }
