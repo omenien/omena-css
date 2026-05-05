@@ -48,6 +48,18 @@ export function resolveStyleDesignTokenRankingForReference(
   deps: StyleDesignTokenRankingDeps,
   options: StyleDesignTokenRankingQueryOptions = {},
 ): StyleSemanticGraphDesignTokenRankedReferenceReadModel | null {
+  const rankings = resolveStyleDesignTokenRankingsForDocument(args, deps, options);
+  return rankings?.find((readModel) => readModel.reference === args.customPropertyRef) ?? null;
+}
+
+export function resolveStyleDesignTokenRankingsForDocument(
+  args: {
+    readonly filePath: string;
+    readonly styleDocument: StyleDocumentHIR;
+  },
+  deps: StyleDesignTokenRankingDeps,
+  options: StyleDesignTokenRankingQueryOptions = {},
+): readonly StyleSemanticGraphDesignTokenRankedReferenceReadModel[] | null {
   if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
     return null;
   }
@@ -68,11 +80,7 @@ export function resolveStyleDesignTokenRankingForReference(
     );
     if (!graph) return null;
 
-    return (
-      buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(graph, args.styleDocument).find(
-        (readModel) => readModel.reference === args.customPropertyRef,
-      ) ?? null
-    );
+    return buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(graph, args.styleDocument);
   } catch {
     return null;
   }
@@ -87,6 +95,18 @@ export async function resolveStyleDesignTokenRankingForReferenceAsync(
   deps: StyleDesignTokenRankingDeps,
   options: StyleDesignTokenRankingQueryOptions = {},
 ): Promise<StyleSemanticGraphDesignTokenRankedReferenceReadModel | null> {
+  const rankings = await resolveStyleDesignTokenRankingsForDocumentAsync(args, deps, options);
+  return rankings?.find((readModel) => readModel.reference === args.customPropertyRef) ?? null;
+}
+
+export async function resolveStyleDesignTokenRankingsForDocumentAsync(
+  args: {
+    readonly filePath: string;
+    readonly styleDocument: StyleDocumentHIR;
+  },
+  deps: StyleDesignTokenRankingDeps,
+  options: StyleDesignTokenRankingQueryOptions = {},
+): Promise<readonly StyleSemanticGraphDesignTokenRankedReferenceReadModel[] | null> {
   if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
     return null;
   }
@@ -107,11 +127,7 @@ export async function resolveStyleDesignTokenRankingForReferenceAsync(
     );
     if (!graph) return null;
 
-    return (
-      buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(graph, args.styleDocument).find(
-        (readModel) => readModel.reference === args.customPropertyRef,
-      ) ?? null
-    );
+    return buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(graph, args.styleDocument);
   } catch {
     return null;
   }
