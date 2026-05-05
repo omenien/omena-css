@@ -13,6 +13,7 @@ use cstree::{
 use omena_interner::NameKind;
 pub use omena_syntax::StyleDialect;
 use omena_syntax::SyntaxKind;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseResult {
@@ -119,7 +120,7 @@ pub struct ParsedSelectorFact {
     pub range: TextRange,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ParsedSelectorFactKind {
     Class,
     Id,
@@ -672,6 +673,7 @@ impl<'text> Parser<'text> {
             match self.current_kind() {
                 Some(SyntaxKind::RightBrace) | None => break,
                 Some(SyntaxKind::AtKeyword) => self.parse_at_rule(),
+                Some(_) if self.current_starts_nested_rule() => self.parse_rule(),
                 Some(SyntaxKind::ScssVariable)
                     if matches!(self.dialect, StyleDialect::Scss | StyleDialect::Sass) =>
                 {
@@ -1040,6 +1042,27 @@ impl<'text> Parser<'text> {
             index += 1;
         }
         false
+    }
+
+    fn current_starts_nested_rule(&self) -> bool {
+        matches!(
+            self.current_kind(),
+            Some(
+                SyntaxKind::Dot
+                    | SyntaxKind::Hash
+                    | SyntaxKind::Ampersand
+                    | SyntaxKind::Colon
+                    | SyntaxKind::DoubleColon
+                    | SyntaxKind::LeftBracket
+            )
+        ) && self.find_before_recovery(
+            SyntaxKind::LeftBrace,
+            &[
+                SyntaxKind::Colon,
+                SyntaxKind::Semicolon,
+                SyntaxKind::RightBrace,
+            ],
+        )
     }
 
     fn token_current(&mut self) {
@@ -1421,37 +1444,306 @@ fn is_css_at_rule_name(text: &str) -> bool {
     )
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SelectorBranch {
+    name: String,
+    range: TextRange,
+    bare_suffix_base: bool,
+}
+
 fn collect_selector_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSelectorFact> {
     let mut selectors = Vec::new();
-    let mut index = 0usize;
-    while let Some(token) = tokens.get(index) {
-        match token.kind {
-            SyntaxKind::Dot => {
-                if let Some(name) = next_non_trivia_token(tokens, index + 1)
-                    && matches!(
-                        name.kind,
-                        SyntaxKind::Ident | SyntaxKind::CustomPropertyName
-                    )
-                {
-                    selectors.push(ParsedSelectorFact {
-                        kind: ParsedSelectorFactKind::Class,
-                        name: name.text.to_string(),
-                        range: name.range,
-                    });
+    let mut seen = BTreeSet::new();
+    collect_selector_facts_in_range(tokens, 0, tokens.len(), &[], &mut seen, &mut selectors);
+    selectors
+}
+
+fn collect_selector_facts_in_range(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    parent_branches: &[SelectorBranch],
+    seen: &mut BTreeSet<(ParsedSelectorFactKind, String, u32, u32)>,
+    selectors: &mut Vec<ParsedSelectorFact>,
+) {
+    let mut index = start;
+    while index < end {
+        index = skip_trivia_tokens(tokens, index, end);
+        if index >= end {
+            break;
+        }
+
+        if tokens[index].kind == SyntaxKind::AtKeyword {
+            let block = find_block_after_header(tokens, index, end);
+            if let Some((open, close)) = block {
+                if style_wrapper_at_rule(tokens[index].text) {
+                    collect_selector_facts_in_range(
+                        tokens,
+                        open + 1,
+                        close,
+                        parent_branches,
+                        seen,
+                        selectors,
+                    );
                 }
+                index = close + 1;
+            } else {
+                index = skip_statement(tokens, index, end);
             }
-            SyntaxKind::Hash => {
-                selectors.push(ParsedSelectorFact {
-                    kind: ParsedSelectorFactKind::Id,
-                    name: token.text.trim_start_matches('#').to_string(),
-                    range: token.range,
-                });
+            continue;
+        }
+
+        let Some((open, close)) = find_block_after_header(tokens, index, end) else {
+            index = skip_statement(tokens, index, end);
+            continue;
+        };
+
+        let branches = resolve_selector_header(tokens, index, open, parent_branches);
+        for branch in &branches {
+            push_selector_fact(
+                selectors,
+                seen,
+                ParsedSelectorFactKind::Class,
+                branch.name.clone(),
+                branch.range,
+            );
+        }
+        for id in collect_id_selector_facts_from_header(tokens, index, open) {
+            push_selector_fact(selectors, seen, ParsedSelectorFactKind::Id, id.0, id.1);
+        }
+
+        collect_selector_facts_in_range(tokens, open + 1, close, &branches, seen, selectors);
+        index = close + 1;
+    }
+}
+
+fn push_selector_fact(
+    selectors: &mut Vec<ParsedSelectorFact>,
+    seen: &mut BTreeSet<(ParsedSelectorFactKind, String, u32, u32)>,
+    kind: ParsedSelectorFactKind,
+    name: String,
+    range: TextRange,
+) {
+    if seen.insert((
+        kind,
+        name.clone(),
+        u32::from(range.start()),
+        u32::from(range.end()),
+    )) {
+        selectors.push(ParsedSelectorFact { kind, name, range });
+    }
+}
+
+fn resolve_selector_header(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    parent_branches: &[SelectorBranch],
+) -> Vec<SelectorBranch> {
+    split_selector_groups(tokens, start, end)
+        .into_iter()
+        .flat_map(|(group_start, group_end)| {
+            resolve_selector_group(tokens, group_start, group_end, parent_branches)
+        })
+        .collect()
+}
+
+fn resolve_selector_group(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    parent_branches: &[SelectorBranch],
+) -> Vec<SelectorBranch> {
+    if let Some(local_names) = collect_local_function_selector_names(tokens, start, end) {
+        let bare_suffix_base = parent_branches.is_empty() && local_names.len() == 1;
+        return local_names
+            .into_iter()
+            .map(|(name, range)| SelectorBranch {
+                name,
+                range,
+                bare_suffix_base,
+            })
+            .collect();
+    }
+
+    let (tail_start, tail_end) = selector_group_tail_range(tokens, start, end);
+    let tail_start = skip_trivia_tokens(tokens, tail_start, tail_end);
+
+    if let Some((suffix, range)) = ampersand_suffix_selector(tokens, tail_start, tail_end) {
+        let bases: Vec<&SelectorBranch> = if parent_branches.is_empty() {
+            Vec::new()
+        } else {
+            parent_branches.iter().collect()
+        };
+        return bases
+            .into_iter()
+            .map(|parent| SelectorBranch {
+                name: format!("{}{}", parent.name, suffix),
+                range,
+                bare_suffix_base: parent.bare_suffix_base,
+            })
+            .collect();
+    }
+
+    let class_names = collect_class_selector_names_from_header(tokens, tail_start, tail_end);
+    if class_names.is_empty() {
+        return Vec::new();
+    }
+
+    let bare_suffix_base = parent_branches.is_empty() && class_names.len() == 1;
+    class_names
+        .into_iter()
+        .map(|(name, range)| SelectorBranch {
+            name,
+            range,
+            bare_suffix_base,
+        })
+        .collect()
+}
+
+fn split_selector_groups(tokens: &[Token<'_>], start: usize, end: usize) -> Vec<(usize, usize)> {
+    let mut groups = Vec::new();
+    let mut group_start = start;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut index = start;
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+            SyntaxKind::LeftBracket => bracket_depth += 1,
+            SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+            SyntaxKind::Comma if paren_depth == 0 && bracket_depth == 0 => {
+                groups.push((group_start, index));
+                group_start = index + 1;
             }
             _ => {}
         }
         index += 1;
     }
-    selectors
+    groups.push((group_start, end));
+    groups
+}
+
+fn selector_group_tail_range(tokens: &[Token<'_>], start: usize, end: usize) -> (usize, usize) {
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut tail_start = start;
+    let mut index = start;
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+            SyntaxKind::LeftBracket => bracket_depth += 1,
+            SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+            kind if paren_depth == 0 && bracket_depth == 0 && is_selector_combinator_kind(kind) => {
+                tail_start = index + 1;
+            }
+            SyntaxKind::Whitespace if paren_depth == 0 && bracket_depth == 0 => {
+                let previous = previous_non_trivia_token(tokens, start, index);
+                let next = next_non_trivia_token_until(tokens, index + 1, end);
+                if previous.is_some_and(|token| selector_component_can_end(token.kind))
+                    && next.is_some_and(|token| selector_component_can_start(token.kind))
+                {
+                    tail_start = index + 1;
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    (tail_start, end)
+}
+
+fn ampersand_suffix_selector(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> Option<(String, TextRange)> {
+    let ampersand_index = skip_trivia_tokens(tokens, start, end);
+    if tokens.get(ampersand_index)?.kind != SyntaxKind::Ampersand {
+        return None;
+    }
+    let suffix = next_non_trivia_token_until(tokens, ampersand_index + 1, end)?;
+    if matches!(
+        suffix.kind,
+        SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+    ) && (suffix.text.starts_with("__") || suffix.text.starts_with("--"))
+    {
+        return Some((suffix.text.to_string(), suffix.range));
+    }
+    None
+}
+
+fn collect_class_selector_names_from_header(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> Vec<(String, TextRange)> {
+    let mut names = Vec::new();
+    let mut index = start;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+            SyntaxKind::LeftBracket => bracket_depth += 1,
+            SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+            _ => {}
+        }
+        if paren_depth == 0
+            && bracket_depth == 0
+            && tokens[index].kind == SyntaxKind::Dot
+            && let Some(name) = next_non_trivia_token_until(tokens, index + 1, end)
+            && matches!(
+                name.kind,
+                SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+            )
+        {
+            names.push((name.text.to_string(), name.range));
+        }
+        index += 1;
+    }
+    names
+}
+
+fn collect_local_function_selector_names(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> Option<Vec<(String, TextRange)>> {
+    let colon_index = skip_trivia_tokens(tokens, start, end);
+    if tokens.get(colon_index)?.kind != SyntaxKind::Colon {
+        return None;
+    }
+    let ident = next_non_trivia_token_until(tokens, colon_index + 1, end)?;
+    if ident.kind != SyntaxKind::Ident || ident.text != "local" {
+        return None;
+    }
+    let open_index = skip_trivia_tokens(tokens, colon_index + 2, end);
+    if tokens.get(open_index)?.kind != SyntaxKind::LeftParen {
+        return None;
+    }
+    Some(collect_class_selector_names_from_header(
+        tokens,
+        open_index + 1,
+        end.saturating_sub(1),
+    ))
+}
+
+fn collect_id_selector_facts_from_header(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> Vec<(String, TextRange)> {
+    let mut names = Vec::new();
+    for token in &tokens[start..end] {
+        if token.kind == SyntaxKind::Hash {
+            names.push((token.text.trim_start_matches('#').to_string(), token.range));
+        }
+    }
+    names
 }
 
 fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariableFact> {
@@ -1477,6 +1769,11 @@ fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariabl
                 }
             }
             SyntaxKind::CustomPropertyName => {
+                if previous_non_trivia_token(tokens, 0, index).is_some_and(|candidate| {
+                    matches!(candidate.kind, SyntaxKind::Ampersand | SyntaxKind::Dot)
+                }) {
+                    continue;
+                }
                 if next_non_trivia_token(tokens, index + 1)
                     .is_some_and(|candidate| candidate.kind == SyntaxKind::Colon)
                 {
@@ -1494,6 +1791,106 @@ fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariabl
         });
     }
     variables
+}
+
+fn skip_trivia_tokens(tokens: &[Token<'_>], mut index: usize, end: usize) -> usize {
+    while index < end && tokens[index].kind.is_trivia() {
+        index += 1;
+    }
+    index
+}
+
+fn skip_statement(tokens: &[Token<'_>], mut index: usize, end: usize) -> usize {
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::Semicolon => return index + 1,
+            SyntaxKind::RightBrace => return index,
+            _ => index += 1,
+        }
+    }
+    index
+}
+
+fn find_block_after_header(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> Option<(usize, usize)> {
+    let mut index = start;
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::Semicolon | SyntaxKind::RightBrace => return None,
+            SyntaxKind::LeftBrace => {
+                let close = matching_right_brace(tokens, index, end)?;
+                return Some((index, close));
+            }
+            _ => index += 1,
+        }
+    }
+    None
+}
+
+fn matching_right_brace(tokens: &[Token<'_>], open: usize, end: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut index = open;
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+fn style_wrapper_at_rule(name: &str) -> bool {
+    matches!(
+        name,
+        "@media" | "@supports" | "@layer" | "@scope" | "@container" | "@starting-style"
+    )
+}
+
+fn is_selector_combinator_kind(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::GreaterThan
+            | SyntaxKind::Plus
+            | SyntaxKind::Tilde
+            | SyntaxKind::ColumnCombinator
+            | SyntaxKind::DoublePipe
+    )
+}
+
+fn selector_component_can_start(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Dot
+            | SyntaxKind::Hash
+            | SyntaxKind::Ident
+            | SyntaxKind::Star
+            | SyntaxKind::Ampersand
+            | SyntaxKind::LeftBracket
+            | SyntaxKind::Colon
+            | SyntaxKind::DoubleColon
+    )
+}
+
+fn selector_component_can_end(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Ident
+            | SyntaxKind::CustomPropertyName
+            | SyntaxKind::Hash
+            | SyntaxKind::RightBracket
+            | SyntaxKind::RightParen
+            | SyntaxKind::Star
+    )
 }
 
 fn collect_at_rule_facts_from_tokens(
@@ -1528,6 +1925,37 @@ fn next_non_trivia_token<'text>(
             return Some(token);
         }
         index += 1;
+    }
+    None
+}
+
+fn next_non_trivia_token_until<'text>(
+    tokens: &'text [Token<'text>],
+    mut index: usize,
+    end: usize,
+) -> Option<Token<'text>> {
+    while index < end {
+        let token = tokens.get(index).copied()?;
+        if !token.kind.is_trivia() {
+            return Some(token);
+        }
+        index += 1;
+    }
+    None
+}
+
+fn previous_non_trivia_token<'text>(
+    tokens: &'text [Token<'text>],
+    start: usize,
+    index: usize,
+) -> Option<Token<'text>> {
+    let mut current = index;
+    while current > start {
+        current -= 1;
+        let token = tokens.get(current).copied()?;
+        if !token.kind.is_trivia() {
+            return Some(token);
+        }
     }
     None
 }
@@ -1866,6 +2294,46 @@ mod tests {
                 && variable.name == "--space"
         }));
         assert_eq!(facts.at_rules[0].node_kind, Some(SyntaxKind::ScssUseRule));
+    }
+
+    #[test]
+    fn extracts_nested_bem_style_facts_with_parent_context() {
+        let facts = collect_style_facts(
+            ".card { &__icon { &--small { color: red; } } --space: 1rem; color: var(--space); }",
+            StyleDialect::Scss,
+        );
+        let class_names: Vec<&str> = facts
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+            .map(|selector| selector.name.as_str())
+            .collect();
+        let custom_properties: Vec<&str> = facts
+            .variables
+            .iter()
+            .map(|variable| variable.name.as_str())
+            .collect();
+
+        assert_eq!(class_names, vec!["card", "card__icon", "card__icon--small"]);
+        assert!(custom_properties.contains(&"--space"));
+        assert!(!custom_properties.contains(&"--small"));
+        assert_eq!(facts.error_count, 0);
+    }
+
+    #[test]
+    fn ignores_non_defining_selector_function_arguments() {
+        let facts = collect_style_facts(
+            ".btn:is(.active, .primary) { color: red; }",
+            StyleDialect::Scss,
+        );
+        let class_names: Vec<&str> = facts
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+            .map(|selector| selector.name.as_str())
+            .collect();
+
+        assert_eq!(class_names, vec!["btn"]);
     }
 
     #[test]
