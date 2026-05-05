@@ -3,6 +3,7 @@ import {
   BOTTOM_CLASS_VALUE,
   MAX_FINITE_CLASS_VALUES,
   TOP_CLASS_VALUE,
+  abstractClassValueIsSubset,
   type AbstractClassValue,
   concatenateClassValues,
   concatenateWithUnknownLeft,
@@ -281,7 +282,7 @@ describe("class-value-domain", () => {
         prefixSuffixClassValue("btn-", "-chip", 10),
         prefixSuffixClassValue("btn-", "-chip", 12),
       ),
-    ).toEqual(prefixSuffixClassValue("btn-", "-chip", 10, "prefixSuffixJoin"));
+    ).toEqual(prefixSuffixClassValue("btn-", "-chip", 10));
     expect(
       joinClassValues(prefixSuffixClassValue("btn-", "-chip", 10), exactClassValue("btn-sm-chip")),
     ).toEqual(prefixSuffixClassValue("btn-", "-chip", 10));
@@ -378,7 +379,7 @@ describe("class-value-domain", () => {
       prefixClassValue("btn-", "prefixJoinLcp"),
     );
     expect(joinClassValues(prefixClassValue("btn"), prefixClassValue("btn--danger"))).toEqual(
-      prefixClassValue("btn", "prefixJoinLcp"),
+      prefixClassValue("btn"),
     );
   });
 
@@ -418,6 +419,40 @@ describe("class-value-domain", () => {
     ).toBe(true);
     expect(classValueMatchesCandidate(prefixClassValue("btn-"), "card")).toBe(false);
     expect(classValueMatchesCandidate(charInclusionClassValue("z", "abc"), "cab")).toBe(false);
+  });
+
+  it("checks abstract value subset relations across reduced-product constraints", () => {
+    expect(
+      abstractClassValueIsSubset(exactClassValue("btn-primary"), prefixClassValue("btn-")),
+    ).toBe(true);
+    expect(
+      abstractClassValueIsSubset(
+        finiteSetClassValue(["btn-primary", "btn-secondary"]),
+        prefixClassValue("btn-"),
+      ),
+    ).toBe(true);
+    expect(
+      abstractClassValueIsSubset(
+        prefixSuffixClassValue("btn-primary-", "-active", 19),
+        prefixSuffixClassValue("btn-", "-active", 11),
+      ),
+    ).toBe(true);
+
+    const composite = compositeClassValue({
+      prefix: "btn-",
+      suffix: "-active",
+      minLength: 16,
+      mustChars: "-abceintv",
+      mayChars: "-abceinprtv",
+      provenance: "compositeJoin",
+    });
+
+    expect(abstractClassValueIsSubset(composite, prefixClassValue("btn-"))).toBe(true);
+    expect(abstractClassValueIsSubset(composite, suffixClassValue("-active"))).toBe(true);
+    expect(abstractClassValueIsSubset(composite, charInclusionClassValue("a", "-abceinprtv"))).toBe(
+      true,
+    );
+    expect(abstractClassValueIsSubset(prefixClassValue("btn-"), composite)).toBe(false);
   });
 
   it("propagates character inclusion through concat and join", () => {

@@ -197,7 +197,7 @@ function mapRustValueDomainKind(
     case "top":
       return valueDomainKind;
     case "constrained":
-      return "top";
+      return "constrained";
     default:
       return "top";
   }

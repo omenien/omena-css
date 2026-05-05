@@ -560,6 +560,9 @@ export function joinClassValues(
   left: AbstractClassValue,
   right: AbstractClassValue,
 ): AbstractClassValue {
+  if (abstractClassValueIsSubset(left, right)) return right;
+  if (abstractClassValueIsSubset(right, left)) return left;
+
   if (left.kind === "bottom") return right;
   if (right.kind === "bottom") return left;
   if (left.kind === "top" || right.kind === "top") return TOP_CLASS_VALUE;
@@ -787,6 +790,132 @@ export function classValueMatchesCandidate(value: AbstractClassValue, candidate:
       value satisfies never;
       return true;
   }
+}
+
+export function abstractClassValueIsSubset(
+  left: AbstractClassValue,
+  right: AbstractClassValue,
+): boolean {
+  if (left.kind === "bottom" || right.kind === "top") return true;
+  if (left.kind === "top") return false;
+
+  const finiteValues = enumerateFiniteClassValues(left);
+  if (finiteValues) {
+    return finiteValues.every((value) => classValueMatchesCandidate(right, value));
+  }
+
+  return constrainedValueIsSubset(left, right) || reducedProductValueIsSubset(left, right);
+}
+
+function constrainedValueIsSubset(left: AbstractClassValue, right: AbstractClassValue): boolean {
+  switch (left.kind) {
+    case "prefix":
+      return right.kind === "prefix" && left.prefix.startsWith(right.prefix);
+    case "suffix":
+      return right.kind === "suffix" && left.suffix.endsWith(right.suffix);
+    case "prefixSuffix":
+      switch (right.kind) {
+        case "prefix":
+          return left.prefix.startsWith(right.prefix);
+        case "suffix":
+          return left.suffix.endsWith(right.suffix);
+        case "prefixSuffix":
+          return (
+            left.prefix.startsWith(right.prefix) &&
+            left.suffix.endsWith(right.suffix) &&
+            left.minLength >= right.minLength
+          );
+        default:
+          return false;
+      }
+    default:
+      return false;
+  }
+}
+
+interface ClassValueReductionFacts {
+  readonly prefix?: string;
+  readonly suffix?: string;
+  readonly minLength?: number;
+  readonly mustChars: string;
+  readonly allowedChars?: string;
+}
+
+function reducedProductValueIsSubset(left: AbstractClassValue, right: AbstractClassValue): boolean {
+  const leftFacts = reductionFactsFromAbstractValue(left);
+  const rightFacts = reductionFactsFromAbstractValue(right);
+  if (!leftFacts || !rightFacts) return false;
+  return reductionFactsAreSubset(leftFacts, rightFacts);
+}
+
+function reductionFactsFromAbstractValue(
+  value: AbstractClassValue,
+): ClassValueReductionFacts | null {
+  switch (value.kind) {
+    case "bottom":
+    case "exact":
+    case "finiteSet":
+      return null;
+    case "prefix":
+      return { prefix: value.prefix, mustChars: "" };
+    case "suffix":
+      return { suffix: value.suffix, mustChars: "" };
+    case "prefixSuffix":
+      return {
+        prefix: value.prefix,
+        suffix: value.suffix,
+        minLength: value.minLength,
+        mustChars: "",
+      };
+    case "charInclusion":
+      return {
+        mustChars: value.mustChars,
+        ...(!value.mayIncludeOtherChars ? { allowedChars: value.mayChars } : {}),
+      };
+    case "composite":
+      return {
+        ...(value.prefix ? { prefix: value.prefix } : {}),
+        ...(value.suffix ? { suffix: value.suffix } : {}),
+        ...(value.minLength !== undefined ? { minLength: value.minLength } : {}),
+        mustChars: value.mustChars,
+        ...(!value.mayIncludeOtherChars ? { allowedChars: value.mayChars } : {}),
+      };
+    case "top":
+      return { mustChars: "" };
+    default:
+      value satisfies never;
+      return null;
+  }
+}
+
+function reductionFactsAreSubset(
+  left: ClassValueReductionFacts,
+  right: ClassValueReductionFacts,
+): boolean {
+  if (right.prefix && !left.prefix?.startsWith(right.prefix)) return false;
+  if (right.suffix && !left.suffix?.endsWith(right.suffix)) return false;
+  if (right.minLength !== undefined && lowerBoundLength(left) < right.minLength) return false;
+  if (!charSetIsSubset(right.mustChars, guaranteedChars(left))) return false;
+
+  if (right.allowedChars !== undefined) {
+    if (left.allowedChars === undefined) return false;
+    if (!charSetIsSubset(left.allowedChars, right.allowedChars)) return false;
+  }
+
+  return true;
+}
+
+function lowerBoundLength(value: ClassValueReductionFacts): number {
+  if (value.minLength !== undefined) return value.minLength;
+  const edgeLength = (value.prefix?.length ?? 0) + (value.suffix?.length ?? 0);
+  return Math.max(edgeLength, Array.from(value.mustChars).length);
+}
+
+function guaranteedChars(value: ClassValueReductionFacts): string {
+  return unionCharSets(
+    value.mustChars,
+    charSetForString(`${value.prefix ?? ""}${value.suffix ?? ""}`),
+  );
 }
 
 function joinPrefixWithValue(
@@ -1079,6 +1208,11 @@ function intersectCharSets(left: string, right: string): string {
   return Array.from(new Set(Array.from(left).filter((char) => rightSet.has(char))))
     .toSorted()
     .join("");
+}
+
+function charSetIsSubset(left: string, right: string): boolean {
+  const rightSet = new Set(Array.from(right));
+  return Array.from(left).every((char) => rightSet.has(char));
 }
 
 function charSetForString(value: string): string {

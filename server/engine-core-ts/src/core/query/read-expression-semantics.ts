@@ -9,7 +9,13 @@ import type {
 } from "./read-source-expression-resolution";
 import { readSourceExpressionResolution } from "./read-source-expression-resolution";
 
-export type ExpressionValueDomainKind = "none" | "exact" | "finiteSet" | "prefix" | "top";
+export type ExpressionValueDomainKind =
+  | "none"
+  | "exact"
+  | "finiteSet"
+  | "prefix"
+  | "constrained"
+  | "top";
 
 export interface ReducedClassValueDerivation {
   readonly schemaVersion: string;
@@ -97,7 +103,7 @@ function classifyValueDomain(
     case "prefixSuffix":
     case "charInclusion":
     case "composite":
-      return "top";
+      return "constrained";
     case "top":
       return "top";
     default:
@@ -110,23 +116,72 @@ function buildReducedClassValueDerivation(
   abstractValue: FlowResolution["abstractValue"],
   reducedKind: ExpressionValueDomainKind,
 ): ReducedClassValueDerivation {
+  const inputConstraintKind = constraintKindForAbstractValue(abstractValue);
+  const resultProvenance = provenanceForAbstractValue(abstractValue);
+  const resultKind = inputConstraintKind ?? reducedKind;
   return {
     schemaVersion: "0",
     product: "omena-abstract-value.reduced-class-value-derivation",
     inputFactKind: reducedKind,
+    ...(inputConstraintKind ? { inputConstraintKind } : {}),
     inputValueCount: finiteValueCountForAbstractValue(abstractValue),
     reducedKind,
     steps: [
       {
         operation: "baseFromFacts",
-        resultKind: reducedKind,
+        resultKind,
+        ...(resultProvenance ? { resultProvenance } : {}),
         reason:
           reducedKind === "exact" || reducedKind === "finiteSet"
             ? "preserved finite string literal facts"
-            : "mapped input facts to the base abstract value",
+            : reducedKind === "constrained" || reducedKind === "prefix"
+              ? "preserved reduced string constraint facts"
+              : "mapped input facts to the base abstract value",
       },
     ],
   };
+}
+
+function constraintKindForAbstractValue(
+  abstractValue: FlowResolution["abstractValue"],
+): "prefix" | "suffix" | "prefixSuffix" | "charInclusion" | "composite" | undefined {
+  switch (abstractValue.kind) {
+    case "prefix":
+    case "suffix":
+    case "prefixSuffix":
+    case "charInclusion":
+    case "composite":
+      return abstractValue.kind;
+    case "bottom":
+    case "exact":
+    case "finiteSet":
+    case "top":
+      return undefined;
+    default:
+      abstractValue satisfies never;
+      return undefined;
+  }
+}
+
+function provenanceForAbstractValue(
+  abstractValue: FlowResolution["abstractValue"],
+): string | undefined {
+  switch (abstractValue.kind) {
+    case "prefix":
+    case "suffix":
+    case "prefixSuffix":
+    case "charInclusion":
+    case "composite":
+      return abstractValue.provenance;
+    case "bottom":
+    case "exact":
+    case "finiteSet":
+    case "top":
+      return undefined;
+    default:
+      abstractValue satisfies never;
+      return undefined;
+  }
 }
 
 function finiteValueCountForAbstractValue(abstractValue: FlowResolution["abstractValue"]): number {
