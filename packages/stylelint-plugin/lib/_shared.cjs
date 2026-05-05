@@ -3,6 +3,7 @@ const { execFileSync } = require("node:child_process");
 
 const STYLE_MODULE_FILE_PATTERN = /\.module\.(css|scss|less)$/;
 const REPO_ROOT = path.resolve(__dirname, "../../../");
+const STYLE_CHECK_REPORT_CACHE = new Map();
 
 module.exports = {
   STYLE_MODULE_FILE_PATTERN,
@@ -53,6 +54,22 @@ function getRuleOptions(filePath, secondaryOptions = {}) {
 }
 
 function runStyleChecks(filePath, ruleOptions, includeCodes = ["unused-selector"]) {
+  const report = readStyleCheckReport(ruleOptions);
+  const includeCodeSet = new Set(includeCodes);
+  return (report.findings ?? []).filter(
+    (finding) => finding.filePath === filePath && includeCodeSet.has(finding.code),
+  );
+}
+
+function readStyleCheckReport(ruleOptions) {
+  const cacheKey = JSON.stringify({
+    workspaceRoot: ruleOptions.workspaceRoot,
+    classnameTransform: ruleOptions.classnameTransform,
+    pathAlias: Object.entries(ruleOptions.pathAlias).toSorted(([a], [b]) => a.localeCompare(b)),
+  });
+  const cached = STYLE_CHECK_REPORT_CACHE.get(cacheKey);
+  if (cached) return cached;
+
   const args = [
     "--silent",
     "check:workspace",
@@ -70,10 +87,6 @@ function runStyleChecks(filePath, ruleOptions, includeCodes = ["unused-selector"
     ruleOptions.classnameTransform,
   ];
 
-  for (const code of includeCodes) {
-    args.push("--include-code", code);
-  }
-
   for (const [key, value] of Object.entries(ruleOptions.pathAlias)) {
     args.push("--path-alias", `${key}=${value}`);
   }
@@ -83,7 +96,8 @@ function runStyleChecks(filePath, ruleOptions, includeCodes = ["unused-selector"
     encoding: "utf8",
   });
   const report = JSON.parse(stdout);
-  return (report.findings ?? []).filter((finding) => finding.filePath === filePath);
+  STYLE_CHECK_REPORT_CACHE.set(cacheKey, report);
+  return report;
 }
 
 function resolveWorkspaceRoot(filePath, configuredRoot) {

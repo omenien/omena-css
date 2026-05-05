@@ -1,0 +1,10 @@
+$known: 1rem;
+
+@mixin raised() {
+  box-shadow: 0 0 $known;
+}
+
+.button {
+  color: $missing;
+  @include absent;
+}

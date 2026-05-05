@@ -10,6 +10,8 @@ const STYLE_FILE_PATHS = [
   path.join(WORKSPACE_ROOT, "src/ValueMissingModule.module.css"),
   path.join(WORKSPACE_ROOT, "src/ValueMissingImported.module.css"),
   path.join(WORKSPACE_ROOT, "src/KeyframesMissing.module.css"),
+  path.join(WORKSPACE_ROOT, "src/CustomPropertyMissing.module.css"),
+  path.join(WORKSPACE_ROOT, "src/SassSymbolMissing.module.scss"),
 ];
 const PLUGIN_NAME = "stylelint-plugin-css-module-explainer";
 
@@ -19,6 +21,7 @@ async function main() {
     configBasedir: REPO_ROOT,
     config: {
       extends: [`${PLUGIN_NAME}/recommended`],
+      customSyntax: "postcss-scss",
       rules: {
         "css-module-explainer/unused-selector": [
           true,
@@ -51,6 +54,18 @@ async function main() {
           },
         ],
         "css-module-explainer/missing-keyframes": [
+          true,
+          {
+            workspaceRoot: WORKSPACE_ROOT,
+          },
+        ],
+        "css-module-explainer/missing-custom-property": [
+          true,
+          {
+            workspaceRoot: WORKSPACE_ROOT,
+          },
+        ],
+        "css-module-explainer/missing-sass-symbol": [
           true,
           {
             workspaceRoot: WORKSPACE_ROOT,
@@ -90,6 +105,18 @@ async function main() {
   assertSingleWarning(
     warningsByFile.get("KeyframesMissing.module.css"),
     "@keyframes 'fade' not found in this file.",
+  );
+  assertSingleWarning(
+    warningsByFile.get("CustomPropertyMissing.module.css"),
+    "CSS custom property '--missing' not found in indexed style tokens.",
+  );
+  assertSingleWarning(
+    warningsByFile.get("SassSymbolMissing.module.scss"),
+    "Sass variable '$missing' not found in this file.",
+  );
+  assertSingleWarning(
+    warningsByFile.get("SassSymbolMissing.module.scss"),
+    "Sass mixin '@mixin absent' not found in this file.",
   );
 }
 

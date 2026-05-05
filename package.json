@@ -260,6 +260,7 @@
     "oxlint": "^1.60.0",
     "postcss": "^8.5.9",
     "postcss-safe-parser": "7.0.1",
+    "postcss-scss": "^4.0.9",
     "rolldown": "1.0.0-rc.15",
     "stylelint": "^17.8.0",
     "stylelint-plugin-css-module-explainer": "workspace:*",

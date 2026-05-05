@@ -5,4 +5,6 @@ module.exports = [
   require("./lib/missing-value-module.cjs"),
   require("./lib/missing-imported-value.cjs"),
   require("./lib/missing-keyframes.cjs"),
+  require("./lib/missing-custom-property.cjs"),
+  require("./lib/missing-sass-symbol.cjs"),
 ];

@@ -1,0 +1,7 @@
+:root {
+  --known: #2563eb;
+}
+
+.button {
+  color: var(--missing);
+}
