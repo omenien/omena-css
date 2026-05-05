@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [4.19.0] - 2026-05-05
+
+### Added
+
+- **Abstract-value provenance trees** - `omena-abstract-value`, Rust selected-query producers, and Engine V2 expression semantics now carry a structured value-domain provenance tree for reduced class values.
+- **Hover provenance surface** - source hovers now render value-domain provenance and retained constraint steps alongside the existing selector/value-domain explanation.
+
+### Changed
+
+- **Abstract-value module split** - `omena-abstract-value` is split into focused domain, algebra, facts, flow, provenance, reduced-product, selector-projection, and type modules instead of concentrating the public surface in one large file.
+- **TS7 shadow provenance parity** - TS7 shadow expected payloads now include the Rust provenance-tree contract for expression-domain and expression-semantics evaluator/canonical-producer lanes.
+
 ## [4.18.0] - 2026-05-05
 
 ### Added
