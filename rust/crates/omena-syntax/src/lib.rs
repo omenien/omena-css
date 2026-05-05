@@ -316,6 +316,7 @@ syntax_kinds! {
     FilterFunction = 0x105b,
     ImageFunction = 0x105c,
     ShapeFunction = 0x105d,
+    AtRulePrelude = 0x105e,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,
@@ -390,6 +391,7 @@ syntax_kinds! {
     BogusLessDetachedRuleset = 0x2022,
     BogusRecovery = 0x2023,
     BogusScssModuleConfig = 0x2024,
+    BogusAtRulePrelude = 0x2025,
 
     Root = 0x2100,
     Eof = 0x2101,

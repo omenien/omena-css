@@ -364,6 +364,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "modernDeclarationAtRuleCstNodes",
             "fontFeatureValuesAtRuleCstNodes",
             "viewTransitionAtRuleCstNodes",
+            "genericAtRulePreludeCstNodes",
+            "bogusAtRulePreludeCstNodes",
             "cssColorFunctionCstNodes",
             "gradientFunctionCstNodes",
             "transformFunctionCstNodes",
@@ -1959,6 +1961,14 @@ impl<'text> Parser<'text> {
     }
 
     fn consume_at_rule_prelude_tokens(&mut self) {
+        if self
+            .current_kind()
+            .is_none_or(|kind| is_at_rule_prelude_boundary(kind))
+        {
+            return;
+        }
+        self.builder
+            .start_node(self.current_generic_at_rule_prelude_node_kind());
         while !self.at_end() {
             match self.current_kind() {
                 Some(kind) if is_at_rule_prelude_boundary(kind) => break,
@@ -1970,6 +1980,7 @@ impl<'text> Parser<'text> {
                 None => break,
             }
         }
+        self.builder.finish_node();
     }
 
     fn parse_balanced_parenthesized_prelude(&mut self, node_kind: Option<SyntaxKind>) {
@@ -2445,6 +2456,17 @@ impl<'text> Parser<'text> {
             && self
                 .non_trivia_token_from(self.position)
                 .is_some_and(|(_, kind)| kind == SyntaxKind::Semicolon)
+    }
+
+    fn current_generic_at_rule_prelude_node_kind(&self) -> SyntaxKind {
+        if self.current_prelude_parentheses_are_balanced_until(&[
+            SyntaxKind::LeftBrace,
+            SyntaxKind::Semicolon,
+        ]) {
+            SyntaxKind::AtRulePrelude
+        } else {
+            SyntaxKind::BogusAtRulePrelude
+        }
     }
 
     fn current_prelude_parentheses_are_balanced_until(&self, recovery: &[SyntaxKind]) -> bool {
@@ -4724,6 +4746,8 @@ mod tests {
             "@container (inline-size > { .a { color: red; } }",
             StyleDialect::Css,
         );
+        let missing_unknown_prelude_close =
+            parse("@unknown (min-width: { color: red; }", StyleDialect::Css);
         let missing_scope_close = parse("@scope (.a { .b { color: red; } }", StyleDialect::Css);
         let empty_layer_statement = parse("@layer ;", StyleDialect::Css);
         let missing_keyframe_block =
@@ -4747,6 +4771,10 @@ mod tests {
         assert!(
             node_kinds(&missing_container_close.syntax())
                 .contains(&SyntaxKind::BogusContainerCondition)
+        );
+        assert!(
+            node_kinds(&missing_unknown_prelude_close.syntax())
+                .contains(&SyntaxKind::BogusAtRulePrelude)
         );
         assert!(node_kinds(&missing_scope_close.syntax()).contains(&SyntaxKind::BogusScopeRange));
         assert!(node_kinds(&empty_layer_statement.syntax()).contains(&SyntaxKind::BogusLayerName));
@@ -4945,6 +4973,7 @@ mod tests {
         assert!(font_feature_values.errors().is_empty());
         assert!(less_css_at_rules.errors().is_empty());
         assert!(keyframe_kinds.contains(&SyntaxKind::KeyframesRule));
+        assert!(keyframe_kinds.contains(&SyntaxKind::AtRulePrelude));
         assert!(keyframe_kinds.contains(&SyntaxKind::KeyframeBlock));
         assert!(font_face_kinds.contains(&SyntaxKind::FontFaceRule));
         assert!(font_face_kinds.contains(&SyntaxKind::DeclarationList));
@@ -5726,6 +5755,16 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"viewTransitionAtRuleCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"genericAtRulePreludeCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"bogusAtRulePreludeCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"cssColorFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"gradientFunctionCstNodes"));
