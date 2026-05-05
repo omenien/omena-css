@@ -324,6 +324,7 @@ syntax_kinds! {
     UnicodeRangeValue = 0x1063,
     NumberValue = 0x1064,
     PercentageValue = 0x1065,
+    BracketedValue = 0x1066,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,
@@ -399,6 +400,7 @@ syntax_kinds! {
     BogusRecovery = 0x2023,
     BogusScssModuleConfig = 0x2024,
     BogusAtRulePrelude = 0x2025,
+    BogusBracketedValue = 0x2026,
 
     Root = 0x2100,
     Eof = 0x2101,

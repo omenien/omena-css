@@ -401,6 +401,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "differentialCorpusSeed",
             "midTypingNoPanicPropertySlice",
             "typedNumericValueAtomCstNodes",
+            "bracketedValueCstNodes",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -1709,6 +1710,7 @@ impl<'text> Parser<'text> {
                 self.builder.finish_node();
             }
             Some(SyntaxKind::LeftParen) => self.parse_parenthesized_expression(recovery),
+            Some(SyntaxKind::LeftBracket) => self.parse_bracketed_value(recovery),
             Some(kind) if recovery.contains(&kind) => {
                 self.empty_bogus_node(
                     SyntaxKind::BogusValue,
@@ -1774,6 +1776,27 @@ impl<'text> Parser<'text> {
         }
         if specialized_kind.is_some() {
             self.builder.finish_node();
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_bracketed_value(&mut self, recovery: &[SyntaxKind]) {
+        let closed = self.current_bracketed_value_has_closing_bracket_before(recovery);
+        self.builder.start_node(if closed {
+            SyntaxKind::BracketedValue
+        } else {
+            SyntaxKind::BogusBracketedValue
+        });
+        self.token_current();
+        let bracket_recovery = bracketed_value_recovery(recovery);
+        self.parse_value_until(&bracket_recovery);
+        if self.current_kind() == Some(SyntaxKind::RightBracket) {
+            self.token_current();
+        } else {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "unterminated bracketed value",
+            );
         }
         self.builder.finish_node();
     }
@@ -2344,6 +2367,24 @@ impl<'text> Parser<'text> {
             match token.kind {
                 SyntaxKind::LeftParen => depth += 1,
                 SyntaxKind::RightParen => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        return true;
+                    }
+                }
+                kind if depth == 1 && recovery.contains(&kind) => return false,
+                _ => {}
+            }
+        }
+        false
+    }
+
+    fn current_bracketed_value_has_closing_bracket_before(&self, recovery: &[SyntaxKind]) -> bool {
+        let mut depth = 0usize;
+        for token in self.tokens.iter().skip(self.position) {
+            match token.kind {
+                SyntaxKind::LeftBracket => depth += 1,
+                SyntaxKind::RightBracket => {
                     depth = depth.saturating_sub(1);
                     if depth == 0 {
                         return true;
@@ -4348,6 +4389,16 @@ fn function_argument_recovery(recovery: &[SyntaxKind]) -> Vec<SyntaxKind> {
     kinds
 }
 
+fn bracketed_value_recovery(recovery: &[SyntaxKind]) -> Vec<SyntaxKind> {
+    let mut kinds = vec![SyntaxKind::RightBracket];
+    for kind in recovery {
+        if !kinds.contains(kind) {
+            kinds.push(*kind);
+        }
+    }
+    kinds
+}
+
 fn value_list_item_recovery(recovery: &[SyntaxKind]) -> Vec<SyntaxKind> {
     let mut kinds = vec![SyntaxKind::Comma];
     for kind in recovery {
@@ -5290,6 +5341,22 @@ mod tests {
     }
 
     #[test]
+    fn structures_bracketed_value_atoms_and_recovery() {
+        let closed = parse(
+            ".grid { grid-template-columns: [full-start] minmax(0, 1fr) [full-end]; }",
+            StyleDialect::Css,
+        );
+        let missing_close = parse(
+            ".grid { grid-template-columns: [full-start 1fr; }",
+            StyleDialect::Css,
+        );
+
+        assert!(closed.errors().is_empty());
+        assert!(node_kinds(&closed.syntax()).contains(&SyntaxKind::BracketedValue));
+        assert!(node_kinds(&missing_close.syntax()).contains(&SyntaxKind::BogusBracketedValue));
+    }
+
+    #[test]
     fn recovers_bogus_top_level_value_lists() {
         let result = parse(".a { font-family: system, ; }", StyleDialect::Css);
         let kinds = node_kinds(&result.syntax());
@@ -5979,6 +6046,7 @@ mod tests {
                 .ready_surfaces
                 .contains(&"typedNumericValueAtomCstNodes")
         );
+        assert!(summary.ready_surfaces.contains(&"bracketedValueCstNodes"));
         assert!(
             summary
                 .ready_surfaces
