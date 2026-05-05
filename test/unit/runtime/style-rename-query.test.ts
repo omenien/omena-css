@@ -72,6 +72,62 @@ describe("style rename query", () => {
     ]);
   });
 
+  it("reads and plans same-file @value declaration rename edits", () => {
+    const scss = `@value primary: #fff;
+@value accent: primary;
+.button {
+  color: primary;
+}
+`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const deps = makeBaseDeps({
+      styleDocumentForPath: (filePath) => (filePath === SCSS_PATH ? styleDocument : null),
+    });
+
+    const target = readStyleRenameTargetAtCursor(SCSS_PATH, 3, 10, styleDocument, deps);
+    expect(target.kind).toBe("target");
+    expect(target.kind === "target" ? target.target.placeholder : null).toBe("primary");
+
+    const plan = planStyleRenameAtCursor(SCSS_PATH, 3, 10, styleDocument, deps, "brand");
+    expect(plan?.kind).toBe("plan");
+    expect(plan?.kind === "plan" ? plan.plan.edits : []).toMatchObject([
+      { uri: "file:///fake/src/Button.module.scss", newText: "brand" },
+      { uri: "file:///fake/src/Button.module.scss", newText: "brand" },
+      { uri: "file:///fake/src/Button.module.scss", newText: "brand" },
+    ]);
+  });
+
+  it("renames imported @value local aliases without touching the source binding", () => {
+    const scss = `@value secondary as accent from "./tokens.module.scss";
+.button {
+  color: accent;
+}
+`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const deps = makeBaseDeps({
+      styleDocumentForPath: (filePath) => (filePath === SCSS_PATH ? styleDocument : null),
+    });
+
+    const target = readStyleRenameTargetAtCursor(SCSS_PATH, 2, 10, styleDocument, deps);
+    expect(target.kind).toBe("target");
+    expect(target.kind === "target" ? target.target.placeholder : null).toBe("accent");
+
+    const plan = planStyleRenameAtCursor(SCSS_PATH, 2, 10, styleDocument, deps, "brand");
+    expect(plan?.kind).toBe("plan");
+    expect(plan?.kind === "plan" ? plan.plan.edits : []).toMatchObject([
+      {
+        uri: "file:///fake/src/Button.module.scss",
+        range: { start: { line: 0, character: 20 }, end: { line: 0, character: 26 } },
+        newText: "brand",
+      },
+      {
+        uri: "file:///fake/src/Button.module.scss",
+        range: { start: { line: 2, character: 9 }, end: { line: 2, character: 15 } },
+        newText: "brand",
+      },
+    ]);
+  });
+
   it("reads and plans same-file Less variable rename edits", () => {
     const lessPath = "/fake/src/Button.module.less";
     const less = `@gap: 1rem;

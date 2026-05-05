@@ -48,6 +48,17 @@ const SASS_SYMBOL_WORKSPACE = workspace({
 
 const SASS_SYMBOL_SCSS = SASS_SYMBOL_WORKSPACE.file(BUTTON_SCSS_URI).content;
 
+const VALUE_WORKSPACE = workspace({
+  [BUTTON_SCSS_URI]: `@value primary: #fff;
+@value accent: primary;
+.button {
+  color: pri/*at:value*/mary;
+}
+`,
+});
+
+const VALUE_SCSS = VALUE_WORKSPACE.file(BUTTON_SCSS_URI).content;
+
 const CUSTOM_PROPERTY_WORKSPACE = workspace({
   [THEME_SCSS_URI]: `:root {
   --brand: red;
@@ -272,6 +283,38 @@ describe("rename protocol", () => {
     expect(scssEdits).toHaveLength(2);
     expect(scssEdits.map((textEdit) => textEdit.newText)).toEqual(["theme-tone", "theme-tone"]);
     expect(scssEdits.map((textEdit) => textEdit.range.start.line)).toEqual([2, 7]);
+  });
+
+  it("rename from an @value reference updates same-file declaration and references", async () => {
+    client = createInProcessServer({
+      readStyleFile: () => VALUE_SCSS,
+      typeResolver: new FakeTypeResolver(),
+    });
+    await client.initialize();
+    client.initialized();
+    client.didOpen({
+      textDocument: {
+        uri: BUTTON_SCSS_URI,
+        languageId: "scss",
+        version: 1,
+        text: VALUE_SCSS,
+      },
+    });
+
+    const prep = await client.prepareRename(
+      fixturePositionParams(VALUE_WORKSPACE, BUTTON_SCSS_URI, "value"),
+    );
+    expect(prep).not.toBeNull();
+    expect(prep!.placeholder).toBe("primary");
+
+    const edit = await client.rename(
+      fixtureRenameParams(VALUE_WORKSPACE, BUTTON_SCSS_URI, "brand", "value"),
+    );
+    expect(edit).not.toBeNull();
+    const scssEdits = edit!.changes![BUTTON_SCSS_URI]!;
+    expect(scssEdits).toHaveLength(3);
+    expect(scssEdits.map((textEdit) => textEdit.newText)).toEqual(["brand", "brand", "brand"]);
+    expect(scssEdits.map((textEdit) => textEdit.range.start.line)).toEqual([0, 1, 3]);
   });
 
   it("rename from a CSS custom property reference updates workspace declarations and refs", async () => {

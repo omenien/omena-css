@@ -14,8 +14,14 @@ import {
   findSassSymbolDeclForSymbol,
   findSassModuleMemberRefAtCursor,
   findSelectorAtCursor,
+  findValueDeclAtCursor,
+  findValueDeclByName,
+  findValueImportAtCursor,
+  findValueImportByName,
+  findValueRefAtCursor,
   listCustomPropertyRefs,
   listSassSymbolsForDecl,
+  listValueRefs,
   resolveCustomPropertyDeclTarget,
   resolveSassModuleMemberRefTarget,
   resolveSassWildcardSymbolTarget,
@@ -29,6 +35,8 @@ import type {
   SassSymbolDeclHIR,
   StylePreprocessorSymbolSyntax,
   StyleDocumentHIR,
+  ValueDeclHIR,
+  ValueImportHIR,
 } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
@@ -75,6 +83,21 @@ export type SassSymbolRenameReadResult =
   | { readonly kind: "target"; readonly target: SassSymbolRenameTarget }
   | { readonly kind: "miss" };
 
+export interface ValueRenameTarget {
+  readonly targetKind: "value";
+  readonly scssPath: string;
+  readonly scssUri: string;
+  readonly styleDocument: StyleDocumentHIR;
+  readonly name: string;
+  readonly targetRange: ValueDeclHIR["range"] | ValueImportHIR["range"];
+  readonly placeholder: string;
+  readonly placeholderRange: ValueDeclHIR["range"] | ValueImportHIR["range"];
+}
+
+export type ValueRenameReadResult =
+  | { readonly kind: "target"; readonly target: ValueRenameTarget }
+  | { readonly kind: "miss" };
+
 export interface CustomPropertyRenameTarget {
   readonly scssPath: string;
   readonly scssUri: string;
@@ -95,11 +118,16 @@ export type CustomPropertyRenameReadResult =
 
 export type StyleRenameReadResult =
   | SelectorRenameReadResult
+  | ValueRenameReadResult
   | SassSymbolRenameReadResult
   | CustomPropertyRenameReadResult;
 
 export type SassSymbolRenamePlanResult =
   | { readonly kind: "plan"; readonly plan: TextRewritePlan<SassSymbolRenameTarget> }
+  | { readonly kind: "blocked"; readonly reason: RenameEditBlockReason };
+
+export type ValueRenamePlanResult =
+  | { readonly kind: "plan"; readonly plan: TextRewritePlan<ValueRenameTarget> }
   | { readonly kind: "blocked"; readonly reason: RenameEditBlockReason };
 
 export type CustomPropertyRenamePlanResult =
@@ -108,6 +136,7 @@ export type CustomPropertyRenamePlanResult =
 
 export type StyleRenamePlanResult =
   | SelectorRenamePlanResult
+  | ValueRenamePlanResult
   | SassSymbolRenamePlanResult
   | CustomPropertyRenamePlanResult;
 
@@ -139,6 +168,8 @@ export function readStyleRenameTargetAtCursor(
     options,
   );
   if (selectorResult.kind !== "miss") return selectorResult;
+  const valueResult = readValueRenameTargetAtCursor(filePath, line, character, styleDocument);
+  if (valueResult.kind !== "miss") return valueResult;
   const customPropertyResult = readCustomPropertyRenameTargetAtCursor(
     filePath,
     line,
@@ -148,6 +179,46 @@ export function readStyleRenameTargetAtCursor(
   );
   if (customPropertyResult.kind !== "miss") return customPropertyResult;
   return readSassSymbolRenameTargetAtCursor(filePath, line, character, styleDocument, deps);
+}
+
+function readValueRenameTargetAtCursor(
+  filePath: string,
+  line: number,
+  character: number,
+  styleDocument: StyleDocumentHIR,
+): ValueRenameReadResult {
+  const decl = findValueDeclAtCursor(styleDocument, line, character);
+  if (decl) {
+    return {
+      kind: "target",
+      target: makeValueRenameTarget(filePath, styleDocument, decl.name, decl.range, decl.range),
+    };
+  }
+
+  const valueImport = findValueImportAtCursor(styleDocument, line, character);
+  if (valueImport) {
+    return {
+      kind: "target",
+      target: makeValueRenameTarget(
+        filePath,
+        styleDocument,
+        valueImport.name,
+        valueImport.range,
+        valueImport.range,
+      ),
+    };
+  }
+
+  const ref = findValueRefAtCursor(styleDocument, line, character);
+  if (!ref) return { kind: "miss" };
+  const localDecl = findValueDeclByName(styleDocument, ref.name);
+  const localImport = findValueImportByName(styleDocument, ref.name);
+  const targetRange = localDecl?.range ?? localImport?.range;
+  if (!targetRange) return { kind: "miss" };
+  return {
+    kind: "target",
+    target: makeValueRenameTarget(filePath, styleDocument, ref.name, targetRange, ref.range),
+  };
 }
 
 function readStyleSelectorRenameTargetAtCursor(
@@ -394,6 +465,9 @@ export function planStyleRenameAtCursor(
     options,
   );
   if (result.kind !== "target") return null;
+  if (isValueRenameTarget(result.target)) {
+    return planValueRename(result.target, newName);
+  }
   if (isCustomPropertyRenameTarget(result.target)) {
     return planCustomPropertyRename(result.target, newName, deps);
   }
@@ -401,6 +475,35 @@ export function planStyleRenameAtCursor(
     return planSassSymbolRename(result.target, newName, deps);
   }
   return planSelectorRename(result.target, newName);
+}
+
+function makeValueRenameTarget(
+  filePath: string,
+  styleDocument: StyleDocumentHIR,
+  name: string,
+  targetRange: ValueRenameTarget["targetRange"],
+  placeholderRange: ValueRenameTarget["placeholderRange"],
+): ValueRenameTarget {
+  return {
+    targetKind: "value",
+    scssPath: filePath,
+    scssUri: pathToFileUrl(filePath),
+    styleDocument,
+    name,
+    targetRange,
+    placeholder: name,
+    placeholderRange,
+  };
+}
+
+function isValueRenameTarget(
+  target:
+    | SelectorRenameTarget
+    | ValueRenameTarget
+    | SassSymbolRenameTarget
+    | CustomPropertyRenameTarget,
+): target is ValueRenameTarget {
+  return "targetKind" in target && target.targetKind === "value";
 }
 
 function makeSassSymbolRenameTarget(
@@ -439,6 +542,7 @@ function isCustomPropertyRenameTarget(
 
 const SASS_IDENTIFIER_RE = /^[a-zA-Z_][\w-]*$/;
 const CUSTOM_PROPERTY_IDENTIFIER_RE = /^--[a-zA-Z_][\w-]*$/;
+const VALUE_IDENTIFIER_RE = /^[\p{L}_-][\p{L}\p{N}\p{M}_-]*$/u;
 
 function makeCustomPropertyRenameTarget(
   filePath: string,
@@ -538,6 +642,32 @@ function planCustomPropertyRename(
   }
 
   return { kind: "plan", plan: { target, edits } };
+}
+
+function planValueRename(target: ValueRenameTarget, newName: string): ValueRenamePlanResult {
+  const nextName = normalizeValueNewName(newName);
+  if (!nextName) return { kind: "blocked", reason: "invalidNewName" };
+
+  const edits: PlannedTextEdit[] = [];
+  pushSassSymbolRenameEdit(edits, {
+    uri: target.scssUri,
+    range: target.targetRange,
+    newText: nextName,
+  });
+  for (const ref of listValueRefs(target.styleDocument, target.name)) {
+    pushSassSymbolRenameEdit(edits, {
+      uri: target.scssUri,
+      range: ref.range,
+      newText: nextName,
+    });
+  }
+
+  return { kind: "plan", plan: { target, edits } };
+}
+
+function normalizeValueNewName(newName: string): string | null {
+  const trimmed = newName.trim();
+  return VALUE_IDENTIFIER_RE.test(trimmed) ? trimmed : null;
 }
 
 function pushCustomPropertyRenameEdit(edits: PlannedTextEdit[], edit: PlannedTextEdit): void {
