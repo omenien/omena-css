@@ -174,6 +174,20 @@ struct Token<'text> {
     range: TextRange,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct AtRuleSpec {
+    node_kind: SyntaxKind,
+    block_kind: AtRuleBlockKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AtRuleBlockKind {
+    GroupRuleList,
+    DeclarationList,
+    Keyframes,
+    Raw,
+}
+
 pub fn parse(text: &str, dialect: StyleDialect) -> ParseResult {
     let extension = BuiltinDialectExtension::new(dialect);
     parse_with_extension(text, &extension)
@@ -228,6 +242,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "tokenSetRecoveryScaffold",
             "dialectExtensionScaffold",
             "selectorCstSkeleton",
+            "atRuleRegistrySkeleton",
         ],
         not_ready_surfaces: vec![
             "fullRecursiveDescentGrammar",
@@ -612,7 +627,16 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_at_rule(&mut self) {
+        let spec = self.current_text().and_then(at_rule_spec);
         self.builder.start_node(SyntaxKind::AtRule);
+        if let Some(spec) = spec {
+            self.builder.start_node(spec.node_kind);
+        }
+
+        if self.current_kind() == Some(SyntaxKind::AtKeyword) {
+            self.token_current();
+        }
+
         while !self.at_end() {
             match self.current_kind() {
                 Some(SyntaxKind::Semicolon) => {
@@ -620,11 +644,83 @@ impl<'text> Parser<'text> {
                     break;
                 }
                 Some(SyntaxKind::LeftBrace) => {
-                    self.consume_balanced_block();
+                    match spec
+                        .map(|spec| spec.block_kind)
+                        .unwrap_or(AtRuleBlockKind::Raw)
+                    {
+                        AtRuleBlockKind::GroupRuleList => self.parse_group_at_rule_block(),
+                        AtRuleBlockKind::DeclarationList => self.parse_declaration_block(),
+                        AtRuleBlockKind::Keyframes => self.parse_keyframes_block(),
+                        AtRuleBlockKind::Raw => self.consume_balanced_block(),
+                    }
                     break;
                 }
                 Some(_) => self.token_current(),
                 None => break,
+            }
+        }
+
+        if spec.is_some() {
+            self.builder.finish_node();
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_group_at_rule_block(&mut self) {
+        self.token_current();
+        self.builder.start_node(SyntaxKind::RuleList);
+        self.parse_rule_list_items();
+        self.builder.finish_node();
+        if self.current_kind() == Some(SyntaxKind::RightBrace) {
+            self.token_current();
+        }
+    }
+
+    fn parse_rule_list_items(&mut self) {
+        while !self.at_end() {
+            self.eat_trivia();
+            match self.current_kind() {
+                Some(SyntaxKind::RightBrace) | None => break,
+                Some(SyntaxKind::AtKeyword) => self.parse_at_rule(),
+                Some(_) => self.parse_rule(),
+            }
+        }
+    }
+
+    fn parse_declaration_block(&mut self) {
+        self.token_current();
+        self.builder.start_node(SyntaxKind::DeclarationList);
+        self.parse_declaration_list();
+        self.builder.finish_node();
+        if self.current_kind() == Some(SyntaxKind::RightBrace) {
+            self.token_current();
+        }
+    }
+
+    fn parse_keyframes_block(&mut self) {
+        self.token_current();
+        while !self.at_end() {
+            self.eat_trivia();
+            match self.current_kind() {
+                Some(SyntaxKind::RightBrace) | None => break,
+                Some(_) => self.parse_keyframe_block(),
+            }
+        }
+        if self.current_kind() == Some(SyntaxKind::RightBrace) {
+            self.token_current();
+        }
+    }
+
+    fn parse_keyframe_block(&mut self) {
+        self.builder.start_node(SyntaxKind::KeyframeBlock);
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::LeftBrace) => {
+                    self.parse_declaration_block();
+                    break;
+                }
+                Some(SyntaxKind::RightBrace) | None => break,
+                Some(_) => self.token_current(),
             }
         }
         self.builder.finish_node();
@@ -690,6 +786,10 @@ impl<'text> Parser<'text> {
 
     fn current_kind(&self) -> Option<SyntaxKind> {
         self.tokens.get(self.position).map(|token| token.kind)
+    }
+
+    fn current_text(&self) -> Option<&'text str> {
+        self.tokens.get(self.position).map(|token| token.text)
     }
 
     fn next_kind(&self) -> Option<SyntaxKind> {
@@ -1022,6 +1122,32 @@ fn is_css_at_rule_name(text: &str) -> bool {
     )
 }
 
+fn at_rule_spec(text: &str) -> Option<AtRuleSpec> {
+    let (node_kind, block_kind) = match text {
+        "@media" => (SyntaxKind::MediaRule, AtRuleBlockKind::GroupRuleList),
+        "@supports" => (SyntaxKind::SupportsRule, AtRuleBlockKind::GroupRuleList),
+        "@container" => (SyntaxKind::ContainerRule, AtRuleBlockKind::GroupRuleList),
+        "@layer" => (SyntaxKind::LayerRule, AtRuleBlockKind::GroupRuleList),
+        "@scope" => (SyntaxKind::ScopeRule, AtRuleBlockKind::GroupRuleList),
+        "@starting-style" => (
+            SyntaxKind::StartingStyleRule,
+            AtRuleBlockKind::GroupRuleList,
+        ),
+        "@keyframes" => (SyntaxKind::KeyframesRule, AtRuleBlockKind::Keyframes),
+        "@font-face" => (SyntaxKind::FontFaceRule, AtRuleBlockKind::DeclarationList),
+        "@page" => (SyntaxKind::PageRule, AtRuleBlockKind::DeclarationList),
+        "@property" => (SyntaxKind::PropertyRule, AtRuleBlockKind::DeclarationList),
+        "@charset" => (SyntaxKind::CharsetRule, AtRuleBlockKind::Raw),
+        "@import" => (SyntaxKind::ImportRule, AtRuleBlockKind::Raw),
+        "@namespace" => (SyntaxKind::NamespaceRule, AtRuleBlockKind::Raw),
+        _ => return None,
+    };
+    Some(AtRuleSpec {
+        node_kind,
+        block_kind,
+    })
+}
+
 fn is_selector_boundary(kind: SyntaxKind) -> bool {
     matches!(
         kind,
@@ -1152,6 +1278,43 @@ mod tests {
     }
 
     #[test]
+    fn parses_registered_group_at_rule_blocks() {
+        let result = parse(
+            "@media screen and (min-width: 40rem) { .card { color: red; } }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::AtRule));
+        assert!(kinds.contains(&SyntaxKind::MediaRule));
+        assert!(kinds.contains(&SyntaxKind::RuleList));
+        assert!(kinds.contains(&SyntaxKind::Rule));
+        assert!(kinds.contains(&SyntaxKind::ClassSelector));
+    }
+
+    #[test]
+    fn parses_registered_keyframes_and_declaration_at_rules() {
+        let keyframes = parse(
+            "@keyframes fade { from { opacity: 0; } to { opacity: 1; } }",
+            StyleDialect::Css,
+        );
+        let font_face = parse(
+            "@font-face { font-family: \"Demo\"; src: url(demo.woff2); }",
+            StyleDialect::Css,
+        );
+        let keyframe_kinds = node_kinds(&keyframes.syntax());
+        let font_face_kinds = node_kinds(&font_face.syntax());
+
+        assert!(keyframes.errors().is_empty());
+        assert!(font_face.errors().is_empty());
+        assert!(keyframe_kinds.contains(&SyntaxKind::KeyframesRule));
+        assert!(keyframe_kinds.contains(&SyntaxKind::KeyframeBlock));
+        assert!(font_face_kinds.contains(&SyntaxKind::FontFaceRule));
+        assert!(font_face_kinds.contains(&SyntaxKind::DeclarationList));
+    }
+
+    #[test]
     fn structures_css_value_function_calls() {
         let result = parse(".a { width: calc(var(--gap) + 1rem); }", StyleDialect::Css);
         let kinds = node_kinds(&result.syntax());
@@ -1200,6 +1363,7 @@ mod tests {
         assert_eq!(summary.dialect_count, 4);
         assert_eq!(summary.shared_name_kind_count, 8);
         assert!(summary.ready_surfaces.contains(&"selectorCstSkeleton"));
+        assert!(summary.ready_surfaces.contains(&"atRuleRegistrySkeleton"));
         assert!(summary.not_ready_surfaces.contains(&"productCutover"));
     }
 
