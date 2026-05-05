@@ -34,6 +34,19 @@ interface OmenaParserStyleFactsV0 {
   readonly parserErrorCount: number;
 }
 
+interface OmenaParserLexResultV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-parser.lex-result";
+  readonly dialect: OmenaParserDialect;
+  readonly tokens: readonly {
+    readonly kind: string;
+    readonly text: string;
+    readonly start: number;
+    readonly end: number;
+  }[];
+  readonly parserErrorCount: number;
+}
+
 const LEGACY_SUPPORTED_CORPUS = [
   {
     label: "css-custom-properties",
@@ -218,6 +231,47 @@ const PARSER_ONLY_CORPUS = [
   };
 }[];
 
+const TOKEN_TEXT_CORPUS = [
+  {
+    label: "css-selectors-l4-token-text",
+    dialect: "css",
+    source: `.card:has(> .icon, + [data-active]):nth-child(2n + 1 of .item):lang(en-US, "ko"):dir(rtl) { color: var(--brand); }`,
+    expectedTokenTexts: [
+      ".",
+      "card",
+      "has",
+      ">",
+      "icon",
+      "nth-child",
+      "of",
+      "item",
+      "lang",
+      "en-US",
+      '"ko"',
+      "dir",
+      "rtl",
+      "--brand",
+    ],
+  },
+  {
+    label: "scss-dialect-token-text",
+    dialect: "scss",
+    source: `$gap: 1rem;\n.card-#{$variant} { color: $gap; }`,
+    expectedTokenTexts: ["$gap", "1rem", "#{", "$variant", "$gap"],
+  },
+  {
+    label: "less-dialect-token-text",
+    dialect: "less",
+    source: `@gap: 1rem;\n.card-@{variant} { width: @gap; }`,
+    expectedTokenTexts: ["@gap", "1rem", "@{", "variant", "@gap"],
+  },
+] as const satisfies readonly {
+  readonly label: string;
+  readonly dialect: OmenaParserDialect;
+  readonly source: string;
+  readonly expectedTokenTexts: readonly string[];
+}[];
+
 async function runLegacyIndex(
   filePath: string,
   source: string,
@@ -255,6 +309,26 @@ async function runOmenaParserStyleFacts(
       "engine-shadow-runner",
       "--",
       "omena-parser-style-facts",
+    ],
+    JSON.stringify({ styleSource: source, dialect }),
+  );
+}
+
+async function runOmenaParserLex(
+  dialect: OmenaParserDialect,
+  source: string,
+): Promise<OmenaParserLexResultV0> {
+  return runJson<OmenaParserLexResultV0>(
+    "cargo",
+    [
+      "run",
+      "--quiet",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--",
+      "omena-parser-lex",
     ],
     JSON.stringify({ styleSource: source, dialect }),
   );
@@ -418,6 +492,36 @@ void (async () => {
 
     process.stdout.write(
       `validated parser-only corpus: selectors=${actual.classSelectorNames.length} placeholders=${actual.placeholderSelectorNames.length}\n\n`,
+    );
+  }
+
+  for (const entry of TOKEN_TEXT_CORPUS) {
+    process.stdout.write(`== omena-parser-differential-corpus:${entry.label} ==\n`);
+
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const actual = await runOmenaParserLex(entry.dialect, entry.source);
+    const tokenTexts = new Set(actual.tokens.map((token) => token.text));
+
+    assert.equal(actual.schemaVersion, "0");
+    assert.equal(actual.product, "omena-parser.lex-result");
+    assert.equal(actual.dialect, entry.dialect);
+    assert.equal(actual.parserErrorCount, 0, `${entry.label} should lex without errors`);
+    for (const token of actual.tokens) {
+      assert.equal(
+        entry.source.slice(token.start, token.end),
+        token.text,
+        `${entry.label} token text must match source range for ${token.kind}`,
+      );
+    }
+    for (const expectedText of entry.expectedTokenTexts) {
+      assert.ok(
+        tokenTexts.has(expectedText),
+        `${entry.label} should expose token text ${expectedText}`,
+      );
+    }
+
+    process.stdout.write(
+      `validated token text corpus: tokens=${actual.tokens.length} required=${entry.expectedTokenTexts.length}\n\n`,
     );
   }
 })().catch((error: unknown) => {

@@ -35,6 +35,9 @@ use omena_checker::{
     OmenaCheckerDynamicClassDomainInputV0, OmenaCheckerMTierEvaluationV0,
     evaluate_omena_checker_m_tier_rules,
 };
+use omena_parser::{
+    StyleDialect as OmenaRawParserStyleDialect, lex as summarize_omena_raw_parser_lex,
+};
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryStylePackageManifestV0, ParserPositionV0, read_omena_query_cascade_at_position,
@@ -156,6 +159,32 @@ struct OmenaResolverStylePackageManifestInputV0 {
 struct OmenaParserStyleFactsInputV0 {
     style_source: String,
     dialect: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaParserLexInputV0 {
+    style_source: String,
+    dialect: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaParserLexSummaryV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    dialect: &'static str,
+    tokens: Vec<OmenaParserLexTokenV0>,
+    parser_error_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaParserLexTokenV0 {
+    kind: String,
+    text: String,
+    start: u32,
+    end: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -847,6 +876,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 summarize_omena_query_omena_parser_style_facts(&input.style_source, dialect);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("omena-parser-lex") => {
+            let input: OmenaParserLexInputV0 = serde_json::from_str(&stdin)?;
+            let dialect = parse_omena_raw_parser_style_dialect(input.dialect.as_str())?;
+            let summary = summarize_omena_parser_lex(&input.style_source, dialect);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("style-semantic-graph") => {
             let input: StyleSemanticGraphInputV0 = serde_json::from_str(&stdin)?;
             let Some(summary) = summarize_omena_query_style_semantic_graph_from_source(
@@ -1092,6 +1127,50 @@ fn parse_omena_parser_style_dialect(
         "sass" => Ok(OmenaParserStyleDialect::Sass),
         "less" => Ok(OmenaParserStyleDialect::Less),
         other => Err(format!("unsupported omena parser style dialect: {other}").into()),
+    }
+}
+
+fn parse_omena_raw_parser_style_dialect(
+    dialect: &str,
+) -> Result<OmenaRawParserStyleDialect, Box<dyn std::error::Error>> {
+    match dialect {
+        "css" => Ok(OmenaRawParserStyleDialect::Css),
+        "scss" => Ok(OmenaRawParserStyleDialect::Scss),
+        "sass" => Ok(OmenaRawParserStyleDialect::Sass),
+        "less" => Ok(OmenaRawParserStyleDialect::Less),
+        other => Err(format!("unsupported omena parser lex dialect: {other}").into()),
+    }
+}
+
+fn omena_raw_parser_style_dialect_label(dialect: OmenaRawParserStyleDialect) -> &'static str {
+    match dialect {
+        OmenaRawParserStyleDialect::Css => "css",
+        OmenaRawParserStyleDialect::Scss => "scss",
+        OmenaRawParserStyleDialect::Sass => "sass",
+        OmenaRawParserStyleDialect::Less => "less",
+    }
+}
+
+fn summarize_omena_parser_lex(
+    source: &str,
+    dialect: OmenaRawParserStyleDialect,
+) -> OmenaParserLexSummaryV0 {
+    let result = summarize_omena_raw_parser_lex(source, dialect);
+    OmenaParserLexSummaryV0 {
+        schema_version: "0",
+        product: "omena-parser.lex-result",
+        dialect: omena_raw_parser_style_dialect_label(result.dialect()),
+        tokens: result
+            .tokens()
+            .iter()
+            .map(|token| OmenaParserLexTokenV0 {
+                kind: format!("{:?}", token.kind),
+                text: token.text.clone(),
+                start: token.range.start().into(),
+                end: token.range.end().into(),
+            })
+            .collect(),
+        parser_error_count: result.errors().len(),
     }
 }
 
