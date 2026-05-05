@@ -139,7 +139,7 @@ export function Button() {
     expect(labels).toEqual(["active", "disabled", "indicator"]);
   });
 
-  it("returns null when outside clsx() call", async () => {
+  it("returns direct style completions when outside clsx() call", async () => {
     const outsideWorkspace = workspace({
       [BUTTON_TSX_URI]: `import clsx from 'clsx';
 import styles from './Button.module.scss';
@@ -162,7 +162,11 @@ const x = styles./*|*/
       },
     });
     const result = await client.completion(completionParams(outsideWorkspace, BUTTON_TSX_URI));
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    const items = Array.isArray(result) ? result : result!.items;
+    expect(items.length).toBe(3);
+    const labels = items.map((i) => i.label).toSorted();
+    expect(labels).toEqual(["active", "disabled", "indicator"]);
   });
 });
 
