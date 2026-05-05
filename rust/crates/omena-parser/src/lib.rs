@@ -409,6 +409,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "cssIdentifierEscapeTokenization",
             "nullAndBomInputPreprocessingSlice",
             "hashDelimiterTokenization",
+            "cssDashIdentTokenization",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -2909,9 +2910,6 @@ where
                 '"' | '\'' => self.consume_string(current),
                 'u' | 'U' if self.starts_unicode_range() => self.consume_unicode_range(),
                 '0'..='9' => self.consume_number(),
-                '-' if self.starts_with("--") => {
-                    self.consume_name_like(SyntaxKind::CustomPropertyName)
-                }
                 '$' if matches!(
                     self.extension.dialect(),
                     StyleDialect::Scss | StyleDialect::Sass
@@ -2950,6 +2948,7 @@ where
                 '-' if self.starts_with("-=") => {
                     self.consume_static(SyntaxKind::MinusEquals, start, 2)
                 }
+                '-' if self.current_starts_ident_sequence() => self.consume_ident_like(),
                 '-' => self.consume_static(SyntaxKind::Minus, start, 1),
                 '*' if self.starts_with("*=") => {
                     self.consume_static(SyntaxKind::SubstringMatch, start, 2)
@@ -3358,7 +3357,12 @@ where
             self.consume_url_token(start);
             return;
         }
-        self.push(SyntaxKind::Ident, start, self.offset);
+        let kind = if is_custom_property_name_text(ident) {
+            SyntaxKind::CustomPropertyName
+        } else {
+            SyntaxKind::Ident
+        };
+        self.push(kind, start, self.offset);
     }
 
     fn consume_name_start(&mut self) {
@@ -3523,6 +3527,26 @@ where
         self.escape_starts_at(self.offset)
     }
 
+    fn current_starts_ident_sequence(&self) -> bool {
+        self.starts_ident_sequence_at(self.offset)
+    }
+
+    fn starts_ident_sequence_at(&self, offset: usize) -> bool {
+        let Some(first) = self.char_at(offset) else {
+            return false;
+        };
+        let second_offset = offset + first.len_utf8();
+        match first {
+            '-' => {
+                self.char_at(second_offset)
+                    .is_some_and(|char| char == '-' || is_name_start(char))
+                    || self.escape_starts_at(second_offset)
+            }
+            '\\' => self.escape_starts_at(offset),
+            char => is_name_start(char),
+        }
+    }
+
     fn escape_starts_at(&self, offset: usize) -> bool {
         if !self
             .text
@@ -3535,6 +3559,10 @@ where
             .chars()
             .next()
             .is_some_and(|char| !matches!(char, '\n' | '\r' | '\u{000c}'))
+    }
+
+    fn char_at(&self, offset: usize) -> Option<char> {
+        self.text.get(offset..)?.chars().next()
     }
 
     fn starts_with_ascii_keyword(&self, keyword: &str) -> bool {
@@ -3605,6 +3633,24 @@ fn is_name_start(char: char) -> bool {
 
 fn is_name_continue(char: char) -> bool {
     is_name_start(char) || char.is_ascii_digit()
+}
+
+fn is_custom_property_name_text(text: &str) -> bool {
+    let Some(rest) = text.strip_prefix("--") else {
+        return false;
+    };
+    let Some(first) = rest.chars().next() else {
+        return false;
+    };
+    first == '-' || is_name_start(first) || starts_valid_escape_text(rest)
+}
+
+fn starts_valid_escape_text(text: &str) -> bool {
+    text.starts_with('\\')
+        && text['\\'.len_utf8()..]
+            .chars()
+            .next()
+            .is_some_and(|char| !matches!(char, '\n' | '\r' | '\u{000c}'))
 }
 
 fn is_css_at_rule_name(text: &str) -> bool {
@@ -4791,6 +4837,36 @@ mod tests {
         assert!(!bare_kinds.contains(&SyntaxKind::Hash));
         assert!(named_kinds.contains(&SyntaxKind::Hash));
         assert!(escaped_kinds.contains(&SyntaxKind::Hash));
+    }
+
+    #[test]
+    fn tokenizes_dash_started_idents_and_custom_properties_by_ident_rules() {
+        let vendor = lex("-webkit-transform", StyleDialect::Css);
+        let custom = lex("--brand", StyleDialect::Css);
+        let escaped_custom = lex("--\\31 0", StyleDialect::Css);
+        let bare_dash = lex("--:", StyleDialect::Css);
+        let vendor_kinds: Vec<SyntaxKind> =
+            vendor.tokens().iter().map(|token| token.kind).collect();
+        let custom_kinds: Vec<SyntaxKind> =
+            custom.tokens().iter().map(|token| token.kind).collect();
+        let escaped_custom_kinds: Vec<SyntaxKind> = escaped_custom
+            .tokens()
+            .iter()
+            .map(|token| token.kind)
+            .collect();
+        let bare_dash_kinds: Vec<SyntaxKind> =
+            bare_dash.tokens().iter().map(|token| token.kind).collect();
+
+        assert!(vendor.errors().is_empty());
+        assert!(custom.errors().is_empty());
+        assert!(escaped_custom.errors().is_empty());
+        assert!(bare_dash.errors().is_empty());
+        assert!(vendor_kinds.contains(&SyntaxKind::Ident));
+        assert!(!vendor_kinds.contains(&SyntaxKind::Minus));
+        assert!(custom_kinds.contains(&SyntaxKind::CustomPropertyName));
+        assert!(escaped_custom_kinds.contains(&SyntaxKind::CustomPropertyName));
+        assert!(!bare_dash_kinds.contains(&SyntaxKind::CustomPropertyName));
+        assert!(bare_dash_kinds.contains(&SyntaxKind::Ident));
     }
 
     #[test]
@@ -6266,6 +6342,7 @@ mod tests {
                 .ready_surfaces
                 .contains(&"hashDelimiterTokenization")
         );
+        assert!(summary.ready_surfaces.contains(&"cssDashIdentTokenization"));
         assert!(
             summary
                 .ready_surfaces
