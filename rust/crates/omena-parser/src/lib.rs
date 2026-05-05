@@ -332,6 +332,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "attributeMatcherTokenization",
             "attributeMatcherCstNodes",
             "specializedValueFunctionCstNodes",
+            "cssModuleScopeFunctionCstNodes",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -635,7 +636,15 @@ impl<'text> Parser<'text> {
     fn parse_pseudo_selector(&mut self, kind: SyntaxKind) {
         self.builder.start_node(kind);
         self.token_current();
+        let css_module_scope_kind = if kind == SyntaxKind::PseudoClassSelector {
+            self.current_text().and_then(css_module_scope_function_kind)
+        } else {
+            None
+        };
         if self.current_kind() == Some(SyntaxKind::Ident) {
+            if let Some(kind) = css_module_scope_kind {
+                self.builder.start_node(kind);
+            }
             self.token_current();
         } else {
             self.empty_bogus_node(
@@ -659,6 +668,9 @@ impl<'text> Parser<'text> {
             if self.current_kind() == Some(SyntaxKind::RightParen) {
                 self.token_current();
             }
+        }
+        if css_module_scope_kind.is_some() {
+            self.builder.finish_node();
         }
         self.builder.finish_node();
     }
@@ -2099,6 +2111,14 @@ fn specialized_function_kind(text: &str) -> Option<SyntaxKind> {
     }
 }
 
+fn css_module_scope_function_kind(text: &str) -> Option<SyntaxKind> {
+    match text {
+        "local" => Some(SyntaxKind::CssModuleLocalBlock),
+        "global" => Some(SyntaxKind::CssModuleGlobalBlock),
+        _ => None,
+    }
+}
+
 fn text_range(start: usize, end: usize) -> TextRange {
     TextRange::new(TextSize::from(start as u32), TextSize::from(end as u32))
 }
@@ -2459,6 +2479,21 @@ mod tests {
     }
 
     #[test]
+    fn decomposes_css_module_scope_functions_into_cst_nodes() {
+        let result = parse(
+            ":local(.button) { color: red; } :global(.reset) { box-sizing: border-box; }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::PseudoClassSelector));
+        assert!(kinds.contains(&SyntaxKind::PseudoSelectorArgument));
+        assert!(kinds.contains(&SyntaxKind::CssModuleLocalBlock));
+        assert!(kinds.contains(&SyntaxKind::CssModuleGlobalBlock));
+    }
+
+    #[test]
     fn decomposes_nested_and_pseudo_element_selectors() {
         let result = parse("&::before { content: \"\"; }", StyleDialect::Scss);
         let kinds = node_kinds(&result.syntax());
@@ -2492,6 +2527,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"specializedValueFunctionCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"cssModuleScopeFunctionCstNodes")
         );
         assert!(
             summary
