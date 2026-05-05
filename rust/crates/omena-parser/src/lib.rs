@@ -374,6 +374,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "sassIndentedTokenization",
             "sassIndentedBlockCstNodes",
             "sassIndentedStyleFacts",
+            "differentialCorpusSeed",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
