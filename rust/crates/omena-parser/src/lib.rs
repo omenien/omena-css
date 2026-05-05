@@ -403,6 +403,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "typedNumericValueAtomCstNodes",
             "bracketedValueCstNodes",
             "importantAnnotationCstNodes",
+            "splitImportantAnnotationCstNodes",
             "unexpectedValueTokenBogusNodes",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
@@ -1700,6 +1701,9 @@ impl<'text> Parser<'text> {
                 self.token_current();
                 self.builder.finish_node();
             }
+            Some(SyntaxKind::Delim) if self.current_split_important_annotation() => {
+                self.parse_split_important_annotation()
+            }
             Some(kind) if is_interpolation_start(kind) => self.parse_interpolation(kind, recovery),
             Some(SyntaxKind::ScssVariable) => {
                 self.builder.start_node(SyntaxKind::ScssVariableReference);
@@ -1744,6 +1748,19 @@ impl<'text> Parser<'text> {
                 );
             }
         }
+    }
+
+    fn parse_split_important_annotation(&mut self) {
+        self.builder.start_node(SyntaxKind::ImportantAnnotation);
+        self.token_current();
+        self.eat_value_trivia();
+        if self
+            .current_text()
+            .is_some_and(|text| text.eq_ignore_ascii_case("important"))
+        {
+            self.token_current();
+        }
+        self.builder.finish_node();
     }
 
     fn eat_value_trivia(&mut self) {
@@ -2391,6 +2408,19 @@ impl<'text> Parser<'text> {
         false
     }
 
+    fn current_split_important_annotation(&self) -> bool {
+        self.current_text() == Some("!")
+            && self
+                .non_trivia_token_from(self.position + 1)
+                .is_some_and(|(index, kind)| {
+                    matches!(kind, SyntaxKind::Ident | SyntaxKind::KeywordImportant)
+                        && self
+                            .tokens
+                            .get(index)
+                            .is_some_and(|token| token.text.eq_ignore_ascii_case("important"))
+                })
+    }
+
     fn current_bracketed_value_has_closing_bracket_before(&self, recovery: &[SyntaxKind]) -> bool {
         let mut depth = 0usize;
         for token in self.tokens.iter().skip(self.position) {
@@ -2879,6 +2909,7 @@ where
                     self.consume_less_at_name()
                 }
                 '@' => self.consume_at_keyword(),
+                '!' => self.consume_static(SyntaxKind::Delim, start, 1),
                 '.' => self.consume_static(SyntaxKind::Dot, start, 1),
                 ',' => self.consume_static(SyntaxKind::Comma, start, 1),
                 ':' if self.starts_with("::") => {
@@ -5381,13 +5412,21 @@ mod tests {
     #[test]
     fn keeps_important_annotation_in_declaration_values() {
         let result = parse(".a { color: red !important; }", StyleDialect::Css);
+        let split = parse(
+            ".a { color: red ! /* keep */ important; }",
+            StyleDialect::Css,
+        );
         let kinds = node_kinds(&result.syntax());
+        let split_kinds = node_kinds(&split.syntax());
 
         assert!(result.errors().is_empty());
+        assert!(split.errors().is_empty());
         assert!(kinds.contains(&SyntaxKind::Declaration));
         assert!(kinds.contains(&SyntaxKind::Value));
         assert!(kinds.contains(&SyntaxKind::ImportantAnnotation));
+        assert!(split_kinds.contains(&SyntaxKind::ImportantAnnotation));
         assert!(token_kinds(&result.syntax()).contains(&SyntaxKind::Important));
+        assert!(token_kinds(&split.syntax()).contains(&SyntaxKind::Ident));
     }
 
     #[test]
@@ -6066,6 +6105,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"importantAnnotationCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"splitImportantAnnotationCstNodes")
         );
         assert!(
             summary
