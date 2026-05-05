@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [4.15.0] - 2026-05-05
+
+### Added
+
+- **Omena checker split package** - `omena-checker` is now mirrored to `omenien/omena-checker`, published as `omena-checker@0.1.0`, and covered by a git consumer plus split publish-readiness checks alongside the other Omena Rust crates.
+
 ### Changed
 
 - **Design-token package manifest routing** - Rust selected-query style semantic graph batches now accept package manifest metadata and use `sass` / `scss` / `style` / `exports` entries when building package import reachability for cross-file design-token ranking.
