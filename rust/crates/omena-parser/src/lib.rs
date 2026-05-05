@@ -332,6 +332,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "attributeMatcherTokenization",
             "attributeMatcherCstNodes",
             "specializedValueFunctionCstNodes",
+            "valueAtomCstNodes",
+            "functionArgumentValueLists",
             "cssModuleScopeFunctionCstNodes",
             "scssStructuredBlockAtRules",
             "scssUtilityAtRules",
@@ -1451,6 +1453,16 @@ impl<'text> Parser<'text> {
             Some(SyntaxKind::Ident) if self.next_kind() == Some(SyntaxKind::LeftParen) => {
                 self.parse_function_call(recovery)
             }
+            Some(SyntaxKind::Number | SyntaxKind::Percentage | SyntaxKind::Dimension) => {
+                self.builder.start_node(SyntaxKind::DimensionValue);
+                self.token_current();
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::Hash) => {
+                self.builder.start_node(SyntaxKind::ColorValue);
+                self.token_current();
+                self.builder.finish_node();
+            }
             Some(SyntaxKind::Url) => {
                 self.builder.start_node(SyntaxKind::UrlValue);
                 self.token_current();
@@ -1482,7 +1494,7 @@ impl<'text> Parser<'text> {
                 self.token_current();
                 self.builder.finish_node();
             }
-            Some(SyntaxKind::LeftParen) => self.parse_parenthesized_expression(),
+            Some(SyntaxKind::LeftParen) => self.parse_parenthesized_expression(recovery),
             Some(kind) if recovery.contains(&kind) => {
                 self.empty_bogus_node(
                     SyntaxKind::BogusValue,
@@ -1535,7 +1547,7 @@ impl<'text> Parser<'text> {
             self.token_current();
             self.builder.start_node(arguments_kind);
             let argument_recovery = function_argument_recovery(recovery);
-            self.parse_value_until(&argument_recovery);
+            self.parse_value_or_value_list_until(&argument_recovery);
             self.builder.finish_node();
             if self.current_kind() == Some(SyntaxKind::RightParen) {
                 self.token_current();
@@ -1552,10 +1564,11 @@ impl<'text> Parser<'text> {
         self.builder.finish_node();
     }
 
-    fn parse_parenthesized_expression(&mut self) {
+    fn parse_parenthesized_expression(&mut self, recovery: &[SyntaxKind]) {
         self.builder.start_node(SyntaxKind::ParenthesizedExpression);
         self.token_current();
-        self.parse_value_until(&[SyntaxKind::RightParen]);
+        let paren_recovery = function_argument_recovery(recovery);
+        self.parse_value_until(&paren_recovery);
         if self.current_kind() == Some(SyntaxKind::RightParen) {
             self.token_current();
         }
@@ -4565,6 +4578,26 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::AttrFunction));
         assert!(kinds.contains(&SyntaxKind::EnvFunction));
         assert!(kinds.contains(&SyntaxKind::VarFunction));
+    }
+
+    #[test]
+    fn structures_css_value_atoms_and_function_argument_lists() {
+        let result = parse(
+            ".a { color: #fff; width: clamp(1rem, calc(2px + 3px), 4rem); opacity: 50%; z-index: 1; }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let dimension_value_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::DimensionValue)
+            .count();
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::ColorValue));
+        assert!(kinds.contains(&SyntaxKind::ValueList));
+        assert!(kinds.contains(&SyntaxKind::CalcFunction));
+        assert!(kinds.contains(&SyntaxKind::BinaryExpression));
+        assert!(dimension_value_count >= 5);
     }
 
     #[test]
