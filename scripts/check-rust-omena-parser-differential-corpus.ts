@@ -100,6 +100,18 @@ const SASS_INDENTED_CORPUS = [
 
 const PARSER_ONLY_CORPUS = [
   {
+    label: "css-page-margin-at-rules",
+    dialect: "css",
+    source: `@page :first { margin: 1cm; @top-left { content: "A"; } @bottom-center { content: counter(page); } }`,
+    expected: {
+      classSelectorNames: [],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: [],
+      atRuleNames: ["@bottom-center", "@page", "@top-left"],
+    },
+  },
+  {
     label: "scss-nested-property-blocks",
     dialect: "scss",
     source: `.card { font: { size: 1rem; weight: 700; } }`,
@@ -137,7 +149,7 @@ const PARSER_ONLY_CORPUS = [
   },
 ] as const satisfies readonly {
   readonly label: string;
-  readonly dialect: "scss";
+  readonly dialect: OmenaParserDialect;
   readonly source: string;
   readonly expected: {
     readonly classSelectorNames: readonly string[];
