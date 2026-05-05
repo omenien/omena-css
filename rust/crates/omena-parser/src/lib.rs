@@ -696,6 +696,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "simpleBlockCstNodes",
             "componentValueListCstNodes",
             "commaSeparatedComponentValueListCstNodes",
+            "customPropertyAnyValueComponentList",
             "missingBlockCloseBogusTrivia",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
@@ -1446,6 +1447,7 @@ impl<'text> Parser<'text> {
 
     fn parse_declaration(&mut self) {
         let starts_composes = self.current_text() == Some("composes");
+        let starts_custom_property = self.current_kind() == Some(SyntaxKind::CustomPropertyName);
         let has_colon = self.find_before_recovery(
             SyntaxKind::Colon,
             &[
@@ -1520,6 +1522,13 @@ impl<'text> Parser<'text> {
             self.builder.start_node(SyntaxKind::Value);
             if kind == SyntaxKind::CssModuleComposesDeclaration {
                 self.parse_composes_value_until(&[
+                    SyntaxKind::Semicolon,
+                    SyntaxKind::SassOptionalSemicolon,
+                    SyntaxKind::RightBrace,
+                    SyntaxKind::SassDedent,
+                ]);
+            } else if starts_custom_property {
+                self.parse_component_value_list_until(&[
                     SyntaxKind::Semicolon,
                     SyntaxKind::SassOptionalSemicolon,
                     SyntaxKind::RightBrace,
@@ -6404,6 +6413,26 @@ mod tests {
     }
 
     #[test]
+    fn parses_custom_property_values_as_component_value_lists() {
+        let result = parse(
+            ".a { --api: { display: none }; --empty: ; color: red; }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let tokens = token_kinds(&result.syntax());
+        let component_value_list_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::ComponentValueList)
+            .count();
+
+        assert!(result.errors().is_empty());
+        assert!(tokens.contains(&SyntaxKind::CustomPropertyName));
+        assert!(kinds.contains(&SyntaxKind::SimpleBlock));
+        assert_eq!(component_value_list_count, 2);
+        assert!(!kinds.contains(&SyntaxKind::BogusValue));
+    }
+
+    #[test]
     fn structures_top_level_value_lists_without_function_comma_confusion() {
         let result = parse(
             ".a { font-family: system, sans-serif; color: color-mix(in oklch, red, blue); }",
@@ -7299,6 +7328,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"commaSeparatedComponentValueListCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"customPropertyAnyValueComponentList")
         );
         assert!(
             summary
