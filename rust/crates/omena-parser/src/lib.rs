@@ -243,10 +243,11 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "dialectExtensionScaffold",
             "selectorCstSkeleton",
             "atRuleRegistrySkeleton",
+            "prattValueExpressionSkeleton",
         ],
         not_ready_surfaces: vec![
             "fullRecursiveDescentGrammar",
-            "prattValueParser",
+            "fullPrattValueParser",
             "fullBogusPopulation",
             "differentialCorpus",
             "productCutover",
@@ -589,15 +590,66 @@ impl<'text> Parser<'text> {
 
     fn parse_value_until(&mut self, recovery: &[SyntaxKind]) {
         while !self.at_end() {
-            match self.current_kind() {
-                Some(kind) if recovery.contains(&kind) => break,
-                Some(SyntaxKind::Ident) if self.next_kind() == Some(SyntaxKind::LeftParen) => {
-                    self.parse_function_call()
-                }
-                Some(SyntaxKind::LeftParen) => self.parse_parenthesized_expression(),
-                Some(_) => self.token_current(),
-                None => break,
+            self.eat_value_trivia();
+            if matches!(self.current_kind(), Some(kind) if recovery.contains(&kind)) {
+                break;
             }
+            if self.at_end() {
+                break;
+            }
+            self.parse_value_expression(0, recovery);
+        }
+    }
+
+    fn parse_value_expression(&mut self, min_binding_power: u8, recovery: &[SyntaxKind]) {
+        let checkpoint = self.builder.checkpoint();
+        self.parse_value_prefix(recovery);
+
+        loop {
+            self.eat_value_trivia();
+            let Some(operator) = self.current_kind() else {
+                break;
+            };
+            if recovery.contains(&operator) {
+                break;
+            }
+            let Some((left_binding_power, right_binding_power)) = infix_binding_power(operator)
+            else {
+                break;
+            };
+            if left_binding_power < min_binding_power {
+                break;
+            }
+
+            self.builder
+                .start_node_at(checkpoint, SyntaxKind::BinaryExpression);
+            self.token_current();
+            self.parse_value_expression(right_binding_power, recovery);
+            self.builder.finish_node();
+        }
+    }
+
+    fn parse_value_prefix(&mut self, recovery: &[SyntaxKind]) {
+        match self.current_kind() {
+            Some(SyntaxKind::Plus | SyntaxKind::Minus) => {
+                self.builder.start_node(SyntaxKind::UnaryExpression);
+                self.token_current();
+                self.parse_value_expression(5, recovery);
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::Ident) if self.next_kind() == Some(SyntaxKind::LeftParen) => {
+                self.parse_function_call()
+            }
+            Some(SyntaxKind::LeftParen) => self.parse_parenthesized_expression(),
+            Some(kind) if recovery.contains(&kind) => {}
+            Some(_) => self.token_current(),
+            None => {}
+        }
+    }
+
+    fn eat_value_trivia(&mut self) {
+        while matches!(self.current_kind(), Some(kind) if kind.is_trivia()) {
+            self.token_current();
         }
     }
 
@@ -1165,6 +1217,14 @@ fn is_combinator(kind: SyntaxKind) -> bool {
     )
 }
 
+fn infix_binding_power(kind: SyntaxKind) -> Option<(u8, u8)> {
+    match kind {
+        SyntaxKind::Plus | SyntaxKind::Minus => Some((1, 2)),
+        SyntaxKind::Star | SyntaxKind::Slash | SyntaxKind::Percent => Some((3, 4)),
+        _ => None,
+    }
+}
+
 fn text_range(start: usize, end: usize) -> TextRange {
     TextRange::new(TextSize::from(start as u32), TextSize::from(end as u32))
 }
@@ -1323,6 +1383,18 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::Value));
         assert!(kinds.contains(&SyntaxKind::FunctionCall));
         assert!(kinds.contains(&SyntaxKind::FunctionArguments));
+        assert!(kinds.contains(&SyntaxKind::BinaryExpression));
+    }
+
+    #[test]
+    fn structures_css_value_unary_and_precedence_expressions() {
+        let result = parse(".a { margin: -(1rem + 2px) * 3; }", StyleDialect::Css);
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::UnaryExpression));
+        assert!(kinds.contains(&SyntaxKind::ParenthesizedExpression));
+        assert!(kinds.contains(&SyntaxKind::BinaryExpression));
     }
 
     #[test]
@@ -1364,6 +1436,11 @@ mod tests {
         assert_eq!(summary.shared_name_kind_count, 8);
         assert!(summary.ready_surfaces.contains(&"selectorCstSkeleton"));
         assert!(summary.ready_surfaces.contains(&"atRuleRegistrySkeleton"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"prattValueExpressionSkeleton")
+        );
         assert!(summary.not_ready_surfaces.contains(&"productCutover"));
     }
 
