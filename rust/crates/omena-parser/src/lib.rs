@@ -98,6 +98,56 @@ pub struct ParserBoundarySummary {
     pub not_ready_surfaces: Vec<&'static str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedStyleFacts {
+    pub product: &'static str,
+    pub dialect: StyleDialect,
+    pub selector_count: usize,
+    pub selectors: Vec<ParsedSelectorFact>,
+    pub variable_count: usize,
+    pub variables: Vec<ParsedVariableFact>,
+    pub at_rule_count: usize,
+    pub at_rules: Vec<ParsedAtRuleFact>,
+    pub error_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedSelectorFact {
+    pub kind: ParsedSelectorFactKind,
+    pub name: String,
+    pub range: TextRange,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParsedSelectorFactKind {
+    Class,
+    Id,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedVariableFact {
+    pub kind: ParsedVariableFactKind,
+    pub name: String,
+    pub range: TextRange,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParsedVariableFactKind {
+    ScssDeclaration,
+    ScssReference,
+    LessDeclaration,
+    LessReference,
+    CustomPropertyDeclaration,
+    CustomPropertyReference,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedAtRuleFact {
+    pub name: String,
+    pub node_kind: Option<SyntaxKind>,
+    pub range: TextRange,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TokenSet {
     kinds: &'static [SyntaxKind],
@@ -230,6 +280,36 @@ pub fn parse_with_extension(text: &str, extension: &impl DialectExtension) -> Pa
     }
 }
 
+pub fn collect_style_facts(text: &str, dialect: StyleDialect) -> ParsedStyleFacts {
+    let extension = BuiltinDialectExtension::new(dialect);
+    collect_style_facts_with_extension(text, &extension)
+}
+
+pub fn collect_style_facts_with_extension(
+    text: &str,
+    extension: &impl DialectExtension,
+) -> ParsedStyleFacts {
+    let (tokens, lex_errors) = tokenize(text, extension);
+    let mut parser = Parser::new(tokens.clone(), lex_errors, extension.dialect());
+    let _green = parser.parse();
+    let errors = parser.into_errors();
+    let selectors = collect_selector_facts_from_tokens(&tokens);
+    let variables = collect_variable_facts_from_tokens(&tokens);
+    let at_rules = collect_at_rule_facts_from_tokens(&tokens, extension.dialect());
+
+    ParsedStyleFacts {
+        product: "omena-parser.style-facts",
+        dialect: extension.dialect(),
+        selector_count: selectors.len(),
+        selectors,
+        variable_count: variables.len(),
+        variables,
+        at_rule_count: at_rules.len(),
+        at_rules,
+        error_count: errors.len(),
+    }
+}
+
 pub fn summarize_parser_boundary() -> ParserBoundarySummary {
     ParserBoundarySummary {
         product: "omena-parser.boundary",
@@ -249,6 +329,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "prattValueExpressionSkeleton",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
+            "styleFactExtractionSurface",
         ],
         not_ready_surfaces: vec![
             "fullRecursiveDescentGrammar",
@@ -1339,6 +1420,117 @@ fn is_css_at_rule_name(text: &str) -> bool {
     )
 }
 
+fn collect_selector_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSelectorFact> {
+    let mut selectors = Vec::new();
+    let mut index = 0usize;
+    while let Some(token) = tokens.get(index) {
+        match token.kind {
+            SyntaxKind::Dot => {
+                if let Some(name) = next_non_trivia_token(tokens, index + 1)
+                    && matches!(
+                        name.kind,
+                        SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+                    )
+                {
+                    selectors.push(ParsedSelectorFact {
+                        kind: ParsedSelectorFactKind::Class,
+                        name: name.text.to_string(),
+                        range: name.range,
+                    });
+                }
+            }
+            SyntaxKind::Hash => {
+                selectors.push(ParsedSelectorFact {
+                    kind: ParsedSelectorFactKind::Id,
+                    name: token.text.trim_start_matches('#').to_string(),
+                    range: token.range,
+                });
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    selectors
+}
+
+fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariableFact> {
+    let mut variables = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        let kind = match token.kind {
+            SyntaxKind::ScssVariable => {
+                if next_non_trivia_token(tokens, index + 1)
+                    .is_some_and(|candidate| candidate.kind == SyntaxKind::Colon)
+                {
+                    ParsedVariableFactKind::ScssDeclaration
+                } else {
+                    ParsedVariableFactKind::ScssReference
+                }
+            }
+            SyntaxKind::LessVariable => {
+                if next_non_trivia_token(tokens, index + 1)
+                    .is_some_and(|candidate| candidate.kind == SyntaxKind::Colon)
+                {
+                    ParsedVariableFactKind::LessDeclaration
+                } else {
+                    ParsedVariableFactKind::LessReference
+                }
+            }
+            SyntaxKind::CustomPropertyName => {
+                if next_non_trivia_token(tokens, index + 1)
+                    .is_some_and(|candidate| candidate.kind == SyntaxKind::Colon)
+                {
+                    ParsedVariableFactKind::CustomPropertyDeclaration
+                } else {
+                    ParsedVariableFactKind::CustomPropertyReference
+                }
+            }
+            _ => continue,
+        };
+        variables.push(ParsedVariableFact {
+            kind,
+            name: token.text.to_string(),
+            range: token.range,
+        });
+    }
+    variables
+}
+
+fn collect_at_rule_facts_from_tokens(
+    tokens: &[Token<'_>],
+    dialect: StyleDialect,
+) -> Vec<ParsedAtRuleFact> {
+    tokens
+        .iter()
+        .filter(|token| token.kind == SyntaxKind::AtKeyword)
+        .map(|token| {
+            let node_kind = at_rule_spec(token.text)
+                .or_else(|| match dialect {
+                    StyleDialect::Scss | StyleDialect::Sass => scss_at_rule_spec(token.text),
+                    StyleDialect::Css | StyleDialect::Less => None,
+                })
+                .map(|spec| spec.node_kind);
+            ParsedAtRuleFact {
+                name: token.text.to_string(),
+                node_kind,
+                range: token.range,
+            }
+        })
+        .collect()
+}
+
+fn next_non_trivia_token<'text>(
+    tokens: &'text [Token<'text>],
+    mut index: usize,
+) -> Option<Token<'text>> {
+    while let Some(token) = tokens.get(index).copied() {
+        if !token.kind.is_trivia() {
+            return Some(token);
+        }
+        index += 1;
+    }
+    None
+}
+
 fn at_rule_spec(text: &str) -> Option<AtRuleSpec> {
     let (node_kind, block_kind) = match text {
         "@media" => (SyntaxKind::MediaRule, AtRuleBlockKind::GroupRuleList),
@@ -1645,6 +1837,37 @@ mod tests {
     }
 
     #[test]
+    fn extracts_initial_style_facts_from_parser_surface() {
+        let facts = collect_style_facts(
+            "@use \"tokens\"; $gap: 1rem; .card#main { --space: $gap; }",
+            StyleDialect::Scss,
+        );
+
+        assert_eq!(facts.product, "omena-parser.style-facts");
+        assert_eq!(facts.dialect, StyleDialect::Scss);
+        assert_eq!(facts.selector_count, 2);
+        assert_eq!(facts.variable_count, 3);
+        assert_eq!(facts.at_rule_count, 1);
+        assert!(facts.selectors.iter().any(|selector| {
+            selector.kind == ParsedSelectorFactKind::Class && selector.name == "card"
+        }));
+        assert!(facts.selectors.iter().any(|selector| {
+            selector.kind == ParsedSelectorFactKind::Id && selector.name == "main"
+        }));
+        assert!(facts.variables.iter().any(|variable| {
+            variable.kind == ParsedVariableFactKind::ScssDeclaration && variable.name == "$gap"
+        }));
+        assert!(facts.variables.iter().any(|variable| {
+            variable.kind == ParsedVariableFactKind::ScssReference && variable.name == "$gap"
+        }));
+        assert!(facts.variables.iter().any(|variable| {
+            variable.kind == ParsedVariableFactKind::CustomPropertyDeclaration
+                && variable.name == "--space"
+        }));
+        assert_eq!(facts.at_rules[0].node_kind, Some(SyntaxKind::ScssUseRule));
+    }
+
+    #[test]
     fn decomposes_selector_lists_into_selector_nodes() {
         let result = parse(
             ".card:hover > #title, article.card || .icon[data-active] { color: red; }",
@@ -1694,6 +1917,11 @@ mod tests {
                 .contains(&"initialDialectStatementNodes")
         );
         assert!(summary.ready_surfaces.contains(&"recoveryBogusSkeleton"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"styleFactExtractionSurface")
+        );
         assert!(summary.not_ready_surfaces.contains(&"productCutover"));
     }
 
