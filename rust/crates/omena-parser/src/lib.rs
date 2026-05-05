@@ -410,6 +410,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "nullAndBomInputPreprocessingSlice",
             "hashDelimiterTokenization",
             "cssDashIdentTokenization",
+            "signedNumericTokenization",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -2922,6 +2923,7 @@ where
                 }
                 '@' => self.consume_at_keyword(),
                 '!' => self.consume_static(SyntaxKind::Delim, start, 1),
+                '.' if self.current_starts_number() => self.consume_number(),
                 '.' => self.consume_static(SyntaxKind::Dot, start, 1),
                 ',' => self.consume_static(SyntaxKind::Comma, start, 1),
                 ':' if self.starts_with("::") => {
@@ -2944,10 +2946,12 @@ where
                 '+' if self.starts_with("+=") => {
                     self.consume_static(SyntaxKind::PlusEquals, start, 2)
                 }
+                '+' if self.current_starts_number() => self.consume_number(),
                 '+' => self.consume_static(SyntaxKind::Plus, start, 1),
                 '-' if self.starts_with("-=") => {
                     self.consume_static(SyntaxKind::MinusEquals, start, 2)
                 }
+                '-' if self.current_starts_number() => self.consume_number(),
                 '-' if self.current_starts_ident_sequence() => self.consume_ident_like(),
                 '-' => self.consume_static(SyntaxKind::Minus, start, 1),
                 '*' if self.starts_with("*=") => {
@@ -3243,9 +3247,12 @@ where
 
     fn consume_number(&mut self) {
         let start = self.offset;
+        if matches!(self.current_char(), Some('+' | '-')) {
+            self.bump_current();
+        }
         self.consume_digits();
-        if self.current_char() == Some('.') {
-            self.offset += 1;
+        if self.current_char() == Some('.') && self.char_after_current_is_ascii_digit() {
+            self.bump_current();
             self.consume_digits();
         }
         if self.current_char() == Some('%') {
@@ -3253,11 +3260,8 @@ where
             self.push(SyntaxKind::Percentage, start, self.offset);
             return;
         }
-        if matches!(self.current_char(), Some(char) if is_name_start(char)) {
-            while matches!(self.current_char(), Some(char) if is_name_continue(char)) {
-                let char = self.current_char().unwrap_or_default();
-                self.bump_char(char);
-            }
+        if self.current_starts_ident_sequence() {
+            self.consume_name_continue_sequence();
             self.push(SyntaxKind::Dimension, start, self.offset);
             return;
         }
@@ -3527,6 +3531,27 @@ where
         self.escape_starts_at(self.offset)
     }
 
+    fn current_starts_number(&self) -> bool {
+        self.starts_number_at(self.offset)
+    }
+
+    fn starts_number_at(&self, offset: usize) -> bool {
+        let Some(first) = self.char_at(offset) else {
+            return false;
+        };
+        let second_offset = offset + first.len_utf8();
+        match first {
+            '+' | '-' => {
+                self.char_at(second_offset)
+                    .is_some_and(|char| char.is_ascii_digit())
+                    || (self.char_at(second_offset) == Some('.')
+                        && self.char_after_offset_is_ascii_digit(second_offset))
+            }
+            '.' => self.char_after_offset_is_ascii_digit(offset),
+            char => char.is_ascii_digit(),
+        }
+    }
+
     fn current_starts_ident_sequence(&self) -> bool {
         self.starts_ident_sequence_at(self.offset)
     }
@@ -3563,6 +3588,18 @@ where
 
     fn char_at(&self, offset: usize) -> Option<char> {
         self.text.get(offset..)?.chars().next()
+    }
+
+    fn char_after_current_is_ascii_digit(&self) -> bool {
+        self.char_after_offset_is_ascii_digit(self.offset)
+    }
+
+    fn char_after_offset_is_ascii_digit(&self, offset: usize) -> bool {
+        let Some(char) = self.char_at(offset) else {
+            return false;
+        };
+        self.char_at(offset + char.len_utf8())
+            .is_some_and(|char| char.is_ascii_digit())
     }
 
     fn starts_with_ascii_keyword(&self, keyword: &str) -> bool {
@@ -4867,6 +4904,55 @@ mod tests {
         assert!(escaped_custom_kinds.contains(&SyntaxKind::CustomPropertyName));
         assert!(!bare_dash_kinds.contains(&SyntaxKind::CustomPropertyName));
         assert!(bare_dash_kinds.contains(&SyntaxKind::Ident));
+    }
+
+    #[test]
+    fn tokenizes_signed_and_leading_dot_numbers_as_single_numeric_tokens() {
+        let signed_number = lex("+1.5", StyleDialect::Css);
+        let signed_dimension = lex("-2px", StyleDialect::Css);
+        let leading_dot = lex(".5", StyleDialect::Css);
+        let spaced_plus = lex("+ 1.5", StyleDialect::Css);
+        let trailing_dot = lex("1.", StyleDialect::Css);
+        let signed_number_kinds: Vec<SyntaxKind> = signed_number
+            .tokens()
+            .iter()
+            .map(|token| token.kind)
+            .collect();
+        let signed_dimension_kinds: Vec<SyntaxKind> = signed_dimension
+            .tokens()
+            .iter()
+            .map(|token| token.kind)
+            .collect();
+        let leading_dot_kinds: Vec<SyntaxKind> = leading_dot
+            .tokens()
+            .iter()
+            .map(|token| token.kind)
+            .collect();
+        let spaced_plus_kinds: Vec<SyntaxKind> = spaced_plus
+            .tokens()
+            .iter()
+            .map(|token| token.kind)
+            .collect();
+        let trailing_dot_kinds: Vec<SyntaxKind> = trailing_dot
+            .tokens()
+            .iter()
+            .map(|token| token.kind)
+            .collect();
+
+        assert!(signed_number.errors().is_empty());
+        assert!(signed_dimension.errors().is_empty());
+        assert!(leading_dot.errors().is_empty());
+        assert!(spaced_plus.errors().is_empty());
+        assert!(trailing_dot.errors().is_empty());
+        assert_eq!(signed_number_kinds, vec![SyntaxKind::Number]);
+        assert_eq!(signed_dimension_kinds, vec![SyntaxKind::Dimension]);
+        assert_eq!(leading_dot_kinds, vec![SyntaxKind::Number]);
+        assert!(spaced_plus_kinds.contains(&SyntaxKind::Plus));
+        assert!(spaced_plus_kinds.contains(&SyntaxKind::Number));
+        assert_eq!(
+            trailing_dot_kinds,
+            vec![SyntaxKind::Number, SyntaxKind::Dot]
+        );
     }
 
     #[test]
@@ -6343,6 +6429,11 @@ mod tests {
                 .contains(&"hashDelimiterTokenization")
         );
         assert!(summary.ready_surfaces.contains(&"cssDashIdentTokenization"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"signedNumericTokenization")
+        );
         assert!(
             summary
                 .ready_surfaces
