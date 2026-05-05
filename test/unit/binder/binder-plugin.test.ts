@@ -6,6 +6,7 @@ import {
   cssModulesClassnamesBinderPluginV0,
 } from "../../../server/engine-core-ts/src/core/binder/binder-plugin";
 import { tailwindUnoUtilityBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/tailwind-utility-plugin";
+import { vanillaExtractRecipeBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/vanilla-extract-recipe-plugin";
 import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
 
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake", {});
@@ -137,6 +138,59 @@ describe("cssModulesClassnamesBinderPluginV0", () => {
     expect(result.classExpressions).toMatchObject([{ kind: "literal", className: "card" }]);
     expect(result.domainClassReferences).toMatchObject([
       { matchKind: "literal", className: "flex", domain: "utility-css" },
+    ]);
+  });
+
+  it("tracks vanilla-extract recipe variant calls without a CSS Module source", () => {
+    const sourceFile = parse(`
+      import { recipe as defineRecipe } from '@vanilla-extract/recipes';
+
+      const button = defineRecipe({
+        variants: {
+          tone: {
+            primary: "button_tone_primary",
+            danger: "button_tone_danger",
+          },
+          size: {
+            sm: "button_size_sm",
+            lg: "button_size_lg",
+          },
+        },
+      });
+
+      const el = button({
+        tone: active ? "primary" : "danger",
+        size: "sm",
+      });
+    `);
+    const sourceBinder = buildSourceBinder(sourceFile);
+
+    const result = vanillaExtractRecipeBinderPluginV0.analyzeSource({
+      sourceFile,
+      filePath: "/fake/src/Button.css.ts",
+      sourceBinder,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+    });
+
+    expect(result.stylesBindings.size).toBe(0);
+    expect(result.classExpressions).toEqual([]);
+    expect(result.domainClassReferences).toMatchObject([
+      {
+        matchKind: "literal",
+        className: "button.tone.primary",
+        domain: "vanilla-extract-recipe",
+      },
+      {
+        matchKind: "literal",
+        className: "button.tone.danger",
+        domain: "vanilla-extract-recipe",
+      },
+      {
+        matchKind: "literal",
+        className: "button.size.sm",
+        domain: "vanilla-extract-recipe",
+      },
     ]);
   });
 });

@@ -1,6 +1,7 @@
 import type { AliasResolver } from "../../../engine-core-ts/src/core/cx/alias-resolver";
 import { cssModulesClassnamesBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/binder-plugin";
 import { tailwindUnoUtilityBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/tailwind-utility-plugin";
+import { vanillaExtractRecipeBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/vanilla-extract-recipe-plugin";
 import type { StyleDocumentHIR } from "../../../engine-core-ts/src/core/hir/style-types";
 import { DocumentAnalysisCache } from "../../../engine-core-ts/src/core/indexing/document-analysis-cache";
 import { collectSemanticReferenceContribution } from "../../../engine-core-ts/src/core/semantic";
@@ -24,7 +25,11 @@ export function createWorkspaceAnalysisCache(
 ): DocumentAnalysisCache {
   return new DocumentAnalysisCache({
     sourceFileCache: args.caches.sourceFileCache,
-    binderPlugins: [cssModulesClassnamesBinderPluginV0, tailwindUnoUtilityBinderPluginV0],
+    binderPlugins: [
+      cssModulesClassnamesBinderPluginV0,
+      tailwindUnoUtilityBinderPluginV0,
+      vanillaExtractRecipeBinderPluginV0,
+    ],
     fileExists: args.fileExists,
     get aliasResolver(): AliasResolver {
       return args.aliasResolver();

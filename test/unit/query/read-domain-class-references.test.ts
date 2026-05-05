@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cssModulesClassnamesBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/binder-plugin";
 import { tailwindUnoUtilityBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/tailwind-utility-plugin";
+import { vanillaExtractRecipeBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/vanilla-extract-recipe-plugin";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { readDomainClassReferenceSummary } from "../../../server/engine-core-ts/src/core/query";
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
@@ -10,7 +11,11 @@ describe("readDomainClassReferenceSummary", () => {
   it("summarizes utility-domain class tracking separately from CSS Module references", () => {
     const cache = new DocumentAnalysisCache({
       sourceFileCache: new SourceFileCache({ max: 10 }),
-      binderPlugins: [cssModulesClassnamesBinderPluginV0, tailwindUnoUtilityBinderPluginV0],
+      binderPlugins: [
+        cssModulesClassnamesBinderPluginV0,
+        tailwindUnoUtilityBinderPluginV0,
+        vanillaExtractRecipeBinderPluginV0,
+      ],
       fileExists: () => true,
       aliasResolver: EMPTY_ALIAS_RESOLVER,
       max: 10,
@@ -20,9 +25,18 @@ describe("readDomainClassReferenceSummary", () => {
       `
         import classNames from 'classnames/bind';
         import clsx from 'clsx';
+        import { recipe } from '@vanilla-extract/recipes';
         import styles from './Card.module.scss';
+        const cardRecipe = recipe({
+          variants: {
+            tone: {
+              primary: "card_tone_primary",
+            },
+          },
+        });
         const cx = classNames.bind(styles);
         const el = <div className={clsx(cx('card'), "flex", \`tone-\${state}\`)} />;
+        const recipeClass = cardRecipe({ tone: "primary" });
       `,
       "/fake/Card.tsx",
       1,
@@ -34,7 +48,7 @@ describe("readDomainClassReferenceSummary", () => {
       { kind: "literal", className: "card" },
     ]);
     expect(summary).toMatchObject({
-      totalReferences: 2,
+      totalReferences: 3,
       hasUtilityDomainReferences: true,
       groups: [
         {
@@ -42,6 +56,12 @@ describe("readDomainClassReferenceSummary", () => {
           domain: "utility-css",
           literalCount: 1,
           templatePrefixCount: 1,
+        },
+        {
+          pluginId: "vanilla-extract-recipe-domain",
+          domain: "vanilla-extract-recipe",
+          literalCount: 1,
+          templatePrefixCount: 0,
         },
       ],
     });
