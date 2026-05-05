@@ -337,6 +337,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "lessMixinDeclarationCstNodes",
             "lessMixinCallCstNodes",
             "lessMixinGuardCstNodes",
+            "importantAnnotationTokenization",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -1297,6 +1298,9 @@ where
                 '/' if self.starts_with("//") && self.extension.dialect() != StyleDialect::Css => {
                     self.consume_line_comment()
                 }
+                '!' if self.starts_with_ascii_keyword("!important") => {
+                    self.consume_static(SyntaxKind::Important, start, "!important".len())
+                }
                 '"' | '\'' => self.consume_string(current),
                 '0'..='9' => self.consume_number(),
                 '-' if self.starts_with("--") => {
@@ -1566,6 +1570,20 @@ where
 
     fn starts_with(&self, pattern: &str) -> bool {
         self.text[self.offset..].starts_with(pattern)
+    }
+
+    fn starts_with_ascii_keyword(&self, keyword: &str) -> bool {
+        let remaining = &self.text[self.offset..];
+        let Some(prefix) = remaining.get(..keyword.len()) else {
+            return false;
+        };
+        if !prefix.eq_ignore_ascii_case(keyword) {
+            return false;
+        }
+        remaining[keyword.len()..]
+            .chars()
+            .next()
+            .is_none_or(|char| !is_name_continue(char))
     }
 
     fn current_char(&self) -> Option<char> {
@@ -2357,6 +2375,16 @@ mod tests {
     }
 
     #[test]
+    fn tokenizes_important_annotation_as_single_token() {
+        let result = lex(".a { color: red !IMPORTANT; }", StyleDialect::Css);
+        let kinds: Vec<SyntaxKind> = result.tokens().iter().map(|token| token.kind).collect();
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::Important));
+        assert!(!kinds.contains(&SyntaxKind::Delim));
+    }
+
+    #[test]
     fn exposes_recovery_token_sets() {
         assert!(RECOVERY_TOP.contains(SyntaxKind::AtKeyword));
         assert!(RECOVERY_DECLARATION.contains(SyntaxKind::Semicolon));
@@ -2488,6 +2516,17 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::CalcFunction));
         assert!(kinds.contains(&SyntaxKind::VarFunction));
         assert!(kinds.contains(&SyntaxKind::BinaryExpression));
+    }
+
+    #[test]
+    fn keeps_important_annotation_in_declaration_values() {
+        let result = parse(".a { color: red !important; }", StyleDialect::Css);
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::Declaration));
+        assert!(kinds.contains(&SyntaxKind::Value));
+        assert!(token_kinds(&result.syntax()).contains(&SyntaxKind::Important));
     }
 
     #[test]
@@ -2706,6 +2745,11 @@ mod tests {
         assert!(
             summary
                 .ready_surfaces
+                .contains(&"importantAnnotationTokenization")
+        );
+        assert!(
+            summary
+                .ready_surfaces
                 .contains(&"initialDialectStatementNodes")
         );
         assert!(summary.ready_surfaces.contains(&"recoveryBogusSkeleton"));
@@ -2723,5 +2767,11 @@ mod tests {
             kinds.extend(node_kinds(child));
         }
         kinds
+    }
+
+    fn token_kinds(node: &SyntaxNode<SyntaxKind>) -> Vec<SyntaxKind> {
+        node.descendants_with_tokens()
+            .filter_map(|element| element.into_token().map(|token| token.kind()))
+            .collect()
     }
 }
