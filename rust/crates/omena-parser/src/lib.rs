@@ -407,6 +407,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "unexpectedValueTokenBogusNodes",
             "cdoCdcTokenization",
             "cssIdentifierEscapeTokenization",
+            "nullAndBomInputPreprocessingSlice",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -2876,6 +2877,9 @@ where
         while let Some(current) = self.current_char() {
             let start = self.offset;
             match current {
+                '\u{feff}' => {
+                    self.consume_static(SyntaxKind::Whitespace, start, current.len_utf8())
+                }
                 '\r' | '\n' if self.extension.dialect() == StyleDialect::Sass => {
                     self.consume_sass_indented_newline(start)
                 }
@@ -3574,7 +3578,7 @@ where
 }
 
 fn is_name_start(char: char) -> bool {
-    char == '_' || char == '-' || char.is_alphabetic() || !char.is_ascii()
+    char == '\0' || char == '_' || char == '-' || char.is_alphabetic() || !char.is_ascii()
 }
 
 fn is_name_continue(char: char) -> bool {
@@ -4745,6 +4749,17 @@ mod tests {
         assert!(result.errors().is_empty());
         assert!(token_kinds.contains(&SyntaxKind::Ident));
         assert!(token_kinds.contains(&SyntaxKind::CustomPropertyName));
+        assert!(node_kinds(&result.syntax()).contains(&SyntaxKind::ClassSelector));
+    }
+
+    #[test]
+    fn tokenizes_null_and_bom_without_unexpected_errors() {
+        let result = parse("\u{feff}.a\0b { content: \0; }", StyleDialect::Css);
+        let token_kinds = token_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(token_kinds.contains(&SyntaxKind::Whitespace));
+        assert!(token_kinds.contains(&SyntaxKind::Ident));
         assert!(node_kinds(&result.syntax()).contains(&SyntaxKind::ClassSelector));
     }
 
@@ -6199,6 +6214,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"cssIdentifierEscapeTokenization")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"nullAndBomInputPreprocessingSlice")
         );
         assert!(
             summary
