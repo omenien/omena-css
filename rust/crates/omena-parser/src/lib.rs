@@ -411,6 +411,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "hashDelimiterTokenization",
             "cssDashIdentTokenization",
             "signedNumericTokenization",
+            "badUrlWhitespaceRecovery",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -3419,15 +3420,33 @@ where
                     self.push(SyntaxKind::Url, start, self.offset);
                     return;
                 }
+                char if char.is_whitespace() => {
+                    self.bump_current();
+                    while matches!(self.current_char(), Some(char) if char.is_whitespace()) {
+                        self.bump_current();
+                    }
+                    if self.current_char() == Some(')') {
+                        self.bump_current();
+                        self.push(SyntaxKind::Url, start, self.offset);
+                        return;
+                    }
+                    self.consume_bad_url(start);
+                    return;
+                }
                 '"' | '\'' | '(' => {
                     self.consume_bad_url(start);
                     return;
                 }
+                '\\' if self.current_starts_valid_escape() => {
+                    self.consume_name_escape();
+                }
                 '\\' => {
-                    self.bump_current();
-                    if self.current_char().is_some() {
-                        self.bump_current();
-                    }
+                    self.consume_bad_url(start);
+                    return;
+                }
+                char if is_non_printable_code_point(char) => {
+                    self.consume_bad_url(start);
+                    return;
                 }
                 _ => self.bump_current(),
             }
@@ -3443,9 +3462,14 @@ where
 
     fn consume_bad_url(&mut self, start: usize) {
         while let Some(char) = self.current_char() {
-            self.bump_current();
             if char == ')' {
+                self.bump_current();
                 break;
+            }
+            if self.current_starts_valid_escape() {
+                self.consume_name_escape();
+            } else {
+                self.bump_current();
             }
         }
         self.push(SyntaxKind::BadUrl, start, self.offset);
@@ -3670,6 +3694,10 @@ fn is_name_start(char: char) -> bool {
 
 fn is_name_continue(char: char) -> bool {
     is_name_start(char) || char.is_ascii_digit()
+}
+
+fn is_non_printable_code_point(char: char) -> bool {
+    matches!(char, '\u{0000}'..='\u{0008}' | '\u{000b}' | '\u{000e}'..='\u{001f}' | '\u{007f}')
 }
 
 fn is_custom_property_name_text(text: &str) -> bool {
@@ -4970,12 +4998,27 @@ mod tests {
     fn tokenizes_unquoted_urls_and_bad_urls() {
         let good = lex(".a { background: url(images/bg.png); }", StyleDialect::Css);
         let bad = lex(".a { background: url(foo\"bar); }", StyleDialect::Css);
+        let bad_whitespace = lex(".a { background: url(foo bar); }", StyleDialect::Css);
+        let bad_escape = lex(".a { background: url(foo\\\nbar); }", StyleDialect::Css);
+        let trailing_whitespace = lex(".a { background: url(foo \n ); }", StyleDialect::Css);
         let quoted = lex(
             ".a { background: url(\"images/bg.png\"); }",
             StyleDialect::Css,
         );
         let good_kinds: Vec<SyntaxKind> = good.tokens().iter().map(|token| token.kind).collect();
         let bad_kinds: Vec<SyntaxKind> = bad.tokens().iter().map(|token| token.kind).collect();
+        let bad_whitespace_kinds: Vec<SyntaxKind> = bad_whitespace
+            .tokens()
+            .iter()
+            .map(|token| token.kind)
+            .collect();
+        let bad_escape_kinds: Vec<SyntaxKind> =
+            bad_escape.tokens().iter().map(|token| token.kind).collect();
+        let trailing_whitespace_kinds: Vec<SyntaxKind> = trailing_whitespace
+            .tokens()
+            .iter()
+            .map(|token| token.kind)
+            .collect();
         let quoted_kinds: Vec<SyntaxKind> =
             quoted.tokens().iter().map(|token| token.kind).collect();
 
@@ -4983,6 +5026,12 @@ mod tests {
         assert!(good_kinds.contains(&SyntaxKind::Url));
         assert!(bad_kinds.contains(&SyntaxKind::BadUrl));
         assert!(!bad.errors().is_empty());
+        assert!(bad_whitespace_kinds.contains(&SyntaxKind::BadUrl));
+        assert!(!bad_whitespace.errors().is_empty());
+        assert!(bad_escape_kinds.contains(&SyntaxKind::BadUrl));
+        assert!(!bad_escape.errors().is_empty());
+        assert!(trailing_whitespace.errors().is_empty());
+        assert!(trailing_whitespace_kinds.contains(&SyntaxKind::Url));
         assert!(quoted_kinds.contains(&SyntaxKind::Ident));
         assert!(quoted_kinds.contains(&SyntaxKind::String));
         assert!(!quoted_kinds.contains(&SyntaxKind::Url));
@@ -6434,6 +6483,7 @@ mod tests {
                 .ready_surfaces
                 .contains(&"signedNumericTokenization")
         );
+        assert!(summary.ready_surfaces.contains(&"badUrlWhitespaceRecovery"));
         assert!(
             summary
                 .ready_surfaces
