@@ -403,6 +403,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "typedNumericValueAtomCstNodes",
             "bracketedValueCstNodes",
             "importantAnnotationCstNodes",
+            "unexpectedValueTokenBogusNodes",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -1664,7 +1665,7 @@ impl<'text> Parser<'text> {
                 self.token_current();
                 self.builder.finish_node();
             }
-            Some(SyntaxKind::String) => {
+            Some(SyntaxKind::String | SyntaxKind::LessEscapedString) => {
                 self.builder.start_node(SyntaxKind::StringValue);
                 self.token_current();
                 self.builder.finish_node();
@@ -1729,7 +1730,12 @@ impl<'text> Parser<'text> {
                 self.token_current();
                 self.builder.finish_node();
             }
-            Some(_) => self.token_current(),
+            Some(_) => {
+                self.builder.start_node(SyntaxKind::BogusValue);
+                self.error_at_current(ParseErrorCode::ExpectedValue, "expected value");
+                self.token_current();
+                self.builder.finish_node();
+            }
             None => {
                 self.empty_bogus_node(
                     SyntaxKind::BogusValue,
@@ -4816,6 +4822,7 @@ mod tests {
         let missing_class_name = parse(". { color: red; }", StyleDialect::Css);
         let missing_attribute_end = parse(".a[data-active { color: red; }", StyleDialect::Css);
         let missing_value_rhs = parse(".a { width: calc(1 + ); }", StyleDialect::Css);
+        let unexpected_value_token = parse(".a { color: @; }", StyleDialect::Css);
 
         assert_eq!(
             missing_class_name.errors().first().map(|error| error.code),
@@ -4837,6 +4844,7 @@ mod tests {
         assert!(node_kinds(&missing_class_name.syntax()).contains(&SyntaxKind::BogusSelector));
         assert!(node_kinds(&missing_attribute_end.syntax()).contains(&SyntaxKind::BogusSelector));
         assert!(node_kinds(&missing_value_rhs.syntax()).contains(&SyntaxKind::BogusValue));
+        assert!(node_kinds(&unexpected_value_token.syntax()).contains(&SyntaxKind::BogusValue));
     }
 
     #[test]
@@ -6058,6 +6066,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"importantAnnotationCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"unexpectedValueTokenBogusNodes")
         );
         assert!(
             summary
