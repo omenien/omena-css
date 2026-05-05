@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { strict as assert } from "node:assert";
+import { transform } from "lightningcss";
 
 type OmenaParserDialect = "css" | "scss" | "sass" | "less";
 type LegacyParserDialect = Exclude<OmenaParserDialect, "sass">;
@@ -45,6 +46,12 @@ interface OmenaParserLexResultV0 {
     readonly end: number;
   }[];
   readonly parserErrorCount: number;
+}
+
+interface ParserDifferentialSummary {
+  readonly classSelectorNames: readonly string[];
+  readonly customPropertyNames: readonly string[];
+  readonly atRuleNames: readonly string[];
 }
 
 const LEGACY_SUPPORTED_CORPUS = [
@@ -278,6 +285,28 @@ const TOKEN_TEXT_CORPUS = [
   readonly expectedTokenTexts: readonly string[];
 }[];
 
+const LIGHTNINGCSS_CSS_CORPUS = [
+  {
+    label: "lightningcss-custom-property-and-calc",
+    source: `:root { --brand: red; } .card { color: var(--brand); width: calc(1px + 2px); }`,
+  },
+  {
+    label: "lightningcss-selectors-level-four",
+    source: `.card:has(> .icon, + [data-active]):nth-child(2n + 1 of .item) { color: red; }\n.panel:dir(rtl):lang(en-US) { color: blue; }`,
+  },
+  {
+    label: "lightningcss-conditional-at-rules",
+    source: `@layer theme; @media (width >= 1px) { .mediaCard { color: red; } } @supports (display: grid) { .gridCard { display: grid; } }`,
+  },
+  {
+    label: "lightningcss-values-level-four-functions",
+    source: `.paint { color: color-mix(in srgb, red, blue); background: linear-gradient(red, blue); transform: translateX(1rem) rotate(10deg); }`,
+  },
+] as const satisfies readonly {
+  readonly label: string;
+  readonly source: string;
+}[];
+
 async function runLegacyIndex(
   filePath: string,
   source: string,
@@ -380,6 +409,90 @@ function normalizeCssSyntaxInputText(text: string): string {
 
 function sourceByteSlice(source: string, start: number, end: number): string {
   return Buffer.from(source, "utf8").subarray(start, end).toString("utf8");
+}
+
+function summarizeLightningCss(source: string): ParserDifferentialSummary {
+  const classSelectorNames: string[] = [];
+  const customPropertyNames: string[] = [];
+  const atRuleNames: string[] = [];
+
+  transform({
+    filename: "fixture.module.css",
+    code: Buffer.from(source),
+    visitor: {
+      Selector(selector: unknown) {
+        classSelectorNames.push(...topLevelSelectorClassNames(selector));
+      },
+      Declaration(declaration: unknown) {
+        const customPropertyName = lightningCustomPropertyName(declaration);
+        if (customPropertyName !== undefined) {
+          customPropertyNames.push(customPropertyName);
+        }
+      },
+      Rule(rule: unknown) {
+        const atRuleName = lightningAtRuleName(rule);
+        if (atRuleName !== undefined) {
+          atRuleNames.push(atRuleName);
+        }
+      },
+    },
+  });
+
+  return {
+    classSelectorNames,
+    customPropertyNames,
+    atRuleNames,
+  };
+}
+
+function topLevelSelectorClassNames(selector: unknown): string[] {
+  if (!Array.isArray(selector)) {
+    return [];
+  }
+  return selector.flatMap((component) => {
+    if (!recordHasString(component, "type") || component.type !== "class") {
+      return [];
+    }
+    return recordHasString(component, "name") ? [component.name] : [];
+  });
+}
+
+function lightningCustomPropertyName(declaration: unknown): string | undefined {
+  if (!recordHasString(declaration, "property") || declaration.property !== "custom") {
+    return undefined;
+  }
+  const value = declaration.value;
+  return recordHasString(value, "name") ? value.name : undefined;
+}
+
+function lightningAtRuleName(rule: unknown): string | undefined {
+  if (!recordHasString(rule, "type")) {
+    return undefined;
+  }
+  switch (rule.type) {
+    case "media":
+      return "@media";
+    case "supports":
+      return "@supports";
+    case "container":
+      return "@container";
+    case "layer-statement":
+    case "layer-block":
+      return "@layer";
+    case "keyframes":
+      return "@keyframes";
+    default:
+      return undefined;
+  }
+}
+
+function recordHasString(value: unknown, key: string): value is Record<string, string> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    key in value &&
+    typeof (value as Record<string, unknown>)[key] === "string"
+  );
 }
 
 function assertCommonFacts(actual: OmenaParserStyleFactsV0, label: string): void {
@@ -538,6 +651,35 @@ void (async () => {
 
     process.stdout.write(
       `validated token text corpus: tokens=${actual.tokens.length} required=${entry.expectedTokenTexts.length}\n\n`,
+    );
+  }
+
+  for (const entry of LIGHTNINGCSS_CSS_CORPUS) {
+    process.stdout.write(`== omena-parser-differential-corpus:${entry.label} ==\n`);
+
+    const lightning = summarizeLightningCss(entry.source);
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const actual = await runOmenaParserStyleFacts("css", entry.source);
+
+    assertCommonFacts(actual, entry.label);
+    assert.deepEqual(
+      sortedUnique(actual.classSelectorNames),
+      sortedUnique(lightning.classSelectorNames),
+      `${entry.label} lightningcss class selector differential drift`,
+    );
+    assert.deepEqual(
+      sortedUnique(actual.customPropertyNames),
+      sortedUnique(lightning.customPropertyNames),
+      `${entry.label} lightningcss custom property differential drift`,
+    );
+    assert.deepEqual(
+      sortedUnique(actual.atRuleNames),
+      sortedUnique(lightning.atRuleNames),
+      `${entry.label} lightningcss at-rule differential drift`,
+    );
+
+    process.stdout.write(
+      `validated lightningcss differential: selectors=${actual.classSelectorNames.length} atRules=${actual.atRuleNames.length}\n\n`,
     );
   }
 })().catch((error: unknown) => {

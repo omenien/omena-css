@@ -679,6 +679,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "sassIndentedBlockCstNodes",
             "sassIndentedStyleFacts",
             "differentialCorpusSeed",
+            "lightningCssDifferentialCorpusSlice",
             "midTypingNoPanicPropertySlice",
             "typedNumericValueAtomCstNodes",
             "bracketedValueCstNodes",
@@ -7892,6 +7893,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"genericRecoveryBogusNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"lightningCssDifferentialCorpusSlice")
         );
         assert!(
             summary
