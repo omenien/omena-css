@@ -17,7 +17,7 @@
 - **Shared design-token ranking read model** - style hover, definition, and references now consume the same host-side Rust design-token ranking query instead of each resolving selected-query graph winners independently.
 - **Design-token declaration candidates** - Rust selected-query style semantic graphs now expose custom-property declaration candidates, and style completions consume that shared read model for external/package CSS variable suggestions.
 - **Query-owned hover render parts** - Rust LSP style hover rendering now consumes `omena-query` snippet/value/signature render parts instead of extracting selector and Sass snippets inside the LSP server.
-- **Query-owned style diagnostic actions** - Rust LSP missing custom-property diagnostics now consume `omena-query` diagnostic/action payloads instead of planning the `createCustomProperty` quickfix inside the LSP server.
+- **Query-owned diagnostic actions** - Rust LSP missing custom-property and source selector diagnostics now consume `omena-query` diagnostic/action payloads instead of planning `createCustomProperty` / `createSelector` quickfixes inside the LSP server.
 
 ### Fixed
 

@@ -177,6 +177,24 @@ pub struct OmenaQueryCreateCustomPropertyActionV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySourceDiagnosticV0 {
+    pub code: &'static str,
+    pub range: ParserRangeV0,
+    pub message: String,
+    pub create_selector: Option<OmenaQueryCreateSelectorActionV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCreateSelectorActionV0 {
+    pub uri: String,
+    pub range: ParserRangeV0,
+    pub new_text: String,
+    pub selector_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQuerySassModuleUseEdgeV0 {
     pub source: String,
     pub namespace_kind: &'static str,
@@ -266,6 +284,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "expressionDomainSalsaRuntime",
             "styleHoverRenderParts",
             "styleMissingCustomPropertyDiagnostics",
+            "sourceMissingSelectorDiagnostics",
             "queryBoundarySummary",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
@@ -698,6 +717,33 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
             }),
         })
         .collect()
+}
+
+pub fn summarize_omena_query_missing_selector_diagnostic(
+    target_style_uri: &str,
+    target_style_source: &str,
+    selector_name: &str,
+    source_reference_range: ParserRangeV0,
+) -> OmenaQuerySourceDiagnosticV0 {
+    let insertion_range = end_of_source_range(target_style_source);
+    let has_existing_style_content = !target_style_source.trim().is_empty();
+    OmenaQuerySourceDiagnosticV0 {
+        code: "missingSelector",
+        range: source_reference_range,
+        message: format!(
+            "CSS Module selector '.{selector_name}' not found in indexed style tokens."
+        ),
+        create_selector: Some(OmenaQueryCreateSelectorActionV0 {
+            uri: target_style_uri.to_string(),
+            range: insertion_range,
+            new_text: if has_existing_style_content {
+                format!("\n\n.{selector_name} {{\n}}\n")
+            } else {
+                format!(".{selector_name} {{\n}}\n")
+            },
+            selector_name: selector_name.to_string(),
+        }),
+    }
 }
 
 pub fn summarize_omena_query_sass_module_sources(
@@ -2672,6 +2718,54 @@ $accent: red;
                 end: engine_style_parser::ParserPositionV0 {
                     line: 1,
                     character: 33,
+                },
+            })
+        );
+    }
+
+    #[test]
+    fn missing_selector_diagnostics_are_query_owned() {
+        let diagnostic = super::summarize_omena_query_missing_selector_diagnostic(
+            "file:///workspace/src/App.module.scss",
+            ".root {\n}\n",
+            "missing",
+            engine_style_parser::ParserRangeV0 {
+                start: engine_style_parser::ParserPositionV0 {
+                    line: 2,
+                    character: 18,
+                },
+                end: engine_style_parser::ParserPositionV0 {
+                    line: 2,
+                    character: 25,
+                },
+            },
+        );
+
+        assert_eq!(diagnostic.code, "missingSelector");
+        assert_eq!(
+            diagnostic.message,
+            "CSS Module selector '.missing' not found in indexed style tokens."
+        );
+        assert_eq!(
+            diagnostic
+                .create_selector
+                .as_ref()
+                .map(|action| action.new_text.as_str()),
+            Some("\n\n.missing {\n}\n")
+        );
+        assert_eq!(
+            diagnostic
+                .create_selector
+                .as_ref()
+                .map(|action| action.range),
+            Some(engine_style_parser::ParserRangeV0 {
+                start: engine_style_parser::ParserPositionV0 {
+                    line: 2,
+                    character: 0,
+                },
+                end: engine_style_parser::ParserPositionV0 {
+                    line: 2,
+                    character: 0,
                 },
             })
         );

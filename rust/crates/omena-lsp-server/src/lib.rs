@@ -18,8 +18,9 @@ use omena_bridge::{
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
     OmenaQueryStyleHoverCandidateV0, summarize_omena_query_missing_custom_property_diagnostics,
-    summarize_omena_query_sass_module_sources, summarize_omena_query_style_document,
-    summarize_omena_query_style_hover_candidates, summarize_omena_query_style_hover_render_parts,
+    summarize_omena_query_missing_selector_diagnostic, summarize_omena_query_sass_module_sources,
+    summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
+    summarize_omena_query_style_hover_render_parts,
 };
 use omena_tsgo_client::{
     OmenaTsgoClientBoundarySummaryV0, TsgoJsonRpcTypeFactProviderV0, TsgoResolvedTypeV0,
@@ -1850,28 +1851,24 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
                 &candidate,
                 document.workspace_folder_uri.as_deref(),
             )?;
-            let insertion_range = end_of_document_range(target_style_document.text.as_str());
-            let has_existing_style_content = !target_style_document.text.trim().is_empty();
+            let diagnostic = summarize_omena_query_missing_selector_diagnostic(
+                target_style_uri.as_str(),
+                target_style_document.text.as_str(),
+                candidate.name.as_str(),
+                candidate.range,
+            );
+            let data = diagnostic.create_selector.map(|create_selector| {
+                json!({
+                    "createSelector": create_selector,
+                })
+            })?;
+
             Some(json!({
-                "range": candidate.range,
+                "range": diagnostic.range,
                 "severity": state.diagnostics.severity,
                 "source": "css-module-explainer",
-                "message": format!(
-                    "CSS Module selector '.{}' not found in indexed style tokens.",
-                    candidate.name
-                ),
-                "data": {
-                    "createSelector": {
-                        "uri": target_style_uri.as_str(),
-                        "range": insertion_range,
-                        "newText": if has_existing_style_content {
-                            format!("\n\n.{} {{\n}}\n", candidate.name)
-                        } else {
-                            format!(".{} {{\n}}\n", candidate.name)
-                        },
-                        "selectorName": candidate.name.as_str(),
-                    },
-                },
+                "message": diagnostic.message,
+                "data": data,
             }))
         })
         .collect();
@@ -3489,14 +3486,6 @@ fn include_declaration_from_params(params: Option<&Value>) -> bool {
         .and_then(|value| value.get("includeDeclaration"))
         .and_then(Value::as_bool)
         .unwrap_or(false)
-}
-
-fn end_of_document_range(source: &str) -> ParserRangeV0 {
-    let position = parser_position_for_byte_offset(source, source.len());
-    ParserRangeV0 {
-        start: position,
-        end: position,
-    }
 }
 
 fn file_label_from_uri(uri: &str) -> &str {
