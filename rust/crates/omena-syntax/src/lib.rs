@@ -339,6 +339,8 @@ syntax_kinds! {
     NthSelectorArgument = 0x1070,
     NthSelectorFormula = 0x1071,
     NthSelectorOfSelectorList = 0x1072,
+    RelativeSelectorList = 0x1073,
+    RelativeSelector = 0x1074,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,

@@ -709,6 +709,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "customPropertyValueCstNodes",
             "functionalPseudoSelectorListCstNodes",
             "nthSelectorOfSelectorListCstNodes",
+            "hasRelativeSelectorListCstNodes",
             "missingBlockCloseBogusTrivia",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
@@ -949,6 +950,42 @@ impl<'text> Parser<'text> {
                 None => break,
             }
         }
+        self.builder.finish_node();
+    }
+
+    fn parse_relative_selector_list_until(&mut self, recovery: &[SyntaxKind]) {
+        self.builder.start_node(
+            if self.current_selector_item_is_bogus(recovery)
+                && self.current_kind() != Some(SyntaxKind::RightParen)
+            {
+                SyntaxKind::BogusSelectorList
+            } else {
+                SyntaxKind::RelativeSelectorList
+            },
+        );
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::Comma) => self.token_current(),
+                Some(kind) if is_selector_boundary_until(kind, recovery) => break,
+                Some(SyntaxKind::SassIndentedNewline) => self.token_current(),
+                Some(_)
+                    if self.current_selector_item_is_bogus(recovery)
+                        && self.current_kind() != Some(SyntaxKind::RightParen) =>
+                {
+                    self.parse_bogus_selector_until(recovery)
+                }
+                Some(_) => self.parse_relative_selector_until(recovery),
+                None => break,
+            }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_relative_selector_until(&mut self, recovery: &[SyntaxKind]) {
+        self.builder.start_node(SyntaxKind::RelativeSelector);
+        self.builder.start_node(SyntaxKind::ComplexSelector);
+        self.parse_complex_selector_until(recovery);
+        self.builder.finish_node();
         self.builder.finish_node();
     }
 
@@ -1252,6 +1289,10 @@ impl<'text> Parser<'text> {
                     .is_some_and(is_selector_list_pseudo_class)
             {
                 self.parse_selector_list_until(&[SyntaxKind::RightParen]);
+            } else if kind == SyntaxKind::PseudoClassSelector
+                && pseudo_name.as_deref() == Some("has")
+            {
+                self.parse_relative_selector_list_until(&[SyntaxKind::RightParen]);
             } else if kind == SyntaxKind::PseudoClassSelector
                 && pseudo_name.as_deref().is_some_and(is_nth_pseudo_class)
             {
@@ -5273,7 +5314,7 @@ fn is_selector_boundary_until(kind: SyntaxKind, recovery: &[SyntaxKind]) -> bool
 }
 
 fn is_selector_list_pseudo_class(text: &str) -> bool {
-    matches!(text, "is" | "where" | "not" | "has" | "local" | "global")
+    matches!(text, "is" | "where" | "not" | "local" | "global")
 }
 
 fn is_nth_pseudo_class(text: &str) -> bool {
@@ -7173,6 +7214,30 @@ mod tests {
     }
 
     #[test]
+    fn parses_has_arguments_as_relative_selector_lists() {
+        let result = parse(
+            ".card:has(> .icon, + [data-active], :has(~ .nested)) { color: red; }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let relative_selector_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::RelativeSelector)
+            .count();
+        let relative_list_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::RelativeSelectorList)
+            .count();
+
+        assert!(result.errors().is_empty());
+        assert_eq!(relative_list_count, 2);
+        assert_eq!(relative_selector_count, 4);
+        assert!(kinds.contains(&SyntaxKind::Combinator));
+        assert!(kinds.contains(&SyntaxKind::AttributeSelector));
+        assert!(kinds.contains(&SyntaxKind::PseudoClassSelector));
+    }
+
+    #[test]
     fn decomposes_selector_lists_into_selector_nodes() {
         let result = parse(
             ".card:hover > #title, article.card || .icon[data-active] { color: red; }",
@@ -7677,6 +7742,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"nthSelectorOfSelectorListCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"hasRelativeSelectorListCstNodes")
         );
         assert!(
             summary

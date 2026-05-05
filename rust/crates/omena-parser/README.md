@@ -21,6 +21,8 @@ Current scope:
   nodes and isolate malformed selector-list items as Bogus selectors.
 - `:nth-child()` and `:nth-last-child()` expose `of <selector-list>` arguments
   as structured CST nodes instead of opaque pseudo-selector argument tokens.
+- `:has()` arguments are represented as relative selector lists, preserving
+  leading combinators for downstream selector semantics.
 - Attribute selectors expose dedicated name, matcher, value, and modifier
   nodes, including Selectors L4 case-sensitivity flags.
 - Missing block-close recovery markers represented as `BogusTrivia`.
