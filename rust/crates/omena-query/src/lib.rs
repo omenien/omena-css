@@ -193,6 +193,33 @@ pub struct OmenaQueryCreateSelectorActionV0 {
     pub selector_name: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySourceSelectorCandidateV0 {
+    pub kind: &'static str,
+    pub name: String,
+    pub range: ParserRangeV0,
+    pub source: &'static str,
+    pub target_style_uri: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStyleSelectorDefinitionV0 {
+    pub uri: String,
+    pub name: String,
+    pub range: ParserRangeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySourceProviderCandidateResolutionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub matched: Vec<OmenaQuerySourceSelectorCandidateV0>,
+    pub unresolved: Vec<OmenaQuerySourceSelectorCandidateV0>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQuerySassModuleUseEdgeV0 {
@@ -285,6 +312,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "styleHoverRenderParts",
             "styleMissingCustomPropertyDiagnostics",
             "sourceMissingSelectorDiagnostics",
+            "sourceProviderCandidateResolution",
             "queryBoundarySummary",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
@@ -743,6 +771,35 @@ pub fn summarize_omena_query_missing_selector_diagnostic(
             },
             selector_name: selector_name.to_string(),
         }),
+    }
+}
+
+pub fn resolve_omena_query_source_provider_candidates(
+    source_candidates: Vec<OmenaQuerySourceSelectorCandidateV0>,
+    definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+) -> OmenaQuerySourceProviderCandidateResolutionV0 {
+    if definitions.is_empty() {
+        return OmenaQuerySourceProviderCandidateResolutionV0 {
+            schema_version: "0",
+            product: "omena-query.source-provider-candidate-resolution",
+            matched: Vec::new(),
+            unresolved: Vec::new(),
+        };
+    }
+
+    let (mut matched, mut unresolved): (Vec<_>, Vec<_>) =
+        source_candidates.into_iter().partition(|candidate| {
+            definitions.iter().any(|definition| {
+                source_selector_candidate_matches_definition(candidate, definition)
+            })
+        });
+    matched.sort();
+    unresolved.sort();
+    OmenaQuerySourceProviderCandidateResolutionV0 {
+        schema_version: "0",
+        product: "omena-query.source-provider-candidate-resolution",
+        matched,
+        unresolved,
     }
 }
 
@@ -1902,6 +1959,22 @@ fn char_boundary_ceil(source: &str, index: usize) -> usize {
     index
 }
 
+fn source_selector_candidate_matches_definition(
+    candidate: &OmenaQuerySourceSelectorCandidateV0,
+    definition: &OmenaQueryStyleSelectorDefinitionV0,
+) -> bool {
+    let selector_matches = if candidate.kind == "sourceSelectorPrefixReference" {
+        definition.name.starts_with(candidate.name.as_str())
+    } else {
+        definition.name == candidate.name
+    };
+    selector_matches
+        && candidate
+            .target_style_uri
+            .as_deref()
+            .is_none_or(|target_uri| target_uri == definition.uri)
+}
+
 fn style_language_label(language: StyleLanguage) -> &'static str {
     match language {
         StyleLanguage::Css => "css",
@@ -2768,6 +2841,85 @@ $accent: red;
                     character: 0,
                 },
             })
+        );
+    }
+
+    #[test]
+    fn source_provider_candidate_resolution_is_query_owned() {
+        let source_range = engine_style_parser::ParserRangeV0 {
+            start: engine_style_parser::ParserPositionV0 {
+                line: 0,
+                character: 0,
+            },
+            end: engine_style_parser::ParserPositionV0 {
+                line: 0,
+                character: 4,
+            },
+        };
+        let definition_range = engine_style_parser::ParserRangeV0 {
+            start: engine_style_parser::ParserPositionV0 {
+                line: 1,
+                character: 1,
+            },
+            end: engine_style_parser::ParserPositionV0 {
+                line: 1,
+                character: 5,
+            },
+        };
+
+        let resolution = super::resolve_omena_query_source_provider_candidates(
+            vec![
+                super::OmenaQuerySourceSelectorCandidateV0 {
+                    kind: "sourceSelectorReference",
+                    name: "root".to_string(),
+                    range: source_range,
+                    source: "omenaBridgeSourceSyntaxIndex",
+                    target_style_uri: Some("file:///workspace/src/App.module.scss".to_string()),
+                },
+                super::OmenaQuerySourceSelectorCandidateV0 {
+                    kind: "sourceSelectorPrefixReference",
+                    name: "btn-".to_string(),
+                    range: source_range,
+                    source: "omenaBridgeSourceSyntaxIndex",
+                    target_style_uri: Some("file:///workspace/src/App.module.scss".to_string()),
+                },
+                super::OmenaQuerySourceSelectorCandidateV0 {
+                    kind: "sourceSelectorReference",
+                    name: "ghost".to_string(),
+                    range: source_range,
+                    source: "omenaBridgeSourceSyntaxIndex",
+                    target_style_uri: Some("file:///workspace/src/Other.module.scss".to_string()),
+                },
+            ],
+            &[
+                super::OmenaQueryStyleSelectorDefinitionV0 {
+                    uri: "file:///workspace/src/App.module.scss".to_string(),
+                    name: "root".to_string(),
+                    range: definition_range,
+                },
+                super::OmenaQueryStyleSelectorDefinitionV0 {
+                    uri: "file:///workspace/src/App.module.scss".to_string(),
+                    name: "btn-primary".to_string(),
+                    range: definition_range,
+                },
+            ],
+        );
+
+        assert_eq!(
+            resolution
+                .matched
+                .iter()
+                .map(|candidate| candidate.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["btn-", "root"]
+        );
+        assert_eq!(
+            resolution
+                .unresolved
+                .iter()
+                .map(|candidate| candidate.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["ghost"]
         );
     }
 

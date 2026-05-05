@@ -17,7 +17,9 @@ use omena_bridge::{
 };
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
-    OmenaQueryStyleHoverCandidateV0, summarize_omena_query_missing_custom_property_diagnostics,
+    OmenaQuerySourceSelectorCandidateV0, OmenaQueryStyleHoverCandidateV0,
+    OmenaQueryStyleSelectorDefinitionV0, resolve_omena_query_source_provider_candidates,
+    summarize_omena_query_missing_custom_property_diagnostics,
     summarize_omena_query_missing_selector_diagnostic, summarize_omena_query_sass_module_sources,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_style_hover_render_parts,
@@ -2934,39 +2936,30 @@ fn resolve_source_provider_candidates(
             definitions.extend(style_selector_definitions_from_uri(state, target_uri));
         }
     }
-    let selector_names: BTreeSet<String> = definitions
+    let query_definitions = definitions
         .iter()
-        .map(|(_, definition)| definition.name.clone())
-        .collect();
-    if selector_names.is_empty() {
-        return SourceProviderCandidateResolution {
-            matched: Vec::new(),
-            unresolved: Vec::new(),
-        };
-    }
-    let (mut matched, mut unresolved): (Vec<_>, Vec<_>) =
-        source_candidates.into_iter().partition(|candidate| {
-            source_candidate_has_style_definition(candidate, definitions.as_slice())
-        });
-    matched.sort();
-    unresolved.sort();
-    SourceProviderCandidateResolution {
-        matched,
-        unresolved,
-    }
-}
+        .map(|(uri, definition)| query_style_selector_definition(uri, definition))
+        .collect::<Vec<_>>();
+    let resolution = resolve_omena_query_source_provider_candidates(
+        source_candidates
+            .iter()
+            .map(query_source_selector_candidate_from_lsp)
+            .collect(),
+        query_definitions.as_slice(),
+    );
 
-fn source_candidate_has_style_definition(
-    candidate: &LspStyleHoverCandidate,
-    definitions: &[(String, LspStyleHoverCandidate)],
-) -> bool {
-    definitions.iter().any(|(uri, definition)| {
-        source_candidate_matches_selector(candidate, definition.name.as_str())
-            && candidate
-                .target_style_uri
-                .as_deref()
-                .is_none_or(|target_uri| target_uri == uri)
-    })
+    SourceProviderCandidateResolution {
+        matched: resolution
+            .matched
+            .into_iter()
+            .map(lsp_source_selector_candidate_from_query)
+            .collect(),
+        unresolved: resolution
+            .unresolved
+            .into_iter()
+            .map(lsp_source_selector_candidate_from_query)
+            .collect(),
+    }
 }
 
 fn collect_source_class_reference_candidates(
@@ -3577,6 +3570,42 @@ fn query_style_hover_candidate_from_lsp(
         range: candidate.range,
         source: candidate.source,
         namespace: candidate.namespace.clone(),
+    }
+}
+
+fn query_source_selector_candidate_from_lsp(
+    candidate: &LspStyleHoverCandidate,
+) -> OmenaQuerySourceSelectorCandidateV0 {
+    OmenaQuerySourceSelectorCandidateV0 {
+        kind: candidate.kind,
+        name: candidate.name.clone(),
+        range: candidate.range,
+        source: candidate.source,
+        target_style_uri: candidate.target_style_uri.clone(),
+    }
+}
+
+fn lsp_source_selector_candidate_from_query(
+    candidate: OmenaQuerySourceSelectorCandidateV0,
+) -> LspStyleHoverCandidate {
+    LspStyleHoverCandidate {
+        kind: candidate.kind,
+        name: candidate.name,
+        range: candidate.range,
+        source: candidate.source,
+        target_style_uri: candidate.target_style_uri,
+        namespace: None,
+    }
+}
+
+fn query_style_selector_definition(
+    uri: &str,
+    definition: &LspStyleHoverCandidate,
+) -> OmenaQueryStyleSelectorDefinitionV0 {
+    OmenaQueryStyleSelectorDefinitionV0 {
+        uri: uri.to_string(),
+        name: definition.name.clone(),
+        range: definition.range,
     }
 }
 
