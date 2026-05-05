@@ -298,6 +298,10 @@ syntax_kinds! {
     PageMarginRule = 0x1049,
     WhenRule = 0x104a,
     ElseRule = 0x104b,
+    CounterStyleRule = 0x104c,
+    FontPaletteValuesRule = 0x104d,
+    ColorProfileRule = 0x104e,
+    PositionTryRule = 0x104f,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,

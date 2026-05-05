@@ -361,6 +361,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "importPreludeCstNodes",
             "layerScopePreludeCstNodes",
             "pageMarginAtRuleCstNodes",
+            "modernDeclarationAtRuleCstNodes",
             "cssColorFunctionCstNodes",
             "envAttrFunctionCstNodes",
             "mathFunctionCstNodes",
@@ -3764,7 +3765,13 @@ fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariabl
                 }) {
                     continue;
                 }
-                if next_non_trivia_token(tokens, index + 1)
+                if let Some(at_rule_name) = containing_at_rule_header_name(tokens, index) {
+                    if at_rule_name == "@property" {
+                        ParsedVariableFactKind::CustomPropertyDeclaration
+                    } else {
+                        continue;
+                    }
+                } else if next_non_trivia_token(tokens, index + 1)
                     .is_some_and(|candidate| candidate.kind == SyntaxKind::Colon)
                 {
                     ParsedVariableFactKind::CustomPropertyDeclaration
@@ -3781,6 +3788,35 @@ fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariabl
         });
     }
     variables
+}
+
+fn containing_at_rule_header_name<'text>(
+    tokens: &'text [Token<'text>],
+    index: usize,
+) -> Option<&'text str> {
+    let mut current = index;
+    while current > 0 {
+        current -= 1;
+        let token = tokens.get(current)?;
+        if token.kind.is_trivia() {
+            continue;
+        }
+        if matches!(
+            token.kind,
+            SyntaxKind::Semicolon
+                | SyntaxKind::SassOptionalSemicolon
+                | SyntaxKind::LeftBrace
+                | SyntaxKind::RightBrace
+                | SyntaxKind::SassIndent
+                | SyntaxKind::SassDedent
+        ) {
+            return None;
+        }
+        if token.kind == SyntaxKind::AtKeyword {
+            return Some(token.text);
+        }
+    }
+    None
 }
 
 fn skip_trivia_tokens(tokens: &[Token<'_>], mut index: usize, end: usize) -> usize {
@@ -4001,6 +4037,22 @@ fn at_rule_spec(text: &str) -> Option<AtRuleSpec> {
         "@font-face" => (SyntaxKind::FontFaceRule, AtRuleBlockKind::DeclarationList),
         "@page" => (SyntaxKind::PageRule, AtRuleBlockKind::DeclarationList),
         "@property" => (SyntaxKind::PropertyRule, AtRuleBlockKind::DeclarationList),
+        "@counter-style" => (
+            SyntaxKind::CounterStyleRule,
+            AtRuleBlockKind::DeclarationList,
+        ),
+        "@font-palette-values" => (
+            SyntaxKind::FontPaletteValuesRule,
+            AtRuleBlockKind::DeclarationList,
+        ),
+        "@color-profile" => (
+            SyntaxKind::ColorProfileRule,
+            AtRuleBlockKind::DeclarationList,
+        ),
+        "@position-try" => (
+            SyntaxKind::PositionTryRule,
+            AtRuleBlockKind::DeclarationList,
+        ),
         "@charset" => (SyntaxKind::CharsetRule, AtRuleBlockKind::Raw),
         "@import" => (SyntaxKind::ImportRule, AtRuleBlockKind::Raw),
         "@namespace" => (SyntaxKind::NamespaceRule, AtRuleBlockKind::Raw),
@@ -4789,15 +4841,21 @@ mod tests {
             "@when media(width >= 1px) { .a { color: red; } } @else { .b { color: blue; } }",
             StyleDialect::Css,
         );
+        let modern_declaration_rules = parse(
+            "@counter-style thumbs { system: cyclic; symbols: \"yes\"; suffix: \" \"; } @font-palette-values --brand { font-family: Demo; base-palette: 1; } @color-profile --display-p3 { src: url(p3.icc); } @position-try --popover { inset-area: top; }",
+            StyleDialect::Css,
+        );
         let keyframe_kinds = node_kinds(&keyframes.syntax());
         let font_face_kinds = node_kinds(&font_face.syntax());
         let page_margin_kinds = node_kinds(&page_margin.syntax());
         let conditional_l5_kinds = node_kinds(&conditional_l5.syntax());
+        let modern_declaration_kinds = node_kinds(&modern_declaration_rules.syntax());
 
         assert!(keyframes.errors().is_empty());
         assert!(font_face.errors().is_empty());
         assert!(page_margin.errors().is_empty());
         assert!(conditional_l5.errors().is_empty());
+        assert!(modern_declaration_rules.errors().is_empty());
         assert!(keyframe_kinds.contains(&SyntaxKind::KeyframesRule));
         assert!(keyframe_kinds.contains(&SyntaxKind::KeyframeBlock));
         assert!(font_face_kinds.contains(&SyntaxKind::FontFaceRule));
@@ -4807,6 +4865,11 @@ mod tests {
         assert!(conditional_l5_kinds.contains(&SyntaxKind::WhenRule));
         assert!(conditional_l5_kinds.contains(&SyntaxKind::ElseRule));
         assert!(conditional_l5_kinds.contains(&SyntaxKind::RuleList));
+        assert!(modern_declaration_kinds.contains(&SyntaxKind::CounterStyleRule));
+        assert!(modern_declaration_kinds.contains(&SyntaxKind::FontPaletteValuesRule));
+        assert!(modern_declaration_kinds.contains(&SyntaxKind::ColorProfileRule));
+        assert!(modern_declaration_kinds.contains(&SyntaxKind::PositionTryRule));
+        assert!(modern_declaration_kinds.contains(&SyntaxKind::DeclarationList));
     }
 
     #[test]
@@ -5288,6 +5351,28 @@ mod tests {
     }
 
     #[test]
+    fn keeps_at_rule_header_dashed_idents_out_of_custom_property_facts() {
+        let facts = collect_style_facts(
+            "@property --accent { syntax: \"<color>\"; inherits: false; initial-value: red; } @font-palette-values --brand { font-family: Demo; } @color-profile --display-p3 { src: url(p3.icc); } @position-try --popover { inset-area: top; }",
+            StyleDialect::Css,
+        );
+        let custom_properties: Vec<&str> = facts
+            .variables
+            .iter()
+            .filter(|variable| {
+                matches!(
+                    variable.kind,
+                    ParsedVariableFactKind::CustomPropertyDeclaration
+                        | ParsedVariableFactKind::CustomPropertyReference
+                )
+            })
+            .map(|variable| variable.name.as_str())
+            .collect();
+
+        assert_eq!(custom_properties, vec!["--accent"]);
+    }
+
+    #[test]
     fn extracts_nested_bem_style_facts_with_parent_context() {
         let facts = collect_style_facts(
             ".card { &__icon { &--small { color: red; } } --space: 1rem; color: var(--space); }",
@@ -5518,6 +5603,11 @@ mod tests {
                 .contains(&"layerScopePreludeCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"pageMarginAtRuleCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"modernDeclarationAtRuleCstNodes")
+        );
         assert!(summary.ready_surfaces.contains(&"cssColorFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"envAttrFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"mathFunctionCstNodes"));

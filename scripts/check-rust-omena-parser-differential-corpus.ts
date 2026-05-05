@@ -124,6 +124,18 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "css-modern-declaration-at-rules",
+    dialect: "css",
+    source: `@counter-style thumbs { system: cyclic; symbols: "yes"; suffix: " "; } @font-palette-values --brand { font-family: Demo; base-palette: 1; } @color-profile --display-p3 { src: url(p3.icc); } @position-try --popover { inset-area: top; }`,
+    expected: {
+      classSelectorNames: [],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: [],
+      atRuleNames: ["@color-profile", "@counter-style", "@font-palette-values", "@position-try"],
+    },
+  },
+  {
     label: "scss-nested-property-blocks",
     dialect: "scss",
     source: `.card { font: { size: 1rem; weight: 700; } }`,
