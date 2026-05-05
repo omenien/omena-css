@@ -429,6 +429,7 @@ const COMPOSES_FROM_RE = /^(.+?)\s+from\s+(?:'([^']+)'|"([^"]+)"|(global))\s*$/;
 function parseComposesValue(node: Extract<ChildNode, { type: "decl" }>): ComposesRef | null {
   const value = node.value;
   const trimmed = value.trim();
+  const range = rangeForDeclNode(node);
   const match = COMPOSES_FROM_RE.exec(trimmed);
   if (match) {
     const classNames = match[1]!.trim().split(/\s+/);
@@ -437,6 +438,7 @@ function parseComposesValue(node: Extract<ChildNode, { type: "decl" }>): Compose
     const classTokens = findComposesClassTokens(node, classNames);
     return {
       classNames,
+      range,
       ...(classTokens.length > 0 ? { classTokens } : {}),
       ...(from ? { from } : {}),
       ...(fromGlobal ? { fromGlobal } : {}),
@@ -447,6 +449,7 @@ function parseComposesValue(node: Extract<ChildNode, { type: "decl" }>): Compose
   const classTokens = findComposesClassTokens(node, classNames);
   return {
     classNames,
+    range,
     ...(classTokens.length > 0 ? { classTokens } : {}),
   };
 }

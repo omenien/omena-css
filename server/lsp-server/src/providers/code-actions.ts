@@ -54,9 +54,9 @@ function toCodeAction(
 }
 
 function toCodeActionKind(plan: CodeActionPlan): CodeActionKind {
-  return plan.actionKind === "refactor.extract"
-    ? CodeActionKind.RefactorExtract
-    : CodeActionKind.QuickFix;
+  if (plan.actionKind === "refactor.extract") return CodeActionKind.RefactorExtract;
+  if (plan.actionKind === "refactor.inline") return CodeActionKind.RefactorInline;
+  return CodeActionKind.QuickFix;
 }
 
 function toWorkspaceEdit(plan: CodeActionPlan): WorkspaceEdit {

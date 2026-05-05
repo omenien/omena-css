@@ -286,6 +286,40 @@ describe("handleCodeAction", () => {
     ]);
   });
 
+  it("returns an inline composed class refactor for same-file composes tokens", () => {
+    const styleWorkspace = workspace({
+      [STYLE_PATH]: `.base { color: red; padding: 4px; }
+.button {
+  composes: /*<compose>*/base/*</compose>*/;
+  background: blue;
+}
+`,
+    });
+    const params: CodeActionParams = {
+      ...textDocumentRangeFixture({
+        workspace: styleWorkspace,
+        documentUri: STYLE_URI,
+        filePath: STYLE_PATH,
+        rangeName: "compose",
+      }),
+      context: { diagnostics: [], triggerKind: 1 },
+    };
+    const result = handleCodeAction(params, makeDeps(), styleWorkspace.file(STYLE_PATH).content);
+
+    expect(result).toHaveLength(1);
+    expect(result![0]!.kind).toBe(CodeActionKind.RefactorInline);
+    expect(result![0]!.title).toBe("Inline composed class 'base'");
+    expect(result![0]!.edit?.changes?.[STYLE_URI]).toEqual([
+      {
+        range: {
+          start: { line: 2, character: 2 },
+          end: { line: 2, character: 17 },
+        },
+        newText: "color: red;\n  padding: 4px;",
+      },
+    ]);
+  });
+
   it("returns sibling module creation actions for a TSX file without an existing sibling module", () => {
     const result = handleCodeAction(makeParams([]), makeDeps({ fileExists: () => false }));
     expect(result).toHaveLength(3);

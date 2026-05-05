@@ -87,6 +87,21 @@ describe("parseStyleSelectorMap / flat classes", () => {
       },
     });
   });
+
+  it("records composes declaration ranges", () => {
+    const source = `.button {
+  composes: base from "./base.module.scss";
+  color: red;
+}`;
+    const document = parseStyleDocument(source, "/fake/a.module.scss");
+    const ref = document.selectors[0]!.composes[0]!;
+
+    expect(ref.range).toEqual({
+      start: { line: 1, character: 2 },
+      end: { line: 1, character: 42 },
+    });
+    expect(sliceRange(source, ref.range!)).toBe(`composes: base from "./base.module.scss"`);
+  });
 });
 
 describe("parseStyleDocument / CSS custom properties", () => {

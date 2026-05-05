@@ -4,6 +4,11 @@ import {
   getAllStyleExtensions,
   findLangForPath,
 } from "../../engine-core-ts/src/core/scss/lang-registry";
+import { parseStyleDocument } from "../../engine-core-ts/src/core/scss/scss-parser";
+import {
+  findComposesTokenAtCursor,
+  resolveComposesTarget,
+} from "../../engine-core-ts/src/core/query/find-style-selector";
 import { fileUrlToPath, pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
 import { isRecord } from "../../engine-core-ts/src/core/util/value-guards";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
@@ -14,7 +19,7 @@ export interface CodeActionDiagnosticInput {
   readonly data?: unknown;
 }
 
-export type CodeActionPlanKind = "quickfix" | "refactor.extract";
+export type CodeActionPlanKind = "quickfix" | "refactor.extract" | "refactor.inline";
 
 export type CodeActionPlan =
   | {
@@ -164,7 +169,12 @@ export function planCodeActions(
     diagnosticIndex += 1;
   }
 
-  const extractCustomProperty = planExtractCustomProperty(args);
+  const inlineComposedClass = planInlineComposedClass(args);
+  if (inlineComposedClass) {
+    plans.push(inlineComposedClass);
+  }
+
+  const extractCustomProperty = inlineComposedClass ? null : planExtractCustomProperty(args);
   if (extractCustomProperty) {
     plans.push(extractCustomProperty);
   }
@@ -180,6 +190,52 @@ export function planCodeActions(
   }
 
   return plans;
+}
+
+function planInlineComposedClass(args: {
+  readonly documentUri: string;
+  readonly documentContent?: string;
+  readonly range?: Range;
+  readonly diagnostics: readonly CodeActionDiagnosticInput[];
+}): CodeActionPlan | null {
+  if (args.diagnostics.length > 0) return null;
+  if (!args.documentContent || !args.range) return null;
+  const filePath = fileUrlToPath(args.documentUri);
+  if (findLangForPath(filePath) === null) return null;
+
+  const styleDocument = parseStyleDocument(args.documentContent, filePath);
+  const hit = findComposesTokenAtCursor(
+    styleDocument,
+    args.range.start.line,
+    args.range.start.character,
+  );
+  if (!hit?.ref.range || hit.ref.from || hit.ref.fromGlobal) return null;
+
+  const target = resolveComposesTarget(
+    (candidatePath) => (candidatePath === filePath ? styleDocument : null),
+    filePath,
+    hit,
+  );
+  if (!target || target.filePath !== filePath) return null;
+  if (target.selector.composes.length > 0) return null;
+
+  const declarationLines = splitInlineDeclarations(target.selector.declarations);
+  if (declarationLines.length === 0) return null;
+
+  const replacementRange = expandComposesDeclarationRange(args.documentContent, hit.ref.range);
+  const indent = lineIndentAt(args.documentContent, replacementRange.start.line);
+  return {
+    kind: "workspaceEdit",
+    actionKind: "refactor.inline",
+    title: `Inline composed class '${hit.token.className}'`,
+    edits: [
+      {
+        uri: args.documentUri,
+        range: replacementRange,
+        newText: formatInlineDeclarations(declarationLines, indent),
+      },
+    ],
+  };
 }
 
 function planExtractCustomProperty(args: {
@@ -219,6 +275,43 @@ function planExtractCustomProperty(args: {
       },
     ],
   };
+}
+
+function splitInlineDeclarations(declarations: string): readonly string[] {
+  return declarations
+    .split(";")
+    .map((declaration) => declaration.trim())
+    .filter((declaration) => declaration.length > 0);
+}
+
+function formatInlineDeclarations(
+  declarations: readonly string[],
+  continuationIndent: string,
+): string {
+  return declarations
+    .map((declaration, index) => `${index === 0 ? "" : continuationIndent}${declaration};`)
+    .join("\n");
+}
+
+function expandComposesDeclarationRange(content: string, range: Range): Range {
+  const endOffset = offsetAt(content, range.end.line, range.end.character);
+  if (endOffset === null) return range;
+  let expandedEndOffset = endOffset;
+  while (content[expandedEndOffset] === " " || content[expandedEndOffset] === "\t") {
+    expandedEndOffset += 1;
+  }
+  if (content[expandedEndOffset] === ";") {
+    expandedEndOffset += 1;
+  }
+  return {
+    start: range.start,
+    end: positionAt(content, expandedEndOffset),
+  };
+}
+
+function lineIndentAt(content: string, line: number): string {
+  const lineText = content.split("\n")[line] ?? "";
+  return /^[ \t]*/u.exec(lineText)?.[0] ?? "";
 }
 
 function listMissingSiblingStyleModuleUris(
@@ -266,6 +359,14 @@ function offsetAt(content: string, line: number, character: number): number | nu
   const maxCharacter = (lineEnd === -1 ? content.length : lineEnd) - offset;
   if (character > maxCharacter) return null;
   return offset + character;
+}
+
+function positionAt(content: string, offset: number): Range["start"] {
+  const boundedOffset = Math.max(0, Math.min(offset, content.length));
+  const prefix = content.slice(0, boundedOffset);
+  const line = prefix.split("\n").length - 1;
+  const lineStart = prefix.lastIndexOf("\n") + 1;
+  return { line, character: boundedOffset - lineStart };
 }
 
 function isExtractableCssValue(value: string): boolean {
