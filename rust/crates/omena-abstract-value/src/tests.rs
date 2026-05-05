@@ -205,7 +205,7 @@ fn builds_char_inclusion_and_composite_values_with_normalized_chars() {
         AbstractClassValueV0::Composite {
             prefix: Some("btn-".to_string()),
             suffix: Some("-active".to_string()),
-            min_length: Some("btn-active".len()),
+            min_length: Some("btn-z-active".len()),
             must_chars: "-abceintvz".to_string(),
             may_chars: "-abceintvz".to_string(),
             may_include_other_chars: true,
@@ -265,6 +265,24 @@ fn intersects_prefix_suffix_and_char_constraints_into_reduced_product() {
             min_length: Some("btn-active".len()),
             must_chars: "-abceintv".to_string(),
             may_chars: "-abceintv".to_string(),
+            may_include_other_chars: false,
+            provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
+        }
+    );
+
+    let reduced_with_extra_required_char = intersect_abstract_class_values(
+        &edge,
+        &char_inclusion_class_value("z", "-abceintvz", None, false),
+    );
+
+    assert_eq!(
+        reduced_with_extra_required_char,
+        AbstractClassValueV0::Composite {
+            prefix: Some("btn-".to_string()),
+            suffix: Some("-active".to_string()),
+            min_length: Some("btn-z-active".len()),
+            must_chars: "-abceintvz".to_string(),
+            may_chars: "-abceintvz".to_string(),
             may_include_other_chars: false,
             provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
         }

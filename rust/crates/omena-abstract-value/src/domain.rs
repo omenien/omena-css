@@ -155,13 +155,11 @@ pub fn composite_class_value(input: CompositeClassValueInputV0) -> AbstractClass
         );
     }
 
-    let guaranteed_distinct_char_count = must_chars.chars().count();
-    let edge_min_length = prefix_suffix_min_length(&prefix, &suffix);
+    let minimum_length = composite_min_length_for_constraints(&prefix, &suffix, &must_chars);
     let min_length = input
         .min_length
-        .map(|value| value.max(edge_min_length))
-        .or(Some(edge_min_length))
-        .map(|value| value.max(guaranteed_distinct_char_count));
+        .map(|value| value.max(minimum_length))
+        .or(Some(minimum_length));
 
     AbstractClassValueV0::Composite {
         prefix: (!prefix.is_empty()).then_some(prefix),
@@ -246,6 +244,25 @@ pub(crate) fn char_set_is_subset(left: &str, right: &str) -> bool {
 
 pub(crate) fn prefix_suffix_min_length(prefix: &str, suffix: &str) -> usize {
     prefix.len() + suffix.len() - prefix_suffix_overlap_len(prefix, suffix)
+}
+
+pub(crate) fn composite_min_length_for_constraints(
+    prefix: &str,
+    suffix: &str,
+    must_chars: &str,
+) -> usize {
+    let edge_chars = char_set_for_string(format!("{prefix}{suffix}"));
+    let missing_required_char_len = must_chars
+        .chars()
+        .filter(|char| !edge_chars.contains(*char))
+        .map(char::len_utf8)
+        .sum::<usize>();
+
+    if missing_required_char_len == 0 {
+        prefix_suffix_min_length(prefix, suffix)
+    } else {
+        prefix.len() + suffix.len() + missing_required_char_len
+    }
 }
 
 fn prefix_suffix_overlap_len(prefix: &str, suffix: &str) -> usize {
