@@ -10,5 +10,5 @@ license = "MIT"
 publish = false
 
 [dependencies]
-omena-abstract-value = { git = "https://github.com/omenien/omena-abstract-value.git", rev = "4788c79" }
+omena-abstract-value = { git = "https://github.com/omenien/omena-abstract-value.git", rev = "ee12276" }
 serde_json = "1.0"

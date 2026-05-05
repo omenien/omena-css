@@ -271,10 +271,11 @@ pub fn join_abstract_class_values(
         ) => {
             let prefix =
                 meaningful_longest_common_prefix(&[left_prefix.clone(), right_prefix.clone()]);
-            if prefix.is_empty() {
-                top_class_value()
-            } else {
-                prefix_class_value(prefix, Some(AbstractClassValueProvenanceV0::PrefixJoinLcp))
+            if !prefix.is_empty() {
+                return prefix_class_value(
+                    prefix,
+                    Some(AbstractClassValueProvenanceV0::PrefixJoinLcp),
+                );
             }
         }
         (
@@ -289,12 +290,23 @@ pub fn join_abstract_class_values(
         ) => {
             let suffix =
                 meaningful_longest_common_suffix(&[left_suffix.clone(), right_suffix.clone()]);
-            if suffix.is_empty() {
-                top_class_value()
-            } else {
-                suffix_class_value(suffix, Some(AbstractClassValueProvenanceV0::SuffixJoinLcs))
+            if !suffix.is_empty() {
+                return suffix_class_value(
+                    suffix,
+                    Some(AbstractClassValueProvenanceV0::SuffixJoinLcs),
+                );
             }
         }
+        _ => {}
+    }
+
+    match (
+        ClassValueReductionFacts::from_abstract_value(left),
+        ClassValueReductionFacts::from_abstract_value(right),
+    ) {
+        (Some(left), Some(right)) => left
+            .join(&right)
+            .map_or_else(top_class_value, |facts| facts.into_abstract_value()),
         _ => top_class_value(),
     }
 }
@@ -1095,6 +1107,49 @@ impl ClassValueReductionFacts {
         })
     }
 
+    fn join(&self, other: &Self) -> Option<Self> {
+        let prefix = join_prefixes(self.prefix.as_deref(), other.prefix.as_deref());
+        let suffix = join_suffixes(self.suffix.as_deref(), other.suffix.as_deref());
+        let min_length = Some(self.lower_bound_length().min(other.lower_bound_length()));
+        let must_chars = intersect_char_sets(&self.guaranteed_chars(), &other.guaranteed_chars());
+        let allowed_chars = join_allowed_char_sets(
+            self.allowed_chars.as_deref(),
+            other.allowed_chars.as_deref(),
+        );
+
+        if prefix.is_none() && suffix.is_none() && must_chars.is_empty() && allowed_chars.is_none()
+        {
+            return None;
+        }
+
+        Some(Self {
+            prefix,
+            suffix,
+            min_length,
+            must_chars,
+            allowed_chars,
+        })
+    }
+
+    fn lower_bound_length(&self) -> usize {
+        self.min_length.unwrap_or_else(|| {
+            let edge_len = self.prefix.as_deref().unwrap_or("").len()
+                + self.suffix.as_deref().unwrap_or("").len();
+            edge_len.max(self.must_chars.chars().count())
+        })
+    }
+
+    fn guaranteed_chars(&self) -> String {
+        union_char_sets(
+            &self.must_chars,
+            &char_set_for_string(format!(
+                "{}{}",
+                self.prefix.as_deref().unwrap_or(""),
+                self.suffix.as_deref().unwrap_or("")
+            )),
+        )
+    }
+
     fn into_abstract_value(self) -> AbstractClassValueV0 {
         let edge_chars = char_set_for_string(format!(
             "{}{}",
@@ -1167,6 +1222,26 @@ fn intersect_suffixes(left: Option<&str>, right: Option<&str>) -> Option<Option<
     }
 }
 
+fn join_prefixes(left: Option<&str>, right: Option<&str>) -> Option<String> {
+    match (left, right) {
+        (Some(left), Some(right)) => {
+            let prefix = meaningful_longest_common_prefix(&[left.to_string(), right.to_string()]);
+            (!prefix.is_empty()).then_some(prefix)
+        }
+        _ => None,
+    }
+}
+
+fn join_suffixes(left: Option<&str>, right: Option<&str>) -> Option<String> {
+    match (left, right) {
+        (Some(left), Some(right)) => {
+            let suffix = meaningful_longest_common_suffix(&[left.to_string(), right.to_string()]);
+            (!suffix.is_empty()).then_some(suffix)
+        }
+        _ => None,
+    }
+}
+
 fn max_optional_usize(left: Option<usize>, right: Option<usize>) -> Option<usize> {
     match (left, right) {
         (Some(left), Some(right)) => Some(left.max(right)),
@@ -1180,6 +1255,13 @@ fn intersect_allowed_char_sets(left: Option<&str>, right: Option<&str>) -> Optio
         (Some(left), Some(right)) => Some(intersect_char_sets(left, right)),
         (Some(value), None) | (None, Some(value)) => Some(value.to_string()),
         (None, None) => None,
+    }
+}
+
+fn join_allowed_char_sets(left: Option<&str>, right: Option<&str>) -> Option<String> {
+    match (left, right) {
+        (Some(left), Some(right)) => Some(union_char_sets(left, right)),
+        _ => None,
     }
 }
 

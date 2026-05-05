@@ -423,6 +423,97 @@ fn joins_abstract_values_for_branch_merges() {
 }
 
 #[test]
+fn joins_reduced_product_constraints_for_branch_merges() {
+    let primary = prefix_suffix_class_value(
+        "btn-primary-",
+        "-active",
+        Some("btn-primary--active".len()),
+        None,
+    );
+    let secondary = prefix_suffix_class_value(
+        "btn-secondary-",
+        "-active",
+        Some("btn-secondary--active".len()),
+        None,
+    );
+
+    let joined = join_abstract_class_values(&primary, &secondary);
+
+    assert_eq!(
+        joined,
+        AbstractClassValueV0::Composite {
+            prefix: Some("btn-".to_string()),
+            suffix: Some("-active".to_string()),
+            min_length: Some("btn-primary--active".len()),
+            must_chars: "-abceinrtvy".to_string(),
+            may_chars: "-abceinrtvy".to_string(),
+            may_include_other_chars: true,
+            provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
+        }
+    );
+    assert_eq!(
+        projected_names(
+            &joined,
+            &selector_universe([
+                "btn--active",
+                "btn-primary--active",
+                "btn-secondary--active",
+                "card-active",
+            ]),
+        ),
+        vec![
+            "btn-primary--active".to_string(),
+            "btn-secondary--active".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn flow_join_preserves_reduced_product_branch_shape() {
+    let graph = ClassValueFlowGraphV0 {
+        context_key: Some("Button.tsx:render@variant-active".to_string()),
+        nodes: vec![
+            flow_assign_node(
+                "primary",
+                external_facts("constrained")
+                    .with_constraint_kind("prefixSuffix")
+                    .with_prefix("btn-primary-")
+                    .with_suffix("-active")
+                    .with_min_len("btn-primary--active".len()),
+            ),
+            flow_assign_node(
+                "secondary",
+                external_facts("constrained")
+                    .with_constraint_kind("prefixSuffix")
+                    .with_prefix("btn-secondary-")
+                    .with_suffix("-active")
+                    .with_min_len("btn-secondary--active".len()),
+            ),
+            ClassValueFlowNodeV0 {
+                id: "merge".to_string(),
+                predecessors: vec!["primary".to_string(), "secondary".to_string()],
+                transfer: ClassValueFlowTransferV0::Join,
+            },
+        ],
+    };
+
+    let analysis = analyze_class_value_flow(&graph);
+
+    assert_eq!(
+        flow_value(&analysis, "merge"),
+        Some(&AbstractClassValueV0::Composite {
+            prefix: Some("btn-".to_string()),
+            suffix: Some("-active".to_string()),
+            min_length: Some("btn-primary--active".len()),
+            must_chars: "-abceinrtvy".to_string(),
+            may_chars: "-abceinrtvy".to_string(),
+            may_include_other_chars: true,
+            provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
+        })
+    );
+}
+
+#[test]
 fn concatenates_abstract_values_for_template_edges() {
     assert_eq!(
         concatenate_abstract_class_values(
