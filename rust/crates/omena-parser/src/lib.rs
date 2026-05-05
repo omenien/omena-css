@@ -331,6 +331,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "prattValueExpressionSkeleton",
             "attributeMatcherTokenization",
             "attributeMatcherCstNodes",
+            "specializedValueFunctionCstNodes",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -878,7 +879,12 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_function_call(&mut self) {
+        let specialized_kind = self.current_text().and_then(specialized_function_kind);
+
         self.builder.start_node(SyntaxKind::FunctionCall);
+        if let Some(kind) = specialized_kind {
+            self.builder.start_node(kind);
+        }
         self.token_current();
         if self.current_kind() == Some(SyntaxKind::LeftParen) {
             self.token_current();
@@ -888,6 +894,9 @@ impl<'text> Parser<'text> {
             if self.current_kind() == Some(SyntaxKind::RightParen) {
                 self.token_current();
             }
+        }
+        if specialized_kind.is_some() {
+            self.builder.finish_node();
         }
         self.builder.finish_node();
     }
@@ -2082,6 +2091,14 @@ fn infix_binding_power(kind: SyntaxKind) -> Option<(u8, u8)> {
     }
 }
 
+fn specialized_function_kind(text: &str) -> Option<SyntaxKind> {
+    match text {
+        "var" => Some(SyntaxKind::VarFunction),
+        "calc" => Some(SyntaxKind::CalcFunction),
+        _ => None,
+    }
+}
+
 fn text_range(start: usize, end: usize) -> TextRange {
     TextRange::new(TextSize::from(start as u32), TextSize::from(end as u32))
 }
@@ -2306,6 +2323,8 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::Value));
         assert!(kinds.contains(&SyntaxKind::FunctionCall));
         assert!(kinds.contains(&SyntaxKind::FunctionArguments));
+        assert!(kinds.contains(&SyntaxKind::CalcFunction));
+        assert!(kinds.contains(&SyntaxKind::VarFunction));
         assert!(kinds.contains(&SyntaxKind::BinaryExpression));
     }
 
@@ -2469,6 +2488,11 @@ mod tests {
                 .contains(&"attributeMatcherTokenization")
         );
         assert!(summary.ready_surfaces.contains(&"attributeMatcherCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"specializedValueFunctionCstNodes")
+        );
         assert!(
             summary
                 .ready_surfaces
