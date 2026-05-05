@@ -337,6 +337,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "cssModuleScopeFunctionCstNodes",
             "scssStructuredBlockAtRules",
             "scssUtilityAtRules",
+            "scssNestedPropertyCstNodes",
             "lessMixinDeclarationCstNodes",
             "lessMixinCallCstNodes",
             "lessMixinGuardCstNodes",
@@ -885,6 +886,9 @@ impl<'text> Parser<'text> {
                     self.parse_less_namespace_access()
                 }
                 Some(_) if self.current_starts_less_mixin_call() => self.parse_less_mixin_call(),
+                Some(_) if self.current_starts_scss_nested_property() => {
+                    self.parse_scss_nested_property()
+                }
                 Some(_) if self.current_starts_nested_rule() => self.parse_rule(),
                 Some(SyntaxKind::ScssVariable)
                     if matches!(self.dialect, StyleDialect::Scss | StyleDialect::Sass) =>
@@ -902,6 +906,99 @@ impl<'text> Parser<'text> {
                 Some(_) => self.parse_declaration(),
             }
         }
+    }
+
+    fn parse_scss_nested_property(&mut self) {
+        self.builder.start_node(SyntaxKind::ScssNestedProperty);
+        self.builder.start_node(SyntaxKind::PropertyName);
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::Colon) => break,
+                Some(
+                    SyntaxKind::Semicolon
+                    | SyntaxKind::SassOptionalSemicolon
+                    | SyntaxKind::RightBrace
+                    | SyntaxKind::SassDedent,
+                ) => break,
+                Some(kind) if is_interpolation_start(kind) => self.parse_interpolation(
+                    kind,
+                    &[
+                        SyntaxKind::Colon,
+                        SyntaxKind::Semicolon,
+                        SyntaxKind::SassOptionalSemicolon,
+                        SyntaxKind::RightBrace,
+                        SyntaxKind::SassDedent,
+                    ],
+                ),
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+        self.builder.finish_node();
+
+        if self.current_kind() == Some(SyntaxKind::Colon) {
+            self.token_current();
+        }
+
+        let block_recovery = [
+            SyntaxKind::LeftBrace,
+            SyntaxKind::SassIndent,
+            SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
+            SyntaxKind::RightBrace,
+            SyntaxKind::SassDedent,
+        ];
+        if !matches!(
+            self.current_kind(),
+            Some(
+                SyntaxKind::LeftBrace
+                    | SyntaxKind::SassIndent
+                    | SyntaxKind::Semicolon
+                    | SyntaxKind::SassOptionalSemicolon
+                    | SyntaxKind::RightBrace
+                    | SyntaxKind::SassDedent
+            )
+        ) {
+            self.builder.start_node(SyntaxKind::Value);
+            self.parse_value_or_value_list_until(&block_recovery);
+            self.builder.finish_node();
+        }
+
+        match self.current_kind() {
+            Some(SyntaxKind::LeftBrace) => self.parse_declaration_block(),
+            Some(SyntaxKind::SassIndent) => self.parse_sass_indented_nested_property_block(),
+            Some(_) => self.consume_until_recovery(&[
+                SyntaxKind::Semicolon,
+                SyntaxKind::SassOptionalSemicolon,
+                SyntaxKind::RightBrace,
+                SyntaxKind::SassDedent,
+            ]),
+            None => {}
+        }
+
+        if self.current_kind().is_some_and(is_statement_end) {
+            self.token_current();
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_sass_indented_nested_property_block(&mut self) {
+        self.builder.start_node(SyntaxKind::SassIndentedBlock);
+        if self.current_kind() == Some(SyntaxKind::SassIndent) {
+            self.token_current();
+        }
+        self.builder.start_node(SyntaxKind::DeclarationList);
+        self.parse_declaration_list();
+        self.builder.finish_node();
+        if self.current_kind() == Some(SyntaxKind::SassDedent) {
+            self.token_current();
+        } else {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "unterminated Sass indented nested property block",
+            );
+        }
+        self.builder.finish_node();
     }
 
     fn parse_variable_declaration(&mut self, kind: SyntaxKind) {
@@ -2318,6 +2415,35 @@ impl<'text> Parser<'text> {
             SyntaxKind::RightBrace,
             SyntaxKind::SassDedent,
         ])
+    }
+
+    fn current_starts_scss_nested_property(&self) -> bool {
+        if !matches!(self.dialect, StyleDialect::Scss | StyleDialect::Sass) {
+            return false;
+        }
+        if !matches!(
+            self.current_kind(),
+            Some(SyntaxKind::Ident | SyntaxKind::CustomPropertyName)
+        ) {
+            return false;
+        }
+
+        let mut saw_colon = false;
+        for token in self.tokens.iter().skip(self.position) {
+            match token.kind {
+                SyntaxKind::Colon => saw_colon = true,
+                SyntaxKind::LeftBrace if saw_colon => return true,
+                SyntaxKind::SassIndent if saw_colon && self.dialect == StyleDialect::Sass => {
+                    return true;
+                }
+                SyntaxKind::Semicolon
+                | SyntaxKind::SassOptionalSemicolon
+                | SyntaxKind::RightBrace
+                | SyntaxKind::SassDedent => return false,
+                _ => {}
+            }
+        }
+        false
     }
 
     fn current_starts_less_mixin_declaration(&self) -> bool {
@@ -4534,6 +4660,40 @@ mod tests {
     }
 
     #[test]
+    fn parses_scss_nested_property_blocks() {
+        let result = parse(
+            ".card { font: { size: 1rem; weight: 600; } border: 1px solid { color: red; } }",
+            StyleDialect::Scss,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let nested_property_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::ScssNestedProperty)
+            .count();
+
+        assert!(result.errors().is_empty());
+        assert_eq!(nested_property_count, 2);
+        assert!(kinds.contains(&SyntaxKind::DeclarationList));
+        assert!(kinds.contains(&SyntaxKind::Value));
+        assert!(kinds.contains(&SyntaxKind::DimensionValue));
+    }
+
+    #[test]
+    fn parses_sass_indented_nested_property_blocks() {
+        let result = parse(
+            ".card\n  font:\n    size: 1rem\n    weight: 600\n",
+            StyleDialect::Sass,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::ScssNestedProperty));
+        assert!(kinds.contains(&SyntaxKind::SassIndentedBlock));
+        assert!(kinds.contains(&SyntaxKind::DeclarationList));
+        assert!(kinds.contains(&SyntaxKind::DimensionValue));
+    }
+
+    #[test]
     fn parses_scss_utility_at_rules() {
         let result = parse(
             "@mixin slot { @content; } @at-root { .rooted { color: red; } } @warn $message; @debug $message; @error $message;",
@@ -5168,6 +5328,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"initialDialectStatementNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"scssNestedPropertyCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"recoveryBogusSkeleton"));
         assert!(
