@@ -28,6 +28,22 @@ export function readCompletionContext(
     }
   }
 
+  for (const styleImport of entry.sourceDocument.styleImports) {
+    if (styleImport.resolved.kind !== "resolved") continue;
+    const accessOffset = findStyleAccessOffset(textBefore, styleImport.localName);
+    if (accessOffset === null) continue;
+    const resolution = resolveBindingAtOffset(
+      entry.sourceBindingGraph,
+      styleImport.localName,
+      accessOffset,
+    );
+    const decl = resolution
+      ? getBindingDeclById(entry.sourceBindingGraph, resolution.declId)
+      : null;
+    if (!decl || styleImport.bindingDeclId !== decl.id) continue;
+    return { scssModulePath: styleImport.resolved.absolutePath };
+  }
+
   const classUtilBindings = entry.sourceDocument.utilityBindings.filter(
     (binding) => binding.kind === "classUtil",
   );
@@ -94,4 +110,35 @@ function findOpenCallOffset(textBefore: string, callName: string): number | null
   if (callIdx === -1) return null;
   if (!isInsideCall(textBefore, callName)) return null;
   return callIdx;
+}
+
+function findStyleAccessOffset(textBefore: string, localName: string): number | null {
+  return (
+    findStylePropertyAccessOffset(textBefore, localName) ??
+    findStyleBracketAccessOffset(textBefore, localName)
+  );
+}
+
+function findStylePropertyAccessOffset(textBefore: string, localName: string): number | null {
+  const needle = `${localName}.`;
+  const accessOffset = textBefore.lastIndexOf(needle);
+  if (accessOffset === -1) return null;
+  if (accessOffset > 0 && isIdentifierPart(textBefore[accessOffset - 1]!)) return null;
+  const afterDot = textBefore.slice(accessOffset + needle.length);
+  if (!/^[\p{L}\p{N}_-]*$/u.test(afterDot)) return null;
+  return accessOffset;
+}
+
+function findStyleBracketAccessOffset(textBefore: string, localName: string): number | null {
+  const needle = `${localName}[`;
+  const accessOffset = textBefore.lastIndexOf(needle);
+  if (accessOffset === -1) return null;
+  if (accessOffset > 0 && isIdentifierPart(textBefore[accessOffset - 1]!)) return null;
+  const afterBracket = textBefore.slice(accessOffset + needle.length);
+  if (!/^\s*(['"`])[^'"`\]]*$/u.test(afterBracket)) return null;
+  return accessOffset;
+}
+
+function isIdentifierPart(value: string): boolean {
+  return /^[\p{L}\p{N}_$]$/u.test(value);
 }

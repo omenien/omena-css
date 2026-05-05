@@ -413,7 +413,7 @@ const el = clsx(styles./*|*/
     expect(result!.map((r) => r.label).toSorted()).toEqual(["active", "btn"]);
   });
 
-  it("returns null when a local binding shadows the imported clsx identifier", () => {
+  it("returns direct style completions when an enclosing class util identifier is shadowed", () => {
     const shadowedWorkspace = workspace({
       [SOURCE_PATH]: `
 import clsx from 'clsx';
@@ -424,7 +424,8 @@ function render(clsx: (value: unknown) => string) {
 `,
     });
     const result = handleCompletion(completionCursor(shadowedWorkspace), clsxMakeDeps());
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.map((r) => r.label).toSorted()).toEqual(["active", "btn"]);
   });
 
   it("returns class completions with aliased import (cn from 'clsx')", () => {
@@ -466,7 +467,7 @@ const el = clsx(styles.ac/*|*/
     expect(result!.map((r) => r.label)).toEqual(["active"]);
   });
 
-  it("returns null when cursor is outside clsx() call", () => {
+  it("returns direct style completions when cursor is outside a class utility call", () => {
     const outsideWorkspace = workspace({
       [SOURCE_PATH]: `
 import clsx from 'clsx';
@@ -475,10 +476,11 @@ const x = styles./*|*/
 `,
     });
     const result = handleCompletion(completionCursor(outsideWorkspace), clsxMakeDeps());
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.map((r) => r.label).toSorted()).toEqual(["active", "btn"]);
   });
 
-  it("returns null when no clsx/classnames import exists", () => {
+  it("returns direct style completions when no class utility import exists", () => {
     const noClsxWorkspace = workspace({
       [SOURCE_PATH]: `
 import styles from './Button.module.scss';
@@ -486,7 +488,8 @@ const el = someFunc(styles./*|*/
 `,
     });
     const result = handleCompletion(completionCursor(noClsxWorkspace), clsxMakeDeps());
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.map((r) => r.label).toSorted()).toEqual(["active", "btn"]);
   });
 
   it("returns null when classMap is empty", () => {

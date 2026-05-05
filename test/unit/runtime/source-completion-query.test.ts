@@ -29,6 +29,23 @@ const cx = classNames.bind(styles);
 const el = cx('btn--active
 `;
 
+const DIRECT_STYLES_TSX = `
+import styles from './Button.module.scss';
+const el = styles.btn-
+`;
+
+const DIRECT_BRACKET_TSX = `
+import styles from './Button.module.scss';
+const el = styles["btn-
+`;
+
+const SHADOWED_STYLES_TSX = `
+import styles from './Button.module.scss';
+function render(styles: Record<string, string>) {
+  return styles.btn-
+}
+`;
+
 const detectCxBindings = (sourceFile: ts.SourceFile): CxBinding[] =>
   sourceFile.text.includes("classnames/bind") && sourceFile.text.includes(".module.")
     ? [
@@ -53,7 +70,17 @@ function makeDeps(
     sourceFileCache,
     fileExists: () => true,
     aliasResolver: EMPTY_ALIAS_RESOLVER,
-    scanCxImports: (sf, fp) => ({ stylesBindings: new Map(), bindings: detectCxBindings(sf, fp) }),
+    scanCxImports: (sf, fp) => ({
+      stylesBindings: sf.text.includes("import styles")
+        ? new Map([
+            [
+              "styles",
+              { kind: "resolved" as const, absolutePath: "/fake/ws/src/Button.module.scss" },
+            ],
+          ])
+        : new Map(),
+      bindings: detectCxBindings(sf, fp),
+    }),
     detectClassUtilImports,
     max: 10,
   });
@@ -128,6 +155,60 @@ describe("resolveSourceCompletionSelectors", () => {
       "btn-primary-active",
       "btn-secondary-active",
     ]);
+  });
+
+  it("returns narrowed selector candidates for direct styles property access", () => {
+    const result = resolveSourceCompletionSelectors(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: DIRECT_STYLES_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 2,
+        character: 22,
+        version: 1,
+      },
+      makeDeps(["btn-primary", "btn-secondary", "card"]),
+    );
+
+    expect(result.map((selector) => selector.name).toSorted()).toEqual([
+      "btn-primary",
+      "btn-secondary",
+    ]);
+  });
+
+  it("returns narrowed selector candidates for direct styles bracket access", () => {
+    const result = resolveSourceCompletionSelectors(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: DIRECT_BRACKET_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 2,
+        character: 23,
+        version: 1,
+      },
+      makeDeps(["btn-primary", "btn-secondary", "card"]),
+    );
+
+    expect(result.map((selector) => selector.name).toSorted()).toEqual([
+      "btn-primary",
+      "btn-secondary",
+    ]);
+  });
+
+  it("does not return direct styles completions when a local binding shadows the import", () => {
+    const result = resolveSourceCompletionSelectors(
+      {
+        documentUri: "file:///fake/ws/src/Button.tsx",
+        content: SHADOWED_STYLES_TSX,
+        filePath: "/fake/ws/src/Button.tsx",
+        line: 3,
+        character: 20,
+        version: 1,
+      },
+      makeDeps(["btn-primary", "btn-secondary", "card"]),
+    );
+
+    expect(result).toEqual([]);
   });
 
   it("returns an empty list outside a class utility call", () => {
