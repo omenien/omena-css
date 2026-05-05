@@ -356,6 +356,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "urlTokenization",
             "urlValueCstNodes",
             "conditionalAtRulePreludeCstNodes",
+            "conditionalLevel5AtRuleCstNodes",
             "mediaQueryCstNodes",
             "importPreludeCstNodes",
             "layerScopePreludeCstNodes",
@@ -3980,6 +3981,8 @@ fn at_rule_spec(text: &str) -> Option<AtRuleSpec> {
     let (node_kind, block_kind) = match text {
         "@media" => (SyntaxKind::MediaRule, AtRuleBlockKind::GroupRuleList),
         "@supports" => (SyntaxKind::SupportsRule, AtRuleBlockKind::GroupRuleList),
+        "@when" => (SyntaxKind::WhenRule, AtRuleBlockKind::GroupRuleList),
+        "@else" => (SyntaxKind::ElseRule, AtRuleBlockKind::GroupRuleList),
         "@container" => (SyntaxKind::ContainerRule, AtRuleBlockKind::GroupRuleList),
         "@layer" => (SyntaxKind::LayerRule, AtRuleBlockKind::GroupRuleList),
         "@scope" => (SyntaxKind::ScopeRule, AtRuleBlockKind::GroupRuleList),
@@ -4775,19 +4778,28 @@ mod tests {
             "@page :first { margin: 1cm; @top-left { content: \"A\"; } @bottom-center { content: counter(page); } }",
             StyleDialect::Css,
         );
+        let conditional_l5 = parse(
+            "@when media(width >= 1px) { .a { color: red; } } @else { .b { color: blue; } }",
+            StyleDialect::Css,
+        );
         let keyframe_kinds = node_kinds(&keyframes.syntax());
         let font_face_kinds = node_kinds(&font_face.syntax());
         let page_margin_kinds = node_kinds(&page_margin.syntax());
+        let conditional_l5_kinds = node_kinds(&conditional_l5.syntax());
 
         assert!(keyframes.errors().is_empty());
         assert!(font_face.errors().is_empty());
         assert!(page_margin.errors().is_empty());
+        assert!(conditional_l5.errors().is_empty());
         assert!(keyframe_kinds.contains(&SyntaxKind::KeyframesRule));
         assert!(keyframe_kinds.contains(&SyntaxKind::KeyframeBlock));
         assert!(font_face_kinds.contains(&SyntaxKind::FontFaceRule));
         assert!(font_face_kinds.contains(&SyntaxKind::DeclarationList));
         assert!(page_margin_kinds.contains(&SyntaxKind::PageRule));
         assert!(page_margin_kinds.contains(&SyntaxKind::PageMarginRule));
+        assert!(conditional_l5_kinds.contains(&SyntaxKind::WhenRule));
+        assert!(conditional_l5_kinds.contains(&SyntaxKind::ElseRule));
+        assert!(conditional_l5_kinds.contains(&SyntaxKind::RuleList));
     }
 
     #[test]
@@ -5485,6 +5497,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"conditionalAtRulePreludeCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"conditionalLevel5AtRuleCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"mediaQueryCstNodes"));
         assert!(summary.ready_surfaces.contains(&"importPreludeCstNodes"));

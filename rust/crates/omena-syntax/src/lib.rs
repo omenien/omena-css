@@ -296,6 +296,8 @@ syntax_kinds! {
     AttrFunction = 0x1047,
     MathFunction = 0x1048,
     PageMarginRule = 0x1049,
+    WhenRule = 0x104a,
+    ElseRule = 0x104b,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,
