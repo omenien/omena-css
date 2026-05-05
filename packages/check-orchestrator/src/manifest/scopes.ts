@@ -96,6 +96,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
       scriptName === "check:editor-path-boundary" ||
       scriptName === "check:provider-host-routing-boundary" ||
       scriptName.startsWith("check:lsp-server-smoke") ||
+      scriptName === "cme" ||
       scriptName.startsWith("explain:"),
     toGateId: (scriptName) => `editor/${toBackendQualifiedPath(stripCheckPrefix(scriptName))}`,
   },
