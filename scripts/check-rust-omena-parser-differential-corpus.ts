@@ -136,6 +136,28 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "css-font-feature-values-and-view-transition",
+    dialect: "css",
+    source: `@font-feature-values Demo { @stylistic { nice: 1; } @styleset { alt: 2; } @character-variant { nice: 3 4; } @swash { fancy: 1; } @ornaments { leaf: 1; } @annotation { circled: 1; } @historical-forms { old: 1; } } @view-transition { navigation: auto; }`,
+    expected: {
+      classSelectorNames: [],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: [],
+      atRuleNames: [
+        "@annotation",
+        "@character-variant",
+        "@font-feature-values",
+        "@historical-forms",
+        "@ornaments",
+        "@styleset",
+        "@stylistic",
+        "@swash",
+        "@view-transition",
+      ],
+    },
+  },
+  {
     label: "scss-nested-property-blocks",
     dialect: "scss",
     source: `.card { font: { size: 1rem; weight: 700; } }`,

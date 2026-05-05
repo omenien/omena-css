@@ -362,6 +362,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "layerScopePreludeCstNodes",
             "pageMarginAtRuleCstNodes",
             "modernDeclarationAtRuleCstNodes",
+            "fontFeatureValuesAtRuleCstNodes",
+            "viewTransitionAtRuleCstNodes",
             "cssColorFunctionCstNodes",
             "envAttrFunctionCstNodes",
             "mathFunctionCstNodes",
@@ -3386,6 +3388,8 @@ fn is_css_at_rule_name(text: &str) -> bool {
         "@charset"
             | "@container"
             | "@font-face"
+            | "@font-feature-values"
+            | "@font-palette-values"
             | "@import"
             | "@keyframes"
             | "@layer"
@@ -3396,6 +3400,19 @@ fn is_css_at_rule_name(text: &str) -> bool {
             | "@scope"
             | "@starting-style"
             | "@supports"
+            | "@counter-style"
+            | "@color-profile"
+            | "@position-try"
+            | "@view-transition"
+            | "@stylistic"
+            | "@styleset"
+            | "@character-variant"
+            | "@swash"
+            | "@ornaments"
+            | "@annotation"
+            | "@historical-forms"
+            | "@when"
+            | "@else"
     )
 }
 
@@ -4051,6 +4068,42 @@ fn at_rule_spec(text: &str) -> Option<AtRuleSpec> {
         ),
         "@position-try" => (
             SyntaxKind::PositionTryRule,
+            AtRuleBlockKind::DeclarationList,
+        ),
+        "@font-feature-values" => (
+            SyntaxKind::FontFeatureValuesRule,
+            AtRuleBlockKind::GroupRuleList,
+        ),
+        "@stylistic" => (
+            SyntaxKind::FontFeatureValuesStylisticRule,
+            AtRuleBlockKind::DeclarationList,
+        ),
+        "@styleset" => (
+            SyntaxKind::FontFeatureValuesStylesetRule,
+            AtRuleBlockKind::DeclarationList,
+        ),
+        "@character-variant" => (
+            SyntaxKind::FontFeatureValuesCharacterVariantRule,
+            AtRuleBlockKind::DeclarationList,
+        ),
+        "@swash" => (
+            SyntaxKind::FontFeatureValuesSwashRule,
+            AtRuleBlockKind::DeclarationList,
+        ),
+        "@ornaments" => (
+            SyntaxKind::FontFeatureValuesOrnamentsRule,
+            AtRuleBlockKind::DeclarationList,
+        ),
+        "@annotation" => (
+            SyntaxKind::FontFeatureValuesAnnotationRule,
+            AtRuleBlockKind::DeclarationList,
+        ),
+        "@historical-forms" => (
+            SyntaxKind::FontFeatureValuesHistoricalFormsRule,
+            AtRuleBlockKind::DeclarationList,
+        ),
+        "@view-transition" => (
+            SyntaxKind::ViewTransitionRule,
             AtRuleBlockKind::DeclarationList,
         ),
         "@charset" => (SyntaxKind::CharsetRule, AtRuleBlockKind::Raw),
@@ -4845,17 +4898,29 @@ mod tests {
             "@counter-style thumbs { system: cyclic; symbols: \"yes\"; suffix: \" \"; } @font-palette-values --brand { font-family: Demo; base-palette: 1; } @color-profile --display-p3 { src: url(p3.icc); } @position-try --popover { inset-area: top; }",
             StyleDialect::Css,
         );
+        let font_feature_values = parse(
+            "@font-feature-values Demo { @stylistic { nice: 1; } @styleset { alt: 2; } @character-variant { nice: 3 4; } @swash { fancy: 1; } @ornaments { leaf: 1; } @annotation { circled: 1; } @historical-forms { old: 1; } } @view-transition { navigation: auto; }",
+            StyleDialect::Css,
+        );
+        let less_css_at_rules = parse(
+            "@font-feature-values Demo { @styleset { alt: 2; } } @view-transition { navigation: auto; }",
+            StyleDialect::Less,
+        );
         let keyframe_kinds = node_kinds(&keyframes.syntax());
         let font_face_kinds = node_kinds(&font_face.syntax());
         let page_margin_kinds = node_kinds(&page_margin.syntax());
         let conditional_l5_kinds = node_kinds(&conditional_l5.syntax());
         let modern_declaration_kinds = node_kinds(&modern_declaration_rules.syntax());
+        let font_feature_value_kinds = node_kinds(&font_feature_values.syntax());
+        let less_css_at_rule_kinds = node_kinds(&less_css_at_rules.syntax());
 
         assert!(keyframes.errors().is_empty());
         assert!(font_face.errors().is_empty());
         assert!(page_margin.errors().is_empty());
         assert!(conditional_l5.errors().is_empty());
         assert!(modern_declaration_rules.errors().is_empty());
+        assert!(font_feature_values.errors().is_empty());
+        assert!(less_css_at_rules.errors().is_empty());
         assert!(keyframe_kinds.contains(&SyntaxKind::KeyframesRule));
         assert!(keyframe_kinds.contains(&SyntaxKind::KeyframeBlock));
         assert!(font_face_kinds.contains(&SyntaxKind::FontFaceRule));
@@ -4870,6 +4935,22 @@ mod tests {
         assert!(modern_declaration_kinds.contains(&SyntaxKind::ColorProfileRule));
         assert!(modern_declaration_kinds.contains(&SyntaxKind::PositionTryRule));
         assert!(modern_declaration_kinds.contains(&SyntaxKind::DeclarationList));
+        assert!(font_feature_value_kinds.contains(&SyntaxKind::FontFeatureValuesRule));
+        assert!(font_feature_value_kinds.contains(&SyntaxKind::FontFeatureValuesStylisticRule));
+        assert!(font_feature_value_kinds.contains(&SyntaxKind::FontFeatureValuesStylesetRule));
+        assert!(
+            font_feature_value_kinds.contains(&SyntaxKind::FontFeatureValuesCharacterVariantRule)
+        );
+        assert!(font_feature_value_kinds.contains(&SyntaxKind::FontFeatureValuesSwashRule));
+        assert!(font_feature_value_kinds.contains(&SyntaxKind::FontFeatureValuesOrnamentsRule));
+        assert!(font_feature_value_kinds.contains(&SyntaxKind::FontFeatureValuesAnnotationRule));
+        assert!(
+            font_feature_value_kinds.contains(&SyntaxKind::FontFeatureValuesHistoricalFormsRule)
+        );
+        assert!(font_feature_value_kinds.contains(&SyntaxKind::ViewTransitionRule));
+        assert!(less_css_at_rule_kinds.contains(&SyntaxKind::FontFeatureValuesRule));
+        assert!(less_css_at_rule_kinds.contains(&SyntaxKind::FontFeatureValuesStylesetRule));
+        assert!(less_css_at_rule_kinds.contains(&SyntaxKind::ViewTransitionRule));
     }
 
     #[test]
@@ -5607,6 +5688,16 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"modernDeclarationAtRuleCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"fontFeatureValuesAtRuleCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"viewTransitionAtRuleCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"cssColorFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"envAttrFunctionCstNodes"));
