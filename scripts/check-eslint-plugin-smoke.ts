@@ -20,6 +20,9 @@ async function main(): Promise<void> {
   await assertMissingResolvedClassValuesRule();
   await assertMissingResolvedClassDomainRule();
   await assertNoUnknownDynamicClassRule();
+  await assertNoImpossibleSelectorRule();
+  await assertNoImpreciseValueRule();
+  await assertMTierConfig();
   await assertMissingModuleRule();
 }
 
@@ -255,6 +258,119 @@ async function assertMissingResolvedClassDomainRule(): Promise<void> {
     throw new Error(
       `Unexpected missing-resolved-class-domain message: ${message?.message ?? "<missing>"}`,
     );
+  }
+}
+
+async function assertNoImpossibleSelectorRule(): Promise<void> {
+  const eslint = new ESLint({
+    cwd: WORKSPACE_ROOT,
+    ignore: false,
+    overrideConfigFile: true,
+    overrideConfig: [
+      {
+        files: ["**/*.{js,jsx}"],
+        languageOptions: {
+          ecmaVersion: "latest",
+          sourceType: "module",
+          parserOptions: {
+            ecmaFeatures: { jsx: true },
+          },
+        },
+        plugins: {
+          "css-module-explainer": plugin,
+        },
+        rules: {
+          "css-module-explainer/no-impossible-selector": "error",
+        },
+      },
+    ],
+  });
+
+  const [result] = await eslint.lintFiles([DYNAMIC_CLASS_FILE_PATH]);
+  if (!result) {
+    throw new Error("ESLint returned no results.");
+  }
+  if (result.messages.length !== 1) {
+    throw new Error(`Expected 1 no-impossible-selector message, got ${result.messages.length}.`);
+  }
+  const [message] = result.messages;
+  if (!message || !message.message.includes("Missing class for possible value: 'ghost'")) {
+    throw new Error(
+      `Unexpected no-impossible-selector message: ${message?.message ?? "<missing>"}`,
+    );
+  }
+}
+
+async function assertNoImpreciseValueRule(): Promise<void> {
+  const eslint = new ESLint({
+    cwd: WORKSPACE_ROOT,
+    ignore: false,
+    overrideConfigFile: true,
+    overrideConfig: [
+      {
+        files: ["**/*.{js,jsx}"],
+        languageOptions: {
+          ecmaVersion: "latest",
+          sourceType: "module",
+          parserOptions: {
+            ecmaFeatures: { jsx: true },
+          },
+        },
+        plugins: {
+          "css-module-explainer": plugin,
+        },
+        rules: {
+          "css-module-explainer/no-imprecise-value": "error",
+        },
+      },
+    ],
+  });
+
+  const [result] = await eslint.lintFiles([DYNAMIC_DOMAIN_FILE_PATH]);
+  if (!result) {
+    throw new Error("ESLint returned no results.");
+  }
+  if (result.messages.length !== 1) {
+    throw new Error(`Expected 1 no-imprecise-value message, got ${result.messages.length}.`);
+  }
+  const [message] = result.messages;
+  if (!message || !message.message.includes("No class matched resolved prefix 'ghost-'")) {
+    throw new Error(`Unexpected no-imprecise-value message: ${message?.message ?? "<missing>"}`);
+  }
+}
+
+async function assertMTierConfig(): Promise<void> {
+  const eslint = new ESLint({
+    cwd: WORKSPACE_ROOT,
+    ignore: false,
+    overrideConfigFile: true,
+    overrideConfig: [
+      {
+        files: ["**/*.{js,jsx}"],
+        languageOptions: {
+          ecmaVersion: "latest",
+          sourceType: "module",
+          parserOptions: {
+            ecmaFeatures: { jsx: true },
+          },
+        },
+      },
+      ...plugin.configs.mTier,
+    ],
+  });
+
+  const results = await eslint.lintFiles([DYNAMIC_CLASS_FILE_PATH, DYNAMIC_DOMAIN_FILE_PATH]);
+  const messages = results.flatMap((result) => result.messages);
+  if (messages.length !== 2) {
+    throw new Error(`Expected 2 mTier config messages, got ${messages.length}.`);
+  }
+  if (
+    !messages.some((message) => message.ruleId === "css-module-explainer/no-impossible-selector")
+  ) {
+    throw new Error("Expected mTier config to enable no-impossible-selector.");
+  }
+  if (!messages.some((message) => message.ruleId === "css-module-explainer/no-imprecise-value")) {
+    throw new Error("Expected mTier config to enable no-imprecise-value.");
   }
 }
 

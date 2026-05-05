@@ -11,6 +11,8 @@ Current rules:
 - `css-module-explainer/missing-resolved-class-domain`
 - `css-module-explainer/invalid-class-reference`
 - `css-module-explainer/no-unknown-dynamic-class`
+- `css-module-explainer/no-impossible-selector`
+- `css-module-explainer/no-imprecise-value`
 - `css-module-explainer/source-check`
 
 Config variants:
@@ -21,6 +23,8 @@ Config variants:
   - explicit focused rules for missing module/static/template/dynamic findings
 - `configs.dynamicMoat`
   - optional moat rule for unresolved dynamic class expressions
+- `configs.mTier`
+  - precise M-tier split rules for impossible finite selector values and imprecise dynamic value domains
 
 Recommended flat config:
 
@@ -76,4 +80,22 @@ Manual focused dynamic variants:
 ```js
 "css-module-explainer/missing-resolved-class-values": "error"
 "css-module-explainer/missing-resolved-class-domain": "error"
+```
+
+Precise M-tier split:
+
+```js
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const cssModuleExplainer = require("eslint-plugin-css-module-explainer");
+
+export default [...cssModuleExplainer.configs.mTier];
+```
+
+Equivalent manual rules:
+
+```js
+"css-module-explainer/no-impossible-selector": "error"
+"css-module-explainer/no-imprecise-value": "error"
 ```

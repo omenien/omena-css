@@ -6,6 +6,8 @@ const missingResolvedClassValuesRule = require("./lib/missing-resolved-class-val
 const missingResolvedClassDomainRule = require("./lib/missing-resolved-class-domain.cjs");
 const invalidClassReferenceRule = require("./lib/invalid-class-reference.cjs");
 const noUnknownDynamicClassRule = require("./lib/no-unknown-dynamic-class.cjs");
+const noImpossibleSelectorRule = require("./lib/no-impossible-selector.cjs");
+const noImpreciseValueRule = require("./lib/no-imprecise-value.cjs");
 
 const FOCUSED_SOURCE_RULES = {
   "css-module-explainer/missing-module": "error",
@@ -28,6 +30,8 @@ const plugin = {
     "missing-resolved-class-domain": missingResolvedClassDomainRule,
     "invalid-class-reference": invalidClassReferenceRule,
     "no-unknown-dynamic-class": noUnknownDynamicClassRule,
+    "no-impossible-selector": noImpossibleSelectorRule,
+    "no-imprecise-value": noImpreciseValueRule,
     "source-check": sourceCheckRule,
   },
 };
@@ -60,6 +64,17 @@ plugin.configs = {
       },
       rules: {
         "css-module-explainer/no-unknown-dynamic-class": "error",
+      },
+    },
+  ],
+  mTier: [
+    {
+      plugins: {
+        "css-module-explainer": plugin,
+      },
+      rules: {
+        "css-module-explainer/no-impossible-selector": "error",
+        "css-module-explainer/no-imprecise-value": "error",
       },
     },
   ],
