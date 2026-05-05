@@ -10,9 +10,9 @@ license = "MIT"
 publish = false
 
 [dependencies]
-engine-input-producers = { package = "omena-engine-input-producers", git = "https://github.com/omenien/omena-engine-input-producers.git", rev = "a807b9a" }
-omena-resolver = { git = "https://github.com/omenien/omena-resolver.git", rev = "94fdb6e" }
+engine-input-producers = { package = "omena-engine-input-producers", git = "https://github.com/omenien/omena-engine-input-producers.git", rev = "7b08f67" }
+omena-resolver = { git = "https://github.com/omenien/omena-resolver.git", rev = "8749192" }
 serde_json = "1.0"
 
 [patch.crates-io]
-omena-engine-input-producers = { git = "https://github.com/omenien/omena-engine-input-producers.git", rev = "a807b9a" }
+omena-engine-input-producers = { git = "https://github.com/omenien/omena-engine-input-producers.git", rev = "7b08f67" }
