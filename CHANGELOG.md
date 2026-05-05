@@ -21,6 +21,7 @@
 - **Query-owned source candidate resolution** - Rust LSP source-provider matching now delegates matched/unresolved selector candidate resolution, source-definition filtering, and prefix selector-name expansion to `omena-query`, keeping selector-prefix and target-style matching semantics out of the protocol layer.
 - **Query-owned selector rename edits** - Rust LSP selector rename now delegates definition/reference edit planning and dotted-name replacement normalization to `omena-query`, leaving workspace edit JSON grouping in the protocol layer.
 - **Query-owned Sass symbol matching** - Rust LSP Sass variable/mixin/function matching now consumes `omena-query` symbol-kind classification and declaration filtering instead of duplicating those semantics in the protocol layer.
+- **Query-owned Sass module source selection** - Rust LSP Sass symbol resolution now delegates `@use` namespace/wildcard selection, `@forward` selection, and Sass built-in module filtering to `omena-query` before resolving style URIs through the bridge.
 
 ### Fixed
 

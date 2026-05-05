@@ -23,8 +23,10 @@ use omena_query::{
     is_omena_query_sass_symbol_declaration_kind as is_sass_symbol_declaration_kind,
     is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,
     omena_query_sass_symbol_kind_from_candidate_kind as sass_symbol_kind_from_candidate_kind,
-    omena_query_sass_symbol_target_matches, resolve_omena_query_sass_symbol_declarations,
-    resolve_omena_query_selector_rename_edits, resolve_omena_query_source_candidate_selector_names,
+    omena_query_sass_symbol_target_matches, resolve_omena_query_sass_forward_sources,
+    resolve_omena_query_sass_module_use_sources_for_candidate,
+    resolve_omena_query_sass_symbol_declarations, resolve_omena_query_selector_rename_edits,
+    resolve_omena_query_source_candidate_selector_names,
     resolve_omena_query_source_provider_candidates,
     resolve_omena_query_style_selector_definitions_for_source_candidate,
     summarize_omena_query_missing_custom_property_diagnostics,
@@ -2240,28 +2242,19 @@ fn sass_module_target_uris_for_candidate(
         return Vec::new();
     };
     let mut uris = Vec::new();
-    for edge in sources.module_use_edges.iter().filter(|edge| {
-        if let Some(namespace) = candidate.namespace.as_deref() {
-            edge.namespace.as_deref() == Some(namespace)
-        } else {
-            edge.namespace_kind == "wildcard"
-        }
-    }) {
-        if edge.source.starts_with("sass:") {
-            continue;
-        }
+    for source in resolve_omena_query_sass_module_use_sources_for_candidate(
+        &sources,
+        candidate.namespace.as_deref(),
+    ) {
         if let Some(uri) = resolve_omena_bridge_style_uri_for_specifier(
             document.uri.as_str(),
             document.workspace_folder_uri.as_deref(),
-            edge.source.as_str(),
+            source.as_str(),
         ) {
             uris.push(uri);
         }
     }
-    for forward_source in &sources.module_forward_sources {
-        if forward_source.starts_with("sass:") {
-            continue;
-        }
+    for forward_source in resolve_omena_query_sass_forward_sources(&sources) {
         if let Some(uri) = resolve_omena_bridge_style_uri_for_specifier(
             document.uri.as_str(),
             document.workspace_folder_uri.as_deref(),
@@ -2297,10 +2290,7 @@ fn sass_symbol_declarations_with_forwards(
     else {
         return definitions;
     };
-    for forward_source in sources.module_forward_sources {
-        if forward_source.starts_with("sass:") {
-            continue;
-        }
+    for forward_source in resolve_omena_query_sass_forward_sources(&sources) {
         let Some(uri) = resolve_omena_bridge_style_uri_for_specifier(
             document.uri.as_str(),
             document.workspace_folder_uri.as_deref(),
@@ -2335,10 +2325,7 @@ fn sass_forward_module_target_uris(
         return Vec::new();
     };
     let mut uris = Vec::new();
-    for forward_source in sources.module_forward_sources {
-        if forward_source.starts_with("sass:") {
-            continue;
-        }
+    for forward_source in resolve_omena_query_sass_forward_sources(&sources) {
         if let Some(uri) = resolve_omena_bridge_style_uri_for_specifier(
             document.uri.as_str(),
             document.workspace_folder_uri.as_deref(),

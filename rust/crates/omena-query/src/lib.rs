@@ -332,6 +332,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "sourceProviderCandidateResolution",
             "selectorRenameEditPlanning",
             "sassSymbolResolutionPrimitives",
+            "sassModuleSourceSelection",
             "queryBoundarySummary",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
@@ -983,6 +984,42 @@ pub fn resolve_omena_query_sass_symbol_declarations(
         })
         .cloned()
         .collect()
+}
+
+pub fn resolve_omena_query_sass_module_use_sources_for_candidate(
+    sources: &OmenaQuerySassModuleSourcesV0,
+    namespace: Option<&str>,
+) -> Vec<String> {
+    let mut selected = sources
+        .module_use_edges
+        .iter()
+        .filter(|edge| {
+            if let Some(namespace) = namespace {
+                edge.namespace.as_deref() == Some(namespace)
+            } else {
+                edge.namespace_kind == "wildcard"
+            }
+        })
+        .filter(|edge| !is_sass_builtin_module_source(edge.source.as_str()))
+        .map(|edge| edge.source.clone())
+        .collect::<Vec<_>>();
+    selected.sort();
+    selected.dedup();
+    selected
+}
+
+pub fn resolve_omena_query_sass_forward_sources(
+    sources: &OmenaQuerySassModuleSourcesV0,
+) -> Vec<String> {
+    let mut selected = sources
+        .module_forward_sources
+        .iter()
+        .filter(|source| !is_sass_builtin_module_source(source.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    selected.sort();
+    selected.dedup();
+    selected
 }
 
 pub fn summarize_omena_query_sass_module_sources(
@@ -2169,6 +2206,10 @@ fn source_reference_matches_target_style(
     })
 }
 
+fn is_sass_builtin_module_source(source: &str) -> bool {
+    source.starts_with("sass:")
+}
+
 fn style_language_label(language: StyleLanguage) -> &'static str {
     match language {
         StyleLanguage::Css => "css",
@@ -3245,7 +3286,9 @@ $accent: red;
             r#"
 @use "./tokens" as tokens;
 @use "./reset" as *;
+@use "sass:map";
 @forward "./theme";
+@forward "sass:color";
 "#,
         );
         assert!(sources.is_some());
@@ -3264,7 +3307,21 @@ $accent: red;
                 && edge.namespace.is_none()
                 && edge.namespace_kind == "wildcard"
         }));
-        assert_eq!(sources.module_forward_sources, vec!["./theme".to_string()]);
+        assert_eq!(
+            super::resolve_omena_query_sass_module_use_sources_for_candidate(&sources, None),
+            vec!["./reset".to_string()]
+        );
+        assert_eq!(
+            super::resolve_omena_query_sass_module_use_sources_for_candidate(
+                &sources,
+                Some("tokens"),
+            ),
+            vec!["./tokens".to_string()]
+        );
+        assert_eq!(
+            super::resolve_omena_query_sass_forward_sources(&sources),
+            vec!["./theme".to_string()]
+        );
     }
 
     fn backend<'a>(
