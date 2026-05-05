@@ -338,6 +338,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "lessMixinCallCstNodes",
             "lessMixinGuardCstNodes",
             "importantAnnotationTokenization",
+            "urlTokenization",
+            "urlValueCstNodes",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -906,6 +908,16 @@ impl<'text> Parser<'text> {
             }
             Some(SyntaxKind::Ident) if self.next_kind() == Some(SyntaxKind::LeftParen) => {
                 self.parse_function_call()
+            }
+            Some(SyntaxKind::Url) => {
+                self.builder.start_node(SyntaxKind::UrlValue);
+                self.token_current();
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::BadUrl) => {
+                self.builder.start_node(SyntaxKind::BogusValue);
+                self.token_current();
+                self.builder.finish_node();
             }
             Some(SyntaxKind::ScssVariable) => {
                 self.builder.start_node(SyntaxKind::ScssVariableReference);
@@ -1537,7 +1549,73 @@ where
         while matches!(self.current_char(), Some(char) if is_name_continue(char)) {
             self.bump_current();
         }
+        let ident = &self.text[start..self.offset];
+        if ident.eq_ignore_ascii_case("url")
+            && self.current_char() == Some('(')
+            && !self.url_starts_with_quoted_argument()
+        {
+            self.consume_url_token(start);
+            return;
+        }
         self.push(SyntaxKind::Ident, start, self.offset);
+    }
+
+    fn consume_url_token(&mut self, start: usize) {
+        self.bump_current();
+        while matches!(self.current_char(), Some(char) if char.is_whitespace()) {
+            self.bump_current();
+        }
+        while let Some(char) = self.current_char() {
+            match char {
+                ')' => {
+                    self.bump_current();
+                    self.push(SyntaxKind::Url, start, self.offset);
+                    return;
+                }
+                '"' | '\'' | '(' => {
+                    self.consume_bad_url(start);
+                    return;
+                }
+                '\\' => {
+                    self.bump_current();
+                    if self.current_char().is_some() {
+                        self.bump_current();
+                    }
+                }
+                _ => self.bump_current(),
+            }
+        }
+        self.push(SyntaxKind::BadUrl, start, self.offset);
+        self.error(
+            ParseErrorCode::UnexpectedCharacter,
+            start,
+            self.offset,
+            "unterminated url token",
+        );
+    }
+
+    fn consume_bad_url(&mut self, start: usize) {
+        while let Some(char) = self.current_char() {
+            self.bump_current();
+            if char == ')' {
+                break;
+            }
+        }
+        self.push(SyntaxKind::BadUrl, start, self.offset);
+        self.error(
+            ParseErrorCode::UnexpectedCharacter,
+            start,
+            self.offset,
+            "bad url token",
+        );
+    }
+
+    fn url_starts_with_quoted_argument(&self) -> bool {
+        let Some(mut rest) = self.text.get(self.offset + '('.len_utf8()..) else {
+            return false;
+        };
+        rest = rest.trim_start_matches(char::is_whitespace);
+        matches!(rest.chars().next(), Some('"' | '\''))
     }
 
     fn consume_unexpected(&mut self, char: char) {
@@ -2385,6 +2463,28 @@ mod tests {
     }
 
     #[test]
+    fn tokenizes_unquoted_urls_and_bad_urls() {
+        let good = lex(".a { background: url(images/bg.png); }", StyleDialect::Css);
+        let bad = lex(".a { background: url(foo\"bar); }", StyleDialect::Css);
+        let quoted = lex(
+            ".a { background: url(\"images/bg.png\"); }",
+            StyleDialect::Css,
+        );
+        let good_kinds: Vec<SyntaxKind> = good.tokens().iter().map(|token| token.kind).collect();
+        let bad_kinds: Vec<SyntaxKind> = bad.tokens().iter().map(|token| token.kind).collect();
+        let quoted_kinds: Vec<SyntaxKind> =
+            quoted.tokens().iter().map(|token| token.kind).collect();
+
+        assert!(good.errors().is_empty());
+        assert!(good_kinds.contains(&SyntaxKind::Url));
+        assert!(bad_kinds.contains(&SyntaxKind::BadUrl));
+        assert!(!bad.errors().is_empty());
+        assert!(quoted_kinds.contains(&SyntaxKind::Ident));
+        assert!(quoted_kinds.contains(&SyntaxKind::String));
+        assert!(!quoted_kinds.contains(&SyntaxKind::Url));
+    }
+
+    #[test]
     fn exposes_recovery_token_sets() {
         assert!(RECOVERY_TOP.contains(SyntaxKind::AtKeyword));
         assert!(RECOVERY_DECLARATION.contains(SyntaxKind::Semicolon));
@@ -2527,6 +2627,17 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::Declaration));
         assert!(kinds.contains(&SyntaxKind::Value));
         assert!(token_kinds(&result.syntax()).contains(&SyntaxKind::Important));
+    }
+
+    #[test]
+    fn structures_unquoted_url_values() {
+        let result = parse(".a { background: url(images/bg.png); }", StyleDialect::Css);
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::Value));
+        assert!(kinds.contains(&SyntaxKind::UrlValue));
+        assert!(token_kinds(&result.syntax()).contains(&SyntaxKind::Url));
     }
 
     #[test]
@@ -2747,6 +2858,8 @@ mod tests {
                 .ready_surfaces
                 .contains(&"importantAnnotationTokenization")
         );
+        assert!(summary.ready_surfaces.contains(&"urlTokenization"));
+        assert!(summary.ready_surfaces.contains(&"urlValueCstNodes"));
         assert!(
             summary
                 .ready_surfaces
