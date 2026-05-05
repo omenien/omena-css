@@ -368,6 +368,7 @@ syntax_kinds! {
     BogusLessGuard = 0x2021,
     BogusLessDetachedRuleset = 0x2022,
     BogusRecovery = 0x2023,
+    BogusScssModuleConfig = 0x2024,
 
     Root = 0x2100,
     Eof = 0x2101,

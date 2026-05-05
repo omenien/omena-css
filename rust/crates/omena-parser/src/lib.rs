@@ -340,6 +340,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "scssUtilityAtRules",
             "scssNestedPropertyCstNodes",
             "scssModuleConfigCstNodes",
+            "scssModuleConfigBogusRecovery",
             "scssPlaceholderSelectorCstNodes",
             "lessMixinDeclarationCstNodes",
             "lessMixinCallCstNodes",
@@ -1330,7 +1331,12 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_scss_module_config(&mut self) {
-        self.builder.start_node(SyntaxKind::ScssModuleConfig);
+        let has_balanced_config = self.current_scss_module_config_has_balanced_parens();
+        self.builder.start_node(if has_balanced_config {
+            SyntaxKind::ScssModuleConfig
+        } else {
+            SyntaxKind::BogusScssModuleConfig
+        });
         self.token_current();
         self.eat_trivia();
         if self.current_kind() == Some(SyntaxKind::LeftParen) {
@@ -2338,6 +2344,18 @@ impl<'text> Parser<'text> {
             index += 1;
         }
         false
+    }
+
+    fn current_scss_module_config_has_balanced_parens(&self) -> bool {
+        let Some((_, SyntaxKind::LeftParen)) = self.non_trivia_token_from(self.position + 1) else {
+            return false;
+        };
+        self.current_prelude_parentheses_are_balanced_until(&[
+            SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
+            SyntaxKind::LeftBrace,
+            SyntaxKind::SassIndent,
+        ])
     }
 
     fn current_value_has_top_level_comma_before(&self, recovery: &[SyntaxKind]) -> bool {
@@ -4774,6 +4792,24 @@ mod tests {
     }
 
     #[test]
+    fn recovers_unclosed_scss_module_config_as_bogus() {
+        let result = parse(
+            "@use \"theme\" with ($gap: 1rem; .card { color: red; }",
+            StyleDialect::Scss,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(
+            result
+                .errors()
+                .iter()
+                .any(|error| error.message == "unterminated parenthesized prelude")
+        );
+        assert!(kinds.contains(&SyntaxKind::BogusScssModuleConfig));
+        assert!(!kinds.contains(&SyntaxKind::ScssModuleConfig));
+    }
+
+    #[test]
     fn parses_scss_placeholder_selectors_and_extend_refs() {
         let result = parse(
             "%button { color: red; } .primary { @extend %button; }",
@@ -5485,6 +5521,11 @@ mod tests {
                 .contains(&"scssNestedPropertyCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"scssModuleConfigCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"scssModuleConfigBogusRecovery")
+        );
         assert!(
             summary
                 .ready_surfaces
