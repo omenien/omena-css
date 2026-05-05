@@ -363,6 +363,40 @@ describe("handleCodeAction", () => {
     ]);
   });
 
+  it("inlines transitive composed class declarations in dependency order", () => {
+    const baseScss = `.reset { box-sizing: border-box; }
+.base { composes: reset; color: red; }
+`;
+    const styleWorkspace = workspace({
+      [STYLE_PATH]: `.button {
+  composes: /*<compose>*/base/*</compose>*/ from "./Base.module.scss";
+}
+`,
+    });
+    const params: CodeActionParams = {
+      ...textDocumentRangeFixture({
+        workspace: styleWorkspace,
+        documentUri: STYLE_URI,
+        filePath: STYLE_PATH,
+        rangeName: "compose",
+      }),
+      context: { diagnostics: [], triggerKind: 1 },
+    };
+    const result = handleCodeAction(
+      params,
+      makeDeps({
+        styleDocumentForPath: (filePath) =>
+          filePath === BASE_STYLE_PATH ? parseStyleDocument(baseScss, filePath) : null,
+      }),
+      styleWorkspace.file(STYLE_PATH).content,
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result![0]!.edit?.changes?.[STYLE_URI]?.[0]?.newText).toBe(
+      "box-sizing: border-box;\n  color: red;",
+    );
+  });
+
   it("returns sibling module creation actions for a TSX file without an existing sibling module", () => {
     const result = handleCodeAction(makeParams([]), makeDeps({ fileExists: () => false }));
     expect(result).toHaveLength(3);

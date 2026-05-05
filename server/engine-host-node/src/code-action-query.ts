@@ -1,5 +1,5 @@
 import nodePath from "node:path";
-import type { Range } from "@css-module-explainer/shared";
+import type { ComposesRef, Range } from "@css-module-explainer/shared";
 import {
   getAllStyleExtensions,
   findLangForPath,
@@ -12,7 +12,10 @@ import {
 import { fileUrlToPath, pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
 import { isRecord } from "../../engine-core-ts/src/core/util/value-guards";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
-import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
+import type {
+  SelectorDeclHIR,
+  StyleDocumentHIR,
+} from "../../engine-core-ts/src/core/hir/style-types";
 
 export interface CodeActionDiagnosticInput {
   readonly range: Range;
@@ -224,9 +227,15 @@ function planInlineComposedClass(
     hit,
   );
   if (!target) return null;
-  if (target.selector.composes.length > 0) return null;
 
-  const declarationLines = splitInlineDeclarations(target.selector.declarations);
+  const declarationLines = collectInlineDeclarations(target, {
+    currentPath: filePath,
+    currentDocument: styleDocument,
+    deps,
+    emitted: new Set(),
+    visiting: new Set(),
+  });
+  if (!declarationLines) return null;
   if (declarationLines.length === 0) return null;
 
   const replacementRange = expandComposesDeclarationRange(args.documentContent, hit.ref.range);
@@ -242,6 +251,76 @@ function planInlineComposedClass(
         newText: formatInlineDeclarations(declarationLines, indent),
       },
     ],
+  };
+}
+
+interface InlineTarget {
+  readonly filePath: string;
+  readonly styleDocument: StyleDocumentHIR;
+  readonly selector: SelectorDeclHIR;
+}
+
+interface InlineResolutionContext {
+  readonly currentPath: string;
+  readonly currentDocument: StyleDocumentHIR;
+  readonly deps: CodeActionDeps;
+  readonly emitted: Set<string>;
+  readonly visiting: Set<string>;
+}
+
+function collectInlineDeclarations(
+  target: InlineTarget,
+  context: InlineResolutionContext,
+): readonly string[] | null {
+  const key = `${target.filePath}\u0000${target.selector.canonicalName}`;
+  if (context.emitted.has(key)) return [];
+  if (context.visiting.has(key)) return null;
+
+  context.visiting.add(key);
+  const declarations: string[] = [];
+
+  for (const ref of target.selector.composes) {
+    if (ref.fromGlobal) return null;
+    for (const className of ref.classNames) {
+      const nestedTarget = resolveInlineComposesClass(target.filePath, ref, className, context);
+      if (!nestedTarget) return null;
+      const nestedDeclarations = collectInlineDeclarations(nestedTarget, context);
+      if (!nestedDeclarations) return null;
+      declarations.push(...nestedDeclarations);
+    }
+  }
+
+  declarations.push(...splitInlineDeclarations(target.selector.declarations));
+  context.visiting.delete(key);
+  context.emitted.add(key);
+  return declarations;
+}
+
+function resolveInlineComposesClass(
+  ownerFilePath: string,
+  ref: ComposesRef,
+  className: string,
+  context: InlineResolutionContext,
+): InlineTarget | null {
+  const targetPath = ref.from
+    ? nodePath.resolve(nodePath.dirname(ownerFilePath), ref.from)
+    : ownerFilePath;
+  const targetDocument = styleDocumentForInline(
+    targetPath,
+    context.currentPath,
+    context.currentDocument,
+    context.deps,
+  );
+  if (!targetDocument) return null;
+  const selector =
+    targetDocument.selectors.find(
+      (candidate) => candidate.canonicalName === className && candidate.viewKind === "canonical",
+    ) ?? targetDocument.selectors.find((candidate) => candidate.canonicalName === className);
+  if (!selector) return null;
+  return {
+    filePath: targetDocument.filePath,
+    styleDocument: targetDocument,
+    selector,
   };
 }
 
