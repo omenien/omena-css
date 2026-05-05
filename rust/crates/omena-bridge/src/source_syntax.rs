@@ -1,11 +1,12 @@
 use engine_style_parser::ParserByteSpanV0;
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
-    Argument, ArrayExpression, ArrayExpressionElement, CallExpression, ChainElement, Class,
-    ClassElement, ComputedMemberExpression, ConditionalExpression, Declaration, Expression,
-    JSXAttributeValue, JSXChild, JSXExpression, LogicalExpression, ObjectExpression,
-    ObjectPropertyKind, ParenthesizedExpression, Program, Statement, StaticMemberExpression,
-    TSAsExpression, TSNonNullExpression, TSSatisfiesExpression,
+    Argument, ArrayExpression, ArrayExpressionElement, BindingPattern, CallExpression,
+    ChainElement, Class, ClassElement, ComputedMemberExpression, ConditionalExpression,
+    Declaration, Expression, JSXAttributeValue, JSXChild, JSXExpression, LogicalExpression,
+    ObjectExpression, ObjectPropertyKind, ParenthesizedExpression, Program, Statement,
+    StaticMemberExpression, TSAsExpression, TSNonNullExpression, TSSatisfiesExpression,
+    VariableDeclarator,
 };
 use oxc_parser::{Parser, ParserReturn};
 use oxc_span::{SourceType, Span};
@@ -116,8 +117,9 @@ pub fn summarize_omena_bridge_source_syntax_index(
 ) -> SourceSyntaxIndexV0 {
     let imported_style_targets = imported_style_targets(imported_style_bindings.as_slice());
     let property_access_targets = property_access_style_targets(imported_style_bindings.as_slice());
-    let classnames_bind_targets = collect_classnames_bind_utility_bindings(
+    let ast_facts = collect_source_syntax_ast_facts(
         source,
+        property_access_targets.as_slice(),
         imported_style_targets.as_slice(),
         classnames_bind_bindings.as_slice(),
     );
@@ -128,10 +130,7 @@ pub fn summarize_omena_bridge_source_syntax_index(
         product: "omena-bridge.source-syntax-index",
         imported_style_bindings,
         class_string_literals: collect_class_name_string_literal_spans(source),
-        style_property_accesses: collect_style_property_access_facts(
-            source,
-            property_access_targets.as_slice(),
-        ),
+        style_property_accesses: ast_facts.style_property_accesses,
         selector_references: Vec::new(),
         type_fact_targets: Vec::new(),
     };
@@ -160,7 +159,7 @@ pub fn summarize_omena_bridge_source_syntax_index(
                 target_style_uri: access.target_style_uri.clone(),
             });
     }
-    for binding in classnames_bind_targets {
+    for binding in ast_facts.classnames_bind_utility_bindings {
         collect_classnames_bind_call_reference_facts(
             source,
             binding.binding.as_str(),
@@ -267,35 +266,54 @@ fn collect_class_name_string_literal_spans(source: &str) -> Vec<ParserByteSpanV0
     spans
 }
 
-fn collect_style_property_access_facts(
+struct SourceSyntaxAstFacts {
+    style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
+    classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
+}
+
+fn collect_source_syntax_ast_facts(
     source: &str,
-    targets: &[SourceStyleBindingTarget],
-) -> Vec<SourceStylePropertyAccessFactV0> {
+    property_access_targets: &[SourceStyleBindingTarget],
+    style_targets: &[SourceStyleBindingTarget],
+    classnames_bind_imports: &[String],
+) -> SourceSyntaxAstFacts {
     let allocator = Allocator::default();
     let ParserReturn {
         program, panicked, ..
     } = Parser::new(&allocator, source, SourceType::tsx()).parse();
     if panicked {
-        return Vec::new();
+        return SourceSyntaxAstFacts {
+            style_property_accesses: Vec::new(),
+            classnames_bind_utility_bindings: Vec::new(),
+        };
     }
 
-    let mut collector = StylePropertyAccessAstCollector {
+    let mut collector = SourceSyntaxAstCollector {
         source,
-        targets,
-        facts: Vec::new(),
+        property_access_targets,
+        style_targets,
+        classnames_bind_imports,
+        style_property_accesses: Vec::new(),
+        classnames_bind_utility_bindings: Vec::new(),
     };
     collector.collect_program(&program);
     collector.canonicalize();
-    collector.facts
+    SourceSyntaxAstFacts {
+        style_property_accesses: collector.style_property_accesses,
+        classnames_bind_utility_bindings: collector.classnames_bind_utility_bindings,
+    }
 }
 
-struct StylePropertyAccessAstCollector<'a> {
+struct SourceSyntaxAstCollector<'a> {
     source: &'a str,
-    targets: &'a [SourceStyleBindingTarget],
-    facts: Vec<SourceStylePropertyAccessFactV0>,
+    property_access_targets: &'a [SourceStyleBindingTarget],
+    style_targets: &'a [SourceStyleBindingTarget],
+    classnames_bind_imports: &'a [String],
+    style_property_accesses: Vec<SourceStylePropertyAccessFactV0>,
+    classnames_bind_utility_bindings: Vec<ClassnamesBindUtilityBinding>,
 }
 
-impl<'a> StylePropertyAccessAstCollector<'a> {
+impl<'a> SourceSyntaxAstCollector<'a> {
     fn collect_program(&mut self, program: &Program<'a>) {
         for statement in &program.body {
             self.collect_statement(statement);
@@ -467,10 +485,54 @@ impl<'a> StylePropertyAccessAstCollector<'a> {
         declaration: &oxc_ast::ast::VariableDeclaration<'a>,
     ) {
         for declarator in &declaration.declarations {
+            if let Some(binding) = self.classnames_bind_utility_binding_from_declarator(declarator)
+            {
+                self.classnames_bind_utility_bindings.push(binding);
+            }
             if let Some(init) = &declarator.init {
                 self.collect_expression(init);
             }
         }
+    }
+
+    fn classnames_bind_utility_binding_from_declarator(
+        &self,
+        declarator: &VariableDeclarator<'a>,
+    ) -> Option<ClassnamesBindUtilityBinding> {
+        if self.style_targets.is_empty() || self.classnames_bind_imports.is_empty() {
+            return None;
+        }
+        let binding = binding_pattern_identifier_name(&declarator.id)?;
+        let init = declarator.init.as_ref()?;
+        let Expression::CallExpression(call) = init else {
+            return None;
+        };
+        let Expression::StaticMemberExpression(callee) = &call.callee else {
+            return None;
+        };
+        if callee.property.name.as_str() != "bind" {
+            return None;
+        }
+        let callee_binding = expression_identifier_name(&callee.object)?;
+        if !self
+            .classnames_bind_imports
+            .iter()
+            .any(|import_binding| import_binding == callee_binding)
+        {
+            return None;
+        }
+        let style_binding = call.arguments.first().and_then(argument_identifier_name)?;
+        let style_uri = self
+            .style_targets
+            .iter()
+            .find(|target| target.binding == style_binding)?
+            .target_style_uri
+            .clone()?;
+
+        Some(ClassnamesBindUtilityBinding {
+            binding: binding.to_string(),
+            style_uri,
+        })
     }
 
     fn collect_function_body(&mut self, body: Option<&oxc_ast::ast::FunctionBody<'a>>) {
@@ -886,10 +948,11 @@ impl<'a> StylePropertyAccessAstCollector<'a> {
         if let Some(target) = self.target_for_object(&member.object)
             && let Some(byte_span) = self.css_identifier_span(member.property.span)
         {
-            self.facts.push(SourceStylePropertyAccessFactV0 {
-                byte_span,
-                target_style_uri: target.target_style_uri.clone(),
-            });
+            self.style_property_accesses
+                .push(SourceStylePropertyAccessFactV0 {
+                    byte_span,
+                    target_style_uri: target.target_style_uri.clone(),
+                });
         }
         self.collect_expression(&member.object);
     }
@@ -898,10 +961,11 @@ impl<'a> StylePropertyAccessAstCollector<'a> {
         if let Some(target) = self.target_for_object(&member.object)
             && let Some(byte_span) = self.static_string_expression_content_span(&member.expression)
         {
-            self.facts.push(SourceStylePropertyAccessFactV0 {
-                byte_span,
-                target_style_uri: target.target_style_uri.clone(),
-            });
+            self.style_property_accesses
+                .push(SourceStylePropertyAccessFactV0 {
+                    byte_span,
+                    target_style_uri: target.target_style_uri.clone(),
+                });
         }
         self.collect_expression(&member.object);
         self.collect_expression(&member.expression);
@@ -910,7 +974,7 @@ impl<'a> StylePropertyAccessAstCollector<'a> {
     fn target_for_object(&self, expression: &Expression<'a>) -> Option<&SourceStyleBindingTarget> {
         match expression {
             Expression::Identifier(identifier) => self
-                .targets
+                .property_access_targets
                 .iter()
                 .find(|target| target.binding == identifier.name.as_str()),
             Expression::ParenthesizedExpression(expression) => {
@@ -968,14 +1032,24 @@ impl<'a> StylePropertyAccessAstCollector<'a> {
     }
 
     fn canonicalize(&mut self) {
-        self.facts.sort_by(|left, right| {
+        self.style_property_accesses.sort_by(|left, right| {
             left.byte_span
                 .start
                 .cmp(&right.byte_span.start)
                 .then_with(|| left.byte_span.end.cmp(&right.byte_span.end))
                 .then_with(|| left.target_style_uri.cmp(&right.target_style_uri))
         });
-        self.facts.dedup();
+        self.style_property_accesses.dedup();
+        self.classnames_bind_utility_bindings
+            .sort_by(|left, right| {
+                left.binding
+                    .cmp(&right.binding)
+                    .then_with(|| left.style_uri.cmp(&right.style_uri))
+            });
+        self.classnames_bind_utility_bindings
+            .dedup_by(|left, right| {
+                left.binding == right.binding && left.style_uri == right.style_uri
+            });
     }
 }
 
@@ -986,89 +1060,56 @@ fn parser_byte_span(span: Span) -> ParserByteSpanV0 {
     }
 }
 
-fn collect_classnames_bind_utility_bindings(
-    source: &str,
-    style_targets: &[SourceStyleBindingTarget],
-    classnames_bind_imports: &[String],
-) -> Vec<ClassnamesBindUtilityBinding> {
-    if style_targets.is_empty() || classnames_bind_imports.is_empty() {
-        return Vec::new();
+fn binding_pattern_identifier_name<'a>(pattern: &'a BindingPattern<'a>) -> Option<&'a str> {
+    match pattern {
+        BindingPattern::BindingIdentifier(identifier) => Some(identifier.name.as_str()),
+        _ => None,
     }
-    let mut bindings = Vec::new();
-    let mut cursor = 0usize;
-    while let Some(keyword) = next_code_identifier(source, cursor) {
-        cursor = keyword.end;
-        if !matches!(keyword.text, "const" | "let" | "var") {
-            continue;
-        }
-        if let Some((binding, next_offset)) = parse_classnames_bind_utility_binding(
-            source,
-            keyword.end,
-            style_targets,
-            classnames_bind_imports,
-        ) {
-            bindings.push(binding);
-            cursor = next_offset;
-        }
-    }
-    bindings.sort_by(|left, right| {
-        left.binding
-            .cmp(&right.binding)
-            .then_with(|| left.style_uri.cmp(&right.style_uri))
-    });
-    bindings
-        .dedup_by(|left, right| left.binding == right.binding && left.style_uri == right.style_uri);
-    bindings
 }
 
-fn parse_classnames_bind_utility_binding(
-    source: &str,
-    after_keyword: usize,
-    style_targets: &[SourceStyleBindingTarget],
-    classnames_bind_imports: &[String],
-) -> Option<(ClassnamesBindUtilityBinding, usize)> {
-    let binding_start = skip_js_trivia(source, after_keyword);
-    let (binding, binding_end) = read_js_identifier(source, binding_start)?;
-    let equals_offset = skip_js_trivia(source, binding_end);
-    if source.as_bytes().get(equals_offset) != Some(&b'=') {
-        return None;
+fn expression_identifier_name<'a>(expression: &'a Expression<'a>) -> Option<&'a str> {
+    match expression {
+        Expression::Identifier(identifier) => Some(identifier.name.as_str()),
+        Expression::ParenthesizedExpression(expression) => {
+            expression_identifier_name(&expression.expression)
+        }
+        Expression::TSAsExpression(expression) => {
+            expression_identifier_name(&expression.expression)
+        }
+        Expression::TSSatisfiesExpression(expression) => {
+            expression_identifier_name(&expression.expression)
+        }
+        Expression::TSTypeAssertion(expression) => {
+            expression_identifier_name(&expression.expression)
+        }
+        Expression::TSNonNullExpression(expression) => {
+            expression_identifier_name(&expression.expression)
+        }
+        Expression::TSInstantiationExpression(expression) => {
+            expression_identifier_name(&expression.expression)
+        }
+        _ => None,
     }
-    let callee_start = skip_js_trivia(source, equals_offset + 1);
-    let (callee, callee_end) = read_js_identifier(source, callee_start)?;
-    if !classnames_bind_imports
-        .iter()
-        .any(|import_binding| import_binding == callee)
-    {
-        return None;
-    }
-    let dot_offset = skip_js_trivia(source, callee_end);
-    if source.as_bytes().get(dot_offset) != Some(&b'.') {
-        return None;
-    }
-    let (property, property_end) = read_js_identifier(source, dot_offset + 1)?;
-    if property != "bind" {
-        return None;
-    }
-    let open_paren = skip_js_trivia(source, property_end);
-    if source.as_bytes().get(open_paren) != Some(&b'(') {
-        return None;
-    }
-    let style_arg_start = skip_js_trivia(source, open_paren + 1);
-    let (style_binding_name, style_binding_end) = read_js_identifier(source, style_arg_start)?;
-    let style_uri = style_targets
-        .iter()
-        .find(|style_binding| style_binding.binding == style_binding_name)?
-        .target_style_uri
-        .clone();
-    let style_uri = style_uri?;
+}
 
-    Some((
-        ClassnamesBindUtilityBinding {
-            binding: binding.to_string(),
-            style_uri,
-        },
-        style_binding_end,
-    ))
+fn argument_identifier_name<'a>(argument: &'a Argument<'a>) -> Option<&'a str> {
+    match argument {
+        Argument::Identifier(identifier) => Some(identifier.name.as_str()),
+        Argument::ParenthesizedExpression(expression) => {
+            expression_identifier_name(&expression.expression)
+        }
+        Argument::TSAsExpression(expression) => expression_identifier_name(&expression.expression),
+        Argument::TSSatisfiesExpression(expression) => {
+            expression_identifier_name(&expression.expression)
+        }
+        Argument::TSNonNullExpression(expression) => {
+            expression_identifier_name(&expression.expression)
+        }
+        Argument::TSInstantiationExpression(expression) => {
+            expression_identifier_name(&expression.expression)
+        }
+        _ => None,
+    }
 }
 
 fn collect_class_name_expression_reference_facts(
@@ -2678,6 +2719,29 @@ export function View() {
                 .iter()
                 .any(|reference| selector_reference_name(source, reference) == "fake")
         );
+    }
+
+    #[test]
+    fn collects_classnames_bind_utility_bindings_from_oxc_ast() {
+        let source = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind((styles));
+export const view = <div className={cx("root")} />;"#;
+
+        let index = summarize_omena_bridge_source_syntax_index(
+            source,
+            vec![SourceImportedStyleBindingV0 {
+                binding: "styles".to_string(),
+                style_uri: "file:///workspace/App.module.scss".to_string(),
+            }],
+            vec!["bind".to_string()],
+        );
+
+        assert!(index.selector_references.iter().any(|reference| {
+            selector_reference_name(source, reference) == "root"
+                && reference.target_style_uri.as_deref()
+                    == Some("file:///workspace/App.module.scss")
+        }));
     }
 
     #[test]
