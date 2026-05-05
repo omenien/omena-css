@@ -159,6 +159,24 @@ pub struct OmenaQueryStyleHoverRenderPartsV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStyleDiagnosticV0 {
+    pub code: &'static str,
+    pub range: ParserRangeV0,
+    pub message: String,
+    pub create_custom_property: Option<OmenaQueryCreateCustomPropertyActionV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCreateCustomPropertyActionV0 {
+    pub uri: String,
+    pub range: ParserRangeV0,
+    pub new_text: String,
+    pub property_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQuerySassModuleUseEdgeV0 {
     pub source: String,
     pub namespace_kind: &'static str,
@@ -247,6 +265,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "expressionDomainControlFlowAnalysisBoundary",
             "expressionDomainSalsaRuntime",
             "styleHoverRenderParts",
+            "styleMissingCustomPropertyDiagnostics",
             "queryBoundarySummary",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
@@ -641,6 +660,44 @@ pub fn summarize_omena_query_style_hover_render_parts(
     }
 
     parts
+}
+
+pub fn summarize_omena_query_missing_custom_property_diagnostics(
+    style_uri: &str,
+    source: &str,
+    candidates: &[OmenaQueryStyleHoverCandidateV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let declaration_names = candidates
+        .iter()
+        .filter(|candidate| candidate.kind == "customPropertyDeclaration")
+        .map(|candidate| candidate.name.as_str())
+        .collect::<BTreeSet<_>>();
+    if declaration_names.is_empty() {
+        return Vec::new();
+    }
+
+    let insertion_range = end_of_source_range(source);
+    candidates
+        .iter()
+        .filter(|candidate| {
+            candidate.kind == "customPropertyReference"
+                && !declaration_names.contains(candidate.name.as_str())
+        })
+        .map(|candidate| OmenaQueryStyleDiagnosticV0 {
+            code: "missingCustomProperty",
+            range: candidate.range,
+            message: format!(
+                "CSS custom property '{}' not found in indexed style tokens.",
+                candidate.name
+            ),
+            create_custom_property: Some(OmenaQueryCreateCustomPropertyActionV0 {
+                uri: style_uri.to_string(),
+                range: insertion_range,
+                new_text: format!("\n\n:root {{\n  {}: ;\n}}\n", candidate.name),
+                property_name: candidate.name.clone(),
+            }),
+        })
+        .collect()
 }
 
 pub fn summarize_omena_query_sass_module_sources(
@@ -1613,6 +1670,14 @@ fn parser_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRan
     }
 }
 
+fn end_of_source_range(source: &str) -> ParserRangeV0 {
+    let position = parser_position_for_byte_offset(source, source.len());
+    ParserRangeV0 {
+        start: position,
+        end: position,
+    }
+}
+
 fn parser_position_for_byte_offset(source: &str, offset: usize) -> ParserPositionV0 {
     let clamped_offset = offset.min(source.len());
     let mut line = 0usize;
@@ -2549,6 +2614,67 @@ $accent: red;
         );
         assert_eq!(selector.snippet, ".button { color: var(--brand); }");
         assert_eq!(selector.render_source, "ruleSnippet");
+    }
+
+    #[test]
+    fn missing_custom_property_diagnostics_are_query_owned() {
+        let source = ":root { --brand: red; }\n.alert { color: var(--missing); }";
+        let candidates =
+            super::summarize_omena_query_style_hover_candidates("Component.module.scss", source);
+        assert!(candidates.is_some());
+        let Some(candidates) = candidates else {
+            return;
+        };
+
+        let diagnostics = super::summarize_omena_query_missing_custom_property_diagnostics(
+            "file:///workspace/src/Component.module.scss",
+            source,
+            candidates.candidates.as_slice(),
+        );
+
+        assert_eq!(diagnostics.len(), 1);
+        let diagnostic = &diagnostics[0];
+        assert_eq!(diagnostic.code, "missingCustomProperty");
+        assert_eq!(
+            diagnostic.message,
+            "CSS custom property '--missing' not found in indexed style tokens."
+        );
+        assert_eq!(
+            diagnostic.range,
+            engine_style_parser::ParserRangeV0 {
+                start: engine_style_parser::ParserPositionV0 {
+                    line: 1,
+                    character: 20,
+                },
+                end: engine_style_parser::ParserPositionV0 {
+                    line: 1,
+                    character: 29,
+                },
+            }
+        );
+        assert_eq!(
+            diagnostic
+                .create_custom_property
+                .as_ref()
+                .map(|action| action.new_text.as_str()),
+            Some("\n\n:root {\n  --missing: ;\n}\n")
+        );
+        assert_eq!(
+            diagnostic
+                .create_custom_property
+                .as_ref()
+                .map(|action| action.range),
+            Some(engine_style_parser::ParserRangeV0 {
+                start: engine_style_parser::ParserPositionV0 {
+                    line: 1,
+                    character: 33,
+                },
+                end: engine_style_parser::ParserPositionV0 {
+                    line: 1,
+                    character: 33,
+                },
+            })
+        );
     }
 
     #[test]

@@ -17,9 +17,9 @@ use omena_bridge::{
 };
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
-    OmenaQueryStyleHoverCandidateV0, summarize_omena_query_sass_module_sources,
-    summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
-    summarize_omena_query_style_hover_render_parts,
+    OmenaQueryStyleHoverCandidateV0, summarize_omena_query_missing_custom_property_diagnostics,
+    summarize_omena_query_sass_module_sources, summarize_omena_query_style_document,
+    summarize_omena_query_style_hover_candidates, summarize_omena_query_style_hover_render_parts,
 };
 use omena_tsgo_client::{
     OmenaTsgoClientBoundarySummaryV0, TsgoJsonRpcTypeFactProviderV0, TsgoResolvedTypeV0,
@@ -1799,42 +1799,35 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
         return json!([]);
     };
 
-    let decl_names: BTreeSet<&str> = candidates
+    let query_candidates = candidates
         .iter()
-        .filter(|candidate| candidate.kind == "customPropertyDeclaration")
-        .map(|candidate| candidate.name.as_str())
-        .collect();
-    if decl_names.is_empty() {
-        return json!([]);
-    }
-
-    let insertion_range = end_of_document_range(document.text.as_str());
-    let diagnostics: Vec<Value> = candidates
-        .iter()
-        .filter(|candidate| {
-            candidate.kind == "customPropertyReference"
-                && !decl_names.contains(candidate.name.as_str())
-        })
-        .map(|candidate| {
-            json!({
-                "range": candidate.range,
-                "severity": state.diagnostics.severity,
-                "source": "css-module-explainer",
-                "message": format!(
-                    "CSS custom property '{}' not found in indexed style tokens.",
-                    candidate.name
-                ),
-                "data": {
-                    "createCustomProperty": {
-                        "uri": document.uri.as_str(),
-                        "range": insertion_range,
-                        "newText": format!("\n\n:root {{\n  {}: ;\n}}\n", candidate.name),
-                        "propertyName": candidate.name.as_str(),
-                    },
-                },
+        .map(query_style_hover_candidate_from_lsp)
+        .collect::<Vec<_>>();
+    let diagnostics = summarize_omena_query_missing_custom_property_diagnostics(
+        document.uri.as_str(),
+        document.text.as_str(),
+        query_candidates.as_slice(),
+    )
+    .into_iter()
+    .map(|diagnostic| {
+        let data = diagnostic
+            .create_custom_property
+            .map(|create_custom_property| {
+                json!({
+                    "createCustomProperty": create_custom_property,
+                })
             })
+            .unwrap_or_else(|| json!({}));
+
+        json!({
+            "range": diagnostic.range,
+            "severity": state.diagnostics.severity,
+            "source": "css-module-explainer",
+            "message": diagnostic.message,
+            "data": data,
         })
-        .collect();
+    })
+    .collect::<Vec<_>>();
 
     json!(diagnostics)
 }
@@ -3583,6 +3576,18 @@ fn lsp_style_hover_candidate_from_query(
         source: candidate.source,
         target_style_uri: None,
         namespace: candidate.namespace,
+    }
+}
+
+fn query_style_hover_candidate_from_lsp(
+    candidate: &LspStyleHoverCandidate,
+) -> OmenaQueryStyleHoverCandidateV0 {
+    OmenaQueryStyleHoverCandidateV0 {
+        kind: candidate.kind,
+        name: candidate.name.clone(),
+        range: candidate.range,
+        source: candidate.source,
+        namespace: candidate.namespace.clone(),
     }
 }
 
