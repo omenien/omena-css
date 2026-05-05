@@ -708,6 +708,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "customPropertyAnyValueComponentList",
             "customPropertyValueCstNodes",
             "functionalPseudoSelectorListCstNodes",
+            "nthSelectorOfSelectorListCstNodes",
             "missingBlockCloseBogusTrivia",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
@@ -1251,6 +1252,10 @@ impl<'text> Parser<'text> {
                     .is_some_and(is_selector_list_pseudo_class)
             {
                 self.parse_selector_list_until(&[SyntaxKind::RightParen]);
+            } else if kind == SyntaxKind::PseudoClassSelector
+                && pseudo_name.as_deref().is_some_and(is_nth_pseudo_class)
+            {
+                self.parse_nth_selector_argument();
             } else {
                 while !self.at_end() {
                     match self.current_kind() {
@@ -1269,6 +1274,31 @@ impl<'text> Parser<'text> {
         if css_module_scope_kind.is_some() {
             self.builder.finish_node();
         }
+        self.builder.finish_node();
+    }
+
+    fn parse_nth_selector_argument(&mut self) {
+        self.builder.start_node(SyntaxKind::NthSelectorArgument);
+        self.builder.start_node(SyntaxKind::NthSelectorFormula);
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::RightParen) => break,
+                Some(kind) if is_selector_boundary(kind) => break,
+                Some(SyntaxKind::Ident) if self.current_text() == Some("of") => break,
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+        self.builder.finish_node();
+
+        if self.current_kind() == Some(SyntaxKind::Ident) && self.current_text() == Some("of") {
+            self.builder
+                .start_node(SyntaxKind::NthSelectorOfSelectorList);
+            self.token_current();
+            self.parse_selector_list_until(&[SyntaxKind::RightParen]);
+            self.builder.finish_node();
+        }
+
         self.builder.finish_node();
     }
 
@@ -5246,6 +5276,10 @@ fn is_selector_list_pseudo_class(text: &str) -> bool {
     matches!(text, "is" | "where" | "not" | "has" | "local" | "global")
 }
 
+fn is_nth_pseudo_class(text: &str) -> bool {
+    matches!(text, "nth-child" | "nth-last-child")
+}
+
 fn selector_item_token_is_recoverable(kind: SyntaxKind) -> bool {
     matches!(
         kind,
@@ -7118,6 +7152,27 @@ mod tests {
     }
 
     #[test]
+    fn parses_nth_child_of_selector_lists_as_cst_nodes() {
+        let result = parse(
+            ".grid > :nth-child(2n + 1 of .item, [data-active]) { color: red; }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let selector_list_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::SelectorList)
+            .count();
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::NthSelectorArgument));
+        assert!(kinds.contains(&SyntaxKind::NthSelectorFormula));
+        assert!(kinds.contains(&SyntaxKind::NthSelectorOfSelectorList));
+        assert!(kinds.contains(&SyntaxKind::ClassSelector));
+        assert!(kinds.contains(&SyntaxKind::AttributeSelector));
+        assert!(selector_list_count >= 2);
+    }
+
+    #[test]
     fn decomposes_selector_lists_into_selector_nodes() {
         let result = parse(
             ".card:hover > #title, article.card || .icon[data-active] { color: red; }",
@@ -7617,6 +7672,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"functionalPseudoSelectorListCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"nthSelectorOfSelectorListCstNodes")
         );
         assert!(
             summary

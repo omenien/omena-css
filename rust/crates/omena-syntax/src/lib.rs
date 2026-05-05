@@ -336,6 +336,9 @@ syntax_kinds! {
     AttributeName = 0x106d,
     AttributeValue = 0x106e,
     AttributeModifier = 0x106f,
+    NthSelectorArgument = 0x1070,
+    NthSelectorFormula = 0x1071,
+    NthSelectorOfSelectorList = 0x1072,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,
