@@ -216,7 +216,7 @@ pub fn lex_with_extension(text: &str, extension: &impl DialectExtension) -> LexR
 pub fn parse_with_extension(text: &str, extension: &impl DialectExtension) -> ParseResult {
     let (tokens, errors) = tokenize(text, extension);
     let token_count = tokens.len();
-    let mut parser = Parser::new(tokens, errors);
+    let mut parser = Parser::new(tokens, errors, extension.dialect());
     let green = parser.parse();
 
     ParseResult {
@@ -244,6 +244,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "selectorCstSkeleton",
             "atRuleRegistrySkeleton",
             "prattValueExpressionSkeleton",
+            "initialDialectStatementNodes",
         ],
         not_ready_surfaces: vec![
             "fullRecursiveDescentGrammar",
@@ -275,15 +276,17 @@ struct Tokenizer<'text, 'extension, E> {
 struct Parser<'text> {
     tokens: Vec<Token<'text>>,
     position: usize,
+    dialect: StyleDialect,
     builder: GreenNodeBuilder<'static, 'static, SyntaxKind>,
     errors: Vec<ParseError>,
 }
 
 impl<'text> Parser<'text> {
-    fn new(tokens: Vec<Token<'text>>, errors: Vec<ParseError>) -> Self {
+    fn new(tokens: Vec<Token<'text>>, errors: Vec<ParseError>, dialect: StyleDialect) -> Self {
         Self {
             tokens,
             position: 0,
+            dialect,
             builder: GreenNodeBuilder::new(),
             errors,
         }
@@ -312,7 +315,18 @@ impl<'text> Parser<'text> {
                 break;
             }
             match self.current_kind() {
+                Some(SyntaxKind::AtKeyword) if self.current_dialect_at_rule_spec().is_some() => {
+                    self.parse_dialect_at_rule()
+                }
                 Some(SyntaxKind::AtKeyword) => self.parse_at_rule(),
+                Some(SyntaxKind::ScssVariable)
+                    if matches!(self.dialect, StyleDialect::Scss | StyleDialect::Sass) =>
+                {
+                    self.parse_variable_declaration(SyntaxKind::ScssVariableDeclaration)
+                }
+                Some(SyntaxKind::LessVariable) if self.dialect == StyleDialect::Less => {
+                    self.parse_variable_declaration(SyntaxKind::LessVariableDeclaration)
+                }
                 Some(SyntaxKind::RightBrace) => self.token_current(),
                 Some(_) => self.parse_rule(),
                 None => break,
@@ -539,6 +553,14 @@ impl<'text> Parser<'text> {
             match self.current_kind() {
                 Some(SyntaxKind::RightBrace) | None => break,
                 Some(SyntaxKind::AtKeyword) => self.parse_at_rule(),
+                Some(SyntaxKind::ScssVariable)
+                    if matches!(self.dialect, StyleDialect::Scss | StyleDialect::Sass) =>
+                {
+                    self.parse_variable_declaration(SyntaxKind::ScssVariableDeclaration)
+                }
+                Some(SyntaxKind::LessVariable) if self.dialect == StyleDialect::Less => {
+                    self.parse_variable_declaration(SyntaxKind::LessVariableDeclaration)
+                }
                 Some(SyntaxKind::LeftBrace) => {
                     self.builder.start_node(SyntaxKind::BogusDeclaration);
                     self.token_current();
@@ -547,6 +569,23 @@ impl<'text> Parser<'text> {
                 Some(_) => self.parse_declaration(),
             }
         }
+    }
+
+    fn parse_variable_declaration(&mut self, kind: SyntaxKind) {
+        self.builder.start_node(kind);
+        self.token_current();
+        if self.current_kind() == Some(SyntaxKind::Colon) {
+            self.token_current();
+            self.builder.start_node(SyntaxKind::Value);
+            self.parse_value_until(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
+            self.builder.finish_node();
+        } else {
+            self.consume_until_recovery(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
+        }
+        if self.current_kind() == Some(SyntaxKind::Semicolon) {
+            self.token_current();
+        }
+        self.builder.finish_node();
     }
 
     fn parse_declaration(&mut self) {
@@ -584,6 +623,38 @@ impl<'text> Parser<'text> {
 
         if self.current_kind() == Some(SyntaxKind::Semicolon) {
             self.token_current();
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_dialect_at_rule(&mut self) {
+        let Some(spec) = self.current_dialect_at_rule_spec() else {
+            self.parse_at_rule();
+            return;
+        };
+
+        self.builder.start_node(spec.node_kind);
+        if self.current_kind() == Some(SyntaxKind::AtKeyword) {
+            self.token_current();
+        }
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::Semicolon) => {
+                    self.token_current();
+                    break;
+                }
+                Some(SyntaxKind::LeftBrace) => {
+                    match spec.block_kind {
+                        AtRuleBlockKind::GroupRuleList => self.parse_group_at_rule_block(),
+                        AtRuleBlockKind::DeclarationList => self.parse_declaration_block(),
+                        AtRuleBlockKind::Keyframes => self.parse_keyframes_block(),
+                        AtRuleBlockKind::Raw => self.consume_balanced_block(),
+                    }
+                    break;
+                }
+                Some(_) => self.token_current(),
+                None => break,
+            }
         }
         self.builder.finish_node();
     }
@@ -639,6 +710,16 @@ impl<'text> Parser<'text> {
             }
             Some(SyntaxKind::Ident) if self.next_kind() == Some(SyntaxKind::LeftParen) => {
                 self.parse_function_call()
+            }
+            Some(SyntaxKind::ScssVariable) => {
+                self.builder.start_node(SyntaxKind::ScssVariableReference);
+                self.token_current();
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::LessVariable) => {
+                self.builder.start_node(SyntaxKind::LessVariableReference);
+                self.token_current();
+                self.builder.finish_node();
             }
             Some(SyntaxKind::LeftParen) => self.parse_parenthesized_expression(),
             Some(kind) if recovery.contains(&kind) => {}
@@ -842,6 +923,14 @@ impl<'text> Parser<'text> {
 
     fn current_text(&self) -> Option<&'text str> {
         self.tokens.get(self.position).map(|token| token.text)
+    }
+
+    fn current_dialect_at_rule_spec(&self) -> Option<AtRuleSpec> {
+        let text = self.current_text()?;
+        match self.dialect {
+            StyleDialect::Scss | StyleDialect::Sass => scss_at_rule_spec(text),
+            StyleDialect::Css | StyleDialect::Less => None,
+        }
     }
 
     fn next_kind(&self) -> Option<SyntaxKind> {
@@ -1200,6 +1289,28 @@ fn at_rule_spec(text: &str) -> Option<AtRuleSpec> {
     })
 }
 
+fn scss_at_rule_spec(text: &str) -> Option<AtRuleSpec> {
+    let (node_kind, block_kind) = match text {
+        "@use" => (SyntaxKind::ScssUseRule, AtRuleBlockKind::Raw),
+        "@forward" => (SyntaxKind::ScssForwardRule, AtRuleBlockKind::Raw),
+        "@mixin" => (SyntaxKind::ScssMixinDeclaration, AtRuleBlockKind::Raw),
+        "@include" => (SyntaxKind::ScssIncludeRule, AtRuleBlockKind::Raw),
+        "@function" => (SyntaxKind::ScssFunctionDeclaration, AtRuleBlockKind::Raw),
+        "@return" => (SyntaxKind::ScssReturnRule, AtRuleBlockKind::Raw),
+        "@extend" => (SyntaxKind::ScssExtendRule, AtRuleBlockKind::Raw),
+        "@if" => (SyntaxKind::ScssControlIf, AtRuleBlockKind::Raw),
+        "@else" => (SyntaxKind::ScssControlElse, AtRuleBlockKind::Raw),
+        "@each" => (SyntaxKind::ScssControlEach, AtRuleBlockKind::Raw),
+        "@for" => (SyntaxKind::ScssControlFor, AtRuleBlockKind::Raw),
+        "@while" => (SyntaxKind::ScssControlWhile, AtRuleBlockKind::Raw),
+        _ => return None,
+    };
+    Some(AtRuleSpec {
+        node_kind,
+        block_kind,
+    })
+}
+
 fn is_selector_boundary(kind: SyntaxKind) -> bool {
     matches!(
         kind,
@@ -1279,6 +1390,8 @@ mod tests {
         let scss = parse("$gap: 1rem;", StyleDialect::Scss);
         let less = parse("@gap: 1rem;", StyleDialect::Less);
         let less_at_rule = parse("@media screen {}", StyleDialect::Less);
+        let scss_kinds = node_kinds(&scss.syntax());
+        let less_kinds = node_kinds(&less.syntax());
 
         assert_eq!(scss.syntax().kind(), SyntaxKind::Root);
         assert_eq!(less.syntax().kind(), SyntaxKind::Root);
@@ -1286,6 +1399,8 @@ mod tests {
         assert!(scss.errors().is_empty());
         assert!(less.errors().is_empty());
         assert!(less_at_rule.errors().is_empty());
+        assert!(scss_kinds.contains(&SyntaxKind::ScssVariableDeclaration));
+        assert!(less_kinds.contains(&SyntaxKind::LessVariableDeclaration));
     }
 
     #[test]
@@ -1375,6 +1490,23 @@ mod tests {
     }
 
     #[test]
+    fn classifies_initial_scss_at_rule_nodes() {
+        let module_rules = parse(
+            "@use \"sass:map\"; @forward \"tokens\";",
+            StyleDialect::Scss,
+        );
+        let mixin_rule = parse("@mixin card($gap) { padding: $gap; }", StyleDialect::Scss);
+        let module_kinds = node_kinds(&module_rules.syntax());
+        let mixin_kinds = node_kinds(&mixin_rule.syntax());
+
+        assert!(module_rules.errors().is_empty());
+        assert!(mixin_rule.errors().is_empty());
+        assert!(module_kinds.contains(&SyntaxKind::ScssUseRule));
+        assert!(module_kinds.contains(&SyntaxKind::ScssForwardRule));
+        assert!(mixin_kinds.contains(&SyntaxKind::ScssMixinDeclaration));
+    }
+
+    #[test]
     fn structures_css_value_function_calls() {
         let result = parse(".a { width: calc(var(--gap) + 1rem); }", StyleDialect::Css);
         let kinds = node_kinds(&result.syntax());
@@ -1395,6 +1527,17 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::UnaryExpression));
         assert!(kinds.contains(&SyntaxKind::ParenthesizedExpression));
         assert!(kinds.contains(&SyntaxKind::BinaryExpression));
+    }
+
+    #[test]
+    fn structures_dialect_variable_references_in_values() {
+        let scss = parse(".a { margin: $gap; }", StyleDialect::Scss);
+        let less = parse(".a { margin: @gap; }", StyleDialect::Less);
+
+        assert!(scss.errors().is_empty());
+        assert!(less.errors().is_empty());
+        assert!(node_kinds(&scss.syntax()).contains(&SyntaxKind::ScssVariableReference));
+        assert!(node_kinds(&less.syntax()).contains(&SyntaxKind::LessVariableReference));
     }
 
     #[test]
@@ -1440,6 +1583,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"prattValueExpressionSkeleton")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"initialDialectStatementNodes")
         );
         assert!(summary.not_ready_surfaces.contains(&"productCutover"));
     }
