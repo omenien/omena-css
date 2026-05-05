@@ -311,6 +311,11 @@ syntax_kinds! {
     FontFeatureValuesAnnotationRule = 0x1056,
     FontFeatureValuesHistoricalFormsRule = 0x1057,
     ViewTransitionRule = 0x1058,
+    GradientFunction = 0x1059,
+    TransformFunction = 0x105a,
+    FilterFunction = 0x105b,
+    ImageFunction = 0x105c,
+    ShapeFunction = 0x105d,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,

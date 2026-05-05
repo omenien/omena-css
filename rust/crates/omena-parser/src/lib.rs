@@ -365,6 +365,11 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "fontFeatureValuesAtRuleCstNodes",
             "viewTransitionAtRuleCstNodes",
             "cssColorFunctionCstNodes",
+            "gradientFunctionCstNodes",
+            "transformFunctionCstNodes",
+            "filterFunctionCstNodes",
+            "imageFunctionCstNodes",
+            "shapeFunctionCstNodes",
             "envAttrFunctionCstNodes",
             "mathFunctionCstNodes",
             "scssInterpolationTokenization",
@@ -4339,6 +4344,24 @@ fn specialized_function_kind(text: &str) -> Option<SyntaxKind> {
         }
         "rgb" | "rgba" | "hsl" | "hsla" | "hwb" | "lab" | "lch" | "oklab" | "oklch" | "color"
         | "color-mix" | "light-dark" | "contrast-color" => Some(SyntaxKind::ColorValue),
+        "linear-gradient"
+        | "radial-gradient"
+        | "conic-gradient"
+        | "repeating-linear-gradient"
+        | "repeating-radial-gradient"
+        | "repeating-conic-gradient" => Some(SyntaxKind::GradientFunction),
+        "matrix" | "matrix3d" | "translate" | "translate3d" | "translateX" | "translateY"
+        | "translateZ" | "scale" | "scale3d" | "scaleX" | "scaleY" | "scaleZ" | "rotate"
+        | "rotate3d" | "rotateX" | "rotateY" | "rotateZ" | "skew" | "skewX" | "skewY"
+        | "perspective" => Some(SyntaxKind::TransformFunction),
+        "blur" | "brightness" | "contrast" | "drop-shadow" | "grayscale" | "hue-rotate"
+        | "invert" | "opacity" | "saturate" | "sepia" => Some(SyntaxKind::FilterFunction),
+        "image" | "image-set" | "cross-fade" | "element" | "paint" => {
+            Some(SyntaxKind::ImageFunction)
+        }
+        "path" | "shape" | "ray" | "inset" | "circle" | "ellipse" | "polygon" => {
+            Some(SyntaxKind::ShapeFunction)
+        }
         _ => None,
     }
 }
@@ -5107,7 +5130,7 @@ mod tests {
     #[test]
     fn structures_modern_css_value_functions() {
         let result = parse(
-            ".a { color: color-mix(in oklch, var(--brand), white 20%); width: clamp(1rem, 2vw, 3rem); content: attr(data-label string, \"x\"); padding: env(safe-area-inset-top); }",
+            ".a { color: color-mix(in oklch, var(--brand), white 20%); width: clamp(1rem, 2vw, 3rem); content: attr(data-label string, \"x\"); padding: env(safe-area-inset-top); background-image: linear-gradient(red, blue); transform: translateX(1rem) rotate(10deg); filter: blur(2px) brightness(1.1); image-set: image-set(url(a.png) 1x); offset-path: path(\"M0,0 L1,1\"); }",
             StyleDialect::Css,
         );
         let kinds = node_kinds(&result.syntax());
@@ -5118,6 +5141,11 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::AttrFunction));
         assert!(kinds.contains(&SyntaxKind::EnvFunction));
         assert!(kinds.contains(&SyntaxKind::VarFunction));
+        assert!(kinds.contains(&SyntaxKind::GradientFunction));
+        assert!(kinds.contains(&SyntaxKind::TransformFunction));
+        assert!(kinds.contains(&SyntaxKind::FilterFunction));
+        assert!(kinds.contains(&SyntaxKind::ImageFunction));
+        assert!(kinds.contains(&SyntaxKind::ShapeFunction));
     }
 
     #[test]
@@ -5700,6 +5728,15 @@ mod tests {
                 .contains(&"viewTransitionAtRuleCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"cssColorFunctionCstNodes"));
+        assert!(summary.ready_surfaces.contains(&"gradientFunctionCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"transformFunctionCstNodes")
+        );
+        assert!(summary.ready_surfaces.contains(&"filterFunctionCstNodes"));
+        assert!(summary.ready_surfaces.contains(&"imageFunctionCstNodes"));
+        assert!(summary.ready_surfaces.contains(&"shapeFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"envAttrFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"mathFunctionCstNodes"));
         assert!(
