@@ -4,8 +4,7 @@ use engine_input_producers::{
     TypeFactEntryV2,
 };
 use omena_bridge::{
-    StyleSemanticGraphSummaryV0, summarize_omena_bridge_binder_plugin_boundary,
-    summarize_omena_bridge_boundary,
+    StyleSemanticGraphSummaryV0, summarize_omena_bridge_boundary,
     summarize_omena_bridge_style_semantic_graph_from_source,
 };
 
@@ -92,7 +91,8 @@ fn range(
 mod tests {
     use super::{consume_bridge_boundary_product, consume_style_semantic_graph, sample_input};
     use omena_bridge::{
-        summarize_omena_bridge_boundary, summarize_omena_bridge_selector_reference_engine,
+        summarize_omena_bridge_binder_plugin_boundary, summarize_omena_bridge_boundary,
+        summarize_omena_bridge_selector_reference_engine,
         summarize_omena_bridge_source_input_evidence,
     };
     use serde_json::json;
@@ -120,7 +120,10 @@ mod tests {
             "omena-bridge.binder-plugin-boundary"
         );
         assert_eq!(binder_boundary.contract_name, "BinderPluginV0");
-        assert_eq!(binder_boundary.default_plugin.id, "css-modules-classnames-bind");
+        assert_eq!(
+            binder_boundary.default_plugin.id,
+            "css-modules-classnames-bind"
+        );
         assert!(!binder_boundary.external_plugin_abi_stable);
         assert!(boundary.cme_coupled_surfaces.contains(&"EngineInputV2"));
     }

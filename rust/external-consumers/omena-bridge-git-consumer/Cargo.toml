@@ -11,7 +11,7 @@ publish = false
 
 [dependencies]
 engine-input-producers = { package = "omena-engine-input-producers", git = "https://github.com/omenien/omena-engine-input-producers.git", rev = "a807b9a" }
-omena-bridge = { git = "https://github.com/omenien/omena-bridge.git", rev = "f435574" }
+omena-bridge = { git = "https://github.com/omenien/omena-bridge.git", rev = "390d684" }
 serde_json = "1.0"
 
 [patch.crates-io]
