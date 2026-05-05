@@ -3444,8 +3444,12 @@ $accent: red;
             "file:///workspace/src/Button.tsx",
             Some("file:///workspace"),
             "./Button.module.scss",
-        )
-        .expect("relative CSS Module specifier should resolve");
+        );
+        assert_eq!(
+            style_uri.as_deref(),
+            Some("file:///workspace/src/Button.module.scss")
+        );
+        let style_uri = style_uri.unwrap_or_default();
         assert_eq!(style_uri, "file:///workspace/src/Button.module.scss");
 
         let import_summary = super::summarize_omena_query_source_import_declarations(
