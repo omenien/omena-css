@@ -339,6 +339,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "scssUtilityAtRules",
             "scssNestedPropertyCstNodes",
             "scssModuleConfigCstNodes",
+            "scssPlaceholderSelectorCstNodes",
             "lessMixinDeclarationCstNodes",
             "lessMixinCallCstNodes",
             "lessMixinGuardCstNodes",
@@ -630,6 +631,7 @@ impl<'text> Parser<'text> {
                 Some(SyntaxKind::Ident) => self.parse_type_selector(),
                 Some(SyntaxKind::Star) => self.parse_universal_selector(),
                 Some(SyntaxKind::Ampersand) => self.parse_nesting_selector(),
+                Some(SyntaxKind::ScssPlaceholder) => self.parse_scss_placeholder_selector(),
                 Some(kind) if is_interpolation_start(kind) => self.parse_interpolation(
                     kind,
                     &[
@@ -706,6 +708,12 @@ impl<'text> Parser<'text> {
 
     fn parse_nesting_selector(&mut self) {
         self.builder.start_node(SyntaxKind::NestingSelectorNode);
+        self.token_current();
+        self.builder.finish_node();
+    }
+
+    fn parse_scss_placeholder_selector(&mut self) {
+        self.builder.start_node(SyntaxKind::ScssPlaceholderSelector);
         self.token_current();
         self.builder.finish_node();
     }
@@ -2770,6 +2778,9 @@ where
                     self.consume_static(SyntaxKind::SlashEquals, start, 2)
                 }
                 '/' => self.consume_static(SyntaxKind::Slash, start, 1),
+                '%' if self.starts_scss_placeholder() => {
+                    self.consume_prefixed_name(SyntaxKind::ScssPlaceholder)
+                }
                 '%' => self.consume_static(SyntaxKind::Percent, start, 1),
                 '=' if self.starts_with("=>") => self.consume_static(SyntaxKind::Arrow, start, 2),
                 '=' => self.consume_static(SyntaxKind::Equals, start, 1),
@@ -3233,6 +3244,16 @@ where
                 .chars()
                 .next()
                 .is_some_and(is_name_start)
+    }
+
+    fn starts_scss_placeholder(&self) -> bool {
+        matches!(
+            self.extension.dialect(),
+            StyleDialect::Scss | StyleDialect::Sass
+        ) && self.text[self.offset + '%'.len_utf8()..]
+            .chars()
+            .next()
+            .is_some_and(is_name_start)
     }
 
     fn consume_unexpected(&mut self, char: char) {
@@ -3828,6 +3849,7 @@ fn selector_component_can_start(kind: SyntaxKind) -> bool {
             | SyntaxKind::Ident
             | SyntaxKind::Star
             | SyntaxKind::Ampersand
+            | SyntaxKind::ScssPlaceholder
             | SyntaxKind::LeftBracket
             | SyntaxKind::Colon
             | SyntaxKind::DoubleColon
@@ -4329,6 +4351,19 @@ mod tests {
     }
 
     #[test]
+    fn tokenizes_scss_placeholder_selectors() {
+        let scss = lex("%button { color: red; }", StyleDialect::Scss);
+        let css = lex("%button { color: red; }", StyleDialect::Css);
+        let scss_kinds: Vec<SyntaxKind> = scss.tokens().iter().map(|token| token.kind).collect();
+        let css_kinds: Vec<SyntaxKind> = css.tokens().iter().map(|token| token.kind).collect();
+
+        assert!(scss.errors().is_empty());
+        assert!(scss_kinds.contains(&SyntaxKind::ScssPlaceholder));
+        assert!(css_kinds.contains(&SyntaxKind::Percent));
+        assert!(!css_kinds.contains(&SyntaxKind::ScssPlaceholder));
+    }
+
+    #[test]
     fn tokenizes_sass_indented_block_markers() {
         let result = lex(
             ".card\n  color: red // comment\n  .title\n    color: blue\n",
@@ -4714,6 +4749,20 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::ScssUseRule));
         assert!(kinds.contains(&SyntaxKind::ScssForwardRule));
         assert_eq!(config_count, 2);
+    }
+
+    #[test]
+    fn parses_scss_placeholder_selectors_and_extend_refs() {
+        let result = parse(
+            "%button { color: red; } .primary { @extend %button; }",
+            StyleDialect::Scss,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::ScssPlaceholderSelector));
+        assert!(kinds.contains(&SyntaxKind::ScssExtendRule));
+        assert!(token_kinds(&result.syntax()).contains(&SyntaxKind::ScssPlaceholder));
     }
 
     #[test]
@@ -5411,6 +5460,11 @@ mod tests {
                 .contains(&"scssNestedPropertyCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"scssModuleConfigCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"scssPlaceholderSelectorCstNodes")
+        );
         assert!(summary.ready_surfaces.contains(&"recoveryBogusSkeleton"));
         assert!(
             summary
