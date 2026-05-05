@@ -222,6 +222,23 @@ pub struct OmenaQuerySourceProviderCandidateResolutionV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySourceSelectorReferenceEditTargetV0 {
+    pub uri: String,
+    pub name: String,
+    pub range: ParserRangeV0,
+    pub target_style_uri: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryWorkspaceTextEditV0 {
+    pub uri: String,
+    pub range: ParserRangeV0,
+    pub new_text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQuerySassModuleUseEdgeV0 {
     pub source: String,
     pub namespace_kind: &'static str,
@@ -313,6 +330,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "styleMissingCustomPropertyDiagnostics",
             "sourceMissingSelectorDiagnostics",
             "sourceProviderCandidateResolution",
+            "selectorRenameEditPlanning",
             "queryBoundarySummary",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
@@ -848,6 +866,53 @@ pub fn resolve_omena_query_source_candidate_selector_names(
     names.sort();
     names.dedup();
     names
+}
+
+pub fn resolve_omena_query_selector_rename_edits(
+    selector_name: &str,
+    new_name: &str,
+    target_style_uri: Option<&str>,
+    definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+    references: &[OmenaQuerySourceSelectorReferenceEditTargetV0],
+) -> Vec<OmenaQueryWorkspaceTextEditV0> {
+    let replacement = new_name.trim_start_matches('.');
+    if replacement.is_empty() {
+        return Vec::new();
+    }
+
+    let mut edits = definitions
+        .iter()
+        .filter(|definition| definition.name == selector_name)
+        .filter(|definition| target_style_uri.is_none_or(|target_uri| target_uri == definition.uri))
+        .map(|definition| OmenaQueryWorkspaceTextEditV0 {
+            uri: definition.uri.clone(),
+            range: definition.range,
+            new_text: replacement.to_string(),
+        })
+        .chain(
+            references
+                .iter()
+                .filter(|reference| reference.name == selector_name)
+                .filter(|reference| {
+                    source_reference_matches_target_style(reference, target_style_uri)
+                })
+                .map(|reference| OmenaQueryWorkspaceTextEditV0 {
+                    uri: reference.uri.clone(),
+                    range: reference.range,
+                    new_text: replacement.to_string(),
+                }),
+        )
+        .collect::<Vec<_>>();
+    edits.sort_by_key(|edit| {
+        (
+            edit.uri.clone(),
+            edit.range.start.line,
+            edit.range.start.character,
+            edit.range.end.line,
+            edit.range.end.character,
+        )
+    });
+    edits
 }
 
 pub fn summarize_omena_query_sass_module_sources(
@@ -2022,6 +2087,18 @@ fn source_selector_candidate_matches_definition(
             .is_none_or(|target_uri| target_uri == definition.uri)
 }
 
+fn source_reference_matches_target_style(
+    reference: &OmenaQuerySourceSelectorReferenceEditTargetV0,
+    target_style_uri: Option<&str>,
+) -> bool {
+    target_style_uri.is_none_or(|target_uri| {
+        reference
+            .target_style_uri
+            .as_deref()
+            .is_none_or(|candidate_target_uri| candidate_target_uri == target_uri)
+    })
+}
+
 fn style_language_label(language: StyleLanguage) -> &'static str {
     match language {
         StyleLanguage::Css => "css",
@@ -2999,6 +3076,58 @@ $accent: red;
             .map(|definition| definition.name)
             .collect::<Vec<_>>(),
             vec!["btn-primary".to_string()]
+        );
+    }
+
+    #[test]
+    fn selector_rename_edit_planning_is_query_owned() {
+        let source_range = engine_style_parser::ParserRangeV0 {
+            start: engine_style_parser::ParserPositionV0 {
+                line: 3,
+                character: 16,
+            },
+            end: engine_style_parser::ParserPositionV0 {
+                line: 3,
+                character: 20,
+            },
+        };
+        let definition_range = engine_style_parser::ParserRangeV0 {
+            start: engine_style_parser::ParserPositionV0 {
+                line: 0,
+                character: 1,
+            },
+            end: engine_style_parser::ParserPositionV0 {
+                line: 0,
+                character: 5,
+            },
+        };
+
+        let edits = super::resolve_omena_query_selector_rename_edits(
+            "root",
+            ".shell",
+            Some("file:///workspace/src/App.module.scss"),
+            &[super::OmenaQueryStyleSelectorDefinitionV0 {
+                uri: "file:///workspace/src/App.module.scss".to_string(),
+                name: "root".to_string(),
+                range: definition_range,
+            }],
+            &[super::OmenaQuerySourceSelectorReferenceEditTargetV0 {
+                uri: "file:///workspace/src/App.tsx".to_string(),
+                name: "root".to_string(),
+                range: source_range,
+                target_style_uri: Some("file:///workspace/src/App.module.scss".to_string()),
+            }],
+        );
+
+        assert_eq!(
+            edits
+                .iter()
+                .map(|edit| (edit.uri.as_str(), edit.new_text.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("file:///workspace/src/App.module.scss", "shell"),
+                ("file:///workspace/src/App.tsx", "shell"),
+            ]
         );
     }
 

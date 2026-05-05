@@ -17,8 +17,9 @@ use omena_bridge::{
 };
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
-    OmenaQuerySourceSelectorCandidateV0, OmenaQueryStyleHoverCandidateV0,
-    OmenaQueryStyleSelectorDefinitionV0, resolve_omena_query_source_candidate_selector_names,
+    OmenaQuerySourceSelectorCandidateV0, OmenaQuerySourceSelectorReferenceEditTargetV0,
+    OmenaQueryStyleHoverCandidateV0, OmenaQueryStyleSelectorDefinitionV0,
+    resolve_omena_query_selector_rename_edits, resolve_omena_query_source_candidate_selector_names,
     resolve_omena_query_source_provider_candidates,
     resolve_omena_query_style_selector_definitions_for_source_candidate,
     summarize_omena_query_missing_custom_property_diagnostics,
@@ -3215,22 +3216,12 @@ fn resolve_selector_rename(
     selector_name: &str,
     new_name: &str,
 ) -> Value {
-    let replacement = new_name.trim_start_matches('.');
-    if replacement.is_empty() {
-        return Value::Null;
-    }
-
-    let mut changes: BTreeMap<String, Vec<Value>> = BTreeMap::new();
-    for (uri, definition) in
+    let query_definitions =
         style_selector_definitions_from_open_documents(state, selector_name, workspace_folder_uri)
-            .into_iter()
-            .filter(|(uri, _)| target_style_uri.is_none_or(|target_uri| target_uri == uri))
-    {
-        changes.entry(uri).or_default().push(json!({
-            "range": definition.range,
-            "newText": replacement,
-        }));
-    }
+            .iter()
+            .map(|(uri, definition)| query_style_selector_definition(uri, definition))
+            .collect::<Vec<_>>();
+    let mut query_references = Vec::new();
     for document in state.documents.values() {
         if is_style_document_uri(document.uri.as_str()) {
             continue;
@@ -3238,23 +3229,29 @@ fn resolve_selector_rename(
         if !workspace_folder_compatible(workspace_folder_uri, document) {
             continue;
         }
-        for candidate in collect_source_selector_reference_candidates(state, document)
-            .into_iter()
-            .filter(|candidate| candidate.name == selector_name)
-            .filter(|candidate| source_candidate_matches_target_style(candidate, target_style_uri))
-        {
-            changes
-                .entry(document.uri.clone())
-                .or_default()
-                .push(json!({
-                    "range": candidate.range,
-                    "newText": replacement,
-                }));
-        }
+        query_references.extend(
+            collect_source_selector_reference_candidates(state, document)
+                .iter()
+                .map(|candidate| query_source_selector_reference_edit_target(document, candidate)),
+        );
+    }
+    let edits = resolve_omena_query_selector_rename_edits(
+        selector_name,
+        new_name,
+        target_style_uri,
+        query_definitions.as_slice(),
+        query_references.as_slice(),
+    );
+    if edits.is_empty() {
+        return Value::Null;
     }
 
-    if changes.is_empty() {
-        return Value::Null;
+    let mut changes: BTreeMap<String, Vec<Value>> = BTreeMap::new();
+    for edit in edits {
+        changes.entry(edit.uri).or_default().push(json!({
+            "range": edit.range,
+            "newText": edit.new_text,
+        }));
     }
     for edits in changes.values_mut() {
         edits.sort_by_key(|edit| {
@@ -3604,6 +3601,18 @@ fn query_style_selector_definition(
         uri: uri.to_string(),
         name: definition.name.clone(),
         range: definition.range,
+    }
+}
+
+fn query_source_selector_reference_edit_target(
+    document: &LspTextDocumentState,
+    candidate: &LspStyleHoverCandidate,
+) -> OmenaQuerySourceSelectorReferenceEditTargetV0 {
+    OmenaQuerySourceSelectorReferenceEditTargetV0 {
+        uri: document.uri.clone(),
+        name: candidate.name.clone(),
+        range: candidate.range,
+        target_style_uri: candidate.target_style_uri.clone(),
     }
 }
 

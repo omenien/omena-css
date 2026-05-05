@@ -19,6 +19,7 @@
 - **Query-owned hover render parts** - Rust LSP style hover rendering now consumes `omena-query` snippet/value/signature render parts instead of extracting selector and Sass snippets inside the LSP server.
 - **Query-owned diagnostic actions** - Rust LSP missing custom-property and source selector diagnostics now consume `omena-query` diagnostic/action payloads instead of planning `createCustomProperty` / `createSelector` quickfixes inside the LSP server.
 - **Query-owned source candidate resolution** - Rust LSP source-provider matching now delegates matched/unresolved selector candidate resolution, source-definition filtering, and prefix selector-name expansion to `omena-query`, keeping selector-prefix and target-style matching semantics out of the protocol layer.
+- **Query-owned selector rename edits** - Rust LSP selector rename now delegates definition/reference edit planning and dotted-name replacement normalization to `omena-query`, leaving workspace edit JSON grouping in the protocol layer.
 
 ### Fixed
 
