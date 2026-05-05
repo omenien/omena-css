@@ -338,6 +338,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "scssStructuredBlockAtRules",
             "scssUtilityAtRules",
             "scssNestedPropertyCstNodes",
+            "scssModuleConfigCstNodes",
             "lessMixinDeclarationCstNodes",
             "lessMixinCallCstNodes",
             "lessMixinGuardCstNodes",
@@ -1254,6 +1255,12 @@ impl<'text> Parser<'text> {
         if self.current_kind() == Some(SyntaxKind::AtKeyword) {
             self.token_current();
         }
+        if matches!(
+            spec.node_kind,
+            SyntaxKind::ScssUseRule | SyntaxKind::ScssForwardRule
+        ) {
+            self.parse_scss_module_prelude();
+        }
         while !self.at_end() {
             match self.current_kind() {
                 Some(kind) if is_statement_end(kind) => {
@@ -1276,6 +1283,57 @@ impl<'text> Parser<'text> {
                 Some(_) => self.token_current(),
                 None => break,
             }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_scss_module_prelude(&mut self) {
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(kind)
+                    if is_statement_end(kind)
+                        || kind == SyntaxKind::LeftBrace
+                        || kind == SyntaxKind::SassIndent =>
+                {
+                    break;
+                }
+                Some(SyntaxKind::Ident | SyntaxKind::KeywordWith)
+                    if self.current_text() == Some("with")
+                        && self
+                            .non_trivia_token_from(self.position + 1)
+                            .is_some_and(|(_, kind)| kind == SyntaxKind::LeftParen) =>
+                {
+                    self.parse_scss_module_config()
+                }
+                Some(kind) if is_interpolation_start(kind) => self.parse_interpolation(
+                    kind,
+                    &[
+                        SyntaxKind::Semicolon,
+                        SyntaxKind::SassOptionalSemicolon,
+                        SyntaxKind::LeftBrace,
+                        SyntaxKind::SassIndent,
+                    ],
+                ),
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+    }
+
+    fn parse_scss_module_config(&mut self) {
+        self.builder.start_node(SyntaxKind::ScssModuleConfig);
+        self.token_current();
+        self.eat_trivia();
+        if self.current_kind() == Some(SyntaxKind::LeftParen) {
+            self.parse_balanced_parenthesized_prelude_until(
+                None,
+                &[
+                    SyntaxKind::LeftBrace,
+                    SyntaxKind::SassIndent,
+                    SyntaxKind::Semicolon,
+                    SyntaxKind::SassOptionalSemicolon,
+                ],
+            );
         }
         self.builder.finish_node();
     }
@@ -4641,6 +4699,24 @@ mod tests {
     }
 
     #[test]
+    fn parses_scss_module_config_preludes() {
+        let result = parse(
+            "@use \"theme\" as * with ($gap: 1rem, $enabled: true); @forward \"tokens\" with ($color: red);",
+            StyleDialect::Scss,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let config_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::ScssModuleConfig)
+            .count();
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::ScssUseRule));
+        assert!(kinds.contains(&SyntaxKind::ScssForwardRule));
+        assert_eq!(config_count, 2);
+    }
+
+    #[test]
     fn parses_structured_scss_at_rule_bodies() {
         let result = parse(
             "@mixin card($gap) { .item { gap: $gap; } } @function double($x) { @return $x * 2; } @if $enabled { .on { color: green; } }",
@@ -5334,6 +5410,7 @@ mod tests {
                 .ready_surfaces
                 .contains(&"scssNestedPropertyCstNodes")
         );
+        assert!(summary.ready_surfaces.contains(&"scssModuleConfigCstNodes"));
         assert!(summary.ready_surfaces.contains(&"recoveryBogusSkeleton"));
         assert!(
             summary
