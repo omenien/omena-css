@@ -146,6 +146,23 @@ pub struct OmenaQueryStyleHoverCandidatesV0 {
     pub candidates: Vec<OmenaQueryStyleHoverCandidateV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySassModuleUseEdgeV0 {
+    pub source: String,
+    pub namespace_kind: &'static str,
+    pub namespace: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySassModuleSourcesV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub module_use_edges: Vec<OmenaQuerySassModuleUseEdgeV0>,
+    pub module_forward_sources: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaQueryStylePackageManifestV0 {
     pub package_json_path: String,
@@ -556,6 +573,29 @@ pub fn summarize_omena_query_style_hover_candidates(
         product: "omena-query.style-hover-candidates",
         language: style_language_label(sheet.language),
         candidates,
+    })
+}
+
+pub fn summarize_omena_query_sass_module_sources(
+    style_path: &str,
+    style_source: &str,
+) -> Option<OmenaQuerySassModuleSourcesV0> {
+    let sheet = parse_style_module(style_path, style_source)?;
+    let index = summarize_css_modules_intermediate(&sheet);
+    Some(OmenaQuerySassModuleSourcesV0 {
+        schema_version: "0",
+        product: "omena-query.sass-module-sources",
+        module_use_edges: index
+            .sass
+            .module_use_edges
+            .into_iter()
+            .map(|edge| OmenaQuerySassModuleUseEdgeV0 {
+                source: edge.source,
+                namespace_kind: edge.namespace_kind,
+                namespace: edge.namespace,
+            })
+            .collect(),
+        module_forward_sources: index.sass.module_forward_sources,
     })
 }
 
@@ -2237,6 +2277,35 @@ $accent: red;
                         && candidate.name == "tone-warm"
                 )
         );
+    }
+
+    #[test]
+    fn sass_module_sources_are_query_owned() {
+        let sources = super::summarize_omena_query_sass_module_sources(
+            "Component.module.scss",
+            r#"
+@use "./tokens" as tokens;
+@use "./reset" as *;
+@forward "./theme";
+"#,
+        );
+        assert!(sources.is_some());
+        let Some(sources) = sources else {
+            return;
+        };
+
+        assert_eq!(sources.product, "omena-query.sass-module-sources");
+        assert!(sources.module_use_edges.iter().any(|edge| {
+            edge.source == "./tokens"
+                && edge.namespace.as_deref() == Some("tokens")
+                && edge.namespace_kind == "alias"
+        }));
+        assert!(sources.module_use_edges.iter().any(|edge| {
+            edge.source == "./reset"
+                && edge.namespace.is_none()
+                && edge.namespace_kind == "wildcard"
+        }));
+        assert_eq!(sources.module_forward_sources, vec!["./theme".to_string()]);
     }
 
     fn backend<'a>(

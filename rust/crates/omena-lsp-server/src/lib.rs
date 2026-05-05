@@ -6,10 +6,7 @@ use diagnostics_scheduler::{
     RustDiagnosticsSchedulerBoundaryV0, diagnostics_schedule_event, run_diagnostics_schedule,
     rust_diagnostics_scheduler_contract,
 };
-use engine_style_parser::{
-    ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage, parse_style_module,
-    summarize_css_modules_intermediate,
-};
+use engine_style_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage};
 use omena_bridge::{
     SourceImportedStyleBindingV0 as ImportedStyleBinding,
     SourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
@@ -20,8 +17,8 @@ use omena_bridge::{
 };
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
-    OmenaQueryStyleHoverCandidateV0, summarize_omena_query_style_document,
-    summarize_omena_query_style_hover_candidates,
+    OmenaQueryStyleHoverCandidateV0, summarize_omena_query_sass_module_sources,
+    summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
 };
 use omena_tsgo_client::{
     OmenaTsgoClientBoundarySummaryV0, TsgoJsonRpcTypeFactProviderV0, TsgoResolvedTypeV0,
@@ -2276,12 +2273,13 @@ fn sass_module_target_uris_for_candidate(
     document: &LspTextDocumentState,
     candidate: &LspStyleHoverCandidate,
 ) -> Vec<String> {
-    let Some(sheet) = parse_style_module(document.uri.as_str(), document.text.as_str()) else {
+    let Some(sources) =
+        summarize_omena_query_sass_module_sources(document.uri.as_str(), document.text.as_str())
+    else {
         return Vec::new();
     };
-    let index = summarize_css_modules_intermediate(&sheet);
     let mut uris = Vec::new();
-    for edge in index.sass.module_use_edges.iter().filter(|edge| {
+    for edge in sources.module_use_edges.iter().filter(|edge| {
         if let Some(namespace) = candidate.namespace.as_deref() {
             edge.namespace.as_deref() == Some(namespace)
         } else {
@@ -2299,7 +2297,7 @@ fn sass_module_target_uris_for_candidate(
             uris.push(uri);
         }
     }
-    for forward_source in &index.sass.module_forward_sources {
+    for forward_source in &sources.module_forward_sources {
         if forward_source.starts_with("sass:") {
             continue;
         }
@@ -2333,11 +2331,12 @@ fn sass_symbol_declarations_with_forwards(
         return Vec::new();
     }
     let mut definitions = sass_symbol_declarations_in_document(document, symbol_kind, candidate);
-    let Some(sheet) = parse_style_module(document.uri.as_str(), document.text.as_str()) else {
+    let Some(sources) =
+        summarize_omena_query_sass_module_sources(document.uri.as_str(), document.text.as_str())
+    else {
         return definitions;
     };
-    let index = summarize_css_modules_intermediate(&sheet);
-    for forward_source in index.sass.module_forward_sources {
+    for forward_source in sources.module_forward_sources {
         if forward_source.starts_with("sass:") {
             continue;
         }
@@ -2369,12 +2368,13 @@ fn sass_forward_module_target_uris(
     if !visited.insert(document.uri.clone()) {
         return Vec::new();
     }
-    let Some(sheet) = parse_style_module(document.uri.as_str(), document.text.as_str()) else {
+    let Some(sources) =
+        summarize_omena_query_sass_module_sources(document.uri.as_str(), document.text.as_str())
+    else {
         return Vec::new();
     };
-    let index = summarize_css_modules_intermediate(&sheet);
     let mut uris = Vec::new();
-    for forward_source in index.sass.module_forward_sources {
+    for forward_source in sources.module_forward_sources {
         if forward_source.starts_with("sass:") {
             continue;
         }
