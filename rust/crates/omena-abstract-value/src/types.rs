@@ -49,6 +49,8 @@ pub struct ReducedClassValueDerivationStepV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refinement_kind: Option<&'static str>,
     pub result_kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result_provenance: Option<AbstractClassValueProvenanceV0>,
     pub reason: &'static str,
 }
 

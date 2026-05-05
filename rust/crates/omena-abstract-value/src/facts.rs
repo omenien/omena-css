@@ -33,6 +33,7 @@ fn reduce_abstract_class_value_with_steps(
         input_kind: None,
         refinement_kind: None,
         result_kind: abstract_class_value_kind(&value),
+        result_provenance: abstract_class_value_provenance(&value),
         reason: "mapped input facts to the base abstract value",
     }];
 
@@ -45,6 +46,7 @@ fn reduce_abstract_class_value_with_steps(
             input_kind: Some(abstract_class_value_kind(&value)),
             refinement_kind: Some(abstract_class_value_kind(&refinement)),
             result_kind: abstract_class_value_kind(&result),
+            result_provenance: abstract_class_value_provenance(&result),
             reason: "refined exact or finite facts with constraint details",
         });
         value = result;
@@ -60,6 +62,7 @@ fn reduce_abstract_class_value_with_steps(
             input_kind: Some(abstract_class_value_kind(&value)),
             refinement_kind: Some(abstract_class_value_kind(&refinement)),
             result_kind: abstract_class_value_kind(&result),
+            result_provenance: abstract_class_value_provenance(&result),
             reason: "refined constrained facts with explicit finite values",
         });
         value = result;
@@ -272,6 +275,22 @@ fn finite_value_count_for_facts(facts: &ExternalStringTypeFactsV0) -> usize {
         .as_ref()
         .map(|values| values.iter().collect::<BTreeSet<_>>().len())
         .unwrap_or(0)
+}
+
+fn abstract_class_value_provenance(
+    value: &AbstractClassValueV0,
+) -> Option<AbstractClassValueProvenanceV0> {
+    match value {
+        AbstractClassValueV0::Prefix { provenance, .. }
+        | AbstractClassValueV0::Suffix { provenance, .. }
+        | AbstractClassValueV0::PrefixSuffix { provenance, .. }
+        | AbstractClassValueV0::CharInclusion { provenance, .. }
+        | AbstractClassValueV0::Composite { provenance, .. } => *provenance,
+        AbstractClassValueV0::Bottom
+        | AbstractClassValueV0::Exact { .. }
+        | AbstractClassValueV0::FiniteSet { .. }
+        | AbstractClassValueV0::Top => None,
+    }
 }
 
 fn constrained_value_shape_label_from_facts(facts: &ExternalStringTypeFactsV0) -> String {

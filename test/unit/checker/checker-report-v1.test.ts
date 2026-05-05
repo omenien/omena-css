@@ -15,6 +15,7 @@ describe("buildCheckerReportV1", () => {
           operation: "baseFromFacts",
           inputKind: "finiteSet",
           resultKind: "finiteSet",
+          resultProvenance: "finiteSetWideningComposite",
           reason: "preserved finite string literal facts",
         },
       ],
@@ -44,7 +45,7 @@ describe("buildCheckerReportV1", () => {
       code: "missing-resolved-class-values",
       valueDomainDerivationLabel: "finiteSet reduced to finiteSet via baseFromFacts",
       valueDomainDerivationStepLabels: [
-        "1. baseFromFacts: finiteSet -> finiteSet (preserved finite string literal facts)",
+        "1. baseFromFacts: finiteSet -> finiteSet/finiteSetWideningComposite (preserved finite string literal facts)",
       ],
       valueDomainDerivation,
     });

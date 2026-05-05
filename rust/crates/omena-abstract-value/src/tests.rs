@@ -1251,6 +1251,32 @@ fn explains_constrained_finite_value_derivation_steps() {
 }
 
 #[test]
+fn carries_result_provenance_in_reduced_derivation_steps() {
+    let widened = external_facts("finiteSet").with_values([
+        "btn-alpha-active",
+        "btn-beta-active",
+        "btn-gamma-active",
+        "btn-delta-active",
+        "btn-epsilon-active",
+        "btn-zeta-active",
+        "btn-eta-active",
+        "btn-theta-active",
+        "btn-iota-active",
+    ]);
+
+    let derivation = reduced_class_value_derivation_from_facts(&widened);
+
+    assert_eq!(derivation.reduced_kind, "composite");
+    assert_eq!(derivation.steps.len(), 1);
+    assert_eq!(derivation.steps[0].operation, "baseFromFacts");
+    assert_eq!(derivation.steps[0].result_kind, "composite");
+    assert_eq!(
+        derivation.steps[0].result_provenance,
+        Some(AbstractClassValueProvenanceV0::FiniteSetWideningComposite)
+    );
+}
+
+#[test]
 fn projects_exact_and_finite_values_into_selector_universe() {
     let selectors = selector_universe(["button", "card", "link"]);
 

@@ -26,6 +26,7 @@ export interface ReducedClassValueDerivationStep {
   readonly inputKind?: string;
   readonly refinementKind?: string;
   readonly resultKind: string;
+  readonly resultProvenance?: string;
   readonly reason: string;
 }
 

@@ -234,6 +234,8 @@ struct ValueDomainDerivationStepV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     refinement_kind: Option<String>,
     result_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    result_provenance: Option<String>,
     reason: String,
 }
 

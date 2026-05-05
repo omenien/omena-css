@@ -328,7 +328,10 @@ function describeValueDomainDerivation(
     stepLabels: derivation.steps.map((step, index) => {
       const refinement = step.refinementKind ? ` + ${step.refinementKind}` : "";
       const input = step.inputKind ? `${step.inputKind}${refinement}` : "input facts";
-      return `${index + 1}. ${step.operation}: ${input} -> ${step.resultKind} (${step.reason})`;
+      const result = step.resultProvenance
+        ? `${step.resultKind}/${step.resultProvenance}`
+        : step.resultKind;
+      return `${index + 1}. ${step.operation}: ${input} -> ${result} (${step.reason})`;
     }),
   };
 }
