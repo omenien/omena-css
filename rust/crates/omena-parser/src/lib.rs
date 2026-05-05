@@ -329,6 +329,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "selectorCstSkeleton",
             "atRuleRegistrySkeleton",
             "prattValueExpressionSkeleton",
+            "attributeMatcherTokenization",
+            "attributeMatcherCstNodes",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -608,6 +610,7 @@ impl<'text> Parser<'text> {
                     closed = true;
                     break;
                 }
+                Some(kind) if is_attribute_matcher(kind) => self.parse_attribute_matcher(),
                 Some(kind) if is_selector_boundary(kind) => break,
                 Some(_) => self.token_current(),
                 None => break,
@@ -619,6 +622,12 @@ impl<'text> Parser<'text> {
                 "unterminated attribute selector",
             );
         }
+        self.builder.finish_node();
+    }
+
+    fn parse_attribute_matcher(&mut self) {
+        self.builder.start_node(SyntaxKind::AttributeMatcher);
+        self.token_current();
         self.builder.finish_node();
     }
 
@@ -1188,18 +1197,46 @@ where
                 ')' => self.consume_static(SyntaxKind::RightParen, start, 1),
                 '[' => self.consume_static(SyntaxKind::LeftBracket, start, 1),
                 ']' => self.consume_static(SyntaxKind::RightBracket, start, 1),
+                '+' if self.starts_with("+=") => {
+                    self.consume_static(SyntaxKind::PlusEquals, start, 2)
+                }
                 '+' => self.consume_static(SyntaxKind::Plus, start, 1),
+                '-' if self.starts_with("-=") => {
+                    self.consume_static(SyntaxKind::MinusEquals, start, 2)
+                }
                 '-' => self.consume_static(SyntaxKind::Minus, start, 1),
+                '*' if self.starts_with("*=") => {
+                    self.consume_static(SyntaxKind::SubstringMatch, start, 2)
+                }
                 '*' => self.consume_static(SyntaxKind::Star, start, 1),
+                '/' if self.starts_with("/=") => {
+                    self.consume_static(SyntaxKind::SlashEquals, start, 2)
+                }
                 '/' => self.consume_static(SyntaxKind::Slash, start, 1),
                 '%' => self.consume_static(SyntaxKind::Percent, start, 1),
+                '=' if self.starts_with("=>") => self.consume_static(SyntaxKind::Arrow, start, 2),
                 '=' => self.consume_static(SyntaxKind::Equals, start, 1),
+                '~' if self.starts_with("~=") => {
+                    self.consume_static(SyntaxKind::IncludesMatch, start, 2)
+                }
                 '~' => self.consume_static(SyntaxKind::Tilde, start, 1),
+                '|' if self.starts_with("|=") => {
+                    self.consume_static(SyntaxKind::DashMatch, start, 2)
+                }
                 '|' if self.starts_with("||") => {
                     self.consume_static(SyntaxKind::ColumnCombinator, start, 2)
                 }
                 '|' => self.consume_static(SyntaxKind::Pipe, start, 1),
+                '^' if self.starts_with("^=") => {
+                    self.consume_static(SyntaxKind::PrefixMatch, start, 2)
+                }
                 '^' => self.consume_static(SyntaxKind::Caret, start, 1),
+                '$' if self.starts_with("$=") => {
+                    self.consume_static(SyntaxKind::SuffixMatch, start, 2)
+                }
+                '&' if self.starts_with("&&") => {
+                    self.consume_static(SyntaxKind::DoubleAmpersand, start, 2)
+                }
                 '&' => self.consume_static(SyntaxKind::Ampersand, start, 1),
                 '>' => self.consume_static(SyntaxKind::GreaterThan, start, 1),
                 '<' => self.consume_static(SyntaxKind::LessThan, start, 1),
@@ -2015,6 +2052,18 @@ fn is_selector_boundary(kind: SyntaxKind) -> bool {
     )
 }
 
+fn is_attribute_matcher(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Equals
+            | SyntaxKind::IncludesMatch
+            | SyntaxKind::DashMatch
+            | SyntaxKind::PrefixMatch
+            | SyntaxKind::SuffixMatch
+            | SyntaxKind::SubstringMatch
+    )
+}
+
 fn is_combinator(kind: SyntaxKind) -> bool {
     matches!(
         kind,
@@ -2128,6 +2177,23 @@ mod tests {
             scss_slashes.tokens().first().map(|token| token.kind),
             Some(SyntaxKind::LineComment),
         );
+    }
+
+    #[test]
+    fn tokenizes_css_attribute_matchers_as_single_tokens() {
+        let result = lex(
+            ".a[data-state~=\"active\"][lang|=\"en\"][href^=\"/docs\"][href$=\".pdf\"][class*=\"btn\"] { width += 1px; }",
+            StyleDialect::Css,
+        );
+        let kinds: Vec<SyntaxKind> = result.tokens().iter().map(|token| token.kind).collect();
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::IncludesMatch));
+        assert!(kinds.contains(&SyntaxKind::DashMatch));
+        assert!(kinds.contains(&SyntaxKind::PrefixMatch));
+        assert!(kinds.contains(&SyntaxKind::SuffixMatch));
+        assert!(kinds.contains(&SyntaxKind::SubstringMatch));
+        assert!(kinds.contains(&SyntaxKind::PlusEquals));
     }
 
     #[test]
@@ -2357,6 +2423,23 @@ mod tests {
     }
 
     #[test]
+    fn decomposes_attribute_matchers_into_cst_nodes() {
+        let result = parse(
+            ".a[data-state~=\"active\"][lang|=\"en\"][href^=\"/docs\"][href$=\".pdf\"][class*=\"btn\"] { color: red; }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let matcher_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::AttributeMatcher)
+            .count();
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::AttributeSelector));
+        assert_eq!(matcher_count, 5);
+    }
+
+    #[test]
     fn decomposes_nested_and_pseudo_element_selectors() {
         let result = parse("&::before { content: \"\"; }", StyleDialect::Scss);
         let kinds = node_kinds(&result.syntax());
@@ -2380,6 +2463,12 @@ mod tests {
                 .ready_surfaces
                 .contains(&"prattValueExpressionSkeleton")
         );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"attributeMatcherTokenization")
+        );
+        assert!(summary.ready_surfaces.contains(&"attributeMatcherCstNodes"));
         assert!(
             summary
                 .ready_surfaces
