@@ -48,7 +48,7 @@ assert.equal(rustEndpoint.transportContract, "LSP stdio JSON-RPC");
 assert.equal(rustEndpoint.commandOwner, "dist/bin/<platform>-<arch>/omena-lsp-server");
 assert.equal(rustEndpoint.standalonePackage, "omena-lsp-server");
 assert.equal(rustEndpoint.splitRepository, "https://github.com/omenien/omena-lsp-server");
-assert.equal(rustEndpoint.cargoInstallCommand, "cargo install omena-lsp-server --version 0.1.3");
+assert.equal(rustEndpoint.cargoInstallCommand, "cargo install omena-lsp-server --version 0.1.5");
 assert.equal(rustEndpoint.nodeFallbackAllowed, false);
 assert.deepEqual(rustEndpoint.fileWatcherGlobs, buildRustLspFileWatcherGlobs());
 assert.deepEqual(clientEndpoint.fileWatcherGlobs, rustEndpoint.fileWatcherGlobs);

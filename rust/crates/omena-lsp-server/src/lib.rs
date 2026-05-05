@@ -268,7 +268,7 @@ pub fn thin_client_endpoint_contract() -> ThinClientEndpointV0 {
         command_owner: "dist/bin/<platform>-<arch>/omena-lsp-server",
         standalone_package: "omena-lsp-server",
         split_repository: "https://github.com/omenien/omena-lsp-server",
-        cargo_install_command: "cargo install omena-lsp-server --version 0.1.3",
+        cargo_install_command: "cargo install omena-lsp-server --version 0.1.5",
         node_fallback_allowed: false,
         file_watcher_globs: vec![
             "**/*.module.{scss,css,less}",

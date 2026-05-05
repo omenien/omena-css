@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 
 const packageName = "omena-lsp-server";
-const expectedVersion = "0.1.3";
+const expectedVersion = "0.1.5";
 const installCommand = `cargo install ${packageName} --version ${expectedVersion}`;
 const splitRepository = "https://github.com/omenien/omena-lsp-server";
 
