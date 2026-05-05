@@ -366,6 +366,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "viewTransitionAtRuleCstNodes",
             "genericAtRulePreludeCstNodes",
             "bogusAtRulePreludeCstNodes",
+            "nestingAtRuleCstNodes",
+            "customMediaAtRuleCstNodes",
             "cssColorFunctionCstNodes",
             "gradientFunctionCstNodes",
             "transformFunctionCstNodes",
@@ -3428,7 +3430,9 @@ fn is_css_at_rule_name(text: &str) -> bool {
             | "@starting-style"
             | "@supports"
             | "@counter-style"
+            | "@custom-media"
             | "@color-profile"
+            | "@nest"
             | "@position-try"
             | "@view-transition"
             | "@stylistic"
@@ -3490,7 +3494,27 @@ fn collect_selector_facts_in_range(
         if tokens[index].kind == SyntaxKind::AtKeyword {
             let block = find_block_after_header(tokens, index, end);
             if let Some((open, close)) = block {
-                if style_wrapper_at_rule(tokens[index].text) {
+                if tokens[index].text == "@nest" {
+                    let branches =
+                        resolve_selector_header(tokens, index + 1, open, parent_branches);
+                    for branch in &branches {
+                        push_selector_fact(
+                            selectors,
+                            seen,
+                            ParsedSelectorFactKind::Class,
+                            branch.name.clone(),
+                            branch.range,
+                        );
+                    }
+                    collect_selector_facts_in_range(
+                        tokens,
+                        open + 1,
+                        close,
+                        &branches,
+                        seen,
+                        selectors,
+                    );
+                } else if style_wrapper_at_rule(tokens[index].text) {
                     collect_selector_facts_in_range(
                         tokens,
                         open + 1,
@@ -4077,6 +4101,7 @@ fn at_rule_spec(text: &str) -> Option<AtRuleSpec> {
             SyntaxKind::StartingStyleRule,
             AtRuleBlockKind::GroupRuleList,
         ),
+        "@nest" => (SyntaxKind::NestRule, AtRuleBlockKind::DeclarationList),
         "@keyframes" => (SyntaxKind::KeyframesRule, AtRuleBlockKind::Keyframes),
         "@font-face" => (SyntaxKind::FontFaceRule, AtRuleBlockKind::DeclarationList),
         "@page" => (SyntaxKind::PageRule, AtRuleBlockKind::DeclarationList),
@@ -4136,6 +4161,7 @@ fn at_rule_spec(text: &str) -> Option<AtRuleSpec> {
         "@charset" => (SyntaxKind::CharsetRule, AtRuleBlockKind::Raw),
         "@import" => (SyntaxKind::ImportRule, AtRuleBlockKind::Raw),
         "@namespace" => (SyntaxKind::NamespaceRule, AtRuleBlockKind::Raw),
+        "@custom-media" => (SyntaxKind::CustomMediaRule, AtRuleBlockKind::Raw),
         text if is_page_margin_at_rule(text) => {
             (SyntaxKind::PageMarginRule, AtRuleBlockKind::DeclarationList)
         }
@@ -4957,6 +4983,10 @@ mod tests {
             "@font-feature-values Demo { @styleset { alt: 2; } } @view-transition { navigation: auto; }",
             StyleDialect::Less,
         );
+        let nesting_and_custom_media = parse(
+            ".card { @nest &__icon { color: red; &--active { color: blue; } } } @custom-media --narrow (width < 40rem);",
+            StyleDialect::Css,
+        );
         let keyframe_kinds = node_kinds(&keyframes.syntax());
         let font_face_kinds = node_kinds(&font_face.syntax());
         let page_margin_kinds = node_kinds(&page_margin.syntax());
@@ -4964,6 +4994,7 @@ mod tests {
         let modern_declaration_kinds = node_kinds(&modern_declaration_rules.syntax());
         let font_feature_value_kinds = node_kinds(&font_feature_values.syntax());
         let less_css_at_rule_kinds = node_kinds(&less_css_at_rules.syntax());
+        let nesting_and_custom_media_kinds = node_kinds(&nesting_and_custom_media.syntax());
 
         assert!(keyframes.errors().is_empty());
         assert!(font_face.errors().is_empty());
@@ -4972,6 +5003,7 @@ mod tests {
         assert!(modern_declaration_rules.errors().is_empty());
         assert!(font_feature_values.errors().is_empty());
         assert!(less_css_at_rules.errors().is_empty());
+        assert!(nesting_and_custom_media.errors().is_empty());
         assert!(keyframe_kinds.contains(&SyntaxKind::KeyframesRule));
         assert!(keyframe_kinds.contains(&SyntaxKind::AtRulePrelude));
         assert!(keyframe_kinds.contains(&SyntaxKind::KeyframeBlock));
@@ -5003,6 +5035,9 @@ mod tests {
         assert!(less_css_at_rule_kinds.contains(&SyntaxKind::FontFeatureValuesRule));
         assert!(less_css_at_rule_kinds.contains(&SyntaxKind::FontFeatureValuesStylesetRule));
         assert!(less_css_at_rule_kinds.contains(&SyntaxKind::ViewTransitionRule));
+        assert!(nesting_and_custom_media_kinds.contains(&SyntaxKind::NestRule));
+        assert!(nesting_and_custom_media_kinds.contains(&SyntaxKind::CustomMediaRule));
+        assert!(nesting_and_custom_media_kinds.contains(&SyntaxKind::DeclarationList));
     }
 
     #[test]
@@ -5511,6 +5546,25 @@ mod tests {
     }
 
     #[test]
+    fn extracts_css_nesting_at_rule_selector_facts() {
+        let facts = collect_style_facts(
+            ".card { @nest &__icon { color: red; &--active { color: blue; } } }",
+            StyleDialect::Css,
+        );
+        let class_names: Vec<&str> = facts
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+            .map(|selector| selector.name.as_str())
+            .collect();
+
+        assert_eq!(
+            class_names,
+            vec!["card", "card__icon", "card__icon--active"]
+        );
+    }
+
+    #[test]
     fn extracts_nested_bem_style_facts_with_parent_context() {
         let facts = collect_style_facts(
             ".card { &__icon { &--small { color: red; } } --space: 1rem; color: var(--space); }",
@@ -5765,6 +5819,12 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"bogusAtRulePreludeCstNodes")
+        );
+        assert!(summary.ready_surfaces.contains(&"nestingAtRuleCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"customMediaAtRuleCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"cssColorFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"gradientFunctionCstNodes"));

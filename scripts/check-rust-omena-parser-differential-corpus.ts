@@ -158,6 +158,18 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "css-nesting-and-custom-media-at-rules",
+    dialect: "css",
+    source: `.card { @nest &__icon { color: red; &--active { color: blue; } } } @custom-media --narrow (width < 40rem);`,
+    expected: {
+      classSelectorNames: ["card", "card__icon", "card__icon--active"],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: [],
+      atRuleNames: ["@custom-media", "@nest"],
+    },
+  },
+  {
     label: "scss-nested-property-blocks",
     dialect: "scss",
     source: `.card { font: { size: 1rem; weight: 700; } }`,
