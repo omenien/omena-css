@@ -343,6 +343,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "conditionalAtRulePreludeCstNodes",
             "mediaQueryCstNodes",
             "unicodeRangeTokenization",
+            "badStringTokenRecovery",
+            "badStringValueBogusNodes",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -918,6 +920,11 @@ impl<'text> Parser<'text> {
                 self.builder.finish_node();
             }
             Some(SyntaxKind::BadUrl) => {
+                self.builder.start_node(SyntaxKind::BogusValue);
+                self.token_current();
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::BadString) => {
                 self.builder.start_node(SyntaxKind::BogusValue);
                 self.token_current();
                 self.builder.finish_node();
@@ -1553,6 +1560,16 @@ where
         self.bump_char(quote);
         while let Some(char) = self.current_char() {
             self.bump_char(char);
+            if matches!(char, '\n' | '\r' | '\u{000c}') {
+                self.push(SyntaxKind::BadString, start, self.offset);
+                self.error(
+                    ParseErrorCode::UnterminatedString,
+                    start,
+                    self.offset,
+                    "unterminated string",
+                );
+                return;
+            }
             if char == quote {
                 self.push(SyntaxKind::String, start, self.offset);
                 return;
@@ -2659,6 +2676,20 @@ mod tests {
     }
 
     #[test]
+    fn tokenizes_newline_bad_strings() {
+        let result = lex(".a { content: \"bad\nstill-here: red; }", StyleDialect::Css);
+        let kinds: Vec<SyntaxKind> = result.tokens().iter().map(|token| token.kind).collect();
+
+        assert!(kinds.contains(&SyntaxKind::BadString));
+        assert!(
+            result
+                .errors()
+                .iter()
+                .any(|error| error.code == ParseErrorCode::UnterminatedString)
+        );
+    }
+
+    #[test]
     fn exposes_recovery_token_sets() {
         assert!(RECOVERY_TOP.contains(SyntaxKind::AtKeyword));
         assert!(RECOVERY_DECLARATION.contains(SyntaxKind::Semicolon));
@@ -2834,6 +2865,21 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::Value));
         assert!(kinds.contains(&SyntaxKind::UrlValue));
         assert!(token_kinds(&result.syntax()).contains(&SyntaxKind::Url));
+    }
+
+    #[test]
+    fn structures_bad_strings_as_bogus_values() {
+        let result = parse(".a { content: \"bad\ncolor: red; }", StyleDialect::Css);
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(
+            result
+                .errors()
+                .iter()
+                .any(|error| error.code == ParseErrorCode::UnterminatedString)
+        );
+        assert!(kinds.contains(&SyntaxKind::BogusValue));
+        assert!(token_kinds(&result.syntax()).contains(&SyntaxKind::BadString));
     }
 
     #[test]
@@ -3063,6 +3109,8 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"mediaQueryCstNodes"));
         assert!(summary.ready_surfaces.contains(&"unicodeRangeTokenization"));
+        assert!(summary.ready_surfaces.contains(&"badStringTokenRecovery"));
+        assert!(summary.ready_surfaces.contains(&"badStringValueBogusNodes"));
         assert!(
             summary
                 .ready_surfaces
