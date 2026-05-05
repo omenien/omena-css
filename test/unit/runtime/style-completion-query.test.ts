@@ -241,6 +241,46 @@ describe("resolveStyleCompletionItems", () => {
     expect(result[0]?.sourceFilePath).toBe(PACKAGE_VARIABLES_CSS_PATH);
   });
 
+  it("uses Rust design-token declaration candidates for CSS custom property completions", () => {
+    const scss = `.button {
+  color: var(--br)
+}
+`;
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 1,
+      character: 17,
+      styleDocument: parseStyleDocument(scss, SCSS_PATH),
+      designTokenDeclarationCandidates: [
+        {
+          name: "--brand",
+          sourceOrder: 0,
+          filePath: PACKAGE_VARIABLES_CSS_PATH,
+          range: {
+            start: { line: 0, character: 8 },
+            end: { line: 0, character: 15 },
+          },
+          selectorContexts: [":root"],
+          underMedia: false,
+          underSupports: false,
+          underLayer: false,
+          candidateScope: "cross-file-import-candidate",
+          importGraphDistance: 1,
+          importGraphOrder: 0,
+        },
+      ],
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--brand"]);
+    expect(result[0]).toMatchObject({
+      sourceFilePath: PACKAGE_VARIABLES_CSS_PATH,
+      sourceRange: {
+        start: { line: 0, character: 8 },
+        end: { line: 0, character: 15 },
+      },
+    });
+  });
+
   it("uses matching wrapper context for incomplete CSS custom property completions", () => {
     const scss = `:root { --brand: #222; }
 @media (min-width: 600px) {

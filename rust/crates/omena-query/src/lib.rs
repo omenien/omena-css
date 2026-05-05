@@ -2090,6 +2090,15 @@ mod tests {
             design_tokens.cascade_ranking_signal.ranked_references[0].winner_declaration_range;
         assert_eq!(winner_range.map(|range| range.start.line), Some(0));
         assert_eq!(winner_range.map(|range| range.start.character), Some(8));
+        assert_eq!(design_tokens.declaration_candidates.len(), 1);
+        let declaration_candidate = &design_tokens.declaration_candidates[0];
+        assert_eq!(declaration_candidate.name, "--brand");
+        assert_eq!(declaration_candidate.file_path, "/tmp/tokens.module.scss");
+        assert_eq!(
+            declaration_candidate.candidate_scope,
+            "cross-file-import-candidate"
+        );
+        assert!(declaration_candidate.import_graph_distance.is_some());
         assert_eq!(
             design_tokens.cascade_ranking_signal.ranked_references[0]
                 .cross_file_candidate_declaration_count,
@@ -2231,6 +2240,17 @@ mod tests {
         );
         assert_eq!(ranked_reference.winner_import_graph_distance, Some(1));
         assert_eq!(ranked_reference.cross_file_candidate_declaration_count, 1);
+        let declaration_candidate = &app_graph.design_token_semantics.declaration_candidates[0];
+        assert_eq!(declaration_candidate.name, "--brand");
+        assert_eq!(
+            declaration_candidate.file_path,
+            "/fake/workspace/node_modules/@design/tokens/dist/theme.css"
+        );
+        assert_eq!(
+            declaration_candidate.candidate_scope,
+            "cross-file-import-candidate"
+        );
+        assert_eq!(declaration_candidate.import_graph_distance, Some(1));
     }
 
     #[test]

@@ -15,6 +15,7 @@
 - **Query-owned style facts** - `omena-query` now owns style document summaries, style hover candidates, custom-property reference ranges, Sass module sources, Sass symbol facts, and Sass partial-evaluator selector candidates; `omena-lsp-server` now maps query output into LSP responses instead of parsing those facts locally.
 - **Rust LSP query boundary declaration** - the Rust LSP boundary contract now declares `omena-query/styleHoverCandidates` as the style definition owner for source-provider requests, matching the implementation instead of pointing directly at parser facts.
 - **Shared design-token ranking read model** - style hover, definition, and references now consume the same host-side Rust design-token ranking query instead of each resolving selected-query graph winners independently.
+- **Design-token declaration candidates** - Rust selected-query style semantic graphs now expose custom-property declaration candidates, and style completions consume that shared read model for external/package CSS variable suggestions.
 
 ### Fixed
 

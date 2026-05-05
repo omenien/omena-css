@@ -9,8 +9,10 @@ import {
   resolveRustStyleSemanticGraphForWorkspaceTarget,
   resolveRustStyleSemanticGraphForWorkspaceTargetAsync,
   type StyleSemanticGraphCache,
+  type StyleSemanticGraphDesignTokenDeclarationCandidateV0,
   type StyleSemanticGraphDesignTokenRankedReferenceReadModel,
   type StyleSemanticGraphQueryOptions,
+  type StyleSemanticGraphSummaryV0,
 } from "./style-semantic-graph-query-backend";
 
 export interface StyleDesignTokenRankingQueryOptions extends Pick<
@@ -39,6 +41,9 @@ export type StyleDesignTokenRankingDeps = Pick<
   readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
 };
 
+export type StyleDesignTokenDeclarationCandidateReadModel =
+  StyleSemanticGraphDesignTokenDeclarationCandidateV0;
+
 export function resolveStyleDesignTokenRankingForReference(
   args: {
     readonly filePath: string;
@@ -60,30 +65,22 @@ export function resolveStyleDesignTokenRankingsForDocument(
   deps: StyleDesignTokenRankingDeps,
   options: StyleDesignTokenRankingQueryOptions = {},
 ): readonly StyleSemanticGraphDesignTokenRankedReferenceReadModel[] | null {
-  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
-    return null;
-  }
+  const graph = resolveStyleDesignTokenGraphForDocument(args, deps, options);
+  return graph
+    ? buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(graph, args.styleDocument)
+    : null;
+}
 
-  try {
-    const graph = (
-      options.readRustStyleSemanticGraphForWorkspaceTarget ??
-      resolveRustStyleSemanticGraphForWorkspaceTarget
-    )(
-      {
-        workspaceRoot: deps.workspaceRoot,
-        classnameTransform: deps.settings.scss.classnameTransform,
-        pathAlias: deps.settings.pathAlias,
-      },
-      deps,
-      args.filePath,
-      withDepsStyleSemanticGraphCache(deps, options),
-    );
-    if (!graph) return null;
-
-    return buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(graph, args.styleDocument);
-  } catch {
-    return null;
-  }
+export function resolveStyleDesignTokenDeclarationCandidatesForDocument(
+  args: {
+    readonly filePath: string;
+    readonly styleDocument: StyleDocumentHIR;
+  },
+  deps: StyleDesignTokenRankingDeps,
+  options: StyleDesignTokenRankingQueryOptions = {},
+): readonly StyleDesignTokenDeclarationCandidateReadModel[] | null {
+  const graph = resolveStyleDesignTokenGraphForDocument(args, deps, options);
+  return graph?.designTokenSemantics?.declarationCandidates ?? null;
 }
 
 export async function resolveStyleDesignTokenRankingForReferenceAsync(
@@ -107,12 +104,67 @@ export async function resolveStyleDesignTokenRankingsForDocumentAsync(
   deps: StyleDesignTokenRankingDeps,
   options: StyleDesignTokenRankingQueryOptions = {},
 ): Promise<readonly StyleSemanticGraphDesignTokenRankedReferenceReadModel[] | null> {
+  const graph = await resolveStyleDesignTokenGraphForDocumentAsync(args, deps, options);
+  return graph
+    ? buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(graph, args.styleDocument)
+    : null;
+}
+
+export async function resolveStyleDesignTokenDeclarationCandidatesForDocumentAsync(
+  args: {
+    readonly filePath: string;
+    readonly styleDocument: StyleDocumentHIR;
+  },
+  deps: StyleDesignTokenRankingDeps,
+  options: StyleDesignTokenRankingQueryOptions = {},
+): Promise<readonly StyleDesignTokenDeclarationCandidateReadModel[] | null> {
+  const graph = await resolveStyleDesignTokenGraphForDocumentAsync(args, deps, options);
+  return graph?.designTokenSemantics?.declarationCandidates ?? null;
+}
+
+function resolveStyleDesignTokenGraphForDocument(
+  args: {
+    readonly filePath: string;
+  },
+  deps: StyleDesignTokenRankingDeps,
+  options: StyleDesignTokenRankingQueryOptions,
+): StyleSemanticGraphSummaryV0 | null {
   if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
     return null;
   }
 
   try {
-    const graph = await (
+    return (
+      options.readRustStyleSemanticGraphForWorkspaceTarget ??
+      resolveRustStyleSemanticGraphForWorkspaceTarget
+    )(
+      {
+        workspaceRoot: deps.workspaceRoot,
+        classnameTransform: deps.settings.scss.classnameTransform,
+        pathAlias: deps.settings.pathAlias,
+      },
+      deps,
+      args.filePath,
+      withDepsStyleSemanticGraphCache(deps, options),
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function resolveStyleDesignTokenGraphForDocumentAsync(
+  args: {
+    readonly filePath: string;
+  },
+  deps: StyleDesignTokenRankingDeps,
+  options: StyleDesignTokenRankingQueryOptions,
+): Promise<StyleSemanticGraphSummaryV0 | null> {
+  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
+    return null;
+  }
+
+  try {
+    return await (
       options.readRustStyleSemanticGraphForWorkspaceTargetAsync ??
       resolveRustStyleSemanticGraphForWorkspaceTargetAsync
     )(
@@ -125,9 +177,6 @@ export async function resolveStyleDesignTokenRankingsForDocumentAsync(
       args.filePath,
       withDepsStyleSemanticGraphCache(deps, options),
     );
-    if (!graph) return null;
-
-    return buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(graph, args.styleDocument);
   } catch {
     return null;
   }

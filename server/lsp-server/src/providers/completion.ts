@@ -9,9 +9,15 @@ import {
   resolveStyleCompletionItems,
   type StyleCompletionItem,
 } from "../../../engine-host-node/src/style-completion-query";
+import {
+  resolveStyleDesignTokenDeclarationCandidatesForDocumentAsync,
+  type StyleDesignTokenDeclarationCandidateReadModel,
+} from "../../../engine-host-node/src/style-design-token-ranking-query";
+import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../../engine-host-node/src/selected-query-backend";
 import type { CursorParams, ProviderDeps } from "./provider-deps";
 import { toLspRange } from "./lsp-adapters";
 import { wrapHandler } from "./_wrap-handler";
+import { getRustSelectedQueryBackendJsonRunnerAsync } from "./selected-query-runner";
 
 /**
  * Handle `textDocument/completion` inside a class-util call.
@@ -30,26 +36,56 @@ export const handleCompletion = wrapHandler<CursorParams, [], CompletionItem[] |
   null,
 );
 
-function computeCompletion(params: CursorParams, deps: ProviderDeps): CompletionItem[] | null {
+function computeCompletion(
+  params: CursorParams,
+  deps: ProviderDeps,
+): CompletionItem[] | null | Promise<CompletionItem[] | null> {
+  const rustRunner = getRustSelectedQueryBackendJsonRunnerAsync(deps);
   if (findLangForPath(params.filePath)) {
-    const styleDocument = deps.styleDocumentForPath(params.filePath);
-    if (!styleDocument) return null;
-    const items = resolveStyleCompletionItems({
-      content: params.content,
-      line: params.line,
-      character: params.character,
-      styleDocument,
-      styleDocumentForPath: deps.styleDocumentForPath,
-      aliasResolver: deps.aliasResolver,
-      styleDependencyGraph: deps.styleDependencyGraph,
-      readFile: deps.readStyleFile,
-    });
-    return items.length > 0 ? items.map(toStyleCompletionItem) : null;
+    if (rustRunner) return computeStyleCompletionAsync(params, deps, rustRunner);
+    return computeStyleCompletion(params, deps);
   }
 
   const selectors = resolveSourceCompletionSelectors(params, deps);
   if (selectors.length === 0) return null;
   return selectors.map(toCompletionItem);
+}
+
+function computeStyleCompletion(
+  params: CursorParams,
+  deps: ProviderDeps,
+  designTokenDeclarationCandidates?: readonly StyleDesignTokenDeclarationCandidateReadModel[],
+): CompletionItem[] | null {
+  const styleDocument = deps.styleDocumentForPath(params.filePath);
+  if (!styleDocument) return null;
+  const items = resolveStyleCompletionItems({
+    content: params.content,
+    line: params.line,
+    character: params.character,
+    styleDocument,
+    styleDocumentForPath: deps.styleDocumentForPath,
+    aliasResolver: deps.aliasResolver,
+    styleDependencyGraph: deps.styleDependencyGraph,
+    readFile: deps.readStyleFile,
+    ...(designTokenDeclarationCandidates ? { designTokenDeclarationCandidates } : {}),
+  });
+  return items.length > 0 ? items.map(toStyleCompletionItem) : null;
+}
+
+async function computeStyleCompletionAsync(
+  params: CursorParams,
+  deps: ProviderDeps,
+  rustRunner: RustSelectedQueryBackendJsonRunnerAsync,
+): Promise<CompletionItem[] | null> {
+  const styleDocument = deps.styleDocumentForPath(params.filePath);
+  if (!styleDocument) return null;
+  const designTokenDeclarationCandidates =
+    await resolveStyleDesignTokenDeclarationCandidatesForDocumentAsync(
+      { filePath: params.filePath, styleDocument },
+      deps,
+      { runRustSelectedQueryBackendJsonAsync: rustRunner },
+    );
+  return computeStyleCompletion(params, deps, designTokenDeclarationCandidates ?? undefined);
 }
 
 function toStyleCompletionItem(item: StyleCompletionItem): CompletionItem {

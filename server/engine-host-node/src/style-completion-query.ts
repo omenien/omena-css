@@ -14,6 +14,7 @@ import {
   type SassModuleResolutionOptions,
 } from "../../engine-core-ts/src/core/query";
 import { rangeContains } from "../../engine-core-ts/src/core/util/range-utils";
+import type { StyleDesignTokenDeclarationCandidateReadModel } from "./style-design-token-ranking-query";
 
 export interface StyleCompletionItem {
   readonly label: string;
@@ -73,6 +74,7 @@ export function resolveStyleCompletionItems(args: {
   readonly aliasResolver?: SassModulePathAliasResolver;
   readonly styleDependencyGraph?: StyleDependencyGraph;
   readonly readFile?: (filePath: string) => string | null;
+  readonly designTokenDeclarationCandidates?: readonly StyleDesignTokenDeclarationCandidateReadModel[];
 }): readonly StyleCompletionItem[] {
   const lineText = readLine(args.content, args.line);
   const linePrefix = lineText.slice(0, args.character);
@@ -189,6 +191,7 @@ function collectCustomPropertyCompletionDecls(args: {
   readonly styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null;
   readonly aliasResolver?: SassModulePathAliasResolver;
   readonly readFile?: (filePath: string) => string | null;
+  readonly designTokenDeclarationCandidates?: readonly StyleDesignTokenDeclarationCandidateReadModel[];
 }): readonly CustomPropertyCompletionDecl[] {
   const referenceContext = readCustomPropertyCompletionReferenceContext(args);
   let sourceOrder = 0;
@@ -235,10 +238,34 @@ function collectCustomPropertyCompletionDecls(args: {
       pushDecl(target.decl, target.filePath, 2);
     }
   }
+  for (const candidate of args.designTokenDeclarationCandidates ?? []) {
+    pushDecl(
+      customPropertyCompletionDeclFromDesignTokenCandidate(candidate),
+      candidate.filePath,
+      candidate.filePath === args.styleDocument.filePath ? 3 : 2,
+    );
+  }
   for (const decl of args.styleDependencyGraph?.getAllCustomPropertyDecls() ?? []) {
     pushDecl(decl, decl.filePath, 1);
   }
   return [...byName.values()].map((entry) => entry.decl);
+}
+
+function customPropertyCompletionDeclFromDesignTokenCandidate(
+  candidate: StyleDesignTokenDeclarationCandidateReadModel,
+): Pick<CustomPropertyDeclHIR, "name" | "range" | "ruleRange" | "context"> {
+  return {
+    name: candidate.name,
+    range: candidate.range,
+    ruleRange: candidate.range,
+    context: {
+      containerKind: "rule",
+      selectorText: candidate.selectorContexts.at(-1) ?? ":root",
+      atRuleName: null,
+      atRuleParams: null,
+      wrapperAtRules: [],
+    },
+  };
 }
 
 function compareCustomPropertyCompletionCandidate(

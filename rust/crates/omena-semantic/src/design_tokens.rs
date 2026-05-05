@@ -17,6 +17,7 @@ pub struct DesignTokenSemanticSummaryV0 {
     pub context_signal: DesignTokenContextSignalV0,
     pub resolution_signal: DesignTokenResolutionSignalV0,
     pub cascade_ranking_signal: DesignTokenCascadeRankingSignalV0,
+    pub declaration_candidates: Vec<DesignTokenDeclarationCandidateV0>,
     pub capabilities: DesignTokenSemanticCapabilitiesV0,
     pub blocking_gaps: Vec<&'static str>,
     pub next_priorities: Vec<&'static str>,
@@ -118,6 +119,24 @@ pub struct DesignTokenWorkspaceDeclarationFactV0 {
     pub under_media: bool,
     pub under_supports: bool,
     pub under_layer: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesignTokenDeclarationCandidateV0 {
+    pub name: String,
+    pub source_order: usize,
+    pub file_path: String,
+    pub range: engine_style_parser::ParserRangeV0,
+    pub selector_contexts: Vec<String>,
+    pub under_media: bool,
+    pub under_supports: bool,
+    pub under_layer: bool,
+    pub candidate_scope: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub import_graph_distance: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub import_graph_order: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -250,6 +269,12 @@ pub fn summarize_design_token_semantics_with_scoped_workspace_declarations(
     } else {
         "same-file"
     };
+    let declaration_candidates = summarize_design_token_declaration_candidates(
+        parser_facts,
+        target_style_path,
+        workspace_declarations,
+        candidate_scope,
+    );
 
     DesignTokenSemanticSummaryV0 {
         schema_version: "0",
@@ -274,6 +299,7 @@ pub fn summarize_design_token_semantics_with_scoped_workspace_declarations(
         },
         resolution_signal: resolution_signal.clone(),
         cascade_ranking_signal: cascade_ranking_signal.clone(),
+        declaration_candidates,
         capabilities: DesignTokenSemanticCapabilitiesV0 {
             same_file_resolution_ready: declaration_count > 0 || reference_count > 0,
             wrapper_context_signal_ready: wrapper_context_count > 0,
@@ -293,6 +319,64 @@ pub fn summarize_design_token_semantics_with_scoped_workspace_declarations(
         blocking_gaps,
         next_priorities,
     }
+}
+
+fn summarize_design_token_declaration_candidates(
+    parser_facts: &ParserBoundarySyntaxFactsV0,
+    target_style_path: Option<&str>,
+    workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
+    candidate_scope: DesignTokenExternalDeclarationCandidateScopeV0,
+) -> Vec<DesignTokenDeclarationCandidateV0> {
+    let mut candidates = Vec::new();
+    if let Some(file_path) = target_style_path {
+        candidates.extend(
+            parser_facts
+                .custom_properties
+                .decl_facts
+                .iter()
+                .map(|declaration| DesignTokenDeclarationCandidateV0 {
+                    name: declaration.name.clone(),
+                    source_order: declaration.source_order,
+                    file_path: file_path.to_string(),
+                    range: declaration.range,
+                    selector_contexts: declaration.selector_contexts.clone(),
+                    under_media: declaration.under_media,
+                    under_supports: declaration.under_supports,
+                    under_layer: declaration.under_layer,
+                    candidate_scope: "same-file",
+                    import_graph_distance: None,
+                    import_graph_order: None,
+                }),
+        );
+    }
+    candidates.extend(workspace_declarations.iter().map(|declaration| {
+        DesignTokenDeclarationCandidateV0 {
+            name: declaration.name.clone(),
+            source_order: declaration.source_order,
+            file_path: declaration.file_path.clone(),
+            range: declaration.range,
+            selector_contexts: declaration.selector_contexts.clone(),
+            under_media: declaration.under_media,
+            under_supports: declaration.under_supports,
+            under_layer: declaration.under_layer,
+            candidate_scope: candidate_scope.resolution_scope(),
+            import_graph_distance: declaration.import_graph_distance,
+            import_graph_order: declaration.import_graph_order,
+        }
+    }));
+    candidates.sort_by(|left, right| {
+        left.file_path
+            .cmp(&right.file_path)
+            .then_with(|| left.source_order.cmp(&right.source_order))
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    candidates.dedup_by(|left, right| {
+        left.file_path == right.file_path
+            && left.source_order == right.source_order
+            && left.name == right.name
+            && left.range == right.range
+    });
+    candidates
 }
 
 pub fn collect_design_token_workspace_declarations(

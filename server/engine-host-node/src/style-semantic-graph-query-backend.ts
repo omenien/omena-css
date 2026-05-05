@@ -50,6 +50,7 @@ export interface StyleSemanticGraphDesignTokenSemanticsV0 {
   readonly contextSignal: StyleSemanticGraphDesignTokenContextSignalV0;
   readonly resolutionSignal: StyleSemanticGraphDesignTokenResolutionSignalV0;
   readonly cascadeRankingSignal: StyleSemanticGraphDesignTokenCascadeRankingSignalV0;
+  readonly declarationCandidates?: readonly StyleSemanticGraphDesignTokenDeclarationCandidateV0[];
   readonly capabilities: StyleSemanticGraphDesignTokenCapabilitiesV0;
   readonly blockingGaps: readonly string[];
   readonly nextPriorities: readonly string[];
@@ -107,6 +108,20 @@ export interface StyleSemanticGraphDesignTokenRankedReferenceV0 {
   readonly winnerContextKind?: string;
   readonly crossFileCandidateDeclarationCount?: number;
   readonly crossFileShadowedDeclarationCount?: number;
+}
+
+export interface StyleSemanticGraphDesignTokenDeclarationCandidateV0 {
+  readonly name: string;
+  readonly sourceOrder: number;
+  readonly filePath: string;
+  readonly range: Range;
+  readonly selectorContexts: readonly string[];
+  readonly underMedia: boolean;
+  readonly underSupports: boolean;
+  readonly underLayer: boolean;
+  readonly candidateScope: string;
+  readonly importGraphDistance?: number;
+  readonly importGraphOrder?: number;
 }
 
 export interface StyleSemanticGraphDesignTokenCapabilitiesV0 {

@@ -9,6 +9,8 @@ import type { ProviderDeps } from "../../../server/lsp-server/src/providers/curs
 import { handleCompletion } from "../../../server/lsp-server/src/providers/completion";
 import { detectClassUtilImports } from "../../../server/engine-core-ts/src/core/cx/binding-detector";
 import { EMPTY_ALIAS_RESOLVER, info, makeBaseDeps } from "../../_fixtures/test-helpers";
+import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../../server/engine-host-node/src/selected-query-backend";
+import { makeDesignTokenDefinitionGraph } from "../../_fixtures/style-semantic-graph";
 import {
   cursorFixture,
   scenario,
@@ -198,6 +200,82 @@ const el = cx('
         newText: "--brand",
       },
     });
+  });
+
+  it("uses async Rust design-token declaration candidates for style completions", async () => {
+    const previousBackend = process.env.CME_SELECTED_QUERY_BACKEND;
+    process.env.CME_SELECTED_QUERY_BACKEND = "rust-selected-query";
+    try {
+      const styleWorkspace = workspace({
+        [STYLE_PATH]: `.button {
+  color: var(--br/*|*/)
+}
+`,
+      });
+      const params = completionCursor(styleWorkspace, "cursor", STYLE_PATH, STYLE_URI);
+      const styleDocument = parseStyleDocument(params.content, STYLE_PATH);
+      const tokenPath = "/fake/ws/node_modules/@design/tokens/theme.css";
+      const tokenRange = {
+        start: { line: 0, character: 8 },
+        end: { line: 0, character: 15 },
+      };
+      const runner: RustSelectedQueryBackendJsonRunnerAsync = async <T>() => {
+        const graph = makeDesignTokenDefinitionGraph({
+          referenceName: "--brand",
+          winnerDeclarationFilePath: tokenPath,
+          winnerDeclarationRange: tokenRange,
+        });
+        return {
+          ...graph,
+          designTokenSemantics: graph.designTokenSemantics
+            ? {
+                ...graph.designTokenSemantics,
+                declarationCandidates: [
+                  {
+                    name: "--brand",
+                    sourceOrder: 0,
+                    filePath: tokenPath,
+                    range: tokenRange,
+                    selectorContexts: [":root"],
+                    underMedia: false,
+                    underSupports: false,
+                    underLayer: false,
+                    candidateScope: "cross-file-import-candidate",
+                    importGraphDistance: 1,
+                    importGraphOrder: 0,
+                  },
+                ],
+              }
+            : undefined,
+        } as T;
+      };
+      const result = await handleCompletion(
+        params,
+        makeDeps({
+          styleDocumentForPath: (filePath) => (filePath === STYLE_PATH ? styleDocument : null),
+          readStyleFile: (filePath) =>
+            filePath === STYLE_PATH ? styleWorkspace.file(STYLE_PATH).content : null,
+          workspaceRoot: "/fake/ws",
+          runRustSelectedQueryBackendJsonAsync: runner,
+        } as Partial<ProviderDeps> & {
+          readonly runRustSelectedQueryBackendJsonAsync: RustSelectedQueryBackendJsonRunnerAsync;
+        }),
+      );
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          label: "--brand",
+          detail: "CSS custom property",
+          kind: CompletionItemKind.Variable,
+        }),
+      ]);
+    } finally {
+      if (previousBackend === undefined) {
+        delete process.env.CME_SELECTED_QUERY_BACKEND;
+      } else {
+        process.env.CME_SELECTED_QUERY_BACKEND = previousBackend;
+      }
+    }
   });
 });
 
