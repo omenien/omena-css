@@ -405,6 +405,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "importantAnnotationCstNodes",
             "splitImportantAnnotationCstNodes",
             "unexpectedValueTokenBogusNodes",
+            "cdoCdcTokenization",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -496,6 +497,7 @@ impl<'text> Parser<'text> {
                 Some(SyntaxKind::LessVariable) if self.dialect == StyleDialect::Less => {
                     self.parse_variable_declaration(SyntaxKind::LessVariableDeclaration)
                 }
+                Some(SyntaxKind::Cdo | SyntaxKind::Cdc) => self.token_current(),
                 Some(SyntaxKind::RightBrace | SyntaxKind::SassDedent) => self.token_current(),
                 Some(SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon) => {
                     self.token_current()
@@ -2892,6 +2894,12 @@ where
                 '!' if self.starts_with_ascii_keyword("!important") => {
                     self.consume_static(SyntaxKind::Important, start, "!important".len())
                 }
+                '<' if self.starts_with("<!--") => {
+                    self.consume_static(SyntaxKind::Cdo, start, "<!--".len())
+                }
+                '-' if self.starts_with("-->") => {
+                    self.consume_static(SyntaxKind::Cdc, start, "-->".len())
+                }
                 '"' | '\'' => self.consume_string(current),
                 'u' | 'U' if self.starts_unicode_range() => self.consume_unicode_range(),
                 '0'..='9' => self.consume_number(),
@@ -4671,6 +4679,17 @@ mod tests {
     }
 
     #[test]
+    fn tokenizes_cdo_cdc_and_ignores_them_at_top_level() {
+        let result = parse("<!-- .a { color: red; } -->", StyleDialect::Css);
+        let token_kinds = token_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(token_kinds.contains(&SyntaxKind::Cdo));
+        assert!(token_kinds.contains(&SyntaxKind::Cdc));
+        assert!(node_kinds(&result.syntax()).contains(&SyntaxKind::Rule));
+    }
+
+    #[test]
     fn tokenizes_unquoted_urls_and_bad_urls() {
         let good = lex(".a { background: url(images/bg.png); }", StyleDialect::Css);
         let bad = lex(".a { background: url(foo\"bar); }", StyleDialect::Css);
@@ -6116,6 +6135,7 @@ mod tests {
                 .ready_surfaces
                 .contains(&"unexpectedValueTokenBogusNodes")
         );
+        assert!(summary.ready_surfaces.contains(&"cdoCdcTokenization"));
         assert!(
             summary
                 .ready_surfaces

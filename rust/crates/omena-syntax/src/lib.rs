@@ -201,6 +201,8 @@ syntax_kinds! {
     KeywordFor = 0x0062,
     KeywordWhile = 0x0063,
     KeywordIn = 0x0064,
+    Cdo = 0x0065,
+    Cdc = 0x0066,
 
     ScssVariable = 0x0400,
     ScssInterpolationStart = 0x0401,
@@ -472,6 +474,8 @@ impl Syntax for SyntaxKind {
             Self::KeywordTo => Some("to"),
             Self::KeywordThrough => Some("through"),
             Self::KeywordImportant => Some("important"),
+            Self::Cdo => Some("<!--"),
+            Self::Cdc => Some("-->"),
             Self::KeywordGlobal => Some("global"),
             Self::KeywordLocal => Some("local"),
             Self::KeywordExport => Some("export"),
