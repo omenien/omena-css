@@ -84,6 +84,7 @@ export function withExpressionDomainSelectorProjection(
   payload: ExpressionSemanticsEvaluatorCandidatePayloadV0,
   projection: ExpressionDomainSelectorProjectionEntryV0 | null,
 ): ExpressionSemanticsEvaluatorCandidatePayloadV0 {
+  if (payload.selectorNames.length > 0) return payload;
   if (!projection || projection.selectorNames.length === 0) return payload;
   return {
     ...payload,

@@ -305,15 +305,16 @@ describe("resolveSourceExpressionHoverResult", () => {
           expressionKind: "symbolRef",
           styleFilePath: "/fake/src/Button.module.scss",
           selectorNames: [],
-          candidateNames: [],
-          finiteValues: [],
-          valueDomainKind: "none",
-          selectorCertainty: "possible",
-          valueCertainty: "possible",
+          candidateNames: ["btn-primary"],
+          finiteValues: ["btn-primary"],
+          valueDomainKind: "finiteSet",
+          selectorCertainty: "inferred",
+          valueCertainty: "inferred",
           selectorCertaintyShapeKind: "unknown",
           selectorCertaintyShapeLabel: "unknown",
-          valueCertaintyShapeKind: "unknown",
-          valueCertaintyShapeLabel: "unknown",
+          valueCertaintyShapeKind: "boundedFinite",
+          valueCertaintyShapeLabel: "bounded finite (1)",
+          valueDomainDerivation: sampleValueDomainDerivation(),
         };
       },
       readRustExpressionDomainSelectorProjections: (_document, scssModulePath) => {
@@ -334,6 +335,15 @@ describe("resolveSourceExpressionHoverResult", () => {
 
     expect(projectionReads).toBe(1);
     expect(result.selectors.map((selector) => selector.name)).toEqual(["btn-primary"]);
+    expect(result.dynamicExplanation).toEqual(
+      expect.objectContaining({
+        kind: "symbolRef",
+        subject: "size",
+        candidates: ["btn-primary"],
+        valueCertainty: "inferred",
+        valueCertaintyShapeLabel: "exact",
+      }),
+    );
     expect(Array.from(result.styleDependenciesBySelector.keys())).toEqual(["btn-primary"]);
   });
 

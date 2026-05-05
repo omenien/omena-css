@@ -237,12 +237,13 @@ function resolveExplainExpressionViaRustSemantics(
     ctx.expression.scssModulePath,
     deps,
   );
-  const projection = readRustSelectorProjections
-    ? (indexExpressionDomainSelectorProjectionsForStyle(
-        readRustSelectorProjections(document, ctx.expression.scssModulePath, deps),
-        ctx.expression.scssModulePath,
-      ).get(ctx.expression.id) ?? null)
-    : null;
+  const projection =
+    rawPayload && rawPayload.selectorNames.length === 0 && readRustSelectorProjections
+      ? (indexExpressionDomainSelectorProjectionsForStyle(
+          readRustSelectorProjections(document, ctx.expression.scssModulePath, deps),
+          ctx.expression.scssModulePath,
+        ).get(ctx.expression.id) ?? null)
+      : null;
   const payload = rawPayload
     ? withExpressionDomainSelectorProjection(rawPayload, projection)
     : rawPayload;

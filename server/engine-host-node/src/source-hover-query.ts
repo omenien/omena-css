@@ -3,6 +3,7 @@ import type {
   SelectorStyleDependencySummary,
   SourceExpressionContext,
 } from "../../engine-core-ts/src/core/query";
+import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import {
   buildDynamicExpressionExplanation,
   findCanonicalSelector,
@@ -25,11 +26,16 @@ import {
 } from "./expression-domain-selector-projection-query-backend";
 import {
   resolveRustSourceResolutionSelectorMatchAsync,
-  resolveRustSourceResolutionSelectorMatch,
+  type resolveRustSourceResolutionSelectorMatch,
+  resolveRustSourceResolutionPayload,
+  resolveRustSourceResolutionPayloadAsync,
+  buildSourceResolutionSummaryFromRustPayload,
+  type SourceResolutionEvaluatorCandidatePayloadV0,
   resolveSelectedQueryBackendKind,
   usesRustExpressionSemanticsBackend,
   usesRustSourceResolutionBackend,
 } from "./source-resolution-query-backend";
+import type { ExpressionSemanticsSummary } from "../../engine-core-ts/src/core/query/read-expression-semantics";
 import type { RustSelectedQueryBackendJsonRunnerAsync } from "./selected-query-backend";
 
 export interface SourceHoverQueryOptions {
@@ -73,16 +79,11 @@ export function resolveSourceExpressionHoverResult(
             resolveRustExpressionDomainSelectorProjections)
         : null,
     );
-    if (rustResult && rustResult.selectors.length > 0) return rustResult;
+    if (shouldUseRustHoverResult(ctx, rustResult)) return rustResult;
   }
   if (usesRustSourceResolutionBackend(backend)) {
-    const rustSelectors = resolveSelectorsFromRustSourceResolution(
-      ctx,
-      params,
-      deps,
-      options.readRustSourceResolutionSelectorMatch ?? resolveRustSourceResolutionSelectorMatch,
-    );
-    if (rustSelectors) return buildSourceHoverResult(ctx, deps, rustSelectors, null);
+    const rustResult = resolveHoverFromRustSourceResolution(ctx, params, deps, options);
+    if (rustResult) return rustResult;
   }
 
   const result = resolveRefDetails(ctx, {
@@ -121,16 +122,11 @@ export async function resolveSourceExpressionHoverResultAsync(
         : null,
       options.runRustSelectedQueryBackendJsonAsync,
     );
-    if (rustResult && rustResult.selectors.length > 0) return rustResult;
+    if (shouldUseRustHoverResult(ctx, rustResult)) return rustResult;
   }
   if (usesRustSourceResolutionBackend(backend)) {
-    const rustSelectors = await resolveSelectorsFromRustSourceResolutionAsync(
-      ctx,
-      params,
-      deps,
-      options.runRustSelectedQueryBackendJsonAsync,
-    );
-    if (rustSelectors) return buildSourceHoverResult(ctx, deps, rustSelectors, null);
+    const rustResult = await resolveHoverFromRustSourceResolutionAsync(ctx, params, deps, options);
+    if (rustResult) return rustResult;
   }
 
   const result = resolveRefDetails(ctx, {
@@ -165,6 +161,15 @@ function buildSourceHoverResult(
   };
 }
 
+function shouldUseRustHoverResult(
+  ctx: SourceExpressionContext,
+  result: SourceHoverResult | null,
+): result is SourceHoverResult {
+  if (!result || result.selectors.length === 0) return false;
+  if (ctx.expression.kind === "literal" || ctx.expression.kind === "styleAccess") return true;
+  return result.dynamicExplanation !== null;
+}
+
 function resolveHoverFromRustExpressionSemantics(
   ctx: SourceExpressionContext,
   params: Pick<CursorParams, "documentUri" | "content" | "filePath" | "version">,
@@ -192,13 +197,14 @@ function resolveHoverFromRustExpressionSemantics(
     ctx.expression.scssModulePath,
     deps,
   );
-  const projection = readRustSelectorProjections
-    ? readExpressionProjection(
-        readRustSelectorProjections(document, ctx.expression.scssModulePath, deps),
-        ctx.expression.id,
-        ctx.expression.scssModulePath,
-      )
-    : null;
+  const projection =
+    rawPayload && rawPayload.selectorNames.length === 0 && readRustSelectorProjections
+      ? readExpressionProjection(
+          readRustSelectorProjections(document, ctx.expression.scssModulePath, deps),
+          ctx.expression.id,
+          ctx.expression.scssModulePath,
+        )
+      : null;
   const payload = rawPayload
     ? withExpressionDomainSelectorProjection(rawPayload, projection)
     : rawPayload;
@@ -265,13 +271,14 @@ async function resolveHoverFromRustExpressionSemanticsAsync(
     deps,
     runJson,
   );
-  const projection = readRustSelectorProjections
-    ? readExpressionProjection(
-        await readRustSelectorProjections(document, ctx.expression.scssModulePath, deps, runJson),
-        ctx.expression.id,
-        ctx.expression.scssModulePath,
-      )
-    : null;
+  const projection =
+    rawPayload && rawPayload.selectorNames.length === 0 && readRustSelectorProjections
+      ? readExpressionProjection(
+          await readRustSelectorProjections(document, ctx.expression.scssModulePath, deps, runJson),
+          ctx.expression.id,
+          ctx.expression.scssModulePath,
+        )
+      : null;
   const payload = rawPayload
     ? withExpressionDomainSelectorProjection(rawPayload, projection)
     : rawPayload;
@@ -322,22 +329,38 @@ function readExpressionProjection(
   );
 }
 
-function resolveSelectorsFromRustSourceResolution(
+function resolveHoverFromRustSourceResolution(
   ctx: SourceExpressionContext,
   params: Pick<CursorParams, "documentUri" | "content" | "filePath" | "version">,
   deps: Pick<
     ProviderDeps,
-    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+    | "analysisCache"
+    | "styleDependencyGraph"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "settings"
   >,
-  readRustSelectorMatch: typeof resolveRustSourceResolutionSelectorMatch,
-): ReturnType<typeof resolveRefDetails>["selectors"] | null {
-  const match = readRustSelectorMatch(
-    {
-      uri: params.documentUri,
-      content: params.content,
-      filePath: params.filePath,
-      version: params.version,
-    },
+  options: SourceHoverQueryOptions,
+): SourceHoverResult | null {
+  const document = {
+    uri: params.documentUri,
+    content: params.content,
+    filePath: params.filePath,
+    version: params.version,
+  };
+  if (!options.readRustSourceResolutionSelectorMatch) {
+    const payload = resolveRustSourceResolutionPayload(
+      document,
+      ctx.expression.id,
+      ctx.expression.scssModulePath,
+      deps,
+    );
+    return buildHoverFromRustSourceResolutionPayload(ctx, deps, payload);
+  }
+
+  const match = options.readRustSourceResolutionSelectorMatch(
+    document,
     ctx.expression.id,
     ctx.expression.scssModulePath,
     deps,
@@ -346,41 +369,101 @@ function resolveSelectorsFromRustSourceResolution(
   const styleDocument = deps.styleDocumentForPath(match.styleFilePath);
   if (!styleDocument || match.selectorNames.length === 0) return null;
 
-  return match.selectorNames.flatMap((name) => {
-    const selectorsForName = findCanonicalSelectorsByName(styleDocument, name);
-    if (selectorsForName.length > 0) return selectorsForName;
-    const selector =
-      styleDocument.selectors.find((candidate) => candidate.canonicalName === name) ?? null;
-    return selector ? [findCanonicalSelector(styleDocument, selector)] : [];
-  });
+  return buildSourceHoverResult(
+    ctx,
+    deps,
+    resolveSelectorsByNames(styleDocument, match.selectorNames),
+    null,
+  );
 }
 
-async function resolveSelectorsFromRustSourceResolutionAsync(
+async function resolveHoverFromRustSourceResolutionAsync(
   ctx: SourceExpressionContext,
   params: Pick<CursorParams, "documentUri" | "content" | "filePath" | "version">,
   deps: Pick<
     ProviderDeps,
-    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+    | "analysisCache"
+    | "styleDependencyGraph"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "settings"
   >,
-  runJson?: RustSelectedQueryBackendJsonRunnerAsync,
-): Promise<ReturnType<typeof resolveRefDetails>["selectors"] | null> {
+  options: SourceHoverQueryOptions,
+): Promise<SourceHoverResult | null> {
+  const document = {
+    uri: params.documentUri,
+    content: params.content,
+    filePath: params.filePath,
+    version: params.version,
+  };
+  if (!options.readRustSourceResolutionSelectorMatch) {
+    const payload = await resolveRustSourceResolutionPayloadAsync(
+      document,
+      ctx.expression.id,
+      ctx.expression.scssModulePath,
+      deps,
+      options.runRustSelectedQueryBackendJsonAsync,
+    );
+    return buildHoverFromRustSourceResolutionPayload(ctx, deps, payload);
+  }
+
   const match = await resolveRustSourceResolutionSelectorMatchAsync(
-    {
-      uri: params.documentUri,
-      content: params.content,
-      filePath: params.filePath,
-      version: params.version,
-    },
+    document,
     ctx.expression.id,
     ctx.expression.scssModulePath,
     deps,
-    runJson,
+    options.runRustSelectedQueryBackendJsonAsync,
   );
   if (!match) return null;
   const styleDocument = deps.styleDocumentForPath(match.styleFilePath);
   if (!styleDocument || match.selectorNames.length === 0) return null;
 
-  return match.selectorNames.flatMap((name) => {
+  return buildSourceHoverResult(
+    ctx,
+    deps,
+    resolveSelectorsByNames(styleDocument, match.selectorNames),
+    null,
+  );
+}
+
+function buildHoverFromRustSourceResolutionPayload(
+  ctx: SourceExpressionContext,
+  deps: Pick<ProviderDeps, "styleDependencyGraph" | "styleDocumentForPath">,
+  payload: SourceResolutionEvaluatorCandidatePayloadV0 | null,
+): SourceHoverResult | null {
+  if (!payload || !payload.styleFilePath || payload.selectorNames.length === 0) return null;
+  const styleDocument = deps.styleDocumentForPath(payload.styleFilePath);
+  if (!styleDocument) return null;
+  const selectors = resolveSelectorsByNames(styleDocument, payload.selectorNames);
+  if (selectors.length === 0) return null;
+  const resolution = buildSourceResolutionSummaryFromRustPayload(styleDocument, selectors, payload);
+  const semantics: ExpressionSemanticsSummary = {
+    expression: ctx.expression,
+    styleDocument: resolution.styleDocument,
+    selectors: resolution.selectors,
+    selectorNames: resolution.selectors.map((selector) => selector.name),
+    candidateNames: payload.finiteValues ?? payload.selectorNames,
+    finiteValues: resolution.finiteValues,
+    valueDomainKind: "top",
+    ...(resolution.abstractValue ? { abstractValue: resolution.abstractValue } : {}),
+    ...(resolution.valueCertainty ? { valueCertainty: resolution.valueCertainty } : {}),
+    ...(resolution.reason ? { reason: resolution.reason } : {}),
+    selectorCertainty: resolution.selectorCertainty,
+  };
+  return buildSourceHoverResult(
+    ctx,
+    deps,
+    selectors,
+    buildDynamicExpressionExplanation(ctx.expression, semantics),
+  );
+}
+
+function resolveSelectorsByNames(
+  styleDocument: StyleDocumentHIR,
+  selectorNames: readonly string[],
+): ReturnType<typeof resolveRefDetails>["selectors"] {
+  return selectorNames.flatMap((name) => {
     const selectorsForName = findCanonicalSelectorsByName(styleDocument, name);
     if (selectorsForName.length > 0) return selectorsForName;
     const selector =

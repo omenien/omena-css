@@ -196,17 +196,20 @@ function resolveSourceDiagnosticFindingsViaRustSemantics(
         expression.scssModulePath,
         deps,
       );
-      const projection = readRustSelectorProjection(
-        {
-          uri: params.documentUri,
-          content: params.content,
-          filePath: params.filePath,
-          version: params.version,
-        },
-        expression.id,
-        expression.scssModulePath,
-        deps,
-      );
+      const projection =
+        rawPayload && rawPayload.selectorNames.length === 0
+          ? readRustSelectorProjection(
+              {
+                uri: params.documentUri,
+                content: params.content,
+                filePath: params.filePath,
+                version: params.version,
+              },
+              expression.id,
+              expression.scssModulePath,
+              deps,
+            )
+          : null;
       const payload = rawPayload
         ? withExpressionDomainSelectorProjection(rawPayload, projection)
         : rawPayload;
@@ -378,17 +381,20 @@ async function resolveSourceDiagnosticFindingsViaRustSemanticsAsync(
             expression.scssModulePath,
             deps,
           );
-          const projection = await readRustSelectorProjection(
-            {
-              uri: params.documentUri,
-              content: params.content,
-              filePath: params.filePath,
-              version: params.version,
-            },
-            expression.id,
-            expression.scssModulePath,
-            deps,
-          );
+          const projection =
+            rawPayload && rawPayload.selectorNames.length === 0
+              ? await readRustSelectorProjection(
+                  {
+                    uri: params.documentUri,
+                    content: params.content,
+                    filePath: params.filePath,
+                    version: params.version,
+                  },
+                  expression.id,
+                  expression.scssModulePath,
+                  deps,
+                )
+              : null;
           const payload = rawPayload
             ? withExpressionDomainSelectorProjection(rawPayload, projection)
             : rawPayload;
