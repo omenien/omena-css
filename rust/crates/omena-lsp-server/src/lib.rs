@@ -19,6 +19,11 @@ use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
     OmenaQuerySourceSelectorCandidateV0, OmenaQuerySourceSelectorReferenceEditTargetV0,
     OmenaQueryStyleHoverCandidateV0, OmenaQueryStyleSelectorDefinitionV0,
+    is_omena_query_sass_symbol_candidate_kind as is_sass_symbol_candidate_kind,
+    is_omena_query_sass_symbol_declaration_kind as is_sass_symbol_declaration_kind,
+    is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,
+    omena_query_sass_symbol_kind_from_candidate_kind as sass_symbol_kind_from_candidate_kind,
+    omena_query_sass_symbol_target_matches, resolve_omena_query_sass_symbol_declarations,
     resolve_omena_query_selector_rename_edits, resolve_omena_query_source_candidate_selector_names,
     resolve_omena_query_source_provider_candidates,
     resolve_omena_query_style_selector_definitions_for_source_candidate,
@@ -2125,44 +2130,6 @@ fn source_candidate_matches_target_style(
     })
 }
 
-fn is_sass_symbol_candidate_kind(kind: &str) -> bool {
-    sass_symbol_kind_from_candidate_kind(kind).is_some()
-}
-
-fn is_sass_symbol_reference_kind(kind: &str) -> bool {
-    matches!(
-        kind,
-        "sassVariableReference"
-            | "sassMixinInclude"
-            | "sassFunctionCall"
-            | "sassMixinReference"
-            | "sassFunctionReference"
-            | "sassSymbolReference"
-    )
-}
-
-fn is_sass_symbol_declaration_kind(kind: &str) -> bool {
-    matches!(
-        kind,
-        "sassVariableDeclaration"
-            | "sassMixinDeclaration"
-            | "sassFunctionDeclaration"
-            | "sassSymbolDeclaration"
-    )
-}
-
-fn sass_symbol_kind_from_candidate_kind(kind: &str) -> Option<&'static str> {
-    match kind {
-        "sassVariableDeclaration" | "sassVariableReference" => Some("variable"),
-        "sassMixinDeclaration" | "sassMixinInclude" | "sassMixinReference" => Some("mixin"),
-        "sassFunctionDeclaration" | "sassFunctionCall" | "sassFunctionReference" => {
-            Some("function")
-        }
-        "sassSymbolDeclaration" | "sassSymbolReference" => Some("symbol"),
-        _ => None,
-    }
-}
-
 fn sass_symbol_definitions_for_candidate(
     state: &LspShellState,
     document: &LspTextDocumentState,
@@ -2226,15 +2193,19 @@ fn sass_symbol_declarations_for_uri(
     let Some((_, candidates)) = style_hover_candidates_for_uri(state, target_uri) else {
         return Vec::new();
     };
-    candidates
-        .into_iter()
-        .filter(|target| {
-            is_sass_symbol_declaration_kind(target.kind)
-                && sass_symbol_kind_from_candidate_kind(target.kind) == Some(symbol_kind)
-                && target.name == candidate.name
-        })
-        .map(|target| (target_uri.to_string(), target))
-        .collect()
+    let query_candidates = candidates
+        .iter()
+        .map(query_style_hover_candidate_from_lsp)
+        .collect::<Vec<_>>();
+    resolve_omena_query_sass_symbol_declarations(
+        query_candidates.as_slice(),
+        symbol_kind,
+        candidate.name.as_str(),
+    )
+    .into_iter()
+    .map(lsp_style_hover_candidate_from_query)
+    .map(|target| (target_uri.to_string(), target))
+    .collect()
 }
 
 fn sass_symbol_declarations_in_document(
@@ -2242,17 +2213,20 @@ fn sass_symbol_declarations_in_document(
     symbol_kind: &str,
     candidate: &LspStyleHoverCandidate,
 ) -> Vec<(String, LspStyleHoverCandidate)> {
-    document
+    let query_candidates = document
         .style_candidates
         .iter()
-        .filter(|target| {
-            is_sass_symbol_declaration_kind(target.kind)
-                && sass_symbol_kind_from_candidate_kind(target.kind) == Some(symbol_kind)
-                && target.name == candidate.name
-        })
-        .cloned()
-        .map(|target| (document.uri.clone(), target))
-        .collect()
+        .map(query_style_hover_candidate_from_lsp)
+        .collect::<Vec<_>>();
+    resolve_omena_query_sass_symbol_declarations(
+        query_candidates.as_slice(),
+        symbol_kind,
+        candidate.name.as_str(),
+    )
+    .into_iter()
+    .map(lsp_style_hover_candidate_from_query)
+    .map(|target| (document.uri.clone(), target))
+    .collect()
 }
 
 fn sass_module_target_uris_for_candidate(
@@ -2389,10 +2363,14 @@ fn sass_symbol_target_matches(
     candidate: &LspStyleHoverCandidate,
     target: &LspStyleHoverCandidate,
 ) -> bool {
-    candidate.name == target.name
-        && candidate.namespace == target.namespace
-        && sass_symbol_kind_from_candidate_kind(candidate.kind)
-            == sass_symbol_kind_from_candidate_kind(target.kind)
+    omena_query_sass_symbol_target_matches(
+        candidate.kind,
+        candidate.name.as_str(),
+        candidate.namespace.as_deref(),
+        target.kind,
+        target.name.as_str(),
+        target.namespace.as_deref(),
+    )
 }
 
 fn render_sass_symbol_label(candidate: &LspStyleHoverCandidate) -> String {

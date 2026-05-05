@@ -331,6 +331,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "sourceMissingSelectorDiagnostics",
             "sourceProviderCandidateResolution",
             "selectorRenameEditPlanning",
+            "sassSymbolResolutionPrimitives",
             "queryBoundarySummary",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
@@ -913,6 +914,75 @@ pub fn resolve_omena_query_selector_rename_edits(
         )
     });
     edits
+}
+
+pub fn is_omena_query_sass_symbol_candidate_kind(kind: &str) -> bool {
+    omena_query_sass_symbol_kind_from_candidate_kind(kind).is_some()
+}
+
+pub fn is_omena_query_sass_symbol_reference_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        "sassVariableReference"
+            | "sassMixinInclude"
+            | "sassFunctionCall"
+            | "sassMixinReference"
+            | "sassFunctionReference"
+            | "sassSymbolReference"
+    )
+}
+
+pub fn is_omena_query_sass_symbol_declaration_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        "sassVariableDeclaration"
+            | "sassMixinDeclaration"
+            | "sassFunctionDeclaration"
+            | "sassSymbolDeclaration"
+    )
+}
+
+pub fn omena_query_sass_symbol_kind_from_candidate_kind(kind: &str) -> Option<&'static str> {
+    match kind {
+        "sassVariableDeclaration" | "sassVariableReference" => Some("variable"),
+        "sassMixinDeclaration" | "sassMixinInclude" | "sassMixinReference" => Some("mixin"),
+        "sassFunctionDeclaration" | "sassFunctionCall" | "sassFunctionReference" => {
+            Some("function")
+        }
+        "sassSymbolDeclaration" | "sassSymbolReference" => Some("symbol"),
+        _ => None,
+    }
+}
+
+pub fn omena_query_sass_symbol_target_matches(
+    candidate_kind: &str,
+    candidate_name: &str,
+    candidate_namespace: Option<&str>,
+    target_kind: &str,
+    target_name: &str,
+    target_namespace: Option<&str>,
+) -> bool {
+    candidate_name == target_name
+        && candidate_namespace == target_namespace
+        && omena_query_sass_symbol_kind_from_candidate_kind(candidate_kind)
+            == omena_query_sass_symbol_kind_from_candidate_kind(target_kind)
+}
+
+pub fn resolve_omena_query_sass_symbol_declarations(
+    candidates: &[OmenaQueryStyleHoverCandidateV0],
+    symbol_kind: &str,
+    name: &str,
+) -> Vec<OmenaQueryStyleHoverCandidateV0> {
+    candidates
+        .iter()
+        .filter(|target| {
+            is_omena_query_sass_symbol_declaration_kind(target.kind)
+                && omena_query_sass_symbol_kind_from_candidate_kind(target.kind)
+                    == Some(symbol_kind)
+                && target.name == name
+        })
+        .cloned()
+        .collect()
 }
 
 pub fn summarize_omena_query_sass_module_sources(
@@ -3129,6 +3199,43 @@ $accent: red;
                 ("file:///workspace/src/App.tsx", "shell"),
             ]
         );
+    }
+
+    #[test]
+    fn sass_symbol_matching_is_query_owned() {
+        let source = "$accent: red;\n.button { color: $accent; }\n";
+        let Some(candidates) =
+            super::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+        else {
+            return;
+        };
+
+        assert!(super::is_omena_query_sass_symbol_candidate_kind(
+            "sassVariableDeclaration"
+        ));
+        assert!(super::is_omena_query_sass_symbol_reference_kind(
+            "sassVariableReference"
+        ));
+        assert_eq!(
+            super::omena_query_sass_symbol_kind_from_candidate_kind("sassVariableReference"),
+            Some("variable")
+        );
+        assert!(super::omena_query_sass_symbol_target_matches(
+            "sassVariableReference",
+            "accent",
+            None,
+            "sassVariableDeclaration",
+            "accent",
+            None,
+        ));
+
+        let declarations = super::resolve_omena_query_sass_symbol_declarations(
+            candidates.candidates.as_slice(),
+            "variable",
+            "accent",
+        );
+        assert_eq!(declarations.len(), 1);
+        assert_eq!(declarations[0].kind, "sassVariableDeclaration");
     }
 
     #[test]
