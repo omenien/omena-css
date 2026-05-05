@@ -9,6 +9,7 @@ Current scope:
 - `ParseResult` over a `cstree` green root.
 - Typed CST wrapper accessors for the current stylesheet, rule, selector,
   declaration, value, and at-rule nodes.
+- Typed Bogus-node wrapper accessors for recovery-aware consumers.
 - Panic-free tokenizer for CSS-family source slices using char-boundary-safe cursor movement.
 - Initial dialect classification for CSS, SCSS, Sass, and Less tokens.
 - `TokenSet` recovery scaffolding and parser boundary summary.

@@ -206,6 +206,14 @@ impl ParsedCst {
         self.nodes(AtRuleCstNode::cast)
     }
 
+    pub fn bogus_nodes(&self) -> Vec<BogusCstNode> {
+        self.nodes(BogusCstNode::cast)
+    }
+
+    pub fn has_bogus_nodes(&self) -> bool {
+        self.first_node(BogusCstNode::cast).is_some()
+    }
+
     fn first_node<T>(&self, cast: impl Fn(SyntaxNode<SyntaxKind>) -> Option<T>) -> Option<T> {
         let mut nodes = Vec::new();
         collect_typed_nodes(&self.root, &cast, &mut nodes);
@@ -273,9 +281,28 @@ pub struct AtRuleCstNode {
     syntax: SyntaxNode<SyntaxKind>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BogusCstNode {
+    syntax: SyntaxNode<SyntaxKind>,
+}
+
 impl TypedCstNode for AtRuleCstNode {
     fn cast(syntax: SyntaxNode<SyntaxKind>) -> Option<Self> {
         is_at_rule_node_kind(syntax.kind()).then_some(Self { syntax })
+    }
+
+    fn syntax(&self) -> &SyntaxNode<SyntaxKind> {
+        &self.syntax
+    }
+
+    fn into_syntax(self) -> SyntaxNode<SyntaxKind> {
+        self.syntax
+    }
+}
+
+impl TypedCstNode for BogusCstNode {
+    fn cast(syntax: SyntaxNode<SyntaxKind>) -> Option<Self> {
+        syntax.kind().is_bogus().then_some(Self { syntax })
     }
 
     fn syntax(&self) -> &SyntaxNode<SyntaxKind> {
@@ -629,6 +656,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "badUrlWhitespaceRecovery",
             "parserEntryPointApiSlice",
             "typedCstWrapperSlice",
+            "typedBogusCstWrapperSlice",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -6607,6 +6635,19 @@ mod tests {
     }
 
     #[test]
+    fn exposes_typed_bogus_cst_wrapper_slice() {
+        let result = parse(".card { color: @; width: ?; }", StyleDialect::Css);
+        let cst = result.cst();
+        let bogus_kinds: Vec<SyntaxKind> =
+            cst.bogus_nodes().iter().map(TypedCstNode::kind).collect();
+
+        assert!(cst.has_bogus_nodes());
+        assert!(bogus_kinds.contains(&SyntaxKind::BogusValue));
+        assert!(bogus_kinds.contains(&SyntaxKind::BogusToken));
+        assert!(bogus_kinds.iter().all(|kind| kind.is_bogus()));
+    }
+
+    #[test]
     fn summarizes_green_field_parser_boundary() {
         let summary = summarize_parser_boundary();
 
@@ -6859,6 +6900,11 @@ mod tests {
         assert!(summary.ready_surfaces.contains(&"badUrlWhitespaceRecovery"));
         assert!(summary.ready_surfaces.contains(&"parserEntryPointApiSlice"));
         assert!(summary.ready_surfaces.contains(&"typedCstWrapperSlice"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"typedBogusCstWrapperSlice")
+        );
         assert!(
             summary
                 .ready_surfaces
