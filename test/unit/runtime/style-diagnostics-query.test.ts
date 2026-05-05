@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import { resolveStyleDiagnosticFindings } from "../../../server/engine-host-node/src/style-diagnostics-query";
 import type { StyleSemanticGraphSummaryV0 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
+import { makeDesignTokenDefinitionGraph } from "../../_fixtures/style-semantic-graph";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 import {
   buildStyleDocumentFromSelectorMap,
@@ -352,6 +354,47 @@ describe("resolveStyleDiagnosticFindings", () => {
     expect(findings[0]).toMatchObject({
       code: "missing-composed-module",
     });
+  });
+
+  it("suppresses missing custom-property findings when rust design-token ranking has a winner", () => {
+    const scssPath = "/fake/Button.module.scss";
+    const styleDocument = parseStyleDocument(
+      `:root {
+  --other: #fff;
+  color: var(--brand);
+}`,
+      scssPath,
+    );
+    const deps = makeBaseDeps({ workspaceRoot: "/fake" });
+
+    const findings = resolveStyleDiagnosticFindings(
+      { scssPath, styleDocument },
+      {
+        analysisCache: deps.analysisCache,
+        readStyleFile: deps.readStyleFile,
+        semanticReferenceIndex: deps.semanticReferenceIndex,
+        styleDependencyGraph: deps.styleDependencyGraph,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        workspaceRoot: deps.workspaceRoot,
+        settings: deps.settings,
+      },
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        readRustStyleSemanticGraphForWorkspaceTarget: () =>
+          makeDesignTokenDefinitionGraph({
+            referenceName: "--brand",
+            winnerDeclarationFilePath: "/fake/theme.module.scss",
+            winnerDeclarationRange: {
+              start: { line: 0, character: 8 },
+              end: { line: 0, character: 15 },
+            },
+            stylePath: scssPath,
+          }),
+      },
+    );
+
+    expect(findings.filter((finding) => finding.code === "missing-custom-property")).toEqual([]);
   });
 });
 

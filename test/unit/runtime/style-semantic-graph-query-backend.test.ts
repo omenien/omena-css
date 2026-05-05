@@ -513,6 +513,7 @@ describe("style semantic graph query backend", () => {
   it("passes package manifests into cached multi-style graph batch reads", () => {
     const packageJsonPath = "/fake/ws/node_modules/@design/tokens/package.json";
     const packageJsonSource = `{"exports":{"./theme":{"style":"./dist/theme.css"}}}`;
+    const packageStylePath = "/fake/ws/node_modules/@design/tokens/dist/theme.css";
     const deps = makeBaseDeps({
       selectorMapForPath: (filePath) =>
         filePath === SCSS_PATH
@@ -527,7 +528,9 @@ describe("style semantic graph query backend", () => {
             ? CARD_SCSS_SOURCE
             : filePath === packageJsonPath
               ? packageJsonSource
-              : null,
+              : filePath === packageStylePath
+                ? `:root { --brand: #0af; }`
+                : null,
       workspaceRoot: "/fake/ws",
     });
     let batchInput: StyleSemanticGraphBatchRunnerInputV0 | null = null;
@@ -572,6 +575,7 @@ describe("style semantic graph query backend", () => {
         packageJsonSource,
       },
     ]);
+    expect(batchInput?.styles.map((style) => style.stylePath)).toContain(packageStylePath);
   });
 
   it("falls back to single graph reads when batch output omits the exact target path", () => {

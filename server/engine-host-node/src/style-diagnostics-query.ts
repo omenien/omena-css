@@ -7,6 +7,7 @@ import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-t
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import {
   resolveSelectedQueryBackendKind,
+  usesRustStyleSemanticGraphBackend,
   usesRustSelectorUsageBackend,
 } from "./selected-query-backend";
 import {
@@ -15,7 +16,13 @@ import {
   type StyleModuleUsageQueryOptions,
 } from "./style-module-usage-query";
 import type { SelectorUsagePayloadCache } from "./selector-usage-query-backend";
-import type { StyleSemanticGraphCache } from "./style-semantic-graph-query-backend";
+import {
+  buildStyleSemanticGraphDesignTokenRankedReferenceReadModels,
+  resolveRustStyleSemanticGraphForWorkspaceTargetAsync,
+  resolveRustStyleSemanticGraphForWorkspaceTarget,
+  type StyleSemanticGraphCache,
+  type StyleSemanticGraphSummaryV0,
+} from "./style-semantic-graph-query-backend";
 
 export interface StyleDiagnosticsQueryOptions extends StyleModuleUsageQueryOptions {
   readonly includeUnusedSelectors?: boolean;
@@ -94,6 +101,12 @@ export function resolveStyleDiagnosticFindings(
           : {}),
       },
     );
+    const filteredOtherFindings = filterResolvedRustDesignTokenFindings(
+      args,
+      rustDeps,
+      options,
+      otherFindings,
+    );
     return [
       ...unusedSelectors.map<StyleCheckerFinding>((selector) => ({
         category: "style",
@@ -103,7 +116,7 @@ export function resolveStyleDiagnosticFindings(
         selectorFilePath: args.scssPath,
         canonicalName: selector.canonicalName,
       })),
-      ...otherFindings,
+      ...filteredOtherFindings,
     ];
   }
 
@@ -187,6 +200,12 @@ export async function resolveStyleDiagnosticFindingsAsync(
           : {}),
       },
     );
+    const filteredOtherFindings = await filterResolvedRustDesignTokenFindingsAsync(
+      args,
+      rustDeps,
+      options,
+      otherFindings,
+    );
     return [
       ...unusedSelectors.map<StyleCheckerFinding>((selector) => ({
         category: "style",
@@ -196,7 +215,7 @@ export async function resolveStyleDiagnosticFindingsAsync(
         selectorFilePath: args.scssPath,
         canonicalName: selector.canonicalName,
       })),
-      ...otherFindings,
+      ...filteredOtherFindings,
     ];
   }
 
@@ -243,6 +262,226 @@ function hasRustStyleDiagnosticsDeps(
     deps.typeResolver &&
     deps.workspaceRoot &&
     deps.settings,
+  );
+}
+
+function filterResolvedRustDesignTokenFindings(
+  args: {
+    readonly scssPath: string;
+    readonly styleDocument: StyleDocumentHIR;
+  },
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  > & {
+    readonly readStyleFile?: ProviderDeps["readStyleFile"];
+    readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+  },
+  options: StyleDiagnosticsQueryOptions,
+  findings: readonly StyleCheckerFinding[],
+): readonly StyleCheckerFinding[] {
+  if (!hasMissingCustomPropertyFindings(findings)) return findings;
+  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
+    return findings;
+  }
+  const readStyleFile = deps.readStyleFile;
+  if (!readStyleFile) return findings;
+
+  const graph = safeResolveRustStyleSemanticGraphForDiagnostics(
+    args.scssPath,
+    toRustStyleSemanticGraphDeps(deps, readStyleFile),
+    options,
+  );
+  if (!graph) return findings;
+
+  const resolvedKeys = collectResolvedRustDesignTokenReferenceKeys(graph, args.styleDocument);
+  if (resolvedKeys.size === 0) return findings;
+  return findings.filter(
+    (finding) =>
+      finding.code !== "missing-custom-property" ||
+      !resolvedKeys.has(customPropertyReferenceKey(finding.propertyName, finding.range)),
+  );
+}
+
+async function filterResolvedRustDesignTokenFindingsAsync(
+  args: {
+    readonly scssPath: string;
+    readonly styleDocument: StyleDocumentHIR;
+  },
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  > & {
+    readonly readStyleFile?: ProviderDeps["readStyleFile"];
+    readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+  },
+  options: StyleDiagnosticsQueryOptions,
+  findings: readonly StyleCheckerFinding[],
+): Promise<readonly StyleCheckerFinding[]> {
+  if (!hasMissingCustomPropertyFindings(findings)) return findings;
+  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
+    return findings;
+  }
+  const readStyleFile = deps.readStyleFile;
+  if (!readStyleFile) return findings;
+
+  const graph = await safeResolveRustStyleSemanticGraphForDiagnosticsAsync(
+    args.scssPath,
+    toRustStyleSemanticGraphDeps(deps, readStyleFile),
+    options,
+  );
+  if (!graph) return findings;
+
+  const resolvedKeys = collectResolvedRustDesignTokenReferenceKeys(graph, args.styleDocument);
+  if (resolvedKeys.size === 0) return findings;
+  return findings.filter(
+    (finding) =>
+      finding.code !== "missing-custom-property" ||
+      !resolvedKeys.has(customPropertyReferenceKey(finding.propertyName, finding.range)),
+  );
+}
+
+function hasMissingCustomPropertyFindings(findings: readonly StyleCheckerFinding[]): boolean {
+  return findings.some((finding) => finding.code === "missing-custom-property");
+}
+
+function toRustStyleSemanticGraphDeps(
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  > & {
+    readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+  },
+  readStyleFile: ProviderDeps["readStyleFile"],
+): Pick<
+  ProviderDeps,
+  | "analysisCache"
+  | "styleDocumentForPath"
+  | "typeResolver"
+  | "workspaceRoot"
+  | "settings"
+  | "readStyleFile"
+> & {
+  readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+} {
+  return {
+    analysisCache: deps.analysisCache,
+    styleDocumentForPath: deps.styleDocumentForPath,
+    typeResolver: deps.typeResolver,
+    workspaceRoot: deps.workspaceRoot,
+    settings: deps.settings,
+    readStyleFile,
+    ...(deps.styleSemanticGraphCache
+      ? { styleSemanticGraphCache: deps.styleSemanticGraphCache }
+      : {}),
+  };
+}
+
+function safeResolveRustStyleSemanticGraphForDiagnostics(
+  scssPath: string,
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "settings"
+    | "readStyleFile"
+  > & {
+    readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+  },
+  options: StyleDiagnosticsQueryOptions,
+): StyleSemanticGraphSummaryV0 | null {
+  const queryOptions =
+    options.styleSemanticGraphCache || !deps.styleSemanticGraphCache
+      ? options
+      : { ...options, styleSemanticGraphCache: deps.styleSemanticGraphCache };
+  try {
+    return (
+      options.readRustStyleSemanticGraphForWorkspaceTarget ??
+      resolveRustStyleSemanticGraphForWorkspaceTarget
+    )(
+      {
+        workspaceRoot: deps.workspaceRoot,
+        classnameTransform: deps.settings.scss.classnameTransform,
+        pathAlias: deps.settings.pathAlias,
+      },
+      {
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      scssPath,
+      queryOptions,
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function safeResolveRustStyleSemanticGraphForDiagnosticsAsync(
+  scssPath: string,
+  deps: Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "styleDocumentForPath"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "settings"
+    | "readStyleFile"
+  > & {
+    readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+  },
+  options: StyleDiagnosticsQueryOptions,
+): Promise<StyleSemanticGraphSummaryV0 | null> {
+  const queryOptions =
+    options.styleSemanticGraphCache || !deps.styleSemanticGraphCache
+      ? options
+      : { ...options, styleSemanticGraphCache: deps.styleSemanticGraphCache };
+  try {
+    return await (
+      options.readRustStyleSemanticGraphForWorkspaceTargetAsync ??
+      resolveRustStyleSemanticGraphForWorkspaceTargetAsync
+    )(
+      {
+        workspaceRoot: deps.workspaceRoot,
+        classnameTransform: deps.settings.scss.classnameTransform,
+        pathAlias: deps.settings.pathAlias,
+      },
+      {
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      scssPath,
+      queryOptions,
+    );
+  } catch {
+    return null;
+  }
+}
+
+function collectResolvedRustDesignTokenReferenceKeys(
+  graph: StyleSemanticGraphSummaryV0,
+  styleDocument: StyleDocumentHIR,
+): ReadonlySet<string> {
+  const keys = new Set<string>();
+  for (const ranking of buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
+    graph,
+    styleDocument,
+  )) {
+    if (!ranking.reference) continue;
+    if (!ranking.winnerDeclaration && !ranking.winnerDeclarationRange) continue;
+    keys.add(customPropertyReferenceKey(ranking.reference.name, ranking.reference.range));
+  }
+  return keys;
+}
+
+function customPropertyReferenceKey(name: string, range: StyleCheckerFinding["range"]): string {
+  return [name, range.start.line, range.start.character, range.end.line, range.end.character].join(
+    ":",
   );
 }
 

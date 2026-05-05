@@ -650,13 +650,17 @@ async function maybePopulateStyleSemanticGraphCacheFromBatchAsync(
     styles.push({ stylePath, styleSource });
   }
   if (styles.length <= 1) return;
-  const packageManifests = collectStyleSemanticGraphPackageManifests(styles, options.readStyleFile);
+  const batchStyles = expandStyleSemanticGraphBatchStyles(styles, options.readStyleFile);
+  const packageManifests = collectStyleSemanticGraphPackageManifests(
+    batchStyles,
+    options.readStyleFile,
+  );
 
   try {
-    const requestedStylePaths = new Set(styles.map((style) => style.stylePath));
+    const requestedStylePaths = new Set(batchStyles.map((style) => style.stylePath));
     const output = await runRustStyleSemanticGraphBatchAsync(
       {
-        styles,
+        styles: batchStyles,
         ...(packageManifests.length > 0 ? { packageManifests } : {}),
         engineInput: queryOptions.engineInput,
       },
@@ -669,7 +673,7 @@ async function maybePopulateStyleSemanticGraphCacheFromBatchAsync(
     }
   } catch (err) {
     if (isEngineShadowRunnerCancelledError(err)) {
-      for (const style of styles) cache.set(style.stylePath, null);
+      for (const style of batchStyles) cache.set(style.stylePath, null);
     }
     // Batch is an optimization only. Preserve the single-target fallback path.
   }
@@ -695,13 +699,17 @@ function maybePopulateStyleSemanticGraphCacheFromBatch(
     styles.push({ stylePath, styleSource });
   }
   if (styles.length <= 1) return;
-  const packageManifests = collectStyleSemanticGraphPackageManifests(styles, options.readStyleFile);
+  const batchStyles = expandStyleSemanticGraphBatchStyles(styles, options.readStyleFile);
+  const packageManifests = collectStyleSemanticGraphPackageManifests(
+    batchStyles,
+    options.readStyleFile,
+  );
 
   try {
-    const requestedStylePaths = new Set(styles.map((style) => style.stylePath));
+    const requestedStylePaths = new Set(batchStyles.map((style) => style.stylePath));
     const output = runRustStyleSemanticGraphBatch(
       {
-        styles,
+        styles: batchStyles,
         ...(packageManifests.length > 0 ? { packageManifests } : {}),
         engineInput: queryOptions.engineInput,
       },
@@ -714,10 +722,35 @@ function maybePopulateStyleSemanticGraphCacheFromBatch(
     }
   } catch (err) {
     if (isEngineShadowRunnerCancelledError(err)) {
-      for (const style of styles) cache.set(style.stylePath, null);
+      for (const style of batchStyles) cache.set(style.stylePath, null);
     }
     // Batch is an optimization only. Preserve the single-target fallback path.
   }
+}
+
+function expandStyleSemanticGraphBatchStyles(
+  styles: readonly StyleSemanticGraphBatchStyleInputV0[],
+  readStyleFile: ProviderDeps["readStyleFile"],
+): readonly StyleSemanticGraphBatchStyleInputV0[] {
+  const byPath = new Map(styles.map((style) => [style.stylePath, style] as const));
+  const pending = [...styles];
+
+  while (pending.length > 0) {
+    const style = pending.shift()!;
+    for (const source of collectSassModuleSources(style)) {
+      for (const candidate of styleModuleSourceCandidates(style.stylePath, source, readStyleFile)) {
+        if (byPath.has(candidate)) continue;
+        const styleSource = readStyleFile(candidate);
+        if (styleSource === null) continue;
+        const discoveredStyle = { stylePath: candidate, styleSource };
+        byPath.set(candidate, discoveredStyle);
+        pending.push(discoveredStyle);
+        break;
+      }
+    }
+  }
+
+  return [...byPath.values()];
 }
 
 function collectStyleSemanticGraphPackageManifests(
@@ -747,6 +780,219 @@ function collectSassModuleSources(style: StyleSemanticGraphBatchStyleInputV0): r
     ...styleDocument.sassModuleUses.map((moduleUse) => moduleUse.source),
     ...styleDocument.sassModuleForwards.map((moduleForward) => moduleForward.source),
   ];
+}
+
+function styleModuleSourceCandidates(
+  fromStylePath: string,
+  source: string,
+  readStyleFile: ProviderDeps["readStyleFile"],
+): readonly string[] {
+  if (source.startsWith("sass:") || source.startsWith("http://") || source.startsWith("https://")) {
+    return [];
+  }
+
+  const candidates: string[] = [];
+  const basePath = path.isAbsolute(source)
+    ? source
+    : path.join(path.dirname(fromStylePath), source);
+  pushStyleModulePathCandidates(candidates, basePath, path.extname(source) === "");
+
+  for (const packageEntryBasePath of packageManifestStyleModuleBaseCandidates(
+    fromStylePath,
+    source,
+    readStyleFile,
+  )) {
+    pushStyleModulePathCandidates(candidates, packageEntryBasePath, true);
+  }
+  for (const packageBasePath of packageStyleModuleBaseCandidates(fromStylePath, source)) {
+    pushStyleModulePathCandidates(candidates, packageBasePath, true);
+  }
+
+  return candidates;
+}
+
+function pushStyleModulePathCandidates(
+  candidates: string[],
+  basePath: string,
+  includeExtensionVariants: boolean,
+): void {
+  pushStylePathCandidate(candidates, basePath);
+  pushPartialStylePathCandidate(candidates, basePath);
+
+  if (!includeExtensionVariants) return;
+  for (const extension of [
+    ".module.scss",
+    ".module.css",
+    ".module.less",
+    ".scss",
+    ".css",
+    ".less",
+  ]) {
+    const candidate = `${basePath}${extension}`;
+    pushStylePathCandidate(candidates, candidate);
+    pushPartialStylePathCandidate(candidates, candidate);
+  }
+}
+
+function pushPartialStylePathCandidate(candidates: string[], stylePath: string): void {
+  const fileName = path.basename(stylePath);
+  if (fileName.startsWith("_")) return;
+  pushStylePathCandidate(candidates, path.join(path.dirname(stylePath), `_${fileName}`));
+}
+
+function pushStylePathCandidate(candidates: string[], stylePath: string): void {
+  const candidate = normalizeStylePath(stylePath);
+  if (!candidates.includes(candidate)) candidates.push(candidate);
+}
+
+function packageManifestStyleModuleBaseCandidates(
+  fromStylePath: string,
+  source: string,
+  readStyleFile: ProviderDeps["readStyleFile"],
+): readonly string[] {
+  const packageSource = parsePackageStyleSource(source);
+  if (!packageSource) return [];
+  const candidates: string[] = [];
+  for (const packageJsonPath of packageJsonCandidatePaths(
+    fromStylePath,
+    packageSource.packageName,
+  )) {
+    const packageJsonSource = readStyleFile(packageJsonPath);
+    if (packageJsonSource === null) continue;
+    const entry = readPackageManifestStyleEntry(packageJsonSource, packageSource.subpath);
+    if (!entry) continue;
+    candidates.push(path.join(path.dirname(packageJsonPath), entry));
+    break;
+  }
+  return candidates;
+}
+
+function packageStyleModuleBaseCandidates(
+  fromStylePath: string,
+  source: string,
+): readonly string[] {
+  const packageSource = parsePackageStyleSource(source);
+  if (!packageSource) return [];
+  const candidates: string[] = [];
+  let current = path.dirname(fromStylePath);
+  while (true) {
+    const packageRoot = path.join(current, "node_modules", packageSource.packageName);
+    if (packageSource.subpath) {
+      pushUniquePath(candidates, path.join(packageRoot, packageSource.subpath));
+      pushUniquePath(candidates, path.join(packageRoot, "src", packageSource.subpath));
+    } else {
+      pushUniquePath(candidates, packageRoot);
+      pushUniquePath(candidates, path.join(packageRoot, "index"));
+      pushUniquePath(candidates, path.join(packageRoot, "src", "index"));
+    }
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return candidates;
+}
+
+function pushUniquePath(candidates: string[], value: string): void {
+  const normalized = normalizeStylePath(value);
+  if (!candidates.includes(normalized)) candidates.push(normalized);
+}
+
+function readPackageManifestStyleEntry(
+  packageJsonSource: string,
+  subpath: string | null,
+): string | null {
+  const packageJson = safeParsePackageJson(packageJsonSource);
+  if (!packageJson) return null;
+  const entry = subpath
+    ? readPackageExportSubpathEntry(packageJson.exports, subpath)
+    : (readPackageJsonStringField(packageJson, "sass") ??
+      readPackageJsonStringField(packageJson, "scss") ??
+      readPackageJsonStringField(packageJson, "style") ??
+      readPackageExportEntry(packageJson.exports));
+  return entry ? normalizePackageJsonEntry(entry) : null;
+}
+
+function safeParsePackageJson(packageJsonSource: string): Record<string, unknown> | null {
+  try {
+    const parsed: unknown = JSON.parse(packageJsonSource);
+    return isObjectRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function readPackageJsonStringField(
+  packageJson: Record<string, unknown>,
+  fieldName: string,
+): string | null {
+  const value = packageJson[fieldName];
+  return typeof value === "string" ? value : null;
+}
+
+function readPackageExportSubpathEntry(exportsValue: unknown, subpath: string): string | null {
+  if (!isObjectRecord(exportsValue)) return null;
+  for (const key of packageExportSubpathKeys(subpath)) {
+    const entry = readPackageExportEntry(exportsValue[key]);
+    if (entry) return entry;
+  }
+  for (const [key, value] of Object.entries(exportsValue)) {
+    const patternMatch = matchPackageExportSubpathPattern(key, subpath);
+    if (patternMatch === null) continue;
+    const entry = readPackageExportEntry(value);
+    if (!entry) continue;
+    return entry.includes("*") ? entry.replaceAll("*", patternMatch) : entry;
+  }
+  return null;
+}
+
+function packageExportSubpathKeys(subpath: string): readonly string[] {
+  const normalized = subpath.replace(/^\.?\//u, "");
+  return [`./${normalized}`, `./${normalized}.scss`, `./${normalized}.sass`, `./${normalized}.css`];
+}
+
+function matchPackageExportSubpathPattern(patternKey: string, subpath: string): string | null {
+  const normalizedPattern = patternKey.replace(/^\.?\//u, "");
+  const [prefix, suffix, extra] = normalizedPattern.split("*");
+  if (prefix === undefined || suffix === undefined || extra !== undefined) return null;
+  for (const candidateKey of packageExportSubpathKeys(subpath)) {
+    const normalizedCandidate = candidateKey.replace(/^\.?\//u, "");
+    if (!normalizedCandidate.startsWith(prefix) || !normalizedCandidate.endsWith(suffix)) {
+      continue;
+    }
+    return normalizedCandidate.slice(prefix.length, normalizedCandidate.length - suffix.length);
+  }
+  return null;
+}
+
+function readPackageExportEntry(exportsValue: unknown): string | null {
+  if (typeof exportsValue === "string") return exportsValue;
+  if (Array.isArray(exportsValue)) {
+    for (const value of exportsValue) {
+      const entry = readPackageExportEntry(value);
+      if (entry) return entry;
+    }
+    return null;
+  }
+  if (!isObjectRecord(exportsValue)) return null;
+  const rootEntry = readPackageExportEntry(exportsValue["."]);
+  if (rootEntry) return rootEntry;
+  for (const key of ["sass", "scss", "style", "default", "import", "require"]) {
+    const entry = readPackageExportEntry(exportsValue[key]);
+    if (entry) return entry;
+  }
+  return null;
+}
+
+function normalizePackageJsonEntry(entry: string): string {
+  return entry.replace(/^\.?\//u, "");
+}
+
+function normalizeStylePath(stylePath: string): string {
+  return path.normalize(stylePath).replaceAll("\\", "/");
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function packageJsonCandidatePaths(stylePath: string, packageName: string): readonly string[] {

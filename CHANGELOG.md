@@ -5,6 +5,11 @@
 ### Changed
 
 - **Design-token package manifest routing** - Rust selected-query style semantic graph batches now accept package manifest metadata and use `sass` / `scss` / `style` / `exports` entries when building package import reachability for cross-file design-token ranking.
+- **Design-token package source expansion** - selected-query graph batches now include package style files discovered through package manifests, so Rust ranking can see the actual package token declarations instead of only the manifest metadata.
+
+### Fixed
+
+- **Rust-ranked token diagnostics** - style diagnostics now suppress missing custom-property warnings when the Rust design-token ranking path has already resolved the `var(--token)` reference to a winner declaration.
 
 ## [4.14.0] - 2026-05-05
 
