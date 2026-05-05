@@ -7,8 +7,8 @@ use diagnostics_scheduler::{
     rust_diagnostics_scheduler_contract,
 };
 use engine_style_parser::{
-    AtRuleKind, ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage,
-    SyntaxNodePayload, parse_style_module, summarize_css_modules_intermediate,
+    ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage, parse_style_module,
+    summarize_css_modules_intermediate,
 };
 use omena_bridge::{
     SourceImportedStyleBindingV0 as ImportedStyleBinding,
@@ -19,6 +19,10 @@ use omena_bridge::{
     summarize_omena_bridge_source_syntax_index,
 };
 use omena_incremental::IncrementalCancellationRegistryV0;
+use omena_query::{
+    OmenaQueryStyleHoverCandidateV0, summarize_omena_query_style_document,
+    summarize_omena_query_style_hover_candidates,
+};
 use omena_tsgo_client::{
     OmenaTsgoClientBoundarySummaryV0, TsgoJsonRpcTypeFactProviderV0, TsgoResolvedTypeV0,
     TsgoTypeFactRequestV0, TsgoTypeFactResultEntryV0, TsgoTypeFactTargetV0,
@@ -1525,16 +1529,15 @@ fn resolve_workspace_folder_uri(state: &LspShellState, document_uri: &str) -> Op
 
 fn summarize_style_document(uri: &str, text: Option<&str>) -> Option<LspStyleDocumentSummary> {
     let text = text?;
-    let sheet = parse_style_module(uri, text)?;
-    let index = summarize_css_modules_intermediate(&sheet);
+    let summary = summarize_omena_query_style_document(uri, text)?;
     Some(LspStyleDocumentSummary {
-        language: style_language_label(sheet.language),
-        selector_names: index.selectors.names,
-        custom_property_decl_names: index.custom_properties.decl_names,
-        custom_property_ref_names: index.custom_properties.ref_names,
-        sass_module_use_sources: index.sass.module_use_sources,
-        sass_module_forward_sources: index.sass.module_forward_sources,
-        diagnostic_count: sheet.diagnostics.len(),
+        language: summary.language,
+        selector_names: summary.selector_names,
+        custom_property_decl_names: summary.custom_property_decl_names,
+        custom_property_ref_names: summary.custom_property_ref_names,
+        sass_module_use_sources: summary.sass_module_use_sources,
+        sass_module_forward_sources: summary.sass_module_forward_sources,
+        diagnostic_count: summary.diagnostic_count,
     })
 }
 
@@ -3106,45 +3109,6 @@ fn matching_js_block_end(source: &str, open_offset: usize, open: u8, close: u8) 
     None
 }
 
-fn split_top_level_js_segments(
-    source: &str,
-    start: usize,
-    end: usize,
-    delimiter: u8,
-) -> Vec<(usize, usize)> {
-    let mut segments = Vec::new();
-    let end = char_boundary_floor(source, end);
-    let mut segment_start = char_boundary_ceil(source, start).min(end);
-    let mut cursor = segment_start;
-    let mut depth = 0usize;
-    while cursor < end {
-        match source.as_bytes().get(cursor).copied() {
-            Some(b'\'' | b'"' | b'`') => {
-                cursor = skip_js_string_literal(source, cursor, end).unwrap_or(end);
-            }
-            Some(b'(' | b'[' | b'{') => {
-                depth += 1;
-                cursor = advance_js_scan_cursor(source, cursor, end);
-            }
-            Some(b')' | b']' | b'}') => {
-                depth = depth.saturating_sub(1);
-                cursor = advance_js_scan_cursor(source, cursor, end);
-            }
-            Some(byte) if byte == delimiter && depth == 0 => {
-                segments.push((segment_start, cursor));
-                cursor = advance_js_scan_cursor(source, cursor, end);
-                segment_start = cursor;
-            }
-            Some(_) => cursor = advance_js_scan_cursor(source, cursor, end),
-            None => break,
-        }
-    }
-    if segment_start <= end {
-        segments.push((segment_start, end));
-    }
-    segments
-}
-
 fn source_reference_candidate(
     document: &LspTextDocumentState,
     reference: &SourceSelectorReferenceFact,
@@ -3163,17 +3127,6 @@ fn source_reference_candidate(
         target_style_uri: reference.target_style_uri.clone(),
         namespace: None,
     }
-}
-
-fn skip_ascii_whitespace(source: &str, mut offset: usize) -> usize {
-    while source
-        .as_bytes()
-        .get(offset)
-        .is_some_and(u8::is_ascii_whitespace)
-    {
-        offset += 1;
-    }
-    offset
 }
 
 fn skip_js_string_literal(source: &str, quote_offset: usize, limit: usize) -> Option<usize> {
@@ -3776,315 +3729,28 @@ fn collect_style_hover_candidates(
     uri: &str,
     text: &str,
 ) -> Option<(&'static str, Vec<LspStyleHoverCandidate>)> {
-    let sheet = parse_style_module(uri, text)?;
-    let index = summarize_css_modules_intermediate(&sheet);
-    let mut seen = BTreeSet::new();
-    let mut candidates = Vec::new();
-    collect_style_selector_hover_candidates_from_parser_facts(
-        index.selectors.definition_facts.as_slice(),
-        &mut seen,
-        &mut candidates,
-    );
-    collect_custom_property_hover_candidates(
-        sheet.source.as_str(),
-        index.custom_properties.decl_facts.as_slice(),
-        index.custom_properties.ref_names.as_slice(),
-        &mut seen,
-        &mut candidates,
-    );
-    collect_sass_symbol_hover_candidates(
-        index.sass.symbol_decl_facts.as_slice(),
-        index.sass.selector_symbol_facts.as_slice(),
-        &mut seen,
-        &mut candidates,
-    );
-    collect_sass_partial_evaluator_selector_candidates(
-        sheet.source.as_str(),
-        sheet.nodes.as_slice(),
-        &mut seen,
-        &mut candidates,
-    );
-    candidates.sort();
-    Some((style_language_label(sheet.language), candidates))
+    let summary = summarize_omena_query_style_hover_candidates(uri, text)?;
+    Some((
+        summary.language,
+        summary
+            .candidates
+            .into_iter()
+            .map(lsp_style_hover_candidate_from_query)
+            .collect(),
+    ))
 }
 
-fn collect_style_selector_hover_candidates_from_parser_facts(
-    definition_facts: &[engine_style_parser::ParserIndexSelectorDefinitionFactV0],
-    seen: &mut BTreeSet<(usize, usize, String)>,
-    candidates: &mut Vec<LspStyleHoverCandidate>,
-) {
-    for fact in definition_facts {
-        if seen.insert((fact.byte_span.start, fact.byte_span.end, fact.name.clone())) {
-            candidates.push(LspStyleHoverCandidate {
-                kind: "selector",
-                name: fact.name.clone(),
-                range: fact.range,
-                source: "engineStyleParserSelectorDefinitionFacts",
-                target_style_uri: None,
-                namespace: None,
-            });
-        }
+fn lsp_style_hover_candidate_from_query(
+    candidate: OmenaQueryStyleHoverCandidateV0,
+) -> LspStyleHoverCandidate {
+    LspStyleHoverCandidate {
+        kind: candidate.kind,
+        name: candidate.name,
+        range: candidate.range,
+        source: candidate.source,
+        target_style_uri: None,
+        namespace: candidate.namespace,
     }
-}
-
-fn collect_custom_property_hover_candidates(
-    source: &str,
-    decl_facts: &[engine_style_parser::ParserIndexCustomPropertyDeclFactV0],
-    ref_names: &[String],
-    seen: &mut BTreeSet<(usize, usize, String)>,
-    candidates: &mut Vec<LspStyleHoverCandidate>,
-) {
-    for fact in decl_facts {
-        if seen.insert((fact.byte_span.start, fact.byte_span.end, fact.name.clone())) {
-            candidates.push(LspStyleHoverCandidate {
-                kind: "customPropertyDeclaration",
-                name: fact.name.clone(),
-                range: fact.range,
-                source: "openedStyleDocumentIndex",
-                target_style_uri: None,
-                namespace: None,
-            });
-        }
-    }
-
-    for name in ref_names {
-        for byte_span in custom_property_ref_byte_spans(source, name) {
-            if seen.insert((byte_span.start, byte_span.end, name.clone())) {
-                candidates.push(LspStyleHoverCandidate {
-                    kind: "customPropertyReference",
-                    name: name.clone(),
-                    range: parser_range_for_byte_span(source, byte_span),
-                    source: "openedStyleDocumentIndex",
-                    target_style_uri: None,
-                    namespace: None,
-                });
-            }
-        }
-    }
-}
-
-fn collect_sass_symbol_hover_candidates(
-    decl_facts: &[engine_style_parser::ParserIndexSassSymbolDeclFactV0],
-    ref_facts: &[engine_style_parser::ParserIndexSassSelectorSymbolFactV0],
-    seen: &mut BTreeSet<(usize, usize, String)>,
-    candidates: &mut Vec<LspStyleHoverCandidate>,
-) {
-    for fact in decl_facts {
-        if seen.insert((
-            fact.byte_span.start,
-            fact.byte_span.end,
-            format!("{}:{}", fact.symbol_kind, fact.name),
-        )) {
-            candidates.push(LspStyleHoverCandidate {
-                kind: sass_symbol_declaration_candidate_kind(fact.symbol_kind),
-                name: fact.name.clone(),
-                range: fact.range,
-                source: "engineStyleParserSassSymbolFacts",
-                target_style_uri: None,
-                namespace: None,
-            });
-        }
-    }
-
-    for fact in ref_facts {
-        if seen.insert((
-            fact.byte_span.start,
-            fact.byte_span.end,
-            format!(
-                "{}:{}:{}",
-                fact.symbol_kind,
-                fact.namespace.as_deref().unwrap_or_default(),
-                fact.name
-            ),
-        )) {
-            candidates.push(LspStyleHoverCandidate {
-                kind: sass_symbol_reference_candidate_kind(fact.symbol_kind, fact.role),
-                name: fact.name.clone(),
-                range: fact.range,
-                source: "engineStyleParserSassSymbolFacts",
-                target_style_uri: None,
-                namespace: fact.namespace.clone(),
-            });
-        }
-    }
-}
-
-fn collect_sass_partial_evaluator_selector_candidates(
-    source: &str,
-    nodes: &[engine_style_parser::SyntaxNode],
-    seen: &mut BTreeSet<(usize, usize, String)>,
-    candidates: &mut Vec<LspStyleHoverCandidate>,
-) {
-    for node in nodes {
-        if let Some(SyntaxNodePayload::AtRule(at_rule)) = &node.payload
-            && at_rule.kind == AtRuleKind::Include
-        {
-            let range_span = ParserByteSpanV0 {
-                start: node.header_span.unwrap_or(node.span).start,
-                end: node.header_span.unwrap_or(node.span).end,
-            };
-            for selector_name in infer_sass_include_generated_selector_names(&at_rule.params) {
-                if seen.insert((range_span.start, range_span.end, selector_name.clone())) {
-                    candidates.push(LspStyleHoverCandidate {
-                        kind: "selector",
-                        name: selector_name,
-                        range: parser_range_for_byte_span(source, range_span),
-                        source: "sassPartialEvaluatorGeneratedSelectors",
-                        target_style_uri: None,
-                        namespace: None,
-                    });
-                }
-            }
-        }
-        collect_sass_partial_evaluator_selector_candidates(
-            source,
-            &node.children,
-            seen,
-            candidates,
-        );
-    }
-}
-
-fn infer_sass_include_generated_selector_names(params: &str) -> Vec<String> {
-    let Some(prefix) = sass_named_argument_string_value(params, "prefix") else {
-        return Vec::new();
-    };
-    if prefix.is_empty() || !prefix.chars().all(is_css_identifier_continue) {
-        return Vec::new();
-    }
-    let mut selectors = sass_first_map_string_keys(params)
-        .into_iter()
-        .filter(|key| !key.is_empty() && key.chars().all(is_css_identifier_continue))
-        .map(|key| format!("{prefix}-{key}"))
-        .collect::<Vec<_>>();
-    selectors.sort();
-    selectors.dedup();
-    selectors
-}
-
-fn sass_named_argument_string_value(params: &str, name: &str) -> Option<String> {
-    let needle = format!("${name}");
-    let mut cursor = 0usize;
-    while let Some(relative_match) = params[cursor..].find(needle.as_str()) {
-        let name_start = cursor + relative_match;
-        let name_end = name_start + needle.len();
-        if !sass_identifier_boundary(params, name_start, name_end) {
-            cursor = name_end;
-            continue;
-        }
-        let colon_offset = skip_ascii_whitespace(params, name_end);
-        if params.as_bytes().get(colon_offset) != Some(&b':') {
-            cursor = name_end;
-            continue;
-        }
-        let value_start = skip_ascii_whitespace(params, colon_offset + 1);
-        return sass_string_literal_value(params, value_start).map(|(value, _)| value);
-    }
-    None
-}
-
-fn sass_first_map_string_keys(params: &str) -> Vec<String> {
-    let mut cursor = 0usize;
-    while cursor < params.len() {
-        let Some(open_relative) = params[cursor..].find('(') else {
-            break;
-        };
-        let open = cursor + open_relative;
-        let Some(close) = matching_js_block_end(params, open, b'(', b')') else {
-            break;
-        };
-        let keys = sass_map_string_keys(params, open + 1, close);
-        if !keys.is_empty() {
-            return keys;
-        }
-        cursor = open + 1;
-    }
-    Vec::new()
-}
-
-fn sass_map_string_keys(params: &str, start: usize, end: usize) -> Vec<String> {
-    split_top_level_js_segments(params, start, end, b',')
-        .into_iter()
-        .filter_map(|(entry_start, entry_end)| {
-            let key_start = skip_ascii_whitespace(params, entry_start);
-            let (key, key_end) = sass_string_literal_value(params, key_start)?;
-            let colon_offset = skip_ascii_whitespace(params, key_end);
-            (colon_offset < entry_end && params.as_bytes().get(colon_offset) == Some(&b':'))
-                .then_some(key)
-        })
-        .collect()
-}
-
-fn sass_string_literal_value(source: &str, quote_offset: usize) -> Option<(String, usize)> {
-    let quote = source.as_bytes().get(quote_offset).copied()?;
-    if !matches!(quote, b'\'' | b'"') {
-        return None;
-    }
-    let literal_end = skip_js_string_literal(source, quote_offset, source.len())?;
-    let value_end = literal_end.saturating_sub(1);
-    source
-        .get(quote_offset + 1..value_end)
-        .map(|value| (value.to_string(), literal_end))
-}
-
-fn sass_identifier_boundary(source: &str, start: usize, end: usize) -> bool {
-    let before = source
-        .get(..start)
-        .and_then(|prefix| prefix.chars().next_back())
-        .is_none_or(|ch| !is_css_identifier_continue(ch) && ch != '$');
-    let after = source
-        .get(end..)
-        .and_then(|suffix| suffix.chars().next())
-        .is_none_or(|ch| !is_css_identifier_continue(ch));
-    before && after
-}
-
-fn sass_symbol_declaration_candidate_kind(symbol_kind: &str) -> &'static str {
-    match symbol_kind {
-        "variable" => "sassVariableDeclaration",
-        "mixin" => "sassMixinDeclaration",
-        "function" => "sassFunctionDeclaration",
-        _ => "sassSymbolDeclaration",
-    }
-}
-
-fn sass_symbol_reference_candidate_kind(symbol_kind: &str, role: &str) -> &'static str {
-    match (symbol_kind, role) {
-        ("variable", _) => "sassVariableReference",
-        ("mixin", "include") => "sassMixinInclude",
-        ("function", "call") => "sassFunctionCall",
-        ("mixin", _) => "sassMixinReference",
-        ("function", _) => "sassFunctionReference",
-        _ => "sassSymbolReference",
-    }
-}
-
-fn custom_property_ref_byte_spans(source: &str, name: &str) -> Vec<ParserByteSpanV0> {
-    let mut spans = Vec::new();
-    let mut search_offset = 0usize;
-
-    while let Some(relative_match) = source[search_offset..].find(name) {
-        let name_start = search_offset + relative_match;
-        let name_end = name_start + name.len();
-        if source[..name_start].trim_end().ends_with("var(")
-            && is_selector_name_boundary(source, name_end)
-        {
-            spans.push(ParserByteSpanV0 {
-                start: name_start,
-                end: name_end,
-            });
-        }
-        search_offset += relative_match + name.len();
-    }
-
-    spans
-}
-
-fn is_selector_name_boundary(source: &str, byte_offset: usize) -> bool {
-    source[byte_offset..]
-        .chars()
-        .next()
-        .is_none_or(|ch| !is_css_identifier_continue(ch))
 }
 
 fn is_css_identifier_continue(ch: char) -> bool {

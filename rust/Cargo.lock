@@ -300,6 +300,7 @@ dependencies = [
  "engine-style-parser",
  "omena-bridge",
  "omena-incremental",
+ "omena-query",
  "omena-tsgo-client",
  "serde",
  "serde_json",

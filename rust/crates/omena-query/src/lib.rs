@@ -13,7 +13,10 @@ use engine_input_producers::{
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::{Component, Path, PathBuf};
 
-use engine_style_parser::{Stylesheet, parse_style_module, summarize_css_modules_intermediate};
+use engine_style_parser::{
+    AtRuleKind, ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage, Stylesheet,
+    SyntaxNodePayload, parse_style_module, summarize_css_modules_intermediate,
+};
 use omena_abstract_value::{
     AbstractValueDomainSummaryV0, ClassValueFlowAnalysisV0, ClassValueFlowIncrementalAnalysisV0,
     analyze_class_value_flow_incremental_with_database, summarize_omena_abstract_value_domain,
@@ -108,6 +111,39 @@ pub struct OmenaQueryStyleSemanticGraphBatchOutputV0 {
 pub struct OmenaQueryStyleSemanticGraphBatchEntryV0 {
     pub style_path: String,
     pub graph: Option<StyleSemanticGraphSummaryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStyleDocumentSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub language: &'static str,
+    pub selector_names: Vec<String>,
+    pub custom_property_decl_names: Vec<String>,
+    pub custom_property_ref_names: Vec<String>,
+    pub sass_module_use_sources: Vec<String>,
+    pub sass_module_forward_sources: Vec<String>,
+    pub diagnostic_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStyleHoverCandidateV0 {
+    pub kind: &'static str,
+    pub name: String,
+    pub range: ParserRangeV0,
+    pub source: &'static str,
+    pub namespace: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStyleHoverCandidatesV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub language: &'static str,
+    pub candidates: Vec<OmenaQueryStyleHoverCandidateV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -461,6 +497,66 @@ pub fn summarize_omena_query_style_semantic_graph_from_source(
     input: &EngineInputV2,
 ) -> Option<StyleSemanticGraphSummaryV0> {
     summarize_omena_bridge_style_semantic_graph_from_source(style_path, style_source, input)
+}
+
+pub fn summarize_omena_query_style_document(
+    style_path: &str,
+    style_source: &str,
+) -> Option<OmenaQueryStyleDocumentSummaryV0> {
+    let sheet = parse_style_module(style_path, style_source)?;
+    let index = summarize_css_modules_intermediate(&sheet);
+    Some(OmenaQueryStyleDocumentSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.style-document-summary",
+        language: style_language_label(sheet.language),
+        selector_names: index.selectors.names,
+        custom_property_decl_names: index.custom_properties.decl_names,
+        custom_property_ref_names: index.custom_properties.ref_names,
+        sass_module_use_sources: index.sass.module_use_sources,
+        sass_module_forward_sources: index.sass.module_forward_sources,
+        diagnostic_count: sheet.diagnostics.len(),
+    })
+}
+
+pub fn summarize_omena_query_style_hover_candidates(
+    style_path: &str,
+    style_source: &str,
+) -> Option<OmenaQueryStyleHoverCandidatesV0> {
+    let sheet = parse_style_module(style_path, style_source)?;
+    let index = summarize_css_modules_intermediate(&sheet);
+    let mut seen = BTreeSet::new();
+    let mut candidates = Vec::new();
+    collect_style_selector_hover_candidates_from_parser_facts(
+        index.selectors.definition_facts.as_slice(),
+        &mut seen,
+        &mut candidates,
+    );
+    collect_custom_property_hover_candidates(
+        sheet.source.as_str(),
+        index.custom_properties.decl_facts.as_slice(),
+        index.custom_properties.ref_names.as_slice(),
+        &mut seen,
+        &mut candidates,
+    );
+    collect_sass_symbol_hover_candidates(
+        index.sass.symbol_decl_facts.as_slice(),
+        index.sass.selector_symbol_facts.as_slice(),
+        &mut seen,
+        &mut candidates,
+    );
+    collect_sass_partial_evaluator_selector_candidates(
+        sheet.source.as_str(),
+        sheet.nodes.as_slice(),
+        &mut seen,
+        &mut candidates,
+    );
+    candidates.sort();
+    Some(OmenaQueryStyleHoverCandidatesV0 {
+        schema_version: "0",
+        product: "omena-query.style-hover-candidates",
+        language: style_language_label(sheet.language),
+        candidates,
+    })
 }
 
 pub fn summarize_omena_query_style_semantic_graph_batch_from_sources<'a>(
@@ -1014,6 +1110,449 @@ fn normalize_style_path(path: PathBuf) -> String {
         }
     }
     normalized.to_string_lossy().replace('\\', "/")
+}
+
+fn collect_style_selector_hover_candidates_from_parser_facts(
+    definition_facts: &[engine_style_parser::ParserIndexSelectorDefinitionFactV0],
+    seen: &mut BTreeSet<(usize, usize, String)>,
+    candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,
+) {
+    for fact in definition_facts {
+        if seen.insert((fact.byte_span.start, fact.byte_span.end, fact.name.clone())) {
+            candidates.push(OmenaQueryStyleHoverCandidateV0 {
+                kind: "selector",
+                name: fact.name.clone(),
+                range: fact.range,
+                source: "engineStyleParserSelectorDefinitionFacts",
+                namespace: None,
+            });
+        }
+    }
+}
+
+fn collect_custom_property_hover_candidates(
+    source: &str,
+    decl_facts: &[engine_style_parser::ParserIndexCustomPropertyDeclFactV0],
+    ref_names: &[String],
+    seen: &mut BTreeSet<(usize, usize, String)>,
+    candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,
+) {
+    for fact in decl_facts {
+        if seen.insert((fact.byte_span.start, fact.byte_span.end, fact.name.clone())) {
+            candidates.push(OmenaQueryStyleHoverCandidateV0 {
+                kind: "customPropertyDeclaration",
+                name: fact.name.clone(),
+                range: fact.range,
+                source: "openedStyleDocumentIndex",
+                namespace: None,
+            });
+        }
+    }
+
+    for name in ref_names {
+        for byte_span in custom_property_ref_byte_spans(source, name) {
+            if seen.insert((byte_span.start, byte_span.end, name.clone())) {
+                candidates.push(OmenaQueryStyleHoverCandidateV0 {
+                    kind: "customPropertyReference",
+                    name: name.clone(),
+                    range: parser_range_for_byte_span(source, byte_span),
+                    source: "openedStyleDocumentIndex",
+                    namespace: None,
+                });
+            }
+        }
+    }
+}
+
+fn collect_sass_symbol_hover_candidates(
+    decl_facts: &[engine_style_parser::ParserIndexSassSymbolDeclFactV0],
+    ref_facts: &[engine_style_parser::ParserIndexSassSelectorSymbolFactV0],
+    seen: &mut BTreeSet<(usize, usize, String)>,
+    candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,
+) {
+    for fact in decl_facts {
+        if seen.insert((
+            fact.byte_span.start,
+            fact.byte_span.end,
+            format!("{}:{}", fact.symbol_kind, fact.name),
+        )) {
+            candidates.push(OmenaQueryStyleHoverCandidateV0 {
+                kind: sass_symbol_declaration_candidate_kind(fact.symbol_kind),
+                name: fact.name.clone(),
+                range: fact.range,
+                source: "engineStyleParserSassSymbolFacts",
+                namespace: None,
+            });
+        }
+    }
+
+    for fact in ref_facts {
+        if seen.insert((
+            fact.byte_span.start,
+            fact.byte_span.end,
+            format!(
+                "{}:{}:{}",
+                fact.symbol_kind,
+                fact.namespace.as_deref().unwrap_or_default(),
+                fact.name
+            ),
+        )) {
+            candidates.push(OmenaQueryStyleHoverCandidateV0 {
+                kind: sass_symbol_reference_candidate_kind(fact.symbol_kind, fact.role),
+                name: fact.name.clone(),
+                range: fact.range,
+                source: "engineStyleParserSassSymbolFacts",
+                namespace: fact.namespace.clone(),
+            });
+        }
+    }
+}
+
+fn collect_sass_partial_evaluator_selector_candidates(
+    source: &str,
+    nodes: &[engine_style_parser::SyntaxNode],
+    seen: &mut BTreeSet<(usize, usize, String)>,
+    candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,
+) {
+    for node in nodes {
+        if let Some(SyntaxNodePayload::AtRule(at_rule)) = &node.payload
+            && at_rule.kind == AtRuleKind::Include
+        {
+            let range_span = ParserByteSpanV0 {
+                start: node.header_span.unwrap_or(node.span).start,
+                end: node.header_span.unwrap_or(node.span).end,
+            };
+            for selector_name in infer_sass_include_generated_selector_names(&at_rule.params) {
+                if seen.insert((range_span.start, range_span.end, selector_name.clone())) {
+                    candidates.push(OmenaQueryStyleHoverCandidateV0 {
+                        kind: "selector",
+                        name: selector_name,
+                        range: parser_range_for_byte_span(source, range_span),
+                        source: "sassPartialEvaluatorGeneratedSelectors",
+                        namespace: None,
+                    });
+                }
+            }
+        }
+        collect_sass_partial_evaluator_selector_candidates(
+            source,
+            &node.children,
+            seen,
+            candidates,
+        );
+    }
+}
+
+fn infer_sass_include_generated_selector_names(params: &str) -> Vec<String> {
+    let Some(prefix) = sass_named_argument_string_value(params, "prefix") else {
+        return Vec::new();
+    };
+    if prefix.is_empty() || !prefix.chars().all(is_css_identifier_continue) {
+        return Vec::new();
+    }
+    let mut selectors = sass_first_map_string_keys(params)
+        .into_iter()
+        .filter(|key| !key.is_empty() && key.chars().all(is_css_identifier_continue))
+        .map(|key| format!("{prefix}-{key}"))
+        .collect::<Vec<_>>();
+    selectors.sort();
+    selectors.dedup();
+    selectors
+}
+
+fn sass_named_argument_string_value(params: &str, name: &str) -> Option<String> {
+    let needle = format!("${name}");
+    let mut cursor = 0usize;
+    while let Some(relative_match) = params[cursor..].find(needle.as_str()) {
+        let name_start = cursor + relative_match;
+        let name_end = name_start + needle.len();
+        if !sass_identifier_boundary(params, name_start, name_end) {
+            cursor = name_end;
+            continue;
+        }
+        let colon_offset = skip_ascii_whitespace(params, name_end);
+        if params.as_bytes().get(colon_offset) != Some(&b':') {
+            cursor = name_end;
+            continue;
+        }
+        let value_start = skip_ascii_whitespace(params, colon_offset + 1);
+        return sass_string_literal_value(params, value_start).map(|(value, _)| value);
+    }
+    None
+}
+
+fn sass_first_map_string_keys(params: &str) -> Vec<String> {
+    let mut cursor = 0usize;
+    while cursor < params.len() {
+        let Some(open_relative) = params[cursor..].find('(') else {
+            break;
+        };
+        let open = cursor + open_relative;
+        let Some(close) = matching_style_block_end(params, open, b'(', b')') else {
+            break;
+        };
+        let keys = sass_map_string_keys(params, open + 1, close);
+        if !keys.is_empty() {
+            return keys;
+        }
+        cursor = open + 1;
+    }
+    Vec::new()
+}
+
+fn sass_map_string_keys(params: &str, start: usize, end: usize) -> Vec<String> {
+    split_top_level_style_segments(params, start, end, b',')
+        .into_iter()
+        .filter_map(|(entry_start, entry_end)| {
+            let key_start = skip_ascii_whitespace(params, entry_start);
+            let (key, key_end) = sass_string_literal_value(params, key_start)?;
+            let colon_offset = skip_ascii_whitespace(params, key_end);
+            (colon_offset < entry_end && params.as_bytes().get(colon_offset) == Some(&b':'))
+                .then_some(key)
+        })
+        .collect()
+}
+
+fn sass_string_literal_value(source: &str, quote_offset: usize) -> Option<(String, usize)> {
+    let quote = source.as_bytes().get(quote_offset).copied()?;
+    if !matches!(quote, b'\'' | b'"') {
+        return None;
+    }
+    let literal_end = skip_style_string_literal(source, quote_offset, source.len())?;
+    let value_end = literal_end.saturating_sub(1);
+    source
+        .get(quote_offset + 1..value_end)
+        .map(|value| (value.to_string(), literal_end))
+}
+
+fn sass_identifier_boundary(source: &str, start: usize, end: usize) -> bool {
+    let before = source
+        .get(..start)
+        .and_then(|prefix| prefix.chars().next_back())
+        .is_none_or(|ch| !is_css_identifier_continue(ch) && ch != '$');
+    let after = source
+        .get(end..)
+        .and_then(|suffix| suffix.chars().next())
+        .is_none_or(|ch| !is_css_identifier_continue(ch));
+    before && after
+}
+
+fn sass_symbol_declaration_candidate_kind(symbol_kind: &str) -> &'static str {
+    match symbol_kind {
+        "variable" => "sassVariableDeclaration",
+        "mixin" => "sassMixinDeclaration",
+        "function" => "sassFunctionDeclaration",
+        _ => "sassSymbolDeclaration",
+    }
+}
+
+fn sass_symbol_reference_candidate_kind(symbol_kind: &str, role: &str) -> &'static str {
+    match (symbol_kind, role) {
+        ("variable", _) => "sassVariableReference",
+        ("mixin", "include") => "sassMixinInclude",
+        ("function", "call") => "sassFunctionCall",
+        ("mixin", _) => "sassMixinReference",
+        ("function", _) => "sassFunctionReference",
+        _ => "sassSymbolReference",
+    }
+}
+
+fn custom_property_ref_byte_spans(source: &str, name: &str) -> Vec<ParserByteSpanV0> {
+    let mut spans = Vec::new();
+    let mut search_offset = 0usize;
+
+    while let Some(relative_match) = source[search_offset..].find(name) {
+        let name_start = search_offset + relative_match;
+        let name_end = name_start + name.len();
+        if source[..name_start].trim_end().ends_with("var(")
+            && is_selector_name_boundary(source, name_end)
+        {
+            spans.push(ParserByteSpanV0 {
+                start: name_start,
+                end: name_end,
+            });
+        }
+        search_offset += relative_match + name.len();
+    }
+
+    spans
+}
+
+fn is_selector_name_boundary(source: &str, byte_offset: usize) -> bool {
+    source[byte_offset..]
+        .chars()
+        .next()
+        .is_none_or(|ch| !is_css_identifier_continue(ch))
+}
+
+fn is_css_identifier_continue(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_')
+}
+
+fn parser_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRangeV0 {
+    ParserRangeV0 {
+        start: parser_position_for_byte_offset(source, span.start),
+        end: parser_position_for_byte_offset(source, span.end),
+    }
+}
+
+fn parser_position_for_byte_offset(source: &str, offset: usize) -> ParserPositionV0 {
+    let clamped_offset = offset.min(source.len());
+    let mut line = 0usize;
+    let mut character = 0usize;
+
+    for (byte_index, ch) in source.char_indices() {
+        if byte_index >= clamped_offset {
+            break;
+        }
+        if ch == '\n' {
+            line += 1;
+            character = 0;
+        } else {
+            character += ch.len_utf16();
+        }
+    }
+
+    ParserPositionV0 { line, character }
+}
+
+fn skip_ascii_whitespace(source: &str, mut offset: usize) -> usize {
+    while source
+        .as_bytes()
+        .get(offset)
+        .is_some_and(u8::is_ascii_whitespace)
+    {
+        offset += 1;
+    }
+    offset
+}
+
+fn matching_style_block_end(
+    source: &str,
+    open_offset: usize,
+    open: u8,
+    close: u8,
+) -> Option<usize> {
+    if source.as_bytes().get(open_offset) != Some(&open) {
+        return None;
+    }
+    let mut cursor = advance_style_scan_cursor(source, open_offset, source.len());
+    let mut depth = 1usize;
+    while cursor < source.len() {
+        match source.as_bytes().get(cursor).copied()? {
+            b'\'' | b'"' | b'`' => {
+                cursor = skip_style_string_literal(source, cursor, source.len())?;
+            }
+            byte if byte == open => {
+                depth += 1;
+                cursor = advance_style_scan_cursor(source, cursor, source.len());
+            }
+            byte if byte == close => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(cursor);
+                }
+                cursor = advance_style_scan_cursor(source, cursor, source.len());
+            }
+            _ => cursor = advance_style_scan_cursor(source, cursor, source.len()),
+        }
+    }
+    None
+}
+
+fn split_top_level_style_segments(
+    source: &str,
+    start: usize,
+    end: usize,
+    delimiter: u8,
+) -> Vec<(usize, usize)> {
+    let mut segments = Vec::new();
+    let end = char_boundary_floor(source, end);
+    let mut segment_start = char_boundary_ceil(source, start).min(end);
+    let mut cursor = segment_start;
+    let mut depth = 0usize;
+    while cursor < end {
+        match source.as_bytes().get(cursor).copied() {
+            Some(b'\'' | b'"' | b'`') => {
+                cursor = skip_style_string_literal(source, cursor, end).unwrap_or(end);
+            }
+            Some(b'(' | b'[' | b'{') => {
+                depth += 1;
+                cursor = advance_style_scan_cursor(source, cursor, end);
+            }
+            Some(b')' | b']' | b'}') => {
+                depth = depth.saturating_sub(1);
+                cursor = advance_style_scan_cursor(source, cursor, end);
+            }
+            Some(byte) if byte == delimiter && depth == 0 => {
+                segments.push((segment_start, cursor));
+                cursor = advance_style_scan_cursor(source, cursor, end);
+                segment_start = cursor;
+            }
+            Some(_) => cursor = advance_style_scan_cursor(source, cursor, end),
+            None => break,
+        }
+    }
+    if segment_start <= end {
+        segments.push((segment_start, end));
+    }
+    segments
+}
+
+fn skip_style_string_literal(source: &str, quote_offset: usize, limit: usize) -> Option<usize> {
+    let quote = source.as_bytes().get(quote_offset).copied()?;
+    let limit = char_boundary_floor(source, limit);
+    let mut cursor = quote_offset + 1;
+    while cursor < limit {
+        let byte = source.as_bytes().get(cursor).copied()?;
+        if byte == b'\\' {
+            cursor = advance_style_escaped_char(source, cursor, limit);
+            continue;
+        }
+        if byte == quote {
+            return Some(cursor + 1);
+        }
+        cursor = advance_style_scan_cursor(source, cursor, limit);
+    }
+    None
+}
+
+fn advance_style_escaped_char(source: &str, slash_offset: usize, limit: usize) -> usize {
+    let after_slash = advance_style_scan_cursor(source, slash_offset, limit);
+    advance_style_scan_cursor(source, after_slash, limit)
+}
+
+fn advance_style_scan_cursor(source: &str, cursor: usize, limit: usize) -> usize {
+    let cursor = char_boundary_ceil(source, cursor);
+    let limit = char_boundary_floor(source, limit);
+    if cursor >= limit {
+        return limit;
+    }
+    char_boundary_ceil(source, cursor + 1).min(limit)
+}
+
+fn char_boundary_floor(source: &str, index: usize) -> usize {
+    let mut index = index.min(source.len());
+    while index > 0 && !source.is_char_boundary(index) {
+        index -= 1;
+    }
+    index
+}
+
+fn char_boundary_ceil(source: &str, index: usize) -> usize {
+    let mut index = index.min(source.len());
+    while index < source.len() && !source.is_char_boundary(index) {
+        index += 1;
+    }
+    index
+}
+
+fn style_language_label(language: StyleLanguage) -> &'static str {
+    match language {
+        StyleLanguage::Css => "css",
+        StyleLanguage::Scss => "scss",
+        StyleLanguage::Less => "less",
+    }
 }
 
 fn push_unique_string(values: &mut Vec<String>, value: String) {
@@ -1652,6 +2191,52 @@ mod tests {
         );
         assert_eq!(ranked_reference.winner_import_graph_distance, Some(1));
         assert_eq!(ranked_reference.cross_file_candidate_declaration_count, 1);
+    }
+
+    #[test]
+    fn style_hover_candidates_are_query_owned() {
+        let candidates = super::summarize_omena_query_style_hover_candidates(
+            "Component.module.scss",
+            r#"
+@mixin variants($prefix, $map) {
+  @each $name, $value in $map {
+    .#{$prefix}-#{$name} { color: $value; }
+  }
+}
+
+$accent: red;
+.button { color: var(--brand); }
+:root { --brand: blue; }
+@include variants($prefix: "tone", $map: ("warm": red));
+"#,
+        );
+        assert!(candidates.is_some());
+        let Some(candidates) = candidates else {
+            return;
+        };
+
+        assert_eq!(candidates.product, "omena-query.style-hover-candidates");
+        assert!(
+            candidates
+                .candidates
+                .iter()
+                .any(|candidate| candidate.kind == "selector" && candidate.name == "button")
+        );
+        assert!(candidates.candidates.iter().any(|candidate| {
+            candidate.kind == "customPropertyReference" && candidate.name == "--brand"
+        }));
+        assert!(candidates.candidates.iter().any(|candidate| {
+            candidate.kind == "sassVariableDeclaration" && candidate.name == "accent"
+        }));
+        assert!(
+            candidates
+                .candidates
+                .iter()
+                .any(
+                    |candidate| candidate.source == "sassPartialEvaluatorGeneratedSelectors"
+                        && candidate.name == "tone-warm"
+                )
+        );
     }
 
     fn backend<'a>(
