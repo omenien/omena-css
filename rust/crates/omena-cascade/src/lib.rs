@@ -224,15 +224,12 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
             "cascadeOutcomeProof",
             "genericCascadeWinner",
             "semanticDesignTokenRanking",
+            "queryReadCascadeAtPosition",
             "selectorContextWitness",
             "customPropertySubstitution",
             "cycleToGuaranteedInvalid",
         ],
-        not_ready_surfaces: vec![
-            "selectorMatchWitness",
-            "readCascadeAtPosition",
-            "wptCascadeCorpus",
-        ],
+        not_ready_surfaces: vec!["selectorMatchWitness", "wptCascadeCorpus"],
     }
 }
 
@@ -636,6 +633,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"semanticDesignTokenRanking")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"queryReadCascadeAtPosition")
         );
         assert!(summary.ready_surfaces.contains(&"selectorContextWitness"));
         assert!(summary.not_ready_surfaces.contains(&"wptCascadeCorpus"));
