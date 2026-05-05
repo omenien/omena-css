@@ -673,6 +673,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "typedBogusCstWrapperSlice",
             "componentValueCstNodes",
             "simpleBlockCstNodes",
+            "missingBlockCloseBogusTrivia",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -843,7 +844,7 @@ impl<'text> Parser<'text> {
             if self.current_kind() == Some(SyntaxKind::RightBrace) {
                 self.token_current();
             } else {
-                self.error_at_current(
+                self.missing_token_bogus_trivia(
                     ParseErrorCode::UnexpectedCharacter,
                     "unterminated declaration block",
                 );
@@ -857,7 +858,7 @@ impl<'text> Parser<'text> {
             if self.current_kind() == Some(SyntaxKind::SassDedent) {
                 self.token_current();
             } else {
-                self.error_at_current(
+                self.missing_token_bogus_trivia(
                     ParseErrorCode::UnexpectedCharacter,
                     "unterminated Sass indented declaration block",
                 );
@@ -2594,7 +2595,7 @@ impl<'text> Parser<'text> {
         if self.current_kind() == Some(SyntaxKind::RightBrace) {
             self.token_current();
         } else {
-            self.error_at_current(
+            self.missing_token_bogus_trivia(
                 ParseErrorCode::UnexpectedCharacter,
                 "unterminated declaration block",
             );
@@ -3208,6 +3209,12 @@ impl<'text> Parser<'text> {
 
     fn empty_bogus_node(&mut self, kind: SyntaxKind, code: ParseErrorCode, message: &'static str) {
         self.builder.start_node(kind);
+        self.builder.finish_node();
+        self.error_at_current(code, message);
+    }
+
+    fn missing_token_bogus_trivia(&mut self, code: ParseErrorCode, message: &'static str) {
+        self.builder.start_node(SyntaxKind::BogusTrivia);
         self.builder.finish_node();
         self.error_at_current(code, message);
     }
@@ -5319,6 +5326,7 @@ mod tests {
     fn reports_unterminated_constructs_without_panicking() {
         let comment = parse("/* open", StyleDialect::Css);
         let string = parse(".a { content: \"open; }", StyleDialect::Css);
+        let block = parse(".a { color: red", StyleDialect::Css);
 
         assert_eq!(
             comment.errors().first().map(|error| error.code),
@@ -5328,6 +5336,11 @@ mod tests {
             string.errors().first().map(|error| error.code),
             Some(ParseErrorCode::UnterminatedString),
         );
+        assert_eq!(
+            block.errors().first().map(|error| error.code),
+            Some(ParseErrorCode::UnexpectedCharacter),
+        );
+        assert!(node_kinds(&block.syntax()).contains(&SyntaxKind::BogusTrivia));
     }
 
     #[test]
@@ -5855,6 +5868,7 @@ mod tests {
             node_kinds(&missing_keyframe_block.syntax()).contains(&SyntaxKind::BogusKeyframeBlock)
         );
         assert!(node_kinds(&unclosed_rule.syntax()).contains(&SyntaxKind::BogusDeclarationList));
+        assert!(node_kinds(&unclosed_rule.syntax()).contains(&SyntaxKind::BogusTrivia));
     }
 
     #[test]
@@ -7148,6 +7162,11 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"componentValueCstNodes"));
         assert!(summary.ready_surfaces.contains(&"simpleBlockCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"missingBlockCloseBogusTrivia")
+        );
         assert!(
             summary
                 .ready_surfaces
