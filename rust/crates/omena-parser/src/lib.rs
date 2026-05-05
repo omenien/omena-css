@@ -371,6 +371,9 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "valueListCstNodes",
             "valueListBogusRecovery",
             "genericRecoveryBogusNodes",
+            "sassIndentedTokenization",
+            "sassIndentedBlockCstNodes",
+            "sassIndentedStyleFacts",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -400,6 +403,7 @@ struct Tokenizer<'text, 'extension, E> {
     offset: usize,
     scss_interpolation_depth: usize,
     less_interpolation_depth: usize,
+    sass_indent_stack: Vec<usize>,
     tokens: Vec<Token<'text>>,
     errors: Vec<ParseError>,
 }
@@ -461,7 +465,10 @@ impl<'text> Parser<'text> {
                 Some(SyntaxKind::LessVariable) if self.dialect == StyleDialect::Less => {
                     self.parse_variable_declaration(SyntaxKind::LessVariableDeclaration)
                 }
-                Some(SyntaxKind::RightBrace) => self.token_current(),
+                Some(SyntaxKind::RightBrace | SyntaxKind::SassDedent) => self.token_current(),
+                Some(SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon) => {
+                    self.token_current()
+                }
                 Some(_) => self.parse_rule(),
                 None => break,
             }
@@ -471,10 +478,12 @@ impl<'text> Parser<'text> {
     fn parse_rule(&mut self) {
         let kind = if self.current_starts_less_mixin_declaration() {
             SyntaxKind::LessMixinDeclaration
-        } else if self.find_before_recovery(
-            SyntaxKind::LeftBrace,
-            &[SyntaxKind::Semicolon, SyntaxKind::RightBrace],
-        ) {
+        } else if self.find_rule_block_open_before_recovery(&[
+            SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
+            SyntaxKind::RightBrace,
+            SyntaxKind::SassDedent,
+        ]) {
             SyntaxKind::Rule
         } else {
             SyntaxKind::BogusRule
@@ -504,9 +513,29 @@ impl<'text> Parser<'text> {
                     "unterminated declaration block",
                 );
             }
+        } else if self.current_kind() == Some(SyntaxKind::SassIndent) {
+            self.builder.start_node(SyntaxKind::SassIndentedBlock);
+            self.token_current();
+            self.builder.start_node(SyntaxKind::DeclarationList);
+            self.parse_declaration_list();
+            self.builder.finish_node();
+            if self.current_kind() == Some(SyntaxKind::SassDedent) {
+                self.token_current();
+            } else {
+                self.error_at_current(
+                    ParseErrorCode::UnexpectedCharacter,
+                    "unterminated Sass indented declaration block",
+                );
+            }
+            self.builder.finish_node();
         } else {
-            self.consume_until_recovery(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
-            if self.current_kind() == Some(SyntaxKind::Semicolon) {
+            self.consume_until_recovery(&[
+                SyntaxKind::Semicolon,
+                SyntaxKind::SassOptionalSemicolon,
+                SyntaxKind::RightBrace,
+                SyntaxKind::SassDedent,
+            ]);
+            if self.current_kind().is_some_and(is_statement_end) {
                 self.token_current();
             }
         }
@@ -522,10 +551,9 @@ impl<'text> Parser<'text> {
         self.builder.start_node(kind);
         while !self.at_end() {
             match self.current_kind() {
-                Some(SyntaxKind::LeftBrace | SyntaxKind::RightBrace | SyntaxKind::Semicolon) => {
-                    break;
-                }
                 Some(SyntaxKind::Comma) => self.token_current(),
+                Some(kind) if is_selector_boundary(kind) => break,
+                Some(SyntaxKind::SassIndentedNewline) => self.token_current(),
                 Some(_) => self.parse_selector(),
                 None => break,
             }
@@ -558,6 +586,7 @@ impl<'text> Parser<'text> {
                         self.token_current();
                     }
                 }
+                Some(SyntaxKind::SassIndentedNewline) => self.token_current(),
                 Some(kind) if is_combinator(kind) => {
                     self.parse_combinator();
                     has_component = false;
@@ -586,6 +615,7 @@ impl<'text> Parser<'text> {
                 Some(kind)
                     if is_selector_boundary(kind)
                         || kind == SyntaxKind::Whitespace
+                        || kind == SyntaxKind::SassIndentedNewline
                         || is_combinator(kind) =>
                 {
                     break;
@@ -600,8 +630,11 @@ impl<'text> Parser<'text> {
                     &[
                         SyntaxKind::Comma,
                         SyntaxKind::LeftBrace,
+                        SyntaxKind::SassIndent,
                         SyntaxKind::RightBrace,
+                        SyntaxKind::SassDedent,
                         SyntaxKind::Semicolon,
+                        SyntaxKind::SassOptionalSemicolon,
                     ],
                 ),
                 Some(SyntaxKind::LeftBracket) => self.parse_attribute_selector(),
@@ -786,7 +819,9 @@ impl<'text> Parser<'text> {
                             SyntaxKind::RightParen,
                             SyntaxKind::Comma,
                             SyntaxKind::LeftBrace,
+                            SyntaxKind::SassIndent,
                             SyntaxKind::Semicolon,
+                            SyntaxKind::SassOptionalSemicolon,
                         ],
                     ),
                     Some(_) => self.token_current(),
@@ -832,7 +867,10 @@ impl<'text> Parser<'text> {
         while !self.at_end() {
             self.eat_trivia();
             match self.current_kind() {
-                Some(SyntaxKind::RightBrace) | None => break,
+                Some(SyntaxKind::RightBrace | SyntaxKind::SassDedent) | None => break,
+                Some(SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon) => {
+                    self.token_current()
+                }
                 Some(SyntaxKind::AtKeyword) if self.current_is_css_module_value_rule() => {
                     self.parse_css_module_value_rule()
                 }
@@ -866,7 +904,12 @@ impl<'text> Parser<'text> {
     fn parse_variable_declaration(&mut self, kind: SyntaxKind) {
         let has_colon = self.find_before_recovery(
             SyntaxKind::Colon,
-            &[SyntaxKind::Semicolon, SyntaxKind::RightBrace],
+            &[
+                SyntaxKind::Semicolon,
+                SyntaxKind::SassOptionalSemicolon,
+                SyntaxKind::RightBrace,
+                SyntaxKind::SassDedent,
+            ],
         );
         self.builder
             .start_node(variable_declaration_node_kind(kind, has_colon));
@@ -882,7 +925,9 @@ impl<'text> Parser<'text> {
                 self.builder.start_node(SyntaxKind::Value);
                 self.parse_value_or_value_list_until(&[
                     SyntaxKind::Semicolon,
+                    SyntaxKind::SassOptionalSemicolon,
                     SyntaxKind::RightBrace,
+                    SyntaxKind::SassDedent,
                 ]);
                 self.builder.finish_node();
             }
@@ -891,9 +936,14 @@ impl<'text> Parser<'text> {
                 ParseErrorCode::UnexpectedCharacter,
                 "expected variable declaration colon",
             );
-            self.consume_until_recovery(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
+            self.consume_until_recovery(&[
+                SyntaxKind::Semicolon,
+                SyntaxKind::SassOptionalSemicolon,
+                SyntaxKind::RightBrace,
+                SyntaxKind::SassDedent,
+            ]);
         }
-        if self.current_kind() == Some(SyntaxKind::Semicolon) {
+        if self.current_kind().is_some_and(is_statement_end) {
             self.token_current();
         }
         self.builder.finish_node();
@@ -929,8 +979,11 @@ impl<'text> Parser<'text> {
             SyntaxKind::Colon,
             &[
                 SyntaxKind::Semicolon,
+                SyntaxKind::SassOptionalSemicolon,
                 SyntaxKind::RightBrace,
+                SyntaxKind::SassDedent,
                 SyntaxKind::LeftBrace,
+                SyntaxKind::SassIndent,
             ],
         );
         let kind = if starts_composes && has_colon {
@@ -948,8 +1001,11 @@ impl<'text> Parser<'text> {
             Some(
                 SyntaxKind::Colon
                     | SyntaxKind::Semicolon
+                    | SyntaxKind::SassOptionalSemicolon
                     | SyntaxKind::LeftBrace
+                    | SyntaxKind::SassIndent
                     | SyntaxKind::RightBrace
+                    | SyntaxKind::SassDedent
             )
         ) {
             SyntaxKind::BogusPropertyName
@@ -959,13 +1015,21 @@ impl<'text> Parser<'text> {
         self.builder.start_node(property_kind);
         while !self.at_end() {
             match self.current_kind() {
-                Some(SyntaxKind::Colon | SyntaxKind::Semicolon | SyntaxKind::RightBrace) => break,
+                Some(
+                    SyntaxKind::Colon
+                    | SyntaxKind::Semicolon
+                    | SyntaxKind::SassOptionalSemicolon
+                    | SyntaxKind::RightBrace
+                    | SyntaxKind::SassDedent,
+                ) => break,
                 Some(kind) if is_interpolation_start(kind) => self.parse_interpolation(
                     kind,
                     &[
                         SyntaxKind::Colon,
                         SyntaxKind::Semicolon,
+                        SyntaxKind::SassOptionalSemicolon,
                         SyntaxKind::RightBrace,
+                        SyntaxKind::SassDedent,
                     ],
                 ),
                 Some(_) => self.token_current(),
@@ -984,19 +1048,31 @@ impl<'text> Parser<'text> {
             self.token_current();
             self.builder.start_node(SyntaxKind::Value);
             if kind == SyntaxKind::CssModuleComposesDeclaration {
-                self.parse_composes_value_until(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
+                self.parse_composes_value_until(&[
+                    SyntaxKind::Semicolon,
+                    SyntaxKind::SassOptionalSemicolon,
+                    SyntaxKind::RightBrace,
+                    SyntaxKind::SassDedent,
+                ]);
             } else {
                 self.parse_value_or_value_list_until(&[
                     SyntaxKind::Semicolon,
+                    SyntaxKind::SassOptionalSemicolon,
                     SyntaxKind::RightBrace,
+                    SyntaxKind::SassDedent,
                 ]);
             }
             self.builder.finish_node();
         } else {
-            self.consume_until_recovery(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
+            self.consume_until_recovery(&[
+                SyntaxKind::Semicolon,
+                SyntaxKind::SassOptionalSemicolon,
+                SyntaxKind::RightBrace,
+                SyntaxKind::SassDedent,
+            ]);
         }
 
-        if self.current_kind() == Some(SyntaxKind::Semicolon) {
+        if self.current_kind().is_some_and(is_statement_end) {
             self.token_current();
         }
         self.builder.finish_node();
@@ -1080,7 +1156,7 @@ impl<'text> Parser<'text> {
         }
         while !self.at_end() {
             match self.current_kind() {
-                Some(SyntaxKind::Semicolon) => {
+                Some(kind) if is_statement_end(kind) => {
                     self.token_current();
                     break;
                 }
@@ -1091,6 +1167,10 @@ impl<'text> Parser<'text> {
                         AtRuleBlockKind::Keyframes => self.parse_keyframes_block(),
                         AtRuleBlockKind::Raw => self.consume_balanced_block(),
                     }
+                    break;
+                }
+                Some(SyntaxKind::SassIndent) => {
+                    self.parse_sass_indented_at_rule_block(spec.block_kind);
                     break;
                 }
                 Some(_) => self.token_current(),
@@ -1111,11 +1191,23 @@ impl<'text> Parser<'text> {
             .is_some_and(|(kind, allowed_name)| {
                 allowed_name && matches!(kind, SyntaxKind::Ident | SyntaxKind::CustomPropertyName)
             });
-        let has_from =
-            self.find_text_before_recovery("from", &[SyntaxKind::Semicolon, SyntaxKind::LeftBrace]);
+        let has_from = self.find_text_before_recovery(
+            "from",
+            &[
+                SyntaxKind::Semicolon,
+                SyntaxKind::SassOptionalSemicolon,
+                SyntaxKind::LeftBrace,
+                SyntaxKind::SassIndent,
+            ],
+        );
         let has_colon = self.find_before_recovery(
             SyntaxKind::Colon,
-            &[SyntaxKind::Semicolon, SyntaxKind::LeftBrace],
+            &[
+                SyntaxKind::Semicolon,
+                SyntaxKind::SassOptionalSemicolon,
+                SyntaxKind::LeftBrace,
+                SyntaxKind::SassIndent,
+            ],
         );
         let kind = if !has_name {
             SyntaxKind::BogusCssModuleBlock
@@ -1138,24 +1230,34 @@ impl<'text> Parser<'text> {
         } else {
             self.parse_css_module_value_import_or_statement();
         }
-        if self.current_kind() == Some(SyntaxKind::Semicolon) {
+        if self.current_kind().is_some_and(is_statement_end) {
             self.token_current();
         }
         self.builder.finish_node();
     }
 
     fn parse_css_module_value_export(&mut self) {
-        self.parse_css_module_token_definitions_until(&[SyntaxKind::Colon, SyntaxKind::Semicolon]);
+        self.parse_css_module_token_definitions_until(&[
+            SyntaxKind::Colon,
+            SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
+        ]);
         if self.current_kind() == Some(SyntaxKind::Colon) {
             self.token_current();
             self.builder.start_node(SyntaxKind::Value);
-            self.parse_css_module_token_references_until(&[SyntaxKind::Semicolon]);
+            self.parse_css_module_token_references_until(&[
+                SyntaxKind::Semicolon,
+                SyntaxKind::SassOptionalSemicolon,
+            ]);
             self.builder.finish_node();
         }
     }
 
     fn parse_css_module_value_import_or_statement(&mut self) {
-        self.parse_css_module_token_definitions_until(&[SyntaxKind::Semicolon]);
+        self.parse_css_module_token_definitions_until(&[
+            SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
+        ]);
     }
 
     fn parse_css_module_token_definitions_until(&mut self, recovery: &[SyntaxKind]) {
@@ -1206,9 +1308,11 @@ impl<'text> Parser<'text> {
         self.builder.start_node(SyntaxKind::LessMixinCall);
         self.parse_until_recovery_with_optional_less_guard(&[
             SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
             SyntaxKind::RightBrace,
+            SyntaxKind::SassDedent,
         ]);
-        if self.current_kind() == Some(SyntaxKind::Semicolon) {
+        if self.current_kind().is_some_and(is_statement_end) {
             self.token_current();
         }
         self.builder.finish_node();
@@ -1218,9 +1322,14 @@ impl<'text> Parser<'text> {
         self.builder.start_node(SyntaxKind::LessNamespaceAccess);
         while !self.at_end() {
             match self.current_kind() {
-                Some(SyntaxKind::Semicolon | SyntaxKind::RightBrace | SyntaxKind::LeftBrace) => {
-                    break;
-                }
+                Some(
+                    SyntaxKind::Semicolon
+                    | SyntaxKind::SassOptionalSemicolon
+                    | SyntaxKind::RightBrace
+                    | SyntaxKind::SassDedent
+                    | SyntaxKind::LeftBrace
+                    | SyntaxKind::SassIndent,
+                ) => break,
                 Some(_) if self.current_starts_less_mixin_call() => {
                     self.parse_less_mixin_call();
                     break;
@@ -1229,7 +1338,7 @@ impl<'text> Parser<'text> {
                 None => break,
             }
         }
-        if self.current_kind() == Some(SyntaxKind::Semicolon) {
+        if self.current_kind().is_some_and(is_statement_end) {
             self.token_current();
         }
         self.builder.finish_node();
@@ -1478,7 +1587,7 @@ impl<'text> Parser<'text> {
 
         while !self.at_end() {
             match self.current_kind() {
-                Some(SyntaxKind::Semicolon) => {
+                Some(kind) if is_statement_end(kind) => {
                     self.token_current();
                     break;
                 }
@@ -1492,6 +1601,13 @@ impl<'text> Parser<'text> {
                         AtRuleBlockKind::Keyframes => self.parse_keyframes_block(),
                         AtRuleBlockKind::Raw => self.consume_balanced_block(),
                     }
+                    break;
+                }
+                Some(SyntaxKind::SassIndent) => {
+                    self.parse_sass_indented_at_rule_block(
+                        spec.map(|spec| spec.block_kind)
+                            .unwrap_or(AtRuleBlockKind::Raw),
+                    );
                     break;
                 }
                 Some(_) => self.token_current(),
@@ -1760,7 +1876,10 @@ impl<'text> Parser<'text> {
         while !self.at_end() {
             self.eat_trivia();
             match self.current_kind() {
-                Some(SyntaxKind::RightBrace) | None => break,
+                Some(SyntaxKind::RightBrace | SyntaxKind::SassDedent) | None => break,
+                Some(SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon) => {
+                    self.token_current()
+                }
                 Some(SyntaxKind::AtKeyword) if self.current_is_css_module_value_rule() => {
                     self.parse_css_module_value_rule()
                 }
@@ -1790,6 +1909,54 @@ impl<'text> Parser<'text> {
                 ParseErrorCode::UnexpectedCharacter,
                 "unterminated declaration block",
             );
+        }
+    }
+
+    fn parse_sass_indented_at_rule_block(&mut self, block_kind: AtRuleBlockKind) {
+        self.builder.start_node(SyntaxKind::SassIndentedBlock);
+        if self.current_kind() == Some(SyntaxKind::SassIndent) {
+            self.token_current();
+        }
+        match block_kind {
+            AtRuleBlockKind::GroupRuleList => {
+                self.builder.start_node(SyntaxKind::RuleList);
+                self.parse_rule_list_items();
+                self.builder.finish_node();
+            }
+            AtRuleBlockKind::DeclarationList | AtRuleBlockKind::Keyframes => {
+                self.builder.start_node(SyntaxKind::DeclarationList);
+                self.parse_declaration_list();
+                self.builder.finish_node();
+            }
+            AtRuleBlockKind::Raw => self.consume_sass_indented_raw_body(),
+        }
+        if self.current_kind() == Some(SyntaxKind::SassDedent) {
+            self.token_current();
+        } else {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "unterminated Sass indented at-rule block",
+            );
+        }
+        self.builder.finish_node();
+    }
+
+    fn consume_sass_indented_raw_body(&mut self) {
+        let mut depth = 0usize;
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::SassIndent) => {
+                    depth += 1;
+                    self.token_current();
+                }
+                Some(SyntaxKind::SassDedent) if depth == 0 => break,
+                Some(SyntaxKind::SassDedent) => {
+                    depth = depth.saturating_sub(1);
+                    self.token_current();
+                }
+                Some(_) => self.token_current(),
+                None => break,
+            }
         }
     }
 
@@ -1893,6 +2060,22 @@ impl<'text> Parser<'text> {
         false
     }
 
+    fn find_rule_block_open_before_recovery(&self, recovery: &[SyntaxKind]) -> bool {
+        let mut index = self.position;
+        while let Some(token) = self.tokens.get(index) {
+            if token.kind == SyntaxKind::LeftBrace
+                || (self.dialect == StyleDialect::Sass && token.kind == SyntaxKind::SassIndent)
+            {
+                return true;
+            }
+            if recovery.contains(&token.kind) {
+                return false;
+            }
+            index += 1;
+        }
+        false
+    }
+
     fn find_text_before_recovery(&self, target: &str, recovery: &[SyntaxKind]) -> bool {
         let mut index = self.position;
         while let Some(token) = self.tokens.get(index) {
@@ -1945,10 +2128,12 @@ impl<'text> Parser<'text> {
     }
 
     fn current_dialect_at_rule_node_kind(&self, spec: AtRuleSpec) -> SyntaxKind {
-        if !self.find_before_recovery(
-            SyntaxKind::LeftBrace,
-            &[SyntaxKind::Semicolon, SyntaxKind::RightBrace],
-        ) {
+        if !self.find_rule_block_open_before_recovery(&[
+            SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
+            SyntaxKind::RightBrace,
+            SyntaxKind::SassDedent,
+        ]) {
             return match spec.node_kind {
                 SyntaxKind::ScssMixinDeclaration => SyntaxKind::BogusScssMixin,
                 SyntaxKind::ScssFunctionDeclaration => SyntaxKind::BogusScssFunction,
@@ -2112,14 +2297,13 @@ impl<'text> Parser<'text> {
                     | SyntaxKind::DoubleColon
                     | SyntaxKind::LeftBracket
             )
-        ) && self.find_before_recovery(
-            SyntaxKind::LeftBrace,
-            &[
-                SyntaxKind::Colon,
-                SyntaxKind::Semicolon,
-                SyntaxKind::RightBrace,
-            ],
-        )
+        ) && self.find_rule_block_open_before_recovery(&[
+            SyntaxKind::Colon,
+            SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
+            SyntaxKind::RightBrace,
+            SyntaxKind::SassDedent,
+        ])
     }
 
     fn current_starts_less_mixin_declaration(&self) -> bool {
@@ -2307,6 +2491,7 @@ where
             offset: 0,
             scss_interpolation_depth: 0,
             less_interpolation_depth: 0,
+            sass_indent_stack: vec![0],
             tokens: Vec::new(),
             errors: Vec::new(),
         }
@@ -2316,6 +2501,9 @@ where
         while let Some(current) = self.current_char() {
             let start = self.offset;
             match current {
+                '\r' | '\n' if self.extension.dialect() == StyleDialect::Sass => {
+                    self.consume_sass_indented_newline(start)
+                }
                 char if char.is_whitespace() => {
                     self.consume_while(SyntaxKind::Whitespace, |c| c.is_whitespace())
                 }
@@ -2420,6 +2608,7 @@ where
                 char => self.consume_unexpected(char),
             }
         }
+        self.consume_pending_sass_dedents();
     }
 
     fn consume_static(&mut self, kind: SyntaxKind, start: usize, byte_len: usize) {
@@ -2464,12 +2653,103 @@ where
     fn consume_line_comment(&mut self) {
         let start = self.offset;
         while let Some(char) = self.current_char() {
-            self.bump_char(char);
             if char == '\n' {
                 break;
             }
+            if char == '\r' {
+                break;
+            }
+            self.bump_char(char);
         }
         self.push(SyntaxKind::LineComment, start, self.offset);
+    }
+
+    fn consume_sass_indented_newline(&mut self, start: usize) {
+        self.consume_line_break();
+        let indent = self.consume_sass_line_indent();
+        let line_start = self.offset;
+        let current_indent = self.sass_indent_stack.last().copied().unwrap_or(0);
+
+        if indent > current_indent {
+            self.push(SyntaxKind::SassIndentedNewline, start, line_start);
+            self.sass_indent_stack.push(indent);
+            self.push(SyntaxKind::SassIndent, line_start, line_start);
+            return;
+        }
+
+        if self.previous_significant_sass_token_can_end_statement() {
+            self.push(SyntaxKind::SassOptionalSemicolon, start, start);
+        }
+        self.push(SyntaxKind::SassIndentedNewline, start, line_start);
+
+        while self.sass_indent_stack.len() > 1
+            && self
+                .sass_indent_stack
+                .last()
+                .is_some_and(|current| indent < *current)
+        {
+            self.sass_indent_stack.pop();
+            self.push(SyntaxKind::SassDedent, line_start, line_start);
+        }
+
+        if self
+            .sass_indent_stack
+            .last()
+            .is_some_and(|current| indent != *current)
+        {
+            self.error(
+                ParseErrorCode::UnexpectedCharacter,
+                line_start,
+                line_start,
+                "inconsistent Sass indentation",
+            );
+        }
+    }
+
+    fn consume_line_break(&mut self) {
+        if self.starts_with("\r\n") {
+            self.offset += "\r\n".len();
+            return;
+        }
+        if let Some(char @ ('\r' | '\n')) = self.current_char() {
+            self.bump_char(char);
+        }
+    }
+
+    fn consume_sass_line_indent(&mut self) -> usize {
+        let mut indent = 0usize;
+        while let Some(char) = self.current_char() {
+            match char {
+                ' ' => {
+                    indent += 1;
+                    self.bump_char(char);
+                }
+                '\t' => {
+                    indent += 4;
+                    self.bump_char(char);
+                }
+                _ => break,
+            }
+        }
+        indent
+    }
+
+    fn consume_pending_sass_dedents(&mut self) {
+        if self.extension.dialect() != StyleDialect::Sass {
+            return;
+        }
+        while self.sass_indent_stack.len() > 1 {
+            self.sass_indent_stack.pop();
+            self.push(SyntaxKind::SassDedent, self.offset, self.offset);
+        }
+    }
+
+    fn previous_significant_sass_token_can_end_statement(&self) -> bool {
+        self.tokens
+            .iter()
+            .rev()
+            .find(|token| !token.kind.is_trivia())
+            .is_some_and(|token| sass_token_can_end_statement(token.kind))
     }
 
     fn consume_scss_interpolation_start(&mut self, start: usize) {
@@ -3252,8 +3532,8 @@ fn skip_trivia_tokens(tokens: &[Token<'_>], mut index: usize, end: usize) -> usi
 fn skip_statement(tokens: &[Token<'_>], mut index: usize, end: usize) -> usize {
     while index < end {
         match tokens[index].kind {
-            SyntaxKind::Semicolon => return index + 1,
-            SyntaxKind::RightBrace => return index,
+            SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon => return index + 1,
+            SyntaxKind::RightBrace | SyntaxKind::SassDedent => return index,
             _ => index += 1,
         }
     }
@@ -3268,9 +3548,16 @@ fn find_block_after_header(
     let mut index = start;
     while index < end {
         match tokens[index].kind {
-            SyntaxKind::Semicolon | SyntaxKind::RightBrace => return None,
+            SyntaxKind::Semicolon
+            | SyntaxKind::SassOptionalSemicolon
+            | SyntaxKind::RightBrace
+            | SyntaxKind::SassDedent => return None,
             SyntaxKind::LeftBrace => {
                 let close = matching_right_brace(tokens, index, end)?;
+                return Some((index, close));
+            }
+            SyntaxKind::SassIndent => {
+                let close = matching_sass_dedent(tokens, index, end)?;
                 return Some((index, close));
             }
             _ => index += 1,
@@ -3286,6 +3573,25 @@ fn matching_right_brace(tokens: &[Token<'_>], open: usize, end: usize) -> Option
         match tokens[index].kind {
             SyntaxKind::LeftBrace => depth += 1,
             SyntaxKind::RightBrace => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+fn matching_sass_dedent(tokens: &[Token<'_>], open: usize, end: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut index = open;
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::SassIndent => depth += 1,
+            SyntaxKind::SassDedent => {
                 depth = depth.saturating_sub(1);
                 if depth == 0 {
                     return Some(index);
@@ -3480,12 +3786,72 @@ fn scss_at_rule_spec(text: &str) -> Option<AtRuleSpec> {
 fn is_selector_boundary(kind: SyntaxKind) -> bool {
     matches!(
         kind,
-        SyntaxKind::Comma | SyntaxKind::LeftBrace | SyntaxKind::RightBrace | SyntaxKind::Semicolon
+        SyntaxKind::Comma
+            | SyntaxKind::LeftBrace
+            | SyntaxKind::SassIndent
+            | SyntaxKind::RightBrace
+            | SyntaxKind::SassDedent
+            | SyntaxKind::Semicolon
+            | SyntaxKind::SassOptionalSemicolon
     )
 }
 
 fn is_at_rule_prelude_boundary(kind: SyntaxKind) -> bool {
-    matches!(kind, SyntaxKind::LeftBrace | SyntaxKind::Semicolon)
+    matches!(
+        kind,
+        SyntaxKind::LeftBrace
+            | SyntaxKind::SassIndent
+            | SyntaxKind::Semicolon
+            | SyntaxKind::SassOptionalSemicolon
+    )
+}
+
+fn is_statement_end(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon
+    )
+}
+
+fn sass_token_can_end_statement(kind: SyntaxKind) -> bool {
+    !matches!(
+        kind,
+        SyntaxKind::Whitespace
+            | SyntaxKind::LineComment
+            | SyntaxKind::BlockComment
+            | SyntaxKind::SassIndentedNewline
+            | SyntaxKind::SassIndent
+            | SyntaxKind::SassDedent
+            | SyntaxKind::SassOptionalSemicolon
+            | SyntaxKind::Comma
+            | SyntaxKind::Colon
+            | SyntaxKind::DoubleColon
+            | SyntaxKind::LeftBrace
+            | SyntaxKind::LeftParen
+            | SyntaxKind::LeftBracket
+            | SyntaxKind::Plus
+            | SyntaxKind::Minus
+            | SyntaxKind::Star
+            | SyntaxKind::Slash
+            | SyntaxKind::GreaterThan
+            | SyntaxKind::LessThan
+            | SyntaxKind::Equals
+            | SyntaxKind::Arrow
+            | SyntaxKind::Pipe
+            | SyntaxKind::Tilde
+            | SyntaxKind::Caret
+            | SyntaxKind::Ampersand
+            | SyntaxKind::DoubleAmpersand
+            | SyntaxKind::ColumnCombinator
+            | SyntaxKind::IncludesMatch
+            | SyntaxKind::DashMatch
+            | SyntaxKind::PrefixMatch
+            | SyntaxKind::SuffixMatch
+            | SyntaxKind::SubstringMatch
+            | SyntaxKind::PlusEquals
+            | SyntaxKind::MinusEquals
+            | SyntaxKind::SlashEquals
+    )
 }
 
 fn function_argument_recovery(recovery: &[SyntaxKind]) -> Vec<SyntaxKind> {
@@ -3762,6 +4128,34 @@ mod tests {
         assert!(scss_kinds.contains(&SyntaxKind::ScssInterpolationStart));
         assert!(scss_kinds.contains(&SyntaxKind::ScssInterpolationEnd));
         assert!(!css_kinds.contains(&SyntaxKind::ScssInterpolationStart));
+    }
+
+    #[test]
+    fn tokenizes_sass_indented_block_markers() {
+        let result = lex(
+            ".card\n  color: red // comment\n  .title\n    color: blue\n",
+            StyleDialect::Sass,
+        );
+        let kinds: Vec<SyntaxKind> = result.tokens().iter().map(|token| token.kind).collect();
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::LineComment));
+        assert!(kinds.contains(&SyntaxKind::SassIndentedNewline));
+        assert!(kinds.contains(&SyntaxKind::SassOptionalSemicolon));
+        assert_eq!(
+            kinds
+                .iter()
+                .filter(|kind| **kind == SyntaxKind::SassIndent)
+                .count(),
+            2
+        );
+        assert_eq!(
+            kinds
+                .iter()
+                .filter(|kind| **kind == SyntaxKind::SassDedent)
+                .count(),
+            2
+        );
     }
 
     #[test]
@@ -4560,6 +4954,36 @@ mod tests {
         assert!(result.errors().is_empty());
         assert!(kinds.contains(&SyntaxKind::NestingSelectorNode));
         assert!(kinds.contains(&SyntaxKind::PseudoElementSelector));
+    }
+
+    #[test]
+    fn parses_sass_indented_blocks_as_rule_declaration_lists() {
+        let result = parse(
+            ".card\n  color: red\n  .title\n    color: blue\n",
+            StyleDialect::Sass,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::SassIndentedBlock));
+        assert!(kinds.contains(&SyntaxKind::Rule));
+        assert!(kinds.contains(&SyntaxKind::DeclarationList));
+        assert!(kinds.contains(&SyntaxKind::Declaration));
+        assert!(kinds.contains(&SyntaxKind::ClassSelector));
+    }
+
+    #[test]
+    fn extracts_sass_indented_nested_bem_style_facts() {
+        let facts = collect_style_facts(".card\n  &__icon\n    color: red\n", StyleDialect::Sass);
+        let class_names: Vec<&str> = facts
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+            .map(|selector| selector.name.as_str())
+            .collect();
+
+        assert_eq!(class_names, vec!["card", "card__icon"]);
+        assert_eq!(facts.error_count, 0);
     }
 
     #[test]

@@ -87,7 +87,13 @@ macro_rules! syntax_kinds {
             }
 
             pub const fn is_trivia(self) -> bool {
-                matches!(self, Self::Whitespace | Self::LineComment | Self::BlockComment)
+                matches!(
+                    self,
+                    Self::Whitespace
+                        | Self::LineComment
+                        | Self::BlockComment
+                        | Self::SassIndentedNewline
+                )
             }
         }
     };
