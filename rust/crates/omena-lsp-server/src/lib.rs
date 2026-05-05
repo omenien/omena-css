@@ -224,14 +224,14 @@ pub fn source_provider_direct_rust_adapter_contract() -> SourceProviderDirectRus
     SourceProviderDirectRustAdapterV0 {
         product: "omena-lsp-server.source-provider-direct-rust-adapter",
         candidate_owner: "omena-bridge/sourceSyntaxIndex",
-        style_definition_owner: "engine-style-parser/selectorDefinitionFacts",
+        style_definition_owner: "omena-query/styleHoverCandidates",
         type_fact_owner: "omena-tsgo-client",
         request_path_policy: vec![
             "noNodeWorkspaceTypeResolverOnSourceProviderPath",
             "buildBridgeSourceSyntaxIndexOnDocumentChange",
             "dedupeTargetAwareSourceCandidates",
-            "consumeParserCanonicalSelectorFacts",
-            "consumeParserSelectorDefinitionFacts",
+            "consumeQueryStyleHoverCandidates",
+            "consumeQuerySassModuleSources",
             "consumeTsgoTypeFactsForTypedCxProjection",
             "consumeSassPartialEvaluatorGeneratedSelectors",
             "useOpenedDocumentIndexesBeforeWorkspaceFallback",

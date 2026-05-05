@@ -154,7 +154,7 @@ assert.equal(
 assert.equal(rustSummary.sourceProviderAdapter.candidateOwner, "omena-bridge/sourceSyntaxIndex");
 assert.equal(
   rustSummary.sourceProviderAdapter.styleDefinitionOwner,
-  "engine-style-parser/selectorDefinitionFacts",
+  "omena-query/styleHoverCandidates",
 );
 assert.equal(rustSummary.sourceProviderAdapter.typeFactOwner, "omena-tsgo-client");
 assert.ok(
@@ -171,14 +171,10 @@ assert.ok(
   rustSummary.sourceProviderAdapter.requestPathPolicy.includes("dedupeTargetAwareSourceCandidates"),
 );
 assert.ok(
-  rustSummary.sourceProviderAdapter.requestPathPolicy.includes(
-    "consumeParserCanonicalSelectorFacts",
-  ),
+  rustSummary.sourceProviderAdapter.requestPathPolicy.includes("consumeQueryStyleHoverCandidates"),
 );
 assert.ok(
-  rustSummary.sourceProviderAdapter.requestPathPolicy.includes(
-    "consumeParserSelectorDefinitionFacts",
-  ),
+  rustSummary.sourceProviderAdapter.requestPathPolicy.includes("consumeQuerySassModuleSources"),
 );
 assert.ok(rustSummary.sourceProviderAdapter.providerSurfaces.includes("textDocument/definition"));
 assertDefaultHostPathHasNoNodeWorkspaceResolver(repoRoot);
