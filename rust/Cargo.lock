@@ -282,6 +282,7 @@ dependencies = [
 name = "omena-checker"
 version = "0.1.0"
 dependencies = [
+ "omena-abstract-value",
  "serde",
 ]
 

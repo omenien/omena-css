@@ -1,3 +1,9 @@
+use std::collections::BTreeSet;
+
+use omena_abstract_value::{
+    AbstractClassValueV0, SelectorProjectionCertaintyV0, enumerate_finite_class_values,
+    project_abstract_value_selectors,
+};
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
@@ -163,6 +169,44 @@ pub struct OmenaCheckerBoundarySummaryV0 {
     pub style_rule_count: usize,
     pub bridge_policy: Vec<&'static str>,
     pub next_migration_targets: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaCheckerDynamicClassDomainOutcomeV0 {
+    Known,
+    MissingResolvedClassValues,
+    MissingResolvedClassDomain,
+}
+
+impl OmenaCheckerDynamicClassDomainOutcomeV0 {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Known => "known",
+            Self::MissingResolvedClassValues => "missingResolvedClassValues",
+            Self::MissingResolvedClassDomain => "missingResolvedClassDomain",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerDynamicClassDomainInputV0 {
+    pub abstract_value: AbstractClassValueV0,
+    pub selector_universe: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerDynamicClassDomainEvaluationV0 {
+    pub outcome: OmenaCheckerDynamicClassDomainOutcomeV0,
+    pub outcome_name: &'static str,
+    pub rule_code: Option<OmenaCheckerRuleCodeV0>,
+    pub rule_code_name: Option<&'static str>,
+    pub selector_names: Vec<String>,
+    pub selector_certainty: SelectorProjectionCertaintyV0,
+    pub finite_values: Option<Vec<String>>,
+    pub missing_values: Vec<String>,
 }
 
 pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0> {
@@ -390,11 +434,94 @@ pub fn summarize_omena_checker_boundary() -> OmenaCheckerBoundarySummaryV0 {
             "diagnosticExecutionMigratesByRuleFamilyAfterRegistryParity",
         ],
         next_migration_targets: vec![
+            "dynamicClassDomainRuntime",
             "missingModuleRuntime",
             "styleRecoveryRuntime",
             "unusedSelectorRuntime",
             "configSeverityOverrides",
         ],
+    }
+}
+
+pub fn evaluate_omena_checker_dynamic_class_domain(
+    input: OmenaCheckerDynamicClassDomainInputV0,
+) -> OmenaCheckerDynamicClassDomainEvaluationV0 {
+    let selector_universe = input
+        .selector_universe
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let projection = project_abstract_value_selectors(&input.abstract_value, &selector_universe);
+    let finite_values = enumerate_finite_class_values(&input.abstract_value);
+
+    if let Some(finite_values) = finite_values {
+        let selector_set = selector_universe.iter().collect::<BTreeSet<_>>();
+        let missing_values = finite_values
+            .iter()
+            .filter(|value| !selector_set.contains(value))
+            .cloned()
+            .collect::<Vec<_>>();
+
+        if missing_values.is_empty() {
+            return dynamic_class_domain_evaluation(
+                OmenaCheckerDynamicClassDomainOutcomeV0::Known,
+                None,
+                projection.selector_names,
+                projection.certainty,
+                Some(finite_values),
+                missing_values,
+            );
+        }
+
+        return dynamic_class_domain_evaluation(
+            OmenaCheckerDynamicClassDomainOutcomeV0::MissingResolvedClassValues,
+            Some(OmenaCheckerRuleCodeV0::MissingResolvedClassValues),
+            projection.selector_names,
+            projection.certainty,
+            Some(finite_values),
+            missing_values,
+        );
+    }
+
+    if projection.selector_names.is_empty() {
+        return dynamic_class_domain_evaluation(
+            OmenaCheckerDynamicClassDomainOutcomeV0::MissingResolvedClassDomain,
+            Some(OmenaCheckerRuleCodeV0::MissingResolvedClassDomain),
+            projection.selector_names,
+            projection.certainty,
+            None,
+            Vec::new(),
+        );
+    }
+
+    dynamic_class_domain_evaluation(
+        OmenaCheckerDynamicClassDomainOutcomeV0::Known,
+        None,
+        projection.selector_names,
+        projection.certainty,
+        None,
+        Vec::new(),
+    )
+}
+
+fn dynamic_class_domain_evaluation(
+    outcome: OmenaCheckerDynamicClassDomainOutcomeV0,
+    rule_code: Option<OmenaCheckerRuleCodeV0>,
+    selector_names: Vec<String>,
+    selector_certainty: SelectorProjectionCertaintyV0,
+    finite_values: Option<Vec<String>>,
+    missing_values: Vec<String>,
+) -> OmenaCheckerDynamicClassDomainEvaluationV0 {
+    OmenaCheckerDynamicClassDomainEvaluationV0 {
+        outcome,
+        outcome_name: outcome.as_str(),
+        rule_code,
+        rule_code_name: rule_code.map(OmenaCheckerRuleCodeV0::as_str),
+        selector_names,
+        selector_certainty,
+        finite_values,
+        missing_values,
     }
 }
 
@@ -436,6 +563,10 @@ fn bundle(
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
+
+    use omena_abstract_value::{
+        CompositeClassValueInputV0, composite_class_value, finite_set_class_value,
+    };
 
     use super::*;
 
@@ -522,5 +653,56 @@ mod tests {
                 .bridge_policy
                 .contains(&"rustOwnsRuleAndBundleMetadataBeforeRuntimeMigration"),
         );
+        assert!(
+            summary
+                .next_migration_targets
+                .contains(&"dynamicClassDomainRuntime"),
+        );
+    }
+
+    #[test]
+    fn evaluates_finite_dynamic_class_domains() {
+        let evaluation =
+            evaluate_omena_checker_dynamic_class_domain(OmenaCheckerDynamicClassDomainInputV0 {
+                abstract_value: finite_set_class_value(["btn-primary", "btn-missing"]),
+                selector_universe: vec!["btn-primary".to_string(), "card".to_string()],
+            });
+
+        assert_eq!(
+            evaluation.outcome,
+            OmenaCheckerDynamicClassDomainOutcomeV0::MissingResolvedClassValues
+        );
+        assert_eq!(
+            evaluation.rule_code,
+            Some(OmenaCheckerRuleCodeV0::MissingResolvedClassValues)
+        );
+        assert_eq!(evaluation.missing_values, vec!["btn-missing"]);
+    }
+
+    #[test]
+    fn evaluates_constrained_dynamic_class_domains_with_abstract_value_projection() {
+        let evaluation =
+            evaluate_omena_checker_dynamic_class_domain(OmenaCheckerDynamicClassDomainInputV0 {
+                abstract_value: composite_class_value(CompositeClassValueInputV0 {
+                    prefix: Some("btn-".to_string()),
+                    suffix: Some("-active".to_string()),
+                    min_length: Some(16),
+                    must_chars: "-abceintv".to_string(),
+                    may_chars: "-abceinprtv".to_string(),
+                    may_include_other_chars: false,
+                    provenance: None,
+                }),
+                selector_universe: vec!["btn-primary".to_string(), "card".to_string()],
+            });
+
+        assert_eq!(
+            evaluation.outcome,
+            OmenaCheckerDynamicClassDomainOutcomeV0::MissingResolvedClassDomain
+        );
+        assert_eq!(
+            evaluation.rule_code,
+            Some(OmenaCheckerRuleCodeV0::MissingResolvedClassDomain)
+        );
+        assert!(evaluation.selector_names.is_empty());
     }
 }
