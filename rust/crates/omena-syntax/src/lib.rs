@@ -295,6 +295,7 @@ syntax_kinds! {
     EnvFunction = 0x1046,
     AttrFunction = 0x1047,
     MathFunction = 0x1048,
+    PageMarginRule = 0x1049,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,

@@ -359,6 +359,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "mediaQueryCstNodes",
             "importPreludeCstNodes",
             "layerScopePreludeCstNodes",
+            "pageMarginAtRuleCstNodes",
             "cssColorFunctionCstNodes",
             "envAttrFunctionCstNodes",
             "mathFunctionCstNodes",
@@ -3993,12 +3994,37 @@ fn at_rule_spec(text: &str) -> Option<AtRuleSpec> {
         "@charset" => (SyntaxKind::CharsetRule, AtRuleBlockKind::Raw),
         "@import" => (SyntaxKind::ImportRule, AtRuleBlockKind::Raw),
         "@namespace" => (SyntaxKind::NamespaceRule, AtRuleBlockKind::Raw),
+        text if is_page_margin_at_rule(text) => {
+            (SyntaxKind::PageMarginRule, AtRuleBlockKind::DeclarationList)
+        }
         _ => return None,
     };
     Some(AtRuleSpec {
         node_kind,
         block_kind,
     })
+}
+
+fn is_page_margin_at_rule(text: &str) -> bool {
+    matches!(
+        text,
+        "@top-left-corner"
+            | "@top-left"
+            | "@top-center"
+            | "@top-right"
+            | "@top-right-corner"
+            | "@bottom-left-corner"
+            | "@bottom-left"
+            | "@bottom-center"
+            | "@bottom-right"
+            | "@bottom-right-corner"
+            | "@left-top"
+            | "@left-middle"
+            | "@left-bottom"
+            | "@right-top"
+            | "@right-middle"
+            | "@right-bottom"
+    )
 }
 
 fn scss_at_rule_spec(text: &str) -> Option<AtRuleSpec> {
@@ -4745,15 +4771,23 @@ mod tests {
             "@font-face { font-family: \"Demo\"; src: url(demo.woff2); }",
             StyleDialect::Css,
         );
+        let page_margin = parse(
+            "@page :first { margin: 1cm; @top-left { content: \"A\"; } @bottom-center { content: counter(page); } }",
+            StyleDialect::Css,
+        );
         let keyframe_kinds = node_kinds(&keyframes.syntax());
         let font_face_kinds = node_kinds(&font_face.syntax());
+        let page_margin_kinds = node_kinds(&page_margin.syntax());
 
         assert!(keyframes.errors().is_empty());
         assert!(font_face.errors().is_empty());
+        assert!(page_margin.errors().is_empty());
         assert!(keyframe_kinds.contains(&SyntaxKind::KeyframesRule));
         assert!(keyframe_kinds.contains(&SyntaxKind::KeyframeBlock));
         assert!(font_face_kinds.contains(&SyntaxKind::FontFaceRule));
         assert!(font_face_kinds.contains(&SyntaxKind::DeclarationList));
+        assert!(page_margin_kinds.contains(&SyntaxKind::PageRule));
+        assert!(page_margin_kinds.contains(&SyntaxKind::PageMarginRule));
     }
 
     #[test]
@@ -5459,6 +5493,7 @@ mod tests {
                 .ready_surfaces
                 .contains(&"layerScopePreludeCstNodes")
         );
+        assert!(summary.ready_surfaces.contains(&"pageMarginAtRuleCstNodes"));
         assert!(summary.ready_surfaces.contains(&"cssColorFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"envAttrFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"mathFunctionCstNodes"));
