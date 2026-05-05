@@ -4,10 +4,14 @@ import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss
 import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
-import { resolveStyleReferencesAtCursor } from "../../../server/engine-host-node/src/style-references-query";
+import {
+  resolveStyleReferencesAtCursor,
+  resolveStyleReferencesAtCursorAsync,
+} from "../../../server/engine-host-node/src/style-references-query";
 import type { StyleSemanticGraphSummaryV0 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
+import { makeDesignTokenDefinitionGraph } from "../../_fixtures/style-semantic-graph";
 
 function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return makeBaseDeps({
@@ -458,6 +462,98 @@ describe("resolveStyleReferencesAtCursor", () => {
       "file:///fake/src/Button.module.scss",
     ]);
     expect(result.map((location) => location.range.start.line)).toEqual([0, 3, 6]);
+  });
+
+  it("uses Rust design-token winner ranges for external CSS custom property references", () => {
+    const filePath = "/fake/src/Button.module.scss";
+    const generatedTokensPath = "/fake/workspace/src/generated.tokens.css";
+    const winnerRange = {
+      start: { line: 8, character: 2 },
+      end: { line: 8, character: 9 },
+    };
+    const buttonScss = `.button {
+  color: var(--brand);
+}
+.footer {
+  border-color: var(--brand);
+}
+`;
+    const styleDocument = parseStyleDocument(buttonScss, filePath);
+
+    const result = resolveStyleReferencesAtCursor(
+      {
+        filePath,
+        line: 1,
+        character: 16,
+        includeDeclaration: true,
+        styleDocument,
+      },
+      makeDeps({
+        styleDocumentForPath: styleDocumentMap([styleDocument]),
+      }),
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        readRustStyleSemanticGraphForWorkspaceTarget: () =>
+          makeDesignTokenDefinitionGraph({
+            referenceName: "--brand",
+            winnerDeclarationFilePath: generatedTokensPath,
+            winnerDeclarationRange: winnerRange,
+          }),
+      },
+    );
+
+    expect(result.map((location) => location.uri)).toEqual([
+      "file:///fake/workspace/src/generated.tokens.css",
+      "file:///fake/src/Button.module.scss",
+      "file:///fake/src/Button.module.scss",
+    ]);
+    expect(result.map((location) => location.range.start.line)).toEqual([8, 1, 4]);
+  });
+
+  it("uses async Rust design-token winner ranges for external CSS custom property references", async () => {
+    const filePath = "/fake/src/Button.module.scss";
+    const generatedTokensPath = "/fake/workspace/src/generated.tokens.css";
+    const winnerRange = {
+      start: { line: 8, character: 2 },
+      end: { line: 8, character: 9 },
+    };
+    const buttonScss = `.button {
+  color: var(--brand);
+}
+.footer {
+  border-color: var(--brand);
+}
+`;
+    const styleDocument = parseStyleDocument(buttonScss, filePath);
+
+    const result = await resolveStyleReferencesAtCursorAsync(
+      {
+        filePath,
+        line: 1,
+        character: 16,
+        includeDeclaration: true,
+        styleDocument,
+      },
+      makeDeps({
+        styleDocumentForPath: styleDocumentMap([styleDocument]),
+      }),
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        readRustStyleSemanticGraphForWorkspaceTargetAsync: async () =>
+          makeDesignTokenDefinitionGraph({
+            referenceName: "--brand",
+            winnerDeclarationFilePath: generatedTokensPath,
+            winnerDeclarationRange: winnerRange,
+          }),
+      },
+    );
+
+    expect(result.map((location) => location.uri)).toEqual([
+      "file:///fake/workspace/src/generated.tokens.css",
+      "file:///fake/src/Button.module.scss",
+      "file:///fake/src/Button.module.scss",
+    ]);
+    expect(result.map((location) => location.range.start.line)).toEqual([8, 1, 4]);
   });
 
   it("returns package-root CSS custom property references through package.json style entries", () => {

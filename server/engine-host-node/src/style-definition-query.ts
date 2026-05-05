@@ -1,17 +1,11 @@
 import type { Range } from "@css-module-explainer/shared";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 import {
-  buildStyleSemanticGraphDesignTokenRankedReferenceReadModels,
-  resolveRustStyleSemanticGraphForWorkspaceTargetAsync,
-  resolveRustStyleSemanticGraphForWorkspaceTarget,
-  type StyleSemanticGraphCache,
-  type StyleSemanticGraphQueryOptions,
-  type StyleSemanticGraphSummaryV0,
-} from "./style-semantic-graph-query-backend";
-import {
-  resolveSelectedQueryBackendKind,
-  usesRustStyleSemanticGraphBackend,
-} from "./selected-query-backend";
+  resolveStyleDesignTokenRankingForReference,
+  resolveStyleDesignTokenRankingForReferenceAsync,
+  type StyleDesignTokenRankingDeps,
+  type StyleDesignTokenRankingQueryOptions,
+} from "./style-design-token-ranking-query";
 import {
   findAnimationNameRefAtCursor,
   findCanonicalSelector,
@@ -41,33 +35,13 @@ export interface StyleDefinitionTarget {
   readonly targetSelectionRange: Range;
 }
 
-export interface StyleDefinitionQueryOptions extends Pick<
-  StyleSemanticGraphQueryOptions,
-  | "engineInput"
-  | "sourceDocuments"
-  | "styleFiles"
-  | "styleSemanticGraphCache"
-  | "runRustSelectedQueryBackendJson"
-  | "runRustSelectedQueryBackendJsonAsync"
-> {
-  readonly env?: NodeJS.ProcessEnv;
-  readonly readRustStyleSemanticGraphForWorkspaceTarget?: typeof resolveRustStyleSemanticGraphForWorkspaceTarget;
-  readonly readRustStyleSemanticGraphForWorkspaceTargetAsync?: typeof resolveRustStyleSemanticGraphForWorkspaceTargetAsync;
-}
+export interface StyleDefinitionQueryOptions extends StyleDesignTokenRankingQueryOptions {}
 
 type StyleDefinitionDeps = Pick<
   ProviderDeps,
-  | "styleDocumentForPath"
-  | "aliasResolver"
-  | "styleDependencyGraph"
-  | "readStyleFile"
-  | "analysisCache"
-  | "settings"
-  | "typeResolver"
-  | "workspaceRoot"
-> & {
-  readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
-};
+  "styleDocumentForPath" | "aliasResolver" | "styleDependencyGraph" | "readStyleFile"
+> &
+  StyleDesignTokenRankingDeps;
 
 export function resolveStyleDefinitionTargets(
   params: Pick<CursorParams, "filePath" | "line" | "character">,
@@ -253,17 +227,11 @@ function resolveCustomPropertyDefinitionTargetFromRustRanking(
   deps: StyleDefinitionDeps,
   options: StyleDefinitionQueryOptions,
 ): StyleDefinitionTarget | null {
-  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
-    return null;
-  }
-
-  const graph = safeResolveRustStyleSemanticGraphForDefinition(filePath, deps, options);
-  if (!graph) return null;
-
-  const ranking = buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
-    graph,
-    styleDocument,
-  ).find((readModel) => readModel.reference === customPropertyRef);
+  const ranking = resolveStyleDesignTokenRankingForReference(
+    { filePath, styleDocument, customPropertyRef },
+    deps,
+    options,
+  );
   if (!ranking?.winnerDeclarationFilePath || !ranking.winnerDeclarationRange) return null;
 
   return {
@@ -281,17 +249,11 @@ async function resolveCustomPropertyDefinitionTargetFromRustRankingAsync(
   deps: StyleDefinitionDeps,
   options: StyleDefinitionQueryOptions,
 ): Promise<StyleDefinitionTarget | null> {
-  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
-    return null;
-  }
-
-  const graph = await safeResolveRustStyleSemanticGraphForDefinitionAsync(filePath, deps, options);
-  if (!graph) return null;
-
-  const ranking = buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
-    graph,
-    styleDocument,
-  ).find((readModel) => readModel.reference === customPropertyRef);
+  const ranking = await resolveStyleDesignTokenRankingForReferenceAsync(
+    { filePath, styleDocument, customPropertyRef },
+    deps,
+    options,
+  );
   if (!ranking?.winnerDeclarationFilePath || !ranking.winnerDeclarationRange) return null;
 
   return {
@@ -300,62 +262,6 @@ async function resolveCustomPropertyDefinitionTargetFromRustRankingAsync(
     targetRange: ranking.winnerDeclarationRange,
     targetSelectionRange: ranking.winnerDeclarationRange,
   };
-}
-
-function safeResolveRustStyleSemanticGraphForDefinition(
-  filePath: string,
-  deps: StyleDefinitionDeps,
-  options: StyleDefinitionQueryOptions,
-): StyleSemanticGraphSummaryV0 | null {
-  const queryOptions =
-    options.styleSemanticGraphCache || !deps.styleSemanticGraphCache
-      ? options
-      : { ...options, styleSemanticGraphCache: deps.styleSemanticGraphCache };
-  try {
-    return (
-      options.readRustStyleSemanticGraphForWorkspaceTarget ??
-      resolveRustStyleSemanticGraphForWorkspaceTarget
-    )(
-      {
-        workspaceRoot: deps.workspaceRoot,
-        classnameTransform: deps.settings.scss.classnameTransform,
-        pathAlias: deps.settings.pathAlias,
-      },
-      deps,
-      filePath,
-      queryOptions,
-    );
-  } catch {
-    return null;
-  }
-}
-
-async function safeResolveRustStyleSemanticGraphForDefinitionAsync(
-  filePath: string,
-  deps: StyleDefinitionDeps,
-  options: StyleDefinitionQueryOptions,
-): Promise<StyleSemanticGraphSummaryV0 | null> {
-  const queryOptions =
-    options.styleSemanticGraphCache || !deps.styleSemanticGraphCache
-      ? options
-      : { ...options, styleSemanticGraphCache: deps.styleSemanticGraphCache };
-  try {
-    return await (
-      options.readRustStyleSemanticGraphForWorkspaceTargetAsync ??
-      resolveRustStyleSemanticGraphForWorkspaceTargetAsync
-    )(
-      {
-        workspaceRoot: deps.workspaceRoot,
-        classnameTransform: deps.settings.scss.classnameTransform,
-        pathAlias: deps.settings.pathAlias,
-      },
-      deps,
-      filePath,
-      queryOptions,
-    );
-  } catch {
-    return null;
-  }
 }
 
 function toStyleDefinitionTarget(

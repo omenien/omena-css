@@ -49,18 +49,39 @@ import {
   resolveRustStyleSelectorReferenceSummaryForWorkspaceTarget,
   type StyleSelectorReferenceQueryOptions,
 } from "./style-selector-reference-query";
+import {
+  resolveStyleDesignTokenRankingForReference,
+  resolveStyleDesignTokenRankingForReferenceAsync,
+  type StyleDesignTokenRankingDeps,
+  type StyleDesignTokenRankingQueryOptions,
+} from "./style-design-token-ranking-query";
 
 export interface StyleReferenceLocation {
   readonly uri: string;
   readonly range: Range;
 }
 
-export interface StyleReferenceQueryOptions extends StyleSelectorReferenceQueryOptions {
+export interface StyleReferenceQueryOptions
+  extends StyleSelectorReferenceQueryOptions, StyleDesignTokenRankingQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustSelectorUsagePayloadForWorkspaceTarget?: typeof resolveRustSelectorUsagePayloadForWorkspaceTarget;
   readonly readRustSelectorUsagePayloadForWorkspaceTargetAsync?: typeof resolveRustSelectorUsagePayloadForWorkspaceTargetAsync;
   readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
 }
+
+type StyleReferenceDeps = Pick<
+  ProviderDeps,
+  | "analysisCache"
+  | "semanticReferenceIndex"
+  | "settings"
+  | "styleDependencyGraph"
+  | "styleDocumentForPath"
+  | "typeResolver"
+  | "workspaceRoot"
+  | "aliasResolver"
+  | "readStyleFile"
+> &
+  StyleDesignTokenRankingDeps;
 
 export function resolveStyleReferencesAtCursor(
   args: {
@@ -70,18 +91,7 @@ export function resolveStyleReferencesAtCursor(
     readonly includeDeclaration: boolean;
     readonly styleDocument: StyleDocumentHIR;
   },
-  deps: Pick<
-    ProviderDeps,
-    | "analysisCache"
-    | "semanticReferenceIndex"
-    | "settings"
-    | "styleDependencyGraph"
-    | "styleDocumentForPath"
-    | "typeResolver"
-    | "workspaceRoot"
-    | "aliasResolver"
-    | "readStyleFile"
-  >,
+  deps: StyleReferenceDeps,
   options: StyleReferenceQueryOptions = {},
 ): readonly StyleReferenceLocation[] {
   const selector = findSelectorAtCursor(args.styleDocument, args.line, args.character);
@@ -239,15 +249,26 @@ export function resolveStyleReferencesAtCursor(
     args.character,
   );
   if (customPropertyRef) {
-    const targetDecl = resolveCustomPropertyDeclTarget(
-      deps.styleDocumentForPath,
-      args.filePath,
-      args.styleDocument,
-      customPropertyRef,
-      deps.styleDependencyGraph,
-      deps.aliasResolver,
-      { readFile: deps.readStyleFile },
+    const ranking = resolveStyleDesignTokenRankingForReference(
+      {
+        filePath: args.filePath,
+        styleDocument: args.styleDocument,
+        customPropertyRef,
+      },
+      deps,
+      options,
     );
+    const targetDecl =
+      customPropertyReferenceTargetFromRustRanking(ranking) ??
+      resolveCustomPropertyDeclTarget(
+        deps.styleDocumentForPath,
+        args.filePath,
+        args.styleDocument,
+        customPropertyRef,
+        deps.styleDependencyGraph,
+        deps.aliasResolver,
+        { readFile: deps.readStyleFile },
+      );
     if (!targetDecl) return [];
     return readCustomPropertyReferenceLocations(args, deps, customPropertyRef.name, targetDecl);
   }
@@ -397,18 +418,7 @@ export async function resolveStyleReferencesAtCursorAsync(
     readonly includeDeclaration: boolean;
     readonly styleDocument: StyleDocumentHIR;
   },
-  deps: Pick<
-    ProviderDeps,
-    | "analysisCache"
-    | "semanticReferenceIndex"
-    | "settings"
-    | "styleDependencyGraph"
-    | "styleDocumentForPath"
-    | "typeResolver"
-    | "workspaceRoot"
-    | "aliasResolver"
-    | "readStyleFile"
-  >,
+  deps: StyleReferenceDeps,
   options: StyleReferenceQueryOptions = {},
 ): Promise<readonly StyleReferenceLocation[]> {
   const selector = findSelectorAtCursor(args.styleDocument, args.line, args.character);
@@ -432,7 +442,37 @@ export async function resolveStyleReferencesAtCursorAsync(
           canonicalName: resolved.selector.canonicalName,
         };
       })();
-  if (!target) return resolveStyleReferencesAtCursor(args, deps, options);
+  if (!target) {
+    const customPropertyRef = findCustomPropertyRefAtCursor(
+      args.styleDocument,
+      args.line,
+      args.character,
+    );
+    if (customPropertyRef) {
+      const ranking = await resolveStyleDesignTokenRankingForReferenceAsync(
+        {
+          filePath: args.filePath,
+          styleDocument: args.styleDocument,
+          customPropertyRef,
+        },
+        deps,
+        options,
+      );
+      const rustTargetDecl = customPropertyReferenceTargetFromRustRanking(ranking);
+      if (rustTargetDecl) {
+        return readCustomPropertyReferenceLocations(
+          args,
+          deps,
+          customPropertyRef.name,
+          rustTargetDecl,
+        );
+      }
+    }
+    return resolveStyleReferencesAtCursor(args, deps, {
+      ...options,
+      readRustStyleSemanticGraphForWorkspaceTarget: () => null,
+    });
+  }
 
   const graphReferences = await resolveRustStyleSelectorReferenceSummaryForWorkspaceTargetAsync(
     target,
@@ -497,6 +537,19 @@ function dedupeLocations(
     if (!unique.has(key)) unique.set(key, location);
   }
   return [...unique.values()];
+}
+
+function customPropertyReferenceTargetFromRustRanking(
+  ranking: Awaited<ReturnType<typeof resolveStyleDesignTokenRankingForReferenceAsync>>,
+): {
+  readonly filePath: string;
+  readonly decl: Pick<CustomPropertyDeclHIR, "range">;
+} | null {
+  if (!ranking?.winnerDeclarationFilePath || !ranking.winnerDeclarationRange) return null;
+  return {
+    filePath: ranking.winnerDeclarationFilePath,
+    decl: { range: ranking.winnerDeclarationRange },
+  };
 }
 
 function readCustomPropertyReferenceLocations(
