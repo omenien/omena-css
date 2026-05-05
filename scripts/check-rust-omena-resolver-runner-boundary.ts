@@ -1,12 +1,12 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { strict as assert } from "node:assert";
 
 const RUNNER_PATH = path.join(process.cwd(), "rust/crates/engine-shadow-runner/src/main.rs");
-const QUERY_PATH = path.join(process.cwd(), "rust/crates/omena-query/src/lib.rs");
+const QUERY_SRC_DIR = path.join(process.cwd(), "rust/crates/omena-query/src");
 
 const runnerSource = readFileSync(RUNNER_PATH, "utf8");
-const querySource = readFileSync(QUERY_PATH, "utf8");
+const querySource = readRustSourceDirectory(QUERY_SRC_DIR);
 const commandBodies = extractCommandBodies(runnerSource);
 
 const resolverBoundaryBody = commandBodies.get("input-omena-resolver-boundary");
@@ -104,4 +104,12 @@ function readBraceBody(source: string, bodyStart: number): string {
     index += 1;
   }
   return source.slice(bodyStart, index - 1);
+}
+
+function readRustSourceDirectory(directory: string): string {
+  return readdirSync(directory)
+    .filter((entry) => entry.endsWith(".rs"))
+    .toSorted()
+    .map((entry) => readFileSync(path.join(directory, entry), "utf8"))
+    .join("\n");
 }
