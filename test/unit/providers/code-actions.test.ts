@@ -14,11 +14,13 @@ import {
   type CmeWorkspace,
 } from "../../../packages/vitest-cme/src";
 import { makeBaseDeps } from "../../_fixtures/test-helpers";
+import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 
 const SOURCE_PATH = "src/Button.tsx";
 const SOURCE_URI = "file:///fake/src/Button.tsx";
 const STYLE_PATH = "src/Button.module.scss";
 const STYLE_URI = "file:///fake/src/Button.module.scss";
+const BASE_STYLE_PATH = "/fake/src/Base.module.scss";
 const DEFAULT_WORKSPACE = workspace({
   [SOURCE_PATH]: "const cls = cx('/*<missing>*/missing/*</missing>*/');\n",
 });
@@ -314,6 +316,47 @@ describe("handleCodeAction", () => {
         range: {
           start: { line: 2, character: 2 },
           end: { line: 2, character: 17 },
+        },
+        newText: "color: red;\n  padding: 4px;",
+      },
+    ]);
+  });
+
+  it("returns an inline composed class refactor for cross-file composes tokens", () => {
+    const baseScss = `.base { color: red; padding: 4px; }\n`;
+    const styleWorkspace = workspace({
+      [STYLE_PATH]: `.button {
+  composes: /*<compose>*/base/*</compose>*/ from "./Base.module.scss";
+  background: blue;
+}
+`,
+    });
+    const params: CodeActionParams = {
+      ...textDocumentRangeFixture({
+        workspace: styleWorkspace,
+        documentUri: STYLE_URI,
+        filePath: STYLE_PATH,
+        rangeName: "compose",
+      }),
+      context: { diagnostics: [], triggerKind: 1 },
+    };
+    const result = handleCodeAction(
+      params,
+      makeDeps({
+        styleDocumentForPath: (filePath) =>
+          filePath === BASE_STYLE_PATH ? parseStyleDocument(baseScss, filePath) : null,
+      }),
+      styleWorkspace.file(STYLE_PATH).content,
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result![0]!.kind).toBe(CodeActionKind.RefactorInline);
+    expect(result![0]!.title).toBe("Inline composed class 'base' from Base.module.scss");
+    expect(result![0]!.edit?.changes?.[STYLE_URI]).toEqual([
+      {
+        range: {
+          start: { line: 1, character: 2 },
+          end: { line: 1, character: 43 },
         },
         newText: "color: red;\n  padding: 4px;",
       },

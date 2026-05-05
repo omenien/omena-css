@@ -12,6 +12,7 @@ import {
 import { fileUrlToPath, pathToFileUrl } from "../../engine-core-ts/src/core/util/text-utils";
 import { isRecord } from "../../engine-core-ts/src/core/util/value-guards";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
+import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
 
 export interface CodeActionDiagnosticInput {
   readonly range: Range;
@@ -20,6 +21,9 @@ export interface CodeActionDiagnosticInput {
 }
 
 export type CodeActionPlanKind = "quickfix" | "refactor.extract" | "refactor.inline";
+
+type CodeActionDeps = Pick<ProviderDeps, "fileExists"> &
+  Partial<Pick<ProviderDeps, "buildStyleDocument" | "readStyleFile" | "styleDocumentForPath">>;
 
 export type CodeActionPlan =
   | {
@@ -60,7 +64,7 @@ export function planCodeActions(
     readonly range?: Range;
     readonly diagnostics: readonly CodeActionDiagnosticInput[];
   },
-  deps: Pick<ProviderDeps, "fileExists">,
+  deps: CodeActionDeps,
 ): readonly CodeActionPlan[] {
   const plans: CodeActionPlan[] = [];
   const diagnosticCreateModuleUris = new Set<string>();
@@ -169,7 +173,7 @@ export function planCodeActions(
     diagnosticIndex += 1;
   }
 
-  const inlineComposedClass = planInlineComposedClass(args);
+  const inlineComposedClass = planInlineComposedClass(args, deps);
   if (inlineComposedClass) {
     plans.push(inlineComposedClass);
   }
@@ -192,12 +196,15 @@ export function planCodeActions(
   return plans;
 }
 
-function planInlineComposedClass(args: {
-  readonly documentUri: string;
-  readonly documentContent?: string;
-  readonly range?: Range;
-  readonly diagnostics: readonly CodeActionDiagnosticInput[];
-}): CodeActionPlan | null {
+function planInlineComposedClass(
+  args: {
+    readonly documentUri: string;
+    readonly documentContent?: string;
+    readonly range?: Range;
+    readonly diagnostics: readonly CodeActionDiagnosticInput[];
+  },
+  deps: CodeActionDeps,
+): CodeActionPlan | null {
   if (args.diagnostics.length > 0) return null;
   if (!args.documentContent || !args.range) return null;
   const filePath = fileUrlToPath(args.documentUri);
@@ -209,14 +216,14 @@ function planInlineComposedClass(args: {
     args.range.start.line,
     args.range.start.character,
   );
-  if (!hit?.ref.range || hit.ref.from || hit.ref.fromGlobal) return null;
+  if (!hit?.ref.range || hit.ref.fromGlobal) return null;
 
   const target = resolveComposesTarget(
-    (candidatePath) => (candidatePath === filePath ? styleDocument : null),
+    (candidatePath) => styleDocumentForInline(candidatePath, filePath, styleDocument, deps),
     filePath,
     hit,
   );
-  if (!target || target.filePath !== filePath) return null;
+  if (!target) return null;
   if (target.selector.composes.length > 0) return null;
 
   const declarationLines = splitInlineDeclarations(target.selector.declarations);
@@ -227,7 +234,7 @@ function planInlineComposedClass(args: {
   return {
     kind: "workspaceEdit",
     actionKind: "refactor.inline",
-    title: `Inline composed class '${hit.token.className}'`,
+    title: `Inline composed class '${hit.token.className}'${target.filePath === filePath ? "" : ` from ${fileLabel(target.filePath)}`}`,
     edits: [
       {
         uri: args.documentUri,
@@ -236,6 +243,24 @@ function planInlineComposedClass(args: {
       },
     ],
   };
+}
+
+function styleDocumentForInline(
+  candidatePath: string,
+  currentPath: string,
+  currentDocument: StyleDocumentHIR,
+  deps: CodeActionDeps,
+): StyleDocumentHIR | null {
+  if (candidatePath === currentPath) return currentDocument;
+
+  const indexed = deps.styleDocumentForPath?.(candidatePath);
+  if (indexed) return indexed;
+
+  const content = deps.readStyleFile?.(candidatePath);
+  if (content === undefined || content === null) return null;
+  return (
+    deps.buildStyleDocument?.(candidatePath, content) ?? parseStyleDocument(content, candidatePath)
+  );
 }
 
 function planExtractCustomProperty(args: {
