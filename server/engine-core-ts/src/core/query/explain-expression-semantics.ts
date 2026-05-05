@@ -174,6 +174,26 @@ export function messageForInvalidClassFinding(finding: InvalidClassReferenceFind
             `No class matched resolved prefix '${finding.abstractValue.prefix}'.`,
             finding,
           );
+        case "suffix":
+          return withAnalysisReason(
+            `No class matched resolved suffix '${finding.abstractValue.suffix}'.`,
+            finding,
+          );
+        case "prefixSuffix":
+          return withAnalysisReason(
+            `No class matched resolved prefix '${finding.abstractValue.prefix}' and suffix '${finding.abstractValue.suffix}'.`,
+            finding,
+          );
+        case "charInclusion":
+          return withAnalysisReason(
+            `No class matched resolved character constraints ${formatCharacterConstraints(finding.abstractValue)}.`,
+            finding,
+          );
+        case "composite":
+          return withAnalysisReason(
+            `No class matched resolved composite constraints ${formatCompositeConstraints(finding.abstractValue)}.`,
+            finding,
+          );
         case "top":
           return withAnalysisReason(
             "Dynamic class value could not be matched to any known selector.",
@@ -189,6 +209,29 @@ export function messageForInvalidClassFinding(finding: InvalidClassReferenceFind
       finding satisfies never;
       return "";
   }
+}
+
+function formatCharacterConstraints(
+  value: Extract<FlowResolution["abstractValue"], { kind: "charInclusion" }>,
+): string {
+  const parts = [
+    value.mustChars ? `must include '${value.mustChars}'` : null,
+    value.mayIncludeOtherChars ? null : `may only include '${value.mayChars}'`,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? `(${parts.join(", ")})` : "(unbounded)";
+}
+
+function formatCompositeConstraints(
+  value: Extract<FlowResolution["abstractValue"], { kind: "composite" }>,
+): string {
+  const parts = [
+    value.prefix ? `prefix '${value.prefix}'` : null,
+    value.suffix ? `suffix '${value.suffix}'` : null,
+    value.minLength !== undefined ? `min length ${value.minLength}` : null,
+    value.mustChars ? `must include '${value.mustChars}'` : null,
+    value.mayIncludeOtherChars ? null : `may only include '${value.mayChars}'`,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? `(${parts.join(", ")})` : "(unbounded)";
 }
 
 function withAnalysisReason(

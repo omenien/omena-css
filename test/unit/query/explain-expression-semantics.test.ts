@@ -4,6 +4,7 @@ import {
   describeAbstractValueReason,
   describeSelectorCertaintyReason,
   describeValueCertaintyReason,
+  messageForInvalidClassFinding,
 } from "../../../server/engine-core-ts/src/core/query/explain-expression-semantics";
 
 describe("describeAbstractValue", () => {
@@ -258,6 +259,30 @@ describe("describeAbstractValue", () => {
 
     expect(describeSelectorCertaintyReason({ kind: "top" }, "possible", 0)).toBe(
       "no selector could be proven for this value",
+    );
+  });
+
+  it("renders constrained missing domain diagnostics with concrete constraints", () => {
+    expect(
+      messageForInvalidClassFinding({
+        kind: "missingResolvedClassDomain",
+        expression: null as never,
+        range: null as never,
+        abstractValue: {
+          kind: "composite",
+          prefix: "btn-",
+          suffix: "-active",
+          minLength: 16,
+          mustChars: "-abceintv",
+          mayChars: "-abceinprtv",
+          provenance: "compositeConcat",
+        },
+        valueCertainty: "inferred",
+        selectorCertainty: "possible",
+        reason: "flowBranch",
+      }),
+    ).toContain(
+      "No class matched resolved composite constraints (prefix 'btn-', suffix '-active', min length 16, must include '-abceintv', may only include '-abceinprtv').",
     );
   });
 });
