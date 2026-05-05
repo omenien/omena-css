@@ -654,7 +654,7 @@ mod tests {
         assert_eq!(app.total_references, 1);
         assert_eq!(app.direct_reference_count, 0);
         assert_eq!(app.editable_direct_reference_count, 0);
-        assert_eq!(app.exact_reference_count, 1);
+        assert_eq!(app.exact_reference_count, 0);
         assert_eq!(app.inferred_or_better_reference_count, 1);
         assert!(app.has_expanded_references);
         assert!(!app.has_style_dependency_references);

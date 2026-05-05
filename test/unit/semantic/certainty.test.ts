@@ -14,12 +14,12 @@ describe("semantic/certainty", () => {
     ).toBe("exact");
   });
 
-  it("keeps prefix projections inferred unless they cover the whole selector universe", () => {
+  it("keeps constrained projections inferred even when they cover the current selector universe", () => {
     expect(deriveSelectorProjectionCertainty({ kind: "prefix", prefix: "btn-" }, 2, 3)).toBe(
       "inferred",
     );
     expect(deriveSelectorProjectionCertainty({ kind: "prefix", prefix: "btn-" }, 3, 3)).toBe(
-      "exact",
+      "inferred",
     );
   });
 

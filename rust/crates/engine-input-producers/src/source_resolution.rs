@@ -411,9 +411,12 @@ mod tests {
         assert_eq!(first.expression_id, "expr-1");
         assert_eq!(first.style_file_path, "/tmp/App.module.scss");
         assert_eq!(first.selector_names, vec!["btn-active".to_string()]);
-        assert_eq!(first.selector_certainty, "exact");
-        assert_eq!(first.selector_certainty_shape_kind, "exact");
-        assert_eq!(first.selector_certainty_shape_label, "exact");
+        assert_eq!(first.selector_certainty, "inferred");
+        assert_eq!(first.selector_certainty_shape_kind, "constrained");
+        assert_eq!(
+            first.selector_certainty_shape_label,
+            "constrained edge selector set (1)"
+        );
         assert_eq!(
             first.selector_constraint_kind.as_deref(),
             Some("prefixSuffix")
@@ -457,7 +460,7 @@ mod tests {
         assert_eq!(first.file_path, "/tmp/App.tsx");
         assert_eq!(first.query_id, "expr-1");
         assert_eq!(first.payload.style_file_path, "/tmp/App.module.scss");
-        assert_eq!(first.payload.selector_certainty_shape_kind, "exact");
+        assert_eq!(first.payload.selector_certainty_shape_kind, "constrained");
     }
 
     #[test]

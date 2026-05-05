@@ -379,10 +379,13 @@ mod tests {
         assert_eq!(first.selector_names, vec!["btn-active".to_string()]);
         assert_eq!(first.candidate_names, vec!["btn-active".to_string()]);
         assert_eq!(first.value_domain_kind, "constrained");
-        assert_eq!(first.selector_certainty, "exact");
+        assert_eq!(first.selector_certainty, "inferred");
         assert_eq!(first.value_certainty.as_deref(), Some("inferred"));
-        assert_eq!(first.selector_certainty_shape_kind, "exact");
-        assert_eq!(first.selector_certainty_shape_label, "exact");
+        assert_eq!(first.selector_certainty_shape_kind, "constrained");
+        assert_eq!(
+            first.selector_certainty_shape_label,
+            "constrained edge selector set (1)"
+        );
         assert_eq!(first.value_certainty_shape_kind, "constrained");
         assert_eq!(
             first.value_certainty_shape_label,

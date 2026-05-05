@@ -13,6 +13,7 @@ import type {
 } from "../../engine-core-ts/src/core/query";
 import {
   buildDynamicExpressionExplanation,
+  readExpressionSemantics,
   readSourceExpressionContextAtCursor,
   readSourceExpressionResolution,
   resolveRefDetails,
@@ -142,21 +143,24 @@ export function explainExpressionAtLocation(
     filePath: options.filePath,
     workspaceRoot: options.workspaceRoot,
   });
+  const expressionResolutionContext = {
+    expression: ctx.expression,
+    sourceFile: ctx.entry.sourceFile,
+    styleDocument: ctx.styleDocument,
+  };
+  const expressionResolutionEnv = {
+    styleDocumentForPath: styleHost.styleDocumentForPath,
+    typeResolver: analysisHost.typeResolver,
+    filePath: options.filePath,
+    workspaceRoot: options.workspaceRoot,
+    sourceBinder: ctx.entry.sourceBinder,
+    sourceBindingGraph: ctx.entry.sourceBindingGraph,
+  };
   const resolution = readSourceExpressionResolution(
-    {
-      expression: ctx.expression,
-      sourceFile: ctx.entry.sourceFile,
-      styleDocument: ctx.styleDocument,
-    },
-    {
-      styleDocumentForPath: styleHost.styleDocumentForPath,
-      typeResolver: analysisHost.typeResolver,
-      filePath: options.filePath,
-      workspaceRoot: options.workspaceRoot,
-      sourceBinder: ctx.entry.sourceBinder,
-      sourceBindingGraph: ctx.entry.sourceBindingGraph,
-    },
+    expressionResolutionContext,
+    expressionResolutionEnv,
   );
+  const semantics = readExpressionSemantics(expressionResolutionContext, expressionResolutionEnv);
   const valueDomain = classifyValueDomainV2(resolution.abstractValue);
   const valueCertaintyProfile = deriveValueCertaintyProfileV2(
     resolution.abstractValue,
@@ -186,6 +190,12 @@ export function explainExpressionAtLocation(
       ...(valueDomain.charMust ? { valueCharMust: valueDomain.charMust } : {}),
       ...(valueDomain.charMay ? { valueCharMay: valueDomain.charMay } : {}),
       ...(valueDomain.mayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
+      ...(semantics.valueDomainDerivation
+        ? { valueDomainDerivation: semantics.valueDomainDerivation }
+        : {}),
+      ...(semantics.valueDomainProvenanceTree
+        ? { valueDomainProvenanceTree: semantics.valueDomainProvenanceTree }
+        : {}),
       ...(valueCertaintyProfile
         ? { valueCertaintyShapeKind: valueCertaintyProfile.shapeKind }
         : {}),

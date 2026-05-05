@@ -91,7 +91,7 @@ describe("explainExpressionAtLocation", () => {
           valueConstraintKind: "prefixSuffix",
           valueCertaintyShapeKind: "constrained",
           valueCertaintyConstraintKind: "prefixSuffix",
-          selectorCertaintyShapeKind: "exact",
+          selectorCertaintyShapeKind: "constrained",
         }),
       }),
     );
@@ -192,7 +192,23 @@ describe("explainExpressionAtLocation", () => {
           valueCharMay: "-abcdefghilmnoprstuwy",
           valueCertaintyShapeKind: "constrained",
           valueCertaintyConstraintKind: "composite",
-          selectorCertaintyShapeKind: "exact",
+          selectorCertaintyShapeKind: "constrained",
+          valueDomainProvenanceTree: expect.objectContaining({
+            root: expect.objectContaining({
+              operation: "finiteSetWidening",
+              resultProvenance: "finiteSetWideningComposite",
+              children: expect.arrayContaining([
+                expect.objectContaining({
+                  operation: "prefixConstraint",
+                  detail: "prefix=btn-",
+                }),
+                expect.objectContaining({
+                  operation: "characterMustConstraint",
+                  detail: "mustChars=-bnt",
+                }),
+              ]),
+            }),
+          }),
         }),
       }),
     );

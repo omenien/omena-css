@@ -141,6 +141,22 @@ function formatExplainResult(
           readonly reason: string;
         }[];
       };
+      readonly valueDomainProvenanceTree?: {
+        readonly root: {
+          readonly operation: string;
+          readonly resultKind: string;
+          readonly resultProvenance?: string;
+          readonly detail?: string;
+          readonly reason: string;
+          readonly children: readonly {
+            readonly operation: string;
+            readonly resultKind: string;
+            readonly resultProvenance?: string;
+            readonly detail?: string;
+            readonly reason: string;
+          }[];
+        };
+      };
       readonly valueCertaintyShapeKind?: string;
       readonly valueCertaintyConstraintKind?: string;
       readonly selectorCertaintyShapeKind?: string;
@@ -154,6 +170,8 @@ function formatExplainResult(
       readonly valueDomainReasonLabel?: string;
       readonly valueDomainDerivationLabel?: string;
       readonly valueDomainDerivationStepLabels?: readonly string[];
+      readonly valueDomainProvenanceLabel?: string;
+      readonly valueDomainProvenanceStepLabels?: readonly string[];
       readonly valueCertainty?: string;
       readonly valueCertaintyShapeLabel?: string;
       readonly valueCertaintyReasonLabel?: string;
@@ -193,6 +211,14 @@ function formatExplainResult(
     }
     for (const step of result.dynamicExplanation.valueDomainDerivationStepLabels ?? []) {
       lines.push(`Value domain derivation step: ${step}`);
+    }
+    if (result.dynamicExplanation.valueDomainProvenanceLabel) {
+      lines.push(
+        `Value domain provenance: ${result.dynamicExplanation.valueDomainProvenanceLabel}`,
+      );
+    }
+    for (const step of result.dynamicExplanation.valueDomainProvenanceStepLabels ?? []) {
+      lines.push(`Value domain provenance step: ${step}`);
     }
     if (result.dynamicExplanation.valueCertainty) {
       lines.push(`Value certainty: ${result.dynamicExplanation.valueCertainty}`);
@@ -249,6 +275,25 @@ function formatExplainResult(
       ? `${derivation.inputFactKind}/${derivation.inputConstraintKind}`
       : derivation.inputFactKind;
     lines.push(`V2 value derivation: ${inputKind} -> ${derivation.reducedKind}`);
+  }
+  if (result.analysisV2.valueDomainProvenanceTree) {
+    const root = result.analysisV2.valueDomainProvenanceTree.root;
+    const resultKind = root.resultProvenance
+      ? `${root.resultKind}/${root.resultProvenance}`
+      : root.resultKind;
+    lines.push(`V2 value provenance: ${root.operation}: ${resultKind} (${root.reason})`);
+    if (root.detail) {
+      lines.push(`V2 value provenance detail: ${root.detail}`);
+    }
+    for (const child of root.children) {
+      const childResult = child.resultProvenance
+        ? `${child.resultKind}/${child.resultProvenance}`
+        : child.resultKind;
+      const childDetail = child.detail ? ` ${child.detail}` : "";
+      lines.push(
+        `V2 value provenance constraint: ${child.operation}:${childDetail} -> ${childResult} (${child.reason})`,
+      );
+    }
   }
   if (result.analysisV2.valueCertaintyShapeKind) {
     lines.push(`V2 value certainty shape kind: ${result.analysisV2.valueCertaintyShapeKind}`);

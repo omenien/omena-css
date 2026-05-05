@@ -338,7 +338,7 @@ export function deriveSelectorCertaintyProfileV2(
 export function deriveSelectorProjectionCertainty(
   value: AbstractClassValue,
   matchedSelectorCount: number,
-  selectorUniverseCount: number,
+  _selectorUniverseCount: number,
 ): EdgeCertainty {
   switch (value.kind) {
     case "bottom":
@@ -356,7 +356,7 @@ export function deriveSelectorProjectionCertainty(
     case "charInclusion":
     case "composite":
       if (matchedSelectorCount === 0) return "possible";
-      return matchedSelectorCount === selectorUniverseCount ? "exact" : "inferred";
+      return "inferred";
     case "top":
       return "possible";
     default:
