@@ -406,6 +406,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "splitImportantAnnotationCstNodes",
             "unexpectedValueTokenBogusNodes",
             "cdoCdcTokenization",
+            "cssIdentifierEscapeTokenization",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -2988,6 +2989,9 @@ where
                 '>' => self.consume_static(SyntaxKind::GreaterThan, start, 1),
                 '<' => self.consume_static(SyntaxKind::LessThan, start, 1),
                 '#' => self.consume_name_like(SyntaxKind::Hash),
+                '\\' if self.current_starts_valid_escape() => {
+                    self.consume_name_like(SyntaxKind::Ident)
+                }
                 char if is_name_start(char) => self.consume_ident_like(),
                 char => self.consume_unexpected(char),
             }
@@ -3332,18 +3336,14 @@ where
 
     fn consume_name_like(&mut self, kind: SyntaxKind) {
         let start = self.offset;
-        self.bump_current();
-        while matches!(self.current_char(), Some(char) if is_name_continue(char)) {
-            self.bump_current();
-        }
+        self.consume_name_start();
+        self.consume_name_continue_sequence();
         self.push(kind, start, self.offset);
     }
 
     fn consume_ident_like(&mut self) {
         let start = self.offset;
-        while matches!(self.current_char(), Some(char) if is_name_continue(char)) {
-            self.bump_current();
-        }
+        self.consume_name_continue_sequence();
         let ident = &self.text[start..self.offset];
         if ident.eq_ignore_ascii_case("url")
             && self.current_char() == Some('(')
@@ -3353,6 +3353,44 @@ where
             return;
         }
         self.push(SyntaxKind::Ident, start, self.offset);
+    }
+
+    fn consume_name_start(&mut self) {
+        if self.current_starts_valid_escape() {
+            self.consume_name_escape();
+        } else {
+            self.bump_current();
+        }
+    }
+
+    fn consume_name_continue_sequence(&mut self) {
+        loop {
+            if self.current_starts_valid_escape() {
+                self.consume_name_escape();
+            } else if matches!(self.current_char(), Some(char) if is_name_continue(char)) {
+                self.bump_current();
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn consume_name_escape(&mut self) {
+        self.bump_current();
+        let mut hex_digits = 0usize;
+        while hex_digits < 6
+            && matches!(self.current_char(), Some(char) if char.is_ascii_hexdigit())
+        {
+            self.bump_current();
+            hex_digits += 1;
+        }
+        if hex_digits > 0 {
+            if matches!(self.current_char(), Some(char) if char.is_whitespace()) {
+                self.bump_current();
+            }
+        } else if self.current_char().is_some() {
+            self.bump_current();
+        }
     }
 
     fn consume_url_token(&mut self, start: usize) {
@@ -3461,6 +3499,16 @@ where
 
     fn starts_with(&self, pattern: &str) -> bool {
         self.text[self.offset..].starts_with(pattern)
+    }
+
+    fn current_starts_valid_escape(&self) -> bool {
+        if self.current_char() != Some('\\') {
+            return false;
+        }
+        self.text[self.offset + '\\'.len_utf8()..]
+            .chars()
+            .next()
+            .is_some_and(|char| !matches!(char, '\n' | '\r' | '\u{000c}'))
     }
 
     fn starts_with_ascii_keyword(&self, keyword: &str) -> bool {
@@ -4687,6 +4735,17 @@ mod tests {
         assert!(token_kinds.contains(&SyntaxKind::Cdo));
         assert!(token_kinds.contains(&SyntaxKind::Cdc));
         assert!(node_kinds(&result.syntax()).contains(&SyntaxKind::Rule));
+    }
+
+    #[test]
+    fn tokenizes_css_identifier_escapes_without_unexpected_errors() {
+        let result = parse(".\\31 0 { color: var(--\\67 ap); }", StyleDialect::Css);
+        let token_kinds = token_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(token_kinds.contains(&SyntaxKind::Ident));
+        assert!(token_kinds.contains(&SyntaxKind::CustomPropertyName));
+        assert!(node_kinds(&result.syntax()).contains(&SyntaxKind::ClassSelector));
     }
 
     #[test]
@@ -6136,6 +6195,11 @@ mod tests {
                 .contains(&"unexpectedValueTokenBogusNodes")
         );
         assert!(summary.ready_surfaces.contains(&"cdoCdcTokenization"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"cssIdentifierEscapeTokenization")
+        );
         assert!(
             summary
                 .ready_surfaces
