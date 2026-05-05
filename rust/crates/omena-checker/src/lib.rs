@@ -9,6 +9,9 @@ use serde::Serialize;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum OmenaCheckerRuleCodeV0 {
+    NoUnknownDynamicClass,
+    NoImpreciseValue,
+    NoImpossibleSelector,
     MissingModule,
     MissingStaticClass,
     MissingTemplatePrefix,
@@ -27,6 +30,9 @@ pub enum OmenaCheckerRuleCodeV0 {
 impl OmenaCheckerRuleCodeV0 {
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::NoUnknownDynamicClass => "no-unknown-dynamic-class",
+            Self::NoImpreciseValue => "no-imprecise-value",
+            Self::NoImpossibleSelector => "no-impossible-selector",
             Self::MissingModule => "missing-module",
             Self::MissingStaticClass => "missing-static-class",
             Self::MissingTemplatePrefix => "missing-template-prefix",
@@ -209,19 +215,58 @@ pub struct OmenaCheckerDynamicClassDomainEvaluationV0 {
     pub missing_values: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerMTierEvaluationV0 {
+    pub rule_code: OmenaCheckerRuleCodeV0,
+    pub rule_code_name: &'static str,
+    pub severity: OmenaCheckerSeverityV0,
+    pub severity_name: &'static str,
+    pub selector_names: Vec<String>,
+    pub selector_certainty: SelectorProjectionCertaintyV0,
+    pub finite_values: Option<Vec<String>>,
+    pub missing_values: Vec<String>,
+    pub message: String,
+}
+
 pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0> {
     use OmenaCheckerFindingCategoryV0::{Source, Style};
     use OmenaCheckerRuleCodeV0::{
         MissingComposedModule, MissingComposedSelector, MissingCustomProperty,
         MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
         MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
-        MissingValueModule, UnusedSelector,
+        MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
+        UnusedSelector,
     };
     use OmenaCheckerRuleFixabilityV0::{CodeAction, None};
     use OmenaCheckerRulePresetV0::{Recommended, Strict};
     use OmenaCheckerSeverityV0::{Hint, Warning};
 
     vec![
+        rule(
+            NoUnknownDynamicClass,
+            Source,
+            Warning,
+            None,
+            &[Recommended],
+            "Report dynamic class expressions whose abstract value cannot be proven against the selector universe.",
+        ),
+        rule(
+            NoImpreciseValue,
+            Source,
+            Hint,
+            None,
+            &[Strict],
+            "Report class value domains whose selector projection remains inferred or possible instead of exact.",
+        ),
+        rule(
+            NoImpossibleSelector,
+            Source,
+            Warning,
+            None,
+            &[Strict],
+            "Report finite dynamic class values that project to no selector and therefore cannot match.",
+        ),
         rule(
             MissingModule,
             Source,
@@ -343,6 +388,21 @@ pub fn list_omena_checker_rule_code_names() -> Vec<&'static str> {
         .collect()
 }
 
+pub fn list_omena_checker_m_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
+    vec![
+        OmenaCheckerRuleCodeV0::NoUnknownDynamicClass,
+        OmenaCheckerRuleCodeV0::NoImpreciseValue,
+        OmenaCheckerRuleCodeV0::NoImpossibleSelector,
+    ]
+}
+
+pub fn list_omena_checker_m_tier_rule_code_names() -> Vec<&'static str> {
+    list_omena_checker_m_tier_rule_codes()
+        .into_iter()
+        .map(OmenaCheckerRuleCodeV0::as_str)
+        .collect()
+}
+
 pub fn is_omena_checker_rule_code(value: &str) -> bool {
     list_omena_checker_rule_codes()
         .into_iter()
@@ -362,13 +422,15 @@ pub fn list_omena_checker_code_bundles() -> Vec<OmenaCheckerCodeBundleV0> {
     use OmenaCheckerRuleCodeV0::{
         MissingComposedModule, MissingComposedSelector, MissingImportedValue, MissingKeyframes,
         MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
-        MissingStaticClass, MissingTemplatePrefix, MissingValueModule, UnusedSelector,
+        MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
+        NoImpreciseValue, NoUnknownDynamicClass, UnusedSelector,
     };
 
     vec![
         bundle(
             CiDefault,
             &[
+                NoUnknownDynamicClass,
                 MissingModule,
                 MissingStaticClass,
                 MissingTemplatePrefix,
@@ -385,6 +447,9 @@ pub fn list_omena_checker_code_bundles() -> Vec<OmenaCheckerCodeBundleV0> {
         bundle(
             SourceMissing,
             &[
+                NoUnknownDynamicClass,
+                NoImpreciseValue,
+                NoImpossibleSelector,
                 MissingModule,
                 MissingStaticClass,
                 MissingTemplatePrefix,
@@ -505,6 +570,69 @@ pub fn evaluate_omena_checker_dynamic_class_domain(
     )
 }
 
+pub fn evaluate_omena_checker_m_tier_rules(
+    input: OmenaCheckerDynamicClassDomainInputV0,
+) -> Vec<OmenaCheckerMTierEvaluationV0> {
+    let selector_universe = input
+        .selector_universe
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let projection = project_abstract_value_selectors(&input.abstract_value, &selector_universe);
+    let finite_values = enumerate_finite_class_values(&input.abstract_value);
+    let missing_values = finite_values
+        .as_ref()
+        .map(|finite_values| {
+            let selector_set = selector_universe.iter().collect::<BTreeSet<_>>();
+            finite_values
+                .iter()
+                .filter(|value| !selector_set.contains(value))
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let mut evaluations = Vec::new();
+
+    if projection.selector_names.is_empty() || !missing_values.is_empty() {
+        evaluations.push(m_tier_evaluation(
+            OmenaCheckerRuleCodeV0::NoUnknownDynamicClass,
+            OmenaCheckerSeverityV0::Warning,
+            projection.selector_names.clone(),
+            projection.certainty,
+            finite_values.clone(),
+            missing_values.clone(),
+            "Dynamic class expression cannot be proven against known CSS Module selectors.",
+        ));
+    }
+
+    if projection.certainty != SelectorProjectionCertaintyV0::Exact {
+        evaluations.push(m_tier_evaluation(
+            OmenaCheckerRuleCodeV0::NoImpreciseValue,
+            OmenaCheckerSeverityV0::Hint,
+            projection.selector_names.clone(),
+            projection.certainty,
+            finite_values.clone(),
+            missing_values.clone(),
+            "Class value domain is not exact; downstream rename/refactor should treat it as imprecise.",
+        ));
+    }
+
+    if !missing_values.is_empty() {
+        evaluations.push(m_tier_evaluation(
+            OmenaCheckerRuleCodeV0::NoImpossibleSelector,
+            OmenaCheckerSeverityV0::Warning,
+            projection.selector_names,
+            projection.certainty,
+            finite_values,
+            missing_values,
+            "Finite dynamic class values include selectors that cannot match the target CSS Module.",
+        ));
+    }
+
+    evaluations
+}
+
 fn dynamic_class_domain_evaluation(
     outcome: OmenaCheckerDynamicClassDomainOutcomeV0,
     rule_code: Option<OmenaCheckerRuleCodeV0>,
@@ -522,6 +650,28 @@ fn dynamic_class_domain_evaluation(
         selector_certainty,
         finite_values,
         missing_values,
+    }
+}
+
+fn m_tier_evaluation(
+    rule_code: OmenaCheckerRuleCodeV0,
+    severity: OmenaCheckerSeverityV0,
+    selector_names: Vec<String>,
+    selector_certainty: SelectorProjectionCertaintyV0,
+    finite_values: Option<Vec<String>>,
+    missing_values: Vec<String>,
+    message: &'static str,
+) -> OmenaCheckerMTierEvaluationV0 {
+    OmenaCheckerMTierEvaluationV0 {
+        rule_code,
+        rule_code_name: rule_code.as_str(),
+        severity,
+        severity_name: severity.as_str(),
+        selector_names,
+        selector_certainty,
+        finite_values,
+        missing_values,
+        message: message.to_string(),
     }
 }
 
@@ -566,6 +716,7 @@ mod tests {
 
     use omena_abstract_value::{
         CompositeClassValueInputV0, composite_class_value, finite_set_class_value,
+        prefix_class_value,
     };
 
     use super::*;
@@ -575,6 +726,9 @@ mod tests {
         assert_eq!(
             list_omena_checker_rule_code_names(),
             vec![
+                "no-unknown-dynamic-class",
+                "no-imprecise-value",
+                "no-impossible-selector",
                 "missing-module",
                 "missing-static-class",
                 "missing-template-prefix",
@@ -644,8 +798,8 @@ mod tests {
             summary.bundle_registry_product,
             "omena-checker.code-bundles"
         );
-        assert_eq!(summary.rule_count, 13);
-        assert_eq!(summary.source_rule_count, 5);
+        assert_eq!(summary.rule_count, 16);
+        assert_eq!(summary.source_rule_count, 8);
         assert_eq!(summary.style_rule_count, 8);
         assert_eq!(summary.bundle_count, 4);
         assert!(
@@ -704,5 +858,60 @@ mod tests {
             Some(OmenaCheckerRuleCodeV0::MissingResolvedClassDomain)
         );
         assert!(evaluation.selector_names.is_empty());
+    }
+
+    #[test]
+    fn lists_m_tier_rule_codes() {
+        assert_eq!(
+            list_omena_checker_m_tier_rule_code_names(),
+            vec![
+                "no-unknown-dynamic-class",
+                "no-imprecise-value",
+                "no-impossible-selector",
+            ]
+        );
+    }
+
+    #[test]
+    fn evaluates_m_tier_unknown_and_impossible_dynamic_classes() {
+        let evaluations =
+            evaluate_omena_checker_m_tier_rules(OmenaCheckerDynamicClassDomainInputV0 {
+                abstract_value: finite_set_class_value(["btn-primary", "btn-missing"]),
+                selector_universe: vec!["btn-primary".to_string(), "card".to_string()],
+            });
+        let rule_names = evaluations
+            .iter()
+            .map(|evaluation| evaluation.rule_code_name)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            rule_names,
+            vec![
+                "no-unknown-dynamic-class",
+                "no-imprecise-value",
+                "no-impossible-selector",
+            ]
+        );
+        assert_eq!(evaluations[0].missing_values, vec!["btn-missing"]);
+        assert_eq!(
+            evaluations[1].selector_certainty,
+            SelectorProjectionCertaintyV0::Inferred
+        );
+    }
+
+    #[test]
+    fn evaluates_m_tier_imprecise_domains_without_unknown_values() {
+        let evaluations =
+            evaluate_omena_checker_m_tier_rules(OmenaCheckerDynamicClassDomainInputV0 {
+                abstract_value: prefix_class_value("btn-", None),
+                selector_universe: vec!["btn-primary".to_string(), "card".to_string()],
+            });
+
+        assert_eq!(evaluations.len(), 1);
+        assert_eq!(
+            evaluations[0].rule_code,
+            OmenaCheckerRuleCodeV0::NoImpreciseValue
+        );
+        assert_eq!(evaluations[0].severity, OmenaCheckerSeverityV0::Hint);
     }
 }

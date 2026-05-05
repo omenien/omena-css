@@ -15,6 +15,9 @@ Current public products:
   class domain rule body. It consumes `omena-abstract-value` selector projection
   and returns the current `missing-resolved-class-values` /
   `missing-resolved-class-domain` policy decision.
+- `evaluate_omena_checker_m_tier_rules` - M-tier diagnostics body for
+  `no-unknown-dynamic-class`, `no-imprecise-value`, and
+  `no-impossible-selector` over abstract-value selector projections.
 
 The TypeScript checker runtime still owns the full diagnostics pipeline today.
 This crate owns the rule/bundle registry plus the first pure rule-evaluation
