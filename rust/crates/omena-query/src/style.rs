@@ -210,6 +210,93 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
         .collect()
 }
 
+pub fn read_omena_query_cascade_at_position(
+    style_path: &str,
+    style_source: &str,
+    input: &EngineInputV2,
+    position: ParserPositionV0,
+) -> Option<OmenaQueryCascadeAtPositionV0> {
+    let graph =
+        summarize_omena_query_style_semantic_graph_from_source(style_path, style_source, input)?;
+    Some(read_omena_query_cascade_at_position_from_graph(
+        style_path,
+        style_source,
+        &graph,
+        position,
+    ))
+}
+
+pub fn read_omena_query_cascade_at_position_from_graph(
+    style_path: &str,
+    style_source: &str,
+    graph: &StyleSemanticGraphSummaryV0,
+    position: ParserPositionV0,
+) -> OmenaQueryCascadeAtPositionV0 {
+    let positioned_references = positioned_custom_property_reference_facts(
+        style_source,
+        graph.parser_facts.custom_properties.ref_facts.as_slice(),
+    );
+    let reference = positioned_references
+        .iter()
+        .find(|(_, range)| parser_range_contains_position(range, position));
+
+    let Some((reference, reference_range)) = reference else {
+        return OmenaQueryCascadeAtPositionV0 {
+            schema_version: "0",
+            product: "omena-query.read-cascade-at-position",
+            style_path: style_path.to_string(),
+            query_position: position,
+            status: "noCustomPropertyReference",
+            cascade_engine: "omena-cascade",
+            reference_name: None,
+            reference_range: None,
+            winner_declaration_source_order: None,
+            winner_declaration_file_path: None,
+            winner_declaration_range: None,
+            winner_context_kind: None,
+            candidate_declaration_count: 0,
+            shadowed_declaration_source_orders: Vec::new(),
+        };
+    };
+
+    let ranking = graph
+        .design_token_semantics
+        .cascade_ranking_signal
+        .ranked_references
+        .iter()
+        .find(|ranking| {
+            ranking.reference_name == reference.name
+                && ranking.reference_source_order == reference.source_order
+        });
+
+    OmenaQueryCascadeAtPositionV0 {
+        schema_version: "0",
+        product: "omena-query.read-cascade-at-position",
+        style_path: style_path.to_string(),
+        query_position: position,
+        status: if ranking.is_some() {
+            "resolved"
+        } else {
+            "unresolved"
+        },
+        cascade_engine: "omena-cascade",
+        reference_name: Some(reference.name.clone()),
+        reference_range: Some(*reference_range),
+        winner_declaration_source_order: ranking
+            .map(|ranking| ranking.winner_declaration_source_order),
+        winner_declaration_file_path: ranking
+            .and_then(|ranking| ranking.winner_declaration_file_path.clone()),
+        winner_declaration_range: ranking.and_then(|ranking| ranking.winner_declaration_range),
+        winner_context_kind: ranking.map(|ranking| ranking.winner_context_kind),
+        candidate_declaration_count: ranking
+            .map(|ranking| ranking.candidate_declaration_count)
+            .unwrap_or(0),
+        shadowed_declaration_source_orders: ranking
+            .map(|ranking| ranking.shadowed_declaration_source_orders.clone())
+            .unwrap_or_default(),
+    }
+}
+
 pub fn summarize_omena_query_missing_selector_diagnostic(
     target_style_uri: &str,
     target_style_source: &str,
@@ -1417,6 +1504,41 @@ fn custom_property_ref_byte_spans(source: &str, name: &str) -> Vec<ParserByteSpa
     spans
 }
 
+fn positioned_custom_property_reference_facts<'a>(
+    source: &str,
+    ref_facts: &'a [engine_style_parser::ParserIndexCustomPropertyRefFactV0],
+) -> Vec<(
+    &'a engine_style_parser::ParserIndexCustomPropertyRefFactV0,
+    ParserRangeV0,
+)> {
+    let mut ranges_by_name = BTreeMap::<&str, std::collections::VecDeque<ParserRangeV0>>::new();
+    for name in ref_facts
+        .iter()
+        .map(|fact| fact.name.as_str())
+        .collect::<BTreeSet<_>>()
+    {
+        ranges_by_name.insert(
+            name,
+            custom_property_ref_byte_spans(source, name)
+                .into_iter()
+                .map(|span| parser_range_for_byte_span(source, span))
+                .collect(),
+        );
+    }
+
+    let mut ordered_ref_facts = ref_facts.iter().collect::<Vec<_>>();
+    ordered_ref_facts.sort_by_key(|fact| fact.source_order);
+    ordered_ref_facts
+        .into_iter()
+        .filter_map(|fact| {
+            ranges_by_name
+                .get_mut(fact.name.as_str())
+                .and_then(std::collections::VecDeque::pop_front)
+                .map(|range| (fact, range))
+        })
+        .collect()
+}
+
 fn is_selector_name_boundary(source: &str, byte_offset: usize) -> bool {
     source[byte_offset..]
         .chars()
@@ -1441,6 +1563,20 @@ fn end_of_source_range(source: &str) -> ParserRangeV0 {
         start: position,
         end: position,
     }
+}
+
+fn parser_range_contains_position(range: &ParserRangeV0, position: ParserPositionV0) -> bool {
+    parser_position_is_after_or_equal(position, range.start)
+        && parser_position_is_before(position, range.end)
+}
+
+fn parser_position_is_after_or_equal(position: ParserPositionV0, start: ParserPositionV0) -> bool {
+    position.line > start.line
+        || (position.line == start.line && position.character >= start.character)
+}
+
+fn parser_position_is_before(position: ParserPositionV0, end: ParserPositionV0) -> bool {
+    position.line < end.line || (position.line == end.line && position.character < end.character)
 }
 
 fn parser_position_for_byte_offset(source: &str, offset: usize) -> ParserPositionV0 {

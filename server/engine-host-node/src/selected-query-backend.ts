@@ -36,6 +36,7 @@ export const SELECTED_QUERY_RUNNER_COMMANDS = {
   selectorUsageCanonicalProducer: "input-selector-usage-canonical-producer",
   omenaParserStyleFacts: "omena-parser-style-facts",
   styleSemanticGraph: "style-semantic-graph",
+  readCascadeAtPosition: "read-cascade-at-position",
   styleSemanticGraphBatch: "style-semantic-graph-batch",
 } as const;
 

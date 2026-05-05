@@ -53,6 +53,7 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
   ],
   ["omena-parser-style-facts", "summarize_omena_query_omena_parser_style_facts"],
   ["style-semantic-graph", "summarize_omena_query_style_semantic_graph_from_source"],
+  ["read-cascade-at-position", "read_omena_query_cascade_at_position"],
   ["style-semantic-graph-batch", "summarize_omena_query_style_semantic_graph_batch_from_sources"],
 ] as const);
 

@@ -99,6 +99,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "readCascadeAtPosition",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.readCascadeAtPosition,
+      inputContract: "ReadCascadeAtPositionInputV0",
+      outputProduct: "omena-query.read-cascade-at-position",
+    },
+  ],
+  [
     "styleSemanticGraphBatch",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.styleSemanticGraphBatch,
@@ -118,6 +126,7 @@ void (async () => {
   assert.deepEqual([...summary.requiredInputContracts].toSorted(), [
     "EngineInputV2",
     "OmenaParserStyleFactsInputV0",
+    "ReadCascadeAtPositionInputV0",
     "StyleSemanticGraphBatchInputV0",
     "StyleSemanticGraphInputV0",
   ]);
@@ -136,6 +145,7 @@ void (async () => {
     "expressionSemanticsDerivationPayload",
     "fragmentBundleBoundary",
     "omenaParserStyleFactExtraction",
+    "readCascadeAtPosition",
     "runnerCommandContract",
     "sourceResolutionRuntimeIndex",
     "styleSemanticGraphBridgeBoundary",

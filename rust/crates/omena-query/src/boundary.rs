@@ -43,6 +43,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "expressionDomainSelectorProjection",
             "styleHoverRenderParts",
             "styleMissingCustomPropertyDiagnostics",
+            "readCascadeAtPosition",
             "sourceMissingSelectorDiagnostics",
             "sourceProviderCandidateResolution",
             "selectorRenameEditPlanning",
@@ -165,6 +166,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 output_product: "omena-semantic.style-semantic-graph",
             },
             SelectedQueryRunnerCommandV0 {
+                surface: "readCascadeAtPosition",
+                command: "read-cascade-at-position",
+                input_contract: "ReadCascadeAtPositionInputV0",
+                output_product: "omena-query.read-cascade-at-position",
+            },
+            SelectedQueryRunnerCommandV0 {
                 surface: "styleSemanticGraphBatch",
                 command: "style-semantic-graph-batch",
                 input_contract: "StyleSemanticGraphBatchInputV0",
@@ -179,6 +186,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
         required_input_contracts: vec![
             "EngineInputV2",
             "StyleSemanticGraphInputV0",
+            "ReadCascadeAtPositionInputV0",
             "StyleSemanticGraphBatchInputV0",
             "OmenaParserStyleFactsInputV0",
         ],
@@ -195,6 +203,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "expressionDomainSalsaRuntime",
             "expressionDomainSelectorProjection",
             "omenaParserStyleFactExtraction",
+            "readCascadeAtPosition",
         ],
         routing_status: "declaredOnly",
     }

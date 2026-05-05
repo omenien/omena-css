@@ -28,8 +28,8 @@ use engine_input_producers::{
 };
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryExpressionDomainFlowRuntimeV0,
-    OmenaQueryStylePackageManifestV0, summarize_omena_query_boundary,
-    summarize_omena_query_expression_domain_control_flow_analysis,
+    OmenaQueryStylePackageManifestV0, ParserPositionV0, read_omena_query_cascade_at_position,
+    summarize_omena_query_boundary, summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
@@ -72,6 +72,31 @@ struct StyleSemanticGraphInputV0 {
     style_path: String,
     style_source: String,
     engine_input: EngineInputV2,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReadCascadeAtPositionInputV0 {
+    style_path: String,
+    style_source: String,
+    engine_input: EngineInputV2,
+    position: ParserPositionInputV0,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ParserPositionInputV0 {
+    line: usize,
+    character: usize,
+}
+
+impl From<ParserPositionInputV0> for ParserPositionV0 {
+    fn from(position: ParserPositionInputV0) -> Self {
+        Self {
+            line: position.line,
+            character: position.character,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -698,6 +723,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("read-cascade-at-position") => {
+            let input: ReadCascadeAtPositionInputV0 = serde_json::from_str(&stdin)?;
+            let Some(summary) = read_omena_query_cascade_at_position(
+                &input.style_path,
+                &input.style_source,
+                &input.engine_input,
+                input.position.into(),
+            ) else {
+                return Err("unsupported style module path".into());
+            };
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("style-semantic-graph-batch") => {
             let input: StyleSemanticGraphBatchInputV0 = serde_json::from_str(&stdin)?;
             let package_manifests = input
@@ -953,6 +990,18 @@ fn run_daemon_selected_query_command(
                 &input.style_path,
                 &input.style_source,
                 &input.engine_input,
+            ) else {
+                return Err("unsupported style module path".into());
+            };
+            Ok(serde_json::to_value(summary)?)
+        }
+        "read-cascade-at-position" => {
+            let input: ReadCascadeAtPositionInputV0 = serde_json::from_value(input)?;
+            let Some(summary) = read_omena_query_cascade_at_position(
+                &input.style_path,
+                &input.style_source,
+                &input.engine_input,
+                input.position.into(),
             ) else {
                 return Err("unsupported style module path".into());
             };

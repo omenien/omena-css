@@ -147,6 +147,25 @@ pub struct OmenaQueryStyleDiagnosticV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCascadeAtPositionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub style_path: String,
+    pub query_position: ParserPositionV0,
+    pub status: &'static str,
+    pub cascade_engine: &'static str,
+    pub reference_name: Option<String>,
+    pub reference_range: Option<ParserRangeV0>,
+    pub winner_declaration_source_order: Option<usize>,
+    pub winner_declaration_file_path: Option<String>,
+    pub winner_declaration_range: Option<ParserRangeV0>,
+    pub winner_context_kind: Option<&'static str>,
+    pub candidate_declaration_count: usize,
+    pub shadowed_declaration_source_orders: Vec<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCreateCustomPropertyActionV0 {
     pub uri: String,
     pub range: ParserRangeV0,

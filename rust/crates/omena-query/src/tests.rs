@@ -122,6 +122,7 @@ fn summarizes_query_boundary_over_producer_fragments() {
             .ready_surfaces
             .contains(&"omenaParserStyleFactExtraction")
     );
+    assert!(summary.ready_surfaces.contains(&"readCascadeAtPosition"));
     assert!(
         summary
             .cme_coupled_surfaces
@@ -259,6 +260,12 @@ fn declares_selected_query_adapter_capabilities_without_flipping_runtime_routing
     );
     assert!(
         summary
+            .runner_commands
+            .iter()
+            .any(|command| command.command == "read-cascade-at-position")
+    );
+    assert!(
+        summary
             .expression_semantics_payload_contracts
             .contains(&"valueDomainDerivation")
     );
@@ -303,6 +310,7 @@ fn declares_selected_query_adapter_capabilities_without_flipping_runtime_routing
             .adapter_readiness
             .contains(&"sourceResolutionRuntimeIndex")
     );
+    assert!(summary.adapter_readiness.contains(&"readCascadeAtPosition"));
 }
 
 #[test]
@@ -906,6 +914,47 @@ fn missing_custom_property_diagnostics_are_query_owned() {
                 character: 33,
             },
         })
+    );
+}
+
+#[test]
+fn read_cascade_at_position_is_query_owned() {
+    let source = ":root { --surface: white; }\n:root { --surface: black; }\n.button { color: var(--surface); }\n";
+    let cascade = super::read_omena_query_cascade_at_position(
+        "Component.module.css",
+        source,
+        &sample_input(),
+        engine_style_parser::ParserPositionV0 {
+            line: 2,
+            character: 24,
+        },
+    );
+    assert!(cascade.is_some());
+    let Some(cascade) = cascade else {
+        return;
+    };
+
+    assert_eq!(cascade.product, "omena-query.read-cascade-at-position");
+    assert_eq!(cascade.status, "resolved");
+    assert_eq!(cascade.cascade_engine, "omena-cascade");
+    assert_eq!(cascade.reference_name.as_deref(), Some("--surface"));
+    assert_eq!(cascade.winner_declaration_source_order, Some(1));
+    assert_eq!(cascade.candidate_declaration_count, 2);
+    assert_eq!(cascade.shadowed_declaration_source_orders, vec![0]);
+
+    let no_reference = super::read_omena_query_cascade_at_position(
+        "Component.module.css",
+        source,
+        &sample_input(),
+        engine_style_parser::ParserPositionV0 {
+            line: 0,
+            character: 1,
+        },
+    );
+    assert!(no_reference.is_some());
+    assert_eq!(
+        no_reference.map(|cascade| cascade.status),
+        Some("noCustomPropertyReference")
     );
 }
 
