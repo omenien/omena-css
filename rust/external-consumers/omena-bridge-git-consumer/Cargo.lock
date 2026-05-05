@@ -135,7 +135,7 @@ dependencies = [
 [[package]]
 name = "omena-bridge"
 version = "0.1.9"
-source = "git+https://github.com/omenien/omena-bridge.git?rev=390d684#390d6849144421ceaeb4aafd78a2e2b0fc5f36a9"
+source = "git+https://github.com/omenien/omena-bridge.git?rev=502de3b#502de3b7f9dd3e755f13871c4d063a8c1f820a8f"
 dependencies = [
  "omena-engine-input-producers",
  "omena-engine-style-parser",
