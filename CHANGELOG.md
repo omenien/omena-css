@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [4.18.0] - 2026-05-05
+
+### Added
+
+- **Z5 performance baseline** - added the `omena-benchmarks` Rust crate with Criterion micro-benchmarks for parser, semantic, and abstract-value workloads.
+- **LSP macro-benchmark gate** - added a Z5 readiness bundle that compiles the benchmark harness and runs the Rust LSP runtime-loop macro benchmark under bounded request-path latency thresholds.
+- **Public performance documentation** - documented the benchmark corpus, commands, comparison policy, and a reproducible local baseline snapshot in `docs/performance.md`.
+
 ## [4.17.0] - 2026-05-05
 
 ### Added
