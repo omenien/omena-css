@@ -613,6 +613,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "attributeMatcherCstNodes",
             "attributeNameValueModifierCstNodes",
             "specializedValueFunctionCstNodes",
+            "caseInsensitiveFunctionRegistry",
             "valueAtomCstNodes",
             "identifierValueCstNodes",
             "stringValueCstNodes",
@@ -5722,37 +5723,120 @@ fn infix_binding_power(kind: SyntaxKind) -> Option<(u8, u8)> {
 }
 
 fn specialized_function_kind(text: &str) -> Option<SyntaxKind> {
-    match text {
-        "var" => Some(SyntaxKind::VarFunction),
-        "calc" => Some(SyntaxKind::CalcFunction),
-        "env" => Some(SyntaxKind::EnvFunction),
-        "attr" => Some(SyntaxKind::AttrFunction),
-        "min" | "max" | "clamp" | "round" | "mod" | "rem" | "sin" | "cos" | "tan" | "asin"
-        | "acos" | "atan" | "atan2" | "pow" | "sqrt" | "hypot" | "log" | "exp" | "abs" | "sign" => {
-            Some(SyntaxKind::MathFunction)
-        }
-        "rgb" | "rgba" | "hsl" | "hsla" | "hwb" | "lab" | "lch" | "oklab" | "oklch" | "color"
-        | "color-mix" | "light-dark" | "contrast-color" => Some(SyntaxKind::ColorValue),
-        "linear-gradient"
-        | "radial-gradient"
-        | "conic-gradient"
-        | "repeating-linear-gradient"
-        | "repeating-radial-gradient"
-        | "repeating-conic-gradient" => Some(SyntaxKind::GradientFunction),
-        "matrix" | "matrix3d" | "translate" | "translate3d" | "translateX" | "translateY"
-        | "translateZ" | "scale" | "scale3d" | "scaleX" | "scaleY" | "scaleZ" | "rotate"
-        | "rotate3d" | "rotateX" | "rotateY" | "rotateZ" | "skew" | "skewX" | "skewY"
-        | "perspective" => Some(SyntaxKind::TransformFunction),
-        "blur" | "brightness" | "contrast" | "drop-shadow" | "grayscale" | "hue-rotate"
-        | "invert" | "opacity" | "saturate" | "sepia" => Some(SyntaxKind::FilterFunction),
-        "image" | "image-set" | "cross-fade" | "element" | "paint" => {
-            Some(SyntaxKind::ImageFunction)
-        }
-        "path" | "shape" | "ray" | "inset" | "circle" | "ellipse" | "polygon" => {
-            Some(SyntaxKind::ShapeFunction)
-        }
-        _ => None,
+    if text.eq_ignore_ascii_case("var") {
+        return Some(SyntaxKind::VarFunction);
     }
+    if text.eq_ignore_ascii_case("calc") {
+        return Some(SyntaxKind::CalcFunction);
+    }
+    if text.eq_ignore_ascii_case("env") {
+        return Some(SyntaxKind::EnvFunction);
+    }
+    if text.eq_ignore_ascii_case("attr") {
+        return Some(SyntaxKind::AttrFunction);
+    }
+    if matches_ignore_ascii_case(
+        text,
+        &[
+            "min", "max", "clamp", "round", "mod", "rem", "sin", "cos", "tan", "asin", "acos",
+            "atan", "atan2", "pow", "sqrt", "hypot", "log", "exp", "abs", "sign",
+        ],
+    ) {
+        return Some(SyntaxKind::MathFunction);
+    }
+    if matches_ignore_ascii_case(
+        text,
+        &[
+            "rgb",
+            "rgba",
+            "hsl",
+            "hsla",
+            "hwb",
+            "lab",
+            "lch",
+            "oklab",
+            "oklch",
+            "color",
+            "color-mix",
+            "light-dark",
+            "contrast-color",
+        ],
+    ) {
+        return Some(SyntaxKind::ColorValue);
+    }
+    if matches_ignore_ascii_case(
+        text,
+        &[
+            "linear-gradient",
+            "radial-gradient",
+            "conic-gradient",
+            "repeating-linear-gradient",
+            "repeating-radial-gradient",
+            "repeating-conic-gradient",
+        ],
+    ) {
+        return Some(SyntaxKind::GradientFunction);
+    }
+    if matches_ignore_ascii_case(
+        text,
+        &[
+            "matrix",
+            "matrix3d",
+            "translate",
+            "translate3d",
+            "translateX",
+            "translateY",
+            "translateZ",
+            "scale",
+            "scale3d",
+            "scaleX",
+            "scaleY",
+            "scaleZ",
+            "rotate",
+            "rotate3d",
+            "rotateX",
+            "rotateY",
+            "rotateZ",
+            "skew",
+            "skewX",
+            "skewY",
+            "perspective",
+        ],
+    ) {
+        return Some(SyntaxKind::TransformFunction);
+    }
+    if matches_ignore_ascii_case(
+        text,
+        &[
+            "blur",
+            "brightness",
+            "contrast",
+            "drop-shadow",
+            "grayscale",
+            "hue-rotate",
+            "invert",
+            "opacity",
+            "saturate",
+            "sepia",
+        ],
+    ) {
+        return Some(SyntaxKind::FilterFunction);
+    }
+    if matches_ignore_ascii_case(
+        text,
+        &["image", "image-set", "cross-fade", "element", "paint"],
+    ) {
+        return Some(SyntaxKind::ImageFunction);
+    }
+    if matches_ignore_ascii_case(
+        text,
+        &[
+            "path", "shape", "ray", "inset", "circle", "ellipse", "polygon",
+        ],
+    ) {
+        return Some(SyntaxKind::ShapeFunction);
+    }
+    None
 }
 
 fn function_argument_count_is_valid(function_name: &str, argument_count: usize) -> bool {
@@ -7012,6 +7096,22 @@ mod tests {
     }
 
     #[test]
+    fn classifies_css_value_functions_case_insensitively() {
+        let result = parse(
+            ".a { width: CALC(1px + 2px); color: COLOR-MIX(in srgb, red, blue); transform: TRANSLATEX(1px); filter: BLUR(2px); clip-path: POLYGON(0 0, 100% 0, 100% 100%); }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::CalcFunction));
+        assert!(kinds.contains(&SyntaxKind::ColorValue));
+        assert!(kinds.contains(&SyntaxKind::TransformFunction));
+        assert!(kinds.contains(&SyntaxKind::FilterFunction));
+        assert!(kinds.contains(&SyntaxKind::ShapeFunction));
+    }
+
+    #[test]
     fn validates_values_l4_math_function_argument_counts() {
         let valid = parse(
             ".a { width: calc(1px + 2px); min-width: min(1px, 2px); max-width: max(1px); margin: round(nearest, 10px, 3px); padding: hypot(3px, 4px); opacity: log(8, 2); }",
@@ -7888,6 +7988,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"specializedValueFunctionCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"caseInsensitiveFunctionRegistry")
         );
         assert!(summary.ready_surfaces.contains(&"identifierValueCstNodes"));
         assert!(summary.ready_surfaces.contains(&"stringValueCstNodes"));
