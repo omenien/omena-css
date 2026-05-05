@@ -13,3 +13,9 @@ selector lists and simple compound selectors directly, reports exact misses for
 concrete signatures, and returns `Maybe` for unsupported selectors or inexact
 abstract element signatures instead of pretending to be a full browser selector
 engine.
+
+The crate also exposes a seed conformance corpus for the cascade ordering model.
+That corpus covers source order, specificity, origin/importance level, layer
+rank, scope proximity, and missing-property inheritance. It is not a replacement
+for the full WPT `css/css-cascade` corpus; the full WPT mapping remains a later
+conformance target.

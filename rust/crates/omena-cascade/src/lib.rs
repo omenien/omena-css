@@ -322,6 +322,38 @@ pub struct CascadeBoundarySummary {
     pub not_ready_surfaces: Vec<&'static str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeConformanceSeedCase {
+    pub name: &'static str,
+    pub property: &'static str,
+    pub declarations: Vec<CascadeDeclaration>,
+    pub expected_outcome: &'static str,
+    pub expected_winner_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeConformanceSeedResult {
+    pub name: &'static str,
+    pub passed: bool,
+    pub expected_outcome: &'static str,
+    pub actual_outcome: &'static str,
+    pub expected_winner_id: Option<String>,
+    pub actual_winner_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeConformanceSeedReport {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub case_count: usize,
+    pub passed_count: usize,
+    pub failed_count: usize,
+    pub results: Vec<CascadeConformanceSeedResult>,
+}
+
 pub type CustomPropertyEnv = BTreeMap<String, CascadeValue>;
 
 pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
@@ -338,10 +370,260 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
             "queryReadCascadeAtPosition",
             "selectorContextWitness",
             "selectorMatchWitness",
+            "cascadeConformanceSeedCorpus",
             "customPropertySubstitution",
             "cycleToGuaranteedInvalid",
         ],
         not_ready_surfaces: vec!["wptCascadeCorpus"],
+    }
+}
+
+pub fn run_cascade_conformance_seed_corpus() -> CascadeConformanceSeedReport {
+    let results = cascade_conformance_seed_cases()
+        .into_iter()
+        .map(run_cascade_conformance_seed_case)
+        .collect::<Vec<_>>();
+    let passed_count = results.iter().filter(|result| result.passed).count();
+    let case_count = results.len();
+
+    CascadeConformanceSeedReport {
+        schema_version: "0",
+        product: "omena-cascade.conformance-seed-corpus",
+        case_count,
+        passed_count,
+        failed_count: case_count.saturating_sub(passed_count),
+        results,
+    }
+}
+
+fn run_cascade_conformance_seed_case(
+    case: CascadeConformanceSeedCase,
+) -> CascadeConformanceSeedResult {
+    let outcome = cascade_property(case.declarations, case.property);
+    let (actual_outcome, actual_winner_id) = match outcome {
+        CascadeOutcome::Definite { winner, .. } => ("definite", Some(winner.id)),
+        CascadeOutcome::RankedSet(_) => ("rankedSet", None),
+        CascadeOutcome::Inherit => ("inherit", None),
+        CascadeOutcome::Top => ("top", None),
+    };
+    let passed =
+        actual_outcome == case.expected_outcome && actual_winner_id == case.expected_winner_id;
+
+    CascadeConformanceSeedResult {
+        name: case.name,
+        passed,
+        expected_outcome: case.expected_outcome,
+        actual_outcome,
+        expected_winner_id: case.expected_winner_id,
+        actual_winner_id,
+    }
+}
+
+fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
+    vec![
+        CascadeConformanceSeedCase {
+            name: "source-order-breaks-identical-key",
+            property: "color",
+            declarations: vec![
+                conformance_decl(
+                    "source-earlier",
+                    "color",
+                    "red",
+                    conformance_key(
+                        CascadeLevel::AuthorNormal,
+                        0,
+                        0,
+                        Specificity::new(0, 1, 0),
+                        1,
+                    ),
+                ),
+                conformance_decl(
+                    "source-later",
+                    "color",
+                    "blue",
+                    conformance_key(
+                        CascadeLevel::AuthorNormal,
+                        0,
+                        0,
+                        Specificity::new(0, 1, 0),
+                        2,
+                    ),
+                ),
+            ],
+            expected_outcome: "definite",
+            expected_winner_id: Some("source-later".to_string()),
+        },
+        CascadeConformanceSeedCase {
+            name: "specificity-beats-source-order",
+            property: "color",
+            declarations: vec![
+                conformance_decl(
+                    "specificity-low-later",
+                    "color",
+                    "red",
+                    conformance_key(
+                        CascadeLevel::AuthorNormal,
+                        0,
+                        0,
+                        Specificity::new(0, 1, 0),
+                        2,
+                    ),
+                ),
+                conformance_decl(
+                    "specificity-high-earlier",
+                    "color",
+                    "blue",
+                    conformance_key(
+                        CascadeLevel::AuthorNormal,
+                        0,
+                        0,
+                        Specificity::new(1, 0, 0),
+                        1,
+                    ),
+                ),
+            ],
+            expected_outcome: "definite",
+            expected_winner_id: Some("specificity-high-earlier".to_string()),
+        },
+        CascadeConformanceSeedCase {
+            name: "important-origin-beats-inline-normal",
+            property: "color",
+            declarations: vec![
+                conformance_decl(
+                    "inline-normal",
+                    "color",
+                    "red",
+                    conformance_key(
+                        CascadeLevel::InlineNormal,
+                        0,
+                        0,
+                        Specificity::new(1, 0, 0),
+                        2,
+                    ),
+                ),
+                conformance_decl(
+                    "author-important",
+                    "color",
+                    "blue",
+                    conformance_key(
+                        CascadeLevel::AuthorImportant,
+                        0,
+                        0,
+                        Specificity::new(0, 1, 0),
+                        1,
+                    ),
+                ),
+            ],
+            expected_outcome: "definite",
+            expected_winner_id: Some("author-important".to_string()),
+        },
+        CascadeConformanceSeedCase {
+            name: "layer-rank-beats-specificity-within-level",
+            property: "color",
+            declarations: vec![
+                conformance_decl(
+                    "lower-layer-specific",
+                    "color",
+                    "red",
+                    conformance_key(
+                        CascadeLevel::AuthorNormal,
+                        1,
+                        0,
+                        Specificity::new(1, 0, 0),
+                        2,
+                    ),
+                ),
+                conformance_decl(
+                    "higher-layer",
+                    "color",
+                    "blue",
+                    conformance_key(
+                        CascadeLevel::AuthorNormal,
+                        2,
+                        0,
+                        Specificity::new(0, 1, 0),
+                        1,
+                    ),
+                ),
+            ],
+            expected_outcome: "definite",
+            expected_winner_id: Some("higher-layer".to_string()),
+        },
+        CascadeConformanceSeedCase {
+            name: "scope-proximity-beats-specificity-tie",
+            property: "color",
+            declarations: vec![
+                conformance_decl(
+                    "far-scope",
+                    "color",
+                    "red",
+                    conformance_key(
+                        CascadeLevel::AuthorNormal,
+                        0,
+                        5,
+                        Specificity::new(0, 1, 0),
+                        2,
+                    ),
+                ),
+                conformance_decl(
+                    "near-scope",
+                    "color",
+                    "blue",
+                    conformance_key(
+                        CascadeLevel::AuthorNormal,
+                        0,
+                        1,
+                        Specificity::new(0, 1, 0),
+                        1,
+                    ),
+                ),
+            ],
+            expected_outcome: "definite",
+            expected_winner_id: Some("near-scope".to_string()),
+        },
+        CascadeConformanceSeedCase {
+            name: "missing-property-inherits",
+            property: "background",
+            declarations: vec![conformance_decl(
+                "color-only",
+                "color",
+                "red",
+                conformance_key(
+                    CascadeLevel::AuthorNormal,
+                    0,
+                    0,
+                    Specificity::new(0, 1, 0),
+                    1,
+                ),
+            )],
+            expected_outcome: "inherit",
+            expected_winner_id: None,
+        },
+    ]
+}
+
+fn conformance_key(
+    level: CascadeLevel,
+    layer_rank: i32,
+    scope_proximity: u32,
+    specificity: Specificity,
+    source_order: u32,
+) -> CascadeKey {
+    CascadeKey::new(
+        level,
+        LayerRank(layer_rank),
+        scope_proximity,
+        specificity,
+        source_order,
+    )
+}
+
+fn conformance_decl(id: &str, property: &str, value: &str, key: CascadeKey) -> CascadeDeclaration {
+    CascadeDeclaration {
+        id: id.to_string(),
+        property: property.to_string(),
+        value: CascadeValue::Literal(value.to_string()),
+        key,
     }
 }
 
@@ -1170,7 +1452,23 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"selectorContextWitness"));
         assert!(summary.ready_surfaces.contains(&"selectorMatchWitness"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"cascadeConformanceSeedCorpus")
+        );
         assert!(!summary.not_ready_surfaces.contains(&"selectorMatchWitness"));
         assert!(summary.not_ready_surfaces.contains(&"wptCascadeCorpus"));
+    }
+
+    #[test]
+    fn seed_conformance_corpus_passes_current_cascade_model() {
+        let report = run_cascade_conformance_seed_corpus();
+
+        assert_eq!(report.product, "omena-cascade.conformance-seed-corpus");
+        assert_eq!(report.case_count, 6);
+        assert_eq!(report.passed_count, report.case_count);
+        assert_eq!(report.failed_count, 0);
+        assert!(report.results.iter().all(|result| result.passed));
     }
 }
