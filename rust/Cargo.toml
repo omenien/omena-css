@@ -8,6 +8,7 @@ members = [
   "crates/omena-bridge",
   "crates/omena-checker",
   "crates/omena-interner",
+  "crates/omena-parser",
   "crates/omena-syntax",
   "crates/omena-incremental",
   "crates/omena-lsp-server",

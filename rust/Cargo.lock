@@ -593,6 +593,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-parser"
+version = "0.1.0"
+dependencies = [
+ "cstree",
+ "omena-interner",
+ "omena-syntax",
+]
+
+[[package]]
 name = "omena-query"
 version = "0.1.0"
 dependencies = [

@@ -27,6 +27,7 @@ const RUST_FAMILIES = [
   "omena-incremental",
   "omena-interner",
   "omena-lsp-server",
+  "omena-parser",
   "omena-query",
   "omena-resolver",
   "omena-syntax",
