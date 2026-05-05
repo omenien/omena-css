@@ -394,13 +394,52 @@ impl<'text> Parser<'text> {
         if self.current_kind() == Some(SyntaxKind::Colon) {
             self.token_current();
             self.builder.start_node(SyntaxKind::Value);
-            self.consume_until_recovery(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
+            self.parse_value_until(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
             self.builder.finish_node();
         } else {
             self.consume_until_recovery(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
         }
 
         if self.current_kind() == Some(SyntaxKind::Semicolon) {
+            self.token_current();
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_value_until(&mut self, recovery: &[SyntaxKind]) {
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(kind) if recovery.contains(&kind) => break,
+                Some(SyntaxKind::Ident) if self.next_kind() == Some(SyntaxKind::LeftParen) => {
+                    self.parse_function_call()
+                }
+                Some(SyntaxKind::LeftParen) => self.parse_parenthesized_expression(),
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+    }
+
+    fn parse_function_call(&mut self) {
+        self.builder.start_node(SyntaxKind::FunctionCall);
+        self.token_current();
+        if self.current_kind() == Some(SyntaxKind::LeftParen) {
+            self.token_current();
+            self.builder.start_node(SyntaxKind::FunctionArguments);
+            self.parse_value_until(&[SyntaxKind::RightParen]);
+            self.builder.finish_node();
+            if self.current_kind() == Some(SyntaxKind::RightParen) {
+                self.token_current();
+            }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_parenthesized_expression(&mut self) {
+        self.builder.start_node(SyntaxKind::ParenthesizedExpression);
+        self.token_current();
+        self.parse_value_until(&[SyntaxKind::RightParen]);
+        if self.current_kind() == Some(SyntaxKind::RightParen) {
             self.token_current();
         }
         self.builder.finish_node();
@@ -485,6 +524,10 @@ impl<'text> Parser<'text> {
 
     fn current_kind(&self) -> Option<SyntaxKind> {
         self.tokens.get(self.position).map(|token| token.kind)
+    }
+
+    fn next_kind(&self) -> Option<SyntaxKind> {
+        self.tokens.get(self.position + 1).map(|token| token.kind)
     }
 
     fn at_end(&self) -> bool {
@@ -909,6 +952,17 @@ mod tests {
         assert!(node_kinds(&at_rule.syntax()).contains(&SyntaxKind::AtRule));
         assert!(node_kinds(&missing_colon.syntax()).contains(&SyntaxKind::BogusDeclaration));
         assert!(node_kinds(&missing_block.syntax()).contains(&SyntaxKind::BogusRule));
+    }
+
+    #[test]
+    fn structures_css_value_function_calls() {
+        let result = parse(".a { width: calc(var(--gap) + 1rem); }", StyleDialect::Css);
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::Value));
+        assert!(kinds.contains(&SyntaxKind::FunctionCall));
+        assert!(kinds.contains(&SyntaxKind::FunctionArguments));
     }
 
     #[test]
