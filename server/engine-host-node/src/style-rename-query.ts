@@ -88,6 +88,7 @@ export interface ValueRenameTarget {
   readonly scssPath: string;
   readonly scssUri: string;
   readonly styleDocument: StyleDocumentHIR;
+  readonly bindingKind: "localDecl" | "localImport";
   readonly name: string;
   readonly targetRange: ValueDeclHIR["range"] | ValueImportHIR["range"];
   readonly placeholder: string;
@@ -191,7 +192,14 @@ function readValueRenameTargetAtCursor(
   if (decl) {
     return {
       kind: "target",
-      target: makeValueRenameTarget(filePath, styleDocument, decl.name, decl.range, decl.range),
+      target: makeValueRenameTarget(
+        filePath,
+        styleDocument,
+        "localDecl",
+        decl.name,
+        decl.range,
+        decl.range,
+      ),
     };
   }
 
@@ -202,6 +210,7 @@ function readValueRenameTargetAtCursor(
       target: makeValueRenameTarget(
         filePath,
         styleDocument,
+        "localImport",
         valueImport.name,
         valueImport.range,
         valueImport.range,
@@ -217,7 +226,14 @@ function readValueRenameTargetAtCursor(
   if (!targetRange) return { kind: "miss" };
   return {
     kind: "target",
-    target: makeValueRenameTarget(filePath, styleDocument, ref.name, targetRange, ref.range),
+    target: makeValueRenameTarget(
+      filePath,
+      styleDocument,
+      localDecl ? "localDecl" : "localImport",
+      ref.name,
+      targetRange,
+      ref.range,
+    ),
   };
 }
 
@@ -466,7 +482,7 @@ export function planStyleRenameAtCursor(
   );
   if (result.kind !== "target") return null;
   if (isValueRenameTarget(result.target)) {
-    return planValueRename(result.target, newName);
+    return planValueRename(result.target, newName, deps);
   }
   if (isCustomPropertyRenameTarget(result.target)) {
     return planCustomPropertyRename(result.target, newName, deps);
@@ -480,6 +496,7 @@ export function planStyleRenameAtCursor(
 function makeValueRenameTarget(
   filePath: string,
   styleDocument: StyleDocumentHIR,
+  bindingKind: ValueRenameTarget["bindingKind"],
   name: string,
   targetRange: ValueRenameTarget["targetRange"],
   placeholderRange: ValueRenameTarget["placeholderRange"],
@@ -489,6 +506,7 @@ function makeValueRenameTarget(
     scssPath: filePath,
     scssUri: pathToFileUrl(filePath),
     styleDocument,
+    bindingKind,
     name,
     targetRange,
     placeholder: name,
@@ -644,7 +662,11 @@ function planCustomPropertyRename(
   return { kind: "plan", plan: { target, edits } };
 }
 
-function planValueRename(target: ValueRenameTarget, newName: string): ValueRenamePlanResult {
+function planValueRename(
+  target: ValueRenameTarget,
+  newName: string,
+  deps: Pick<ProviderDeps, "styleDependencyGraph" | "styleDocumentForPath">,
+): ValueRenamePlanResult {
   const nextName = normalizeValueNewName(newName);
   if (!nextName) return { kind: "blocked", reason: "invalidNewName" };
 
@@ -660,6 +682,28 @@ function planValueRename(target: ValueRenameTarget, newName: string): ValueRenam
       range: ref.range,
       newText: nextName,
     });
+  }
+  if (target.bindingKind === "localDecl") {
+    for (const valueImport of deps.styleDependencyGraph.getIncomingValueImports(
+      target.scssPath,
+      target.name,
+    )) {
+      pushSassSymbolRenameEdit(edits, {
+        uri: pathToFileUrl(valueImport.filePath),
+        range: valueImport.importedNameRange ?? valueImport.range,
+        newText: nextName,
+      });
+      if (valueImport.importedNameRange) continue;
+      const importerDocument = deps.styleDocumentForPath(valueImport.filePath);
+      if (!importerDocument) continue;
+      for (const ref of listValueRefs(importerDocument, valueImport.name)) {
+        pushSassSymbolRenameEdit(edits, {
+          uri: pathToFileUrl(valueImport.filePath),
+          range: ref.range,
+          newText: nextName,
+        });
+      }
+    }
   }
 
   return { kind: "plan", plan: { target, edits } };

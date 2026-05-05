@@ -85,6 +85,7 @@ export interface ValueImportHIR extends HirNodeBase {
   readonly range: Range;
   readonly name: string;
   readonly importedName: string;
+  readonly importedNameRange?: Range;
   readonly from: string;
   readonly ruleRange: Range;
 }

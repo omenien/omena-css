@@ -533,11 +533,12 @@ describe("parseStyleSelectorMap / edge cases", () => {
           valueImport.name,
           valueImport.importedName,
           valueImport.from,
+          valueImport.importedNameRange?.start.character ?? null,
         ]),
       ).toEqual([
-        ["primary", "primary", "./colors.module.scss"],
-        ["accent", "secondary", "./colors.module.scss"],
-        ["danger", "danger", "./tokens.module.scss"],
+        ["primary", "primary", "./colors.module.scss", null],
+        ["accent", "secondary", "./colors.module.scss", 16],
+        ["danger", "danger", "./tokens.module.scss", null],
       ]);
       expect(document.valueRefs.map((valueRef) => valueRef.name)).toEqual([
         "primary",

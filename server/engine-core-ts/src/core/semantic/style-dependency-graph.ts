@@ -6,6 +6,7 @@ import type {
   SassModuleUseHIR,
   SassSymbolKind,
   StyleDocumentHIR,
+  ValueImportHIR,
 } from "../hir/style-types";
 import { findSassSymbolDeclForSymbol } from "../query/find-style-selector";
 
@@ -34,6 +35,18 @@ export interface SassModuleMemberDependencyRef {
 }
 
 interface SassModuleMemberDependencyEdge extends SassModuleMemberDependencyRef {
+  readonly toFilePath: string;
+}
+
+export interface ValueImportDependencyRef extends Pick<
+  ValueImportHIR,
+  "name" | "importedName" | "importedNameRange" | "range" | "ruleRange"
+> {
+  readonly filePath: string;
+  readonly from: string;
+}
+
+interface ValueImportDependencyEdge extends ValueImportDependencyRef {
   readonly toFilePath: string;
 }
 
@@ -85,6 +98,7 @@ export interface StyleDependencyGraph {
     symbolKind: SassSymbolKind,
     name: string,
   ): readonly SassModuleMemberDependencyRef[];
+  getIncomingValueImports(filePath: string, name: string): readonly ValueImportDependencyRef[];
   getAllCustomPropertyDecls(): readonly CustomPropertyDependencyDecl[];
   getCustomPropertyDecls(name: string): readonly CustomPropertyDependencyDecl[];
   getCustomPropertyRefs(name: string): readonly CustomPropertyDependencyRef[];
@@ -96,6 +110,7 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
     {
       readonly selectorEdges: readonly StyleDependencyEdge[];
       readonly sassModuleMemberEdges: readonly SassModuleMemberDependencyEdge[];
+      readonly valueImportEdges: readonly ValueImportDependencyEdge[];
       readonly customPropertyDecls: readonly CustomPropertyDependencyDecl[];
       readonly customPropertyRefs: readonly CustomPropertyDependencyRef[];
     }
@@ -106,6 +121,7 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
     string,
     readonly SassModuleMemberDependencyRef[]
   >();
+  private readonly incomingValueImports = new Map<string, readonly ValueImportDependencyRef[]>();
   private readonly customPropertyDecls = new Map<string, readonly CustomPropertyDependencyDecl[]>();
   private readonly customPropertyRefs = new Map<string, readonly CustomPropertyDependencyRef[]>();
 
@@ -117,6 +133,7 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
     this.moduleEdges.set(filePath, {
       selectorEdges: collectEdges(filePath, styleDocument),
       sassModuleMemberEdges: collectSassModuleMemberEdges(filePath, styleDocument, options),
+      valueImportEdges: collectValueImportEdges(filePath, styleDocument),
       customPropertyDecls: collectCustomPropertyDecls(filePath, styleDocument),
       customPropertyRefs: collectCustomPropertyRefs(filePath, styleDocument),
     });
@@ -154,6 +171,10 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
     return this.incomingSassModuleMembers.get(sassMemberKey(filePath, symbolKind, name)) ?? [];
   }
 
+  getIncomingValueImports(filePath: string, name: string): readonly ValueImportDependencyRef[] {
+    return this.incomingValueImports.get(valueImportKey(filePath, name)) ?? [];
+  }
+
   getAllCustomPropertyDecls(): readonly CustomPropertyDependencyDecl[] {
     return [...this.customPropertyDecls.values()]
       .flat()
@@ -172,6 +193,7 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
     this.incoming.clear();
     this.outgoing.clear();
     this.incomingSassModuleMembers.clear();
+    this.incomingValueImports.clear();
     this.customPropertyDecls.clear();
     this.customPropertyRefs.clear();
     for (const edges of this.moduleEdges.values()) {
@@ -200,6 +222,17 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
           },
         );
       }
+      for (const edge of edges.valueImportEdges) {
+        push(this.incomingValueImports, valueImportKey(edge.toFilePath, edge.importedName), {
+          filePath: edge.filePath,
+          name: edge.name,
+          importedName: edge.importedName,
+          ...(edge.importedNameRange ? { importedNameRange: edge.importedNameRange } : {}),
+          from: edge.from,
+          range: edge.range,
+          ruleRange: edge.ruleRange,
+        });
+      }
       for (const decl of edges.customPropertyDecls) {
         push(this.customPropertyDecls, decl.name, decl);
       }
@@ -208,6 +241,29 @@ export class WorkspaceStyleDependencyGraph implements StyleDependencyGraph {
       }
     }
   }
+}
+
+function collectValueImportEdges(
+  filePath: string,
+  styleDocument: StyleDocumentHIR,
+): readonly ValueImportDependencyEdge[] {
+  return styleDocument.valueImports
+    .filter((valueImport) => isRelativeSpecifier(valueImport.from))
+    .map((valueImport) => {
+      const edge: ValueImportDependencyEdge = {
+        filePath,
+        toFilePath: path.resolve(path.dirname(filePath), valueImport.from),
+        name: valueImport.name,
+        importedName: valueImport.importedName,
+        from: valueImport.from,
+        range: valueImport.range,
+        ruleRange: valueImport.ruleRange,
+      };
+      if (valueImport.importedNameRange) {
+        return Object.assign(edge, { importedNameRange: valueImport.importedNameRange });
+      }
+      return edge;
+    });
 }
 
 function collectEdges(
@@ -407,6 +463,10 @@ function selectorKey(filePath: string, canonicalName: string): string {
 
 function sassMemberKey(filePath: string, symbolKind: SassSymbolKind, name: string): string {
   return `${filePath}\u0000${symbolKind}\u0000${name}`;
+}
+
+function valueImportKey(filePath: string, name: string): string {
+  return `${filePath}\u0000${name}`;
 }
 
 function isRelativeSpecifier(specifier: string): boolean {

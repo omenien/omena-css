@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
+import { WorkspaceStyleDependencyGraph } from "../../../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 import {
   readStyleRenameTargetAtCursor,
@@ -9,6 +10,7 @@ import {
 import type { StyleSemanticGraphSummaryV0 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
 
 const SCSS_PATH = "/fake/src/Button.module.scss";
+const TOKENS_PATH = "/fake/src/tokens.module.scss";
 
 describe("style rename query", () => {
   it("reads a target and plans SCSS plus source edits", () => {
@@ -123,6 +125,81 @@ describe("style rename query", () => {
       {
         uri: "file:///fake/src/Button.module.scss",
         range: { start: { line: 2, character: 9 }, end: { line: 2, character: 15 } },
+        newText: "brand",
+      },
+    ]);
+  });
+
+  it("renames source @value declarations through aliased imports", () => {
+    const tokensScss = `@value secondary: #fff;\n`;
+    const buttonScss = `@value secondary as accent from "./tokens.module.scss";
+.button { color: accent; }
+`;
+    const tokensDocument = parseStyleDocument(tokensScss, TOKENS_PATH);
+    const buttonDocument = parseStyleDocument(buttonScss, SCSS_PATH);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(TOKENS_PATH, tokensDocument);
+    styleDependencyGraph.record(SCSS_PATH, buttonDocument);
+    const deps = makeBaseDeps({
+      styleDependencyGraph,
+      styleDocumentForPath: (filePath) => {
+        if (filePath === TOKENS_PATH) return tokensDocument;
+        if (filePath === SCSS_PATH) return buttonDocument;
+        return null;
+      },
+    });
+
+    const plan = planStyleRenameAtCursor(TOKENS_PATH, 0, 8, tokensDocument, deps, "brand");
+    expect(plan?.kind).toBe("plan");
+    expect(plan?.kind === "plan" ? plan.plan.edits : []).toMatchObject([
+      {
+        uri: "file:///fake/src/tokens.module.scss",
+        range: { start: { line: 0, character: 7 }, end: { line: 0, character: 16 } },
+        newText: "brand",
+      },
+      {
+        uri: "file:///fake/src/Button.module.scss",
+        range: { start: { line: 0, character: 7 }, end: { line: 0, character: 16 } },
+        newText: "brand",
+      },
+    ]);
+  });
+
+  it("renames source @value declarations through unaliased imports and importer refs", () => {
+    const tokensScss = `@value secondary: #fff;\n`;
+    const buttonScss = `@value secondary from "./tokens.module.scss";
+.button { color: secondary; }
+`;
+    const tokensDocument = parseStyleDocument(tokensScss, TOKENS_PATH);
+    const buttonDocument = parseStyleDocument(buttonScss, SCSS_PATH);
+    const styleDependencyGraph = new WorkspaceStyleDependencyGraph();
+    styleDependencyGraph.record(TOKENS_PATH, tokensDocument);
+    styleDependencyGraph.record(SCSS_PATH, buttonDocument);
+    const deps = makeBaseDeps({
+      styleDependencyGraph,
+      styleDocumentForPath: (filePath) => {
+        if (filePath === TOKENS_PATH) return tokensDocument;
+        if (filePath === SCSS_PATH) return buttonDocument;
+        return null;
+      },
+    });
+
+    const plan = planStyleRenameAtCursor(TOKENS_PATH, 0, 8, tokensDocument, deps, "brand");
+    expect(plan?.kind).toBe("plan");
+    expect(plan?.kind === "plan" ? plan.plan.edits : []).toMatchObject([
+      {
+        uri: "file:///fake/src/tokens.module.scss",
+        range: { start: { line: 0, character: 7 }, end: { line: 0, character: 16 } },
+        newText: "brand",
+      },
+      {
+        uri: "file:///fake/src/Button.module.scss",
+        range: { start: { line: 0, character: 7 }, end: { line: 0, character: 16 } },
+        newText: "brand",
+      },
+      {
+        uri: "file:///fake/src/Button.module.scss",
+        range: { start: { line: 1, character: 17 }, end: { line: 1, character: 26 } },
         newText: "brand",
       },
     ]);

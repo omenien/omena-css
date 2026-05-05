@@ -591,12 +591,20 @@ function parseValueImports(
       parsed.localName.length,
     );
     if (!range) return [];
+    const importedNameRange = parsed.hasAlias
+      ? findAtRuleParamValueTokenRange(
+          atrule,
+          spec.offset + parsed.importedOffset,
+          parsed.importedName.length,
+        )
+      : null;
     return [
       {
         kind: "valueImport",
         id: `value-import:${atrule.source?.start?.line ?? 0}:${index}:${parsed.localName}`,
         name: parsed.localName,
         importedName: parsed.importedName,
+        ...(importedNameRange ? { importedNameRange } : {}),
         from: source,
         range,
         ruleRange: rangeForSourceNode(atrule),
@@ -628,20 +636,27 @@ function splitValueImportSpecs(raw: string): Array<{ raw: string; offset: number
     .filter((part) => part.raw.length > 0);
 }
 
-function parseValueImportSpec(
-  raw: string,
-): { importedName: string; localName: string; localOffset: number } | null {
+function parseValueImportSpec(raw: string): {
+  importedName: string;
+  importedOffset: number;
+  localName: string;
+  localOffset: number;
+  hasAlias: boolean;
+} | null {
   const match =
     /^\s*([\p{L}_-][\p{L}\p{N}\p{M}_-]*)(?:\s+as\s+([\p{L}_-][\p{L}\p{N}\p{M}_-]*))?\s*$/u.exec(
       raw,
     );
   const importedName = match?.[1];
-  const localName = match?.[2] ?? importedName;
+  const aliasName = match?.[2];
+  const localName = aliasName ?? importedName;
   if (!importedName || !localName) return null;
   return {
     importedName,
+    importedOffset: raw.indexOf(importedName),
     localName,
     localOffset: raw.lastIndexOf(localName),
+    hasAlias: aliasName !== undefined,
   };
 }
 
