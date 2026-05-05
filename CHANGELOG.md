@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [4.16.0] - 2026-05-05
+
+### Added
+
+- **Refactor automation chapter** - selector, design-token, and composed-class refactors now cover the main Z2 workflow slice: rename across source/style boundaries, extract design tokens from literals, and inline composed utility classes.
+- **Design-token extraction actions** - selected style literals now offer both CSS custom property extraction and CSS Modules `@value` extraction.
+- **Composed-class inline actions** - `composes` tokens can be inlined from same-file, cross-file, and transitive dependency declarations while unresolved/global/cyclic cases stay blocked.
+
+### Changed
+
+- **CSS Modules selector rename through `composes`** - direct cross-file `composes` tokens are now rewritten during selector rename, while transitive composed dependencies remain blocked instead of applying unsafe edits.
+- **CSS Modules `@value` rename through imports** - source `@value` declarations now rename through aliased and unaliased imports; unaliased importer references are updated to preserve binding correctness.
+
+### Fixed
+
+- **CSS value rename coverage** - local CSS Modules `@value` declarations and imported local aliases now participate in style rename planning.
+
 ## [4.15.0] - 2026-05-05
 
 ### Added
