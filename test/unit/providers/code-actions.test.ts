@@ -258,7 +258,7 @@ describe("handleCodeAction", () => {
     ]);
   });
 
-  it("returns an extract custom property refactor for selected style values", () => {
+  it("returns extract refactors for selected style values", () => {
     const styleWorkspace = workspace({
       [STYLE_PATH]: ".button { color: /*<value>*/#fff/*</value>*/; }\n",
     });
@@ -273,7 +273,7 @@ describe("handleCodeAction", () => {
     };
     const result = handleCodeAction(params, makeDeps(), styleWorkspace.file(STYLE_PATH).content);
 
-    expect(result).toHaveLength(1);
+    expect(result).toHaveLength(2);
     expect(result![0]!.kind).toBe(CodeActionKind.RefactorExtract);
     expect(result![0]!.title).toBe("Extract CSS custom property '--extracted-color'");
     expect(result![0]!.edit?.changes?.[STYLE_URI]).toEqual([
@@ -284,6 +284,18 @@ describe("handleCodeAction", () => {
       {
         range: styleWorkspace.range("value", STYLE_PATH).range,
         newText: "var(--extracted-color)",
+      },
+    ]);
+    expect(result![1]!.kind).toBe(CodeActionKind.RefactorExtract);
+    expect(result![1]!.title).toBe("Extract @value 'extractedColor'");
+    expect(result![1]!.edit?.changes?.[STYLE_URI]).toEqual([
+      {
+        range: ZERO_RANGE,
+        newText: "@value extractedColor: #fff;\n\n",
+      },
+      {
+        range: styleWorkspace.range("value", STYLE_PATH).range,
+        newText: "extractedColor",
       },
     ]);
   });

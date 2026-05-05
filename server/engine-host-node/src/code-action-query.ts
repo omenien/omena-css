@@ -185,6 +185,10 @@ export function planCodeActions(
   if (extractCustomProperty) {
     plans.push(extractCustomProperty);
   }
+  const extractValue = inlineComposedClass ? null : planExtractValue(args);
+  if (extractValue) {
+    plans.push(extractValue);
+  }
 
   if (diagnosticCreateModuleUris.size === 0) {
     for (const uri of listMissingSiblingStyleModuleUris(args.documentUri, deps)) {
@@ -381,6 +385,45 @@ function planExtractCustomProperty(args: {
   };
 }
 
+function planExtractValue(args: {
+  readonly documentUri: string;
+  readonly documentContent?: string;
+  readonly range?: Range;
+  readonly diagnostics: readonly CodeActionDiagnosticInput[];
+}): CodeActionPlan | null {
+  const filePath = fileUrlToPath(args.documentUri);
+  if (findLangForPath(filePath) === null) return null;
+  if (args.diagnostics.length > 0) return null;
+  if (!args.documentContent || !args.range || rangeIsEmpty(args.range)) return null;
+
+  const selected = sliceRange(args.documentContent, args.range);
+  if (!selected) return null;
+  const value = selected.trim();
+  if (!isExtractableCssValue(value)) return null;
+
+  const valueName = nextValueName(args.documentContent, valueNameStem(value));
+  return {
+    kind: "workspaceEdit",
+    actionKind: "refactor.extract",
+    title: `Extract @value '${valueName}'`,
+    edits: [
+      {
+        uri: args.documentUri,
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: 0, character: 0 },
+        },
+        newText: `@value ${valueName}: ${value};\n\n`,
+      },
+      {
+        uri: args.documentUri,
+        range: args.range,
+        newText: valueName,
+      },
+    ],
+  };
+}
+
 function splitInlineDeclarations(declarations: string): readonly string[] {
   return declarations
     .split(";")
@@ -507,6 +550,36 @@ function nextCustomPropertyName(content: string, stem: string): string {
     suffix += 1;
   }
   return candidate;
+}
+
+function valueNameStem(value: string): string {
+  if (/^#[0-9a-fA-F]{3,8}$/u.test(value) || /^(?:rgb|rgba|hsl|hsla)\(/u.test(value)) {
+    return "extractedColor";
+  }
+  if (/^-?\d+(?:\.\d+)?(?:s|ms)$/u.test(value)) {
+    return "extractedDuration";
+  }
+  if (/^-?\d+(?:\.\d+)?deg$/u.test(value)) {
+    return "extractedAngle";
+  }
+  if (/^-?\d+(?:\.\d+)?(?:px|rem|em|%|vh|vw|vmin|vmax|ch|ex)?$/u.test(value)) {
+    return "extractedSize";
+  }
+  return "extractedToken";
+}
+
+function nextValueName(content: string, stem: string): string {
+  let candidate = stem;
+  let suffix = 2;
+  while (new RegExp(`\\b${escapeRegExp(candidate)}\\b`, "u").test(content)) {
+    candidate = `${stem}${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
 function extractSuggestion(diagnostic: CodeActionDiagnosticInput): string | null {
