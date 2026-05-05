@@ -248,8 +248,8 @@ fn builds_source_resolution_runtime_index_from_canonical_candidates() {
     assert_eq!(app.expression_kind, "symbolRef");
     assert_eq!(app.style_file_path, "/tmp/App.module.scss");
     assert_eq!(app.selector_names, ["btn-active"]);
-    assert_eq!(app.selector_certainty, "exact");
-    assert_eq!(app.selector_certainty_shape_kind, "exact");
+    assert_eq!(app.selector_certainty, "inferred");
+    assert_eq!(app.selector_certainty_shape_kind, "constrained");
     assert_eq!(app.value_certainty_shape_kind, "constrained");
     assert!(app.has_selector_match);
     assert!(!app.has_finite_values);
