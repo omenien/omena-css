@@ -14,6 +14,9 @@ Current scope:
 - CSS Syntax entry points for rule lists, component values, component-value
   lists, comma-separated component-value lists, and simple blocks.
 - CSS custom property declarations parse values as arbitrary component-value lists.
+- Functional pseudo-classes that carry selector lists (`:is`, `:where`,
+  `:has`, `:not`, `:local`, `:global`) now surface nested selector-list CST
+  nodes and isolate malformed selector-list items as Bogus selectors.
 - Missing block-close recovery markers represented as `BogusTrivia`.
 - Panic-free tokenizer for CSS-family source slices using char-boundary-safe cursor movement.
 - Initial dialect classification for CSS, SCSS, Sass, and Less tokens.
