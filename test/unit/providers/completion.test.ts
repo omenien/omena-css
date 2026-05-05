@@ -202,6 +202,34 @@ const el = cx('
     });
   });
 
+  it("returns CSS Modules @value completions inside style files", () => {
+    const styleWorkspace = workspace({
+      [STYLE_PATH]: `@value primary: #ff3355;
+.button {
+  color: pri/*|*/;
+}
+`,
+    });
+    const params = completionCursor(styleWorkspace, "cursor", STYLE_PATH, STYLE_URI);
+    const styleDocument = parseStyleDocument(params.content, STYLE_PATH);
+    const result = handleCompletion(
+      params,
+      makeDeps({
+        styleDocumentForPath: () => styleDocument,
+      }),
+    );
+
+    expect(result).not.toBeNull();
+    expect(result![0]).toMatchObject({
+      label: "primary",
+      kind: CompletionItemKind.Variable,
+      detail: "CSS Modules @value",
+      textEdit: {
+        newText: "primary",
+      },
+    });
+  });
+
   it("uses async Rust design-token declaration candidates for style completions", async () => {
     const previousBackend = process.env.CME_SELECTED_QUERY_BACKEND;
     process.env.CME_SELECTED_QUERY_BACKEND = "rust-selected-query";

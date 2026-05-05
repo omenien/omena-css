@@ -4,11 +4,14 @@ import type {
   SassSymbolDeclHIR,
   StylePreprocessorSymbolSyntax,
   StyleDocumentHIR,
+  ValueDeclHIR,
+  ValueImportHIR,
 } from "../../engine-core-ts/src/core/hir/style-types";
 import type { StyleDependencyGraph } from "../../engine-core-ts/src/core/semantic";
 import {
   listCustomPropertyModuleUseDeclTargets,
   listSassModuleExportedSymbols,
+  resolveValueTarget,
   resolveSassModuleUseTarget,
   type SassModulePathAliasResolver,
   type SassModuleResolutionOptions,
@@ -25,7 +28,7 @@ export interface StyleCompletionItem {
   readonly sourceRange?: Range;
   readonly sourceFilePath?: string;
   readonly symbolSyntax?: StylePreprocessorSymbolSyntax;
-  readonly symbolKind: SassSymbolDeclHIR["symbolKind"] | "customProperty";
+  readonly symbolKind: SassSymbolDeclHIR["symbolKind"] | "customProperty" | "value";
 }
 
 type StyleCompletionContext =
@@ -45,6 +48,12 @@ type StyleCompletionContext =
       readonly symbolSyntax?: undefined;
       readonly prefix: string;
       readonly replacementStartCharacter: number;
+    }
+  | {
+      readonly symbolKind: "valueOrFunction";
+      readonly symbolSyntax?: undefined;
+      readonly prefix: string;
+      readonly replacementStartCharacter: number;
     };
 
 interface SassSymbolCompletionDecl {
@@ -61,6 +70,14 @@ interface CustomPropertyCompletionDecl extends Pick<
 > {
   readonly symbolKind: "customProperty";
   readonly sourceFilePath?: string;
+}
+
+interface ValueCompletionDecl extends Pick<ValueDeclHIR, "name" | "range" | "ruleRange"> {
+  readonly symbolKind: "value";
+  readonly sourceKind: "decl" | "import";
+  readonly sourceFilePath?: string;
+  readonly from?: string;
+  readonly importedName?: string;
 }
 
 type CustomPropertyCompletionSourceRank = 1 | 2 | 3;
@@ -90,6 +107,22 @@ export function resolveStyleCompletionItems(args: {
       .filter((decl) => decl.name.startsWith(context.prefix))
       .map((decl) => toCustomPropertyCompletionItem(decl, replacementRange))
       .toSorted((a, b) => a.filterText.localeCompare(b.filterText));
+  }
+
+  if (context.symbolKind === "valueOrFunction") {
+    const valueItems = collectValueCompletionDecls(args)
+      .filter((decl) => decl.name.startsWith(context.prefix))
+      .map((decl) => toValueCompletionItem(decl, replacementRange));
+    const functionItems = collectSassSymbolCompletionDecls(
+      readSassSymbolCompletionDecls(args),
+      "function",
+      undefined,
+      args.line,
+      args.character,
+    )
+      .filter((decl) => completionFilterText(decl).startsWith(context.prefix))
+      .map((decl) => toStyleCompletionItem(decl, replacementRange));
+    return [...valueItems, ...functionItems].toSorted(compareCompletionItems);
   }
 
   const candidates = collectSassSymbolCompletionDecls(
@@ -147,7 +180,15 @@ function readStyleCompletionContext(linePrefix: string): StyleCompletionContext 
   }
 
   const functionName = /([A-Za-z_-][A-Za-z0-9_-]*)$/u.exec(linePrefix);
-  if (!functionName || !isSassFunctionValueContext(linePrefix)) return null;
+  if (!functionName) return null;
+  if (isStyleValueCompletionContext(linePrefix)) {
+    return {
+      symbolKind: "valueOrFunction",
+      prefix: functionName[1]!,
+      replacementStartCharacter: linePrefix.length - functionName[1]!.length,
+    };
+  }
+  if (!isSassFunctionValueContext(linePrefix)) return null;
   return {
     symbolKind: "function",
     prefix: functionName[1]!,
@@ -160,6 +201,17 @@ function isSassFunctionValueContext(linePrefix: string): boolean {
   const lastSemicolon = linePrefix.lastIndexOf(";");
   if (lastColon > lastSemicolon) return true;
   return /@return\s+[\w-]*$/u.test(linePrefix);
+}
+
+function isStyleValueCompletionContext(linePrefix: string): boolean {
+  if (isValueDeclarationValueContext(linePrefix)) return true;
+  const lastColon = linePrefix.lastIndexOf(":");
+  const lastSemicolon = linePrefix.lastIndexOf(";");
+  return lastColon > lastSemicolon;
+}
+
+function isValueDeclarationValueContext(linePrefix: string): boolean {
+  return /@value\s+[\p{L}_-][\p{L}\p{N}\p{M}_-]*\s*:\s*[\p{L}\p{N}\p{M}_-]*$/u.test(linePrefix);
 }
 
 function collectSassSymbolCompletionDecls(
@@ -180,6 +232,81 @@ function collectSassSymbolCompletionDecls(
     results.push(decl);
   }
   return results;
+}
+
+function collectValueCompletionDecls(args: {
+  readonly styleDocument: StyleDocumentHIR;
+  readonly line: number;
+  readonly character: number;
+  readonly styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null;
+}): readonly ValueCompletionDecl[] {
+  const results: ValueCompletionDecl[] = [];
+  const seen = new Set<string>();
+  const containingDeclName = readContainingValueDeclName(
+    args.styleDocument,
+    args.line,
+    args.character,
+  );
+
+  const push = (decl: ValueCompletionDecl) => {
+    if (seen.has(decl.name)) return;
+    seen.add(decl.name);
+    results.push(decl);
+  };
+
+  for (const valueDecl of args.styleDocument.valueDecls) {
+    if (valueDecl.name === containingDeclName) continue;
+    push({
+      symbolKind: "value",
+      sourceKind: "decl",
+      name: valueDecl.name,
+      range: valueDecl.range,
+      ruleRange: valueDecl.ruleRange,
+      sourceFilePath: args.styleDocument.filePath,
+    });
+  }
+  for (const valueImport of args.styleDocument.valueImports) {
+    push(valueCompletionDeclFromImport(args, valueImport));
+  }
+  return results;
+}
+
+function readContainingValueDeclName(
+  styleDocument: StyleDocumentHIR,
+  line: number,
+  character: number,
+): string | null {
+  for (const valueDecl of styleDocument.valueDecls) {
+    if (rangeContains(valueDecl.ruleRange, line, character)) return valueDecl.name;
+  }
+  return null;
+}
+
+function valueCompletionDeclFromImport(
+  args: {
+    readonly styleDocument: StyleDocumentHIR;
+    readonly styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null;
+  },
+  valueImport: ValueImportHIR,
+): ValueCompletionDecl {
+  const resolved = args.styleDocumentForPath
+    ? resolveValueTarget(
+        args.styleDocumentForPath,
+        args.styleDocument.filePath,
+        args.styleDocument,
+        valueImport.name,
+      )
+    : null;
+  return {
+    symbolKind: "value",
+    sourceKind: "import",
+    name: valueImport.name,
+    range: resolved?.valueDecl.range ?? valueImport.range,
+    ruleRange: resolved?.valueDecl.ruleRange ?? valueImport.ruleRange,
+    sourceFilePath: resolved?.filePath ?? args.styleDocument.filePath,
+    from: valueImport.from,
+    importedName: valueImport.importedName,
+  };
 }
 
 function collectCustomPropertyCompletionDecls(args: {
@@ -529,6 +656,30 @@ function toCustomPropertyCompletionItem(
   };
 }
 
+function toValueCompletionItem(
+  decl: ValueCompletionDecl,
+  replacementRange: Range,
+): StyleCompletionItem {
+  return {
+    label: decl.name,
+    detail: valueCompletionDetail(decl),
+    insertText: decl.name,
+    filterText: decl.name,
+    replacementRange,
+    sourceRange: decl.range,
+    ...(decl.sourceFilePath ? { sourceFilePath: decl.sourceFilePath } : {}),
+    symbolKind: "value",
+  };
+}
+
+function valueCompletionDetail(decl: ValueCompletionDecl): string {
+  if (decl.sourceKind === "decl") return "CSS Modules @value";
+  if (decl.importedName && decl.importedName !== decl.name) {
+    return `CSS Modules @value import (${decl.importedName} from ${decl.from ?? "module"})`;
+  }
+  return `CSS Modules @value import from ${decl.from ?? "module"}`;
+}
+
 function isVariableDeclVisible(
   decl: SassSymbolCompletionDecl,
   line: number,
@@ -578,6 +729,26 @@ function completionDetail(decl: SassSymbolCompletionDecl): string {
       return "Sass mixin";
     case "function":
       return "Sass function";
+  }
+}
+
+function compareCompletionItems(a: StyleCompletionItem, b: StyleCompletionItem): number {
+  return (
+    a.filterText.localeCompare(b.filterText) ||
+    completionItemSymbolRank(a.symbolKind) - completionItemSymbolRank(b.symbolKind)
+  );
+}
+
+function completionItemSymbolRank(symbolKind: StyleCompletionItem["symbolKind"]): number {
+  switch (symbolKind) {
+    case "value":
+    case "customProperty":
+      return 0;
+    case "variable":
+      return 1;
+    case "function":
+    case "mixin":
+      return 2;
   }
 }
 

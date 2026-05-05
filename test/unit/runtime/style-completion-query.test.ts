@@ -905,6 +905,99 @@ $secret: 2rem;
     ).toEqual(["ds_typography16"]);
   });
 
+  it("returns same-file CSS Modules @value completions in declaration values", () => {
+    const scss = `@value primary: #ff3355;
+@value spacing: 8px;
+.button {
+  color: pri;
+  margin: spa;
+}
+`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+
+    const colorResult = resolveStyleCompletionItems({
+      content: scss,
+      line: 3,
+      character: 12,
+      styleDocument,
+    });
+    const marginResult = resolveStyleCompletionItems({
+      content: scss,
+      line: 4,
+      character: 13,
+      styleDocument,
+    });
+
+    expect(colorResult.map((item) => item.label)).toEqual(["primary"]);
+    expect(colorResult[0]).toMatchObject({
+      detail: "CSS Modules @value",
+      insertText: "primary",
+      replacementRange: {
+        start: { line: 3, character: 9 },
+        end: { line: 3, character: 12 },
+      },
+      symbolKind: "value",
+    });
+    expect(marginResult.map((item) => item.label)).toEqual(["spacing"]);
+  });
+
+  it("returns imported CSS Modules @value alias completions", () => {
+    const scss = `@value secondary as accent from "./tokens.module.scss";
+.button {
+  color: acc;
+}
+`;
+    const tokensScss = `@value secondary: #ff3355;`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const tokensDocument = parseStyleDocument(tokensScss, TOKENS_PATH);
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 2,
+      character: 12,
+      styleDocument,
+      styleDocumentForPath: styleDocumentMap([styleDocument, tokensDocument]),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["accent"]);
+    expect(result[0]).toMatchObject({
+      detail: "CSS Modules @value import (secondary from ./tokens.module.scss)",
+      insertText: "accent",
+      sourceFilePath: TOKENS_PATH,
+      symbolKind: "value",
+    });
+  });
+
+  it("returns CSS Modules @value completions inside local @value declaration values", () => {
+    const scss = `@value primary: #ff3355;
+@value accent: pri;
+`;
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 1,
+      character: 18,
+      styleDocument: parseStyleDocument(scss, SCSS_PATH),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["primary"]);
+  });
+
+  it("keeps Sass function completions alongside CSS Modules @value completions", () => {
+    const scss = `@function tone($value) { @return $value; }
+@value toneColor: #ff3355;
+.button {
+  color: to;
+}
+`;
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 3,
+      character: 11,
+      styleDocument: parseStyleDocument(scss, SCSS_PATH),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["tone", "toneColor"]);
+  });
+
   it("keeps Sass parameter variables local to their callable body", () => {
     const scss = `$gap: 1rem;
 @mixin raised($depth) {

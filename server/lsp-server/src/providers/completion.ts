@@ -104,10 +104,11 @@ function toStyleCompletionItem(item: StyleCompletionItem): CompletionItem {
 }
 
 function toSassSymbolCompletionKind(
-  symbolKind: SassSymbolDeclHIR["symbolKind"] | "customProperty",
+  symbolKind: SassSymbolDeclHIR["symbolKind"] | "customProperty" | "value",
 ): CompletionItemKind {
   switch (symbolKind) {
     case "customProperty":
+    case "value":
     case "variable":
       return CompletionItemKind.Variable;
     case "mixin":
