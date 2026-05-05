@@ -399,6 +399,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "sassIndentedBlockCstNodes",
             "sassIndentedStyleFacts",
             "differentialCorpusSeed",
+            "midTypingNoPanicPropertySlice",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -5586,6 +5587,39 @@ mod tests {
     }
 
     #[test]
+    fn parses_mid_typing_char_boundary_edits_without_panicking() {
+        let fixtures = [
+            (
+                StyleDialect::Css,
+                ".card { color: color-mix(in oklch, red, blue); }",
+            ),
+            (
+                StyleDialect::Scss,
+                "@use \"tokens\" with ($gap: 1rem); .card { &__아이콘 { color: $gap; } }",
+            ),
+            (
+                StyleDialect::Sass,
+                ".card\n  color: red\n  &__icon\n    color: blue\n",
+            ),
+            (
+                StyleDialect::Less,
+                "@tone: red; .card() when (iscolor(@tone)) { color: @tone; }",
+            ),
+        ];
+        let insertions = [" ", "{", "}", ":", "@media (", "한"];
+
+        for (dialect, source) in fixtures {
+            for offset in char_boundary_offsets(source) {
+                for insertion in insertions {
+                    let mut edited = source.to_string();
+                    edited.insert_str(offset, insertion);
+                    let _ = parse(&edited, dialect);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn extracts_nested_bem_style_facts_with_parent_context() {
         let facts = collect_style_facts(
             ".card { &__icon { &--small { color: red; } } --space: 1rem; color: var(--space); }",
@@ -5917,6 +5951,11 @@ mod tests {
         assert!(
             summary
                 .ready_surfaces
+                .contains(&"midTypingNoPanicPropertySlice")
+        );
+        assert!(
+            summary
+                .ready_surfaces
                 .contains(&"initialDialectStatementNodes")
         );
         assert!(
@@ -5942,6 +5981,14 @@ mod tests {
                 .contains(&"styleFactExtractionSurface")
         );
         assert!(summary.not_ready_surfaces.contains(&"productCutover"));
+    }
+
+    fn char_boundary_offsets(source: &str) -> Vec<usize> {
+        source
+            .char_indices()
+            .map(|(offset, _)| offset)
+            .chain(std::iter::once(source.len()))
+            .collect()
     }
 
     fn node_kinds(node: &SyntaxNode<SyntaxKind>) -> Vec<SyntaxKind> {
