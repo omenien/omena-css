@@ -146,6 +146,7 @@ export interface ExpressionDomainEvaluatorCandidatePayloadV0 {
   readonly valueMayIncludeOtherChars?: boolean;
   readonly finiteValueCount: number;
   readonly valueDomainDerivation: ReducedClassValueDerivationV0;
+  readonly valueDomainProvenanceTree: AbstractClassValueProvenanceTreeV0;
 }
 
 export interface ReducedClassValueDerivationV0 {
@@ -163,7 +164,26 @@ export interface ReducedClassValueDerivationStepV0 {
   readonly inputKind?: string;
   readonly refinementKind?: string;
   readonly resultKind: string;
+  readonly resultProvenance?: string;
   readonly reason: string;
+}
+
+export interface AbstractClassValueProvenanceTreeV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly valueKind: string;
+  readonly value: unknown;
+  readonly valueProvenance?: string;
+  readonly root: AbstractClassValueProvenanceNodeV0;
+}
+
+export interface AbstractClassValueProvenanceNodeV0 {
+  readonly operation: string;
+  readonly resultKind: string;
+  readonly resultProvenance?: string;
+  readonly detail?: string;
+  readonly reason: string;
+  readonly children: readonly AbstractClassValueProvenanceNodeV0[];
 }
 
 export interface ExpressionDomainEvaluatorCandidateV0 {
@@ -536,6 +556,7 @@ export interface ExpressionSemanticsEvaluatorCandidatePayloadV0 {
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
   readonly valueDomainDerivation: ReducedClassValueDerivationV0;
+  readonly valueDomainProvenanceTree: AbstractClassValueProvenanceTreeV0;
 }
 
 export interface ExpressionSemanticsEvaluatorCandidateV0 {
@@ -1556,6 +1577,7 @@ type ExpressionValueDomainPayloadLike = {
   readonly valueCharMust?: string;
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
+  readonly valueProvenance?: string;
   readonly finiteValues?: readonly string[] | null;
 };
 
@@ -1654,6 +1676,600 @@ function deriveReducedExpressionValueDomainDerivation(
     reducedKind:
       inputFactKind === "unknown" ? "none" : currentKind === "unknown" ? "none" : currentKind,
     steps,
+  };
+}
+
+function deriveReducedExpressionValueDomainProvenanceTree(
+  payload: ExpressionValueDomainPayloadLike,
+): AbstractClassValueProvenanceTreeV0 {
+  const value = deriveReducedExpressionAbstractValue(payload);
+  const valueKind = value.kind;
+  const valueProvenance = provenanceForExpressionAbstractValue(value);
+  const rootDetail = provenanceTreeRootDetail(value);
+
+  return {
+    schemaVersion: "0",
+    product: "omena-abstract-value.provenance-tree",
+    valueKind,
+    value,
+    ...(valueProvenance ? { valueProvenance } : {}),
+    root: {
+      operation: provenanceTreeRootOperation(value, valueProvenance),
+      resultKind: valueKind,
+      ...(valueProvenance ? { resultProvenance: valueProvenance } : {}),
+      ...(rootDetail ? { detail: rootDetail } : {}),
+      reason: provenanceTreeRootReason(value, valueProvenance),
+      children: provenanceTreeConstraintChildren(value),
+    },
+  };
+}
+
+function deriveReducedExpressionAbstractValue(
+  payload: ExpressionValueDomainPayloadLike,
+): AbstractClassValueV0 {
+  const inputFactKind = payload.valueDomainKind === "none" ? "unknown" : payload.valueDomainKind;
+  let value = baseExpressionAbstractValue(payload);
+
+  if (
+    hasExpressionValueConstraintDetails(payload) &&
+    (inputFactKind === "exact" || inputFactKind === "finiteSet")
+  ) {
+    value = intersectExpressionAbstractValues(value, constraintExpressionAbstractValue(payload));
+  }
+
+  if (
+    inputFactKind !== "exact" &&
+    inputFactKind !== "finiteSet" &&
+    payload.finiteValues != null &&
+    payload.finiteValues.length > 0
+  ) {
+    value = intersectExpressionAbstractValues(
+      value,
+      finiteSetExpressionAbstractValue(payload.finiteValues),
+    );
+  }
+
+  return value;
+}
+
+function baseExpressionAbstractValue(
+  payload: ExpressionValueDomainPayloadLike,
+): AbstractClassValueV0 {
+  switch (payload.valueDomainKind) {
+    case "exact":
+      return payload.finiteValues?.length
+        ? exactExpressionAbstractValue(payload.finiteValues[0] ?? "")
+        : topExpressionAbstractValue();
+    case "finiteSet":
+      return finiteSetExpressionAbstractValue(payload.finiteValues ?? []);
+    case "constrained":
+      return constraintExpressionAbstractValue(payload);
+    case "none":
+    case "unknown":
+    case "top":
+    default:
+      return topExpressionAbstractValue();
+  }
+}
+
+function constraintExpressionAbstractValue(
+  payload: ExpressionValueDomainPayloadLike,
+): AbstractClassValueV0 {
+  switch (payload.valueConstraintKind) {
+    case "prefix":
+      return prefixExpressionAbstractValue(payload.valuePrefix ?? "");
+    case "suffix":
+      return suffixExpressionAbstractValue(payload.valueSuffix ?? "");
+    case "prefixSuffix":
+      return prefixSuffixExpressionAbstractValue(
+        payload.valuePrefix ?? "",
+        payload.valueSuffix ?? "",
+        payload.valueMinLen,
+      );
+    case "charInclusion":
+      return charInclusionExpressionAbstractValue(
+        payload.valueCharMust ?? "",
+        payload.valueCharMay ?? "",
+        payload.valueMayIncludeOtherChars ?? false,
+      );
+    case "composite":
+      return compositeExpressionAbstractValue({
+        ...(payload.valuePrefix !== undefined ? { prefix: payload.valuePrefix } : {}),
+        ...(payload.valueSuffix !== undefined ? { suffix: payload.valueSuffix } : {}),
+        ...(payload.valueMinLen !== undefined ? { minLength: payload.valueMinLen } : {}),
+        mustChars: payload.valueCharMust ?? "",
+        mayChars: payload.valueCharMay ?? "",
+        mayIncludeOtherChars: payload.valueMayIncludeOtherChars ?? false,
+      });
+    default:
+      return topExpressionAbstractValue();
+  }
+}
+
+function intersectExpressionAbstractValues(
+  left: AbstractClassValueV0,
+  right: AbstractClassValueV0,
+): AbstractClassValueV0 {
+  if (left.kind === "bottom" || right.kind === "bottom") return bottomExpressionAbstractValue();
+  if (left.kind === "top") return right;
+  if (right.kind === "top") return left;
+
+  const leftValues = enumerateFiniteExpressionAbstractValues(left);
+  const rightValues = enumerateFiniteExpressionAbstractValues(right);
+
+  if (leftValues && rightValues) {
+    const rightValueSet = new Set(rightValues);
+    return finiteSetExpressionAbstractValue(leftValues.filter((value) => rightValueSet.has(value)));
+  }
+
+  if (leftValues) {
+    return finiteSetExpressionAbstractValue(
+      leftValues.filter((value) => expressionAbstractValueMatchesString(right, value)),
+    );
+  }
+
+  if (rightValues) {
+    return finiteSetExpressionAbstractValue(
+      rightValues.filter((value) => expressionAbstractValueMatchesString(left, value)),
+    );
+  }
+
+  return bottomExpressionAbstractValue();
+}
+
+function bottomExpressionAbstractValue(): AbstractClassValueV0 {
+  return { kind: "bottom" };
+}
+
+function topExpressionAbstractValue(): AbstractClassValueV0 {
+  return { kind: "top" };
+}
+
+function exactExpressionAbstractValue(value: string): AbstractClassValueV0 {
+  return { kind: "exact", value };
+}
+
+function finiteSetExpressionAbstractValue(values: readonly string[]): AbstractClassValueV0 {
+  const normalizedValues = normalizeExpressionValues(values);
+  if (normalizedValues.length === 0) return bottomExpressionAbstractValue();
+  if (normalizedValues.length === 1) return exactExpressionAbstractValue(normalizedValues[0] ?? "");
+  if (normalizedValues.length <= MAX_EXPECTED_FINITE_CLASS_VALUES) {
+    return { kind: "finiteSet", values: normalizedValues };
+  }
+
+  const prefix = meaningfulExpressionLongestCommonPrefix(normalizedValues);
+  const suffix = meaningfulExpressionLongestCommonSuffix(normalizedValues);
+  const { mustChars, mayChars } = charInclusionFromExpressionFiniteValues(normalizedValues);
+
+  if (prefix.length > 0 || suffix.length > 0) {
+    return compositeExpressionAbstractValue({
+      ...(prefix.length > 0 ? { prefix } : {}),
+      ...(suffix.length > 0 ? { suffix } : {}),
+      minLength: Math.min(...normalizedValues.map((value) => value.length)),
+      mustChars,
+      mayChars,
+      provenance: "finiteSetWideningComposite",
+    });
+  }
+
+  return charInclusionExpressionAbstractValue(mustChars, mayChars, false, "finiteSetWideningChars");
+}
+
+function prefixExpressionAbstractValue(prefix: string, provenance?: string): AbstractClassValueV0 {
+  return provenance ? { kind: "prefix", prefix, provenance } : { kind: "prefix", prefix };
+}
+
+function suffixExpressionAbstractValue(suffix: string, provenance?: string): AbstractClassValueV0 {
+  return provenance ? { kind: "suffix", suffix, provenance } : { kind: "suffix", suffix };
+}
+
+function prefixSuffixExpressionAbstractValue(
+  prefix: string,
+  suffix: string,
+  minLength?: number,
+  provenance?: string,
+): AbstractClassValueV0 {
+  if (prefix.length === 0 && suffix.length === 0) return topExpressionAbstractValue();
+  if (prefix.length === 0) return suffixExpressionAbstractValue(suffix, provenance);
+  if (suffix.length === 0) return prefixExpressionAbstractValue(prefix, provenance);
+
+  const value = {
+    kind: "prefixSuffix",
+    prefix,
+    suffix,
+    minLength: Math.max(minLength ?? prefix.length + suffix.length, prefix.length + suffix.length),
+  };
+  return provenance ? { ...value, provenance } : value;
+}
+
+function charInclusionExpressionAbstractValue(
+  mustChars: string,
+  mayChars: string,
+  mayIncludeOtherChars: boolean,
+  provenance?: string,
+): AbstractClassValueV0 {
+  const normalizedMustChars = normalizeExpressionCharSet(mustChars);
+  const normalizedMayChars = normalizeExpressionCharSet(`${mayChars}${normalizedMustChars}`);
+  if (mayIncludeOtherChars && normalizedMustChars.length === 0) return topExpressionAbstractValue();
+  if (!mayIncludeOtherChars && normalizedMayChars.length === 0) return topExpressionAbstractValue();
+
+  const value = {
+    kind: "charInclusion",
+    mustChars: normalizedMustChars,
+    mayChars: normalizedMayChars,
+    ...(mayIncludeOtherChars ? { mayIncludeOtherChars: true } : {}),
+  };
+  return provenance ? { ...value, provenance } : value;
+}
+
+function compositeExpressionAbstractValue(input: {
+  readonly prefix?: string;
+  readonly suffix?: string;
+  readonly minLength?: number;
+  readonly mustChars: string;
+  readonly mayChars: string;
+  readonly mayIncludeOtherChars?: boolean;
+  readonly provenance?: string;
+}): AbstractClassValueV0 {
+  const prefix = input.prefix ?? "";
+  const suffix = input.suffix ?? "";
+  const edgeChars = normalizeExpressionCharSet(`${prefix}${suffix}`);
+  const mustChars = normalizeExpressionCharSet(`${input.mustChars}${edgeChars}`);
+  const mayChars = normalizeExpressionCharSet(`${input.mayChars}${mustChars}`);
+  const mayIncludeOtherChars = input.mayIncludeOtherChars ?? false;
+  const hasCharInfo = mustChars.length > 0 || (!mayIncludeOtherChars && mayChars.length > 0);
+
+  if (!hasCharInfo) {
+    return prefixSuffixExpressionAbstractValue(prefix, suffix, input.minLength, input.provenance);
+  }
+
+  if (prefix.length === 0 && suffix.length === 0) {
+    return charInclusionExpressionAbstractValue(
+      mustChars,
+      mayChars,
+      mayIncludeOtherChars,
+      input.provenance,
+    );
+  }
+
+  const edgeMinLength = prefix.length + suffix.length;
+  const minLength = Math.max(input.minLength ?? edgeMinLength, edgeMinLength, mustChars.length);
+  const value = {
+    kind: "composite",
+    ...(prefix.length > 0 ? { prefix } : {}),
+    ...(suffix.length > 0 ? { suffix } : {}),
+    minLength,
+    mustChars,
+    mayChars,
+    ...(mayIncludeOtherChars ? { mayIncludeOtherChars: true } : {}),
+  };
+  return input.provenance ? { ...value, provenance: input.provenance } : value;
+}
+
+function enumerateFiniteExpressionAbstractValues(
+  value: AbstractClassValueV0,
+): readonly string[] | null {
+  if (value.kind === "bottom") return [];
+  if (value.kind === "exact" && typeof value.value === "string") return [value.value];
+  if (value.kind === "finiteSet" && Array.isArray(value.values)) {
+    return value.values.filter((item): item is string => typeof item === "string");
+  }
+  return null;
+}
+
+function expressionAbstractValueMatchesString(
+  value: AbstractClassValueV0,
+  candidate: string,
+): boolean {
+  switch (value.kind) {
+    case "bottom":
+      return false;
+    case "exact":
+      return value.value === candidate;
+    case "finiteSet":
+      return Array.isArray(value.values) && value.values.includes(candidate);
+    case "prefix":
+      return typeof value.prefix === "string" && candidate.startsWith(value.prefix);
+    case "suffix":
+      return typeof value.suffix === "string" && candidate.endsWith(value.suffix);
+    case "prefixSuffix":
+      return (
+        typeof value.prefix === "string" &&
+        typeof value.suffix === "string" &&
+        typeof value.minLength === "number" &&
+        candidate.startsWith(value.prefix) &&
+        candidate.endsWith(value.suffix) &&
+        candidate.length >= value.minLength
+      );
+    case "charInclusion":
+      return expressionValueMatchesCharConstraint(
+        {
+          valueDomainKind: "constrained",
+          valueConstraintKind: "charInclusion",
+          valueCharMust: typeof value.mustChars === "string" ? value.mustChars : "",
+          valueCharMay: typeof value.mayChars === "string" ? value.mayChars : "",
+          valueMayIncludeOtherChars: value.mayIncludeOtherChars === true,
+        },
+        candidate,
+      );
+    case "composite":
+      return (
+        (typeof value.prefix !== "string" || candidate.startsWith(value.prefix)) &&
+        (typeof value.suffix !== "string" || candidate.endsWith(value.suffix)) &&
+        (typeof value.minLength !== "number" || candidate.length >= value.minLength) &&
+        expressionValueMatchesCharConstraint(
+          {
+            valueDomainKind: "constrained",
+            valueConstraintKind: "charInclusion",
+            valueCharMust: typeof value.mustChars === "string" ? value.mustChars : "",
+            valueCharMay: typeof value.mayChars === "string" ? value.mayChars : "",
+            valueMayIncludeOtherChars: value.mayIncludeOtherChars === true,
+          },
+          candidate,
+        )
+      );
+    case "top":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function normalizeExpressionValues(values: readonly string[]): readonly string[] {
+  return [...new Set(values)].toSorted((a, b) => a.localeCompare(b));
+}
+
+function normalizeExpressionCharSet(value: string): string {
+  return [...new Set(value)].toSorted((a, b) => a.localeCompare(b)).join("");
+}
+
+function intersectExpressionCharSets(left: string, right: string): string {
+  const rightChars = new Set(right);
+  return normalizeExpressionCharSet([...left].filter((char) => rightChars.has(char)).join(""));
+}
+
+function charInclusionFromExpressionFiniteValues(values: readonly string[]): {
+  readonly mustChars: string;
+  readonly mayChars: string;
+} {
+  const [first, ...rest] = values.map(normalizeExpressionCharSet);
+  if (first === undefined) return { mustChars: "", mayChars: "" };
+
+  return rest.reduce(
+    (acc, value) => ({
+      mustChars: intersectExpressionCharSets(acc.mustChars, value),
+      mayChars: normalizeExpressionCharSet(`${acc.mayChars}${value}`),
+    }),
+    { mustChars: first, mayChars: first },
+  );
+}
+
+function meaningfulExpressionLongestCommonPrefix(values: readonly string[]): string {
+  const prefix = longestExpressionCommonPrefix(values);
+  if (prefix.length === 0) return "";
+  return isMeaningfulExpressionClassPrefix(prefix, values) ? prefix : "";
+}
+
+function meaningfulExpressionLongestCommonSuffix(values: readonly string[]): string {
+  const suffix = longestExpressionCommonSuffix(values);
+  if (suffix.length === 0) return "";
+  return isMeaningfulExpressionClassSuffix(suffix, values) ? suffix : "";
+}
+
+function longestExpressionCommonPrefix(values: readonly string[]): string {
+  const [first, ...rest] = values;
+  if (first === undefined) return "";
+  return rest.reduce((prefix, value) => {
+    let matchLength = 0;
+    while (
+      matchLength < prefix.length &&
+      matchLength < value.length &&
+      prefix[matchLength] === value[matchLength]
+    ) {
+      matchLength++;
+    }
+    return prefix.slice(0, matchLength);
+  }, first);
+}
+
+function longestExpressionCommonSuffix(values: readonly string[]): string {
+  return [...longestExpressionCommonPrefix(values.map((value) => [...value].toReversed().join("")))]
+    .toReversed()
+    .join("");
+}
+
+function isMeaningfulExpressionClassPrefix(prefix: string, values: readonly string[]): boolean {
+  if (prefix.length === 0) return false;
+  if (isExpressionClassBoundaryChar(prefix[prefix.length - 1])) return true;
+  return values.every(
+    (value) =>
+      value.length === prefix.length || isExpressionClassBoundaryChar(value[prefix.length]),
+  );
+}
+
+function isMeaningfulExpressionClassSuffix(suffix: string, values: readonly string[]): boolean {
+  if (suffix.length === 0) return false;
+  if (isExpressionClassBoundaryChar(suffix[0])) return true;
+  return values.every(
+    (value) =>
+      value.length === suffix.length ||
+      isExpressionClassBoundaryChar(value[value.length - suffix.length - 1]),
+  );
+}
+
+function isExpressionClassBoundaryChar(char: string | undefined): boolean {
+  return char === "-" || char === "_" || char === ":";
+}
+
+function provenanceForExpressionAbstractValue(value: AbstractClassValueV0): string | undefined {
+  return typeof value.provenance === "string" ? value.provenance : undefined;
+}
+
+function provenanceTreeRootOperation(
+  value: AbstractClassValueV0,
+  provenance: string | undefined,
+): string {
+  switch (provenance) {
+    case "finiteSetWideningChars":
+    case "finiteSetWideningComposite":
+      return "finiteSetWidening";
+    case "prefixJoinLcp":
+      return "prefixJoinLongestCommonPrefix";
+    case "suffixJoinLcs":
+      return "suffixJoinLongestCommonSuffix";
+    case "prefixSuffixJoin":
+    case "compositeJoin":
+      return "reducedProductJoin";
+    case "compositeConcat":
+      return "reducedProductConcat";
+    case undefined:
+      switch (value.kind) {
+        case "bottom":
+          return "bottomDomain";
+        case "exact":
+          return "exactLiteral";
+        case "finiteSet":
+          return "finiteSetDomain";
+        case "prefix":
+        case "suffix":
+        case "prefixSuffix":
+        case "charInclusion":
+        case "composite":
+          return "constraintDomain";
+        case "top":
+          return "topDomain";
+        default:
+          return "unknownDomain";
+      }
+    default:
+      return "constraintDomain";
+  }
+}
+
+function provenanceTreeRootReason(
+  value: AbstractClassValueV0,
+  provenance: string | undefined,
+): string {
+  switch (provenance) {
+    case "finiteSetWideningChars":
+      return "large finite set widened to character constraints";
+    case "finiteSetWideningComposite":
+      return "large finite set widened to preserved edge and character constraints";
+    case "prefixJoinLcp":
+      return "branch merge retained the meaningful longest common prefix";
+    case "suffixJoinLcs":
+      return "branch merge retained the meaningful longest common suffix";
+    case "prefixSuffixJoin":
+    case "compositeJoin":
+      return "reduced product combined compatible constraints from multiple domains";
+    case "compositeConcat":
+      return "reduced product concatenated compatible constraints without widening to top";
+    case undefined:
+      switch (value.kind) {
+        case "bottom":
+          return "no class value can satisfy the current constraints";
+        case "exact":
+          return "the class value is known exactly";
+        case "finiteSet":
+          return "the class value is one of a bounded set";
+        case "prefix":
+        case "suffix":
+        case "prefixSuffix":
+        case "charInclusion":
+        case "composite":
+          return "the class value is represented by explicit domain constraints";
+        case "top":
+          return "the class value is unconstrained";
+        default:
+          return "the class value provenance is unknown";
+      }
+    default:
+      return "the class value is represented by explicit domain constraints";
+  }
+}
+
+function provenanceTreeRootDetail(value: AbstractClassValueV0): string | undefined {
+  if (value.kind === "exact" && typeof value.value === "string") return `value=${value.value}`;
+  if (value.kind === "finiteSet" && Array.isArray(value.values)) {
+    return `valueCount=${value.values.length}`;
+  }
+  return undefined;
+}
+
+function provenanceTreeConstraintChildren(
+  value: AbstractClassValueV0,
+): readonly AbstractClassValueProvenanceNodeV0[] {
+  const children: AbstractClassValueProvenanceNodeV0[] = [];
+
+  if (value.kind === "prefix" && typeof value.prefix === "string") {
+    children.push(provenanceConstraintNode("prefixConstraint", "prefix", value.prefix));
+  }
+  if (value.kind === "suffix" && typeof value.suffix === "string") {
+    children.push(provenanceConstraintNode("suffixConstraint", "suffix", value.suffix));
+  }
+  if (value.kind === "prefixSuffix") {
+    if (typeof value.prefix === "string") {
+      children.push(provenanceConstraintNode("prefixConstraint", "prefix", value.prefix));
+    }
+    if (typeof value.suffix === "string") {
+      children.push(provenanceConstraintNode("suffixConstraint", "suffix", value.suffix));
+    }
+    if (typeof value.minLength === "number") {
+      children.push(
+        provenanceConstraintNode("lengthConstraint", "minLength", String(value.minLength)),
+      );
+    }
+  }
+  if (value.kind === "charInclusion" || value.kind === "composite") {
+    if (value.kind === "composite") {
+      if (typeof value.prefix === "string") {
+        children.push(provenanceConstraintNode("prefixConstraint", "prefix", value.prefix));
+      }
+      if (typeof value.suffix === "string") {
+        children.push(provenanceConstraintNode("suffixConstraint", "suffix", value.suffix));
+      }
+      if (typeof value.minLength === "number") {
+        children.push(
+          provenanceConstraintNode("lengthConstraint", "minLength", String(value.minLength)),
+        );
+      }
+    }
+    pushProvenanceCharConstraintChildren(
+      children,
+      typeof value.mustChars === "string" ? value.mustChars : "",
+      typeof value.mayChars === "string" ? value.mayChars : "",
+      value.mayIncludeOtherChars === true,
+    );
+  }
+
+  return children;
+}
+
+function pushProvenanceCharConstraintChildren(
+  children: AbstractClassValueProvenanceNodeV0[],
+  mustChars: string,
+  mayChars: string,
+  mayIncludeOtherChars: boolean,
+) {
+  if (mustChars.length > 0) {
+    children.push(provenanceConstraintNode("characterMustConstraint", "mustChars", mustChars));
+  }
+  if (!mayIncludeOtherChars) {
+    children.push(provenanceConstraintNode("characterMayConstraint", "mayChars", mayChars));
+  }
+}
+
+function provenanceConstraintNode(
+  operation: string,
+  label: string,
+  value: string,
+): AbstractClassValueProvenanceNodeV0 {
+  return {
+    operation,
+    resultKind: "constraint",
+    detail: `${label}=${value}`,
+    reason: "constraint retained by the abstract value domain",
+    children: [],
   };
 }
 
@@ -1815,6 +2431,7 @@ export function deriveTsExpressionDomainEvaluatorCandidates(
             : {}),
           finiteValueCount: entry.facts.values?.length ?? 0,
           valueDomainDerivation: deriveReducedExpressionValueDomainDerivation(payload),
+          valueDomainProvenanceTree: deriveReducedExpressionValueDomainProvenanceTree(payload),
         },
       };
     })
@@ -2566,49 +3183,54 @@ export function deriveTsExpressionSemanticsEvaluatorCandidates(
   snapshot: EngineParitySnapshotV2,
 ): ExpressionSemanticsEvaluatorCandidatesV0 {
   const results = collectSourceSideInputRows(snapshot)
-    .map((row) => ({
-      kind: "expression-semantics" as const,
-      filePath: row.entry.filePath,
-      queryId: row.entry.expressionId,
-      payload: {
-        expressionId: row.entry.expressionId,
-        expressionKind: row.expression.kind,
-        styleFilePath: row.expression.scssModulePath,
-        selectorNames: row.selectorNames,
-        candidateNames: row.candidateNames,
-        ...(row.finiteValues !== undefined ? { finiteValues: row.finiteValues } : {}),
-        valueDomainKind: mapInputExpressionValueDomainKind(row.entry.facts),
-        selectorCertainty: row.selectorCertainty,
-        ...(row.valueCertainty !== undefined ? { valueCertainty: row.valueCertainty } : {}),
-        selectorCertaintyShapeKind: row.selectorCertaintyShapeKind,
-        selectorCertaintyShapeLabel: row.selectorCertaintyShapeLabel,
-        valueCertaintyShapeKind: row.valueCertaintyShapeKind,
-        valueCertaintyShapeLabel: row.valueCertaintyShapeLabel,
-        ...(row.entry.facts.constraintKind !== undefined
-          ? { selectorConstraintKind: row.entry.facts.constraintKind }
-          : {}),
-        ...(row.entry.facts.constraintKind !== undefined
-          ? { valueCertaintyConstraintKind: row.entry.facts.constraintKind }
-          : {}),
-        ...(row.entry.facts.constraintKind !== undefined
-          ? { valueConstraintKind: row.entry.facts.constraintKind }
-          : {}),
-        ...(row.entry.facts.prefix !== undefined ? { valuePrefix: row.entry.facts.prefix } : {}),
-        ...(row.entry.facts.suffix !== undefined ? { valueSuffix: row.entry.facts.suffix } : {}),
-        ...(row.entry.facts.minLen !== undefined ? { valueMinLen: row.entry.facts.minLen } : {}),
-        ...(row.entry.facts.maxLen !== undefined ? { valueMaxLen: row.entry.facts.maxLen } : {}),
-        ...(row.entry.facts.charMust !== undefined
-          ? { valueCharMust: row.entry.facts.charMust }
-          : {}),
-        ...(row.entry.facts.charMay !== undefined ? { valueCharMay: row.entry.facts.charMay } : {}),
-        ...(row.entry.facts.mayIncludeOtherChars !== undefined
-          ? { valueMayIncludeOtherChars: row.entry.facts.mayIncludeOtherChars }
-          : {}),
-        valueDomainDerivation: deriveReducedExpressionValueDomainDerivation(
-          expressionValueDomainPayloadFromInputFacts(row.entry.facts),
-        ),
-      },
-    }))
+    .map((row) => {
+      const valueDomainPayload = expressionValueDomainPayloadFromInputFacts(row.entry.facts);
+      return {
+        kind: "expression-semantics" as const,
+        filePath: row.entry.filePath,
+        queryId: row.entry.expressionId,
+        payload: {
+          expressionId: row.entry.expressionId,
+          expressionKind: row.expression.kind,
+          styleFilePath: row.expression.scssModulePath,
+          selectorNames: row.selectorNames,
+          candidateNames: row.candidateNames,
+          ...(row.finiteValues !== undefined ? { finiteValues: row.finiteValues } : {}),
+          valueDomainKind: mapInputExpressionValueDomainKind(row.entry.facts),
+          selectorCertainty: row.selectorCertainty,
+          ...(row.valueCertainty !== undefined ? { valueCertainty: row.valueCertainty } : {}),
+          selectorCertaintyShapeKind: row.selectorCertaintyShapeKind,
+          selectorCertaintyShapeLabel: row.selectorCertaintyShapeLabel,
+          valueCertaintyShapeKind: row.valueCertaintyShapeKind,
+          valueCertaintyShapeLabel: row.valueCertaintyShapeLabel,
+          ...(row.entry.facts.constraintKind !== undefined
+            ? { selectorConstraintKind: row.entry.facts.constraintKind }
+            : {}),
+          ...(row.entry.facts.constraintKind !== undefined
+            ? { valueCertaintyConstraintKind: row.entry.facts.constraintKind }
+            : {}),
+          ...(row.entry.facts.constraintKind !== undefined
+            ? { valueConstraintKind: row.entry.facts.constraintKind }
+            : {}),
+          ...(row.entry.facts.prefix !== undefined ? { valuePrefix: row.entry.facts.prefix } : {}),
+          ...(row.entry.facts.suffix !== undefined ? { valueSuffix: row.entry.facts.suffix } : {}),
+          ...(row.entry.facts.minLen !== undefined ? { valueMinLen: row.entry.facts.minLen } : {}),
+          ...(row.entry.facts.maxLen !== undefined ? { valueMaxLen: row.entry.facts.maxLen } : {}),
+          ...(row.entry.facts.charMust !== undefined
+            ? { valueCharMust: row.entry.facts.charMust }
+            : {}),
+          ...(row.entry.facts.charMay !== undefined
+            ? { valueCharMay: row.entry.facts.charMay }
+            : {}),
+          ...(row.entry.facts.mayIncludeOtherChars !== undefined
+            ? { valueMayIncludeOtherChars: row.entry.facts.mayIncludeOtherChars }
+            : {}),
+          valueDomainDerivation: deriveReducedExpressionValueDomainDerivation(valueDomainPayload),
+          valueDomainProvenanceTree:
+            deriveReducedExpressionValueDomainProvenanceTree(valueDomainPayload),
+        },
+      };
+    })
     .toSorted((a, b) => a.queryId.localeCompare(b.queryId));
 
   return {
