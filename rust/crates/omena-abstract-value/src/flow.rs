@@ -7,6 +7,25 @@ use omena_incremental::{
 
 use crate::*;
 
+pub fn summarize_omena_abstract_value_flow_analysis() -> AbstractValueFlowAnalysisSummaryV0 {
+    AbstractValueFlowAnalysisSummaryV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.flow-analysis",
+        context_sensitivity: "1-cfa",
+        incremental_engine: "omena-incremental",
+        analysis_scopes: vec![
+            "singleContext",
+            "multiContextBatch",
+            "callSiteBatch",
+            "kLimitedCallSiteBatch",
+            "controlFlowGraph",
+        ],
+        reuse_policy: "reuse previous context analysis when its omena-incremental plan is clean",
+        transfer_kinds: vec!["assignFacts", "refineFacts", "concatFacts", "join"],
+        max_iterations: MAX_FLOW_ANALYSIS_ITERATIONS,
+    }
+}
+
 pub fn analyze_class_value_flow(graph: &ClassValueFlowGraphV0) -> ClassValueFlowAnalysisV0 {
     let mut values = graph
         .nodes
