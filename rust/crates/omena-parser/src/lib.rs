@@ -338,6 +338,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "lessMixinCallCstNodes",
             "lessMixinGuardCstNodes",
             "lessExtendPseudoCstNodes",
+            "lessDetachedRulesetCstNodes",
             "lessEscapedStringTokenization",
             "lessEscapedStringValueCstNodes",
             "importantAnnotationTokenization",
@@ -810,14 +811,45 @@ impl<'text> Parser<'text> {
         self.token_current();
         if self.current_kind() == Some(SyntaxKind::Colon) {
             self.token_current();
-            self.builder.start_node(SyntaxKind::Value);
-            self.parse_value_until(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
-            self.builder.finish_node();
+            self.eat_value_trivia();
+            if kind == SyntaxKind::LessVariableDeclaration
+                && self.current_kind() == Some(SyntaxKind::LeftBrace)
+            {
+                self.parse_less_detached_ruleset();
+            } else {
+                self.builder.start_node(SyntaxKind::Value);
+                self.parse_value_until(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
+                self.builder.finish_node();
+            }
         } else {
             self.consume_until_recovery(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
         }
         if self.current_kind() == Some(SyntaxKind::Semicolon) {
             self.token_current();
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_less_detached_ruleset(&mut self) {
+        let closed = self.current_left_brace_has_match();
+        self.builder.start_node(if closed {
+            SyntaxKind::LessDetachedRulesetNode
+        } else {
+            SyntaxKind::BogusLessDetachedRuleset
+        });
+        if self.current_kind() == Some(SyntaxKind::LeftBrace) {
+            self.token_current();
+            self.builder.start_node(SyntaxKind::DeclarationList);
+            self.parse_declaration_list();
+            self.builder.finish_node();
+        }
+        if self.current_kind() == Some(SyntaxKind::RightBrace) {
+            self.token_current();
+        } else {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "unterminated Less detached ruleset",
+            );
         }
         self.builder.finish_node();
     }
@@ -1517,6 +1549,23 @@ impl<'text> Parser<'text> {
                             .get(index)
                             .is_some_and(|token| token.text == "extend")
                 })
+    }
+
+    fn current_left_brace_has_match(&self) -> bool {
+        let mut depth = 0usize;
+        for token in self.tokens.iter().skip(self.position) {
+            match token.kind {
+                SyntaxKind::LeftBrace => depth += 1,
+                SyntaxKind::RightBrace => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
     }
 
     fn token_current(&mut self) {
@@ -3424,6 +3473,37 @@ mod tests {
     }
 
     #[test]
+    fn parses_less_detached_ruleset_variable_values() {
+        let result = parse(
+            "@rules: { color: red; .rounded(); }; .card { color: blue; }",
+            StyleDialect::Less,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::LessVariableDeclaration));
+        assert!(kinds.contains(&SyntaxKind::LessDetachedRulesetNode));
+        assert!(kinds.contains(&SyntaxKind::DeclarationList));
+        assert!(kinds.contains(&SyntaxKind::Declaration));
+        assert!(kinds.contains(&SyntaxKind::LessMixinCall));
+        assert!(kinds.contains(&SyntaxKind::Rule));
+    }
+
+    #[test]
+    fn recovers_unclosed_less_detached_rulesets_as_bogus() {
+        let result = parse("@rules: { color: red;", StyleDialect::Less);
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(kinds.contains(&SyntaxKind::BogusLessDetachedRuleset));
+        assert!(
+            result
+                .errors()
+                .iter()
+                .any(|error| error.code == ParseErrorCode::UnexpectedCharacter)
+        );
+    }
+
+    #[test]
     fn extracts_initial_style_facts_from_parser_surface() {
         let facts = collect_style_facts(
             "@use \"tokens\"; $gap: 1rem; .card#main { --space: $gap; }",
@@ -3599,6 +3679,11 @@ mod tests {
         assert!(summary.ready_surfaces.contains(&"lessMixinCallCstNodes"));
         assert!(summary.ready_surfaces.contains(&"lessMixinGuardCstNodes"));
         assert!(summary.ready_surfaces.contains(&"lessExtendPseudoCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"lessDetachedRulesetCstNodes")
+        );
         assert!(
             summary
                 .ready_surfaces
