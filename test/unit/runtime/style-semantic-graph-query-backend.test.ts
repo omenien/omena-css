@@ -510,6 +510,70 @@ describe("style semantic graph query backend", () => {
     expect(cardGraph?.selectorReferenceEngine.stylePath).toBe(CARD_SCSS_PATH);
   });
 
+  it("passes package manifests into cached multi-style graph batch reads", () => {
+    const packageJsonPath = "/fake/ws/node_modules/@design/tokens/package.json";
+    const packageJsonSource = `{"exports":{"./theme":{"style":"./dist/theme.css"}}}`;
+    const deps = makeBaseDeps({
+      selectorMapForPath: (filePath) =>
+        filePath === SCSS_PATH
+          ? new Map([["button", infoAtLine("button", 1)]])
+          : filePath === CARD_SCSS_PATH
+            ? new Map([["card", infoAtLine("card", 1)]])
+            : null,
+      readStyleFile: (filePath) =>
+        filePath === SCSS_PATH
+          ? `@use "@design/tokens/theme";\n.button { color: var(--brand); }`
+          : filePath === CARD_SCSS_PATH
+            ? CARD_SCSS_SOURCE
+            : filePath === packageJsonPath
+              ? packageJsonSource
+              : null,
+      workspaceRoot: "/fake/ws",
+    });
+    let batchInput: StyleSemanticGraphBatchRunnerInputV0 | null = null;
+
+    resolveRustStyleSemanticGraphForWorkspaceTarget(
+      {
+        workspaceRoot: "/fake/ws",
+        classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+        pathAlias: DEFAULT_SETTINGS.pathAlias,
+      },
+      {
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      SCSS_PATH,
+      {
+        sourceDocuments: [],
+        styleFiles: [SCSS_PATH, CARD_SCSS_PATH],
+        styleSemanticGraphCache: new Map(),
+        runRustSelectedQueryBackendJson: <T>(command: string, input: unknown): T => {
+          if (command !== "style-semantic-graph-batch") {
+            throw new Error(`unexpected runner command: ${command}`);
+          }
+          batchInput = input as StyleSemanticGraphBatchRunnerInputV0;
+          return {
+            schemaVersion: "0",
+            product: "omena-semantic.style-semantic-graph-batch",
+            graphs: [
+              { stylePath: SCSS_PATH, graph: makeGraph(SCSS_PATH) },
+              { stylePath: CARD_SCSS_PATH, graph: makeGraph(CARD_SCSS_PATH) },
+            ],
+          } as T;
+        },
+      },
+    );
+
+    expect(batchInput?.packageManifests).toEqual([
+      {
+        packageJsonPath,
+        packageJsonSource,
+      },
+    ]);
+  });
+
   it("falls back to single graph reads when batch output omits the exact target path", () => {
     const deps = makeBaseDeps({
       selectorMapForPath: (filePath) =>

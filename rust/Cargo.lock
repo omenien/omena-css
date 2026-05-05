@@ -225,6 +225,7 @@ dependencies = [
  "omena-incremental",
  "omena-resolver",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

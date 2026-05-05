@@ -1,6 +1,8 @@
+import path from "node:path";
 import type { Range } from "@css-module-explainer/shared";
 import type { EngineInputV2 } from "../../engine-core-ts/src/contracts";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
+import { parseStyleDocument } from "../../engine-core-ts/src/core/scss/scss-parser";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { buildEngineInputV2 } from "./engine-input-v2";
 import {
@@ -224,12 +226,18 @@ export interface StyleSemanticGraphRunnerInputV0 {
 
 export interface StyleSemanticGraphBatchRunnerInputV0 {
   readonly styles: readonly StyleSemanticGraphBatchStyleInputV0[];
+  readonly packageManifests?: readonly StyleSemanticGraphPackageManifestInputV0[];
   readonly engineInput: EngineInputV2;
 }
 
 export interface StyleSemanticGraphBatchStyleInputV0 {
   readonly stylePath: string;
   readonly styleSource: string;
+}
+
+export interface StyleSemanticGraphPackageManifestInputV0 {
+  readonly packageJsonPath: string;
+  readonly packageJsonSource: string;
 }
 
 export interface StyleSemanticGraphBatchRunnerOutputV0 {
@@ -642,12 +650,14 @@ async function maybePopulateStyleSemanticGraphCacheFromBatchAsync(
     styles.push({ stylePath, styleSource });
   }
   if (styles.length <= 1) return;
+  const packageManifests = collectStyleSemanticGraphPackageManifests(styles, options.readStyleFile);
 
   try {
     const requestedStylePaths = new Set(styles.map((style) => style.stylePath));
     const output = await runRustStyleSemanticGraphBatchAsync(
       {
         styles,
+        ...(packageManifests.length > 0 ? { packageManifests } : {}),
         engineInput: queryOptions.engineInput,
       },
       queryOptions,
@@ -685,12 +695,14 @@ function maybePopulateStyleSemanticGraphCacheFromBatch(
     styles.push({ stylePath, styleSource });
   }
   if (styles.length <= 1) return;
+  const packageManifests = collectStyleSemanticGraphPackageManifests(styles, options.readStyleFile);
 
   try {
     const requestedStylePaths = new Set(styles.map((style) => style.stylePath));
     const output = runRustStyleSemanticGraphBatch(
       {
         styles,
+        ...(packageManifests.length > 0 ? { packageManifests } : {}),
         engineInput: queryOptions.engineInput,
       },
       queryOptions,
@@ -706,4 +718,77 @@ function maybePopulateStyleSemanticGraphCacheFromBatch(
     }
     // Batch is an optimization only. Preserve the single-target fallback path.
   }
+}
+
+function collectStyleSemanticGraphPackageManifests(
+  styles: readonly StyleSemanticGraphBatchStyleInputV0[],
+  readStyleFile: ProviderDeps["readStyleFile"],
+): readonly StyleSemanticGraphPackageManifestInputV0[] {
+  const manifests = new Map<string, StyleSemanticGraphPackageManifestInputV0>();
+  for (const style of styles) {
+    for (const source of collectSassModuleSources(style)) {
+      const packageName = parsePackageStyleSource(source)?.packageName;
+      if (!packageName) continue;
+      for (const packageJsonPath of packageJsonCandidatePaths(style.stylePath, packageName)) {
+        if (manifests.has(packageJsonPath)) continue;
+        const packageJsonSource = readStyleFile(packageJsonPath);
+        if (packageJsonSource === null) continue;
+        manifests.set(packageJsonPath, { packageJsonPath, packageJsonSource });
+        break;
+      }
+    }
+  }
+  return [...manifests.values()];
+}
+
+function collectSassModuleSources(style: StyleSemanticGraphBatchStyleInputV0): readonly string[] {
+  const styleDocument = parseStyleDocument(style.styleSource, style.stylePath);
+  return [
+    ...styleDocument.sassModuleUses.map((moduleUse) => moduleUse.source),
+    ...styleDocument.sassModuleForwards.map((moduleForward) => moduleForward.source),
+  ];
+}
+
+function packageJsonCandidatePaths(stylePath: string, packageName: string): readonly string[] {
+  const candidates: string[] = [];
+  let current = path.dirname(stylePath);
+  while (true) {
+    candidates.push(path.join(current, "node_modules", packageName, "package.json"));
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return candidates;
+}
+
+function parsePackageStyleSource(
+  source: string,
+): { readonly packageName: string; readonly subpath: string | null } | null {
+  if (
+    source.startsWith(".") ||
+    source.startsWith("/") ||
+    source.startsWith("sass:") ||
+    source.startsWith("http://") ||
+    source.startsWith("https://")
+  ) {
+    return null;
+  }
+
+  if (source.startsWith("@")) {
+    const segments = source.split("/");
+    if (segments.length < 2 || segments[0]!.length <= 1 || segments[1]!.length === 0) {
+      return null;
+    }
+    return {
+      packageName: `${segments[0]!}/${segments[1]!}`,
+      subpath: segments.slice(2).join("/") || null,
+    };
+  }
+
+  const [packageName, ...subpathParts] = source.split("/");
+  if (!packageName) return null;
+  return {
+    packageName,
+    subpath: subpathParts.join("/") || null,
+  };
 }

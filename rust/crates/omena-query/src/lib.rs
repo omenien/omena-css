@@ -110,6 +110,12 @@ pub struct OmenaQueryStyleSemanticGraphBatchEntryV0 {
     pub graph: Option<StyleSemanticGraphSummaryV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaQueryStylePackageManifestV0 {
+    pub package_json_path: String,
+    pub package_json_source: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 {
@@ -461,6 +467,18 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources<'a>(
     styles: impl IntoIterator<Item = (&'a str, &'a str)>,
     input: &EngineInputV2,
 ) -> OmenaQueryStyleSemanticGraphBatchOutputV0 {
+    summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests(
+        styles,
+        input,
+        &[],
+    )
+}
+
+pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests<'a>(
+    styles: impl IntoIterator<Item = (&'a str, &'a str)>,
+    input: &EngineInputV2,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQueryStyleSemanticGraphBatchOutputV0 {
     let style_sources = styles.into_iter().collect::<Vec<_>>();
     let parsed_styles = style_sources
         .iter()
@@ -486,6 +504,7 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources<'a>(
                             style_path,
                             &parsed_styles,
                             &workspace_declarations,
+                            package_manifests,
                         );
                     summarize_omena_bridge_style_semantic_graph_for_path_with_scoped_workspace_declarations(
                         sheet,
@@ -520,9 +539,13 @@ fn filter_import_reachable_design_token_workspace_declarations(
     target_style_path: &str,
     parsed_styles: &[(String, Stylesheet)],
     workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Vec<DesignTokenWorkspaceDeclarationFactV0> {
-    let reachable_style_paths =
-        collect_import_reachable_style_path_metadata(target_style_path, parsed_styles);
+    let reachable_style_paths = collect_import_reachable_style_path_metadata(
+        target_style_path,
+        parsed_styles,
+        package_manifests,
+    );
     workspace_declarations
         .iter()
         .filter_map(|declaration| {
@@ -547,6 +570,7 @@ struct ImportReachability {
 fn collect_import_reachable_style_path_metadata(
     target_style_path: &str,
     parsed_styles: &[(String, Stylesheet)],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> BTreeMap<String, ImportReachability> {
     let mut reachable_style_paths = BTreeMap::new();
     let available_style_paths = parsed_styles
@@ -557,6 +581,7 @@ fn collect_import_reachable_style_path_metadata(
         target_style_path,
         parsed_styles,
         &available_style_paths,
+        package_manifests,
     )
     .into_iter()
     .map(|style_path| (style_path, 1usize))
@@ -584,9 +609,12 @@ fn collect_import_reachable_style_path_metadata(
             continue;
         };
         for source in collect_sass_module_sources(sheet) {
-            if let Some(next_style_path) =
-                resolve_style_module_source(&style_path, &source, &available_style_paths)
-            {
+            if let Some(next_style_path) = resolve_style_module_source(
+                &style_path,
+                &source,
+                &available_style_paths,
+                package_manifests,
+            ) {
                 pending_style_paths.push_back((next_style_path, distance + 1));
             }
         }
@@ -599,6 +627,7 @@ fn collect_import_reachable_direct_style_paths(
     target_style_path: &str,
     parsed_styles: &[(String, Stylesheet)],
     available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Vec<String> {
     let Some(target_sheet) = parsed_style_by_path(parsed_styles, target_style_path) else {
         return Vec::new();
@@ -606,7 +635,12 @@ fn collect_import_reachable_direct_style_paths(
     collect_sass_module_sources(target_sheet)
         .into_iter()
         .filter_map(|source| {
-            resolve_style_module_source(target_style_path, &source, available_style_paths)
+            resolve_style_module_source(
+                target_style_path,
+                &source,
+                available_style_paths,
+                package_manifests,
+            )
         })
         .collect()
 }
@@ -630,6 +664,7 @@ fn resolve_style_module_source(
     from_style_path: &str,
     source: &str,
     available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Option<String> {
     if source.starts_with("sass:")
         || source.starts_with("http://")
@@ -638,12 +673,16 @@ fn resolve_style_module_source(
         return None;
     }
 
-    style_module_source_candidates(from_style_path, source)
+    style_module_source_candidates(from_style_path, source, package_manifests)
         .into_iter()
         .find(|candidate| available_style_paths.contains(candidate.as_str()))
 }
 
-fn style_module_source_candidates(from_style_path: &str, source: &str) -> Vec<String> {
+fn style_module_source_candidates(
+    from_style_path: &str,
+    source: &str,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<String> {
     let source_path = Path::new(source);
     let base_path = if source_path.is_absolute() {
         PathBuf::from(source)
@@ -659,6 +698,11 @@ fn style_module_source_candidates(from_style_path: &str, source: &str) -> Vec<St
         base_path,
         source_path.extension().is_none(),
     );
+    for package_manifest_base_path in
+        package_manifest_style_module_base_candidates(from_style_path, source, package_manifests)
+    {
+        push_style_module_path_candidates(&mut candidates, package_manifest_base_path, true);
+    }
     for package_base_path in package_style_module_base_candidates(from_style_path, source) {
         push_style_module_path_candidates(&mut candidates, package_base_path, true);
     }
@@ -717,6 +761,175 @@ fn package_style_module_base_candidates(from_style_path: &str, source: &str) -> 
         current_dir = dir.parent();
     }
     candidates
+}
+
+fn package_manifest_style_module_base_candidates(
+    from_style_path: &str,
+    source: &str,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<PathBuf> {
+    let Some(package_source) = parse_package_style_source(source) else {
+        return Vec::new();
+    };
+    let Some(from_dir) = Path::new(from_style_path).parent() else {
+        return Vec::new();
+    };
+    let manifest_by_package_dir = package_manifests
+        .iter()
+        .map(|manifest| {
+            (
+                package_dir_from_package_json_path(&manifest.package_json_path),
+                manifest.package_json_source.as_str(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    let mut candidates = Vec::new();
+    let mut current_dir = Some(from_dir);
+    while let Some(dir) = current_dir {
+        let package_root = dir.join("node_modules").join(package_source.package_name);
+        let package_root_key = normalize_style_path(package_root.clone());
+        if let Some(package_json_source) = manifest_by_package_dir.get(&package_root_key)
+            && let Some(entry) =
+                read_package_manifest_style_entry(package_json_source, package_source.subpath)
+        {
+            push_unique_pathbuf(&mut candidates, package_root.join(entry));
+        }
+        current_dir = dir.parent();
+    }
+    candidates
+}
+
+fn package_dir_from_package_json_path(package_json_path: &str) -> String {
+    Path::new(package_json_path)
+        .parent()
+        .map(|path| normalize_style_path(path.to_path_buf()))
+        .unwrap_or_default()
+}
+
+fn read_package_manifest_style_entry(
+    package_json_source: &str,
+    subpath: Option<&str>,
+) -> Option<PathBuf> {
+    let package_json = serde_json::from_str::<serde_json::Value>(package_json_source).ok()?;
+    let package_object = package_json.as_object()?;
+    let entry = if let Some(subpath) = subpath {
+        read_package_export_subpath_entry(package_object.get("exports"), subpath)
+    } else {
+        read_package_json_string_field(package_object, "sass")
+            .or_else(|| read_package_json_string_field(package_object, "scss"))
+            .or_else(|| read_package_json_string_field(package_object, "style"))
+            .or_else(|| read_package_export_entry(package_object.get("exports")))
+    }?;
+    Some(PathBuf::from(normalize_package_json_entry(&entry)))
+}
+
+fn read_package_export_subpath_entry(
+    exports_value: Option<&serde_json::Value>,
+    subpath: &str,
+) -> Option<String> {
+    let exports_object = exports_value?.as_object()?;
+    for key in package_export_subpath_keys(subpath) {
+        if let Some(entry) = read_package_export_entry(exports_object.get(&key)) {
+            return Some(entry);
+        }
+    }
+    for (key, export_value) in exports_object {
+        let Some(pattern_match) = match_package_export_subpath_pattern(key, subpath) else {
+            continue;
+        };
+        let Some(entry) = read_package_export_entry(Some(export_value)) else {
+            continue;
+        };
+        return Some(substitute_package_export_pattern(&entry, &pattern_match));
+    }
+    None
+}
+
+fn package_export_subpath_keys(subpath: &str) -> Vec<String> {
+    let normalized = subpath
+        .trim_start_matches("./")
+        .trim_start_matches('/')
+        .to_string();
+    vec![
+        format!("./{normalized}"),
+        format!("./{normalized}.scss"),
+        format!("./{normalized}.sass"),
+        format!("./{normalized}.css"),
+    ]
+}
+
+fn match_package_export_subpath_pattern(pattern_key: &str, subpath: &str) -> Option<String> {
+    let normalized_pattern = pattern_key.trim_start_matches("./").trim_start_matches('/');
+    let (prefix, suffix) = normalized_pattern.split_once('*')?;
+    if suffix.contains('*') {
+        return None;
+    }
+
+    for candidate_key in package_export_subpath_keys(subpath) {
+        let normalized_candidate = candidate_key
+            .trim_start_matches("./")
+            .trim_start_matches('/')
+            .to_string();
+        if !normalized_candidate.starts_with(prefix) || !normalized_candidate.ends_with(suffix) {
+            continue;
+        }
+        return Some(
+            normalized_candidate[prefix.len()..normalized_candidate.len() - suffix.len()]
+                .to_string(),
+        );
+    }
+    None
+}
+
+fn substitute_package_export_pattern(entry: &str, pattern_match: &str) -> String {
+    if entry.contains('*') {
+        entry.replace('*', pattern_match)
+    } else {
+        entry.to_string()
+    }
+}
+
+fn read_package_export_entry(exports_value: Option<&serde_json::Value>) -> Option<String> {
+    let exports_value = exports_value?;
+    if let Some(entry) = exports_value.as_str() {
+        return Some(entry.to_string());
+    }
+    if let Some(entries) = exports_value.as_array() {
+        for entry_value in entries {
+            if let Some(entry) = read_package_export_entry(Some(entry_value)) {
+                return Some(entry);
+            }
+        }
+        return None;
+    }
+    let exports_object = exports_value.as_object()?;
+    if let Some(root_entry) = read_package_export_entry(exports_object.get(".")) {
+        return Some(root_entry);
+    }
+    for key in ["sass", "scss", "style", "default", "import", "require"] {
+        if let Some(entry) = read_package_export_entry(exports_object.get(key)) {
+            return Some(entry);
+        }
+    }
+    None
+}
+
+fn read_package_json_string_field(
+    package_object: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) -> Option<String> {
+    package_object
+        .get(key)
+        .and_then(|value| value.as_str())
+        .map(ToString::to_string)
+}
+
+fn normalize_package_json_entry(entry: &str) -> String {
+    entry
+        .trim_start_matches("./")
+        .trim_start_matches('/')
+        .to_string()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -818,8 +1031,8 @@ mod tests {
     };
 
     use super::{
-        OmenaQueryExpressionDomainFlowRuntimeV0, SelectedQueryAdapterCapabilitiesV0,
-        summarize_omena_query_boundary,
+        OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryStylePackageManifestV0,
+        SelectedQueryAdapterCapabilitiesV0, summarize_omena_query_boundary,
         summarize_omena_query_expression_domain_control_flow_analysis,
         summarize_omena_query_expression_domain_flow_analysis,
         summarize_omena_query_expression_domain_incremental_flow_analysis,
@@ -833,6 +1046,7 @@ mod tests {
         summarize_omena_query_source_resolution_query_fragments,
         summarize_omena_query_source_resolution_runtime,
         summarize_omena_query_style_semantic_graph_batch_from_sources,
+        summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
         summarize_omena_query_style_semantic_graph_from_source,
     };
 
@@ -1391,6 +1605,52 @@ mod tests {
             Some("/fake/workspace/node_modules/@design/tokens/src/_colors.scss")
         );
         assert_eq!(ranked_reference.winner_import_graph_distance, Some(3));
+        assert_eq!(ranked_reference.cross_file_candidate_declaration_count, 1);
+    }
+
+    #[test]
+    fn style_semantic_graph_batch_resolves_package_manifest_style_exports() {
+        let input = sample_input();
+        let batch =
+            summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests(
+                [
+                    (
+                        "/fake/workspace/node_modules/@design/tokens/dist/theme.css",
+                        ":root { --brand: package; }",
+                    ),
+                    (
+                        "/fake/workspace/src/App.module.scss",
+                        "@use \"@design/tokens/theme\";\n.button { color: var(--brand); }",
+                    ),
+                ],
+                &input,
+                &[OmenaQueryStylePackageManifestV0 {
+                    package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                        .to_string(),
+                    package_json_source: r#"{"exports":{"./theme":{"style":"./dist/theme.css"}}}"#
+                        .to_string(),
+                }],
+            );
+
+        let app_graph = batch
+            .graphs
+            .iter()
+            .find(|entry| entry.style_path == "/fake/workspace/src/App.module.scss")
+            .and_then(|entry| entry.graph.as_ref());
+        assert!(app_graph.is_some());
+        let Some(app_graph) = app_graph else {
+            return;
+        };
+        let ranked_reference = &app_graph
+            .design_token_semantics
+            .cascade_ranking_signal
+            .ranked_references[0];
+
+        assert_eq!(
+            ranked_reference.winner_declaration_file_path.as_deref(),
+            Some("/fake/workspace/node_modules/@design/tokens/dist/theme.css")
+        );
+        assert_eq!(ranked_reference.winner_import_graph_distance, Some(1));
         assert_eq!(ranked_reference.cross_file_candidate_declaration_count, 1);
     }
 

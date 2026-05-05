@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Design-token package manifest routing** - Rust selected-query style semantic graph batches now accept package manifest metadata and use `sass` / `scss` / `style` / `exports` entries when building package import reachability for cross-file design-token ranking.
+
 ## [4.14.0] - 2026-05-05
 
 ### Added
