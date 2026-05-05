@@ -703,6 +703,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "typedBogusCstWrapperSlice",
             "componentValueCstNodes",
             "simpleBlockCstNodes",
+            "fullBogusPopulation",
             "componentValueListCstNodes",
             "commaSeparatedComponentValueListCstNodes",
             "customPropertyAnyValueComponentList",
@@ -720,7 +721,6 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
         not_ready_surfaces: vec![
             "fullRecursiveDescentGrammar",
             "fullPrattValueParser",
-            "fullBogusPopulation",
             "differentialCorpus",
             "productCutover",
         ],
@@ -802,12 +802,26 @@ impl<'text> Parser<'text> {
             }
             ParseEntryPoint::SimpleBlock => self.parse_simple_block_entry_point(&[]),
         }
+        self.parse_sass_indentation_bogus();
         self.parse_entry_point_trailing_bogus();
         self.builder.finish_node();
 
         let builder = std::mem::take(&mut self.builder);
         let (green, _) = builder.finish();
         green
+    }
+
+    fn parse_sass_indentation_bogus(&mut self) {
+        if self.dialect != StyleDialect::Sass
+            || !self
+                .errors
+                .iter()
+                .any(|error| error.message == "inconsistent Sass indentation")
+        {
+            return;
+        }
+        self.builder.start_node(SyntaxKind::BogusSassIndentation);
+        self.builder.finish_node();
     }
 
     fn parse_entry_point_trailing_bogus(&mut self) {
@@ -860,8 +874,12 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_rule(&mut self) {
+        let starts_less_mixin =
+            self.dialect == StyleDialect::Less && self.current_starts_less_callable_signature();
         let kind = if self.current_starts_less_mixin_declaration() {
             SyntaxKind::LessMixinDeclaration
+        } else if starts_less_mixin {
+            SyntaxKind::BogusLessMixin
         } else if self.find_rule_block_open_before_recovery(&[
             SyntaxKind::Semicolon,
             SyntaxKind::SassOptionalSemicolon,
@@ -876,6 +894,16 @@ impl<'text> Parser<'text> {
         self.builder.start_node(kind);
         if kind == SyntaxKind::LessMixinDeclaration {
             self.parse_less_mixin_header();
+        } else if kind == SyntaxKind::BogusLessMixin {
+            self.parse_until_recovery_with_optional_less_guard(&[
+                SyntaxKind::Semicolon,
+                SyntaxKind::RightBrace,
+                SyntaxKind::SassDedent,
+            ]);
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "expected Less mixin block",
+            );
         } else {
             self.parse_selector_list();
         }
@@ -6391,6 +6419,9 @@ mod tests {
         let missing_less_variable_colon = parse("@gap;", StyleDialect::Less);
         let missing_scss_blocks =
             parse("@mixin card; @function double; @if $x;", StyleDialect::Scss);
+        let inconsistent_sass_indentation =
+            parse(".card\n  color: red\n color: blue\n", StyleDialect::Sass);
+        let missing_less_mixin_block = parse(".theme(@tone);", StyleDialect::Less);
         let missing_less_guard_condition =
             parse(".theme() when { color: red; }", StyleDialect::Less);
 
@@ -6414,9 +6445,109 @@ mod tests {
         assert!(node_kinds(&missing_scss_blocks.syntax()).contains(&SyntaxKind::BogusScssFunction));
         assert!(node_kinds(&missing_scss_blocks.syntax()).contains(&SyntaxKind::BogusScssControl));
         assert!(
+            node_kinds(&inconsistent_sass_indentation.syntax())
+                .contains(&SyntaxKind::BogusSassIndentation)
+        );
+        assert!(
+            node_kinds(&missing_less_mixin_block.syntax()).contains(&SyntaxKind::BogusLessMixin)
+        );
+        assert!(
             node_kinds(&missing_less_guard_condition.syntax())
                 .contains(&SyntaxKind::BogusLessGuard)
         );
+    }
+
+    #[test]
+    fn populates_every_declared_bogus_kind_in_recovery_corpus() {
+        let mut actual = BTreeSet::new();
+        let mut collect = |result: ParseResult| {
+            actual.extend(
+                node_kinds(&result.syntax())
+                    .into_iter()
+                    .filter(|kind| kind.is_bogus()),
+            );
+        };
+
+        collect(parse("{ color: red; }", StyleDialect::Css));
+        collect(parse(". { color: red; }", StyleDialect::Css));
+        collect(parse("%bad { color: red; }", StyleDialect::Css));
+        collect(parse(".a > { color: red; }", StyleDialect::Css));
+        collect(parse(".a { : red; width: ?; }", StyleDialect::Css));
+        collect(parse(
+            ".a { width: ; height: calc(1 + ; }",
+            StyleDialect::Css,
+        ));
+        collect(parse(".a { color: [red; }", StyleDialect::Css));
+        collect(parse(".a { font-family: system, ; }", StyleDialect::Css));
+        collect(parse("@ ;", StyleDialect::Css));
+        collect(parse(
+            "@unknown (min-width: { color: red; }",
+            StyleDialect::Css,
+        ));
+        collect(parse(
+            "@media screen, (min-width: { .a { color: red; } }",
+            StyleDialect::Css,
+        ));
+        collect(parse(
+            "@supports (display: { .a { color: red; } }",
+            StyleDialect::Css,
+        ));
+        collect(parse(
+            "@container (inline-size > { .a { color: red; } }",
+            StyleDialect::Css,
+        ));
+        collect(parse("@layer ;", StyleDialect::Css));
+        collect(parse(
+            "@scope (.a { .b { color: red; } }",
+            StyleDialect::Css,
+        ));
+        collect(parse(
+            "@keyframes fade { from opacity: 0; }",
+            StyleDialect::Css,
+        ));
+        collect(parse(
+            "@value from; .bad { composes: from; } .missing { composes base; }",
+            StyleDialect::Scss,
+        ));
+        collect(parse(
+            "@use \"theme\" with ($gap: 1rem; .card { color: red; }",
+            StyleDialect::Scss,
+        ));
+        collect(parse(
+            "@mixin card; @function double; @if $x;",
+            StyleDialect::Scss,
+        ));
+        collect(parse("$gap;", StyleDialect::Scss));
+        collect(parse(".a { content: \"unterminated\n }", StyleDialect::Css));
+        collect(parse(".a { color: #{$tone; }", StyleDialect::Scss));
+        collect(parse(
+            ".card\n  color: red\n color: blue\n",
+            StyleDialect::Sass,
+        ));
+        collect(parse("@gap;", StyleDialect::Less));
+        collect(parse(".theme(@tone);", StyleDialect::Less));
+        collect(parse(".theme() when { color: red; }", StyleDialect::Less));
+        collect(parse("@detached: { .a { color: red; }", StyleDialect::Less));
+        collect(parse("$gap 1rem;", StyleDialect::Scss));
+        collect(parse_entry_point(
+            "[red",
+            StyleDialect::Css,
+            ParseEntryPoint::SimpleBlock,
+        ));
+        collect(parse_entry_point(
+            "red, ;",
+            StyleDialect::Css,
+            ParseEntryPoint::CommaSeparatedComponentValueList,
+        ));
+
+        let declared = SyntaxKind::ALL
+            .iter()
+            .copied()
+            .filter(|kind| kind.is_bogus())
+            .collect::<BTreeSet<_>>();
+        let missing = declared.difference(&actual).copied().collect::<Vec<_>>();
+
+        assert!(missing.is_empty(), "missing bogus kinds: {missing:?}");
     }
 
     #[test]
@@ -7850,6 +7981,7 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"componentValueCstNodes"));
         assert!(summary.ready_surfaces.contains(&"simpleBlockCstNodes"));
+        assert!(summary.ready_surfaces.contains(&"fullBogusPopulation"));
         assert!(
             summary
                 .ready_surfaces
