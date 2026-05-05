@@ -20,3 +20,4 @@ oxc_ast = "0.128.0"
 oxc_parser = "0.128.0"
 oxc_span = "0.128.0"
 serde.workspace = true
+serde_json.workspace = true

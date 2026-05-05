@@ -15,6 +15,7 @@ mod selector_references;
 mod source_evidence;
 mod source_imports;
 mod source_syntax;
+mod style_resolution;
 
 pub use promotion_evidence::{
     SemanticPromotionEvidenceItemV0, SemanticPromotionEvidenceSummaryV0,
@@ -41,6 +42,10 @@ pub use source_syntax::{
     SourceSelectorReferenceMatchKindV0, SourceStylePropertyAccessFactV0, SourceSyntaxIndexV0,
     SourceTypeFactTargetV0, canonicalize_source_selector_references,
     summarize_omena_bridge_source_syntax_index,
+};
+pub use style_resolution::{
+    OmenaBridgeStyleResolutionSummaryV0, resolve_omena_bridge_style_uri_for_specifier,
+    summarize_omena_bridge_style_resolution_boundary,
 };
 
 pub fn collect_omena_bridge_design_token_workspace_declarations(
@@ -124,6 +129,7 @@ pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
             "selectorReferenceEngine",
             "sourceInputEvidence",
             "sourceImportDeclarations",
+            "styleResolution",
             "sourceSyntaxIndex",
             "promotionEvidenceWithSourceInput",
             "binderPluginBoundary",
@@ -136,6 +142,7 @@ pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
             "styleSemanticGraphFromSource",
             "cssModulesClassnameBinding",
             "sourceSyntaxIndex",
+            "styleResolution",
         ],
         next_decoupling_targets: Vec::new(),
     }
@@ -337,6 +344,7 @@ mod tests {
                 .bridge_owned_surfaces
                 .contains(&"sourceImportDeclarations")
         );
+        assert!(boundary.bridge_owned_surfaces.contains(&"styleResolution"));
         assert!(
             boundary
                 .bridge_owned_surfaces

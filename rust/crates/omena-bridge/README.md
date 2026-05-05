@@ -31,6 +31,9 @@ Current public products:
 - `omena-bridge.source-import-declarations` — OXC-backed source import
   declaration producer for CSS Module style imports and `classnames/bind`
   bindings consumed by the Rust LSP source syntax index.
+- `omena-bridge.style-resolution` — style specifier resolver for relative
+  imports and tsconfig/jsconfig path aliases, including Sass partial and index
+  candidate expansion for LSP and bridge consumers.
 - `omena-bridge.binder-plugin-boundary` — built-in `BinderPluginV0` boundary
   for source-side class-name tracking. The default plugin keeps the current CSS
   Modules + `classnames/bind`/`classnames`/`clsx` behavior behind one boundary;

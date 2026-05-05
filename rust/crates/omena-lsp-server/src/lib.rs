@@ -15,7 +15,8 @@ use omena_bridge::{
     SourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     SourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
     SourceSyntaxIndexV0 as SourceSyntaxIndex, SourceTypeFactTargetV0 as SourceTypeFactTarget,
-    canonicalize_source_selector_references, summarize_omena_bridge_source_syntax_index,
+    canonicalize_source_selector_references, resolve_omena_bridge_style_uri_for_specifier,
+    summarize_omena_bridge_source_syntax_index,
 };
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_tsgo_client::{
@@ -2287,7 +2288,7 @@ fn sass_module_target_uris_for_candidate(
         if edge.source.starts_with("sass:") {
             continue;
         }
-        if let Some(uri) = style_uri_for_style_specifier(
+        if let Some(uri) = resolve_omena_bridge_style_uri_for_specifier(
             document.uri.as_str(),
             document.workspace_folder_uri.as_deref(),
             edge.source.as_str(),
@@ -2299,7 +2300,7 @@ fn sass_module_target_uris_for_candidate(
         if forward_source.starts_with("sass:") {
             continue;
         }
-        if let Some(uri) = style_uri_for_style_specifier(
+        if let Some(uri) = resolve_omena_bridge_style_uri_for_specifier(
             document.uri.as_str(),
             document.workspace_folder_uri.as_deref(),
             forward_source.as_str(),
@@ -2337,7 +2338,7 @@ fn sass_symbol_declarations_with_forwards(
         if forward_source.starts_with("sass:") {
             continue;
         }
-        let Some(uri) = style_uri_for_style_specifier(
+        let Some(uri) = resolve_omena_bridge_style_uri_for_specifier(
             document.uri.as_str(),
             document.workspace_folder_uri.as_deref(),
             forward_source.as_str(),
@@ -2374,7 +2375,7 @@ fn sass_forward_module_target_uris(
         if forward_source.starts_with("sass:") {
             continue;
         }
-        if let Some(uri) = style_uri_for_style_specifier(
+        if let Some(uri) = resolve_omena_bridge_style_uri_for_specifier(
             document.uri.as_str(),
             document.workspace_folder_uri.as_deref(),
             forward_source.as_str(),
@@ -3024,8 +3025,11 @@ fn collect_source_imports(document: &LspTextDocumentState) -> SourceImportIndex 
         if import.specifier == "classnames/bind" {
             imports.classnames_bind_bindings.push(import.binding);
         } else if StyleLanguage::from_module_path(import.specifier.as_str()).is_some()
-            && let Some(style_uri) =
-                style_uri_for_import_specifier(document, import.specifier.as_str())
+            && let Some(style_uri) = resolve_omena_bridge_style_uri_for_specifier(
+                document.uri.as_str(),
+                document.workspace_folder_uri.as_deref(),
+                import.specifier.as_str(),
+            )
         {
             imports.imported_style_bindings.push(ImportedStyleBinding {
                 binding: import.binding,
@@ -3042,168 +3046,6 @@ fn collect_source_imports(document: &LspTextDocumentState) -> SourceImportIndex 
     imports.classnames_bind_bindings.sort();
     imports.classnames_bind_bindings.dedup();
     imports
-}
-
-fn style_uri_for_import_specifier(
-    document: &LspTextDocumentState,
-    specifier: &str,
-) -> Option<String> {
-    style_uri_for_style_specifier(
-        document.uri.as_str(),
-        document.workspace_folder_uri.as_deref(),
-        specifier,
-    )
-}
-
-fn style_uri_for_style_specifier(
-    source_uri: &str,
-    workspace_folder_uri: Option<&str>,
-    specifier: &str,
-) -> Option<String> {
-    if specifier.starts_with('.') {
-        let source_path = file_uri_to_path(source_uri)?;
-        let imported_path = normalize_path(source_path.parent()?.join(specifier));
-        return style_uri_for_style_candidate_base(imported_path.as_path());
-    }
-
-    style_uri_for_tsconfig_path_alias(workspace_folder_uri, specifier)
-}
-
-fn style_uri_for_tsconfig_path_alias(
-    workspace_folder_uri: Option<&str>,
-    specifier: &str,
-) -> Option<String> {
-    let workspace_path = file_uri_to_path(workspace_folder_uri?)?;
-    for config_path in [
-        workspace_path.join("tsconfig.json"),
-        workspace_path.join("jsconfig.json"),
-    ] {
-        if let Some(style_uri) =
-            style_uri_for_tsconfig_path_alias_config(config_path.as_path(), specifier)
-        {
-            return Some(style_uri);
-        }
-    }
-    None
-}
-
-fn style_uri_for_tsconfig_path_alias_config(config_path: &Path, specifier: &str) -> Option<String> {
-    let config_text = fs::read_to_string(config_path).ok()?;
-    let config = serde_json::from_str::<Value>(config_text.as_str()).ok()?;
-    let compiler_options = config.get("compilerOptions")?;
-    let paths = compiler_options.get("paths")?.as_object()?;
-    let config_dir = config_path.parent()?;
-    let base_url = compiler_options
-        .get("baseUrl")
-        .and_then(Value::as_str)
-        .unwrap_or(".");
-    let base_path = normalize_path(config_dir.join(base_url));
-    let mut candidates = Vec::new();
-
-    for (pattern, targets) in paths {
-        let Some((capture, score)) = tsconfig_path_pattern_match(pattern.as_str(), specifier)
-        else {
-            continue;
-        };
-        let Some(targets) = targets.as_array() else {
-            continue;
-        };
-        for target in targets.iter().filter_map(Value::as_str) {
-            let candidate_path =
-                tsconfig_path_target_candidate(base_path.as_path(), target, capture.as_deref());
-            for resolved_path in style_candidate_paths(candidate_path.as_path()) {
-                candidates.push((score, resolved_path.exists(), resolved_path));
-            }
-        }
-    }
-
-    candidates.sort_by(|left, right| {
-        right
-            .1
-            .cmp(&left.1)
-            .then_with(|| right.0.cmp(&left.0))
-            .then_with(|| left.2.cmp(&right.2))
-    });
-    candidates
-        .into_iter()
-        .map(|(_, _, path)| path_to_file_uri(path.as_path()))
-        .next()
-}
-
-fn tsconfig_path_pattern_match(pattern: &str, specifier: &str) -> Option<(Option<String>, usize)> {
-    let Some(star_index) = pattern.find('*') else {
-        return (pattern == specifier).then_some((None, pattern.len()));
-    };
-    if pattern[star_index + 1..].contains('*') {
-        return None;
-    }
-    let prefix = &pattern[..star_index];
-    let suffix = &pattern[star_index + 1..];
-    if !specifier.starts_with(prefix) || !specifier.ends_with(suffix) {
-        return None;
-    }
-    let capture_end = specifier.len().saturating_sub(suffix.len());
-    if capture_end < prefix.len() {
-        return None;
-    }
-    Some((
-        specifier.get(prefix.len()..capture_end).map(str::to_string),
-        prefix.len() + suffix.len(),
-    ))
-}
-
-fn tsconfig_path_target_candidate(
-    base_path: &Path,
-    target_pattern: &str,
-    capture: Option<&str>,
-) -> PathBuf {
-    let target = if target_pattern.contains('*') {
-        target_pattern.replace('*', capture.unwrap_or_default())
-    } else {
-        target_pattern.to_string()
-    };
-    let target_path = PathBuf::from(target);
-    if target_path.is_absolute() {
-        normalize_path(target_path)
-    } else {
-        normalize_path(base_path.join(target_path))
-    }
-}
-
-fn style_uri_for_style_candidate_base(base_path: &Path) -> Option<String> {
-    let candidates = style_candidate_paths(base_path);
-    candidates
-        .iter()
-        .find(|path| path.exists())
-        .or_else(|| candidates.first())
-        .map(|path| path_to_file_uri(path.as_path()))
-}
-
-fn style_candidate_paths(base_path: &Path) -> Vec<PathBuf> {
-    let normalized = normalize_path(base_path.to_path_buf());
-    if is_indexable_style_path(normalized.as_path()) {
-        return vec![normalized];
-    }
-
-    let mut candidates = Vec::new();
-    for extension in ["scss", "sass", "css"] {
-        candidates.push(normalized.with_extension(extension));
-        if let Some(file_name) = normalized.file_name().and_then(|value| value.to_str()) {
-            candidates.push(
-                normalized
-                    .with_file_name(format!("_{file_name}"))
-                    .with_extension(extension),
-            );
-        }
-        candidates.push(normalized.join(format!("index.{extension}")));
-        candidates.push(normalized.join(format!("_index.{extension}")));
-    }
-    candidates.sort();
-    candidates.dedup();
-    candidates
-        .into_iter()
-        .filter(|path| is_indexable_style_path(path.as_path()))
-        .collect()
 }
 
 fn char_boundary_floor(source: &str, index: usize) -> usize {
