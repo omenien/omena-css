@@ -14,6 +14,7 @@ mod promotion_evidence;
 mod selector_references;
 mod source_evidence;
 mod source_imports;
+mod source_syntax;
 
 pub use promotion_evidence::{
     SemanticPromotionEvidenceItemV0, SemanticPromotionEvidenceSummaryV0,
@@ -33,6 +34,12 @@ pub use source_evidence::{
 pub use source_imports::{
     SourceImportDeclarationSummaryV0, SourceImportDeclarationV0,
     summarize_omena_bridge_source_import_declarations,
+};
+pub use source_syntax::{
+    SourceImportedStyleBindingV0, SourceSelectorReferenceFactV0,
+    SourceSelectorReferenceMatchKindV0, SourceStylePropertyAccessFactV0, SourceSyntaxIndexV0,
+    SourceTypeFactTargetV0, canonicalize_source_selector_references,
+    summarize_omena_bridge_source_syntax_index,
 };
 
 pub fn collect_omena_bridge_design_token_workspace_declarations(
@@ -116,6 +123,7 @@ pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
             "selectorReferenceEngine",
             "sourceInputEvidence",
             "sourceImportDeclarations",
+            "sourceSyntaxIndex",
             "promotionEvidenceWithSourceInput",
             "binderPluginBoundary",
         ],
@@ -126,6 +134,7 @@ pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
             "promotionEvidenceWithSourceInput",
             "styleSemanticGraphFromSource",
             "cssModulesClassnameBinding",
+            "sourceSyntaxIndex",
         ],
         next_decoupling_targets: Vec::new(),
     }
@@ -326,6 +335,11 @@ mod tests {
             boundary
                 .bridge_owned_surfaces
                 .contains(&"sourceImportDeclarations")
+        );
+        assert!(
+            boundary
+                .bridge_owned_surfaces
+                .contains(&"sourceSyntaxIndex")
         );
         assert!(
             boundary

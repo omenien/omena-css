@@ -10,6 +10,13 @@ use engine_style_parser::{
     AtRuleKind, ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage,
     SyntaxNodePayload, parse_style_module, summarize_css_modules_intermediate,
 };
+use omena_bridge::{
+    SourceImportedStyleBindingV0 as ImportedStyleBinding,
+    SourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
+    SourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
+    SourceSyntaxIndexV0 as SourceSyntaxIndex, SourceTypeFactTargetV0 as SourceTypeFactTarget,
+    canonicalize_source_selector_references, summarize_omena_bridge_source_syntax_index,
+};
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_tsgo_client::{
     OmenaTsgoClientBoundarySummaryV0, TsgoJsonRpcTypeFactProviderV0, TsgoResolvedTypeV0,
@@ -214,12 +221,12 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
 pub fn source_provider_direct_rust_adapter_contract() -> SourceProviderDirectRustAdapterV0 {
     SourceProviderDirectRustAdapterV0 {
         product: "omena-lsp-server.source-provider-direct-rust-adapter",
-        candidate_owner: "omena-lsp-server/sourceSyntaxIndex",
+        candidate_owner: "omena-bridge/sourceSyntaxIndex",
         style_definition_owner: "engine-style-parser/selectorDefinitionFacts",
         type_fact_owner: "omena-tsgo-client",
         request_path_policy: vec![
             "noNodeWorkspaceTypeResolverOnSourceProviderPath",
-            "buildSourceSyntaxIndexOnDocumentChange",
+            "buildBridgeSourceSyntaxIndexOnDocumentChange",
             "dedupeTargetAwareSourceCandidates",
             "consumeParserCanonicalSelectorFacts",
             "consumeParserSelectorDefinitionFacts",
@@ -422,77 +429,6 @@ pub struct LspTextDocumentState {
     source_syntax_index: SourceSyntaxIndex,
     #[serde(skip)]
     pub source_selector_candidates: Vec<LspStyleHoverCandidate>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct SourceSyntaxIndex {
-    imported_style_bindings: Vec<ImportedStyleBinding>,
-    class_string_literals: Vec<ParserByteSpanV0>,
-    style_property_accesses: Vec<SourceStylePropertyAccessFact>,
-    selector_references: Vec<SourceSelectorReferenceFact>,
-    type_fact_targets: Vec<SourceTypeFactTarget>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct SourceStylePropertyAccessFact {
-    byte_span: ParserByteSpanV0,
-    target_style_uri: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct SourceSelectorReferenceFact {
-    byte_span: ParserByteSpanV0,
-    selector_name: Option<String>,
-    match_kind: SourceSelectorReferenceMatchKind,
-    target_style_uri: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct SourceTypeFactTarget {
-    byte_span: ParserByteSpanV0,
-    expression_id: String,
-    target_style_uri: Option<String>,
-    prefix: String,
-    suffix: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum SourceSelectorReferenceMatchKind {
-    Exact,
-    Prefix,
-}
-
-type SourceReferenceDedupeKey = (
-    usize,
-    usize,
-    Option<String>,
-    SourceSelectorReferenceMatchKind,
-);
-type SourceReferenceTargetMap = BTreeMap<SourceReferenceDedupeKey, BTreeSet<Option<String>>>;
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct SourceClassValue {
-    exact: Vec<String>,
-    prefixes: Vec<String>,
-}
-
-impl SourceClassValue {
-    fn is_empty(&self) -> bool {
-        self.exact.is_empty() && self.prefixes.is_empty()
-    }
-
-    fn merge(&mut self, other: SourceClassValue) {
-        self.exact.extend(other.exact);
-        self.prefixes.extend(other.prefixes);
-        self.canonicalize();
-    }
-
-    fn canonicalize(&mut self) {
-        self.exact.sort();
-        self.exact.dedup();
-        self.prefixes.sort();
-        self.prefixes.dedup();
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1309,6 +1245,21 @@ fn project_tsgo_type_fact_target(
     names
 }
 
+fn push_selector_reference(
+    byte_span: ParserByteSpanV0,
+    selector_name: Option<String>,
+    match_kind: SourceSelectorReferenceMatchKind,
+    target_style_uri: Option<&str>,
+    references: &mut Vec<SourceSelectorReferenceFact>,
+) {
+    references.push(SourceSelectorReferenceFact {
+        byte_span,
+        selector_name,
+        match_kind,
+        target_style_uri: target_style_uri.map(ToString::to_string),
+    });
+}
+
 fn find_tsconfig_for_workspace(workspace_root: &Path) -> Option<PathBuf> {
     let mut current = Some(workspace_root);
     while let Some(dir) = current {
@@ -2022,7 +1973,7 @@ fn resolve_lsp_code_actions(params: Option<&Value>) -> Value {
                     "changes": Value::Object(changes),
                 },
                 "data": {
-                    "source": "openedSourceDocumentIndex",
+                    "source": "omenaBridgeSourceSyntaxIndex",
                     "diagnosticIndex": index,
                 },
             }))
@@ -2835,7 +2786,11 @@ fn source_completion_context_at_position(
     {
         return Some((
             access.target_style_uri.clone(),
-            source_completion_prefix_from_span(document.text.as_str(), access.byte_span, offset),
+            source_completion_prefix_for_terminal_offset(
+                document.text.as_str(),
+                access.byte_span,
+                offset,
+            ),
         ));
     }
     if let Some(reference) = document
@@ -2846,7 +2801,11 @@ fn source_completion_context_at_position(
     {
         return Some((
             reference.target_style_uri.clone(),
-            source_completion_prefix_from_span(document.text.as_str(), reference.byte_span, offset),
+            source_completion_prefix_for_terminal_offset(
+                document.text.as_str(),
+                reference.byte_span,
+                offset,
+            ),
         ));
     }
     if document
@@ -2867,6 +2826,14 @@ fn source_completion_context_at_position(
         ));
     }
     None
+}
+
+fn source_completion_prefix_for_terminal_offset(
+    source: &str,
+    span: ParserByteSpanV0,
+    offset: usize,
+) -> Option<String> {
+    (offset >= span.end).then(|| source_completion_prefix_from_span(source, span, offset))?
 }
 
 fn source_completion_prefix_from_span(
@@ -3032,96 +2999,12 @@ fn build_source_syntax_index(document: &LspTextDocumentState) -> SourceSyntaxInd
         return SourceSyntaxIndex::default();
     }
 
-    let source = document.text.as_str();
     let imports = collect_source_imports(document);
-    let imported_style_targets = imported_style_targets(imports.imported_style_bindings.as_slice());
-    let property_access_targets =
-        property_access_style_targets(imports.imported_style_bindings.as_slice());
-    let classnames_bind_targets = collect_classnames_bind_utility_bindings(
-        source,
-        imported_style_targets.as_slice(),
-        imports.classnames_bind_bindings.as_slice(),
-    );
-    let local_class_values = collect_local_class_value_bindings(source);
-
-    let mut index = SourceSyntaxIndex {
-        imported_style_bindings: imports.imported_style_bindings,
-        class_string_literals: collect_class_name_string_literal_spans(source),
-        style_property_accesses: collect_style_property_access_facts(
-            source,
-            property_access_targets.as_slice(),
-        ),
-        selector_references: Vec::new(),
-        type_fact_targets: Vec::new(),
-    };
-
-    for span in &index.class_string_literals {
-        push_string_literal_selector_references(
-            source,
-            *span,
-            None,
-            &mut index.selector_references,
-        );
-    }
-    collect_class_name_expression_reference_facts(
-        source,
-        &local_class_values,
-        &mut index.selector_references,
-        &mut index.type_fact_targets,
-    );
-    for access in &index.style_property_accesses {
-        index.selector_references.push(SourceSelectorReferenceFact {
-            byte_span: access.byte_span,
-            selector_name: None,
-            match_kind: SourceSelectorReferenceMatchKind::Exact,
-            target_style_uri: access.target_style_uri.clone(),
-        });
-    }
-    for binding in classnames_bind_targets {
-        collect_classnames_bind_call_reference_facts(
-            source,
-            binding.binding.as_str(),
-            Some(binding.style_uri.as_str()),
-            &local_class_values,
-            &mut index.selector_references,
-            &mut index.type_fact_targets,
-        );
-    }
-    canonicalize_source_selector_references(&mut index.selector_references);
-
-    index
-}
-
-fn canonicalize_source_selector_references(references: &mut Vec<SourceSelectorReferenceFact>) {
-    let mut targets_by_reference: SourceReferenceTargetMap = BTreeMap::new();
-    for reference in references.iter() {
-        targets_by_reference
-            .entry((
-                reference.byte_span.start,
-                reference.byte_span.end,
-                reference.selector_name.clone(),
-                reference.match_kind,
-            ))
-            .or_default()
-            .insert(reference.target_style_uri.clone());
-    }
-
-    let mut canonical = Vec::new();
-    for ((start, end, selector_name, match_kind), targets) in targets_by_reference {
-        let has_targeted_reference = targets.iter().any(Option::is_some);
-        for target_style_uri in targets {
-            if has_targeted_reference && target_style_uri.is_none() {
-                continue;
-            }
-            canonical.push(SourceSelectorReferenceFact {
-                byte_span: ParserByteSpanV0 { start, end },
-                selector_name: selector_name.clone(),
-                match_kind,
-                target_style_uri,
-            });
-        }
-    }
-    *references = canonical;
+    summarize_omena_bridge_source_syntax_index(
+        document.text.as_str(),
+        imports.imported_style_bindings,
+        imports.classnames_bind_bindings,
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3159,1530 +3042,6 @@ fn collect_source_imports(document: &LspTextDocumentState) -> SourceImportIndex 
     imports.classnames_bind_bindings.sort();
     imports.classnames_bind_bindings.dedup();
     imports
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct SourceStyleBindingTarget {
-    binding: String,
-    target_style_uri: Option<String>,
-}
-
-fn imported_style_targets(bindings: &[ImportedStyleBinding]) -> Vec<SourceStyleBindingTarget> {
-    bindings
-        .iter()
-        .map(|binding| SourceStyleBindingTarget {
-            binding: binding.binding.clone(),
-            target_style_uri: Some(binding.style_uri.clone()),
-        })
-        .collect()
-}
-
-fn property_access_style_targets(
-    bindings: &[ImportedStyleBinding],
-) -> Vec<SourceStyleBindingTarget> {
-    let imported = imported_style_targets(bindings);
-    if imported.is_empty() {
-        vec![SourceStyleBindingTarget {
-            binding: "styles".to_string(),
-            target_style_uri: None,
-        }]
-    } else {
-        imported
-    }
-}
-
-fn collect_class_name_string_literal_spans(source: &str) -> Vec<ParserByteSpanV0> {
-    let mut spans = Vec::new();
-    let mut cursor = 0usize;
-    while let Some(identifier) = next_code_identifier(source, cursor) {
-        cursor = identifier.end;
-        if identifier.text != "className" {
-            continue;
-        }
-        let equals_offset = skip_js_trivia(source, identifier.end);
-        if source.as_bytes().get(equals_offset) != Some(&b'=') {
-            continue;
-        }
-        let value_offset = skip_js_trivia(source, equals_offset + 1);
-        match source.as_bytes().get(value_offset).copied() {
-            Some(b'\'' | b'"' | b'`') => {
-                if let Some((literal_start, literal_end, next_offset)) =
-                    js_string_literal_span(source, value_offset, source.len())
-                {
-                    spans.push(ParserByteSpanV0 {
-                        start: literal_start,
-                        end: literal_end,
-                    });
-                    cursor = next_offset;
-                }
-            }
-            Some(b'{') => {}
-            _ => {}
-        }
-    }
-    spans
-}
-
-fn collect_style_property_access_facts(
-    source: &str,
-    targets: &[SourceStyleBindingTarget],
-) -> Vec<SourceStylePropertyAccessFact> {
-    let mut facts = Vec::new();
-    let mut cursor = 0usize;
-    while let Some(identifier) = next_code_identifier(source, cursor) {
-        cursor = identifier.end;
-        let Some(target) = targets
-            .iter()
-            .find(|target| target.binding == identifier.text)
-        else {
-            continue;
-        };
-        let member_offset = skip_js_trivia(source, identifier.end);
-        if source.as_bytes().get(member_offset) == Some(&b'.') {
-            let start = member_offset + 1;
-            let end = read_css_identifier_end(source, start);
-            if end > start {
-                facts.push(SourceStylePropertyAccessFact {
-                    byte_span: ParserByteSpanV0 { start, end },
-                    target_style_uri: target.target_style_uri.clone(),
-                });
-                cursor = end;
-            }
-            continue;
-        }
-        if source.as_bytes().get(member_offset) == Some(&b'[')
-            && let Some((literal_start, literal_end, bracket_end)) =
-                bracket_string_literal_access(source, member_offset)
-        {
-            if literal_end > literal_start
-                && source[literal_start..literal_end]
-                    .chars()
-                    .all(is_css_identifier_continue)
-            {
-                facts.push(SourceStylePropertyAccessFact {
-                    byte_span: ParserByteSpanV0 {
-                        start: literal_start,
-                        end: literal_end,
-                    },
-                    target_style_uri: target.target_style_uri.clone(),
-                });
-            }
-            cursor = bracket_end.min(source.len());
-        }
-    }
-    facts
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ClassnamesBindUtilityBinding {
-    binding: String,
-    style_uri: String,
-}
-
-fn collect_classnames_bind_utility_bindings(
-    source: &str,
-    style_targets: &[SourceStyleBindingTarget],
-    classnames_bind_imports: &[String],
-) -> Vec<ClassnamesBindUtilityBinding> {
-    if style_targets.is_empty() || classnames_bind_imports.is_empty() {
-        return Vec::new();
-    }
-    let mut bindings = Vec::new();
-    let mut cursor = 0usize;
-    while let Some(keyword) = next_code_identifier(source, cursor) {
-        cursor = keyword.end;
-        if !matches!(keyword.text, "const" | "let" | "var") {
-            continue;
-        }
-        if let Some((binding, next_offset)) = parse_classnames_bind_utility_binding(
-            source,
-            keyword.end,
-            style_targets,
-            classnames_bind_imports,
-        ) {
-            bindings.push(binding);
-            cursor = next_offset;
-        }
-    }
-    bindings.sort_by(|left, right| {
-        left.binding
-            .cmp(&right.binding)
-            .then_with(|| left.style_uri.cmp(&right.style_uri))
-    });
-    bindings
-        .dedup_by(|left, right| left.binding == right.binding && left.style_uri == right.style_uri);
-    bindings
-}
-
-fn parse_classnames_bind_utility_binding(
-    source: &str,
-    after_keyword: usize,
-    style_targets: &[SourceStyleBindingTarget],
-    classnames_bind_imports: &[String],
-) -> Option<(ClassnamesBindUtilityBinding, usize)> {
-    let binding_start = skip_js_trivia(source, after_keyword);
-    let (binding, binding_end) = read_js_identifier(source, binding_start)?;
-    let equals_offset = skip_js_trivia(source, binding_end);
-    if source.as_bytes().get(equals_offset) != Some(&b'=') {
-        return None;
-    }
-    let callee_start = skip_js_trivia(source, equals_offset + 1);
-    let (callee, callee_end) = read_js_identifier(source, callee_start)?;
-    if !classnames_bind_imports
-        .iter()
-        .any(|import_binding| import_binding == callee)
-    {
-        return None;
-    }
-    let dot_offset = skip_js_trivia(source, callee_end);
-    if source.as_bytes().get(dot_offset) != Some(&b'.') {
-        return None;
-    }
-    let (property, property_end) = read_js_identifier(source, dot_offset + 1)?;
-    if property != "bind" {
-        return None;
-    }
-    let open_paren = skip_js_trivia(source, property_end);
-    if source.as_bytes().get(open_paren) != Some(&b'(') {
-        return None;
-    }
-    let style_arg_start = skip_js_trivia(source, open_paren + 1);
-    let (style_binding_name, style_binding_end) = read_js_identifier(source, style_arg_start)?;
-    let style_uri = style_targets
-        .iter()
-        .find(|style_binding| style_binding.binding == style_binding_name)?
-        .target_style_uri
-        .clone();
-    let style_uri = style_uri?;
-
-    Some((
-        ClassnamesBindUtilityBinding {
-            binding: binding.to_string(),
-            style_uri,
-        },
-        style_binding_end,
-    ))
-}
-
-fn collect_class_name_expression_reference_facts(
-    source: &str,
-    local_class_values: &BTreeMap<String, SourceClassValue>,
-    references: &mut Vec<SourceSelectorReferenceFact>,
-    type_fact_targets: &mut Vec<SourceTypeFactTarget>,
-) {
-    let mut cursor = 0usize;
-    while let Some(identifier) = next_code_identifier(source, cursor) {
-        cursor = identifier.end;
-        if identifier.text != "className" {
-            continue;
-        }
-        let equals_offset = skip_js_trivia(source, identifier.end);
-        if source.as_bytes().get(equals_offset) != Some(&b'=') {
-            continue;
-        }
-        let value_offset = skip_js_trivia(source, equals_offset + 1);
-        if source.as_bytes().get(value_offset) == Some(&b'{') {
-            let expression_start = value_offset + 1;
-            if let Some(expression_end) = jsx_expression_end(source, expression_start) {
-                collect_selector_references_from_js_expression(
-                    source,
-                    expression_start,
-                    expression_end,
-                    None,
-                    local_class_values,
-                    references,
-                    type_fact_targets,
-                );
-                cursor = advance_js_scan_cursor(source, expression_end, source.len());
-            }
-        }
-    }
-}
-
-fn collect_classnames_bind_call_reference_facts(
-    source: &str,
-    binding: &str,
-    target_style_uri: Option<&str>,
-    local_class_values: &BTreeMap<String, SourceClassValue>,
-    references: &mut Vec<SourceSelectorReferenceFact>,
-    type_fact_targets: &mut Vec<SourceTypeFactTarget>,
-) {
-    let mut cursor = 0usize;
-    while let Some(identifier) = next_code_identifier(source, cursor) {
-        cursor = identifier.end;
-        if identifier.text != binding {
-            continue;
-        }
-        let open_paren = skip_js_trivia(source, identifier.end);
-        if source.as_bytes().get(open_paren) != Some(&b'(') {
-            continue;
-        }
-        let call_end = js_call_end(source, open_paren).unwrap_or(source.len());
-        for (argument_start, argument_end) in
-            split_top_level_js_segments(source, open_paren + 1, call_end, b',')
-        {
-            collect_selector_references_from_js_expression(
-                source,
-                argument_start,
-                argument_end,
-                target_style_uri,
-                local_class_values,
-                references,
-                type_fact_targets,
-            );
-        }
-        cursor = call_end.saturating_add(1).min(source.len());
-    }
-}
-
-fn collect_selector_references_from_js_expression(
-    source: &str,
-    start: usize,
-    end: usize,
-    target_style_uri: Option<&str>,
-    local_class_values: &BTreeMap<String, SourceClassValue>,
-    references: &mut Vec<SourceSelectorReferenceFact>,
-    type_fact_targets: &mut Vec<SourceTypeFactTarget>,
-) {
-    let (start, end) = trim_js_expression(source, start, end);
-    let (start, end) = unwrap_js_parenthesized_expression(source, start, end);
-    if start >= end {
-        return;
-    }
-
-    if let Some((literal_start, literal_end, next_offset)) =
-        js_string_literal_span(source, start, end)
-        && trim_js_expression(source, next_offset, end).0 >= end
-    {
-        push_js_literal_selector_references(
-            source,
-            literal_start,
-            literal_end,
-            source.as_bytes().get(start).copied() == Some(b'`'),
-            target_style_uri,
-            references,
-        );
-        if source.as_bytes().get(start).copied() == Some(b'`') {
-            collect_template_type_fact_targets(
-                source,
-                literal_start,
-                literal_end,
-                target_style_uri,
-                type_fact_targets,
-            );
-        }
-        return;
-    }
-
-    if source.as_bytes().get(start) == Some(&b'{')
-        && matching_js_block_end(source, start, b'{', b'}') == Some(end - 1)
-    {
-        collect_object_literal_selector_references(
-            source,
-            start,
-            end,
-            target_style_uri,
-            local_class_values,
-            references,
-            type_fact_targets,
-        );
-        return;
-    }
-
-    if source.as_bytes().get(start) == Some(&b'[')
-        && matching_js_block_end(source, start, b'[', b']') == Some(end - 1)
-    {
-        for (element_start, element_end) in
-            split_top_level_js_segments(source, start + 1, end - 1, b',')
-        {
-            let element_start = skip_js_trivia_until(source, element_start, element_end);
-            let element_start = if source[element_start..element_end].starts_with("...") {
-                element_start + 3
-            } else {
-                element_start
-            };
-            collect_selector_references_from_js_expression(
-                source,
-                element_start,
-                element_end,
-                target_style_uri,
-                local_class_values,
-                references,
-                type_fact_targets,
-            );
-        }
-        return;
-    }
-
-    if let Some((_, true_start, true_end, false_start, false_end)) =
-        top_level_conditional_parts(source, start, end)
-    {
-        collect_selector_references_from_js_expression(
-            source,
-            true_start,
-            true_end,
-            target_style_uri,
-            local_class_values,
-            references,
-            type_fact_targets,
-        );
-        collect_selector_references_from_js_expression(
-            source,
-            false_start,
-            false_end,
-            target_style_uri,
-            local_class_values,
-            references,
-            type_fact_targets,
-        );
-        return;
-    }
-
-    if let Some(operator_offset) = find_top_level_js_operator(source, start, end, "&&")
-        .or_else(|| find_top_level_js_operator(source, start, end, "||"))
-    {
-        collect_selector_references_from_js_expression(
-            source,
-            operator_offset + 2,
-            end,
-            target_style_uri,
-            local_class_values,
-            references,
-            type_fact_targets,
-        );
-        return;
-    }
-
-    if let Some(value) =
-        source_class_value_from_js_expression(source, start, end, local_class_values)
-        && !value.is_empty()
-    {
-        push_source_class_value_reference(
-            ParserByteSpanV0 { start, end },
-            value,
-            target_style_uri,
-            references,
-        );
-        return;
-    }
-
-    if let Some(prefix) =
-        static_string_prefix_for_js_expression(source, start, end, local_class_values)
-        && !prefix.is_empty()
-    {
-        push_selector_reference(
-            ParserByteSpanV0 { start, end },
-            Some(prefix),
-            SourceSelectorReferenceMatchKind::Prefix,
-            target_style_uri,
-            references,
-        );
-        return;
-    }
-
-    if let Some(path) = js_expression_path(source, start, end) {
-        push_source_type_fact_target(
-            ParserByteSpanV0 { start, end },
-            path.as_str(),
-            target_style_uri,
-            "",
-            "",
-            type_fact_targets,
-        );
-    }
-}
-
-fn collect_local_class_value_bindings(source: &str) -> BTreeMap<String, SourceClassValue> {
-    let mut values = BTreeMap::new();
-    let mut cursor = 0usize;
-    while let Some(keyword) = next_code_identifier(source, cursor) {
-        cursor = keyword.end;
-        if !matches!(keyword.text, "const" | "let" | "var") {
-            continue;
-        }
-        let binding_start = skip_js_trivia(source, keyword.end);
-        let Some((binding, binding_end)) = read_js_identifier(source, binding_start) else {
-            continue;
-        };
-        let equals_offset = skip_js_trivia(source, binding_end);
-        if source.as_bytes().get(equals_offset) != Some(&b'=') {
-            continue;
-        }
-        let expression_start = skip_js_trivia(source, equals_offset + 1);
-        let expression_end = js_statement_expression_end(source, expression_start);
-        if let Some(value) =
-            source_class_value_from_js_expression(source, expression_start, expression_end, &values)
-            && !value.is_empty()
-        {
-            values.insert(binding.to_string(), value);
-        }
-        let (_, property_values) = source_class_value_from_object_literal(
-            source,
-            expression_start,
-            expression_end,
-            &values,
-        );
-        for (property, value) in property_values {
-            if !value.is_empty() {
-                values.insert(format!("{binding}.{property}"), value);
-            }
-        }
-        cursor = expression_end.min(source.len());
-    }
-    values
-}
-
-fn source_class_value_from_js_expression(
-    source: &str,
-    start: usize,
-    end: usize,
-    local_class_values: &BTreeMap<String, SourceClassValue>,
-) -> Option<SourceClassValue> {
-    let (start, end) = trim_js_expression(source, start, end);
-    let (start, end) = unwrap_js_parenthesized_expression(source, start, end);
-    if start >= end {
-        return None;
-    }
-
-    if let Some((literal_start, literal_end, next_offset)) =
-        js_string_literal_span(source, start, end)
-        && trim_js_expression(source, next_offset, end).0 >= end
-    {
-        return Some(source_class_value_from_js_literal(
-            source,
-            literal_start,
-            literal_end,
-            source.as_bytes().get(start).copied() == Some(b'`'),
-        ));
-    }
-
-    if source.as_bytes().get(start) == Some(&b'{')
-        && matching_js_block_end(source, start, b'{', b'}') == Some(end - 1)
-    {
-        let (value, _) =
-            source_class_value_from_object_literal(source, start, end, local_class_values);
-        return Some(value);
-    }
-
-    if source.as_bytes().get(start) == Some(&b'[')
-        && matching_js_block_end(source, start, b'[', b']') == Some(end - 1)
-    {
-        let mut value = SourceClassValue::default();
-        for (element_start, element_end) in
-            split_top_level_js_segments(source, start + 1, end - 1, b',')
-        {
-            let element_start = skip_js_trivia_until(source, element_start, element_end);
-            let element_start = if source[element_start..element_end].starts_with("...") {
-                element_start + 3
-            } else {
-                element_start
-            };
-            if let Some(element_value) = source_class_value_from_js_expression(
-                source,
-                element_start,
-                element_end,
-                local_class_values,
-            ) {
-                value.merge(element_value);
-            }
-        }
-        return Some(value);
-    }
-
-    if let Some((_, true_start, true_end, false_start, false_end)) =
-        top_level_conditional_parts(source, start, end)
-    {
-        let mut value = SourceClassValue::default();
-        if let Some(true_value) =
-            source_class_value_from_js_expression(source, true_start, true_end, local_class_values)
-        {
-            value.merge(true_value);
-        }
-        if let Some(false_value) = source_class_value_from_js_expression(
-            source,
-            false_start,
-            false_end,
-            local_class_values,
-        ) {
-            value.merge(false_value);
-        }
-        return Some(value);
-    }
-
-    if let Some(operator_offset) = find_top_level_js_operator(source, start, end, "&&")
-        .or_else(|| find_top_level_js_operator(source, start, end, "||"))
-    {
-        return source_class_value_from_js_expression(
-            source,
-            operator_offset + 2,
-            end,
-            local_class_values,
-        );
-    }
-
-    if let Some(path) = js_expression_path(source, start, end)
-        && let Some(value) = local_class_values.get(path.as_str())
-    {
-        return Some(value.clone());
-    }
-
-    static_string_prefix_for_js_expression(source, start, end, local_class_values).map(|prefix| {
-        let mut value = SourceClassValue::default();
-        if !prefix.is_empty() {
-            value.prefixes.push(prefix);
-        }
-        value
-    })
-}
-
-fn source_class_value_from_js_literal(
-    source: &str,
-    literal_start: usize,
-    literal_end: usize,
-    is_template: bool,
-) -> SourceClassValue {
-    let mut value = SourceClassValue::default();
-    if is_template
-        && let Some(relative_interpolation) = source[literal_start..literal_end].find("${")
-    {
-        let prefix_end = literal_start + relative_interpolation;
-        push_template_prefix_value(source, literal_start, prefix_end, &mut value);
-    } else {
-        value
-            .exact
-            .extend(class_token_strings(source, literal_start, literal_end));
-    }
-    value.canonicalize();
-    value
-}
-
-fn source_class_value_from_object_literal(
-    source: &str,
-    start: usize,
-    end: usize,
-    local_class_values: &BTreeMap<String, SourceClassValue>,
-) -> (SourceClassValue, BTreeMap<String, SourceClassValue>) {
-    let (start, end) = trim_js_expression(source, start, end);
-    let (start, end) = unwrap_js_parenthesized_expression(source, start, end);
-    let mut object_value = SourceClassValue::default();
-    let mut property_values = BTreeMap::new();
-    if source.as_bytes().get(start) != Some(&b'{')
-        || matching_js_block_end(source, start, b'{', b'}') != Some(end.saturating_sub(1))
-    {
-        return (object_value, property_values);
-    }
-
-    for (property_start, property_end) in
-        split_top_level_js_segments(source, start + 1, end - 1, b',')
-    {
-        let (property_start, property_end) =
-            trim_js_expression(source, property_start, property_end);
-        if property_start >= property_end {
-            continue;
-        }
-        if source[property_start..property_end].starts_with("...") {
-            if let Some(spread_value) = source_class_value_from_js_expression(
-                source,
-                property_start + 3,
-                property_end,
-                local_class_values,
-            ) {
-                object_value.merge(spread_value);
-            }
-            continue;
-        }
-        let colon = find_top_level_js_byte(source, property_start, property_end, b':');
-        let key_end = colon.unwrap_or(property_end);
-        let key_value =
-            source_class_value_from_object_key(source, property_start, key_end, local_class_values);
-        object_value.merge(key_value.clone());
-        if let Some(property_name) = object_property_name(source, property_start, key_end) {
-            let property_value = colon
-                .and_then(|colon| {
-                    source_class_value_from_js_expression(
-                        source,
-                        colon + 1,
-                        property_end,
-                        local_class_values,
-                    )
-                })
-                .filter(|value| !value.is_empty())
-                .unwrap_or(key_value);
-            property_values.insert(property_name, property_value);
-        }
-    }
-    object_value.canonicalize();
-    (object_value, property_values)
-}
-
-fn collect_object_literal_selector_references(
-    source: &str,
-    start: usize,
-    end: usize,
-    target_style_uri: Option<&str>,
-    local_class_values: &BTreeMap<String, SourceClassValue>,
-    references: &mut Vec<SourceSelectorReferenceFact>,
-    type_fact_targets: &mut Vec<SourceTypeFactTarget>,
-) {
-    for (property_start, property_end) in
-        split_top_level_js_segments(source, start + 1, end - 1, b',')
-    {
-        let (property_start, property_end) =
-            trim_js_expression(source, property_start, property_end);
-        if property_start >= property_end {
-            continue;
-        }
-        if source[property_start..property_end].starts_with("...") {
-            collect_selector_references_from_js_expression(
-                source,
-                property_start + 3,
-                property_end,
-                target_style_uri,
-                local_class_values,
-                references,
-                type_fact_targets,
-            );
-            continue;
-        }
-        let colon = find_top_level_js_byte(source, property_start, property_end, b':');
-        let key_end = colon.unwrap_or(property_end);
-        collect_selector_references_from_object_key(
-            source,
-            property_start,
-            key_end,
-            target_style_uri,
-            local_class_values,
-            references,
-            type_fact_targets,
-        );
-    }
-}
-
-fn collect_selector_references_from_object_key(
-    source: &str,
-    start: usize,
-    end: usize,
-    target_style_uri: Option<&str>,
-    local_class_values: &BTreeMap<String, SourceClassValue>,
-    references: &mut Vec<SourceSelectorReferenceFact>,
-    type_fact_targets: &mut Vec<SourceTypeFactTarget>,
-) {
-    let (start, end) = trim_js_expression(source, start, end);
-    if start >= end {
-        return;
-    }
-    if source.as_bytes().get(start) == Some(&b'[')
-        && matching_js_block_end(source, start, b'[', b']') == Some(end - 1)
-    {
-        collect_selector_references_from_js_expression(
-            source,
-            start + 1,
-            end - 1,
-            target_style_uri,
-            local_class_values,
-            references,
-            type_fact_targets,
-        );
-        return;
-    }
-    if let Some((literal_start, literal_end, next_offset)) =
-        js_string_literal_span(source, start, end)
-        && trim_js_expression(source, next_offset, end).0 >= end
-    {
-        push_js_literal_selector_references(
-            source,
-            literal_start,
-            literal_end,
-            source.as_bytes().get(start).copied() == Some(b'`'),
-            target_style_uri,
-            references,
-        );
-        if source.as_bytes().get(start).copied() == Some(b'`') {
-            collect_template_type_fact_targets(
-                source,
-                literal_start,
-                literal_end,
-                target_style_uri,
-                type_fact_targets,
-            );
-        }
-        return;
-    }
-    if let Some((identifier, identifier_end)) = read_js_identifier(source, start)
-        && trim_js_expression(source, identifier_end, end).0 >= end
-    {
-        push_selector_reference(
-            ParserByteSpanV0 { start, end },
-            Some(identifier.to_string()),
-            SourceSelectorReferenceMatchKind::Exact,
-            target_style_uri,
-            references,
-        );
-    }
-}
-
-fn source_class_value_from_object_key(
-    source: &str,
-    start: usize,
-    end: usize,
-    local_class_values: &BTreeMap<String, SourceClassValue>,
-) -> SourceClassValue {
-    let (start, end) = trim_js_expression(source, start, end);
-    if start >= end {
-        return SourceClassValue::default();
-    }
-    if source.as_bytes().get(start) == Some(&b'[')
-        && matching_js_block_end(source, start, b'[', b']') == Some(end - 1)
-    {
-        return source_class_value_from_js_expression(
-            source,
-            start + 1,
-            end - 1,
-            local_class_values,
-        )
-        .unwrap_or_default();
-    }
-    if let Some((literal_start, literal_end, next_offset)) =
-        js_string_literal_span(source, start, end)
-        && trim_js_expression(source, next_offset, end).0 >= end
-    {
-        return source_class_value_from_js_literal(
-            source,
-            literal_start,
-            literal_end,
-            source.as_bytes().get(start).copied() == Some(b'`'),
-        );
-    }
-    if let Some((identifier, identifier_end)) = read_js_identifier(source, start)
-        && trim_js_expression(source, identifier_end, end).0 >= end
-    {
-        let mut value = SourceClassValue::default();
-        value.exact.push(identifier.to_string());
-        return value;
-    }
-    SourceClassValue::default()
-}
-
-fn object_property_name(source: &str, start: usize, end: usize) -> Option<String> {
-    let (start, end) = trim_js_expression(source, start, end);
-    if let Some((literal_start, literal_end, next_offset)) =
-        js_string_literal_span(source, start, end)
-        && trim_js_expression(source, next_offset, end).0 >= end
-    {
-        return source.get(literal_start..literal_end).map(str::to_string);
-    }
-    let (identifier, identifier_end) = read_js_identifier(source, start)?;
-    (trim_js_expression(source, identifier_end, end).0 >= end).then(|| identifier.to_string())
-}
-
-fn push_source_class_value_reference(
-    byte_span: ParserByteSpanV0,
-    value: SourceClassValue,
-    target_style_uri: Option<&str>,
-    references: &mut Vec<SourceSelectorReferenceFact>,
-) {
-    for selector_name in value.exact {
-        push_selector_reference(
-            byte_span,
-            Some(selector_name),
-            SourceSelectorReferenceMatchKind::Exact,
-            target_style_uri,
-            references,
-        );
-    }
-    for prefix in value.prefixes {
-        push_selector_reference(
-            byte_span,
-            Some(prefix),
-            SourceSelectorReferenceMatchKind::Prefix,
-            target_style_uri,
-            references,
-        );
-    }
-}
-
-fn collect_template_type_fact_targets(
-    source: &str,
-    literal_start: usize,
-    literal_end: usize,
-    target_style_uri: Option<&str>,
-    type_fact_targets: &mut Vec<SourceTypeFactTarget>,
-) {
-    let Some((prefix, expression_span, suffix)) =
-        single_template_interpolation_projection(source, literal_start, literal_end)
-    else {
-        return;
-    };
-    let Some(path) = js_expression_path(source, expression_span.start, expression_span.end) else {
-        return;
-    };
-    push_source_type_fact_target(
-        expression_span,
-        path.as_str(),
-        target_style_uri,
-        prefix.as_str(),
-        suffix.as_str(),
-        type_fact_targets,
-    );
-}
-
-fn single_template_interpolation_projection(
-    source: &str,
-    literal_start: usize,
-    literal_end: usize,
-) -> Option<(String, ParserByteSpanV0, String)> {
-    let relative_open = source.get(literal_start..literal_end)?.find("${")?;
-    let open = literal_start + relative_open;
-    if source.get(open + 2..literal_end)?.contains("${") {
-        return None;
-    }
-    let expression_start = open + 2;
-    let close = matching_js_block_end(source, open + 1, b'{', b'}')?;
-    if close > literal_end {
-        return None;
-    }
-    let (expression_start, expression_end) = trim_js_expression(source, expression_start, close);
-    if expression_start >= expression_end {
-        return None;
-    }
-    let prefix_start = template_token_start(source, literal_start, open);
-    let suffix_end = template_token_end(source, close + 1, literal_end);
-    let prefix = source.get(prefix_start..open)?.to_string();
-    let suffix = source.get(close + 1..suffix_end)?.to_string();
-    if !prefix.chars().all(is_css_identifier_continue)
-        || !suffix.chars().all(is_css_identifier_continue)
-    {
-        return None;
-    }
-    Some((
-        prefix,
-        ParserByteSpanV0 {
-            start: expression_start,
-            end: expression_end,
-        },
-        suffix,
-    ))
-}
-
-fn template_token_start(source: &str, literal_start: usize, prefix_end: usize) -> usize {
-    source
-        .get(literal_start..prefix_end)
-        .and_then(|value| {
-            value
-                .char_indices()
-                .rev()
-                .find(|(_, ch)| ch.is_ascii_whitespace())
-                .map(|(index, ch)| literal_start + index + ch.len_utf8())
-        })
-        .unwrap_or(literal_start)
-}
-
-fn template_token_end(source: &str, suffix_start: usize, literal_end: usize) -> usize {
-    source
-        .get(suffix_start..literal_end)
-        .and_then(|value| {
-            value
-                .char_indices()
-                .find(|(_, ch)| ch.is_ascii_whitespace())
-                .map(|(index, _)| suffix_start + index)
-        })
-        .unwrap_or(literal_end)
-}
-
-fn push_source_type_fact_target(
-    byte_span: ParserByteSpanV0,
-    expression_path: &str,
-    target_style_uri: Option<&str>,
-    prefix: &str,
-    suffix: &str,
-    type_fact_targets: &mut Vec<SourceTypeFactTarget>,
-) {
-    type_fact_targets.push(SourceTypeFactTarget {
-        byte_span,
-        expression_id: source_type_fact_expression_id(expression_path, byte_span),
-        target_style_uri: target_style_uri.map(ToString::to_string),
-        prefix: prefix.to_string(),
-        suffix: suffix.to_string(),
-    });
-}
-
-fn source_type_fact_expression_id(expression_path: &str, byte_span: ParserByteSpanV0) -> String {
-    format!(
-        "lsp-source-type-fact:{expression_path}:{}:{}",
-        byte_span.start, byte_span.end
-    )
-}
-
-fn push_selector_reference(
-    byte_span: ParserByteSpanV0,
-    selector_name: Option<String>,
-    match_kind: SourceSelectorReferenceMatchKind,
-    target_style_uri: Option<&str>,
-    references: &mut Vec<SourceSelectorReferenceFact>,
-) {
-    references.push(SourceSelectorReferenceFact {
-        byte_span,
-        selector_name,
-        match_kind,
-        target_style_uri: target_style_uri.map(ToString::to_string),
-    });
-}
-
-fn push_js_literal_selector_references(
-    source: &str,
-    literal_start: usize,
-    literal_end: usize,
-    is_template: bool,
-    target_style_uri: Option<&str>,
-    references: &mut Vec<SourceSelectorReferenceFact>,
-) {
-    if is_template
-        && let Some(relative_interpolation) = source[literal_start..literal_end].find("${")
-    {
-        push_template_prefix_selector_references(
-            source,
-            literal_start,
-            literal_start + relative_interpolation,
-            target_style_uri,
-            references,
-        );
-        return;
-    }
-
-    push_string_literal_selector_references(
-        source,
-        ParserByteSpanV0 {
-            start: literal_start,
-            end: literal_end,
-        },
-        target_style_uri.map(ToString::to_string),
-        references,
-    );
-}
-
-fn push_template_prefix_selector_references(
-    source: &str,
-    literal_start: usize,
-    prefix_end: usize,
-    target_style_uri: Option<&str>,
-    references: &mut Vec<SourceSelectorReferenceFact>,
-) {
-    let spans = class_token_byte_spans(source, literal_start, prefix_end);
-    let prefix_ends_with_space = source[..prefix_end]
-        .chars()
-        .last()
-        .is_none_or(char::is_whitespace);
-    for (index, span) in spans.iter().enumerate() {
-        let is_open_prefix = index + 1 == spans.len() && !prefix_ends_with_space;
-        push_selector_reference(
-            *span,
-            Some(source[span.start..span.end].to_string()),
-            if is_open_prefix {
-                SourceSelectorReferenceMatchKind::Prefix
-            } else {
-                SourceSelectorReferenceMatchKind::Exact
-            },
-            target_style_uri,
-            references,
-        );
-    }
-}
-
-fn push_template_prefix_value(
-    source: &str,
-    literal_start: usize,
-    prefix_end: usize,
-    value: &mut SourceClassValue,
-) {
-    let spans = class_token_byte_spans(source, literal_start, prefix_end);
-    let prefix_ends_with_space = source[..prefix_end]
-        .chars()
-        .last()
-        .is_none_or(char::is_whitespace);
-    for (index, span) in spans.iter().enumerate() {
-        let token = source[span.start..span.end].to_string();
-        if index + 1 == spans.len() && !prefix_ends_with_space {
-            value.prefixes.push(token);
-        } else {
-            value.exact.push(token);
-        }
-    }
-}
-
-fn class_token_strings(source: &str, literal_start: usize, literal_end: usize) -> Vec<String> {
-    class_token_byte_spans(source, literal_start, literal_end)
-        .into_iter()
-        .map(|span| source[span.start..span.end].to_string())
-        .collect()
-}
-
-fn trim_js_expression(source: &str, start: usize, end: usize) -> (usize, usize) {
-    let mut start = char_boundary_ceil(source, start);
-    let mut end = char_boundary_floor(source, end);
-    start = skip_js_trivia_until(source, start, end);
-    while end > start
-        && source
-            .as_bytes()
-            .get(end - 1)
-            .is_some_and(u8::is_ascii_whitespace)
-    {
-        end -= 1;
-    }
-    (start, end)
-}
-
-fn char_boundary_floor(source: &str, index: usize) -> usize {
-    let mut index = index.min(source.len());
-    while index > 0 && !source.is_char_boundary(index) {
-        index -= 1;
-    }
-    index
-}
-
-fn char_boundary_ceil(source: &str, index: usize) -> usize {
-    let mut index = index.min(source.len());
-    while index < source.len() && !source.is_char_boundary(index) {
-        index += 1;
-    }
-    index
-}
-
-fn advance_js_scan_cursor(source: &str, cursor: usize, limit: usize) -> usize {
-    let cursor = char_boundary_ceil(source, cursor);
-    let limit = char_boundary_floor(source, limit);
-    if cursor >= limit {
-        return limit;
-    }
-    char_boundary_ceil(source, cursor + 1).min(limit)
-}
-
-fn advance_js_escaped_char(source: &str, slash_offset: usize, limit: usize) -> usize {
-    let after_slash = advance_js_scan_cursor(source, slash_offset, limit);
-    advance_js_scan_cursor(source, after_slash, limit)
-}
-
-fn unwrap_js_parenthesized_expression(source: &str, start: usize, end: usize) -> (usize, usize) {
-    let mut current_start = start;
-    let mut current_end = end;
-    loop {
-        let (trimmed_start, trimmed_end) = trim_js_expression(source, current_start, current_end);
-        if source.as_bytes().get(trimmed_start) == Some(&b'(')
-            && matching_js_block_end(source, trimmed_start, b'(', b')')
-                == Some(trimmed_end.saturating_sub(1))
-        {
-            current_start = trimmed_start + 1;
-            current_end = trimmed_end - 1;
-            continue;
-        }
-        return (trimmed_start, trimmed_end);
-    }
-}
-
-fn js_statement_expression_end(source: &str, start: usize) -> usize {
-    let mut cursor = char_boundary_ceil(source, start);
-    let mut depth = 0usize;
-    while cursor < source.len() {
-        match source.as_bytes().get(cursor).copied() {
-            Some(b'\'' | b'"' | b'`') => {
-                cursor =
-                    skip_js_string_literal(source, cursor, source.len()).unwrap_or(source.len());
-            }
-            Some(b'(' | b'[' | b'{') => {
-                depth += 1;
-                cursor = advance_js_scan_cursor(source, cursor, source.len());
-            }
-            Some(b')' | b']' | b'}') => {
-                depth = depth.saturating_sub(1);
-                cursor = advance_js_scan_cursor(source, cursor, source.len());
-            }
-            Some(b';') if depth == 0 => return cursor,
-            Some(b'\n') if depth == 0 => return cursor,
-            Some(_) => cursor = advance_js_scan_cursor(source, cursor, source.len()),
-            None => break,
-        }
-    }
-    source.len()
-}
-
-fn matching_js_block_end(source: &str, open_offset: usize, open: u8, close: u8) -> Option<usize> {
-    if source.as_bytes().get(open_offset) != Some(&open) {
-        return None;
-    }
-    let mut cursor = advance_js_scan_cursor(source, open_offset, source.len());
-    let mut depth = 1usize;
-    while cursor < source.len() {
-        match source.as_bytes().get(cursor).copied()? {
-            b'\'' | b'"' | b'`' => {
-                cursor = skip_js_string_literal(source, cursor, source.len())?;
-            }
-            byte if byte == open => {
-                depth += 1;
-                cursor = advance_js_scan_cursor(source, cursor, source.len());
-            }
-            byte if byte == close => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(cursor);
-                }
-                cursor = advance_js_scan_cursor(source, cursor, source.len());
-            }
-            _ => cursor = advance_js_scan_cursor(source, cursor, source.len()),
-        }
-    }
-    None
-}
-
-fn split_top_level_js_segments(
-    source: &str,
-    start: usize,
-    end: usize,
-    delimiter: u8,
-) -> Vec<(usize, usize)> {
-    let mut segments = Vec::new();
-    let end = char_boundary_floor(source, end);
-    let mut segment_start = char_boundary_ceil(source, start).min(end);
-    let mut cursor = segment_start;
-    let mut depth = 0usize;
-    while cursor < end {
-        match source.as_bytes().get(cursor).copied() {
-            Some(b'\'' | b'"' | b'`') => {
-                cursor = skip_js_string_literal(source, cursor, end).unwrap_or(end);
-            }
-            Some(b'(' | b'[' | b'{') => {
-                depth += 1;
-                cursor = advance_js_scan_cursor(source, cursor, end);
-            }
-            Some(b')' | b']' | b'}') => {
-                depth = depth.saturating_sub(1);
-                cursor = advance_js_scan_cursor(source, cursor, end);
-            }
-            Some(byte) if byte == delimiter && depth == 0 => {
-                segments.push((segment_start, cursor));
-                cursor = advance_js_scan_cursor(source, cursor, end);
-                segment_start = cursor;
-            }
-            Some(_) => cursor = advance_js_scan_cursor(source, cursor, end),
-            None => break,
-        }
-    }
-    if segment_start <= end {
-        segments.push((segment_start, end));
-    }
-    segments
-}
-
-fn find_top_level_js_byte(source: &str, start: usize, end: usize, needle: u8) -> Option<usize> {
-    let end = char_boundary_floor(source, end);
-    let mut cursor = char_boundary_ceil(source, start).min(end);
-    let mut depth = 0usize;
-    while cursor < end {
-        match source.as_bytes().get(cursor).copied()? {
-            b'\'' | b'"' | b'`' => {
-                cursor = skip_js_string_literal(source, cursor, end).unwrap_or(end);
-            }
-            b'(' | b'[' | b'{' => {
-                depth += 1;
-                cursor = advance_js_scan_cursor(source, cursor, end);
-            }
-            b')' | b']' | b'}' => {
-                depth = depth.saturating_sub(1);
-                cursor = advance_js_scan_cursor(source, cursor, end);
-            }
-            byte if byte == needle && depth == 0 => return Some(cursor),
-            _ => cursor = advance_js_scan_cursor(source, cursor, end),
-        }
-    }
-    None
-}
-
-fn find_top_level_js_operator(
-    source: &str,
-    start: usize,
-    end: usize,
-    operator: &str,
-) -> Option<usize> {
-    let end = char_boundary_floor(source, end);
-    let mut cursor = char_boundary_ceil(source, start).min(end);
-    let mut depth = 0usize;
-    while cursor < end {
-        match source.as_bytes().get(cursor).copied()? {
-            b'\'' | b'"' | b'`' => {
-                cursor = skip_js_string_literal(source, cursor, end).unwrap_or(end);
-            }
-            b'(' | b'[' | b'{' => {
-                depth += 1;
-                cursor = advance_js_scan_cursor(source, cursor, end);
-            }
-            b')' | b']' | b'}' => {
-                depth = depth.saturating_sub(1);
-                cursor = advance_js_scan_cursor(source, cursor, end);
-            }
-            _ if depth == 0
-                && source
-                    .get(cursor..end)
-                    .is_some_and(|rest| rest.starts_with(operator)) =>
-            {
-                return Some(cursor);
-            }
-            _ => cursor = advance_js_scan_cursor(source, cursor, end),
-        }
-    }
-    None
-}
-
-fn top_level_conditional_parts(
-    source: &str,
-    start: usize,
-    end: usize,
-) -> Option<(usize, usize, usize, usize, usize)> {
-    let question = find_top_level_js_byte(source, start, end, b'?')?;
-    let end = char_boundary_floor(source, end);
-    let mut cursor = advance_js_scan_cursor(source, question, end);
-    let mut depth = 0usize;
-    let mut nested_conditional_depth = 0usize;
-    while cursor < end {
-        match source.as_bytes().get(cursor).copied()? {
-            b'\'' | b'"' | b'`' => {
-                cursor = skip_js_string_literal(source, cursor, end).unwrap_or(end);
-            }
-            b'(' | b'[' | b'{' => {
-                depth += 1;
-                cursor = advance_js_scan_cursor(source, cursor, end);
-            }
-            b')' | b']' | b'}' => {
-                depth = depth.saturating_sub(1);
-                cursor = advance_js_scan_cursor(source, cursor, end);
-            }
-            b'?' if depth == 0 => {
-                nested_conditional_depth += 1;
-                cursor = advance_js_scan_cursor(source, cursor, end);
-            }
-            b':' if depth == 0 && nested_conditional_depth == 0 => {
-                return Some((
-                    question,
-                    advance_js_scan_cursor(source, question, end),
-                    cursor,
-                    advance_js_scan_cursor(source, cursor, end),
-                    end,
-                ));
-            }
-            b':' if depth == 0 => {
-                nested_conditional_depth = nested_conditional_depth.saturating_sub(1);
-                cursor = advance_js_scan_cursor(source, cursor, end);
-            }
-            _ => cursor = advance_js_scan_cursor(source, cursor, end),
-        }
-    }
-    None
-}
-
-fn js_expression_path(source: &str, start: usize, end: usize) -> Option<String> {
-    let (start, end) = trim_js_expression(source, start, end);
-    let (first, mut cursor) = read_js_identifier(source, start)?;
-    let mut path = vec![first.to_string()];
-    loop {
-        cursor = skip_js_trivia_until(source, cursor, end);
-        match source.as_bytes().get(cursor).copied() {
-            Some(b'.') => {
-                let member_start = skip_js_trivia_until(source, cursor + 1, end);
-                let (member, member_end) = read_js_identifier(source, member_start)?;
-                path.push(member.to_string());
-                cursor = member_end;
-            }
-            Some(b'[') => {
-                if let Some((literal_start, literal_end, bracket_end)) =
-                    bracket_string_literal_access(source, cursor)
-                    && bracket_end <= end
-                {
-                    path.push(source[literal_start..literal_end].to_string());
-                    cursor = bracket_end;
-                } else {
-                    return None;
-                }
-            }
-            _ => break,
-        }
-    }
-    (trim_js_expression(source, cursor, end).0 >= end).then(|| path.join("."))
-}
-
-fn static_string_prefix_for_js_expression(
-    source: &str,
-    start: usize,
-    end: usize,
-    local_class_values: &BTreeMap<String, SourceClassValue>,
-) -> Option<String> {
-    let (start, end) = trim_js_expression(source, start, end);
-    let (start, end) = unwrap_js_parenthesized_expression(source, start, end);
-    if let Some((literal_start, literal_end, next_offset)) =
-        js_string_literal_span(source, start, end)
-        && trim_js_expression(source, next_offset, end).0 >= end
-    {
-        if source.as_bytes().get(start).copied() == Some(b'`')
-            && let Some(relative_interpolation) = source[literal_start..literal_end].find("${")
-        {
-            return Some(source[literal_start..literal_start + relative_interpolation].to_string());
-        }
-        return Some(source[literal_start..literal_end].to_string());
-    }
-    if let Some(path) = js_expression_path(source, start, end)
-        && let Some(value) = local_class_values.get(path.as_str())
-    {
-        if value.exact.len() == 1 && value.prefixes.is_empty() {
-            return value.exact.first().cloned();
-        }
-        if value.prefixes.len() == 1 && value.exact.is_empty() {
-            return value.prefixes.first().cloned();
-        }
-    }
-    if let Some(plus_offset) = find_top_level_js_operator(source, start, end, "+") {
-        let left =
-            static_string_prefix_for_js_expression(source, start, plus_offset, local_class_values)?;
-        let right = static_string_prefix_for_js_expression(
-            source,
-            plus_offset + 1,
-            end,
-            local_class_values,
-        )
-        .unwrap_or_default();
-        return Some(format!("{left}{right}"));
-    }
-    None
-}
-
-fn js_call_end(source: &str, open_paren: usize) -> Option<usize> {
-    if source.as_bytes().get(open_paren) != Some(&b'(') {
-        return None;
-    }
-    let mut cursor = advance_js_scan_cursor(source, open_paren, source.len());
-    let mut depth = 1usize;
-    while cursor < source.len() {
-        match source.as_bytes().get(cursor).copied()? {
-            b'\'' | b'"' | b'`' => {
-                cursor = skip_js_string_literal(source, cursor, source.len())?;
-            }
-            b'(' => {
-                depth += 1;
-                cursor = advance_js_scan_cursor(source, cursor, source.len());
-            }
-            b')' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(cursor);
-                }
-                cursor = advance_js_scan_cursor(source, cursor, source.len());
-            }
-            _ => {
-                cursor = advance_js_scan_cursor(source, cursor, source.len());
-            }
-        }
-    }
-    None
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ImportedStyleBinding {
-    binding: String,
-    style_uri: String,
-}
-
-fn push_string_literal_selector_references(
-    source: &str,
-    literal_span: ParserByteSpanV0,
-    target_style_uri: Option<String>,
-    references: &mut Vec<SourceSelectorReferenceFact>,
-) {
-    for span in class_token_byte_spans(source, literal_span.start, literal_span.end) {
-        references.push(SourceSelectorReferenceFact {
-            byte_span: span,
-            selector_name: None,
-            match_kind: SourceSelectorReferenceMatchKind::Exact,
-            target_style_uri: target_style_uri.clone(),
-        });
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct CodeIdentifier<'a> {
-    text: &'a str,
-    end: usize,
-}
-
-fn next_code_identifier(source: &str, mut cursor: usize) -> Option<CodeIdentifier<'_>> {
-    while cursor < source.len() {
-        cursor = skip_js_trivia(source, cursor);
-        let byte = source.as_bytes().get(cursor).copied()?;
-        if matches!(byte, b'\'' | b'"' | b'`') {
-            cursor = skip_js_string_literal(source, cursor, source.len()).unwrap_or(source.len());
-            continue;
-        }
-        if byte.is_ascii_alphabetic() || matches!(byte, b'_' | b'$') {
-            let (text, end) = read_js_identifier(source, cursor)?;
-            return Some(CodeIdentifier { text, end });
-        }
-        cursor = advance_js_scan_cursor(source, cursor, source.len());
-    }
-    None
-}
-
-fn skip_js_trivia(source: &str, cursor: usize) -> usize {
-    skip_js_trivia_until(source, cursor, source.len())
-}
-
-fn skip_js_trivia_until(source: &str, mut cursor: usize, limit: usize) -> usize {
-    loop {
-        cursor = skip_ascii_whitespace_until(source, cursor, limit);
-        if source.as_bytes().get(cursor) == Some(&b'/') {
-            match source.as_bytes().get(cursor + 1).copied() {
-                Some(b'/') => {
-                    cursor = skip_js_line_comment(source, cursor + 2, limit);
-                    continue;
-                }
-                Some(b'*') => {
-                    cursor = skip_js_block_comment(source, cursor + 2, limit);
-                    continue;
-                }
-                _ => {}
-            }
-        }
-        return cursor;
-    }
-}
-
-fn skip_ascii_whitespace_until(source: &str, mut offset: usize, limit: usize) -> usize {
-    while offset < limit
-        && source
-            .as_bytes()
-            .get(offset)
-            .is_some_and(u8::is_ascii_whitespace)
-    {
-        offset += 1;
-    }
-    offset
-}
-
-fn skip_js_line_comment(source: &str, mut cursor: usize, limit: usize) -> usize {
-    let limit = char_boundary_floor(source, limit);
-    while cursor < limit {
-        if source.as_bytes().get(cursor) == Some(&b'\n') {
-            return advance_js_scan_cursor(source, cursor, limit);
-        }
-        cursor = advance_js_scan_cursor(source, cursor, limit);
-    }
-    limit
-}
-
-fn skip_js_block_comment(source: &str, mut cursor: usize, limit: usize) -> usize {
-    let limit = char_boundary_floor(source, limit);
-    while cursor + 1 < limit {
-        if source.as_bytes().get(cursor) == Some(&b'*')
-            && source.as_bytes().get(cursor + 1) == Some(&b'/')
-        {
-            return cursor + 2;
-        }
-        cursor = advance_js_scan_cursor(source, cursor, limit);
-    }
-    limit
 }
 
 fn style_uri_for_import_specifier(
@@ -4847,6 +3206,103 @@ fn style_candidate_paths(base_path: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
+fn char_boundary_floor(source: &str, index: usize) -> usize {
+    let mut index = index.min(source.len());
+    while index > 0 && !source.is_char_boundary(index) {
+        index -= 1;
+    }
+    index
+}
+
+fn char_boundary_ceil(source: &str, index: usize) -> usize {
+    let mut index = index.min(source.len());
+    while index < source.len() && !source.is_char_boundary(index) {
+        index += 1;
+    }
+    index
+}
+
+fn advance_js_scan_cursor(source: &str, cursor: usize, limit: usize) -> usize {
+    let cursor = char_boundary_ceil(source, cursor);
+    let limit = char_boundary_floor(source, limit);
+    if cursor >= limit {
+        return limit;
+    }
+    char_boundary_ceil(source, cursor + 1).min(limit)
+}
+
+fn advance_js_escaped_char(source: &str, slash_offset: usize, limit: usize) -> usize {
+    let after_slash = advance_js_scan_cursor(source, slash_offset, limit);
+    advance_js_scan_cursor(source, after_slash, limit)
+}
+
+fn matching_js_block_end(source: &str, open_offset: usize, open: u8, close: u8) -> Option<usize> {
+    if source.as_bytes().get(open_offset) != Some(&open) {
+        return None;
+    }
+    let mut cursor = advance_js_scan_cursor(source, open_offset, source.len());
+    let mut depth = 1usize;
+    while cursor < source.len() {
+        match source.as_bytes().get(cursor).copied()? {
+            b'\'' | b'"' | b'`' => {
+                cursor = skip_js_string_literal(source, cursor, source.len())?;
+            }
+            byte if byte == open => {
+                depth += 1;
+                cursor = advance_js_scan_cursor(source, cursor, source.len());
+            }
+            byte if byte == close => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(cursor);
+                }
+                cursor = advance_js_scan_cursor(source, cursor, source.len());
+            }
+            _ => cursor = advance_js_scan_cursor(source, cursor, source.len()),
+        }
+    }
+    None
+}
+
+fn split_top_level_js_segments(
+    source: &str,
+    start: usize,
+    end: usize,
+    delimiter: u8,
+) -> Vec<(usize, usize)> {
+    let mut segments = Vec::new();
+    let end = char_boundary_floor(source, end);
+    let mut segment_start = char_boundary_ceil(source, start).min(end);
+    let mut cursor = segment_start;
+    let mut depth = 0usize;
+    while cursor < end {
+        match source.as_bytes().get(cursor).copied() {
+            Some(b'\'' | b'"' | b'`') => {
+                cursor = skip_js_string_literal(source, cursor, end).unwrap_or(end);
+            }
+            Some(b'(' | b'[' | b'{') => {
+                depth += 1;
+                cursor = advance_js_scan_cursor(source, cursor, end);
+            }
+            Some(b')' | b']' | b'}') => {
+                depth = depth.saturating_sub(1);
+                cursor = advance_js_scan_cursor(source, cursor, end);
+            }
+            Some(byte) if byte == delimiter && depth == 0 => {
+                segments.push((segment_start, cursor));
+                cursor = advance_js_scan_cursor(source, cursor, end);
+                segment_start = cursor;
+            }
+            Some(_) => cursor = advance_js_scan_cursor(source, cursor, end),
+            None => break,
+        }
+    }
+    if segment_start <= end {
+        segments.push((segment_start, end));
+    }
+    segments
+}
+
 fn source_reference_candidate(
     document: &LspTextDocumentState,
     reference: &SourceSelectorReferenceFact,
@@ -4861,43 +3317,9 @@ fn source_reference_candidate(
         },
         name,
         range: parser_range_for_byte_span(document.text.as_str(), reference.byte_span),
-        source: "openedSourceDocumentIndex",
+        source: "omenaBridgeSourceSyntaxIndex",
         target_style_uri: reference.target_style_uri.clone(),
         namespace: None,
-    }
-}
-
-fn class_token_byte_spans(
-    source: &str,
-    literal_start: usize,
-    literal_end: usize,
-) -> Vec<ParserByteSpanV0> {
-    let mut spans = Vec::new();
-    let mut token_start: Option<usize> = None;
-    for (relative_index, ch) in source[literal_start..literal_end].char_indices() {
-        let index = literal_start + relative_index;
-        if ch.is_ascii_whitespace() {
-            if let Some(start) = token_start.take() {
-                push_class_token_span(source, start, index, &mut spans);
-            }
-        } else if token_start.is_none() {
-            token_start = Some(index);
-        }
-    }
-    if let Some(start) = token_start {
-        push_class_token_span(source, start, literal_end, &mut spans);
-    }
-    spans
-}
-
-fn push_class_token_span(
-    source: &str,
-    start: usize,
-    end: usize,
-    spans: &mut Vec<ParserByteSpanV0>,
-) {
-    if start < end && source[start..end].chars().all(is_css_identifier_continue) {
-        spans.push(ParserByteSpanV0 { start, end });
     }
 }
 
@@ -4910,47 +3332,6 @@ fn skip_ascii_whitespace(source: &str, mut offset: usize) -> usize {
         offset += 1;
     }
     offset
-}
-
-fn jsx_expression_end(source: &str, start: usize) -> Option<usize> {
-    let mut cursor = char_boundary_ceil(source, start);
-    let mut nested_braces = 0usize;
-    while cursor < source.len() {
-        match source.as_bytes().get(cursor).copied()? {
-            b'\'' | b'"' | b'`' => {
-                cursor = skip_js_string_literal(source, cursor, source.len())?;
-            }
-            b'{' => {
-                nested_braces += 1;
-                cursor = advance_js_scan_cursor(source, cursor, source.len());
-            }
-            b'}' => {
-                if nested_braces == 0 {
-                    return Some(cursor);
-                }
-                nested_braces -= 1;
-                cursor = advance_js_scan_cursor(source, cursor, source.len());
-            }
-            _ => {
-                cursor = advance_js_scan_cursor(source, cursor, source.len());
-            }
-        }
-    }
-    None
-}
-
-fn js_string_literal_span(
-    source: &str,
-    quote_offset: usize,
-    limit: usize,
-) -> Option<(usize, usize, usize)> {
-    let quote = source.as_bytes().get(quote_offset).copied()?;
-    if !matches!(quote, b'\'' | b'"' | b'`') {
-        return None;
-    }
-    let literal_start = quote_offset + 1;
-    let next_offset = skip_js_string_literal(source, quote_offset, limit)?;
-    Some((literal_start, next_offset - 1, next_offset))
 }
 
 fn skip_js_string_literal(source: &str, quote_offset: usize, limit: usize) -> Option<usize> {
@@ -4969,59 +3350,6 @@ fn skip_js_string_literal(source: &str, quote_offset: usize, limit: usize) -> Op
         cursor = advance_js_scan_cursor(source, cursor, limit);
     }
     None
-}
-
-fn bracket_string_literal_access(
-    source: &str,
-    bracket_offset: usize,
-) -> Option<(usize, usize, usize)> {
-    if source.as_bytes().get(bracket_offset) != Some(&b'[') {
-        return None;
-    }
-    let quote_offset = skip_ascii_whitespace(source, bracket_offset + 1);
-    let quote = source.as_bytes().get(quote_offset).copied()?;
-    if !matches!(quote, b'\'' | b'"') {
-        return None;
-    }
-    let (literal_start, literal_end, literal_next) =
-        js_string_literal_span(source, quote_offset, source.len())?;
-    if literal_next > source.len() {
-        return None;
-    }
-    let closing_bracket = skip_ascii_whitespace(source, literal_end + 1);
-    if source.as_bytes().get(closing_bracket) != Some(&b']') {
-        return None;
-    }
-    Some((literal_start, literal_end, closing_bracket + 1))
-}
-
-fn read_css_identifier_end(source: &str, start: usize) -> usize {
-    let start = char_boundary_ceil(source, start);
-    let mut end = start;
-    for (relative_index, ch) in source.get(start..).unwrap_or_default().char_indices() {
-        if !is_css_identifier_continue(ch) {
-            break;
-        }
-        end = start + relative_index + ch.len_utf8();
-    }
-    end
-}
-
-fn read_js_identifier(source: &str, start: usize) -> Option<(&str, usize)> {
-    let start = char_boundary_ceil(source, start);
-    let first = source.get(start..)?.chars().next()?;
-    if !is_js_identifier_start(first) {
-        return None;
-    }
-    let mut end = start + first.len_utf8();
-    let scan_start = end;
-    for (relative_index, ch) in source.get(scan_start..)?.char_indices() {
-        if !is_js_identifier_continue(ch) {
-            break;
-        }
-        end = scan_start + relative_index + ch.len_utf8();
-    }
-    Some((&source[start..end], end))
 }
 
 fn style_selector_definitions_from_open_documents(
@@ -5915,14 +4243,6 @@ fn is_selector_name_boundary(source: &str, byte_offset: usize) -> bool {
         .chars()
         .next()
         .is_none_or(|ch| !is_css_identifier_continue(ch))
-}
-
-fn is_js_identifier_start(ch: char) -> bool {
-    ch.is_ascii_alphabetic() || matches!(ch, '_' | '$')
-}
-
-fn is_js_identifier_continue(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '$')
 }
 
 fn is_css_identifier_continue(ch: char) -> bool {
@@ -8541,35 +6861,6 @@ export const view = <div className={cx(tone, icon.glyph, `item--${variant}`, { "
                 },
             })),
         );
-    }
-
-    #[test]
-    fn js_recovery_scanners_keep_multibyte_escape_boundaries() -> TestResult {
-        let source = r#"const escaped = "\비";
-const view = <div className={cx("root", active && `상태-${tone}`)} />;"#;
-        let escaped_quote = fixture_find(source, r#""\비""#, "escaped fixture exists")?;
-        let escaped_end = skip_js_string_literal(source, escaped_quote, source.len())
-            .ok_or_else(|| std::io::Error::other("escaped string should be skipped"))?;
-        assert!(source.is_char_boundary(escaped_end));
-
-        let expression_start = fixture_find(source, "cx(", "cx call exists")? + "cx(".len();
-        let expression_end = js_call_end(source, expression_start - 1)
-            .ok_or_else(|| std::io::Error::other("cx call ends"))?;
-        let segments = split_top_level_js_segments(source, expression_start, expression_end, b',');
-        assert_eq!(segments.len(), 2);
-        for (start, end) in segments {
-            assert!(source.is_char_boundary(start));
-            assert!(source.is_char_boundary(end));
-        }
-
-        let operator = find_top_level_js_operator(source, expression_start, expression_end, "&&")
-            .ok_or_else(|| {
-            std::io::Error::other(
-                "conditional operator should be found without slicing inside UTF-8",
-            )
-        })?;
-        assert!(source.is_char_boundary(operator));
-        Ok(())
     }
 
     #[test]

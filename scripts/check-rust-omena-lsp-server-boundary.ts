@@ -151,10 +151,7 @@ assert.equal(
   rustSummary.sourceProviderAdapter.product,
   "omena-lsp-server.source-provider-direct-rust-adapter",
 );
-assert.equal(
-  rustSummary.sourceProviderAdapter.candidateOwner,
-  "omena-lsp-server/sourceSyntaxIndex",
-);
+assert.equal(rustSummary.sourceProviderAdapter.candidateOwner, "omena-bridge/sourceSyntaxIndex");
 assert.equal(
   rustSummary.sourceProviderAdapter.styleDefinitionOwner,
   "engine-style-parser/selectorDefinitionFacts",
@@ -167,7 +164,7 @@ assert.ok(
 );
 assert.ok(
   rustSummary.sourceProviderAdapter.requestPathPolicy.includes(
-    "buildSourceSyntaxIndexOnDocumentChange",
+    "buildBridgeSourceSyntaxIndexOnDocumentChange",
   ),
 );
 assert.ok(
