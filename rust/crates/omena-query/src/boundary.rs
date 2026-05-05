@@ -159,7 +159,11 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 output_product: "omena-semantic.style-semantic-graph-batch",
             },
         ],
-        expression_semantics_payload_contracts: vec!["valueDomainKind", "valueDomainDerivation"],
+        expression_semantics_payload_contracts: vec![
+            "valueDomainKind",
+            "valueDomainDerivation",
+            "valueDomainProvenanceTree",
+        ],
         required_input_contracts: vec![
             "EngineInputV2",
             "StyleSemanticGraphInputV0",

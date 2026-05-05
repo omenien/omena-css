@@ -7,7 +7,10 @@ import type {
   ValueDomainKindV2,
 } from "../../engine-core-ts/src/contracts";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
-import type { DynamicHoverExplanation } from "../../engine-core-ts/src/core/query";
+import type {
+  DynamicHoverExplanation,
+  ValueDomainProvenanceTree,
+} from "../../engine-core-ts/src/core/query";
 import {
   buildDynamicExpressionExplanation,
   readSourceExpressionContextAtCursor,
@@ -72,6 +75,7 @@ export interface ExplainExpressionResult {
     readonly valueCharMay?: string;
     readonly valueMayIncludeOtherChars?: boolean;
     readonly valueDomainDerivation?: ReducedClassValueDerivationV0;
+    readonly valueDomainProvenanceTree?: ValueDomainProvenanceTree;
     readonly valueCertaintyShapeKind?: ValueCertaintyShapeKindV2;
     readonly valueCertaintyConstraintKind?: StringConstraintKindV2;
     readonly selectorCertaintyShapeKind?: SelectorCertaintyShapeKindV2;
@@ -284,6 +288,9 @@ function resolveExplainExpressionViaRustSemantics(
       ...(payload.valueMayIncludeOtherChars ? { valueMayIncludeOtherChars: true } : {}),
       ...(payload.valueDomainDerivation
         ? { valueDomainDerivation: payload.valueDomainDerivation }
+        : {}),
+      ...(payload.valueDomainProvenanceTree
+        ? { valueDomainProvenanceTree: payload.valueDomainProvenanceTree }
         : {}),
       ...(payload.valueCertaintyShapeKind
         ? { valueCertaintyShapeKind: payload.valueCertaintyShapeKind as ValueCertaintyShapeKindV2 }

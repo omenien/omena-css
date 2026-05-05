@@ -14,7 +14,10 @@ import type {
 } from "../../engine-core-ts/src/core/hir/style-types";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import type { EdgeCertainty } from "../../engine-core-ts/src/core/semantic/certainty";
-import type { ExpressionSemanticsSummary } from "../../engine-core-ts/src/core/query/read-expression-semantics";
+import type {
+  ExpressionSemanticsSummary,
+  ValueDomainProvenanceTree,
+} from "../../engine-core-ts/src/core/query/read-expression-semantics";
 import {
   buildSelectedQueryBackendInput,
   isEngineShadowRunnerCancelledError,
@@ -50,6 +53,7 @@ export interface ExpressionSemanticsEvaluatorCandidatePayloadV0 {
   readonly valueCharMay?: string;
   readonly valueMayIncludeOtherChars?: boolean;
   readonly valueDomainDerivation?: ReducedClassValueDerivationV0;
+  readonly valueDomainProvenanceTree?: ValueDomainProvenanceTree;
 }
 
 export interface ReducedClassValueDerivationV0 {
@@ -179,6 +183,9 @@ export function buildExpressionSemanticsSummaryFromRustPayload(
     ...(abstractValue ? { abstractValue } : {}),
     ...(payload.valueDomainDerivation
       ? { valueDomainDerivation: payload.valueDomainDerivation }
+      : {}),
+    ...(payload.valueDomainProvenanceTree
+      ? { valueDomainProvenanceTree: payload.valueDomainProvenanceTree }
       : {}),
     ...(payload.valueCertainty ? { valueCertainty: payload.valueCertainty } : {}),
     selectorCertainty: payload.selectorCertainty,

@@ -36,6 +36,24 @@ export interface ReducedClassValueDerivationStep {
   readonly reason: string;
 }
 
+export interface ValueDomainProvenanceTree {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly valueKind: FlowResolution["abstractValue"]["kind"];
+  readonly value: FlowResolution["abstractValue"];
+  readonly valueProvenance?: string;
+  readonly root: ValueDomainProvenanceNode;
+}
+
+export interface ValueDomainProvenanceNode {
+  readonly operation: string;
+  readonly resultKind: string;
+  readonly resultProvenance?: string;
+  readonly detail?: string;
+  readonly reason: string;
+  readonly children: readonly ValueDomainProvenanceNode[];
+}
+
 export interface ExpressionSemanticsSummary {
   readonly expression: ClassExpressionHIR;
   readonly styleDocument: StyleDocumentHIR | null;
@@ -46,6 +64,7 @@ export interface ExpressionSemanticsSummary {
   readonly valueDomainKind: ExpressionValueDomainKind;
   readonly abstractValue?: FlowResolution["abstractValue"];
   readonly valueDomainDerivation?: ReducedClassValueDerivation;
+  readonly valueDomainProvenanceTree?: ValueDomainProvenanceTree;
   readonly valueCertainty?: EdgeCertainty;
   readonly selectorCertainty: EdgeCertainty;
   readonly reason?: FlowResolution["reason"];
@@ -61,6 +80,9 @@ export function readExpressionSemantics(
   const valueDomainDerivation = resolution.abstractValue
     ? buildReducedClassValueDerivation(resolution.abstractValue, valueDomainKind)
     : null;
+  const valueDomainProvenanceTree = resolution.abstractValue
+    ? buildValueDomainProvenanceTree(resolution.abstractValue)
+    : null;
   return {
     expression: ctx.expression,
     styleDocument: resolution.styleDocument,
@@ -71,6 +93,7 @@ export function readExpressionSemantics(
     valueDomainKind,
     ...(resolution.abstractValue ? { abstractValue: resolution.abstractValue } : {}),
     ...(valueDomainDerivation ? { valueDomainDerivation } : {}),
+    ...(valueDomainProvenanceTree ? { valueDomainProvenanceTree } : {}),
     ...(resolution.valueCertainty ? { valueCertainty: resolution.valueCertainty } : {}),
     ...(resolution.reason ? { reason: resolution.reason } : {}),
     selectorCertainty: resolution.selectorCertainty,
@@ -139,6 +162,241 @@ function buildReducedClassValueDerivation(
               : "mapped input facts to the base abstract value",
       },
     ],
+  };
+}
+
+function buildValueDomainProvenanceTree(
+  abstractValue: FlowResolution["abstractValue"],
+): ValueDomainProvenanceTree {
+  const provenance = provenanceForAbstractValue(abstractValue);
+  const rootDetail = provenanceTreeRootDetail(abstractValue);
+  return {
+    schemaVersion: "0",
+    product: "omena-abstract-value.provenance-tree",
+    valueKind: abstractValue.kind,
+    value: abstractValue,
+    ...(provenance ? { valueProvenance: provenance } : {}),
+    root: {
+      operation: provenanceTreeRootOperation(abstractValue, provenance),
+      resultKind: abstractValue.kind,
+      ...(provenance ? { resultProvenance: provenance } : {}),
+      ...(rootDetail ? { detail: rootDetail } : {}),
+      reason: provenanceTreeRootReason(abstractValue, provenance),
+      children: provenanceTreeConstraintChildren(abstractValue),
+    },
+  };
+}
+
+function provenanceTreeRootOperation(
+  abstractValue: FlowResolution["abstractValue"],
+  provenance: string | undefined,
+): string {
+  switch (provenance) {
+    case "finiteSetWidening":
+    case "finiteSetWideningChars":
+    case "finiteSetWideningComposite":
+      return "finiteSetWidening";
+    case "prefixJoinLcp":
+      return "prefixJoinLongestCommonPrefix";
+    case "suffixJoinLcs":
+      return "suffixJoinLongestCommonSuffix";
+    case "prefixSuffixJoin":
+    case "charInclusionJoin":
+    case "compositeJoin":
+      return "reducedProductJoin";
+    case "concatKnownEdges":
+    case "finiteSetConcatPrefixLcp":
+    case "finiteSetConcatSuffixProduct":
+    case "charInclusionConcat":
+    case "compositeConcat":
+      return "reducedProductConcat";
+    case "concatUnknownLeft":
+    case "concatUnknownRight":
+      return "concatenationWidening";
+    case undefined:
+      switch (abstractValue.kind) {
+        case "bottom":
+          return "bottomDomain";
+        case "exact":
+          return "exactLiteral";
+        case "finiteSet":
+          return "finiteSetDomain";
+        case "prefix":
+        case "suffix":
+        case "prefixSuffix":
+        case "charInclusion":
+        case "composite":
+          return "constraintDomain";
+        case "top":
+          return "topDomain";
+        default:
+          abstractValue satisfies never;
+          return "unknownDomain";
+      }
+    default:
+      return "constraintDomain";
+  }
+}
+
+function provenanceTreeRootReason(
+  abstractValue: FlowResolution["abstractValue"],
+  provenance: string | undefined,
+): string {
+  switch (provenance) {
+    case "finiteSetWidening":
+    case "finiteSetWideningChars":
+      return "large finite set widened to character or edge constraints";
+    case "finiteSetWideningComposite":
+      return "large finite set widened to preserved edge and character constraints";
+    case "prefixJoinLcp":
+      return "branch merge retained the meaningful longest common prefix";
+    case "suffixJoinLcs":
+      return "branch merge retained the meaningful longest common suffix";
+    case "prefixSuffixJoin":
+    case "charInclusionJoin":
+    case "compositeJoin":
+      return "reduced product combined compatible constraints from multiple domains";
+    case "concatKnownEdges":
+    case "finiteSetConcatPrefixLcp":
+    case "finiteSetConcatSuffixProduct":
+    case "charInclusionConcat":
+    case "compositeConcat":
+      return "reduced product concatenated compatible constraints without widening to top";
+    case "concatUnknownLeft":
+    case "concatUnknownRight":
+      return "known constraints were preserved while concatenating an unknown edge";
+    case undefined:
+      switch (abstractValue.kind) {
+        case "bottom":
+          return "no class value can satisfy the current constraints";
+        case "exact":
+          return "the class value is known exactly";
+        case "finiteSet":
+          return "the class value is one of a bounded set";
+        case "prefix":
+        case "suffix":
+        case "prefixSuffix":
+        case "charInclusion":
+        case "composite":
+          return "the class value is represented by explicit domain constraints";
+        case "top":
+          return "the class value is unconstrained";
+        default:
+          abstractValue satisfies never;
+          return "the class value provenance is unknown";
+      }
+    default:
+      return "the class value is represented by explicit domain constraints";
+  }
+}
+
+function provenanceTreeRootDetail(
+  abstractValue: FlowResolution["abstractValue"],
+): string | undefined {
+  switch (abstractValue.kind) {
+    case "exact":
+      return `value=${abstractValue.value}`;
+    case "finiteSet":
+      return `valueCount=${abstractValue.values.length}`;
+    case "bottom":
+    case "prefix":
+    case "suffix":
+    case "prefixSuffix":
+    case "charInclusion":
+    case "composite":
+    case "top":
+      return undefined;
+    default:
+      abstractValue satisfies never;
+      return undefined;
+  }
+}
+
+function provenanceTreeConstraintChildren(
+  abstractValue: FlowResolution["abstractValue"],
+): readonly ValueDomainProvenanceNode[] {
+  const children: ValueDomainProvenanceNode[] = [];
+  switch (abstractValue.kind) {
+    case "prefix":
+      children.push(provenanceConstraintNode("prefixConstraint", "prefix", abstractValue.prefix));
+      break;
+    case "suffix":
+      children.push(provenanceConstraintNode("suffixConstraint", "suffix", abstractValue.suffix));
+      break;
+    case "prefixSuffix":
+      children.push(provenanceConstraintNode("prefixConstraint", "prefix", abstractValue.prefix));
+      children.push(provenanceConstraintNode("suffixConstraint", "suffix", abstractValue.suffix));
+      children.push(
+        provenanceConstraintNode("lengthConstraint", "minLength", String(abstractValue.minLength)),
+      );
+      break;
+    case "charInclusion":
+      pushCharConstraintChildren(
+        children,
+        abstractValue.mustChars,
+        abstractValue.mayChars,
+        Boolean(abstractValue.mayIncludeOtherChars),
+      );
+      break;
+    case "composite":
+      if (abstractValue.prefix) {
+        children.push(provenanceConstraintNode("prefixConstraint", "prefix", abstractValue.prefix));
+      }
+      if (abstractValue.suffix) {
+        children.push(provenanceConstraintNode("suffixConstraint", "suffix", abstractValue.suffix));
+      }
+      if (abstractValue.minLength !== undefined) {
+        children.push(
+          provenanceConstraintNode(
+            "lengthConstraint",
+            "minLength",
+            String(abstractValue.minLength),
+          ),
+        );
+      }
+      pushCharConstraintChildren(
+        children,
+        abstractValue.mustChars,
+        abstractValue.mayChars,
+        Boolean(abstractValue.mayIncludeOtherChars),
+      );
+      break;
+    case "bottom":
+    case "exact":
+    case "finiteSet":
+    case "top":
+      break;
+    default:
+      abstractValue satisfies never;
+  }
+  return children;
+}
+
+function pushCharConstraintChildren(
+  children: ValueDomainProvenanceNode[],
+  mustChars: string,
+  mayChars: string,
+  mayIncludeOtherChars: boolean,
+) {
+  if (mustChars.length > 0) {
+    children.push(provenanceConstraintNode("characterMustConstraint", "mustChars", mustChars));
+  }
+  if (!mayIncludeOtherChars) {
+    children.push(provenanceConstraintNode("characterMayConstraint", "mayChars", mayChars));
+  }
+}
+
+function provenanceConstraintNode(
+  operation: string,
+  label: string,
+  value: string,
+): ValueDomainProvenanceNode {
+  return {
+    operation,
+    resultKind: "constraint",
+    detail: `${label}=${value}`,
+    reason: "constraint retained by the abstract value domain",
+    children: [],
   };
 }
 

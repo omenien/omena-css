@@ -115,6 +115,7 @@ void (async () => {
   assert.deepEqual([...summary.expressionSemanticsPayloadContracts].toSorted(), [
     "valueDomainDerivation",
     "valueDomainKind",
+    "valueDomainProvenanceTree",
   ]);
   assert.deepEqual([...summary.adapterReadiness].toSorted(), [
     "backendCapabilityMatrix",

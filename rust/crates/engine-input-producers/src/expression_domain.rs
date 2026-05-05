@@ -10,7 +10,7 @@ use crate::{
     ExpressionDomainFlowGraphEntryV0, ExpressionDomainFragmentV0, ExpressionDomainFragmentsV0,
     ExpressionDomainPlanSummaryV0, TypeFactEntryV2, abstract_value_facts,
     collect_constraint_detail_counts, map_reduced_expression_value_domain_derivation,
-    map_reduced_expression_value_domain_kind,
+    map_reduced_expression_value_domain_kind, map_reduced_expression_value_domain_provenance_tree,
 };
 
 struct ExpressionDomainInputRows {
@@ -106,6 +106,9 @@ fn collect_expression_domain_input_rows(input: &EngineInputV2) -> ExpressionDoma
                 value_may_include_other_chars: entry.facts.may_include_other_chars,
                 finite_value_count: entry.facts.values.as_ref().map_or(0, Vec::len),
                 value_domain_derivation: map_reduced_expression_value_domain_derivation(
+                    &entry.facts,
+                ),
+                value_domain_provenance_tree: map_reduced_expression_value_domain_provenance_tree(
                     &entry.facts,
                 ),
             },
@@ -503,6 +506,21 @@ mod tests {
                 .steps[1]
                 .operation,
             "intersectConstraint"
+        );
+        assert_eq!(
+            evaluator_candidates.results[2]
+                .payload
+                .value_domain_provenance_tree
+                .product,
+            "omena-abstract-value.provenance-tree"
+        );
+        assert_eq!(
+            evaluator_candidates.results[2]
+                .payload
+                .value_domain_provenance_tree
+                .root
+                .operation,
+            "exactLiteral"
         );
     }
 

@@ -162,6 +162,12 @@ describe("renderHover", () => {
         valueDomainLabel: "finite set (2)",
         valueDomainReasonLabel: "finite candidates widened to a shared prefix",
         valueCertainty: "exact",
+        valueDomainProvenanceLabel:
+          "finiteSetWidening: composite/finiteSetWideningComposite (large finite set widened to preserved edge and character constraints)",
+        valueDomainProvenanceStepLabels: [
+          "1. prefixConstraint: prefix=btn- (constraint retained by the abstract value domain)",
+          "2. suffixConstraint: suffix=-active (constraint retained by the abstract value domain)",
+        ],
         valueCertaintyShapeLabel: "exact",
         selectorCertainty: "inferred",
         selectorCertaintyShapeLabel: "bounded selector set (2)",
@@ -173,6 +179,8 @@ describe("renderHover", () => {
     expect(markdown).toContain(
       "Value domain reason: finite candidates widened to a shared prefix.",
     );
+    expect(markdown).toContain("Value domain provenance: finiteSetWidening");
+    expect(markdown).toContain("Value domain constraints: 1. prefixConstraint");
     expect(markdown).toContain("Value certainty: exact.");
     expect(markdown).toContain("Value certainty shape: exact.");
     expect(markdown).toContain("Selector certainty: inferred.");

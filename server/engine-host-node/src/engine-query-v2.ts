@@ -426,6 +426,9 @@ function expressionSemanticsResultV2(
       ...(semantics.valueDomainDerivation
         ? { valueDomainDerivation: semantics.valueDomainDerivation }
         : {}),
+      ...(semantics.valueDomainProvenanceTree
+        ? { valueDomainProvenanceTree: semantics.valueDomainProvenanceTree }
+        : {}),
       selectorCertainty: semantics.selectorCertainty,
       ...(selectorCertaintyProfile
         ? { selectorCertaintyShapeKind: selectorCertaintyProfile.shapeKind }

@@ -15,6 +15,8 @@ interface DynamicHoverExplanation {
   readonly valueDomainLabel?: string;
   readonly valueDomainReasonLabel?: string;
   readonly valueDomainDerivationLabel?: string;
+  readonly valueDomainProvenanceLabel?: string;
+  readonly valueDomainProvenanceStepLabels?: readonly string[];
   readonly valueCertainty?: string;
   readonly valueCertaintyShapeLabel?: string;
   readonly valueCertaintyReasonLabel?: string;
@@ -341,6 +343,7 @@ function renderDynamicExplanation(
     if (explanation.valueDomainDerivationLabel) {
       lines.push(`_Value domain derivation: ${explanation.valueDomainDerivationLabel}._`);
     }
+    pushValueDomainProvenanceLines(lines, explanation);
   } else {
     lines.push(`_Resolved by template prefix \`${explanation.subject}\`._`);
     if (explanation.selectorCertainty) {
@@ -367,6 +370,7 @@ function renderDynamicExplanation(
     if (explanation.valueDomainDerivationLabel) {
       lines.push(`_Value domain derivation: ${explanation.valueDomainDerivationLabel}._`);
     }
+    pushValueDomainProvenanceLines(lines, explanation);
   }
 
   const shown = explanation.candidates
@@ -381,6 +385,17 @@ function renderDynamicExplanation(
   }
 
   return `\n\n${lines.join("\n\n")}`;
+}
+
+function pushValueDomainProvenanceLines(lines: string[], explanation: DynamicHoverExplanation) {
+  if (explanation.valueDomainProvenanceLabel) {
+    lines.push(`_Value domain provenance: ${explanation.valueDomainProvenanceLabel}._`);
+  }
+  if (explanation.valueDomainProvenanceStepLabels?.length) {
+    lines.push(
+      `_Value domain constraints: ${explanation.valueDomainProvenanceStepLabels.join("; ")}._`,
+    );
+  }
 }
 
 function buildRule(selector: SelectorDeclHIR): string {

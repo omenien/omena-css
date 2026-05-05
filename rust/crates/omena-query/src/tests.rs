@@ -230,6 +230,11 @@ fn declares_selected_query_adapter_capabilities_without_flipping_runtime_routing
             .expression_semantics_payload_contracts
             .contains(&"valueDomainDerivation")
     );
+    assert!(
+        summary
+            .expression_semantics_payload_contracts
+            .contains(&"valueDomainProvenanceTree")
+    );
     assert!(summary.adapter_readiness.contains(&"runnerCommandContract"));
     assert!(
         summary
@@ -411,6 +416,14 @@ fn owns_selected_query_canonical_producer_wrappers_without_changing_products() {
             .value_domain_derivation
             .reduced_kind,
         "prefixSuffix"
+    );
+    assert_eq!(
+        expression.evaluator_candidates.results[0]
+            .payload
+            .value_domain_provenance_tree
+            .root
+            .operation,
+        "constraintDomain"
     );
 
     let selector = summarize_omena_query_selector_usage_canonical_producer_signal(&input);

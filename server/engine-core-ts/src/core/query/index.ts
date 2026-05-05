@@ -64,7 +64,10 @@ export {
 } from "./find-style-selector";
 export { findInvalidClassReference } from "./find-invalid-class-references";
 export { isInsideCall, readCompletionContext } from "./read-completion-context";
-export { readExpressionSemantics } from "./read-expression-semantics";
+export {
+  readExpressionSemantics,
+  type ValueDomainProvenanceTree,
+} from "./read-expression-semantics";
 export {
   readDomainClassReferenceSummary,
   type DomainClassReferenceGroup,

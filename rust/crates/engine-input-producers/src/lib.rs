@@ -288,6 +288,7 @@ pub struct ExpressionDomainEvaluatorCandidatePayloadV0 {
     pub value_may_include_other_chars: Option<bool>,
     pub finite_value_count: usize,
     pub value_domain_derivation: omena_abstract_value::ReducedClassValueDerivationV0,
+    pub value_domain_provenance_tree: omena_abstract_value::AbstractClassValueProvenanceTreeV0,
 }
 
 #[derive(Debug, Serialize)]
@@ -889,6 +890,7 @@ pub struct ExpressionSemanticsEvaluatorCandidatePayloadV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value_may_include_other_chars: Option<bool>,
     pub value_domain_derivation: omena_abstract_value::ReducedClassValueDerivationV0,
+    pub value_domain_provenance_tree: omena_abstract_value::AbstractClassValueProvenanceTreeV0,
 }
 
 #[derive(Debug, Serialize)]
@@ -1020,6 +1022,14 @@ pub(crate) fn map_reduced_expression_value_domain_derivation(
     facts: &StringTypeFactsV2,
 ) -> omena_abstract_value::ReducedClassValueDerivationV0 {
     omena_abstract_value::reduced_class_value_derivation_from_facts(&abstract_value_facts(facts))
+}
+
+pub(crate) fn map_reduced_expression_value_domain_provenance_tree(
+    facts: &StringTypeFactsV2,
+) -> omena_abstract_value::AbstractClassValueProvenanceTreeV0 {
+    let value =
+        omena_abstract_value::reduced_abstract_class_value_from_facts(&abstract_value_facts(facts));
+    omena_abstract_value::summarize_abstract_class_value_provenance_tree(&value)
 }
 
 pub(crate) fn map_value_certainty(facts: &StringTypeFactsV2) -> Option<String> {

@@ -70,6 +70,24 @@ export interface ValueDomainDerivationV2 {
   readonly steps: readonly ValueDomainDerivationStepV2[];
 }
 
+export interface ValueDomainProvenanceNodeV2 {
+  readonly operation: string;
+  readonly resultKind: string;
+  readonly resultProvenance?: string;
+  readonly detail?: string;
+  readonly reason: string;
+  readonly children: readonly ValueDomainProvenanceNodeV2[];
+}
+
+export interface ValueDomainProvenanceTreeV2 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly valueKind: string;
+  readonly value: unknown;
+  readonly valueProvenance?: string;
+  readonly root: ValueDomainProvenanceNodeV2;
+}
+
 export interface ExpressionSemanticsQueryResultV2 {
   readonly kind: "expression-semantics";
   readonly filePath: string;
@@ -92,6 +110,7 @@ export interface ExpressionSemanticsQueryResultV2 {
     readonly valueMayIncludeOtherChars?: boolean;
     readonly valueDomainReason?: string;
     readonly valueDomainDerivation?: ValueDomainDerivationV2;
+    readonly valueDomainProvenanceTree?: ValueDomainProvenanceTreeV2;
     readonly selectorCertainty: string;
     readonly selectorCertaintyShapeKind?: SelectorCertaintyShapeKindV2;
     readonly selectorConstraintKind?: StringConstraintKindV2;

@@ -158,6 +158,19 @@ describe("readExpressionSemantics", () => {
         },
       ],
     });
+    expect(semantics.valueDomainProvenanceTree).toMatchObject({
+      product: "omena-abstract-value.provenance-tree",
+      valueKind: "composite",
+      valueProvenance: "compositeConcat",
+      root: {
+        operation: "reducedProductConcat",
+        resultKind: "composite",
+        resultProvenance: "compositeConcat",
+      },
+    });
+    expect(semantics.valueDomainProvenanceTree?.root.children.map((child) => child.detail)).toEqual(
+      expect.arrayContaining(["prefix=btn-", "suffix=-active", "minLength=18"]),
+    );
     expect(semantics.selectorNames).toEqual(["btn-primary-active", "btn-secondary-active"]);
   });
 });

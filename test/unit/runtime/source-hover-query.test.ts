@@ -252,6 +252,7 @@ describe("resolveSourceExpressionHoverResult", () => {
         valueCertaintyShapeKind: "boundedFinite",
         valueCertaintyShapeLabel: "bounded finite (2)",
         valueDomainDerivation: sampleValueDomainDerivation(),
+        valueDomainProvenanceTree: sampleValueDomainProvenanceTree(),
       }),
     });
 
@@ -262,6 +263,8 @@ describe("resolveSourceExpressionHoverResult", () => {
         subject: "size",
         candidates: ["indicator", "active"],
         valueDomainDerivationLabel: "finiteSet reduced to finiteSet via baseFromFacts",
+        valueDomainProvenanceLabel:
+          "finiteSetDomain: finiteSet (the class value is one of a bounded set)",
         valueCertainty: "inferred",
         valueCertaintyShapeLabel: "bounded finite (2)",
         valueCertaintyReasonLabel: "analysis preserved multiple finite candidate values",
@@ -405,5 +408,20 @@ function sampleValueDomainDerivation() {
         reason: "mapped input facts to the base abstract value",
       },
     ],
+  };
+}
+
+function sampleValueDomainProvenanceTree() {
+  return {
+    schemaVersion: "0",
+    product: "omena-abstract-value.provenance-tree",
+    valueKind: "finiteSet" as const,
+    value: { kind: "finiteSet" as const, values: ["indicator", "active"] },
+    root: {
+      operation: "finiteSetDomain",
+      resultKind: "finiteSet",
+      reason: "the class value is one of a bounded set",
+      children: [],
+    },
   };
 }
