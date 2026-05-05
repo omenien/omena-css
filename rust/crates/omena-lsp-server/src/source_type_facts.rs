@@ -1,0 +1,209 @@
+use crate::protocol::{file_uri_to_path, is_css_identifier_continue};
+use crate::{LspShellState, LspTextDocumentState, source_selector_candidates_from_index};
+use omena_query::{
+    OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
+    OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
+    OmenaQuerySourceTypeFactTargetV0 as SourceTypeFactTarget, ParserByteSpanV0,
+    canonicalize_omena_query_source_selector_references,
+};
+use omena_tsgo_client::{
+    TsgoJsonRpcTypeFactProviderV0, TsgoResolvedTypeV0, TsgoTypeFactRequestV0,
+    TsgoTypeFactResultEntryV0, TsgoTypeFactTargetV0, build_tsgo_process_command,
+};
+use std::path::{Path, PathBuf};
+
+pub(crate) fn refresh_source_type_fact_candidates_for_document(
+    state: &mut LspShellState,
+    uri: &str,
+) {
+    let Some(document) = state.document(uri) else {
+        return;
+    };
+    if crate::protocol::is_style_document_uri(document.uri.as_str()) {
+        return;
+    }
+    let type_fact_targets = document.source_syntax_index.type_fact_targets.clone();
+    if type_fact_targets.is_empty() {
+        return;
+    }
+    let Some(request) = tsgo_type_fact_request_for_document(document, type_fact_targets.as_slice())
+    else {
+        return;
+    };
+    let Some(tsgo_command) = tsgo_process_command_for_workspace(request.workspace_root.as_str())
+    else {
+        return;
+    };
+    let config = omena_tsgo_client::TsgoWorkspaceProcessConfigV0 {
+        workspace_root: request.workspace_root.clone(),
+        command: tsgo_command,
+    };
+    if state
+        .tsgo_workspace_process_pool
+        .ensure_workspace_process(config)
+        .is_err()
+    {
+        return;
+    }
+
+    let pool = std::mem::take(&mut state.tsgo_workspace_process_pool);
+    let mut provider = TsgoJsonRpcTypeFactProviderV0::new(pool);
+    let entries = provider.collect_type_facts(&request).ok();
+    state.tsgo_workspace_process_pool = provider.into_transport();
+    let Some(entries) = entries else {
+        return;
+    };
+    apply_source_type_fact_results_to_document(state, uri, entries.as_slice());
+}
+
+fn tsgo_type_fact_request_for_document(
+    document: &LspTextDocumentState,
+    type_fact_targets: &[SourceTypeFactTarget],
+) -> Option<TsgoTypeFactRequestV0> {
+    let file_path = file_uri_to_path(document.uri.as_str())?;
+    let workspace_root = document
+        .workspace_folder_uri
+        .as_deref()
+        .and_then(file_uri_to_path)
+        .or_else(|| file_path.parent().map(Path::to_path_buf))?;
+    let config_path = find_tsconfig_for_workspace(workspace_root.as_path())?;
+    let file_path = file_path.to_string_lossy().to_string();
+    let targets = type_fact_targets
+        .iter()
+        .filter_map(|target| {
+            let position = u32::try_from(target.byte_span.start).ok()?;
+            Some(TsgoTypeFactTargetV0 {
+                file_path: file_path.clone(),
+                expression_id: target.expression_id.clone(),
+                position,
+            })
+        })
+        .collect::<Vec<_>>();
+    if targets.is_empty() {
+        return None;
+    }
+    Some(TsgoTypeFactRequestV0 {
+        workspace_root: workspace_root.to_string_lossy().to_string(),
+        config_path: config_path.to_string_lossy().to_string(),
+        targets,
+    })
+}
+
+pub(crate) fn apply_source_type_fact_results_to_document(
+    state: &mut LspShellState,
+    uri: &str,
+    entries: &[TsgoTypeFactResultEntryV0],
+) {
+    let Some(document) = state.document(uri) else {
+        return;
+    };
+    let mut references = document.source_syntax_index.selector_references.clone();
+    let targets = document.source_syntax_index.type_fact_targets.clone();
+    for target in targets {
+        let Some(entry) = entries
+            .iter()
+            .find(|entry| entry.expression_id == target.expression_id)
+        else {
+            continue;
+        };
+        for selector_name in project_tsgo_type_fact_target(entry.resolved_type.clone(), &target) {
+            push_selector_reference(
+                target.byte_span,
+                Some(selector_name),
+                SourceSelectorReferenceMatchKind::Exact,
+                target.target_style_uri.as_deref(),
+                &mut references,
+            );
+        }
+    }
+    canonicalize_omena_query_source_selector_references(&mut references);
+    let Some(document) = state.documents.get_mut(uri) else {
+        return;
+    };
+    document.source_syntax_index.selector_references = references;
+    let source_syntax_index = document.source_syntax_index.clone();
+    document.source_selector_candidates =
+        source_selector_candidates_from_index(document, &source_syntax_index);
+}
+
+fn project_tsgo_type_fact_target(
+    resolved_type: TsgoResolvedTypeV0,
+    target: &SourceTypeFactTarget,
+) -> Vec<String> {
+    if resolved_type.kind != "union" {
+        return Vec::new();
+    }
+    let mut names = resolved_type
+        .values
+        .into_iter()
+        .filter(|value| value.chars().all(is_css_identifier_continue))
+        .map(|value| format!("{}{}{}", target.prefix, value, target.suffix))
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    names.sort();
+    names.dedup();
+    names
+}
+
+fn push_selector_reference(
+    byte_span: ParserByteSpanV0,
+    selector_name: Option<String>,
+    match_kind: SourceSelectorReferenceMatchKind,
+    target_style_uri: Option<&str>,
+    references: &mut Vec<SourceSelectorReferenceFact>,
+) {
+    references.push(SourceSelectorReferenceFact {
+        byte_span,
+        selector_name,
+        match_kind,
+        target_style_uri: target_style_uri.map(ToString::to_string),
+    });
+}
+
+fn find_tsconfig_for_workspace(workspace_root: &Path) -> Option<PathBuf> {
+    let mut current = Some(workspace_root);
+    while let Some(dir) = current {
+        for file_name in ["tsconfig.json", "jsconfig.json"] {
+            let candidate = dir.join(file_name);
+            if candidate.exists() {
+                return Some(candidate);
+            }
+        }
+        current = dir.parent();
+    }
+    None
+}
+
+fn tsgo_process_command_for_workspace(
+    workspace_root: &str,
+) -> Option<omena_tsgo_client::TsgoProcessCommandV0> {
+    let tsgo_path = resolve_tsgo_binary_path()?;
+    Some(build_tsgo_process_command(
+        tsgo_path.to_string_lossy().as_ref(),
+        workspace_root,
+        std::env::var("CME_TSGO_CHECKERS")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok()),
+    ))
+}
+
+fn resolve_tsgo_binary_path() -> Option<PathBuf> {
+    if let Ok(path) = std::env::var("CME_TSGO_PATH")
+        && !path.is_empty()
+    {
+        let path = PathBuf::from(path);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    let binary_name = if cfg!(windows) { "tsgo.exe" } else { "tsgo" };
+    let sibling = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(|parent| parent.join(binary_name)));
+    if let Some(path) = sibling
+        && path.exists()
+    {
+        return Some(path);
+    }
+    None
+}
