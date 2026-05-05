@@ -6,7 +6,7 @@
 
 use serde::Serialize;
 use std::{
-    cmp::Ordering,
+    cmp::{Ordering, Reverse},
     collections::{BTreeMap, BTreeSet},
 };
 
@@ -190,11 +190,12 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
             "cascadeKeyOrdering",
             "specificityOrdering",
             "cascadeOutcomeProof",
+            "genericCascadeWinner",
+            "semanticDesignTokenRanking",
             "customPropertySubstitution",
             "cycleToGuaranteedInvalid",
         ],
         not_ready_surfaces: vec![
-            "semanticIndexConsumption",
             "selectorMatchWitness",
             "readCascadeAtPosition",
             "wptCascadeCorpus",
@@ -223,6 +224,28 @@ pub fn cascade_property(
         proof,
         also_considered: matching,
     }
+}
+
+pub fn rank_cascade_items<T>(
+    items: impl IntoIterator<Item = T>,
+    key_for: impl Fn(&T) -> CascadeKey,
+) -> Vec<T> {
+    let mut ranked = items.into_iter().collect::<Vec<_>>();
+    ranked.sort_by_key(|item| Reverse(key_for(item)));
+    ranked
+}
+
+pub fn select_cascade_winner<T>(
+    items: impl IntoIterator<Item = T>,
+    key_for: impl Fn(&T) -> CascadeKey,
+) -> Option<(T, Vec<T>)> {
+    let mut ranked = rank_cascade_items(items, key_for);
+    if ranked.is_empty() {
+        return None;
+    }
+
+    let winner = ranked.remove(0);
+    Some((winner, ranked))
 }
 
 pub fn substitute_custom_properties(value: &CascadeValue, env: &CustomPropertyEnv) -> CascadeValue {
@@ -389,6 +412,32 @@ mod tests {
     }
 
     #[test]
+    fn selects_generic_winner_with_same_cascade_ordering() {
+        let ranked = select_cascade_winner(["earlier", "later"], |item| match *item {
+            "earlier" => key(
+                CascadeLevel::AuthorNormal,
+                0,
+                1,
+                Specificity::new(0, 1, 0),
+                1,
+            ),
+            _ => key(
+                CascadeLevel::AuthorNormal,
+                0,
+                1,
+                Specificity::new(0, 1, 0),
+                2,
+            ),
+        });
+
+        let Some((winner, also_considered)) = ranked else {
+            unreachable!("test input contains candidates")
+        };
+        assert_eq!(winner, "later");
+        assert_eq!(also_considered, vec!["earlier"]);
+    }
+
+    #[test]
     fn substitutes_custom_property_fallbacks_and_references() {
         let mut env = CustomPropertyEnv::new();
         env.insert(
@@ -451,6 +500,12 @@ mod tests {
         assert_eq!(summary.product, "omena-cascade.boundary");
         assert_eq!(summary.ordering_model, "lexicographicCascadeKey");
         assert!(summary.ready_surfaces.contains(&"cascadeKeyOrdering"));
+        assert!(summary.ready_surfaces.contains(&"genericCascadeWinner"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"semanticDesignTokenRanking")
+        );
         assert!(summary.not_ready_surfaces.contains(&"wptCascadeCorpus"));
     }
 }

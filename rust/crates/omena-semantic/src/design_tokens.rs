@@ -1,4 +1,5 @@
 use engine_style_parser::{ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0};
+use omena_cascade::{CascadeKey, CascadeLevel, LayerRank, Specificity, select_cascade_winner};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -440,16 +441,24 @@ fn summarize_design_token_cascade_ranking_signal(
             })
             .collect::<Vec<_>>();
 
-        let local_winner = local_candidates
-            .iter()
-            .copied()
-            .max_by(|left, right| compare_local_candidate_for_reference(left, right, reference));
-        let workspace_winner = workspace_candidates.iter().copied().max_by(|left, right| {
-            compare_workspace_candidate_for_reference(left, right, reference)
-        });
-        let winner = local_winner
-            .map(DesignTokenCandidateDeclaration::Local)
-            .or_else(|| workspace_winner.map(DesignTokenCandidateDeclaration::Workspace));
+        let local_winner = select_cascade_winner(
+            local_candidates
+                .iter()
+                .copied()
+                .map(DesignTokenCandidateDeclaration::Local),
+            |candidate| candidate.cascade_key(reference, None),
+        )
+        .map(|(winner, _)| winner);
+        let workspace_file_ranks = summarize_workspace_candidate_file_ranks(&workspace_candidates);
+        let workspace_winner = select_cascade_winner(
+            workspace_candidates
+                .iter()
+                .copied()
+                .map(DesignTokenCandidateDeclaration::Workspace),
+            |candidate| candidate.cascade_key(reference, Some(&workspace_file_ranks)),
+        )
+        .map(|(winner, _)| winner);
+        let winner = local_winner.or(workspace_winner);
 
         let Some(winner) = winner else {
             unranked_reference_count += 1;
@@ -655,12 +664,51 @@ impl DesignTokenExternalDeclarationCandidateScopeV0 {
     }
 }
 
+#[derive(Clone, Copy)]
 enum DesignTokenCandidateDeclaration<'a> {
     Local(&'a engine_style_parser::ParserIndexCustomPropertyDeclFactV0),
     Workspace(&'a DesignTokenWorkspaceDeclarationFactV0),
 }
 
 impl DesignTokenCandidateDeclaration<'_> {
+    fn cascade_key(
+        &self,
+        reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
+        workspace_file_ranks: Option<&BTreeMap<&str, usize>>,
+    ) -> CascadeKey {
+        let scope_proximity =
+            cascade_scope_proximity_for_context_rank(self.context_rank(reference));
+        match self {
+            DesignTokenCandidateDeclaration::Local(declaration) => CascadeKey::new(
+                CascadeLevel::AuthorNormal,
+                LayerRank(0),
+                scope_proximity,
+                Specificity::ZERO,
+                cascade_u32_rank(declaration.source_order),
+            ),
+            DesignTokenCandidateDeclaration::Workspace(declaration) => {
+                let file_rank = workspace_file_ranks
+                    .and_then(|ranks| ranks.get(declaration.file_path.as_str()).copied())
+                    .unwrap_or(usize::MAX);
+                CascadeKey::new(
+                    CascadeLevel::AuthorNormal,
+                    LayerRank(0),
+                    scope_proximity,
+                    // Import graph tie-breakers are encoded into specificity slots
+                    // until selector-match witnesses provide real CSS specificity.
+                    Specificity::new(
+                        cascade_inverse_rank(
+                            declaration.import_graph_distance.unwrap_or(usize::MAX),
+                        ),
+                        cascade_inverse_rank(declaration.import_graph_order.unwrap_or(usize::MAX)),
+                        cascade_inverse_rank(file_rank),
+                    ),
+                    cascade_u32_rank(declaration.source_order),
+                )
+            }
+        }
+    }
+
     fn source_order(&self) -> usize {
         match self {
             DesignTokenCandidateDeclaration::Local(declaration) => declaration.source_order,
@@ -757,54 +805,6 @@ impl DesignTokenCandidateDeclaration<'_> {
     }
 }
 
-fn compare_local_candidate_for_reference(
-    left: &engine_style_parser::ParserIndexCustomPropertyDeclFactV0,
-    right: &engine_style_parser::ParserIndexCustomPropertyDeclFactV0,
-    reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
-) -> std::cmp::Ordering {
-    (
-        custom_property_declaration_context_rank(&left.selector_contexts, reference),
-        left.source_order,
-    )
-        .cmp(&(
-            custom_property_declaration_context_rank(&right.selector_contexts, reference),
-            right.source_order,
-        ))
-}
-
-fn compare_workspace_candidate_for_reference(
-    left: &DesignTokenWorkspaceDeclarationFactV0,
-    right: &DesignTokenWorkspaceDeclarationFactV0,
-    reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
-) -> std::cmp::Ordering {
-    compare_ascending_rank(
-        custom_property_declaration_context_rank(&left.selector_contexts, reference),
-        custom_property_declaration_context_rank(&right.selector_contexts, reference),
-    )
-    .then_with(|| {
-        compare_descending_rank(
-            left.import_graph_distance.unwrap_or(usize::MAX),
-            right.import_graph_distance.unwrap_or(usize::MAX),
-        )
-    })
-    .then_with(|| {
-        compare_descending_rank(
-            left.import_graph_order.unwrap_or(usize::MAX),
-            right.import_graph_order.unwrap_or(usize::MAX),
-        )
-    })
-    .then_with(|| compare_descending_rank(left.file_path.as_str(), right.file_path.as_str()))
-    .then_with(|| compare_ascending_rank(left.source_order, right.source_order))
-}
-
-fn compare_ascending_rank<T: Ord>(left: T, right: T) -> std::cmp::Ordering {
-    left.cmp(&right)
-}
-
-fn compare_descending_rank<T: Ord>(left: T, right: T) -> std::cmp::Ordering {
-    right.cmp(&left)
-}
-
 fn custom_property_declaration_key(
     declaration: &engine_style_parser::ParserIndexCustomPropertyDeclFactV0,
 ) -> (String, usize) {
@@ -892,4 +892,33 @@ fn custom_property_declaration_context_rank(
         return 1;
     }
     0
+}
+
+fn summarize_workspace_candidate_file_ranks<'a>(
+    workspace_candidates: &[&'a DesignTokenWorkspaceDeclarationFactV0],
+) -> BTreeMap<&'a str, usize> {
+    workspace_candidates
+        .iter()
+        .map(|candidate| candidate.file_path.as_str())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .enumerate()
+        .map(|(rank, file_path)| (file_path, rank))
+        .collect()
+}
+
+fn cascade_scope_proximity_for_context_rank(context_rank: usize) -> u32 {
+    match context_rank {
+        2.. => 0,
+        1 => 1,
+        _ => 2,
+    }
+}
+
+fn cascade_u32_rank(rank: usize) -> u32 {
+    rank.min(u32::MAX as usize) as u32
+}
+
+fn cascade_inverse_rank(rank: usize) -> u32 {
+    u32::MAX - cascade_u32_rank(rank)
 }
