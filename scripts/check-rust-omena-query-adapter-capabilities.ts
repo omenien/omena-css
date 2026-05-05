@@ -67,6 +67,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "expressionDomainSelectorProjection",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.expressionDomainSelectorProjection,
+      inputContract: "EngineInputV2",
+      outputProduct: "omena-query.expression-domain-selector-projection",
+    },
+  ],
+  [
     "selectorUsage",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.selectorUsageCanonicalProducer,
@@ -114,6 +122,7 @@ void (async () => {
     "expressionDomainControlFlowAnalysisRunner",
     "expressionDomainFlowAnalysisRunner",
     "expressionDomainSalsaRuntime",
+    "expressionDomainSelectorProjection",
     "expressionSemanticsDerivationPayload",
     "fragmentBundleBoundary",
     "runnerCommandContract",

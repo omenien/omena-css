@@ -5,8 +5,7 @@ use engine_input_producers::{
 };
 use omena_query::{
     OmenaQueryBoundarySummaryV0, OmenaQueryStyleSemanticGraphBatchOutputV0,
-    summarize_omena_query_boundary,
-    summarize_omena_query_style_semantic_graph_batch_from_sources,
+    summarize_omena_query_boundary, summarize_omena_query_style_semantic_graph_batch_from_sources,
 };
 
 pub fn consume_query_boundary() -> OmenaQueryBoundarySummaryV0 {
@@ -140,6 +139,7 @@ mod tests {
     use super::{consume_query_boundary, consume_style_graph_batch, sample_input};
     use omena_query::{
         summarize_omena_query_expression_domain_flow_analysis,
+        summarize_omena_query_expression_domain_selector_projection,
         summarize_omena_query_expression_semantics_canonical_producer_signal,
         summarize_omena_query_fragment_bundle,
         summarize_omena_query_selected_query_adapter_capabilities,
@@ -212,6 +212,11 @@ mod tests {
                 .any(|command| command.command == "input-expression-domain-flow-analysis")
         );
         assert!(
+            capabilities.runner_commands.iter().any(|command| {
+                command.command == "input-expression-domain-selector-projection"
+            })
+        );
+        assert!(
             capabilities
                 .runner_commands
                 .iter()
@@ -226,6 +231,11 @@ mod tests {
             capabilities
                 .adapter_readiness
                 .contains(&"sourceResolutionRuntimeIndex")
+        );
+        assert!(
+            capabilities
+                .adapter_readiness
+                .contains(&"expressionDomainSelectorProjection")
         );
     }
 
@@ -264,6 +274,22 @@ mod tests {
                 .iter()
                 .all(|entry| entry.analysis.converged)
         );
+    }
+
+    #[test]
+    fn consumes_remote_expression_domain_selector_projection_contract() {
+        let summary = summarize_omena_query_expression_domain_selector_projection(&sample_input());
+
+        assert_eq!(
+            summary.product,
+            "omena-query.expression-domain-selector-projection"
+        );
+        assert_eq!(summary.projection_count, 2);
+        assert!(summary.projections.iter().any(|projection| {
+            projection.node_id == "expr-1"
+                && projection.target_style_paths == ["/tmp/App.module.scss"]
+                && projection.selector_names == ["btn-active"]
+        }));
     }
 
     #[test]

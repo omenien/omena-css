@@ -20,7 +20,8 @@ use engine_style_parser::{
 pub use engine_style_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage};
 use omena_abstract_value::{
     AbstractValueDomainSummaryV0, ClassValueFlowAnalysisV0, ClassValueFlowIncrementalAnalysisV0,
-    analyze_class_value_flow_incremental_with_database, summarize_omena_abstract_value_domain,
+    SelectorProjectionCertaintyV0, analyze_class_value_flow_incremental_with_database,
+    project_abstract_value_selectors, summarize_omena_abstract_value_domain,
 };
 use omena_bridge::{
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
@@ -282,6 +283,28 @@ pub struct OmenaQueryExpressionDomainIncrementalFlowAnalysisEntryV0 {
     pub analysis: ClassValueFlowIncrementalAnalysisV0,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryExpressionDomainSelectorProjectionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_version: String,
+    pub projection_count: usize,
+    pub projections: Vec<OmenaQueryExpressionDomainSelectorProjectionEntryV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryExpressionDomainSelectorProjectionEntryV0 {
+    pub graph_id: String,
+    pub file_path: String,
+    pub node_id: String,
+    pub target_style_paths: Vec<String>,
+    pub value_kind: &'static str,
+    pub selector_names: Vec<String>,
+    pub certainty: SelectorProjectionCertaintyV0,
+}
+
 #[derive(Default)]
 pub struct OmenaQueryExpressionDomainFlowRuntimeV0 {
     revision: u64,
@@ -312,6 +335,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "engine-input-producers.expression-domain-flow-analysis",
             "engine-input-producers.expression-domain-control-flow-analysis",
             "omena-query.expression-domain-incremental-flow-analysis",
+            "omena-query.expression-domain-selector-projection",
         ],
         expression_semantics_query_count,
         source_resolution_query_count,
@@ -327,6 +351,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "expressionDomainFlowAnalysisBoundary",
             "expressionDomainControlFlowAnalysisBoundary",
             "expressionDomainSalsaRuntime",
+            "expressionDomainSelectorProjection",
             "styleHoverRenderParts",
             "styleMissingCustomPropertyDiagnostics",
             "sourceMissingSelectorDiagnostics",
@@ -422,6 +447,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 output_product: "omena-query.expression-domain-incremental-flow-analysis",
             },
             SelectedQueryRunnerCommandV0 {
+                surface: "expressionDomainSelectorProjection",
+                command: "input-expression-domain-selector-projection",
+                input_contract: "EngineInputV2",
+                output_product: "omena-query.expression-domain-selector-projection",
+            },
+            SelectedQueryRunnerCommandV0 {
                 surface: "selectorUsage",
                 command: "input-selector-usage-canonical-producer",
                 input_contract: "EngineInputV2",
@@ -457,6 +488,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "expressionDomainFlowAnalysisRunner",
             "expressionDomainControlFlowAnalysisRunner",
             "expressionDomainSalsaRuntime",
+            "expressionDomainSelectorProjection",
         ],
         routing_status: "declaredOnly",
     }
@@ -496,6 +528,47 @@ pub fn summarize_omena_query_expression_domain_incremental_flow_analysis(
     runtime: &mut OmenaQueryExpressionDomainFlowRuntimeV0,
 ) -> OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 {
     runtime.analyze_input(input)
+}
+
+pub fn summarize_omena_query_expression_domain_selector_projection(
+    input: &EngineInputV2,
+) -> OmenaQueryExpressionDomainSelectorProjectionV0 {
+    let style_selectors_by_path = style_selector_universe_by_path(input);
+    let expression_targets = expression_target_style_paths(input);
+    let flow_analysis = summarize_omena_query_expression_domain_flow_analysis(input);
+    let mut projections = Vec::new();
+
+    for graph in flow_analysis.analyses {
+        for node in graph.analysis.nodes {
+            let target_style_paths = target_style_paths_for_flow_node(
+                node.id.as_str(),
+                node.predecessor_ids.as_slice(),
+                &expression_targets,
+            );
+            let selector_universe = selector_universe_for_targets(
+                target_style_paths.as_slice(),
+                &style_selectors_by_path,
+            );
+            let projection = project_abstract_value_selectors(&node.value, &selector_universe);
+            projections.push(OmenaQueryExpressionDomainSelectorProjectionEntryV0 {
+                graph_id: graph.graph_id.clone(),
+                file_path: graph.file_path.clone(),
+                node_id: node.id,
+                target_style_paths,
+                value_kind: node.value_kind,
+                selector_names: projection.selector_names,
+                certainty: projection.certainty,
+            });
+        }
+    }
+
+    OmenaQueryExpressionDomainSelectorProjectionV0 {
+        schema_version: "0",
+        product: "omena-query.expression-domain-selector-projection",
+        input_version: input.version.clone(),
+        projection_count: projections.len(),
+        projections,
+    }
 }
 
 impl OmenaQueryExpressionDomainFlowRuntimeV0 {
@@ -569,6 +642,74 @@ impl OmenaQueryExpressionDomainFlowRuntimeV0 {
             analyses,
         }
     }
+}
+
+fn expression_target_style_paths(input: &EngineInputV2) -> BTreeMap<String, String> {
+    input
+        .sources
+        .iter()
+        .flat_map(|source| source.document.class_expressions.iter())
+        .map(|expression| (expression.id.clone(), expression.scss_module_path.clone()))
+        .collect()
+}
+
+fn style_selector_universe_by_path(input: &EngineInputV2) -> BTreeMap<String, Vec<String>> {
+    input
+        .styles
+        .iter()
+        .map(|style| {
+            let selector_names = style
+                .document
+                .selectors
+                .iter()
+                .map(|selector| {
+                    selector
+                        .canonical_name
+                        .clone()
+                        .unwrap_or_else(|| selector.name.clone())
+                })
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
+            (style.file_path.clone(), selector_names)
+        })
+        .collect()
+}
+
+fn target_style_paths_for_flow_node(
+    node_id: &str,
+    predecessor_ids: &[String],
+    expression_targets: &BTreeMap<String, String>,
+) -> Vec<String> {
+    let mut targets = BTreeSet::new();
+    if let Some(target) = expression_targets.get(node_id) {
+        targets.insert(target.clone());
+    }
+    for predecessor_id in predecessor_ids {
+        if let Some(target) = expression_targets.get(predecessor_id) {
+            targets.insert(target.clone());
+        }
+    }
+    targets.into_iter().collect()
+}
+
+fn selector_universe_for_targets(
+    target_style_paths: &[String],
+    style_selectors_by_path: &BTreeMap<String, Vec<String>>,
+) -> Vec<String> {
+    let mut selectors = BTreeSet::new();
+    if target_style_paths.is_empty() {
+        for selector_names in style_selectors_by_path.values() {
+            selectors.extend(selector_names.iter().cloned());
+        }
+    } else {
+        for target_style_path in target_style_paths {
+            if let Some(selector_names) = style_selectors_by_path.get(target_style_path) {
+                selectors.extend(selector_names.iter().cloned());
+            }
+        }
+    }
+    selectors.into_iter().collect()
 }
 
 pub fn summarize_omena_query_source_resolution_query_fragments(
@@ -2232,6 +2373,7 @@ mod tests {
         SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2,
         StyleSelectorV2, TypeFactEntryV2,
     };
+    use omena_abstract_value::SelectorProjectionCertaintyV0;
 
     use super::{
         OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryStylePackageManifestV0,
@@ -2239,6 +2381,7 @@ mod tests {
         summarize_omena_query_expression_domain_control_flow_analysis,
         summarize_omena_query_expression_domain_flow_analysis,
         summarize_omena_query_expression_domain_incremental_flow_analysis,
+        summarize_omena_query_expression_domain_selector_projection,
         summarize_omena_query_expression_semantics_canonical_producer_signal,
         summarize_omena_query_expression_semantics_query_fragments,
         summarize_omena_query_fragment_bundle,
@@ -2311,6 +2454,11 @@ mod tests {
         );
         assert!(
             summary
+                .delegated_fragment_products
+                .contains(&"omena-query.expression-domain-selector-projection")
+        );
+        assert!(
+            summary
                 .ready_surfaces
                 .contains(&"expressionDomainFlowAnalysisBoundary")
         );
@@ -2323,6 +2471,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"expressionDomainSalsaRuntime")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"expressionDomainSelectorProjection")
         );
         assert!(
             summary
@@ -2431,6 +2584,12 @@ mod tests {
             summary
                 .runner_commands
                 .iter()
+                .any(|command| command.command == "input-expression-domain-selector-projection")
+        );
+        assert!(
+            summary
+                .runner_commands
+                .iter()
                 .any(|command| command.command == "style-semantic-graph-batch")
         );
         assert!(
@@ -2463,6 +2622,11 @@ mod tests {
             summary
                 .adapter_readiness
                 .contains(&"expressionDomainSalsaRuntime")
+        );
+        assert!(
+            summary
+                .adapter_readiness
+                .contains(&"expressionDomainSelectorProjection")
         );
         assert!(
             summary
@@ -2547,6 +2711,44 @@ mod tests {
                 .iter()
                 .all(|entry| entry.analysis.reused_previous_analysis)
         );
+    }
+
+    #[test]
+    fn projects_reduced_product_flow_to_target_style_selectors() {
+        let input = reduced_product_projection_input();
+        let summary = summarize_omena_query_expression_domain_selector_projection(&input);
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(
+            summary.product,
+            "omena-query.expression-domain-selector-projection"
+        );
+        assert_eq!(summary.input_version, "2");
+        assert_eq!(summary.projection_count, 3);
+
+        let merge = summary
+            .projections
+            .iter()
+            .find(|projection| projection.node_id == "file-merge");
+        assert!(merge.is_some());
+        let Some(merge) = merge else {
+            return;
+        };
+        assert_eq!(merge.graph_id, "/tmp/App.tsx:expression-domain-flow");
+        assert_eq!(merge.file_path, "/tmp/App.tsx");
+        assert_eq!(
+            merge.target_style_paths,
+            vec!["/tmp/App.module.scss".to_string()]
+        );
+        assert_eq!(merge.value_kind, "composite");
+        assert_eq!(
+            merge.selector_names,
+            vec![
+                "btn-primary--active".to_string(),
+                "btn-secondary--active".to_string()
+            ]
+        );
+        assert_eq!(merge.certainty, SelectorProjectionCertaintyV0::Inferred);
     }
 
     #[test]
@@ -3426,6 +3628,93 @@ $accent: red;
                     },
                 },
             ],
+        }
+    }
+
+    fn reduced_product_projection_input() -> EngineInputV2 {
+        EngineInputV2 {
+            version: "2".to_string(),
+            sources: vec![SourceAnalysisInputV2 {
+                document: SourceDocumentV2 {
+                    class_expressions: vec![
+                        ClassExpressionInputV2 {
+                            id: "expr-primary".to_string(),
+                            kind: "symbolRef".to_string(),
+                            scss_module_path: "/tmp/App.module.scss".to_string(),
+                            range: range(4, 12, 4, 16),
+                            class_name: None,
+                            root_binding_decl_id: Some("decl-primary".to_string()),
+                            access_path: None,
+                        },
+                        ClassExpressionInputV2 {
+                            id: "expr-secondary".to_string(),
+                            kind: "symbolRef".to_string(),
+                            scss_module_path: "/tmp/App.module.scss".to_string(),
+                            range: range(5, 12, 5, 16),
+                            class_name: None,
+                            root_binding_decl_id: Some("decl-secondary".to_string()),
+                            access_path: None,
+                        },
+                    ],
+                },
+            }],
+            styles: vec![StyleAnalysisInputV2 {
+                file_path: "/tmp/App.module.scss".to_string(),
+                document: StyleDocumentV2 {
+                    selectors: vec![
+                        style_selector("btn--active"),
+                        style_selector("btn-primary--active"),
+                        style_selector("btn-secondary--active"),
+                        style_selector("card-active"),
+                    ],
+                },
+            }],
+            type_facts: vec![
+                TypeFactEntryV2 {
+                    file_path: "/tmp/App.tsx".to_string(),
+                    expression_id: "expr-primary".to_string(),
+                    facts: StringTypeFactsV2 {
+                        kind: "constrained".to_string(),
+                        constraint_kind: Some("prefixSuffix".to_string()),
+                        values: None,
+                        prefix: Some("btn-primary-".to_string()),
+                        suffix: Some("-active".to_string()),
+                        min_len: Some("btn-primary--active".len()),
+                        max_len: None,
+                        char_must: None,
+                        char_may: None,
+                        may_include_other_chars: None,
+                    },
+                },
+                TypeFactEntryV2 {
+                    file_path: "/tmp/App.tsx".to_string(),
+                    expression_id: "expr-secondary".to_string(),
+                    facts: StringTypeFactsV2 {
+                        kind: "constrained".to_string(),
+                        constraint_kind: Some("prefixSuffix".to_string()),
+                        values: None,
+                        prefix: Some("btn-secondary-".to_string()),
+                        suffix: Some("-active".to_string()),
+                        min_len: Some("btn-secondary--active".len()),
+                        max_len: None,
+                        char_must: None,
+                        char_may: None,
+                        may_include_other_chars: None,
+                    },
+                },
+            ],
+        }
+    }
+
+    fn style_selector(name: &str) -> StyleSelectorV2 {
+        StyleSelectorV2 {
+            name: name.to_string(),
+            view_kind: "canonical".to_string(),
+            canonical_name: Some(name.to_string()),
+            range: range(1, 1, 1, 1 + name.len()),
+            nested_safety: Some("safe".to_string()),
+            composes: None,
+            bem_suffix: None,
         }
     }
 

@@ -44,6 +44,10 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
     "summarize_omena_query_expression_domain_incremental_flow_analysis",
   ],
   [
+    "input-expression-domain-selector-projection",
+    "summarize_omena_query_expression_domain_selector_projection",
+  ],
+  [
     "input-selector-usage-canonical-producer",
     "summarize_omena_query_selector_usage_canonical_producer_signal",
   ],

@@ -10,5 +10,5 @@ license = "MIT"
 publish = false
 
 [dependencies]
-engine-input-producers = { package = "omena-engine-input-producers", git = "https://github.com/omenien/omena-engine-input-producers.git", rev = "7b08f67" }
+engine-input-producers = { package = "omena-engine-input-producers", git = "https://github.com/omenien/omena-engine-input-producers.git", rev = "d954723" }
 serde_json = "1.0"

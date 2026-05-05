@@ -161,7 +161,7 @@ dependencies = [
 [[package]]
 name = "omena-abstract-value"
 version = "0.1.7"
-source = "git+https://github.com/omenien/omena-abstract-value.git?rev=f27f50f#f27f50f159aafa7348d66296b34cef5bc9b8ba2b"
+source = "git+https://github.com/omenien/omena-abstract-value.git?rev=ab6cb50#ab6cb50738c72bc850e32a4be1ebbc2761961497"
 dependencies = [
  "omena-incremental",
  "serde",
@@ -170,7 +170,7 @@ dependencies = [
 [[package]]
 name = "omena-engine-input-producers"
 version = "0.1.3"
-source = "git+https://github.com/omenien/omena-engine-input-producers.git?rev=7b08f67#7b08f6720fa3588114db3f8a5d2c53118724fd59"
+source = "git+https://github.com/omenien/omena-engine-input-producers.git?rev=d954723#d954723432b51444a2bbd9806315ab6632d9e41e"
 dependencies = [
  "omena-abstract-value",
  "serde",
@@ -189,7 +189,7 @@ dependencies = [
 [[package]]
 name = "omena-resolver"
 version = "0.1.1"
-source = "git+https://github.com/omenien/omena-resolver.git?rev=8749192#87491921841479294bccbc16c2fdc2cb8cac3312"
+source = "git+https://github.com/omenien/omena-resolver.git?rev=98fd27c#98fd27c035a14c15b8d797305128b02ea60de5bc"
 dependencies = [
  "omena-engine-input-producers",
  "serde",
