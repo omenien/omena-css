@@ -293,7 +293,7 @@ dependencies = [
 [[package]]
 name = "omena-query"
 version = "0.1.13"
-source = "git+https://github.com/omenien/omena-query.git?rev=07825ea#07825eab03961a8fd861598a686dc201a364802e"
+source = "git+https://github.com/omenien/omena-query.git?rev=e0920b4#e0920b42399d307ebc63a83009b5834569077f91"
 dependencies = [
  "omena-abstract-value",
  "omena-bridge",
