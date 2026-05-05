@@ -83,6 +83,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "omenaParserStyleFacts",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.omenaParserStyleFacts,
+      inputContract: "OmenaParserStyleFactsInputV0",
+      outputProduct: "omena-query.omena-parser-style-facts",
+    },
+  ],
+  [
     "styleSemanticGraph",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.styleSemanticGraph,
@@ -109,6 +117,7 @@ void (async () => {
   assert.equal(summary.routingStatus, "declaredOnly");
   assert.deepEqual([...summary.requiredInputContracts].toSorted(), [
     "EngineInputV2",
+    "OmenaParserStyleFactsInputV0",
     "StyleSemanticGraphBatchInputV0",
     "StyleSemanticGraphInputV0",
   ]);
@@ -126,6 +135,7 @@ void (async () => {
     "expressionDomainSelectorProjection",
     "expressionSemanticsDerivationPayload",
     "fragmentBundleBoundary",
+    "omenaParserStyleFactExtraction",
     "runnerCommandContract",
     "sourceResolutionRuntimeIndex",
     "styleSemanticGraphBridgeBoundary",

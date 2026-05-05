@@ -27,13 +27,15 @@ use engine_input_producers::{
     summarize_source_side_evaluator_candidates_input, summarize_type_fact_input,
 };
 use omena_query::{
-    OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryStylePackageManifestV0,
-    summarize_omena_query_boundary, summarize_omena_query_expression_domain_control_flow_analysis,
+    OmenaParserStyleDialect, OmenaQueryExpressionDomainFlowRuntimeV0,
+    OmenaQueryStylePackageManifestV0, summarize_omena_query_boundary,
+    summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_expression_semantics_canonical_producer_signal,
     summarize_omena_query_expression_semantics_query_fragments,
+    summarize_omena_query_omena_parser_style_facts,
     summarize_omena_query_selected_query_adapter_capabilities,
     summarize_omena_query_selector_usage_canonical_producer_signal,
     summarize_omena_query_selector_usage_query_fragments,
@@ -93,6 +95,13 @@ struct StyleSemanticGraphBatchInputV0 {
     #[serde(default)]
     package_manifests: Vec<StyleSemanticGraphPackageManifestInputV0>,
     engine_input: EngineInputV2,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaParserStyleFactsInputV0 {
+    style_source: String,
+    dialect: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -671,6 +680,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_semantic_canonical_producer_signal_input(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("omena-parser-style-facts") => {
+            let input: OmenaParserStyleFactsInputV0 = serde_json::from_str(&stdin)?;
+            let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
+            let summary =
+                summarize_omena_query_omena_parser_style_facts(&input.style_source, dialect);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("style-semantic-graph") => {
             let input: StyleSemanticGraphInputV0 = serde_json::from_str(&stdin)?;
             let Some(summary) = summarize_omena_query_style_semantic_graph_from_source(
@@ -867,6 +883,18 @@ fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn parse_omena_parser_style_dialect(
+    dialect: &str,
+) -> Result<OmenaParserStyleDialect, Box<dyn std::error::Error>> {
+    match dialect {
+        "css" => Ok(OmenaParserStyleDialect::Css),
+        "scss" => Ok(OmenaParserStyleDialect::Scss),
+        "sass" => Ok(OmenaParserStyleDialect::Sass),
+        "less" => Ok(OmenaParserStyleDialect::Less),
+        other => Err(format!("unsupported omena parser style dialect: {other}").into()),
+    }
+}
+
 fn run_daemon_selected_query_command(
     command: &str,
     input: serde_json::Value,
@@ -910,6 +938,13 @@ fn run_daemon_selected_query_command(
             let input: EngineInputV2 = serde_json::from_value(input)?;
             Ok(serde_json::to_value(
                 summarize_omena_query_selector_usage_canonical_producer_signal(&input),
+            )?)
+        }
+        "omena-parser-style-facts" => {
+            let input: OmenaParserStyleFactsInputV0 = serde_json::from_value(input)?;
+            let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
+            Ok(serde_json::to_value(
+                summarize_omena_query_omena_parser_style_facts(&input.style_source, dialect),
             )?)
         }
         "style-semantic-graph" => {

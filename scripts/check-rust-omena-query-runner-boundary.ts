@@ -51,6 +51,7 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
     "input-selector-usage-canonical-producer",
     "summarize_omena_query_selector_usage_canonical_producer_signal",
   ],
+  ["omena-parser-style-facts", "summarize_omena_query_omena_parser_style_facts"],
   ["style-semantic-graph", "summarize_omena_query_style_semantic_graph_from_source"],
   ["style-semantic-graph-batch", "summarize_omena_query_style_semantic_graph_batch_from_sources"],
 ] as const);

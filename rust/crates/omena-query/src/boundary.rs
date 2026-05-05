@@ -153,6 +153,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 output_product: "engine-input-producers.selector-usage-canonical-producer",
             },
             SelectedQueryRunnerCommandV0 {
+                surface: "omenaParserStyleFacts",
+                command: "omena-parser-style-facts",
+                input_contract: "OmenaParserStyleFactsInputV0",
+                output_product: "omena-query.omena-parser-style-facts",
+            },
+            SelectedQueryRunnerCommandV0 {
                 surface: "styleSemanticGraph",
                 command: "style-semantic-graph",
                 input_contract: "StyleSemanticGraphInputV0",
@@ -174,6 +180,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "EngineInputV2",
             "StyleSemanticGraphInputV0",
             "StyleSemanticGraphBatchInputV0",
+            "OmenaParserStyleFactsInputV0",
         ],
         adapter_readiness: vec![
             "backendCapabilityMatrix",
@@ -187,6 +194,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "expressionDomainControlFlowAnalysisRunner",
             "expressionDomainSalsaRuntime",
             "expressionDomainSelectorProjection",
+            "omenaParserStyleFactExtraction",
         ],
         routing_status: "declaredOnly",
     }
