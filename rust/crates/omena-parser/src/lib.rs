@@ -365,6 +365,9 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "badStringValueBogusNodes",
             "coreBogusPopulationSlice",
             "dialectBogusPopulationSlice",
+            "cssModuleValueCstNodes",
+            "cssModuleComposesCstNodes",
+            "cssModuleBogusRecovery",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -440,6 +443,9 @@ impl<'text> Parser<'text> {
                 break;
             }
             match self.current_kind() {
+                Some(SyntaxKind::AtKeyword) if self.current_is_css_module_value_rule() => {
+                    self.parse_css_module_value_rule()
+                }
                 Some(SyntaxKind::AtKeyword) if self.current_dialect_at_rule_spec().is_some() => {
                     self.parse_dialect_at_rule()
                 }
@@ -824,6 +830,9 @@ impl<'text> Parser<'text> {
             self.eat_trivia();
             match self.current_kind() {
                 Some(SyntaxKind::RightBrace) | None => break,
+                Some(SyntaxKind::AtKeyword) if self.current_is_css_module_value_rule() => {
+                    self.parse_css_module_value_rule()
+                }
                 Some(SyntaxKind::AtKeyword) if self.current_dialect_at_rule_spec().is_some() => {
                     self.parse_dialect_at_rule()
                 }
@@ -909,14 +918,20 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_declaration(&mut self) {
-        let kind = if self.find_before_recovery(
+        let starts_composes = self.current_text() == Some("composes");
+        let has_colon = self.find_before_recovery(
             SyntaxKind::Colon,
             &[
                 SyntaxKind::Semicolon,
                 SyntaxKind::RightBrace,
                 SyntaxKind::LeftBrace,
             ],
-        ) {
+        );
+        let kind = if starts_composes && has_colon {
+            SyntaxKind::CssModuleComposesDeclaration
+        } else if starts_composes {
+            SyntaxKind::BogusComposesDeclaration
+        } else if has_colon {
             SyntaxKind::Declaration
         } else {
             SyntaxKind::BogusDeclaration
@@ -962,7 +977,11 @@ impl<'text> Parser<'text> {
         if self.current_kind() == Some(SyntaxKind::Colon) {
             self.token_current();
             self.builder.start_node(SyntaxKind::Value);
-            self.parse_value_until(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
+            if kind == SyntaxKind::CssModuleComposesDeclaration {
+                self.parse_composes_value_until(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
+            } else {
+                self.parse_value_until(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
+            }
             self.builder.finish_node();
         } else {
             self.consume_until_recovery(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
@@ -970,6 +989,71 @@ impl<'text> Parser<'text> {
 
         if self.current_kind() == Some(SyntaxKind::Semicolon) {
             self.token_current();
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_composes_value_until(&mut self, recovery: &[SyntaxKind]) {
+        let mut saw_target = false;
+        while !self.at_end() {
+            self.eat_value_trivia();
+            match self.current_kind() {
+                Some(kind) if recovery.contains(&kind) => break,
+                Some(SyntaxKind::Ident) if self.current_text() == Some("from") => {
+                    if !saw_target {
+                        self.empty_bogus_node(
+                            SyntaxKind::BogusComposesTarget,
+                            ParseErrorCode::UnexpectedCharacter,
+                            "expected composes target before from clause",
+                        );
+                        saw_target = true;
+                    }
+                    self.parse_css_module_from_clause(recovery);
+                }
+                Some(SyntaxKind::Ident | SyntaxKind::CustomPropertyName) => {
+                    self.builder.start_node(SyntaxKind::CssModuleComposesTarget);
+                    self.token_current();
+                    self.builder.finish_node();
+                    saw_target = true;
+                }
+                Some(kind) if is_interpolation_start(kind) => {
+                    self.parse_interpolation(kind, recovery)
+                }
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+        if !saw_target {
+            self.empty_bogus_node(
+                SyntaxKind::BogusComposesTarget,
+                ParseErrorCode::UnexpectedCharacter,
+                "expected composes target",
+            );
+        }
+    }
+
+    fn parse_css_module_from_clause(&mut self, recovery: &[SyntaxKind]) {
+        let has_source = self
+            .non_trivia_token_from(self.position + 1)
+            .is_some_and(|(_, kind)| !recovery.contains(&kind));
+        self.builder.start_node(if has_source {
+            SyntaxKind::CssModuleFromClause
+        } else {
+            SyntaxKind::BogusFromClause
+        });
+        self.token_current();
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(kind) if recovery.contains(&kind) => break,
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+        if !has_source {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "expected CSS Modules from-clause source",
+            );
         }
         self.builder.finish_node();
     }
@@ -1005,6 +1089,102 @@ impl<'text> Parser<'text> {
             }
         }
         self.builder.finish_node();
+    }
+
+    fn parse_css_module_value_rule(&mut self) {
+        let has_name = self
+            .non_trivia_token_from(self.position + 1)
+            .and_then(|(index, kind)| {
+                self.tokens
+                    .get(index)
+                    .map(|token| (kind, token.text != "from"))
+            })
+            .is_some_and(|(kind, allowed_name)| {
+                allowed_name && matches!(kind, SyntaxKind::Ident | SyntaxKind::CustomPropertyName)
+            });
+        let has_from =
+            self.find_text_before_recovery("from", &[SyntaxKind::Semicolon, SyntaxKind::LeftBrace]);
+        let has_colon = self.find_before_recovery(
+            SyntaxKind::Colon,
+            &[SyntaxKind::Semicolon, SyntaxKind::LeftBrace],
+        );
+        let kind = if !has_name {
+            SyntaxKind::BogusCssModuleBlock
+        } else if has_from && !has_colon {
+            SyntaxKind::CssModuleImportBlock
+        } else {
+            SyntaxKind::CssModuleExportBlock
+        };
+
+        self.builder.start_node(kind);
+        self.token_current();
+        if !has_name {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "expected CSS Modules @value name",
+            );
+        }
+        if has_colon {
+            self.parse_css_module_value_export();
+        } else {
+            self.parse_css_module_value_import_or_statement();
+        }
+        if self.current_kind() == Some(SyntaxKind::Semicolon) {
+            self.token_current();
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_css_module_value_export(&mut self) {
+        self.parse_css_module_token_definitions_until(&[SyntaxKind::Colon, SyntaxKind::Semicolon]);
+        if self.current_kind() == Some(SyntaxKind::Colon) {
+            self.token_current();
+            self.builder.start_node(SyntaxKind::Value);
+            self.parse_css_module_token_references_until(&[SyntaxKind::Semicolon]);
+            self.builder.finish_node();
+        }
+    }
+
+    fn parse_css_module_value_import_or_statement(&mut self) {
+        self.parse_css_module_token_definitions_until(&[SyntaxKind::Semicolon]);
+    }
+
+    fn parse_css_module_token_definitions_until(&mut self, recovery: &[SyntaxKind]) {
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(kind) if recovery.contains(&kind) => break,
+                Some(SyntaxKind::Ident) if self.current_text() == Some("from") => {
+                    self.parse_css_module_from_clause(recovery);
+                    break;
+                }
+                Some(SyntaxKind::Ident | SyntaxKind::CustomPropertyName) => {
+                    self.builder.start_node(SyntaxKind::TokenDefinition);
+                    self.token_current();
+                    self.builder.finish_node();
+                }
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+    }
+
+    fn parse_css_module_token_references_until(&mut self, recovery: &[SyntaxKind]) {
+        while !self.at_end() {
+            self.eat_value_trivia();
+            match self.current_kind() {
+                Some(kind) if recovery.contains(&kind) => break,
+                Some(SyntaxKind::Ident | SyntaxKind::CustomPropertyName) => {
+                    self.builder.start_node(SyntaxKind::TokenReference);
+                    self.token_current();
+                    self.builder.finish_node();
+                }
+                Some(kind) if is_interpolation_start(kind) => {
+                    self.parse_interpolation(kind, recovery)
+                }
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
     }
 
     fn parse_less_mixin_header(&mut self) {
@@ -1539,6 +1719,9 @@ impl<'text> Parser<'text> {
             self.eat_trivia();
             match self.current_kind() {
                 Some(SyntaxKind::RightBrace) | None => break,
+                Some(SyntaxKind::AtKeyword) if self.current_is_css_module_value_rule() => {
+                    self.parse_css_module_value_rule()
+                }
                 Some(SyntaxKind::AtKeyword) if self.current_dialect_at_rule_spec().is_some() => {
                     self.parse_dialect_at_rule()
                 }
@@ -1649,6 +1832,20 @@ impl<'text> Parser<'text> {
         let mut index = self.position;
         while let Some(token) = self.tokens.get(index) {
             if token.kind == target {
+                return true;
+            }
+            if recovery.contains(&token.kind) {
+                return false;
+            }
+            index += 1;
+        }
+        false
+    }
+
+    fn find_text_before_recovery(&self, target: &str, recovery: &[SyntaxKind]) -> bool {
+        let mut index = self.position;
+        while let Some(token) = self.tokens.get(index) {
+            if token.text == target {
                 return true;
             }
             if recovery.contains(&token.kind) {
@@ -1953,6 +2150,10 @@ impl<'text> Parser<'text> {
             StyleDialect::Scss | StyleDialect::Sass => scss_at_rule_spec(text),
             StyleDialect::Css | StyleDialect::Less => None,
         }
+    }
+
+    fn current_is_css_module_value_rule(&self) -> bool {
+        self.current_text() == Some("@value")
     }
 
     fn next_kind(&self) -> Option<SyntaxKind> {
@@ -3641,6 +3842,38 @@ mod tests {
     }
 
     #[test]
+    fn parses_css_module_value_and_composes_cst_nodes() {
+        let result = parse(
+            "@value primary: #fff; @value accent: primary; @value secondary as localSecondary from \"./tokens.module.scss\"; .btn { composes: base utility from \"./base.module.scss\"; }",
+            StyleDialect::Scss,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::CssModuleExportBlock));
+        assert!(kinds.contains(&SyntaxKind::CssModuleImportBlock));
+        assert!(kinds.contains(&SyntaxKind::TokenDefinition));
+        assert!(kinds.contains(&SyntaxKind::TokenReference));
+        assert!(kinds.contains(&SyntaxKind::CssModuleComposesDeclaration));
+        assert!(kinds.contains(&SyntaxKind::CssModuleComposesTarget));
+        assert!(kinds.contains(&SyntaxKind::CssModuleFromClause));
+    }
+
+    #[test]
+    fn recovers_css_module_value_and_composes_bogus_nodes() {
+        let result = parse(
+            "@value from; .bad { composes: from; } .missing { composes base; }",
+            StyleDialect::Scss,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(kinds.contains(&SyntaxKind::BogusCssModuleBlock));
+        assert!(kinds.contains(&SyntaxKind::BogusFromClause));
+        assert!(kinds.contains(&SyntaxKind::BogusComposesTarget));
+        assert!(kinds.contains(&SyntaxKind::BogusComposesDeclaration));
+    }
+
+    #[test]
     fn parses_registered_group_at_rule_blocks() {
         let result = parse(
             "@media screen and (min-width: 40rem) { .card { color: red; } }",
@@ -4313,6 +4546,13 @@ mod tests {
                 .ready_surfaces
                 .contains(&"dialectBogusPopulationSlice")
         );
+        assert!(summary.ready_surfaces.contains(&"cssModuleValueCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"cssModuleComposesCstNodes")
+        );
+        assert!(summary.ready_surfaces.contains(&"cssModuleBogusRecovery"));
         assert!(
             summary
                 .ready_surfaces
