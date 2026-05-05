@@ -205,7 +205,7 @@ fn builds_char_inclusion_and_composite_values_with_normalized_chars() {
         AbstractClassValueV0::Composite {
             prefix: Some("btn-".to_string()),
             suffix: Some("-active".to_string()),
-            min_length: Some("btn--active".len()),
+            min_length: Some("btn-active".len()),
             must_chars: "-abceintvz".to_string(),
             may_chars: "-abceintvz".to_string(),
             may_include_other_chars: true,
@@ -247,7 +247,7 @@ fn intersects_prefix_suffix_and_char_constraints_into_reduced_product() {
         AbstractClassValueV0::PrefixSuffix {
             prefix: "btn-".to_string(),
             suffix: "-active".to_string(),
-            min_length: "btn--active".len(),
+            min_length: "btn-active".len(),
             provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
         }
     );
@@ -262,12 +262,36 @@ fn intersects_prefix_suffix_and_char_constraints_into_reduced_product() {
         AbstractClassValueV0::Composite {
             prefix: Some("btn-".to_string()),
             suffix: Some("-active".to_string()),
-            min_length: Some("btn--active".len()),
+            min_length: Some("btn-active".len()),
             must_chars: "-abceintv".to_string(),
             may_chars: "-abceintv".to_string(),
             may_include_other_chars: false,
             provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
         }
+    );
+}
+
+#[test]
+fn preserves_overlapping_prefix_suffix_reduced_product_targets() {
+    let edge = intersect_abstract_class_values(
+        &prefix_class_value("btn-primary", None),
+        &suffix_class_value("primary", None),
+    );
+
+    assert_eq!(
+        edge,
+        AbstractClassValueV0::PrefixSuffix {
+            prefix: "btn-primary".to_string(),
+            suffix: "primary".to_string(),
+            min_length: "btn-primary".len(),
+            provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
+        }
+    );
+
+    let selectors = selector_universe(["btn-primary", "btn-secondary", "card-primary"]);
+    assert_eq!(
+        projected_names(&edge, &selectors),
+        vec!["btn-primary".to_string()]
     );
 }
 
@@ -328,7 +352,7 @@ fn reduced_product_laws_hold_over_selector_projection() {
     let composite = composite_class_value(CompositeClassValueInputV0 {
         prefix: Some("btn-".to_string()),
         suffix: Some("-active".to_string()),
-        min_length: Some("btn--active".len()),
+        min_length: Some("btn-active".len()),
         must_chars: "ab".to_string(),
         may_chars: "-abceintv".to_string(),
         may_include_other_chars: false,
@@ -379,7 +403,7 @@ fn exposes_reduced_product_subset_relation_for_composite_domains() {
     let composite = composite_class_value(CompositeClassValueInputV0 {
         prefix: Some("btn-".to_string()),
         suffix: Some("-active".to_string()),
-        min_length: Some("btn--active".len()),
+        min_length: Some("btn-active".len()),
         must_chars: "ab".to_string(),
         may_chars: "-abceintv".to_string(),
         may_include_other_chars: false,
@@ -1402,7 +1426,7 @@ fn summarizes_reduced_product_join_provenance_tree() {
     );
     assert_provenance_child(&tree.root.children, "prefixConstraint", "prefix=btn-");
     assert_provenance_child(&tree.root.children, "suffixConstraint", "suffix=-active");
-    assert_provenance_child(&tree.root.children, "lengthConstraint", "minLength=11");
+    assert_provenance_child(&tree.root.children, "lengthConstraint", "minLength=10");
 }
 
 #[test]

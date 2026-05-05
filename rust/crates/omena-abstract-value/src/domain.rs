@@ -102,8 +102,8 @@ pub fn prefix_suffix_class_value(
 
     AbstractClassValueV0::PrefixSuffix {
         min_length: min_length
-            .unwrap_or(prefix.len() + suffix.len())
-            .max(prefix.len() + suffix.len()),
+            .unwrap_or_else(|| prefix_suffix_min_length(&prefix, &suffix))
+            .max(prefix_suffix_min_length(&prefix, &suffix)),
         prefix,
         suffix,
         provenance,
@@ -156,7 +156,7 @@ pub fn composite_class_value(input: CompositeClassValueInputV0) -> AbstractClass
     }
 
     let guaranteed_distinct_char_count = must_chars.chars().count();
-    let edge_min_length = prefix.len() + suffix.len();
+    let edge_min_length = prefix_suffix_min_length(&prefix, &suffix);
     let min_length = input
         .min_length
         .map(|value| value.max(edge_min_length))
@@ -242,6 +242,26 @@ pub(crate) fn meaningful_longest_common_suffix(values: &[String]) -> String {
 pub(crate) fn char_set_is_subset(left: &str, right: &str) -> bool {
     let right = right.chars().collect::<BTreeSet<_>>();
     left.chars().all(|char| right.contains(&char))
+}
+
+pub(crate) fn prefix_suffix_min_length(prefix: &str, suffix: &str) -> usize {
+    prefix.len() + suffix.len() - prefix_suffix_overlap_len(prefix, suffix)
+}
+
+fn prefix_suffix_overlap_len(prefix: &str, suffix: &str) -> usize {
+    let max_overlap = prefix.len().min(suffix.len());
+
+    for overlap in (0..=max_overlap).rev() {
+        let prefix_start = prefix.len() - overlap;
+        if prefix.is_char_boundary(prefix_start)
+            && suffix.is_char_boundary(overlap)
+            && prefix[prefix_start..] == suffix[..overlap]
+        {
+            return overlap;
+        }
+    }
+
+    0
 }
 
 fn widen_large_finite_set(values: &[String]) -> AbstractClassValueV0 {

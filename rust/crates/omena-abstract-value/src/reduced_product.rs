@@ -1,3 +1,4 @@
+use crate::domain::prefix_suffix_min_length;
 use crate::{
     AbstractClassValueProvenanceV0, AbstractClassValueV0, CompositeClassValueInputV0,
     bottom_class_value, char_set_for_string, char_set_is_subset, composite_class_value,
@@ -246,8 +247,10 @@ impl ClassValueReductionFacts {
 
     fn lower_bound_length(&self) -> usize {
         self.min_length.unwrap_or_else(|| {
-            let edge_len = self.prefix.as_deref().unwrap_or("").len()
-                + self.suffix.as_deref().unwrap_or("").len();
+            let edge_len = prefix_suffix_min_length(
+                self.prefix.as_deref().unwrap_or(""),
+                self.suffix.as_deref().unwrap_or(""),
+            );
             edge_len.max(self.must_chars.chars().count())
         })
     }
