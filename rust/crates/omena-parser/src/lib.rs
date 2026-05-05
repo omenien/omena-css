@@ -78,6 +78,13 @@ impl ParseResult {
         SyntaxNode::new_root(self.green.clone())
     }
 
+    pub fn source_text(&self) -> Option<String> {
+        let syntax = self.syntax();
+        syntax
+            .try_resolved()
+            .map(|resolved| resolved.text().to_string())
+    }
+
     pub fn errors(&self) -> &[ParseError] {
         &self.errors
     }
@@ -704,6 +711,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "midTypingNoPanicPropertySlice",
             "deterministicPanicFreeCorpus",
             "losslessCstTextRoundTripSmoke",
+            "parseResultSourceTextSurface",
             "typedNumericValueAtomCstNodes",
             "bracketedValueCstNodes",
             "importantAnnotationCstNodes",
@@ -7675,6 +7683,7 @@ mod tests {
 
             assert_eq!(syntax.kind(), SyntaxKind::Root);
             assert_eq!(source_text(&syntax).as_deref(), Some(source));
+            assert_eq!(result.source_text().as_deref(), Some(source));
         }
     }
 
@@ -8240,6 +8249,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"losslessCstTextRoundTripSmoke")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"parseResultSourceTextSurface")
         );
         assert!(
             summary
