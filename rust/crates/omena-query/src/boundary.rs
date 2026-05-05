@@ -24,6 +24,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "engine-input-producers.expression-domain-control-flow-analysis",
             "omena-query.expression-domain-incremental-flow-analysis",
             "omena-query.expression-domain-selector-projection",
+            "omena-parser.style-facts",
         ],
         expression_semantics_query_count,
         source_resolution_query_count,
@@ -47,10 +48,15 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "selectorRenameEditPlanning",
             "sassSymbolResolutionPrimitives",
             "sassModuleSourceSelection",
+            "omenaParserStyleFactExtraction",
             "queryBoundarySummary",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
-        next_decoupling_targets: vec!["queryEvaluationRuntime", "selectedQueryBackendAdapter"],
+        next_decoupling_targets: vec![
+            "queryEvaluationRuntime",
+            "selectedQueryBackendAdapter",
+            "engineStyleParserStyleDocumentSummary",
+        ],
     }
 }
 

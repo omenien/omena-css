@@ -14,7 +14,7 @@ use super::{
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_expression_semantics_canonical_producer_signal,
     summarize_omena_query_expression_semantics_query_fragments,
-    summarize_omena_query_fragment_bundle,
+    summarize_omena_query_fragment_bundle, summarize_omena_query_omena_parser_style_facts,
     summarize_omena_query_selected_query_adapter_capabilities,
     summarize_omena_query_selector_usage_canonical_producer_signal,
     summarize_omena_query_selector_usage_query_fragments,
@@ -89,6 +89,11 @@ fn summarizes_query_boundary_over_producer_fragments() {
     );
     assert!(
         summary
+            .delegated_fragment_products
+            .contains(&"omena-parser.style-facts")
+    );
+    assert!(
+        summary
             .ready_surfaces
             .contains(&"expressionDomainFlowAnalysisBoundary")
     );
@@ -114,9 +119,36 @@ fn summarizes_query_boundary_over_producer_fragments() {
     );
     assert!(
         summary
+            .ready_surfaces
+            .contains(&"omenaParserStyleFactExtraction")
+    );
+    assert!(
+        summary
             .cme_coupled_surfaces
             .contains(&"producerQueryFragments")
     );
+}
+
+#[test]
+fn exposes_omena_parser_style_fact_surface() {
+    let summary = summarize_omena_query_omena_parser_style_facts(
+        "@use \"tokens\"; $gap: 1rem; .card#main { --space: $gap; }",
+        omena_parser::StyleDialect::Scss,
+    );
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-query.omena-parser-style-facts");
+    assert_eq!(summary.dialect, "scss");
+    assert_eq!(summary.class_selector_names, vec!["card"]);
+    assert_eq!(summary.id_selector_names, vec!["main"]);
+    assert!(summary.variable_names.contains(&"$gap".to_string()));
+    assert!(
+        summary
+            .custom_property_names
+            .contains(&"--space".to_string())
+    );
+    assert_eq!(summary.at_rule_names, vec!["@use"]);
+    assert_eq!(summary.parser_error_count, 0);
 }
 
 #[test]

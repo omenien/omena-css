@@ -39,6 +39,10 @@ pub use omena_bridge::{
     SourceTypeFactTargetV0 as OmenaQuerySourceTypeFactTargetV0,
 };
 use omena_incremental::OmenaIncrementalDatabaseV0;
+use omena_parser::{
+    ParsedSelectorFactKind, ParsedVariableFactKind, StyleDialect as OmenaParserStyleDialect,
+    collect_style_facts,
+};
 use omena_resolver::{
     OmenaResolverSourceResolutionRuntimeIndexV0,
     summarize_omena_resolver_canonical_producer_signal, summarize_omena_resolver_query_fragments,

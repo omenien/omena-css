@@ -610,6 +610,7 @@ dependencies = [
  "omena-abstract-value",
  "omena-bridge",
  "omena-incremental",
+ "omena-parser",
  "omena-resolver",
  "serde",
  "serde_json",

@@ -11,7 +11,8 @@ use cstree::{
     text::{TextRange, TextSize},
 };
 use omena_interner::NameKind;
-use omena_syntax::{StyleDialect, SyntaxKind};
+pub use omena_syntax::StyleDialect;
+use omena_syntax::SyntaxKind;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseResult {

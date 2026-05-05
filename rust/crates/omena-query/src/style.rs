@@ -27,6 +27,55 @@ pub fn summarize_omena_query_style_document(
     })
 }
 
+pub fn summarize_omena_query_omena_parser_style_facts(
+    style_source: &str,
+    dialect: OmenaParserStyleDialect,
+) -> OmenaQueryOmenaParserStyleFactsV0 {
+    let facts = collect_style_facts(style_source, dialect);
+    let mut class_selector_names = Vec::new();
+    let mut id_selector_names = Vec::new();
+    let mut variable_names = BTreeSet::new();
+    let mut custom_property_names = BTreeSet::new();
+
+    for selector in facts.selectors {
+        match selector.kind {
+            ParsedSelectorFactKind::Class => class_selector_names.push(selector.name),
+            ParsedSelectorFactKind::Id => id_selector_names.push(selector.name),
+        }
+    }
+
+    for variable in facts.variables {
+        match variable.kind {
+            ParsedVariableFactKind::ScssDeclaration
+            | ParsedVariableFactKind::ScssReference
+            | ParsedVariableFactKind::LessDeclaration
+            | ParsedVariableFactKind::LessReference => {
+                variable_names.insert(variable.name);
+            }
+            ParsedVariableFactKind::CustomPropertyDeclaration
+            | ParsedVariableFactKind::CustomPropertyReference => {
+                custom_property_names.insert(variable.name);
+            }
+        }
+    }
+
+    OmenaQueryOmenaParserStyleFactsV0 {
+        schema_version: "0",
+        product: "omena-query.omena-parser-style-facts",
+        dialect: omena_parser_style_dialect_label(dialect),
+        class_selector_names,
+        id_selector_names,
+        variable_names: variable_names.into_iter().collect(),
+        custom_property_names: custom_property_names.into_iter().collect(),
+        at_rule_names: facts
+            .at_rules
+            .into_iter()
+            .map(|at_rule| at_rule.name)
+            .collect(),
+        parser_error_count: facts.error_count,
+    }
+}
+
 pub fn summarize_omena_query_style_hover_candidates(
     style_path: &str,
     style_source: &str,
@@ -1609,6 +1658,15 @@ fn style_language_label(language: StyleLanguage) -> &'static str {
         StyleLanguage::Css => "css",
         StyleLanguage::Scss => "scss",
         StyleLanguage::Less => "less",
+    }
+}
+
+fn omena_parser_style_dialect_label(dialect: OmenaParserStyleDialect) -> &'static str {
+    match dialect {
+        OmenaParserStyleDialect::Css => "css",
+        OmenaParserStyleDialect::Scss => "scss",
+        OmenaParserStyleDialect::Sass => "sass",
+        OmenaParserStyleDialect::Less => "less",
     }
 }
 

@@ -92,6 +92,20 @@ pub struct OmenaQueryStyleDocumentSummaryV0 {
     pub diagnostic_count: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryOmenaParserStyleFactsV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub dialect: &'static str,
+    pub class_selector_names: Vec<String>,
+    pub id_selector_names: Vec<String>,
+    pub variable_names: Vec<String>,
+    pub custom_property_names: Vec<String>,
+    pub at_rule_names: Vec<String>,
+    pub parser_error_count: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryStyleHoverCandidateV0 {
