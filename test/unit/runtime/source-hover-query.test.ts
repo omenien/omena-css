@@ -273,6 +273,70 @@ describe("resolveSourceExpressionHoverResult", () => {
     expect(Array.from(result.styleDependenciesBySelector.keys())).toEqual(["indicator"]);
   });
 
+  it("applies selected-query selector projections to hover semantics", () => {
+    const deps = makeSymbolRefDeps({
+      selectorMapForPath: () => new Map([["btn-primary", info("btn-primary")]]),
+      typeResolver: throwingTypeResolver("TypeScript resolver should not run"),
+    });
+    const params = {
+      documentUri: "file:///fake/src/Button.tsx",
+      content: SYMBOL_REF_TSX,
+      filePath: "/fake/src/Button.tsx",
+      line: 5,
+      character: 17,
+      version: 1,
+    };
+    const ctx = readSourceExpressionContextAtCursor(params, {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+    });
+    let expressionId = "";
+    let projectionReads = 0;
+
+    expect(ctx).not.toBeNull();
+    const result = resolveSourceExpressionHoverResult(ctx!, params, deps, {
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+      } as NodeJS.ProcessEnv,
+      readRustExpressionSemanticsPayload: (_document, id) => {
+        expressionId = id;
+        return {
+          expressionId: id,
+          expressionKind: "symbolRef",
+          styleFilePath: "/fake/src/Button.module.scss",
+          selectorNames: [],
+          candidateNames: [],
+          finiteValues: [],
+          valueDomainKind: "none",
+          selectorCertainty: "possible",
+          valueCertainty: "possible",
+          selectorCertaintyShapeKind: "unknown",
+          selectorCertaintyShapeLabel: "unknown",
+          valueCertaintyShapeKind: "unknown",
+          valueCertaintyShapeLabel: "unknown",
+        };
+      },
+      readRustExpressionDomainSelectorProjections: (_document, scssModulePath) => {
+        projectionReads += 1;
+        return [
+          {
+            graphId: "/fake/src/Button.tsx:expression-domain-flow",
+            filePath: "/fake/src/Button.tsx",
+            nodeId: expressionId,
+            targetStylePaths: [scssModulePath],
+            valueKind: "composite",
+            selectorNames: ["btn-primary"],
+            certainty: "inferred",
+          },
+        ];
+      },
+    });
+
+    expect(projectionReads).toBe(1);
+    expect(result.selectors.map((selector) => selector.name)).toEqual(["btn-primary"]);
+    expect(Array.from(result.styleDependenciesBySelector.keys())).toEqual(["btn-primary"]);
+  });
+
   it("falls back when unified rust expression semantics has no hoverable selectors", () => {
     const deps = makeDeps();
     const params = {
@@ -308,6 +372,7 @@ describe("resolveSourceExpressionHoverResult", () => {
         valueCertaintyShapeKind: "boundedFinite",
         valueCertaintyShapeLabel: "bounded finite (0)",
       }),
+      readRustExpressionDomainSelectorProjections: () => [],
       readRustSourceResolutionSelectorMatch: () => null,
     });
 

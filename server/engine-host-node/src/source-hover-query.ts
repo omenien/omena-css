@@ -17,6 +17,13 @@ import {
   resolveRustExpressionSemanticsPayload,
 } from "./expression-semantics-query-backend";
 import {
+  indexExpressionDomainSelectorProjectionsForStyle,
+  resolveRustExpressionDomainSelectorProjections,
+  resolveRustExpressionDomainSelectorProjectionsAsync,
+  type ExpressionDomainSelectorProjectionEntryV0,
+  withExpressionDomainSelectorProjection,
+} from "./expression-domain-selector-projection-query-backend";
+import {
   resolveRustSourceResolutionSelectorMatchAsync,
   resolveRustSourceResolutionSelectorMatch,
   resolveSelectedQueryBackendKind,
@@ -29,6 +36,8 @@ export interface SourceHoverQueryOptions {
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustSourceResolutionSelectorMatch?: typeof resolveRustSourceResolutionSelectorMatch;
   readonly readRustExpressionSemanticsPayload?: typeof resolveRustExpressionSemanticsPayload;
+  readonly readRustExpressionDomainSelectorProjections?: typeof resolveRustExpressionDomainSelectorProjections;
+  readonly readRustExpressionDomainSelectorProjectionsAsync?: typeof resolveRustExpressionDomainSelectorProjectionsAsync;
   readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
 }
 
@@ -59,6 +68,10 @@ export function resolveSourceExpressionHoverResult(
       params,
       deps,
       options.readRustExpressionSemanticsPayload ?? resolveRustExpressionSemanticsPayload,
+      backend === "rust-selected-query"
+        ? (options.readRustExpressionDomainSelectorProjections ??
+            resolveRustExpressionDomainSelectorProjections)
+        : null,
     );
     if (rustResult && rustResult.selectors.length > 0) return rustResult;
   }
@@ -102,6 +115,10 @@ export async function resolveSourceExpressionHoverResultAsync(
       ctx,
       params,
       deps,
+      backend === "rust-selected-query"
+        ? (options.readRustExpressionDomainSelectorProjectionsAsync ??
+            resolveRustExpressionDomainSelectorProjectionsAsync)
+        : null,
       options.runRustSelectedQueryBackendJsonAsync,
     );
     if (rustResult && rustResult.selectors.length > 0) return rustResult;
@@ -161,18 +178,30 @@ function resolveHoverFromRustExpressionSemantics(
     | "settings"
   >,
   readRustSemanticsPayload: typeof resolveRustExpressionSemanticsPayload,
+  readRustSelectorProjections: typeof resolveRustExpressionDomainSelectorProjections | null,
 ): SourceHoverResult | null {
-  const payload = readRustSemanticsPayload(
-    {
-      uri: params.documentUri,
-      content: params.content,
-      filePath: params.filePath,
-      version: params.version,
-    },
+  const document = {
+    uri: params.documentUri,
+    content: params.content,
+    filePath: params.filePath,
+    version: params.version,
+  };
+  const rawPayload = readRustSemanticsPayload(
+    document,
     ctx.expression.id,
     ctx.expression.scssModulePath,
     deps,
   );
+  const projection = readRustSelectorProjections
+    ? readExpressionProjection(
+        readRustSelectorProjections(document, ctx.expression.scssModulePath, deps),
+        ctx.expression.id,
+        ctx.expression.scssModulePath,
+      )
+    : null;
+  const payload = rawPayload
+    ? withExpressionDomainSelectorProjection(rawPayload, projection)
+    : rawPayload;
   if (!payload || !payload.styleFilePath) return null;
 
   const styleDocument = deps.styleDocumentForPath(payload.styleFilePath);
@@ -220,20 +249,32 @@ async function resolveHoverFromRustExpressionSemanticsAsync(
     | "styleDependencyGraph"
     | "settings"
   >,
+  readRustSelectorProjections: typeof resolveRustExpressionDomainSelectorProjectionsAsync | null,
   runJson?: RustSelectedQueryBackendJsonRunnerAsync,
 ): Promise<SourceHoverResult | null> {
-  const payload = await resolveRustExpressionSemanticsPayloadAsync(
-    {
-      uri: params.documentUri,
-      content: params.content,
-      filePath: params.filePath,
-      version: params.version,
-    },
+  const document = {
+    uri: params.documentUri,
+    content: params.content,
+    filePath: params.filePath,
+    version: params.version,
+  };
+  const rawPayload = await resolveRustExpressionSemanticsPayloadAsync(
+    document,
     ctx.expression.id,
     ctx.expression.scssModulePath,
     deps,
     runJson,
   );
+  const projection = readRustSelectorProjections
+    ? readExpressionProjection(
+        await readRustSelectorProjections(document, ctx.expression.scssModulePath, deps, runJson),
+        ctx.expression.id,
+        ctx.expression.scssModulePath,
+      )
+    : null;
+  const payload = rawPayload
+    ? withExpressionDomainSelectorProjection(rawPayload, projection)
+    : rawPayload;
   if (!payload || !payload.styleFilePath) return null;
 
   const styleDocument = deps.styleDocumentForPath(payload.styleFilePath);
@@ -267,6 +308,18 @@ async function resolveHoverFromRustExpressionSemanticsAsync(
       ]),
     ),
   };
+}
+
+function readExpressionProjection(
+  projections: readonly ExpressionDomainSelectorProjectionEntryV0[],
+  expressionId: string,
+  scssModulePath: string,
+): ExpressionDomainSelectorProjectionEntryV0 | null {
+  return (
+    indexExpressionDomainSelectorProjectionsForStyle(projections, scssModulePath).get(
+      expressionId,
+    ) ?? null
+  );
 }
 
 function resolveSelectorsFromRustSourceResolution(
