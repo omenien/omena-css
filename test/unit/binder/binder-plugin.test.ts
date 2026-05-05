@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
 import { AliasResolver } from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
-import { cssModulesClassnamesBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/binder-plugin";
+import {
+  composeBinderPluginsV0,
+  cssModulesClassnamesBinderPluginV0,
+} from "../../../server/engine-core-ts/src/core/binder/binder-plugin";
+import { tailwindUnoUtilityBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/tailwind-utility-plugin";
 import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
 
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake", {});
@@ -67,6 +71,72 @@ describe("cssModulesClassnamesBinderPluginV0", () => {
       "literal",
       "template",
       "styleAccess",
+    ]);
+    expect(result.domainClassReferences).toEqual([]);
+  });
+
+  it("tracks Tailwind/Uno utility classes without pretending to own a CSS Module source", () => {
+    const sourceFile = parse(`
+      import clsx from 'clsx';
+      export function Card({ active }: { active: boolean }) {
+        return (
+          <section className={clsx("flex gap-2", active && "bg-blue-500", \`tone-\${active}\`)}>
+            <div className="text-sm hover:underline" />
+          </section>
+        );
+      }
+    `);
+    const sourceBinder = buildSourceBinder(sourceFile);
+
+    const result = tailwindUnoUtilityBinderPluginV0.analyzeSource({
+      sourceFile,
+      filePath: "/fake/src/Card.tsx",
+      sourceBinder,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+    });
+
+    expect(result.stylesBindings.size).toBe(0);
+    expect(result.classExpressions).toEqual([]);
+    expect(result.domainClassReferences).toMatchObject([
+      { matchKind: "literal", className: "flex", domain: "utility-css" },
+      { matchKind: "literal", className: "gap-2", domain: "utility-css" },
+      { matchKind: "literal", className: "bg-blue-500", domain: "utility-css" },
+      { matchKind: "templatePrefix", staticPrefix: "tone-" },
+      { matchKind: "literal", className: "text-sm", origin: "jsxClassAttribute" },
+      { matchKind: "literal", className: "hover:underline", origin: "jsxClassAttribute" },
+    ]);
+  });
+
+  it("composes CSS Modules and utility-domain plugins into one BinderPluginV0 runtime slot", () => {
+    const sourceFile = parse(`
+      import classNames from 'classnames/bind';
+      import clsx from 'clsx';
+      import styles from './Card.module.scss';
+      const cx = classNames.bind(styles);
+      const el = <div className={clsx(cx('card'), "flex")} />;
+    `);
+    const sourceBinder = buildSourceBinder(sourceFile);
+    const plugin = composeBinderPluginsV0([
+      cssModulesClassnamesBinderPluginV0,
+      tailwindUnoUtilityBinderPluginV0,
+    ]);
+
+    const result = plugin.analyzeSource({
+      sourceFile,
+      filePath: "/fake/src/Card.tsx",
+      sourceBinder,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+    });
+
+    expect(result.stylesBindings.get("styles")).toEqual({
+      kind: "resolved",
+      absolutePath: "/fake/src/Card.module.scss",
+    });
+    expect(result.classExpressions).toMatchObject([{ kind: "literal", className: "card" }]);
+    expect(result.domainClassReferences).toMatchObject([
+      { matchKind: "literal", className: "flex", domain: "utility-css" },
     ]);
   });
 });

@@ -7,6 +7,7 @@ import {
   makeSourceDocumentHIR,
   makeStyleImportBinding,
   type ClassExpressionHIR,
+  type DomainClassReferenceHIR,
   type SourceDocumentHIR,
   type UtilityBindingHIR,
 } from "../source-types";
@@ -18,6 +19,7 @@ export interface BuildSourceDocumentArgs {
   readonly stylesBindings: ReadonlyMap<string, StyleImport>;
   readonly classUtilNames: readonly string[];
   readonly classExpressions: readonly ClassExpressionHIR[];
+  readonly domainClassReferences?: readonly DomainClassReferenceHIR[];
   readonly sourceBinder?: SourceBinderResult;
 }
 
@@ -60,6 +62,7 @@ export function buildSourceDocument(args: BuildSourceDocumentArgs): SourceDocume
     styleImports,
     utilityBindings,
     classExpressions: args.classExpressions,
+    ...(args.domainClassReferences ? { domainClassReferences: args.domainClassReferences } : {}),
   });
 }
 

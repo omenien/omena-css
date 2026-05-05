@@ -233,6 +233,7 @@ describe("buildSemanticReferenceIndex", () => {
           scssModulePath: styleScenario.filePath,
         },
       ],
+      domainClassReferences: [],
     };
 
     const graph = buildSourceSemanticGraph({

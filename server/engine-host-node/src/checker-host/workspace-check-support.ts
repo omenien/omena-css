@@ -13,6 +13,7 @@ import {
   loadWorkspaceTsconfigPathAliases,
 } from "../../../engine-core-ts/src/core/cx/alias-resolver";
 import { cssModulesClassnamesBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/binder-plugin";
+import { tailwindUnoUtilityBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/tailwind-utility-plugin";
 import { DocumentAnalysisCache } from "../../../engine-core-ts/src/core/indexing/document-analysis-cache";
 import { collectSemanticReferenceContribution } from "../../../engine-core-ts/src/core/semantic/reference-collector";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../engine-core-ts/src/core/semantic/workspace-reference-index";
@@ -160,7 +161,7 @@ export function createWorkspaceAnalysisHost(params: {
 
   const analysisCache = new DocumentAnalysisCache({
     sourceFileCache,
-    binderPlugin: cssModulesClassnamesBinderPluginV0,
+    binderPlugins: [cssModulesClassnamesBinderPluginV0, tailwindUnoUtilityBinderPluginV0],
     fileExists: existsSync,
     aliasResolver,
     max: 500,

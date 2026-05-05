@@ -37,7 +37,9 @@ Current public products:
 - `omena-bridge.binder-plugin-boundary` — built-in `BinderPluginV0` boundary
   for source-side class-name tracking. The default plugin keeps the current CSS
   Modules + `classnames/bind`/`classnames`/`clsx` behavior behind one boundary;
-  external plugin ABI is intentionally not stable yet.
+  the first utility-domain proof point tracks Tailwind/Uno class references
+  without claiming a CSS Module style source. External plugin ABI is
+  intentionally not stable yet.
 
 Primary check:
 

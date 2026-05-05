@@ -358,6 +358,7 @@ function buildGraphForBinder(
       styleImports: [],
       utilityBindings: [],
       classExpressions: [],
+      domainClassReferences: [],
     },
     binder,
   );

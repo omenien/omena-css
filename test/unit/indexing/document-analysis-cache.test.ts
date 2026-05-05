@@ -4,6 +4,7 @@ import type { StyleImport } from "@css-module-explainer/shared";
 import type { CxBinding } from "../../../server/engine-core-ts/src/core/cx/cx-types";
 import type { ResolvedCxBinding } from "../../../server/engine-core-ts/src/core/cx/resolved-bindings";
 import { cssModulesClassnamesBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/binder-plugin";
+import { tailwindUnoUtilityBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/tailwind-utility-plugin";
 import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/source-file-cache";
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import {
@@ -67,6 +68,38 @@ describe("DocumentAnalysisCache", () => {
     ]);
     expect(entry.sourceDocument.classExpressions).toMatchObject([
       { kind: "literal", className: "indicator" },
+    ]);
+  });
+
+  it("can compose multiple BinderPluginV0 implementations without losing CSS Module facts", () => {
+    const sourceFileCache = new SourceFileCache({ max: 10 });
+    const cache = new DocumentAnalysisCache({
+      sourceFileCache,
+      binderPlugins: [cssModulesClassnamesBinderPluginV0, tailwindUnoUtilityBinderPluginV0],
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+      max: 10,
+    });
+
+    const entry = cache.get(
+      "file:///fake/Button.tsx",
+      `
+        import classNames from 'classnames/bind';
+        import clsx from 'clsx';
+        import styles from './Button.module.scss';
+        const cx = classNames.bind(styles);
+        const el = <div className={clsx(cx('indicator'), "flex gap-2")} />;
+      `,
+      "/fake/Button.tsx",
+      1,
+    );
+
+    expect(entry.sourceDocument.classExpressions).toMatchObject([
+      { kind: "literal", className: "indicator" },
+    ]);
+    expect(entry.sourceDocument.domainClassReferences).toMatchObject([
+      { matchKind: "literal", className: "flex", domain: "utility-css" },
+      { matchKind: "literal", className: "gap-2", domain: "utility-css" },
     ]);
   });
 

@@ -65,6 +65,11 @@ export {
 export { findInvalidClassReference } from "./find-invalid-class-references";
 export { isInsideCall, readCompletionContext } from "./read-completion-context";
 export { readExpressionSemantics } from "./read-expression-semantics";
+export {
+  readDomainClassReferenceSummary,
+  type DomainClassReferenceGroup,
+  type DomainClassReferenceSummary,
+} from "./read-domain-class-references";
 export { readSelectorRewriteSafetySummary } from "./read-selector-rewrite-safety";
 export {
   readSelectorStyleDependencySummary,

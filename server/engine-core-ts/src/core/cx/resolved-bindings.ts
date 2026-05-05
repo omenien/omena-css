@@ -31,6 +31,7 @@ export function resolveCxBindings(
             styleImports: [],
             utilityBindings: [],
             classExpressions: [],
+            domainClassReferences: [],
           },
           sourceBinder,
         )

@@ -7,6 +7,7 @@ export interface SourceDocumentHIR extends HirDocumentBase {
   readonly styleImports: readonly StyleImportBindingHIR[];
   readonly utilityBindings: readonly UtilityBindingHIR[];
   readonly classExpressions: readonly ClassExpressionHIR[];
+  readonly domainClassReferences: readonly DomainClassReferenceHIR[];
 }
 
 export interface StyleImportBindingHIR extends HirNodeBase {
@@ -80,12 +81,36 @@ export type ClassExpressionHIR =
 
 export type SourceExpressionKind = ClassExpressionHIR["kind"];
 
+interface DomainClassReferenceBase extends HirNodeBase {
+  readonly kind: "domainClassReference";
+  readonly pluginId: string;
+  readonly domain: string;
+  readonly origin: "jsxClassAttribute" | "classUtilityCall";
+  readonly range: Range;
+}
+
+export interface DomainLiteralClassReferenceHIR extends DomainClassReferenceBase {
+  readonly matchKind: "literal";
+  readonly className: string;
+}
+
+export interface DomainTemplateClassReferenceHIR extends DomainClassReferenceBase {
+  readonly matchKind: "templatePrefix";
+  readonly rawTemplate: string;
+  readonly staticPrefix: string;
+}
+
+export type DomainClassReferenceHIR =
+  | DomainLiteralClassReferenceHIR
+  | DomainTemplateClassReferenceHIR;
+
 export interface BuildSourceDocumentHIRArgs {
   readonly filePath: string;
   readonly language: SourceLanguage;
   readonly styleImports: readonly StyleImportBindingHIR[];
   readonly utilityBindings: readonly UtilityBindingHIR[];
   readonly classExpressions: readonly ClassExpressionHIR[];
+  readonly domainClassReferences?: readonly DomainClassReferenceHIR[];
 }
 
 export function makeStyleImportBinding(
@@ -115,6 +140,7 @@ export function makeSourceDocumentHIR(args: BuildSourceDocumentHIRArgs): SourceD
     styleImports: args.styleImports,
     utilityBindings: args.utilityBindings,
     classExpressions: args.classExpressions,
+    domainClassReferences: args.domainClassReferences ?? [],
   };
 }
 
@@ -178,6 +204,48 @@ export function makeStyleAccessClassExpression(
     bindingDeclId,
     className,
     accessPath,
+    range,
+  };
+}
+
+export function makeDomainLiteralClassReference(
+  id: string,
+  pluginId: string,
+  domain: string,
+  origin: DomainClassReferenceHIR["origin"],
+  className: string,
+  range: Range,
+): DomainLiteralClassReferenceHIR {
+  return {
+    kind: "domainClassReference",
+    matchKind: "literal",
+    id,
+    pluginId,
+    domain,
+    origin,
+    className,
+    range,
+  };
+}
+
+export function makeDomainTemplateClassReference(
+  id: string,
+  pluginId: string,
+  domain: string,
+  origin: DomainClassReferenceHIR["origin"],
+  rawTemplate: string,
+  staticPrefix: string,
+  range: Range,
+): DomainTemplateClassReferenceHIR {
+  return {
+    kind: "domainClassReference",
+    matchKind: "templatePrefix",
+    id,
+    pluginId,
+    domain,
+    origin,
+    rawTemplate,
+    staticPrefix,
     range,
   };
 }

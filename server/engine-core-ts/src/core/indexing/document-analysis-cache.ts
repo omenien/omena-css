@@ -3,13 +3,17 @@ import type ts from "typescript";
 import type { StyleImport } from "@css-module-explainer/shared";
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import { buildSourceBindingGraph } from "../binder/source-binding-graph";
-import type { BinderPluginV0 } from "../binder/binder-plugin";
+import { composeBinderPluginsV0, type BinderPluginV0 } from "../binder/binder-plugin";
 import type { SourceBinderResult } from "../binder/scope-types";
 import { buildSourceBinder } from "../binder/binder-builder";
 import type { CxBinding } from "../cx/cx-types";
 import { resolveCxBindings, type ResolvedCxBinding } from "../cx/resolved-bindings";
 import { buildSourceDocument } from "../hir/builders/ts-source-adapter";
-import type { ClassExpressionHIR, SourceDocumentHIR } from "../hir/source-types";
+import type {
+  ClassExpressionHIR,
+  DomainClassReferenceHIR,
+  SourceDocumentHIR,
+} from "../hir/source-types";
 import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
 import type { SourceFileCache } from "../ts/source-file-cache";
@@ -62,6 +66,7 @@ export interface DocumentAnalysisCacheDeps {
    * modules) can enter through the same boundary.
    */
   readonly binderPlugin?: BinderPluginV0;
+  readonly binderPlugins?: readonly BinderPluginV0[];
   /**
    * Single-pass scan of the file's top-level import declarations
    * and cx binding initializers. Returns both the style-import
@@ -193,7 +198,8 @@ export class DocumentAnalysisCache {
   private analyze(content: string, filePath: string, version: number, hash: string): AnalysisEntry {
     const sourceFile = this.deps.sourceFileCache.get(filePath, content);
     const sourceBinder = buildSourceBinder(sourceFile);
-    const pluginAnalysis = this.deps.binderPlugin?.analyzeSource({
+    const plugin = this.resolveBinderPlugin();
+    const pluginAnalysis = plugin?.analyzeSource({
       sourceFile,
       filePath,
       sourceBinder,
@@ -207,6 +213,8 @@ export class DocumentAnalysisCache {
     const cxBindings = pluginAnalysis?.cxBindings ?? legacyAnalysis!.cxBindings;
     const classUtilNames = pluginAnalysis?.classUtilNames ?? legacyAnalysis!.classUtilNames;
     const classExpressions = pluginAnalysis?.classExpressions ?? legacyAnalysis!.classExpressions;
+    const domainClassReferences =
+      pluginAnalysis?.domainClassReferences ?? legacyAnalysis!.domainClassReferences;
     const sourceDependencyPaths = collectSourceDependencyPaths(
       sourceFile,
       filePath,
@@ -219,6 +227,7 @@ export class DocumentAnalysisCache {
       classUtilNames,
       sourceBinder,
       classExpressions,
+      domainClassReferences,
     });
     const sourceBindingGraph = buildSourceBindingGraph(sourceDocument, sourceBinder);
 
@@ -244,6 +253,7 @@ export class DocumentAnalysisCache {
     readonly cxBindings: readonly ResolvedCxBinding[];
     readonly classUtilNames: readonly string[];
     readonly classExpressions: readonly ClassExpressionHIR[];
+    readonly domainClassReferences: readonly DomainClassReferenceHIR[];
   } {
     if (!this.deps.scanCxImports) {
       throw new Error("DocumentAnalysisCache requires binderPlugin or scanCxImports");
@@ -261,6 +271,19 @@ export class DocumentAnalysisCache {
     const classExpressions =
       this.deps.parseClassExpressions?.(sourceFile, cxBindings, stylesBindings, sourceBinder) ?? [];
 
-    return { stylesBindings, cxBindings, classUtilNames, classExpressions };
+    return {
+      stylesBindings,
+      cxBindings,
+      classUtilNames,
+      classExpressions,
+      domainClassReferences: [],
+    };
+  }
+
+  private resolveBinderPlugin(): BinderPluginV0 | null {
+    if (this.deps.binderPlugins && this.deps.binderPlugins.length > 0) {
+      return composeBinderPluginsV0(this.deps.binderPlugins);
+    }
+    return this.deps.binderPlugin ?? null;
   }
 }

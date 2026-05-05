@@ -81,6 +81,7 @@ pub struct BinderPluginBoundarySummaryV0 {
     pub contract_name: &'static str,
     pub external_plugin_abi_stable: bool,
     pub default_plugin: BinderPluginSummaryV0,
+    pub built_in_plugins: Vec<BinderPluginSummaryV0>,
     pub request_path_policy: Vec<&'static str>,
     pub next_plugin_targets: Vec<&'static str>,
 }
@@ -169,17 +170,39 @@ pub fn summarize_omena_bridge_binder_plugin_boundary() -> BinderPluginBoundarySu
             import_targets: vec!["*.module.css", "*.module.scss", "*.module.less"],
             utility_targets: vec!["classnames/bind", "classnames", "clsx", "clsx/lite"],
         },
+        built_in_plugins: vec![
+            BinderPluginSummaryV0 {
+                id: "css-modules-classnames-bind",
+                version: "0",
+                stability: "builtIn",
+                domains: vec!["css-modules"],
+                owns_surfaces: vec![
+                    "styleImportRecognition",
+                    "classUtilityRecognition",
+                    "classReferenceExtraction",
+                    "sourceExpressionProjection",
+                ],
+                import_targets: vec!["*.module.css", "*.module.scss", "*.module.less"],
+                utility_targets: vec!["classnames/bind", "classnames", "clsx", "clsx/lite"],
+            },
+            BinderPluginSummaryV0 {
+                id: "tailwind-uno-utility-domain",
+                version: "0",
+                stability: "builtIn",
+                domains: vec!["tailwind-utilities", "unocss-utilities"],
+                owns_surfaces: vec!["domainClassReferenceExtraction"],
+                import_targets: Vec::new(),
+                utility_targets: vec!["class", "className", "classnames", "clsx", "clsx/lite"],
+            },
+        ],
         request_path_policy: vec![
             "builtInPluginsOnlyUntilAbiStabilizes",
             "pluginOutputFeedsEngineInputV2",
             "sourceExpressionProjectionMustPreserveBindingIdentity",
             "styleImportResolutionMustRemainTargetAware",
+            "styleSourceExtractionIsOptionalForUtilityDomains",
         ],
-        next_plugin_targets: vec![
-            "tailwind-utility-domain",
-            "vanilla-extract-recipe-domain",
-            "vue-style-module-domain",
-        ],
+        next_plugin_targets: vec!["vanilla-extract-recipe-domain", "vue-style-module-domain"],
     }
 }
 
@@ -399,6 +422,18 @@ mod tests {
         );
         assert!(
             boundary
+                .request_path_policy
+                .contains(&"styleSourceExtractionIsOptionalForUtilityDomains")
+        );
+        assert!(boundary.built_in_plugins.iter().any(|plugin| {
+            plugin.id == "tailwind-uno-utility-domain"
+                && plugin.domains.contains(&"tailwind-utilities")
+                && plugin
+                    .owns_surfaces
+                    .contains(&"domainClassReferenceExtraction")
+        }));
+        assert!(
+            !boundary
                 .next_plugin_targets
                 .contains(&"tailwind-utility-domain")
         );
