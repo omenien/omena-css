@@ -58,13 +58,15 @@ import {
 } from "./style-selector-reference-query";
 import {
   buildStyleSemanticGraphSelectorIdentityReadModels,
-  buildStyleSemanticGraphDesignTokenRankedReferenceReadModels,
   resolveRustStyleSemanticGraphForWorkspaceTargetAsync,
-  resolveRustStyleSemanticGraphForWorkspaceTarget,
   type StyleSemanticGraphCache,
   type StyleSemanticGraphDesignTokenRankedReferenceReadModel,
   type StyleSemanticGraphSelectorIdentityReadModel,
 } from "./style-semantic-graph-query-backend";
+import {
+  resolveStyleDesignTokenRankingForReference,
+  resolveStyleDesignTokenRankingForReferenceAsync,
+} from "./style-design-token-ranking-query";
 
 interface CustomPropertyHoverTarget {
   readonly filePath: string;
@@ -870,35 +872,12 @@ function withDesignTokenRanking(
   customPropertyRef: StyleDocumentHIR["customPropertyRefs"][number],
   options: StyleHoverQueryOptions,
 ): { readonly designTokenRanking?: StyleSemanticGraphDesignTokenRankedReferenceReadModel } {
-  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
-    return {};
-  }
-
-  const queryOptions = withDepsStyleSemanticGraphCache(deps, options);
-  try {
-    const graph = (
-      queryOptions.readRustStyleSemanticGraphForWorkspaceTarget ??
-      resolveRustStyleSemanticGraphForWorkspaceTarget
-    )(
-      {
-        workspaceRoot: deps.workspaceRoot,
-        classnameTransform: deps.settings.scss.classnameTransform,
-        pathAlias: deps.settings.pathAlias,
-      },
-      deps,
-      filePath,
-      queryOptions,
-    );
-    if (!graph) return {};
-
-    const ranking = buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
-      graph,
-      styleDocument,
-    ).find((readModel) => readModel.reference === customPropertyRef);
-    return ranking ? { designTokenRanking: ranking } : {};
-  } catch {
-    return {};
-  }
+  const ranking = resolveStyleDesignTokenRankingForReference(
+    { filePath, styleDocument, customPropertyRef },
+    deps,
+    options,
+  );
+  return ranking ? { designTokenRanking: ranking } : {};
 }
 
 async function withDesignTokenRankingAsync(
@@ -918,35 +897,12 @@ async function withDesignTokenRankingAsync(
 ): Promise<{
   readonly designTokenRanking?: StyleSemanticGraphDesignTokenRankedReferenceReadModel;
 }> {
-  if (!usesRustStyleSemanticGraphBackend(resolveSelectedQueryBackendKind(options.env))) {
-    return {};
-  }
-
-  const queryOptions = withDepsStyleSemanticGraphCache(deps, options);
-  try {
-    const graph = await (
-      queryOptions.readRustStyleSemanticGraphForWorkspaceTargetAsync ??
-      resolveRustStyleSemanticGraphForWorkspaceTargetAsync
-    )(
-      {
-        workspaceRoot: deps.workspaceRoot,
-        classnameTransform: deps.settings.scss.classnameTransform,
-        pathAlias: deps.settings.pathAlias,
-      },
-      deps,
-      filePath,
-      queryOptions,
-    );
-    if (!graph) return {};
-
-    const ranking = buildStyleSemanticGraphDesignTokenRankedReferenceReadModels(
-      graph,
-      styleDocument,
-    ).find((readModel) => readModel.reference === customPropertyRef);
-    return ranking ? { designTokenRanking: ranking } : {};
-  } catch {
-    return {};
-  }
+  const ranking = await resolveStyleDesignTokenRankingForReferenceAsync(
+    { filePath, styleDocument, customPropertyRef },
+    deps,
+    options,
+  );
+  return ranking ? { designTokenRanking: ranking } : {};
 }
 
 function withDepsStyleSemanticGraphCache(
