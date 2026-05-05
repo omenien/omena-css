@@ -342,6 +342,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "urlValueCstNodes",
             "conditionalAtRulePreludeCstNodes",
             "mediaQueryCstNodes",
+            "unicodeRangeTokenization",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -1418,6 +1419,7 @@ where
                     self.consume_static(SyntaxKind::Important, start, "!important".len())
                 }
                 '"' | '\'' => self.consume_string(current),
+                'u' | 'U' if self.starts_unicode_range() => self.consume_unicode_range(),
                 '0'..='9' => self.consume_number(),
                 '-' if self.starts_with("--") => {
                     self.consume_name_like(SyntaxKind::CustomPropertyName)
@@ -1591,6 +1593,35 @@ where
             return;
         }
         self.push(SyntaxKind::Number, start, self.offset);
+    }
+
+    fn consume_unicode_range(&mut self) {
+        let start = self.offset;
+        self.bump_current();
+        self.offset += '+'.len_utf8();
+        self.consume_unicode_range_codepoints(true);
+        if self.current_char() == Some('-') && self.next_char_is_hex_digit() {
+            self.bump_current();
+            self.consume_unicode_range_codepoints(false);
+        }
+        self.push(SyntaxKind::UnicodeRange, start, self.offset);
+    }
+
+    fn consume_unicode_range_codepoints(&mut self, allow_question_mark: bool) {
+        let mut consumed = 0usize;
+        while consumed < 6 {
+            match self.current_char() {
+                Some(char) if char.is_ascii_hexdigit() => {
+                    self.bump_char(char);
+                    consumed += 1;
+                }
+                Some('?') if allow_question_mark => {
+                    self.bump_current();
+                    consumed += 1;
+                }
+                _ => break,
+            }
+        }
     }
 
     fn consume_digits(&mut self) {
@@ -1768,8 +1799,25 @@ where
             .is_none_or(|char| !is_name_continue(char))
     }
 
+    fn starts_unicode_range(&self) -> bool {
+        let mut chars = self.text[self.offset..].chars();
+        matches!(chars.next(), Some('u' | 'U'))
+            && chars.next() == Some('+')
+            && chars
+                .next()
+                .is_some_and(|char| char.is_ascii_hexdigit() || char == '?')
+    }
+
     fn current_char(&self) -> Option<char> {
         self.text[self.offset..].chars().next()
+    }
+
+    fn next_char_is_hex_digit(&self) -> bool {
+        let offset = self.offset + '-'.len_utf8();
+        self.text
+            .get(offset..)
+            .and_then(|tail| tail.chars().next())
+            .is_some_and(|char| char.is_ascii_hexdigit())
     }
 
     fn bump_current(&mut self) {
@@ -2593,6 +2641,24 @@ mod tests {
     }
 
     #[test]
+    fn tokenizes_unicode_ranges() {
+        let result = lex(
+            "@font-face { unicode-range: U+00A0-00FF, u+4??; }",
+            StyleDialect::Css,
+        );
+        let kinds: Vec<SyntaxKind> = result.tokens().iter().map(|token| token.kind).collect();
+
+        assert!(result.errors().is_empty());
+        assert_eq!(
+            kinds
+                .iter()
+                .filter(|kind| **kind == SyntaxKind::UnicodeRange)
+                .count(),
+            2
+        );
+    }
+
+    #[test]
     fn exposes_recovery_token_sets() {
         assert!(RECOVERY_TOP.contains(SyntaxKind::AtKeyword));
         assert!(RECOVERY_DECLARATION.contains(SyntaxKind::Semicolon));
@@ -2996,6 +3062,7 @@ mod tests {
                 .contains(&"conditionalAtRulePreludeCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"mediaQueryCstNodes"));
+        assert!(summary.ready_surfaces.contains(&"unicodeRangeTokenization"));
         assert!(
             summary
                 .ready_surfaces
