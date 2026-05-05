@@ -7,21 +7,34 @@
 use cstree::{
     build::GreenNodeBuilder,
     green::GreenNode,
+    interning::TokenInterner,
     syntax::SyntaxNode,
     text::{TextRange, TextSize},
 };
 use omena_interner::NameKind;
 pub use omena_syntax::StyleDialect;
 use omena_syntax::SyntaxKind;
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct ParseResult {
     green: GreenNode,
+    interner: Option<Arc<TokenInterner>>,
     errors: Vec<ParseError>,
     token_count: usize,
     dialect: StyleDialect,
 }
+
+impl PartialEq for ParseResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.green == other.green
+            && self.errors == other.errors
+            && self.token_count == other.token_count
+            && self.dialect == other.dialect
+    }
+}
+
+impl Eq for ParseResult {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LexResult {
@@ -57,6 +70,11 @@ impl ParseResult {
     }
 
     pub fn syntax(&self) -> SyntaxNode<SyntaxKind> {
+        if let Some(interner) = &self.interner {
+            return SyntaxNode::new_root_with_resolver(self.green.clone(), Arc::clone(interner))
+                .syntax()
+                .clone();
+        }
         SyntaxNode::new_root(self.green.clone())
     }
 
@@ -551,10 +569,11 @@ pub fn parse_entry_point_with_extension(
     let (tokens, errors) = tokenize(text, extension);
     let token_count = tokens.len();
     let mut parser = Parser::new(tokens, errors, extension.dialect());
-    let green = parser.parse_entry_point(entry_point);
+    let (green, interner) = parser.parse_entry_point(entry_point);
 
     ParseResult {
         green,
+        interner,
         errors: parser.into_errors(),
         token_count,
         dialect: extension.dialect(),
@@ -684,6 +703,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "lightningCssDifferentialCorpusSlice",
             "midTypingNoPanicPropertySlice",
             "deterministicPanicFreeCorpus",
+            "losslessCstTextRoundTripSmoke",
             "typedNumericValueAtomCstNodes",
             "bracketedValueCstNodes",
             "importantAnnotationCstNodes",
@@ -770,11 +790,14 @@ impl<'text> Parser<'text> {
         }
     }
 
-    fn parse(&mut self) -> GreenNode {
+    fn parse(&mut self) -> (GreenNode, Option<Arc<TokenInterner>>) {
         self.parse_entry_point(ParseEntryPoint::Stylesheet)
     }
 
-    fn parse_entry_point(&mut self, entry_point: ParseEntryPoint) -> GreenNode {
+    fn parse_entry_point(
+        &mut self,
+        entry_point: ParseEntryPoint,
+    ) -> (GreenNode, Option<Arc<TokenInterner>>) {
         self.builder.start_node(SyntaxKind::Root);
         match entry_point {
             ParseEntryPoint::Stylesheet => {
@@ -811,8 +834,9 @@ impl<'text> Parser<'text> {
         self.builder.finish_node();
 
         let builder = std::mem::take(&mut self.builder);
-        let (green, _) = builder.finish();
-        green
+        let (green, cache) = builder.finish();
+        let interner = cache.and_then(|cache| cache.into_interner()).map(Arc::new);
+        (green, interner)
     }
 
     fn parse_sass_indentation_bogus(&mut self) {
@@ -7625,6 +7649,36 @@ mod tests {
     }
 
     #[test]
+    fn preserves_lossless_cst_text_for_valid_corpus() {
+        let fixtures = [
+            (
+                StyleDialect::Css,
+                ".card { color: red; --space: calc(1rem + 2px); }",
+            ),
+            (
+                StyleDialect::Scss,
+                "@use \"tokens\"; .card { &__icon { color: $accent; } }",
+            ),
+            (
+                StyleDialect::Sass,
+                ".card\n  color: red\n  &__icon\n    color: blue\n",
+            ),
+            (
+                StyleDialect::Less,
+                "@tone: red; .card() when (iscolor(@tone)) { color: @tone; }",
+            ),
+        ];
+
+        for (dialect, source) in fixtures {
+            let result = parse(source, dialect);
+            let syntax = result.syntax();
+
+            assert_eq!(syntax.kind(), SyntaxKind::Root);
+            assert_eq!(source_text(&syntax).as_deref(), Some(source));
+        }
+    }
+
+    #[test]
     fn extracts_nested_bem_style_facts_with_parent_context() {
         let facts = collect_style_facts(
             ".card { &__icon { &--small { color: red; } } --space: 1rem; color: var(--space); }",
@@ -8185,6 +8239,11 @@ mod tests {
         assert!(
             summary
                 .ready_surfaces
+                .contains(&"losslessCstTextRoundTripSmoke")
+        );
+        assert!(
+            summary
+                .ready_surfaces
                 .contains(&"typedNumericValueAtomCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"bracketedValueCstNodes"));
@@ -8378,6 +8437,23 @@ mod tests {
                 "token end is not a char boundary: token={token:?} source={source:?}"
             );
         }
+    }
+
+    fn source_text(node: &SyntaxNode<SyntaxKind>) -> Option<String> {
+        let mut text = String::new();
+        for token in node
+            .descendants_with_tokens()
+            .filter_map(|element| element.into_token())
+        {
+            if let Some(resolver) = token.resolver() {
+                text.push_str(token.resolve_text(&**resolver));
+            } else if let Some(static_text) = token.static_text() {
+                text.push_str(static_text);
+            } else {
+                return None;
+            }
+        }
+        Some(text)
     }
 
     fn node_kinds(node: &SyntaxNode<SyntaxKind>) -> Vec<SyntaxKind> {
