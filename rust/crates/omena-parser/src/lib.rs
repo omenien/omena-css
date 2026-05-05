@@ -408,6 +408,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "cdoCdcTokenization",
             "cssIdentifierEscapeTokenization",
             "nullAndBomInputPreprocessingSlice",
+            "hashDelimiterTokenization",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -2992,7 +2993,8 @@ where
                 '&' => self.consume_static(SyntaxKind::Ampersand, start, 1),
                 '>' => self.consume_static(SyntaxKind::GreaterThan, start, 1),
                 '<' => self.consume_static(SyntaxKind::LessThan, start, 1),
-                '#' => self.consume_name_like(SyntaxKind::Hash),
+                '#' if self.current_hash_starts_name() => self.consume_name_like(SyntaxKind::Hash),
+                '#' => self.consume_static(SyntaxKind::Delim, start, 1),
                 '\\' if self.current_starts_valid_escape() => {
                     self.consume_name_like(SyntaxKind::Ident)
                 }
@@ -3473,6 +3475,18 @@ where
             .is_some_and(is_name_start)
     }
 
+    fn current_hash_starts_name(&self) -> bool {
+        if self.current_char() != Some('#') {
+            return false;
+        }
+        let next_offset = self.offset + '#'.len_utf8();
+        self.text[next_offset..]
+            .chars()
+            .next()
+            .is_some_and(is_name_continue)
+            || self.escape_starts_at(next_offset)
+    }
+
     fn consume_unexpected(&mut self, char: char) {
         let start = self.offset;
         self.bump_char(char);
@@ -3506,10 +3520,18 @@ where
     }
 
     fn current_starts_valid_escape(&self) -> bool {
-        if self.current_char() != Some('\\') {
+        self.escape_starts_at(self.offset)
+    }
+
+    fn escape_starts_at(&self, offset: usize) -> bool {
+        if !self
+            .text
+            .get(offset..)
+            .is_some_and(|remaining| remaining.starts_with('\\'))
+        {
             return false;
         }
-        self.text[self.offset + '\\'.len_utf8()..]
+        self.text[offset + '\\'.len_utf8()..]
             .chars()
             .next()
             .is_some_and(|char| !matches!(char, '\n' | '\r' | '\u{000c}'))
@@ -4750,6 +4772,25 @@ mod tests {
         assert!(token_kinds.contains(&SyntaxKind::Ident));
         assert!(token_kinds.contains(&SyntaxKind::CustomPropertyName));
         assert!(node_kinds(&result.syntax()).contains(&SyntaxKind::ClassSelector));
+    }
+
+    #[test]
+    fn tokenizes_bare_hash_as_delim_and_hash_names_as_hash() {
+        let bare = lex("# { color: red; }", StyleDialect::Css);
+        let named = lex("#main { color: red; }", StyleDialect::Css);
+        let escaped = lex("#\\31 0 { color: red; }", StyleDialect::Css);
+        let bare_kinds: Vec<SyntaxKind> = bare.tokens().iter().map(|token| token.kind).collect();
+        let named_kinds: Vec<SyntaxKind> = named.tokens().iter().map(|token| token.kind).collect();
+        let escaped_kinds: Vec<SyntaxKind> =
+            escaped.tokens().iter().map(|token| token.kind).collect();
+
+        assert!(bare.errors().is_empty());
+        assert!(named.errors().is_empty());
+        assert!(escaped.errors().is_empty());
+        assert!(bare_kinds.contains(&SyntaxKind::Delim));
+        assert!(!bare_kinds.contains(&SyntaxKind::Hash));
+        assert!(named_kinds.contains(&SyntaxKind::Hash));
+        assert!(escaped_kinds.contains(&SyntaxKind::Hash));
     }
 
     #[test]
@@ -6219,6 +6260,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"nullAndBomInputPreprocessingSlice")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"hashDelimiterTokenization")
         );
         assert!(
             summary
