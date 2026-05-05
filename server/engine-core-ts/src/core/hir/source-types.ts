@@ -85,7 +85,7 @@ interface DomainClassReferenceBase extends HirNodeBase {
   readonly kind: "domainClassReference";
   readonly pluginId: string;
   readonly domain: string;
-  readonly origin: "jsxClassAttribute" | "classUtilityCall";
+  readonly origin: "jsxClassAttribute" | "classUtilityCall" | "styleAccess";
   readonly range: Range;
 }
 

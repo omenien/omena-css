@@ -203,6 +203,15 @@ pub fn summarize_omena_bridge_binder_plugin_boundary() -> BinderPluginBoundarySu
                 import_targets: vec!["@vanilla-extract/recipes"],
                 utility_targets: vec!["recipe"],
             },
+            BinderPluginSummaryV0 {
+                id: "vue-style-module-domain",
+                version: "0",
+                stability: "builtIn",
+                domains: vec!["vue-style-modules"],
+                owns_surfaces: vec!["domainClassReferenceExtraction"],
+                import_targets: vec!["*.vue"],
+                utility_targets: vec!["useCssModule"],
+            },
         ],
         request_path_policy: vec![
             "builtInPluginsOnlyUntilAbiStabilizes",
@@ -211,7 +220,7 @@ pub fn summarize_omena_bridge_binder_plugin_boundary() -> BinderPluginBoundarySu
             "styleImportResolutionMustRemainTargetAware",
             "styleSourceExtractionIsOptionalForUtilityDomains",
         ],
-        next_plugin_targets: vec!["vue-style-module-domain"],
+        next_plugin_targets: Vec::new(),
     }
 }
 
@@ -457,6 +466,17 @@ mod tests {
             !boundary
                 .next_plugin_targets
                 .contains(&"vanilla-extract-recipe-domain")
+        );
+        assert!(boundary.built_in_plugins.iter().any(|plugin| {
+            plugin.id == "vue-style-module-domain"
+                && plugin.domains.contains(&"vue-style-modules")
+                && plugin
+                    .owns_surfaces
+                    .contains(&"domainClassReferenceExtraction")
+        }));
+        assert!(
+            boundary.next_plugin_targets.is_empty(),
+            "all planned BinderPluginV0 proof-point domains should now be built in"
         );
     }
 

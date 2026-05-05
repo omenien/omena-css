@@ -7,7 +7,9 @@ import {
 } from "../../../server/engine-core-ts/src/core/binder/binder-plugin";
 import { tailwindUnoUtilityBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/tailwind-utility-plugin";
 import { vanillaExtractRecipeBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/vanilla-extract-recipe-plugin";
+import { vueStyleModuleBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/vue-style-module-plugin";
 import { buildSourceBinder } from "../../../server/engine-core-ts/src/core/binder/binder-builder";
+import { projectVueSfcScriptToTypeScriptSource } from "../../../server/engine-core-ts/src/core/ts/vue-sfc-source";
 
 const EMPTY_ALIAS_RESOLVER = new AliasResolver("/fake", {});
 
@@ -190,6 +192,53 @@ describe("cssModulesClassnamesBinderPluginV0", () => {
         matchKind: "literal",
         className: "button.size.sm",
         domain: "vanilla-extract-recipe",
+      },
+    ]);
+  });
+
+  it("tracks Vue useCssModule style references from projected SFC script", () => {
+    const vueSource = `
+      <template>
+        <button :class="$style.button">Save</button>
+      </template>
+      <script setup lang="ts">
+      import { useCssModule } from 'vue';
+      const styles = useCssModule();
+      const named = useCssModule("theme");
+      const className = styles.button + named["accent"];
+      </script>
+      <style module>
+      .button {}
+      </style>
+    `;
+    const sourceFile = parse(
+      projectVueSfcScriptToTypeScriptSource(vueSource),
+      "/fake/src/Card.vue",
+    );
+    const sourceBinder = buildSourceBinder(sourceFile);
+
+    const result = vueStyleModuleBinderPluginV0.analyzeSource({
+      sourceFile,
+      filePath: "/fake/src/Card.vue",
+      sourceBinder,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+    });
+
+    expect(result.stylesBindings.size).toBe(0);
+    expect(result.classExpressions).toEqual([]);
+    expect(result.domainClassReferences).toMatchObject([
+      {
+        matchKind: "literal",
+        className: "default.button",
+        domain: "vue-style-module",
+        origin: "styleAccess",
+      },
+      {
+        matchKind: "literal",
+        className: "theme.accent",
+        domain: "vue-style-module",
+        origin: "styleAccess",
       },
     ]);
   });

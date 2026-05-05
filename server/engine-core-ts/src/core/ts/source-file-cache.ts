@@ -1,6 +1,7 @@
 import ts from "typescript";
 import { contentHash } from "../util/hash";
 import { LruMap } from "../util/lru-map";
+import { projectVueSfcScriptToTypeScriptSource } from "./vue-sfc-source";
 
 interface SourceFileCacheEntry {
   hash: string;
@@ -34,9 +35,12 @@ export class SourceFileCache {
       this.lru.touch(filePath, cached);
       return cached.sourceFile;
     }
+    const source = filePath.endsWith(".vue")
+      ? projectVueSfcScriptToTypeScriptSource(content)
+      : content;
     const sourceFile = ts.createSourceFile(
       filePath,
-      content,
+      source,
       ts.ScriptTarget.Latest,
       /*setParentNodes*/ true,
       scriptKindFor(filePath),
