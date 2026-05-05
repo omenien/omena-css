@@ -302,6 +302,8 @@ name = "engine-shadow-runner"
 version = "0.1.0"
 dependencies = [
  "engine-input-producers",
+ "omena-abstract-value",
+ "omena-checker",
  "omena-query",
  "omena-resolver",
  "serde",

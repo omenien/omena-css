@@ -26,6 +26,15 @@ use engine_input_producers::{
     summarize_source_side_canonical_producer_signal_input,
     summarize_source_side_evaluator_candidates_input, summarize_type_fact_input,
 };
+use omena_abstract_value::{
+    AbstractClassValueV0, CompositeClassValueInputV0, bottom_class_value,
+    char_inclusion_class_value, composite_class_value, exact_class_value, finite_set_class_value,
+    prefix_class_value, prefix_suffix_class_value, suffix_class_value, top_class_value,
+};
+use omena_checker::{
+    OmenaCheckerDynamicClassDomainInputV0, OmenaCheckerMTierEvaluationV0,
+    evaluate_omena_checker_m_tier_rules,
+};
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryStylePackageManifestV0, ParserPositionV0, read_omena_query_cascade_at_position,
@@ -147,6 +156,112 @@ struct OmenaResolverStylePackageManifestInputV0 {
 struct OmenaParserStyleFactsInputV0 {
     style_source: String,
     dialect: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerMTierEvaluationInputV0 {
+    abstract_value: OmenaCheckerAbstractClassValueInputV0,
+    selector_universe: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+enum OmenaCheckerAbstractClassValueInputV0 {
+    Bottom,
+    Exact {
+        value: String,
+    },
+    FiniteSet {
+        values: Vec<String>,
+    },
+    Prefix {
+        prefix: String,
+    },
+    Suffix {
+        suffix: String,
+    },
+    PrefixSuffix {
+        prefix: String,
+        suffix: String,
+        min_length: Option<usize>,
+    },
+    CharInclusion {
+        #[serde(default)]
+        must_chars: String,
+        #[serde(default)]
+        may_chars: String,
+        #[serde(default)]
+        may_include_other_chars: bool,
+    },
+    Composite {
+        #[serde(default)]
+        prefix: Option<String>,
+        #[serde(default)]
+        suffix: Option<String>,
+        #[serde(default)]
+        min_length: Option<usize>,
+        #[serde(default)]
+        must_chars: String,
+        #[serde(default)]
+        may_chars: String,
+        #[serde(default)]
+        may_include_other_chars: bool,
+    },
+    Top,
+}
+
+impl OmenaCheckerAbstractClassValueInputV0 {
+    fn into_abstract_class_value(self) -> AbstractClassValueV0 {
+        match self {
+            Self::Bottom => bottom_class_value(),
+            Self::Exact { value } => exact_class_value(value),
+            Self::FiniteSet { values } => finite_set_class_value(values),
+            Self::Prefix { prefix } => prefix_class_value(prefix, None),
+            Self::Suffix { suffix } => suffix_class_value(suffix, None),
+            Self::PrefixSuffix {
+                prefix,
+                suffix,
+                min_length,
+            } => prefix_suffix_class_value(prefix, suffix, min_length, None),
+            Self::CharInclusion {
+                must_chars,
+                may_chars,
+                may_include_other_chars,
+            } => char_inclusion_class_value(must_chars, may_chars, None, may_include_other_chars),
+            Self::Composite {
+                prefix,
+                suffix,
+                min_length,
+                must_chars,
+                may_chars,
+                may_include_other_chars,
+            } => composite_class_value(CompositeClassValueInputV0 {
+                prefix,
+                suffix,
+                min_length,
+                must_chars,
+                may_chars,
+                may_include_other_chars,
+                provenance: None,
+            }),
+            Self::Top => top_class_value(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerMTierEvaluationRunnerOutputV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    selector_universe_count: usize,
+    evaluation_count: usize,
+    evaluations: Vec<OmenaCheckerMTierEvaluationV0>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -863,6 +978,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_omena_query_selected_query_adapter_capabilities();
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("omena-checker-m-tier-evaluations") => {
+            let input: OmenaCheckerMTierEvaluationInputV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_checker_m_tier_evaluations(input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("input-source-resolution-match-fragments") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_source_resolution_match_fragments_input(&input);
@@ -1095,7 +1215,31 @@ fn run_daemon_selected_query_command(
                 ),
             )?)
         }
+        "omena-checker-m-tier-evaluations" => {
+            let input: OmenaCheckerMTierEvaluationInputV0 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_checker_m_tier_evaluations(input),
+            )?)
+        }
         other => Err(format!("unsupported engine-shadow-runner daemon command: {other}").into()),
+    }
+}
+
+fn summarize_omena_checker_m_tier_evaluations(
+    input: OmenaCheckerMTierEvaluationInputV0,
+) -> OmenaCheckerMTierEvaluationRunnerOutputV0 {
+    let selector_universe_count = input.selector_universe.len();
+    let evaluations = evaluate_omena_checker_m_tier_rules(OmenaCheckerDynamicClassDomainInputV0 {
+        abstract_value: input.abstract_value.into_abstract_class_value(),
+        selector_universe: input.selector_universe,
+    });
+
+    OmenaCheckerMTierEvaluationRunnerOutputV0 {
+        schema_version: "0",
+        product: "omena-checker.m-tier-evaluations",
+        selector_universe_count,
+        evaluation_count: evaluations.len(),
+        evaluations,
     }
 }
 
