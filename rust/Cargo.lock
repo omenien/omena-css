@@ -557,6 +557,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-cascade"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "omena-checker"
 version = "0.1.0"
 dependencies = [

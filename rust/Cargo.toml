@@ -6,6 +6,7 @@ members = [
   "crates/omena-abstract-value",
   "crates/omena-benchmarks",
   "crates/omena-bridge",
+  "crates/omena-cascade",
   "crates/omena-checker",
   "crates/omena-interner",
   "crates/omena-parser",
