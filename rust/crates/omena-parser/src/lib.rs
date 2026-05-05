@@ -124,6 +124,7 @@ pub struct ParsedSelectorFact {
 pub enum ParsedSelectorFactKind {
     Class,
     Id,
+    Placeholder,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3459,6 +3460,15 @@ fn collect_selector_facts_in_range(
         for id in collect_id_selector_facts_from_header(tokens, index, open) {
             push_selector_fact(selectors, seen, ParsedSelectorFactKind::Id, id.0, id.1);
         }
+        for placeholder in collect_placeholder_selector_facts_from_header(tokens, index, open) {
+            push_selector_fact(
+                selectors,
+                seen,
+                ParsedSelectorFactKind::Placeholder,
+                placeholder.0,
+                placeholder.1,
+            );
+        }
 
         collect_selector_facts_in_range(tokens, open + 1, close, &branches, seen, selectors);
         index = close + 1;
@@ -3692,6 +3702,18 @@ fn collect_id_selector_facts_from_header(
         }
     }
     names
+}
+
+fn collect_placeholder_selector_facts_from_header(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> Vec<(String, TextRange)> {
+    tokens[start..end]
+        .iter()
+        .filter(|token| token.kind == SyntaxKind::ScssPlaceholder)
+        .map(|token| (token.text.trim_start_matches('%').to_string(), token.range))
+        .collect()
 }
 
 fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariableFact> {
@@ -5145,13 +5167,13 @@ mod tests {
     #[test]
     fn extracts_initial_style_facts_from_parser_surface() {
         let facts = collect_style_facts(
-            "@use \"tokens\"; $gap: 1rem; .card#main { --space: $gap; }",
+            "@use \"tokens\"; $gap: 1rem; %surface { color: red; } .card#main { --space: $gap; }",
             StyleDialect::Scss,
         );
 
         assert_eq!(facts.product, "omena-parser.style-facts");
         assert_eq!(facts.dialect, StyleDialect::Scss);
-        assert_eq!(facts.selector_count, 2);
+        assert_eq!(facts.selector_count, 3);
         assert_eq!(facts.variable_count, 3);
         assert_eq!(facts.at_rule_count, 1);
         assert!(facts.selectors.iter().any(|selector| {
@@ -5159,6 +5181,9 @@ mod tests {
         }));
         assert!(facts.selectors.iter().any(|selector| {
             selector.kind == ParsedSelectorFactKind::Id && selector.name == "main"
+        }));
+        assert!(facts.selectors.iter().any(|selector| {
+            selector.kind == ParsedSelectorFactKind::Placeholder && selector.name == "surface"
         }));
         assert!(facts.variables.iter().any(|variable| {
             variable.kind == ParsedVariableFactKind::ScssDeclaration && variable.name == "$gap"

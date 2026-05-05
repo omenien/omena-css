@@ -41,6 +41,7 @@ pub fn summarize_omena_query_omena_parser_style_facts(
         match selector.kind {
             ParsedSelectorFactKind::Class => class_selector_names.push(selector.name),
             ParsedSelectorFactKind::Id => id_selector_names.push(selector.name),
+            ParsedSelectorFactKind::Placeholder => {}
         }
     }
 
