@@ -148,6 +148,17 @@ pub struct OmenaQueryStyleHoverCandidatesV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStyleHoverRenderPartsV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub snippet: String,
+    pub value: Option<String>,
+    pub signature: Option<String>,
+    pub render_source: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQuerySassModuleUseEdgeV0 {
     pub source: String,
     pub namespace_kind: &'static str,
@@ -235,6 +246,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "expressionDomainFlowAnalysisBoundary",
             "expressionDomainControlFlowAnalysisBoundary",
             "expressionDomainSalsaRuntime",
+            "styleHoverRenderParts",
             "queryBoundarySummary",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
@@ -574,6 +586,61 @@ pub fn summarize_omena_query_style_hover_candidates(
         language: style_language_label(sheet.language),
         candidates,
     })
+}
+
+pub fn summarize_omena_query_style_hover_render_parts(
+    source: &str,
+    kind: &str,
+    name: &str,
+    position: ParserPositionV0,
+) -> OmenaQueryStyleHoverRenderPartsV0 {
+    let mut parts = OmenaQueryStyleHoverRenderPartsV0 {
+        schema_version: "0",
+        product: "omena-query.style-hover-render-parts",
+        snippet: String::new(),
+        value: None,
+        signature: None,
+        render_source: "lineSnippet",
+    };
+
+    match kind {
+        "selector" => {
+            parts.snippet = rule_snippet_around_position(source, position).unwrap_or_else(|| {
+                parts.render_source = "selectorFallback";
+                format!(".{name} {{ ... }}")
+            });
+            if parts.render_source != "selectorFallback" {
+                parts.render_source = "ruleSnippet";
+            }
+        }
+        "customPropertyReference" | "customPropertyDeclaration" => {
+            parts.snippet = line_snippet_at_position(source, position).unwrap_or_default();
+        }
+        kind if is_sass_symbol_candidate_kind(kind) => {
+            parts.snippet = line_snippet_at_position(source, position).unwrap_or_default();
+            if sass_symbol_kind_from_candidate_kind(kind) == Some("variable")
+                && is_sass_symbol_declaration_kind(kind)
+            {
+                parts.value = sass_variable_value_from_declaration_line(parts.snippet.as_str());
+            } else if matches!(
+                sass_symbol_kind_from_candidate_kind(kind),
+                Some("mixin" | "function")
+            ) && is_sass_symbol_declaration_kind(kind)
+                && let Some((signature, snippet)) =
+                    sass_callable_definition_render_parts(source, position)
+            {
+                parts.signature = Some(signature);
+                parts.snippet = snippet;
+                parts.render_source = "callableBlockSnippet";
+            }
+        }
+        _ => {
+            parts.snippet = name.to_string();
+            parts.render_source = "candidateNameFallback";
+        }
+    }
+
+    parts
 }
 
 pub fn summarize_omena_query_sass_module_sources(
@@ -1386,6 +1453,32 @@ fn sass_symbol_declaration_candidate_kind(symbol_kind: &str) -> &'static str {
     }
 }
 
+fn is_sass_symbol_candidate_kind(kind: &str) -> bool {
+    sass_symbol_kind_from_candidate_kind(kind).is_some()
+}
+
+fn is_sass_symbol_declaration_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        "sassVariableDeclaration"
+            | "sassMixinDeclaration"
+            | "sassFunctionDeclaration"
+            | "sassSymbolDeclaration"
+    )
+}
+
+fn sass_symbol_kind_from_candidate_kind(kind: &str) -> Option<&'static str> {
+    match kind {
+        "sassVariableDeclaration" | "sassVariableReference" => Some("variable"),
+        "sassMixinDeclaration" | "sassMixinInclude" | "sassMixinReference" => Some("mixin"),
+        "sassFunctionDeclaration" | "sassFunctionCall" | "sassFunctionReference" => {
+            Some("function")
+        }
+        "sassSymbolDeclaration" | "sassSymbolReference" => Some("symbol"),
+        _ => None,
+    }
+}
+
 fn sass_symbol_reference_candidate_kind(symbol_kind: &str, role: &str) -> &'static str {
     match (symbol_kind, role) {
         ("variable", _) => "sassVariableReference",
@@ -1395,6 +1488,90 @@ fn sass_symbol_reference_candidate_kind(symbol_kind: &str, role: &str) -> &'stat
         ("function", _) => "sassFunctionReference",
         _ => "sassSymbolReference",
     }
+}
+
+fn sass_variable_value_from_declaration_line(line: &str) -> Option<String> {
+    let (_, value) = line.split_once(':')?;
+    let value = value
+        .trim()
+        .trim_end_matches(';')
+        .trim()
+        .trim_end_matches("!default")
+        .trim();
+    (!value.is_empty()).then(|| value.to_string())
+}
+
+fn sass_callable_definition_render_parts(
+    source: &str,
+    position: ParserPositionV0,
+) -> Option<(String, String)> {
+    let line_start = byte_offset_for_parser_position(
+        source,
+        ParserPositionV0 {
+            line: position.line,
+            character: 0,
+        },
+    )?;
+    let open_brace = source[line_start..].find('{')? + line_start;
+    let close_brace = matching_style_block_end(source, open_brace, b'{', b'}')?;
+    let signature = source[line_start..open_brace].trim().to_string();
+    let body = source[open_brace + 1..close_brace].trim();
+    if signature.is_empty() || body.is_empty() {
+        return None;
+    }
+    Some((signature, trim_hover_snippet(body)))
+}
+
+fn rule_snippet_around_position(source: &str, position: ParserPositionV0) -> Option<String> {
+    let line_start = byte_offset_for_parser_position(
+        source,
+        ParserPositionV0 {
+            line: position.line,
+            character: 0,
+        },
+    )?;
+    let open_brace = source[line_start..].find('{')? + line_start;
+    let mut depth = 0usize;
+    let mut cursor = open_brace;
+    while cursor < source.len() {
+        match source.as_bytes().get(cursor).copied()? {
+            b'{' => depth += 1,
+            b'}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    let snippet = source[line_start..=cursor].trim();
+                    return Some(trim_hover_snippet(snippet));
+                }
+            }
+            _ => {}
+        }
+        cursor = advance_style_scan_cursor(source, cursor, source.len());
+    }
+    None
+}
+
+fn line_snippet_at_position(source: &str, position: ParserPositionV0) -> Option<String> {
+    let line_start = byte_offset_for_parser_position(
+        source,
+        ParserPositionV0 {
+            line: position.line,
+            character: 0,
+        },
+    )?;
+    let line_end = source[line_start..]
+        .find('\n')
+        .map(|offset| line_start + offset)
+        .unwrap_or(source.len());
+    Some(source[line_start..line_end].trim().to_string())
+}
+
+fn trim_hover_snippet(snippet: &str) -> String {
+    const MAX_SNIPPET_LEN: usize = 1200;
+    if snippet.len() <= MAX_SNIPPET_LEN {
+        return snippet.to_string();
+    }
+    let end = char_boundary_floor(snippet, MAX_SNIPPET_LEN);
+    format!("{}...", snippet[..end].trim_end())
 }
 
 fn custom_property_ref_byte_spans(source: &str, name: &str) -> Vec<ParserByteSpanV0> {
@@ -1454,6 +1631,33 @@ fn parser_position_for_byte_offset(source: &str, offset: usize) -> ParserPositio
     }
 
     ParserPositionV0 { line, character }
+}
+
+fn byte_offset_for_parser_position(source: &str, position: ParserPositionV0) -> Option<usize> {
+    let mut current_line = 0usize;
+    let mut current_character = 0usize;
+
+    if position.line == 0 && position.character == 0 {
+        return Some(0);
+    }
+
+    for (byte_index, ch) in source.char_indices() {
+        if current_line == position.line && current_character == position.character {
+            return Some(byte_index);
+        }
+        if ch == '\n' {
+            current_line += 1;
+            current_character = 0;
+            if current_line == position.line && position.character == 0 {
+                return Some(byte_index + ch.len_utf8());
+            }
+        } else if current_line == position.line {
+            current_character += ch.len_utf16();
+        }
+    }
+
+    (current_line == position.line && current_character == position.character)
+        .then_some(source.len())
 }
 
 fn skip_ascii_whitespace(source: &str, mut offset: usize) -> usize {
@@ -2297,6 +2501,54 @@ $accent: red;
                         && candidate.name == "tone-warm"
                 )
         );
+    }
+
+    #[test]
+    fn style_hover_render_parts_are_query_owned() {
+        let source = r#"$accent: red !default;
+@mixin tone($color) {
+  color: $color;
+}
+.button { color: var(--brand); }
+"#;
+
+        let variable = super::summarize_omena_query_style_hover_render_parts(
+            source,
+            "sassVariableDeclaration",
+            "accent",
+            engine_style_parser::ParserPositionV0 {
+                line: 0,
+                character: 1,
+            },
+        );
+        assert_eq!(variable.product, "omena-query.style-hover-render-parts");
+        assert_eq!(variable.value.as_deref(), Some("red"));
+        assert_eq!(variable.snippet, "$accent: red !default;");
+
+        let mixin = super::summarize_omena_query_style_hover_render_parts(
+            source,
+            "sassMixinDeclaration",
+            "tone",
+            engine_style_parser::ParserPositionV0 {
+                line: 1,
+                character: 7,
+            },
+        );
+        assert_eq!(mixin.signature.as_deref(), Some("@mixin tone($color)"));
+        assert_eq!(mixin.snippet, "color: $color;");
+        assert_eq!(mixin.render_source, "callableBlockSnippet");
+
+        let selector = super::summarize_omena_query_style_hover_render_parts(
+            source,
+            "selector",
+            "button",
+            engine_style_parser::ParserPositionV0 {
+                line: 4,
+                character: 1,
+            },
+        );
+        assert_eq!(selector.snippet, ".button { color: var(--brand); }");
+        assert_eq!(selector.render_source, "ruleSnippet");
     }
 
     #[test]

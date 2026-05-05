@@ -19,6 +19,7 @@ use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
     OmenaQueryStyleHoverCandidateV0, summarize_omena_query_sass_module_sources,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
+    summarize_omena_query_style_hover_render_parts,
 };
 use omena_tsgo_client::{
     OmenaTsgoClientBoundarySummaryV0, TsgoJsonRpcTypeFactProviderV0, TsgoResolvedTypeV0,
@@ -3051,69 +3052,6 @@ fn collect_source_imports(document: &LspTextDocumentState) -> SourceImportIndex 
     imports
 }
 
-fn char_boundary_floor(source: &str, index: usize) -> usize {
-    let mut index = index.min(source.len());
-    while index > 0 && !source.is_char_boundary(index) {
-        index -= 1;
-    }
-    index
-}
-
-fn char_boundary_ceil(source: &str, index: usize) -> usize {
-    let mut index = index.min(source.len());
-    while index < source.len() && !source.is_char_boundary(index) {
-        index += 1;
-    }
-    index
-}
-
-fn advance_style_snippet_cursor(source: &str, cursor: usize, limit: usize) -> usize {
-    let cursor = char_boundary_ceil(source, cursor);
-    let limit = char_boundary_floor(source, limit);
-    if cursor >= limit {
-        return limit;
-    }
-    char_boundary_ceil(source, cursor + 1).min(limit)
-}
-
-fn advance_style_snippet_escaped_char(source: &str, slash_offset: usize, limit: usize) -> usize {
-    let after_slash = advance_style_snippet_cursor(source, slash_offset, limit);
-    advance_style_snippet_cursor(source, after_slash, limit)
-}
-
-fn matching_style_snippet_block_end(
-    source: &str,
-    open_offset: usize,
-    open: u8,
-    close: u8,
-) -> Option<usize> {
-    if source.as_bytes().get(open_offset) != Some(&open) {
-        return None;
-    }
-    let mut cursor = advance_style_snippet_cursor(source, open_offset, source.len());
-    let mut depth = 1usize;
-    while cursor < source.len() {
-        match source.as_bytes().get(cursor).copied()? {
-            b'\'' | b'"' | b'`' => {
-                cursor = skip_style_snippet_string_literal(source, cursor, source.len())?;
-            }
-            byte if byte == open => {
-                depth += 1;
-                cursor = advance_style_snippet_cursor(source, cursor, source.len());
-            }
-            byte if byte == close => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(cursor);
-                }
-                cursor = advance_style_snippet_cursor(source, cursor, source.len());
-            }
-            _ => cursor = advance_style_snippet_cursor(source, cursor, source.len()),
-        }
-    }
-    None
-}
-
 fn source_reference_candidate(
     document: &LspTextDocumentState,
     reference: &SourceSelectorReferenceFact,
@@ -3132,28 +3070,6 @@ fn source_reference_candidate(
         target_style_uri: reference.target_style_uri.clone(),
         namespace: None,
     }
-}
-
-fn skip_style_snippet_string_literal(
-    source: &str,
-    quote_offset: usize,
-    limit: usize,
-) -> Option<usize> {
-    let quote = source.as_bytes().get(quote_offset).copied()?;
-    let limit = char_boundary_floor(source, limit);
-    let mut cursor = quote_offset + 1;
-    while cursor < limit {
-        let byte = source.as_bytes().get(cursor).copied()?;
-        if byte == b'\\' {
-            cursor = advance_style_snippet_escaped_char(source, cursor, limit);
-            continue;
-        }
-        if byte == quote {
-            return Some(cursor + 1);
-        }
-        cursor = advance_style_snippet_cursor(source, cursor, limit);
-    }
-    None
 }
 
 fn style_selector_definitions_from_open_documents(
@@ -3507,163 +3423,71 @@ fn render_style_hover_candidate_markdown(
         file_label_from_uri(document_uri),
         candidate.range.start.line + 1
     );
+    let render_parts = summarize_omena_query_style_hover_render_parts(
+        source,
+        candidate.kind,
+        candidate.name.as_str(),
+        candidate.range.start,
+    );
     match candidate.kind {
         "selector" => {
-            let snippet = rule_snippet_around_position(source, candidate.range.start)
-                .unwrap_or_else(|| format!(".{} {{ ... }}", candidate.name));
             format!(
                 "**`.{}`** - _{}_\n\n```scss\n{}\n```",
-                candidate.name, location, snippet
+                candidate.name, location, render_parts.snippet
             )
         }
         "customPropertyReference" => {
-            let snippet =
-                line_snippet_at_position(source, candidate.range.start).unwrap_or_default();
             format!(
                 "**`var({})`** - _{}_\n\n```scss\n{}\n```",
-                candidate.name, location, snippet
+                candidate.name, location, render_parts.snippet
             )
         }
         "customPropertyDeclaration" => {
-            let snippet =
-                line_snippet_at_position(source, candidate.range.start).unwrap_or_default();
             format!(
                 "**`{}`** - _{}_\n\n```scss\n{}\n```",
-                candidate.name, location, snippet
+                candidate.name, location, render_parts.snippet
             )
         }
         kind if is_sass_symbol_candidate_kind(kind) => {
-            render_sass_symbol_hover_markdown(source, candidate, location.as_str())
+            render_sass_symbol_hover_markdown(candidate, location.as_str(), &render_parts)
         }
         _ => candidate.name.clone(),
     }
 }
 
 fn render_sass_symbol_hover_markdown(
-    source: &str,
     candidate: &LspStyleHoverCandidate,
     location: &str,
+    render_parts: &omena_query::OmenaQueryStyleHoverRenderPartsV0,
 ) -> String {
     let label = render_sass_symbol_label(candidate);
     match sass_symbol_kind_from_candidate_kind(candidate.kind) {
         Some("variable") if is_sass_symbol_declaration_kind(candidate.kind) => {
-            let snippet =
-                line_snippet_at_position(source, candidate.range.start).unwrap_or_default();
-            if let Some(value) = sass_variable_value_from_declaration_line(snippet.as_str()) {
+            if let Some(value) = render_parts.value.as_deref() {
                 return format!(
                     "**`{}`** - _{}_\n\nValue: `{}`\n\n```scss\n{}\n```",
-                    label, location, value, snippet
+                    label, location, value, render_parts.snippet
                 );
             }
             format!(
                 "**`{}`** - _{}_\n\n```scss\n{}\n```",
-                label, location, snippet
+                label, location, render_parts.snippet
             )
         }
         Some("mixin" | "function") if is_sass_symbol_declaration_kind(candidate.kind) => {
-            let rendered = sass_callable_definition_render_parts(source, candidate.range.start)
-                .or_else(|| {
-                    line_snippet_at_position(source, candidate.range.start)
-                        .map(|line| (label.clone(), line))
-                })
-                .unwrap_or_else(|| (label.clone(), String::new()));
+            let rendered_label = render_parts.signature.as_deref().unwrap_or(label.as_str());
             format!(
                 "**`{}`** - _{}_\n\n```scss\n{}\n```",
-                rendered.0, location, rendered.1
+                rendered_label, location, render_parts.snippet
             )
         }
         _ => {
-            let snippet =
-                line_snippet_at_position(source, candidate.range.start).unwrap_or_default();
             format!(
                 "**`{}`** - _{}_\n\n```scss\n{}\n```",
-                label, location, snippet
+                label, location, render_parts.snippet
             )
         }
     }
-}
-
-fn sass_variable_value_from_declaration_line(line: &str) -> Option<String> {
-    let (_, value) = line.split_once(':')?;
-    let value = value
-        .trim()
-        .trim_end_matches(';')
-        .trim()
-        .trim_end_matches("!default")
-        .trim();
-    (!value.is_empty()).then(|| value.to_string())
-}
-
-fn sass_callable_definition_render_parts(
-    source: &str,
-    position: ParserPositionV0,
-) -> Option<(String, String)> {
-    let line_start = byte_offset_for_parser_position(
-        source,
-        ParserPositionV0 {
-            line: position.line,
-            character: 0,
-        },
-    )?;
-    let open_brace = source[line_start..].find('{')? + line_start;
-    let close_brace = matching_style_snippet_block_end(source, open_brace, b'{', b'}')?;
-    let signature = source[line_start..open_brace].trim().to_string();
-    let body = source[open_brace + 1..close_brace].trim();
-    if signature.is_empty() || body.is_empty() {
-        return None;
-    }
-    Some((signature, trim_hover_snippet(body)))
-}
-
-fn rule_snippet_around_position(source: &str, position: ParserPositionV0) -> Option<String> {
-    let line_start = byte_offset_for_parser_position(
-        source,
-        ParserPositionV0 {
-            line: position.line,
-            character: 0,
-        },
-    )?;
-    let open_brace = source[line_start..].find('{')? + line_start;
-    let mut depth = 0usize;
-    let mut cursor = open_brace;
-    while cursor < source.len() {
-        match source.as_bytes().get(cursor).copied()? {
-            b'{' => depth += 1,
-            b'}' => {
-                depth = depth.saturating_sub(1);
-                if depth == 0 {
-                    let snippet = source[line_start..=cursor].trim();
-                    return Some(trim_hover_snippet(snippet));
-                }
-            }
-            _ => {}
-        }
-        cursor = advance_style_snippet_cursor(source, cursor, source.len());
-    }
-    None
-}
-
-fn line_snippet_at_position(source: &str, position: ParserPositionV0) -> Option<String> {
-    let line_start = byte_offset_for_parser_position(
-        source,
-        ParserPositionV0 {
-            line: position.line,
-            character: 0,
-        },
-    )?;
-    let line_end = source[line_start..]
-        .find('\n')
-        .map(|offset| line_start + offset)
-        .unwrap_or(source.len());
-    Some(source[line_start..line_end].trim().to_string())
-}
-
-fn trim_hover_snippet(snippet: &str) -> String {
-    const MAX_SNIPPET_LEN: usize = 1200;
-    if snippet.len() <= MAX_SNIPPET_LEN {
-        return snippet.to_string();
-    }
-    format!("{}...", snippet[..MAX_SNIPPET_LEN].trim_end())
 }
 
 fn include_declaration_from_params(params: Option<&Value>) -> bool {

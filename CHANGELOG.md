@@ -16,6 +16,7 @@
 - **Rust LSP query boundary declaration** - the Rust LSP boundary contract now declares `omena-query/styleHoverCandidates` as the style definition owner for source-provider requests, matching the implementation instead of pointing directly at parser facts.
 - **Shared design-token ranking read model** - style hover, definition, and references now consume the same host-side Rust design-token ranking query instead of each resolving selected-query graph winners independently.
 - **Design-token declaration candidates** - Rust selected-query style semantic graphs now expose custom-property declaration candidates, and style completions consume that shared read model for external/package CSS variable suggestions.
+- **Query-owned hover render parts** - Rust LSP style hover rendering now consumes `omena-query` snippet/value/signature render parts instead of extracting selector and Sass snippets inside the LSP server.
 
 ### Fixed
 
