@@ -363,6 +363,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "unicodeRangeTokenization",
             "badStringTokenRecovery",
             "badStringValueBogusNodes",
+            "coreBogusPopulationSlice",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -477,11 +478,21 @@ impl<'text> Parser<'text> {
         }
         if self.current_kind() == Some(SyntaxKind::LeftBrace) {
             self.token_current();
-            self.builder.start_node(SyntaxKind::DeclarationList);
+            self.builder
+                .start_node(if self.previous_left_brace_has_match() {
+                    SyntaxKind::DeclarationList
+                } else {
+                    SyntaxKind::BogusDeclarationList
+                });
             self.parse_declaration_list();
             self.builder.finish_node();
             if self.current_kind() == Some(SyntaxKind::RightBrace) {
                 self.token_current();
+            } else {
+                self.error_at_current(
+                    ParseErrorCode::UnexpectedCharacter,
+                    "unterminated declaration block",
+                );
             }
         } else {
             self.consume_until_recovery(&[SyntaxKind::Semicolon, SyntaxKind::RightBrace]);
@@ -1049,7 +1060,7 @@ impl<'text> Parser<'text> {
                 self.builder.finish_node();
             }
             Some(SyntaxKind::Ident) if self.next_kind() == Some(SyntaxKind::LeftParen) => {
-                self.parse_function_call()
+                self.parse_function_call(recovery)
             }
             Some(SyntaxKind::Url) => {
                 self.builder.start_node(SyntaxKind::UrlValue);
@@ -1107,21 +1118,38 @@ impl<'text> Parser<'text> {
         }
     }
 
-    fn parse_function_call(&mut self) {
+    fn parse_function_call(&mut self, recovery: &[SyntaxKind]) {
         let specialized_kind = self.current_text().and_then(specialized_function_kind);
+        let closed = self.current_function_has_closing_paren_before(recovery);
+        let function_kind = if closed {
+            SyntaxKind::FunctionCall
+        } else {
+            SyntaxKind::BogusFunctionCall
+        };
+        let arguments_kind = if closed {
+            SyntaxKind::FunctionArguments
+        } else {
+            SyntaxKind::BogusFunctionArguments
+        };
 
-        self.builder.start_node(SyntaxKind::FunctionCall);
+        self.builder.start_node(function_kind);
         if let Some(kind) = specialized_kind {
             self.builder.start_node(kind);
         }
         self.token_current();
         if self.current_kind() == Some(SyntaxKind::LeftParen) {
             self.token_current();
-            self.builder.start_node(SyntaxKind::FunctionArguments);
-            self.parse_value_until(&[SyntaxKind::RightParen]);
+            self.builder.start_node(arguments_kind);
+            let argument_recovery = function_argument_recovery(recovery);
+            self.parse_value_until(&argument_recovery);
             self.builder.finish_node();
             if self.current_kind() == Some(SyntaxKind::RightParen) {
                 self.token_current();
+            } else {
+                self.error_at_current(
+                    ParseErrorCode::UnexpectedCharacter,
+                    "unterminated function call",
+                );
             }
         }
         if specialized_kind.is_some() {
@@ -1223,15 +1251,21 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_media_query(&mut self) {
-        self.builder.start_node(SyntaxKind::MediaQuery);
+        self.builder
+            .start_node(self.current_prelude_node_kind(SyntaxKind::MediaQuery));
         while !self.at_end() {
             match self.current_kind() {
                 Some(kind) if is_at_rule_prelude_boundary(kind) || kind == SyntaxKind::Comma => {
                     break;
                 }
-                Some(SyntaxKind::LeftParen) => {
-                    self.parse_balanced_parenthesized_prelude(Some(SyntaxKind::MediaFeature))
-                }
+                Some(SyntaxKind::LeftParen) => self.parse_balanced_parenthesized_prelude_until(
+                    Some(SyntaxKind::MediaFeature),
+                    &[
+                        SyntaxKind::Comma,
+                        SyntaxKind::LeftBrace,
+                        SyntaxKind::Semicolon,
+                    ],
+                ),
                 Some(kind) if is_interpolation_start(kind) => self.parse_interpolation(
                     kind,
                     &[
@@ -1286,7 +1320,7 @@ impl<'text> Parser<'text> {
                     && self.next_kind() == Some(SyntaxKind::LeftParen) =>
             {
                 self.builder.start_node(SyntaxKind::UrlValue);
-                self.parse_function_call();
+                self.parse_function_call(&[SyntaxKind::LeftBrace, SyntaxKind::Semicolon]);
                 self.builder.finish_node();
             }
             Some(SyntaxKind::String) => self.token_current(),
@@ -1296,7 +1330,8 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_import_tail_node(&mut self, kind: SyntaxKind) {
-        self.builder.start_node(kind);
+        self.builder
+            .start_node(self.current_prelude_node_kind(kind));
         self.token_current();
         if self.current_kind() == Some(SyntaxKind::LeftParen) {
             self.parse_balanced_parenthesized_prelude(None);
@@ -1305,7 +1340,8 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_at_rule_prelude_node(&mut self, kind: SyntaxKind) {
-        self.builder.start_node(kind);
+        self.builder
+            .start_node(self.current_prelude_node_kind(kind));
         while !self.at_end() {
             match self.current_kind() {
                 Some(kind) if is_at_rule_prelude_boundary(kind) => break,
@@ -1335,10 +1371,22 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_balanced_parenthesized_prelude(&mut self, node_kind: Option<SyntaxKind>) {
+        self.parse_balanced_parenthesized_prelude_until(
+            node_kind,
+            &[SyntaxKind::LeftBrace, SyntaxKind::Semicolon],
+        );
+    }
+
+    fn parse_balanced_parenthesized_prelude_until(
+        &mut self,
+        node_kind: Option<SyntaxKind>,
+        recovery: &[SyntaxKind],
+    ) {
         if let Some(kind) = node_kind {
             self.builder.start_node(kind);
         }
         let mut depth = 0usize;
+        let mut closed = false;
         while !self.at_end() {
             match self.current_kind() {
                 Some(SyntaxKind::LeftParen) => {
@@ -1349,10 +1397,11 @@ impl<'text> Parser<'text> {
                     self.token_current();
                     depth = depth.saturating_sub(1);
                     if depth == 0 {
+                        closed = true;
                         break;
                     }
                 }
-                Some(kind) if depth == 0 && is_at_rule_prelude_boundary(kind) => break,
+                Some(kind) if recovery.contains(&kind) => break,
                 Some(kind) if is_interpolation_start(kind) => {
                     self.parse_interpolation(kind, &[SyntaxKind::LeftBrace, SyntaxKind::Semicolon])
                 }
@@ -1362,6 +1411,12 @@ impl<'text> Parser<'text> {
         }
         if node_kind.is_some() {
             self.builder.finish_node();
+        }
+        if !closed {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "unterminated parenthesized prelude",
+            );
         }
     }
 
@@ -1425,11 +1480,21 @@ impl<'text> Parser<'text> {
 
     fn parse_declaration_block(&mut self) {
         self.token_current();
-        self.builder.start_node(SyntaxKind::DeclarationList);
+        self.builder
+            .start_node(if self.previous_left_brace_has_match() {
+                SyntaxKind::DeclarationList
+            } else {
+                SyntaxKind::BogusDeclarationList
+            });
         self.parse_declaration_list();
         self.builder.finish_node();
         if self.current_kind() == Some(SyntaxKind::RightBrace) {
             self.token_current();
+        } else {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "unterminated declaration block",
+            );
         }
     }
 
@@ -1448,7 +1513,12 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_keyframe_block(&mut self) {
-        self.builder.start_node(SyntaxKind::KeyframeBlock);
+        let has_block = self.find_before_recovery(SyntaxKind::LeftBrace, &[SyntaxKind::RightBrace]);
+        self.builder.start_node(if has_block {
+            SyntaxKind::KeyframeBlock
+        } else {
+            SyntaxKind::BogusKeyframeBlock
+        });
         while !self.at_end() {
             match self.current_kind() {
                 Some(SyntaxKind::LeftBrace) => {
@@ -1458,6 +1528,12 @@ impl<'text> Parser<'text> {
                 Some(SyntaxKind::RightBrace) | None => break,
                 Some(_) => self.token_current(),
             }
+        }
+        if !has_block {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "expected keyframe declaration block",
+            );
         }
         self.builder.finish_node();
     }
@@ -1509,6 +1585,108 @@ impl<'text> Parser<'text> {
                 return false;
             }
             index += 1;
+        }
+        false
+    }
+
+    fn current_function_has_closing_paren_before(&self, recovery: &[SyntaxKind]) -> bool {
+        let Some(open_index) = self.position.checked_add(1) else {
+            return false;
+        };
+        if self
+            .tokens
+            .get(open_index)
+            .is_none_or(|token| token.kind != SyntaxKind::LeftParen)
+        {
+            return false;
+        }
+
+        let mut depth = 0usize;
+        for token in self.tokens.iter().skip(open_index) {
+            match token.kind {
+                SyntaxKind::LeftParen => depth += 1,
+                SyntaxKind::RightParen => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        return true;
+                    }
+                }
+                kind if depth == 1 && recovery.contains(&kind) => return false,
+                _ => {}
+            }
+        }
+        false
+    }
+
+    fn current_prelude_node_kind(&self, kind: SyntaxKind) -> SyntaxKind {
+        if self.current_prelude_is_bogus(kind) {
+            bogus_prelude_node_kind(kind).unwrap_or(kind)
+        } else {
+            kind
+        }
+    }
+
+    fn current_prelude_is_bogus(&self, kind: SyntaxKind) -> bool {
+        let recovery = if kind == SyntaxKind::MediaQuery {
+            &[
+                SyntaxKind::Comma,
+                SyntaxKind::LeftBrace,
+                SyntaxKind::Semicolon,
+            ][..]
+        } else {
+            &[SyntaxKind::LeftBrace, SyntaxKind::Semicolon][..]
+        };
+
+        if !self.current_prelude_parentheses_are_balanced_until(recovery) {
+            return true;
+        }
+        kind == SyntaxKind::LayerName
+            && self
+                .non_trivia_token_from(self.position)
+                .is_some_and(|(_, kind)| kind == SyntaxKind::Semicolon)
+    }
+
+    fn current_prelude_parentheses_are_balanced_until(&self, recovery: &[SyntaxKind]) -> bool {
+        let mut depth = 0usize;
+        for token in self.tokens.iter().skip(self.position) {
+            match token.kind {
+                kind if depth == 0 && recovery.contains(&kind) => return true,
+                SyntaxKind::LeftParen => depth += 1,
+                SyntaxKind::RightParen => {
+                    if depth == 0 {
+                        return false;
+                    }
+                    depth -= 1;
+                }
+                _ => {}
+            }
+        }
+        depth == 0
+    }
+
+    fn previous_left_brace_has_match(&self) -> bool {
+        let Some(open_index) = self.position.checked_sub(1) else {
+            return false;
+        };
+        let Some(open) = self.tokens.get(open_index) else {
+            return false;
+        };
+        if open.kind != SyntaxKind::LeftBrace {
+            return false;
+        }
+
+        let mut depth = 0usize;
+        for token in self.tokens.iter().skip(open_index) {
+            match token.kind {
+                SyntaxKind::LeftBrace => depth += 1,
+                SyntaxKind::RightBrace => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
         }
         false
     }
@@ -2896,6 +3074,27 @@ fn is_at_rule_prelude_boundary(kind: SyntaxKind) -> bool {
     matches!(kind, SyntaxKind::LeftBrace | SyntaxKind::Semicolon)
 }
 
+fn function_argument_recovery(recovery: &[SyntaxKind]) -> Vec<SyntaxKind> {
+    let mut kinds = vec![SyntaxKind::RightParen];
+    for kind in recovery {
+        if !kinds.contains(kind) {
+            kinds.push(*kind);
+        }
+    }
+    kinds
+}
+
+fn bogus_prelude_node_kind(kind: SyntaxKind) -> Option<SyntaxKind> {
+    match kind {
+        SyntaxKind::MediaQuery => Some(SyntaxKind::BogusMediaQuery),
+        SyntaxKind::SupportsCondition => Some(SyntaxKind::BogusSupportsCondition),
+        SyntaxKind::ContainerCondition => Some(SyntaxKind::BogusContainerCondition),
+        SyntaxKind::LayerName => Some(SyntaxKind::BogusLayerName),
+        SyntaxKind::ScopeRange => Some(SyntaxKind::BogusScopeRange),
+        _ => None,
+    }
+}
+
 fn is_attribute_matcher(kind: SyntaxKind) -> bool {
     matches!(
         kind,
@@ -3237,6 +3436,58 @@ mod tests {
         assert!(node_kinds(&missing_class_name.syntax()).contains(&SyntaxKind::BogusSelector));
         assert!(node_kinds(&missing_attribute_end.syntax()).contains(&SyntaxKind::BogusSelector));
         assert!(node_kinds(&missing_value_rhs.syntax()).contains(&SyntaxKind::BogusValue));
+    }
+
+    #[test]
+    fn populates_core_bogus_nodes_for_recoverable_structures() {
+        let missing_function_close =
+            parse(".a { width: calc(1 + ; color: red; }", StyleDialect::Css);
+        let missing_media_close = parse(
+            "@media (min-width: { .a { color: red; } }",
+            StyleDialect::Css,
+        );
+        let mixed_media_close = parse(
+            "@media screen, (min-width: { .a { color: red; } }",
+            StyleDialect::Css,
+        );
+        let missing_supports_close = parse(
+            "@supports (display: { .a { color: red; } }",
+            StyleDialect::Css,
+        );
+        let missing_container_close = parse(
+            "@container (inline-size > { .a { color: red; } }",
+            StyleDialect::Css,
+        );
+        let missing_scope_close = parse("@scope (.a { .b { color: red; } }", StyleDialect::Css);
+        let empty_layer_statement = parse("@layer ;", StyleDialect::Css);
+        let missing_keyframe_block =
+            parse("@keyframes fade { from opacity: 0; }", StyleDialect::Css);
+        let unclosed_rule = parse(".a { color: red;", StyleDialect::Css);
+
+        assert!(
+            node_kinds(&missing_function_close.syntax()).contains(&SyntaxKind::BogusFunctionCall)
+        );
+        assert!(
+            node_kinds(&missing_function_close.syntax())
+                .contains(&SyntaxKind::BogusFunctionArguments)
+        );
+        assert!(node_kinds(&missing_media_close.syntax()).contains(&SyntaxKind::BogusMediaQuery));
+        assert!(node_kinds(&mixed_media_close.syntax()).contains(&SyntaxKind::MediaQuery));
+        assert!(node_kinds(&mixed_media_close.syntax()).contains(&SyntaxKind::BogusMediaQuery));
+        assert!(
+            node_kinds(&missing_supports_close.syntax())
+                .contains(&SyntaxKind::BogusSupportsCondition)
+        );
+        assert!(
+            node_kinds(&missing_container_close.syntax())
+                .contains(&SyntaxKind::BogusContainerCondition)
+        );
+        assert!(node_kinds(&missing_scope_close.syntax()).contains(&SyntaxKind::BogusScopeRange));
+        assert!(node_kinds(&empty_layer_statement.syntax()).contains(&SyntaxKind::BogusLayerName));
+        assert!(
+            node_kinds(&missing_keyframe_block.syntax()).contains(&SyntaxKind::BogusKeyframeBlock)
+        );
+        assert!(node_kinds(&unclosed_rule.syntax()).contains(&SyntaxKind::BogusDeclarationList));
     }
 
     #[test]
@@ -3906,6 +4157,7 @@ mod tests {
         assert!(summary.ready_surfaces.contains(&"unicodeRangeTokenization"));
         assert!(summary.ready_surfaces.contains(&"badStringTokenRecovery"));
         assert!(summary.ready_surfaces.contains(&"badStringValueBogusNodes"));
+        assert!(summary.ready_surfaces.contains(&"coreBogusPopulationSlice"));
         assert!(
             summary
                 .ready_surfaces
