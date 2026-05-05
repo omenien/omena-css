@@ -337,6 +337,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "lessMixinDeclarationCstNodes",
             "lessMixinCallCstNodes",
             "lessMixinGuardCstNodes",
+            "lessEscapedStringTokenization",
+            "lessEscapedStringValueCstNodes",
             "importantAnnotationTokenization",
             "urlTokenization",
             "urlValueCstNodes",
@@ -1635,6 +1637,7 @@ where
                 '%' => self.consume_static(SyntaxKind::Percent, start, 1),
                 '=' if self.starts_with("=>") => self.consume_static(SyntaxKind::Arrow, start, 2),
                 '=' => self.consume_static(SyntaxKind::Equals, start, 1),
+                '~' if self.starts_less_escaped_string() => self.consume_less_escaped_string(start),
                 '~' if self.starts_with("~=") => {
                     self.consume_static(SyntaxKind::IncludesMatch, start, 2)
                 }
@@ -1771,6 +1774,44 @@ where
             start,
             self.offset,
             "unterminated string",
+        );
+    }
+
+    fn consume_less_escaped_string(&mut self, start: usize) {
+        self.offset += '~'.len_utf8();
+        let Some(quote @ ('"' | '\'')) = self.current_char() else {
+            self.push(SyntaxKind::Tilde, start, self.offset);
+            return;
+        };
+        self.bump_char(quote);
+        while let Some(char) = self.current_char() {
+            self.bump_char(char);
+            if matches!(char, '\n' | '\r' | '\u{000c}') {
+                self.push(SyntaxKind::BadString, start, self.offset);
+                self.error(
+                    ParseErrorCode::UnterminatedString,
+                    start,
+                    self.offset,
+                    "unterminated Less escaped string",
+                );
+                return;
+            }
+            if char == quote {
+                self.push(SyntaxKind::LessEscapedString, start, self.offset);
+                return;
+            }
+            if char == '\\'
+                && let Some(escaped) = self.current_char()
+            {
+                self.bump_char(escaped);
+            }
+        }
+        self.push(SyntaxKind::BadString, start, self.offset);
+        self.error(
+            ParseErrorCode::UnterminatedString,
+            start,
+            self.offset,
+            "unterminated Less escaped string",
         );
     }
 
@@ -2010,6 +2051,11 @@ where
 
     fn supports_less_interpolation(&self) -> bool {
         self.extension.dialect() == StyleDialect::Less
+    }
+
+    fn starts_less_escaped_string(&self) -> bool {
+        self.extension.dialect() == StyleDialect::Less
+            && (self.starts_with("~\"") || self.starts_with("~'"))
     }
 
     fn starts_unicode_range(&self) -> bool {
@@ -2927,6 +2973,20 @@ mod tests {
     }
 
     #[test]
+    fn tokenizes_less_escaped_strings() {
+        let less = lex(".a { filter: ~\"alpha(opacity=50)\"; }", StyleDialect::Less);
+        let css = lex(".a { filter: ~\"alpha(opacity=50)\"; }", StyleDialect::Css);
+        let less_kinds: Vec<SyntaxKind> = less.tokens().iter().map(|token| token.kind).collect();
+        let css_kinds: Vec<SyntaxKind> = css.tokens().iter().map(|token| token.kind).collect();
+
+        assert!(less.errors().is_empty());
+        assert!(less_kinds.contains(&SyntaxKind::LessEscapedString));
+        assert!(!css_kinds.contains(&SyntaxKind::LessEscapedString));
+        assert!(css_kinds.contains(&SyntaxKind::Tilde));
+        assert!(css_kinds.contains(&SyntaxKind::String));
+    }
+
+    #[test]
     fn tokenizes_newline_bad_strings() {
         let result = lex(".a { content: \"bad\nstill-here: red; }", StyleDialect::Css);
         let kinds: Vec<SyntaxKind> = result.tokens().iter().map(|token| token.kind).collect();
@@ -3221,6 +3281,17 @@ mod tests {
     }
 
     #[test]
+    fn structures_less_escaped_strings_as_values() {
+        let result = parse(".a { filter: ~\"alpha(opacity=50)\"; }", StyleDialect::Less);
+        let kinds = node_kinds(&result.syntax());
+        let token_kinds = token_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::Value));
+        assert!(token_kinds.contains(&SyntaxKind::LessEscapedString));
+    }
+
+    #[test]
     fn structures_unclosed_interpolation_as_bogus() {
         let scss = parse(".button-#{$variant", StyleDialect::Scss);
         let less = parse(".button-@{variant", StyleDialect::Less);
@@ -3452,6 +3523,16 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"lessMixinCallCstNodes"));
         assert!(summary.ready_surfaces.contains(&"lessMixinGuardCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"lessEscapedStringTokenization")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"lessEscapedStringValueCstNodes")
+        );
         assert!(
             summary
                 .ready_surfaces
