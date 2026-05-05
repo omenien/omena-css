@@ -160,7 +160,7 @@ function registerCursorHandlers(state: HandlerState): void {
   connection.onCodeAction((p) => {
     const deps = getDeps(p.textDocument.uri);
     if (!deps) return null;
-    return handleCodeAction(p, deps);
+    return handleCodeAction(p, deps, documents.get(p.textDocument.uri)?.getText());
   });
 
   connection.onReferences((p) => {

@@ -256,6 +256,36 @@ describe("handleCodeAction", () => {
     ]);
   });
 
+  it("returns an extract custom property refactor for selected style values", () => {
+    const styleWorkspace = workspace({
+      [STYLE_PATH]: ".button { color: /*<value>*/#fff/*</value>*/; }\n",
+    });
+    const params: CodeActionParams = {
+      ...textDocumentRangeFixture({
+        workspace: styleWorkspace,
+        documentUri: STYLE_URI,
+        filePath: STYLE_PATH,
+        rangeName: "value",
+      }),
+      context: { diagnostics: [], triggerKind: 1 },
+    };
+    const result = handleCodeAction(params, makeDeps(), styleWorkspace.file(STYLE_PATH).content);
+
+    expect(result).toHaveLength(1);
+    expect(result![0]!.kind).toBe(CodeActionKind.RefactorExtract);
+    expect(result![0]!.title).toBe("Extract CSS custom property '--extracted-color'");
+    expect(result![0]!.edit?.changes?.[STYLE_URI]).toEqual([
+      {
+        range: ZERO_RANGE,
+        newText: ":root {\n  --extracted-color: #fff;\n}\n\n",
+      },
+      {
+        range: styleWorkspace.range("value", STYLE_PATH).range,
+        newText: "var(--extracted-color)",
+      },
+    ]);
+  });
+
   it("returns sibling module creation actions for a TSX file without an existing sibling module", () => {
     const result = handleCodeAction(makeParams([]), makeDeps({ fileExists: () => false }));
     expect(result).toHaveLength(3);

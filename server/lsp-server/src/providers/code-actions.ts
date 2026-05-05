@@ -16,12 +16,18 @@ import type { ProviderDeps } from "./provider-deps";
  * Handle `textDocument/codeAction` by mapping host-side recovery plans
  * into LSP quick fixes.
  */
-export const handleCodeAction = wrapHandler<CodeActionParams, [], CodeAction[] | null>(
+export const handleCodeAction = wrapHandler<
+  CodeActionParams,
+  [documentContent?: string],
+  CodeAction[] | null
+>(
   "codeAction",
-  (params, deps: ProviderDeps) => {
+  (params, deps: ProviderDeps, documentContent?: string) => {
     const plans = planCodeActions(
       {
         documentUri: params.textDocument.uri,
+        ...(documentContent !== undefined ? { documentContent } : {}),
+        range: params.range,
         diagnostics: params.context.diagnostics,
       },
       deps,
@@ -38,13 +44,19 @@ function toCodeAction(
 ): CodeAction {
   return {
     title: plan.title,
-    kind: CodeActionKind.QuickFix,
+    kind: toCodeActionKind(plan),
     ...(plan.diagnosticIndex !== undefined
       ? { diagnostics: [diagnostics[plan.diagnosticIndex]!] }
       : {}),
     ...(plan.isPreferred ? { isPreferred: true } : {}),
     edit: toWorkspaceEdit(plan),
   };
+}
+
+function toCodeActionKind(plan: CodeActionPlan): CodeActionKind {
+  return plan.actionKind === "refactor.extract"
+    ? CodeActionKind.RefactorExtract
+    : CodeActionKind.QuickFix;
 }
 
 function toWorkspaceEdit(plan: CodeActionPlan): WorkspaceEdit {
@@ -58,6 +70,15 @@ function toWorkspaceEdit(plan: CodeActionPlan): WorkspaceEdit {
       },
     };
     return { documentChanges: [createFile] };
+  }
+
+  if (plan.kind === "workspaceEdit") {
+    const changes: WorkspaceEdit["changes"] = {};
+    for (const edit of plan.edits) {
+      const edits = changes[edit.uri] ?? [];
+      changes[edit.uri] = [...edits, { range: edit.range, newText: edit.newText }];
+    }
+    return { changes };
   }
 
   return {

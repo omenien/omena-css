@@ -14,9 +14,12 @@ export interface CodeActionDiagnosticInput {
   readonly data?: unknown;
 }
 
+export type CodeActionPlanKind = "quickfix" | "refactor.extract";
+
 export type CodeActionPlan =
   | {
       readonly kind: "textEdit";
+      readonly actionKind?: CodeActionPlanKind;
       readonly title: string;
       readonly diagnosticIndex: number;
       readonly uri: string;
@@ -26,8 +29,21 @@ export type CodeActionPlan =
     }
   | {
       readonly kind: "createFile";
+      readonly actionKind?: CodeActionPlanKind;
       readonly title: string;
       readonly uri: string;
+      readonly diagnosticIndex?: number;
+      readonly isPreferred?: boolean;
+    }
+  | {
+      readonly kind: "workspaceEdit";
+      readonly actionKind?: CodeActionPlanKind;
+      readonly title: string;
+      readonly edits: readonly {
+        readonly uri: string;
+        readonly range: Range;
+        readonly newText: string;
+      }[];
       readonly diagnosticIndex?: number;
       readonly isPreferred?: boolean;
     };
@@ -35,6 +51,8 @@ export type CodeActionPlan =
 export function planCodeActions(
   args: {
     readonly documentUri: string;
+    readonly documentContent?: string;
+    readonly range?: Range;
     readonly diagnostics: readonly CodeActionDiagnosticInput[];
   },
   deps: Pick<ProviderDeps, "fileExists">,
@@ -146,6 +164,11 @@ export function planCodeActions(
     diagnosticIndex += 1;
   }
 
+  const extractCustomProperty = planExtractCustomProperty(args);
+  if (extractCustomProperty) {
+    plans.push(extractCustomProperty);
+  }
+
   if (diagnosticCreateModuleUris.size === 0) {
     for (const uri of listMissingSiblingStyleModuleUris(args.documentUri, deps)) {
       plans.push({
@@ -157,6 +180,43 @@ export function planCodeActions(
   }
 
   return plans;
+}
+
+function planExtractCustomProperty(args: {
+  readonly documentUri: string;
+  readonly documentContent?: string;
+  readonly range?: Range;
+}): CodeActionPlan | null {
+  const filePath = fileUrlToPath(args.documentUri);
+  if (findLangForPath(filePath) === null) return null;
+  if (!args.documentContent || !args.range || rangeIsEmpty(args.range)) return null;
+
+  const selected = sliceRange(args.documentContent, args.range);
+  if (!selected) return null;
+  const value = selected.trim();
+  if (!isExtractableCssValue(value)) return null;
+
+  const propertyName = nextCustomPropertyName(args.documentContent, customPropertyStem(value));
+  return {
+    kind: "workspaceEdit",
+    actionKind: "refactor.extract",
+    title: `Extract CSS custom property '${propertyName}'`,
+    edits: [
+      {
+        uri: args.documentUri,
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: 0, character: 0 },
+        },
+        newText: `:root {\n  ${propertyName}: ${value};\n}\n\n`,
+      },
+      {
+        uri: args.documentUri,
+        range: args.range,
+        newText: `var(${propertyName})`,
+      },
+    ],
+  };
 }
 
 function listMissingSiblingStyleModuleUris(
@@ -179,6 +239,67 @@ function listMissingSiblingStyleModuleUris(
 function isSetupEligibleSourcePath(filePath: string): boolean {
   const extension = nodePath.extname(filePath).toLowerCase();
   return extension === ".tsx" || extension === ".jsx";
+}
+
+function rangeIsEmpty(range: Range): boolean {
+  return range.start.line === range.end.line && range.start.character === range.end.character;
+}
+
+function sliceRange(content: string, range: Range): string | null {
+  const start = offsetAt(content, range.start.line, range.start.character);
+  const end = offsetAt(content, range.end.line, range.end.character);
+  if (start === null || end === null || end <= start) return null;
+  return content.slice(start, end);
+}
+
+function offsetAt(content: string, line: number, character: number): number | null {
+  if (line < 0 || character < 0) return null;
+  let offset = 0;
+  for (let currentLine = 0; currentLine < line; currentLine += 1) {
+    const nextLine = content.indexOf("\n", offset);
+    if (nextLine === -1) return null;
+    offset = nextLine + 1;
+  }
+  const lineEnd = content.indexOf("\n", offset);
+  const maxCharacter = (lineEnd === -1 ? content.length : lineEnd) - offset;
+  if (character > maxCharacter) return null;
+  return offset + character;
+}
+
+function isExtractableCssValue(value: string): boolean {
+  if (value.length === 0 || value.includes("\n") || value.startsWith("var(")) return false;
+  return (
+    /^#[0-9a-fA-F]{3,8}$/u.test(value) ||
+    /^-?\d+(?:\.\d+)?(?:px|rem|em|%|vh|vw|vmin|vmax|ch|ex|s|ms|deg)?$/u.test(value) ||
+    /^(?:rgb|rgba|hsl|hsla)\([^)]*\)$/u.test(value) ||
+    /^[a-zA-Z][a-zA-Z-]*$/u.test(value)
+  );
+}
+
+function customPropertyStem(value: string): string {
+  if (/^#[0-9a-fA-F]{3,8}$/u.test(value) || /^(?:rgb|rgba|hsl|hsla)\(/u.test(value)) {
+    return "extracted-color";
+  }
+  if (/^-?\d+(?:\.\d+)?(?:px|rem|em|%|vh|vw|vmin|vmax|ch|ex)?$/u.test(value)) {
+    return "extracted-size";
+  }
+  if (/^-?\d+(?:\.\d+)?(?:s|ms)$/u.test(value)) {
+    return "extracted-duration";
+  }
+  if (/^-?\d+(?:\.\d+)?deg$/u.test(value)) {
+    return "extracted-angle";
+  }
+  return "extracted-token";
+}
+
+function nextCustomPropertyName(content: string, stem: string): string {
+  let candidate = `--${stem}`;
+  let suffix = 2;
+  while (content.includes(candidate)) {
+    candidate = `--${stem}-${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
 }
 
 function extractSuggestion(diagnostic: CodeActionDiagnosticInput): string | null {
