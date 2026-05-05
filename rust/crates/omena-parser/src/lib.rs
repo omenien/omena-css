@@ -370,6 +370,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "cssModuleBogusRecovery",
             "valueListCstNodes",
             "valueListBogusRecovery",
+            "genericRecoveryBogusNodes",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -1379,6 +1380,11 @@ impl<'text> Parser<'text> {
                     "expected value",
                 );
             }
+            Some(SyntaxKind::Delim) => {
+                self.builder.start_node(SyntaxKind::BogusToken);
+                self.token_current();
+                self.builder.finish_node();
+            }
             Some(_) => self.token_current(),
             None => {
                 self.empty_bogus_node(
@@ -1855,12 +1861,21 @@ impl<'text> Parser<'text> {
     }
 
     fn consume_until_recovery(&mut self, recovery: &[SyntaxKind]) {
+        let should_wrap = self
+            .current_kind()
+            .is_some_and(|kind| !recovery.contains(&kind));
+        if should_wrap {
+            self.builder.start_node(SyntaxKind::BogusRecovery);
+        }
         while !self.at_end() {
             match self.current_kind() {
                 Some(kind) if recovery.contains(&kind) => break,
                 Some(_) => self.token_current(),
                 None => break,
             }
+        }
+        if should_wrap {
+            self.builder.finish_node();
         }
     }
 
@@ -3915,6 +3930,8 @@ mod tests {
         let invalid_compound = parse("%bad { color: red; }", StyleDialect::Css);
         let dangling_combinator = parse(".a > { color: red; }", StyleDialect::Css);
         let missing_property = parse(".a { : red; }", StyleDialect::Css);
+        let missing_colon_recovery = parse("$gap 1rem;", StyleDialect::Scss);
+        let unexpected_value_token = parse(".a { width: ?; }", StyleDialect::Css);
         let missing_at_rule_name = parse("@ ;", StyleDialect::Css);
         let missing_scss_variable_colon = parse("$gap;", StyleDialect::Scss);
         let missing_less_variable_colon = parse("@gap;", StyleDialect::Less);
@@ -3928,6 +3945,8 @@ mod tests {
         );
         assert!(node_kinds(&dangling_combinator.syntax()).contains(&SyntaxKind::BogusCombinator));
         assert!(node_kinds(&missing_property.syntax()).contains(&SyntaxKind::BogusPropertyName));
+        assert!(node_kinds(&missing_colon_recovery.syntax()).contains(&SyntaxKind::BogusRecovery));
+        assert!(node_kinds(&unexpected_value_token.syntax()).contains(&SyntaxKind::BogusToken));
         assert!(node_kinds(&missing_at_rule_name.syntax()).contains(&SyntaxKind::BogusAtRule));
         assert!(
             node_kinds(&missing_scss_variable_colon.syntax())
@@ -4682,6 +4701,11 @@ mod tests {
         assert!(summary.ready_surfaces.contains(&"cssModuleBogusRecovery"));
         assert!(summary.ready_surfaces.contains(&"valueListCstNodes"));
         assert!(summary.ready_surfaces.contains(&"valueListBogusRecovery"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"genericRecoveryBogusNodes")
+        );
         assert!(
             summary
                 .ready_surfaces
