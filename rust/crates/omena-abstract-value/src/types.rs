@@ -12,6 +12,8 @@ pub struct AbstractValueDomainSummaryV0 {
     pub domain_kinds: Vec<&'static str>,
     pub max_finite_class_values: usize,
     pub selector_projection_certainties: Vec<&'static str>,
+    pub provenance_tree_ready: bool,
+    pub provenance_tree_scopes: Vec<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -120,6 +122,31 @@ pub enum AbstractClassValueProvenanceV0 {
     PrefixSuffixJoin,
     CompositeJoin,
     CompositeConcat,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AbstractClassValueProvenanceTreeV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub value_kind: &'static str,
+    pub value: AbstractClassValueV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_provenance: Option<AbstractClassValueProvenanceV0>,
+    pub root: AbstractClassValueProvenanceNodeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AbstractClassValueProvenanceNodeV0 {
+    pub operation: &'static str,
+    pub result_kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result_provenance: Option<AbstractClassValueProvenanceV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    pub reason: &'static str,
+    pub children: Vec<AbstractClassValueProvenanceNodeV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

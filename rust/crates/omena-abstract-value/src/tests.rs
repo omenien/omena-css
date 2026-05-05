@@ -1,11 +1,12 @@
 use super::{
-    AbstractClassValueProvenanceV0, AbstractClassValueV0, ClassValueControlFlowBlockV0,
-    ClassValueControlFlowGraphV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
-    ClassValueFlowTransferV0, CompositeClassValueInputV0, ExternalStringTypeFactsV0,
-    KLimitedCallSiteFlowInputV0, MAX_FINITE_CLASS_VALUES, OneCfaCallSiteFlowInputV0,
-    SelectorProjectionCertaintyV0, abstract_class_value_from_facts, abstract_class_value_is_subset,
-    analyze_class_value_control_flow_graph, analyze_class_value_flow,
-    analyze_class_value_flow_incremental, analyze_class_value_flow_incremental_batch_with_reuse,
+    AbstractClassValueProvenanceNodeV0, AbstractClassValueProvenanceV0, AbstractClassValueV0,
+    ClassValueControlFlowBlockV0, ClassValueControlFlowGraphV0, ClassValueFlowGraphV0,
+    ClassValueFlowNodeV0, ClassValueFlowTransferV0, CompositeClassValueInputV0,
+    ExternalStringTypeFactsV0, KLimitedCallSiteFlowInputV0, MAX_FINITE_CLASS_VALUES,
+    OneCfaCallSiteFlowInputV0, SelectorProjectionCertaintyV0, abstract_class_value_from_facts,
+    abstract_class_value_is_subset, analyze_class_value_control_flow_graph,
+    analyze_class_value_flow, analyze_class_value_flow_incremental,
+    analyze_class_value_flow_incremental_batch_with_reuse,
     analyze_class_value_flow_incremental_with_database,
     analyze_class_value_flow_incremental_with_reuse, analyze_k_limited_call_site_flows,
     analyze_one_cfa_call_site_flows, bottom_class_value, char_inclusion_class_value,
@@ -16,9 +17,10 @@ use super::{
     reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
     reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
     selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
-    suffix_class_value, summarize_omena_abstract_value_domain,
-    summarize_omena_abstract_value_flow_analysis, top_class_value, value_certainty_from_facts,
-    value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
+    suffix_class_value, summarize_abstract_class_value_provenance_tree,
+    summarize_omena_abstract_value_domain, summarize_omena_abstract_value_flow_analysis,
+    top_class_value, value_certainty_from_facts, value_certainty_shape_kind_from_facts,
+    value_certainty_shape_label_from_facts,
 };
 use omena_incremental::OmenaIncrementalDatabaseV0;
 use std::collections::BTreeMap;
@@ -37,6 +39,9 @@ fn summarizes_domain_boundary_contract() {
             .selector_projection_certainties
             .contains(&"inferred")
     );
+    assert!(summary.provenance_tree_ready);
+    assert!(summary.provenance_tree_scopes.contains(&"reducedProduct"));
+    assert!(summary.provenance_tree_scopes.contains(&"flowResult"));
 
     let flow_summary = summarize_omena_abstract_value_flow_analysis();
     assert_eq!(flow_summary.schema_version, "0");
@@ -1305,6 +1310,82 @@ fn carries_result_provenance_in_reduced_derivation_steps() {
 }
 
 #[test]
+fn summarizes_exact_value_provenance_tree() {
+    let value = exact_class_value("button");
+    let tree = summarize_abstract_class_value_provenance_tree(&value);
+
+    assert_eq!(tree.schema_version, "0");
+    assert_eq!(tree.product, "omena-abstract-value.provenance-tree");
+    assert_eq!(tree.value_kind, "exact");
+    assert_eq!(tree.value, value);
+    assert_eq!(tree.value_provenance, None);
+    assert_eq!(tree.root.operation, "exactLiteral");
+    assert_eq!(tree.root.result_kind, "exact");
+    assert_eq!(tree.root.detail.as_deref(), Some("value=button"));
+    assert!(tree.root.children.is_empty());
+}
+
+#[test]
+fn summarizes_finite_widening_provenance_tree() {
+    let value = finite_set_class_value([
+        "btn-alpha-active",
+        "btn-beta-active",
+        "btn-gamma-active",
+        "btn-delta-active",
+        "btn-epsilon-active",
+        "btn-zeta-active",
+        "btn-eta-active",
+        "btn-theta-active",
+        "btn-iota-active",
+    ]);
+
+    let tree = summarize_abstract_class_value_provenance_tree(&value);
+
+    assert_eq!(tree.value_kind, "composite");
+    assert_eq!(
+        tree.value_provenance,
+        Some(AbstractClassValueProvenanceV0::FiniteSetWideningComposite)
+    );
+    assert_eq!(tree.root.operation, "finiteSetWidening");
+    assert_eq!(
+        tree.root.reason,
+        "large finite set widened to preserved edge and character constraints"
+    );
+    assert_provenance_child(&tree.root.children, "prefixConstraint", "prefix=btn-");
+    assert_provenance_child(&tree.root.children, "suffixConstraint", "suffix=-active");
+    assert_provenance_child(&tree.root.children, "lengthConstraint", "minLength=14");
+    assert_provenance_child(
+        &tree.root.children,
+        "characterMustConstraint",
+        "mustChars=-abceintv",
+    );
+}
+
+#[test]
+fn summarizes_reduced_product_join_provenance_tree() {
+    let value = intersect_abstract_class_values(
+        &prefix_class_value("btn-", None),
+        &suffix_class_value("-active", None),
+    );
+
+    let tree = summarize_abstract_class_value_provenance_tree(&value);
+
+    assert_eq!(tree.value_kind, "prefixSuffix");
+    assert_eq!(
+        tree.value_provenance,
+        Some(AbstractClassValueProvenanceV0::CompositeJoin)
+    );
+    assert_eq!(tree.root.operation, "reducedProductJoin");
+    assert_eq!(
+        tree.root.reason,
+        "reduced product combined compatible constraints from multiple domains"
+    );
+    assert_provenance_child(&tree.root.children, "prefixConstraint", "prefix=btn-");
+    assert_provenance_child(&tree.root.children, "suffixConstraint", "suffix=-active");
+    assert_provenance_child(&tree.root.children, "lengthConstraint", "minLength=11");
+}
+
+#[test]
 fn projects_exact_and_finite_values_into_selector_universe() {
     let selectors = selector_universe(["button", "card", "link"]);
 
@@ -1367,6 +1448,19 @@ fn derives_projection_certainty_from_domain_and_selector_coverage() {
 
 fn selector_universe(values: impl IntoIterator<Item = &'static str>) -> Vec<String> {
     values.into_iter().map(str::to_string).collect()
+}
+
+fn assert_provenance_child(
+    children: &[AbstractClassValueProvenanceNodeV0],
+    operation: &str,
+    detail: &str,
+) {
+    assert!(
+        children.iter().any(|child| {
+            child.operation == operation && child.detail.as_deref() == Some(detail)
+        }),
+        "missing provenance child operation={operation} detail={detail}: {children:#?}"
+    );
 }
 
 fn assert_projection_equivalent(

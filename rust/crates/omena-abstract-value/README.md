@@ -29,6 +29,9 @@ Current public product:
 - `reduced_abstract_class_value_from_facts` /
   `reduced_value_domain_kind_from_facts` — source fact reduction before
   evaluator-facing domain-kind reporting.
+- `summarize_abstract_class_value_provenance_tree` — self-contained V0
+  explanation tree for exact, finite, constrained, widened, reduced-product,
+  and flow-produced abstract class values.
 
 Primary check:
 

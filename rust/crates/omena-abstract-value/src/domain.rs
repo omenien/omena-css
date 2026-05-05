@@ -22,6 +22,15 @@ pub fn summarize_omena_abstract_value_domain() -> AbstractValueDomainSummaryV0 {
         ],
         max_finite_class_values: MAX_FINITE_CLASS_VALUES,
         selector_projection_certainties: vec!["exact", "inferred", "possible"],
+        provenance_tree_ready: true,
+        provenance_tree_scopes: vec![
+            "literal",
+            "finiteSet",
+            "constraint",
+            "finiteSetWidening",
+            "reducedProduct",
+            "flowResult",
+        ],
     }
 }
 
