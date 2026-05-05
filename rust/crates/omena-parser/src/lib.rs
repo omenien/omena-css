@@ -333,6 +333,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "attributeMatcherCstNodes",
             "specializedValueFunctionCstNodes",
             "cssModuleScopeFunctionCstNodes",
+            "scssStructuredBlockAtRules",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
@@ -694,6 +695,9 @@ impl<'text> Parser<'text> {
             self.eat_trivia();
             match self.current_kind() {
                 Some(SyntaxKind::RightBrace) | None => break,
+                Some(SyntaxKind::AtKeyword) if self.current_dialect_at_rule_spec().is_some() => {
+                    self.parse_dialect_at_rule()
+                }
                 Some(SyntaxKind::AtKeyword) => self.parse_at_rule(),
                 Some(_) if self.current_starts_nested_rule() => self.parse_rule(),
                 Some(SyntaxKind::ScssVariable)
@@ -978,6 +982,9 @@ impl<'text> Parser<'text> {
             self.eat_trivia();
             match self.current_kind() {
                 Some(SyntaxKind::RightBrace) | None => break,
+                Some(SyntaxKind::AtKeyword) if self.current_dialect_at_rule_spec().is_some() => {
+                    self.parse_dialect_at_rule()
+                }
                 Some(SyntaxKind::AtKeyword) => self.parse_at_rule(),
                 Some(_) => self.parse_rule(),
             }
@@ -2048,16 +2055,31 @@ fn scss_at_rule_spec(text: &str) -> Option<AtRuleSpec> {
     let (node_kind, block_kind) = match text {
         "@use" => (SyntaxKind::ScssUseRule, AtRuleBlockKind::Raw),
         "@forward" => (SyntaxKind::ScssForwardRule, AtRuleBlockKind::Raw),
-        "@mixin" => (SyntaxKind::ScssMixinDeclaration, AtRuleBlockKind::Raw),
+        "@mixin" => (
+            SyntaxKind::ScssMixinDeclaration,
+            AtRuleBlockKind::DeclarationList,
+        ),
         "@include" => (SyntaxKind::ScssIncludeRule, AtRuleBlockKind::Raw),
-        "@function" => (SyntaxKind::ScssFunctionDeclaration, AtRuleBlockKind::Raw),
+        "@function" => (
+            SyntaxKind::ScssFunctionDeclaration,
+            AtRuleBlockKind::DeclarationList,
+        ),
         "@return" => (SyntaxKind::ScssReturnRule, AtRuleBlockKind::Raw),
         "@extend" => (SyntaxKind::ScssExtendRule, AtRuleBlockKind::Raw),
-        "@if" => (SyntaxKind::ScssControlIf, AtRuleBlockKind::Raw),
-        "@else" => (SyntaxKind::ScssControlElse, AtRuleBlockKind::Raw),
-        "@each" => (SyntaxKind::ScssControlEach, AtRuleBlockKind::Raw),
-        "@for" => (SyntaxKind::ScssControlFor, AtRuleBlockKind::Raw),
-        "@while" => (SyntaxKind::ScssControlWhile, AtRuleBlockKind::Raw),
+        "@if" => (SyntaxKind::ScssControlIf, AtRuleBlockKind::DeclarationList),
+        "@else" => (
+            SyntaxKind::ScssControlElse,
+            AtRuleBlockKind::DeclarationList,
+        ),
+        "@each" => (
+            SyntaxKind::ScssControlEach,
+            AtRuleBlockKind::DeclarationList,
+        ),
+        "@for" => (SyntaxKind::ScssControlFor, AtRuleBlockKind::DeclarationList),
+        "@while" => (
+            SyntaxKind::ScssControlWhile,
+            AtRuleBlockKind::DeclarationList,
+        ),
         _ => return None,
     };
     Some(AtRuleSpec {
@@ -2335,6 +2357,25 @@ mod tests {
     }
 
     #[test]
+    fn parses_structured_scss_at_rule_bodies() {
+        let result = parse(
+            "@mixin card($gap) { .item { gap: $gap; } } @function double($x) { @return $x * 2; } @if $enabled { .on { color: green; } }",
+            StyleDialect::Scss,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::ScssMixinDeclaration));
+        assert!(kinds.contains(&SyntaxKind::ScssFunctionDeclaration));
+        assert!(kinds.contains(&SyntaxKind::ScssReturnRule));
+        assert!(kinds.contains(&SyntaxKind::ScssControlIf));
+        assert!(kinds.contains(&SyntaxKind::DeclarationList));
+        assert!(kinds.contains(&SyntaxKind::Rule));
+        assert!(kinds.contains(&SyntaxKind::ClassSelector));
+        assert!(kinds.contains(&SyntaxKind::ScssVariableReference));
+    }
+
+    #[test]
     fn structures_css_value_function_calls() {
         let result = parse(".a { width: calc(var(--gap) + 1rem); }", StyleDialect::Css);
         let kinds = node_kinds(&result.syntax());
@@ -2532,6 +2573,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"cssModuleScopeFunctionCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"scssStructuredBlockAtRules")
         );
         assert!(
             summary
