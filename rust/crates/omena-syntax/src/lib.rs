@@ -319,6 +319,9 @@ syntax_kinds! {
     AtRulePrelude = 0x105e,
     NestRule = 0x105f,
     CustomMediaRule = 0x1060,
+    IdentifierValue = 0x1061,
+    StringValue = 0x1062,
+    UnicodeRangeValue = 0x1063,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,

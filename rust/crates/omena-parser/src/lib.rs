@@ -334,6 +334,9 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "attributeMatcherCstNodes",
             "specializedValueFunctionCstNodes",
             "valueAtomCstNodes",
+            "identifierValueCstNodes",
+            "stringValueCstNodes",
+            "unicodeRangeValueCstNodes",
             "functionArgumentValueLists",
             "cssModuleScopeFunctionCstNodes",
             "scssStructuredBlockAtRules",
@@ -1639,6 +1642,21 @@ impl<'text> Parser<'text> {
             }
             Some(SyntaxKind::Number | SyntaxKind::Percentage | SyntaxKind::Dimension) => {
                 self.builder.start_node(SyntaxKind::DimensionValue);
+                self.token_current();
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::Ident | SyntaxKind::CustomPropertyName) => {
+                self.builder.start_node(SyntaxKind::IdentifierValue);
+                self.token_current();
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::String) => {
+                self.builder.start_node(SyntaxKind::StringValue);
+                self.token_current();
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::UnicodeRange) => {
+                self.builder.start_node(SyntaxKind::UnicodeRangeValue);
                 self.token_current();
                 self.builder.finish_node();
             }
@@ -5215,7 +5233,7 @@ mod tests {
     #[test]
     fn structures_css_value_atoms_and_function_argument_lists() {
         let result = parse(
-            ".a { color: #fff; width: clamp(1rem, calc(2px + 3px), 4rem); opacity: 50%; z-index: 1; }",
+            ".a { color: #fff; width: clamp(1rem, calc(2px + 3px), 4rem); opacity: 50%; z-index: 1; font-family: system, \"Demo\"; unicode-range: U+00A0-00FF; }",
             StyleDialect::Css,
         );
         let kinds = node_kinds(&result.syntax());
@@ -5229,6 +5247,9 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::ValueList));
         assert!(kinds.contains(&SyntaxKind::CalcFunction));
         assert!(kinds.contains(&SyntaxKind::BinaryExpression));
+        assert!(kinds.contains(&SyntaxKind::IdentifierValue));
+        assert!(kinds.contains(&SyntaxKind::StringValue));
+        assert!(kinds.contains(&SyntaxKind::UnicodeRangeValue));
         assert!(dimension_value_count >= 5);
     }
 
@@ -5720,6 +5741,13 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"specializedValueFunctionCstNodes")
+        );
+        assert!(summary.ready_surfaces.contains(&"identifierValueCstNodes"));
+        assert!(summary.ready_surfaces.contains(&"stringValueCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"unicodeRangeValueCstNodes")
         );
         assert!(
             summary
