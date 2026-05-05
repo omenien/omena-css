@@ -566,7 +566,7 @@ fn concatenates_reduced_product_constraints_without_widening_to_top() {
             must_chars: "-abenrt".to_string(),
             may_chars: "-abenrt".to_string(),
             may_include_other_chars: true,
-            provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
+            provenance: Some(AbstractClassValueProvenanceV0::CompositeConcat),
         }
     );
     assert_eq!(
@@ -618,7 +618,7 @@ fn flow_concat_preserves_reduced_product_shape() {
             must_chars: "-abenrt".to_string(),
             may_chars: "-abceinrtv".to_string(),
             may_include_other_chars: false,
-            provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
+            provenance: Some(AbstractClassValueProvenanceV0::CompositeConcat),
         })
     );
 }

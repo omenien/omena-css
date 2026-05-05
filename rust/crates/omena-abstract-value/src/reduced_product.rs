@@ -12,7 +12,7 @@ pub(crate) fn intersect_reduced_product_class_values(
     let left = ClassValueReductionFacts::from_abstract_value(left)?;
     let right = ClassValueReductionFacts::from_abstract_value(right)?;
     left.intersect(&right)
-        .map(ClassValueReductionFacts::into_abstract_value)
+        .map(|facts| facts.into_abstract_value(AbstractClassValueProvenanceV0::CompositeJoin))
 }
 
 pub(crate) fn join_reduced_product_class_values(
@@ -22,7 +22,7 @@ pub(crate) fn join_reduced_product_class_values(
     let left = ClassValueReductionFacts::from_abstract_value(left)?;
     let right = ClassValueReductionFacts::from_abstract_value(right)?;
     left.join(&right)
-        .map(ClassValueReductionFacts::into_abstract_value)
+        .map(|facts| facts.into_abstract_value(AbstractClassValueProvenanceV0::CompositeJoin))
 }
 
 pub(crate) fn concatenate_reduced_product_class_values(
@@ -32,7 +32,7 @@ pub(crate) fn concatenate_reduced_product_class_values(
     let left = ClassValueReductionFacts::from_abstract_value(left)?;
     let right = ClassValueReductionFacts::from_abstract_value(right)?;
     left.concat(&right)
-        .map(ClassValueReductionFacts::into_abstract_value)
+        .map(|facts| facts.into_abstract_value(AbstractClassValueProvenanceV0::CompositeConcat))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -213,7 +213,10 @@ impl ClassValueReductionFacts {
         )
     }
 
-    fn into_abstract_value(self) -> AbstractClassValueV0 {
+    fn into_abstract_value(
+        self,
+        provenance: AbstractClassValueProvenanceV0,
+    ) -> AbstractClassValueV0 {
         let edge_chars = char_set_for_string(format!(
             "{}{}",
             self.prefix.as_deref().unwrap_or(""),
@@ -227,7 +230,7 @@ impl ClassValueReductionFacts {
                 self.prefix.unwrap_or_default(),
                 self.suffix.unwrap_or_default(),
                 self.min_length,
-                Some(AbstractClassValueProvenanceV0::CompositeJoin),
+                Some(provenance),
             );
         }
 
@@ -260,7 +263,7 @@ impl ClassValueReductionFacts {
             must_chars: self.must_chars,
             may_chars,
             may_include_other_chars,
-            provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
+            provenance: Some(provenance),
         })
     }
 }
