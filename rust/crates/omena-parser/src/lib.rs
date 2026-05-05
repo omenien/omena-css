@@ -334,6 +334,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "specializedValueFunctionCstNodes",
             "cssModuleScopeFunctionCstNodes",
             "scssStructuredBlockAtRules",
+            "scssUtilityAtRules",
             "lessMixinDeclarationCstNodes",
             "lessMixinCallCstNodes",
             "lessMixinGuardCstNodes",
@@ -2871,6 +2872,11 @@ fn scss_at_rule_spec(text: &str) -> Option<AtRuleSpec> {
             SyntaxKind::ScssControlWhile,
             AtRuleBlockKind::DeclarationList,
         ),
+        "@at-root" => (SyntaxKind::ScssAtRootRule, AtRuleBlockKind::DeclarationList),
+        "@error" => (SyntaxKind::ScssErrorRule, AtRuleBlockKind::Raw),
+        "@warn" => (SyntaxKind::ScssWarnRule, AtRuleBlockKind::Raw),
+        "@debug" => (SyntaxKind::ScssDebugRule, AtRuleBlockKind::Raw),
+        "@content" => (SyntaxKind::ScssContentRule, AtRuleBlockKind::Raw),
         _ => return None,
     };
     Some(AtRuleSpec {
@@ -3362,6 +3368,23 @@ mod tests {
     }
 
     #[test]
+    fn parses_scss_utility_at_rules() {
+        let result = parse(
+            "@mixin slot { @content; } @at-root { .rooted { color: red; } } @warn $message; @debug $message; @error $message;",
+            StyleDialect::Scss,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::ScssContentRule));
+        assert!(kinds.contains(&SyntaxKind::ScssAtRootRule));
+        assert!(kinds.contains(&SyntaxKind::ScssWarnRule));
+        assert!(kinds.contains(&SyntaxKind::ScssDebugRule));
+        assert!(kinds.contains(&SyntaxKind::ScssErrorRule));
+        assert!(kinds.contains(&SyntaxKind::Rule));
+    }
+
+    #[test]
     fn structures_css_value_function_calls() {
         let result = parse(".a { width: calc(var(--gap) + 1rem); }", StyleDialect::Css);
         let kinds = node_kinds(&result.syntax());
@@ -3794,6 +3817,7 @@ mod tests {
                 .ready_surfaces
                 .contains(&"scssStructuredBlockAtRules")
         );
+        assert!(summary.ready_surfaces.contains(&"scssUtilityAtRules"));
         assert!(
             summary
                 .ready_surfaces
