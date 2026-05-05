@@ -21,7 +21,7 @@ Current scope:
   nodes and isolate malformed selector-list items as Bogus selectors.
 - `:nth-child()`, `:nth-last-child()`, `:nth-of-type()`, and
   `:nth-last-of-type()` expose formula arguments, including `of
-  <selector-list>`, as structured CST nodes.
+<selector-list>`, as structured CST nodes.
 - `:has()` arguments are represented as relative selector lists, preserving
   leading combinators for downstream selector semantics.
 - `:lang()` and `:dir()` expose dedicated argument CST nodes for linguistic
