@@ -1,6 +1,7 @@
 mod boundary;
 mod diagnostics_scheduler;
 mod protocol;
+mod query_adapter;
 mod query_reuse;
 mod state;
 mod workspace_runtime_registry;
@@ -9,12 +10,10 @@ pub use boundary::*;
 use diagnostics_scheduler::{diagnostics_schedule_event, run_diagnostics_schedule};
 use omena_query::{
     OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
-    OmenaQuerySourceSelectorCandidateV0, OmenaQuerySourceSelectorReferenceEditTargetV0,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
     OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex,
-    OmenaQuerySourceTypeFactTargetV0 as SourceTypeFactTarget, OmenaQueryStyleHoverCandidateV0,
-    OmenaQueryStyleSelectorDefinitionV0, ParserByteSpanV0, ParserPositionV0, ParserRangeV0,
+    OmenaQuerySourceTypeFactTargetV0 as SourceTypeFactTarget, ParserByteSpanV0, ParserPositionV0,
     StyleLanguage, canonicalize_omena_query_source_selector_references,
     is_omena_query_sass_symbol_candidate_kind as is_sass_symbol_candidate_kind,
     is_omena_query_sass_symbol_declaration_kind as is_sass_symbol_declaration_kind,
@@ -30,14 +29,14 @@ use omena_query::{
     summarize_omena_query_missing_custom_property_diagnostics,
     summarize_omena_query_missing_selector_diagnostic, summarize_omena_query_sass_module_sources,
     summarize_omena_query_source_import_declarations, summarize_omena_query_source_syntax_index,
-    summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
-    summarize_omena_query_style_hover_render_parts,
+    summarize_omena_query_style_document, summarize_omena_query_style_hover_render_parts,
 };
 use omena_tsgo_client::{
     TsgoJsonRpcTypeFactProviderV0, TsgoResolvedTypeV0, TsgoTypeFactRequestV0,
     TsgoTypeFactResultEntryV0, TsgoTypeFactTargetV0, build_tsgo_process_command,
 };
 use protocol::*;
+use query_adapter::*;
 use query_reuse::refresh_document_reusable_indexes;
 use serde_json::{Value, json};
 pub use state::*;
@@ -2753,126 +2752,6 @@ fn render_sass_symbol_hover_markdown(
             )
         }
     }
-}
-
-fn empty_style_hover_candidates_result(
-    document_uri: String,
-    workspace_folder_uri: Option<String>,
-    query_position: Option<ParserPositionV0>,
-) -> LspStyleHoverCandidatesResult {
-    LspStyleHoverCandidatesResult {
-        schema_version: "0",
-        product: "omena-lsp-server.style-hover-candidates",
-        document_uri,
-        workspace_folder_uri,
-        language: None,
-        query_position,
-        candidate_count: 0,
-        candidates: Vec::new(),
-    }
-}
-
-fn collect_style_hover_candidates(
-    uri: &str,
-    text: &str,
-) -> Option<(&'static str, Vec<LspStyleHoverCandidate>)> {
-    let summary = summarize_omena_query_style_hover_candidates(uri, text)?;
-    Some((
-        summary.language,
-        summary
-            .candidates
-            .into_iter()
-            .map(lsp_style_hover_candidate_from_query)
-            .collect(),
-    ))
-}
-
-fn lsp_style_hover_candidate_from_query(
-    candidate: OmenaQueryStyleHoverCandidateV0,
-) -> LspStyleHoverCandidate {
-    LspStyleHoverCandidate {
-        kind: candidate.kind,
-        name: candidate.name,
-        range: candidate.range,
-        source: candidate.source,
-        target_style_uri: None,
-        namespace: candidate.namespace,
-    }
-}
-
-fn query_style_hover_candidate_from_lsp(
-    candidate: &LspStyleHoverCandidate,
-) -> OmenaQueryStyleHoverCandidateV0 {
-    OmenaQueryStyleHoverCandidateV0 {
-        kind: candidate.kind,
-        name: candidate.name.clone(),
-        range: candidate.range,
-        source: candidate.source,
-        namespace: candidate.namespace.clone(),
-    }
-}
-
-fn query_source_selector_candidate_from_lsp(
-    candidate: &LspStyleHoverCandidate,
-) -> OmenaQuerySourceSelectorCandidateV0 {
-    OmenaQuerySourceSelectorCandidateV0 {
-        kind: candidate.kind,
-        name: candidate.name.clone(),
-        range: candidate.range,
-        source: candidate.source,
-        target_style_uri: candidate.target_style_uri.clone(),
-    }
-}
-
-fn lsp_source_selector_candidate_from_query(
-    candidate: OmenaQuerySourceSelectorCandidateV0,
-) -> LspStyleHoverCandidate {
-    LspStyleHoverCandidate {
-        kind: candidate.kind,
-        name: candidate.name,
-        range: candidate.range,
-        source: candidate.source,
-        target_style_uri: candidate.target_style_uri,
-        namespace: None,
-    }
-}
-
-fn query_style_selector_definition(
-    uri: &str,
-    definition: &LspStyleHoverCandidate,
-) -> OmenaQueryStyleSelectorDefinitionV0 {
-    OmenaQueryStyleSelectorDefinitionV0 {
-        uri: uri.to_string(),
-        name: definition.name.clone(),
-        range: definition.range,
-    }
-}
-
-fn query_source_selector_reference_edit_target(
-    document: &LspTextDocumentState,
-    candidate: &LspStyleHoverCandidate,
-) -> OmenaQuerySourceSelectorReferenceEditTargetV0 {
-    OmenaQuerySourceSelectorReferenceEditTargetV0 {
-        uri: document.uri.clone(),
-        name: candidate.name.clone(),
-        range: candidate.range,
-        target_style_uri: candidate.target_style_uri.clone(),
-    }
-}
-
-fn query_definition_identity(
-    uri: &str,
-    name: &str,
-    range: ParserRangeV0,
-) -> (String, String, usize, usize, usize, usize) {
-    (
-        uri.to_string(),
-        name.to_string(),
-        range.start.line,
-        range.start.character,
-        range.end.line,
-        range.end.character,
-    )
 }
 
 #[cfg(test)]
