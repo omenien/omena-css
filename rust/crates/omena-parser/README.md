@@ -24,6 +24,8 @@ Current scope:
   <selector-list>`, as structured CST nodes.
 - `:has()` arguments are represented as relative selector lists, preserving
   leading combinators for downstream selector semantics.
+- `:lang()` and `:dir()` expose dedicated argument CST nodes for linguistic
+  selector semantics.
 - Attribute selectors expose dedicated name, matcher, value, and modifier
   nodes, including Selectors L4 case-sensitivity flags.
 - Missing block-close recovery markers represented as `BogusTrivia`.

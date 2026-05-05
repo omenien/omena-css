@@ -711,6 +711,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "nthSelectorOfSelectorListCstNodes",
             "nthSelectorFormulaCstNodes",
             "hasRelativeSelectorListCstNodes",
+            "langDirSelectorArgumentCstNodes",
             "missingBlockCloseBogusTrivia",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
@@ -1298,6 +1299,14 @@ impl<'text> Parser<'text> {
                 && pseudo_name.as_deref().is_some_and(is_nth_pseudo_class)
             {
                 self.parse_nth_selector_argument();
+            } else if kind == SyntaxKind::PseudoClassSelector
+                && pseudo_name.as_deref() == Some("lang")
+            {
+                self.parse_language_selector_argument();
+            } else if kind == SyntaxKind::PseudoClassSelector
+                && pseudo_name.as_deref() == Some("dir")
+            {
+                self.parse_directionality_selector_argument();
             } else {
                 while !self.at_end() {
                     match self.current_kind() {
@@ -1341,6 +1350,48 @@ impl<'text> Parser<'text> {
             self.builder.finish_node();
         }
 
+        self.builder.finish_node();
+    }
+
+    fn parse_language_selector_argument(&mut self) {
+        self.builder
+            .start_node(SyntaxKind::LanguageSelectorArgument);
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::RightParen) => break,
+                Some(SyntaxKind::Comma) => self.token_current(),
+                Some(kind) if is_selector_boundary(kind) => break,
+                Some(kind) if language_tag_token_can_start(kind) => self.parse_language_tag(),
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_language_tag(&mut self) {
+        self.builder.start_node(SyntaxKind::LanguageTag);
+        self.token_current();
+        self.builder.finish_node();
+    }
+
+    fn parse_directionality_selector_argument(&mut self) {
+        self.builder
+            .start_node(SyntaxKind::DirectionalitySelectorArgument);
+        if self
+            .current_kind()
+            .is_some_and(language_tag_token_can_start)
+        {
+            self.token_current();
+        }
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::RightParen) => break,
+                Some(kind) if is_selector_boundary(kind) => break,
+                Some(_) => self.token_current(),
+                None => break,
+            }
+        }
         self.builder.finish_node();
     }
 
@@ -5325,6 +5376,10 @@ fn is_nth_pseudo_class(text: &str) -> bool {
     )
 }
 
+fn language_tag_token_can_start(kind: SyntaxKind) -> bool {
+    matches!(kind, SyntaxKind::Ident | SyntaxKind::String)
+}
+
 fn selector_item_token_is_recoverable(kind: SyntaxKind) -> bool {
     matches!(
         kind,
@@ -5621,7 +5676,11 @@ mod tests {
 
         assert_eq!(result.syntax().kind(), SyntaxKind::Root);
         assert_eq!(result.dialect(), StyleDialect::Css);
-        assert!(result.errors().is_empty());
+        assert!(
+            result.errors().is_empty(),
+            "unexpected parse errors: {:?}",
+            result.errors()
+        );
         assert!(result.token_count() > 0);
 
         let kinds = node_kinds(&result.syntax());
@@ -5722,7 +5781,11 @@ mod tests {
     fn tokenizes_multibyte_source_without_boundary_errors() {
         let result = parse(".카드 { --간격: \"좋음\"; }", StyleDialect::Css);
 
-        assert!(result.errors().is_empty());
+        assert!(
+            result.errors().is_empty(),
+            "unexpected parse errors: {:?}",
+            result.errors()
+        );
         assert!(result.token_count() >= 8);
     }
 
@@ -7253,6 +7316,28 @@ mod tests {
     }
 
     #[test]
+    fn parses_lang_and_dir_arguments_as_cst_nodes() {
+        let result = parse(
+            ":lang(en-US, \"ko\") .card:dir(rtl) { color: red; }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let language_tag_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::LanguageTag)
+            .count();
+
+        assert!(
+            result.errors().is_empty(),
+            "unexpected parse errors: {:?}",
+            result.errors()
+        );
+        assert!(kinds.contains(&SyntaxKind::LanguageSelectorArgument));
+        assert!(kinds.contains(&SyntaxKind::DirectionalitySelectorArgument));
+        assert_eq!(language_tag_count, 2);
+    }
+
+    #[test]
     fn decomposes_selector_lists_into_selector_nodes() {
         let result = parse(
             ".card:hover > #title, article.card || .icon[data-active] { color: red; }",
@@ -7767,6 +7852,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"hasRelativeSelectorListCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"langDirSelectorArgumentCstNodes")
         );
         assert!(
             summary

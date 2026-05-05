@@ -341,6 +341,9 @@ syntax_kinds! {
     NthSelectorOfSelectorList = 0x1072,
     RelativeSelectorList = 0x1073,
     RelativeSelector = 0x1074,
+    LanguageSelectorArgument = 0x1075,
+    LanguageTag = 0x1076,
+    DirectionalitySelectorArgument = 0x1077,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,
