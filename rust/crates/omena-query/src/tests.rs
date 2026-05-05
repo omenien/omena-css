@@ -192,7 +192,7 @@ fn bundles_expression_source_and_selector_query_fragments() {
 }
 
 #[test]
-fn declares_selected_query_adapter_capabilities_without_flipping_runtime_routing() {
+fn declares_runtime_backed_selected_query_adapter_capabilities() {
     let summary = summarize_omena_query_selected_query_adapter_capabilities();
 
     assert_eq!(summary.schema_version, "0");
@@ -201,7 +201,7 @@ fn declares_selected_query_adapter_capabilities_without_flipping_runtime_routing
         "omena-query.selected-query-adapter-capabilities"
     );
     assert_eq!(summary.default_candidate_backend, "rust-selected-query");
-    assert_eq!(summary.routing_status, "declaredOnly");
+    assert_eq!(summary.routing_status, "runtimeBacked");
 
     let unified = backend(&summary, "rust-selected-query");
     assert!(unified.is_some());

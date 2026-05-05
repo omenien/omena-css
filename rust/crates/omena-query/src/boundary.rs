@@ -205,6 +205,6 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "omenaParserStyleFactExtraction",
             "readCascadeAtPosition",
         ],
-        routing_status: "declaredOnly",
+        routing_status: "runtimeBacked",
     }
 }

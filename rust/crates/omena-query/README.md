@@ -13,7 +13,7 @@ Current public products:
   producer fragment surfaces.
 - `omena-query.fragment-bundle` — grouped expression semantics, source
   resolution, and selector usage query fragments.
-- `omena-query.selected-query-adapter-capabilities` — declared backend
+- `omena-query.selected-query-adapter-capabilities` — runtime-backed backend
   capability matrix and engine-shadow-runner command contract for the current
   selected-query adapter path, including the expression semantics payload
   contracts exposed to downstream query consumers.

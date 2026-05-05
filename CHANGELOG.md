@@ -5,6 +5,7 @@
 ### Changed
 
 - **Checker tier catalog** - `omena-checker` now classifies the rule registry into M/S/T tiers with boundary summary counts, and the transitional checker CLI rule help prints S/T tier metadata for TypeScript-owned runtime diagnostics.
+- **Query adapter status** - `omena-query.selected-query-adapter-capabilities` now reports the selected-query adapter as `runtimeBacked`, matching the packaged runner/protocol/default-candidate path instead of the older declaration-only transition status.
 
 ## [5.0.0] - 2026-05-06
 

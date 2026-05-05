@@ -122,7 +122,7 @@ void (async () => {
   assert.equal(summary.schemaVersion, "0");
   assert.equal(summary.product, "omena-query.selected-query-adapter-capabilities");
   assert.equal(summary.defaultCandidateBackend, "rust-selected-query");
-  assert.equal(summary.routingStatus, "declaredOnly");
+  assert.equal(summary.routingStatus, "runtimeBacked");
   assert.deepEqual([...summary.requiredInputContracts].toSorted(), [
     "EngineInputV2",
     "OmenaParserStyleFactsInputV0",
