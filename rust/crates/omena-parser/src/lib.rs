@@ -44,10 +44,11 @@ impl LexResult {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LexedToken {
     pub kind: SyntaxKind,
     pub range: TextRange,
+    pub text: String,
 }
 
 impl ParseResult {
@@ -530,6 +531,7 @@ pub fn lex_with_extension(text: &str, extension: &impl DialectExtension) -> LexR
             .map(|token| LexedToken {
                 kind: token.kind,
                 range: token.range,
+                text: token.text.to_string(),
             })
             .collect(),
         errors,
@@ -598,6 +600,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
         shared_name_kind_count: NameKind::ALL.len(),
         ready_surfaces: vec![
             "lexResult",
+            "lexedTokenTextSurface",
             "parseResult",
             "panicFreeTokenizer",
             "cstreeGreenBuilder",
@@ -5622,6 +5625,10 @@ mod tests {
             Some(SyntaxKind::ScssVariable)
         );
         assert_eq!(
+            scss.tokens().first().map(|token| token.text.as_str()),
+            Some("$gap")
+        );
+        assert_eq!(
             less.tokens().first().map(|token| token.kind),
             Some(SyntaxKind::LessVariable)
         );
@@ -7218,6 +7225,7 @@ mod tests {
         assert_eq!(summary.dialect_count, 4);
         assert_eq!(summary.shared_name_kind_count, 8);
         assert!(summary.ready_surfaces.contains(&"selectorCstSkeleton"));
+        assert!(summary.ready_surfaces.contains(&"lexedTokenTextSurface"));
         assert!(summary.ready_surfaces.contains(&"atRuleRegistrySkeleton"));
         assert!(
             summary

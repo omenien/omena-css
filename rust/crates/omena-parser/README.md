@@ -7,6 +7,8 @@ It lives next to the current `engine-style-parser` and does not replace product 
 Current scope:
 
 - `ParseResult` over a `cstree` green root.
+- `LexResult` exposes token kind, original range, and token text for
+  differential token checks.
 - Typed CST wrapper accessors for the current stylesheet, rule, selector,
   declaration, value, component-value, component-value-list, simple-block,
   custom-property-value, and at-rule nodes.
