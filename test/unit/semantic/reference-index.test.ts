@@ -147,7 +147,7 @@ describe("buildSemanticReferenceIndex", () => {
     ]);
   });
 
-  it("collects exact selector matches for template prefixes while keeping them expanded", () => {
+  it("collects inferred selector matches for template prefixes while keeping them expanded", () => {
     const sourceScenario = loadSourceScenario({
       id: "04-dynamic",
       sourcePath: "04-dynamic/DynamicScenario.tsx",
@@ -166,18 +166,18 @@ describe("buildSemanticReferenceIndex", () => {
     expect(index.findTargetsForRef("class-expr:0")).toEqual([
       expect.objectContaining({
         canonicalName: "btn-danger",
-        selectorCertainty: "exact",
+        selectorCertainty: "inferred",
         reason: "templatePrefix",
         abstractValue: { kind: "prefix", prefix: "btn-" },
       }),
       expect.objectContaining({
         canonicalName: "btn-primary",
-        selectorCertainty: "exact",
+        selectorCertainty: "inferred",
         reason: "templatePrefix",
       }),
       expect.objectContaining({
         canonicalName: "btn-secondary",
-        selectorCertainty: "exact",
+        selectorCertainty: "inferred",
         reason: "templatePrefix",
       }),
     ]);
@@ -186,7 +186,7 @@ describe("buildSemanticReferenceIndex", () => {
       expect.arrayContaining([
         expect.objectContaining({
           refId: "class-expr:0",
-          selectorCertainty: "exact",
+          selectorCertainty: "inferred",
           expansion: "expanded",
         }),
       ]),
@@ -201,7 +201,7 @@ describe("buildSemanticReferenceIndex", () => {
         expect.objectContaining({
           refId: "class-expr:0",
           canonicalName: "btn-primary",
-          selectorCertainty: "exact",
+          selectorCertainty: "inferred",
         }),
       ]),
     );

@@ -134,21 +134,21 @@ describe("buildSourceSemanticGraph", () => {
       edges: expect.arrayContaining([
         {
           reason: "templatePrefix",
-          certainty: "exact",
+          certainty: "inferred",
           abstractValue: { kind: "prefix", prefix: "btn-" },
           from: "class-expr:0",
           to: `selector:${styleScenario.filePath}:btn-primary`,
         },
         {
           reason: "templatePrefix",
-          certainty: "exact",
+          certainty: "inferred",
           abstractValue: { kind: "prefix", prefix: "btn-" },
           from: "class-expr:0",
           to: `selector:${styleScenario.filePath}:btn-secondary`,
         },
         {
           reason: "templatePrefix",
-          certainty: "exact",
+          certainty: "inferred",
           abstractValue: { kind: "prefix", prefix: "btn-" },
           from: "class-expr:0",
           to: `selector:${styleScenario.filePath}:btn-danger`,
