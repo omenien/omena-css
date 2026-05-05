@@ -28,6 +28,8 @@ describe("checker rule registry", () => {
     for (const descriptor of listCheckerRuleDescriptors()) {
       expect(descriptor.description.length).toBeGreaterThan(20);
       expect(["source", "style"]).toContain(descriptor.category);
+      expect(["s-tier", "t-tier"]).toContain(descriptor.tier);
+      expect(descriptor.category === "source" ? "s-tier" : "t-tier").toBe(descriptor.tier);
       expect(["warning", "hint"]).toContain(descriptor.defaultSeverity);
       expect(["none", "codeAction", "autofix"]).toContain(descriptor.fixability);
       expect(descriptor.presets.length).toBeGreaterThan(0);

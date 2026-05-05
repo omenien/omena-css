@@ -8,9 +8,13 @@ Current public products:
   named rule bundles, and migration policy away from TypeScript-owned checker
   metadata.
 - `list_omena_checker_rule_descriptors` - stable V0 rule descriptor order for
-  current checker diagnostics.
+  current checker diagnostics, including M/S/T tier, default severity,
+  fixability, and preset metadata.
 - `list_omena_checker_code_bundles` - named rule bundles used by CI and focused
   checker lanes.
+- `list_omena_checker_m_tier_rule_codes` /
+  `list_omena_checker_s_tier_rule_codes` /
+  `list_omena_checker_t_tier_rule_codes` - tier-specific rule catalog slices.
 - `evaluate_omena_checker_dynamic_class_domain` - first Rust-owned dynamic
   class domain rule body. It consumes `omena-abstract-value` selector projection
   and returns the current `missing-resolved-class-values` /

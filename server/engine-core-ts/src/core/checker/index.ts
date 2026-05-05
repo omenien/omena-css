@@ -32,5 +32,6 @@ export {
   type CheckerRuleDescriptor,
   type CheckerRuleFixability,
   type CheckerRulePreset,
+  type CheckerRuleTier,
 } from "./checker-rule-registry";
 export { runCheckerRules, type CheckerRule, type CheckerRuleContext } from "./rule-template";

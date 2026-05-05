@@ -1,12 +1,14 @@
 import type { CheckerFinding, CheckerSeverity } from "./contracts";
 
 export type CheckerRuleCode = CheckerFinding["code"];
+export type CheckerRuleTier = "s-tier" | "t-tier";
 export type CheckerRulePreset = "recommended" | "strict";
 export type CheckerRuleFixability = "none" | "codeAction" | "autofix";
 
 export interface CheckerRuleDescriptor {
   readonly code: CheckerRuleCode;
   readonly category: CheckerFinding["category"];
+  readonly tier: CheckerRuleTier;
   readonly defaultSeverity: CheckerSeverity;
   readonly fixability: CheckerRuleFixability;
   readonly presets: readonly CheckerRulePreset[];
@@ -17,6 +19,7 @@ const CHECKER_RULE_DESCRIPTORS: readonly CheckerRuleDescriptor[] = [
   {
     code: "missing-module",
     category: "source",
+    tier: "s-tier",
     defaultSeverity: "warning",
     fixability: "codeAction",
     presets: ["recommended"],
@@ -25,6 +28,7 @@ const CHECKER_RULE_DESCRIPTORS: readonly CheckerRuleDescriptor[] = [
   {
     code: "missing-static-class",
     category: "source",
+    tier: "s-tier",
     defaultSeverity: "warning",
     fixability: "codeAction",
     presets: ["recommended"],
@@ -33,6 +37,7 @@ const CHECKER_RULE_DESCRIPTORS: readonly CheckerRuleDescriptor[] = [
   {
     code: "missing-template-prefix",
     category: "source",
+    tier: "s-tier",
     defaultSeverity: "warning",
     fixability: "none",
     presets: ["recommended"],
@@ -41,6 +46,7 @@ const CHECKER_RULE_DESCRIPTORS: readonly CheckerRuleDescriptor[] = [
   {
     code: "missing-resolved-class-values",
     category: "source",
+    tier: "s-tier",
     defaultSeverity: "warning",
     fixability: "none",
     presets: ["recommended"],
@@ -49,6 +55,7 @@ const CHECKER_RULE_DESCRIPTORS: readonly CheckerRuleDescriptor[] = [
   {
     code: "missing-resolved-class-domain",
     category: "source",
+    tier: "s-tier",
     defaultSeverity: "warning",
     fixability: "none",
     presets: ["recommended"],
@@ -57,6 +64,7 @@ const CHECKER_RULE_DESCRIPTORS: readonly CheckerRuleDescriptor[] = [
   {
     code: "unused-selector",
     category: "style",
+    tier: "t-tier",
     defaultSeverity: "hint",
     fixability: "none",
     presets: ["strict"],
@@ -65,6 +73,7 @@ const CHECKER_RULE_DESCRIPTORS: readonly CheckerRuleDescriptor[] = [
   {
     code: "missing-composed-module",
     category: "style",
+    tier: "t-tier",
     defaultSeverity: "warning",
     fixability: "codeAction",
     presets: ["recommended"],
@@ -73,6 +82,7 @@ const CHECKER_RULE_DESCRIPTORS: readonly CheckerRuleDescriptor[] = [
   {
     code: "missing-composed-selector",
     category: "style",
+    tier: "t-tier",
     defaultSeverity: "warning",
     fixability: "codeAction",
     presets: ["recommended"],
@@ -81,6 +91,7 @@ const CHECKER_RULE_DESCRIPTORS: readonly CheckerRuleDescriptor[] = [
   {
     code: "missing-value-module",
     category: "style",
+    tier: "t-tier",
     defaultSeverity: "warning",
     fixability: "codeAction",
     presets: ["recommended"],
@@ -89,6 +100,7 @@ const CHECKER_RULE_DESCRIPTORS: readonly CheckerRuleDescriptor[] = [
   {
     code: "missing-imported-value",
     category: "style",
+    tier: "t-tier",
     defaultSeverity: "warning",
     fixability: "codeAction",
     presets: ["recommended"],
@@ -97,6 +109,7 @@ const CHECKER_RULE_DESCRIPTORS: readonly CheckerRuleDescriptor[] = [
   {
     code: "missing-keyframes",
     category: "style",
+    tier: "t-tier",
     defaultSeverity: "warning",
     fixability: "codeAction",
     presets: ["recommended"],
@@ -105,6 +118,7 @@ const CHECKER_RULE_DESCRIPTORS: readonly CheckerRuleDescriptor[] = [
   {
     code: "missing-custom-property",
     category: "style",
+    tier: "t-tier",
     defaultSeverity: "warning",
     fixability: "none",
     presets: ["strict"],
@@ -113,6 +127,7 @@ const CHECKER_RULE_DESCRIPTORS: readonly CheckerRuleDescriptor[] = [
   {
     code: "missing-sass-symbol",
     category: "style",
+    tier: "t-tier",
     defaultSeverity: "warning",
     fixability: "none",
     presets: ["recommended"],

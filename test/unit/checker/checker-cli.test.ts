@@ -479,8 +479,8 @@ describe("runCheckerCli", () => {
     expect(exitCode).toBe(0);
     const output = stdout.join("");
     expect(output).toContain("Checker rules:");
-    expect(output).toContain("missing-static-class: category=source");
-    expect(output).toContain("unused-selector: category=style");
+    expect(output).toContain("missing-static-class: category=source, tier=s-tier");
+    expect(output).toContain("unused-selector: category=style, tier=t-tier");
     expect(output).toContain("fixability=codeAction");
   });
 

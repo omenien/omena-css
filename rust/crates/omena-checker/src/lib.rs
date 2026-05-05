@@ -67,6 +67,24 @@ impl OmenaCheckerFindingCategoryV0 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OmenaCheckerRuleTierV0 {
+    M,
+    S,
+    T,
+}
+
+impl OmenaCheckerRuleTierV0 {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::M => "m-tier",
+            Self::S => "s-tier",
+            Self::T => "t-tier",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum OmenaCheckerSeverityV0 {
     Warning,
@@ -143,6 +161,8 @@ pub struct OmenaCheckerRuleDescriptorV0 {
     pub code_name: &'static str,
     pub category: OmenaCheckerFindingCategoryV0,
     pub category_name: &'static str,
+    pub tier: OmenaCheckerRuleTierV0,
+    pub tier_name: &'static str,
     pub default_severity: OmenaCheckerSeverityV0,
     pub default_severity_name: &'static str,
     pub fixability: OmenaCheckerRuleFixabilityV0,
@@ -173,6 +193,9 @@ pub struct OmenaCheckerBoundarySummaryV0 {
     pub bundle_count: usize,
     pub source_rule_count: usize,
     pub style_rule_count: usize,
+    pub m_tier_rule_count: usize,
+    pub s_tier_rule_count: usize,
+    pub t_tier_rule_count: usize,
     pub bridge_policy: Vec<&'static str>,
     pub next_migration_targets: Vec<&'static str>,
 }
@@ -403,6 +426,54 @@ pub fn list_omena_checker_m_tier_rule_code_names() -> Vec<&'static str> {
         .collect()
 }
 
+pub fn list_omena_checker_s_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
+    use OmenaCheckerRuleCodeV0::{
+        MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingStaticClass,
+        MissingTemplatePrefix,
+    };
+
+    vec![
+        MissingModule,
+        MissingStaticClass,
+        MissingTemplatePrefix,
+        MissingResolvedClassValues,
+        MissingResolvedClassDomain,
+    ]
+}
+
+pub fn list_omena_checker_s_tier_rule_code_names() -> Vec<&'static str> {
+    list_omena_checker_s_tier_rule_codes()
+        .into_iter()
+        .map(OmenaCheckerRuleCodeV0::as_str)
+        .collect()
+}
+
+pub fn list_omena_checker_t_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
+    use OmenaCheckerRuleCodeV0::{
+        MissingComposedModule, MissingComposedSelector, MissingCustomProperty,
+        MissingImportedValue, MissingKeyframes, MissingSassSymbol, MissingValueModule,
+        UnusedSelector,
+    };
+
+    vec![
+        UnusedSelector,
+        MissingComposedModule,
+        MissingComposedSelector,
+        MissingValueModule,
+        MissingImportedValue,
+        MissingKeyframes,
+        MissingCustomProperty,
+        MissingSassSymbol,
+    ]
+}
+
+pub fn list_omena_checker_t_tier_rule_code_names() -> Vec<&'static str> {
+    list_omena_checker_t_tier_rule_codes()
+        .into_iter()
+        .map(OmenaCheckerRuleCodeV0::as_str)
+        .collect()
+}
+
 pub fn is_omena_checker_rule_code(value: &str) -> bool {
     list_omena_checker_rule_codes()
         .into_iter()
@@ -482,6 +553,9 @@ pub fn summarize_omena_checker_boundary() -> OmenaCheckerBoundarySummaryV0 {
         .iter()
         .filter(|descriptor| descriptor.category == OmenaCheckerFindingCategoryV0::Style)
         .count();
+    let m_tier_rule_count = count_rules_in_tier(&descriptors, OmenaCheckerRuleTierV0::M);
+    let s_tier_rule_count = count_rules_in_tier(&descriptors, OmenaCheckerRuleTierV0::S);
+    let t_tier_rule_count = count_rules_in_tier(&descriptors, OmenaCheckerRuleTierV0::T);
 
     OmenaCheckerBoundarySummaryV0 {
         schema_version: "0",
@@ -493,6 +567,9 @@ pub fn summarize_omena_checker_boundary() -> OmenaCheckerBoundarySummaryV0 {
         bundle_count: list_omena_checker_code_bundles().len(),
         source_rule_count,
         style_rule_count,
+        m_tier_rule_count,
+        s_tier_rule_count,
+        t_tier_rule_count,
         bridge_policy: vec![
             "rustOwnsRuleAndBundleMetadataBeforeRuntimeMigration",
             "typescriptRuntimeMayConsumeTheSameCatalogDuringTransition",
@@ -683,11 +760,14 @@ fn rule(
     presets: &[OmenaCheckerRulePresetV0],
     description: &'static str,
 ) -> OmenaCheckerRuleDescriptorV0 {
+    let tier = rule_tier_for_code(code);
     OmenaCheckerRuleDescriptorV0 {
         code,
         code_name: code.as_str(),
         category,
         category_name: category.as_str(),
+        tier,
+        tier_name: tier.as_str(),
         default_severity,
         default_severity_name: default_severity.as_str(),
         fixability,
@@ -696,6 +776,45 @@ fn rule(
         preset_names: presets.iter().map(|preset| preset.as_str()).collect(),
         description,
     }
+}
+
+fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRuleTierV0 {
+    use OmenaCheckerRuleCodeV0::{
+        MissingComposedModule, MissingComposedSelector, MissingCustomProperty,
+        MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
+        MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
+        MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
+        UnusedSelector,
+    };
+
+    match code {
+        NoUnknownDynamicClass | NoImpreciseValue | NoImpossibleSelector => {
+            OmenaCheckerRuleTierV0::M
+        }
+        MissingModule
+        | MissingStaticClass
+        | MissingTemplatePrefix
+        | MissingResolvedClassValues
+        | MissingResolvedClassDomain => OmenaCheckerRuleTierV0::S,
+        UnusedSelector
+        | MissingComposedModule
+        | MissingComposedSelector
+        | MissingValueModule
+        | MissingImportedValue
+        | MissingKeyframes
+        | MissingCustomProperty
+        | MissingSassSymbol => OmenaCheckerRuleTierV0::T,
+    }
+}
+
+fn count_rules_in_tier(
+    descriptors: &[OmenaCheckerRuleDescriptorV0],
+    tier: OmenaCheckerRuleTierV0,
+) -> usize {
+    descriptors
+        .iter()
+        .filter(|descriptor| descriptor.tier == tier)
+        .count()
 }
 
 fn bundle(
@@ -757,6 +876,7 @@ mod tests {
             assert!(!descriptor.preset_names.is_empty());
             assert_eq!(descriptor.code.as_str(), descriptor.code_name);
             assert_eq!(descriptor.category.as_str(), descriptor.category_name);
+            assert_eq!(descriptor.tier.as_str(), descriptor.tier_name);
             assert_eq!(
                 descriptor.default_severity.as_str(),
                 descriptor.default_severity_name,
@@ -801,6 +921,9 @@ mod tests {
         assert_eq!(summary.rule_count, 16);
         assert_eq!(summary.source_rule_count, 8);
         assert_eq!(summary.style_rule_count, 8);
+        assert_eq!(summary.m_tier_rule_count, 3);
+        assert_eq!(summary.s_tier_rule_count, 5);
+        assert_eq!(summary.t_tier_rule_count, 8);
         assert_eq!(summary.bundle_count, 4);
         assert!(
             summary
@@ -868,6 +991,33 @@ mod tests {
                 "no-unknown-dynamic-class",
                 "no-imprecise-value",
                 "no-impossible-selector",
+            ]
+        );
+    }
+
+    #[test]
+    fn lists_s_and_t_tier_rule_codes() {
+        assert_eq!(
+            list_omena_checker_s_tier_rule_code_names(),
+            vec![
+                "missing-module",
+                "missing-static-class",
+                "missing-template-prefix",
+                "missing-resolved-class-values",
+                "missing-resolved-class-domain",
+            ]
+        );
+        assert_eq!(
+            list_omena_checker_t_tier_rule_code_names(),
+            vec![
+                "unused-selector",
+                "missing-composed-module",
+                "missing-composed-selector",
+                "missing-value-module",
+                "missing-imported-value",
+                "missing-keyframes",
+                "missing-custom-property",
+                "missing-sass-symbol",
             ]
         );
     }

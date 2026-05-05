@@ -673,7 +673,7 @@ function buildRuleHelpText(): string {
     "Checker rules:",
     ...listCheckerRuleDescriptors().map(
       (rule) =>
-        `  ${rule.code}: category=${rule.category}, severity=${rule.defaultSeverity}, fixability=${rule.fixability}, presets=${rule.presets.join("|") || "none"}`,
+        `  ${rule.code}: category=${rule.category}, tier=${rule.tier}, severity=${rule.defaultSeverity}, fixability=${rule.fixability}, presets=${rule.presets.join("|") || "none"}`,
     ),
     "",
   ].join("\n");

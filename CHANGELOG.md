@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Checker tier catalog** - `omena-checker` now classifies the rule registry into M/S/T tiers with boundary summary counts, and the transitional checker CLI rule help prints S/T tier metadata for TypeScript-owned runtime diagnostics.
+
 ## [5.0.0] - 2026-05-06
 
 ### Changed
