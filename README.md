@@ -65,6 +65,13 @@ pnpm package
 code --install-extension css-module-explainer-*.vsix
 ```
 
+## Performance
+
+The public benchmark surface is documented in [docs/performance.md](docs/performance.md).
+It covers Rust parser/semantic/abstract-value micro-benchmarks and an LSP
+macro-benchmark for hover, definition, completion, references, and event-loop
+latency.
+
 ## Configuration
 
 All settings live under the `cssModuleExplainer.*` namespace.

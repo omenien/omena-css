@@ -1,0 +1,23 @@
+[package]
+name = "omena-benchmarks"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Benchmark harnesses for CSS Module Explainer Rust crates"
+repository = "https://github.com/yongsk0066/css-module-explainer"
+
+[lints]
+workspace = true
+
+[dependencies]
+engine-style-parser = { path = "../engine-style-parser" }
+omena-abstract-value = { path = "../omena-abstract-value" }
+omena-semantic = { path = "../omena-semantic" }
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "z5_performance_baseline"
+harness = false

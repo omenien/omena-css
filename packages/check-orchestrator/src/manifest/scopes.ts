@@ -41,11 +41,18 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
   {
     id: "rust",
     matches: (scriptName) =>
-      scriptName.startsWith("check:rust-") || scriptName.startsWith("update:rust-"),
-    toGateId: (scriptName) =>
-      scriptName.startsWith("update:")
-        ? `rust/${toRustGatePath(scriptName.replace(/^update:rust-/, ""))}:update`
-        : `rust/${toRustGatePath(scriptName.replace(/^check:rust-/, ""))}`,
+      scriptName.startsWith("check:rust-") ||
+      scriptName.startsWith("update:rust-") ||
+      scriptName.startsWith("benchmark:z5:"),
+    toGateId: (scriptName) => {
+      if (scriptName.startsWith("update:")) {
+        return `rust/${toRustGatePath(scriptName.replace(/^update:rust-/, ""))}:update`;
+      }
+      if (scriptName.startsWith("benchmark:")) {
+        return `rust/benchmark/${scriptName.slice("benchmark:".length).replaceAll(":", "/")}`;
+      }
+      return `rust/${toRustGatePath(scriptName.replace(/^check:rust-/, ""))}`;
+    },
   },
   {
     id: "ts7",
