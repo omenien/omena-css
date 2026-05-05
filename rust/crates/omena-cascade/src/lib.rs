@@ -171,6 +171,38 @@ pub enum CascadeValue {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub enum SelectorContextMatchKind {
+    NoMatch,
+    Global,
+    Root,
+    Exact,
+    ContainsSelector,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectorContextWitness {
+    pub kind: SelectorContextMatchKind,
+    pub matched: bool,
+    pub rank: usize,
+    pub declaration_selector: Option<String>,
+    pub reference_selector: Option<String>,
+}
+
+impl SelectorContextWitness {
+    pub fn no_match() -> Self {
+        Self {
+            kind: SelectorContextMatchKind::NoMatch,
+            matched: false,
+            rank: 0,
+            declaration_selector: None,
+            reference_selector: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CascadeBoundarySummary {
     pub product: &'static str,
     pub ordering_model: &'static str,
@@ -192,6 +224,7 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
             "cascadeOutcomeProof",
             "genericCascadeWinner",
             "semanticDesignTokenRanking",
+            "selectorContextWitness",
             "customPropertySubstitution",
             "cycleToGuaranteedInvalid",
         ],
@@ -246,6 +279,80 @@ pub fn select_cascade_winner<T>(
 
     let winner = ranked.remove(0);
     Some((winner, ranked))
+}
+
+pub fn selector_context_witness(
+    declaration_selectors: &[String],
+    reference_selectors: &[String],
+) -> SelectorContextWitness {
+    if declaration_selectors.is_empty() {
+        return SelectorContextWitness {
+            kind: SelectorContextMatchKind::Global,
+            matched: true,
+            rank: 1,
+            declaration_selector: None,
+            reference_selector: None,
+        };
+    }
+
+    let mut best = SelectorContextWitness::no_match();
+    for declaration_selector in declaration_selectors {
+        let candidate = selector_context_witness_for_declaration(
+            declaration_selector.as_str(),
+            reference_selectors,
+        );
+        if candidate.rank > best.rank {
+            best = candidate;
+        }
+    }
+    best
+}
+
+pub fn selector_context_witness_for_declaration(
+    declaration_selector: &str,
+    reference_selectors: &[String],
+) -> SelectorContextWitness {
+    if declaration_selector == ":root" {
+        return SelectorContextWitness {
+            kind: SelectorContextMatchKind::Root,
+            matched: true,
+            rank: 1,
+            declaration_selector: Some(declaration_selector.to_string()),
+            reference_selector: None,
+        };
+    }
+
+    for reference_selector in reference_selectors {
+        if reference_selector == declaration_selector {
+            return SelectorContextWitness {
+                kind: SelectorContextMatchKind::Exact,
+                matched: true,
+                rank: 2,
+                declaration_selector: Some(declaration_selector.to_string()),
+                reference_selector: Some(reference_selector.clone()),
+            };
+        }
+    }
+
+    for reference_selector in reference_selectors {
+        if reference_selector.contains(declaration_selector) {
+            return SelectorContextWitness {
+                kind: SelectorContextMatchKind::ContainsSelector,
+                matched: true,
+                rank: 2,
+                declaration_selector: Some(declaration_selector.to_string()),
+                reference_selector: Some(reference_selector.clone()),
+            };
+        }
+    }
+
+    SelectorContextWitness {
+        kind: SelectorContextMatchKind::NoMatch,
+        matched: false,
+        rank: 0,
+        declaration_selector: Some(declaration_selector.to_string()),
+        reference_selector: None,
+    }
 }
 
 pub fn substitute_custom_properties(value: &CascadeValue, env: &CustomPropertyEnv) -> CascadeValue {
@@ -438,6 +545,30 @@ mod tests {
     }
 
     #[test]
+    fn reports_selector_context_witness_rank() {
+        let root = selector_context_witness(&[":root".to_string()], &[".button".to_string()]);
+        assert_eq!(root.kind, SelectorContextMatchKind::Root);
+        assert!(root.matched);
+        assert_eq!(root.rank, 1);
+
+        let exact = selector_context_witness(&[".button".to_string()], &[".button".to_string()]);
+        assert_eq!(exact.kind, SelectorContextMatchKind::Exact);
+        assert_eq!(exact.rank, 2);
+
+        let descendant =
+            selector_context_witness(&[".theme".to_string()], &[".theme .button".to_string()]);
+        assert_eq!(descendant.kind, SelectorContextMatchKind::ContainsSelector);
+        assert_eq!(
+            descendant.reference_selector.as_deref(),
+            Some(".theme .button")
+        );
+
+        let miss = selector_context_witness(&[".card".to_string()], &[".button".to_string()]);
+        assert_eq!(miss.kind, SelectorContextMatchKind::NoMatch);
+        assert!(!miss.matched);
+    }
+
+    #[test]
     fn substitutes_custom_property_fallbacks_and_references() {
         let mut env = CustomPropertyEnv::new();
         env.insert(
@@ -506,6 +637,7 @@ mod tests {
                 .ready_surfaces
                 .contains(&"semanticDesignTokenRanking")
         );
+        assert!(summary.ready_surfaces.contains(&"selectorContextWitness"));
         assert!(summary.not_ready_surfaces.contains(&"wptCascadeCorpus"));
     }
 }

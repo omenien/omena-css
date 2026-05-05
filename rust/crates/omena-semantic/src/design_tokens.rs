@@ -1,5 +1,8 @@
 use engine_style_parser::{ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0};
-use omena_cascade::{CascadeKey, CascadeLevel, LayerRank, Specificity, select_cascade_winner};
+use omena_cascade::{
+    CascadeKey, CascadeLevel, LayerRank, Specificity, select_cascade_winner,
+    selector_context_witness, selector_context_witness_for_declaration,
+};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -865,33 +868,15 @@ fn custom_property_selector_context_matches(
     declaration_selector: &str,
     reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
 ) -> bool {
-    declaration_selector == ":root"
-        || reference
-            .selector_contexts
-            .iter()
-            .any(|reference_selector| {
-                reference_selector == declaration_selector
-                    || reference_selector.contains(declaration_selector)
-            })
+    selector_context_witness_for_declaration(declaration_selector, &reference.selector_contexts)
+        .matched
 }
 
 fn custom_property_declaration_context_rank(
     declaration_selectors: &[String],
     reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
 ) -> usize {
-    if declaration_selectors.iter().any(|selector| {
-        selector != ":root" && custom_property_selector_context_matches(selector, reference)
-    }) {
-        return 2;
-    }
-    if declaration_selectors.is_empty()
-        || declaration_selectors.iter().any(|selector| {
-            selector == ":root" && custom_property_selector_context_matches(selector, reference)
-        })
-    {
-        return 1;
-    }
-    0
+    selector_context_witness(declaration_selectors, &reference.selector_contexts).rank
 }
 
 fn summarize_workspace_candidate_file_ranks<'a>(
