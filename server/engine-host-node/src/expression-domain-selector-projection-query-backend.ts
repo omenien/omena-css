@@ -1,5 +1,6 @@
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import type { EdgeCertainty } from "../../engine-core-ts/src/core/semantic/certainty";
+import type { ExpressionSemanticsEvaluatorCandidatePayloadV0 } from "./expression-semantics-query-backend";
 import {
   buildSelectedQueryBackendInput,
   isEngineShadowRunnerCancelledError,
@@ -66,4 +67,27 @@ export async function resolveRustExpressionDomainSelectorProjectionsAsync(
     if (isEngineShadowRunnerCancelledError(err)) return [];
     throw err;
   }
+}
+
+export function indexExpressionDomainSelectorProjectionsForStyle(
+  projections: readonly ExpressionDomainSelectorProjectionEntryV0[],
+  scssModulePath: string,
+): ReadonlyMap<string, ExpressionDomainSelectorProjectionEntryV0> {
+  return new Map(
+    projections
+      .filter((projection) => projection.targetStylePaths.includes(scssModulePath))
+      .map((projection) => [projection.nodeId, projection] as const),
+  );
+}
+
+export function withExpressionDomainSelectorProjection(
+  payload: ExpressionSemanticsEvaluatorCandidatePayloadV0,
+  projection: ExpressionDomainSelectorProjectionEntryV0 | null,
+): ExpressionSemanticsEvaluatorCandidatePayloadV0 {
+  if (!projection || projection.selectorNames.length === 0) return payload;
+  return {
+    ...payload,
+    selectorNames: projection.selectorNames,
+    selectorCertainty: projection.certainty,
+  };
 }

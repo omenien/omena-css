@@ -14,9 +14,11 @@ import {
   type resolveRustExpressionSemanticsPayload,
 } from "./expression-semantics-query-backend";
 import {
+  indexExpressionDomainSelectorProjectionsForStyle,
   resolveRustExpressionDomainSelectorProjections,
   resolveRustExpressionDomainSelectorProjectionsAsync,
   type ExpressionDomainSelectorProjectionEntryV0,
+  withExpressionDomainSelectorProjection,
 } from "./expression-domain-selector-projection-query-backend";
 import {
   resolveSelectedQueryBackendKind,
@@ -553,7 +555,10 @@ function createRustExpressionDomainSelectorProjectionReader(
         scssModulePath,
         deps,
       );
-      projectionsByNodeId = indexSelectorProjectionsForStyle(projections, scssModulePath);
+      projectionsByNodeId = indexExpressionDomainSelectorProjectionsForStyle(
+        projections,
+        scssModulePath,
+      );
       projectionsByStylePath.set(scssModulePath, projectionsByNodeId);
     }
 
@@ -642,34 +647,13 @@ function createRustExpressionDomainSelectorProjectionReaderAsync(
         scssModulePath,
         deps,
         options.runRustSelectedQueryBackendJsonAsync,
-      ).then((projections) => indexSelectorProjectionsForStyle(projections, scssModulePath));
+      ).then((projections) =>
+        indexExpressionDomainSelectorProjectionsForStyle(projections, scssModulePath),
+      );
       projectionsByStylePath.set(scssModulePath, projectionsByNodeId);
     }
 
     return (await projectionsByNodeId).get(expressionId) ?? null;
-  };
-}
-
-function indexSelectorProjectionsForStyle(
-  projections: readonly ExpressionDomainSelectorProjectionEntryV0[],
-  scssModulePath: string,
-): ReadonlyMap<string, ExpressionDomainSelectorProjectionEntryV0> {
-  return new Map(
-    projections
-      .filter((projection) => projection.targetStylePaths.includes(scssModulePath))
-      .map((projection) => [projection.nodeId, projection] as const),
-  );
-}
-
-function withExpressionDomainSelectorProjection(
-  payload: ExpressionSemanticsEvaluatorCandidatePayloadV0,
-  projection: ExpressionDomainSelectorProjectionEntryV0 | null,
-): ExpressionSemanticsEvaluatorCandidatePayloadV0 {
-  if (!projection || projection.selectorNames.length === 0) return payload;
-  return {
-    ...payload,
-    selectorNames: projection.selectorNames,
-    selectorCertainty: projection.certainty,
   };
 }
 

@@ -286,6 +286,73 @@ describe("explainExpressionAtLocation", () => {
     );
   });
 
+  it("applies selected-query selector projections to explain expression results", () => {
+    const workspaceRoot = makeWorkspace({
+      "src/App.tsx": [
+        'import classNames from "classnames/bind";',
+        'import styles from "./Button.module.scss";',
+        "const cx = classNames.bind(styles);",
+        "export function App(variant: string) {",
+        '  const className = "btn-" + variant;',
+        "  return <div className={cx(className)} />;",
+        "}",
+        "",
+      ].join("\n"),
+      "src/Button.module.scss": ".btn-primary {}",
+    });
+    let expressionId = "";
+    let projectionReads = 0;
+
+    const result = explainExpressionAtLocation({
+      workspaceRoot,
+      filePath: path.join(workspaceRoot, "src/App.tsx"),
+      line: 5,
+      character: 28,
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+      } as NodeJS.ProcessEnv,
+      readRustExpressionSemanticsPayload: (_document, id, scssModulePath) => {
+        expressionId = id;
+        return {
+          expressionId: id,
+          expressionKind: "symbolRef",
+          styleFilePath: scssModulePath,
+          selectorNames: [],
+          candidateNames: [],
+          finiteValues: [],
+          valueDomainKind: "none",
+          selectorCertainty: "possible",
+          valueCertainty: "possible",
+          selectorCertaintyShapeKind: "unknown",
+          selectorCertaintyShapeLabel: "unknown",
+          valueCertaintyShapeKind: "unknown",
+          valueCertaintyShapeLabel: "unknown",
+        };
+      },
+      readRustExpressionDomainSelectorProjections: (_document, scssModulePath) => {
+        projectionReads += 1;
+        return [
+          {
+            graphId: `${workspaceRoot}/src/App.tsx:expression-domain-flow`,
+            filePath: path.join(workspaceRoot, "src/App.tsx"),
+            nodeId: expressionId,
+            targetStylePaths: [scssModulePath],
+            valueKind: "composite",
+            selectorNames: ["btn-primary"],
+            certainty: "inferred",
+          },
+        ];
+      },
+    });
+
+    expect(projectionReads).toBe(1);
+    expect(result).toEqual(
+      expect.objectContaining({
+        selectorNames: ["btn-primary"],
+      }),
+    );
+  });
+
   it("falls back to TypeScript semantics when rust payload is non-informative", () => {
     const workspaceRoot = makeWorkspace({
       "src/App.tsx": [
@@ -324,6 +391,7 @@ describe("explainExpressionAtLocation", () => {
         valueCertaintyShapeKind: "unknown",
         valueCertaintyShapeLabel: "unknown",
       }),
+      readRustExpressionDomainSelectorProjections: () => [],
     });
 
     expect(result).toEqual(

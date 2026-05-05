@@ -26,6 +26,11 @@ import {
   type ReducedClassValueDerivationV0,
 } from "./expression-semantics-query-backend";
 import {
+  indexExpressionDomainSelectorProjectionsForStyle,
+  resolveRustExpressionDomainSelectorProjections,
+  withExpressionDomainSelectorProjection,
+} from "./expression-domain-selector-projection-query-backend";
+import {
   createWorkspaceAnalysisHost,
   createWorkspaceStyleHost,
 } from "./checker-host/workspace-check-support";
@@ -45,6 +50,7 @@ export interface ExplainExpressionOptions {
   readonly typeBackend?: TypeFactBackendKind;
   readonly env?: NodeJS.ProcessEnv;
   readonly readRustExpressionSemanticsPayload?: typeof resolveRustExpressionSemanticsPayload;
+  readonly readRustExpressionDomainSelectorProjections?: typeof resolveRustExpressionDomainSelectorProjections;
 }
 
 export interface ExplainExpressionResult {
@@ -118,6 +124,10 @@ export function explainExpressionAtLocation(
         documentUri,
       },
       options.readRustExpressionSemanticsPayload ?? resolveRustExpressionSemanticsPayload,
+      selectedQueryBackend === "rust-selected-query"
+        ? (options.readRustExpressionDomainSelectorProjections ??
+            resolveRustExpressionDomainSelectorProjections)
+        : null,
     );
     if (rustResult) return rustResult;
   }
@@ -198,32 +208,44 @@ function resolveExplainExpressionViaRustSemantics(
     readonly documentUri: string;
   },
   readRustSemanticsPayload: typeof resolveRustExpressionSemanticsPayload,
+  readRustSelectorProjections: typeof resolveRustExpressionDomainSelectorProjections | null,
 ): ExplainExpressionResult | null {
-  const payload = readRustSemanticsPayload(
-    {
-      uri: runtime.documentUri,
-      content: runtime.content,
-      filePath: options.filePath,
-      version: 1,
+  const document = {
+    uri: runtime.documentUri,
+    content: runtime.content,
+    filePath: options.filePath,
+    version: 1,
+  };
+  const deps = {
+    analysisCache: runtime.analysisHost.analysisCache,
+    styleDocumentForPath: runtime.styleHost.styleDocumentForPath,
+    typeResolver: runtime.analysisHost.typeResolver,
+    workspaceRoot: options.workspaceRoot,
+    settings: {
+      scss: {
+        classnameTransform: options.classnameTransform ?? "asIs",
+      },
+      pathAlias: options.pathAlias ?? {},
     },
+  } as Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  >;
+  const rawPayload = readRustSemanticsPayload(
+    document,
     ctx.expression.id,
     ctx.expression.scssModulePath,
-    {
-      analysisCache: runtime.analysisHost.analysisCache,
-      styleDocumentForPath: runtime.styleHost.styleDocumentForPath,
-      typeResolver: runtime.analysisHost.typeResolver,
-      workspaceRoot: options.workspaceRoot,
-      settings: {
-        scss: {
-          classnameTransform: options.classnameTransform ?? "asIs",
-        },
-        pathAlias: options.pathAlias ?? {},
-      },
-    } as Pick<
-      ProviderDeps,
-      "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
-    >,
+    deps,
   );
+  const projection = readRustSelectorProjections
+    ? (indexExpressionDomainSelectorProjectionsForStyle(
+        readRustSelectorProjections(document, ctx.expression.scssModulePath, deps),
+        ctx.expression.scssModulePath,
+      ).get(ctx.expression.id) ?? null)
+    : null;
+  const payload = rawPayload
+    ? withExpressionDomainSelectorProjection(rawPayload, projection)
+    : rawPayload;
   if (!payload || !payload.styleFilePath) return null;
   if (!isInformativeRustExpressionPayload(payload)) return null;
 
