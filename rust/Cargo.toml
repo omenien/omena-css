@@ -5,6 +5,7 @@ members = [
   "crates/engine-style-parser",
   "crates/omena-abstract-value",
   "crates/omena-bridge",
+  "crates/omena-checker",
   "crates/omena-incremental",
   "crates/omena-lsp-server",
   "crates/omena-query",

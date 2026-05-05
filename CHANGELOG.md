@@ -8,6 +8,7 @@
 - **Design-token package source expansion** - selected-query graph batches now include package style files discovered through package manifests, so Rust ranking can see the actual package token declarations instead of only the manifest metadata.
 - **Source import boundary split** - `omena-bridge` now owns the source import declaration producer used by the Rust LSP CSS Modules binding path, reducing `omena-lsp-server`'s direct source-parsing responsibility.
 - **Source syntax boundary split** - `omena-bridge` now owns the Rust LSP source syntax index producer for CSS Modules imports, selector references, class utilities, and source type-fact targets; `omena-lsp-server` now consumes the bridge output instead of carrying the source scanner locally.
+- **Checker registry boundary split** - `omena-checker` now owns the Rust-side checker rule descriptor and code-bundle registry boundary, establishing the rule catalog transition point before diagnostic execution moves out of the TypeScript checker runtime.
 
 ### Fixed
 
