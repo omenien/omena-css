@@ -344,6 +344,9 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "mediaQueryCstNodes",
             "importPreludeCstNodes",
             "layerScopePreludeCstNodes",
+            "cssColorFunctionCstNodes",
+            "envAttrFunctionCstNodes",
+            "mathFunctionCstNodes",
             "unicodeRangeTokenization",
             "badStringTokenRecovery",
             "badStringValueBogusNodes",
@@ -2559,6 +2562,14 @@ fn specialized_function_kind(text: &str) -> Option<SyntaxKind> {
     match text {
         "var" => Some(SyntaxKind::VarFunction),
         "calc" => Some(SyntaxKind::CalcFunction),
+        "env" => Some(SyntaxKind::EnvFunction),
+        "attr" => Some(SyntaxKind::AttrFunction),
+        "min" | "max" | "clamp" | "round" | "mod" | "rem" | "sin" | "cos" | "tan" | "asin"
+        | "acos" | "atan" | "atan2" | "pow" | "sqrt" | "hypot" | "log" | "exp" | "abs" | "sign" => {
+            Some(SyntaxKind::MathFunction)
+        }
+        "rgb" | "rgba" | "hsl" | "hsla" | "hwb" | "lab" | "lch" | "oklab" | "oklch" | "color"
+        | "color-mix" | "light-dark" | "contrast-color" => Some(SyntaxKind::ColorValue),
         _ => None,
     }
 }
@@ -2939,6 +2950,22 @@ mod tests {
     }
 
     #[test]
+    fn structures_modern_css_value_functions() {
+        let result = parse(
+            ".a { color: color-mix(in oklch, var(--brand), white 20%); width: clamp(1rem, 2vw, 3rem); content: attr(data-label string, \"x\"); padding: env(safe-area-inset-top); }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::ColorValue));
+        assert!(kinds.contains(&SyntaxKind::MathFunction));
+        assert!(kinds.contains(&SyntaxKind::AttrFunction));
+        assert!(kinds.contains(&SyntaxKind::EnvFunction));
+        assert!(kinds.contains(&SyntaxKind::VarFunction));
+    }
+
+    #[test]
     fn keeps_important_annotation_in_declaration_values() {
         let result = parse(".a { color: red !important; }", StyleDialect::Css);
         let kinds = node_kinds(&result.syntax());
@@ -3207,6 +3234,9 @@ mod tests {
                 .ready_surfaces
                 .contains(&"layerScopePreludeCstNodes")
         );
+        assert!(summary.ready_surfaces.contains(&"cssColorFunctionCstNodes"));
+        assert!(summary.ready_surfaces.contains(&"envAttrFunctionCstNodes"));
+        assert!(summary.ready_surfaces.contains(&"mathFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"unicodeRangeTokenization"));
         assert!(summary.ready_surfaces.contains(&"badStringTokenRecovery"));
         assert!(summary.ready_surfaces.contains(&"badStringValueBogusNodes"));
