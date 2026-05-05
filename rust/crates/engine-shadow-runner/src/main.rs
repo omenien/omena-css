@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::io::{self, BufRead, Read, Write};
 
@@ -46,8 +46,10 @@ use omena_query::{
     summarize_omena_query_style_semantic_graph_from_source,
 };
 use omena_resolver::{
-    OmenaResolverModuleGraphSummaryV0, summarize_omena_resolver_boundary,
-    summarize_omena_resolver_module_graph_index, summarize_omena_resolver_runtime_query_boundary,
+    OmenaResolverModuleGraphSummaryV0, OmenaResolverStylePackageManifestV0,
+    summarize_omena_resolver_boundary, summarize_omena_resolver_module_graph_index,
+    summarize_omena_resolver_runtime_query_boundary,
+    summarize_omena_resolver_style_module_resolution,
 };
 use serde::{Deserialize, Serialize};
 
@@ -120,6 +122,24 @@ struct StyleSemanticGraphBatchInputV0 {
     #[serde(default)]
     package_manifests: Vec<StyleSemanticGraphPackageManifestInputV0>,
     engine_input: EngineInputV2,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaResolverStyleModuleResolutionInputV0 {
+    from_style_path: String,
+    source: String,
+    #[serde(default)]
+    available_style_paths: Vec<String>,
+    #[serde(default)]
+    package_manifests: Vec<OmenaResolverStylePackageManifestInputV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaResolverStylePackageManifestInputV0 {
+    package_json_path: String,
+    package_json_source: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -816,6 +836,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_omena_resolver_runtime_query_boundary(&module_graph);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("omena-resolver-style-module-resolution") => {
+            let input: OmenaResolverStyleModuleResolutionInputV0 = serde_json::from_str(&stdin)?;
+            let available_style_paths = input
+                .available_style_paths
+                .iter()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>();
+            let package_manifests = input
+                .package_manifests
+                .iter()
+                .map(|manifest| OmenaResolverStylePackageManifestV0 {
+                    package_json_path: manifest.package_json_path.clone(),
+                    package_json_source: manifest.package_json_source.clone(),
+                })
+                .collect::<Vec<_>>();
+            let summary = summarize_omena_resolver_style_module_resolution(
+                &input.from_style_path,
+                &input.source,
+                &available_style_paths,
+                &package_manifests,
+            );
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("omena-query-selected-query-adapter-capabilities") => {
             let summary = summarize_omena_query_selected_query_adapter_capabilities();
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
@@ -1024,6 +1067,30 @@ fn run_daemon_selected_query_command(
                         .iter()
                         .map(|style| (style.style_path.as_str(), style.style_source.as_str())),
                     &input.engine_input,
+                    &package_manifests,
+                ),
+            )?)
+        }
+        "omena-resolver-style-module-resolution" => {
+            let input: OmenaResolverStyleModuleResolutionInputV0 = serde_json::from_value(input)?;
+            let available_style_paths = input
+                .available_style_paths
+                .iter()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>();
+            let package_manifests = input
+                .package_manifests
+                .iter()
+                .map(|manifest| OmenaResolverStylePackageManifestV0 {
+                    package_json_path: manifest.package_json_path.clone(),
+                    package_json_source: manifest.package_json_source.clone(),
+                })
+                .collect::<Vec<_>>();
+            Ok(serde_json::to_value(
+                summarize_omena_resolver_style_module_resolution(
+                    &input.from_style_path,
+                    &input.source,
+                    &available_style_paths,
                     &package_manifests,
                 ),
             )?)

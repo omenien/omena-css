@@ -55,6 +55,30 @@ assert.ok(
   "omena-resolver-runtime-query-boundary must route through omena-resolver",
 );
 
+const resolverStyleModuleResolutionBody = commandBodies.get(
+  "omena-resolver-style-module-resolution",
+);
+assert.ok(
+  resolverStyleModuleResolutionBody,
+  "missing engine-shadow-runner command arm: omena-resolver-style-module-resolution",
+);
+assert.ok(
+  resolverStyleModuleResolutionBody.includes("OmenaResolverStyleModuleResolutionInputV0"),
+  "omena-resolver-style-module-resolution must deserialize the resolver style-module input product",
+);
+assert.ok(
+  resolverStyleModuleResolutionBody.includes("OmenaResolverStylePackageManifestV0"),
+  "omena-resolver-style-module-resolution must map package manifests into omena-resolver contracts",
+);
+assert.ok(
+  resolverStyleModuleResolutionBody.includes("summarize_omena_resolver_style_module_resolution"),
+  "omena-resolver-style-module-resolution must route through omena-resolver",
+);
+assert.ok(
+  runnerSource.includes('"omena-resolver-style-module-resolution" =>'),
+  "engine-shadow-runner daemon must support omena-resolver-style-module-resolution",
+);
+
 assert.ok(
   querySource.includes("summarize_omena_resolver_query_fragments(input)"),
   "omena-query source-resolution query fragments must route through omena-resolver",
@@ -75,6 +99,7 @@ process.stdout.write(
     "moduleGraphCommand=input-omena-resolver-module-graph",
     "sourceResolutionRuntimeCommand=input-omena-resolver-source-resolution-runtime",
     "runtimeQueryCommand=omena-resolver-runtime-query-boundary",
+    "styleModuleResolutionCommand=omena-resolver-style-module-resolution",
     "queryDelegation=source-resolution",
   ].join(" "),
 );
