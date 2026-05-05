@@ -3,13 +3,16 @@ use engine_input_producers::{
     SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2,
     TypeFactEntryV2,
 };
+use std::collections::BTreeSet;
 
 use super::{
-    query_omena_resolver_runtime_module, query_omena_resolver_source_expression,
-    summarize_omena_resolver_boundary, summarize_omena_resolver_canonical_producer_signal,
+    OmenaResolverStylePackageManifestV0, query_omena_resolver_runtime_module,
+    query_omena_resolver_source_expression, summarize_omena_resolver_boundary,
+    summarize_omena_resolver_canonical_producer_signal,
     summarize_omena_resolver_module_graph_index, summarize_omena_resolver_query_fragments,
     summarize_omena_resolver_runtime_query_boundary,
     summarize_omena_resolver_source_resolution_runtime,
+    summarize_omena_resolver_style_module_resolution,
 };
 
 #[test]
@@ -53,6 +56,11 @@ fn summarizes_resolver_boundary_over_source_resolution_products() {
             .resolver_owned_products
             .contains(&"omena-resolver.source-resolution-runtime-index")
     );
+    assert!(
+        summary
+            .resolver_owned_products
+            .contains(&"omena-resolver.style-module-resolution")
+    );
     assert!(summary.ready_surfaces.contains(&"resolverModuleGraphIndex"));
     assert!(
         summary
@@ -66,9 +74,61 @@ fn summarizes_resolver_boundary_over_source_resolution_products() {
     );
     assert!(
         summary
+            .ready_surfaces
+            .contains(&"resolverStyleModuleResolution")
+    );
+    assert!(
+        summary
             .next_decoupling_targets
             .contains(&"tsconfigPathMapping")
     );
+}
+
+#[test]
+fn resolves_package_manifest_style_exports() {
+    let available_style_paths = BTreeSet::from([
+        "/fake/workspace/node_modules/@design/tokens/dist/theme.css",
+        "/fake/workspace/src/App.module.scss",
+    ]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "@design/tokens/theme",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source: r#"{"exports":{"./theme":{"style":"./dist/theme.css"}}}"#
+                .to_string(),
+        }],
+    );
+
+    assert_eq!(resolution.product, "omena-resolver.style-module-resolution");
+    assert_eq!(resolution.resolution_kind, "packageStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/node_modules/@design/tokens/dist/theme.css")
+    );
+    assert!(resolution.candidate_count > 0);
+    assert!(
+        resolution
+            .candidates
+            .contains(&"/fake/workspace/node_modules/@design/tokens/dist/theme.css".to_string())
+    );
+}
+
+#[test]
+fn ignores_external_style_module_sources() {
+    let available_style_paths = BTreeSet::new();
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "sass:map",
+        &available_style_paths,
+        &[],
+    );
+
+    assert_eq!(resolution.resolution_kind, "externalIgnored");
+    assert!(resolution.candidates.is_empty());
+    assert!(resolution.resolved_style_path.is_none());
 }
 
 #[test]

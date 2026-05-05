@@ -11,7 +11,6 @@ use engine_input_producers::{
     summarize_selector_usage_query_fragments_input,
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use std::path::{Component, Path, PathBuf};
 
 use engine_style_parser::{
     AtRuleKind, Stylesheet, SyntaxNodePayload, parse_style_module,
@@ -42,9 +41,9 @@ use omena_incremental::OmenaIncrementalDatabaseV0;
 pub use omena_parser::StyleDialect as OmenaParserStyleDialect;
 use omena_parser::{ParsedSelectorFactKind, ParsedVariableFactKind, collect_style_facts};
 use omena_resolver::{
-    OmenaResolverSourceResolutionRuntimeIndexV0,
-    summarize_omena_resolver_canonical_producer_signal, summarize_omena_resolver_query_fragments,
-    summarize_omena_resolver_source_resolution_runtime,
+    OmenaResolverSourceResolutionRuntimeIndexV0, OmenaResolverStylePackageManifestV0,
+    resolve_omena_resolver_style_module_source, summarize_omena_resolver_canonical_producer_signal,
+    summarize_omena_resolver_query_fragments, summarize_omena_resolver_source_resolution_runtime,
 };
 use serde::Serialize;
 

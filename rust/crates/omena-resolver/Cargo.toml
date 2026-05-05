@@ -14,3 +14,4 @@ workspace = true
 [dependencies]
 engine-input-producers = { path = "../engine-input-producers" }
 serde.workspace = true
+serde_json.workspace = true

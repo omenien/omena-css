@@ -17,6 +17,9 @@ Current public products:
 - `omena-resolver.source-resolution-runtime-index` — expression-level runtime
   index from source expressions to selector candidates, finite values, certainty
   labels, and resolvability status.
+- `omena-resolver.style-module-resolution` — resolver-owned SCSS/CSS module
+  source resolution for relative imports, package imports, Sass partials, and
+  `package.json` style/sass/scss/export entries.
 - source-resolution query fragment wrapper for the existing
   `engine-input-producers.source-resolution-query-fragments` product.
 - source-resolution canonical producer wrapper for the existing

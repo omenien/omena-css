@@ -115,3 +115,23 @@ pub struct OmenaResolverSourceResolutionRuntimeEntryV0 {
     pub can_resolve_source_expression: bool,
     pub status: &'static str,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaResolverStylePackageManifestV0 {
+    pub package_json_path: String,
+    pub package_json_source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaResolverStyleModuleResolutionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub from_style_path: String,
+    pub source: String,
+    pub resolved_style_path: Option<String>,
+    pub candidate_count: usize,
+    pub candidates: Vec<String>,
+    pub resolution_kind: &'static str,
+}
