@@ -46,6 +46,9 @@ export interface StyleSemanticGraphCssModulesSemanticsV0 {
   readonly classExportCount: number;
   readonly classExportNames: readonly string[];
   readonly composesEdgeSeedCount: number;
+  readonly composesLocalEdgeCount: number;
+  readonly composesGlobalEdgeCount: number;
+  readonly composesExternalEdgeCount: number;
   readonly composesTargetNames: readonly string[];
   readonly composesImportSources: readonly string[];
   readonly valueEdgeSeedCount: number;

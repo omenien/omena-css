@@ -139,6 +139,15 @@ pub fn summarize_omena_query_omena_parser_style_facts(
         css_module_composes_import_sources: css_module_composes_import_sources
             .into_iter()
             .collect(),
+        css_module_composes_edges: facts
+            .css_module_composes_edges
+            .into_iter()
+            .map(|edge| OmenaQueryCssModuleComposesEdgeFactV0 {
+                kind: omena_query_css_module_composes_edge_kind_label(edge.kind),
+                target_names: edge.target_names,
+                import_source: edge.import_source,
+            })
+            .collect(),
         icss_export_names: icss_export_names.into_iter().collect(),
         icss_import_local_names: icss_import_local_names.into_iter().collect(),
         icss_import_remote_names: icss_import_remote_names.into_iter().collect(),
@@ -756,12 +765,15 @@ fn summarize_css_modules_cross_file_resolution(
             package_manifests,
         };
 
-        for source in &facts.css_module_composes_import_sources {
+        for edge in &facts.css_module_composes_edges {
+            let Some(source) = edge.import_source.as_deref() else {
+                continue;
+            };
             edges.push(resolve_css_modules_import_edge(
                 style_path,
                 "composes",
                 source,
-                facts.css_module_composes_target_names.as_slice(),
+                edge.target_names.as_slice(),
                 &context,
                 |target| target.class_selector_names.as_slice(),
             ));
@@ -826,7 +838,8 @@ fn summarize_css_modules_cross_file_resolution(
             cycle_detection_ready: false,
         },
         next_priorities: vec![
-            "edgeLevelParserGrouping",
+            "valueImportEdgeGrouping",
+            "icssImportEdgeGrouping",
             "composesClosure",
             "valueGraphClosure",
             "icssExportImportClosure",
@@ -1731,6 +1744,16 @@ fn omena_parser_style_dialect_label(dialect: OmenaParserStyleDialect) -> &'stati
         OmenaParserStyleDialect::Scss => "scss",
         OmenaParserStyleDialect::Sass => "sass",
         OmenaParserStyleDialect::Less => "less",
+    }
+}
+
+fn omena_query_css_module_composes_edge_kind_label(
+    kind: ParsedCssModuleComposesEdgeKind,
+) -> &'static str {
+    match kind {
+        ParsedCssModuleComposesEdgeKind::Local => "local",
+        ParsedCssModuleComposesEdgeKind::Global => "global",
+        ParsedCssModuleComposesEdgeKind::External => "external",
     }
 }
 

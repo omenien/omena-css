@@ -1047,6 +1047,10 @@ $color: red;
         assert_eq!(css_modules.status, "parserFactSeed");
         assert_eq!(css_modules.resolution_scope, "perFileFactSummary");
         assert_eq!(css_modules.class_export_names, vec!["card"]);
+        assert_eq!(css_modules.composes_edge_seed_count, 1);
+        assert_eq!(css_modules.composes_external_edge_count, 1);
+        assert_eq!(css_modules.composes_local_edge_count, 0);
+        assert_eq!(css_modules.composes_global_edge_count, 0);
         assert_eq!(css_modules.composes_target_names, vec!["base", "utility"]);
         assert_eq!(
             css_modules.composes_import_sources,

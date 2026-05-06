@@ -158,6 +158,8 @@ pub struct ParsedStyleFacts {
     pub css_module_values: Vec<ParsedCssModuleValueFact>,
     pub css_module_composes_count: usize,
     pub css_module_composes: Vec<ParsedCssModuleComposesFact>,
+    pub css_module_composes_edge_count: usize,
+    pub css_module_composes_edges: Vec<ParsedCssModuleComposesEdgeFact>,
     pub icss_count: usize,
     pub icss: Vec<ParsedIcssFact>,
     pub at_rule_count: usize,
@@ -234,6 +236,21 @@ pub struct ParsedCssModuleComposesFact {
 pub enum ParsedCssModuleComposesFactKind {
     Target,
     ImportSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedCssModuleComposesEdgeFact {
+    pub kind: ParsedCssModuleComposesEdgeKind,
+    pub target_names: Vec<String>,
+    pub import_source: Option<String>,
+    pub range: TextRange,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ParsedCssModuleComposesEdgeKind {
+    Local,
+    Global,
+    External,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -668,6 +685,7 @@ pub fn collect_style_facts_with_extension(
     let animations = collect_animation_facts_from_tokens(&tokens);
     let css_module_values = collect_css_module_value_facts_from_tokens(&tokens);
     let css_module_composes = collect_css_module_composes_facts_from_tokens(&tokens);
+    let css_module_composes_edges = collect_css_module_composes_edge_facts_from_tokens(&tokens);
     let icss = collect_icss_facts_from_tokens(&tokens);
     let at_rules = collect_at_rule_facts_from_tokens(&tokens, extension.dialect());
 
@@ -684,6 +702,8 @@ pub fn collect_style_facts_with_extension(
         css_module_values,
         css_module_composes_count: css_module_composes.len(),
         css_module_composes,
+        css_module_composes_edge_count: css_module_composes_edges.len(),
+        css_module_composes_edges,
         icss_count: icss.len(),
         icss,
         at_rule_count: at_rules.len(),
@@ -7160,6 +7180,94 @@ fn collect_css_module_composes_facts_from_tokens(
     composes
 }
 
+fn collect_css_module_composes_edge_facts_from_tokens(
+    tokens: &[Token<'_>],
+) -> Vec<ParsedCssModuleComposesEdgeFact> {
+    let mut edges = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::Ident || !token.text.eq_ignore_ascii_case("composes") {
+            continue;
+        }
+        let Some(colon_index) = next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
+        else {
+            continue;
+        };
+        if tokens[colon_index].kind != SyntaxKind::Colon {
+            continue;
+        }
+
+        let start = colon_index + 1;
+        let end = css_module_value_statement_end(tokens, start);
+        let from_index = top_level_token_text_index(tokens, start, end, "from");
+        let target_end = from_index.unwrap_or(end);
+        let target_names = collect_css_module_composes_target_names(tokens, start, target_end);
+        if target_names.is_empty() {
+            continue;
+        }
+
+        let (kind, import_source) = from_index
+            .and_then(|from_index| {
+                css_module_composes_import_edge_source(tokens, from_index + 1, end)
+            })
+            .map(|source| {
+                if source == "global" {
+                    (ParsedCssModuleComposesEdgeKind::Global, Some(source))
+                } else {
+                    (ParsedCssModuleComposesEdgeKind::External, Some(source))
+                }
+            })
+            .unwrap_or((ParsedCssModuleComposesEdgeKind::Local, None));
+        let range_end = end
+            .checked_sub(1)
+            .and_then(|end| tokens.get(end))
+            .map(|token| token.range.end())
+            .unwrap_or_else(|| tokens[index].range.end());
+
+        edges.push(ParsedCssModuleComposesEdgeFact {
+            kind,
+            target_names,
+            import_source,
+            range: TextRange::new(tokens[index].range.start(), range_end),
+        });
+    }
+    edges
+}
+
+fn collect_css_module_composes_target_names(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut index = start;
+    while index < end {
+        if matches!(
+            tokens[index].kind,
+            SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+        ) && !tokens[index].text.eq_ignore_ascii_case("from")
+            && !names.iter().any(|name| name == tokens[index].text)
+        {
+            names.push(tokens[index].text.to_string());
+        }
+        index += 1;
+    }
+    names
+}
+
+fn css_module_composes_import_edge_source(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> Option<String> {
+    let source_index = next_non_trivia_token_index_until(tokens, start, end)?;
+    let token = tokens[source_index];
+    matches!(
+        token.kind,
+        SyntaxKind::String | SyntaxKind::Url | SyntaxKind::Ident
+    )
+    .then(|| css_module_value_source_name(token))
+}
+
 fn collect_css_module_composes_targets(
     tokens: &[Token<'_>],
     start: usize,
@@ -9567,6 +9675,31 @@ mod tests {
         assert_eq!(facts.css_module_composes_count, 5);
         assert_eq!(targets, vec!["base", "utility", "reset"]);
         assert_eq!(import_sources, vec!["./base.module.scss", "global"]);
+        assert_eq!(facts.css_module_composes_edge_count, 2);
+        assert_eq!(
+            facts.css_module_composes_edges[0].kind,
+            ParsedCssModuleComposesEdgeKind::External
+        );
+        assert_eq!(
+            facts.css_module_composes_edges[0].target_names,
+            vec!["base", "utility"]
+        );
+        assert_eq!(
+            facts.css_module_composes_edges[0].import_source.as_deref(),
+            Some("./base.module.scss")
+        );
+        assert_eq!(
+            facts.css_module_composes_edges[1].kind,
+            ParsedCssModuleComposesEdgeKind::Global
+        );
+        assert_eq!(
+            facts.css_module_composes_edges[1].target_names,
+            vec!["reset"]
+        );
+        assert_eq!(
+            facts.css_module_composes_edges[1].import_source.as_deref(),
+            Some("global")
+        );
     }
 
     #[test]

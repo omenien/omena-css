@@ -165,6 +165,18 @@ fn exposes_omena_parser_style_fact_surface() {
         summary.css_module_composes_import_sources,
         vec!["./base.module.scss"]
     );
+    assert_eq!(summary.css_module_composes_edges.len(), 1);
+    assert_eq!(summary.css_module_composes_edges[0].kind, "external");
+    assert_eq!(
+        summary.css_module_composes_edges[0].target_names,
+        vec!["base", "utility"]
+    );
+    assert_eq!(
+        summary.css_module_composes_edges[0]
+            .import_source
+            .as_deref(),
+        Some("./base.module.scss")
+    );
     assert_eq!(summary.icss_export_names, vec!["primary"]);
     assert_eq!(summary.icss_import_local_names, vec!["imported"]);
     assert_eq!(summary.icss_import_remote_names, vec!["primary"]);

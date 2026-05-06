@@ -2,8 +2,9 @@ use std::collections::BTreeSet;
 
 use engine_style_parser::{StyleLanguage, Stylesheet};
 use omena_parser::{
-    ParsedAnimationFactKind, ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind,
-    ParsedIcssFactKind, ParsedSelectorFactKind, StyleDialect, collect_style_facts,
+    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
+    ParsedCssModuleValueFactKind, ParsedIcssFactKind, ParsedSelectorFactKind, StyleDialect,
+    collect_style_facts,
 };
 use serde::Serialize;
 
@@ -17,6 +18,9 @@ pub struct CssModulesSemanticSummaryV0 {
     pub class_export_count: usize,
     pub class_export_names: Vec<String>,
     pub composes_edge_seed_count: usize,
+    pub composes_local_edge_count: usize,
+    pub composes_global_edge_count: usize,
+    pub composes_external_edge_count: usize,
     pub composes_target_names: Vec<String>,
     pub composes_import_sources: Vec<String>,
     pub value_edge_seed_count: usize,
@@ -54,6 +58,9 @@ pub fn summarize_css_modules_semantics(sheet: &Stylesheet) -> CssModulesSemantic
     let mut class_export_names = BTreeSet::new();
     let mut composes_target_names = BTreeSet::new();
     let mut composes_import_sources = BTreeSet::new();
+    let mut composes_local_edge_count = 0usize;
+    let mut composes_global_edge_count = 0usize;
+    let mut composes_external_edge_count = 0usize;
     let mut value_definition_names = BTreeSet::new();
     let mut value_reference_names = BTreeSet::new();
     let mut value_import_sources = BTreeSet::new();
@@ -78,6 +85,13 @@ pub fn summarize_css_modules_semantics(sheet: &Stylesheet) -> CssModulesSemantic
             ParsedCssModuleComposesFactKind::ImportSource => {
                 composes_import_sources.insert(composes.name);
             }
+        }
+    }
+    for edge in facts.css_module_composes_edges {
+        match edge.kind {
+            ParsedCssModuleComposesEdgeKind::Local => composes_local_edge_count += 1,
+            ParsedCssModuleComposesEdgeKind::Global => composes_global_edge_count += 1,
+            ParsedCssModuleComposesEdgeKind::External => composes_external_edge_count += 1,
         }
     }
 
@@ -143,7 +157,12 @@ pub fn summarize_css_modules_semantics(sheet: &Stylesheet) -> CssModulesSemantic
         resolution_scope: "perFileFactSummary",
         class_export_count: class_export_names.len(),
         class_export_names,
-        composes_edge_seed_count: composes_target_names.len() + composes_import_sources.len(),
+        composes_edge_seed_count: composes_local_edge_count
+            + composes_global_edge_count
+            + composes_external_edge_count,
+        composes_local_edge_count,
+        composes_global_edge_count,
+        composes_external_edge_count,
         composes_target_names,
         composes_import_sources,
         value_edge_seed_count: value_definition_names.len()
