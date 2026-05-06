@@ -680,6 +680,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "pageMarginAtRuleCstNodes",
             "modernDeclarationAtRuleCstNodes",
             "fontFeatureValuesAtRuleCstNodes",
+            "fontFeatureValuesPreludeValidation",
             "viewTransitionAtRuleCstNodes",
             "genericAtRulePreludeCstNodes",
             "bogusAtRulePreludeCstNodes",
@@ -2878,6 +2879,7 @@ impl<'text> Parser<'text> {
                 at_rule_prelude_head_is_custom_ident,
                 "invalid @counter-style name",
             ),
+            SyntaxKind::FontFeatureValuesRule => self.parse_font_feature_values_prelude(),
             SyntaxKind::LayerRule => self.parse_at_rule_prelude_node(SyntaxKind::LayerName),
             SyntaxKind::ScopeRule => self.parse_at_rule_prelude_node(SyntaxKind::ScopeRange),
             _ => self.consume_at_rule_prelude_tokens(),
@@ -3026,6 +3028,24 @@ impl<'text> Parser<'text> {
             self.error_at_current(ParseErrorCode::ExpectedValue, message);
             self.consume_at_rule_prelude_tokens();
         }
+    }
+
+    fn parse_font_feature_values_prelude(&mut self) {
+        if !self.font_feature_values_prelude_is_valid() {
+            self.error_at_current(
+                ParseErrorCode::ExpectedValue,
+                "invalid @font-feature-values family name",
+            );
+        }
+        self.consume_at_rule_prelude_tokens();
+    }
+
+    fn font_feature_values_prelude_is_valid(&self) -> bool {
+        self.non_trivia_token_from(self.position)
+            .is_some_and(|(_, kind)| {
+                matches!(kind, SyntaxKind::Ident | SyntaxKind::String)
+                    || is_interpolation_start(kind)
+            })
     }
 
     fn parse_import_prelude(&mut self) {
@@ -7460,6 +7480,31 @@ mod tests {
     }
 
     #[test]
+    fn validates_font_feature_values_preludes() {
+        let valid = parse(
+            "@font-feature-values Demo, \"Brand Font\" { @styleset { alt: 2; } }",
+            StyleDialect::Css,
+        );
+        let dynamic = parse(
+            "@font-feature-values #{$family} { @styleset { alt: 2; } }",
+            StyleDialect::Scss,
+        );
+        let invalid = parse(
+            "@font-feature-values { @styleset { alt: 2; } } @font-feature-values 123 { @styleset { alt: 2; } }",
+            StyleDialect::Css,
+        );
+        let invalid_family_name_errors = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @font-feature-values family name")
+            .count();
+
+        assert!(valid.errors().is_empty());
+        assert!(dynamic.errors().is_empty());
+        assert_eq!(invalid_family_name_errors, 2);
+    }
+
+    #[test]
     fn classifies_initial_scss_at_rule_nodes() {
         let module_rules = parse(
             "@use \"sass:map\"; @forward \"tokens\";",
@@ -8779,6 +8824,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"fontFeatureValuesAtRuleCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"fontFeatureValuesPreludeValidation")
         );
         assert!(
             summary
