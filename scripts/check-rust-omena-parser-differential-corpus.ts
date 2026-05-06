@@ -38,6 +38,10 @@ interface OmenaParserStyleFactsV0 {
   readonly cssModuleValueImportSources: readonly string[];
   readonly cssModuleComposesTargetNames: readonly string[];
   readonly cssModuleComposesImportSources: readonly string[];
+  readonly icssExportNames: readonly string[];
+  readonly icssImportLocalNames: readonly string[];
+  readonly icssImportRemoteNames: readonly string[];
+  readonly icssImportSources: readonly string[];
   readonly atRuleNames: readonly string[];
   readonly parserErrorCount: number;
 }
@@ -265,6 +269,22 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "icss-import-export-facts",
+    dialect: "css",
+    source: `:export { primary: #fff; secondary: accent; } :import("./tokens.css") { imported: primary; tone: themeTone; }`,
+    expected: {
+      classSelectorNames: [],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: [],
+      icssExportNames: ["primary", "secondary"],
+      icssImportLocalNames: ["imported", "tone"],
+      icssImportRemoteNames: ["primary", "themeTone"],
+      icssImportSources: ["./tokens.css"],
+      atRuleNames: [],
+    },
+  },
+  {
     label: "css-color-function-micro-grammars",
     dialect: "css",
     source: `.paint { color: color-mix(in srgb, red, blue 30%); background: light-dark(white, black); border-color: contrast-color(red); accent-color: device-cmyk(0 1 1 0); }`,
@@ -376,6 +396,10 @@ const PARSER_ONLY_CORPUS = [
     readonly cssModuleValueImportSources?: readonly string[];
     readonly cssModuleComposesTargetNames?: readonly string[];
     readonly cssModuleComposesImportSources?: readonly string[];
+    readonly icssExportNames?: readonly string[];
+    readonly icssImportLocalNames?: readonly string[];
+    readonly icssImportRemoteNames?: readonly string[];
+    readonly icssImportSources?: readonly string[];
     readonly atRuleNames: readonly string[];
   };
 }[];
@@ -825,6 +849,34 @@ void (async () => {
         sortedUnique(actual.cssModuleComposesImportSources),
         sortedUnique(entry.expected.cssModuleComposesImportSources),
         `${entry.label} parser-only CSS Modules composes import source drift`,
+      );
+    }
+    if (entry.expected.icssExportNames) {
+      assert.deepEqual(
+        sortedUnique(actual.icssExportNames),
+        sortedUnique(entry.expected.icssExportNames),
+        `${entry.label} parser-only ICSS export drift`,
+      );
+    }
+    if (entry.expected.icssImportLocalNames) {
+      assert.deepEqual(
+        sortedUnique(actual.icssImportLocalNames),
+        sortedUnique(entry.expected.icssImportLocalNames),
+        `${entry.label} parser-only ICSS import local drift`,
+      );
+    }
+    if (entry.expected.icssImportRemoteNames) {
+      assert.deepEqual(
+        sortedUnique(actual.icssImportRemoteNames),
+        sortedUnique(entry.expected.icssImportRemoteNames),
+        `${entry.label} parser-only ICSS import remote drift`,
+      );
+    }
+    if (entry.expected.icssImportSources) {
+      assert.deepEqual(
+        sortedUnique(actual.icssImportSources),
+        sortedUnique(entry.expected.icssImportSources),
+        `${entry.label} parser-only ICSS import source drift`,
       );
     }
     assert.deepEqual(

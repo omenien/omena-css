@@ -42,6 +42,10 @@ pub fn summarize_omena_query_omena_parser_style_facts(
     let mut css_module_value_import_sources = BTreeSet::new();
     let mut css_module_composes_target_names = BTreeSet::new();
     let mut css_module_composes_import_sources = BTreeSet::new();
+    let mut icss_export_names = BTreeSet::new();
+    let mut icss_import_local_names = BTreeSet::new();
+    let mut icss_import_remote_names = BTreeSet::new();
+    let mut icss_import_sources = BTreeSet::new();
     let mut variable_names = BTreeSet::new();
     let mut custom_property_names = BTreeSet::new();
 
@@ -102,6 +106,23 @@ pub fn summarize_omena_query_omena_parser_style_facts(
         }
     }
 
+    for icss in facts.icss {
+        match icss.kind {
+            ParsedIcssFactKind::ExportName => {
+                icss_export_names.insert(icss.name);
+            }
+            ParsedIcssFactKind::ImportLocalName => {
+                icss_import_local_names.insert(icss.name);
+            }
+            ParsedIcssFactKind::ImportRemoteName => {
+                icss_import_remote_names.insert(icss.name);
+            }
+            ParsedIcssFactKind::ImportSource => {
+                icss_import_sources.insert(icss.name);
+            }
+        }
+    }
+
     OmenaQueryOmenaParserStyleFactsV0 {
         schema_version: "0",
         product: "omena-query.omena-parser-style-facts",
@@ -118,6 +139,10 @@ pub fn summarize_omena_query_omena_parser_style_facts(
         css_module_composes_import_sources: css_module_composes_import_sources
             .into_iter()
             .collect(),
+        icss_export_names: icss_export_names.into_iter().collect(),
+        icss_import_local_names: icss_import_local_names.into_iter().collect(),
+        icss_import_remote_names: icss_import_remote_names.into_iter().collect(),
+        icss_import_sources: icss_import_sources.into_iter().collect(),
         variable_names: variable_names.into_iter().collect(),
         custom_property_names: custom_property_names.into_iter().collect(),
         at_rule_names: facts

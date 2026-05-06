@@ -34,6 +34,10 @@ interface OmenaParserStyleFactsV0 {
   readonly cssModuleValueImportSources: readonly string[];
   readonly cssModuleComposesTargetNames: readonly string[];
   readonly cssModuleComposesImportSources: readonly string[];
+  readonly icssExportNames: readonly string[];
+  readonly icssImportLocalNames: readonly string[];
+  readonly icssImportRemoteNames: readonly string[];
+  readonly icssImportSources: readonly string[];
   readonly atRuleNames: readonly string[];
   readonly parserErrorCount: number;
 }
@@ -112,6 +116,17 @@ const CORPUS = [
     expectedClassSelectorNames: ["btn", "global"],
     expectedCssModuleComposesTargetNames: ["base", "utility", "reset"],
     expectedCssModuleComposesImportSources: ["./base.module.css", "global"],
+  },
+  {
+    label: "icss-import-export-facts",
+    filePath: "/f.module.css",
+    dialect: "css",
+    source: `:export { primary: #fff; secondary: accent; } :import("./tokens.css") { imported: primary; tone: themeTone; }`,
+    expectedClassSelectorNames: [],
+    expectedIcssExportNames: ["primary", "secondary"],
+    expectedIcssImportLocalNames: ["imported", "tone"],
+    expectedIcssImportRemoteNames: ["primary", "themeTone"],
+    expectedIcssImportSources: ["./tokens.css"],
   },
   {
     label: "scss-sass-symbol-facts",
@@ -276,6 +291,34 @@ void (async () => {
         sortedUnique(actual.cssModuleComposesImportSources),
         sortedUnique(entry.expectedCssModuleComposesImportSources),
         `${entry.label} CSS Modules composes import source drift`,
+      );
+    }
+    if ("expectedIcssExportNames" in entry) {
+      assert.deepEqual(
+        sortedUnique(actual.icssExportNames),
+        sortedUnique(entry.expectedIcssExportNames),
+        `${entry.label} ICSS export drift`,
+      );
+    }
+    if ("expectedIcssImportLocalNames" in entry) {
+      assert.deepEqual(
+        sortedUnique(actual.icssImportLocalNames),
+        sortedUnique(entry.expectedIcssImportLocalNames),
+        `${entry.label} ICSS import local drift`,
+      );
+    }
+    if ("expectedIcssImportRemoteNames" in entry) {
+      assert.deepEqual(
+        sortedUnique(actual.icssImportRemoteNames),
+        sortedUnique(entry.expectedIcssImportRemoteNames),
+        `${entry.label} ICSS import remote drift`,
+      );
+    }
+    if ("expectedIcssImportSources" in entry) {
+      assert.deepEqual(
+        sortedUnique(actual.icssImportSources),
+        sortedUnique(entry.expectedIcssImportSources),
+        `${entry.label} ICSS import source drift`,
       );
     }
 

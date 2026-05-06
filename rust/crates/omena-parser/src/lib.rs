@@ -158,6 +158,8 @@ pub struct ParsedStyleFacts {
     pub css_module_values: Vec<ParsedCssModuleValueFact>,
     pub css_module_composes_count: usize,
     pub css_module_composes: Vec<ParsedCssModuleComposesFact>,
+    pub icss_count: usize,
+    pub icss: Vec<ParsedIcssFact>,
     pub at_rule_count: usize,
     pub at_rules: Vec<ParsedAtRuleFact>,
     pub error_count: usize,
@@ -231,6 +233,21 @@ pub struct ParsedCssModuleComposesFact {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ParsedCssModuleComposesFactKind {
     Target,
+    ImportSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedIcssFact {
+    pub kind: ParsedIcssFactKind,
+    pub name: String,
+    pub range: TextRange,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ParsedIcssFactKind {
+    ExportName,
+    ImportLocalName,
+    ImportRemoteName,
     ImportSource,
 }
 
@@ -651,6 +668,7 @@ pub fn collect_style_facts_with_extension(
     let animations = collect_animation_facts_from_tokens(&tokens);
     let css_module_values = collect_css_module_value_facts_from_tokens(&tokens);
     let css_module_composes = collect_css_module_composes_facts_from_tokens(&tokens);
+    let icss = collect_icss_facts_from_tokens(&tokens);
     let at_rules = collect_at_rule_facts_from_tokens(&tokens, extension.dialect());
 
     ParsedStyleFacts {
@@ -666,6 +684,8 @@ pub fn collect_style_facts_with_extension(
         css_module_values,
         css_module_composes_count: css_module_composes.len(),
         css_module_composes,
+        icss_count: icss.len(),
+        icss,
         at_rule_count: at_rules.len(),
         at_rules,
         error_count: errors.len(),
@@ -706,6 +726,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "cssModuleLocalIdSelectorFacts",
             "cssModuleValueStyleFacts",
             "cssModuleComposesStyleFacts",
+            "icssStyleFacts",
             "animationNameStyleFacts",
             "animationShorthandStyleFacts",
             "scssStructuredBlockAtRules",
@@ -7205,6 +7226,165 @@ fn push_css_module_composes_fact(
     }
 }
 
+fn collect_icss_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedIcssFact> {
+    let mut icss = Vec::new();
+    let mut seen = BTreeSet::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::Colon {
+            continue;
+        }
+        let Some(name_index) = next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
+        else {
+            continue;
+        };
+        let name = tokens[name_index].text;
+        if !matches!(tokens[name_index].kind, SyntaxKind::Ident) {
+            continue;
+        }
+        if name.eq_ignore_ascii_case("export") {
+            if let Some((open, close)) =
+                find_block_after_header(tokens, name_index + 1, tokens.len())
+            {
+                collect_icss_export_names(tokens, open + 1, close, &mut icss, &mut seen);
+            }
+            continue;
+        }
+        if name.eq_ignore_ascii_case("import") {
+            collect_icss_import_source(tokens, name_index + 1, &mut icss, &mut seen);
+            if let Some((open, close)) =
+                find_block_after_header(tokens, name_index + 1, tokens.len())
+            {
+                collect_icss_import_names(tokens, open + 1, close, &mut icss, &mut seen);
+            }
+        }
+    }
+    icss
+}
+
+fn collect_icss_export_names(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    icss: &mut Vec<ParsedIcssFact>,
+    seen: &mut BTreeSet<(ParsedIcssFactKind, String, u32, u32)>,
+) {
+    let mut index = start;
+    while index < end {
+        let token = tokens[index];
+        if matches!(
+            token.kind,
+            SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+        ) && let Some(colon_index) = next_non_trivia_token_index_until(tokens, index + 1, end)
+            && tokens[colon_index].kind == SyntaxKind::Colon
+        {
+            push_icss_fact(
+                icss,
+                seen,
+                ParsedIcssFactKind::ExportName,
+                token.text.to_string(),
+                token.range,
+            );
+            index = css_module_value_statement_end(tokens, colon_index + 1);
+            continue;
+        }
+        index += 1;
+    }
+}
+
+fn collect_icss_import_source(
+    tokens: &[Token<'_>],
+    start: usize,
+    icss: &mut Vec<ParsedIcssFact>,
+    seen: &mut BTreeSet<(ParsedIcssFactKind, String, u32, u32)>,
+) {
+    let Some(open_index) = next_non_trivia_token_index_until(tokens, start, tokens.len()) else {
+        return;
+    };
+    if tokens[open_index].kind != SyntaxKind::LeftParen {
+        return;
+    }
+    let Some(source_index) =
+        next_non_trivia_token_index_until(tokens, open_index + 1, tokens.len())
+    else {
+        return;
+    };
+    let token = tokens[source_index];
+    if matches!(
+        token.kind,
+        SyntaxKind::String | SyntaxKind::Url | SyntaxKind::Ident
+    ) {
+        push_icss_fact(
+            icss,
+            seen,
+            ParsedIcssFactKind::ImportSource,
+            css_module_value_source_name(token),
+            token.range,
+        );
+    }
+}
+
+fn collect_icss_import_names(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    icss: &mut Vec<ParsedIcssFact>,
+    seen: &mut BTreeSet<(ParsedIcssFactKind, String, u32, u32)>,
+) {
+    let mut index = start;
+    while index < end {
+        let token = tokens[index];
+        if matches!(
+            token.kind,
+            SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+        ) && let Some(colon_index) = next_non_trivia_token_index_until(tokens, index + 1, end)
+            && tokens[colon_index].kind == SyntaxKind::Colon
+        {
+            push_icss_fact(
+                icss,
+                seen,
+                ParsedIcssFactKind::ImportLocalName,
+                token.text.to_string(),
+                token.range,
+            );
+            if let Some(remote_index) =
+                next_non_trivia_token_index_until(tokens, colon_index + 1, end)
+                && matches!(
+                    tokens[remote_index].kind,
+                    SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+                )
+            {
+                push_icss_fact(
+                    icss,
+                    seen,
+                    ParsedIcssFactKind::ImportRemoteName,
+                    tokens[remote_index].text.to_string(),
+                    tokens[remote_index].range,
+                );
+            }
+            index = css_module_value_statement_end(tokens, colon_index + 1);
+            continue;
+        }
+        index += 1;
+    }
+}
+
+fn push_icss_fact(
+    icss: &mut Vec<ParsedIcssFact>,
+    seen: &mut BTreeSet<(ParsedIcssFactKind, String, u32, u32)>,
+    kind: ParsedIcssFactKind,
+    name: String,
+    range: TextRange,
+) {
+    if seen.insert((
+        kind,
+        name.clone(),
+        u32::from(range.start()),
+        u32::from(range.end()),
+    )) {
+        icss.push(ParsedIcssFact { kind, name, range });
+    }
+}
+
 fn collect_animation_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedAnimationFact> {
     let mut animations = Vec::new();
     let mut seen = BTreeSet::new();
@@ -9409,6 +9589,44 @@ mod tests {
     }
 
     #[test]
+    fn extracts_icss_style_facts() {
+        let facts = collect_style_facts(
+            ":export { primary: #fff; secondary: accent; } :import(\"./tokens.css\") { imported: primary; tone: themeTone; }",
+            StyleDialect::Css,
+        );
+        let export_names = facts
+            .icss
+            .iter()
+            .filter(|icss| icss.kind == ParsedIcssFactKind::ExportName)
+            .map(|icss| icss.name.as_str())
+            .collect::<Vec<_>>();
+        let import_local_names = facts
+            .icss
+            .iter()
+            .filter(|icss| icss.kind == ParsedIcssFactKind::ImportLocalName)
+            .map(|icss| icss.name.as_str())
+            .collect::<Vec<_>>();
+        let import_remote_names = facts
+            .icss
+            .iter()
+            .filter(|icss| icss.kind == ParsedIcssFactKind::ImportRemoteName)
+            .map(|icss| icss.name.as_str())
+            .collect::<Vec<_>>();
+        let import_sources = facts
+            .icss
+            .iter()
+            .filter(|icss| icss.kind == ParsedIcssFactKind::ImportSource)
+            .map(|icss| icss.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(facts.icss_count, 7);
+        assert_eq!(export_names, vec!["primary", "secondary"]);
+        assert_eq!(import_local_names, vec!["imported", "tone"]);
+        assert_eq!(import_remote_names, vec!["primary", "themeTone"]);
+        assert_eq!(import_sources, vec!["./tokens.css"]);
+    }
+
+    #[test]
     fn recovers_css_module_value_and_composes_bogus_nodes() {
         let result = parse(
             "@value from; .bad { composes: from; } .missing { composes base; } .invalid { composes: base from 123; } @value bad as alias from 123; .multi { composes: a from \"./a.css\", b from \"./b.css\"; }",
@@ -11539,6 +11757,7 @@ mod tests {
                 .ready_surfaces
                 .contains(&"cssModuleComposesStyleFacts")
         );
+        assert!(summary.ready_surfaces.contains(&"icssStyleFacts"));
         assert!(summary.ready_surfaces.contains(&"animationNameStyleFacts"));
         assert!(
             summary
