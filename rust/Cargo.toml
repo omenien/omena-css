@@ -20,6 +20,7 @@ members = [
   "crates/omena-transform-bundle",
   "crates/omena-transform-cst",
   "crates/omena-transform-passes",
+  "crates/omena-transform-target",
 ]
 resolver = "2"
 
