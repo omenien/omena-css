@@ -35,6 +35,8 @@ pub fn summarize_omena_query_omena_parser_style_facts(
     let mut class_selector_names = Vec::new();
     let mut id_selector_names = Vec::new();
     let mut placeholder_selector_names = Vec::new();
+    let mut keyframe_names = Vec::new();
+    let mut animation_reference_names = Vec::new();
     let mut variable_names = BTreeSet::new();
     let mut custom_property_names = BTreeSet::new();
 
@@ -61,6 +63,15 @@ pub fn summarize_omena_query_omena_parser_style_facts(
         }
     }
 
+    for animation in facts.animations {
+        match animation.kind {
+            ParsedAnimationFactKind::KeyframesDeclaration => keyframe_names.push(animation.name),
+            ParsedAnimationFactKind::AnimationNameReference => {
+                animation_reference_names.push(animation.name);
+            }
+        }
+    }
+
     OmenaQueryOmenaParserStyleFactsV0 {
         schema_version: "0",
         product: "omena-query.omena-parser-style-facts",
@@ -68,6 +79,8 @@ pub fn summarize_omena_query_omena_parser_style_facts(
         class_selector_names,
         id_selector_names,
         placeholder_selector_names,
+        keyframe_names,
+        animation_reference_names,
         variable_names: variable_names.into_iter().collect(),
         custom_property_names: custom_property_names.into_iter().collect(),
         at_rule_names: facts

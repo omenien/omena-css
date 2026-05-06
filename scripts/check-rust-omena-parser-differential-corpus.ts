@@ -31,6 +31,8 @@ interface OmenaParserStyleFactsV0 {
   readonly placeholderSelectorNames: readonly string[];
   readonly variableNames: readonly string[];
   readonly customPropertyNames: readonly string[];
+  readonly keyframeNames: readonly string[];
+  readonly animationReferenceNames: readonly string[];
   readonly atRuleNames: readonly string[];
   readonly parserErrorCount: number;
 }

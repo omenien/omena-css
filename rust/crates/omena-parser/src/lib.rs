@@ -152,6 +152,8 @@ pub struct ParsedStyleFacts {
     pub selectors: Vec<ParsedSelectorFact>,
     pub variable_count: usize,
     pub variables: Vec<ParsedVariableFact>,
+    pub animation_count: usize,
+    pub animations: Vec<ParsedAnimationFact>,
     pub at_rule_count: usize,
     pub at_rules: Vec<ParsedAtRuleFact>,
     pub error_count: usize,
@@ -186,6 +188,19 @@ pub enum ParsedVariableFactKind {
     LessReference,
     CustomPropertyDeclaration,
     CustomPropertyReference,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedAnimationFact {
+    pub kind: ParsedAnimationFactKind,
+    pub name: String,
+    pub range: TextRange,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ParsedAnimationFactKind {
+    KeyframesDeclaration,
+    AnimationNameReference,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -602,6 +617,7 @@ pub fn collect_style_facts_with_extension(
     let errors = parser.into_errors();
     let selectors = collect_selector_facts_from_tokens(&tokens);
     let variables = collect_variable_facts_from_tokens(&tokens);
+    let animations = collect_animation_facts_from_tokens(&tokens);
     let at_rules = collect_at_rule_facts_from_tokens(&tokens, extension.dialect());
 
     ParsedStyleFacts {
@@ -611,6 +627,8 @@ pub fn collect_style_facts_with_extension(
         selectors,
         variable_count: variables.len(),
         variables,
+        animation_count: animations.len(),
+        animations,
         at_rule_count: at_rules.len(),
         at_rules,
         error_count: errors.len(),
@@ -649,6 +667,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "cssModuleScopeFunctionCstNodes",
             "cssModuleGlobalSelectorFactFiltering",
             "cssModuleLocalIdSelectorFacts",
+            "animationNameStyleFacts",
             "scssStructuredBlockAtRules",
             "scssControlPreludeValidation",
             "scssControlStyleFactExtraction",
@@ -6708,6 +6727,123 @@ fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariabl
     variables
 }
 
+fn collect_animation_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedAnimationFact> {
+    let mut animations = Vec::new();
+    let mut seen = BTreeSet::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case("@keyframes") {
+            if let Some(name_index) =
+                next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
+                && let Some(name) = animation_name_from_token(tokens[name_index])
+            {
+                push_animation_fact(
+                    &mut animations,
+                    &mut seen,
+                    ParsedAnimationFactKind::KeyframesDeclaration,
+                    name,
+                    tokens[name_index].range,
+                );
+            }
+            continue;
+        }
+
+        if token.kind == SyntaxKind::Ident
+            && token.text.eq_ignore_ascii_case("animation-name")
+            && let Some(colon_index) =
+                next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
+            && tokens[colon_index].kind == SyntaxKind::Colon
+        {
+            collect_animation_name_references_until(
+                tokens,
+                colon_index + 1,
+                &mut animations,
+                &mut seen,
+            );
+        }
+    }
+    animations
+}
+
+fn collect_animation_name_references_until(
+    tokens: &[Token<'_>],
+    start: usize,
+    animations: &mut Vec<ParsedAnimationFact>,
+    seen: &mut BTreeSet<(ParsedAnimationFactKind, String, u32, u32)>,
+) {
+    let mut index = start;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+            SyntaxKind::LeftBracket => bracket_depth += 1,
+            SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+            SyntaxKind::Semicolon
+            | SyntaxKind::SassOptionalSemicolon
+            | SyntaxKind::RightBrace
+            | SyntaxKind::SassDedent
+                if paren_depth == 0 && bracket_depth == 0 =>
+            {
+                break;
+            }
+            _ => {}
+        }
+
+        if paren_depth == 0
+            && bracket_depth == 0
+            && let Some(name) = animation_name_from_token(tokens[index])
+        {
+            push_animation_fact(
+                animations,
+                seen,
+                ParsedAnimationFactKind::AnimationNameReference,
+                name,
+                tokens[index].range,
+            );
+        }
+        index += 1;
+    }
+}
+
+fn push_animation_fact(
+    animations: &mut Vec<ParsedAnimationFact>,
+    seen: &mut BTreeSet<(ParsedAnimationFactKind, String, u32, u32)>,
+    kind: ParsedAnimationFactKind,
+    name: String,
+    range: TextRange,
+) {
+    if seen.insert((
+        kind,
+        name.clone(),
+        u32::from(range.start()),
+        u32::from(range.end()),
+    )) {
+        animations.push(ParsedAnimationFact { kind, name, range });
+    }
+}
+
+fn animation_name_from_token(token: Token<'_>) -> Option<String> {
+    if !matches!(token.kind, SyntaxKind::Ident | SyntaxKind::String) {
+        return None;
+    }
+    let name = token
+        .text
+        .trim_matches(|character| character == '"' || character == '\'')
+        .to_string();
+    if name.is_empty() || animation_name_is_reserved(&name) {
+        return None;
+    }
+    Some(name)
+}
+
+fn animation_name_is_reserved(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "none" | "initial" | "inherit" | "unset" | "revert" | "revert-layer"
+    )
+}
+
 fn containing_at_rule_header_name<'text>(
     tokens: &'text [Token<'text>],
     index: usize,
@@ -6944,6 +7080,21 @@ fn next_non_trivia_token_until<'text>(
         let token = tokens.get(index).copied()?;
         if !token.kind.is_trivia() {
             return Some(token);
+        }
+        index += 1;
+    }
+    None
+}
+
+fn next_non_trivia_token_index_until(
+    tokens: &[Token<'_>],
+    mut index: usize,
+    end: usize,
+) -> Option<usize> {
+    while index < end {
+        let token = tokens.get(index)?;
+        if !token.kind.is_trivia() {
+            return Some(index);
         }
         index += 1;
     }
@@ -10028,6 +10179,30 @@ mod tests {
     }
 
     #[test]
+    fn extracts_animation_name_style_facts() {
+        let facts = collect_style_facts(
+            "@keyframes fade { from { opacity: 0; } to { opacity: 1; } } @keyframes \"slide\" { to { opacity: 1; } } .card { animation-name: fade, \"slide\", none; }",
+            StyleDialect::Css,
+        );
+        let keyframe_names = facts
+            .animations
+            .iter()
+            .filter(|animation| animation.kind == ParsedAnimationFactKind::KeyframesDeclaration)
+            .map(|animation| animation.name.as_str())
+            .collect::<Vec<_>>();
+        let reference_names = facts
+            .animations
+            .iter()
+            .filter(|animation| animation.kind == ParsedAnimationFactKind::AnimationNameReference)
+            .map(|animation| animation.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(facts.animation_count, 4);
+        assert_eq!(keyframe_names, vec!["fade", "slide"]);
+        assert_eq!(reference_names, vec!["fade", "slide"]);
+    }
+
+    #[test]
     fn keeps_at_rule_header_dashed_idents_out_of_custom_property_facts() {
         let facts = collect_style_facts(
             "@property --accent { syntax: \"<color>\"; inherits: false; initial-value: red; } @font-palette-values --brand { font-family: Demo; } @color-profile --display-p3 { src: url(p3.icc); } @position-try --popover { inset-area: top; }",
@@ -10701,6 +10876,7 @@ mod tests {
                 .ready_surfaces
                 .contains(&"cssModuleLocalIdSelectorFacts")
         );
+        assert!(summary.ready_surfaces.contains(&"animationNameStyleFacts"));
         assert!(
             summary
                 .ready_surfaces

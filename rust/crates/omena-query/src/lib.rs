@@ -39,7 +39,9 @@ pub use omena_bridge::{
 };
 use omena_incremental::OmenaIncrementalDatabaseV0;
 pub use omena_parser::StyleDialect as OmenaParserStyleDialect;
-use omena_parser::{ParsedSelectorFactKind, ParsedVariableFactKind, collect_style_facts};
+use omena_parser::{
+    ParsedAnimationFactKind, ParsedSelectorFactKind, ParsedVariableFactKind, collect_style_facts,
+};
 use omena_resolver::{
     OmenaResolverSourceResolutionRuntimeIndexV0, OmenaResolverStylePackageManifestV0,
     resolve_omena_resolver_style_module_source, summarize_omena_resolver_canonical_producer_signal,

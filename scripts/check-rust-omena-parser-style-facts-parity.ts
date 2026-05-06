@@ -27,6 +27,8 @@ interface OmenaParserStyleFactsV0 {
   readonly idSelectorNames: readonly string[];
   readonly variableNames: readonly string[];
   readonly customPropertyNames: readonly string[];
+  readonly keyframeNames: readonly string[];
+  readonly animationReferenceNames: readonly string[];
   readonly atRuleNames: readonly string[];
   readonly parserErrorCount: number;
 }
@@ -77,6 +79,15 @@ const CORPUS = [
     source: `:local(#panel) { color: red; } :global(#reset) { color: red; } .card :global(#child) { color: blue; }`,
     expectedClassSelectorNames: ["card"],
     expectedIdSelectorNames: ["panel"],
+  },
+  {
+    label: "css-animation-name-facts",
+    filePath: "/f.module.css",
+    dialect: "css",
+    source: `@keyframes fade { from { opacity: 0; } to { opacity: 1; } } @keyframes "slide" { to { opacity: 1; } } .card { animation-name: fade, "slide", none; }`,
+    expectedClassSelectorNames: ["card"],
+    expectedKeyframeNames: ["fade", "slide"],
+    expectedAnimationReferenceNames: ["fade", "slide"],
   },
   {
     label: "scss-sass-symbol-facts",
@@ -192,6 +203,20 @@ void (async () => {
         sortedUnique(actual.idSelectorNames),
         sortedUnique(entry.expectedIdSelectorNames),
         `${entry.label} id selector parity drift`,
+      );
+    }
+    if ("expectedKeyframeNames" in entry) {
+      assert.deepEqual(
+        sortedUnique(actual.keyframeNames),
+        sortedUnique(entry.expectedKeyframeNames),
+        `${entry.label} keyframe name drift`,
+      );
+    }
+    if ("expectedAnimationReferenceNames" in entry) {
+      assert.deepEqual(
+        sortedUnique(actual.animationReferenceNames),
+        sortedUnique(entry.expectedAnimationReferenceNames),
+        `${entry.label} animation reference drift`,
       );
     }
 
