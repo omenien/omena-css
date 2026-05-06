@@ -263,6 +263,18 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "scss-control-at-rules",
+    dialect: "scss",
+    source: `@if $enabled { .on { color: green; } } @for $i from 1 through 3 { .n { order: $i; } } @each $k, $v in $map { .e { color: $v; } } @while $enabled { .w { color: red; } }`,
+    expected: {
+      classSelectorNames: ["e", "n", "on", "w"],
+      placeholderSelectorNames: [],
+      variableNames: ["$enabled", "$i", "$k", "$map", "$v"],
+      customPropertyNames: [],
+      atRuleNames: ["@each", "@for", "@if", "@while"],
+    },
+  },
+  {
     label: "scss-placeholder-selector-and-extend",
     dialect: "scss",
     source: `%surface { color: red; }\n.card { @extend %surface; }`,

@@ -649,6 +649,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "cssModuleScopeFunctionCstNodes",
             "scssStructuredBlockAtRules",
             "scssControlPreludeValidation",
+            "scssControlStyleFactExtraction",
             "scssUtilityAtRules",
             "scssVariableFlagCstNodes",
             "scssNestedPropertyCstNodes",
@@ -6602,6 +6603,12 @@ fn style_wrapper_at_rule(name: &str) -> bool {
             "@scope",
             "@container",
             "@starting-style",
+            "@if",
+            "@else",
+            "@for",
+            "@each",
+            "@while",
+            "@at-root",
         ],
     )
 }
@@ -9094,6 +9101,22 @@ mod tests {
     }
 
     #[test]
+    fn extracts_scss_control_block_style_facts() {
+        let facts = collect_style_facts(
+            "@if $enabled { .on { color: green; } } @for $i from 1 through 3 { .n { order: $i; } } @each $k, $v in $map { .e { color: $v; } } @while $enabled { .w { color: red; } }",
+            StyleDialect::Scss,
+        );
+        let class_names = facts
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+            .map(|selector| selector.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(class_names, vec!["on", "n", "e", "w"]);
+    }
+
+    #[test]
     fn parses_scss_nested_property_blocks() {
         let result = parse(
             ".card { font: { size: 1rem; weight: 600; } border: 1px solid { color: red; } }",
@@ -10309,6 +10332,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"scssControlPreludeValidation")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"scssControlStyleFactExtraction")
         );
         assert!(summary.ready_surfaces.contains(&"scssUtilityAtRules"));
         assert!(summary.ready_surfaces.contains(&"scssVariableFlagCstNodes"));
