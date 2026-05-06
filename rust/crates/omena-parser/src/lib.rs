@@ -675,6 +675,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "mediaQueryListValidation",
             "importPreludeCstNodes",
             "importSourcePreludeValidation",
+            "customMediaPreludeValidation",
             "propertyAtRuleNameValidation",
             "namedAtRulePreludeValidation",
             "containerAtRulePreludeValidation",
@@ -2973,11 +2974,11 @@ impl<'text> Parser<'text> {
             ),
             SyntaxKind::FontPaletteValuesRule
             | SyntaxKind::ColorProfileRule
-            | SyntaxKind::PositionTryRule
-            | SyntaxKind::CustomMediaRule => self.parse_named_at_rule_prelude(
+            | SyntaxKind::PositionTryRule => self.parse_named_at_rule_prelude(
                 at_rule_prelude_head_is_custom_property_name,
                 "invalid at-rule custom property name",
             ),
+            SyntaxKind::CustomMediaRule => self.parse_custom_media_rule_prelude(),
             SyntaxKind::CounterStyleRule => self.parse_named_at_rule_prelude(
                 at_rule_prelude_head_is_custom_ident,
                 "invalid @counter-style name",
@@ -3121,6 +3122,50 @@ impl<'text> Parser<'text> {
             self.error_at_current(ParseErrorCode::ExpectedValue, "invalid @namespace prelude");
         }
         self.consume_at_rule_prelude_tokens();
+    }
+
+    fn parse_custom_media_rule_prelude(&mut self) {
+        self.eat_trivia();
+        let valid = self.custom_media_rule_prelude_is_valid();
+        if !valid {
+            self.error_at_current(
+                ParseErrorCode::ExpectedValue,
+                "invalid @custom-media prelude",
+            );
+        }
+        self.builder.start_node(if valid {
+            SyntaxKind::AtRulePrelude
+        } else {
+            SyntaxKind::BogusAtRulePrelude
+        });
+        self.consume_at_rule_prelude_tokens_without_wrapping();
+        self.builder.finish_node();
+    }
+
+    fn custom_media_rule_prelude_is_valid(&self) -> bool {
+        let Some((name_index, name_kind)) = self.non_trivia_token_from(self.position) else {
+            return false;
+        };
+        if !self.current_prelude_parentheses_are_balanced_until(&[
+            SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
+        ]) {
+            return false;
+        }
+        let tail = if name_kind == SyntaxKind::CustomPropertyName {
+            self.non_trivia_token_from(name_index + 1)
+        } else if is_interpolation_start(name_kind) {
+            self.non_trivia_token_after_interpolation(name_index, name_kind)
+        } else {
+            return false;
+        };
+        let Some((tail_index, tail_kind)) = tail else {
+            return false;
+        };
+        if is_at_rule_prelude_boundary(tail_kind) {
+            return false;
+        }
+        self.media_query_starts_at(tail_index, tail_kind)
     }
 
     fn namespace_rule_prelude_is_valid(&self) -> bool {
@@ -4565,6 +4610,25 @@ impl<'text> Parser<'text> {
         while let Some(token) = self.tokens.get(index) {
             if !token.kind.is_trivia() {
                 return Some((index, token.kind));
+            }
+            index += 1;
+        }
+        None
+    }
+
+    fn non_trivia_token_after_interpolation(
+        &self,
+        mut index: usize,
+        start_kind: SyntaxKind,
+    ) -> Option<(usize, SyntaxKind)> {
+        let end_kind = interpolation_end_kind(start_kind)?;
+        index += 1;
+        while let Some(token) = self.tokens.get(index) {
+            if token.kind == end_kind {
+                return self.non_trivia_token_from(index + 1);
+            }
+            if is_at_rule_prelude_boundary(token.kind) {
+                return None;
             }
             index += 1;
         }
@@ -8187,13 +8251,18 @@ mod tests {
             StyleDialect::Scss,
         );
         let invalid = parse(
-            "@counter-style --bad { system: cyclic; } @font-palette-values brand { font-family: Demo; } @color-profile display-p3 { src: url(p3.icc); } @position-try popover { inset-area: top; } @custom-media narrow (width < 40rem);",
+            "@counter-style --bad { system: cyclic; } @font-palette-values brand { font-family: Demo; } @color-profile display-p3 { src: url(p3.icc); } @position-try popover { inset-area: top; } @custom-media narrow (width < 40rem); @custom-media --missing;",
             StyleDialect::Css,
         );
         let custom_property_name_errors = invalid
             .errors()
             .iter()
             .filter(|error| error.message == "invalid at-rule custom property name")
+            .count();
+        let custom_media_prelude_errors = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @custom-media prelude")
             .count();
         let counter_style_name_errors = invalid
             .errors()
@@ -8203,7 +8272,8 @@ mod tests {
 
         assert!(valid.errors().is_empty());
         assert!(dynamic.errors().is_empty());
-        assert_eq!(custom_property_name_errors, 4);
+        assert_eq!(custom_property_name_errors, 3);
+        assert_eq!(custom_media_prelude_errors, 2);
         assert_eq!(counter_style_name_errors, 1);
     }
 
@@ -9638,6 +9708,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"importSourcePreludeValidation")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"customMediaPreludeValidation")
         );
         assert!(
             summary
