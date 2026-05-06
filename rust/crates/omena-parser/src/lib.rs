@@ -669,6 +669,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "urlValueCstNodes",
             "quotedUrlFunctionValueCstNodes",
             "conditionalAtRulePreludeCstNodes",
+            "supportsAtRulePreludeValidation",
             "conditionalLevel5AtRuleCstNodes",
             "mediaQueryCstNodes",
             "importPreludeCstNodes",
@@ -2945,9 +2946,7 @@ impl<'text> Parser<'text> {
     fn parse_at_rule_prelude(&mut self, node_kind: SyntaxKind) {
         match node_kind {
             SyntaxKind::MediaRule => self.parse_media_query_list(),
-            SyntaxKind::SupportsRule => {
-                self.parse_at_rule_prelude_node(SyntaxKind::SupportsCondition)
-            }
+            SyntaxKind::SupportsRule => self.parse_supports_rule_prelude(),
             SyntaxKind::ContainerRule => self.parse_container_rule_prelude(),
             SyntaxKind::ImportRule => self.parse_import_prelude(),
             SyntaxKind::CharsetRule => self.parse_charset_rule_prelude(),
@@ -3269,6 +3268,56 @@ impl<'text> Parser<'text> {
                 .is_some_and(|(_, next_kind)| next_kind == SyntaxKind::LeftParen)
     }
 
+    fn parse_supports_rule_prelude(&mut self) {
+        self.eat_trivia();
+        let valid = self.supports_rule_prelude_is_valid();
+        if !valid {
+            self.error_at_current(ParseErrorCode::ExpectedValue, "invalid @supports prelude");
+        }
+        self.builder.start_node(if valid {
+            SyntaxKind::SupportsCondition
+        } else {
+            SyntaxKind::BogusSupportsCondition
+        });
+        self.consume_at_rule_prelude_tokens_without_wrapping();
+        self.builder.finish_node();
+    }
+
+    fn supports_rule_prelude_is_valid(&self) -> bool {
+        let Some((first_index, first_kind)) = self.non_trivia_token_from(self.position) else {
+            return false;
+        };
+        if is_at_rule_prelude_boundary(first_kind) {
+            return false;
+        }
+        if !self.current_prelude_parentheses_are_balanced_until(&[
+            SyntaxKind::LeftBrace,
+            SyntaxKind::SassIndent,
+            SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
+        ]) {
+            return false;
+        }
+        self.supports_condition_starts_at(first_index, first_kind)
+    }
+
+    fn supports_condition_starts_at(&self, index: usize, kind: SyntaxKind) -> bool {
+        if kind == SyntaxKind::KeywordNot {
+            return self
+                .non_trivia_token_from(index + 1)
+                .is_some_and(|(next_index, next_kind)| {
+                    self.supports_condition_starts_at(next_index, next_kind)
+                });
+        }
+        if kind == SyntaxKind::LeftParen || is_interpolation_start(kind) {
+            return true;
+        }
+        kind == SyntaxKind::Ident
+            && self
+                .non_trivia_token_from(index + 1)
+                .is_some_and(|(_, next_kind)| next_kind == SyntaxKind::LeftParen)
+    }
+
     fn parse_scope_rule_prelude(&mut self) {
         self.eat_trivia();
         let valid = self.scope_rule_prelude_is_valid();
@@ -3516,23 +3565,6 @@ impl<'text> Parser<'text> {
         self.token_current();
         if self.current_kind() == Some(SyntaxKind::LeftParen) {
             self.parse_balanced_parenthesized_prelude(None);
-        }
-        self.builder.finish_node();
-    }
-
-    fn parse_at_rule_prelude_node(&mut self, kind: SyntaxKind) {
-        self.builder
-            .start_node(self.current_prelude_node_kind(kind));
-        while !self.at_end() {
-            match self.current_kind() {
-                Some(kind) if is_at_rule_prelude_boundary(kind) => break,
-                Some(SyntaxKind::LeftParen) => self.parse_balanced_parenthesized_prelude(None),
-                Some(kind) if is_interpolation_start(kind) => {
-                    self.parse_interpolation(kind, &[SyntaxKind::LeftBrace, SyntaxKind::Semicolon])
-                }
-                Some(_) => self.token_current(),
-                None => break,
-            }
         }
         self.builder.finish_node();
     }
@@ -7753,6 +7785,28 @@ mod tests {
     }
 
     #[test]
+    fn validates_supports_rule_preludes() {
+        let result = parse(
+            "@supports { .a { color: red; } } @supports display: grid { .b { color: blue; } } @supports not { .c { color: green; } } @supports (display: grid) { .d { color: black; } } @supports selector(:has(*)) { .e { color: white; } }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let invalid_supports_errors = result
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @supports prelude")
+            .count();
+        let bogus_supports_conditions = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::BogusSupportsCondition)
+            .count();
+
+        assert_eq!(invalid_supports_errors, 3);
+        assert_eq!(bogus_supports_conditions, 3);
+        assert!(kinds.contains(&SyntaxKind::SupportsCondition));
+    }
+
+    #[test]
     fn validates_container_rule_preludes() {
         let result = parse(
             "@container { .a { color: red; } } @container card { .b { color: blue; } } @container 1 (width > 0) { .c { color: green; } } @container style(--theme: dark) { .d { color: white; } } @container card style(--theme: dark) { .e { color: black; } }",
@@ -9484,6 +9538,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"conditionalAtRulePreludeCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"supportsAtRulePreludeValidation")
         );
         assert!(
             summary
