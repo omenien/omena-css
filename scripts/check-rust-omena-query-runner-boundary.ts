@@ -55,6 +55,7 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
   ["style-semantic-graph", "summarize_omena_query_style_semantic_graph_from_source"],
   ["read-cascade-at-position", "read_omena_query_cascade_at_position"],
   ["style-semantic-graph-batch", "summarize_omena_query_style_semantic_graph_batch_from_sources"],
+  ["transform-plan", "summarize_omena_query_transform_plan_from_source"],
 ] as const);
 
 const DIRECT_PRODUCER_LANE_COMMANDS = new Map([
