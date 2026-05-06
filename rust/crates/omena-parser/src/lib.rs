@@ -681,6 +681,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "modernDeclarationAtRuleCstNodes",
             "fontFeatureValuesAtRuleCstNodes",
             "fontFeatureValuesPreludeValidation",
+            "keyframeSelectorListValidation",
             "viewTransitionAtRuleCstNodes",
             "genericAtRulePreludeCstNodes",
             "bogusAtRulePreludeCstNodes",
@@ -3363,6 +3364,9 @@ impl<'text> Parser<'text> {
         } else {
             SyntaxKind::BogusKeyframeBlock
         });
+        if has_block && !self.keyframe_selector_list_is_valid() {
+            self.error_at_current(ParseErrorCode::ExpectedValue, "invalid keyframe selector");
+        }
         while !self.at_end() {
             match self.current_kind() {
                 Some(SyntaxKind::LeftBrace) => {
@@ -3380,6 +3384,37 @@ impl<'text> Parser<'text> {
             );
         }
         self.builder.finish_node();
+    }
+
+    fn keyframe_selector_list_is_valid(&self) -> bool {
+        let mut index = self.position;
+        let mut saw_selector = false;
+        let mut expect_selector = true;
+        loop {
+            let Some((token_index, kind)) = self.non_trivia_token_from(index) else {
+                return false;
+            };
+            if kind == SyntaxKind::LeftBrace {
+                return saw_selector && !expect_selector;
+            }
+            if expect_selector {
+                if is_interpolation_start(kind) {
+                    return true;
+                }
+                if !keyframe_selector_token_is_valid(self.tokens[token_index]) {
+                    return false;
+                }
+                saw_selector = true;
+                expect_selector = false;
+                index = token_index + 1;
+                continue;
+            }
+            if kind != SyntaxKind::Comma {
+                return false;
+            }
+            expect_selector = true;
+            index = token_index + 1;
+        }
     }
 
     fn consume_balanced_block(&mut self) {
@@ -5600,6 +5635,12 @@ fn namespace_selector_target_can_start(kind: SyntaxKind) -> bool {
     )
 }
 
+fn keyframe_selector_token_is_valid(token: Token<'_>) -> bool {
+    token.kind == SyntaxKind::Percentage
+        || (token.kind == SyntaxKind::Ident
+            && (token.text.eq_ignore_ascii_case("from") || token.text.eq_ignore_ascii_case("to")))
+}
+
 fn selector_component_can_end(kind: SyntaxKind) -> bool {
     matches!(
         kind,
@@ -7460,6 +7501,31 @@ mod tests {
     }
 
     #[test]
+    fn validates_keyframe_selector_lists() {
+        let valid = parse(
+            "@keyframes fade { from { opacity: 0; } 50%, 75% { opacity: .5; } to { opacity: 1; } }",
+            StyleDialect::Css,
+        );
+        let dynamic = parse(
+            "@keyframes fade { #{$step} { opacity: .5; } }",
+            StyleDialect::Scss,
+        );
+        let invalid = parse(
+            "@keyframes fade { middle { opacity: .5; } 120px { opacity: 1; } 50%, { opacity: .8; } }",
+            StyleDialect::Css,
+        );
+        let invalid_selector_errors = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid keyframe selector")
+            .count();
+
+        assert!(valid.errors().is_empty());
+        assert!(dynamic.errors().is_empty());
+        assert_eq!(invalid_selector_errors, 3);
+    }
+
+    #[test]
     fn validates_empty_block_at_rule_preludes() {
         let valid = parse(
             "@font-face { font-family: Demo; } @starting-style { .card { opacity: 0; } } @view-transition { navigation: auto; }",
@@ -8829,6 +8895,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"fontFeatureValuesPreludeValidation")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"keyframeSelectorListValidation")
         );
         assert!(
             summary
