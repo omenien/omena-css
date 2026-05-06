@@ -750,6 +750,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "nthSelectorFormulaCstNodes",
             "hasRelativeSelectorListCstNodes",
             "langDirSelectorArgumentCstNodes",
+            "selectorFunctionArgumentFactExclusion",
             "missingBlockCloseBogusTrivia",
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
@@ -5122,10 +5123,22 @@ fn collect_id_selector_facts_from_header(
     end: usize,
 ) -> Vec<(String, TextRange)> {
     let mut names = Vec::new();
-    for token in &tokens[start..end] {
-        if token.kind == SyntaxKind::Hash {
+    let mut index = start;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+            SyntaxKind::LeftBracket => bracket_depth += 1,
+            SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+            _ => {}
+        }
+        let token = tokens[index];
+        if paren_depth == 0 && bracket_depth == 0 && token.kind == SyntaxKind::Hash {
             names.push((token.text.trim_start_matches('#').to_string(), token.range));
         }
+        index += 1;
     }
     names
 }
@@ -5135,11 +5148,25 @@ fn collect_placeholder_selector_facts_from_header(
     start: usize,
     end: usize,
 ) -> Vec<(String, TextRange)> {
-    tokens[start..end]
-        .iter()
-        .filter(|token| token.kind == SyntaxKind::ScssPlaceholder)
-        .map(|token| (token.text.trim_start_matches('%').to_string(), token.range))
-        .collect()
+    let mut names = Vec::new();
+    let mut index = start;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+            SyntaxKind::LeftBracket => bracket_depth += 1,
+            SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+            _ => {}
+        }
+        let token = tokens[index];
+        if paren_depth == 0 && bracket_depth == 0 && token.kind == SyntaxKind::ScssPlaceholder {
+            names.push((token.text.trim_start_matches('%').to_string(), token.range));
+        }
+        index += 1;
+    }
+    names
 }
 
 fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariableFact> {
@@ -7902,7 +7929,7 @@ mod tests {
     #[test]
     fn ignores_non_defining_selector_function_arguments() {
         let facts = collect_style_facts(
-            ".btn:is(.active, .primary) { color: red; }",
+            ".btn:is(.active, .primary):has(#target, %surface) { color: red; }",
             StyleDialect::Scss,
         );
         let class_names: Vec<&str> = facts
@@ -7911,8 +7938,22 @@ mod tests {
             .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
             .map(|selector| selector.name.as_str())
             .collect();
+        let id_names: Vec<&str> = facts
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Id)
+            .map(|selector| selector.name.as_str())
+            .collect();
+        let placeholder_names: Vec<&str> = facts
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Placeholder)
+            .map(|selector| selector.name.as_str())
+            .collect();
 
         assert_eq!(class_names, vec!["btn"]);
+        assert!(id_names.is_empty());
+        assert!(placeholder_names.is_empty());
     }
 
     #[test]
@@ -8591,6 +8632,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"langDirSelectorArgumentCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"selectorFunctionArgumentFactExclusion")
         );
         assert!(
             summary
