@@ -17,6 +17,7 @@ members = [
   "crates/omena-resolver",
   "crates/omena-semantic",
   "crates/omena-tsgo-client",
+  "crates/omena-transform-cst",
 ]
 resolver = "2"
 
