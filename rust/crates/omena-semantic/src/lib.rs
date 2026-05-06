@@ -319,24 +319,28 @@ fn summarize_omena_parser_selector_facts(
     let mut definition_facts = Vec::new();
     let mut bem_suffix_parent_names = BTreeSet::new();
     let mut bem_suffix_safe_names = BTreeSet::new();
+    let mut nested_unsafe_names = BTreeSet::new();
     let mut source_order = 0usize;
 
     for selector in &facts.selectors {
         if selector.kind != ParsedSelectorFactKind::Class {
             continue;
         }
-        let nested_safety_kind = if let Some(parent) = bem_suffix_parent_name(selector.name.as_str())
-        {
-            bem_suffix_parent_names.insert(parent);
-            bem_suffix_safe_names.insert(selector.name.clone());
-            "bemSuffixSafe"
-        } else {
-            "flat"
-        };
         let byte_span = parser_byte_span_for_offsets(
             u32::from(selector.range.start()) as usize,
             u32::from(selector.range.end()) as usize,
         );
+        let parent_name = bem_suffix_parent_name(selector.name.as_str());
+        let nested_safety_kind = if let Some(parent) = parent_name.clone() {
+            bem_suffix_parent_names.insert(parent);
+            bem_suffix_safe_names.insert(selector.name.clone());
+            "bemSuffixSafe"
+        } else if selector_has_parent_ampersand_class_prefix(source, byte_span.start) {
+            nested_unsafe_names.insert(selector.name.clone());
+            "nestedUnsafe"
+        } else {
+            "flat"
+        };
         names.push(selector.name.clone());
         definition_facts.push(ParserIndexSelectorDefinitionFactV0 {
             name: selector.name.clone(),
@@ -344,7 +348,7 @@ fn summarize_omena_parser_selector_facts(
             byte_span,
             range: parser_range_for_byte_span(source, byte_span),
             nested_safety_kind,
-            bem_suffix_parent_name: bem_suffix_parent_name(selector.name.as_str()),
+            bem_suffix_parent_name: parent_name,
             under_media: false,
             under_supports: false,
             under_layer: false,
@@ -356,20 +360,23 @@ fn summarize_omena_parser_selector_facts(
     names.dedup();
     definition_facts.sort();
     let bem_suffix_safe_names = bem_suffix_safe_names.into_iter().collect::<Vec<_>>();
+    let nested_unsafe_names = nested_unsafe_names.into_iter().collect::<Vec<_>>();
     ParserIndexSelectorFactsV0 {
         names,
         definition_facts,
         bem_suffix_parent_names: bem_suffix_parent_names.into_iter().collect(),
         bem_suffix_safe_names: bem_suffix_safe_names.clone(),
-        nested_unsafe_names: Vec::new(),
+        nested_unsafe_names: nested_unsafe_names.clone(),
         selectors_with_value_refs_names: Vec::new(),
         selectors_with_animation_ref_names: Vec::new(),
         selectors_with_animation_name_ref_names: Vec::new(),
         bem_suffix_count: bem_suffix_safe_names.len(),
         nested_safety_counts: NestedSafetyCountsV0 {
-            flat: source_order.saturating_sub(bem_suffix_safe_names.len()),
+            flat: source_order
+                .saturating_sub(bem_suffix_safe_names.len())
+                .saturating_sub(nested_unsafe_names.len()),
             bem_suffix_safe: bem_suffix_safe_names.len(),
-            nested_unsafe: 0,
+            nested_unsafe: nested_unsafe_names.len(),
         },
     }
 }
@@ -616,6 +623,35 @@ fn bem_suffix_parent_name(name: &str) -> Option<String> {
     (marker > 0).then(|| name[..marker].to_string())
 }
 
+fn selector_has_parent_ampersand_class_prefix(source: &str, selector_start: usize) -> bool {
+    let bytes = source.as_bytes();
+    if selector_start >= bytes.len() {
+        return false;
+    }
+    let dot_index = if bytes[selector_start] == b'.' {
+        selector_start
+    } else {
+        match previous_non_whitespace_byte_index(bytes, selector_start) {
+            Some(index) if bytes[index] == b'.' => index,
+            _ => return false,
+        }
+    };
+    matches!(
+        previous_non_whitespace_byte_index(bytes, dot_index),
+        Some(index) if bytes[index] == b'&'
+    )
+}
+
+fn previous_non_whitespace_byte_index(bytes: &[u8], before: usize) -> Option<usize> {
+    let mut index = before.checked_sub(1)?;
+    loop {
+        if !bytes[index].is_ascii_whitespace() {
+            return Some(index);
+        }
+        index = index.checked_sub(1)?;
+    }
+}
+
 fn parser_byte_span_for_offsets(start: usize, end: usize) -> engine_style_parser::ParserByteSpanV0 {
     engine_style_parser::ParserByteSpanV0 { start, end }
 }
@@ -764,6 +800,35 @@ $local: red;
                 .lossless_cst_contract
                 .span_invariants
                 .byte_span_contract_ready
+        );
+    }
+
+    #[test]
+    fn keeps_omena_parser_nested_compound_selectors_rewrite_blocked() {
+        let summary = summarize_omena_parser_style_semantic_boundary_from_source(
+            "Component.module.scss",
+            ".button { &.active { color: red; } }",
+        );
+
+        assert_eq!(
+            summary.parser_facts.selectors.names,
+            vec!["active".to_string(), "button".to_string()]
+        );
+        assert_eq!(
+            summary.parser_facts.selectors.nested_unsafe_names,
+            vec!["active".to_string()]
+        );
+        assert_eq!(
+            summary
+                .semantic_facts
+                .selector_identity
+                .nested_safety_counts
+                .nested_unsafe,
+            1
+        );
+        assert_eq!(
+            summary.selector_identity_engine.rewrite_safety.blocked_canonical_ids,
+            vec!["selector:active".to_string()]
         );
     }
 
