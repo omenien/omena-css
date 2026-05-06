@@ -726,6 +726,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "dialectBogusPopulationSlice",
             "cssModuleValueCstNodes",
             "cssModuleComposesCstNodes",
+            "icssModuleBlockCstNodes",
+            "icssImportSourceValidation",
             "cssModuleBogusRecovery",
             "valueListCstNodes",
             "valueListBogusRecovery",
@@ -944,22 +946,31 @@ impl<'text> Parser<'text> {
     fn parse_rule(&mut self) {
         let starts_less_mixin =
             self.dialect == StyleDialect::Less && self.current_starts_less_callable_signature();
-        let kind = if self.current_starts_less_mixin_declaration() {
-            SyntaxKind::LessMixinDeclaration
-        } else if starts_less_mixin {
-            SyntaxKind::BogusLessMixin
-        } else if self.find_rule_block_open_before_recovery(&[
+        let has_rule_block = self.find_rule_block_open_before_recovery(&[
             SyntaxKind::Semicolon,
             SyntaxKind::SassOptionalSemicolon,
             SyntaxKind::RightBrace,
             SyntaxKind::SassDedent,
-        ]) {
+        ]);
+        let kind = if let Some(kind) = self
+            .current_icss_module_rule_kind()
+            .filter(|_| has_rule_block)
+        {
+            kind
+        } else if self.current_starts_less_mixin_declaration() {
+            SyntaxKind::LessMixinDeclaration
+        } else if starts_less_mixin {
+            SyntaxKind::BogusLessMixin
+        } else if has_rule_block {
             SyntaxKind::Rule
         } else {
             SyntaxKind::BogusRule
         };
 
         self.builder.start_node(kind);
+        if kind == SyntaxKind::CssModuleImportBlock && !self.current_icss_import_has_source() {
+            self.error_at_current(ParseErrorCode::ExpectedValue, "expected ICSS import source");
+        }
         if kind == SyntaxKind::LessMixinDeclaration {
             self.parse_less_mixin_header();
         } else if kind == SyntaxKind::BogusLessMixin {
@@ -1020,6 +1031,46 @@ impl<'text> Parser<'text> {
             }
         }
         self.builder.finish_node();
+    }
+
+    fn current_icss_module_rule_kind(&self) -> Option<SyntaxKind> {
+        if self.current_kind() != Some(SyntaxKind::Colon) {
+            return None;
+        }
+        let (name_index, name_kind) = self.non_trivia_token_from(self.position + 1)?;
+        if name_kind != SyntaxKind::Ident {
+            return None;
+        }
+        match self.tokens.get(name_index)?.text {
+            "export" => Some(SyntaxKind::CssModuleExportBlock),
+            "import" => Some(SyntaxKind::CssModuleImportBlock),
+            _ => None,
+        }
+    }
+
+    fn current_icss_import_has_source(&self) -> bool {
+        let Some((name_index, SyntaxKind::Ident)) = self.non_trivia_token_from(self.position + 1)
+        else {
+            return false;
+        };
+        if self
+            .tokens
+            .get(name_index)
+            .is_none_or(|token| token.text != "import")
+        {
+            return false;
+        }
+        let Some((open_index, SyntaxKind::LeftParen)) = self.non_trivia_token_from(name_index + 1)
+        else {
+            return false;
+        };
+        let Some((_, source_kind)) = self.non_trivia_token_from(open_index + 1) else {
+            return false;
+        };
+        matches!(
+            source_kind,
+            SyntaxKind::String | SyntaxKind::Url | SyntaxKind::ScssInterpolationStart
+        )
     }
 
     fn parse_selector_list(&mut self) {
@@ -8163,6 +8214,26 @@ mod tests {
     }
 
     #[test]
+    fn parses_icss_import_export_blocks() {
+        let result = parse(
+            ":export { primary: #fff; } :import(\"./tokens.css\") { imported: primary; } .btn { composes: imported; }",
+            StyleDialect::Css,
+        );
+        let invalid = parse(":import { imported: primary; }", StyleDialect::Css);
+        let kinds = node_kinds(&result.syntax());
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::CssModuleExportBlock));
+        assert!(kinds.contains(&SyntaxKind::CssModuleImportBlock));
+        assert!(
+            invalid
+                .errors()
+                .iter()
+                .any(|error| error.message == "expected ICSS import source")
+        );
+    }
+
+    #[test]
     fn recovers_css_module_value_and_composes_bogus_nodes() {
         let result = parse(
             "@value from; .bad { composes: from; } .missing { composes base; }",
@@ -10357,6 +10428,12 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"cssModuleComposesCstNodes")
+        );
+        assert!(summary.ready_surfaces.contains(&"icssModuleBlockCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"icssImportSourceValidation")
         );
         assert!(summary.ready_surfaces.contains(&"cssModuleBogusRecovery"));
         assert!(summary.ready_surfaces.contains(&"valueListCstNodes"));
