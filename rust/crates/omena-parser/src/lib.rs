@@ -672,6 +672,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "mediaQueryCstNodes",
             "importPreludeCstNodes",
             "propertyAtRuleNameValidation",
+            "namedAtRulePreludeValidation",
             "layerScopePreludeCstNodes",
             "pageMarginAtRuleCstNodes",
             "modernDeclarationAtRuleCstNodes",
@@ -2816,7 +2817,21 @@ impl<'text> Parser<'text> {
                 self.parse_at_rule_prelude_node(SyntaxKind::ContainerCondition)
             }
             SyntaxKind::ImportRule => self.parse_import_prelude(),
-            SyntaxKind::PropertyRule => self.parse_property_rule_prelude(),
+            SyntaxKind::PropertyRule => self.parse_named_at_rule_prelude(
+                at_rule_prelude_head_is_custom_property_name,
+                "invalid @property name",
+            ),
+            SyntaxKind::FontPaletteValuesRule
+            | SyntaxKind::ColorProfileRule
+            | SyntaxKind::PositionTryRule
+            | SyntaxKind::CustomMediaRule => self.parse_named_at_rule_prelude(
+                at_rule_prelude_head_is_custom_property_name,
+                "invalid at-rule custom property name",
+            ),
+            SyntaxKind::CounterStyleRule => self.parse_named_at_rule_prelude(
+                at_rule_prelude_head_is_custom_ident,
+                "invalid @counter-style name",
+            ),
             SyntaxKind::LayerRule => self.parse_at_rule_prelude_node(SyntaxKind::LayerName),
             SyntaxKind::ScopeRule => self.parse_at_rule_prelude_node(SyntaxKind::ScopeRange),
             _ => self.consume_at_rule_prelude_tokens(),
@@ -2923,17 +2938,19 @@ impl<'text> Parser<'text> {
         }
     }
 
-    fn parse_property_rule_prelude(&mut self) {
+    fn parse_named_at_rule_prelude(
+        &mut self,
+        valid_head: fn(SyntaxKind) -> bool,
+        message: &'static str,
+    ) {
         if self.current_kind().is_none_or(is_at_rule_prelude_boundary) {
             return;
         }
         let valid_name = self
             .non_trivia_token_from(self.position)
-            .is_some_and(|(_, kind)| {
-                kind == SyntaxKind::CustomPropertyName || is_interpolation_start(kind)
-            });
+            .is_some_and(|(_, kind)| valid_head(kind));
         if !valid_name {
-            self.error_at_current(ParseErrorCode::ExpectedValue, "invalid @property name");
+            self.error_at_current(ParseErrorCode::ExpectedValue, message);
         }
         self.consume_at_rule_prelude_tokens();
     }
@@ -6046,6 +6063,14 @@ fn function_argument_count_is_valid(function_name: &str, argument_count: usize) 
     true
 }
 
+fn at_rule_prelude_head_is_custom_property_name(kind: SyntaxKind) -> bool {
+    kind == SyntaxKind::CustomPropertyName || is_interpolation_start(kind)
+}
+
+fn at_rule_prelude_head_is_custom_ident(kind: SyntaxKind) -> bool {
+    kind == SyntaxKind::Ident || is_interpolation_start(kind)
+}
+
 fn is_dynamic_function_argument_head(kind: SyntaxKind) -> bool {
     matches!(
         kind,
@@ -7157,6 +7182,37 @@ mod tests {
         assert!(valid.errors().is_empty());
         assert!(dynamic.errors().is_empty());
         assert_eq!(invalid_property_name_count, 1);
+    }
+
+    #[test]
+    fn validates_named_declaration_at_rule_preludes() {
+        let valid = parse(
+            "@counter-style thumbs { system: cyclic; symbols: \"yes\"; } @font-palette-values --brand { font-family: Demo; } @color-profile --display-p3 { src: url(p3.icc); } @position-try --popover { inset-area: top; } @custom-media --narrow (width < 40rem);",
+            StyleDialect::Css,
+        );
+        let dynamic = parse(
+            "@counter-style #{$style} { system: cyclic; symbols: \"yes\"; } @font-palette-values #{$palette} { font-family: Demo; } @custom-media #{$query} (width < 40rem);",
+            StyleDialect::Scss,
+        );
+        let invalid = parse(
+            "@counter-style --bad { system: cyclic; } @font-palette-values brand { font-family: Demo; } @color-profile display-p3 { src: url(p3.icc); } @position-try popover { inset-area: top; } @custom-media narrow (width < 40rem);",
+            StyleDialect::Css,
+        );
+        let custom_property_name_errors = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid at-rule custom property name")
+            .count();
+        let counter_style_name_errors = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @counter-style name")
+            .count();
+
+        assert!(valid.errors().is_empty());
+        assert!(dynamic.errors().is_empty());
+        assert_eq!(custom_property_name_errors, 4);
+        assert_eq!(counter_style_name_errors, 1);
     }
 
     #[test]
@@ -8417,6 +8473,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"propertyAtRuleNameValidation")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"namedAtRulePreludeValidation")
         );
         assert!(
             summary
