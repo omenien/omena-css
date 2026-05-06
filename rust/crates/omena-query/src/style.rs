@@ -840,20 +840,8 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
             ),
         })
         .collect::<Vec<_>>();
-    let parsed_styles = style_sources
+    let workspace_declarations = style_fact_entries
         .iter()
-        .filter_map(|(style_path, style_source)| {
-            parse_style_module(style_path, style_source)
-                .map(|sheet| ((*style_path).to_string(), sheet))
-        })
-        .collect::<Vec<_>>();
-    let workspace_declarations = parsed_styles
-        .iter()
-        .filter_map(|(style_path, _sheet)| {
-            style_fact_entries
-                .iter()
-                .find(|entry| entry.style_path == *style_path)
-        })
         .flat_map(collect_design_token_workspace_declarations_from_omena_parser_facts)
         .collect::<Vec<_>>();
     let css_modules_resolution =
@@ -863,9 +851,9 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
     let graphs = style_sources
         .into_iter()
         .map(
-            |(style_path, _style_source)| OmenaQueryStyleSemanticGraphBatchEntryV0 {
+            |(style_path, style_source)| OmenaQueryStyleSemanticGraphBatchEntryV0 {
                 style_path: style_path.to_string(),
-                graph: parsed_style_by_path(&parsed_styles, style_path).map(|sheet| {
+                graph: {
                     let import_reachable_declarations =
                         filter_import_reachable_design_token_workspace_declarations(
                             style_path,
@@ -873,14 +861,14 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
                             &workspace_declarations,
                             package_manifests,
                         );
-                    summarize_omena_bridge_style_semantic_graph_for_path_with_scoped_workspace_declarations(
-                        sheet,
+                    summarize_omena_bridge_style_semantic_graph_from_source_with_scoped_workspace_declarations(
+                        style_path,
+                        style_source,
                         input,
-                        Some(style_path),
                         &import_reachable_declarations,
                         DesignTokenExternalDeclarationCandidateScopeV0::CrossFileImportGraph,
                     )
-                }),
+                },
             },
         )
         .collect::<Vec<_>>();
@@ -1744,16 +1732,6 @@ fn canonical_directed_icss_cycle_labels(path: &[CssModulesIcssNode]) -> Vec<Stri
     }
     best.push(best[0].clone());
     best
-}
-
-fn parsed_style_by_path<'a>(
-    parsed_styles: &'a [(String, Stylesheet)],
-    style_path: &str,
-) -> Option<&'a Stylesheet> {
-    parsed_styles
-        .iter()
-        .find(|(parsed_style_path, _sheet)| parsed_style_path == style_path)
-        .map(|(_style_path, sheet)| sheet)
 }
 
 fn filter_import_reachable_design_token_workspace_declarations(

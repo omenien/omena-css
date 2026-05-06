@@ -331,6 +331,22 @@ pub fn summarize_omena_bridge_style_semantic_graph_from_source(
     style_source: &str,
     input: &EngineInputV2,
 ) -> Option<StyleSemanticGraphSummaryV0> {
+    summarize_omena_bridge_style_semantic_graph_from_source_with_scoped_workspace_declarations(
+        style_path,
+        style_source,
+        input,
+        &[],
+        DesignTokenExternalDeclarationCandidateScopeV0::Workspace,
+    )
+}
+
+pub fn summarize_omena_bridge_style_semantic_graph_from_source_with_scoped_workspace_declarations(
+    style_path: &str,
+    style_source: &str,
+    input: &EngineInputV2,
+    workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
+    candidate_scope: DesignTokenExternalDeclarationCandidateScopeV0,
+) -> Option<StyleSemanticGraphSummaryV0> {
     let css_modules_semantics =
         omena_semantic::summarize_css_modules_semantics_from_source(style_path, style_source)?;
     let boundary =
@@ -343,8 +359,8 @@ pub fn summarize_omena_bridge_style_semantic_graph_from_source(
         css_modules_semantics,
         input,
         Some(style_path),
-        &[],
-        DesignTokenExternalDeclarationCandidateScopeV0::Workspace,
+        workspace_declarations,
+        candidate_scope,
     ))
 }
 
