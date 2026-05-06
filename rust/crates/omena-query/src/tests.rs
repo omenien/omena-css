@@ -233,7 +233,7 @@ fn exposes_omena_parser_style_fact_surface() {
 #[test]
 fn exposes_omena_parser_sass_symbol_fact_surface() {
     let summary = summarize_omena_query_omena_parser_style_facts(
-        "@mixin tone($color) { color: $color; } @function double($x) { @return $x * 2; } .card { @include tone(red); width: double(2px); }",
+        "@use \"./tokens\" as tokens; @forward \"./theme\"; @import \"legacy\"; @mixin tone($color) { color: $color; } @function double($x) { @return $x * 2; } .card { @include tone(red); width: double(2px); }",
         omena_parser::StyleDialect::Scss,
     );
 
@@ -283,6 +283,15 @@ fn exposes_omena_parser_sass_symbol_fact_surface() {
             && edge.reference_kind == "sassFunctionCall"
             && edge.declaration_kind == Some("sassFunctionDeclaration")
             && edge.status == "resolved"
+    }));
+    assert_eq!(summary.sass_module_use_sources, vec!["./tokens"]);
+    assert_eq!(summary.sass_module_forward_sources, vec!["./theme"]);
+    assert_eq!(summary.sass_module_import_sources, vec!["legacy"]);
+    assert!(summary.sass_module_edges.iter().any(|edge| {
+        edge.kind == "sassUse"
+            && edge.source == "./tokens"
+            && edge.namespace_kind == Some("alias")
+            && edge.namespace.as_deref() == Some("tokens")
     }));
 }
 

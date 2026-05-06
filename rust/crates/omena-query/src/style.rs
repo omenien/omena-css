@@ -51,6 +51,9 @@ pub fn summarize_omena_query_omena_parser_style_facts(
     let mut variable_names = BTreeSet::new();
     let mut sass_symbol_declaration_names = BTreeSet::new();
     let mut sass_symbol_reference_names = BTreeSet::new();
+    let mut sass_module_use_sources = BTreeSet::new();
+    let mut sass_module_forward_sources = BTreeSet::new();
+    let mut sass_module_import_sources = BTreeSet::new();
     let mut custom_property_names = BTreeSet::new();
 
     for selector in facts.selectors {
@@ -83,6 +86,20 @@ pub fn summarize_omena_query_omena_parser_style_facts(
             }
             _ => {
                 sass_symbol_reference_names.insert(symbol.name.clone());
+            }
+        }
+    }
+
+    for edge in &facts.sass_module_edges {
+        match edge.kind {
+            ParsedSassModuleEdgeFactKind::Use => {
+                sass_module_use_sources.insert(edge.source.clone());
+            }
+            ParsedSassModuleEdgeFactKind::Forward => {
+                sass_module_forward_sources.insert(edge.source.clone());
+            }
+            ParsedSassModuleEdgeFactKind::Import => {
+                sass_module_import_sources.insert(edge.source.clone());
             }
         }
     }
@@ -216,6 +233,19 @@ pub fn summarize_omena_query_omena_parser_style_facts(
             })
             .collect(),
         sass_symbol_resolution,
+        sass_module_use_sources: sass_module_use_sources.into_iter().collect(),
+        sass_module_forward_sources: sass_module_forward_sources.into_iter().collect(),
+        sass_module_import_sources: sass_module_import_sources.into_iter().collect(),
+        sass_module_edges: facts
+            .sass_module_edges
+            .into_iter()
+            .map(|edge| OmenaQuerySassModuleEdgeFactV0 {
+                kind: omena_query_sass_module_edge_fact_kind_label(edge.kind),
+                source: edge.source,
+                namespace_kind: edge.namespace_kind,
+                namespace: edge.namespace,
+            })
+            .collect(),
         custom_property_names: custom_property_names.into_iter().collect(),
         at_rule_names: facts
             .at_rules
@@ -2384,6 +2414,16 @@ fn omena_query_sass_symbol_fact_kind_label(kind: ParsedSassSymbolFactKind) -> &'
         ParsedSassSymbolFactKind::MixinInclude => "sassMixinInclude",
         ParsedSassSymbolFactKind::FunctionDeclaration => "sassFunctionDeclaration",
         ParsedSassSymbolFactKind::FunctionCall => "sassFunctionCall",
+    }
+}
+
+fn omena_query_sass_module_edge_fact_kind_label(
+    kind: ParsedSassModuleEdgeFactKind,
+) -> &'static str {
+    match kind {
+        ParsedSassModuleEdgeFactKind::Use => "sassUse",
+        ParsedSassModuleEdgeFactKind::Forward => "sassForward",
+        ParsedSassModuleEdgeFactKind::Import => "sassImport",
     }
 }
 

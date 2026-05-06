@@ -154,6 +154,8 @@ pub struct ParsedStyleFacts {
     pub variables: Vec<ParsedVariableFact>,
     pub sass_symbol_count: usize,
     pub sass_symbols: Vec<ParsedSassSymbolFact>,
+    pub sass_module_edge_count: usize,
+    pub sass_module_edges: Vec<ParsedSassModuleEdgeFact>,
     pub animation_count: usize,
     pub animations: Vec<ParsedAnimationFact>,
     pub css_module_value_count: usize,
@@ -225,6 +227,22 @@ pub enum ParsedSassSymbolFactKind {
     MixinInclude,
     FunctionDeclaration,
     FunctionCall,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedSassModuleEdgeFact {
+    pub kind: ParsedSassModuleEdgeFactKind,
+    pub source: String,
+    pub namespace_kind: Option<&'static str>,
+    pub namespace: Option<String>,
+    pub range: TextRange,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ParsedSassModuleEdgeFactKind {
+    Use,
+    Forward,
+    Import,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -743,6 +761,7 @@ pub fn collect_style_facts_with_extension(
     let selectors = collect_selector_facts_from_tokens(&tokens);
     let variables = collect_variable_facts_from_tokens(&tokens);
     let sass_symbols = collect_sass_symbol_facts_from_tokens(&tokens);
+    let sass_module_edges = collect_sass_module_edge_facts_from_tokens(&tokens);
     let animations = collect_animation_facts_from_tokens(&tokens);
     let css_module_values = collect_css_module_value_facts_from_tokens(&tokens);
     let css_module_value_import_edges =
@@ -765,6 +784,8 @@ pub fn collect_style_facts_with_extension(
         variables,
         sass_symbol_count: sass_symbols.len(),
         sass_symbols,
+        sass_module_edge_count: sass_module_edges.len(),
+        sass_module_edges,
         animation_count: animations.len(),
         animations,
         css_module_value_count: css_module_values.len(),
@@ -830,6 +851,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "scssControlPreludeValidation",
             "scssControlStyleFactExtraction",
             "scssIncludeContentBlockStyleFacts",
+            "scssSassModuleEdgeStyleFacts",
             "scssSassSymbolStyleFacts",
             "scssUtilityAtRules",
             "scssVariableFlagCstNodes",
@@ -7008,6 +7030,135 @@ fn sass_callable_name_after_at_rule<'text>(
     Some(name)
 }
 
+fn collect_sass_module_edge_facts_from_tokens(
+    tokens: &[Token<'_>],
+) -> Vec<ParsedSassModuleEdgeFact> {
+    let mut edges = Vec::new();
+    let mut seen = BTreeSet::new();
+
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::AtKeyword {
+            continue;
+        }
+        let Some(kind) = sass_module_edge_kind(token.text) else {
+            continue;
+        };
+        let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
+        let end = css_module_value_statement_end(tokens, start);
+        if kind == ParsedSassModuleEdgeFactKind::Import {
+            collect_sass_import_module_edges(tokens, start, end, &mut edges, &mut seen);
+            continue;
+        }
+        let Some(source_index) = next_non_trivia_token_index_until(tokens, start, end) else {
+            continue;
+        };
+        let source = tokens[source_index];
+        if !matches!(source.kind, SyntaxKind::String | SyntaxKind::Url) {
+            continue;
+        }
+        let source_name = css_module_value_source_name(source);
+        let (namespace_kind, namespace) = if kind == ParsedSassModuleEdgeFactKind::Use {
+            sass_module_use_namespace(tokens, source_name.as_str(), source_index + 1, end)
+        } else {
+            (None, None)
+        };
+        push_sass_module_edge_fact(
+            &mut edges,
+            &mut seen,
+            ParsedSassModuleEdgeFact {
+                kind,
+                source: source_name,
+                namespace_kind,
+                namespace,
+                range: source.range,
+            },
+        );
+    }
+
+    edges
+}
+
+fn sass_module_edge_kind(text: &str) -> Option<ParsedSassModuleEdgeFactKind> {
+    match text {
+        text if text.eq_ignore_ascii_case("@use") => Some(ParsedSassModuleEdgeFactKind::Use),
+        text if text.eq_ignore_ascii_case("@forward") => {
+            Some(ParsedSassModuleEdgeFactKind::Forward)
+        }
+        text if text.eq_ignore_ascii_case("@import") => Some(ParsedSassModuleEdgeFactKind::Import),
+        _ => None,
+    }
+}
+
+fn collect_sass_import_module_edges(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    edges: &mut Vec<ParsedSassModuleEdgeFact>,
+    seen: &mut BTreeSet<(ParsedSassModuleEdgeFactKind, String, u32, u32)>,
+) {
+    for token in &tokens[start..end] {
+        if !matches!(token.kind, SyntaxKind::String | SyntaxKind::Url) {
+            continue;
+        }
+        push_sass_module_edge_fact(
+            edges,
+            seen,
+            ParsedSassModuleEdgeFact {
+                kind: ParsedSassModuleEdgeFactKind::Import,
+                source: css_module_value_source_name(*token),
+                namespace_kind: None,
+                namespace: None,
+                range: token.range,
+            },
+        );
+    }
+}
+
+fn sass_module_use_namespace(
+    tokens: &[Token<'_>],
+    source: &str,
+    start: usize,
+    end: usize,
+) -> (Option<&'static str>, Option<String>) {
+    let Some(as_index) = top_level_token_text_index(tokens, start, end, "as") else {
+        return (
+            Some("default"),
+            sass_module_default_namespace(source).map(str::to_string),
+        );
+    };
+    let Some(namespace_index) = next_non_trivia_token_index_until(tokens, as_index + 1, end) else {
+        return (Some("invalid"), None);
+    };
+    let namespace = tokens[namespace_index];
+    match namespace.kind {
+        SyntaxKind::Star => (Some("wildcard"), None),
+        SyntaxKind::Ident => (Some("alias"), Some(namespace.text.to_string())),
+        _ => (Some("invalid"), None),
+    }
+}
+
+fn sass_module_default_namespace(source: &str) -> Option<&str> {
+    let basename = source
+        .rsplit(['/', '\\', ':'])
+        .next()
+        .unwrap_or(source)
+        .trim_start_matches('_');
+    let namespace = basename.split('.').next().unwrap_or(basename);
+    (!namespace.is_empty()).then_some(namespace)
+}
+
+fn push_sass_module_edge_fact(
+    edges: &mut Vec<ParsedSassModuleEdgeFact>,
+    seen: &mut BTreeSet<(ParsedSassModuleEdgeFactKind, String, u32, u32)>,
+    edge: ParsedSassModuleEdgeFact,
+) {
+    let start: u32 = edge.range.start().into();
+    let end: u32 = edge.range.end().into();
+    if seen.insert((edge.kind, edge.source.clone(), start, end)) {
+        edges.push(edge);
+    }
+}
+
 fn collect_css_module_value_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleValueFact> {
@@ -11878,6 +12029,40 @@ mod tests {
             "color",
             "reference"
         )));
+    }
+
+    #[test]
+    fn extracts_sass_module_edge_style_facts() {
+        let facts = collect_style_facts(
+            r#"@use "./tokens" as tokens; @use "./reset" as *; @use "sass:map"; @forward "./theme"; @import "legacy", url("print.css");"#,
+            StyleDialect::Scss,
+        );
+
+        assert_eq!(facts.sass_module_edge_count, 6);
+        assert!(facts.sass_module_edges.iter().any(|edge| {
+            edge.kind == ParsedSassModuleEdgeFactKind::Use
+                && edge.source == "./tokens"
+                && edge.namespace_kind == Some("alias")
+                && edge.namespace.as_deref() == Some("tokens")
+        }));
+        assert!(facts.sass_module_edges.iter().any(|edge| {
+            edge.kind == ParsedSassModuleEdgeFactKind::Use
+                && edge.source == "./reset"
+                && edge.namespace_kind == Some("wildcard")
+                && edge.namespace.is_none()
+        }));
+        assert!(facts.sass_module_edges.iter().any(|edge| {
+            edge.kind == ParsedSassModuleEdgeFactKind::Use
+                && edge.source == "sass:map"
+                && edge.namespace_kind == Some("default")
+                && edge.namespace.as_deref() == Some("map")
+        }));
+        assert!(facts.sass_module_edges.iter().any(|edge| {
+            edge.kind == ParsedSassModuleEdgeFactKind::Forward && edge.source == "./theme"
+        }));
+        assert!(facts.sass_module_edges.iter().any(|edge| {
+            edge.kind == ParsedSassModuleEdgeFactKind::Import && edge.source == "legacy"
+        }));
     }
 
     #[test]

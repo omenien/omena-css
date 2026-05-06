@@ -41,8 +41,8 @@ use omena_incremental::OmenaIncrementalDatabaseV0;
 pub use omena_parser::StyleDialect as OmenaParserStyleDialect;
 use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
-    ParsedCssModuleValueFactKind, ParsedIcssFactKind, ParsedSassSymbolFactKind,
-    ParsedSelectorFactKind, ParsedVariableFactKind, collect_style_facts,
+    ParsedCssModuleValueFactKind, ParsedIcssFactKind, ParsedSassModuleEdgeFactKind,
+    ParsedSassSymbolFactKind, ParsedSelectorFactKind, ParsedVariableFactKind, collect_style_facts,
 };
 use omena_resolver::{
     OmenaResolverSourceResolutionRuntimeIndexV0, OmenaResolverStylePackageManifestV0,
