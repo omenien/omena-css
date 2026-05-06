@@ -828,6 +828,16 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryStyleSemanticGraphBatchOutputV0 {
     let style_sources = styles.into_iter().collect::<Vec<_>>();
+    let style_fact_entries = style_sources
+        .iter()
+        .map(|(style_path, style_source)| OmenaQueryStyleFactEntry {
+            style_path: (*style_path).to_string(),
+            facts: summarize_omena_query_omena_parser_style_facts(
+                style_source,
+                omena_parser_dialect_for_style_path(style_path),
+            ),
+        })
+        .collect::<Vec<_>>();
     let parsed_styles = style_sources
         .iter()
         .filter_map(|(style_path, style_source)| {
@@ -842,9 +852,9 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
         })
         .collect::<Vec<_>>();
     let css_modules_resolution =
-        summarize_css_modules_cross_file_resolution(&parsed_styles, package_manifests);
+        summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
     let sass_module_resolution =
-        summarize_sass_module_cross_file_resolution(&parsed_styles, package_manifests);
+        summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
     let graphs = style_sources
         .into_iter()
         .map(
@@ -854,7 +864,7 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
                     let import_reachable_declarations =
                         filter_import_reachable_design_token_workspace_declarations(
                             style_path,
-                            &parsed_styles,
+                            &style_fact_entries,
                             &workspace_declarations,
                             package_manifests,
                         );
@@ -879,13 +889,18 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
     }
 }
 
+struct OmenaQueryStyleFactEntry {
+    style_path: String,
+    facts: OmenaQueryOmenaParserStyleFactsV0,
+}
+
 fn summarize_sass_module_cross_file_resolution(
-    parsed_styles: &[(String, Stylesheet)],
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQuerySassModuleCrossFileResolutionV0 {
-    let available_style_paths = parsed_styles
+    let available_style_paths = style_fact_entries
         .iter()
-        .map(|(style_path, _sheet)| style_path.as_str())
+        .map(|entry| entry.style_path.as_str())
         .collect::<BTreeSet<_>>();
     let resolver_package_manifests = package_manifests
         .iter()
@@ -896,14 +911,10 @@ fn summarize_sass_module_cross_file_resolution(
         .collect::<Vec<_>>();
     let mut edges = Vec::new();
 
-    for (style_path, sheet) in parsed_styles {
-        let facts = summarize_omena_query_omena_parser_style_facts(
-            sheet.source.as_str(),
-            omena_parser_dialect_for_style_language(sheet.language),
-        );
-        for edge in facts.sass_module_edges {
+    for entry in style_fact_entries {
+        for edge in &entry.facts.sass_module_edges {
             let resolution = summarize_omena_resolver_style_module_resolution(
-                style_path,
+                entry.style_path.as_str(),
                 edge.source.as_str(),
                 &available_style_paths,
                 &resolver_package_manifests,
@@ -916,11 +927,11 @@ fn summarize_sass_module_cross_file_resolution(
                 "unresolved"
             };
             edges.push(OmenaQuerySassModuleEdgeResolutionV0 {
-                from_style_path: style_path.clone(),
+                from_style_path: entry.style_path.clone(),
                 edge_kind: edge.kind,
-                source: edge.source,
+                source: edge.source.clone(),
                 namespace_kind: edge.namespace_kind,
-                namespace: edge.namespace,
+                namespace: edge.namespace.clone(),
                 resolved_style_path: resolution.resolved_style_path,
                 status,
                 resolution_kind: resolution.resolution_kind,
@@ -953,7 +964,7 @@ fn summarize_sass_module_cross_file_resolution(
         product: "omena-query.sass-module-cross-file-resolution",
         status: "omenaParserModuleEdgesResolved",
         resolution_scope: "batchModuleGraph",
-        style_count: parsed_styles.len(),
+        style_count: style_fact_entries.len(),
         module_edge_count: edges.len(),
         resolved_module_edge_count,
         unresolved_module_edge_count,
@@ -970,34 +981,27 @@ fn summarize_sass_module_cross_file_resolution(
 }
 
 fn summarize_css_modules_cross_file_resolution(
-    parsed_styles: &[(String, Stylesheet)],
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryCssModulesCrossFileResolutionV0 {
-    let available_style_paths = parsed_styles
+    let available_style_paths = style_fact_entries
         .iter()
-        .map(|(style_path, _sheet)| style_path.as_str())
+        .map(|entry| entry.style_path.as_str())
         .collect::<BTreeSet<_>>();
-    let facts_by_path = parsed_styles
+    let facts_by_path = style_fact_entries
         .iter()
-        .map(|(style_path, sheet)| {
-            (
-                style_path.as_str(),
-                summarize_omena_query_omena_parser_style_facts(
-                    sheet.source.as_str(),
-                    omena_parser_dialect_for_style_language(sheet.language),
-                ),
-            )
-        })
+        .map(|entry| (entry.style_path.as_str(), entry.facts.clone()))
         .collect::<BTreeMap<_, _>>();
     let mut edges = Vec::new();
 
-    for (style_path, _sheet) in parsed_styles {
-        let Some(facts) = facts_by_path.get(style_path.as_str()) else {
+    for entry in style_fact_entries {
+        let style_path = entry.style_path.as_str();
+        let Some(facts) = facts_by_path.get(style_path) else {
             continue;
         };
         let reachable = collect_import_reachable_style_path_metadata(
             style_path,
-            parsed_styles,
+            style_fact_entries,
             package_manifests,
         );
         let context = CssModulesResolutionBatchContext {
@@ -1087,7 +1091,7 @@ fn summarize_css_modules_cross_file_resolution(
         product: "omena-query.css-modules-cross-file-resolution",
         status: "icssExportImportClosureSeed",
         resolution_scope: "batchImportGraph",
-        style_count: parsed_styles.len(),
+        style_count: style_fact_entries.len(),
         import_edge_count: edges.len(),
         resolved_import_edge_count,
         unresolved_import_edge_count: edges.len() - resolved_import_edge_count,
@@ -1715,13 +1719,13 @@ fn parsed_style_by_path<'a>(
 
 fn filter_import_reachable_design_token_workspace_declarations(
     target_style_path: &str,
-    parsed_styles: &[(String, Stylesheet)],
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
     workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Vec<DesignTokenWorkspaceDeclarationFactV0> {
     let reachable_style_paths = collect_import_reachable_style_path_metadata(
         target_style_path,
-        parsed_styles,
+        style_fact_entries,
         package_manifests,
     );
     workspace_declarations
@@ -1747,26 +1751,26 @@ struct ImportReachability {
 
 fn collect_import_reachable_style_path_metadata(
     target_style_path: &str,
-    parsed_styles: &[(String, Stylesheet)],
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> BTreeMap<String, ImportReachability> {
     let mut reachable_style_paths = BTreeMap::new();
-    let available_style_paths = parsed_styles
+    let available_style_paths = style_fact_entries
         .iter()
-        .map(|(style_path, _sheet)| style_path.as_str())
+        .map(|entry| entry.style_path.as_str())
         .collect::<BTreeSet<_>>();
     let mut pending_style_paths = collect_import_reachable_direct_style_paths(
         target_style_path,
-        parsed_styles,
+        style_fact_entries,
         &available_style_paths,
         package_manifests,
     )
     .into_iter()
     .map(|style_path| (style_path, 1usize))
     .collect::<VecDeque<_>>();
-    let style_by_path = parsed_styles
+    let facts_by_path = style_fact_entries
         .iter()
-        .map(|(style_path, sheet)| (style_path.as_str(), sheet))
+        .map(|entry| (entry.style_path.as_str(), &entry.facts))
         .collect::<BTreeMap<_, _>>();
     let mut visit_order = 0usize;
 
@@ -1783,10 +1787,10 @@ fn collect_import_reachable_style_path_metadata(
         );
         visit_order += 1;
 
-        let Some(sheet) = style_by_path.get(style_path.as_str()) else {
+        let Some(facts) = facts_by_path.get(style_path.as_str()) else {
             continue;
         };
-        for source in collect_sass_module_sources(sheet) {
+        for source in collect_sass_module_sources_from_facts(facts) {
             if let Some(next_style_path) = resolve_style_module_source(
                 &style_path,
                 &source,
@@ -1803,14 +1807,18 @@ fn collect_import_reachable_style_path_metadata(
 
 fn collect_import_reachable_direct_style_paths(
     target_style_path: &str,
-    parsed_styles: &[(String, Stylesheet)],
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
     available_style_paths: &BTreeSet<&str>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Vec<String> {
-    let Some(target_sheet) = parsed_style_by_path(parsed_styles, target_style_path) else {
+    let Some(target_facts) = style_fact_entries
+        .iter()
+        .find(|entry| entry.style_path == target_style_path)
+        .map(|entry| &entry.facts)
+    else {
         return Vec::new();
     };
-    collect_sass_module_sources(target_sheet)
+    collect_sass_module_sources_from_facts(target_facts)
         .into_iter()
         .filter_map(|source| {
             resolve_style_module_source(
@@ -1823,15 +1831,11 @@ fn collect_import_reachable_direct_style_paths(
         .collect()
 }
 
-fn collect_sass_module_sources(sheet: &Stylesheet) -> Vec<String> {
-    let facts = collect_style_facts(
-        sheet.source.as_str(),
-        omena_parser_dialect_for_style_language(sheet.language),
-    );
+fn collect_sass_module_sources_from_facts(facts: &OmenaQueryOmenaParserStyleFactsV0) -> Vec<String> {
     let mut sources = facts
         .sass_module_edges
-        .into_iter()
-        .map(|edge| edge.source)
+        .iter()
+        .map(|edge| edge.source.clone())
         .collect::<Vec<_>>();
     sources.sort();
     sources.dedup();
@@ -2518,14 +2522,6 @@ fn source_reference_matches_target_style(
 
 fn is_sass_builtin_module_source(source: &str) -> bool {
     source.starts_with("sass:")
-}
-
-fn omena_parser_dialect_for_style_language(language: StyleLanguage) -> OmenaParserStyleDialect {
-    match language {
-        StyleLanguage::Css => OmenaParserStyleDialect::Css,
-        StyleLanguage::Scss => OmenaParserStyleDialect::Scss,
-        StyleLanguage::Less => OmenaParserStyleDialect::Less,
-    }
 }
 
 fn omena_parser_dialect_for_style_path(style_path: &str) -> OmenaParserStyleDialect {
