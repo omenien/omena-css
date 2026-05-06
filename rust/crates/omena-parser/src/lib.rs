@@ -687,6 +687,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "envAttrFunctionCstNodes",
             "mathFunctionCstNodes",
             "mathFunctionArityChecks",
+            "varEnvAttrFunctionHeadChecks",
             "scssInterpolationTokenization",
             "scssInterpolationCstNodes",
             "lessInterpolationTokenization",
@@ -2542,6 +2543,7 @@ impl<'text> Parser<'text> {
         let function_name = self.current_text().map(str::to_owned);
         let function_range = self.current_range();
         let argument_count = self.current_function_top_level_argument_count_before(recovery);
+        let argument_head = self.current_function_first_argument_token_before(recovery);
         let specialized_kind = function_name.as_deref().and_then(specialized_function_kind);
         let closed = self.current_function_has_closing_paren_before(recovery);
         let function_kind = if closed {
@@ -2575,8 +2577,15 @@ impl<'text> Parser<'text> {
                 );
             }
         }
-        if let (Some(function_name), Some(argument_count)) = (function_name, argument_count) {
-            self.validate_function_argument_count(&function_name, argument_count, function_range);
+        if let Some(function_name) = function_name {
+            if let Some(argument_count) = argument_count {
+                self.validate_function_argument_count(
+                    &function_name,
+                    argument_count,
+                    function_range,
+                );
+            }
+            self.validate_function_argument_head(&function_name, argument_head, function_range);
         }
         if specialized_kind.is_some() {
             self.builder.finish_node();
@@ -2622,6 +2631,27 @@ impl<'text> Parser<'text> {
         None
     }
 
+    fn current_function_first_argument_token_before(
+        &self,
+        recovery: &[SyntaxKind],
+    ) -> Option<Token<'text>> {
+        if self.next_kind() != Some(SyntaxKind::LeftParen) {
+            return None;
+        }
+
+        let mut index = self.position + 2;
+        while let Some(token) = self.tokens.get(index).copied() {
+            match token.kind {
+                kind if recovery.contains(&kind) => return None,
+                SyntaxKind::RightParen => return None,
+                kind if kind.is_trivia() => {}
+                _ => return Some(token),
+            }
+            index += 1;
+        }
+        None
+    }
+
     fn validate_function_argument_count(
         &mut self,
         function_name: &str,
@@ -2635,6 +2665,38 @@ impl<'text> Parser<'text> {
             code: ParseErrorCode::ExpectedValue,
             range,
             message: "invalid function argument count",
+        });
+    }
+
+    fn validate_function_argument_head(
+        &mut self,
+        function_name: &str,
+        argument_head: Option<Token<'text>>,
+        range: TextRange,
+    ) {
+        let head_kind = argument_head.map(|token| token.kind);
+        let valid = if function_name.eq_ignore_ascii_case("var") {
+            matches!(head_kind, Some(SyntaxKind::CustomPropertyName))
+                || head_kind.is_some_and(is_dynamic_function_argument_head)
+        } else if function_name.eq_ignore_ascii_case("env") {
+            matches!(
+                head_kind,
+                Some(SyntaxKind::Ident | SyntaxKind::CustomPropertyName)
+            ) || head_kind.is_some_and(is_dynamic_function_argument_head)
+        } else if function_name.eq_ignore_ascii_case("attr") {
+            matches!(head_kind, Some(SyntaxKind::Ident))
+                || head_kind.is_some_and(is_dynamic_function_argument_head)
+        } else {
+            true
+        };
+
+        if valid {
+            return;
+        }
+        self.errors.push(ParseError {
+            code: ParseErrorCode::ExpectedValue,
+            range,
+            message: "invalid function argument head",
         });
     }
 
@@ -5917,6 +5979,16 @@ fn function_argument_count_is_valid(function_name: &str, argument_count: usize) 
     true
 }
 
+fn is_dynamic_function_argument_head(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::ScssVariable
+            | SyntaxKind::LessVariable
+            | SyntaxKind::ScssInterpolationStart
+            | SyntaxKind::LessInterpolationStart
+    )
+}
+
 fn matches_ignore_ascii_case(value: &str, candidates: &[&str]) -> bool {
     candidates
         .iter()
@@ -7180,6 +7252,31 @@ mod tests {
     }
 
     #[test]
+    fn validates_var_env_attr_function_argument_heads() {
+        let valid = parse(
+            ".a { color: var(--brand, red, blue); padding: env(safe-area-inset-top, 0px); content: attr(data-label string, \"x\"); }",
+            StyleDialect::Css,
+        );
+        let dynamic = parse(
+            ".a { color: var(#{$name}); padding: env($area); content: attr(#{$attribute}); }",
+            StyleDialect::Scss,
+        );
+        let invalid = parse(
+            ".a { color: var(color); padding: env(, 0px); content: attr(123); }",
+            StyleDialect::Css,
+        );
+        let invalid_head_count = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid function argument head")
+            .count();
+
+        assert!(valid.errors().is_empty());
+        assert!(dynamic.errors().is_empty());
+        assert_eq!(invalid_head_count, 3);
+    }
+
+    #[test]
     fn structures_css_value_atoms_and_function_argument_lists() {
         let result = parse(
             ".a { color: #fff; width: clamp(1rem, calc(2px + 3px), 4rem); opacity: 50%; z-index: 1; font-family: system, \"Demo\"; unicode-range: U+00A0-00FF; }",
@@ -8218,6 +8315,11 @@ mod tests {
         assert!(summary.ready_surfaces.contains(&"envAttrFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"mathFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"mathFunctionArityChecks"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"varEnvAttrFunctionHeadChecks")
+        );
         assert!(
             summary
                 .ready_surfaces
