@@ -4,7 +4,7 @@ use engine_style_parser::{
 };
 use omena_semantic::{
     CssModulesSemanticSummaryV0, DesignTokenSemanticSummaryV0, LosslessCstContractV0,
-    SelectorIdentityEngineSummaryV0,
+    SelectorIdentityEngineSummaryV0, StyleSemanticBoundarySummaryV0,
 };
 pub use omena_semantic::{
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
@@ -129,6 +129,7 @@ pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
         bridge_owned_surfaces: vec![
             "styleSemanticGraph",
             "styleSemanticGraphFromSource",
+            "omenaParserBackedStyleSemanticBoundaryFromSource",
             "selectorReferenceEngine",
             "sourceInputEvidence",
             "sourceImportDeclarations",
@@ -269,6 +270,24 @@ pub fn summarize_omena_bridge_style_semantic_graph_for_path_with_scoped_workspac
     candidate_scope: DesignTokenExternalDeclarationCandidateScopeV0,
 ) -> StyleSemanticGraphSummaryV0 {
     let boundary = omena_semantic::summarize_style_semantic_boundary(sheet);
+    summarize_omena_bridge_style_semantic_graph_with_boundary(
+        boundary,
+        sheet,
+        input,
+        style_path,
+        workspace_declarations,
+        candidate_scope,
+    )
+}
+
+fn summarize_omena_bridge_style_semantic_graph_with_boundary(
+    boundary: StyleSemanticBoundarySummaryV0,
+    sheet: &Stylesheet,
+    input: &EngineInputV2,
+    style_path: Option<&str>,
+    workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
+    candidate_scope: DesignTokenExternalDeclarationCandidateScopeV0,
+) -> StyleSemanticGraphSummaryV0 {
     let parser_facts = boundary.parser_facts;
     let semantic_facts = boundary.semantic_facts;
     let design_token_semantics =
@@ -313,10 +332,18 @@ pub fn summarize_omena_bridge_style_semantic_graph_from_source(
     input: &EngineInputV2,
 ) -> Option<StyleSemanticGraphSummaryV0> {
     let sheet = parse_style_module(style_path, style_source)?;
-    Some(summarize_omena_bridge_style_semantic_graph_for_path(
+    let boundary =
+        omena_semantic::summarize_omena_parser_style_semantic_boundary_from_source(
+            style_path,
+            style_source,
+        );
+    Some(summarize_omena_bridge_style_semantic_graph_with_boundary(
+        boundary,
         &sheet,
         input,
         Some(style_path),
+        &[],
+        DesignTokenExternalDeclarationCandidateScopeV0::Workspace,
     ))
 }
 
@@ -368,6 +395,11 @@ mod tests {
             boundary
                 .bridge_owned_surfaces
                 .contains(&"styleSemanticGraphFromSource")
+        );
+        assert!(
+            boundary
+                .bridge_owned_surfaces
+                .contains(&"omenaParserBackedStyleSemanticBoundaryFromSource")
         );
         assert!(
             boundary
@@ -545,12 +577,28 @@ const lazy = import("./ignored.module.scss");
     fn exposes_style_semantic_graph_from_source_through_bridge() -> Result<(), String> {
         let graph = summarize_omena_bridge_style_semantic_graph_from_source(
             "/tmp/Component.module.scss",
-            ".button { color: red; }",
+            r#"@use "./tokens" as tokens; .button { --brand: red; color: var(--brand); color: tokens.$brand; }"#,
             &sample_engine_input(),
         )
         .ok_or_else(|| "bridge should parse SCSS module source".to_string())?;
 
         assert_eq!(graph.product, "omena-semantic.style-semantic-graph");
+        assert_eq!(
+            graph.parser_facts.custom_properties.decl_names,
+            vec!["--brand".to_string()]
+        );
+        assert_eq!(
+            graph.parser_facts.custom_properties.ref_names,
+            vec!["--brand".to_string()]
+        );
+        assert_eq!(
+            graph.parser_facts.sass.module_use_edges[0].namespace_kind,
+            "alias"
+        );
+        assert_eq!(
+            graph.parser_facts.sass.variable_ref_names,
+            vec!["brand".to_string()]
+        );
         assert_eq!(
             graph.selector_reference_engine.style_path,
             Some("/tmp/Component.module.scss".to_string())
