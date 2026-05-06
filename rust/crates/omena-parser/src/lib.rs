@@ -649,6 +649,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "cssModuleScopeFunctionCstNodes",
             "scssStructuredBlockAtRules",
             "scssUtilityAtRules",
+            "scssVariableFlagCstNodes",
             "scssNestedPropertyCstNodes",
             "scssModuleConfigCstNodes",
             "scssModuleConfigBogusRecovery",
@@ -2611,6 +2612,9 @@ impl<'text> Parser<'text> {
             Some(SyntaxKind::Delim) if self.current_split_important_annotation() => {
                 self.parse_split_important_annotation()
             }
+            Some(SyntaxKind::Delim) if self.current_scss_variable_flag_annotation() => {
+                self.parse_scss_variable_flag_annotation()
+            }
             Some(kind) if is_interpolation_start(kind) => self.parse_interpolation(kind, recovery),
             Some(SyntaxKind::ScssVariable) => {
                 self.builder.start_node(SyntaxKind::ScssVariableReference);
@@ -2668,6 +2672,14 @@ impl<'text> Parser<'text> {
         {
             self.token_current();
         }
+        self.builder.finish_node();
+    }
+
+    fn parse_scss_variable_flag_annotation(&mut self) {
+        self.builder.start_node(SyntaxKind::ScssVariableFlag);
+        self.token_current();
+        self.eat_value_trivia();
+        self.token_current();
         self.builder.finish_node();
     }
 
@@ -3934,6 +3946,20 @@ impl<'text> Parser<'text> {
                             .tokens
                             .get(index)
                             .is_some_and(|token| token.text.eq_ignore_ascii_case("important"))
+                })
+    }
+
+    fn current_scss_variable_flag_annotation(&self) -> bool {
+        matches!(self.dialect, StyleDialect::Scss | StyleDialect::Sass)
+            && self.current_text() == Some("!")
+            && self
+                .non_trivia_token_from(self.position + 1)
+                .is_some_and(|(index, kind)| {
+                    kind == SyntaxKind::Ident
+                        && self.tokens.get(index).is_some_and(|token| {
+                            token.text.eq_ignore_ascii_case("default")
+                                || token.text.eq_ignore_ascii_case("global")
+                        })
                 })
     }
 
@@ -8649,6 +8675,23 @@ mod tests {
     }
 
     #[test]
+    fn structures_scss_variable_flags() {
+        let result = parse(
+            "$gap: 1rem ! /* keep */ default !global;",
+            StyleDialect::Scss,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let flag_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::ScssVariableFlag)
+            .count();
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::ScssVariableDeclaration));
+        assert_eq!(flag_count, 2);
+    }
+
+    #[test]
     fn parses_less_mixin_declarations_calls_and_guards() {
         let result = parse(
             ".theme(@color) when (iscolor(@color)) { color: @color; .rounded(); } .card { .theme(#fff); }",
@@ -9386,6 +9429,7 @@ mod tests {
                 .contains(&"scssStructuredBlockAtRules")
         );
         assert!(summary.ready_surfaces.contains(&"scssUtilityAtRules"));
+        assert!(summary.ready_surfaces.contains(&"scssVariableFlagCstNodes"));
         assert!(
             summary
                 .ready_surfaces

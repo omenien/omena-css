@@ -371,6 +371,7 @@ syntax_kinds! {
     ScssWarnRule = 0x1416,
     ScssDebugRule = 0x1417,
     ScssContentRule = 0x1418,
+    ScssVariableFlag = 0x1419,
     LessStylesheet = 0x1420,
     LessVariableDeclaration = 0x1421,
     LessVariableReference = 0x1422,
