@@ -203,6 +203,18 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "css-color-function-micro-grammars",
+    dialect: "css",
+    source: `.paint { color: color-mix(in srgb, red, blue 30%); background: light-dark(white, black); border-color: contrast-color(red); accent-color: device-cmyk(0 1 1 0); }`,
+    expected: {
+      classSelectorNames: ["paint"],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: [],
+      atRuleNames: [],
+    },
+  },
+  {
     label: "scss-nested-property-blocks",
     dialect: "scss",
     source: `.card { font: { size: 1rem; weight: 700; } }`,
