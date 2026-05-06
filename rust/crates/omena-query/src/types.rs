@@ -69,6 +69,7 @@ pub struct OmenaQueryStyleSemanticGraphBatchOutputV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub css_modules_resolution: OmenaQueryCssModulesCrossFileResolutionV0,
+    pub sass_module_resolution: OmenaQuerySassModuleCrossFileResolutionV0,
     pub graphs: Vec<OmenaQueryStyleSemanticGraphBatchEntryV0>,
 }
 
@@ -172,6 +173,46 @@ pub struct OmenaQueryCssModulesCrossFileResolutionCapabilitiesV0 {
     pub value_graph_closure_ready: bool,
     pub icss_export_import_closure_ready: bool,
     pub cycle_detection_ready: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySassModuleCrossFileResolutionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub status: &'static str,
+    pub resolution_scope: &'static str,
+    pub style_count: usize,
+    pub module_edge_count: usize,
+    pub resolved_module_edge_count: usize,
+    pub unresolved_module_edge_count: usize,
+    pub external_module_edge_count: usize,
+    pub edges: Vec<OmenaQuerySassModuleEdgeResolutionV0>,
+    pub capabilities: OmenaQuerySassModuleCrossFileResolutionCapabilitiesV0,
+    pub next_priorities: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySassModuleEdgeResolutionV0 {
+    pub from_style_path: String,
+    pub edge_kind: &'static str,
+    pub source: String,
+    pub namespace_kind: Option<&'static str>,
+    pub namespace: Option<String>,
+    pub resolved_style_path: Option<String>,
+    pub status: &'static str,
+    pub resolution_kind: &'static str,
+    pub candidate_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySassModuleCrossFileResolutionCapabilitiesV0 {
+    pub omena_parser_module_edge_consumption_ready: bool,
+    pub resolver_backed_source_resolution_ready: bool,
+    pub package_manifest_resolution_ready: bool,
+    pub external_module_filtering_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

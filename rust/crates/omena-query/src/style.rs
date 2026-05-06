@@ -787,6 +787,8 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
         .collect::<Vec<_>>();
     let css_modules_resolution =
         summarize_css_modules_cross_file_resolution(&parsed_styles, package_manifests);
+    let sass_module_resolution =
+        summarize_sass_module_cross_file_resolution(&parsed_styles, package_manifests);
     let graphs = style_sources
         .into_iter()
         .map(
@@ -816,7 +818,98 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
         schema_version: "0",
         product: "omena-semantic.style-semantic-graph-batch",
         css_modules_resolution,
+        sass_module_resolution,
         graphs,
+    }
+}
+
+fn summarize_sass_module_cross_file_resolution(
+    parsed_styles: &[(String, Stylesheet)],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQuerySassModuleCrossFileResolutionV0 {
+    let available_style_paths = parsed_styles
+        .iter()
+        .map(|(style_path, _sheet)| style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let resolver_package_manifests = package_manifests
+        .iter()
+        .map(|manifest| OmenaResolverStylePackageManifestV0 {
+            package_json_path: manifest.package_json_path.clone(),
+            package_json_source: manifest.package_json_source.clone(),
+        })
+        .collect::<Vec<_>>();
+    let mut edges = Vec::new();
+
+    for (style_path, sheet) in parsed_styles {
+        let facts = summarize_omena_query_omena_parser_style_facts(
+            sheet.source.as_str(),
+            omena_parser_dialect_for_style_language(sheet.language),
+        );
+        for edge in facts.sass_module_edges {
+            let resolution = summarize_omena_resolver_style_module_resolution(
+                style_path,
+                edge.source.as_str(),
+                &available_style_paths,
+                &resolver_package_manifests,
+            );
+            let status = if resolution.resolution_kind == "externalIgnored" {
+                "external"
+            } else if resolution.resolved_style_path.is_some() {
+                "resolved"
+            } else {
+                "unresolved"
+            };
+            edges.push(OmenaQuerySassModuleEdgeResolutionV0 {
+                from_style_path: style_path.clone(),
+                edge_kind: edge.kind,
+                source: edge.source,
+                namespace_kind: edge.namespace_kind,
+                namespace: edge.namespace,
+                resolved_style_path: resolution.resolved_style_path,
+                status,
+                resolution_kind: resolution.resolution_kind,
+                candidate_count: resolution.candidate_count,
+            });
+        }
+    }
+
+    edges.sort_by_key(|edge| {
+        (
+            edge.from_style_path.clone(),
+            edge.edge_kind,
+            edge.source.clone(),
+        )
+    });
+    let resolved_module_edge_count = edges
+        .iter()
+        .filter(|edge| edge.status == "resolved")
+        .count();
+    let external_module_edge_count = edges
+        .iter()
+        .filter(|edge| edge.status == "external")
+        .count();
+    let unresolved_module_edge_count = edges
+        .len()
+        .saturating_sub(resolved_module_edge_count + external_module_edge_count);
+
+    OmenaQuerySassModuleCrossFileResolutionV0 {
+        schema_version: "0",
+        product: "omena-query.sass-module-cross-file-resolution",
+        status: "omenaParserModuleEdgesResolved",
+        resolution_scope: "batchModuleGraph",
+        style_count: parsed_styles.len(),
+        module_edge_count: edges.len(),
+        resolved_module_edge_count,
+        unresolved_module_edge_count,
+        external_module_edge_count,
+        edges,
+        capabilities: OmenaQuerySassModuleCrossFileResolutionCapabilitiesV0 {
+            omena_parser_module_edge_consumption_ready: true,
+            resolver_backed_source_resolution_ready: true,
+            package_manifest_resolution_ready: true,
+            external_module_filtering_ready: true,
+        },
+        next_priorities: vec!["scssModuleGraphClosure", "namespaceShowHideFilters"],
     }
 }
 

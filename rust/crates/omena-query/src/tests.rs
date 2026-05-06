@@ -918,6 +918,27 @@ fn style_semantic_graph_batch_resolves_package_root_forward_chain_token_candidat
     );
     assert_eq!(ranked_reference.winner_import_graph_distance, Some(3));
     assert_eq!(ranked_reference.cross_file_candidate_declaration_count, 1);
+    assert_eq!(
+        batch.sass_module_resolution.product,
+        "omena-query.sass-module-cross-file-resolution"
+    );
+    assert_eq!(batch.sass_module_resolution.module_edge_count, 3);
+    assert_eq!(batch.sass_module_resolution.resolved_module_edge_count, 3);
+    assert_eq!(batch.sass_module_resolution.unresolved_module_edge_count, 0);
+    assert!(
+        batch
+            .sass_module_resolution
+            .capabilities
+            .omena_parser_module_edge_consumption_ready
+    );
+    assert!(batch.sass_module_resolution.edges.iter().any(|edge| {
+        edge.from_style_path == "/fake/workspace/src/_utils.scss"
+            && edge.edge_kind == "sassForward"
+            && edge.source == "@design/tokens"
+            && edge.resolved_style_path.as_deref()
+                == Some("/fake/workspace/node_modules/@design/tokens/src/index.scss")
+            && edge.status == "resolved"
+    }));
 }
 
 #[test]

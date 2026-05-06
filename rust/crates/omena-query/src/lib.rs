@@ -48,6 +48,7 @@ use omena_resolver::{
     OmenaResolverSourceResolutionRuntimeIndexV0, OmenaResolverStylePackageManifestV0,
     resolve_omena_resolver_style_module_source, summarize_omena_resolver_canonical_producer_signal,
     summarize_omena_resolver_query_fragments, summarize_omena_resolver_source_resolution_runtime,
+    summarize_omena_resolver_style_module_resolution,
 };
 use serde::Serialize;
 
