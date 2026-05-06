@@ -161,6 +161,15 @@ pub fn summarize_omena_query_omena_parser_style_facts(
         icss_import_local_names: icss_import_local_names.into_iter().collect(),
         icss_import_remote_names: icss_import_remote_names.into_iter().collect(),
         icss_import_sources: icss_import_sources.into_iter().collect(),
+        icss_import_edges: facts
+            .icss_import_edges
+            .into_iter()
+            .map(|edge| OmenaQueryIcssImportEdgeFactV0 {
+                local_name: edge.local_name,
+                remote_name: edge.remote_name,
+                import_source: edge.import_source,
+            })
+            .collect(),
         variable_names: variable_names.into_iter().collect(),
         custom_property_names: custom_property_names.into_iter().collect(),
         at_rule_names: facts
@@ -799,12 +808,12 @@ fn summarize_css_modules_cross_file_resolution(
             ));
         }
 
-        for source in &facts.icss_import_sources {
+        for edge in &facts.icss_import_edges {
             edges.push(resolve_css_modules_import_edge(
                 style_path,
                 "icss",
-                source,
-                facts.icss_import_remote_names.as_slice(),
+                edge.import_source.as_str(),
+                std::slice::from_ref(&edge.remote_name),
                 &context,
                 |target| target.icss_export_names.as_slice(),
             ));
@@ -847,7 +856,6 @@ fn summarize_css_modules_cross_file_resolution(
             cycle_detection_ready: false,
         },
         next_priorities: vec![
-            "icssImportEdgeGrouping",
             "composesClosure",
             "valueGraphClosure",
             "icssExportImportClosure",

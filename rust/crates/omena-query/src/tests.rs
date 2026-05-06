@@ -194,6 +194,10 @@ fn exposes_omena_parser_style_fact_surface() {
     assert_eq!(summary.icss_import_local_names, vec!["imported"]);
     assert_eq!(summary.icss_import_remote_names, vec!["primary"]);
     assert_eq!(summary.icss_import_sources, vec!["./tokens.css"]);
+    assert_eq!(summary.icss_import_edges.len(), 1);
+    assert_eq!(summary.icss_import_edges[0].local_name, "imported");
+    assert_eq!(summary.icss_import_edges[0].remote_name, "primary");
+    assert_eq!(summary.icss_import_edges[0].import_source, "./tokens.css");
     assert!(summary.variable_names.contains(&"$gap".to_string()));
     assert!(
         summary

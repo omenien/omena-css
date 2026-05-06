@@ -1073,6 +1073,7 @@ $color: red;
         assert_eq!(css_modules.icss_import_local_names, vec!["imported"]);
         assert_eq!(css_modules.icss_import_remote_names, vec!["primary"]);
         assert_eq!(css_modules.icss_import_sources, vec!["./tokens.css"]);
+        assert_eq!(css_modules.icss_import_edge_count, 1);
         assert_eq!(css_modules.keyframe_names, vec!["fade"]);
         assert_eq!(css_modules.animation_reference_names, vec!["fade"]);
         assert!(css_modules.capabilities.parser_fact_surface_ready);

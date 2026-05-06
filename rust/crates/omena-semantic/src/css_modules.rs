@@ -29,6 +29,7 @@ pub struct CssModulesSemanticSummaryV0 {
     pub value_reference_names: Vec<String>,
     pub value_import_sources: Vec<String>,
     pub icss_edge_seed_count: usize,
+    pub icss_import_edge_count: usize,
     pub icss_export_names: Vec<String>,
     pub icss_import_local_names: Vec<String>,
     pub icss_import_remote_names: Vec<String>,
@@ -171,10 +172,8 @@ pub fn summarize_css_modules_semantics(sheet: &Stylesheet) -> CssModulesSemantic
         value_definition_names,
         value_reference_names,
         value_import_sources,
-        icss_edge_seed_count: icss_export_names.len()
-            + icss_import_local_names.len()
-            + icss_import_remote_names.len()
-            + icss_import_sources.len(),
+        icss_edge_seed_count: facts.icss_import_edge_count,
+        icss_import_edge_count: facts.icss_import_edge_count,
         icss_export_names,
         icss_import_local_names,
         icss_import_remote_names,

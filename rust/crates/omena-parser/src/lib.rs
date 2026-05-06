@@ -164,6 +164,8 @@ pub struct ParsedStyleFacts {
     pub css_module_composes_edges: Vec<ParsedCssModuleComposesEdgeFact>,
     pub icss_count: usize,
     pub icss: Vec<ParsedIcssFact>,
+    pub icss_import_edge_count: usize,
+    pub icss_import_edges: Vec<ParsedIcssImportEdgeFact>,
     pub at_rule_count: usize,
     pub at_rules: Vec<ParsedAtRuleFact>,
     pub error_count: usize,
@@ -276,6 +278,14 @@ pub enum ParsedIcssFactKind {
     ImportLocalName,
     ImportRemoteName,
     ImportSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedIcssImportEdgeFact {
+    pub local_name: String,
+    pub remote_name: String,
+    pub import_source: String,
+    pub range: TextRange,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -699,6 +709,7 @@ pub fn collect_style_facts_with_extension(
     let css_module_composes = collect_css_module_composes_facts_from_tokens(&tokens);
     let css_module_composes_edges = collect_css_module_composes_edge_facts_from_tokens(&tokens);
     let icss = collect_icss_facts_from_tokens(&tokens);
+    let icss_import_edges = collect_icss_import_edge_facts_from_tokens(&tokens);
     let at_rules = collect_at_rule_facts_from_tokens(&tokens, extension.dialect());
 
     ParsedStyleFacts {
@@ -720,6 +731,8 @@ pub fn collect_style_facts_with_extension(
         css_module_composes_edges,
         icss_count: icss.len(),
         icss,
+        icss_import_edge_count: icss_import_edges.len(),
+        icss_import_edges,
         at_rule_count: at_rules.len(),
         at_rules,
         error_count: errors.len(),
@@ -7465,6 +7478,82 @@ fn collect_icss_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedIcssFact> {
     icss
 }
 
+fn collect_icss_import_edge_facts_from_tokens(
+    tokens: &[Token<'_>],
+) -> Vec<ParsedIcssImportEdgeFact> {
+    let mut edges = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::Colon {
+            continue;
+        }
+        let Some(name_index) = next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
+        else {
+            continue;
+        };
+        if tokens[name_index].kind != SyntaxKind::Ident
+            || !tokens[name_index].text.eq_ignore_ascii_case("import")
+        {
+            continue;
+        }
+        let Some(import_source) = icss_import_edge_source(tokens, name_index + 1) else {
+            continue;
+        };
+        if let Some((open, close)) = find_block_after_header(tokens, name_index + 1, tokens.len()) {
+            collect_icss_import_edges(tokens, open + 1, close, import_source, &mut edges);
+        }
+    }
+    edges
+}
+
+fn icss_import_edge_source(tokens: &[Token<'_>], start: usize) -> Option<String> {
+    let open_index = next_non_trivia_token_index_until(tokens, start, tokens.len())?;
+    if tokens[open_index].kind != SyntaxKind::LeftParen {
+        return None;
+    }
+    let source_index = next_non_trivia_token_index_until(tokens, open_index + 1, tokens.len())?;
+    let token = tokens[source_index];
+    matches!(
+        token.kind,
+        SyntaxKind::String | SyntaxKind::Url | SyntaxKind::Ident
+    )
+    .then(|| css_module_value_source_name(token))
+}
+
+fn collect_icss_import_edges(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    import_source: String,
+    edges: &mut Vec<ParsedIcssImportEdgeFact>,
+) {
+    let mut index = start;
+    while index < end {
+        let token = tokens[index];
+        if matches!(
+            token.kind,
+            SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+        ) && let Some(colon_index) = next_non_trivia_token_index_until(tokens, index + 1, end)
+            && tokens[colon_index].kind == SyntaxKind::Colon
+            && let Some(remote_index) =
+                next_non_trivia_token_index_until(tokens, colon_index + 1, end)
+            && matches!(
+                tokens[remote_index].kind,
+                SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+            )
+        {
+            edges.push(ParsedIcssImportEdgeFact {
+                local_name: token.text.to_string(),
+                remote_name: tokens[remote_index].text.to_string(),
+                import_source: import_source.clone(),
+                range: token.range,
+            });
+            index = css_module_value_statement_end(tokens, colon_index + 1);
+            continue;
+        }
+        index += 1;
+    }
+}
+
 fn collect_icss_export_names(
     tokens: &[Token<'_>],
     start: usize,
@@ -9866,6 +9955,13 @@ mod tests {
         assert_eq!(import_local_names, vec!["imported", "tone"]);
         assert_eq!(import_remote_names, vec!["primary", "themeTone"]);
         assert_eq!(import_sources, vec!["./tokens.css"]);
+        assert_eq!(facts.icss_import_edge_count, 2);
+        assert_eq!(facts.icss_import_edges[0].local_name, "imported");
+        assert_eq!(facts.icss_import_edges[0].remote_name, "primary");
+        assert_eq!(facts.icss_import_edges[0].import_source, "./tokens.css");
+        assert_eq!(facts.icss_import_edges[1].local_name, "tone");
+        assert_eq!(facts.icss_import_edges[1].remote_name, "themeTone");
+        assert_eq!(facts.icss_import_edges[1].import_source, "./tokens.css");
     }
 
     #[test]

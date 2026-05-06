@@ -158,6 +158,7 @@ pub struct OmenaQueryOmenaParserStyleFactsV0 {
     pub icss_import_local_names: Vec<String>,
     pub icss_import_remote_names: Vec<String>,
     pub icss_import_sources: Vec<String>,
+    pub icss_import_edges: Vec<OmenaQueryIcssImportEdgeFactV0>,
     pub variable_names: Vec<String>,
     pub custom_property_names: Vec<String>,
     pub at_rule_names: Vec<String>,
@@ -178,6 +179,14 @@ pub struct OmenaQueryCssModuleComposesEdgeFactV0 {
     pub kind: &'static str,
     pub target_names: Vec<String>,
     pub import_source: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryIcssImportEdgeFactV0 {
+    pub local_name: String,
+    pub remote_name: String,
+    pub import_source: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
