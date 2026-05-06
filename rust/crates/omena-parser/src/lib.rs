@@ -706,6 +706,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "badStringTokenRecovery",
             "badStringValueBogusNodes",
             "emptyDeclarationValueRecovery",
+            "emptyVariableValueRecovery",
             "coreBogusPopulationSlice",
             "dialectBogusPopulationSlice",
             "cssModuleValueCstNodes",
@@ -1729,18 +1730,30 @@ impl<'text> Parser<'text> {
         if self.current_kind() == Some(SyntaxKind::Colon) {
             self.token_current();
             self.eat_value_trivia();
+            let value_recovery = [
+                SyntaxKind::Semicolon,
+                SyntaxKind::SassOptionalSemicolon,
+                SyntaxKind::RightBrace,
+                SyntaxKind::SassDedent,
+            ];
             if kind == SyntaxKind::LessVariableDeclaration
                 && self.current_kind() == Some(SyntaxKind::LeftBrace)
             {
                 self.parse_less_detached_ruleset();
             } else {
+                let has_value = self
+                    .non_trivia_token_from(self.position)
+                    .is_some_and(|(_, kind)| !value_recovery.contains(&kind));
                 self.builder.start_node(SyntaxKind::Value);
-                self.parse_value_or_value_list_until(&[
-                    SyntaxKind::Semicolon,
-                    SyntaxKind::SassOptionalSemicolon,
-                    SyntaxKind::RightBrace,
-                    SyntaxKind::SassDedent,
-                ]);
+                if has_value {
+                    self.parse_value_or_value_list_until(&value_recovery);
+                } else {
+                    self.empty_bogus_node(
+                        SyntaxKind::BogusValue,
+                        ParseErrorCode::ExpectedValue,
+                        "expected variable value",
+                    );
+                }
                 self.builder.finish_node();
             }
         } else {
@@ -7004,6 +7017,25 @@ mod tests {
     }
 
     #[test]
+    fn recovers_empty_variable_values_without_rejecting_less_detached_rulesets() {
+        let scss = parse("$gap: ;", StyleDialect::Scss);
+        let less = parse("@gap: ; @ruleset: { color: red; };", StyleDialect::Less);
+        let scss_kinds = node_kinds(&scss.syntax());
+        let less_kinds = node_kinds(&less.syntax());
+        let empty_value_errors = scss
+            .errors()
+            .iter()
+            .chain(less.errors())
+            .filter(|error| error.message == "expected variable value")
+            .count();
+
+        assert_eq!(empty_value_errors, 2);
+        assert!(scss_kinds.contains(&SyntaxKind::BogusValue));
+        assert!(less_kinds.contains(&SyntaxKind::BogusValue));
+        assert!(less_kinds.contains(&SyntaxKind::LessDetachedRulesetNode));
+    }
+
+    #[test]
     fn populates_core_bogus_nodes_for_recoverable_structures() {
         let missing_function_close =
             parse(".a { width: calc(1 + ; color: red; }", StyleDialect::Css);
@@ -9000,6 +9032,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"emptyDeclarationValueRecovery")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"emptyVariableValueRecovery")
         );
         assert!(summary.ready_surfaces.contains(&"coreBogusPopulationSlice"));
         assert!(
