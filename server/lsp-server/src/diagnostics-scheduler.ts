@@ -9,11 +9,15 @@ import { fileUrlToPath } from "../../engine-core-ts/src/core/util/text-utils";
 import { findLangForPath } from "../../engine-core-ts/src/core/scss/lang-registry";
 import type { WindowSettings } from "../../engine-core-ts/src/settings";
 import type { SelectorUsagePayloadCache } from "../../engine-host-node/src/selector-usage-query-backend";
-import type { StyleSemanticGraphCache } from "../../engine-host-node/src/style-semantic-graph-query-backend";
+import type {
+  StyleSemanticGraphBatchOutputCache,
+  StyleSemanticGraphCache,
+} from "../../engine-host-node/src/style-semantic-graph-query-backend";
 import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../engine-host-node/src/selected-query-backend";
 
 type RuntimeProviderDeps = ProviderDeps & {
   readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+  readonly styleSemanticGraphBatchOutputCache?: StyleSemanticGraphBatchOutputCache;
   readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
   readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
 };
@@ -183,6 +187,12 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
         aliasResolver: providerDeps.aliasResolver,
         ...(runtimeProviderDeps.styleSemanticGraphCache
           ? { styleSemanticGraphCache: runtimeProviderDeps.styleSemanticGraphCache }
+          : {}),
+        ...(runtimeProviderDeps.styleSemanticGraphBatchOutputCache
+          ? {
+              styleSemanticGraphBatchOutputCache:
+                runtimeProviderDeps.styleSemanticGraphBatchOutputCache,
+            }
           : {}),
         ...(runtimeProviderDeps.selectorUsagePayloadCache
           ? { selectorUsagePayloadCache: runtimeProviderDeps.selectorUsagePayloadCache }

@@ -43,6 +43,7 @@ export function computeScssUnusedDiagnostics(
   > & {
     readonly env?: NodeJS.ProcessEnv;
     readonly styleSemanticGraphCache?: StyleDiagnosticsQueryOptions["styleSemanticGraphCache"];
+    readonly styleSemanticGraphBatchOutputCache?: StyleDiagnosticsQueryOptions["styleSemanticGraphBatchOutputCache"];
     readonly selectorUsagePayloadCache?: StyleDiagnosticsQueryOptions["selectorUsagePayloadCache"];
     readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
   },
@@ -50,12 +51,16 @@ export function computeScssUnusedDiagnostics(
   const queryOptions =
     runtimeDeps?.env ||
     runtimeDeps?.styleSemanticGraphCache ||
+    runtimeDeps?.styleSemanticGraphBatchOutputCache ||
     runtimeDeps?.selectorUsagePayloadCache ||
     runtimeDeps?.runRustSelectedQueryBackendJsonAsync
       ? {
           ...(runtimeDeps?.env ? { env: runtimeDeps.env } : {}),
           ...(runtimeDeps?.styleSemanticGraphCache
             ? { styleSemanticGraphCache: runtimeDeps.styleSemanticGraphCache }
+            : {}),
+          ...(runtimeDeps?.styleSemanticGraphBatchOutputCache
+            ? { styleSemanticGraphBatchOutputCache: runtimeDeps.styleSemanticGraphBatchOutputCache }
             : {}),
           ...(runtimeDeps?.selectorUsagePayloadCache
             ? { selectorUsagePayloadCache: runtimeDeps.selectorUsagePayloadCache }
@@ -84,6 +89,9 @@ export function computeScssUnusedDiagnostics(
         ...(runtimeDeps?.styleSemanticGraphCache
           ? { styleSemanticGraphCache: runtimeDeps.styleSemanticGraphCache }
           : {}),
+        ...(runtimeDeps?.styleSemanticGraphBatchOutputCache
+          ? { styleSemanticGraphBatchOutputCache: runtimeDeps.styleSemanticGraphBatchOutputCache }
+          : {}),
         ...(runtimeDeps?.selectorUsagePayloadCache
           ? { selectorUsagePayloadCache: runtimeDeps.selectorUsagePayloadCache }
           : {}),
@@ -107,6 +115,9 @@ export function computeScssUnusedDiagnostics(
       ...(runtimeDeps?.aliasResolver ? { aliasResolver: runtimeDeps.aliasResolver } : {}),
       ...(runtimeDeps?.styleSemanticGraphCache
         ? { styleSemanticGraphCache: runtimeDeps.styleSemanticGraphCache }
+        : {}),
+      ...(runtimeDeps?.styleSemanticGraphBatchOutputCache
+        ? { styleSemanticGraphBatchOutputCache: runtimeDeps.styleSemanticGraphBatchOutputCache }
         : {}),
       ...(runtimeDeps?.selectorUsagePayloadCache
         ? { selectorUsagePayloadCache: runtimeDeps.selectorUsagePayloadCache }

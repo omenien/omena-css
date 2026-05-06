@@ -16,7 +16,11 @@ import {
 } from "./style-module-usage-query";
 import type { SelectorUsagePayloadCache } from "./selector-usage-query-backend";
 import {
+  resolveRustCssModulesCrossFileResolutionForWorkspaceTarget,
+  resolveRustCssModulesCrossFileResolutionForWorkspaceTargetAsync,
+  type StyleSemanticGraphBatchOutputCache,
   type StyleSemanticGraphCache,
+  type StyleSemanticGraphCssModulesCrossFileResolutionV0,
   type StyleSemanticGraphDesignTokenRankedReferenceReadModel,
 } from "./style-semantic-graph-query-backend";
 import {
@@ -44,6 +48,7 @@ export function resolveStyleDiagnosticFindings(
     readonly settings?: ProviderDeps["settings"];
     readonly aliasResolver?: ProviderDeps["aliasResolver"];
     readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+    readonly styleSemanticGraphBatchOutputCache?: StyleSemanticGraphBatchOutputCache;
     readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
   },
   options: StyleDiagnosticsQueryOptions = {},
@@ -66,6 +71,9 @@ export function resolveStyleDiagnosticFindings(
       ...(deps.styleSemanticGraphCache
         ? { styleSemanticGraphCache: deps.styleSemanticGraphCache }
         : {}),
+      ...(deps.styleSemanticGraphBatchOutputCache
+        ? { styleSemanticGraphBatchOutputCache: deps.styleSemanticGraphBatchOutputCache }
+        : {}),
       ...(deps.selectorUsagePayloadCache
         ? { selectorUsagePayloadCache: deps.selectorUsagePayloadCache }
         : {}),
@@ -82,6 +90,7 @@ export function resolveStyleDiagnosticFindings(
       readonly aliasResolver?: ProviderDeps["aliasResolver"];
       readonly readStyleFile?: ProviderDeps["readStyleFile"];
       readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+      readonly styleSemanticGraphBatchOutputCache?: StyleSemanticGraphBatchOutputCache;
       readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
     };
     const unusedSelectors = resolveUnusedStyleSelectors(args, rustDeps, options);
@@ -101,11 +110,11 @@ export function resolveStyleDiagnosticFindings(
           : {}),
       },
     );
-    const filteredOtherFindings = filterResolvedRustDesignTokenFindings(
+    const filteredOtherFindings = filterResolvedRustCssModulesFindings(
       args,
       rustDeps,
       options,
-      otherFindings,
+      filterResolvedRustDesignTokenFindings(args, rustDeps, options, otherFindings),
     );
     return [
       ...unusedSelectors.map<StyleCheckerFinding>((selector) => ({
@@ -143,6 +152,7 @@ export async function resolveStyleDiagnosticFindingsAsync(
     readonly settings?: ProviderDeps["settings"];
     readonly aliasResolver?: ProviderDeps["aliasResolver"];
     readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+    readonly styleSemanticGraphBatchOutputCache?: StyleSemanticGraphBatchOutputCache;
     readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
   },
   options: StyleDiagnosticsQueryOptions = {},
@@ -165,6 +175,9 @@ export async function resolveStyleDiagnosticFindingsAsync(
       ...(deps.styleSemanticGraphCache
         ? { styleSemanticGraphCache: deps.styleSemanticGraphCache }
         : {}),
+      ...(deps.styleSemanticGraphBatchOutputCache
+        ? { styleSemanticGraphBatchOutputCache: deps.styleSemanticGraphBatchOutputCache }
+        : {}),
       ...(deps.selectorUsagePayloadCache
         ? { selectorUsagePayloadCache: deps.selectorUsagePayloadCache }
         : {}),
@@ -181,6 +194,7 @@ export async function resolveStyleDiagnosticFindingsAsync(
       readonly aliasResolver?: ProviderDeps["aliasResolver"];
       readonly readStyleFile?: ProviderDeps["readStyleFile"];
       readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+      readonly styleSemanticGraphBatchOutputCache?: StyleSemanticGraphBatchOutputCache;
       readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
     };
     const unusedSelectors = await resolveUnusedStyleSelectorsAsync(args, rustDeps, options);
@@ -200,11 +214,11 @@ export async function resolveStyleDiagnosticFindingsAsync(
           : {}),
       },
     );
-    const filteredOtherFindings = await filterResolvedRustDesignTokenFindingsAsync(
+    const filteredOtherFindings = await filterResolvedRustCssModulesFindingsAsync(
       args,
       rustDeps,
       options,
-      otherFindings,
+      await filterResolvedRustDesignTokenFindingsAsync(args, rustDeps, options, otherFindings),
     );
     return [
       ...unusedSelectors.map<StyleCheckerFinding>((selector) => ({
@@ -238,6 +252,7 @@ function hasRustStyleDiagnosticsDeps(
     readonly settings?: ProviderDeps["settings"];
     readonly aliasResolver?: ProviderDeps["aliasResolver"];
     readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+    readonly styleSemanticGraphBatchOutputCache?: StyleSemanticGraphBatchOutputCache;
     readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
   },
 ): deps is Pick<
@@ -253,6 +268,7 @@ function hasRustStyleDiagnosticsDeps(
   readonly aliasResolver?: ProviderDeps["aliasResolver"];
   readonly readStyleFile?: ProviderDeps["readStyleFile"];
   readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+  readonly styleSemanticGraphBatchOutputCache?: StyleSemanticGraphBatchOutputCache;
   readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
 } {
   return Boolean(
@@ -332,6 +348,146 @@ async function filterResolvedRustDesignTokenFindingsAsync(
     (finding) =>
       finding.code !== "missing-custom-property" ||
       !resolvedKeys.has(customPropertyReferenceKey(finding.propertyName, finding.range)),
+  );
+}
+
+function filterResolvedRustCssModulesFindings(
+  args: {
+    readonly scssPath: string;
+    readonly styleDocument: StyleDocumentHIR;
+  },
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  > & {
+    readonly readStyleFile?: ProviderDeps["readStyleFile"];
+    readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+    readonly styleSemanticGraphBatchOutputCache?: StyleSemanticGraphBatchOutputCache;
+  },
+  options: StyleDiagnosticsQueryOptions,
+  findings: readonly StyleCheckerFinding[],
+): readonly StyleCheckerFinding[] {
+  if (!hasCssModulesResolutionFindings(findings)) return findings;
+  const readStyleFile = deps.readStyleFile;
+  if (!readStyleFile) return findings;
+
+  const resolution = resolveRustCssModulesCrossFileResolutionForWorkspaceTarget(
+    {
+      workspaceRoot: deps.workspaceRoot,
+      classnameTransform: deps.settings.scss.classnameTransform,
+      pathAlias: deps.settings.pathAlias,
+    },
+    {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      typeResolver: deps.typeResolver,
+      readStyleFile,
+    },
+    args.scssPath,
+    options,
+  );
+  if (!resolution) return findings;
+
+  return findings.filter((finding) => !isResolvedByRustCssModulesResolution(finding, resolution));
+}
+
+async function filterResolvedRustCssModulesFindingsAsync(
+  args: {
+    readonly scssPath: string;
+    readonly styleDocument: StyleDocumentHIR;
+  },
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "workspaceRoot" | "settings"
+  > & {
+    readonly readStyleFile?: ProviderDeps["readStyleFile"];
+    readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+    readonly styleSemanticGraphBatchOutputCache?: StyleSemanticGraphBatchOutputCache;
+  },
+  options: StyleDiagnosticsQueryOptions,
+  findings: readonly StyleCheckerFinding[],
+): Promise<readonly StyleCheckerFinding[]> {
+  if (!hasCssModulesResolutionFindings(findings)) return findings;
+  const readStyleFile = deps.readStyleFile;
+  if (!readStyleFile) return findings;
+
+  const resolution = await resolveRustCssModulesCrossFileResolutionForWorkspaceTargetAsync(
+    {
+      workspaceRoot: deps.workspaceRoot,
+      classnameTransform: deps.settings.scss.classnameTransform,
+      pathAlias: deps.settings.pathAlias,
+    },
+    {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      typeResolver: deps.typeResolver,
+      readStyleFile,
+    },
+    args.scssPath,
+    options,
+  );
+  if (!resolution) return findings;
+
+  return findings.filter((finding) => !isResolvedByRustCssModulesResolution(finding, resolution));
+}
+
+function hasCssModulesResolutionFindings(findings: readonly StyleCheckerFinding[]): boolean {
+  return findings.some(
+    (finding) =>
+      finding.code === "missing-composed-module" ||
+      finding.code === "missing-composed-selector" ||
+      finding.code === "missing-value-module" ||
+      finding.code === "missing-imported-value",
+  );
+}
+
+function isResolvedByRustCssModulesResolution(
+  finding: StyleCheckerFinding,
+  resolution: StyleSemanticGraphCssModulesCrossFileResolutionV0,
+): boolean {
+  switch (finding.code) {
+    case "missing-composed-module":
+      return Boolean(
+        matchingCssModulesImportEdge(finding, resolution, "composes")?.resolvedStylePath,
+      );
+    case "missing-composed-selector":
+      return Boolean(
+        matchingCssModulesImportEdge(finding, resolution, "composes")?.matchedNames.includes(
+          finding.className,
+        ),
+      );
+    case "missing-value-module":
+      return Boolean(matchingCssModulesImportEdge(finding, resolution, "value")?.resolvedStylePath);
+    case "missing-imported-value":
+      return Boolean(
+        matchingCssModulesImportEdge(finding, resolution, "value")?.matchedNames.includes(
+          finding.importedName,
+        ),
+      );
+    default:
+      return false;
+  }
+}
+
+function matchingCssModulesImportEdge(
+  finding: Extract<
+    StyleCheckerFinding,
+    {
+      readonly code:
+        | "missing-composed-module"
+        | "missing-composed-selector"
+        | "missing-value-module"
+        | "missing-imported-value";
+    }
+  >,
+  resolution: StyleSemanticGraphCssModulesCrossFileResolutionV0,
+  importKind: "composes" | "value",
+): StyleSemanticGraphCssModulesCrossFileResolutionV0["edges"][number] | undefined {
+  return resolution.edges.find(
+    (edge) =>
+      edge.importKind === importKind &&
+      edge.fromStylePath === finding.selectorFilePath &&
+      edge.source === finding.fromSpecifier,
   );
 }
 

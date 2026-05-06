@@ -5,9 +5,12 @@ import { DEFAULT_SETTINGS } from "../../../server/engine-core-ts/src/settings";
 import {
   buildStyleSemanticGraphDesignTokenRankedReferenceReadModels,
   buildStyleSemanticGraphSelectorIdentityReadModels,
+  resolveRustCssModulesCrossFileResolutionForWorkspaceTarget,
   resolveRustStyleSemanticGraph,
   resolveRustStyleSemanticGraphForWorkspaceTarget,
+  type StyleSemanticGraphBatchOutputCache,
   type StyleSemanticGraphBatchRunnerInputV0,
+  type StyleSemanticGraphCssModulesCrossFileResolutionV0,
   type StyleSemanticGraphSummaryV0,
   type StyleSemanticGraphRunnerInputV0,
 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
@@ -430,6 +433,91 @@ describe("style semantic graph query backend", () => {
     expect(cardGraph?.selectorReferenceEngine.stylePath).toBe(CARD_SCSS_PATH);
   });
 
+  it("preserves CSS Modules relation closure from batch graph reads", () => {
+    const deps = makeBaseDeps({
+      selectorMapForPath: (filePath) =>
+        filePath === SCSS_PATH
+          ? new Map([["button", infoAtLine("button", 1)]])
+          : filePath === CARD_SCSS_PATH
+            ? new Map([["card", infoAtLine("card", 1)]])
+            : null,
+      readStyleFile: (filePath) =>
+        filePath === SCSS_PATH
+          ? SCSS_SOURCE
+          : filePath === CARD_SCSS_PATH
+            ? CARD_SCSS_SOURCE
+            : null,
+      workspaceRoot: "/fake/ws",
+    });
+    const styleSemanticGraphCache = new Map<string, StyleSemanticGraphSummaryV0 | null>();
+    const styleSemanticGraphBatchOutputCache: StyleSemanticGraphBatchOutputCache = new Map();
+    const commands: string[] = [];
+    const cssModulesResolution = makeCssModulesResolution();
+    const queryOptions = {
+      sourceDocuments: [],
+      styleFiles: [SCSS_PATH, CARD_SCSS_PATH],
+      styleSemanticGraphCache,
+      styleSemanticGraphBatchOutputCache,
+      runRustSelectedQueryBackendJson: <T>(command: string): T => {
+        commands.push(command);
+        if (command !== "style-semantic-graph-batch") {
+          throw new Error(`unexpected runner command: ${command}`);
+        }
+        return {
+          schemaVersion: "0",
+          product: "omena-semantic.style-semantic-graph-batch",
+          cssModulesResolution,
+          graphs: [
+            { stylePath: SCSS_PATH, graph: makeGraph(SCSS_PATH) },
+            { stylePath: CARD_SCSS_PATH, graph: makeGraph(CARD_SCSS_PATH) },
+          ],
+        } as T;
+      },
+    };
+
+    const first = resolveRustCssModulesCrossFileResolutionForWorkspaceTarget(
+      {
+        workspaceRoot: "/fake/ws",
+        classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+        pathAlias: DEFAULT_SETTINGS.pathAlias,
+      },
+      {
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      SCSS_PATH,
+      queryOptions,
+    );
+    const second = resolveRustCssModulesCrossFileResolutionForWorkspaceTarget(
+      {
+        workspaceRoot: "/fake/ws",
+        classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+        pathAlias: DEFAULT_SETTINGS.pathAlias,
+      },
+      {
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      SCSS_PATH,
+      queryOptions,
+    );
+
+    expect(commands).toEqual(["style-semantic-graph-batch"]);
+    expect(first?.composesClosureEdgeCount).toBe(1);
+    expect(second).toBe(first);
+    expect(styleSemanticGraphBatchOutputCache.size).toBe(1);
+    expect([...styleSemanticGraphBatchOutputCache.values()][0]?.cssModulesResolution).toBe(
+      cssModulesResolution,
+    );
+    expect(styleSemanticGraphCache.get(SCSS_PATH)?.selectorReferenceEngine.stylePath).toBe(
+      SCSS_PATH,
+    );
+  });
+
   it("builds one workspace engine input for cached multi-style workspace target reads", () => {
     const deps = makeBaseDeps({
       selectorMapForPath: (filePath) =>
@@ -697,6 +785,82 @@ function makeEngineInput(): EngineInputV2 {
     sources: [],
     styles: [],
     typeFacts: [],
+  };
+}
+
+function makeCssModulesResolution(): StyleSemanticGraphCssModulesCrossFileResolutionV0 {
+  return {
+    schemaVersion: "0",
+    product: "omena-query.css-modules-cross-file-resolution",
+    status: "icssExportImportClosureSeed",
+    resolutionScope: "batchImportGraph",
+    styleCount: 2,
+    importEdgeCount: 1,
+    resolvedImportEdgeCount: 1,
+    unresolvedImportEdgeCount: 0,
+    matchedNameCount: 1,
+    edges: [
+      {
+        fromStylePath: SCSS_PATH,
+        importKind: "composes",
+        source: "./Card.module.scss",
+        resolvedStylePath: CARD_SCSS_PATH,
+        status: "resolved",
+        importGraphDistance: 1,
+        importGraphOrder: 0,
+        importedNames: ["card"],
+        exportedNames: ["card"],
+        matchedNames: ["card"],
+      },
+    ],
+    composesClosureEdgeCount: 1,
+    valueClosureEdgeCount: 1,
+    icssClosureEdgeCount: 1,
+    composesCycleCount: 0,
+    valueCycleCount: 0,
+    icssCycleCount: 0,
+    composesClosureEdges: [
+      {
+        fromStylePath: SCSS_PATH,
+        ownerSelectorName: "button",
+        targetStylePath: CARD_SCSS_PATH,
+        targetSelectorName: "card",
+        depth: 1,
+        path: [`${SCSS_PATH}#button`, `${CARD_SCSS_PATH}#card`],
+      },
+    ],
+    valueClosureEdges: [
+      {
+        fromStylePath: SCSS_PATH,
+        valueName: "accent",
+        targetStylePath: CARD_SCSS_PATH,
+        targetValueName: "primary",
+        depth: 1,
+        path: [`${SCSS_PATH}#accent`, `${CARD_SCSS_PATH}#primary`],
+      },
+    ],
+    icssClosureEdges: [
+      {
+        fromStylePath: SCSS_PATH,
+        name: "forwarded",
+        targetStylePath: CARD_SCSS_PATH,
+        targetName: "raw",
+        depth: 1,
+        path: [`${SCSS_PATH}#forwarded`, `${CARD_SCSS_PATH}#raw`],
+      },
+    ],
+    cycles: [],
+    capabilities: {
+      importSourceResolutionReady: true,
+      composesNameMatchReady: true,
+      valueNameMatchReady: true,
+      icssNameMatchReady: true,
+      transitiveClosureReady: true,
+      valueGraphClosureReady: true,
+      icssExportImportClosureReady: true,
+      cycleDetectionReady: true,
+    },
+    nextPriorities: [],
   };
 }
 

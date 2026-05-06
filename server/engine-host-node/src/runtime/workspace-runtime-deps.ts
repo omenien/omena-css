@@ -44,10 +44,12 @@ export function createWorkspaceProviderDeps(args: WorkspaceRuntimeDepsArgs): Wor
     semanticReferenceIndex: args.caches.semanticReferenceIndex,
     styleDependencyGraph: args.caches.styleDependencyGraph,
     styleSemanticGraphCache: args.caches.styleSemanticGraphCache,
+    styleSemanticGraphBatchOutputCache: args.caches.styleSemanticGraphBatchOutputCache,
     selectorUsagePayloadCache: args.caches.selectorUsagePayloadCache,
     ...(runRustSelectedQueryBackendJsonAsync ? { runRustSelectedQueryBackendJsonAsync } : {}),
     clearStyleSemanticGraphCache: () => {
       args.caches.styleSemanticGraphCache.clear();
+      args.caches.styleSemanticGraphBatchOutputCache.clear();
       args.caches.selectorUsagePayloadCache.clear();
     },
     workspaceRoot: args.folder.rootPath,

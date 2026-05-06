@@ -25,6 +25,8 @@ export interface StyleSelectorReferenceQueryOptions extends Pick<
   | "sourceDocuments"
   | "styleFiles"
   | "styleSemanticGraphCache"
+  | "styleSemanticGraphBatchOutputCache"
+  | "runRustSelectedQueryBackendJson"
   | "runRustSelectedQueryBackendJsonAsync"
 > {
   readonly env?: NodeJS.ProcessEnv;

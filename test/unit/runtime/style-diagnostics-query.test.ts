@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { WorkspaceSemanticWorkspaceReferenceIndex } from "../../../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import { resolveStyleDiagnosticFindings } from "../../../server/engine-host-node/src/style-diagnostics-query";
-import type { StyleSemanticGraphSummaryV0 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
+import type {
+  StyleSemanticGraphCssModulesCrossFileResolutionV0,
+  StyleSemanticGraphSummaryV0,
+} from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
 import { makeDesignTokenDefinitionGraph } from "../../_fixtures/style-semantic-graph";
 import { infoAtLine, makeBaseDeps, semanticSiteAt } from "../../_fixtures/test-helpers";
 import {
@@ -396,7 +399,134 @@ describe("resolveStyleDiagnosticFindings", () => {
 
     expect(findings.filter((finding) => finding.code === "missing-custom-property")).toEqual([]);
   });
+
+  it("suppresses CSS Modules missing findings when rust relation resolution matched the import", () => {
+    const scssPath = "/fake/Button.module.scss";
+    const basePath = "/fake/Base.module.scss";
+    const styleDocument = parseStyleDocument(
+      `.button {
+  composes: base from "./Base.module.scss";
+}`,
+      scssPath,
+    );
+    const staleBaseDocument = parseStyleDocument(".other { color: blue; }", basePath);
+    const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();
+    semanticReferenceIndex.record("file:///fake/App.tsx", [
+      semanticSiteAt("file:///fake/App.tsx", "button", 10, scssPath),
+    ]);
+    const deps = makeBaseDeps({
+      readStyleFile: (filePath) =>
+        filePath === scssPath
+          ? `.button { composes: base from "./Base.module.scss"; }`
+          : filePath === basePath
+            ? ".base { color: blue; }"
+            : null,
+      styleDocumentForPath: (filePath) =>
+        filePath === scssPath ? styleDocument : filePath === basePath ? staleBaseDocument : null,
+      workspaceRoot: "/fake",
+    });
+
+    const findings = resolveStyleDiagnosticFindings(
+      { scssPath, styleDocument },
+      {
+        analysisCache: deps.analysisCache,
+        readStyleFile: deps.readStyleFile,
+        semanticReferenceIndex,
+        styleDependencyGraph: deps.styleDependencyGraph,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        workspaceRoot: deps.workspaceRoot,
+        settings: deps.settings,
+      },
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        sourceDocuments: [],
+        styleFiles: [scssPath, basePath],
+        runRustSelectedQueryBackendJson: <T>(command: string): T => {
+          if (command !== "style-semantic-graph-batch") {
+            throw new Error(`unexpected runner command: ${command}`);
+          }
+          return {
+            schemaVersion: "0",
+            product: "omena-semantic.style-semantic-graph-batch",
+            cssModulesResolution: makeCssModulesResolution({
+              fromStylePath: scssPath,
+              source: "./Base.module.scss",
+              resolvedStylePath: basePath,
+              matchedNames: ["base"],
+            }),
+            graphs: [],
+          } as T;
+        },
+      },
+    );
+
+    expect(findings.filter((finding) => finding.code === "missing-composed-selector")).toEqual([]);
+  });
 });
+
+function makeCssModulesResolution(args: {
+  readonly fromStylePath: string;
+  readonly source: string;
+  readonly resolvedStylePath: string;
+  readonly matchedNames: readonly string[];
+}): StyleSemanticGraphCssModulesCrossFileResolutionV0 {
+  return {
+    schemaVersion: "0",
+    product: "omena-query.css-modules-cross-file-resolution",
+    status: "icssExportImportClosureSeed",
+    resolutionScope: "batchImportGraph",
+    styleCount: 2,
+    importEdgeCount: 1,
+    resolvedImportEdgeCount: 1,
+    unresolvedImportEdgeCount: 0,
+    matchedNameCount: args.matchedNames.length,
+    edges: [
+      {
+        fromStylePath: args.fromStylePath,
+        importKind: "composes",
+        source: args.source,
+        resolvedStylePath: args.resolvedStylePath,
+        status: "resolved",
+        importGraphDistance: 1,
+        importGraphOrder: 0,
+        importedNames: ["base"],
+        exportedNames: ["base"],
+        matchedNames: args.matchedNames,
+      },
+    ],
+    composesClosureEdgeCount: 1,
+    valueClosureEdgeCount: 0,
+    icssClosureEdgeCount: 0,
+    composesCycleCount: 0,
+    valueCycleCount: 0,
+    icssCycleCount: 0,
+    composesClosureEdges: [
+      {
+        fromStylePath: args.fromStylePath,
+        ownerSelectorName: "button",
+        targetStylePath: args.resolvedStylePath,
+        targetSelectorName: "base",
+        depth: 1,
+        path: [`${args.fromStylePath}#button`, `${args.resolvedStylePath}#base`],
+      },
+    ],
+    valueClosureEdges: [],
+    icssClosureEdges: [],
+    cycles: [],
+    capabilities: {
+      importSourceResolutionReady: true,
+      composesNameMatchReady: true,
+      valueNameMatchReady: true,
+      icssNameMatchReady: true,
+      transitiveClosureReady: true,
+      valueGraphClosureReady: true,
+      icssExportImportClosureReady: true,
+      cycleDetectionReady: true,
+    },
+    nextPriorities: [],
+  };
+}
 
 function makeReferenceGraph(stylePath: string): StyleSemanticGraphSummaryV0 {
   return {

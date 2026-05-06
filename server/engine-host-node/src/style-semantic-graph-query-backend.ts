@@ -22,6 +22,10 @@ import type { BuildSelectedQueryResultsV2Options } from "./engine-query-v2";
 type RustJsonRunner = <T>(command: string, input: unknown) => T;
 type RustJsonRunnerAsync = RustSelectedQueryBackendJsonRunnerAsync;
 export type StyleSemanticGraphCache = Map<string, StyleSemanticGraphSummaryV0 | null>;
+export type StyleSemanticGraphBatchOutputCache = Map<
+  string,
+  StyleSemanticGraphBatchRunnerOutputV0 | null
+>;
 
 export interface StyleSemanticGraphSummaryV0 {
   readonly schemaVersion: "0";
@@ -413,6 +417,7 @@ export interface StyleSemanticGraphQueryOptions {
   readonly sourceDocuments?: readonly SourceDocumentSnapshot[];
   readonly styleFiles?: readonly string[];
   readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
+  readonly styleSemanticGraphBatchOutputCache?: StyleSemanticGraphBatchOutputCache;
 }
 
 export function resolveRustStyleSemanticGraph(
@@ -639,6 +644,128 @@ export async function resolveRustStyleSemanticGraphForWorkspaceTargetAsync(
   );
 }
 
+export function resolveRustCssModulesCrossFileResolutionForWorkspaceTarget(
+  args: {
+    readonly workspaceRoot: string;
+    readonly classnameTransform: BuildSelectedQueryResultsV2Options["classnameTransform"];
+    readonly pathAlias: BuildSelectedQueryResultsV2Options["pathAlias"];
+  },
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "readStyleFile"
+  >,
+  stylePath: string,
+  queryOptions: StyleSemanticGraphQueryOptions = {},
+): StyleSemanticGraphCssModulesCrossFileResolutionV0 | null {
+  const resolvedFiles =
+    queryOptions.sourceDocuments && queryOptions.styleFiles
+      ? null
+      : resolveWorkspaceCheckFilesSync({
+          workspaceRoot: args.workspaceRoot,
+        });
+  const sourceDocuments =
+    queryOptions.sourceDocuments ??
+    collectSourceDocuments(resolvedFiles?.sourceFiles ?? [], deps.analysisCache);
+  const styleFiles = ensureStyleFileIncluded(
+    queryOptions.styleFiles ?? resolvedFiles?.styleFiles ?? [],
+    stylePath,
+  );
+  const engineInput =
+    queryOptions.engineInput ??
+    buildEngineInputV2({
+      workspaceRoot: args.workspaceRoot,
+      classnameTransform: args.classnameTransform,
+      pathAlias: args.pathAlias,
+      sourceDocuments,
+      styleFiles,
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      typeResolver: deps.typeResolver,
+    });
+
+  const output = resolveRustStyleSemanticGraphBatchOutput(
+    {
+      workspaceRoot: args.workspaceRoot,
+      classnameTransform: args.classnameTransform,
+      pathAlias: args.pathAlias,
+      sourceDocuments,
+      styleFiles,
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      typeResolver: deps.typeResolver,
+      readStyleFile: deps.readStyleFile,
+    },
+    {
+      ...queryOptions,
+      sourceDocuments,
+      styleFiles,
+      engineInput,
+    },
+  );
+  return output?.cssModulesResolution ?? null;
+}
+
+export async function resolveRustCssModulesCrossFileResolutionForWorkspaceTargetAsync(
+  args: {
+    readonly workspaceRoot: string;
+    readonly classnameTransform: BuildSelectedQueryResultsV2Options["classnameTransform"];
+    readonly pathAlias: BuildSelectedQueryResultsV2Options["pathAlias"];
+  },
+  deps: Pick<
+    ProviderDeps,
+    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "readStyleFile"
+  >,
+  stylePath: string,
+  queryOptions: StyleSemanticGraphQueryOptions = {},
+): Promise<StyleSemanticGraphCssModulesCrossFileResolutionV0 | null> {
+  const resolvedFiles =
+    queryOptions.sourceDocuments && queryOptions.styleFiles
+      ? null
+      : resolveWorkspaceCheckFilesSync({
+          workspaceRoot: args.workspaceRoot,
+        });
+  const sourceDocuments =
+    queryOptions.sourceDocuments ??
+    collectSourceDocuments(resolvedFiles?.sourceFiles ?? [], deps.analysisCache);
+  const styleFiles = ensureStyleFileIncluded(
+    queryOptions.styleFiles ?? resolvedFiles?.styleFiles ?? [],
+    stylePath,
+  );
+  const engineInput =
+    queryOptions.engineInput ??
+    buildEngineInputV2({
+      workspaceRoot: args.workspaceRoot,
+      classnameTransform: args.classnameTransform,
+      pathAlias: args.pathAlias,
+      sourceDocuments,
+      styleFiles,
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      typeResolver: deps.typeResolver,
+    });
+
+  const output = await resolveRustStyleSemanticGraphBatchOutputAsync(
+    {
+      workspaceRoot: args.workspaceRoot,
+      classnameTransform: args.classnameTransform,
+      pathAlias: args.pathAlias,
+      sourceDocuments,
+      styleFiles,
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      typeResolver: deps.typeResolver,
+      readStyleFile: deps.readStyleFile,
+    },
+    {
+      ...queryOptions,
+      sourceDocuments,
+      styleFiles,
+      engineInput,
+    },
+  );
+  return output?.cssModulesResolution ?? null;
+}
+
 export function runRustStyleSemanticGraph(
   input: StyleSemanticGraphRunnerInputV0,
   options: StyleSemanticGraphQueryOptions = {},
@@ -797,8 +924,8 @@ async function maybePopulateStyleSemanticGraphCacheFromBatchAsync(
     options.readStyleFile,
   );
 
+  const requestedStylePaths = new Set(batchStyles.map((style) => style.stylePath));
   try {
-    const requestedStylePaths = new Set(batchStyles.map((style) => style.stylePath));
     const output = await runRustStyleSemanticGraphBatchAsync(
       {
         styles: batchStyles,
@@ -807,6 +934,7 @@ async function maybePopulateStyleSemanticGraphCacheFromBatchAsync(
       },
       queryOptions,
     );
+    cacheStyleSemanticGraphBatchOutput(batchStyles, queryOptions, output);
 
     for (const entry of output.graphs) {
       if (!requestedStylePaths.has(entry.stylePath)) continue;
@@ -846,8 +974,8 @@ function maybePopulateStyleSemanticGraphCacheFromBatch(
     options.readStyleFile,
   );
 
+  const requestedStylePaths = new Set(batchStyles.map((style) => style.stylePath));
   try {
-    const requestedStylePaths = new Set(batchStyles.map((style) => style.stylePath));
     const output = runRustStyleSemanticGraphBatch(
       {
         styles: batchStyles,
@@ -856,6 +984,7 @@ function maybePopulateStyleSemanticGraphCacheFromBatch(
       },
       queryOptions,
     );
+    cacheStyleSemanticGraphBatchOutput(batchStyles, queryOptions, output);
 
     for (const entry of output.graphs) {
       if (!requestedStylePaths.has(entry.stylePath)) continue;
@@ -867,6 +996,143 @@ function maybePopulateStyleSemanticGraphCacheFromBatch(
     }
     // Batch is an optimization only. Preserve the single-target fallback path.
   }
+}
+
+function resolveRustStyleSemanticGraphBatchOutput(
+  options: StyleSemanticGraphQueryBackendOptions,
+  queryOptions: StyleSemanticGraphQueryOptions,
+): StyleSemanticGraphBatchRunnerOutputV0 | null {
+  if (!queryOptions.engineInput || !queryOptions.styleFiles) return null;
+
+  const styles = collectReadableStyleSemanticGraphBatchStyles(
+    queryOptions.styleFiles,
+    options.readStyleFile,
+  );
+  if (styles.length === 0) return null;
+  const batchStyles = expandStyleSemanticGraphBatchStyles(styles, options.readStyleFile);
+  const cached = readStyleSemanticGraphBatchOutputCache(batchStyles, queryOptions);
+  if (cached !== undefined) return cached;
+  const packageManifests = collectStyleSemanticGraphPackageManifests(
+    batchStyles,
+    options.readStyleFile,
+  );
+
+  try {
+    const output = runRustStyleSemanticGraphBatch(
+      {
+        styles: batchStyles,
+        ...(packageManifests.length > 0 ? { packageManifests } : {}),
+        engineInput: queryOptions.engineInput,
+      },
+      queryOptions,
+    );
+    cacheStyleSemanticGraphBatchOutput(batchStyles, queryOptions, output);
+    seedStyleSemanticGraphCacheFromBatchOutput(batchStyles, queryOptions, output);
+    return output;
+  } catch (err) {
+    if (isEngineShadowRunnerCancelledError(err)) {
+      cacheStyleSemanticGraphBatchOutput(batchStyles, queryOptions, null);
+      for (const style of batchStyles)
+        queryOptions.styleSemanticGraphCache?.set(style.stylePath, null);
+    }
+    return null;
+  }
+}
+
+async function resolveRustStyleSemanticGraphBatchOutputAsync(
+  options: StyleSemanticGraphQueryBackendOptions,
+  queryOptions: StyleSemanticGraphQueryOptions,
+): Promise<StyleSemanticGraphBatchRunnerOutputV0 | null> {
+  if (!queryOptions.engineInput || !queryOptions.styleFiles) return null;
+
+  const styles = collectReadableStyleSemanticGraphBatchStyles(
+    queryOptions.styleFiles,
+    options.readStyleFile,
+  );
+  if (styles.length === 0) return null;
+  const batchStyles = expandStyleSemanticGraphBatchStyles(styles, options.readStyleFile);
+  const cached = readStyleSemanticGraphBatchOutputCache(batchStyles, queryOptions);
+  if (cached !== undefined) return cached;
+  const packageManifests = collectStyleSemanticGraphPackageManifests(
+    batchStyles,
+    options.readStyleFile,
+  );
+
+  try {
+    const output = await runRustStyleSemanticGraphBatchAsync(
+      {
+        styles: batchStyles,
+        ...(packageManifests.length > 0 ? { packageManifests } : {}),
+        engineInput: queryOptions.engineInput,
+      },
+      queryOptions,
+    );
+    cacheStyleSemanticGraphBatchOutput(batchStyles, queryOptions, output);
+    seedStyleSemanticGraphCacheFromBatchOutput(batchStyles, queryOptions, output);
+    return output;
+  } catch (err) {
+    if (isEngineShadowRunnerCancelledError(err)) {
+      cacheStyleSemanticGraphBatchOutput(batchStyles, queryOptions, null);
+      for (const style of batchStyles)
+        queryOptions.styleSemanticGraphCache?.set(style.stylePath, null);
+    }
+    return null;
+  }
+}
+
+function collectReadableStyleSemanticGraphBatchStyles(
+  styleFiles: readonly string[],
+  readStyleFile: ProviderDeps["readStyleFile"],
+): readonly StyleSemanticGraphBatchStyleInputV0[] {
+  return styleFiles.flatMap((stylePath) => {
+    const styleSource = readStyleFile(stylePath);
+    return styleSource === null ? [] : [{ stylePath, styleSource }];
+  });
+}
+
+function seedStyleSemanticGraphCacheFromBatchOutput(
+  batchStyles: readonly StyleSemanticGraphBatchStyleInputV0[],
+  queryOptions: StyleSemanticGraphQueryOptions,
+  output: StyleSemanticGraphBatchRunnerOutputV0,
+): void {
+  const cache = queryOptions.styleSemanticGraphCache;
+  if (!cache) return;
+  const requestedStylePaths = new Set(batchStyles.map((style) => style.stylePath));
+  for (const entry of output.graphs) {
+    if (!requestedStylePaths.has(entry.stylePath)) continue;
+    cache.set(entry.stylePath, entry.graph);
+  }
+}
+
+function readStyleSemanticGraphBatchOutputCache(
+  batchStyles: readonly StyleSemanticGraphBatchStyleInputV0[],
+  queryOptions: StyleSemanticGraphQueryOptions,
+): StyleSemanticGraphBatchRunnerOutputV0 | null | undefined {
+  const cache = queryOptions.styleSemanticGraphBatchOutputCache;
+  if (!cache || !queryOptions.engineInput) return undefined;
+  const key = styleSemanticGraphBatchOutputCacheKey(batchStyles, queryOptions.engineInput);
+  return cache.has(key) ? (cache.get(key) ?? null) : undefined;
+}
+
+function cacheStyleSemanticGraphBatchOutput(
+  batchStyles: readonly StyleSemanticGraphBatchStyleInputV0[],
+  queryOptions: StyleSemanticGraphQueryOptions,
+  output: StyleSemanticGraphBatchRunnerOutputV0 | null,
+): void {
+  const cache = queryOptions.styleSemanticGraphBatchOutputCache;
+  if (!cache || !queryOptions.engineInput) return;
+  cache.set(styleSemanticGraphBatchOutputCacheKey(batchStyles, queryOptions.engineInput), output);
+}
+
+function styleSemanticGraphBatchOutputCacheKey(
+  batchStyles: readonly StyleSemanticGraphBatchStyleInputV0[],
+  engineInput: EngineInputV2,
+): string {
+  return [
+    engineInput.workspace.root,
+    engineInput.workspace.settingsKey,
+    ...batchStyles.map((style) => style.stylePath).toSorted(),
+  ].join("\0");
 }
 
 function expandStyleSemanticGraphBatchStyles(
