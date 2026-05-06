@@ -47,6 +47,8 @@ pub fn summarize_omena_query_omena_parser_style_facts(
     let mut icss_import_remote_names = BTreeSet::new();
     let mut icss_import_sources = BTreeSet::new();
     let mut variable_names = BTreeSet::new();
+    let mut sass_symbol_declaration_names = BTreeSet::new();
+    let mut sass_symbol_reference_names = BTreeSet::new();
     let mut custom_property_names = BTreeSet::new();
 
     for selector in facts.selectors {
@@ -68,6 +70,17 @@ pub fn summarize_omena_query_omena_parser_style_facts(
             ParsedVariableFactKind::CustomPropertyDeclaration
             | ParsedVariableFactKind::CustomPropertyReference => {
                 custom_property_names.insert(variable.name);
+            }
+        }
+    }
+
+    for symbol in &facts.sass_symbols {
+        match symbol.role {
+            "declaration" => {
+                sass_symbol_declaration_names.insert(symbol.name.clone());
+            }
+            _ => {
+                sass_symbol_reference_names.insert(symbol.name.clone());
             }
         }
     }
@@ -188,6 +201,18 @@ pub fn summarize_omena_query_omena_parser_style_facts(
             })
             .collect(),
         variable_names: variable_names.into_iter().collect(),
+        sass_symbol_declaration_names: sass_symbol_declaration_names.into_iter().collect(),
+        sass_symbol_reference_names: sass_symbol_reference_names.into_iter().collect(),
+        sass_symbol_facts: facts
+            .sass_symbols
+            .into_iter()
+            .map(|symbol| OmenaQuerySassSymbolFactV0 {
+                kind: omena_query_sass_symbol_fact_kind_label(symbol.kind),
+                symbol_kind: symbol.symbol_kind,
+                name: symbol.name,
+                role: symbol.role,
+            })
+            .collect(),
         custom_property_names: custom_property_names.into_iter().collect(),
         at_rule_names: facts
             .at_rules
@@ -2345,6 +2370,17 @@ fn omena_query_css_module_composes_edge_kind_label(
         ParsedCssModuleComposesEdgeKind::Local => "local",
         ParsedCssModuleComposesEdgeKind::Global => "global",
         ParsedCssModuleComposesEdgeKind::External => "external",
+    }
+}
+
+fn omena_query_sass_symbol_fact_kind_label(kind: ParsedSassSymbolFactKind) -> &'static str {
+    match kind {
+        ParsedSassSymbolFactKind::VariableDeclaration => "sassVariableDeclaration",
+        ParsedSassSymbolFactKind::VariableReference => "sassVariableReference",
+        ParsedSassSymbolFactKind::MixinDeclaration => "sassMixinDeclaration",
+        ParsedSassSymbolFactKind::MixinInclude => "sassMixinInclude",
+        ParsedSassSymbolFactKind::FunctionDeclaration => "sassFunctionDeclaration",
+        ParsedSassSymbolFactKind::FunctionCall => "sassFunctionCall",
     }
 }
 

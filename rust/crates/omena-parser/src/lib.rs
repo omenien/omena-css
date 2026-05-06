@@ -152,6 +152,8 @@ pub struct ParsedStyleFacts {
     pub selectors: Vec<ParsedSelectorFact>,
     pub variable_count: usize,
     pub variables: Vec<ParsedVariableFact>,
+    pub sass_symbol_count: usize,
+    pub sass_symbols: Vec<ParsedSassSymbolFact>,
     pub animation_count: usize,
     pub animations: Vec<ParsedAnimationFact>,
     pub css_module_value_count: usize,
@@ -204,6 +206,25 @@ pub enum ParsedVariableFactKind {
     LessReference,
     CustomPropertyDeclaration,
     CustomPropertyReference,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedSassSymbolFact {
+    pub kind: ParsedSassSymbolFactKind,
+    pub symbol_kind: &'static str,
+    pub name: String,
+    pub role: &'static str,
+    pub range: TextRange,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ParsedSassSymbolFactKind {
+    VariableDeclaration,
+    VariableReference,
+    MixinDeclaration,
+    MixinInclude,
+    FunctionDeclaration,
+    FunctionCall,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -721,6 +742,7 @@ pub fn collect_style_facts_with_extension(
     let errors = parser.into_errors();
     let selectors = collect_selector_facts_from_tokens(&tokens);
     let variables = collect_variable_facts_from_tokens(&tokens);
+    let sass_symbols = collect_sass_symbol_facts_from_tokens(&tokens);
     let animations = collect_animation_facts_from_tokens(&tokens);
     let css_module_values = collect_css_module_value_facts_from_tokens(&tokens);
     let css_module_value_import_edges =
@@ -741,6 +763,8 @@ pub fn collect_style_facts_with_extension(
         selectors,
         variable_count: variables.len(),
         variables,
+        sass_symbol_count: sass_symbols.len(),
+        sass_symbols,
         animation_count: animations.len(),
         animations,
         css_module_value_count: css_module_values.len(),
@@ -806,6 +830,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "scssControlPreludeValidation",
             "scssControlStyleFactExtraction",
             "scssIncludeContentBlockStyleFacts",
+            "scssSassSymbolStyleFacts",
             "scssUtilityAtRules",
             "scssVariableFlagCstNodes",
             "scssNestedPropertyCstNodes",
@@ -6814,9 +6839,7 @@ fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariabl
     for (index, token) in tokens.iter().enumerate() {
         let kind = match token.kind {
             SyntaxKind::ScssVariable => {
-                if next_non_trivia_token(tokens, index + 1)
-                    .is_some_and(|candidate| candidate.kind == SyntaxKind::Colon)
-                {
+                if scss_variable_token_is_declaration(tokens, index) {
                     ParsedVariableFactKind::ScssDeclaration
                 } else {
                     ParsedVariableFactKind::ScssReference
@@ -6860,6 +6883,129 @@ fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariabl
         });
     }
     variables
+}
+
+fn scss_variable_token_is_declaration(tokens: &[Token<'_>], index: usize) -> bool {
+    next_non_trivia_token(tokens, index + 1).is_some_and(|candidate| {
+        candidate.kind == SyntaxKind::Colon
+            || (matches!(candidate.kind, SyntaxKind::Comma | SyntaxKind::RightParen)
+                && containing_at_rule_header_name(tokens, index).is_some_and(|name| {
+                    name.eq_ignore_ascii_case("@mixin") || name.eq_ignore_ascii_case("@function")
+                }))
+    })
+}
+
+fn collect_sass_symbol_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSassSymbolFact> {
+    let declared_functions = collect_sass_callable_declaration_names(tokens, "@function");
+    let mut symbols = Vec::new();
+
+    for (index, token) in tokens.iter().enumerate() {
+        match token.kind {
+            SyntaxKind::ScssVariable => {
+                let kind = if scss_variable_token_is_declaration(tokens, index) {
+                    ParsedSassSymbolFactKind::VariableDeclaration
+                } else {
+                    ParsedSassSymbolFactKind::VariableReference
+                };
+                symbols.push(ParsedSassSymbolFact {
+                    kind,
+                    symbol_kind: "variable",
+                    name: token.text.trim_start_matches('$').to_string(),
+                    role: match kind {
+                        ParsedSassSymbolFactKind::VariableDeclaration => "declaration",
+                        _ => "reference",
+                    },
+                    range: token.range,
+                });
+            }
+            SyntaxKind::AtKeyword if token.text.eq_ignore_ascii_case("@mixin") => {
+                if let Some(name) = sass_callable_name_after_at_rule(tokens, index) {
+                    symbols.push(ParsedSassSymbolFact {
+                        kind: ParsedSassSymbolFactKind::MixinDeclaration,
+                        symbol_kind: "mixin",
+                        name: name.text.to_string(),
+                        role: "declaration",
+                        range: name.range,
+                    });
+                }
+            }
+            SyntaxKind::AtKeyword if token.text.eq_ignore_ascii_case("@include") => {
+                if let Some(name) = sass_callable_name_after_at_rule(tokens, index) {
+                    symbols.push(ParsedSassSymbolFact {
+                        kind: ParsedSassSymbolFactKind::MixinInclude,
+                        symbol_kind: "mixin",
+                        name: name.text.to_string(),
+                        role: "include",
+                        range: name.range,
+                    });
+                }
+            }
+            SyntaxKind::AtKeyword if token.text.eq_ignore_ascii_case("@function") => {
+                if let Some(name) = sass_callable_name_after_at_rule(tokens, index) {
+                    symbols.push(ParsedSassSymbolFact {
+                        kind: ParsedSassSymbolFactKind::FunctionDeclaration,
+                        symbol_kind: "function",
+                        name: name.text.to_string(),
+                        role: "declaration",
+                        range: name.range,
+                    });
+                }
+            }
+            SyntaxKind::Ident
+                if declared_functions.contains(token.text)
+                    && next_non_trivia_token(tokens, index + 1)
+                        .is_some_and(|candidate| candidate.kind == SyntaxKind::LeftParen)
+                    && previous_non_trivia_token(tokens, 0, index).map_or(true, |candidate| {
+                        !matches!(candidate.kind, SyntaxKind::AtKeyword | SyntaxKind::Dot)
+                    }) =>
+            {
+                symbols.push(ParsedSassSymbolFact {
+                    kind: ParsedSassSymbolFactKind::FunctionCall,
+                    symbol_kind: "function",
+                    name: token.text.to_string(),
+                    role: "call",
+                    range: token.range,
+                });
+            }
+            _ => {}
+        }
+    }
+
+    symbols
+}
+
+fn collect_sass_callable_declaration_names(
+    tokens: &[Token<'_>],
+    at_keyword: &str,
+) -> BTreeSet<String> {
+    tokens
+        .iter()
+        .enumerate()
+        .filter_map(|(index, token)| {
+            (token.kind == SyntaxKind::AtKeyword && token.text.eq_ignore_ascii_case(at_keyword))
+                .then(|| sass_callable_name_after_at_rule(tokens, index))
+                .flatten()
+                .map(|name| name.text.to_string())
+        })
+        .collect()
+}
+
+fn sass_callable_name_after_at_rule<'text>(
+    tokens: &[Token<'text>],
+    at_rule_index: usize,
+) -> Option<Token<'text>> {
+    let statement_end = css_module_value_statement_end(tokens, at_rule_index + 1);
+    let name_index = next_non_trivia_token_index_until(tokens, at_rule_index + 1, statement_end)?;
+    let name = tokens[name_index];
+    if name.kind != SyntaxKind::Ident {
+        return None;
+    }
+    if next_non_trivia_token_index_until(tokens, name_index + 1, statement_end)
+        .is_some_and(|next| tokens[next].kind == SyntaxKind::Dot)
+    {
+        return None;
+    }
+    Some(name)
 }
 
 fn collect_css_module_value_facts_from_tokens(
@@ -11691,6 +11837,47 @@ mod tests {
                 && variable.name == "--space"
         }));
         assert_eq!(facts.at_rules[0].node_kind, Some(SyntaxKind::ScssUseRule));
+    }
+
+    #[test]
+    fn extracts_sass_symbol_style_facts() {
+        let facts = collect_style_facts(
+            "@mixin tone($color) { color: $color; } @function double($x) { @return $x * 2; } .card { @include tone(red); width: double(2px); }",
+            StyleDialect::Scss,
+        );
+        let symbol_kinds = facts
+            .sass_symbols
+            .iter()
+            .map(|symbol| (symbol.kind, symbol.name.as_str(), symbol.role))
+            .collect::<Vec<_>>();
+
+        assert_eq!(facts.sass_symbol_count, 8);
+        assert!(symbol_kinds.contains(&(
+            ParsedSassSymbolFactKind::MixinDeclaration,
+            "tone",
+            "declaration"
+        )));
+        assert!(symbol_kinds.contains(&(
+            ParsedSassSymbolFactKind::MixinInclude,
+            "tone",
+            "include"
+        )));
+        assert!(symbol_kinds.contains(&(
+            ParsedSassSymbolFactKind::FunctionDeclaration,
+            "double",
+            "declaration"
+        )));
+        assert!(symbol_kinds.contains(&(ParsedSassSymbolFactKind::FunctionCall, "double", "call")));
+        assert!(symbol_kinds.contains(&(
+            ParsedSassSymbolFactKind::VariableDeclaration,
+            "color",
+            "declaration"
+        )));
+        assert!(symbol_kinds.contains(&(
+            ParsedSassSymbolFactKind::VariableReference,
+            "color",
+            "reference"
+        )));
     }
 
     #[test]

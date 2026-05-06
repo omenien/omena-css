@@ -231,6 +231,37 @@ fn exposes_omena_parser_style_fact_surface() {
 }
 
 #[test]
+fn exposes_omena_parser_sass_symbol_fact_surface() {
+    let summary = summarize_omena_query_omena_parser_style_facts(
+        "@mixin tone($color) { color: $color; } @function double($x) { @return $x * 2; } .card { @include tone(red); width: double(2px); }",
+        omena_parser::StyleDialect::Scss,
+    );
+
+    assert_eq!(
+        summary.sass_symbol_declaration_names,
+        vec!["color", "double", "tone", "x"]
+    );
+    assert_eq!(
+        summary.sass_symbol_reference_names,
+        vec!["color", "double", "tone", "x"]
+    );
+    assert!(summary.sass_symbol_facts.iter().any(|fact| {
+        fact.kind == "sassMixinDeclaration" && fact.name == "tone" && fact.role == "declaration"
+    }));
+    assert!(summary.sass_symbol_facts.iter().any(|fact| {
+        fact.kind == "sassMixinInclude" && fact.name == "tone" && fact.role == "include"
+    }));
+    assert!(summary.sass_symbol_facts.iter().any(|fact| {
+        fact.kind == "sassFunctionDeclaration"
+            && fact.name == "double"
+            && fact.role == "declaration"
+    }));
+    assert!(summary.sass_symbol_facts.iter().any(|fact| {
+        fact.kind == "sassFunctionCall" && fact.name == "double" && fact.role == "call"
+    }));
+}
+
+#[test]
 fn bundles_expression_source_and_selector_query_fragments() {
     let input = sample_input();
     let bundle = summarize_omena_query_fragment_bundle(&input);

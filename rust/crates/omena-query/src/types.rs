@@ -214,9 +214,21 @@ pub struct OmenaQueryOmenaParserStyleFactsV0 {
     pub icss_import_edges: Vec<OmenaQueryIcssImportEdgeFactV0>,
     pub icss_export_edges: Vec<OmenaQueryIcssExportEdgeFactV0>,
     pub variable_names: Vec<String>,
+    pub sass_symbol_declaration_names: Vec<String>,
+    pub sass_symbol_reference_names: Vec<String>,
+    pub sass_symbol_facts: Vec<OmenaQuerySassSymbolFactV0>,
     pub custom_property_names: Vec<String>,
     pub at_rule_names: Vec<String>,
     pub parser_error_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySassSymbolFactV0 {
+    pub kind: &'static str,
+    pub symbol_kind: &'static str,
+    pub name: String,
+    pub role: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
