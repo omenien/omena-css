@@ -275,6 +275,18 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "scss-include-content-block",
+    dialect: "scss",
+    source: `.card { @include interactive($tone) using ($state) { &--active { color: red; } } }`,
+    expected: {
+      classSelectorNames: ["card", "card--active"],
+      placeholderSelectorNames: [],
+      variableNames: ["$state", "$tone"],
+      customPropertyNames: [],
+      atRuleNames: ["@include"],
+    },
+  },
+  {
     label: "scss-placeholder-selector-and-extend",
     dialect: "scss",
     source: `%surface { color: red; }\n.card { @extend %surface; }`,

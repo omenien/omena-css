@@ -650,6 +650,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "scssStructuredBlockAtRules",
             "scssControlPreludeValidation",
             "scssControlStyleFactExtraction",
+            "scssIncludeContentBlockStyleFacts",
             "scssUtilityAtRules",
             "scssVariableFlagCstNodes",
             "scssNestedPropertyCstNodes",
@@ -6609,6 +6610,7 @@ fn style_wrapper_at_rule(name: &str) -> bool {
             "@each",
             "@while",
             "@at-root",
+            "@include",
         ],
     )
 }
@@ -6853,7 +6855,10 @@ fn scss_at_rule_spec(text: &str) -> Option<AtRuleSpec> {
             SyntaxKind::ScssMixinDeclaration,
             AtRuleBlockKind::DeclarationList,
         ),
-        "@include" => (SyntaxKind::ScssIncludeRule, AtRuleBlockKind::Raw),
+        "@include" => (
+            SyntaxKind::ScssIncludeRule,
+            AtRuleBlockKind::DeclarationList,
+        ),
         "@function" => (
             SyntaxKind::ScssFunctionDeclaration,
             AtRuleBlockKind::DeclarationList,
@@ -9117,6 +9122,24 @@ mod tests {
     }
 
     #[test]
+    fn extracts_scss_include_content_block_style_facts() {
+        let source =
+            ".card { @include interactive($tone) using ($state) { &--active { color: red; } } }";
+        let parsed = parse(source, StyleDialect::Scss);
+        let facts = collect_style_facts(source, StyleDialect::Scss);
+        let class_names = facts
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+            .map(|selector| selector.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert!(parsed.errors().is_empty());
+        assert!(node_kinds(&parsed.syntax()).contains(&SyntaxKind::ScssIncludeRule));
+        assert_eq!(class_names, vec!["card", "card--active"]);
+    }
+
+    #[test]
     fn parses_scss_nested_property_blocks() {
         let result = parse(
             ".card { font: { size: 1rem; weight: 600; } border: 1px solid { color: red; } }",
@@ -10337,6 +10360,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"scssControlStyleFactExtraction")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"scssIncludeContentBlockStyleFacts")
         );
         assert!(summary.ready_surfaces.contains(&"scssUtilityAtRules"));
         assert!(summary.ready_surfaces.contains(&"scssVariableFlagCstNodes"));
