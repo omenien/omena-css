@@ -673,6 +673,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "importPreludeCstNodes",
             "propertyAtRuleNameValidation",
             "namedAtRulePreludeValidation",
+            "containerAtRulePreludeValidation",
             "charsetNamespaceAtRulePreludeValidation",
             "keyframesAtRuleNameValidation",
             "emptyBlockAtRulePreludeValidation",
@@ -2932,9 +2933,7 @@ impl<'text> Parser<'text> {
             SyntaxKind::SupportsRule => {
                 self.parse_at_rule_prelude_node(SyntaxKind::SupportsCondition)
             }
-            SyntaxKind::ContainerRule => {
-                self.parse_at_rule_prelude_node(SyntaxKind::ContainerCondition)
-            }
+            SyntaxKind::ContainerRule => self.parse_container_rule_prelude(),
             SyntaxKind::ImportRule => self.parse_import_prelude(),
             SyntaxKind::CharsetRule => self.parse_charset_rule_prelude(),
             SyntaxKind::NamespaceRule => self.parse_namespace_rule_prelude(),
@@ -3197,6 +3196,61 @@ impl<'text> Parser<'text> {
         }
 
         saw_name && !expecting_segment
+    }
+
+    fn parse_container_rule_prelude(&mut self) {
+        self.eat_trivia();
+        let valid = self.container_rule_prelude_is_valid();
+        if !valid {
+            self.error_at_current(ParseErrorCode::ExpectedValue, "invalid @container prelude");
+        }
+        self.builder.start_node(if valid {
+            SyntaxKind::ContainerCondition
+        } else {
+            SyntaxKind::BogusContainerCondition
+        });
+        self.consume_at_rule_prelude_tokens_without_wrapping();
+        self.builder.finish_node();
+    }
+
+    fn container_rule_prelude_is_valid(&self) -> bool {
+        let Some((first_index, first_kind)) = self.non_trivia_token_from(self.position) else {
+            return false;
+        };
+        if is_at_rule_prelude_boundary(first_kind) {
+            return false;
+        }
+        if !self.current_prelude_parentheses_are_balanced_until(&[
+            SyntaxKind::LeftBrace,
+            SyntaxKind::SassIndent,
+            SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
+        ]) {
+            return false;
+        }
+        if self.container_condition_starts_at(first_index, first_kind) {
+            return true;
+        }
+        if first_kind != SyntaxKind::Ident {
+            return false;
+        }
+        self.non_trivia_token_from(first_index + 1).is_some_and(
+            |(condition_index, condition_kind)| {
+                self.container_condition_starts_at(condition_index, condition_kind)
+            },
+        )
+    }
+
+    fn container_condition_starts_at(&self, index: usize, kind: SyntaxKind) -> bool {
+        if matches!(kind, SyntaxKind::LeftParen | SyntaxKind::KeywordNot)
+            || is_interpolation_start(kind)
+        {
+            return true;
+        }
+        kind == SyntaxKind::Ident
+            && self
+                .non_trivia_token_from(index + 1)
+                .is_some_and(|(_, next_kind)| next_kind == SyntaxKind::LeftParen)
     }
 
     fn parse_import_prelude(&mut self) {
@@ -7493,6 +7547,28 @@ mod tests {
     }
 
     #[test]
+    fn validates_container_rule_preludes() {
+        let result = parse(
+            "@container { .a { color: red; } } @container card { .b { color: blue; } } @container 1 (width > 0) { .c { color: green; } } @container style(--theme: dark) { .d { color: white; } } @container card style(--theme: dark) { .e { color: black; } }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let invalid_container_errors = result
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @container prelude")
+            .count();
+        let bogus_container_conditions = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::BogusContainerCondition)
+            .count();
+
+        assert_eq!(invalid_container_errors, 3);
+        assert_eq!(bogus_container_conditions, 3);
+        assert!(kinds.contains(&SyntaxKind::ContainerCondition));
+    }
+
+    #[test]
     fn classifies_css_at_rules_case_insensitively() {
         let source = "@MEDIA (width >= 1px) { .card { color: red; } } @KEYFRAMES fade { from { opacity: 0; } to { opacity: 1; } }";
         let result = parse(source, StyleDialect::Css);
@@ -9126,6 +9202,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"namedAtRulePreludeValidation")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"containerAtRulePreludeValidation")
         );
         assert!(
             summary
