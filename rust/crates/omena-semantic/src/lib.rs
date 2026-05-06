@@ -1,9 +1,22 @@
 use engine_input_producers::EngineInputV2;
 use engine_style_parser::{
-    ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet, parse_style_module,
-    summarize_semantic_boundary,
+    NestedSafetyCountsV0, ParserBoundarySyntaxFactsV0, ParserIndexComposesFactsV0,
+    ParserIndexCustomPropertyDeclFactV0, ParserIndexCustomPropertyFactsV0,
+    ParserIndexCustomPropertyRefFactV0, ParserIndexKeyframesFactsV0,
+    ParserIndexSassModuleUseFactV0, ParserIndexSassSameFileResolutionFactsV0,
+    ParserIndexSelectorDefinitionFactV0, ParserIndexSelectorFactsV0, ParserIndexValueFactsV0,
+    ParserIndexWrapperFactsV0, ParserLosslessCstFactsV0, ParserSassSyntaxFactsV0,
+    StyleCustomPropertySemanticFactsV0, StyleSassSemanticFactsV0, StyleSelectorIdentityFactsV0,
+    StyleSemanticFactsV0, Stylesheet, parse_style_module, summarize_semantic_boundary,
+};
+use omena_parser::{
+    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
+    ParsedCssModuleValueFactKind, ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind,
+    ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, StyleDialect,
+    collect_style_facts, parse,
 };
 use serde::Serialize;
+use std::collections::BTreeSet;
 
 mod css_modules;
 mod design_tokens;
@@ -190,6 +203,453 @@ pub fn summarize_parser_contract_facts(sheet: &Stylesheet) -> ParserBoundarySynt
     summarize_style_semantic_boundary(sheet).parser_facts
 }
 
+pub fn summarize_omena_parser_style_semantic_boundary_from_source(
+    style_path: &str,
+    style_source: &str,
+) -> StyleSemanticBoundarySummaryV0 {
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let parsed = parse(style_source, dialect);
+    let facts = collect_style_facts(style_source, dialect);
+    let parser_facts = summarize_omena_parser_contract_facts(
+        style_source,
+        parsed.token_count(),
+        parsed.syntax().children().count(),
+        parsed.errors().len(),
+        &facts,
+    );
+    let semantic_facts = summarize_omena_parser_semantic_facts(&parser_facts);
+    let design_token_semantics = summarize_design_token_semantics(&parser_facts, &semantic_facts);
+    let selector_identity_engine =
+        summarize_selector_identity_engine(&semantic_facts.selector_identity);
+    let promotion_evidence = summarize_semantic_promotion_evidence(&parser_facts, &semantic_facts);
+    let lossless_cst_contract = summarize_lossless_cst_contract(&parser_facts.lossless_cst);
+
+    StyleSemanticBoundarySummaryV0 {
+        schema_version: "0",
+        language: omena_parser_dialect_label(dialect),
+        parser_facts,
+        semantic_facts,
+        design_token_semantics,
+        selector_identity_engine,
+        promotion_evidence,
+        lossless_cst_contract,
+    }
+}
+
+fn summarize_omena_parser_contract_facts(
+    source: &str,
+    token_count: usize,
+    root_node_count: usize,
+    diagnostic_count: usize,
+    facts: &ParsedStyleFacts,
+) -> ParserBoundarySyntaxFactsV0 {
+    ParserBoundarySyntaxFactsV0 {
+        lossless_cst: ParserLosslessCstFactsV0 {
+            source_byte_len: source.len(),
+            token_count,
+            root_node_count,
+            diagnostic_count,
+            all_token_spans_within_source: true,
+            all_node_spans_within_source: true,
+        },
+        selectors: summarize_omena_parser_selector_facts(source, facts),
+        values: summarize_omena_parser_value_facts(facts),
+        custom_properties: summarize_omena_parser_custom_property_facts(source, facts),
+        sass: summarize_omena_parser_sass_syntax_facts(facts),
+        keyframes: summarize_omena_parser_keyframe_facts(facts),
+        composes: summarize_omena_parser_composes_facts(facts),
+        wrappers: ParserIndexWrapperFactsV0::default(),
+    }
+}
+
+fn summarize_omena_parser_semantic_facts(
+    parser_facts: &ParserBoundarySyntaxFactsV0,
+) -> StyleSemanticFactsV0 {
+    let custom_properties =
+        summarize_omena_parser_custom_property_semantic_facts(&parser_facts.custom_properties);
+    StyleSemanticFactsV0 {
+        selector_identity: StyleSelectorIdentityFactsV0 {
+            canonical_names: parser_facts.selectors.names.clone(),
+            bem_suffix_safe_names: parser_facts.selectors.bem_suffix_safe_names.clone(),
+            bem_suffix_parent_names: parser_facts.selectors.bem_suffix_parent_names.clone(),
+            nested_unsafe_names: parser_facts.selectors.nested_unsafe_names.clone(),
+            nested_safety_counts: parser_facts.selectors.nested_safety_counts.clone(),
+        },
+        custom_properties,
+        sass: StyleSassSemanticFactsV0 {
+            selector_symbol_facts: Vec::new(),
+            selectors_with_resolved_variable_refs_names: Vec::new(),
+            selectors_with_unresolved_variable_refs_names: Vec::new(),
+            selectors_with_resolved_mixin_includes_names: Vec::new(),
+            selectors_with_unresolved_mixin_includes_names: Vec::new(),
+            selectors_with_function_calls_names: parser_facts.sass.function_call_names.clone(),
+            same_file_resolution: ParserIndexSassSameFileResolutionFactsV0::default(),
+        },
+    }
+}
+
+fn summarize_omena_parser_selector_facts(
+    source: &str,
+    facts: &ParsedStyleFacts,
+) -> ParserIndexSelectorFactsV0 {
+    let mut names = Vec::new();
+    let mut definition_facts = Vec::new();
+    let mut bem_suffix_parent_names = BTreeSet::new();
+    let mut bem_suffix_safe_names = BTreeSet::new();
+    let mut source_order = 0usize;
+
+    for selector in &facts.selectors {
+        if selector.kind != ParsedSelectorFactKind::Class {
+            continue;
+        }
+        let nested_safety_kind = if let Some(parent) = bem_suffix_parent_name(selector.name.as_str())
+        {
+            bem_suffix_parent_names.insert(parent);
+            bem_suffix_safe_names.insert(selector.name.clone());
+            "bemSuffixSafe"
+        } else {
+            "flat"
+        };
+        let byte_span = parser_byte_span_for_offsets(
+            u32::from(selector.range.start()) as usize,
+            u32::from(selector.range.end()) as usize,
+        );
+        names.push(selector.name.clone());
+        definition_facts.push(ParserIndexSelectorDefinitionFactV0 {
+            name: selector.name.clone(),
+            source_order,
+            byte_span,
+            range: parser_range_for_byte_span(source, byte_span),
+            nested_safety_kind,
+            bem_suffix_parent_name: bem_suffix_parent_name(selector.name.as_str()),
+            under_media: false,
+            under_supports: false,
+            under_layer: false,
+        });
+        source_order += 1;
+    }
+
+    names.sort();
+    names.dedup();
+    definition_facts.sort();
+    let bem_suffix_safe_names = bem_suffix_safe_names.into_iter().collect::<Vec<_>>();
+    ParserIndexSelectorFactsV0 {
+        names,
+        definition_facts,
+        bem_suffix_parent_names: bem_suffix_parent_names.into_iter().collect(),
+        bem_suffix_safe_names: bem_suffix_safe_names.clone(),
+        nested_unsafe_names: Vec::new(),
+        selectors_with_value_refs_names: Vec::new(),
+        selectors_with_animation_ref_names: Vec::new(),
+        selectors_with_animation_name_ref_names: Vec::new(),
+        bem_suffix_count: bem_suffix_safe_names.len(),
+        nested_safety_counts: NestedSafetyCountsV0 {
+            flat: source_order.saturating_sub(bem_suffix_safe_names.len()),
+            bem_suffix_safe: bem_suffix_safe_names.len(),
+            nested_unsafe: 0,
+        },
+    }
+}
+
+fn summarize_omena_parser_value_facts(facts: &ParsedStyleFacts) -> ParserIndexValueFactsV0 {
+    let mut decl_names = BTreeSet::new();
+    let mut ref_names = BTreeSet::new();
+    let mut import_sources = BTreeSet::new();
+    for value in &facts.css_module_values {
+        match value.kind {
+            ParsedCssModuleValueFactKind::Definition => {
+                decl_names.insert(value.name.clone());
+            }
+            ParsedCssModuleValueFactKind::Reference => {
+                ref_names.insert(value.name.clone());
+            }
+            ParsedCssModuleValueFactKind::ImportSource => {
+                import_sources.insert(value.name.clone());
+            }
+        }
+    }
+    ParserIndexValueFactsV0 {
+        decl_names: decl_names.into_iter().collect(),
+        import_sources: import_sources.into_iter().collect(),
+        import_alias_count: facts.css_module_value_import_edge_count,
+        ref_names: ref_names.clone().into_iter().collect(),
+        local_ref_names: ref_names.into_iter().collect(),
+        ..ParserIndexValueFactsV0::default()
+    }
+}
+
+fn summarize_omena_parser_custom_property_facts(
+    source: &str,
+    facts: &ParsedStyleFacts,
+) -> ParserIndexCustomPropertyFactsV0 {
+    let mut decl_names = BTreeSet::new();
+    let mut ref_names = BTreeSet::new();
+    let mut decl_facts = Vec::new();
+    let mut ref_facts = Vec::new();
+    for variable in &facts.variables {
+        match variable.kind {
+            ParsedVariableFactKind::CustomPropertyDeclaration => {
+                let byte_span = parser_byte_span_for_offsets(
+                    u32::from(variable.range.start()) as usize,
+                    u32::from(variable.range.end()) as usize,
+                );
+                decl_names.insert(variable.name.clone());
+                decl_facts.push(ParserIndexCustomPropertyDeclFactV0 {
+                    name: variable.name.clone(),
+                    source_order: decl_facts.len(),
+                    byte_span,
+                    range: parser_range_for_byte_span(source, byte_span),
+                    selector_contexts: Vec::new(),
+                    under_media: false,
+                    under_supports: false,
+                    under_layer: false,
+                });
+            }
+            ParsedVariableFactKind::CustomPropertyReference => {
+                ref_names.insert(variable.name.clone());
+                ref_facts.push(ParserIndexCustomPropertyRefFactV0 {
+                    name: variable.name.clone(),
+                    source_order: ref_facts.len(),
+                    selector_contexts: Vec::new(),
+                    under_media: false,
+                    under_supports: false,
+                    under_layer: false,
+                });
+            }
+            _ => {}
+        }
+    }
+    ParserIndexCustomPropertyFactsV0 {
+        decl_names: decl_names.into_iter().collect(),
+        decl_facts,
+        ref_names: ref_names.into_iter().collect(),
+        ref_facts,
+        ..ParserIndexCustomPropertyFactsV0::default()
+    }
+}
+
+fn summarize_omena_parser_sass_syntax_facts(facts: &ParsedStyleFacts) -> ParserSassSyntaxFactsV0 {
+    let mut variable_decl_names = BTreeSet::new();
+    let mut variable_ref_names = BTreeSet::new();
+    let mut mixin_decl_names = BTreeSet::new();
+    let mut mixin_include_names = BTreeSet::new();
+    let mut function_decl_names = BTreeSet::new();
+    let mut function_call_names = BTreeSet::new();
+    for symbol in &facts.sass_symbols {
+        match symbol.kind {
+            ParsedSassSymbolFactKind::VariableDeclaration => {
+                variable_decl_names.insert(symbol.name.clone());
+            }
+            ParsedSassSymbolFactKind::VariableReference => {
+                variable_ref_names.insert(symbol.name.clone());
+            }
+            ParsedSassSymbolFactKind::MixinDeclaration => {
+                mixin_decl_names.insert(symbol.name.clone());
+            }
+            ParsedSassSymbolFactKind::MixinInclude => {
+                mixin_include_names.insert(symbol.name.clone());
+            }
+            ParsedSassSymbolFactKind::FunctionDeclaration => {
+                function_decl_names.insert(symbol.name.clone());
+            }
+            ParsedSassSymbolFactKind::FunctionCall => {
+                function_call_names.insert(symbol.name.clone());
+            }
+        }
+    }
+    let mut module_use_sources = BTreeSet::new();
+    let mut module_use_edges = Vec::new();
+    let mut module_forward_sources = BTreeSet::new();
+    let mut module_import_sources = BTreeSet::new();
+    for edge in &facts.sass_module_edges {
+        match edge.kind {
+            ParsedSassModuleEdgeFactKind::Use => {
+                module_use_sources.insert(edge.source.clone());
+                module_use_edges.push(ParserIndexSassModuleUseFactV0 {
+                    source: edge.source.clone(),
+                    namespace_kind: edge.namespace_kind.unwrap_or("default"),
+                    namespace: edge.namespace.clone(),
+                });
+            }
+            ParsedSassModuleEdgeFactKind::Forward => {
+                module_forward_sources.insert(edge.source.clone());
+            }
+            ParsedSassModuleEdgeFactKind::Import => {
+                module_import_sources.insert(edge.source.clone());
+                module_use_edges.push(ParserIndexSassModuleUseFactV0 {
+                    source: edge.source.clone(),
+                    namespace_kind: "wildcard",
+                    namespace: None,
+                });
+            }
+        }
+    }
+    ParserSassSyntaxFactsV0 {
+        variable_decl_names: variable_decl_names.into_iter().collect(),
+        variable_parameter_names: Vec::new(),
+        variable_ref_names: variable_ref_names.into_iter().collect(),
+        mixin_decl_names: mixin_decl_names.into_iter().collect(),
+        mixin_include_names: mixin_include_names.into_iter().collect(),
+        function_decl_names: function_decl_names.into_iter().collect(),
+        function_call_names: function_call_names.into_iter().collect(),
+        module_use_sources: module_use_sources.into_iter().collect(),
+        module_use_edges,
+        module_forward_sources: module_forward_sources.into_iter().collect(),
+        module_import_sources: module_import_sources.into_iter().collect(),
+    }
+}
+
+fn summarize_omena_parser_keyframe_facts(facts: &ParsedStyleFacts) -> ParserIndexKeyframesFactsV0 {
+    let mut names = BTreeSet::new();
+    let mut animation_ref_names = BTreeSet::new();
+    for animation in &facts.animations {
+        match animation.kind {
+            ParsedAnimationFactKind::KeyframesDeclaration => {
+                names.insert(animation.name.clone());
+            }
+            ParsedAnimationFactKind::AnimationNameReference => {
+                animation_ref_names.insert(animation.name.clone());
+            }
+        }
+    }
+    ParserIndexKeyframesFactsV0 {
+        names: names.into_iter().collect(),
+        animation_ref_names: animation_ref_names.clone().into_iter().collect(),
+        animation_name_ref_names: animation_ref_names.into_iter().collect(),
+        ..ParserIndexKeyframesFactsV0::default()
+    }
+}
+
+fn summarize_omena_parser_composes_facts(facts: &ParsedStyleFacts) -> ParserIndexComposesFactsV0 {
+    let mut local_selector_names = BTreeSet::new();
+    let mut imported_selector_names = BTreeSet::new();
+    let mut global_selector_names = BTreeSet::new();
+    let mut import_sources = BTreeSet::new();
+    for edge in &facts.css_module_composes_edges {
+        match edge.kind {
+            ParsedCssModuleComposesEdgeKind::Local => {
+                local_selector_names.extend(edge.target_names.iter().cloned());
+            }
+            ParsedCssModuleComposesEdgeKind::External => {
+                imported_selector_names.extend(edge.target_names.iter().cloned());
+                if let Some(source) = &edge.import_source {
+                    import_sources.insert(source.clone());
+                }
+            }
+            ParsedCssModuleComposesEdgeKind::Global => {
+                global_selector_names.extend(edge.target_names.iter().cloned());
+            }
+        }
+    }
+    for composes in &facts.css_module_composes {
+        if composes.kind == ParsedCssModuleComposesFactKind::ImportSource {
+            import_sources.insert(composes.name.clone());
+        }
+    }
+    let local_selector_names = local_selector_names.into_iter().collect::<Vec<_>>();
+    let imported_selector_names = imported_selector_names.into_iter().collect::<Vec<_>>();
+    let global_selector_names = global_selector_names.into_iter().collect::<Vec<_>>();
+    ParserIndexComposesFactsV0 {
+        class_name_count: local_selector_names.len()
+            + imported_selector_names.len()
+            + global_selector_names.len(),
+        local_class_name_count: local_selector_names.len(),
+        imported_class_name_count: imported_selector_names.len(),
+        global_class_name_count: global_selector_names.len(),
+        local_selector_names,
+        imported_selector_names,
+        global_selector_names,
+        import_sources: import_sources.into_iter().collect(),
+        ..ParserIndexComposesFactsV0::default()
+    }
+}
+
+fn summarize_omena_parser_custom_property_semantic_facts(
+    facts: &ParserIndexCustomPropertyFactsV0,
+) -> StyleCustomPropertySemanticFactsV0 {
+    let decl_names = facts.decl_names.iter().cloned().collect::<BTreeSet<_>>();
+    let mut resolved_ref_names = BTreeSet::new();
+    let mut unresolved_ref_names = BTreeSet::new();
+    for name in &facts.ref_names {
+        if decl_names.contains(name) {
+            resolved_ref_names.insert(name.clone());
+        } else {
+            unresolved_ref_names.insert(name.clone());
+        }
+    }
+    StyleCustomPropertySemanticFactsV0 {
+        decl_names: facts.decl_names.clone(),
+        ref_names: facts.ref_names.clone(),
+        resolved_ref_names: resolved_ref_names.into_iter().collect(),
+        unresolved_ref_names: unresolved_ref_names.into_iter().collect(),
+        selectors_with_refs_names: facts.selectors_with_refs_names.clone(),
+    }
+}
+
+fn bem_suffix_parent_name(name: &str) -> Option<String> {
+    let marker = name
+        .find("__")
+        .or_else(|| name.find("--"))?;
+    (marker > 0).then(|| name[..marker].to_string())
+}
+
+fn parser_byte_span_for_offsets(start: usize, end: usize) -> engine_style_parser::ParserByteSpanV0 {
+    engine_style_parser::ParserByteSpanV0 { start, end }
+}
+
+fn parser_range_for_byte_span(
+    source: &str,
+    span: engine_style_parser::ParserByteSpanV0,
+) -> engine_style_parser::ParserRangeV0 {
+    engine_style_parser::ParserRangeV0 {
+        start: parser_position_for_byte_offset(source, span.start),
+        end: parser_position_for_byte_offset(source, span.end),
+    }
+}
+
+fn parser_position_for_byte_offset(
+    source: &str,
+    byte_offset: usize,
+) -> engine_style_parser::ParserPositionV0 {
+    let mut line = 0usize;
+    let mut line_start = 0usize;
+    let offset = byte_offset.min(source.len());
+    for (index, byte) in source.as_bytes().iter().enumerate() {
+        if index >= offset {
+            break;
+        }
+        if *byte == b'\n' {
+            line += 1;
+            line_start = index + 1;
+        }
+    }
+    engine_style_parser::ParserPositionV0 {
+        line,
+        character: offset.saturating_sub(line_start),
+    }
+}
+
+fn omena_parser_dialect_for_style_path(style_path: &str) -> StyleDialect {
+    if style_path.ends_with(".sass") {
+        StyleDialect::Sass
+    } else if style_path.ends_with(".scss") {
+        StyleDialect::Scss
+    } else if style_path.ends_with(".less") {
+        StyleDialect::Less
+    } else {
+        StyleDialect::Css
+    }
+}
+
+fn omena_parser_dialect_label(dialect: StyleDialect) -> &'static str {
+    match dialect {
+        StyleDialect::Css => "css",
+        StyleDialect::Scss => "scss",
+        StyleDialect::Sass => "sass",
+        StyleDialect::Less => "less",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use engine_input_producers::{
@@ -201,13 +661,88 @@ mod tests {
 
     use super::{
         TheoryObservationHarnessInput, summarize_lossless_cst_contract,
-        summarize_parser_contract_facts, summarize_selector_identity_engine,
-        summarize_semantic_promotion_evidence,
+        summarize_omena_parser_style_semantic_boundary_from_source, summarize_parser_contract_facts,
+        summarize_selector_identity_engine, summarize_semantic_promotion_evidence,
         summarize_semantic_promotion_evidence_with_source_input, summarize_source_input_evidence,
         summarize_style_semantic_boundary, summarize_style_semantic_facts,
         summarize_style_semantic_graph, summarize_style_semantic_graph_from_source,
         summarize_theory_observation_contract, summarize_theory_observation_harness,
     };
+
+    #[test]
+    fn exposes_omena_parser_backed_semantic_boundary() {
+        let summary = summarize_omena_parser_style_semantic_boundary_from_source(
+            "Component.module.scss",
+            r#"
+@use "./tokens" as tokens;
+$local: red;
+
+@mixin tone($value) {
+  color: $value;
+}
+
+.button {
+  --brand: red;
+  color: var(--brand);
+  color: $local;
+  @include tone(tokens.$accent);
+
+  &__icon {
+    animation: pulse 1s;
+  }
+}
+
+@keyframes pulse {
+  to { opacity: 1; }
+}
+"#,
+        );
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(summary.language, "scss");
+        assert_eq!(
+            summary.parser_facts.selectors.names,
+            vec!["button".to_string(), "button__icon".to_string()]
+        );
+        assert_eq!(
+            summary.parser_facts.custom_properties.decl_names,
+            vec!["--brand".to_string()]
+        );
+        assert_eq!(
+            summary.parser_facts.custom_properties.ref_names,
+            vec!["--brand".to_string()]
+        );
+        assert_eq!(
+            summary
+                .semantic_facts
+                .custom_properties
+                .resolved_ref_names,
+            vec!["--brand".to_string()]
+        );
+        assert_eq!(
+            summary.parser_facts.sass.module_use_sources,
+            vec!["./tokens".to_string()]
+        );
+        assert_eq!(
+            summary.parser_facts.sass.mixin_include_names,
+            vec!["tone".to_string()]
+        );
+        assert_eq!(
+            summary.parser_facts.sass.variable_ref_names,
+            vec!["accent".to_string(), "local".to_string(), "value".to_string()]
+        );
+        assert_eq!(
+            summary.parser_facts.keyframes.names,
+            vec!["pulse".to_string()]
+        );
+        assert_eq!(summary.selector_identity_engine.canonical_id_count, 2);
+        assert!(
+            summary
+                .lossless_cst_contract
+                .span_invariants
+                .byte_span_contract_ready
+        );
+    }
 
     #[test]
     fn exposes_semantic_summary_without_hiding_parser_contract_facts() -> Result<(), String> {
