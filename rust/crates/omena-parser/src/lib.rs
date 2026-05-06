@@ -2862,6 +2862,14 @@ impl<'text> Parser<'text> {
             SyntaxKind::KeyframesRule => self.parse_keyframes_rule_prelude(),
             SyntaxKind::FontFaceRule
             | SyntaxKind::StartingStyleRule
+            | SyntaxKind::PageMarginRule
+            | SyntaxKind::FontFeatureValuesStylisticRule
+            | SyntaxKind::FontFeatureValuesStylesetRule
+            | SyntaxKind::FontFeatureValuesCharacterVariantRule
+            | SyntaxKind::FontFeatureValuesSwashRule
+            | SyntaxKind::FontFeatureValuesOrnamentsRule
+            | SyntaxKind::FontFeatureValuesAnnotationRule
+            | SyntaxKind::FontFeatureValuesHistoricalFormsRule
             | SyntaxKind::ViewTransitionRule => {
                 self.parse_empty_at_rule_prelude("unexpected at-rule prelude")
             }
@@ -7528,11 +7536,11 @@ mod tests {
     #[test]
     fn validates_empty_block_at_rule_preludes() {
         let valid = parse(
-            "@font-face { font-family: Demo; } @starting-style { .card { opacity: 0; } } @view-transition { navigation: auto; }",
+            "@font-face { font-family: Demo; } @starting-style { .card { opacity: 0; } } @view-transition { navigation: auto; } @page { @top-left { content: \"A\"; } } @font-feature-values Demo { @styleset { alt: 2; } }",
             StyleDialect::Css,
         );
         let invalid = parse(
-            "@font-face Demo { font-family: Demo; } @starting-style demo { .card { opacity: 0; } } @view-transition demo { navigation: auto; }",
+            "@font-face Demo { font-family: Demo; } @starting-style demo { .card { opacity: 0; } } @view-transition demo { navigation: auto; } @page { @top-left header { content: \"A\"; } } @font-feature-values Demo { @styleset alt { alt: 2; } }",
             StyleDialect::Css,
         );
         let unexpected_prelude_errors = invalid
@@ -7542,7 +7550,7 @@ mod tests {
             .count();
 
         assert!(valid.errors().is_empty());
-        assert_eq!(unexpected_prelude_errors, 3);
+        assert_eq!(unexpected_prelude_errors, 5);
     }
 
     #[test]
