@@ -1,5 +1,5 @@
 use super::*;
-use omena_parser::{ParsedSelectorFact, ParsedVariableFact};
+use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact};
 
 pub fn summarize_omena_query_style_semantic_graph_from_source(
     style_path: &str,
@@ -322,14 +322,12 @@ pub fn summarize_omena_query_style_hover_candidates(
         &mut seen,
         &mut candidates,
     );
-    if let Some(sheet) = parse_style_module(style_path, style_source) {
-        collect_sass_partial_evaluator_selector_candidates(
-            sheet.source.as_str(),
-            sheet.nodes.as_slice(),
-            &mut seen,
-            &mut candidates,
-        );
-    }
+    collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts(
+        style_source,
+        facts.sass_includes.as_slice(),
+        &mut seen,
+        &mut candidates,
+    );
     candidates.sort();
     Some(OmenaQueryStyleHoverCandidatesV0 {
         schema_version: "0",
@@ -1965,38 +1963,30 @@ fn collect_sass_symbol_hover_candidates_from_omena_parser_facts(
     }
 }
 
-fn collect_sass_partial_evaluator_selector_candidates(
+fn collect_sass_partial_evaluator_selector_candidates_from_omena_parser_facts(
     source: &str,
-    nodes: &[engine_style_parser::SyntaxNode],
+    includes: &[ParsedSassIncludeFact],
     seen: &mut BTreeSet<(usize, usize, String)>,
     candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,
 ) {
-    for node in nodes {
-        if let Some(SyntaxNodePayload::AtRule(at_rule)) = &node.payload
-            && at_rule.kind == AtRuleKind::Include
-        {
-            let range_span = ParserByteSpanV0 {
-                start: node.header_span.unwrap_or(node.span).start,
-                end: node.header_span.unwrap_or(node.span).end,
-            };
-            for selector_name in infer_sass_include_generated_selector_names(&at_rule.params) {
-                if seen.insert((range_span.start, range_span.end, selector_name.clone())) {
-                    candidates.push(OmenaQueryStyleHoverCandidateV0 {
-                        kind: "selector",
-                        name: selector_name,
-                        range: parser_range_for_byte_span(source, range_span),
-                        source: "sassPartialEvaluatorGeneratedSelectors",
-                        namespace: None,
-                    });
-                }
+    for include in includes {
+        let start: u32 = include.range.start().into();
+        let end: u32 = include.range.end().into();
+        let range_span = ParserByteSpanV0 {
+            start: start as usize,
+            end: end as usize,
+        };
+        for selector_name in infer_sass_include_generated_selector_names(&include.params) {
+            if seen.insert((range_span.start, range_span.end, selector_name.clone())) {
+                candidates.push(OmenaQueryStyleHoverCandidateV0 {
+                    kind: "selector",
+                    name: selector_name,
+                    range: parser_range_for_byte_span(source, range_span),
+                    source: "sassPartialEvaluatorGeneratedSelectors",
+                    namespace: None,
+                });
             }
         }
-        collect_sass_partial_evaluator_selector_candidates(
-            source,
-            &node.children,
-            seen,
-            candidates,
-        );
     }
 }
 

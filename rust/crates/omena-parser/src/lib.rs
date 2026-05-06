@@ -154,6 +154,8 @@ pub struct ParsedStyleFacts {
     pub variables: Vec<ParsedVariableFact>,
     pub sass_symbol_count: usize,
     pub sass_symbols: Vec<ParsedSassSymbolFact>,
+    pub sass_include_count: usize,
+    pub sass_includes: Vec<ParsedSassIncludeFact>,
     pub sass_module_edge_count: usize,
     pub sass_module_edges: Vec<ParsedSassModuleEdgeFact>,
     pub animation_count: usize,
@@ -228,6 +230,14 @@ pub enum ParsedSassSymbolFactKind {
     MixinInclude,
     FunctionDeclaration,
     FunctionCall,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedSassIncludeFact {
+    pub name: String,
+    pub namespace: Option<String>,
+    pub params: String,
+    pub range: TextRange,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -762,6 +772,7 @@ pub fn collect_style_facts_with_extension(
     let selectors = collect_selector_facts_from_tokens(&tokens);
     let variables = collect_variable_facts_from_tokens(&tokens);
     let sass_symbols = collect_sass_symbol_facts_from_tokens(&tokens);
+    let sass_includes = collect_sass_include_facts_from_tokens(text, &tokens);
     let sass_module_edges = collect_sass_module_edge_facts_from_tokens(&tokens);
     let animations = collect_animation_facts_from_tokens(&tokens);
     let css_module_values = collect_css_module_value_facts_from_tokens(&tokens);
@@ -785,6 +796,8 @@ pub fn collect_style_facts_with_extension(
         variables,
         sass_symbol_count: sass_symbols.len(),
         sass_symbols,
+        sass_include_count: sass_includes.len(),
+        sass_includes,
         sass_module_edge_count: sass_module_edges.len(),
         sass_module_edges,
         animation_count: animations.len(),
@@ -7088,6 +7101,37 @@ fn sass_member_namespace_before(tokens: &[Token<'_>], member_index: usize) -> Op
     (namespace.kind == SyntaxKind::Ident).then(|| namespace.text.to_string())
 }
 
+fn collect_sass_include_facts_from_tokens(
+    source: &str,
+    tokens: &[Token<'_>],
+) -> Vec<ParsedSassIncludeFact> {
+    let mut includes = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@include") {
+            continue;
+        }
+        let statement_end = css_module_value_statement_end(tokens, index + 1);
+        let Some((name, namespace)) = sass_include_name_after_at_rule(tokens, index) else {
+            continue;
+        };
+        let header_end = previous_non_trivia_token_index(tokens, statement_end, index + 1)
+            .map(|previous| tokens[previous].range.end())
+            .unwrap_or(name.range.end());
+        let params = source
+            .get(u32::from(name.range.end()) as usize..u32::from(header_end) as usize)
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        includes.push(ParsedSassIncludeFact {
+            name: name.text.to_string(),
+            namespace,
+            params,
+            range: TextRange::new(token.range.start(), header_end),
+        });
+    }
+    includes
+}
+
 fn collect_sass_module_edge_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedSassModuleEdgeFact> {
@@ -12127,6 +12171,10 @@ mod tests {
             "call",
             Some("tokens")
         )));
+        assert_eq!(facts.sass_include_count, 1);
+        assert_eq!(facts.sass_includes[0].name, "tone");
+        assert_eq!(facts.sass_includes[0].namespace.as_deref(), Some("tokens"));
+        assert_eq!(facts.sass_includes[0].params, "(red)");
     }
 
     #[test]
