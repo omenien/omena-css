@@ -675,6 +675,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "mediaQueryListValidation",
             "importPreludeCstNodes",
             "importSourcePreludeValidation",
+            "importTailPreludeValidation",
             "customMediaPreludeValidation",
             "propertyAtRuleNameValidation",
             "namedAtRulePreludeValidation",
@@ -3592,13 +3593,10 @@ impl<'text> Parser<'text> {
                 Some(kind) if is_at_rule_prelude_boundary(kind) => break,
                 Some(kind) if kind.is_trivia() => self.token_current(),
                 Some(SyntaxKind::Ident) if self.current_text() == Some("layer") => {
-                    self.parse_import_tail_node(SyntaxKind::LayerName)
+                    self.parse_import_layer_tail_node()
                 }
-                Some(SyntaxKind::Ident)
-                    if self.current_text() == Some("supports")
-                        && self.next_kind() == Some(SyntaxKind::LeftParen) =>
-                {
-                    self.parse_import_tail_node(SyntaxKind::SupportsCondition)
+                Some(SyntaxKind::Ident) if self.current_text() == Some("supports") => {
+                    self.parse_import_supports_tail_node()
                 }
                 Some(_) => {
                     self.parse_media_query_list();
@@ -3664,14 +3662,95 @@ impl<'text> Parser<'text> {
         self.consume_at_rule_prelude_tokens();
     }
 
-    fn parse_import_tail_node(&mut self, kind: SyntaxKind) {
-        self.builder
-            .start_node(self.current_prelude_node_kind(kind));
+    fn parse_import_layer_tail_node(&mut self) {
+        let valid = self.import_layer_tail_is_valid();
+        if !valid {
+            self.error_at_current(ParseErrorCode::ExpectedValue, "invalid @import layer tail");
+        }
+        self.builder.start_node(if valid {
+            SyntaxKind::LayerName
+        } else {
+            SyntaxKind::BogusLayerName
+        });
         self.token_current();
         if self.current_kind() == Some(SyntaxKind::LeftParen) {
             self.parse_balanced_parenthesized_prelude(None);
         }
         self.builder.finish_node();
+    }
+
+    fn import_layer_tail_is_valid(&self) -> bool {
+        let Some((open_index, next_kind)) = self.non_trivia_token_from(self.position + 1) else {
+            return true;
+        };
+        if next_kind != SyntaxKind::LeftParen {
+            return true;
+        }
+        let Some(close_index) = self.parenthesized_prelude_close_index(open_index) else {
+            return false;
+        };
+        self.layer_name_is_valid_between(open_index + 1, close_index)
+    }
+
+    fn layer_name_is_valid_between(&self, start: usize, end: usize) -> bool {
+        let mut saw_name = false;
+        let mut expecting_segment = true;
+
+        for token in self.tokens[start..end]
+            .iter()
+            .filter(|token| !token.kind.is_trivia())
+        {
+            if is_interpolation_start(token.kind) {
+                return true;
+            }
+            match token.kind {
+                SyntaxKind::Ident if expecting_segment => {
+                    saw_name = true;
+                    expecting_segment = false;
+                }
+                SyntaxKind::Dot if saw_name && !expecting_segment => {
+                    expecting_segment = true;
+                }
+                _ => return false,
+            }
+        }
+
+        saw_name && !expecting_segment
+    }
+
+    fn parse_import_supports_tail_node(&mut self) {
+        let valid = self.import_supports_tail_is_valid();
+        if !valid {
+            self.error_at_current(
+                ParseErrorCode::ExpectedValue,
+                "invalid @import supports tail",
+            );
+        }
+        self.builder.start_node(if valid {
+            SyntaxKind::SupportsCondition
+        } else {
+            SyntaxKind::BogusSupportsCondition
+        });
+        self.token_current();
+        if self.current_kind() == Some(SyntaxKind::LeftParen) {
+            self.parse_balanced_parenthesized_prelude(None);
+        }
+        self.builder.finish_node();
+    }
+
+    fn import_supports_tail_is_valid(&self) -> bool {
+        let Some((open_index, SyntaxKind::LeftParen)) =
+            self.non_trivia_token_from(self.position + 1)
+        else {
+            return false;
+        };
+        let Some(close_index) = self.parenthesized_prelude_close_index(open_index) else {
+            return false;
+        };
+        self.non_trivia_token_from(open_index + 1)
+            .is_some_and(|(inner_index, inner_kind)| {
+                inner_index < close_index && inner_kind != SyntaxKind::RightParen
+            })
     }
 
     fn consume_at_rule_prelude_tokens(&mut self) {
@@ -4148,14 +4227,6 @@ impl<'text> Parser<'text> {
         false
     }
 
-    fn current_prelude_node_kind(&self, kind: SyntaxKind) -> SyntaxKind {
-        if self.current_prelude_is_bogus(kind) {
-            bogus_prelude_node_kind(kind).unwrap_or(kind)
-        } else {
-            kind
-        }
-    }
-
     fn current_dialect_at_rule_node_kind(&self, spec: AtRuleSpec) -> SyntaxKind {
         if !self.find_rule_block_open_before_recovery(&[
             SyntaxKind::Semicolon,
@@ -4314,26 +4385,6 @@ impl<'text> Parser<'text> {
         }
 
         !saw_selector_token
-    }
-
-    fn current_prelude_is_bogus(&self, kind: SyntaxKind) -> bool {
-        let recovery = if kind == SyntaxKind::MediaQuery {
-            &[
-                SyntaxKind::Comma,
-                SyntaxKind::LeftBrace,
-                SyntaxKind::Semicolon,
-            ][..]
-        } else {
-            &[SyntaxKind::LeftBrace, SyntaxKind::Semicolon][..]
-        };
-
-        if !self.current_prelude_parentheses_are_balanced_until(recovery) {
-            return true;
-        }
-        kind == SyntaxKind::LayerName
-            && self
-                .non_trivia_token_from(self.position)
-                .is_some_and(|(_, kind)| kind == SyntaxKind::Semicolon)
     }
 
     fn current_generic_at_rule_prelude_node_kind(&self) -> SyntaxKind {
@@ -6656,17 +6707,6 @@ fn comma_separated_component_value_list_item_recovery(recovery: &[SyntaxKind]) -
     kinds
 }
 
-fn bogus_prelude_node_kind(kind: SyntaxKind) -> Option<SyntaxKind> {
-    match kind {
-        SyntaxKind::MediaQuery => Some(SyntaxKind::BogusMediaQuery),
-        SyntaxKind::SupportsCondition => Some(SyntaxKind::BogusSupportsCondition),
-        SyntaxKind::ContainerCondition => Some(SyntaxKind::BogusContainerCondition),
-        SyntaxKind::LayerName => Some(SyntaxKind::BogusLayerName),
-        SyntaxKind::ScopeRange => Some(SyntaxKind::BogusScopeRange),
-        _ => None,
-    }
-}
-
 fn variable_declaration_node_kind(kind: SyntaxKind, has_colon: bool) -> SyntaxKind {
     if has_colon {
         return kind;
@@ -8043,6 +8083,41 @@ mod tests {
 
         assert_eq!(invalid_import_errors, 4);
         assert_eq!(bogus_preludes, 4);
+    }
+
+    #[test]
+    fn validates_import_optional_tails() {
+        let result = parse(
+            "@import \"a.css\" layer(); @import \"b.css\" layer(1); @import \"c.css\" supports(); @import \"d.css\" supports screen; @import \"ok.css\" layer(app.theme) supports(display: grid) screen;",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let invalid_layer_tail_errors = result
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @import layer tail")
+            .count();
+        let invalid_supports_tail_errors = result
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @import supports tail")
+            .count();
+        let bogus_layer_names = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::BogusLayerName)
+            .count();
+        let bogus_supports_conditions = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::BogusSupportsCondition)
+            .count();
+
+        assert_eq!(invalid_layer_tail_errors, 2);
+        assert_eq!(invalid_supports_tail_errors, 2);
+        assert_eq!(bogus_layer_names, 2);
+        assert_eq!(bogus_supports_conditions, 2);
+        assert!(kinds.contains(&SyntaxKind::LayerName));
+        assert!(kinds.contains(&SyntaxKind::SupportsCondition));
+        assert!(kinds.contains(&SyntaxKind::MediaQueryList));
     }
 
     #[test]
@@ -9708,6 +9783,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"importSourcePreludeValidation")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"importTailPreludeValidation")
         );
         assert!(
             summary
