@@ -36,6 +36,7 @@ const RUST_FAMILIES = [
   "omena-transform-bundle",
   "omena-transform-cst",
   "omena-transform-passes",
+  "omena-transform-print",
   "omena-transform-target",
   "semantic",
   "release",

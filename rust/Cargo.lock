@@ -681,6 +681,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-transform-print"
+version = "0.1.0"
+dependencies = [
+ "omena-transform-cst",
+ "omena-transform-passes",
+ "serde",
+]
+
+[[package]]
 name = "omena-transform-target"
 version = "0.1.0"
 dependencies = [
