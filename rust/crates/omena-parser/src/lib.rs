@@ -648,6 +648,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "functionArgumentValueLists",
             "cssModuleScopeFunctionCstNodes",
             "scssStructuredBlockAtRules",
+            "scssControlPreludeValidation",
             "scssUtilityAtRules",
             "scssVariableFlagCstNodes",
             "scssNestedPropertyCstNodes",
@@ -2150,6 +2151,14 @@ impl<'text> Parser<'text> {
         ) {
             self.parse_scss_module_prelude(spec.node_kind);
         }
+        if is_scss_control_rule_kind(spec.node_kind)
+            && !self.current_scss_control_prelude_is_valid(spec.node_kind)
+        {
+            self.error_at_current(
+                ParseErrorCode::ExpectedValue,
+                "invalid SCSS control prelude",
+            );
+        }
         while !self.at_end() {
             match self.current_kind() {
                 Some(kind) if is_statement_end(kind) => {
@@ -2281,6 +2290,36 @@ impl<'text> Parser<'text> {
                 }
             }
             index += 1;
+        }
+    }
+
+    fn current_scss_control_prelude_is_valid(&self, node_kind: SyntaxKind) -> bool {
+        let recovery = [
+            SyntaxKind::LeftBrace,
+            SyntaxKind::SassIndent,
+            SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
+            SyntaxKind::RightBrace,
+            SyntaxKind::SassDedent,
+        ];
+        match node_kind {
+            SyntaxKind::ScssControlIf | SyntaxKind::ScssControlWhile => self
+                .non_trivia_token_from(self.position)
+                .is_some_and(|(_, kind)| !recovery.contains(&kind)),
+            SyntaxKind::ScssControlFor => {
+                self.non_trivia_token_from(self.position)
+                    .is_some_and(|(_, kind)| kind == SyntaxKind::ScssVariable)
+                    && self.find_text_before_recovery("from", &recovery)
+                    && (self.find_text_before_recovery("to", &recovery)
+                        || self.find_text_before_recovery("through", &recovery))
+            }
+            SyntaxKind::ScssControlEach => {
+                self.non_trivia_token_from(self.position)
+                    .is_some_and(|(_, kind)| kind == SyntaxKind::ScssVariable)
+                    && self.find_text_before_recovery("in", &recovery)
+            }
+            SyntaxKind::ScssControlElse => true,
+            _ => true,
         }
     }
 
@@ -7326,6 +7365,17 @@ fn is_css_module_from_source_token(kind: SyntaxKind, text: &str) -> bool {
     ) || (kind == SyntaxKind::Ident && text == "global")
 }
 
+fn is_scss_control_rule_kind(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::ScssControlIf
+            | SyntaxKind::ScssControlElse
+            | SyntaxKind::ScssControlEach
+            | SyntaxKind::ScssControlFor
+            | SyntaxKind::ScssControlWhile
+    )
+}
+
 fn matches_ignore_ascii_case(value: &str, candidates: &[&str]) -> bool {
     candidates
         .iter()
@@ -9009,7 +9059,7 @@ mod tests {
     #[test]
     fn parses_structured_scss_at_rule_bodies() {
         let result = parse(
-            "@mixin card($gap) { .item { gap: $gap; } } @function double($x) { @return $x * 2; } @if $enabled { .on { color: green; } }",
+            "@mixin card($gap) { .item { gap: $gap; } } @function double($x) { @return $x * 2; } @if $enabled { .on { color: green; } } @for $i from 1 through 3 { .n { order: $i; } } @each $k, $v in $map { .e { color: $v; } } @while $enabled { .w { color: red; } }",
             StyleDialect::Scss,
         );
         let kinds = node_kinds(&result.syntax());
@@ -9019,10 +9069,28 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::ScssFunctionDeclaration));
         assert!(kinds.contains(&SyntaxKind::ScssReturnRule));
         assert!(kinds.contains(&SyntaxKind::ScssControlIf));
+        assert!(kinds.contains(&SyntaxKind::ScssControlFor));
+        assert!(kinds.contains(&SyntaxKind::ScssControlEach));
+        assert!(kinds.contains(&SyntaxKind::ScssControlWhile));
         assert!(kinds.contains(&SyntaxKind::DeclarationList));
         assert!(kinds.contains(&SyntaxKind::Rule));
         assert!(kinds.contains(&SyntaxKind::ClassSelector));
         assert!(kinds.contains(&SyntaxKind::ScssVariableReference));
+    }
+
+    #[test]
+    fn validates_scss_control_preludes() {
+        let invalid = parse(
+            "@if { .a { color: red; } } @while { .b { color: red; } } @for i from 1 through 3 { .c { color: red; } } @for $i from 1 { .d { color: red; } } @each item of $items { .e { color: red; } }",
+            StyleDialect::Scss,
+        );
+        let invalid_control_prelude_count = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid SCSS control prelude")
+            .count();
+
+        assert_eq!(invalid_control_prelude_count, 5);
     }
 
     #[test]
@@ -10236,6 +10304,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"scssStructuredBlockAtRules")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"scssControlPreludeValidation")
         );
         assert!(summary.ready_surfaces.contains(&"scssUtilityAtRules"));
         assert!(summary.ready_surfaces.contains(&"scssVariableFlagCstNodes"));
