@@ -666,6 +666,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "importantAnnotationTokenization",
             "urlTokenization",
             "urlValueCstNodes",
+            "quotedUrlFunctionValueCstNodes",
             "conditionalAtRulePreludeCstNodes",
             "conditionalLevel5AtRuleCstNodes",
             "mediaQueryCstNodes",
@@ -2411,6 +2412,16 @@ impl<'text> Parser<'text> {
                 self.builder.start_node(SyntaxKind::UnaryExpression);
                 self.token_current();
                 self.parse_value_expression(5, recovery);
+                self.builder.finish_node();
+            }
+            Some(SyntaxKind::Ident)
+                if self
+                    .current_text()
+                    .is_some_and(|text| text.eq_ignore_ascii_case("url"))
+                    && self.next_kind() == Some(SyntaxKind::LeftParen) =>
+            {
+                self.builder.start_node(SyntaxKind::UrlValue);
+                self.parse_function_call(recovery);
                 self.builder.finish_node();
             }
             Some(SyntaxKind::Ident) if self.next_kind() == Some(SyntaxKind::LeftParen) => {
@@ -7425,13 +7436,21 @@ mod tests {
     }
 
     #[test]
-    fn structures_unquoted_url_values() {
-        let result = parse(".a { background: url(images/bg.png); }", StyleDialect::Css);
+    fn structures_url_values() {
+        let result = parse(
+            ".a { background: url(images/bg.png); mask: url(\"icons/mask.svg\"); }",
+            StyleDialect::Css,
+        );
         let kinds = node_kinds(&result.syntax());
+        let url_value_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::UrlValue)
+            .count();
 
         assert!(result.errors().is_empty());
         assert!(kinds.contains(&SyntaxKind::Value));
-        assert!(kinds.contains(&SyntaxKind::UrlValue));
+        assert!(kinds.contains(&SyntaxKind::FunctionCall));
+        assert_eq!(url_value_count, 2);
         assert!(token_kinds(&result.syntax()).contains(&SyntaxKind::Url));
     }
 
@@ -8294,6 +8313,11 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"urlTokenization"));
         assert!(summary.ready_surfaces.contains(&"urlValueCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"quotedUrlFunctionValueCstNodes")
+        );
         assert!(
             summary
                 .ready_surfaces
