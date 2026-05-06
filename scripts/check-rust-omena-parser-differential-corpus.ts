@@ -307,6 +307,10 @@ const LIGHTNINGCSS_CSS_CORPUS = [
     label: "lightningcss-id-selectors-container-and-keyframes",
     source: `#app.theme > .card:has(> .icon, + [data-active]) { --brand: red; color: var(--brand); }\n@container card (width > 20rem) { #inside.panel { color: red; } }\n@keyframes fade { from { opacity: 0; } to { opacity: 1; } }`,
   },
+  {
+    label: "lightningcss-namespace-selectors-and-keyframes-list",
+    source: `@namespace svg url("http://www.w3.org/2000/svg"); svg|a.icon { color: red; } @keyframes fade { from { opacity: 0; } 50%, 75% { opacity: .5; } to { opacity: 1; } } .box { animation: fade 1s; }`,
+  },
 ] as const satisfies readonly {
   readonly label: string;
   readonly source: string;
@@ -497,6 +501,8 @@ function lightningAtRuleName(rule: unknown): string | undefined {
       return "@layer";
     case "keyframes":
       return "@keyframes";
+    case "namespace":
+      return "@namespace";
     default:
       return undefined;
   }
