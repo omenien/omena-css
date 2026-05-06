@@ -86,6 +86,10 @@ macro_rules! syntax_kinds {
                     || (raw >= DIALECT_NODE_START && raw <= DIALECT_NODE_END)
             }
 
+            pub const fn is_dialect(self) -> bool {
+                self.is_dialect_specific()
+            }
+
             pub const fn is_trivia(self) -> bool {
                 matches!(
                     self,
@@ -541,10 +545,18 @@ pub enum StyleDialect {
     Less,
 }
 
+impl StyleDialect {
+    pub const ALL: &'static [Self] = &[Self::Css, Self::Scss, Self::Sass, Self::Less];
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ModuleMode {
     Plain,
     CssModules,
+}
+
+impl ModuleMode {
+    pub const ALL: &'static [Self] = &[Self::Plain, Self::CssModules];
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -571,6 +583,31 @@ pub enum SymbolKind {
     ModuleGlobal,
 }
 
+impl SymbolKind {
+    pub const ALL: &'static [Self] = &[
+        Self::Class,
+        Self::Id,
+        Self::TypeSelector,
+        Self::PlaceholderSelector,
+        Self::Keyframes,
+        Self::CustomProperty,
+        Self::ScssVariable,
+        Self::LessVariable,
+        Self::Mixin,
+        Self::Function,
+        Self::ValueDeclaration,
+        Self::ComposesTarget,
+        Self::Namespace,
+        Self::Layer,
+        Self::Container,
+        Self::Scope,
+        Self::Import,
+        Self::Export,
+        Self::ModuleLocal,
+        Self::ModuleGlobal,
+    ];
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScopeKind {
     File,
@@ -591,6 +628,29 @@ pub enum ScopeKind {
     SassControlFlow,
     CssModuleExport,
     CssModuleImport,
+}
+
+impl ScopeKind {
+    pub const ALL: &'static [Self] = &[
+        Self::File,
+        Self::LocalBlock,
+        Self::GlobalBlock,
+        Self::SelectorBlock,
+        Self::MixinBody,
+        Self::FunctionBody,
+        Self::AtRuleScope,
+        Self::NestedRule,
+        Self::ScopeAtRule,
+        Self::MediaQuery,
+        Self::SupportsQuery,
+        Self::ContainerQuery,
+        Self::CascadeLayer,
+        Self::ModuleNamespace,
+        Self::LessMixin,
+        Self::SassControlFlow,
+        Self::CssModuleExport,
+        Self::CssModuleImport,
+    ];
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -615,6 +675,94 @@ pub enum ReferenceKind {
     SelectorExtends,
     CssModuleAccess,
     CssModuleToken,
+}
+
+impl ReferenceKind {
+    pub const ALL: &'static [Self] = &[
+        Self::Class,
+        Self::Id,
+        Self::TypeSelector,
+        Self::PlaceholderSelector,
+        Self::Keyframes,
+        Self::ComposesTarget,
+        Self::ComposesFrom,
+        Self::CustomPropertyRead,
+        Self::VarRead,
+        Self::ValueRead,
+        Self::Import,
+        Self::Export,
+        Self::MixinInclude,
+        Self::FunctionCall,
+        Self::NamespaceMember,
+        Self::Layer,
+        Self::Container,
+        Self::SelectorExtends,
+        Self::CssModuleAccess,
+        Self::CssModuleToken,
+    ];
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaSyntaxBoundarySummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub phase: &'static str,
+    pub syntax_kind_count: usize,
+    pub token_kind_count: usize,
+    pub node_kind_count: usize,
+    pub bogus_kind_count: usize,
+    pub marker_kind_count: usize,
+    pub dialect_kind_count: usize,
+    pub style_dialect_count: usize,
+    pub module_mode_count: usize,
+    pub symbol_kind_count: usize,
+    pub scope_kind_count: usize,
+    pub reference_kind_count: usize,
+    pub cstree_integration_ready: bool,
+    pub ready_surfaces: Vec<&'static str>,
+    pub next_surfaces: Vec<&'static str>,
+}
+
+pub fn summarize_omena_syntax_boundary() -> OmenaSyntaxBoundarySummaryV0 {
+    OmenaSyntaxBoundarySummaryV0 {
+        schema_version: "0",
+        product: "omena-syntax.boundary",
+        phase: "h1-alpha-syntax-substrate",
+        syntax_kind_count: SyntaxKind::ALL.len(),
+        token_kind_count: SyntaxKind::ALL
+            .iter()
+            .filter(|kind| kind.is_token())
+            .count(),
+        node_kind_count: SyntaxKind::ALL.iter().filter(|kind| kind.is_node()).count(),
+        bogus_kind_count: SyntaxKind::ALL
+            .iter()
+            .filter(|kind| kind.is_bogus())
+            .count(),
+        marker_kind_count: SyntaxKind::ALL
+            .iter()
+            .filter(|kind| kind.is_marker())
+            .count(),
+        dialect_kind_count: SyntaxKind::ALL
+            .iter()
+            .filter(|kind| kind.is_dialect())
+            .count(),
+        style_dialect_count: StyleDialect::ALL.len(),
+        module_mode_count: ModuleMode::ALL.len(),
+        symbol_kind_count: SymbolKind::ALL.len(),
+        scope_kind_count: ScopeKind::ALL.len(),
+        reference_kind_count: ReferenceKind::ALL.len(),
+        cstree_integration_ready: SyntaxKind::Ident.into_raw()
+            == RawSyntaxKind(SyntaxKind::Ident.as_u32())
+            && SyntaxKind::from_raw(RawSyntaxKind(SyntaxKind::Ident.as_u32())) == SyntaxKind::Ident,
+        ready_surfaces: vec![
+            "rangeDividedSyntaxKind",
+            "symbolScopeReferenceVocabulary",
+            "styleDialectAndModuleMode",
+            "cstreeRawKindBridge",
+            "bogusRecoveryKindSuperset",
+        ],
+        next_surfaces: vec!["parserCstEquivalence", "semanticSoaTables"],
+    }
 }
 
 #[cfg(test)]
@@ -645,16 +793,8 @@ mod tests {
 
     #[test]
     fn declares_four_style_dialects_and_module_modes() {
-        let dialects = [
-            StyleDialect::Css,
-            StyleDialect::Scss,
-            StyleDialect::Sass,
-            StyleDialect::Less,
-        ];
-        let module_modes = [ModuleMode::Plain, ModuleMode::CssModules];
-
-        assert_eq!(dialects.len(), 4);
-        assert_eq!(module_modes.len(), 2);
+        assert_eq!(StyleDialect::ALL.len(), 4);
+        assert_eq!(ModuleMode::ALL.len(), 2);
     }
 
     #[test]
@@ -692,5 +832,27 @@ mod tests {
         assert!(SyntaxKind::ALL.len() >= 160);
         assert!(token_count >= 80);
         assert!(node_count >= 80);
+    }
+
+    #[test]
+    fn summarizes_phase_alpha_boundary_contract() {
+        let summary = summarize_omena_syntax_boundary();
+
+        assert_eq!(summary.product, "omena-syntax.boundary");
+        assert_eq!(summary.phase, "h1-alpha-syntax-substrate");
+        assert!(summary.syntax_kind_count >= 160);
+        assert!(summary.bogus_kind_count >= 33);
+        assert_eq!(summary.style_dialect_count, 4);
+        assert_eq!(summary.module_mode_count, 2);
+        assert_eq!(summary.symbol_kind_count, SymbolKind::ALL.len());
+        assert_eq!(summary.scope_kind_count, ScopeKind::ALL.len());
+        assert_eq!(summary.reference_kind_count, ReferenceKind::ALL.len());
+        assert!(summary.cstree_integration_ready);
+        assert!(SyntaxKind::ScssUseRule.is_dialect());
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"symbolScopeReferenceVocabulary")
+        );
     }
 }
