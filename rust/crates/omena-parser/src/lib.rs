@@ -672,6 +672,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "supportsAtRulePreludeValidation",
             "conditionalLevel5AtRuleCstNodes",
             "mediaQueryCstNodes",
+            "mediaQueryListValidation",
             "importPreludeCstNodes",
             "importSourcePreludeValidation",
             "propertyAtRuleNameValidation",
@@ -2990,28 +2991,54 @@ impl<'text> Parser<'text> {
 
     fn parse_media_query_list(&mut self) {
         self.builder.start_node(SyntaxKind::MediaQueryList);
+        let mut saw_query = false;
+        let mut expecting_query = true;
         while !self.at_end() {
             match self.current_kind() {
                 Some(kind) if is_at_rule_prelude_boundary(kind) => break,
-                Some(SyntaxKind::Comma) => self.token_current(),
-                Some(kind) if is_interpolation_start(kind) => self.parse_interpolation(
-                    kind,
-                    &[
-                        SyntaxKind::Comma,
-                        SyntaxKind::LeftBrace,
-                        SyntaxKind::Semicolon,
-                    ],
-                ),
-                Some(_) => self.parse_media_query(),
+                Some(SyntaxKind::Comma) => {
+                    if expecting_query {
+                        self.error_at_current(
+                            ParseErrorCode::ExpectedValue,
+                            "invalid @media prelude",
+                        );
+                        self.builder.start_node(SyntaxKind::BogusMediaQuery);
+                        self.token_current();
+                        self.builder.finish_node();
+                    } else {
+                        self.token_current();
+                        expecting_query = true;
+                    }
+                }
+                Some(_) => {
+                    let valid = self.current_media_query_is_valid();
+                    if !valid {
+                        self.error_at_current(
+                            ParseErrorCode::ExpectedValue,
+                            "invalid @media prelude",
+                        );
+                    }
+                    self.parse_media_query(valid);
+                    saw_query = true;
+                    expecting_query = false;
+                }
                 None => break,
             }
+        }
+        if !saw_query || expecting_query {
+            self.error_at_current(ParseErrorCode::ExpectedValue, "invalid @media prelude");
+            self.builder.start_node(SyntaxKind::BogusMediaQuery);
+            self.builder.finish_node();
         }
         self.builder.finish_node();
     }
 
-    fn parse_media_query(&mut self) {
-        self.builder
-            .start_node(self.current_prelude_node_kind(SyntaxKind::MediaQuery));
+    fn parse_media_query(&mut self, valid: bool) {
+        self.builder.start_node(if valid {
+            SyntaxKind::MediaQuery
+        } else {
+            SyntaxKind::BogusMediaQuery
+        });
         while !self.at_end() {
             match self.current_kind() {
                 Some(kind) if is_at_rule_prelude_boundary(kind) || kind == SyntaxKind::Comma => {
@@ -3038,6 +3065,39 @@ impl<'text> Parser<'text> {
             }
         }
         self.builder.finish_node();
+    }
+
+    fn current_media_query_is_valid(&self) -> bool {
+        let Some((first_index, first_kind)) = self.non_trivia_token_from(self.position) else {
+            return false;
+        };
+        if is_at_rule_prelude_boundary(first_kind) || first_kind == SyntaxKind::Comma {
+            return false;
+        }
+        if !self.current_prelude_parentheses_are_balanced_until(&[
+            SyntaxKind::Comma,
+            SyntaxKind::LeftBrace,
+            SyntaxKind::SassIndent,
+            SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
+        ]) {
+            return false;
+        }
+        self.media_query_starts_at(first_index, first_kind)
+    }
+
+    fn media_query_starts_at(&self, index: usize, kind: SyntaxKind) -> bool {
+        match kind {
+            SyntaxKind::Ident | SyntaxKind::LeftParen => true,
+            SyntaxKind::KeywordNot | SyntaxKind::KeywordOnly => self
+                .non_trivia_token_from(index + 1)
+                .is_some_and(|(_, next_kind)| {
+                    matches!(next_kind, SyntaxKind::Ident | SyntaxKind::LeftParen)
+                        || is_interpolation_start(next_kind)
+                }),
+            kind if is_interpolation_start(kind) => true,
+            _ => false,
+        }
     }
 
     fn parse_charset_rule_prelude(&mut self) {
@@ -7785,6 +7845,28 @@ mod tests {
     }
 
     #[test]
+    fn validates_media_query_list_preludes() {
+        let result = parse(
+            "@media { .a { color: red; } } @media , screen { .b { color: blue; } } @media screen, { .c { color: green; } } @media 1 { .d { color: black; } } @media screen and (min-width: 40rem), print { .e { color: white; } }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let invalid_media_errors = result
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @media prelude")
+            .count();
+        let bogus_media_queries = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::BogusMediaQuery)
+            .count();
+
+        assert_eq!(invalid_media_errors, 4);
+        assert_eq!(bogus_media_queries, 4);
+        assert!(kinds.contains(&SyntaxKind::MediaQuery));
+    }
+
+    #[test]
     fn validates_supports_rule_preludes() {
         let result = parse(
             "@supports { .a { color: red; } } @supports display: grid { .b { color: blue; } } @supports not { .c { color: green; } } @supports (display: grid) { .d { color: black; } } @supports selector(:has(*)) { .e { color: white; } }",
@@ -9550,6 +9632,7 @@ mod tests {
                 .contains(&"conditionalLevel5AtRuleCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"mediaQueryCstNodes"));
+        assert!(summary.ready_surfaces.contains(&"mediaQueryListValidation"));
         assert!(summary.ready_surfaces.contains(&"importPreludeCstNodes"));
         assert!(
             summary
