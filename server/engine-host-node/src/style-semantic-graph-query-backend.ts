@@ -297,7 +297,43 @@ export interface StyleSemanticGraphPackageManifestInputV0 {
 export interface StyleSemanticGraphBatchRunnerOutputV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-semantic.style-semantic-graph-batch";
+  readonly cssModulesResolution?: StyleSemanticGraphCssModulesCrossFileResolutionV0;
   readonly graphs: readonly StyleSemanticGraphBatchEntryV0[];
+}
+
+export interface StyleSemanticGraphCssModulesCrossFileResolutionV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-query.css-modules-cross-file-resolution";
+  readonly status: string;
+  readonly resolutionScope: string;
+  readonly styleCount: number;
+  readonly importEdgeCount: number;
+  readonly resolvedImportEdgeCount: number;
+  readonly unresolvedImportEdgeCount: number;
+  readonly matchedNameCount: number;
+  readonly edges: readonly StyleSemanticGraphCssModulesImportEdgeResolutionV0[];
+  readonly capabilities: {
+    readonly importSourceResolutionReady: boolean;
+    readonly composesNameMatchReady: boolean;
+    readonly valueNameMatchReady: boolean;
+    readonly icssNameMatchReady: boolean;
+    readonly transitiveClosureReady: boolean;
+    readonly cycleDetectionReady: boolean;
+  };
+  readonly nextPriorities: readonly string[];
+}
+
+export interface StyleSemanticGraphCssModulesImportEdgeResolutionV0 {
+  readonly fromStylePath: string;
+  readonly importKind: string;
+  readonly source: string;
+  readonly resolvedStylePath?: string | null;
+  readonly status: string;
+  readonly importGraphDistance?: number | null;
+  readonly importGraphOrder?: number | null;
+  readonly importedNames: readonly string[];
+  readonly exportedNames: readonly string[];
+  readonly matchedNames: readonly string[];
 }
 
 export interface StyleSemanticGraphBatchEntryV0 {

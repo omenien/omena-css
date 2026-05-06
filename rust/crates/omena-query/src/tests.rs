@@ -789,6 +789,94 @@ fn style_semantic_graph_batch_resolves_package_root_forward_chain_token_candidat
 }
 
 #[test]
+fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
+    let input = sample_input();
+    let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [
+            ("/tmp/base.module.scss", ".base { color: red; }"),
+            (
+                "/tmp/tokens.module.scss",
+                "@value primary: red; :export { exported: red; }",
+            ),
+            (
+                "/tmp/App.module.scss",
+                "@value primary as localPrimary from \"./tokens.module.scss\"; :import(\"./tokens.module.scss\") { imported: exported; } .btn { composes: base from \"./base.module.scss\"; color: localPrimary; }",
+            ),
+        ],
+        &input,
+    );
+
+    assert_eq!(
+        batch.css_modules_resolution.product,
+        "omena-query.css-modules-cross-file-resolution"
+    );
+    assert_eq!(
+        batch.css_modules_resolution.status,
+        "importSourceResolutionSeed"
+    );
+    assert_eq!(batch.css_modules_resolution.import_edge_count, 3);
+    assert_eq!(batch.css_modules_resolution.resolved_import_edge_count, 3);
+    assert_eq!(batch.css_modules_resolution.unresolved_import_edge_count, 0);
+    assert_eq!(batch.css_modules_resolution.matched_name_count, 3);
+
+    let composes = batch
+        .css_modules_resolution
+        .edges
+        .iter()
+        .find(|edge| edge.import_kind == "composes");
+    assert!(composes.is_some());
+    let Some(composes) = composes else {
+        return;
+    };
+    assert_eq!(composes.status, "resolved");
+    assert_eq!(
+        composes.resolved_style_path.as_deref(),
+        Some("/tmp/base.module.scss")
+    );
+    assert_eq!(composes.imported_names, vec!["base"]);
+    assert_eq!(composes.exported_names, vec!["base"]);
+    assert_eq!(composes.matched_names, vec!["base"]);
+
+    let value = batch
+        .css_modules_resolution
+        .edges
+        .iter()
+        .find(|edge| edge.import_kind == "value");
+    assert!(value.is_some());
+    let Some(value) = value else {
+        return;
+    };
+    assert_eq!(value.status, "resolved");
+    assert_eq!(
+        value.resolved_style_path.as_deref(),
+        Some("/tmp/tokens.module.scss")
+    );
+    assert_eq!(value.imported_names, vec!["primary"]);
+    assert_eq!(value.exported_names, vec!["primary"]);
+    assert_eq!(value.matched_names, vec!["primary"]);
+
+    let icss = batch
+        .css_modules_resolution
+        .edges
+        .iter()
+        .find(|edge| edge.import_kind == "icss");
+    assert!(icss.is_some());
+    let Some(icss) = icss else {
+        return;
+    };
+    assert_eq!(icss.status, "resolved");
+    assert_eq!(icss.imported_names, vec!["exported"]);
+    assert_eq!(icss.exported_names, vec!["exported"]);
+    assert_eq!(icss.matched_names, vec!["exported"]);
+    assert!(
+        !batch
+            .css_modules_resolution
+            .capabilities
+            .transitive_closure_ready
+    );
+}
+
+#[test]
 fn style_semantic_graph_batch_resolves_package_manifest_style_exports() {
     let input = sample_input();
     let batch =

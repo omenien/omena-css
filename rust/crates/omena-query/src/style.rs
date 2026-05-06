@@ -683,6 +683,8 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
             collect_omena_bridge_design_token_workspace_declarations(style_path, sheet)
         })
         .collect::<Vec<_>>();
+    let css_modules_resolution =
+        summarize_css_modules_cross_file_resolution(&parsed_styles, package_manifests);
     let graphs = style_sources
         .into_iter()
         .map(
@@ -711,7 +713,182 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
     OmenaQueryStyleSemanticGraphBatchOutputV0 {
         schema_version: "0",
         product: "omena-semantic.style-semantic-graph-batch",
+        css_modules_resolution,
         graphs,
+    }
+}
+
+fn summarize_css_modules_cross_file_resolution(
+    parsed_styles: &[(String, Stylesheet)],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQueryCssModulesCrossFileResolutionV0 {
+    let available_style_paths = parsed_styles
+        .iter()
+        .map(|(style_path, _sheet)| style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let facts_by_path = parsed_styles
+        .iter()
+        .map(|(style_path, sheet)| {
+            (
+                style_path.as_str(),
+                summarize_omena_query_omena_parser_style_facts(
+                    sheet.source.as_str(),
+                    omena_parser_dialect_for_style_language(sheet.language),
+                ),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut edges = Vec::new();
+
+    for (style_path, _sheet) in parsed_styles {
+        let Some(facts) = facts_by_path.get(style_path.as_str()) else {
+            continue;
+        };
+        let reachable = collect_import_reachable_style_path_metadata(
+            style_path,
+            parsed_styles,
+            package_manifests,
+        );
+        let context = CssModulesResolutionBatchContext {
+            available_style_paths: &available_style_paths,
+            facts_by_path: &facts_by_path,
+            reachable: &reachable,
+            package_manifests,
+        };
+
+        for source in &facts.css_module_composes_import_sources {
+            edges.push(resolve_css_modules_import_edge(
+                style_path,
+                "composes",
+                source,
+                facts.css_module_composes_target_names.as_slice(),
+                &context,
+                |target| target.class_selector_names.as_slice(),
+            ));
+        }
+
+        for source in &facts.css_module_value_import_sources {
+            edges.push(resolve_css_modules_import_edge(
+                style_path,
+                "value",
+                source,
+                facts.css_module_value_reference_names.as_slice(),
+                &context,
+                |target| target.css_module_value_definition_names.as_slice(),
+            ));
+        }
+
+        for source in &facts.icss_import_sources {
+            edges.push(resolve_css_modules_import_edge(
+                style_path,
+                "icss",
+                source,
+                facts.icss_import_remote_names.as_slice(),
+                &context,
+                |target| target.icss_export_names.as_slice(),
+            ));
+        }
+    }
+
+    edges.sort_by_key(|edge| {
+        (
+            edge.from_style_path.clone(),
+            edge.import_kind,
+            edge.source.clone(),
+        )
+    });
+    let resolved_import_edge_count = edges
+        .iter()
+        .filter(|edge| edge.resolved_style_path.is_some())
+        .count();
+    let matched_name_count = edges
+        .iter()
+        .map(|edge| edge.matched_names.len())
+        .sum::<usize>();
+
+    OmenaQueryCssModulesCrossFileResolutionV0 {
+        schema_version: "0",
+        product: "omena-query.css-modules-cross-file-resolution",
+        status: "importSourceResolutionSeed",
+        resolution_scope: "batchImportGraph",
+        style_count: parsed_styles.len(),
+        import_edge_count: edges.len(),
+        resolved_import_edge_count,
+        unresolved_import_edge_count: edges.len() - resolved_import_edge_count,
+        matched_name_count,
+        edges,
+        capabilities: OmenaQueryCssModulesCrossFileResolutionCapabilitiesV0 {
+            import_source_resolution_ready: true,
+            composes_name_match_ready: true,
+            value_name_match_ready: true,
+            icss_name_match_ready: true,
+            transitive_closure_ready: false,
+            cycle_detection_ready: false,
+        },
+        next_priorities: vec![
+            "edgeLevelParserGrouping",
+            "composesClosure",
+            "valueGraphClosure",
+            "icssExportImportClosure",
+            "cycleDetection",
+        ],
+    }
+}
+
+struct CssModulesResolutionBatchContext<'a> {
+    available_style_paths: &'a BTreeSet<&'a str>,
+    facts_by_path: &'a BTreeMap<&'a str, OmenaQueryOmenaParserStyleFactsV0>,
+    reachable: &'a BTreeMap<String, ImportReachability>,
+    package_manifests: &'a [OmenaQueryStylePackageManifestV0],
+}
+
+fn resolve_css_modules_import_edge(
+    from_style_path: &str,
+    import_kind: &'static str,
+    source: &str,
+    imported_names: &[String],
+    context: &CssModulesResolutionBatchContext<'_>,
+    exported_names_for_kind: fn(&OmenaQueryOmenaParserStyleFactsV0) -> &[String],
+) -> OmenaQueryCssModulesImportEdgeResolutionV0 {
+    let resolved_style_path = resolve_style_module_source(
+        from_style_path,
+        source,
+        context.available_style_paths,
+        context.package_manifests,
+    );
+    let reachability = resolved_style_path
+        .as_ref()
+        .and_then(|style_path| context.reachable.get(style_path));
+    let exported_names = resolved_style_path
+        .as_deref()
+        .and_then(|style_path| context.facts_by_path.get(style_path))
+        .map(exported_names_for_kind)
+        .map(|names| names.to_vec())
+        .unwrap_or_default();
+    let imported_names = sorted_unique_strings(imported_names);
+    let matched_names =
+        sorted_name_intersection(imported_names.as_slice(), exported_names.as_slice());
+    let status = if resolved_style_path.is_none() {
+        "unresolvedSource"
+    } else if imported_names.is_empty() {
+        "resolvedSource"
+    } else if matched_names.is_empty() {
+        "resolvedSourceNoNameMatch"
+    } else {
+        "resolved"
+    };
+
+    OmenaQueryCssModulesImportEdgeResolutionV0 {
+        from_style_path: from_style_path.to_string(),
+        import_kind,
+        source: source.to_string(),
+        resolved_style_path,
+        status,
+        import_graph_distance: reachability.map(|reachability| reachability.distance),
+        import_graph_order: reachability.map(|reachability| reachability.order),
+        imported_names,
+        exported_names,
+        matched_names,
     }
 }
 
@@ -1532,6 +1709,14 @@ fn is_sass_builtin_module_source(source: &str) -> bool {
     source.starts_with("sass:")
 }
 
+fn omena_parser_dialect_for_style_language(language: StyleLanguage) -> OmenaParserStyleDialect {
+    match language {
+        StyleLanguage::Css => OmenaParserStyleDialect::Css,
+        StyleLanguage::Scss => OmenaParserStyleDialect::Scss,
+        StyleLanguage::Less => OmenaParserStyleDialect::Less,
+    }
+}
+
 fn style_language_label(language: StyleLanguage) -> &'static str {
     match language {
         StyleLanguage::Css => "css",
@@ -1553,4 +1738,23 @@ fn push_unique_string(values: &mut Vec<String>, value: String) {
     if !values.contains(&value) {
         values.push(value);
     }
+}
+
+fn sorted_unique_strings(values: &[String]) -> Vec<String> {
+    values
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn sorted_name_intersection(left: &[String], right: &[String]) -> Vec<String> {
+    let right = right.iter().map(String::as_str).collect::<BTreeSet<_>>();
+    left.iter()
+        .filter(|name| right.contains(name.as_str()))
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }

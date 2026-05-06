@@ -42,6 +42,10 @@ Current public products:
   `omena-semantic.style-semantic-graph` products while delegating graph assembly
   to `omena-bridge`, including the `omena-semantic.css-modules-semantics`
   per-file seed surface.
+- `omena-query.css-modules-cross-file-resolution` — batch-level seed resolver
+  for CSS Modules `composes`, `@value`, and ICSS import sources. This resolves
+  import sources and same-edge name matches without yet claiming transitive
+  closure or cycle detection.
 
 Primary check:
 

@@ -68,6 +68,7 @@ pub struct SelectedQueryRunnerCommandV0 {
 pub struct OmenaQueryStyleSemanticGraphBatchOutputV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub css_modules_resolution: OmenaQueryCssModulesCrossFileResolutionV0,
     pub graphs: Vec<OmenaQueryStyleSemanticGraphBatchEntryV0>,
 }
 
@@ -76,6 +77,49 @@ pub struct OmenaQueryStyleSemanticGraphBatchOutputV0 {
 pub struct OmenaQueryStyleSemanticGraphBatchEntryV0 {
     pub style_path: String,
     pub graph: Option<StyleSemanticGraphSummaryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCssModulesCrossFileResolutionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub status: &'static str,
+    pub resolution_scope: &'static str,
+    pub style_count: usize,
+    pub import_edge_count: usize,
+    pub resolved_import_edge_count: usize,
+    pub unresolved_import_edge_count: usize,
+    pub matched_name_count: usize,
+    pub edges: Vec<OmenaQueryCssModulesImportEdgeResolutionV0>,
+    pub capabilities: OmenaQueryCssModulesCrossFileResolutionCapabilitiesV0,
+    pub next_priorities: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCssModulesImportEdgeResolutionV0 {
+    pub from_style_path: String,
+    pub import_kind: &'static str,
+    pub source: String,
+    pub resolved_style_path: Option<String>,
+    pub status: &'static str,
+    pub import_graph_distance: Option<usize>,
+    pub import_graph_order: Option<usize>,
+    pub imported_names: Vec<String>,
+    pub exported_names: Vec<String>,
+    pub matched_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCssModulesCrossFileResolutionCapabilitiesV0 {
+    pub import_source_resolution_ready: bool,
+    pub composes_name_match_ready: bool,
+    pub value_name_match_ready: bool,
+    pub icss_name_match_ready: bool,
+    pub transitive_closure_ready: bool,
+    pub cycle_detection_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
