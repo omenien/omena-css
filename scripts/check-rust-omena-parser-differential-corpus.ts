@@ -229,7 +229,7 @@ const PARSER_ONLY_CORPUS = [
   {
     label: "scss-module-config-preludes",
     dialect: "scss",
-    source: `@use "./tokens" with ($gap: 1rem, $tone: blue);\n@forward "./theme" with ($space: 2rem);\n.card { color: $gap; }`,
+    source: `@use "./tokens" as * with ($gap: 1rem, $tone: blue);\n@forward "./theme" as theme-* show $space, token with ($space: 2rem);\n.card { color: $gap; }`,
     expected: {
       classSelectorNames: ["card"],
       placeholderSelectorNames: [],
