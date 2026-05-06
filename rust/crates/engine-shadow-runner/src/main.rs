@@ -40,7 +40,9 @@ use omena_parser::{
 };
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryExpressionDomainFlowRuntimeV0,
-    OmenaQueryStylePackageManifestV0, ParserPositionV0, read_omena_query_cascade_at_position,
+    OmenaQueryStylePackageManifestV0, OmenaQueryTargetFeatureSupportV0,
+    OmenaQueryTargetTransformOptionsV0, ParserPositionV0,
+    default_omena_query_transform_print_options, read_omena_query_cascade_at_position,
     summarize_omena_query_boundary, summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
@@ -56,6 +58,7 @@ use omena_query::{
     summarize_omena_query_source_resolution_runtime,
     summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
     summarize_omena_query_style_semantic_graph_from_source,
+    summarize_omena_query_transform_plan_from_source,
 };
 use omena_resolver::{
     OmenaResolverModuleGraphSummaryV0, OmenaResolverStylePackageManifestV0,
@@ -134,6 +137,73 @@ struct StyleSemanticGraphBatchInputV0 {
     #[serde(default)]
     package_manifests: Vec<StyleSemanticGraphPackageManifestInputV0>,
     engine_input: EngineInputV2,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TransformPlanInputV0 {
+    style_path: String,
+    style_source: String,
+    #[serde(default = "default_transform_target_label")]
+    target_label: String,
+    target_support: TransformPlanTargetFeatureSupportInputV0,
+    target_options: TransformPlanTargetOptionsInputV0,
+}
+
+fn default_transform_target_label() -> String {
+    "explicit-feature-matrix".to_string()
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TransformPlanTargetFeatureSupportInputV0 {
+    vendor_prefix_required: bool,
+    supports_light_dark: bool,
+    supports_color_mix: bool,
+    supports_oklch_oklab: bool,
+    supports_color_function: bool,
+    supports_logical_properties: bool,
+    supports_css_nesting: bool,
+    supports_css_scope: bool,
+    supports_cascade_layers: bool,
+}
+
+impl From<TransformPlanTargetFeatureSupportInputV0> for OmenaQueryTargetFeatureSupportV0 {
+    fn from(input: TransformPlanTargetFeatureSupportInputV0) -> Self {
+        Self {
+            vendor_prefix_required: input.vendor_prefix_required,
+            supports_light_dark: input.supports_light_dark,
+            supports_color_mix: input.supports_color_mix,
+            supports_oklch_oklab: input.supports_oklch_oklab,
+            supports_color_function: input.supports_color_function,
+            supports_logical_properties: input.supports_logical_properties,
+            supports_css_nesting: input.supports_css_nesting,
+            supports_css_scope: input.supports_css_scope,
+            supports_cascade_layers: input.supports_cascade_layers,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TransformPlanTargetOptionsInputV0 {
+    allow_logical_to_physical: bool,
+    allow_scope_flatten: bool,
+    allow_layer_flatten: bool,
+    enable_supports_static_eval: bool,
+    enable_media_static_eval: bool,
+}
+
+impl From<TransformPlanTargetOptionsInputV0> for OmenaQueryTargetTransformOptionsV0 {
+    fn from(input: TransformPlanTargetOptionsInputV0) -> Self {
+        Self {
+            allow_logical_to_physical: input.allow_logical_to_physical,
+            allow_scope_flatten: input.allow_scope_flatten,
+            allow_layer_flatten: input.allow_layer_flatten,
+            enable_supports_static_eval: input.enable_supports_static_eval,
+            enable_media_static_eval: input.enable_media_static_eval,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -926,6 +996,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             serde_json::to_writer_pretty(io::stdout(), &output)?;
         }
+        Some("transform-plan") => {
+            let input: TransformPlanInputV0 = serde_json::from_str(&stdin)?;
+            let output = summarize_omena_query_transform_plan_from_source(
+                &input.style_path,
+                &input.style_source,
+                &input.target_label,
+                input.target_support.into(),
+                input.target_options.into(),
+                default_omena_query_transform_print_options(),
+            );
+            serde_json::to_writer_pretty(io::stdout(), &output)?;
+        }
         Some("input-expression-semantics-query-fragments") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_omena_query_expression_semantics_query_fragments(&input);
@@ -1267,6 +1349,19 @@ fn run_daemon_selected_query_command(
                         .map(|style| (style.style_path.as_str(), style.style_source.as_str())),
                     &input.engine_input,
                     &package_manifests,
+                ),
+            )?)
+        }
+        "transform-plan" => {
+            let input: TransformPlanInputV0 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_query_transform_plan_from_source(
+                    &input.style_path,
+                    &input.style_source,
+                    &input.target_label,
+                    input.target_support.into(),
+                    input.target_options.into(),
+                    default_omena_query_transform_print_options(),
                 ),
             )?)
         }

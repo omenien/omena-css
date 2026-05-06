@@ -38,6 +38,7 @@ export const SELECTED_QUERY_RUNNER_COMMANDS = {
   styleSemanticGraph: "style-semantic-graph",
   readCascadeAtPosition: "read-cascade-at-position",
   styleSemanticGraphBatch: "style-semantic-graph-batch",
+  transformPlan: "transform-plan",
 } as const;
 
 export function resolveSelectedQueryBackendKind(

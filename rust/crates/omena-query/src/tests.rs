@@ -576,6 +576,12 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
     );
     assert!(
         summary
+            .runner_commands
+            .iter()
+            .any(|command| command.command == "transform-plan")
+    );
+    assert!(
+        summary
             .expression_semantics_payload_contracts
             .contains(&"valueDomainDerivation")
     );
@@ -621,6 +627,7 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
             .contains(&"sourceResolutionRuntimeIndex")
     );
     assert!(summary.adapter_readiness.contains(&"readCascadeAtPosition"));
+    assert!(summary.adapter_readiness.contains(&"transformPlanRunner"));
 }
 
 #[test]

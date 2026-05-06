@@ -184,6 +184,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 input_contract: "StyleSemanticGraphBatchInputV0",
                 output_product: "omena-semantic.style-semantic-graph-batch",
             },
+            SelectedQueryRunnerCommandV0 {
+                surface: "transformPlan",
+                command: "transform-plan",
+                input_contract: "TransformPlanInputV0",
+                output_product: "omena-query.transform-plan",
+            },
         ],
         expression_semantics_payload_contracts: vec![
             "valueDomainKind",
@@ -196,6 +202,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "ReadCascadeAtPositionInputV0",
             "StyleSemanticGraphBatchInputV0",
             "OmenaParserStyleFactsInputV0",
+            "TransformPlanInputV0",
         ],
         adapter_readiness: vec![
             "backendCapabilityMatrix",
@@ -211,6 +218,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "expressionDomainSelectorProjection",
             "omenaParserStyleFactExtraction",
             "readCascadeAtPosition",
+            "transformPlanRunner",
         ],
         routing_status: "runtimeBacked",
     }

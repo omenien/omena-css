@@ -114,6 +114,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
       outputProduct: "omena-semantic.style-semantic-graph-batch",
     },
   ],
+  [
+    "transformPlan",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.transformPlan,
+      inputContract: "TransformPlanInputV0",
+      outputProduct: "omena-query.transform-plan",
+    },
+  ],
 ] as const);
 
 void (async () => {
@@ -129,6 +137,7 @@ void (async () => {
     "ReadCascadeAtPositionInputV0",
     "StyleSemanticGraphBatchInputV0",
     "StyleSemanticGraphInputV0",
+    "TransformPlanInputV0",
   ]);
   assert.deepEqual([...summary.expressionSemanticsPayloadContracts].toSorted(), [
     "valueDomainDerivation",
@@ -149,6 +158,7 @@ void (async () => {
     "runnerCommandContract",
     "sourceResolutionRuntimeIndex",
     "styleSemanticGraphBridgeBoundary",
+    "transformPlanRunner",
   ]);
 
   for (const backendKind of BACKEND_KINDS) {
