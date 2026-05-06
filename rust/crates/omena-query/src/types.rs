@@ -92,6 +92,10 @@ pub struct OmenaQueryCssModulesCrossFileResolutionV0 {
     pub unresolved_import_edge_count: usize,
     pub matched_name_count: usize,
     pub edges: Vec<OmenaQueryCssModulesImportEdgeResolutionV0>,
+    pub composes_closure_edge_count: usize,
+    pub composes_cycle_count: usize,
+    pub composes_closure_edges: Vec<OmenaQueryCssModulesComposesClosureEdgeV0>,
+    pub cycles: Vec<OmenaQueryCssModulesCycleV0>,
     pub capabilities: OmenaQueryCssModulesCrossFileResolutionCapabilitiesV0,
     pub next_priorities: Vec<&'static str>,
 }
@@ -109,6 +113,24 @@ pub struct OmenaQueryCssModulesImportEdgeResolutionV0 {
     pub imported_names: Vec<String>,
     pub exported_names: Vec<String>,
     pub matched_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCssModulesComposesClosureEdgeV0 {
+    pub from_style_path: String,
+    pub owner_selector_name: String,
+    pub target_style_path: String,
+    pub target_selector_name: String,
+    pub depth: usize,
+    pub path: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCssModulesCycleV0 {
+    pub kind: &'static str,
+    pub path: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -177,6 +199,7 @@ pub struct OmenaQueryCssModuleValueImportEdgeFactV0 {
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCssModuleComposesEdgeFactV0 {
     pub kind: &'static str,
+    pub owner_selector_names: Vec<String>,
     pub target_names: Vec<String>,
     pub import_source: Option<String>,
 }

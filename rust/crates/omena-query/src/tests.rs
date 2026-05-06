@@ -181,6 +181,10 @@ fn exposes_omena_parser_style_fact_surface() {
     assert_eq!(summary.css_module_composes_edges.len(), 1);
     assert_eq!(summary.css_module_composes_edges[0].kind, "external");
     assert_eq!(
+        summary.css_module_composes_edges[0].owner_selector_names,
+        vec!["card"]
+    );
+    assert_eq!(
         summary.css_module_composes_edges[0].target_names,
         vec!["base", "utility"]
     );
@@ -822,7 +826,10 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
     let input = sample_input();
     let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
         [
-            ("/tmp/base.module.scss", ".base { color: red; }"),
+            (
+                "/tmp/base.module.scss",
+                ".foundation { display: block; } .base { composes: foundation; color: red; }",
+            ),
             (
                 "/tmp/tokens.module.scss",
                 "@value primary: red; :export { exported: red; }",
@@ -839,14 +846,13 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
         batch.css_modules_resolution.product,
         "omena-query.css-modules-cross-file-resolution"
     );
-    assert_eq!(
-        batch.css_modules_resolution.status,
-        "importSourceResolutionSeed"
-    );
+    assert_eq!(batch.css_modules_resolution.status, "composesClosureSeed");
     assert_eq!(batch.css_modules_resolution.import_edge_count, 3);
     assert_eq!(batch.css_modules_resolution.resolved_import_edge_count, 3);
     assert_eq!(batch.css_modules_resolution.unresolved_import_edge_count, 0);
     assert_eq!(batch.css_modules_resolution.matched_name_count, 3);
+    assert_eq!(batch.css_modules_resolution.composes_closure_edge_count, 3);
+    assert_eq!(batch.css_modules_resolution.composes_cycle_count, 0);
 
     let composes = batch
         .css_modules_resolution
@@ -863,8 +869,28 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
         Some("/tmp/base.module.scss")
     );
     assert_eq!(composes.imported_names, vec!["base"]);
-    assert_eq!(composes.exported_names, vec!["base"]);
+    assert_eq!(composes.exported_names, vec!["foundation", "base"]);
     assert_eq!(composes.matched_names, vec!["base"]);
+    let transitive_composes = batch
+        .css_modules_resolution
+        .composes_closure_edges
+        .iter()
+        .find(|edge| {
+            edge.owner_selector_name == "btn" && edge.target_selector_name == "foundation"
+        });
+    assert!(transitive_composes.is_some());
+    let Some(transitive_composes) = transitive_composes else {
+        return;
+    };
+    assert_eq!(transitive_composes.depth, 2);
+    assert_eq!(
+        transitive_composes.path,
+        vec![
+            "/tmp/App.module.scss#btn",
+            "/tmp/base.module.scss#base",
+            "/tmp/base.module.scss#foundation"
+        ]
+    );
 
     let value = batch
         .css_modules_resolution
@@ -898,10 +924,39 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
     assert_eq!(icss.exported_names, vec!["exported"]);
     assert_eq!(icss.matched_names, vec!["exported"]);
     assert!(
-        !batch
+        batch
             .css_modules_resolution
             .capabilities
             .transitive_closure_ready
+    );
+    assert!(
+        batch
+            .css_modules_resolution
+            .capabilities
+            .cycle_detection_ready
+    );
+}
+
+#[test]
+fn style_semantic_graph_batch_detects_css_modules_composes_cycles() {
+    let input = sample_input();
+    let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [(
+            "/tmp/cycle.module.scss",
+            ".a { composes: b; } .b { composes: a; }",
+        )],
+        &input,
+    );
+
+    assert_eq!(batch.css_modules_resolution.import_edge_count, 0);
+    assert_eq!(batch.css_modules_resolution.composes_cycle_count, 1);
+    assert_eq!(
+        batch.css_modules_resolution.cycles[0].path,
+        vec![
+            "/tmp/cycle.module.scss#a",
+            "/tmp/cycle.module.scss#b",
+            "/tmp/cycle.module.scss#a"
+        ]
     );
 }
 

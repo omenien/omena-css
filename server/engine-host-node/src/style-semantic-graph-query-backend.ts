@@ -317,6 +317,10 @@ export interface StyleSemanticGraphCssModulesCrossFileResolutionV0 {
   readonly unresolvedImportEdgeCount: number;
   readonly matchedNameCount: number;
   readonly edges: readonly StyleSemanticGraphCssModulesImportEdgeResolutionV0[];
+  readonly composesClosureEdgeCount: number;
+  readonly composesCycleCount: number;
+  readonly composesClosureEdges: readonly StyleSemanticGraphCssModulesComposesClosureEdgeV0[];
+  readonly cycles: readonly StyleSemanticGraphCssModulesCycleV0[];
   readonly capabilities: {
     readonly importSourceResolutionReady: boolean;
     readonly composesNameMatchReady: boolean;
@@ -339,6 +343,20 @@ export interface StyleSemanticGraphCssModulesImportEdgeResolutionV0 {
   readonly importedNames: readonly string[];
   readonly exportedNames: readonly string[];
   readonly matchedNames: readonly string[];
+}
+
+export interface StyleSemanticGraphCssModulesComposesClosureEdgeV0 {
+  readonly fromStylePath: string;
+  readonly ownerSelectorName: string;
+  readonly targetStylePath: string;
+  readonly targetSelectorName: string;
+  readonly depth: number;
+  readonly path: readonly string[];
+}
+
+export interface StyleSemanticGraphCssModulesCycleV0 {
+  readonly kind: string;
+  readonly path: readonly string[];
 }
 
 export interface StyleSemanticGraphBatchEntryV0 {

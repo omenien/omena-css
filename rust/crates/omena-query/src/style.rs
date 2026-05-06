@@ -153,6 +153,7 @@ pub fn summarize_omena_query_omena_parser_style_facts(
             .into_iter()
             .map(|edge| OmenaQueryCssModuleComposesEdgeFactV0 {
                 kind: omena_query_css_module_composes_edge_kind_label(edge.kind),
+                owner_selector_names: edge.owner_selector_names,
                 target_names: edge.target_names,
                 import_source: edge.import_source,
             })
@@ -827,6 +828,11 @@ fn summarize_css_modules_cross_file_resolution(
             edge.source.clone(),
         )
     });
+    let (composes_closure_edges, cycles) = summarize_css_modules_composes_closure(
+        &facts_by_path,
+        &available_style_paths,
+        package_manifests,
+    );
     let resolved_import_edge_count = edges
         .iter()
         .filter(|edge| edge.resolved_style_path.is_some())
@@ -839,7 +845,7 @@ fn summarize_css_modules_cross_file_resolution(
     OmenaQueryCssModulesCrossFileResolutionV0 {
         schema_version: "0",
         product: "omena-query.css-modules-cross-file-resolution",
-        status: "importSourceResolutionSeed",
+        status: "composesClosureSeed",
         resolution_scope: "batchImportGraph",
         style_count: parsed_styles.len(),
         import_edge_count: edges.len(),
@@ -847,20 +853,19 @@ fn summarize_css_modules_cross_file_resolution(
         unresolved_import_edge_count: edges.len() - resolved_import_edge_count,
         matched_name_count,
         edges,
+        composes_closure_edge_count: composes_closure_edges.len(),
+        composes_cycle_count: cycles.len(),
+        composes_closure_edges,
+        cycles,
         capabilities: OmenaQueryCssModulesCrossFileResolutionCapabilitiesV0 {
             import_source_resolution_ready: true,
             composes_name_match_ready: true,
             value_name_match_ready: true,
             icss_name_match_ready: true,
-            transitive_closure_ready: false,
-            cycle_detection_ready: false,
+            transitive_closure_ready: true,
+            cycle_detection_ready: true,
         },
-        next_priorities: vec![
-            "composesClosure",
-            "valueGraphClosure",
-            "icssExportImportClosure",
-            "cycleDetection",
-        ],
+        next_priorities: vec!["valueGraphClosure", "icssExportImportClosure"],
     }
 }
 
@@ -919,6 +924,185 @@ fn resolve_css_modules_import_edge(
         exported_names,
         matched_names,
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct CssModulesComposesNode {
+    style_path: String,
+    selector_name: String,
+}
+
+fn summarize_css_modules_composes_closure(
+    facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> (
+    Vec<OmenaQueryCssModulesComposesClosureEdgeV0>,
+    Vec<OmenaQueryCssModulesCycleV0>,
+) {
+    let graph = collect_css_modules_composes_adjacency(
+        facts_by_path,
+        available_style_paths,
+        package_manifests,
+    );
+    let mut closure_edges = Vec::new();
+    let mut cycles = Vec::new();
+    let mut seen_cycles = BTreeSet::new();
+
+    for start in graph.keys() {
+        let mut visited = BTreeSet::new();
+        let mut pending = VecDeque::from([(start.clone(), vec![start.clone()])]);
+
+        while let Some((current, path)) = pending.pop_front() {
+            let Some(targets) = graph.get(&current) else {
+                continue;
+            };
+            for target in targets {
+                if let Some(cycle_start) = path.iter().position(|node| node == target) {
+                    let mut cycle_path = path[cycle_start..].to_vec();
+                    cycle_path.push(target.clone());
+                    let cycle_labels = canonical_directed_cycle_labels(&cycle_path);
+                    if !cycle_labels.is_empty() && seen_cycles.insert(cycle_labels.clone()) {
+                        cycles.push(OmenaQueryCssModulesCycleV0 {
+                            kind: "composes",
+                            path: cycle_labels,
+                        });
+                    }
+                    continue;
+                }
+
+                if !visited.insert(target.clone()) {
+                    continue;
+                }
+
+                let mut edge_path = path.clone();
+                edge_path.push(target.clone());
+                closure_edges.push(OmenaQueryCssModulesComposesClosureEdgeV0 {
+                    from_style_path: start.style_path.clone(),
+                    owner_selector_name: start.selector_name.clone(),
+                    target_style_path: target.style_path.clone(),
+                    target_selector_name: target.selector_name.clone(),
+                    depth: edge_path.len().saturating_sub(1),
+                    path: edge_path
+                        .iter()
+                        .map(css_modules_composes_node_label)
+                        .collect(),
+                });
+                pending.push_back((target.clone(), edge_path));
+            }
+        }
+    }
+
+    closure_edges.sort_by_key(|edge| {
+        (
+            edge.from_style_path.clone(),
+            edge.owner_selector_name.clone(),
+            edge.depth,
+            edge.target_style_path.clone(),
+            edge.target_selector_name.clone(),
+        )
+    });
+    cycles.sort_by_key(|cycle| cycle.path.clone());
+    (closure_edges, cycles)
+}
+
+fn collect_css_modules_composes_adjacency(
+    facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> BTreeMap<CssModulesComposesNode, BTreeSet<CssModulesComposesNode>> {
+    let mut graph = BTreeMap::new();
+    for (style_path, facts) in facts_by_path {
+        let class_names = facts
+            .class_selector_names
+            .iter()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        for edge in &facts.css_module_composes_edges {
+            if edge.kind == "global" {
+                continue;
+            }
+            let target_style_path = if edge.kind == "external" {
+                edge.import_source.as_deref().and_then(|source| {
+                    resolve_style_module_source(
+                        style_path,
+                        source,
+                        available_style_paths,
+                        package_manifests,
+                    )
+                })
+            } else {
+                Some((*style_path).to_string())
+            };
+            let Some(target_style_path) = target_style_path else {
+                continue;
+            };
+            let target_class_names = if target_style_path == *style_path {
+                class_names.clone()
+            } else {
+                facts_by_path
+                    .get(target_style_path.as_str())
+                    .map(|facts| {
+                        facts
+                            .class_selector_names
+                            .iter()
+                            .map(String::as_str)
+                            .collect::<BTreeSet<_>>()
+                    })
+                    .unwrap_or_default()
+            };
+            for owner_selector_name in &edge.owner_selector_names {
+                if !class_names.contains(owner_selector_name.as_str()) {
+                    continue;
+                }
+                let owner = CssModulesComposesNode {
+                    style_path: (*style_path).to_string(),
+                    selector_name: owner_selector_name.clone(),
+                };
+                for target_selector_name in &edge.target_names {
+                    if !target_class_names.contains(target_selector_name.as_str()) {
+                        continue;
+                    }
+                    graph
+                        .entry(owner.clone())
+                        .or_insert_with(BTreeSet::new)
+                        .insert(CssModulesComposesNode {
+                            style_path: target_style_path.clone(),
+                            selector_name: target_selector_name.clone(),
+                        });
+                }
+            }
+        }
+    }
+    graph
+}
+
+fn css_modules_composes_node_label(node: &CssModulesComposesNode) -> String {
+    format!("{}#{}", node.style_path, node.selector_name)
+}
+
+fn canonical_directed_cycle_labels(path: &[CssModulesComposesNode]) -> Vec<String> {
+    let mut labels = path
+        .iter()
+        .map(css_modules_composes_node_label)
+        .collect::<Vec<_>>();
+    if labels.len() > 1 && labels.first() == labels.last() {
+        labels.pop();
+    }
+    if labels.is_empty() {
+        return Vec::new();
+    }
+
+    let mut best = labels.clone();
+    for offset in 1..labels.len() {
+        let mut rotated = labels[offset..].to_vec();
+        rotated.extend_from_slice(&labels[..offset]);
+        if rotated < best {
+            best = rotated;
+        }
+    }
+    best.push(best[0].clone());
+    best
 }
 
 fn parsed_style_by_path<'a>(

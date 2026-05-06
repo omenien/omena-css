@@ -253,6 +253,7 @@ pub enum ParsedCssModuleComposesFactKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedCssModuleComposesEdgeFact {
     pub kind: ParsedCssModuleComposesEdgeKind,
+    pub owner_selector_names: Vec<String>,
     pub target_names: Vec<String>,
     pub import_source: Option<String>,
     pub range: TextRange,
@@ -7292,30 +7293,166 @@ fn collect_css_module_composes_edge_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleComposesEdgeFact> {
     let mut edges = Vec::new();
-    for (index, token) in tokens.iter().enumerate() {
-        if token.kind != SyntaxKind::Ident || !token.text.eq_ignore_ascii_case("composes") {
-            continue;
+    collect_css_module_composes_edge_facts_in_range(tokens, 0, tokens.len(), &[], None, &mut edges);
+    edges
+}
+
+fn collect_css_module_composes_edge_facts_in_range(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    parent_branches: &[SelectorBranch],
+    css_module_scope: Option<&'static str>,
+    edges: &mut Vec<ParsedCssModuleComposesEdgeFact>,
+) {
+    let mut index = start;
+    while index < end {
+        index = skip_trivia_tokens(tokens, index, end);
+        if index >= end {
+            break;
         }
-        let Some(colon_index) = next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
-        else {
-            continue;
-        };
-        if tokens[colon_index].kind != SyntaxKind::Colon {
+
+        if tokens[index].kind == SyntaxKind::AtKeyword {
+            let block = find_block_after_header(tokens, index, end);
+            if let Some((open, close)) = block {
+                if tokens[index].text == "@nest" {
+                    if css_module_scope == Some("global") {
+                        collect_css_module_composes_edge_facts_in_range(
+                            tokens,
+                            open + 1,
+                            close,
+                            &[],
+                            css_module_scope,
+                            edges,
+                        );
+                    } else {
+                        let branches =
+                            resolve_selector_header(tokens, index + 1, open, parent_branches);
+                        collect_immediate_css_module_composes_edge_facts(
+                            tokens,
+                            open + 1,
+                            close,
+                            &branches,
+                            edges,
+                        );
+                        collect_css_module_composes_edge_facts_in_range(
+                            tokens,
+                            open + 1,
+                            close,
+                            &branches,
+                            css_module_scope,
+                            edges,
+                        );
+                    }
+                } else if style_wrapper_at_rule(tokens[index].text) {
+                    collect_css_module_composes_edge_facts_in_range(
+                        tokens,
+                        open + 1,
+                        close,
+                        parent_branches,
+                        css_module_scope,
+                        edges,
+                    );
+                }
+                index = close + 1;
+            } else {
+                index = skip_statement(tokens, index, end);
+            }
             continue;
         }
 
-        let start = colon_index + 1;
-        let end = css_module_value_statement_end(tokens, start);
-        let from_index = top_level_token_text_index(tokens, start, end, "from");
-        let target_end = from_index.unwrap_or(end);
-        let target_names = collect_css_module_composes_target_names(tokens, start, target_end);
+        let Some((open, close)) = find_block_after_header(tokens, index, end) else {
+            index = skip_statement(tokens, index, end);
+            continue;
+        };
+
+        let effective_scope = css_module_scope
+            .or_else(|| css_module_block_scope_marker_in_header(tokens, index, open));
+        if effective_scope == Some("global") {
+            collect_css_module_composes_edge_facts_in_range(
+                tokens,
+                open + 1,
+                close,
+                &[],
+                effective_scope,
+                edges,
+            );
+        } else {
+            let branches = resolve_selector_header(tokens, index, open, parent_branches);
+            collect_immediate_css_module_composes_edge_facts(
+                tokens,
+                open + 1,
+                close,
+                &branches,
+                edges,
+            );
+            collect_css_module_composes_edge_facts_in_range(
+                tokens,
+                open + 1,
+                close,
+                &branches,
+                effective_scope,
+                edges,
+            );
+        }
+        index = close + 1;
+    }
+}
+
+fn collect_immediate_css_module_composes_edge_facts(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    owner_branches: &[SelectorBranch],
+    edges: &mut Vec<ParsedCssModuleComposesEdgeFact>,
+) {
+    let owner_selector_names = sorted_selector_branch_names(owner_branches);
+    let mut index = start;
+    let mut block_depth = 0usize;
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace | SyntaxKind::SassIndent => {
+                block_depth += 1;
+                index += 1;
+                continue;
+            }
+            SyntaxKind::RightBrace | SyntaxKind::SassDedent => {
+                block_depth = block_depth.saturating_sub(1);
+                index += 1;
+                continue;
+            }
+            _ => {}
+        }
+        if block_depth > 0
+            || tokens[index].kind != SyntaxKind::Ident
+            || !tokens[index].text.eq_ignore_ascii_case("composes")
+        {
+            index += 1;
+            continue;
+        }
+        let Some(colon_index) = next_non_trivia_token_index_until(tokens, index + 1, end) else {
+            index += 1;
+            continue;
+        };
+        if tokens[colon_index].kind != SyntaxKind::Colon {
+            index += 1;
+            continue;
+        }
+
+        let value_start = colon_index + 1;
+        let value_end = css_module_value_statement_end(tokens, value_start).min(end);
+        let from_index = top_level_token_text_index(tokens, value_start, value_end, "from");
+        let target_end = from_index.unwrap_or(value_end);
+        let target_names =
+            collect_css_module_composes_target_names(tokens, value_start, target_end);
         if target_names.is_empty() {
+            index = value_end;
             continue;
         }
 
         let (kind, import_source) = from_index
             .and_then(|from_index| {
-                css_module_composes_import_edge_source(tokens, from_index + 1, end)
+                css_module_composes_import_edge_source(tokens, from_index + 1, value_end)
             })
             .map(|source| {
                 if source == "global" {
@@ -7325,7 +7462,7 @@ fn collect_css_module_composes_edge_facts_from_tokens(
                 }
             })
             .unwrap_or((ParsedCssModuleComposesEdgeKind::Local, None));
-        let range_end = end
+        let range_end = value_end
             .checked_sub(1)
             .and_then(|end| tokens.get(end))
             .map(|token| token.range.end())
@@ -7333,12 +7470,22 @@ fn collect_css_module_composes_edge_facts_from_tokens(
 
         edges.push(ParsedCssModuleComposesEdgeFact {
             kind,
+            owner_selector_names: owner_selector_names.clone(),
             target_names,
             import_source,
             range: TextRange::new(tokens[index].range.start(), range_end),
         });
+        index = value_end;
     }
-    edges
+}
+
+fn sorted_selector_branch_names(branches: &[SelectorBranch]) -> Vec<String> {
+    branches
+        .iter()
+        .map(|branch| branch.name.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn collect_css_module_composes_target_names(
@@ -9878,6 +10025,10 @@ mod tests {
             ParsedCssModuleComposesEdgeKind::External
         );
         assert_eq!(
+            facts.css_module_composes_edges[0].owner_selector_names,
+            vec!["btn"]
+        );
+        assert_eq!(
             facts.css_module_composes_edges[0].target_names,
             vec!["base", "utility"]
         );
@@ -9888,6 +10039,10 @@ mod tests {
         assert_eq!(
             facts.css_module_composes_edges[1].kind,
             ParsedCssModuleComposesEdgeKind::Global
+        );
+        assert_eq!(
+            facts.css_module_composes_edges[1].owner_selector_names,
+            vec!["global"]
         );
         assert_eq!(
             facts.css_module_composes_edges[1].target_names,
