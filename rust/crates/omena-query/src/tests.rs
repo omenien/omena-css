@@ -341,6 +341,44 @@ fn exposes_omena_parser_unresolved_sass_symbol_resolution() {
 }
 
 #[test]
+fn exposes_omena_parser_namespaced_sass_symbol_fact_surface() {
+    let summary = summarize_omena_query_omena_parser_style_facts(
+        r#"@use "./tokens" as tokens; .card { color: tokens.$brand; @include tokens.tone(red); width: tokens.double(2px); }"#,
+        omena_parser::StyleDialect::Scss,
+    );
+
+    assert_eq!(
+        summary.sass_symbol_reference_names,
+        vec!["brand", "double", "tone"]
+    );
+    assert!(summary.sass_symbol_facts.iter().any(|fact| {
+        fact.kind == "sassVariableReference"
+            && fact.name == "brand"
+            && fact.role == "reference"
+            && fact.namespace.as_deref() == Some("tokens")
+    }));
+    assert!(summary.sass_symbol_facts.iter().any(|fact| {
+        fact.kind == "sassMixinInclude"
+            && fact.name == "tone"
+            && fact.role == "include"
+            && fact.namespace.as_deref() == Some("tokens")
+    }));
+    assert!(summary.sass_symbol_facts.iter().any(|fact| {
+        fact.kind == "sassFunctionCall"
+            && fact.name == "double"
+            && fact.role == "call"
+            && fact.namespace.as_deref() == Some("tokens")
+    }));
+    assert_eq!(summary.sass_symbol_resolution.declaration_count, 0);
+    assert_eq!(summary.sass_symbol_resolution.reference_count, 3);
+    assert_eq!(summary.sass_symbol_resolution.resolved_reference_count, 0);
+    assert_eq!(summary.sass_symbol_resolution.unresolved_reference_count, 3);
+    assert!(summary.sass_symbol_resolution.edges.iter().all(|edge| {
+        edge.namespace.as_deref() == Some("tokens") && edge.status == "unresolved"
+    }));
+}
+
+#[test]
 fn bundles_expression_source_and_selector_query_fragments() {
     let input = sample_input();
     let bundle = summarize_omena_query_fragment_bundle(&input);
@@ -1270,10 +1308,12 @@ fn style_hover_candidates_are_query_owned() {
   }
 }
 
+@use "./tokens" as tokens;
 $accent: red;
 .button { color: var(--brand); }
 :root { --brand: blue; }
 @include variants($prefix: "tone", $map: ("warm": red));
+.alert { color: tokens.$brand; @include tokens.tone(red); width: tokens.double(2px); }
 "#,
     );
     assert!(candidates.is_some());
@@ -1293,6 +1333,21 @@ $accent: red;
     }));
     assert!(candidates.candidates.iter().any(|candidate| {
         candidate.kind == "sassVariableDeclaration" && candidate.name == "accent"
+    }));
+    assert!(candidates.candidates.iter().any(|candidate| {
+        candidate.kind == "sassVariableReference"
+            && candidate.name == "brand"
+            && candidate.namespace.as_deref() == Some("tokens")
+    }));
+    assert!(candidates.candidates.iter().any(|candidate| {
+        candidate.kind == "sassMixinInclude"
+            && candidate.name == "tone"
+            && candidate.namespace.as_deref() == Some("tokens")
+    }));
+    assert!(candidates.candidates.iter().any(|candidate| {
+        candidate.kind == "sassFunctionCall"
+            && candidate.name == "double"
+            && candidate.namespace.as_deref() == Some("tokens")
     }));
     assert!(
         candidates

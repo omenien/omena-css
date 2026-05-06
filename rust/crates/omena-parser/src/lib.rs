@@ -216,6 +216,7 @@ pub struct ParsedSassSymbolFact {
     pub symbol_kind: &'static str,
     pub name: String,
     pub role: &'static str,
+    pub namespace: Option<String>,
     pub range: TextRange,
 }
 
@@ -6929,6 +6930,10 @@ fn collect_sass_symbol_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSass
                 } else {
                     ParsedSassSymbolFactKind::VariableReference
                 };
+                let namespace =
+                    (!scss_variable_token_is_declaration(tokens, index))
+                        .then(|| sass_member_namespace_before(tokens, index))
+                        .flatten();
                 symbols.push(ParsedSassSymbolFact {
                     kind,
                     symbol_kind: "variable",
@@ -6937,7 +6942,8 @@ fn collect_sass_symbol_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSass
                         ParsedSassSymbolFactKind::VariableDeclaration => "declaration",
                         _ => "reference",
                     },
-                    range: token.range,
+                    namespace,
+                    range: sass_symbol_variable_range(token, kind),
                 });
             }
             SyntaxKind::AtKeyword if token.text.eq_ignore_ascii_case("@mixin") => {
@@ -6947,17 +6953,19 @@ fn collect_sass_symbol_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSass
                         symbol_kind: "mixin",
                         name: name.text.to_string(),
                         role: "declaration",
+                        namespace: None,
                         range: name.range,
                     });
                 }
             }
             SyntaxKind::AtKeyword if token.text.eq_ignore_ascii_case("@include") => {
-                if let Some(name) = sass_callable_name_after_at_rule(tokens, index) {
+                if let Some((name, namespace)) = sass_include_name_after_at_rule(tokens, index) {
                     symbols.push(ParsedSassSymbolFact {
                         kind: ParsedSassSymbolFactKind::MixinInclude,
                         symbol_kind: "mixin",
                         name: name.text.to_string(),
                         role: "include",
+                        namespace,
                         range: name.range,
                     });
                 }
@@ -6969,16 +6977,20 @@ fn collect_sass_symbol_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSass
                         symbol_kind: "function",
                         name: name.text.to_string(),
                         role: "declaration",
+                        namespace: None,
                         range: name.range,
                     });
                 }
             }
             SyntaxKind::Ident
-                if declared_functions.contains(token.text)
+                if (declared_functions.contains(token.text)
+                    || sass_member_namespace_before(tokens, index).is_some())
                     && next_non_trivia_token(tokens, index + 1)
                         .is_some_and(|candidate| candidate.kind == SyntaxKind::LeftParen)
+                    && !containing_at_rule_header_name(tokens, index)
+                        .is_some_and(|name| name.eq_ignore_ascii_case("@include"))
                     && previous_non_trivia_token(tokens, 0, index).map_or(true, |candidate| {
-                        !matches!(candidate.kind, SyntaxKind::AtKeyword | SyntaxKind::Dot)
+                        !matches!(candidate.kind, SyntaxKind::AtKeyword)
                     }) =>
             {
                 symbols.push(ParsedSassSymbolFact {
@@ -6986,6 +6998,7 @@ fn collect_sass_symbol_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSass
                     symbol_kind: "function",
                     name: token.text.to_string(),
                     role: "call",
+                    namespace: sass_member_namespace_before(tokens, index),
                     range: token.range,
                 });
             }
@@ -6994,6 +7007,20 @@ fn collect_sass_symbol_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSass
     }
 
     symbols
+}
+
+fn sass_symbol_variable_range(
+    token: &Token<'_>,
+    kind: ParsedSassSymbolFactKind,
+) -> TextRange {
+    if kind == ParsedSassSymbolFactKind::VariableDeclaration && token.text.starts_with('$') {
+        let start = u32::from(token.range.start());
+        let end = u32::from(token.range.end());
+        if start < end {
+            return TextRange::new(TextSize::from(start + 1), TextSize::from(end));
+        }
+    }
+    token.range
 }
 
 fn collect_sass_callable_declaration_names(
@@ -7028,6 +7055,37 @@ fn sass_callable_name_after_at_rule<'text>(
         return None;
     }
     Some(name)
+}
+
+fn sass_include_name_after_at_rule<'text>(
+    tokens: &[Token<'text>],
+    at_rule_index: usize,
+) -> Option<(Token<'text>, Option<String>)> {
+    let statement_end = css_module_value_statement_end(tokens, at_rule_index + 1);
+    let first_index = next_non_trivia_token_index_until(tokens, at_rule_index + 1, statement_end)?;
+    let first = tokens[first_index];
+    if first.kind != SyntaxKind::Ident {
+        return None;
+    }
+    let Some(dot_index) = next_non_trivia_token_index_until(tokens, first_index + 1, statement_end)
+    else {
+        return Some((first, None));
+    };
+    if tokens[dot_index].kind != SyntaxKind::Dot {
+        return Some((first, None));
+    }
+    let member_index = next_non_trivia_token_index_until(tokens, dot_index + 1, statement_end)?;
+    let member = tokens[member_index];
+    (member.kind == SyntaxKind::Ident).then(|| (member, Some(first.text.to_string())))
+}
+
+fn sass_member_namespace_before(tokens: &[Token<'_>], member_index: usize) -> Option<String> {
+    let dot_index = previous_non_trivia_token_index(tokens, member_index, 0)?;
+    if tokens[dot_index].kind != SyntaxKind::Dot {
+        return None;
+    }
+    let namespace = tokens[previous_non_trivia_token_index(tokens, dot_index, 0)?];
+    (namespace.kind == SyntaxKind::Ident).then(|| namespace.text.to_string())
 }
 
 fn collect_sass_module_edge_facts_from_tokens(
@@ -12028,6 +12086,46 @@ mod tests {
             ParsedSassSymbolFactKind::VariableReference,
             "color",
             "reference"
+        )));
+    }
+
+    #[test]
+    fn extracts_namespaced_sass_symbol_style_facts() {
+        let facts = collect_style_facts(
+            r#"@use "./tokens" as tokens; .card { color: tokens.$brand; @include tokens.tone(red); width: tokens.double(2px); }"#,
+            StyleDialect::Scss,
+        );
+        let symbol_kinds = facts
+            .sass_symbols
+            .iter()
+            .map(|symbol| {
+                (
+                    symbol.kind,
+                    symbol.name.as_str(),
+                    symbol.role,
+                    symbol.namespace.as_deref(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(facts.sass_symbol_count, 3);
+        assert!(symbol_kinds.contains(&(
+            ParsedSassSymbolFactKind::VariableReference,
+            "brand",
+            "reference",
+            Some("tokens")
+        )));
+        assert!(symbol_kinds.contains(&(
+            ParsedSassSymbolFactKind::MixinInclude,
+            "tone",
+            "include",
+            Some("tokens")
+        )));
+        assert!(symbol_kinds.contains(&(
+            ParsedSassSymbolFactKind::FunctionCall,
+            "double",
+            "call",
+            Some("tokens")
         )));
     }
 

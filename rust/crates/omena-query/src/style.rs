@@ -269,6 +269,7 @@ pub fn summarize_omena_query_omena_parser_style_facts(
                 symbol_kind: symbol.symbol_kind,
                 name: symbol.name,
                 role: symbol.role,
+                namespace: symbol.namespace,
             })
             .collect(),
         sass_symbol_resolution,
@@ -315,14 +316,13 @@ pub fn summarize_omena_query_style_hover_candidates(
         &mut seen,
         &mut candidates,
     );
+    collect_sass_symbol_hover_candidates_from_omena_parser_facts(
+        style_source,
+        facts.sass_symbols.as_slice(),
+        &mut seen,
+        &mut candidates,
+    );
     if let Some(sheet) = parse_style_module(style_path, style_source) {
-        let index = summarize_css_modules_intermediate(&sheet);
-        collect_sass_symbol_hover_candidates(
-            index.sass.symbol_decl_facts.as_slice(),
-            index.sass.selector_symbol_facts.as_slice(),
-            &mut seen,
-            &mut candidates,
-        );
         collect_sass_partial_evaluator_selector_candidates(
             sheet.source.as_str(),
             sheet.nodes.as_slice(),
@@ -1919,32 +1919,34 @@ fn collect_custom_property_hover_candidates_from_omena_parser_facts(
     }
 }
 
-fn collect_sass_symbol_hover_candidates(
-    decl_facts: &[engine_style_parser::ParserIndexSassSymbolDeclFactV0],
-    ref_facts: &[engine_style_parser::ParserIndexSassSelectorSymbolFactV0],
+fn collect_sass_symbol_hover_candidates_from_omena_parser_facts(
+    source: &str,
+    symbol_facts: &[omena_parser::ParsedSassSymbolFact],
     seen: &mut BTreeSet<(usize, usize, String)>,
     candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,
 ) {
-    for fact in decl_facts {
+    for fact in symbol_facts {
+        let kind = match fact.kind {
+            ParsedSassSymbolFactKind::VariableDeclaration
+            | ParsedSassSymbolFactKind::MixinDeclaration
+            | ParsedSassSymbolFactKind::FunctionDeclaration => {
+                sass_symbol_declaration_candidate_kind(fact.symbol_kind)
+            }
+            ParsedSassSymbolFactKind::VariableReference
+            | ParsedSassSymbolFactKind::MixinInclude
+            | ParsedSassSymbolFactKind::FunctionCall => {
+                sass_symbol_reference_candidate_kind(fact.symbol_kind, fact.role)
+            }
+        };
+        let start: u32 = fact.range.start().into();
+        let end: u32 = fact.range.end().into();
+        let byte_span = ParserByteSpanV0 {
+            start: start as usize,
+            end: end as usize,
+        };
         if seen.insert((
-            fact.byte_span.start,
-            fact.byte_span.end,
-            format!("{}:{}", fact.symbol_kind, fact.name),
-        )) {
-            candidates.push(OmenaQueryStyleHoverCandidateV0 {
-                kind: sass_symbol_declaration_candidate_kind(fact.symbol_kind),
-                name: fact.name.clone(),
-                range: fact.range,
-                source: "engineStyleParserSassSymbolFacts",
-                namespace: None,
-            });
-        }
-    }
-
-    for fact in ref_facts {
-        if seen.insert((
-            fact.byte_span.start,
-            fact.byte_span.end,
+            byte_span.start,
+            byte_span.end,
             format!(
                 "{}:{}:{}",
                 fact.symbol_kind,
@@ -1953,10 +1955,10 @@ fn collect_sass_symbol_hover_candidates(
             ),
         )) {
             candidates.push(OmenaQueryStyleHoverCandidateV0 {
-                kind: sass_symbol_reference_candidate_kind(fact.symbol_kind, fact.role),
+                kind,
                 name: fact.name.clone(),
-                range: fact.range,
-                source: "engineStyleParserSassSymbolFacts",
+                range: parser_range_for_byte_span(source, byte_span),
+                source: "omenaParserSassSymbolFacts",
                 namespace: fact.namespace.clone(),
             });
         }
@@ -2591,8 +2593,10 @@ fn omena_query_sass_module_edge_fact_kind_label(
 fn summarize_omena_query_sass_symbol_resolution(
     symbols: &[omena_parser::ParsedSassSymbolFact],
 ) -> OmenaQuerySassSymbolResolutionV0 {
-    let mut declaration_by_symbol: BTreeMap<(&'static str, String), (usize, &'static str)> =
-        BTreeMap::new();
+    let mut declaration_by_symbol: BTreeMap<
+        (&'static str, Option<String>, String),
+        (usize, &'static str),
+    > = BTreeMap::new();
     let mut declaration_count = 0usize;
     let mut reference_count = 0usize;
     let mut edges = Vec::new();
@@ -2602,7 +2606,11 @@ fn summarize_omena_query_sass_symbol_resolution(
         if omena_query_sass_symbol_fact_kind_is_declaration(symbol.kind) {
             declaration_count += 1;
             declaration_by_symbol.insert(
-                (symbol.symbol_kind, symbol.name.clone()),
+                (
+                    symbol.symbol_kind,
+                    symbol.namespace.clone(),
+                    symbol.name.clone(),
+                ),
                 (source_order, kind),
             );
             continue;
@@ -2612,10 +2620,15 @@ fn summarize_omena_query_sass_symbol_resolution(
         }
 
         reference_count += 1;
-        let declaration = declaration_by_symbol.get(&(symbol.symbol_kind, symbol.name.clone()));
+        let declaration = declaration_by_symbol.get(&(
+            symbol.symbol_kind,
+            symbol.namespace.clone(),
+            symbol.name.clone(),
+        ));
         edges.push(OmenaQuerySassSymbolResolutionEdgeV0 {
             symbol_kind: symbol.symbol_kind,
             name: symbol.name.clone(),
+            namespace: symbol.namespace.clone(),
             reference_kind: kind,
             reference_role: symbol.role,
             reference_source_order: source_order,

@@ -14,7 +14,6 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use engine_style_parser::{
     AtRuleKind, Stylesheet, SyntaxNodePayload, parse_style_module,
-    summarize_css_modules_intermediate,
 };
 pub use engine_style_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage};
 use omena_abstract_value::{

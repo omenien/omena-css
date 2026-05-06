@@ -275,6 +275,7 @@ pub struct OmenaQuerySassSymbolFactV0 {
     pub symbol_kind: &'static str,
     pub name: String,
     pub role: &'static str,
+    pub namespace: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -296,6 +297,7 @@ pub struct OmenaQuerySassSymbolResolutionV0 {
 pub struct OmenaQuerySassSymbolResolutionEdgeV0 {
     pub symbol_kind: &'static str,
     pub name: String,
+    pub namespace: Option<String>,
     pub reference_kind: &'static str,
     pub reference_role: &'static str,
     pub reference_source_order: usize,
