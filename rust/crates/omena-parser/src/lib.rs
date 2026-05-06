@@ -673,6 +673,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "importPreludeCstNodes",
             "propertyAtRuleNameValidation",
             "namedAtRulePreludeValidation",
+            "charsetNamespaceAtRulePreludeValidation",
             "layerScopePreludeCstNodes",
             "pageMarginAtRuleCstNodes",
             "modernDeclarationAtRuleCstNodes",
@@ -2817,6 +2818,8 @@ impl<'text> Parser<'text> {
                 self.parse_at_rule_prelude_node(SyntaxKind::ContainerCondition)
             }
             SyntaxKind::ImportRule => self.parse_import_prelude(),
+            SyntaxKind::CharsetRule => self.parse_charset_rule_prelude(),
+            SyntaxKind::NamespaceRule => self.parse_namespace_rule_prelude(),
             SyntaxKind::PropertyRule => self.parse_named_at_rule_prelude(
                 at_rule_prelude_head_is_custom_property_name,
                 "invalid @property name",
@@ -2888,6 +2891,66 @@ impl<'text> Parser<'text> {
             }
         }
         self.builder.finish_node();
+    }
+
+    fn parse_charset_rule_prelude(&mut self) {
+        if !self.charset_rule_prelude_is_valid() {
+            self.error_at_current(ParseErrorCode::ExpectedValue, "invalid @charset prelude");
+        }
+        self.consume_at_rule_prelude_tokens();
+    }
+
+    fn charset_rule_prelude_is_valid(&self) -> bool {
+        let Some((source_index, SyntaxKind::String)) = self.non_trivia_token_from(self.position)
+        else {
+            return false;
+        };
+        self.non_trivia_token_from(source_index + 1)
+            .is_none_or(|(_, kind)| is_at_rule_prelude_boundary(kind))
+    }
+
+    fn parse_namespace_rule_prelude(&mut self) {
+        if !self.namespace_rule_prelude_is_valid() {
+            self.error_at_current(ParseErrorCode::ExpectedValue, "invalid @namespace prelude");
+        }
+        self.consume_at_rule_prelude_tokens();
+    }
+
+    fn namespace_rule_prelude_is_valid(&self) -> bool {
+        let Some((first_index, first_kind)) = self.non_trivia_token_from(self.position) else {
+            return false;
+        };
+
+        if self.namespace_source_starts_at(first_index, first_kind) {
+            return true;
+        }
+        if !matches!(
+            first_kind,
+            SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+        ) {
+            return false;
+        }
+        self.non_trivia_token_from(first_index + 1)
+            .is_some_and(|(source_index, source_kind)| {
+                self.namespace_source_starts_at(source_index, source_kind)
+            })
+    }
+
+    fn namespace_source_starts_at(&self, index: usize, kind: SyntaxKind) -> bool {
+        matches!(kind, SyntaxKind::String | SyntaxKind::Url)
+            || is_interpolation_start(kind)
+            || self.token_starts_url_function(index, kind)
+    }
+
+    fn token_starts_url_function(&self, index: usize, kind: SyntaxKind) -> bool {
+        kind == SyntaxKind::Ident
+            && self
+                .tokens
+                .get(index)
+                .is_some_and(|token| token.text.eq_ignore_ascii_case("url"))
+            && self
+                .non_trivia_token_from(index + 1)
+                .is_some_and(|(_, next_kind)| next_kind == SyntaxKind::LeftParen)
     }
 
     fn parse_import_prelude(&mut self) {
@@ -7216,6 +7279,34 @@ mod tests {
     }
 
     #[test]
+    fn validates_charset_and_namespace_at_rule_preludes() {
+        let valid = parse(
+            "@charset \"UTF-8\"; @namespace \"http://www.w3.org/1999/xhtml\"; @namespace svg url(\"http://www.w3.org/2000/svg\"); @namespace math url(http://www.w3.org/1998/Math/MathML);",
+            StyleDialect::Css,
+        );
+        let dynamic = parse(
+            "@namespace #{$url}; @namespace svg #{$url};",
+            StyleDialect::Scss,
+        );
+        let invalid = parse("@charset UTF-8; @namespace svg;", StyleDialect::Css);
+        let charset_errors = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @charset prelude")
+            .count();
+        let namespace_errors = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @namespace prelude")
+            .count();
+
+        assert!(valid.errors().is_empty());
+        assert!(dynamic.errors().is_empty());
+        assert_eq!(charset_errors, 1);
+        assert_eq!(namespace_errors, 1);
+    }
+
+    #[test]
     fn classifies_initial_scss_at_rule_nodes() {
         let module_rules = parse(
             "@use \"sass:map\"; @forward \"tokens\";",
@@ -8478,6 +8569,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"namedAtRulePreludeValidation")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"charsetNamespaceAtRulePreludeValidation")
         );
         assert!(
             summary
