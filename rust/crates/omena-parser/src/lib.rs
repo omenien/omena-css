@@ -681,6 +681,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "layerScopePreludeCstNodes",
             "layerAtRulePreludeValidation",
             "scopeAtRulePreludeValidation",
+            "pageAtRulePreludeValidation",
             "pageMarginAtRuleCstNodes",
             "modernDeclarationAtRuleCstNodes",
             "fontFeatureValuesAtRuleCstNodes",
@@ -2940,6 +2941,7 @@ impl<'text> Parser<'text> {
             SyntaxKind::CharsetRule => self.parse_charset_rule_prelude(),
             SyntaxKind::NamespaceRule => self.parse_namespace_rule_prelude(),
             SyntaxKind::KeyframesRule => self.parse_keyframes_rule_prelude(),
+            SyntaxKind::PageRule => self.parse_page_rule_prelude(),
             SyntaxKind::FontFaceRule
             | SyntaxKind::StartingStyleRule
             | SyntaxKind::PageMarginRule
@@ -3344,6 +3346,66 @@ impl<'text> Parser<'text> {
             }
         }
         None
+    }
+
+    fn parse_page_rule_prelude(&mut self) {
+        self.eat_trivia();
+        if self.current_kind().is_none_or(is_at_rule_prelude_boundary) {
+            return;
+        }
+        let valid = self.page_rule_prelude_is_valid();
+        if !valid {
+            self.error_at_current(ParseErrorCode::ExpectedValue, "invalid @page prelude");
+        }
+        self.builder.start_node(if valid {
+            SyntaxKind::AtRulePrelude
+        } else {
+            SyntaxKind::BogusAtRulePrelude
+        });
+        self.consume_at_rule_prelude_tokens_without_wrapping();
+        self.builder.finish_node();
+    }
+
+    fn page_rule_prelude_is_valid(&self) -> bool {
+        let mut expecting_selector = true;
+        let mut expecting_pseudo_name = false;
+        let mut saw_selector = false;
+
+        for token in self.tokens.iter().skip(self.position) {
+            if token.kind.is_trivia() {
+                continue;
+            }
+            if is_at_rule_prelude_boundary(token.kind) {
+                return saw_selector && !expecting_selector && !expecting_pseudo_name;
+            }
+            if is_interpolation_start(token.kind) {
+                return true;
+            }
+            if expecting_pseudo_name {
+                if token.kind != SyntaxKind::Ident {
+                    return false;
+                }
+                saw_selector = true;
+                expecting_selector = false;
+                expecting_pseudo_name = false;
+                continue;
+            }
+            match token.kind {
+                SyntaxKind::Ident if expecting_selector => {
+                    saw_selector = true;
+                    expecting_selector = false;
+                }
+                SyntaxKind::Colon => {
+                    expecting_pseudo_name = true;
+                }
+                SyntaxKind::Comma if saw_selector && !expecting_selector => {
+                    expecting_selector = true;
+                }
+                _ => return false,
+            }
+        }
+
+        saw_selector && !expecting_selector && !expecting_pseudo_name
     }
 
     fn parse_import_prelude(&mut self) {
@@ -7818,6 +7880,29 @@ mod tests {
     }
 
     #[test]
+    fn validates_page_rule_preludes() {
+        let result = parse(
+            "@page { margin: 1cm; } @page :first { margin: 2cm; } @page chapter:left, appendix:right { margin: 3cm; } @page 1 { margin: 4cm; } @page chapter, { margin: 5cm; } @page chapter first { margin: 6cm; }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let invalid_page_errors = result
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @page prelude")
+            .count();
+        let bogus_preludes = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::BogusAtRulePrelude)
+            .count();
+
+        assert_eq!(invalid_page_errors, 3);
+        assert_eq!(bogus_preludes, 3);
+        assert!(kinds.contains(&SyntaxKind::PageRule));
+        assert!(kinds.contains(&SyntaxKind::AtRulePrelude));
+    }
+
+    #[test]
     fn parses_registered_keyframes_and_declaration_at_rules() {
         let keyframes = parse(
             "@keyframes fade { from { opacity: 0; } to { opacity: 1; } }",
@@ -9412,6 +9497,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"scopeAtRulePreludeValidation")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"pageAtRulePreludeValidation")
         );
         assert!(summary.ready_surfaces.contains(&"pageMarginAtRuleCstNodes"));
         assert!(
