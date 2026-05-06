@@ -753,6 +753,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "nthSelectorFormulaCstNodes",
             "hasRelativeSelectorListCstNodes",
             "langDirSelectorArgumentCstNodes",
+            "namespaceQualifiedSelectorCstNodes",
             "selectorFunctionArgumentFactExclusion",
             "missingBlockCloseBogusTrivia",
             "initialDialectStatementNodes",
@@ -1134,9 +1135,11 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_compound_selector_until(&mut self, recovery: &[SyntaxKind]) {
-        let starts_valid = self
-            .current_kind()
-            .is_some_and(|kind| selector_component_can_start(kind) || is_interpolation_start(kind));
+        let starts_valid = self.current_kind().is_some_and(|kind| {
+            selector_component_can_start(kind)
+                || self.current_starts_namespace_qualified_selector(kind)
+                || is_interpolation_start(kind)
+        });
         self.builder.start_node(if starts_valid {
             SyntaxKind::CompoundSelector
         } else {
@@ -1155,6 +1158,9 @@ impl<'text> Parser<'text> {
                 }
                 Some(SyntaxKind::Dot) => self.parse_class_selector(),
                 Some(SyntaxKind::Hash) => self.parse_id_selector(),
+                Some(kind) if self.current_starts_namespace_qualified_selector(kind) => {
+                    self.parse_namespace_qualified_selector()
+                }
                 Some(SyntaxKind::Ident) => self.parse_type_selector(),
                 Some(SyntaxKind::Star) => self.parse_universal_selector(),
                 Some(SyntaxKind::Ampersand) => self.parse_nesting_selector(),
@@ -1231,6 +1237,35 @@ impl<'text> Parser<'text> {
     fn parse_universal_selector(&mut self) {
         self.builder.start_node(SyntaxKind::UniversalSelector);
         self.token_current();
+        self.builder.finish_node();
+    }
+
+    fn parse_namespace_qualified_selector(&mut self) {
+        let selector_kind =
+            if self.namespace_qualified_selector_target_kind() == Some(SyntaxKind::Star) {
+                SyntaxKind::UniversalSelector
+            } else {
+                SyntaxKind::TypeSelector
+            };
+        self.builder.start_node(selector_kind);
+        self.builder.start_node(SyntaxKind::NamespacePrefix);
+        if self.current_kind() != Some(SyntaxKind::Pipe) {
+            self.token_current();
+        }
+        self.token_current();
+        self.builder.finish_node();
+        if matches!(
+            self.current_kind(),
+            Some(SyntaxKind::Ident | SyntaxKind::CustomPropertyName | SyntaxKind::Star)
+        ) {
+            self.token_current();
+        } else {
+            self.empty_bogus_node(
+                SyntaxKind::BogusSelector,
+                ParseErrorCode::ExpectedSelectorName,
+                "expected namespace-qualified selector name",
+            );
+        }
         self.builder.finish_node();
     }
 
@@ -3915,6 +3950,32 @@ impl<'text> Parser<'text> {
         None
     }
 
+    fn current_starts_namespace_qualified_selector(&self, kind: SyntaxKind) -> bool {
+        match kind {
+            SyntaxKind::Ident | SyntaxKind::Star => {
+                self.next_kind() == Some(SyntaxKind::Pipe)
+                    && self
+                        .tokens
+                        .get(self.position + 2)
+                        .is_some_and(|token| namespace_selector_target_can_start(token.kind))
+            }
+            SyntaxKind::Pipe => self
+                .tokens
+                .get(self.position + 1)
+                .is_some_and(|token| namespace_selector_target_can_start(token.kind)),
+            _ => false,
+        }
+    }
+
+    fn namespace_qualified_selector_target_kind(&self) -> Option<SyntaxKind> {
+        let target_index = if self.current_kind() == Some(SyntaxKind::Pipe) {
+            self.position + 1
+        } else {
+            self.position + 2
+        };
+        self.tokens.get(target_index).map(|token| token.kind)
+    }
+
     fn at_end(&self) -> bool {
         self.position >= self.tokens.len()
     }
@@ -5469,6 +5530,13 @@ fn selector_component_can_start(kind: SyntaxKind) -> bool {
             | SyntaxKind::LeftBracket
             | SyntaxKind::Colon
             | SyntaxKind::DoubleColon
+    )
+}
+
+fn namespace_selector_target_can_start(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Ident | SyntaxKind::CustomPropertyName | SyntaxKind::Star
     )
 }
 
@@ -8275,6 +8343,32 @@ mod tests {
     }
 
     #[test]
+    fn parses_namespace_qualified_selectors() {
+        let result = parse(
+            "@namespace svg url(\"http://www.w3.org/2000/svg\"); svg|a, *|button, |main, svg|*, *|* { color: red; }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let namespace_prefix_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::NamespacePrefix)
+            .count();
+        let type_selector_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::TypeSelector)
+            .count();
+        let universal_selector_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::UniversalSelector)
+            .count();
+
+        assert!(result.errors().is_empty());
+        assert_eq!(namespace_prefix_count, 5);
+        assert_eq!(type_selector_count, 3);
+        assert_eq!(universal_selector_count, 2);
+    }
+
+    #[test]
     fn decomposes_attribute_matchers_into_cst_nodes() {
         let result = parse(
             ".a[data-state~=\"active\"][lang|=\"en\"][href^=\"/docs\"][href$=\".pdf\"][class*=\"btn\"][data-mode=\"x\" i] { color: red; }",
@@ -8836,6 +8930,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"langDirSelectorArgumentCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"namespaceQualifiedSelectorCstNodes")
         );
         assert!(
             summary

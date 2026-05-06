@@ -344,6 +344,7 @@ syntax_kinds! {
     LanguageSelectorArgument = 0x1075,
     LanguageTag = 0x1076,
     DirectionalitySelectorArgument = 0x1077,
+    NamespacePrefix = 0x1078,
 
     ScssStylesheet = 0x1400,
     ScssUseRule = 0x1401,
