@@ -736,22 +736,32 @@ pub fn summarize_omena_query_sass_module_sources(
     style_path: &str,
     style_source: &str,
 ) -> Option<OmenaQuerySassModuleSourcesV0> {
-    let sheet = parse_style_module(style_path, style_source)?;
-    let index = summarize_css_modules_intermediate(&sheet);
+    let facts = collect_style_facts(
+        style_source,
+        omena_parser_dialect_for_style_path(style_path),
+    );
+    let mut module_use_edges = Vec::new();
+    let mut module_forward_sources = BTreeSet::new();
+    for edge in facts.sass_module_edges {
+        match edge.kind {
+            ParsedSassModuleEdgeFactKind::Use => {
+                module_use_edges.push(OmenaQuerySassModuleUseEdgeV0 {
+                    source: edge.source,
+                    namespace_kind: edge.namespace_kind.unwrap_or("default"),
+                    namespace: edge.namespace,
+                });
+            }
+            ParsedSassModuleEdgeFactKind::Forward => {
+                module_forward_sources.insert(edge.source);
+            }
+            ParsedSassModuleEdgeFactKind::Import => {}
+        }
+    }
     Some(OmenaQuerySassModuleSourcesV0 {
         schema_version: "0",
         product: "omena-query.sass-module-sources",
-        module_use_edges: index
-            .sass
-            .module_use_edges
-            .into_iter()
-            .map(|edge| OmenaQuerySassModuleUseEdgeV0 {
-                source: edge.source,
-                namespace_kind: edge.namespace_kind,
-                namespace: edge.namespace,
-            })
-            .collect(),
-        module_forward_sources: index.sass.module_forward_sources,
+        module_use_edges,
+        module_forward_sources: module_forward_sources.into_iter().collect(),
     })
 }
 
@@ -2469,6 +2479,18 @@ fn omena_parser_dialect_for_style_language(language: StyleLanguage) -> OmenaPars
         StyleLanguage::Css => OmenaParserStyleDialect::Css,
         StyleLanguage::Scss => OmenaParserStyleDialect::Scss,
         StyleLanguage::Less => OmenaParserStyleDialect::Less,
+    }
+}
+
+fn omena_parser_dialect_for_style_path(style_path: &str) -> OmenaParserStyleDialect {
+    if style_path.ends_with(".sass") {
+        OmenaParserStyleDialect::Sass
+    } else if style_path.ends_with(".scss") {
+        OmenaParserStyleDialect::Scss
+    } else if style_path.ends_with(".less") {
+        OmenaParserStyleDialect::Less
+    } else {
+        OmenaParserStyleDialect::Css
     }
 }
 
