@@ -656,6 +656,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-transform-bundle"
+version = "0.1.0"
+dependencies = [
+ "omena-parser",
+ "omena-transform-cst",
+ "omena-transform-passes",
+ "serde",
+]
+
+[[package]]
 name = "omena-transform-cst"
 version = "0.1.0"
 dependencies = [
