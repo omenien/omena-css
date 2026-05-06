@@ -7,7 +7,7 @@ use engine_style_parser::{
     ParserIndexSelectorDefinitionFactV0, ParserIndexSelectorFactsV0, ParserIndexValueFactsV0,
     ParserIndexWrapperFactsV0, ParserLosslessCstFactsV0, ParserSassSyntaxFactsV0,
     StyleCustomPropertySemanticFactsV0, StyleSassSemanticFactsV0, StyleSelectorIdentityFactsV0,
-    StyleSemanticFactsV0, Stylesheet, parse_style_module, summarize_semantic_boundary,
+    StyleSemanticFactsV0, Stylesheet, summarize_semantic_boundary,
 };
 use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
@@ -29,6 +29,7 @@ mod source_evidence;
 
 pub use css_modules::{
     CssModulesSemanticCapabilitiesV0, CssModulesSemanticSummaryV0, summarize_css_modules_semantics,
+    summarize_css_modules_semantics_from_source,
 };
 pub use design_tokens::{
     DesignTokenCascadeRankingSignalV0, DesignTokenContextSignalV0,
@@ -187,12 +188,34 @@ pub fn summarize_style_semantic_graph_from_source(
     style_source: &str,
     input: &EngineInputV2,
 ) -> Option<StyleSemanticGraphSummaryV0> {
-    let sheet = parse_style_module(style_path, style_source)?;
-    Some(summarize_style_semantic_graph_for_path(
-        &sheet,
+    let css_modules_semantics =
+        summarize_css_modules_semantics_from_source(style_path, style_source)?;
+    let boundary =
+        summarize_omena_parser_style_semantic_boundary_from_source(style_path, style_source);
+    let parser_facts = boundary.parser_facts;
+    let semantic_facts = boundary.semantic_facts;
+    let selector_reference_engine = summarize_selector_reference_engine(input, Some(style_path));
+    let source_input_evidence = summarize_source_input_evidence(input);
+    let promotion_evidence = summarize_semantic_promotion_evidence_with_source_input(
+        &parser_facts,
+        &semantic_facts,
         input,
-        Some(style_path),
-    ))
+    );
+
+    Some(StyleSemanticGraphSummaryV0 {
+        schema_version: "0",
+        product: "omena-semantic.style-semantic-graph",
+        language: boundary.language,
+        parser_facts,
+        semantic_facts,
+        css_modules_semantics,
+        design_token_semantics: boundary.design_token_semantics,
+        selector_identity_engine: boundary.selector_identity_engine,
+        selector_reference_engine,
+        source_input_evidence,
+        promotion_evidence,
+        lossless_cst_contract: boundary.lossless_cst_contract,
+    })
 }
 
 pub fn summarize_style_semantic_facts(sheet: &Stylesheet) -> StyleSemanticFactsV0 {

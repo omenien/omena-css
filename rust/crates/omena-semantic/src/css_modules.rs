@@ -58,7 +58,28 @@ pub struct CssModulesSemanticCapabilitiesV0 {
 }
 
 pub fn summarize_css_modules_semantics(sheet: &Stylesheet) -> CssModulesSemanticSummaryV0 {
-    let facts = collect_style_facts(sheet.source.as_str(), dialect_for_language(sheet.language));
+    summarize_css_modules_semantics_for_source(
+        sheet.source.as_str(),
+        dialect_for_language(sheet.language),
+    )
+}
+
+pub fn summarize_css_modules_semantics_from_source(
+    style_path: &str,
+    style_source: &str,
+) -> Option<CssModulesSemanticSummaryV0> {
+    let dialect = dialect_for_style_path(style_path)?;
+    Some(summarize_css_modules_semantics_for_source(
+        style_source,
+        dialect,
+    ))
+}
+
+fn summarize_css_modules_semantics_for_source(
+    style_source: &str,
+    dialect: StyleDialect,
+) -> CssModulesSemanticSummaryV0 {
+    let facts = collect_style_facts(style_source, dialect);
     let mut class_export_names = BTreeSet::new();
     let mut composes_target_names = BTreeSet::new();
     let mut composes_import_sources = BTreeSet::new();
@@ -203,6 +224,20 @@ pub fn summarize_css_modules_semantics(sheet: &Stylesheet) -> CssModulesSemantic
             "icssImportExportResolution",
             "cycleDetection",
         ],
+    }
+}
+
+fn dialect_for_style_path(style_path: &str) -> Option<StyleDialect> {
+    if style_path.ends_with(".module.css") || style_path.ends_with(".css") {
+        Some(StyleDialect::Css)
+    } else if style_path.ends_with(".module.scss") || style_path.ends_with(".scss") {
+        Some(StyleDialect::Scss)
+    } else if style_path.ends_with(".module.sass") || style_path.ends_with(".sass") {
+        Some(StyleDialect::Sass)
+    } else if style_path.ends_with(".module.less") || style_path.ends_with(".less") {
+        Some(StyleDialect::Less)
+    } else {
+        None
     }
 }
 

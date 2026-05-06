@@ -1,6 +1,6 @@
 use engine_input_producers::EngineInputV2;
 use engine_style_parser::{
-    ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet, parse_style_module,
+    ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet,
 };
 use omena_semantic::{
     CssModulesSemanticSummaryV0, DesignTokenSemanticSummaryV0, LosslessCstContractV0,
@@ -270,9 +270,10 @@ pub fn summarize_omena_bridge_style_semantic_graph_for_path_with_scoped_workspac
     candidate_scope: DesignTokenExternalDeclarationCandidateScopeV0,
 ) -> StyleSemanticGraphSummaryV0 {
     let boundary = omena_semantic::summarize_style_semantic_boundary(sheet);
+    let css_modules_semantics = omena_semantic::summarize_css_modules_semantics(sheet);
     summarize_omena_bridge_style_semantic_graph_with_boundary(
         boundary,
-        sheet,
+        css_modules_semantics,
         input,
         style_path,
         workspace_declarations,
@@ -282,7 +283,7 @@ pub fn summarize_omena_bridge_style_semantic_graph_for_path_with_scoped_workspac
 
 fn summarize_omena_bridge_style_semantic_graph_with_boundary(
     boundary: StyleSemanticBoundarySummaryV0,
-    sheet: &Stylesheet,
+    css_modules_semantics: CssModulesSemanticSummaryV0,
     input: &EngineInputV2,
     style_path: Option<&str>,
     workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
@@ -298,7 +299,6 @@ fn summarize_omena_bridge_style_semantic_graph_with_boundary(
             workspace_declarations,
             candidate_scope,
         );
-    let css_modules_semantics = omena_semantic::summarize_css_modules_semantics(sheet);
     let selector_identity_engine = boundary.selector_identity_engine;
     let selector_reference_engine =
         summarize_omena_bridge_selector_reference_engine(input, style_path);
@@ -331,7 +331,8 @@ pub fn summarize_omena_bridge_style_semantic_graph_from_source(
     style_source: &str,
     input: &EngineInputV2,
 ) -> Option<StyleSemanticGraphSummaryV0> {
-    let sheet = parse_style_module(style_path, style_source)?;
+    let css_modules_semantics =
+        omena_semantic::summarize_css_modules_semantics_from_source(style_path, style_source)?;
     let boundary =
         omena_semantic::summarize_omena_parser_style_semantic_boundary_from_source(
             style_path,
@@ -339,7 +340,7 @@ pub fn summarize_omena_bridge_style_semantic_graph_from_source(
         );
     Some(summarize_omena_bridge_style_semantic_graph_with_boundary(
         boundary,
-        &sheet,
+        css_modules_semantics,
         input,
         Some(style_path),
         &[],
