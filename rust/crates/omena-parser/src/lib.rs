@@ -708,6 +708,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "sassIndentedStyleFacts",
             "differentialCorpusSeed",
             "lightningCssDifferentialCorpusSlice",
+            "lightningCssSelectorIdAndAtRuleDifferentialSlice",
             "midTypingNoPanicPropertySlice",
             "deterministicPanicFreeCorpus",
             "losslessCstTextRoundTripSmoke",
@@ -4743,6 +4744,7 @@ fn collect_selector_facts_in_range(
                 if tokens[index].text == "@nest" {
                     let branches =
                         resolve_selector_header(tokens, index + 1, open, parent_branches);
+                    push_class_selector_facts_from_header(selectors, seen, tokens, index + 1, open);
                     for branch in &branches {
                         push_selector_fact(
                             selectors,
@@ -4783,6 +4785,7 @@ fn collect_selector_facts_in_range(
         };
 
         let branches = resolve_selector_header(tokens, index, open, parent_branches);
+        push_class_selector_facts_from_header(selectors, seen, tokens, index, open);
         for branch in &branches {
             push_selector_fact(
                 selectors,
@@ -4807,6 +4810,18 @@ fn collect_selector_facts_in_range(
 
         collect_selector_facts_in_range(tokens, open + 1, close, &branches, seen, selectors);
         index = close + 1;
+    }
+}
+
+fn push_class_selector_facts_from_header(
+    selectors: &mut Vec<ParsedSelectorFact>,
+    seen: &mut BTreeSet<(ParsedSelectorFactKind, String, u32, u32)>,
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) {
+    for (name, range) in collect_class_selector_names_from_header(tokens, start, end) {
+        push_selector_fact(selectors, seen, ParsedSelectorFactKind::Class, name, range);
     }
 }
 
@@ -7557,6 +7572,22 @@ mod tests {
     }
 
     #[test]
+    fn extracts_all_top_level_classes_from_complex_selector_headers() {
+        let facts = collect_style_facts(
+            "#app.theme > .card:has(> .icon) { color: red; }",
+            StyleDialect::Css,
+        );
+        let class_names: Vec<&str> = facts
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+            .map(|selector| selector.name.as_str())
+            .collect();
+
+        assert_eq!(class_names, vec!["theme", "card"]);
+    }
+
+    #[test]
     fn extracts_css_nesting_at_rule_selector_facts() {
         let facts = collect_style_facts(
             ".card { @nest &__icon { color: red; &--active { color: blue; } } }",
@@ -8425,6 +8456,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"styleFactExtractionSurface")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"lightningCssSelectorIdAndAtRuleDifferentialSlice")
         );
         assert!(summary.not_ready_surfaces.contains(&"productCutover"));
     }

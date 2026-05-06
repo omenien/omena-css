@@ -51,10 +51,11 @@ const CORPUS = [
     source: `.a, .b { &__icon { color: red; } }`,
   },
   {
-    label: "scss-combinator-rightmost-facts",
+    label: "scss-combinator-all-defining-facts",
     filePath: "/f.module.scss",
     dialect: "scss",
     source: `.a > .b { color: red; }`,
+    expectedClassSelectorNames: ["a", "b"],
   },
   {
     label: "scss-pseudo-function-facts",
@@ -168,7 +169,7 @@ void (async () => {
 
     assert.deepEqual(
       sortedUnique(actual.classSelectorNames),
-      sortedUnique(legacy.selectors.names),
+      sortedUnique(entry.expectedClassSelectorNames ?? legacy.selectors.names),
       `${entry.label} class selector parity drift`,
     );
 

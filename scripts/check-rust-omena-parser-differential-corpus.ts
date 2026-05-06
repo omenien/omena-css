@@ -50,6 +50,7 @@ interface OmenaParserLexResultV0 {
 
 interface ParserDifferentialSummary {
   readonly classSelectorNames: readonly string[];
+  readonly idSelectorNames: readonly string[];
   readonly customPropertyNames: readonly string[];
   readonly atRuleNames: readonly string[];
 }
@@ -302,6 +303,10 @@ const LIGHTNINGCSS_CSS_CORPUS = [
     label: "lightningcss-values-level-four-functions",
     source: `.paint { color: color-mix(in srgb, red, blue); background: linear-gradient(red, blue); transform: translateX(1rem) rotate(10deg); }`,
   },
+  {
+    label: "lightningcss-id-selectors-container-and-keyframes",
+    source: `#app.theme > .card:has(> .icon, + [data-active]) { --brand: red; color: var(--brand); }\n@container card (width > 20rem) { #inside.panel { color: red; } }\n@keyframes fade { from { opacity: 0; } to { opacity: 1; } }`,
+  },
 ] as const satisfies readonly {
   readonly label: string;
   readonly source: string;
@@ -413,6 +418,7 @@ function sourceByteSlice(source: string, start: number, end: number): string {
 
 function summarizeLightningCss(source: string): ParserDifferentialSummary {
   const classSelectorNames: string[] = [];
+  const idSelectorNames: string[] = [];
   const customPropertyNames: string[] = [];
   const atRuleNames: string[] = [];
 
@@ -422,6 +428,7 @@ function summarizeLightningCss(source: string): ParserDifferentialSummary {
     visitor: {
       Selector(selector: unknown) {
         classSelectorNames.push(...topLevelSelectorClassNames(selector));
+        idSelectorNames.push(...topLevelSelectorIdNames(selector));
       },
       Declaration(declaration: unknown) {
         const customPropertyName = lightningCustomPropertyName(declaration);
@@ -440,17 +447,26 @@ function summarizeLightningCss(source: string): ParserDifferentialSummary {
 
   return {
     classSelectorNames,
+    idSelectorNames,
     customPropertyNames,
     atRuleNames,
   };
 }
 
 function topLevelSelectorClassNames(selector: unknown): string[] {
+  return topLevelSelectorNames(selector, "class");
+}
+
+function topLevelSelectorIdNames(selector: unknown): string[] {
+  return topLevelSelectorNames(selector, "id");
+}
+
+function topLevelSelectorNames(selector: unknown, selectorType: "class" | "id"): string[] {
   if (!Array.isArray(selector)) {
     return [];
   }
   return selector.flatMap((component) => {
-    if (!recordHasString(component, "type") || component.type !== "class") {
+    if (!recordHasString(component, "type") || component.type !== selectorType) {
       return [];
     }
     return recordHasString(component, "name") ? [component.name] : [];
@@ -668,6 +684,11 @@ void (async () => {
       `${entry.label} lightningcss class selector differential drift`,
     );
     assert.deepEqual(
+      sortedUnique(actual.idSelectorNames),
+      sortedUnique(lightning.idSelectorNames),
+      `${entry.label} lightningcss id selector differential drift`,
+    );
+    assert.deepEqual(
       sortedUnique(actual.customPropertyNames),
       sortedUnique(lightning.customPropertyNames),
       `${entry.label} lightningcss custom property differential drift`,
@@ -679,7 +700,7 @@ void (async () => {
     );
 
     process.stdout.write(
-      `validated lightningcss differential: selectors=${actual.classSelectorNames.length} atRules=${actual.atRuleNames.length}\n\n`,
+      `validated lightningcss differential: classes=${actual.classSelectorNames.length} ids=${actual.idSelectorNames.length} atRules=${actual.atRuleNames.length}\n\n`,
     );
   }
 })().catch((error: unknown) => {
