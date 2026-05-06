@@ -21,7 +21,7 @@ use omena_abstract_value::{
 };
 use omena_bridge::{
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
-    StyleSemanticGraphSummaryV0, collect_omena_bridge_design_token_workspace_declarations,
+    StyleSemanticGraphSummaryV0,
     summarize_omena_bridge_style_semantic_graph_for_path_with_scoped_workspace_declarations,
     summarize_omena_bridge_style_semantic_graph_from_source,
 };
