@@ -32,6 +32,8 @@ pub fn summarize_omena_query_omena_parser_style_facts(
     dialect: OmenaParserStyleDialect,
 ) -> OmenaQueryOmenaParserStyleFactsV0 {
     let facts = collect_style_facts(style_source, dialect);
+    let sass_symbol_resolution =
+        summarize_omena_query_sass_symbol_resolution(facts.sass_symbols.as_slice());
     let mut class_selector_names = Vec::new();
     let mut id_selector_names = Vec::new();
     let mut placeholder_selector_names = Vec::new();
@@ -213,6 +215,7 @@ pub fn summarize_omena_query_omena_parser_style_facts(
                 role: symbol.role,
             })
             .collect(),
+        sass_symbol_resolution,
         custom_property_names: custom_property_names.into_iter().collect(),
         at_rule_names: facts
             .at_rules
@@ -2382,6 +2385,87 @@ fn omena_query_sass_symbol_fact_kind_label(kind: ParsedSassSymbolFactKind) -> &'
         ParsedSassSymbolFactKind::FunctionDeclaration => "sassFunctionDeclaration",
         ParsedSassSymbolFactKind::FunctionCall => "sassFunctionCall",
     }
+}
+
+fn summarize_omena_query_sass_symbol_resolution(
+    symbols: &[omena_parser::ParsedSassSymbolFact],
+) -> OmenaQuerySassSymbolResolutionV0 {
+    let mut declaration_by_symbol: BTreeMap<(&'static str, String), (usize, &'static str)> =
+        BTreeMap::new();
+    let mut declaration_count = 0usize;
+    let mut reference_count = 0usize;
+    let mut edges = Vec::new();
+
+    for (source_order, symbol) in symbols.iter().enumerate() {
+        let kind = omena_query_sass_symbol_fact_kind_label(symbol.kind);
+        if omena_query_sass_symbol_fact_kind_is_declaration(symbol.kind) {
+            declaration_count += 1;
+            declaration_by_symbol.insert(
+                (symbol.symbol_kind, symbol.name.clone()),
+                (source_order, kind),
+            );
+            continue;
+        }
+        if !omena_query_sass_symbol_fact_kind_is_reference(symbol.kind) {
+            continue;
+        }
+
+        reference_count += 1;
+        let declaration = declaration_by_symbol.get(&(symbol.symbol_kind, symbol.name.clone()));
+        edges.push(OmenaQuerySassSymbolResolutionEdgeV0 {
+            symbol_kind: symbol.symbol_kind,
+            name: symbol.name.clone(),
+            reference_kind: kind,
+            reference_role: symbol.role,
+            reference_source_order: source_order,
+            declaration_kind: declaration.map(|(_, declaration_kind)| *declaration_kind),
+            declaration_source_order: declaration.map(|(declaration_order, _)| *declaration_order),
+            status: if declaration.is_some() {
+                "resolved"
+            } else {
+                "unresolved"
+            },
+        });
+    }
+
+    let resolved_reference_count = edges
+        .iter()
+        .filter(|edge| edge.status == "resolved")
+        .count();
+    OmenaQuerySassSymbolResolutionV0 {
+        schema_version: "0",
+        product: "omena-query.sass-symbol-same-file-resolution",
+        resolution_scope: "same-file",
+        declaration_count,
+        reference_count,
+        resolved_reference_count,
+        unresolved_reference_count: reference_count.saturating_sub(resolved_reference_count),
+        edges,
+        capabilities: OmenaQuerySassSymbolResolutionCapabilitiesV0 {
+            same_file_lexical_resolution_ready: true,
+            declaration_before_reference_ready: true,
+            unresolved_reference_reporting_ready: true,
+            cross_file_module_resolution_ready: false,
+        },
+    }
+}
+
+fn omena_query_sass_symbol_fact_kind_is_declaration(kind: ParsedSassSymbolFactKind) -> bool {
+    matches!(
+        kind,
+        ParsedSassSymbolFactKind::VariableDeclaration
+            | ParsedSassSymbolFactKind::MixinDeclaration
+            | ParsedSassSymbolFactKind::FunctionDeclaration
+    )
+}
+
+fn omena_query_sass_symbol_fact_kind_is_reference(kind: ParsedSassSymbolFactKind) -> bool {
+    matches!(
+        kind,
+        ParsedSassSymbolFactKind::VariableReference
+            | ParsedSassSymbolFactKind::MixinInclude
+            | ParsedSassSymbolFactKind::FunctionCall
+    )
 }
 
 fn push_unique_string(values: &mut Vec<String>, value: String) {

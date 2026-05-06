@@ -217,6 +217,7 @@ pub struct OmenaQueryOmenaParserStyleFactsV0 {
     pub sass_symbol_declaration_names: Vec<String>,
     pub sass_symbol_reference_names: Vec<String>,
     pub sass_symbol_facts: Vec<OmenaQuerySassSymbolFactV0>,
+    pub sass_symbol_resolution: OmenaQuerySassSymbolResolutionV0,
     pub custom_property_names: Vec<String>,
     pub at_rule_names: Vec<String>,
     pub parser_error_count: usize,
@@ -229,6 +230,42 @@ pub struct OmenaQuerySassSymbolFactV0 {
     pub symbol_kind: &'static str,
     pub name: String,
     pub role: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySassSymbolResolutionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub resolution_scope: &'static str,
+    pub declaration_count: usize,
+    pub reference_count: usize,
+    pub resolved_reference_count: usize,
+    pub unresolved_reference_count: usize,
+    pub edges: Vec<OmenaQuerySassSymbolResolutionEdgeV0>,
+    pub capabilities: OmenaQuerySassSymbolResolutionCapabilitiesV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySassSymbolResolutionEdgeV0 {
+    pub symbol_kind: &'static str,
+    pub name: String,
+    pub reference_kind: &'static str,
+    pub reference_role: &'static str,
+    pub reference_source_order: usize,
+    pub declaration_kind: Option<&'static str>,
+    pub declaration_source_order: Option<usize>,
+    pub status: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySassSymbolResolutionCapabilitiesV0 {
+    pub same_file_lexical_resolution_ready: bool,
+    pub declaration_before_reference_ready: bool,
+    pub unresolved_reference_reporting_ready: bool,
+    pub cross_file_module_resolution_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

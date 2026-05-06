@@ -259,6 +259,50 @@ fn exposes_omena_parser_sass_symbol_fact_surface() {
     assert!(summary.sass_symbol_facts.iter().any(|fact| {
         fact.kind == "sassFunctionCall" && fact.name == "double" && fact.role == "call"
     }));
+    assert_eq!(summary.sass_symbol_resolution.resolution_scope, "same-file");
+    assert_eq!(summary.sass_symbol_resolution.declaration_count, 4);
+    assert_eq!(summary.sass_symbol_resolution.reference_count, 4);
+    assert_eq!(summary.sass_symbol_resolution.resolved_reference_count, 4);
+    assert_eq!(summary.sass_symbol_resolution.unresolved_reference_count, 0);
+    assert!(
+        summary
+            .sass_symbol_resolution
+            .capabilities
+            .same_file_lexical_resolution_ready
+    );
+    assert!(summary.sass_symbol_resolution.edges.iter().any(|edge| {
+        edge.symbol_kind == "mixin"
+            && edge.name == "tone"
+            && edge.reference_kind == "sassMixinInclude"
+            && edge.declaration_kind == Some("sassMixinDeclaration")
+            && edge.status == "resolved"
+    }));
+    assert!(summary.sass_symbol_resolution.edges.iter().any(|edge| {
+        edge.symbol_kind == "function"
+            && edge.name == "double"
+            && edge.reference_kind == "sassFunctionCall"
+            && edge.declaration_kind == Some("sassFunctionDeclaration")
+            && edge.status == "resolved"
+    }));
+}
+
+#[test]
+fn exposes_omena_parser_unresolved_sass_symbol_resolution() {
+    let summary = summarize_omena_query_omena_parser_style_facts(
+        ".card { color: $missing; @include absent; }",
+        omena_parser::StyleDialect::Scss,
+    );
+
+    assert_eq!(summary.sass_symbol_resolution.declaration_count, 0);
+    assert_eq!(summary.sass_symbol_resolution.reference_count, 2);
+    assert_eq!(summary.sass_symbol_resolution.resolved_reference_count, 0);
+    assert_eq!(summary.sass_symbol_resolution.unresolved_reference_count, 2);
+    assert!(
+        summary
+            .sass_symbol_resolution
+            .capabilities
+            .unresolved_reference_reporting_ready
+    );
 }
 
 #[test]
