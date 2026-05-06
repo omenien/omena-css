@@ -680,6 +680,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "emptyBlockAtRulePreludeValidation",
             "layerScopePreludeCstNodes",
             "layerAtRulePreludeValidation",
+            "scopeAtRulePreludeValidation",
             "pageMarginAtRuleCstNodes",
             "modernDeclarationAtRuleCstNodes",
             "fontFeatureValuesAtRuleCstNodes",
@@ -2969,7 +2970,7 @@ impl<'text> Parser<'text> {
             ),
             SyntaxKind::FontFeatureValuesRule => self.parse_font_feature_values_prelude(),
             SyntaxKind::LayerRule => self.parse_layer_rule_prelude(),
-            SyntaxKind::ScopeRule => self.parse_at_rule_prelude_node(SyntaxKind::ScopeRange),
+            SyntaxKind::ScopeRule => self.parse_scope_rule_prelude(),
             _ => self.consume_at_rule_prelude_tokens(),
         }
     }
@@ -3252,6 +3253,97 @@ impl<'text> Parser<'text> {
             && self
                 .non_trivia_token_from(index + 1)
                 .is_some_and(|(_, next_kind)| next_kind == SyntaxKind::LeftParen)
+    }
+
+    fn parse_scope_rule_prelude(&mut self) {
+        self.eat_trivia();
+        let valid = self.scope_rule_prelude_is_valid();
+        if !valid {
+            self.error_at_current(ParseErrorCode::ExpectedValue, "invalid @scope prelude");
+        }
+        self.builder.start_node(if valid {
+            SyntaxKind::ScopeRange
+        } else {
+            SyntaxKind::BogusScopeRange
+        });
+        self.consume_at_rule_prelude_tokens_without_wrapping();
+        self.builder.finish_node();
+    }
+
+    fn scope_rule_prelude_is_valid(&self) -> bool {
+        let Some((start_index, start_kind)) = self.non_trivia_token_from(self.position) else {
+            return false;
+        };
+        if is_at_rule_prelude_boundary(start_kind) {
+            return false;
+        }
+        if !self.current_prelude_parentheses_are_balanced_until(&[
+            SyntaxKind::LeftBrace,
+            SyntaxKind::SassIndent,
+            SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
+        ]) {
+            return false;
+        }
+        if is_interpolation_start(start_kind) {
+            return true;
+        }
+        if start_kind != SyntaxKind::LeftParen {
+            return false;
+        }
+
+        let Some(start_close_index) = self.parenthesized_prelude_close_index(start_index) else {
+            return false;
+        };
+        let Some((after_start_index, after_start_kind)) =
+            self.non_trivia_token_from(start_close_index + 1)
+        else {
+            return true;
+        };
+        if is_at_rule_prelude_boundary(after_start_kind) {
+            return true;
+        }
+        if after_start_kind != SyntaxKind::Ident
+            || !self
+                .tokens
+                .get(after_start_index)
+                .is_some_and(|token| token.text.eq_ignore_ascii_case("to"))
+        {
+            return false;
+        }
+
+        let Some((end_index, end_kind)) = self.non_trivia_token_from(after_start_index + 1) else {
+            return false;
+        };
+        if is_interpolation_start(end_kind) {
+            return true;
+        }
+        if end_kind != SyntaxKind::LeftParen {
+            return false;
+        }
+        let Some(end_close_index) = self.parenthesized_prelude_close_index(end_index) else {
+            return false;
+        };
+        self.non_trivia_token_from(end_close_index + 1)
+            .is_none_or(|(_, kind)| is_at_rule_prelude_boundary(kind))
+    }
+
+    fn parenthesized_prelude_close_index(&self, open_index: usize) -> Option<usize> {
+        let mut depth = 0usize;
+        for (index, token) in self.tokens.iter().enumerate().skip(open_index) {
+            match token.kind {
+                SyntaxKind::LeftParen => depth += 1,
+                SyntaxKind::RightParen => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        return Some(index);
+                    }
+                }
+                kind if depth == 0 && is_at_rule_prelude_boundary(kind) => return None,
+                _ => {}
+            }
+        }
+        None
     }
 
     fn parse_import_prelude(&mut self) {
@@ -7704,6 +7796,28 @@ mod tests {
     }
 
     #[test]
+    fn validates_scope_rule_preludes() {
+        let result = parse(
+            "@scope { .a { color: red; } } @scope .a { .b { color: blue; } } @scope (.a) to { .c { color: green; } } @scope (.a) to (.b) { .d { color: black; } }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let invalid_scope_errors = result
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @scope prelude")
+            .count();
+        let bogus_scope_ranges = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::BogusScopeRange)
+            .count();
+
+        assert_eq!(invalid_scope_errors, 3);
+        assert_eq!(bogus_scope_ranges, 3);
+        assert!(kinds.contains(&SyntaxKind::ScopeRange));
+    }
+
+    #[test]
     fn parses_registered_keyframes_and_declaration_at_rules() {
         let keyframes = parse(
             "@keyframes fade { from { opacity: 0; } to { opacity: 1; } }",
@@ -9293,6 +9407,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"layerAtRulePreludeValidation")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"scopeAtRulePreludeValidation")
         );
         assert!(summary.ready_surfaces.contains(&"pageMarginAtRuleCstNodes"));
         assert!(
