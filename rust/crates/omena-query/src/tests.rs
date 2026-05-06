@@ -133,7 +133,7 @@ fn summarizes_query_boundary_over_producer_fragments() {
 #[test]
 fn exposes_omena_parser_style_fact_surface() {
     let summary = summarize_omena_query_omena_parser_style_facts(
-        "@use \"tokens\"; @keyframes fade { to { opacity: 1; } } $gap: 1rem; %surface { color: red; } .card#main { --space: $gap; animation-name: fade; }",
+        "@use \"tokens\"; @keyframes fade { to { opacity: 1; } } $gap: 1rem; %surface { color: red; } .card#main { --space: $gap; animation: 1s ease-in fade; }",
         omena_parser::StyleDialect::Scss,
     );
 

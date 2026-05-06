@@ -84,7 +84,7 @@ const CORPUS = [
     label: "css-animation-name-facts",
     filePath: "/f.module.css",
     dialect: "css",
-    source: `@keyframes fade { from { opacity: 0; } to { opacity: 1; } } @keyframes "slide" { to { opacity: 1; } } .card { animation-name: fade, "slide", none; }`,
+    source: `@keyframes fade { from { opacity: 0; } to { opacity: 1; } } @keyframes "slide" { to { opacity: 1; } } .card { animation-name: fade; animation: "slide" 2s linear both, none 1s, var(--anim) 1s; }`,
     expectedClassSelectorNames: ["card"],
     expectedKeyframeNames: ["fade", "slide"],
     expectedAnimationReferenceNames: ["fade", "slide"],

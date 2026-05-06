@@ -219,12 +219,12 @@ const PARSER_ONLY_CORPUS = [
   {
     label: "css-animation-name-facts",
     dialect: "css",
-    source: `@keyframes fade { from { opacity: 0; } to { opacity: 1; } } @keyframes "slide" { to { opacity: 1; } } .card { animation-name: fade, "slide", none; }`,
+    source: `@keyframes fade { from { opacity: 0; } to { opacity: 1; } } @keyframes "slide" { to { opacity: 1; } } .card { animation-name: fade; animation: "slide" 2s linear both, none 1s, var(--anim) 1s; }`,
     expected: {
       classSelectorNames: ["card"],
       placeholderSelectorNames: [],
       variableNames: [],
-      customPropertyNames: [],
+      customPropertyNames: ["--anim"],
       keyframeNames: ["fade", "slide"],
       animationReferenceNames: ["fade", "slide"],
       atRuleNames: ["@keyframes", "@keyframes"],

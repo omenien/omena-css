@@ -668,6 +668,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "cssModuleGlobalSelectorFactFiltering",
             "cssModuleLocalIdSelectorFacts",
             "animationNameStyleFacts",
+            "animationShorthandStyleFacts",
             "scssStructuredBlockAtRules",
             "scssControlPreludeValidation",
             "scssControlStyleFactExtraction",
@@ -6760,6 +6761,20 @@ fn collect_animation_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedAnimat
                 &mut seen,
             );
         }
+
+        if token.kind == SyntaxKind::Ident
+            && token.text.eq_ignore_ascii_case("animation")
+            && let Some(colon_index) =
+                next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
+            && tokens[colon_index].kind == SyntaxKind::Colon
+        {
+            collect_animation_shorthand_references_until(
+                tokens,
+                colon_index + 1,
+                &mut animations,
+                &mut seen,
+            );
+        }
     }
     animations
 }
@@ -6804,6 +6819,92 @@ fn collect_animation_name_references_until(
         }
         index += 1;
     }
+}
+
+fn collect_animation_shorthand_references_until(
+    tokens: &[Token<'_>],
+    start: usize,
+    animations: &mut Vec<ParsedAnimationFact>,
+    seen: &mut BTreeSet<(ParsedAnimationFactKind, String, u32, u32)>,
+) {
+    let mut index = start;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+            SyntaxKind::LeftBracket => bracket_depth += 1,
+            SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+            SyntaxKind::Semicolon
+            | SyntaxKind::SassOptionalSemicolon
+            | SyntaxKind::RightBrace
+            | SyntaxKind::SassDedent
+                if paren_depth == 0 && bracket_depth == 0 =>
+            {
+                break;
+            }
+            _ => {}
+        }
+
+        if paren_depth == 0
+            && bracket_depth == 0
+            && animation_shorthand_token_can_be_name(tokens, index)
+            && let Some(name) = animation_name_from_token(tokens[index])
+        {
+            push_animation_fact(
+                animations,
+                seen,
+                ParsedAnimationFactKind::AnimationNameReference,
+                name,
+                tokens[index].range,
+            );
+        }
+        index += 1;
+    }
+}
+
+fn animation_shorthand_token_can_be_name(tokens: &[Token<'_>], index: usize) -> bool {
+    let token = tokens[index];
+    if token.kind == SyntaxKind::String {
+        return true;
+    }
+    if token.kind != SyntaxKind::Ident {
+        return false;
+    }
+    if let Some(next_index) = next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
+        && tokens[next_index].kind == SyntaxKind::LeftParen
+    {
+        return false;
+    }
+    !animation_shorthand_ident_is_non_name(token.text)
+}
+
+fn animation_shorthand_ident_is_non_name(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "ease"
+            | "ease-in"
+            | "ease-out"
+            | "ease-in-out"
+            | "linear"
+            | "step-start"
+            | "step-end"
+            | "infinite"
+            | "normal"
+            | "reverse"
+            | "alternate"
+            | "alternate-reverse"
+            | "running"
+            | "paused"
+            | "forwards"
+            | "backwards"
+            | "both"
+            | "replace"
+            | "add"
+            | "accumulate"
+            | "auto"
+    )
 }
 
 fn push_animation_fact(
@@ -10203,6 +10304,30 @@ mod tests {
     }
 
     #[test]
+    fn extracts_animation_shorthand_style_facts() {
+        let facts = collect_style_facts(
+            "@keyframes fade { to { opacity: 1; } } @keyframes \"slide\" { to { opacity: 1; } } .card { animation: 1s ease-in fade, \"slide\" 2s linear both, none 1s, var(--anim) 1s; }",
+            StyleDialect::Css,
+        );
+        let keyframe_names = facts
+            .animations
+            .iter()
+            .filter(|animation| animation.kind == ParsedAnimationFactKind::KeyframesDeclaration)
+            .map(|animation| animation.name.as_str())
+            .collect::<Vec<_>>();
+        let reference_names = facts
+            .animations
+            .iter()
+            .filter(|animation| animation.kind == ParsedAnimationFactKind::AnimationNameReference)
+            .map(|animation| animation.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(facts.animation_count, 4);
+        assert_eq!(keyframe_names, vec!["fade", "slide"]);
+        assert_eq!(reference_names, vec!["fade", "slide"]);
+    }
+
+    #[test]
     fn keeps_at_rule_header_dashed_idents_out_of_custom_property_facts() {
         let facts = collect_style_facts(
             "@property --accent { syntax: \"<color>\"; inherits: false; initial-value: red; } @font-palette-values --brand { font-family: Demo; } @color-profile --display-p3 { src: url(p3.icc); } @position-try --popover { inset-area: top; }",
@@ -10877,6 +11002,11 @@ mod tests {
                 .contains(&"cssModuleLocalIdSelectorFacts")
         );
         assert!(summary.ready_surfaces.contains(&"animationNameStyleFacts"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"animationShorthandStyleFacts")
+        );
         assert!(
             summary
                 .ready_surfaces
