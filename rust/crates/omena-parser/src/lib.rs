@@ -671,6 +671,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "conditionalLevel5AtRuleCstNodes",
             "mediaQueryCstNodes",
             "importPreludeCstNodes",
+            "importSourcePreludeValidation",
             "propertyAtRuleNameValidation",
             "namedAtRulePreludeValidation",
             "containerAtRulePreludeValidation",
@@ -3255,7 +3256,17 @@ impl<'text> Parser<'text> {
 
     fn parse_import_prelude(&mut self) {
         self.eat_trivia();
-        self.parse_import_source();
+        if self.dialect == StyleDialect::Less && self.current_kind() == Some(SyntaxKind::LeftParen)
+        {
+            self.builder.start_node(SyntaxKind::AtRulePrelude);
+            self.parse_balanced_parenthesized_prelude(None);
+            self.builder.finish_node();
+            self.eat_trivia();
+        }
+        if !self.parse_import_source() {
+            self.parse_bogus_import_prelude();
+            return;
+        }
         while !self.at_end() {
             match self.current_kind() {
                 Some(kind) if is_at_rule_prelude_boundary(kind) => break,
@@ -3278,12 +3289,13 @@ impl<'text> Parser<'text> {
         }
     }
 
-    fn parse_import_source(&mut self) {
+    fn parse_import_source(&mut self) -> bool {
         match self.current_kind() {
             Some(SyntaxKind::Url) => {
                 self.builder.start_node(SyntaxKind::UrlValue);
                 self.token_current();
                 self.builder.finish_node();
+                true
             }
             Some(SyntaxKind::Ident)
                 if self
@@ -3294,11 +3306,25 @@ impl<'text> Parser<'text> {
                 self.builder.start_node(SyntaxKind::UrlValue);
                 self.parse_function_call(&[SyntaxKind::LeftBrace, SyntaxKind::Semicolon]);
                 self.builder.finish_node();
+                true
             }
-            Some(SyntaxKind::String) => self.token_current(),
-            Some(_) => {}
-            None => {}
+            Some(SyntaxKind::String) => {
+                self.token_current();
+                true
+            }
+            Some(kind) if is_interpolation_start(kind) => {
+                self.parse_interpolation(kind, &[SyntaxKind::LeftBrace, SyntaxKind::Semicolon]);
+                true
+            }
+            Some(_) | None => false,
         }
+    }
+
+    fn parse_bogus_import_prelude(&mut self) {
+        self.builder.start_node(SyntaxKind::BogusAtRulePrelude);
+        self.error_at_current(ParseErrorCode::ExpectedValue, "invalid @import source");
+        self.consume_at_rule_prelude_tokens_without_wrapping();
+        self.builder.finish_node();
     }
 
     fn parse_named_at_rule_prelude(
@@ -7598,15 +7624,45 @@ mod tests {
             "@import url(\"theme.css\") layer(app.theme) supports(display: grid) screen and (min-width: 40rem);",
             StyleDialect::Css,
         );
+        let less = parse(
+            "@import (reference) \"theme.less\" screen and (min-width: 40rem);",
+            StyleDialect::Less,
+        );
         let kinds = node_kinds(&result.syntax());
+        let less_kinds = node_kinds(&less.syntax());
 
         assert!(result.errors().is_empty());
+        assert!(less.errors().is_empty());
         assert!(kinds.contains(&SyntaxKind::ImportRule));
         assert!(kinds.contains(&SyntaxKind::UrlValue));
         assert!(kinds.contains(&SyntaxKind::LayerName));
         assert!(kinds.contains(&SyntaxKind::SupportsCondition));
         assert!(kinds.contains(&SyntaxKind::MediaQueryList));
         assert!(kinds.contains(&SyntaxKind::MediaFeature));
+        assert!(less_kinds.contains(&SyntaxKind::ImportRule));
+        assert!(less_kinds.contains(&SyntaxKind::AtRulePrelude));
+        assert!(less_kinds.contains(&SyntaxKind::MediaQueryList));
+    }
+
+    #[test]
+    fn validates_import_sources() {
+        let result = parse(
+            "@import ; @import layer(app); @import 1; @import url(foo bar);",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let invalid_import_errors = result
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @import source")
+            .count();
+        let bogus_preludes = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::BogusAtRulePrelude)
+            .count();
+
+        assert_eq!(invalid_import_errors, 4);
+        assert_eq!(bogus_preludes, 4);
     }
 
     #[test]
@@ -9193,6 +9249,11 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"mediaQueryCstNodes"));
         assert!(summary.ready_surfaces.contains(&"importPreludeCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"importSourcePreludeValidation")
+        );
         assert!(
             summary
                 .ready_surfaces
