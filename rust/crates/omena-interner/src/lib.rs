@@ -174,6 +174,41 @@ fn checked_text(kind: NameKind, text: impl Into<SmolStr>) -> Result<SmolStr, Int
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaInternerBoundarySummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub phase: &'static str,
+    pub name_kind_count: usize,
+    pub salsa_interned_type_count: usize,
+    pub validated_helper_count: usize,
+    pub symbol_mapped_name_kind_count: usize,
+    pub ready_surfaces: Vec<&'static str>,
+    pub next_surfaces: Vec<&'static str>,
+}
+
+pub fn summarize_omena_interner_boundary() -> OmenaInternerBoundarySummaryV0 {
+    OmenaInternerBoundarySummaryV0 {
+        schema_version: "0",
+        product: "omena-interner.boundary",
+        phase: "h1-beta-name-identity-substrate",
+        name_kind_count: NameKind::ALL.len(),
+        salsa_interned_type_count: 8,
+        validated_helper_count: 8,
+        symbol_mapped_name_kind_count: NameKind::ALL
+            .iter()
+            .filter(|kind| kind.canonical_symbol_kind().is_some())
+            .count(),
+        ready_surfaces: vec![
+            "typedSalsaInternedNames",
+            "validatedNameHelpers",
+            "syntaxSymbolKindMapping",
+            "workspaceFilePathIdentity",
+        ],
+        next_surfaces: vec!["parserSemanticNameConsumption", "semanticSoaNameTables"],
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -236,5 +271,18 @@ mod tests {
         assert!(intern_custom_property_name(&db, "--space").is_ok());
         assert!(intern_keyframes_name(&db, "fade-in").is_ok());
         assert!(intern_file_path(&db, "/workspace/Button.module.scss").is_ok());
+    }
+
+    #[test]
+    fn summarizes_phase_beta_name_identity_boundary() {
+        let summary = summarize_omena_interner_boundary();
+
+        assert_eq!(summary.product, "omena-interner.boundary");
+        assert_eq!(summary.phase, "h1-beta-name-identity-substrate");
+        assert_eq!(summary.name_kind_count, 8);
+        assert_eq!(summary.salsa_interned_type_count, 8);
+        assert_eq!(summary.validated_helper_count, 8);
+        assert_eq!(summary.symbol_mapped_name_kind_count, 4);
+        assert!(summary.ready_surfaces.contains(&"typedSalsaInternedNames"));
     }
 }
