@@ -729,6 +729,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "icssModuleBlockCstNodes",
             "icssImportSourceValidation",
             "cssModuleFromClauseSourceValidation",
+            "cssModuleComposesMultipleFromValidation",
             "cssModuleBogusRecovery",
             "valueListCstNodes",
             "valueListBogusRecovery",
@@ -2015,6 +2016,12 @@ impl<'text> Parser<'text> {
 
     fn parse_composes_value_until(&mut self, recovery: &[SyntaxKind]) {
         let mut saw_target = false;
+        if self.current_composes_value_has_multiple_from_clauses(recovery) {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "multiple composes from clauses are not allowed",
+            );
+        }
         while !self.at_end() {
             self.eat_value_trivia();
             match self.current_kind() {
@@ -2050,6 +2057,45 @@ impl<'text> Parser<'text> {
                 "expected composes target",
             );
         }
+    }
+
+    fn current_composes_value_has_multiple_from_clauses(&self, recovery: &[SyntaxKind]) -> bool {
+        let mut index = self.position;
+        let mut paren_depth = 0usize;
+        let mut bracket_depth = 0usize;
+        let mut brace_depth = 0usize;
+        let mut from_count = 0usize;
+        while let Some(token) = self.tokens.get(index) {
+            if paren_depth == 0
+                && bracket_depth == 0
+                && brace_depth == 0
+                && recovery.contains(&token.kind)
+            {
+                break;
+            }
+            match token.kind {
+                SyntaxKind::LeftParen => paren_depth += 1,
+                SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+                SyntaxKind::LeftBracket => bracket_depth += 1,
+                SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+                SyntaxKind::LeftBrace => brace_depth += 1,
+                SyntaxKind::RightBrace => brace_depth = brace_depth.saturating_sub(1),
+                SyntaxKind::Ident
+                    if paren_depth == 0
+                        && bracket_depth == 0
+                        && brace_depth == 0
+                        && token.text == "from" =>
+                {
+                    from_count += 1;
+                    if from_count > 1 {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+            index += 1;
+        }
+        false
     }
 
     fn parse_css_module_from_clause(&mut self, recovery: &[SyntaxKind]) {
@@ -8256,7 +8302,7 @@ mod tests {
     #[test]
     fn recovers_css_module_value_and_composes_bogus_nodes() {
         let result = parse(
-            "@value from; .bad { composes: from; } .missing { composes base; } .invalid { composes: base from 123; } @value bad as alias from 123;",
+            "@value from; .bad { composes: from; } .missing { composes base; } .invalid { composes: base from 123; } @value bad as alias from 123; .multi { composes: a from \"./a.css\", b from \"./b.css\"; }",
             StyleDialect::Scss,
         );
         let kinds = node_kinds(&result.syntax());
@@ -8265,12 +8311,18 @@ mod tests {
             .iter()
             .filter(|error| error.message == "invalid CSS Modules from-clause source")
             .count();
+        let multiple_from_count = result
+            .errors()
+            .iter()
+            .filter(|error| error.message == "multiple composes from clauses are not allowed")
+            .count();
 
         assert!(kinds.contains(&SyntaxKind::BogusCssModuleBlock));
         assert!(kinds.contains(&SyntaxKind::BogusFromClause));
         assert!(kinds.contains(&SyntaxKind::BogusComposesTarget));
         assert!(kinds.contains(&SyntaxKind::BogusComposesDeclaration));
         assert_eq!(invalid_from_source_count, 2);
+        assert_eq!(multiple_from_count, 1);
     }
 
     #[test]
@@ -10465,6 +10517,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"cssModuleFromClauseSourceValidation")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"cssModuleComposesMultipleFromValidation")
         );
         assert!(summary.ready_surfaces.contains(&"cssModuleBogusRecovery"));
         assert!(summary.ready_surfaces.contains(&"valueListCstNodes"));
