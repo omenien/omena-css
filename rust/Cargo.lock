@@ -663,6 +663,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-transform-passes"
+version = "0.1.0"
+dependencies = [
+ "omena-transform-cst",
+ "serde",
+]
+
+[[package]]
 name = "omena-tsgo-client"
 version = "0.1.0"
 dependencies = [

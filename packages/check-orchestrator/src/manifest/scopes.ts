@@ -34,6 +34,7 @@ const RUST_FAMILIES = [
   "omena-syntax",
   "omena-tsgo-client",
   "omena-transform-cst",
+  "omena-transform-passes",
   "semantic",
   "release",
   "shadow",
