@@ -21,6 +21,7 @@ use super::{
     summarize_omena_query_source_resolution_canonical_producer_signal,
     summarize_omena_query_source_resolution_query_fragments,
     summarize_omena_query_source_resolution_runtime,
+    summarize_omena_query_style_document,
     summarize_omena_query_style_semantic_graph_batch_from_sources,
     summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
     summarize_omena_query_style_semantic_graph_from_source,
@@ -228,6 +229,31 @@ fn exposes_omena_parser_style_fact_surface() {
         vec!["@use", "@value", "@value", "@value", "@keyframes"]
     );
     assert_eq!(summary.parser_error_count, 0);
+}
+
+#[test]
+fn style_document_summary_is_omena_parser_owned() {
+    let summary = summarize_omena_query_style_document(
+        "Component.module.scss",
+        r#"
+@use "./tokens" as tokens;
+@forward "./theme";
+.card { --brand: #fff; color: var(--brand); }
+"#,
+    );
+    assert!(summary.is_some());
+    let Some(summary) = summary else {
+        return;
+    };
+
+    assert_eq!(summary.product, "omena-query.style-document-summary");
+    assert_eq!(summary.language, "scss");
+    assert_eq!(summary.selector_names, vec!["card"]);
+    assert_eq!(summary.custom_property_decl_names, vec!["--brand"]);
+    assert_eq!(summary.custom_property_ref_names, vec!["--brand"]);
+    assert_eq!(summary.sass_module_use_sources, vec!["./tokens"]);
+    assert_eq!(summary.sass_module_forward_sources, vec!["./theme"]);
+    assert_eq!(summary.diagnostic_count, 0);
 }
 
 #[test]
@@ -1726,6 +1752,7 @@ fn sass_module_sources_are_query_owned() {
 @use "./tokens" as tokens;
 @use "./reset" as *;
 @use "sass:map";
+@import "./legacy";
 @forward "./theme";
 @forward "sass:color";
 "#,
@@ -1744,9 +1771,12 @@ fn sass_module_sources_are_query_owned() {
     assert!(sources.module_use_edges.iter().any(|edge| {
         edge.source == "./reset" && edge.namespace.is_none() && edge.namespace_kind == "wildcard"
     }));
+    assert!(sources.module_use_edges.iter().any(|edge| {
+        edge.source == "./legacy" && edge.namespace.is_none() && edge.namespace_kind == "wildcard"
+    }));
     assert_eq!(
         super::resolve_omena_query_sass_module_use_sources_for_candidate(&sources, None),
-        vec!["./reset".to_string()]
+        vec!["./legacy".to_string(), "./reset".to_string()]
     );
     assert_eq!(
         super::resolve_omena_query_sass_module_use_sources_for_candidate(&sources, Some("tokens"),),

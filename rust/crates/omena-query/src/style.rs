@@ -12,18 +12,56 @@ pub fn summarize_omena_query_style_document(
     style_path: &str,
     style_source: &str,
 ) -> Option<OmenaQueryStyleDocumentSummaryV0> {
-    let sheet = parse_style_module(style_path, style_source)?;
-    let index = summarize_css_modules_intermediate(&sheet);
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let facts = collect_style_facts(style_source, dialect);
+    let mut selector_names = Vec::new();
+    let mut custom_property_decl_names = Vec::new();
+    let mut custom_property_ref_names = Vec::new();
+    let mut sass_module_use_sources = BTreeSet::new();
+    let mut sass_module_forward_sources = BTreeSet::new();
+
+    for selector in facts.selectors {
+        if selector.kind == ParsedSelectorFactKind::Class {
+            selector_names.push(selector.name);
+        }
+    }
+
+    for variable in facts.variables {
+        match variable.kind {
+            ParsedVariableFactKind::CustomPropertyDeclaration => {
+                custom_property_decl_names.push(variable.name);
+            }
+            ParsedVariableFactKind::CustomPropertyReference => {
+                custom_property_ref_names.push(variable.name);
+            }
+            _ => {}
+        }
+    }
+
+    for edge in facts.sass_module_edges {
+        match edge.kind {
+            ParsedSassModuleEdgeFactKind::Use => {
+                sass_module_use_sources.insert(edge.source);
+            }
+            ParsedSassModuleEdgeFactKind::Forward => {
+                sass_module_forward_sources.insert(edge.source);
+            }
+            ParsedSassModuleEdgeFactKind::Import => {
+                sass_module_use_sources.insert(edge.source);
+            }
+        }
+    }
+
     Some(OmenaQueryStyleDocumentSummaryV0 {
         schema_version: "0",
         product: "omena-query.style-document-summary",
-        language: style_language_label(sheet.language),
-        selector_names: index.selectors.names,
-        custom_property_decl_names: index.custom_properties.decl_names,
-        custom_property_ref_names: index.custom_properties.ref_names,
-        sass_module_use_sources: index.sass.module_use_sources,
-        sass_module_forward_sources: index.sass.module_forward_sources,
-        diagnostic_count: sheet.diagnostics.len(),
+        language: omena_parser_style_dialect_label(dialect),
+        selector_names,
+        custom_property_decl_names,
+        custom_property_ref_names,
+        sass_module_use_sources: sass_module_use_sources.into_iter().collect(),
+        sass_module_forward_sources: sass_module_forward_sources.into_iter().collect(),
+        diagnostic_count: facts.error_count,
     })
 }
 
@@ -754,7 +792,13 @@ pub fn summarize_omena_query_sass_module_sources(
             ParsedSassModuleEdgeFactKind::Forward => {
                 module_forward_sources.insert(edge.source);
             }
-            ParsedSassModuleEdgeFactKind::Import => {}
+            ParsedSassModuleEdgeFactKind::Import => {
+                module_use_edges.push(OmenaQuerySassModuleUseEdgeV0 {
+                    source: edge.source,
+                    namespace_kind: "wildcard",
+                    namespace: None,
+                });
+            }
         }
     }
     Some(OmenaQuerySassModuleSourcesV0 {
