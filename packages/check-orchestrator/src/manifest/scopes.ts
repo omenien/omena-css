@@ -35,6 +35,7 @@ const RUST_FAMILIES = [
   "omena-tsgo-client",
   "omena-transform-bundle",
   "omena-transform-cst",
+  "omena-transform-egg",
   "omena-transform-passes",
   "omena-transform-print",
   "omena-transform-target",

@@ -673,6 +673,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-transform-egg"
+version = "0.1.0"
+dependencies = [
+ "omena-transform-cst",
+ "omena-transform-passes",
+ "serde",
+]
+
+[[package]]
 name = "omena-transform-passes"
 version = "0.1.0"
 dependencies = [
