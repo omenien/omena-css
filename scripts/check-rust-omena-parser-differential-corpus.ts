@@ -145,6 +145,18 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "css-media-supports-prelude-validation",
+    dialect: "css",
+    source: `@media not screen and (color), (width >= 1px) { .a { color: red; } } @supports selector(:has(*)) { .b { color: blue; } }`,
+    expected: {
+      classSelectorNames: ["a", "b"],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: [],
+      atRuleNames: ["@media", "@supports"],
+    },
+  },
+  {
     label: "css-modern-declaration-at-rules",
     dialect: "css",
     source: `@counter-style thumbs { system: cyclic; symbols: "yes"; suffix: " "; } @font-palette-values --brand { font-family: Demo; base-palette: 1; } @color-profile --display-p3 { src: url(p3.icc); } @position-try --popover { inset-area: top; }`,
