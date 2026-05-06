@@ -215,6 +215,18 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "scss-variable-flags",
+    dialect: "scss",
+    source: `$gap: 1rem !default !global;\n.card { margin: $gap; }`,
+    expected: {
+      classSelectorNames: ["card"],
+      placeholderSelectorNames: [],
+      variableNames: ["$gap"],
+      customPropertyNames: [],
+      atRuleNames: [],
+    },
+  },
+  {
     label: "scss-placeholder-selector-and-extend",
     dialect: "scss",
     source: `%surface { color: red; }\n.card { @extend %surface; }`,
@@ -224,6 +236,18 @@ const PARSER_ONLY_CORPUS = [
       variableNames: [],
       customPropertyNames: [],
       atRuleNames: ["@extend"],
+    },
+  },
+  {
+    label: "less-import-options",
+    dialect: "less",
+    source: `@import (reference) "theme.less" screen and (min-width: 1px);\n.card { color: red; }`,
+    expected: {
+      classSelectorNames: ["card"],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: [],
+      atRuleNames: ["@import"],
     },
   },
 ] as const satisfies readonly {
