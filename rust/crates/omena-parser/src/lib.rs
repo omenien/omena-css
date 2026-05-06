@@ -706,6 +706,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "envAttrFunctionCstNodes",
             "mathFunctionCstNodes",
             "mathFunctionArityChecks",
+            "mathFunctionEmptyArgumentChecks",
             "varEnvAttrFunctionHeadChecks",
             "scssInterpolationTokenization",
             "scssInterpolationCstNodes",
@@ -2730,6 +2731,8 @@ impl<'text> Parser<'text> {
         let function_name = self.current_text().map(str::to_owned);
         let function_range = self.current_range();
         let argument_count = self.current_function_top_level_argument_count_before(recovery);
+        let has_empty_argument_slot =
+            self.current_function_has_empty_top_level_argument_slot_before(recovery);
         let argument_head = self.current_function_first_argument_token_before(recovery);
         let specialized_kind = function_name.as_deref().and_then(specialized_function_kind);
         let closed = self.current_function_has_closing_paren_before(recovery);
@@ -2771,6 +2774,9 @@ impl<'text> Parser<'text> {
                     argument_count,
                     function_range,
                 );
+            }
+            if let Some(true) = has_empty_argument_slot {
+                self.validate_function_argument_slots(&function_name, function_range);
             }
             self.validate_function_argument_head(&function_name, argument_head, function_range);
         }
@@ -2818,6 +2824,51 @@ impl<'text> Parser<'text> {
         None
     }
 
+    fn current_function_has_empty_top_level_argument_slot_before(
+        &self,
+        recovery: &[SyntaxKind],
+    ) -> Option<bool> {
+        if self.next_kind() != Some(SyntaxKind::LeftParen) {
+            return None;
+        }
+
+        let mut index = self.position + 2;
+        let mut depth = 0usize;
+        let mut expecting_argument = true;
+        let mut saw_argument = false;
+        while let Some(token) = self.tokens.get(index) {
+            match token.kind {
+                kind if depth == 0 && recovery.contains(&kind) => return None,
+                SyntaxKind::RightParen if depth == 0 => {
+                    return Some(expecting_argument && saw_argument);
+                }
+                SyntaxKind::Comma if depth == 0 => {
+                    if expecting_argument {
+                        return Some(true);
+                    }
+                    expecting_argument = true;
+                }
+                kind if kind.is_trivia() => {}
+                SyntaxKind::LeftBrace | SyntaxKind::LeftBracket | SyntaxKind::LeftParen => {
+                    depth += 1;
+                    expecting_argument = false;
+                    saw_argument = true;
+                }
+                SyntaxKind::RightBrace | SyntaxKind::RightBracket | SyntaxKind::RightParen => {
+                    depth = depth.saturating_sub(1);
+                    expecting_argument = false;
+                    saw_argument = true;
+                }
+                _ => {
+                    expecting_argument = false;
+                    saw_argument = true;
+                }
+            }
+            index += 1;
+        }
+        None
+    }
+
     fn current_function_first_argument_token_before(
         &self,
         recovery: &[SyntaxKind],
@@ -2852,6 +2903,17 @@ impl<'text> Parser<'text> {
             code: ParseErrorCode::ExpectedValue,
             range,
             message: "invalid function argument count",
+        });
+    }
+
+    fn validate_function_argument_slots(&mut self, function_name: &str, range: TextRange) {
+        if !function_requires_filled_top_level_arguments(function_name) {
+            return;
+        }
+        self.errors.push(ParseError {
+            code: ParseErrorCode::ExpectedValue,
+            range,
+            message: "empty function argument",
         });
     }
 
@@ -6999,6 +7061,17 @@ fn function_argument_count_is_valid(function_name: &str, argument_count: usize) 
     true
 }
 
+fn function_requires_filled_top_level_arguments(function_name: &str) -> bool {
+    function_name.eq_ignore_ascii_case("calc")
+        || matches_ignore_ascii_case(
+            function_name,
+            &[
+                "min", "max", "clamp", "round", "mod", "rem", "sin", "cos", "tan", "asin", "acos",
+                "atan", "atan2", "pow", "sqrt", "hypot", "log", "exp", "abs", "sign",
+            ],
+        )
+}
+
 fn at_rule_prelude_head_is_custom_property_name(kind: SyntaxKind) -> bool {
     kind == SyntaxKind::CustomPropertyName || is_interpolation_start(kind)
 }
@@ -8758,6 +8831,26 @@ mod tests {
     }
 
     #[test]
+    fn validates_values_l4_math_function_empty_arguments() {
+        let valid_fallback = parse(
+            ".a { color: var(--brand,); padding: env(safe-area-inset-top,); }",
+            StyleDialect::Css,
+        );
+        let invalid = parse(
+            ".a { width: min(, 1px); height: max(1px,); inset: clamp(1px, , 3px); }",
+            StyleDialect::Css,
+        );
+        let empty_argument_count = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "empty function argument")
+            .count();
+
+        assert!(valid_fallback.errors().is_empty());
+        assert_eq!(empty_argument_count, 3);
+    }
+
+    #[test]
     fn validates_var_env_attr_function_argument_heads() {
         let valid = parse(
             ".a { color: var(--brand, red, blue); padding: env(safe-area-inset-top, 0px); content: attr(data-label string, \"x\"); }",
@@ -9986,6 +10079,11 @@ mod tests {
         assert!(summary.ready_surfaces.contains(&"envAttrFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"mathFunctionCstNodes"));
         assert!(summary.ready_surfaces.contains(&"mathFunctionArityChecks"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"mathFunctionEmptyArgumentChecks")
+        );
         assert!(
             summary
                 .ready_surfaces
