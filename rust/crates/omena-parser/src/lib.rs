@@ -698,6 +698,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "nestingAtRuleCstNodes",
             "customMediaAtRuleCstNodes",
             "cssColorFunctionCstNodes",
+            "colorFunctionArgumentChecks",
             "gradientFunctionCstNodes",
             "transformFunctionCstNodes",
             "filterFunctionCstNodes",
@@ -2934,6 +2935,9 @@ impl<'text> Parser<'text> {
             ) || head_kind.is_some_and(is_dynamic_function_argument_head)
         } else if function_name.eq_ignore_ascii_case("attr") {
             matches!(head_kind, Some(SyntaxKind::Ident))
+                || head_kind.is_some_and(is_dynamic_function_argument_head)
+        } else if function_name.eq_ignore_ascii_case("color-mix") {
+            argument_head.is_some_and(|token| token.text.eq_ignore_ascii_case("in"))
                 || head_kind.is_some_and(is_dynamic_function_argument_head)
         } else {
             true
@@ -6950,6 +6954,7 @@ fn specialized_function_kind(text: &str) -> Option<SyntaxKind> {
             "oklch",
             "color",
             "color-mix",
+            "device-cmyk",
             "light-dark",
             "contrast-color",
         ],
@@ -7058,6 +7063,15 @@ fn function_argument_count_is_valid(function_name: &str, argument_count: usize) 
     ) {
         return argument_count == 1;
     }
+    if function_name.eq_ignore_ascii_case("color-mix") {
+        return argument_count == 3;
+    }
+    if function_name.eq_ignore_ascii_case("light-dark") {
+        return argument_count == 2;
+    }
+    if function_name.eq_ignore_ascii_case("contrast-color") {
+        return argument_count == 1;
+    }
     true
 }
 
@@ -7069,6 +7083,10 @@ fn function_requires_filled_top_level_arguments(function_name: &str) -> bool {
                 "min", "max", "clamp", "round", "mod", "rem", "sin", "cos", "tan", "asin", "acos",
                 "atan", "atan2", "pow", "sqrt", "hypot", "log", "exp", "abs", "sign",
             ],
+        )
+        || matches_ignore_ascii_case(
+            function_name,
+            &["color-mix", "light-dark", "contrast-color"],
         )
 }
 
@@ -8776,7 +8794,7 @@ mod tests {
     #[test]
     fn structures_modern_css_value_functions() {
         let result = parse(
-            ".a { color: color-mix(in oklch, var(--brand), white 20%); width: clamp(1rem, 2vw, 3rem); content: attr(data-label string, \"x\"); padding: env(safe-area-inset-top); background-image: linear-gradient(red, blue); transform: translateX(1rem) rotate(10deg); filter: blur(2px) brightness(1.1); image-set: image-set(url(a.png) 1x); offset-path: path(\"M0,0 L1,1\"); }",
+            ".a { color: color-mix(in oklch, var(--brand), white 20%); accent-color: device-cmyk(0 1 1 0); width: clamp(1rem, 2vw, 3rem); content: attr(data-label string, \"x\"); padding: env(safe-area-inset-top); background-image: linear-gradient(red, blue); transform: translateX(1rem) rotate(10deg); filter: blur(2px) brightness(1.1); image-set: image-set(url(a.png) 1x); offset-path: path(\"M0,0 L1,1\"); }",
             StyleDialect::Css,
         );
         let kinds = node_kinds(&result.syntax());
@@ -8792,6 +8810,37 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::FilterFunction));
         assert!(kinds.contains(&SyntaxKind::ImageFunction));
         assert!(kinds.contains(&SyntaxKind::ShapeFunction));
+    }
+
+    #[test]
+    fn validates_color_function_micro_grammars() {
+        let valid = parse(
+            ".a { color: color-mix(in srgb, red, blue 30%); background: light-dark(white, black); border-color: contrast-color(red); }",
+            StyleDialect::Css,
+        );
+        let dynamic = parse(
+            ".a { color: color-mix(#{$space}, red, blue); }",
+            StyleDialect::Scss,
+        );
+        let invalid = parse(
+            ".a { color: color-mix(srgb, red, blue); background: light-dark(white); border-color: contrast-color(red, blue); outline-color: color-mix(in srgb, red); }",
+            StyleDialect::Css,
+        );
+        let invalid_argument_head_count = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid function argument head")
+            .count();
+        let invalid_argument_count = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid function argument count")
+            .count();
+
+        assert!(valid.errors().is_empty());
+        assert!(dynamic.errors().is_empty());
+        assert_eq!(invalid_argument_head_count, 1);
+        assert_eq!(invalid_argument_count, 3);
     }
 
     #[test]
@@ -10067,6 +10116,11 @@ mod tests {
                 .contains(&"customMediaAtRuleCstNodes")
         );
         assert!(summary.ready_surfaces.contains(&"cssColorFunctionCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"colorFunctionArgumentChecks")
+        );
         assert!(summary.ready_surfaces.contains(&"gradientFunctionCstNodes"));
         assert!(
             summary
