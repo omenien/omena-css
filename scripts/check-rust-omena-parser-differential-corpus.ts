@@ -300,6 +300,10 @@ const LIGHTNINGCSS_CSS_CORPUS = [
     source: `@layer theme; @media (width >= 1px) { .mediaCard { color: red; } } @supports (display: grid) { .gridCard { display: grid; } }`,
   },
   {
+    label: "lightningcss-layer-prelude-forms",
+    source: `@layer reset, app.ui; @layer components { .card { color: red; } } @layer { .anon { color: blue; } }`,
+  },
+  {
     label: "lightningcss-values-level-four-functions",
     source: `.paint { color: color-mix(in srgb, red, blue); background: linear-gradient(red, blue); transform: translateX(1rem) rotate(10deg); }`,
   },
