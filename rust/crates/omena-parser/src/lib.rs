@@ -640,6 +640,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "attributeNameValueModifierCstNodes",
             "specializedValueFunctionCstNodes",
             "caseInsensitiveFunctionRegistry",
+            "caseInsensitiveAtRuleRegistry",
             "valueAtomCstNodes",
             "identifierValueCstNodes",
             "stringValueCstNodes",
@@ -4697,38 +4698,40 @@ fn starts_valid_escape_text(text: &str) -> bool {
 }
 
 fn is_css_at_rule_name(text: &str) -> bool {
-    matches!(
+    matches_ignore_ascii_case(
         text,
-        "@charset"
-            | "@container"
-            | "@font-face"
-            | "@font-feature-values"
-            | "@font-palette-values"
-            | "@import"
-            | "@keyframes"
-            | "@layer"
-            | "@media"
-            | "@namespace"
-            | "@page"
-            | "@property"
-            | "@scope"
-            | "@starting-style"
-            | "@supports"
-            | "@counter-style"
-            | "@custom-media"
-            | "@color-profile"
-            | "@nest"
-            | "@position-try"
-            | "@view-transition"
-            | "@stylistic"
-            | "@styleset"
-            | "@character-variant"
-            | "@swash"
-            | "@ornaments"
-            | "@annotation"
-            | "@historical-forms"
-            | "@when"
-            | "@else"
+        &[
+            "@charset",
+            "@container",
+            "@font-face",
+            "@font-feature-values",
+            "@font-palette-values",
+            "@import",
+            "@keyframes",
+            "@layer",
+            "@media",
+            "@namespace",
+            "@page",
+            "@property",
+            "@scope",
+            "@starting-style",
+            "@supports",
+            "@counter-style",
+            "@custom-media",
+            "@color-profile",
+            "@nest",
+            "@position-try",
+            "@view-transition",
+            "@stylistic",
+            "@styleset",
+            "@character-variant",
+            "@swash",
+            "@ornaments",
+            "@annotation",
+            "@historical-forms",
+            "@when",
+            "@else",
+        ],
     )
 }
 
@@ -5293,16 +5296,18 @@ fn matching_sass_dedent(tokens: &[Token<'_>], open: usize, end: usize) -> Option
 }
 
 fn style_wrapper_at_rule(name: &str) -> bool {
-    matches!(
+    matches_ignore_ascii_case(
         name,
-        "@media"
-            | "@supports"
-            | "@when"
-            | "@else"
-            | "@layer"
-            | "@scope"
-            | "@container"
-            | "@starting-style"
+        &[
+            "@media",
+            "@supports",
+            "@when",
+            "@else",
+            "@layer",
+            "@scope",
+            "@container",
+            "@starting-style",
+        ],
     )
 }
 
@@ -5352,14 +5357,20 @@ fn collect_at_rule_facts_from_tokens(
         .iter()
         .filter(|token| token.kind == SyntaxKind::AtKeyword)
         .map(|token| {
-            let node_kind = at_rule_spec(token.text)
+            let css_spec = at_rule_spec(token.text);
+            let node_kind = css_spec
                 .or_else(|| match dialect {
                     StyleDialect::Scss | StyleDialect::Sass => scss_at_rule_spec(token.text),
                     StyleDialect::Css | StyleDialect::Less => None,
                 })
                 .map(|spec| spec.node_kind);
+            let name = if css_spec.is_some() {
+                token.text.to_ascii_lowercase()
+            } else {
+                token.text.to_string()
+            };
             ParsedAtRuleFact {
-                name: token.text.to_string(),
+                name,
                 node_kind,
                 range: token.range,
             }
@@ -5412,7 +5423,8 @@ fn previous_non_trivia_token<'text>(
 }
 
 fn at_rule_spec(text: &str) -> Option<AtRuleSpec> {
-    let (node_kind, block_kind) = match text {
+    let lowered = text.to_ascii_lowercase();
+    let (node_kind, block_kind) = match lowered.as_str() {
         "@media" => (SyntaxKind::MediaRule, AtRuleBlockKind::GroupRuleList),
         "@supports" => (SyntaxKind::SupportsRule, AtRuleBlockKind::GroupRuleList),
         "@when" => (SyntaxKind::WhenRule, AtRuleBlockKind::GroupRuleList),
@@ -6924,6 +6936,30 @@ mod tests {
     }
 
     #[test]
+    fn classifies_css_at_rules_case_insensitively() {
+        let source = "@MEDIA (width >= 1px) { .card { color: red; } } @KEYFRAMES fade { from { opacity: 0; } to { opacity: 1; } }";
+        let result = parse(source, StyleDialect::Css);
+        let facts = collect_style_facts(source, StyleDialect::Css);
+        let kinds = node_kinds(&result.syntax());
+        let at_rule_names: Vec<&str> = facts
+            .at_rules
+            .iter()
+            .map(|at_rule| at_rule.name.as_str())
+            .collect();
+
+        assert!(result.errors().is_empty());
+        assert!(kinds.contains(&SyntaxKind::MediaRule));
+        assert!(kinds.contains(&SyntaxKind::KeyframesRule));
+        assert!(
+            facts
+                .selectors
+                .iter()
+                .any(|selector| selector.name == "card")
+        );
+        assert_eq!(at_rule_names, vec!["@media", "@keyframes"]);
+    }
+
+    #[test]
     fn parses_import_layer_supports_media_prelude() {
         let result = parse(
             "@import url(\"theme.css\") layer(app.theme) supports(display: grid) screen and (min-width: 40rem);",
@@ -8189,6 +8225,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"caseInsensitiveFunctionRegistry")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"caseInsensitiveAtRuleRegistry")
         );
         assert!(summary.ready_surfaces.contains(&"identifierValueCstNodes"));
         assert!(summary.ready_surfaces.contains(&"stringValueCstNodes"));
