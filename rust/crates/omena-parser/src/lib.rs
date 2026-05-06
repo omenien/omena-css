@@ -674,6 +674,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "propertyAtRuleNameValidation",
             "namedAtRulePreludeValidation",
             "charsetNamespaceAtRulePreludeValidation",
+            "keyframesAtRuleNameValidation",
             "layerScopePreludeCstNodes",
             "pageMarginAtRuleCstNodes",
             "modernDeclarationAtRuleCstNodes",
@@ -2855,6 +2856,7 @@ impl<'text> Parser<'text> {
             SyntaxKind::ImportRule => self.parse_import_prelude(),
             SyntaxKind::CharsetRule => self.parse_charset_rule_prelude(),
             SyntaxKind::NamespaceRule => self.parse_namespace_rule_prelude(),
+            SyntaxKind::KeyframesRule => self.parse_keyframes_rule_prelude(),
             SyntaxKind::PropertyRule => self.parse_named_at_rule_prelude(
                 at_rule_prelude_head_is_custom_property_name,
                 "invalid @property name",
@@ -2986,6 +2988,27 @@ impl<'text> Parser<'text> {
             && self
                 .non_trivia_token_from(index + 1)
                 .is_some_and(|(_, next_kind)| next_kind == SyntaxKind::LeftParen)
+    }
+
+    fn parse_keyframes_rule_prelude(&mut self) {
+        if !self.keyframes_rule_prelude_is_valid() {
+            self.error_at_current(ParseErrorCode::ExpectedValue, "invalid @keyframes name");
+        }
+        self.consume_at_rule_prelude_tokens();
+    }
+
+    fn keyframes_rule_prelude_is_valid(&self) -> bool {
+        let Some((name_index, name_kind)) = self.non_trivia_token_from(self.position) else {
+            return false;
+        };
+        if is_interpolation_start(name_kind) {
+            return true;
+        }
+        if !matches!(name_kind, SyntaxKind::Ident | SyntaxKind::String) {
+            return false;
+        }
+        self.non_trivia_token_from(name_index + 1)
+            .is_none_or(|(_, kind)| is_at_rule_prelude_boundary(kind))
     }
 
     fn parse_import_prelude(&mut self) {
@@ -7375,6 +7398,31 @@ mod tests {
     }
 
     #[test]
+    fn validates_keyframes_at_rule_names() {
+        let valid = parse(
+            "@keyframes fade { from { opacity: 0; } } @keyframes \"slide\" { to { opacity: 1; } }",
+            StyleDialect::Css,
+        );
+        let dynamic = parse(
+            "@keyframes #{$animation-name} { from { opacity: 0; } }",
+            StyleDialect::Scss,
+        );
+        let invalid = parse(
+            "@keyframes 50% { from { opacity: 0; } } @keyframes fade extra { to { opacity: 1; } }",
+            StyleDialect::Css,
+        );
+        let invalid_name_errors = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @keyframes name")
+            .count();
+
+        assert!(valid.errors().is_empty());
+        assert!(dynamic.errors().is_empty());
+        assert_eq!(invalid_name_errors, 2);
+    }
+
+    #[test]
     fn classifies_initial_scss_at_rule_nodes() {
         let module_rules = parse(
             "@use \"sass:map\"; @forward \"tokens\";",
@@ -8668,6 +8716,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"charsetNamespaceAtRulePreludeValidation")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"keyframesAtRuleNameValidation")
         );
         assert!(
             summary
