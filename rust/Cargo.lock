@@ -643,6 +643,7 @@ dependencies = [
  "engine-input-producers",
  "engine-style-parser",
  "omena-cascade",
+ "omena-parser",
  "serde",
  "serde_json",
 ]

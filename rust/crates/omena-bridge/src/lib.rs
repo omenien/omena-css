@@ -2,11 +2,12 @@ use engine_input_producers::EngineInputV2;
 use engine_style_parser::{
     ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet, parse_style_module,
 };
+use omena_semantic::{
+    CssModulesSemanticSummaryV0, DesignTokenSemanticSummaryV0, LosslessCstContractV0,
+    SelectorIdentityEngineSummaryV0,
+};
 pub use omena_semantic::{
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
-};
-use omena_semantic::{
-    DesignTokenSemanticSummaryV0, LosslessCstContractV0, SelectorIdentityEngineSummaryV0,
 };
 use serde::Serialize;
 
@@ -106,6 +107,7 @@ pub struct StyleSemanticGraphSummaryV0 {
     pub language: &'static str,
     pub parser_facts: ParserBoundarySyntaxFactsV0,
     pub semantic_facts: StyleSemanticFactsV0,
+    pub css_modules_semantics: CssModulesSemanticSummaryV0,
     pub design_token_semantics: DesignTokenSemanticSummaryV0,
     pub selector_identity_engine: SelectorIdentityEngineSummaryV0,
     pub selector_reference_engine: SelectorReferenceEngineSummaryV0,
@@ -277,6 +279,7 @@ pub fn summarize_omena_bridge_style_semantic_graph_for_path_with_scoped_workspac
             workspace_declarations,
             candidate_scope,
         );
+    let css_modules_semantics = omena_semantic::summarize_css_modules_semantics(sheet);
     let selector_identity_engine = boundary.selector_identity_engine;
     let selector_reference_engine =
         summarize_omena_bridge_selector_reference_engine(input, style_path);
@@ -294,6 +297,7 @@ pub fn summarize_omena_bridge_style_semantic_graph_for_path_with_scoped_workspac
         language: boundary.language,
         parser_facts,
         semantic_facts,
+        css_modules_semantics,
         design_token_semantics,
         selector_identity_engine,
         selector_reference_engine,

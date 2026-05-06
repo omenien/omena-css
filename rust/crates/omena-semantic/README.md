@@ -2,15 +2,21 @@
 
 Internal Rust crate for the style semantic boundary.
 
-This crate is intentionally small: it consumes the parser boundary from
-`engine-style-parser` and exposes semantic-facing summaries without moving the
-parser implementation or changing existing parser consumers.
+This crate is intentionally small: it consumes parser boundaries from
+`engine-style-parser` plus parser-fact seeds from `omena-parser`, then exposes
+semantic-facing summaries without moving parser implementation or changing
+existing parser consumers.
 
 Current public products:
 
 - `omena-semantic.style-semantic-graph` — combined parser boundary,
-  selector-identity, selector-reference, source-input evidence, promotion
-  evidence, and lossless CST contract for semantic graph consumers.
+  CSS Modules semantic seeds, selector-identity, selector-reference,
+  source-input evidence, promotion evidence, and lossless CST contract for
+  semantic graph consumers.
+- `omena-semantic.css-modules-semantics` — parser-fact-backed per-file CSS
+  Modules seed summary for local class exports, `composes`, `@value`, ICSS,
+  keyframes, and animation references. Cross-file resolution and closure
+  analysis remain explicit next-priority gaps.
 - `omena-semantic.selector-identity` — canonical selector ids, BEM suffix
   identity, and rewrite-safety blockers.
 - `omena-semantic.selector-references` — selector-scoped reference summaries

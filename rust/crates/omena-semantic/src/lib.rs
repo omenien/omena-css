@@ -5,6 +5,7 @@ use engine_style_parser::{
 };
 use serde::Serialize;
 
+mod css_modules;
 mod design_tokens;
 mod evidence;
 mod lossless_cst;
@@ -13,6 +14,9 @@ mod selector_identity;
 mod selector_references;
 mod source_evidence;
 
+pub use css_modules::{
+    CssModulesSemanticCapabilitiesV0, CssModulesSemanticSummaryV0, summarize_css_modules_semantics,
+};
 pub use design_tokens::{
     DesignTokenCascadeRankingSignalV0, DesignTokenContextSignalV0,
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenRankedReferenceV0,
@@ -71,6 +75,7 @@ pub struct StyleSemanticGraphSummaryV0 {
     pub language: &'static str,
     pub parser_facts: ParserBoundarySyntaxFactsV0,
     pub semantic_facts: StyleSemanticFactsV0,
+    pub css_modules_semantics: CssModulesSemanticSummaryV0,
     pub design_token_semantics: DesignTokenSemanticSummaryV0,
     pub selector_identity_engine: SelectorIdentityEngineSummaryV0,
     pub selector_reference_engine: SelectorReferenceEngineSummaryV0,
@@ -136,6 +141,7 @@ pub fn summarize_style_semantic_graph_for_path_with_workspace_declarations(
         style_path,
         workspace_declarations,
     );
+    let css_modules_semantics = summarize_css_modules_semantics(sheet);
     let selector_identity_engine =
         summarize_selector_identity_engine(&semantic_facts.selector_identity);
     let selector_reference_engine = summarize_selector_reference_engine(input, style_path);
@@ -153,6 +159,7 @@ pub fn summarize_style_semantic_graph_for_path_with_workspace_declarations(
         language: boundary.language,
         parser_facts,
         semantic_facts,
+        css_modules_semantics,
         design_token_semantics,
         selector_identity_engine,
         selector_reference_engine,
@@ -1022,6 +1029,51 @@ $color: red;
             Some("/tmp/Component.module.scss".to_string())
         );
         assert_eq!(graph.selector_reference_engine.selector_count, 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn style_semantic_graph_includes_css_modules_parser_fact_seed() -> Result<(), String> {
+        let graph = summarize_style_semantic_graph_from_source(
+            "/tmp/Component.module.scss",
+            "@value primary: #fff; @value accent: primary; @value secondary as localSecondary from \"./tokens.module.scss\"; :export { primary: #fff; } :import(\"./tokens.css\") { imported: primary; } @keyframes fade { to { opacity: 1; } } .card { composes: base utility from \"./base.module.scss\"; animation: fade 1s; }",
+            &sample_engine_input(),
+        )
+        .ok_or_else(|| "expected style semantic graph".to_string())?;
+
+        let css_modules = graph.css_modules_semantics;
+        assert_eq!(css_modules.product, "omena-semantic.css-modules-semantics");
+        assert_eq!(css_modules.status, "parserFactSeed");
+        assert_eq!(css_modules.resolution_scope, "perFileFactSummary");
+        assert_eq!(css_modules.class_export_names, vec!["card"]);
+        assert_eq!(css_modules.composes_target_names, vec!["base", "utility"]);
+        assert_eq!(
+            css_modules.composes_import_sources,
+            vec!["./base.module.scss"]
+        );
+        assert_eq!(
+            css_modules.value_definition_names,
+            vec!["accent", "localSecondary", "primary"]
+        );
+        assert_eq!(
+            css_modules.value_reference_names,
+            vec!["primary", "secondary"]
+        );
+        assert_eq!(
+            css_modules.value_import_sources,
+            vec!["./tokens.module.scss"]
+        );
+        assert_eq!(css_modules.icss_export_names, vec!["primary"]);
+        assert_eq!(css_modules.icss_import_local_names, vec!["imported"]);
+        assert_eq!(css_modules.icss_import_remote_names, vec!["primary"]);
+        assert_eq!(css_modules.icss_import_sources, vec!["./tokens.css"]);
+        assert_eq!(css_modules.keyframe_names, vec!["fade"]);
+        assert_eq!(css_modules.animation_reference_names, vec!["fade"]);
+        assert!(css_modules.capabilities.parser_fact_surface_ready);
+        assert!(css_modules.capabilities.per_file_symbol_summary_ready);
+        assert!(!css_modules.capabilities.cross_file_resolution_ready);
+        assert!(!css_modules.capabilities.composes_closure_ready);
 
         Ok(())
     }

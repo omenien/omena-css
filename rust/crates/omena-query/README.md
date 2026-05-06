@@ -40,7 +40,8 @@ Current public products:
   requests so repeated query analysis can reuse clean graph results.
 - selected-query style semantic graph adapter wrappers. These preserve the
   `omena-semantic.style-semantic-graph` products while delegating graph assembly
-  to `omena-bridge`.
+  to `omena-bridge`, including the `omena-semantic.css-modules-semantics`
+  per-file seed surface.
 
 Primary check:
 

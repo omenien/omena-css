@@ -555,6 +555,59 @@ fn owns_style_semantic_graph_adapter_boundary_without_changing_graph_product() {
 }
 
 #[test]
+fn style_semantic_graph_adapter_exposes_css_modules_semantic_seed() {
+    let input = sample_input();
+    let graph = summarize_omena_query_style_semantic_graph_from_source(
+        "/tmp/App.module.scss",
+        "@value primary: #fff; @value accent: primary; :export { primary: #fff; } .btn { composes: base from \"./base.module.scss\"; }",
+        &input,
+    );
+    assert!(graph.is_some());
+    let Some(graph) = graph else {
+        return;
+    };
+
+    assert_eq!(
+        graph.css_modules_semantics.product,
+        "omena-semantic.css-modules-semantics"
+    );
+    assert_eq!(graph.css_modules_semantics.status, "parserFactSeed");
+    assert_eq!(graph.css_modules_semantics.class_export_names, vec!["btn"]);
+    assert_eq!(
+        graph.css_modules_semantics.composes_target_names,
+        vec!["base"]
+    );
+    assert_eq!(
+        graph.css_modules_semantics.composes_import_sources,
+        vec!["./base.module.scss"]
+    );
+    assert_eq!(
+        graph.css_modules_semantics.value_definition_names,
+        vec!["accent", "primary"]
+    );
+    assert_eq!(
+        graph.css_modules_semantics.value_reference_names,
+        vec!["primary"]
+    );
+    assert_eq!(
+        graph.css_modules_semantics.icss_export_names,
+        vec!["primary"]
+    );
+    assert!(
+        graph
+            .css_modules_semantics
+            .capabilities
+            .per_file_symbol_summary_ready
+    );
+    assert!(
+        !graph
+            .css_modules_semantics
+            .capabilities
+            .cross_file_resolution_ready
+    );
+}
+
+#[test]
 fn style_semantic_graph_batch_feeds_workspace_design_token_candidates() {
     let input = sample_input();
     let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(

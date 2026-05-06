@@ -29,12 +29,51 @@ export interface StyleSemanticGraphSummaryV0 {
   readonly language: string;
   readonly parserFacts: unknown;
   readonly semanticFacts: unknown;
+  readonly cssModulesSemantics?: StyleSemanticGraphCssModulesSemanticsV0;
   readonly designTokenSemantics?: StyleSemanticGraphDesignTokenSemanticsV0;
   readonly selectorIdentityEngine: StyleSemanticGraphSelectorIdentityEngineV0;
   readonly selectorReferenceEngine: StyleSemanticGraphSelectorReferenceEngineV0;
   readonly sourceInputEvidence: unknown;
   readonly promotionEvidence: unknown;
   readonly losslessCstContract: unknown;
+}
+
+export interface StyleSemanticGraphCssModulesSemanticsV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-semantic.css-modules-semantics";
+  readonly status: string;
+  readonly resolutionScope: string;
+  readonly classExportCount: number;
+  readonly classExportNames: readonly string[];
+  readonly composesEdgeSeedCount: number;
+  readonly composesTargetNames: readonly string[];
+  readonly composesImportSources: readonly string[];
+  readonly valueEdgeSeedCount: number;
+  readonly valueDefinitionNames: readonly string[];
+  readonly valueReferenceNames: readonly string[];
+  readonly valueImportSources: readonly string[];
+  readonly icssEdgeSeedCount: number;
+  readonly icssExportNames: readonly string[];
+  readonly icssImportLocalNames: readonly string[];
+  readonly icssImportRemoteNames: readonly string[];
+  readonly icssImportSources: readonly string[];
+  readonly keyframeNames: readonly string[];
+  readonly animationReferenceNames: readonly string[];
+  readonly capabilities: StyleSemanticGraphCssModulesSemanticCapabilitiesV0;
+  readonly nextPriorities: readonly string[];
+}
+
+export interface StyleSemanticGraphCssModulesSemanticCapabilitiesV0 {
+  readonly parserFactSurfaceReady: boolean;
+  readonly perFileSymbolSummaryReady: boolean;
+  readonly composesEdgeSeedReady: boolean;
+  readonly valueEdgeSeedReady: boolean;
+  readonly icssEdgeSeedReady: boolean;
+  readonly animationEdgeSeedReady: boolean;
+  readonly crossFileResolutionReady: boolean;
+  readonly composesClosureReady: boolean;
+  readonly valueGraphResolutionReady: boolean;
+  readonly cycleDetectionReady: boolean;
 }
 
 export interface StyleSemanticGraphDesignTokenSemanticsV0 {

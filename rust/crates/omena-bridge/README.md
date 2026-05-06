@@ -20,6 +20,9 @@ Current public products:
   this crate.
 - `omena-semantic.design-token-semantics` — generic design-token readiness
   surface forwarded from `omena-semantic` as part of the graph product.
+- `omena-semantic.css-modules-semantics` — parser-fact-backed CSS Modules seed
+  surface forwarded from `omena-semantic` as part of the graph product while
+  cross-file `composes`/`@value`/ICSS resolution remains future graph work.
 - `omena-semantic.source-input-evidence` — bridge-owned source evidence product,
   kept stable for existing host consumers while ownership moves behind this
   crate. The evidence includes value-domain derivation counts from the
