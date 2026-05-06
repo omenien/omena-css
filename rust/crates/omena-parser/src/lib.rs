@@ -707,6 +707,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "badStringValueBogusNodes",
             "emptyDeclarationValueRecovery",
             "emptyVariableValueRecovery",
+            "missingSemicolonDeclarationRecovery",
             "coreBogusPopulationSlice",
             "dialectBogusPopulationSlice",
             "cssModuleValueCstNodes",
@@ -1895,7 +1896,7 @@ impl<'text> Parser<'text> {
                     "expected declaration value",
                 );
             } else {
-                self.parse_value_or_value_list_until(&value_recovery);
+                self.parse_declaration_value_or_value_list_until(&value_recovery);
             }
             self.builder.finish_node();
         } else {
@@ -2285,6 +2286,69 @@ impl<'text> Parser<'text> {
         } else {
             self.parse_value_until(recovery);
         }
+    }
+
+    fn parse_declaration_value_or_value_list_until(&mut self, recovery: &[SyntaxKind]) {
+        if self.current_value_has_top_level_comma_before(recovery) {
+            self.parse_declaration_value_list_until(recovery);
+        } else {
+            self.parse_declaration_value_until(recovery);
+        }
+    }
+
+    fn parse_declaration_value_until(&mut self, recovery: &[SyntaxKind]) {
+        let mut saw_value = false;
+        while !self.at_end() {
+            self.eat_value_trivia();
+            if matches!(self.current_kind(), Some(kind) if recovery.contains(&kind)) {
+                break;
+            }
+            if saw_value && self.current_starts_missing_semicolon_declaration(recovery) {
+                self.error_at_current(
+                    ParseErrorCode::UnexpectedCharacter,
+                    "expected semicolon between declarations",
+                );
+                break;
+            }
+            if self.at_end() {
+                break;
+            }
+            self.parse_value_expression(0, recovery);
+            saw_value = true;
+        }
+    }
+
+    fn parse_declaration_value_list_until(&mut self, recovery: &[SyntaxKind]) {
+        self.builder
+            .start_node(if self.current_value_list_is_bogus(recovery) {
+                SyntaxKind::BogusValueList
+            } else {
+                SyntaxKind::ValueList
+            });
+        let item_recovery = value_list_item_recovery(recovery);
+        let mut saw_item = false;
+        while !self.at_end() {
+            self.eat_value_trivia();
+            match self.current_kind() {
+                Some(kind) if recovery.contains(&kind) => break,
+                Some(SyntaxKind::Comma) => self.token_current(),
+                Some(_)
+                    if saw_item && self.current_starts_missing_semicolon_declaration(recovery) =>
+                {
+                    self.error_at_current(
+                        ParseErrorCode::UnexpectedCharacter,
+                        "expected semicolon between declarations",
+                    );
+                    break;
+                }
+                Some(_) => {
+                    self.parse_value_expression(0, &item_recovery);
+                    saw_item = true;
+                }
+                None => break,
+            }
+        }
+        self.builder.finish_node();
     }
 
     fn parse_value_list_until(&mut self, recovery: &[SyntaxKind]) {
@@ -3731,6 +3795,26 @@ impl<'text> Parser<'text> {
             }
         }
         expecting_item
+    }
+
+    fn current_starts_missing_semicolon_declaration(&self, recovery: &[SyntaxKind]) -> bool {
+        match self.current_kind() {
+            Some(SyntaxKind::Ident | SyntaxKind::CustomPropertyName) => {}
+            _ => return false,
+        }
+
+        let mut index = self.position + 1;
+        while let Some(token) = self.tokens.get(index) {
+            if token.kind.is_trivia() {
+                index += 1;
+                continue;
+            }
+            if recovery.contains(&token.kind) {
+                return false;
+            }
+            return token.kind == SyntaxKind::Colon;
+        }
+        false
     }
 
     fn current_selector_item_is_bogus(&self, recovery: &[SyntaxKind]) -> bool {
@@ -7036,6 +7120,39 @@ mod tests {
     }
 
     #[test]
+    fn recovers_missing_semicolons_between_declarations() {
+        let result = parse(
+            ".a { color: red background: blue; margin: 0 padding: 1rem; }",
+            StyleDialect::Css,
+        );
+        let custom_property = parse(
+            ".a { --token: red background: blue; color: red; }",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let custom_property_kinds = node_kinds(&custom_property.syntax());
+        let declaration_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::Declaration)
+            .count();
+        let custom_property_declaration_count = custom_property_kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::Declaration)
+            .count();
+        let missing_semicolon_errors = result
+            .errors()
+            .iter()
+            .filter(|error| error.message == "expected semicolon between declarations")
+            .count();
+
+        assert_eq!(declaration_count, 4);
+        assert_eq!(missing_semicolon_errors, 2);
+        assert_eq!(custom_property_declaration_count, 2);
+        assert!(custom_property.errors().is_empty());
+        assert!(custom_property_kinds.contains(&SyntaxKind::CustomPropertyValue));
+    }
+
+    #[test]
     fn populates_core_bogus_nodes_for_recoverable_structures() {
         let missing_function_close =
             parse(".a { width: calc(1 + ; color: red; }", StyleDialect::Css);
@@ -9037,6 +9154,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"emptyVariableValueRecovery")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"missingSemicolonDeclarationRecovery")
         );
         assert!(summary.ready_surfaces.contains(&"coreBogusPopulationSlice"));
         assert!(
