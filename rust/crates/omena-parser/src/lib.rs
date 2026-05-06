@@ -154,6 +154,8 @@ pub struct ParsedStyleFacts {
     pub variables: Vec<ParsedVariableFact>,
     pub animation_count: usize,
     pub animations: Vec<ParsedAnimationFact>,
+    pub css_module_value_count: usize,
+    pub css_module_values: Vec<ParsedCssModuleValueFact>,
     pub at_rule_count: usize,
     pub at_rules: Vec<ParsedAtRuleFact>,
     pub error_count: usize,
@@ -201,6 +203,20 @@ pub struct ParsedAnimationFact {
 pub enum ParsedAnimationFactKind {
     KeyframesDeclaration,
     AnimationNameReference,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedCssModuleValueFact {
+    pub kind: ParsedCssModuleValueFactKind,
+    pub name: String,
+    pub range: TextRange,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ParsedCssModuleValueFactKind {
+    Definition,
+    Reference,
+    ImportSource,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -618,6 +634,7 @@ pub fn collect_style_facts_with_extension(
     let selectors = collect_selector_facts_from_tokens(&tokens);
     let variables = collect_variable_facts_from_tokens(&tokens);
     let animations = collect_animation_facts_from_tokens(&tokens);
+    let css_module_values = collect_css_module_value_facts_from_tokens(&tokens);
     let at_rules = collect_at_rule_facts_from_tokens(&tokens, extension.dialect());
 
     ParsedStyleFacts {
@@ -629,6 +646,8 @@ pub fn collect_style_facts_with_extension(
         variables,
         animation_count: animations.len(),
         animations,
+        css_module_value_count: css_module_values.len(),
+        css_module_values,
         at_rule_count: at_rules.len(),
         at_rules,
         error_count: errors.len(),
@@ -667,6 +686,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "cssModuleScopeFunctionCstNodes",
             "cssModuleGlobalSelectorFactFiltering",
             "cssModuleLocalIdSelectorFacts",
+            "cssModuleValueStyleFacts",
             "animationNameStyleFacts",
             "animationShorthandStyleFacts",
             "scssStructuredBlockAtRules",
@@ -6728,6 +6748,342 @@ fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariabl
     variables
 }
 
+fn collect_css_module_value_facts_from_tokens(
+    tokens: &[Token<'_>],
+) -> Vec<ParsedCssModuleValueFact> {
+    let mut values = Vec::new();
+    let mut seen = BTreeSet::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@value") {
+            continue;
+        }
+
+        let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
+        let end = css_module_value_statement_end(tokens, start);
+        let colon_index = top_level_token_kind_index(tokens, start, end, SyntaxKind::Colon);
+        let from_index = top_level_token_text_index(tokens, start, end, "from");
+
+        if let Some(from_index) = from_index
+            && match colon_index {
+                Some(colon_index) => from_index < colon_index,
+                None => true,
+            }
+        {
+            collect_css_module_value_import_facts(
+                tokens,
+                start,
+                from_index,
+                end,
+                &mut values,
+                &mut seen,
+            );
+            continue;
+        }
+
+        if let Some(colon_index) = colon_index {
+            collect_css_module_value_definition_facts(
+                tokens,
+                start,
+                colon_index,
+                &mut values,
+                &mut seen,
+            );
+            collect_css_module_value_reference_facts(
+                tokens,
+                colon_index + 1,
+                end,
+                &mut values,
+                &mut seen,
+            );
+        } else {
+            collect_css_module_value_definition_facts(tokens, start, end, &mut values, &mut seen);
+        }
+    }
+    values
+}
+
+fn css_module_value_statement_end(tokens: &[Token<'_>], start: usize) -> usize {
+    let mut index = start;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+            SyntaxKind::LeftBracket => bracket_depth += 1,
+            SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+            SyntaxKind::Semicolon
+            | SyntaxKind::SassOptionalSemicolon
+            | SyntaxKind::LeftBrace
+            | SyntaxKind::RightBrace
+            | SyntaxKind::SassIndent
+            | SyntaxKind::SassDedent
+                if paren_depth == 0 && bracket_depth == 0 =>
+            {
+                return index;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    index
+}
+
+fn collect_css_module_value_import_facts(
+    tokens: &[Token<'_>],
+    start: usize,
+    from_index: usize,
+    end: usize,
+    values: &mut Vec<ParsedCssModuleValueFact>,
+    seen: &mut BTreeSet<(ParsedCssModuleValueFactKind, String, u32, u32)>,
+) {
+    collect_css_module_value_import_names(tokens, start, from_index, values, seen);
+    if let Some(source_index) = next_non_trivia_token_index_until(tokens, from_index + 1, end)
+        && matches!(
+            tokens[source_index].kind,
+            SyntaxKind::String | SyntaxKind::Url
+        )
+    {
+        push_css_module_value_fact(
+            values,
+            seen,
+            ParsedCssModuleValueFactKind::ImportSource,
+            css_module_value_source_name(tokens[source_index]),
+            tokens[source_index].range,
+        );
+    }
+}
+
+fn collect_css_module_value_import_names(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    values: &mut Vec<ParsedCssModuleValueFact>,
+    seen: &mut BTreeSet<(ParsedCssModuleValueFactKind, String, u32, u32)>,
+) {
+    let mut index = start;
+    while index < end {
+        let token = tokens[index];
+        if css_module_value_name_token_can_define(token) {
+            let previous = previous_non_trivia_token_index(tokens, index, start);
+            let next = next_non_trivia_token_index_until(tokens, index + 1, end);
+            let kind = if previous.is_some_and(|previous| tokens[previous].text == "as") {
+                Some(ParsedCssModuleValueFactKind::Definition)
+            } else if next.is_some_and(|next| tokens[next].text == "as") {
+                Some(ParsedCssModuleValueFactKind::Reference)
+            } else {
+                Some(ParsedCssModuleValueFactKind::Definition)
+            };
+            if let Some(kind) = kind {
+                push_css_module_value_fact(values, seen, kind, token.text.to_string(), token.range);
+            }
+        }
+        index += 1;
+    }
+}
+
+fn collect_css_module_value_definition_facts(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    values: &mut Vec<ParsedCssModuleValueFact>,
+    seen: &mut BTreeSet<(ParsedCssModuleValueFactKind, String, u32, u32)>,
+) {
+    let mut index = start;
+    while index < end {
+        let token = tokens[index];
+        if css_module_value_name_token_can_define(token) {
+            push_css_module_value_fact(
+                values,
+                seen,
+                ParsedCssModuleValueFactKind::Definition,
+                token.text.to_string(),
+                token.range,
+            );
+        }
+        index += 1;
+    }
+}
+
+fn collect_css_module_value_reference_facts(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    values: &mut Vec<ParsedCssModuleValueFact>,
+    seen: &mut BTreeSet<(ParsedCssModuleValueFactKind, String, u32, u32)>,
+) {
+    let mut index = start;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+            SyntaxKind::LeftBracket => bracket_depth += 1,
+            SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+            _ => {}
+        }
+        if paren_depth == 0
+            && bracket_depth == 0
+            && css_module_value_reference_token_can_be_name(tokens, index)
+        {
+            push_css_module_value_fact(
+                values,
+                seen,
+                ParsedCssModuleValueFactKind::Reference,
+                tokens[index].text.to_string(),
+                tokens[index].range,
+            );
+        }
+        index += 1;
+    }
+}
+
+fn push_css_module_value_fact(
+    values: &mut Vec<ParsedCssModuleValueFact>,
+    seen: &mut BTreeSet<(ParsedCssModuleValueFactKind, String, u32, u32)>,
+    kind: ParsedCssModuleValueFactKind,
+    name: String,
+    range: TextRange,
+) {
+    if seen.insert((
+        kind,
+        name.clone(),
+        u32::from(range.start()),
+        u32::from(range.end()),
+    )) {
+        values.push(ParsedCssModuleValueFact { kind, name, range });
+    }
+}
+
+fn top_level_token_kind_index(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    expected: SyntaxKind,
+) -> Option<usize> {
+    let mut index = start;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+            SyntaxKind::LeftBracket => bracket_depth += 1,
+            SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+            kind if kind == expected && paren_depth == 0 && bracket_depth == 0 => {
+                return Some(index);
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+fn top_level_token_text_index(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    expected: &str,
+) -> Option<usize> {
+    let mut index = start;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+            SyntaxKind::LeftBracket => bracket_depth += 1,
+            SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+            SyntaxKind::Ident
+                if paren_depth == 0
+                    && bracket_depth == 0
+                    && tokens[index].text.eq_ignore_ascii_case(expected) =>
+            {
+                return Some(index);
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+fn previous_non_trivia_token_index(
+    tokens: &[Token<'_>],
+    mut index: usize,
+    start: usize,
+) -> Option<usize> {
+    while index > start {
+        index -= 1;
+        if !tokens[index].kind.is_trivia() {
+            return Some(index);
+        }
+    }
+    None
+}
+
+fn css_module_value_name_token_can_define(token: Token<'_>) -> bool {
+    matches!(
+        token.kind,
+        SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+    ) && !matches!(token.text, "as" | "from")
+}
+
+fn css_module_value_reference_token_can_be_name(tokens: &[Token<'_>], index: usize) -> bool {
+    let token = tokens[index];
+    if !matches!(
+        token.kind,
+        SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+    ) {
+        return false;
+    }
+    if let Some(next_index) = next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
+        && tokens[next_index].kind == SyntaxKind::LeftParen
+    {
+        return false;
+    }
+    !css_module_value_literal_ident_is_not_reference(token.text)
+}
+
+fn css_module_value_literal_ident_is_not_reference(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "initial"
+            | "inherit"
+            | "unset"
+            | "revert"
+            | "revert-layer"
+            | "none"
+            | "auto"
+            | "normal"
+            | "transparent"
+            | "currentcolor"
+            | "black"
+            | "white"
+            | "red"
+            | "green"
+            | "blue"
+            | "yellow"
+            | "magenta"
+            | "cyan"
+            | "solid"
+            | "dashed"
+            | "block"
+            | "inline"
+            | "flex"
+            | "grid"
+    )
+}
+
+fn css_module_value_source_name(token: Token<'_>) -> String {
+    token
+        .text
+        .trim_matches(|character| character == '"' || character == '\'')
+        .to_string()
+}
+
 fn collect_animation_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedAnimationFact> {
     let mut animations = Vec::new();
     let mut seen = BTreeSet::new();
@@ -8854,6 +9210,37 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::CssModuleComposesDeclaration));
         assert!(kinds.contains(&SyntaxKind::CssModuleComposesTarget));
         assert!(kinds.contains(&SyntaxKind::CssModuleFromClause));
+    }
+
+    #[test]
+    fn extracts_css_module_value_style_facts() {
+        let facts = collect_style_facts(
+            "@value primary: #fff; @value accent: primary; @value secondary as localSecondary from \"./tokens.module.scss\"; .btn { color: accent; }",
+            StyleDialect::Css,
+        );
+        let definitions = facts
+            .css_module_values
+            .iter()
+            .filter(|value| value.kind == ParsedCssModuleValueFactKind::Definition)
+            .map(|value| value.name.as_str())
+            .collect::<Vec<_>>();
+        let references = facts
+            .css_module_values
+            .iter()
+            .filter(|value| value.kind == ParsedCssModuleValueFactKind::Reference)
+            .map(|value| value.name.as_str())
+            .collect::<Vec<_>>();
+        let import_sources = facts
+            .css_module_values
+            .iter()
+            .filter(|value| value.kind == ParsedCssModuleValueFactKind::ImportSource)
+            .map(|value| value.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(facts.css_module_value_count, 6);
+        assert_eq!(definitions, vec!["primary", "accent", "localSecondary"]);
+        assert_eq!(references, vec!["primary", "secondary"]);
+        assert_eq!(import_sources, vec!["./tokens.module.scss"]);
     }
 
     #[test]
@@ -11001,6 +11388,7 @@ mod tests {
                 .ready_surfaces
                 .contains(&"cssModuleLocalIdSelectorFacts")
         );
+        assert!(summary.ready_surfaces.contains(&"cssModuleValueStyleFacts"));
         assert!(summary.ready_surfaces.contains(&"animationNameStyleFacts"));
         assert!(
             summary

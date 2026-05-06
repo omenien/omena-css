@@ -29,6 +29,9 @@ interface OmenaParserStyleFactsV0 {
   readonly customPropertyNames: readonly string[];
   readonly keyframeNames: readonly string[];
   readonly animationReferenceNames: readonly string[];
+  readonly cssModuleValueDefinitionNames: readonly string[];
+  readonly cssModuleValueReferenceNames: readonly string[];
+  readonly cssModuleValueImportSources: readonly string[];
   readonly atRuleNames: readonly string[];
   readonly parserErrorCount: number;
 }
@@ -88,6 +91,16 @@ const CORPUS = [
     expectedClassSelectorNames: ["card"],
     expectedKeyframeNames: ["fade", "slide"],
     expectedAnimationReferenceNames: ["fade", "slide"],
+  },
+  {
+    label: "css-modules-value-facts",
+    filePath: "/f.module.css",
+    dialect: "css",
+    source: `@value primary: #fff; @value accent: primary; @value secondary as localSecondary from "./tokens.module.css"; .btn { color: accent; }`,
+    expectedClassSelectorNames: ["btn"],
+    expectedCssModuleValueDefinitionNames: ["primary", "accent", "localSecondary"],
+    expectedCssModuleValueReferenceNames: ["primary", "secondary"],
+    expectedCssModuleValueImportSources: ["./tokens.module.css"],
   },
   {
     label: "scss-sass-symbol-facts",
@@ -217,6 +230,27 @@ void (async () => {
         sortedUnique(actual.animationReferenceNames),
         sortedUnique(entry.expectedAnimationReferenceNames),
         `${entry.label} animation reference drift`,
+      );
+    }
+    if ("expectedCssModuleValueDefinitionNames" in entry) {
+      assert.deepEqual(
+        sortedUnique(actual.cssModuleValueDefinitionNames),
+        sortedUnique(entry.expectedCssModuleValueDefinitionNames),
+        `${entry.label} CSS Modules @value definition drift`,
+      );
+    }
+    if ("expectedCssModuleValueReferenceNames" in entry) {
+      assert.deepEqual(
+        sortedUnique(actual.cssModuleValueReferenceNames),
+        sortedUnique(entry.expectedCssModuleValueReferenceNames),
+        `${entry.label} CSS Modules @value reference drift`,
+      );
+    }
+    if ("expectedCssModuleValueImportSources" in entry) {
+      assert.deepEqual(
+        sortedUnique(actual.cssModuleValueImportSources),
+        sortedUnique(entry.expectedCssModuleValueImportSources),
+        `${entry.label} CSS Modules @value import source drift`,
       );
     }
 

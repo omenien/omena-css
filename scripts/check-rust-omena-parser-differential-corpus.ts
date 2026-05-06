@@ -33,6 +33,9 @@ interface OmenaParserStyleFactsV0 {
   readonly customPropertyNames: readonly string[];
   readonly keyframeNames: readonly string[];
   readonly animationReferenceNames: readonly string[];
+  readonly cssModuleValueDefinitionNames: readonly string[];
+  readonly cssModuleValueReferenceNames: readonly string[];
+  readonly cssModuleValueImportSources: readonly string[];
   readonly atRuleNames: readonly string[];
   readonly parserErrorCount: number;
 }
@@ -231,6 +234,21 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "css-modules-value-facts",
+    dialect: "css",
+    source: `@value primary: #fff; @value accent: primary; @value secondary as localSecondary from "./tokens.module.css"; .btn { color: accent; }`,
+    expected: {
+      classSelectorNames: ["btn"],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: [],
+      cssModuleValueDefinitionNames: ["primary", "accent", "localSecondary"],
+      cssModuleValueReferenceNames: ["primary", "secondary"],
+      cssModuleValueImportSources: ["./tokens.module.css"],
+      atRuleNames: ["@value", "@value", "@value"],
+    },
+  },
+  {
     label: "css-color-function-micro-grammars",
     dialect: "css",
     source: `.paint { color: color-mix(in srgb, red, blue 30%); background: light-dark(white, black); border-color: contrast-color(red); accent-color: device-cmyk(0 1 1 0); }`,
@@ -337,6 +355,9 @@ const PARSER_ONLY_CORPUS = [
     readonly customPropertyNames: readonly string[];
     readonly keyframeNames?: readonly string[];
     readonly animationReferenceNames?: readonly string[];
+    readonly cssModuleValueDefinitionNames?: readonly string[];
+    readonly cssModuleValueReferenceNames?: readonly string[];
+    readonly cssModuleValueImportSources?: readonly string[];
     readonly atRuleNames: readonly string[];
   };
 }[];
@@ -751,6 +772,27 @@ void (async () => {
         sortedUnique(actual.animationReferenceNames),
         sortedUnique(entry.expected.animationReferenceNames),
         `${entry.label} parser-only animation reference drift`,
+      );
+    }
+    if (entry.expected.cssModuleValueDefinitionNames) {
+      assert.deepEqual(
+        sortedUnique(actual.cssModuleValueDefinitionNames),
+        sortedUnique(entry.expected.cssModuleValueDefinitionNames),
+        `${entry.label} parser-only CSS Modules @value definition drift`,
+      );
+    }
+    if (entry.expected.cssModuleValueReferenceNames) {
+      assert.deepEqual(
+        sortedUnique(actual.cssModuleValueReferenceNames),
+        sortedUnique(entry.expected.cssModuleValueReferenceNames),
+        `${entry.label} parser-only CSS Modules @value reference drift`,
+      );
+    }
+    if (entry.expected.cssModuleValueImportSources) {
+      assert.deepEqual(
+        sortedUnique(actual.cssModuleValueImportSources),
+        sortedUnique(entry.expected.cssModuleValueImportSources),
+        `${entry.label} parser-only CSS Modules @value import source drift`,
       );
     }
     assert.deepEqual(

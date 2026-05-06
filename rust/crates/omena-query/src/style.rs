@@ -37,6 +37,9 @@ pub fn summarize_omena_query_omena_parser_style_facts(
     let mut placeholder_selector_names = Vec::new();
     let mut keyframe_names = Vec::new();
     let mut animation_reference_names = Vec::new();
+    let mut css_module_value_definition_names = BTreeSet::new();
+    let mut css_module_value_reference_names = BTreeSet::new();
+    let mut css_module_value_import_sources = BTreeSet::new();
     let mut variable_names = BTreeSet::new();
     let mut custom_property_names = BTreeSet::new();
 
@@ -72,6 +75,20 @@ pub fn summarize_omena_query_omena_parser_style_facts(
         }
     }
 
+    for value in facts.css_module_values {
+        match value.kind {
+            ParsedCssModuleValueFactKind::Definition => {
+                css_module_value_definition_names.insert(value.name);
+            }
+            ParsedCssModuleValueFactKind::Reference => {
+                css_module_value_reference_names.insert(value.name);
+            }
+            ParsedCssModuleValueFactKind::ImportSource => {
+                css_module_value_import_sources.insert(value.name);
+            }
+        }
+    }
+
     OmenaQueryOmenaParserStyleFactsV0 {
         schema_version: "0",
         product: "omena-query.omena-parser-style-facts",
@@ -81,6 +98,9 @@ pub fn summarize_omena_query_omena_parser_style_facts(
         placeholder_selector_names,
         keyframe_names,
         animation_reference_names,
+        css_module_value_definition_names: css_module_value_definition_names.into_iter().collect(),
+        css_module_value_reference_names: css_module_value_reference_names.into_iter().collect(),
+        css_module_value_import_sources: css_module_value_import_sources.into_iter().collect(),
         variable_names: variable_names.into_iter().collect(),
         custom_property_names: custom_property_names.into_iter().collect(),
         at_rule_names: facts

@@ -133,7 +133,7 @@ fn summarizes_query_boundary_over_producer_fragments() {
 #[test]
 fn exposes_omena_parser_style_fact_surface() {
     let summary = summarize_omena_query_omena_parser_style_facts(
-        "@use \"tokens\"; @keyframes fade { to { opacity: 1; } } $gap: 1rem; %surface { color: red; } .card#main { --space: $gap; animation: 1s ease-in fade; }",
+        "@use \"tokens\"; @value primary: #fff; @value accent: primary; @value secondary as localSecondary from \"./tokens.module.scss\"; @keyframes fade { to { opacity: 1; } } $gap: 1rem; %surface { color: red; } .card#main { --space: $gap; animation: 1s ease-in fade; }",
         omena_parser::StyleDialect::Scss,
     );
 
@@ -145,13 +145,28 @@ fn exposes_omena_parser_style_fact_surface() {
     assert_eq!(summary.placeholder_selector_names, vec!["surface"]);
     assert_eq!(summary.keyframe_names, vec!["fade"]);
     assert_eq!(summary.animation_reference_names, vec!["fade"]);
+    assert_eq!(
+        summary.css_module_value_definition_names,
+        vec!["accent", "localSecondary", "primary"]
+    );
+    assert_eq!(
+        summary.css_module_value_reference_names,
+        vec!["primary", "secondary"]
+    );
+    assert_eq!(
+        summary.css_module_value_import_sources,
+        vec!["./tokens.module.scss"]
+    );
     assert!(summary.variable_names.contains(&"$gap".to_string()));
     assert!(
         summary
             .custom_property_names
             .contains(&"--space".to_string())
     );
-    assert_eq!(summary.at_rule_names, vec!["@use", "@keyframes"]);
+    assert_eq!(
+        summary.at_rule_names,
+        vec!["@use", "@value", "@value", "@value", "@keyframes"]
+    );
     assert_eq!(summary.parser_error_count, 0);
 }
 
