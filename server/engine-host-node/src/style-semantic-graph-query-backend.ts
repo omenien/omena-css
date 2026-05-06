@@ -59,6 +59,7 @@ export interface StyleSemanticGraphCssModulesSemanticsV0 {
   readonly valueImportSources: readonly string[];
   readonly icssEdgeSeedCount: number;
   readonly icssImportEdgeCount: number;
+  readonly icssExportEdgeCount: number;
   readonly icssExportNames: readonly string[];
   readonly icssImportLocalNames: readonly string[];
   readonly icssImportRemoteNames: readonly string[];
@@ -320,10 +321,13 @@ export interface StyleSemanticGraphCssModulesCrossFileResolutionV0 {
   readonly edges: readonly StyleSemanticGraphCssModulesImportEdgeResolutionV0[];
   readonly composesClosureEdgeCount: number;
   readonly valueClosureEdgeCount: number;
+  readonly icssClosureEdgeCount: number;
   readonly composesCycleCount: number;
   readonly valueCycleCount: number;
+  readonly icssCycleCount: number;
   readonly composesClosureEdges: readonly StyleSemanticGraphCssModulesComposesClosureEdgeV0[];
   readonly valueClosureEdges: readonly StyleSemanticGraphCssModulesValueClosureEdgeV0[];
+  readonly icssClosureEdges: readonly StyleSemanticGraphCssModulesIcssClosureEdgeV0[];
   readonly cycles: readonly StyleSemanticGraphCssModulesCycleV0[];
   readonly capabilities: {
     readonly importSourceResolutionReady: boolean;
@@ -332,6 +336,7 @@ export interface StyleSemanticGraphCssModulesCrossFileResolutionV0 {
     readonly icssNameMatchReady: boolean;
     readonly transitiveClosureReady: boolean;
     readonly valueGraphClosureReady: boolean;
+    readonly icssExportImportClosureReady: boolean;
     readonly cycleDetectionReady: boolean;
   };
   readonly nextPriorities: readonly string[];
@@ -364,6 +369,15 @@ export interface StyleSemanticGraphCssModulesValueClosureEdgeV0 {
   readonly valueName: string;
   readonly targetStylePath: string;
   readonly targetValueName: string;
+  readonly depth: number;
+  readonly path: readonly string[];
+}
+
+export interface StyleSemanticGraphCssModulesIcssClosureEdgeV0 {
+  readonly fromStylePath: string;
+  readonly name: string;
+  readonly targetStylePath: string;
+  readonly targetName: string;
   readonly depth: number;
   readonly path: readonly string[];
 }

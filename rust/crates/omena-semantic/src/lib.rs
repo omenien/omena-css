@@ -1037,7 +1037,7 @@ $color: red;
     fn style_semantic_graph_includes_css_modules_parser_fact_seed() -> Result<(), String> {
         let graph = summarize_style_semantic_graph_from_source(
             "/tmp/Component.module.scss",
-            "@value primary: #fff; @value accent: primary; @value secondary as localSecondary from \"./tokens.module.scss\"; :export { primary: #fff; } :import(\"./tokens.css\") { imported: primary; } @keyframes fade { to { opacity: 1; } } .card { composes: base utility from \"./base.module.scss\"; animation: fade 1s; }",
+            "@value primary: #fff; @value accent: primary; @value secondary as localSecondary from \"./tokens.module.scss\"; :export { primary: #fff; forwarded: imported; } :import(\"./tokens.css\") { imported: primary; } @keyframes fade { to { opacity: 1; } } .card { composes: base utility from \"./base.module.scss\"; animation: fade 1s; }",
             &sample_engine_input(),
         )
         .ok_or_else(|| "expected style semantic graph".to_string())?;
@@ -1071,11 +1071,13 @@ $color: red;
         assert_eq!(css_modules.value_import_edge_count, 1);
         assert_eq!(css_modules.value_definition_edge_count, 1);
         assert_eq!(css_modules.value_edge_seed_count, 2);
-        assert_eq!(css_modules.icss_export_names, vec!["primary"]);
+        assert_eq!(css_modules.icss_export_names, vec!["forwarded", "primary"]);
         assert_eq!(css_modules.icss_import_local_names, vec!["imported"]);
         assert_eq!(css_modules.icss_import_remote_names, vec!["primary"]);
         assert_eq!(css_modules.icss_import_sources, vec!["./tokens.css"]);
         assert_eq!(css_modules.icss_import_edge_count, 1);
+        assert_eq!(css_modules.icss_export_edge_count, 1);
+        assert_eq!(css_modules.icss_edge_seed_count, 2);
         assert_eq!(css_modules.keyframe_names, vec!["fade"]);
         assert_eq!(css_modules.animation_reference_names, vec!["fade"]);
         assert!(css_modules.capabilities.parser_fact_surface_ready);

@@ -133,7 +133,7 @@ fn summarizes_query_boundary_over_producer_fragments() {
 #[test]
 fn exposes_omena_parser_style_fact_surface() {
     let summary = summarize_omena_query_omena_parser_style_facts(
-        "@use \"tokens\"; @value primary: #fff; @value accent: primary; @value secondary as localSecondary from \"./tokens.module.scss\"; :export { primary: #fff; } :import(\"./tokens.css\") { imported: primary; } @keyframes fade { to { opacity: 1; } } $gap: 1rem; %surface { color: red; } .card#main { composes: base utility from \"./base.module.scss\"; --space: $gap; animation: 1s ease-in fade; }",
+        "@use \"tokens\"; @value primary: #fff; @value accent: primary; @value secondary as localSecondary from \"./tokens.module.scss\"; :export { primary: #fff; forwarded: imported; } :import(\"./tokens.css\") { imported: primary; } @keyframes fade { to { opacity: 1; } } $gap: 1rem; %surface { color: red; } .card#main { composes: base utility from \"./base.module.scss\"; --space: $gap; animation: 1s ease-in fade; }",
         omena_parser::StyleDialect::Scss,
     );
 
@@ -203,7 +203,7 @@ fn exposes_omena_parser_style_fact_surface() {
             .as_deref(),
         Some("./base.module.scss")
     );
-    assert_eq!(summary.icss_export_names, vec!["primary"]);
+    assert_eq!(summary.icss_export_names, vec!["forwarded", "primary"]);
     assert_eq!(summary.icss_import_local_names, vec!["imported"]);
     assert_eq!(summary.icss_import_remote_names, vec!["primary"]);
     assert_eq!(summary.icss_import_sources, vec!["./tokens.css"]);
@@ -211,6 +211,12 @@ fn exposes_omena_parser_style_fact_surface() {
     assert_eq!(summary.icss_import_edges[0].local_name, "imported");
     assert_eq!(summary.icss_import_edges[0].remote_name, "primary");
     assert_eq!(summary.icss_import_edges[0].import_source, "./tokens.css");
+    assert_eq!(summary.icss_export_edges.len(), 1);
+    assert_eq!(summary.icss_export_edges[0].export_name, "forwarded");
+    assert_eq!(
+        summary.icss_export_edges[0].reference_names,
+        vec!["imported"]
+    );
     assert!(summary.variable_names.contains(&"$gap".to_string()));
     assert!(
         summary
@@ -841,11 +847,11 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
             ),
             (
                 "/tmp/tokens.module.scss",
-                "@value primary: red; :export { exported: red; }",
+                "@value primary: red; :export { raw: red; exported: raw; }",
             ),
             (
                 "/tmp/App.module.scss",
-                "@value primary as localPrimary from \"./tokens.module.scss\"; @value accent: localPrimary; :import(\"./tokens.module.scss\") { imported: exported; } .btn { composes: base from \"./base.module.scss\"; color: accent; }",
+                "@value primary as localPrimary from \"./tokens.module.scss\"; @value accent: localPrimary; :import(\"./tokens.module.scss\") { imported: exported; } :export { forwarded: imported; } .btn { composes: base from \"./base.module.scss\"; color: accent; }",
             ),
         ],
         &input,
@@ -855,15 +861,20 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
         batch.css_modules_resolution.product,
         "omena-query.css-modules-cross-file-resolution"
     );
-    assert_eq!(batch.css_modules_resolution.status, "valueGraphClosureSeed");
+    assert_eq!(
+        batch.css_modules_resolution.status,
+        "icssExportImportClosureSeed"
+    );
     assert_eq!(batch.css_modules_resolution.import_edge_count, 3);
     assert_eq!(batch.css_modules_resolution.resolved_import_edge_count, 3);
     assert_eq!(batch.css_modules_resolution.unresolved_import_edge_count, 0);
     assert_eq!(batch.css_modules_resolution.matched_name_count, 3);
     assert_eq!(batch.css_modules_resolution.composes_closure_edge_count, 3);
     assert_eq!(batch.css_modules_resolution.value_closure_edge_count, 3);
+    assert_eq!(batch.css_modules_resolution.icss_closure_edge_count, 6);
     assert_eq!(batch.css_modules_resolution.composes_cycle_count, 0);
     assert_eq!(batch.css_modules_resolution.value_cycle_count, 0);
+    assert_eq!(batch.css_modules_resolution.icss_cycle_count, 0);
 
     let composes = batch
         .css_modules_resolution
@@ -951,8 +962,27 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
     };
     assert_eq!(icss.status, "resolved");
     assert_eq!(icss.imported_names, vec!["exported"]);
-    assert_eq!(icss.exported_names, vec!["exported"]);
+    assert_eq!(icss.exported_names, vec!["exported", "raw"]);
     assert_eq!(icss.matched_names, vec!["exported"]);
+    let transitive_icss = batch
+        .css_modules_resolution
+        .icss_closure_edges
+        .iter()
+        .find(|edge| edge.name == "forwarded" && edge.target_name == "raw");
+    assert!(transitive_icss.is_some());
+    let Some(transitive_icss) = transitive_icss else {
+        return;
+    };
+    assert_eq!(transitive_icss.depth, 3);
+    assert_eq!(
+        transitive_icss.path,
+        vec![
+            "/tmp/App.module.scss#forwarded",
+            "/tmp/App.module.scss#imported",
+            "/tmp/tokens.module.scss#exported",
+            "/tmp/tokens.module.scss#raw"
+        ]
+    );
     assert!(
         batch
             .css_modules_resolution
@@ -964,6 +994,12 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
             .css_modules_resolution
             .capabilities
             .value_graph_closure_ready
+    );
+    assert!(
+        batch
+            .css_modules_resolution
+            .capabilities
+            .icss_export_import_closure_ready
     );
     assert!(
         batch
@@ -1012,6 +1048,25 @@ fn style_semantic_graph_batch_detects_css_modules_value_cycles() {
             "/tmp/value-cycle.module.scss#a",
             "/tmp/value-cycle.module.scss#b",
             "/tmp/value-cycle.module.scss#a"
+        ]
+    );
+}
+
+#[test]
+fn style_semantic_graph_batch_detects_css_modules_icss_cycles() {
+    let input = sample_input();
+    let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [("/tmp/icss-cycle.module.scss", ":export { a: b; b: a; }")],
+        &input,
+    );
+
+    assert_eq!(batch.css_modules_resolution.icss_cycle_count, 1);
+    assert_eq!(
+        batch.css_modules_resolution.cycles[0].path,
+        vec![
+            "/tmp/icss-cycle.module.scss#a",
+            "/tmp/icss-cycle.module.scss#b",
+            "/tmp/icss-cycle.module.scss#a"
         ]
     );
 }

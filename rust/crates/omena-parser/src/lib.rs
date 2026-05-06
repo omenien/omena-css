@@ -168,6 +168,8 @@ pub struct ParsedStyleFacts {
     pub icss: Vec<ParsedIcssFact>,
     pub icss_import_edge_count: usize,
     pub icss_import_edges: Vec<ParsedIcssImportEdgeFact>,
+    pub icss_export_edge_count: usize,
+    pub icss_export_edges: Vec<ParsedIcssExportEdgeFact>,
     pub at_rule_count: usize,
     pub at_rules: Vec<ParsedAtRuleFact>,
     pub error_count: usize,
@@ -295,6 +297,13 @@ pub struct ParsedIcssImportEdgeFact {
     pub local_name: String,
     pub remote_name: String,
     pub import_source: String,
+    pub range: TextRange,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedIcssExportEdgeFact {
+    pub export_name: String,
+    pub reference_names: Vec<String>,
     pub range: TextRange,
 }
 
@@ -722,6 +731,7 @@ pub fn collect_style_facts_with_extension(
     let css_module_composes_edges = collect_css_module_composes_edge_facts_from_tokens(&tokens);
     let icss = collect_icss_facts_from_tokens(&tokens);
     let icss_import_edges = collect_icss_import_edge_facts_from_tokens(&tokens);
+    let icss_export_edges = collect_icss_export_edge_facts_from_tokens(&tokens);
     let at_rules = collect_at_rule_facts_from_tokens(&tokens, extension.dialect());
 
     ParsedStyleFacts {
@@ -747,6 +757,8 @@ pub fn collect_style_facts_with_extension(
         icss,
         icss_import_edge_count: icss_import_edges.len(),
         icss_import_edges,
+        icss_export_edge_count: icss_export_edges.len(),
+        icss_export_edges,
         at_rule_count: at_rules.len(),
         at_rules,
         error_count: errors.len(),
@@ -7734,6 +7746,71 @@ fn collect_icss_import_edge_facts_from_tokens(
     edges
 }
 
+fn collect_icss_export_edge_facts_from_tokens(
+    tokens: &[Token<'_>],
+) -> Vec<ParsedIcssExportEdgeFact> {
+    let mut edges = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::Colon {
+            continue;
+        }
+        let Some(name_index) = next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
+        else {
+            continue;
+        };
+        if tokens[name_index].kind != SyntaxKind::Ident
+            || !tokens[name_index].text.eq_ignore_ascii_case("export")
+        {
+            continue;
+        }
+        if let Some((open, close)) = find_block_after_header(tokens, name_index + 1, tokens.len()) {
+            collect_icss_export_edges(tokens, open + 1, close, &mut edges);
+        }
+    }
+    edges
+}
+
+fn collect_icss_export_edges(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    edges: &mut Vec<ParsedIcssExportEdgeFact>,
+) {
+    let mut index = start;
+    while index < end {
+        let token = tokens[index];
+        if matches!(
+            token.kind,
+            SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+        ) && let Some(colon_index) = next_non_trivia_token_index_until(tokens, index + 1, end)
+            && tokens[colon_index].kind == SyntaxKind::Colon
+        {
+            let value_end = css_module_value_statement_end(tokens, colon_index + 1).min(end);
+            let reference_names = collect_css_module_value_definition_edge_names(
+                tokens,
+                colon_index + 1,
+                value_end,
+                css_module_value_reference_token_can_be_name,
+            );
+            if !reference_names.is_empty() {
+                let range_end = value_end
+                    .checked_sub(1)
+                    .and_then(|end| tokens.get(end))
+                    .map(|token| token.range.end())
+                    .unwrap_or_else(|| token.range.end());
+                edges.push(ParsedIcssExportEdgeFact {
+                    export_name: token.text.to_string(),
+                    reference_names,
+                    range: TextRange::new(token.range.start(), range_end),
+                });
+            }
+            index = value_end;
+            continue;
+        }
+        index += 1;
+    }
+}
+
 fn icss_import_edge_source(tokens: &[Token<'_>], start: usize) -> Option<String> {
     let open_index = next_non_trivia_token_index_until(tokens, start, tokens.len())?;
     if tokens[open_index].kind != SyntaxKind::LeftParen {
@@ -10208,6 +10285,9 @@ mod tests {
         assert_eq!(facts.icss_import_edges[1].local_name, "tone");
         assert_eq!(facts.icss_import_edges[1].remote_name, "themeTone");
         assert_eq!(facts.icss_import_edges[1].import_source, "./tokens.css");
+        assert_eq!(facts.icss_export_edge_count, 1);
+        assert_eq!(facts.icss_export_edges[0].export_name, "secondary");
+        assert_eq!(facts.icss_export_edges[0].reference_names, vec!["accent"]);
     }
 
     #[test]
