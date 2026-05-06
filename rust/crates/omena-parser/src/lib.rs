@@ -651,6 +651,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "scssUtilityAtRules",
             "scssVariableFlagCstNodes",
             "scssNestedPropertyCstNodes",
+            "scssModulePreludeSourceValidation",
+            "scssModulePreludeClauseValidation",
             "scssModuleConfigCstNodes",
             "scssModuleConfigBogusRecovery",
             "scssPlaceholderSelectorCstNodes",
@@ -2039,7 +2041,7 @@ impl<'text> Parser<'text> {
             spec.node_kind,
             SyntaxKind::ScssUseRule | SyntaxKind::ScssForwardRule
         ) {
-            self.parse_scss_module_prelude();
+            self.parse_scss_module_prelude(spec.node_kind);
         }
         while !self.at_end() {
             match self.current_kind() {
@@ -2067,7 +2069,8 @@ impl<'text> Parser<'text> {
         self.builder.finish_node();
     }
 
-    fn parse_scss_module_prelude(&mut self) {
+    fn parse_scss_module_prelude(&mut self, node_kind: SyntaxKind) {
+        self.validate_scss_module_prelude(node_kind);
         while !self.at_end() {
             match self.current_kind() {
                 Some(kind)
@@ -2097,6 +2100,80 @@ impl<'text> Parser<'text> {
                 Some(_) => self.token_current(),
                 None => break,
             }
+        }
+    }
+
+    fn validate_scss_module_prelude(&mut self, node_kind: SyntaxKind) {
+        let recovery = [
+            SyntaxKind::Semicolon,
+            SyntaxKind::SassOptionalSemicolon,
+            SyntaxKind::LeftBrace,
+            SyntaxKind::SassIndent,
+        ];
+        let Some((source_index, source_kind)) = self.non_trivia_token_from(self.position) else {
+            self.error_at_current(ParseErrorCode::ExpectedValue, "expected SCSS module source");
+            return;
+        };
+        if recovery.contains(&source_kind) || !is_scss_module_source_token(source_kind) {
+            let range = self
+                .tokens
+                .get(source_index)
+                .map(|token| token.range)
+                .unwrap_or_else(|| self.current_range());
+            self.errors.push(ParseError {
+                code: ParseErrorCode::ExpectedValue,
+                range,
+                message: "expected SCSS module source",
+            });
+        }
+
+        let mut index = source_index;
+        while let Some(token) = self.tokens.get(index).copied() {
+            if recovery.contains(&token.kind) {
+                break;
+            }
+            if token.kind == SyntaxKind::Ident {
+                if token.text.eq_ignore_ascii_case("as") {
+                    let next_kind = self.non_trivia_token_from(index + 1).map(|(_, kind)| kind);
+                    if next_kind.is_none_or(|kind| {
+                        recovery.contains(&kind) || !is_scss_module_namespace_token(kind)
+                    }) {
+                        self.errors.push(ParseError {
+                            code: ParseErrorCode::ExpectedValue,
+                            range: token.range,
+                            message: "expected SCSS module namespace",
+                        });
+                    }
+                } else if token.text.eq_ignore_ascii_case("with") {
+                    let next_kind = self.non_trivia_token_from(index + 1).map(|(_, kind)| kind);
+                    if next_kind != Some(SyntaxKind::LeftParen) {
+                        self.errors.push(ParseError {
+                            code: ParseErrorCode::ExpectedValue,
+                            range: token.range,
+                            message: "expected SCSS module configuration",
+                        });
+                    }
+                } else if matches_ignore_ascii_case(token.text, &["show", "hide"]) {
+                    if node_kind != SyntaxKind::ScssForwardRule {
+                        self.errors.push(ParseError {
+                            code: ParseErrorCode::UnexpectedCharacter,
+                            range: token.range,
+                            message: "unexpected SCSS module visibility clause",
+                        });
+                    }
+                    let next_kind = self.non_trivia_token_from(index + 1).map(|(_, kind)| kind);
+                    if next_kind.is_none_or(|kind| {
+                        recovery.contains(&kind) || !is_scss_module_visibility_name_token(kind)
+                    }) {
+                        self.errors.push(ParseError {
+                            code: ParseErrorCode::ExpectedValue,
+                            range: token.range,
+                            message: "expected SCSS module visibility name",
+                        });
+                    }
+                }
+            }
+            index += 1;
         }
     }
 
@@ -7108,6 +7185,30 @@ fn is_dynamic_function_argument_head(kind: SyntaxKind) -> bool {
     )
 }
 
+fn is_scss_module_source_token(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::String | SyntaxKind::Url | SyntaxKind::ScssInterpolationStart
+    )
+}
+
+fn is_scss_module_namespace_token(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Ident | SyntaxKind::Star | SyntaxKind::ScssInterpolationStart
+    )
+}
+
+fn is_scss_module_visibility_name_token(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Ident
+            | SyntaxKind::ScssVariable
+            | SyntaxKind::ScssPlaceholder
+            | SyntaxKind::ScssInterpolationStart
+    )
+}
+
 fn matches_ignore_ascii_case(value: &str, candidates: &[&str]) -> bool {
     candidates
         .iter()
@@ -8660,7 +8761,7 @@ mod tests {
     #[test]
     fn parses_scss_module_config_preludes() {
         let result = parse(
-            "@use \"theme\" as * with ($gap: 1rem, $enabled: true); @forward \"tokens\" with ($color: red);",
+            "@use \"theme\" as * with ($gap: 1rem, $enabled: true); @forward \"tokens\" as token-* show $color, mixin with ($color: red);",
             StyleDialect::Scss,
         );
         let kinds = node_kinds(&result.syntax());
@@ -8673,6 +8774,55 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::ScssUseRule));
         assert!(kinds.contains(&SyntaxKind::ScssForwardRule));
         assert_eq!(config_count, 2);
+    }
+
+    #[test]
+    fn validates_scss_module_prelude_clauses() {
+        let invalid = parse(
+            "@use as *; @use \"theme\" as ; @use \"theme\" show foo; @forward \"tokens\" hide ; @forward \"tokens\" with $gap;",
+            StyleDialect::Scss,
+        );
+
+        assert_eq!(
+            invalid
+                .errors()
+                .iter()
+                .filter(|error| error.message == "expected SCSS module source")
+                .count(),
+            1
+        );
+        assert_eq!(
+            invalid
+                .errors()
+                .iter()
+                .filter(|error| error.message == "expected SCSS module namespace")
+                .count(),
+            1
+        );
+        assert_eq!(
+            invalid
+                .errors()
+                .iter()
+                .filter(|error| error.message == "unexpected SCSS module visibility clause")
+                .count(),
+            1
+        );
+        assert_eq!(
+            invalid
+                .errors()
+                .iter()
+                .filter(|error| error.message == "expected SCSS module visibility name")
+                .count(),
+            1
+        );
+        assert_eq!(
+            invalid
+                .errors()
+                .iter()
+                .filter(|error| error.message == "expected SCSS module configuration")
+                .count(),
+            1
+        );
     }
 
     #[test]
@@ -9940,6 +10090,16 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"scssUtilityAtRules"));
         assert!(summary.ready_surfaces.contains(&"scssVariableFlagCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"scssModulePreludeSourceValidation")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"scssModulePreludeClauseValidation")
+        );
         assert!(
             summary
                 .ready_surfaces
