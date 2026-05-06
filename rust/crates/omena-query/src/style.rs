@@ -1,4 +1,5 @@
 use super::*;
+use omena_parser::{ParsedSelectorFact, ParsedVariableFact};
 
 pub fn summarize_omena_query_style_semantic_graph_from_source(
     style_path: &str,
@@ -298,39 +299,42 @@ pub fn summarize_omena_query_style_hover_candidates(
     style_path: &str,
     style_source: &str,
 ) -> Option<OmenaQueryStyleHoverCandidatesV0> {
-    let sheet = parse_style_module(style_path, style_source)?;
-    let index = summarize_css_modules_intermediate(&sheet);
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let facts = collect_style_facts(style_source, dialect);
     let mut seen = BTreeSet::new();
     let mut candidates = Vec::new();
-    collect_style_selector_hover_candidates_from_parser_facts(
-        index.selectors.definition_facts.as_slice(),
+    collect_style_selector_hover_candidates_from_omena_parser_facts(
+        style_source,
+        facts.selectors.as_slice(),
         &mut seen,
         &mut candidates,
     );
-    collect_custom_property_hover_candidates(
-        sheet.source.as_str(),
-        index.custom_properties.decl_facts.as_slice(),
-        index.custom_properties.ref_names.as_slice(),
+    collect_custom_property_hover_candidates_from_omena_parser_facts(
+        style_source,
+        facts.variables.as_slice(),
         &mut seen,
         &mut candidates,
     );
-    collect_sass_symbol_hover_candidates(
-        index.sass.symbol_decl_facts.as_slice(),
-        index.sass.selector_symbol_facts.as_slice(),
-        &mut seen,
-        &mut candidates,
-    );
-    collect_sass_partial_evaluator_selector_candidates(
-        sheet.source.as_str(),
-        sheet.nodes.as_slice(),
-        &mut seen,
-        &mut candidates,
-    );
+    if let Some(sheet) = parse_style_module(style_path, style_source) {
+        let index = summarize_css_modules_intermediate(&sheet);
+        collect_sass_symbol_hover_candidates(
+            index.sass.symbol_decl_facts.as_slice(),
+            index.sass.selector_symbol_facts.as_slice(),
+            &mut seen,
+            &mut candidates,
+        );
+        collect_sass_partial_evaluator_selector_candidates(
+            sheet.source.as_str(),
+            sheet.nodes.as_slice(),
+            &mut seen,
+            &mut candidates,
+        );
+    }
     candidates.sort();
     Some(OmenaQueryStyleHoverCandidatesV0 {
         schema_version: "0",
         product: "omena-query.style-hover-candidates",
-        language: style_language_label(sheet.language),
+        language: omena_parser_style_dialect_label(dialect),
         candidates,
     })
 }
@@ -1857,54 +1861,60 @@ fn resolve_style_module_source(
     )
 }
 
-fn collect_style_selector_hover_candidates_from_parser_facts(
-    definition_facts: &[engine_style_parser::ParserIndexSelectorDefinitionFactV0],
+fn collect_style_selector_hover_candidates_from_omena_parser_facts(
+    source: &str,
+    definition_facts: &[ParsedSelectorFact],
     seen: &mut BTreeSet<(usize, usize, String)>,
     candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,
 ) {
     for fact in definition_facts {
-        if seen.insert((fact.byte_span.start, fact.byte_span.end, fact.name.clone())) {
+        if fact.kind != ParsedSelectorFactKind::Class {
+            continue;
+        }
+        let start: u32 = fact.range.start().into();
+        let end: u32 = fact.range.end().into();
+        let byte_span = ParserByteSpanV0 {
+            start: start as usize,
+            end: end as usize,
+        };
+        if seen.insert((byte_span.start, byte_span.end, fact.name.clone())) {
             candidates.push(OmenaQueryStyleHoverCandidateV0 {
                 kind: "selector",
                 name: fact.name.clone(),
-                range: fact.range,
-                source: "engineStyleParserSelectorDefinitionFacts",
+                range: parser_range_for_byte_span(source, byte_span),
+                source: "omenaParserSelectorFacts",
                 namespace: None,
             });
         }
     }
 }
 
-fn collect_custom_property_hover_candidates(
+fn collect_custom_property_hover_candidates_from_omena_parser_facts(
     source: &str,
-    decl_facts: &[engine_style_parser::ParserIndexCustomPropertyDeclFactV0],
-    ref_names: &[String],
+    variable_facts: &[ParsedVariableFact],
     seen: &mut BTreeSet<(usize, usize, String)>,
     candidates: &mut Vec<OmenaQueryStyleHoverCandidateV0>,
 ) {
-    for fact in decl_facts {
-        if seen.insert((fact.byte_span.start, fact.byte_span.end, fact.name.clone())) {
+    for fact in variable_facts {
+        let kind = match fact.kind {
+            ParsedVariableFactKind::CustomPropertyDeclaration => "customPropertyDeclaration",
+            ParsedVariableFactKind::CustomPropertyReference => "customPropertyReference",
+            _ => continue,
+        };
+        let start: u32 = fact.range.start().into();
+        let end: u32 = fact.range.end().into();
+        let byte_span = ParserByteSpanV0 {
+            start: start as usize,
+            end: end as usize,
+        };
+        if seen.insert((byte_span.start, byte_span.end, fact.name.clone())) {
             candidates.push(OmenaQueryStyleHoverCandidateV0 {
-                kind: "customPropertyDeclaration",
+                kind,
                 name: fact.name.clone(),
-                range: fact.range,
-                source: "openedStyleDocumentIndex",
+                range: parser_range_for_byte_span(source, byte_span),
+                source: "omenaParserVariableFacts",
                 namespace: None,
             });
-        }
-    }
-
-    for name in ref_names {
-        for byte_span in custom_property_ref_byte_spans(source, name) {
-            if seen.insert((byte_span.start, byte_span.end, name.clone())) {
-                candidates.push(OmenaQueryStyleHoverCandidateV0 {
-                    kind: "customPropertyReference",
-                    name: name.clone(),
-                    range: parser_range_for_byte_span(source, byte_span),
-                    source: "openedStyleDocumentIndex",
-                    namespace: None,
-                });
-            }
         }
     }
 }
@@ -2535,14 +2545,6 @@ fn omena_parser_dialect_for_style_path(style_path: &str) -> OmenaParserStyleDial
         OmenaParserStyleDialect::Less
     } else {
         OmenaParserStyleDialect::Css
-    }
-}
-
-fn style_language_label(language: StyleLanguage) -> &'static str {
-    match language {
-        StyleLanguage::Css => "css",
-        StyleLanguage::Scss => "scss",
-        StyleLanguage::Less => "less",
     }
 }
 
