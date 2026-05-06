@@ -66,6 +66,73 @@ pub fn summarize_omena_query_style_document(
     })
 }
 
+pub fn summarize_omena_query_transform_plan_from_source(
+    style_path: &str,
+    style_source: &str,
+    target_label: &str,
+    target_support: OmenaQueryTargetFeatureSupportV0,
+    target_options: OmenaQueryTargetTransformOptionsV0,
+    print_options: OmenaQueryTransformPrintOptionsV0,
+) -> OmenaQueryTransformPlanSummaryV0 {
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let bundle = summarize_omena_transform_bundle_from_source(style_path, style_source, dialect);
+    let target = plan_target_transforms(target_label, target_support, target_options);
+    let egg = plan_egg_rewrite_passes(false, false);
+
+    let mut combined_passes = Vec::new();
+    extend_passes_from_ids(&bundle.planned_pass_ids, &mut combined_passes);
+    extend_passes_from_ids(&target.planned_pass_ids, &mut combined_passes);
+    extend_passes_from_ids(&egg.planned_pass_ids, &mut combined_passes);
+    combined_passes.push(TransformPassKind::PrintCss);
+    combined_passes.sort_by_key(|pass| pass.ordinal());
+    combined_passes.dedup();
+
+    let combined_plan = plan_transform_passes(&combined_passes);
+    let semantic_signature = format!(
+        "omena-query-transform:{}:{}",
+        style_path,
+        style_source.len()
+    );
+    let print = print_transform_cst_source(
+        style_path,
+        style_source,
+        semantic_signature,
+        &combined_passes,
+        print_options,
+    );
+    let combined_pass_ids = combined_plan.ordered_pass_ids.clone();
+    let combined_violated_dag_edge_count = combined_plan.violated_dag_edge_count;
+
+    OmenaQueryTransformPlanSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.transform-plan",
+        style_path: style_path.to_string(),
+        dialect: omena_parser_style_dialect_label(dialect),
+        bundle,
+        target,
+        egg,
+        print,
+        combined_plan,
+        combined_pass_ids,
+        combined_violated_dag_edge_count,
+        ready_surfaces: vec![
+            "transformBundlePlan",
+            "transformTargetPlan",
+            "transformEggPlan",
+            "transformPrintArtifact",
+            "combinedTransformPassPlan",
+        ],
+    }
+}
+
+fn extend_passes_from_ids(ids: &[&'static str], passes: &mut Vec<TransformPassKind>) {
+    for candidate in all_transform_pass_kinds() {
+        if ids.contains(&candidate.id()) && !passes.contains(&candidate) {
+            passes.push(candidate);
+        }
+    }
+}
+
 pub fn summarize_omena_query_omena_parser_style_facts(
     style_source: &str,
     dialect: OmenaParserStyleDialect,

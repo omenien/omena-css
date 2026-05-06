@@ -45,6 +45,24 @@ use omena_resolver::{
     summarize_omena_resolver_query_fragments, summarize_omena_resolver_source_resolution_runtime,
     summarize_omena_resolver_style_module_resolution,
 };
+use omena_transform_bundle::{
+    TransformBundleSourceSummaryV0, summarize_omena_transform_bundle_from_source,
+};
+use omena_transform_cst::{TransformPassKind, all_transform_pass_kinds};
+use omena_transform_egg::{TransformEggPlanV0, plan_egg_rewrite_passes};
+use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
+use omena_transform_print::print_transform_cst_source;
+pub use omena_transform_print::{
+    TransformPrintArtifactV0, TransformPrintOptionsV0 as OmenaQueryTransformPrintOptionsV0,
+    default_print_options as default_omena_query_transform_print_options,
+};
+pub use omena_transform_target::{
+    TargetFeatureSupportV0 as OmenaQueryTargetFeatureSupportV0,
+    TargetTransformOptionsV0 as OmenaQueryTargetTransformOptionsV0,
+    conservative_target_options as conservative_omena_query_target_options,
+    modern_feature_support as modern_omena_query_target_feature_support,
+};
+use omena_transform_target::{TransformTargetPlanV0, plan_target_transforms};
 use serde::Serialize;
 
 mod boundary;

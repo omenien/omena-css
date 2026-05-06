@@ -231,6 +231,23 @@ pub struct OmenaQueryStyleDocumentSummaryV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryTransformPlanSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub style_path: String,
+    pub dialect: &'static str,
+    pub bundle: TransformBundleSourceSummaryV0,
+    pub target: TransformTargetPlanV0,
+    pub egg: TransformEggPlanV0,
+    pub print: TransformPrintArtifactV0,
+    pub combined_plan: TransformPassPlanV0,
+    pub combined_pass_ids: Vec<&'static str>,
+    pub combined_violated_dag_edge_count: usize,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryOmenaParserStyleFactsV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

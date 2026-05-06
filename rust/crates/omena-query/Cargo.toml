@@ -19,5 +19,11 @@ omena-bridge = { path = "../omena-bridge" }
 omena-incremental = { path = "../omena-incremental" }
 omena-parser = { path = "../omena-parser" }
 omena-resolver = { path = "../omena-resolver" }
+omena-transform-bundle = { path = "../omena-transform-bundle" }
+omena-transform-cst = { path = "../omena-transform-cst" }
+omena-transform-egg = { path = "../omena-transform-egg" }
+omena-transform-passes = { path = "../omena-transform-passes" }
+omena-transform-print = { path = "../omena-transform-print" }
+omena-transform-target = { path = "../omena-transform-target" }
 serde.workspace = true
 serde_json.workspace = true

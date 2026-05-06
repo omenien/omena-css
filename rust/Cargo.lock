@@ -623,6 +623,12 @@ dependencies = [
  "omena-incremental",
  "omena-parser",
  "omena-resolver",
+ "omena-transform-bundle",
+ "omena-transform-cst",
+ "omena-transform-egg",
+ "omena-transform-passes",
+ "omena-transform-print",
+ "omena-transform-target",
  "serde",
  "serde_json",
 ]

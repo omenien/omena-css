@@ -24,6 +24,11 @@ use super::{
     summarize_omena_query_style_semantic_graph_batch_from_sources,
     summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
     summarize_omena_query_style_semantic_graph_from_source,
+    summarize_omena_query_transform_plan_from_source,
+};
+use crate::{
+    OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
+    default_omena_query_transform_print_options,
 };
 
 #[test]
@@ -228,6 +233,75 @@ fn exposes_omena_parser_style_fact_surface() {
         vec!["@use", "@value", "@value", "@value", "@keyframes"]
     );
     assert_eq!(summary.parser_error_count, 0);
+}
+
+#[test]
+fn exposes_transform_plan_facade_from_source() {
+    let source = r#"
+@use "./tokens" as tokens;
+@value primary from "./colors.module.css";
+.button {
+  composes: reset from "./reset.module.css";
+  color: tokens.$brand;
+}
+"#;
+    let target_support = OmenaQueryTargetFeatureSupportV0 {
+        vendor_prefix_required: true,
+        supports_light_dark: false,
+        supports_color_mix: true,
+        supports_oklch_oklab: true,
+        supports_color_function: true,
+        supports_logical_properties: true,
+        supports_css_nesting: false,
+        supports_css_scope: true,
+        supports_cascade_layers: true,
+    };
+    let target_options = OmenaQueryTargetTransformOptionsV0 {
+        allow_logical_to_physical: false,
+        allow_scope_flatten: false,
+        allow_layer_flatten: false,
+        enable_supports_static_eval: false,
+        enable_media_static_eval: false,
+    };
+
+    let summary = summarize_omena_query_transform_plan_from_source(
+        "Button.module.scss",
+        source,
+        "legacy-webview",
+        target_support,
+        target_options,
+        default_omena_query_transform_print_options(),
+    );
+
+    assert_eq!(summary.product, "omena-query.transform-plan");
+    assert_eq!(summary.dialect, "scss");
+    assert!(
+        summary
+            .bundle
+            .required_pass_ids
+            .contains(&"p26-import-inline")
+    );
+    assert!(
+        summary
+            .bundle
+            .required_pass_ids
+            .contains(&"p30-composes-resolution")
+    );
+    assert!(
+        summary
+            .target
+            .required_pass_ids
+            .contains(&"p15-light-dark-lowering")
+    );
+    assert!(
+        summary
+            .target
+            .required_pass_ids
+            .contains(&"p20-nesting-unwrap")
+    );
+    assert!(summary.combined_pass_ids.contains(&"p40-print-css"));
+    assert_eq!(summary.combined_violated_dag_edge_count, 0);
+    assert_eq!(summary.print.css, source);
 }
 
 #[test]
