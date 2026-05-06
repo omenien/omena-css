@@ -1822,17 +1822,17 @@ fn collect_import_reachable_direct_style_paths(
 }
 
 fn collect_sass_module_sources(sheet: &Stylesheet) -> Vec<String> {
-    let summary = summarize_css_modules_intermediate(sheet);
-    let mut sources = Vec::new();
-    for edge in summary.sass.module_use_edges {
-        push_unique_string(&mut sources, edge.source);
-    }
-    for source in summary.sass.module_forward_sources {
-        push_unique_string(&mut sources, source);
-    }
-    for source in summary.sass.module_import_sources {
-        push_unique_string(&mut sources, source);
-    }
+    let facts = collect_style_facts(
+        sheet.source.as_str(),
+        omena_parser_dialect_for_style_language(sheet.language),
+    );
+    let mut sources = facts
+        .sass_module_edges
+        .into_iter()
+        .map(|edge| edge.source)
+        .collect::<Vec<_>>();
+    sources.sort();
+    sources.dedup();
     sources
 }
 
@@ -2665,12 +2665,6 @@ fn omena_query_sass_symbol_fact_kind_is_reference(kind: ParsedSassSymbolFactKind
             | ParsedSassSymbolFactKind::MixinInclude
             | ParsedSassSymbolFactKind::FunctionCall
     )
-}
-
-fn push_unique_string(values: &mut Vec<String>, value: String) {
-    if !values.contains(&value) {
-        values.push(value);
-    }
 }
 
 fn sorted_unique_strings(values: &[String]) -> Vec<String> {
