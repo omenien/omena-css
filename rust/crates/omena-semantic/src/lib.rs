@@ -1068,6 +1068,7 @@ $color: red;
             css_modules.value_import_sources,
             vec!["./tokens.module.scss"]
         );
+        assert_eq!(css_modules.value_import_edge_count, 1);
         assert_eq!(css_modules.icss_export_names, vec!["primary"]);
         assert_eq!(css_modules.icss_import_local_names, vec!["imported"]);
         assert_eq!(css_modules.icss_import_remote_names, vec!["primary"]);

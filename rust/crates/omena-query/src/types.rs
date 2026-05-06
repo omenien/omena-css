@@ -150,6 +150,7 @@ pub struct OmenaQueryOmenaParserStyleFactsV0 {
     pub css_module_value_definition_names: Vec<String>,
     pub css_module_value_reference_names: Vec<String>,
     pub css_module_value_import_sources: Vec<String>,
+    pub css_module_value_import_edges: Vec<OmenaQueryCssModuleValueImportEdgeFactV0>,
     pub css_module_composes_target_names: Vec<String>,
     pub css_module_composes_import_sources: Vec<String>,
     pub css_module_composes_edges: Vec<OmenaQueryCssModuleComposesEdgeFactV0>,
@@ -161,6 +162,14 @@ pub struct OmenaQueryOmenaParserStyleFactsV0 {
     pub custom_property_names: Vec<String>,
     pub at_rule_names: Vec<String>,
     pub parser_error_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCssModuleValueImportEdgeFactV0 {
+    pub remote_name: String,
+    pub local_name: String,
+    pub import_source: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

@@ -52,6 +52,7 @@ export interface StyleSemanticGraphCssModulesSemanticsV0 {
   readonly composesTargetNames: readonly string[];
   readonly composesImportSources: readonly string[];
   readonly valueEdgeSeedCount: number;
+  readonly valueImportEdgeCount: number;
   readonly valueDefinitionNames: readonly string[];
   readonly valueReferenceNames: readonly string[];
   readonly valueImportSources: readonly string[];

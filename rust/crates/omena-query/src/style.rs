@@ -135,6 +135,15 @@ pub fn summarize_omena_query_omena_parser_style_facts(
         css_module_value_definition_names: css_module_value_definition_names.into_iter().collect(),
         css_module_value_reference_names: css_module_value_reference_names.into_iter().collect(),
         css_module_value_import_sources: css_module_value_import_sources.into_iter().collect(),
+        css_module_value_import_edges: facts
+            .css_module_value_import_edges
+            .into_iter()
+            .map(|edge| OmenaQueryCssModuleValueImportEdgeFactV0 {
+                remote_name: edge.remote_name,
+                local_name: edge.local_name,
+                import_source: edge.import_source,
+            })
+            .collect(),
         css_module_composes_target_names: css_module_composes_target_names.into_iter().collect(),
         css_module_composes_import_sources: css_module_composes_import_sources
             .into_iter()
@@ -779,12 +788,12 @@ fn summarize_css_modules_cross_file_resolution(
             ));
         }
 
-        for source in &facts.css_module_value_import_sources {
+        for edge in &facts.css_module_value_import_edges {
             edges.push(resolve_css_modules_import_edge(
                 style_path,
                 "value",
-                source,
-                facts.css_module_value_reference_names.as_slice(),
+                edge.import_source.as_str(),
+                std::slice::from_ref(&edge.remote_name),
                 &context,
                 |target| target.css_module_value_definition_names.as_slice(),
             ));
@@ -838,7 +847,6 @@ fn summarize_css_modules_cross_file_resolution(
             cycle_detection_ready: false,
         },
         next_priorities: vec![
-            "valueImportEdgeGrouping",
             "icssImportEdgeGrouping",
             "composesClosure",
             "valueGraphClosure",
