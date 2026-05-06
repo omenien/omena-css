@@ -705,6 +705,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "unicodeRangeTokenization",
             "badStringTokenRecovery",
             "badStringValueBogusNodes",
+            "emptyDeclarationValueRecovery",
             "coreBogusPopulationSlice",
             "dialectBogusPopulationSlice",
             "cssModuleValueCstNodes",
@@ -1858,30 +1859,30 @@ impl<'text> Parser<'text> {
 
         if self.current_kind() == Some(SyntaxKind::Colon) {
             self.token_current();
+            let value_recovery = [
+                SyntaxKind::Semicolon,
+                SyntaxKind::SassOptionalSemicolon,
+                SyntaxKind::RightBrace,
+                SyntaxKind::SassDedent,
+            ];
+            let has_value = self
+                .non_trivia_token_from(self.position)
+                .is_some_and(|(_, kind)| !value_recovery.contains(&kind));
             self.builder.start_node(SyntaxKind::Value);
             if kind == SyntaxKind::CssModuleComposesDeclaration {
-                self.parse_composes_value_until(&[
-                    SyntaxKind::Semicolon,
-                    SyntaxKind::SassOptionalSemicolon,
-                    SyntaxKind::RightBrace,
-                    SyntaxKind::SassDedent,
-                ]);
+                self.parse_composes_value_until(&value_recovery);
             } else if starts_custom_property {
                 self.builder.start_node(SyntaxKind::CustomPropertyValue);
-                self.parse_component_value_list_until(&[
-                    SyntaxKind::Semicolon,
-                    SyntaxKind::SassOptionalSemicolon,
-                    SyntaxKind::RightBrace,
-                    SyntaxKind::SassDedent,
-                ]);
+                self.parse_component_value_list_until(&value_recovery);
                 self.builder.finish_node();
+            } else if !has_value {
+                self.empty_bogus_node(
+                    SyntaxKind::BogusValue,
+                    ParseErrorCode::ExpectedValue,
+                    "expected declaration value",
+                );
             } else {
-                self.parse_value_or_value_list_until(&[
-                    SyntaxKind::Semicolon,
-                    SyntaxKind::SassOptionalSemicolon,
-                    SyntaxKind::RightBrace,
-                    SyntaxKind::SassDedent,
-                ]);
+                self.parse_value_or_value_list_until(&value_recovery);
             }
             self.builder.finish_node();
         } else {
@@ -6984,6 +6985,25 @@ mod tests {
     }
 
     #[test]
+    fn recovers_empty_declaration_values_without_rejecting_custom_properties() {
+        let result = parse(".a { color: ; width: ; --empty: ; }", StyleDialect::Css);
+        let kinds = node_kinds(&result.syntax());
+        let empty_value_errors = result
+            .errors()
+            .iter()
+            .filter(|error| error.message == "expected declaration value")
+            .count();
+        let bogus_value_count = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::BogusValue)
+            .count();
+
+        assert_eq!(empty_value_errors, 2);
+        assert_eq!(bogus_value_count, 2);
+        assert!(kinds.contains(&SyntaxKind::CustomPropertyValue));
+    }
+
+    #[test]
     fn populates_core_bogus_nodes_for_recoverable_structures() {
         let missing_function_close =
             parse(".a { width: calc(1 + ; color: red; }", StyleDialect::Css);
@@ -8976,6 +8996,11 @@ mod tests {
         assert!(summary.ready_surfaces.contains(&"unicodeRangeTokenization"));
         assert!(summary.ready_surfaces.contains(&"badStringTokenRecovery"));
         assert!(summary.ready_surfaces.contains(&"badStringValueBogusNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"emptyDeclarationValueRecovery")
+        );
         assert!(summary.ready_surfaces.contains(&"coreBogusPopulationSlice"));
         assert!(
             summary
