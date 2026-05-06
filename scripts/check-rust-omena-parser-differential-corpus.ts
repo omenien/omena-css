@@ -217,6 +217,20 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "css-animation-name-facts",
+    dialect: "css",
+    source: `@keyframes fade { from { opacity: 0; } to { opacity: 1; } } @keyframes "slide" { to { opacity: 1; } } .card { animation-name: fade, "slide", none; }`,
+    expected: {
+      classSelectorNames: ["card"],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: [],
+      keyframeNames: ["fade", "slide"],
+      animationReferenceNames: ["fade", "slide"],
+      atRuleNames: ["@keyframes", "@keyframes"],
+    },
+  },
+  {
     label: "css-color-function-micro-grammars",
     dialect: "css",
     source: `.paint { color: color-mix(in srgb, red, blue 30%); background: light-dark(white, black); border-color: contrast-color(red); accent-color: device-cmyk(0 1 1 0); }`,
@@ -321,6 +335,8 @@ const PARSER_ONLY_CORPUS = [
     readonly placeholderSelectorNames: readonly string[];
     readonly variableNames: readonly string[];
     readonly customPropertyNames: readonly string[];
+    readonly keyframeNames?: readonly string[];
+    readonly animationReferenceNames?: readonly string[];
     readonly atRuleNames: readonly string[];
   };
 }[];
@@ -723,6 +739,20 @@ void (async () => {
       sortedUnique(entry.expected.customPropertyNames),
       `${entry.label} parser-only custom property drift`,
     );
+    if (entry.expected.keyframeNames) {
+      assert.deepEqual(
+        sortedUnique(actual.keyframeNames),
+        sortedUnique(entry.expected.keyframeNames),
+        `${entry.label} parser-only keyframe drift`,
+      );
+    }
+    if (entry.expected.animationReferenceNames) {
+      assert.deepEqual(
+        sortedUnique(actual.animationReferenceNames),
+        sortedUnique(entry.expected.animationReferenceNames),
+        `${entry.label} parser-only animation reference drift`,
+      );
+    }
     assert.deepEqual(
       sortedUnique(actual.atRuleNames),
       sortedUnique(entry.expected.atRuleNames),
