@@ -64,6 +64,13 @@ const CORPUS = [
     source: `.btn:is(.active, .primary) { color: red; }\n:local(.localName) { color: blue; }`,
   },
   {
+    label: "css-modules-global-scope-facts",
+    filePath: "/f.module.css",
+    dialect: "css",
+    source: `:global { .reset { color: red; } } :global(.standalone) { color: red; } .card :global(.child) { color: red; } :local(.button) { color: blue; }`,
+    expectedClassSelectorNames: ["button", "card"],
+  },
+  {
     label: "scss-sass-symbol-facts",
     filePath: "/f.module.scss",
     dialect: "scss",

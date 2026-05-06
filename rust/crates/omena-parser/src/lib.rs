@@ -647,6 +647,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "unicodeRangeValueCstNodes",
             "functionArgumentValueLists",
             "cssModuleScopeFunctionCstNodes",
+            "cssModuleGlobalSelectorFactFiltering",
             "scssStructuredBlockAtRules",
             "scssControlPreludeValidation",
             "scssControlStyleFactExtraction",
@@ -2157,10 +2158,17 @@ impl<'text> Parser<'text> {
             }
         }
 
-        open_blocks.into_iter().find_map(|block_start| {
+        if let Some(scope) = open_blocks.iter().copied().find_map(|block_start| {
             let header_start = self.header_start_for_block(block_start);
-            css_module_scope_marker_in_header(&self.tokens, header_start, block_start)
-        })
+            css_module_block_scope_marker_in_header(&self.tokens, header_start, block_start)
+        }) {
+            return Some(scope);
+        }
+
+        let block_start = open_blocks.last().copied()?;
+        let header_start = self.header_start_for_block(block_start);
+        css_module_header_is_global_only(&self.tokens, header_start, block_start)
+            .then_some("global")
     }
 
     fn header_start_for_block(&self, block_start: usize) -> usize {
@@ -6102,7 +6110,15 @@ struct SelectorBranch {
 fn collect_selector_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSelectorFact> {
     let mut selectors = Vec::new();
     let mut seen = BTreeSet::new();
-    collect_selector_facts_in_range(tokens, 0, tokens.len(), &[], &mut seen, &mut selectors);
+    collect_selector_facts_in_range(
+        tokens,
+        0,
+        tokens.len(),
+        &[],
+        None,
+        &mut seen,
+        &mut selectors,
+    );
     selectors
 }
 
@@ -6111,6 +6127,7 @@ fn collect_selector_facts_in_range(
     start: usize,
     end: usize,
     parent_branches: &[SelectorBranch],
+    css_module_scope: Option<&'static str>,
     seen: &mut BTreeSet<(ParsedSelectorFactKind, String, u32, u32)>,
     selectors: &mut Vec<ParsedSelectorFact>,
 ) {
@@ -6125,32 +6142,52 @@ fn collect_selector_facts_in_range(
             let block = find_block_after_header(tokens, index, end);
             if let Some((open, close)) = block {
                 if tokens[index].text == "@nest" {
-                    let branches =
-                        resolve_selector_header(tokens, index + 1, open, parent_branches);
-                    push_class_selector_facts_from_header(selectors, seen, tokens, index + 1, open);
-                    for branch in &branches {
-                        push_selector_fact(
+                    if css_module_scope == Some("global") {
+                        collect_selector_facts_in_range(
+                            tokens,
+                            open + 1,
+                            close,
+                            &[],
+                            css_module_scope,
+                            seen,
+                            selectors,
+                        );
+                    } else {
+                        let branches =
+                            resolve_selector_header(tokens, index + 1, open, parent_branches);
+                        push_class_selector_facts_from_header(
                             selectors,
                             seen,
-                            ParsedSelectorFactKind::Class,
-                            branch.name.clone(),
-                            branch.range,
+                            tokens,
+                            index + 1,
+                            open,
+                        );
+                        for branch in &branches {
+                            push_selector_fact(
+                                selectors,
+                                seen,
+                                ParsedSelectorFactKind::Class,
+                                branch.name.clone(),
+                                branch.range,
+                            );
+                        }
+                        collect_selector_facts_in_range(
+                            tokens,
+                            open + 1,
+                            close,
+                            &branches,
+                            css_module_scope,
+                            seen,
+                            selectors,
                         );
                     }
-                    collect_selector_facts_in_range(
-                        tokens,
-                        open + 1,
-                        close,
-                        &branches,
-                        seen,
-                        selectors,
-                    );
                 } else if style_wrapper_at_rule(tokens[index].text) {
                     collect_selector_facts_in_range(
                         tokens,
                         open + 1,
                         close,
                         parent_branches,
+                        css_module_scope,
                         seen,
                         selectors,
                     );
@@ -6167,31 +6204,53 @@ fn collect_selector_facts_in_range(
             continue;
         };
 
-        let branches = resolve_selector_header(tokens, index, open, parent_branches);
-        push_class_selector_facts_from_header(selectors, seen, tokens, index, open);
-        for branch in &branches {
-            push_selector_fact(
-                selectors,
+        let effective_scope = css_module_scope
+            .or_else(|| css_module_block_scope_marker_in_header(tokens, index, open));
+        if effective_scope == Some("global") {
+            collect_selector_facts_in_range(
+                tokens,
+                open + 1,
+                close,
+                &[],
+                effective_scope,
                 seen,
-                ParsedSelectorFactKind::Class,
-                branch.name.clone(),
-                branch.range,
-            );
-        }
-        for id in collect_id_selector_facts_from_header(tokens, index, open) {
-            push_selector_fact(selectors, seen, ParsedSelectorFactKind::Id, id.0, id.1);
-        }
-        for placeholder in collect_placeholder_selector_facts_from_header(tokens, index, open) {
-            push_selector_fact(
                 selectors,
-                seen,
-                ParsedSelectorFactKind::Placeholder,
-                placeholder.0,
-                placeholder.1,
             );
-        }
+        } else {
+            let branches = resolve_selector_header(tokens, index, open, parent_branches);
+            push_class_selector_facts_from_header(selectors, seen, tokens, index, open);
+            for branch in &branches {
+                push_selector_fact(
+                    selectors,
+                    seen,
+                    ParsedSelectorFactKind::Class,
+                    branch.name.clone(),
+                    branch.range,
+                );
+            }
+            for id in collect_id_selector_facts_from_header(tokens, index, open) {
+                push_selector_fact(selectors, seen, ParsedSelectorFactKind::Id, id.0, id.1);
+            }
+            for placeholder in collect_placeholder_selector_facts_from_header(tokens, index, open) {
+                push_selector_fact(
+                    selectors,
+                    seen,
+                    ParsedSelectorFactKind::Placeholder,
+                    placeholder.0,
+                    placeholder.1,
+                );
+            }
 
-        collect_selector_facts_in_range(tokens, open + 1, close, &branches, seen, selectors);
+            collect_selector_facts_in_range(
+                tokens,
+                open + 1,
+                close,
+                &branches,
+                effective_scope,
+                seen,
+                selectors,
+            );
+        }
         index = close + 1;
     }
 }
@@ -6423,7 +6482,7 @@ fn collect_local_function_selector_names(
     ))
 }
 
-fn css_module_scope_marker_in_header(
+fn css_module_block_scope_marker_in_header(
     tokens: &[Token<'_>],
     start: usize,
     end: usize,
@@ -6434,22 +6493,79 @@ fn css_module_scope_marker_in_header(
         return None;
     }
 
+    css_module_scope_marker_after_colon(tokens, start, end)
+        .filter(|_| !css_module_scope_marker_is_function(tokens, start, end))
+}
+
+fn css_module_header_is_global_only(tokens: &[Token<'_>], start: usize, end: usize) -> bool {
+    if next_non_trivia_token_until(tokens, start, end)
+        .is_some_and(|token| token.kind == SyntaxKind::AtKeyword)
+    {
+        return false;
+    }
+    css_module_header_contains_scope(tokens, start, end, "global")
+        && collect_class_selector_names_from_header(tokens, start, end).is_empty()
+        && collect_local_function_selector_names(tokens, start, end)
+            .map(|names| names.is_empty())
+            .unwrap_or(true)
+}
+
+fn css_module_header_contains_scope(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    expected_scope: &str,
+) -> bool {
     let mut index = start;
     while index < end {
         if tokens[index].kind == SyntaxKind::Colon
             && let Some(scope) = next_non_trivia_token_until(tokens, index + 1, end)
             && scope.kind == SyntaxKind::Ident
+            && scope.text == expected_scope
         {
-            if scope.text == "global" {
-                return Some("global");
-            }
-            if scope.text == "local" {
-                return Some("local");
-            }
+            return true;
         }
         index += 1;
     }
-    None
+    false
+}
+
+fn css_module_scope_marker_after_colon(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> Option<&'static str> {
+    let colon = skip_trivia_tokens(tokens, start, end);
+    if tokens.get(colon)?.kind != SyntaxKind::Colon {
+        return None;
+    }
+    let scope = next_non_trivia_token_until(tokens, colon + 1, end)?;
+    if scope.kind != SyntaxKind::Ident {
+        return None;
+    }
+    match scope.text {
+        "global" => Some("global"),
+        "local" => Some("local"),
+        _ => None,
+    }
+}
+
+fn css_module_scope_marker_is_function(tokens: &[Token<'_>], start: usize, end: usize) -> bool {
+    let colon = skip_trivia_tokens(tokens, start, end);
+    let mut index = colon + 1;
+    let Some(scope) = next_non_trivia_token_until(tokens, index, end) else {
+        return false;
+    };
+    while index < end {
+        if tokens[index].range == scope.range {
+            break;
+        }
+        index += 1;
+    }
+    let Some(next) = next_non_trivia_token_until(tokens, index + 1, end) else {
+        return false;
+    };
+    scope.kind == SyntaxKind::Ident && next.kind == SyntaxKind::LeftParen
 }
 
 fn collect_id_selector_facts_from_header(
@@ -8473,6 +8589,7 @@ mod tests {
             ":local { :global(.ok) { composes: base; } }",
             StyleDialect::Css,
         );
+        let mixed_local_global = parse(".foo :global(.bar) { composes: base; }", StyleDialect::Css);
         let global_composes_count = invalid
             .errors()
             .iter()
@@ -8482,6 +8599,12 @@ mod tests {
         assert_eq!(global_composes_count, 2);
         assert!(
             !outer_local
+                .errors()
+                .iter()
+                .any(|error| error.message == "composes is not allowed inside :global scope")
+        );
+        assert!(
+            !mixed_local_global
                 .errors()
                 .iter()
                 .any(|error| error.message == "composes is not allowed inside :global scope")
@@ -10062,6 +10185,33 @@ mod tests {
     }
 
     #[test]
+    fn filters_css_module_global_scope_selector_facts() {
+        let facts = collect_style_facts(
+            ":global { .reset { color: red; } } :global(.standalone) { color: red; } .card :global(.child) { color: red; } :local(.button) { color: blue; }",
+            StyleDialect::Css,
+        );
+        let outer_local = collect_style_facts(
+            ":local { :global { .kept { color: green; } } }",
+            StyleDialect::Css,
+        );
+        let class_names = facts
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+            .map(|selector| selector.name.as_str())
+            .collect::<Vec<_>>();
+        let outer_local_class_names = outer_local
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+            .map(|selector| selector.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(class_names, vec!["card", "button"]);
+        assert_eq!(outer_local_class_names, vec!["kept"]);
+    }
+
+    #[test]
     fn parses_functional_pseudo_selector_lists_with_bogus_item_recovery() {
         let result = parse(
             ".btn:is(#it/typo, .ok):where(.wide, .compact) { color: red; }",
@@ -10446,6 +10596,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"cssModuleScopeFunctionCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"cssModuleGlobalSelectorFactFiltering")
         );
         assert!(
             summary
