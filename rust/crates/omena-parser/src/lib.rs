@@ -766,6 +766,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "customPropertyAnyValueComponentList",
             "customPropertyValueCstNodes",
             "functionalPseudoSelectorListCstNodes",
+            "strictNotPseudoSelectorListCstNodes",
             "nthSelectorOfSelectorListCstNodes",
             "nthSelectorFormulaCstNodes",
             "hasRelativeSelectorListCstNodes",
@@ -1036,6 +1037,34 @@ impl<'text> Parser<'text> {
                 Some(_)
                     if recovery.contains(&SyntaxKind::RightParen)
                         && self.current_selector_item_is_bogus(recovery) =>
+                {
+                    self.parse_bogus_selector_until(recovery)
+                }
+                Some(_) => self.parse_selector_until(recovery),
+                None => break,
+            }
+        }
+        self.builder.finish_node();
+    }
+
+    fn parse_strict_selector_list_until(&mut self, recovery: &[SyntaxKind]) {
+        self.builder.start_node(
+            if self.selector_list_contains_bogus_item_until(recovery)
+                && self.current_kind() != Some(SyntaxKind::RightParen)
+            {
+                SyntaxKind::BogusSelectorList
+            } else {
+                SyntaxKind::SelectorList
+            },
+        );
+        while !self.at_end() {
+            match self.current_kind() {
+                Some(SyntaxKind::Comma) => self.token_current(),
+                Some(kind) if is_selector_boundary_until(kind, recovery) => break,
+                Some(SyntaxKind::SassIndentedNewline) => self.token_current(),
+                Some(_)
+                    if self.current_selector_item_is_bogus(recovery)
+                        && self.current_kind() != Some(SyntaxKind::RightParen) =>
                 {
                     self.parse_bogus_selector_until(recovery)
                 }
@@ -1416,6 +1445,10 @@ impl<'text> Parser<'text> {
                     .is_some_and(is_selector_list_pseudo_class)
             {
                 self.parse_selector_list_until(&[SyntaxKind::RightParen]);
+            } else if kind == SyntaxKind::PseudoClassSelector
+                && pseudo_name.as_deref() == Some("not")
+            {
+                self.parse_strict_selector_list_until(&[SyntaxKind::RightParen]);
             } else if kind == SyntaxKind::PseudoClassSelector
                 && pseudo_name.as_deref() == Some("has")
             {
@@ -4354,11 +4387,15 @@ impl<'text> Parser<'text> {
     }
 
     fn current_selector_item_is_bogus(&self, recovery: &[SyntaxKind]) -> bool {
+        self.selector_item_is_bogus_from(self.position, recovery)
+    }
+
+    fn selector_item_is_bogus_from(&self, start: usize, recovery: &[SyntaxKind]) -> bool {
         let mut paren_depth = 0usize;
         let mut bracket_depth = 0usize;
         let mut saw_selector_token = false;
 
-        for token in self.tokens.iter().skip(self.position) {
+        for token in self.tokens.iter().skip(start) {
             if token.kind.is_trivia() {
                 continue;
             }
@@ -4385,6 +4422,43 @@ impl<'text> Parser<'text> {
         }
 
         !saw_selector_token
+    }
+
+    fn selector_list_contains_bogus_item_until(&self, recovery: &[SyntaxKind]) -> bool {
+        let mut index = self.position;
+        while let Some(token) = self.tokens.get(index) {
+            if token.kind.is_trivia() || token.kind == SyntaxKind::Comma {
+                index += 1;
+                continue;
+            }
+            if is_selector_boundary_until(token.kind, recovery) {
+                return false;
+            }
+            if self.selector_item_is_bogus_from(index, recovery) {
+                return true;
+            }
+
+            let mut paren_depth = 0usize;
+            let mut bracket_depth = 0usize;
+            while let Some(token) = self.tokens.get(index) {
+                if paren_depth == 0
+                    && bracket_depth == 0
+                    && (token.kind == SyntaxKind::Comma
+                        || is_selector_boundary_until(token.kind, recovery))
+                {
+                    break;
+                }
+                match token.kind {
+                    SyntaxKind::LeftParen => paren_depth += 1,
+                    SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+                    SyntaxKind::LeftBracket => bracket_depth += 1,
+                    SyntaxKind::RightBracket => bracket_depth = bracket_depth.saturating_sub(1),
+                    _ => {}
+                }
+                index += 1;
+            }
+        }
+        false
     }
 
     fn current_generic_at_rule_prelude_node_kind(&self) -> SyntaxKind {
@@ -6535,7 +6609,7 @@ fn is_selector_boundary_until(kind: SyntaxKind, recovery: &[SyntaxKind]) -> bool
 }
 
 fn is_selector_list_pseudo_class(text: &str) -> bool {
-    matches!(text, "is" | "where" | "not" | "local" | "global")
+    matches!(text, "is" | "where" | "local" | "global")
 }
 
 fn is_nth_pseudo_class(text: &str) -> bool {
@@ -9363,6 +9437,19 @@ mod tests {
     }
 
     #[test]
+    fn parses_not_arguments_as_strict_selector_lists() {
+        let forgiving = parse(".btn:is(#it/typo, .ok) { color: red; }", StyleDialect::Css);
+        let strict = parse(".btn:not(#it/typo, .ok) { color: red; }", StyleDialect::Css);
+        let forgiving_kinds = node_kinds(&forgiving.syntax());
+        let strict_kinds = node_kinds(&strict.syntax());
+
+        assert!(forgiving_kinds.contains(&SyntaxKind::BogusSelector));
+        assert!(!forgiving_kinds.contains(&SyntaxKind::BogusSelectorList));
+        assert!(strict_kinds.contains(&SyntaxKind::BogusSelector));
+        assert!(strict_kinds.contains(&SyntaxKind::BogusSelectorList));
+    }
+
+    #[test]
     fn parses_nth_child_of_selector_lists_as_cst_nodes() {
         let result = parse(
             ".grid > :nth-child(2n + 1 of .item, [data-active]) { color: red; }",
@@ -10105,6 +10192,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"functionalPseudoSelectorListCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"strictNotPseudoSelectorListCstNodes")
         );
         assert!(
             summary
