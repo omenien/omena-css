@@ -203,6 +203,18 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "css-modules-icss-import-export",
+    dialect: "css",
+    source: `:export { primary: #fff; } :import("./tokens.css") { imported: primary; } .btn { composes: imported; color: primary; }`,
+    expected: {
+      classSelectorNames: ["btn"],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: [],
+      atRuleNames: [],
+    },
+  },
+  {
     label: "css-color-function-micro-grammars",
     dialect: "css",
     source: `.paint { color: color-mix(in srgb, red, blue 30%); background: light-dark(white, black); border-color: contrast-color(red); accent-color: device-cmyk(0 1 1 0); }`,
