@@ -6943,10 +6943,9 @@ fn collect_sass_symbol_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSass
                 } else {
                     ParsedSassSymbolFactKind::VariableReference
                 };
-                let namespace =
-                    (!scss_variable_token_is_declaration(tokens, index))
-                        .then(|| sass_member_namespace_before(tokens, index))
-                        .flatten();
+                let namespace = (!scss_variable_token_is_declaration(tokens, index))
+                    .then(|| sass_member_namespace_before(tokens, index))
+                    .flatten();
                 symbols.push(ParsedSassSymbolFact {
                     kind,
                     symbol_kind: "variable",
@@ -7022,10 +7021,7 @@ fn collect_sass_symbol_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSass
     symbols
 }
 
-fn sass_symbol_variable_range(
-    token: &Token<'_>,
-    kind: ParsedSassSymbolFactKind,
-) -> TextRange {
+fn sass_symbol_variable_range(token: &Token<'_>, kind: ParsedSassSymbolFactKind) -> TextRange {
     if kind == ParsedSassSymbolFactKind::VariableDeclaration && token.text.starts_with('$') {
         let start = u32::from(token.range.start());
         let end = u32::from(token.range.end());

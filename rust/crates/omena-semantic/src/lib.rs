@@ -617,9 +617,7 @@ fn summarize_omena_parser_custom_property_semantic_facts(
 }
 
 fn bem_suffix_parent_name(name: &str) -> Option<String> {
-    let marker = name
-        .find("__")
-        .or_else(|| name.find("--"))?;
+    let marker = name.find("__").or_else(|| name.find("--"))?;
     (marker > 0).then(|| name[..marker].to_string())
 }
 
@@ -720,8 +718,9 @@ mod tests {
 
     use super::{
         TheoryObservationHarnessInput, summarize_lossless_cst_contract,
-        summarize_omena_parser_style_semantic_boundary_from_source, summarize_parser_contract_facts,
-        summarize_selector_identity_engine, summarize_semantic_promotion_evidence,
+        summarize_omena_parser_style_semantic_boundary_from_source,
+        summarize_parser_contract_facts, summarize_selector_identity_engine,
+        summarize_semantic_promotion_evidence,
         summarize_semantic_promotion_evidence_with_source_input, summarize_source_input_evidence,
         summarize_style_semantic_boundary, summarize_style_semantic_facts,
         summarize_style_semantic_graph, summarize_style_semantic_graph_from_source,
@@ -772,10 +771,7 @@ $local: red;
             vec!["--brand".to_string()]
         );
         assert_eq!(
-            summary
-                .semantic_facts
-                .custom_properties
-                .resolved_ref_names,
+            summary.semantic_facts.custom_properties.resolved_ref_names,
             vec!["--brand".to_string()]
         );
         assert_eq!(
@@ -788,7 +784,11 @@ $local: red;
         );
         assert_eq!(
             summary.parser_facts.sass.variable_ref_names,
-            vec!["accent".to_string(), "local".to_string(), "value".to_string()]
+            vec![
+                "accent".to_string(),
+                "local".to_string(),
+                "value".to_string()
+            ]
         );
         assert_eq!(
             summary.parser_facts.keyframes.names,
@@ -827,7 +827,10 @@ $local: red;
             1
         );
         assert_eq!(
-            summary.selector_identity_engine.rewrite_safety.blocked_canonical_ids,
+            summary
+                .selector_identity_engine
+                .rewrite_safety
+                .blocked_canonical_ids,
             vec!["selector:active".to_string()]
         );
     }

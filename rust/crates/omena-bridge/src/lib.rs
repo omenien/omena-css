@@ -1,7 +1,5 @@
 use engine_input_producers::EngineInputV2;
-use engine_style_parser::{
-    ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet,
-};
+use engine_style_parser::{ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet};
 use omena_semantic::{
     CssModulesSemanticSummaryV0, DesignTokenSemanticSummaryV0, LosslessCstContractV0,
     SelectorIdentityEngineSummaryV0, StyleSemanticBoundarySummaryV0,
@@ -349,11 +347,10 @@ pub fn summarize_omena_bridge_style_semantic_graph_from_source_with_scoped_works
 ) -> Option<StyleSemanticGraphSummaryV0> {
     let css_modules_semantics =
         omena_semantic::summarize_css_modules_semantics_from_source(style_path, style_source)?;
-    let boundary =
-        omena_semantic::summarize_omena_parser_style_semantic_boundary_from_source(
-            style_path,
-            style_source,
-        );
+    let boundary = omena_semantic::summarize_omena_parser_style_semantic_boundary_from_source(
+        style_path,
+        style_source,
+    );
     Some(summarize_omena_bridge_style_semantic_graph_with_boundary(
         boundary,
         css_modules_semantics,

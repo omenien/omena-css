@@ -1848,7 +1848,9 @@ fn collect_import_reachable_direct_style_paths(
         .collect()
 }
 
-fn collect_sass_module_sources_from_facts(facts: &OmenaQueryOmenaParserStyleFactsV0) -> Vec<String> {
+fn collect_sass_module_sources_from_facts(
+    facts: &OmenaQueryOmenaParserStyleFactsV0,
+) -> Vec<String> {
     let mut sources = facts
         .sass_module_edges
         .iter()
