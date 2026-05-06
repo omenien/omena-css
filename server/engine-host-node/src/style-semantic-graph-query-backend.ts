@@ -309,6 +309,7 @@ export interface StyleSemanticGraphBatchRunnerOutputV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-semantic.style-semantic-graph-batch";
   readonly cssModulesResolution?: StyleSemanticGraphCssModulesCrossFileResolutionV0;
+  readonly sassModuleResolution?: StyleSemanticGraphSassModuleCrossFileResolutionV0;
   readonly graphs: readonly StyleSemanticGraphBatchEntryV0[];
 }
 
@@ -391,6 +392,40 @@ export interface StyleSemanticGraphCssModulesCycleV0 {
   readonly path: readonly string[];
 }
 
+export interface StyleSemanticGraphSassModuleCrossFileResolutionV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-query.sass-module-cross-file-resolution";
+  readonly status: string;
+  readonly resolutionScope: string;
+  readonly styleCount: number;
+  readonly moduleEdgeCount: number;
+  readonly resolvedModuleEdgeCount: number;
+  readonly unresolvedModuleEdgeCount: number;
+  readonly externalModuleEdgeCount: number;
+  readonly edges: readonly StyleSemanticGraphSassModuleEdgeResolutionV0[];
+  readonly capabilities: StyleSemanticGraphSassModuleCrossFileResolutionCapabilitiesV0;
+  readonly nextPriorities: readonly string[];
+}
+
+export interface StyleSemanticGraphSassModuleEdgeResolutionV0 {
+  readonly fromStylePath: string;
+  readonly edgeKind: string;
+  readonly source: string;
+  readonly namespaceKind?: string | null;
+  readonly namespace?: string | null;
+  readonly resolvedStylePath?: string | null;
+  readonly status: string;
+  readonly resolutionKind: string;
+  readonly candidateCount: number;
+}
+
+export interface StyleSemanticGraphSassModuleCrossFileResolutionCapabilitiesV0 {
+  readonly omenaParserModuleEdgeConsumptionReady: boolean;
+  readonly resolverBackedSourceResolutionReady: boolean;
+  readonly packageManifestResolutionReady: boolean;
+  readonly externalModuleFilteringReady: boolean;
+}
+
 export interface StyleSemanticGraphBatchEntryV0 {
   readonly stylePath: string;
   readonly graph: StyleSemanticGraphSummaryV0 | null;
@@ -409,6 +444,15 @@ type StyleSemanticGraphQueryBackendOptions = Pick<
 > & {
   readonly readStyleFile: ProviderDeps["readStyleFile"];
 };
+type StyleSemanticGraphWorkspaceTargetArgs = {
+  readonly workspaceRoot: string;
+  readonly classnameTransform: BuildSelectedQueryResultsV2Options["classnameTransform"];
+  readonly pathAlias: BuildSelectedQueryResultsV2Options["pathAlias"];
+};
+type StyleSemanticGraphWorkspaceTargetDeps = Pick<
+  ProviderDeps,
+  "analysisCache" | "styleDocumentForPath" | "typeResolver" | "readStyleFile"
+>;
 
 export interface StyleSemanticGraphQueryOptions {
   readonly runRustSelectedQueryBackendJson?: RustJsonRunner;
@@ -645,79 +689,71 @@ export async function resolveRustStyleSemanticGraphForWorkspaceTargetAsync(
 }
 
 export function resolveRustCssModulesCrossFileResolutionForWorkspaceTarget(
-  args: {
-    readonly workspaceRoot: string;
-    readonly classnameTransform: BuildSelectedQueryResultsV2Options["classnameTransform"];
-    readonly pathAlias: BuildSelectedQueryResultsV2Options["pathAlias"];
-  },
-  deps: Pick<
-    ProviderDeps,
-    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "readStyleFile"
-  >,
+  args: StyleSemanticGraphWorkspaceTargetArgs,
+  deps: StyleSemanticGraphWorkspaceTargetDeps,
   stylePath: string,
   queryOptions: StyleSemanticGraphQueryOptions = {},
 ): StyleSemanticGraphCssModulesCrossFileResolutionV0 | null {
-  const resolvedFiles =
-    queryOptions.sourceDocuments && queryOptions.styleFiles
-      ? null
-      : resolveWorkspaceCheckFilesSync({
-          workspaceRoot: args.workspaceRoot,
-        });
-  const sourceDocuments =
-    queryOptions.sourceDocuments ??
-    collectSourceDocuments(resolvedFiles?.sourceFiles ?? [], deps.analysisCache);
-  const styleFiles = ensureStyleFileIncluded(
-    queryOptions.styleFiles ?? resolvedFiles?.styleFiles ?? [],
+  const output = resolveRustStyleSemanticGraphBatchOutputForWorkspaceTarget(
+    args,
+    deps,
     stylePath,
-  );
-  const engineInput =
-    queryOptions.engineInput ??
-    buildEngineInputV2({
-      workspaceRoot: args.workspaceRoot,
-      classnameTransform: args.classnameTransform,
-      pathAlias: args.pathAlias,
-      sourceDocuments,
-      styleFiles,
-      analysisCache: deps.analysisCache,
-      styleDocumentForPath: deps.styleDocumentForPath,
-      typeResolver: deps.typeResolver,
-    });
-
-  const output = resolveRustStyleSemanticGraphBatchOutput(
-    {
-      workspaceRoot: args.workspaceRoot,
-      classnameTransform: args.classnameTransform,
-      pathAlias: args.pathAlias,
-      sourceDocuments,
-      styleFiles,
-      analysisCache: deps.analysisCache,
-      styleDocumentForPath: deps.styleDocumentForPath,
-      typeResolver: deps.typeResolver,
-      readStyleFile: deps.readStyleFile,
-    },
-    {
-      ...queryOptions,
-      sourceDocuments,
-      styleFiles,
-      engineInput,
-    },
+    queryOptions,
   );
   return output?.cssModulesResolution ?? null;
 }
 
 export async function resolveRustCssModulesCrossFileResolutionForWorkspaceTargetAsync(
-  args: {
-    readonly workspaceRoot: string;
-    readonly classnameTransform: BuildSelectedQueryResultsV2Options["classnameTransform"];
-    readonly pathAlias: BuildSelectedQueryResultsV2Options["pathAlias"];
-  },
-  deps: Pick<
-    ProviderDeps,
-    "analysisCache" | "styleDocumentForPath" | "typeResolver" | "readStyleFile"
-  >,
+  args: StyleSemanticGraphWorkspaceTargetArgs,
+  deps: StyleSemanticGraphWorkspaceTargetDeps,
   stylePath: string,
   queryOptions: StyleSemanticGraphQueryOptions = {},
 ): Promise<StyleSemanticGraphCssModulesCrossFileResolutionV0 | null> {
+  const output = await resolveRustStyleSemanticGraphBatchOutputForWorkspaceTargetAsync(
+    args,
+    deps,
+    stylePath,
+    queryOptions,
+  );
+  return output?.cssModulesResolution ?? null;
+}
+
+export function resolveRustSassModuleCrossFileResolutionForWorkspaceTarget(
+  args: StyleSemanticGraphWorkspaceTargetArgs,
+  deps: StyleSemanticGraphWorkspaceTargetDeps,
+  stylePath: string,
+  queryOptions: StyleSemanticGraphQueryOptions = {},
+): StyleSemanticGraphSassModuleCrossFileResolutionV0 | null {
+  const output = resolveRustStyleSemanticGraphBatchOutputForWorkspaceTarget(
+    args,
+    deps,
+    stylePath,
+    queryOptions,
+  );
+  return output?.sassModuleResolution ?? null;
+}
+
+export async function resolveRustSassModuleCrossFileResolutionForWorkspaceTargetAsync(
+  args: StyleSemanticGraphWorkspaceTargetArgs,
+  deps: StyleSemanticGraphWorkspaceTargetDeps,
+  stylePath: string,
+  queryOptions: StyleSemanticGraphQueryOptions = {},
+): Promise<StyleSemanticGraphSassModuleCrossFileResolutionV0 | null> {
+  const output = await resolveRustStyleSemanticGraphBatchOutputForWorkspaceTargetAsync(
+    args,
+    deps,
+    stylePath,
+    queryOptions,
+  );
+  return output?.sassModuleResolution ?? null;
+}
+
+function resolveRustStyleSemanticGraphBatchOutputForWorkspaceTarget(
+  args: StyleSemanticGraphWorkspaceTargetArgs,
+  deps: StyleSemanticGraphWorkspaceTargetDeps,
+  stylePath: string,
+  queryOptions: StyleSemanticGraphQueryOptions,
+): StyleSemanticGraphBatchRunnerOutputV0 | null {
   const resolvedFiles =
     queryOptions.sourceDocuments && queryOptions.styleFiles
       ? null
@@ -744,7 +780,7 @@ export async function resolveRustCssModulesCrossFileResolutionForWorkspaceTarget
       typeResolver: deps.typeResolver,
     });
 
-  const output = await resolveRustStyleSemanticGraphBatchOutputAsync(
+  return resolveRustStyleSemanticGraphBatchOutput(
     {
       workspaceRoot: args.workspaceRoot,
       classnameTransform: args.classnameTransform,
@@ -763,7 +799,59 @@ export async function resolveRustCssModulesCrossFileResolutionForWorkspaceTarget
       engineInput,
     },
   );
-  return output?.cssModulesResolution ?? null;
+}
+
+async function resolveRustStyleSemanticGraphBatchOutputForWorkspaceTargetAsync(
+  args: StyleSemanticGraphWorkspaceTargetArgs,
+  deps: StyleSemanticGraphWorkspaceTargetDeps,
+  stylePath: string,
+  queryOptions: StyleSemanticGraphQueryOptions,
+): Promise<StyleSemanticGraphBatchRunnerOutputV0 | null> {
+  const resolvedFiles =
+    queryOptions.sourceDocuments && queryOptions.styleFiles
+      ? null
+      : resolveWorkspaceCheckFilesSync({
+          workspaceRoot: args.workspaceRoot,
+        });
+  const sourceDocuments =
+    queryOptions.sourceDocuments ??
+    collectSourceDocuments(resolvedFiles?.sourceFiles ?? [], deps.analysisCache);
+  const styleFiles = ensureStyleFileIncluded(
+    queryOptions.styleFiles ?? resolvedFiles?.styleFiles ?? [],
+    stylePath,
+  );
+  const engineInput =
+    queryOptions.engineInput ??
+    buildEngineInputV2({
+      workspaceRoot: args.workspaceRoot,
+      classnameTransform: args.classnameTransform,
+      pathAlias: args.pathAlias,
+      sourceDocuments,
+      styleFiles,
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      typeResolver: deps.typeResolver,
+    });
+
+  return resolveRustStyleSemanticGraphBatchOutputAsync(
+    {
+      workspaceRoot: args.workspaceRoot,
+      classnameTransform: args.classnameTransform,
+      pathAlias: args.pathAlias,
+      sourceDocuments,
+      styleFiles,
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+      typeResolver: deps.typeResolver,
+      readStyleFile: deps.readStyleFile,
+    },
+    {
+      ...queryOptions,
+      sourceDocuments,
+      styleFiles,
+      engineInput,
+    },
+  );
 }
 
 export function runRustStyleSemanticGraph(

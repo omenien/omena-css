@@ -6,11 +6,13 @@ import {
   buildStyleSemanticGraphDesignTokenRankedReferenceReadModels,
   buildStyleSemanticGraphSelectorIdentityReadModels,
   resolveRustCssModulesCrossFileResolutionForWorkspaceTarget,
+  resolveRustSassModuleCrossFileResolutionForWorkspaceTarget,
   resolveRustStyleSemanticGraph,
   resolveRustStyleSemanticGraphForWorkspaceTarget,
   type StyleSemanticGraphBatchOutputCache,
   type StyleSemanticGraphBatchRunnerInputV0,
   type StyleSemanticGraphCssModulesCrossFileResolutionV0,
+  type StyleSemanticGraphSassModuleCrossFileResolutionV0,
   type StyleSemanticGraphSummaryV0,
   type StyleSemanticGraphRunnerInputV0,
 } from "../../../server/engine-host-node/src/style-semantic-graph-query-backend";
@@ -518,6 +520,91 @@ describe("style semantic graph query backend", () => {
     );
   });
 
+  it("preserves Sass module resolution from batch graph reads", () => {
+    const deps = makeBaseDeps({
+      selectorMapForPath: (filePath) =>
+        filePath === SCSS_PATH
+          ? new Map([["button", infoAtLine("button", 1)]])
+          : filePath === CARD_SCSS_PATH
+            ? new Map([["card", infoAtLine("card", 1)]])
+            : null,
+      readStyleFile: (filePath) =>
+        filePath === SCSS_PATH
+          ? SCSS_SOURCE
+          : filePath === CARD_SCSS_PATH
+            ? CARD_SCSS_SOURCE
+            : null,
+      workspaceRoot: "/fake/ws",
+    });
+    const styleSemanticGraphCache = new Map<string, StyleSemanticGraphSummaryV0 | null>();
+    const styleSemanticGraphBatchOutputCache: StyleSemanticGraphBatchOutputCache = new Map();
+    const commands: string[] = [];
+    const sassModuleResolution = makeSassModuleResolution();
+    const queryOptions = {
+      sourceDocuments: [],
+      styleFiles: [SCSS_PATH, CARD_SCSS_PATH],
+      styleSemanticGraphCache,
+      styleSemanticGraphBatchOutputCache,
+      runRustSelectedQueryBackendJson: <T>(command: string): T => {
+        commands.push(command);
+        if (command !== "style-semantic-graph-batch") {
+          throw new Error(`unexpected runner command: ${command}`);
+        }
+        return {
+          schemaVersion: "0",
+          product: "omena-semantic.style-semantic-graph-batch",
+          sassModuleResolution,
+          graphs: [
+            { stylePath: SCSS_PATH, graph: makeGraph(SCSS_PATH) },
+            { stylePath: CARD_SCSS_PATH, graph: makeGraph(CARD_SCSS_PATH) },
+          ],
+        } as T;
+      },
+    };
+
+    const first = resolveRustSassModuleCrossFileResolutionForWorkspaceTarget(
+      {
+        workspaceRoot: "/fake/ws",
+        classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+        pathAlias: DEFAULT_SETTINGS.pathAlias,
+      },
+      {
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      SCSS_PATH,
+      queryOptions,
+    );
+    const second = resolveRustSassModuleCrossFileResolutionForWorkspaceTarget(
+      {
+        workspaceRoot: "/fake/ws",
+        classnameTransform: DEFAULT_SETTINGS.scss.classnameTransform,
+        pathAlias: DEFAULT_SETTINGS.pathAlias,
+      },
+      {
+        analysisCache: deps.analysisCache,
+        styleDocumentForPath: deps.styleDocumentForPath,
+        typeResolver: deps.typeResolver,
+        readStyleFile: deps.readStyleFile,
+      },
+      SCSS_PATH,
+      queryOptions,
+    );
+
+    expect(commands).toEqual(["style-semantic-graph-batch"]);
+    expect(first?.moduleEdgeCount).toBe(1);
+    expect(second).toBe(first);
+    expect(styleSemanticGraphBatchOutputCache.size).toBe(1);
+    expect([...styleSemanticGraphBatchOutputCache.values()][0]?.sassModuleResolution).toBe(
+      sassModuleResolution,
+    );
+    expect(styleSemanticGraphCache.get(SCSS_PATH)?.selectorReferenceEngine.stylePath).toBe(
+      SCSS_PATH,
+    );
+  });
+
   it("builds one workspace engine input for cached multi-style workspace target reads", () => {
     const deps = makeBaseDeps({
       selectorMapForPath: (filePath) =>
@@ -859,6 +946,40 @@ function makeCssModulesResolution(): StyleSemanticGraphCssModulesCrossFileResolu
       valueGraphClosureReady: true,
       icssExportImportClosureReady: true,
       cycleDetectionReady: true,
+    },
+    nextPriorities: [],
+  };
+}
+
+function makeSassModuleResolution(): StyleSemanticGraphSassModuleCrossFileResolutionV0 {
+  return {
+    schemaVersion: "0",
+    product: "omena-query.sass-module-cross-file-resolution",
+    status: "crossFileModuleResolution",
+    resolutionScope: "batchSassModuleGraph",
+    styleCount: 2,
+    moduleEdgeCount: 1,
+    resolvedModuleEdgeCount: 1,
+    unresolvedModuleEdgeCount: 0,
+    externalModuleEdgeCount: 0,
+    edges: [
+      {
+        fromStylePath: SCSS_PATH,
+        edgeKind: "use",
+        source: "./Card.module.scss",
+        namespaceKind: "named",
+        namespace: "card",
+        resolvedStylePath: CARD_SCSS_PATH,
+        status: "resolved",
+        resolutionKind: "relative",
+        candidateCount: 1,
+      },
+    ],
+    capabilities: {
+      omenaParserModuleEdgeConsumptionReady: true,
+      resolverBackedSourceResolutionReady: true,
+      packageManifestResolutionReady: true,
+      externalModuleFilteringReady: true,
     },
     nextPriorities: [],
   };
