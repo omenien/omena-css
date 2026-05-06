@@ -675,6 +675,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "namedAtRulePreludeValidation",
             "charsetNamespaceAtRulePreludeValidation",
             "keyframesAtRuleNameValidation",
+            "emptyBlockAtRulePreludeValidation",
             "layerScopePreludeCstNodes",
             "pageMarginAtRuleCstNodes",
             "modernDeclarationAtRuleCstNodes",
@@ -2857,6 +2858,11 @@ impl<'text> Parser<'text> {
             SyntaxKind::CharsetRule => self.parse_charset_rule_prelude(),
             SyntaxKind::NamespaceRule => self.parse_namespace_rule_prelude(),
             SyntaxKind::KeyframesRule => self.parse_keyframes_rule_prelude(),
+            SyntaxKind::FontFaceRule
+            | SyntaxKind::StartingStyleRule
+            | SyntaxKind::ViewTransitionRule => {
+                self.parse_empty_at_rule_prelude("unexpected at-rule prelude")
+            }
             SyntaxKind::PropertyRule => self.parse_named_at_rule_prelude(
                 at_rule_prelude_head_is_custom_property_name,
                 "invalid @property name",
@@ -3009,6 +3015,17 @@ impl<'text> Parser<'text> {
         }
         self.non_trivia_token_from(name_index + 1)
             .is_none_or(|(_, kind)| is_at_rule_prelude_boundary(kind))
+    }
+
+    fn parse_empty_at_rule_prelude(&mut self, message: &'static str) {
+        self.eat_trivia();
+        if self
+            .current_kind()
+            .is_some_and(|kind| !is_at_rule_prelude_boundary(kind))
+        {
+            self.error_at_current(ParseErrorCode::ExpectedValue, message);
+            self.consume_at_rule_prelude_tokens();
+        }
     }
 
     fn parse_import_prelude(&mut self) {
@@ -7423,6 +7440,26 @@ mod tests {
     }
 
     #[test]
+    fn validates_empty_block_at_rule_preludes() {
+        let valid = parse(
+            "@font-face { font-family: Demo; } @starting-style { .card { opacity: 0; } } @view-transition { navigation: auto; }",
+            StyleDialect::Css,
+        );
+        let invalid = parse(
+            "@font-face Demo { font-family: Demo; } @starting-style demo { .card { opacity: 0; } } @view-transition demo { navigation: auto; }",
+            StyleDialect::Css,
+        );
+        let unexpected_prelude_errors = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "unexpected at-rule prelude")
+            .count();
+
+        assert!(valid.errors().is_empty());
+        assert_eq!(unexpected_prelude_errors, 3);
+    }
+
+    #[test]
     fn classifies_initial_scss_at_rule_nodes() {
         let module_rules = parse(
             "@use \"sass:map\"; @forward \"tokens\";",
@@ -8721,6 +8758,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"keyframesAtRuleNameValidation")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"emptyBlockAtRulePreludeValidation")
         );
         assert!(
             summary
