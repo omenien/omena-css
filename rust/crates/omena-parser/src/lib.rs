@@ -733,6 +733,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "icssImportSourceValidation",
             "cssModuleFromClauseSourceValidation",
             "cssModuleComposesMultipleFromValidation",
+            "cssModuleGlobalComposesValidation",
             "cssModuleBogusRecovery",
             "valueListCstNodes",
             "valueListBogusRecovery",
@@ -1926,6 +1927,14 @@ impl<'text> Parser<'text> {
             SyntaxKind::BogusDeclaration
         };
         self.builder.start_node(kind);
+        if kind == SyntaxKind::CssModuleComposesDeclaration
+            && self.current_css_module_scope_context() == Some("global")
+        {
+            self.error_at_current(
+                ParseErrorCode::UnexpectedCharacter,
+                "composes is not allowed inside :global scope",
+            );
+        }
         let property_kind = if matches!(
             self.current_kind(),
             Some(
@@ -2134,6 +2143,44 @@ impl<'text> Parser<'text> {
             );
         }
         self.builder.finish_node();
+    }
+
+    fn current_css_module_scope_context(&self) -> Option<&'static str> {
+        let mut open_blocks = Vec::new();
+        for (index, token) in self.tokens.iter().take(self.position).enumerate() {
+            match token.kind {
+                SyntaxKind::LeftBrace | SyntaxKind::SassIndent => open_blocks.push(index),
+                SyntaxKind::RightBrace | SyntaxKind::SassDedent => {
+                    open_blocks.pop();
+                }
+                _ => {}
+            }
+        }
+
+        open_blocks.into_iter().find_map(|block_start| {
+            let header_start = self.header_start_for_block(block_start);
+            css_module_scope_marker_in_header(&self.tokens, header_start, block_start)
+        })
+    }
+
+    fn header_start_for_block(&self, block_start: usize) -> usize {
+        let mut index = block_start;
+        while index > 0 {
+            let previous = index - 1;
+            if matches!(
+                self.tokens[previous].kind,
+                SyntaxKind::LeftBrace
+                    | SyntaxKind::RightBrace
+                    | SyntaxKind::SassIndent
+                    | SyntaxKind::SassDedent
+                    | SyntaxKind::Semicolon
+                    | SyntaxKind::SassOptionalSemicolon
+            ) {
+                break;
+            }
+            index = previous;
+        }
+        index
     }
 
     fn parse_dialect_at_rule(&mut self) {
@@ -6376,6 +6423,35 @@ fn collect_local_function_selector_names(
     ))
 }
 
+fn css_module_scope_marker_in_header(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> Option<&'static str> {
+    if next_non_trivia_token_until(tokens, start, end)
+        .is_some_and(|token| token.kind == SyntaxKind::AtKeyword)
+    {
+        return None;
+    }
+
+    let mut index = start;
+    while index < end {
+        if tokens[index].kind == SyntaxKind::Colon
+            && let Some(scope) = next_non_trivia_token_until(tokens, index + 1, end)
+            && scope.kind == SyntaxKind::Ident
+        {
+            if scope.text == "global" {
+                return Some("global");
+            }
+            if scope.text == "local" {
+                return Some("local");
+            }
+        }
+        index += 1;
+    }
+    None
+}
+
 fn collect_id_selector_facts_from_header(
     tokens: &[Token<'_>],
     start: usize,
@@ -8385,6 +8461,31 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::BogusComposesDeclaration));
         assert_eq!(invalid_from_source_count, 2);
         assert_eq!(multiple_from_count, 1);
+    }
+
+    #[test]
+    fn validates_composes_outside_css_module_global_scope() {
+        let invalid = parse(
+            ":global(.reset) { composes: base; } :global { .utility { composes: base; } } :local(.ok) { composes: base; }",
+            StyleDialect::Css,
+        );
+        let outer_local = parse(
+            ":local { :global(.ok) { composes: base; } }",
+            StyleDialect::Css,
+        );
+        let global_composes_count = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "composes is not allowed inside :global scope")
+            .count();
+
+        assert_eq!(global_composes_count, 2);
+        assert!(
+            !outer_local
+                .errors()
+                .iter()
+                .any(|error| error.message == "composes is not allowed inside :global scope")
+        );
     }
 
     #[test]
@@ -10651,6 +10752,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"cssModuleComposesMultipleFromValidation")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"cssModuleGlobalComposesValidation")
         );
         assert!(summary.ready_surfaces.contains(&"cssModuleBogusRecovery"));
         assert!(summary.ready_surfaces.contains(&"valueListCstNodes"));
