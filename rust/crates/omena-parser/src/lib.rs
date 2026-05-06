@@ -728,6 +728,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "cssModuleComposesCstNodes",
             "icssModuleBlockCstNodes",
             "icssImportSourceValidation",
+            "cssModuleFromClauseSourceValidation",
             "cssModuleBogusRecovery",
             "valueListCstNodes",
             "valueListBogusRecovery",
@@ -2052,10 +2053,14 @@ impl<'text> Parser<'text> {
     }
 
     fn parse_css_module_from_clause(&mut self, recovery: &[SyntaxKind]) {
-        let has_source = self
-            .non_trivia_token_from(self.position + 1)
-            .is_some_and(|(_, kind)| !recovery.contains(&kind));
-        self.builder.start_node(if has_source {
+        let source = self.non_trivia_token_from(self.position + 1);
+        let has_source = source.is_some_and(|(_, kind)| !recovery.contains(&kind));
+        let has_valid_source = source.is_some_and(|(index, kind)| {
+            self.tokens
+                .get(index)
+                .is_some_and(|token| is_css_module_from_source_token(kind, token.text))
+        });
+        self.builder.start_node(if has_valid_source {
             SyntaxKind::CssModuleFromClause
         } else {
             SyntaxKind::BogusFromClause
@@ -2072,6 +2077,11 @@ impl<'text> Parser<'text> {
             self.error_at_current(
                 ParseErrorCode::UnexpectedCharacter,
                 "expected CSS Modules from-clause source",
+            );
+        } else if !has_valid_source {
+            self.error_at_current(
+                ParseErrorCode::ExpectedValue,
+                "invalid CSS Modules from-clause source",
             );
         }
         self.builder.finish_node();
@@ -7260,6 +7270,16 @@ fn is_scss_module_visibility_name_token(kind: SyntaxKind) -> bool {
     )
 }
 
+fn is_css_module_from_source_token(kind: SyntaxKind, text: &str) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::String
+            | SyntaxKind::Url
+            | SyntaxKind::ScssInterpolationStart
+            | SyntaxKind::LessInterpolationStart
+    ) || (kind == SyntaxKind::Ident && text == "global")
+}
+
 fn matches_ignore_ascii_case(value: &str, candidates: &[&str]) -> bool {
     candidates
         .iter()
@@ -8236,15 +8256,21 @@ mod tests {
     #[test]
     fn recovers_css_module_value_and_composes_bogus_nodes() {
         let result = parse(
-            "@value from; .bad { composes: from; } .missing { composes base; }",
+            "@value from; .bad { composes: from; } .missing { composes base; } .invalid { composes: base from 123; } @value bad as alias from 123;",
             StyleDialect::Scss,
         );
         let kinds = node_kinds(&result.syntax());
+        let invalid_from_source_count = result
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid CSS Modules from-clause source")
+            .count();
 
         assert!(kinds.contains(&SyntaxKind::BogusCssModuleBlock));
         assert!(kinds.contains(&SyntaxKind::BogusFromClause));
         assert!(kinds.contains(&SyntaxKind::BogusComposesTarget));
         assert!(kinds.contains(&SyntaxKind::BogusComposesDeclaration));
+        assert_eq!(invalid_from_source_count, 2);
     }
 
     #[test]
@@ -10434,6 +10460,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"icssImportSourceValidation")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"cssModuleFromClauseSourceValidation")
         );
         assert!(summary.ready_surfaces.contains(&"cssModuleBogusRecovery"));
         assert!(summary.ready_surfaces.contains(&"valueListCstNodes"));
