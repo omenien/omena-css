@@ -90,6 +90,13 @@ const CORPUS = [
     expectedIdSelectorNames: ["panel"],
   },
   {
+    label: "css-modules-local-selector-list-facts",
+    filePath: "/f.module.css",
+    dialect: "css",
+    source: `:local(.button, .link:hover) { color: red; } :global(.reset, .theme) { color: blue; }`,
+    expectedClassSelectorNames: ["button", "link"],
+  },
+  {
     label: "css-animation-name-facts",
     filePath: "/f.module.css",
     dialect: "css",

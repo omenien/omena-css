@@ -11356,6 +11356,22 @@ mod tests {
     }
 
     #[test]
+    fn extracts_css_module_local_selector_list_facts() {
+        let facts = collect_style_facts(
+            ":local(.button, .link:hover) { color: red; } :global(.reset, .theme) { color: blue; }",
+            StyleDialect::Css,
+        );
+        let class_names = facts
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+            .map(|selector| selector.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(class_names, vec!["button", "link"]);
+    }
+
+    #[test]
     fn parses_functional_pseudo_selector_lists_with_bogus_item_recovery() {
         let result = parse(
             ".btn:is(#it/typo, .ok):where(.wide, .compact) { color: red; }",

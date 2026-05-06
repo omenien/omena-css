@@ -226,6 +226,18 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "css-modules-local-selector-list-facts",
+    dialect: "css",
+    source: `:local(.button, .link:hover) { color: red; } :global(.reset, .theme) { color: blue; }`,
+    expected: {
+      classSelectorNames: ["button", "link"],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: [],
+      atRuleNames: [],
+    },
+  },
+  {
     label: "css-animation-name-facts",
     dialect: "css",
     source: `@keyframes fade { from { opacity: 0; } to { opacity: 1; } } @keyframes "slide" { to { opacity: 1; } } .card { animation-name: fade; animation: "slide" 2s linear both, none 1s, var(--anim) 1s; }`,
