@@ -170,6 +170,15 @@ fn exposes_omena_parser_style_fact_surface() {
         summary.css_module_value_import_edges[0].import_source,
         "./tokens.module.scss"
     );
+    assert_eq!(summary.css_module_value_definition_edges.len(), 1);
+    assert_eq!(
+        summary.css_module_value_definition_edges[0].definition_name,
+        "accent"
+    );
+    assert_eq!(
+        summary.css_module_value_definition_edges[0].reference_names,
+        vec!["primary"]
+    );
     assert_eq!(
         summary.css_module_composes_target_names,
         vec!["base", "utility"]
@@ -836,7 +845,7 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
             ),
             (
                 "/tmp/App.module.scss",
-                "@value primary as localPrimary from \"./tokens.module.scss\"; :import(\"./tokens.module.scss\") { imported: exported; } .btn { composes: base from \"./base.module.scss\"; color: localPrimary; }",
+                "@value primary as localPrimary from \"./tokens.module.scss\"; @value accent: localPrimary; :import(\"./tokens.module.scss\") { imported: exported; } .btn { composes: base from \"./base.module.scss\"; color: accent; }",
             ),
         ],
         &input,
@@ -846,13 +855,15 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
         batch.css_modules_resolution.product,
         "omena-query.css-modules-cross-file-resolution"
     );
-    assert_eq!(batch.css_modules_resolution.status, "composesClosureSeed");
+    assert_eq!(batch.css_modules_resolution.status, "valueGraphClosureSeed");
     assert_eq!(batch.css_modules_resolution.import_edge_count, 3);
     assert_eq!(batch.css_modules_resolution.resolved_import_edge_count, 3);
     assert_eq!(batch.css_modules_resolution.unresolved_import_edge_count, 0);
     assert_eq!(batch.css_modules_resolution.matched_name_count, 3);
     assert_eq!(batch.css_modules_resolution.composes_closure_edge_count, 3);
+    assert_eq!(batch.css_modules_resolution.value_closure_edge_count, 3);
     assert_eq!(batch.css_modules_resolution.composes_cycle_count, 0);
+    assert_eq!(batch.css_modules_resolution.value_cycle_count, 0);
 
     let composes = batch
         .css_modules_resolution
@@ -889,6 +900,25 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
             "/tmp/App.module.scss#btn",
             "/tmp/base.module.scss#base",
             "/tmp/base.module.scss#foundation"
+        ]
+    );
+
+    let transitive_value = batch
+        .css_modules_resolution
+        .value_closure_edges
+        .iter()
+        .find(|edge| edge.value_name == "accent" && edge.target_value_name == "primary");
+    assert!(transitive_value.is_some());
+    let Some(transitive_value) = transitive_value else {
+        return;
+    };
+    assert_eq!(transitive_value.depth, 2);
+    assert_eq!(
+        transitive_value.path,
+        vec![
+            "/tmp/App.module.scss#accent",
+            "/tmp/App.module.scss#localPrimary",
+            "/tmp/tokens.module.scss#primary"
         ]
     );
 
@@ -933,6 +963,12 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
         batch
             .css_modules_resolution
             .capabilities
+            .value_graph_closure_ready
+    );
+    assert!(
+        batch
+            .css_modules_resolution
+            .capabilities
             .cycle_detection_ready
     );
 }
@@ -950,12 +986,32 @@ fn style_semantic_graph_batch_detects_css_modules_composes_cycles() {
 
     assert_eq!(batch.css_modules_resolution.import_edge_count, 0);
     assert_eq!(batch.css_modules_resolution.composes_cycle_count, 1);
+    assert_eq!(batch.css_modules_resolution.value_cycle_count, 0);
     assert_eq!(
         batch.css_modules_resolution.cycles[0].path,
         vec![
             "/tmp/cycle.module.scss#a",
             "/tmp/cycle.module.scss#b",
             "/tmp/cycle.module.scss#a"
+        ]
+    );
+}
+
+#[test]
+fn style_semantic_graph_batch_detects_css_modules_value_cycles() {
+    let input = sample_input();
+    let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [("/tmp/value-cycle.module.scss", "@value a: b; @value b: a;")],
+        &input,
+    );
+
+    assert_eq!(batch.css_modules_resolution.value_cycle_count, 1);
+    assert_eq!(
+        batch.css_modules_resolution.cycles[0].path,
+        vec![
+            "/tmp/value-cycle.module.scss#a",
+            "/tmp/value-cycle.module.scss#b",
+            "/tmp/value-cycle.module.scss#a"
         ]
     );
 }

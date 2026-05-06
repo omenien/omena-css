@@ -158,6 +158,8 @@ pub struct ParsedStyleFacts {
     pub css_module_values: Vec<ParsedCssModuleValueFact>,
     pub css_module_value_import_edge_count: usize,
     pub css_module_value_import_edges: Vec<ParsedCssModuleValueImportEdgeFact>,
+    pub css_module_value_definition_edge_count: usize,
+    pub css_module_value_definition_edges: Vec<ParsedCssModuleValueDefinitionEdgeFact>,
     pub css_module_composes_count: usize,
     pub css_module_composes: Vec<ParsedCssModuleComposesFact>,
     pub css_module_composes_edge_count: usize,
@@ -234,6 +236,13 @@ pub struct ParsedCssModuleValueImportEdgeFact {
     pub remote_name: String,
     pub local_name: String,
     pub import_source: String,
+    pub range: TextRange,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedCssModuleValueDefinitionEdgeFact {
+    pub definition_name: String,
+    pub reference_names: Vec<String>,
     pub range: TextRange,
 }
 
@@ -707,6 +716,8 @@ pub fn collect_style_facts_with_extension(
     let css_module_values = collect_css_module_value_facts_from_tokens(&tokens);
     let css_module_value_import_edges =
         collect_css_module_value_import_edge_facts_from_tokens(&tokens);
+    let css_module_value_definition_edges =
+        collect_css_module_value_definition_edge_facts_from_tokens(&tokens);
     let css_module_composes = collect_css_module_composes_facts_from_tokens(&tokens);
     let css_module_composes_edges = collect_css_module_composes_edge_facts_from_tokens(&tokens);
     let icss = collect_icss_facts_from_tokens(&tokens);
@@ -726,6 +737,8 @@ pub fn collect_style_facts_with_extension(
         css_module_values,
         css_module_value_import_edge_count: css_module_value_import_edges.len(),
         css_module_value_import_edges,
+        css_module_value_definition_edge_count: css_module_value_definition_edges.len(),
+        css_module_value_definition_edges,
         css_module_composes_count: css_module_composes.len(),
         css_module_composes,
         css_module_composes_edge_count: css_module_composes_edges.len(),
@@ -6972,6 +6985,75 @@ fn collect_css_module_value_import_edge_facts_from_tokens(
     edges
 }
 
+fn collect_css_module_value_definition_edge_facts_from_tokens(
+    tokens: &[Token<'_>],
+) -> Vec<ParsedCssModuleValueDefinitionEdgeFact> {
+    let mut edges = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@value") {
+            continue;
+        }
+
+        let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
+        let end = css_module_value_statement_end(tokens, start);
+        let colon_index = top_level_token_kind_index(tokens, start, end, SyntaxKind::Colon);
+        let from_index = top_level_token_text_index(tokens, start, end, "from");
+        let Some(colon_index) = colon_index else {
+            continue;
+        };
+        if from_index.is_some_and(|from_index| from_index < colon_index) {
+            continue;
+        }
+
+        let definition_names = collect_css_module_value_definition_edge_names(
+            tokens,
+            start,
+            colon_index,
+            |tokens, index| css_module_value_name_token_can_define(tokens[index]),
+        );
+        let reference_names = collect_css_module_value_definition_edge_names(
+            tokens,
+            colon_index + 1,
+            end,
+            css_module_value_reference_token_can_be_name,
+        );
+        if reference_names.is_empty() {
+            continue;
+        }
+        let range_end = end
+            .checked_sub(1)
+            .and_then(|end| tokens.get(end))
+            .map(|token| token.range.end())
+            .unwrap_or_else(|| tokens[index].range.end());
+
+        for definition_name in definition_names {
+            edges.push(ParsedCssModuleValueDefinitionEdgeFact {
+                definition_name,
+                reference_names: reference_names.clone(),
+                range: TextRange::new(tokens[index].range.start(), range_end),
+            });
+        }
+    }
+    edges
+}
+
+fn collect_css_module_value_definition_edge_names(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    predicate: impl Fn(&[Token<'_>], usize) -> bool,
+) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut index = start;
+    while index < end {
+        if predicate(tokens, index) && !names.iter().any(|name| name == tokens[index].text) {
+            names.push(tokens[index].text.to_string());
+        }
+        index += 1;
+    }
+    names
+}
+
 fn css_module_value_import_edge_source(
     tokens: &[Token<'_>],
     start: usize,
@@ -9994,6 +10076,15 @@ mod tests {
         assert_eq!(
             facts.css_module_value_import_edges[0].import_source,
             "./tokens.module.scss"
+        );
+        assert_eq!(facts.css_module_value_definition_edge_count, 1);
+        assert_eq!(
+            facts.css_module_value_definition_edges[0].definition_name,
+            "accent"
+        );
+        assert_eq!(
+            facts.css_module_value_definition_edges[0].reference_names,
+            vec!["primary"]
         );
     }
 
