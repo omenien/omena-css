@@ -133,7 +133,7 @@ fn summarizes_query_boundary_over_producer_fragments() {
 #[test]
 fn exposes_omena_parser_style_fact_surface() {
     let summary = summarize_omena_query_omena_parser_style_facts(
-        "@use \"tokens\"; @value primary: #fff; @value accent: primary; @value secondary as localSecondary from \"./tokens.module.scss\"; @keyframes fade { to { opacity: 1; } } $gap: 1rem; %surface { color: red; } .card#main { --space: $gap; animation: 1s ease-in fade; }",
+        "@use \"tokens\"; @value primary: #fff; @value accent: primary; @value secondary as localSecondary from \"./tokens.module.scss\"; @keyframes fade { to { opacity: 1; } } $gap: 1rem; %surface { color: red; } .card#main { composes: base utility from \"./base.module.scss\"; --space: $gap; animation: 1s ease-in fade; }",
         omena_parser::StyleDialect::Scss,
     );
 
@@ -156,6 +156,14 @@ fn exposes_omena_parser_style_fact_surface() {
     assert_eq!(
         summary.css_module_value_import_sources,
         vec!["./tokens.module.scss"]
+    );
+    assert_eq!(
+        summary.css_module_composes_target_names,
+        vec!["base", "utility"]
+    );
+    assert_eq!(
+        summary.css_module_composes_import_sources,
+        vec!["./base.module.scss"]
     );
     assert!(summary.variable_names.contains(&"$gap".to_string()));
     assert!(

@@ -32,6 +32,8 @@ interface OmenaParserStyleFactsV0 {
   readonly cssModuleValueDefinitionNames: readonly string[];
   readonly cssModuleValueReferenceNames: readonly string[];
   readonly cssModuleValueImportSources: readonly string[];
+  readonly cssModuleComposesTargetNames: readonly string[];
+  readonly cssModuleComposesImportSources: readonly string[];
   readonly atRuleNames: readonly string[];
   readonly parserErrorCount: number;
 }
@@ -101,6 +103,15 @@ const CORPUS = [
     expectedCssModuleValueDefinitionNames: ["primary", "accent", "localSecondary"],
     expectedCssModuleValueReferenceNames: ["primary", "secondary"],
     expectedCssModuleValueImportSources: ["./tokens.module.css"],
+  },
+  {
+    label: "css-modules-composes-facts",
+    filePath: "/f.module.css",
+    dialect: "css",
+    source: `.btn { composes: base utility from "./base.module.css"; } .global { composes: reset from global; }`,
+    expectedClassSelectorNames: ["btn", "global"],
+    expectedCssModuleComposesTargetNames: ["base", "utility", "reset"],
+    expectedCssModuleComposesImportSources: ["./base.module.css", "global"],
   },
   {
     label: "scss-sass-symbol-facts",
@@ -251,6 +262,20 @@ void (async () => {
         sortedUnique(actual.cssModuleValueImportSources),
         sortedUnique(entry.expectedCssModuleValueImportSources),
         `${entry.label} CSS Modules @value import source drift`,
+      );
+    }
+    if ("expectedCssModuleComposesTargetNames" in entry) {
+      assert.deepEqual(
+        sortedUnique(actual.cssModuleComposesTargetNames),
+        sortedUnique(entry.expectedCssModuleComposesTargetNames),
+        `${entry.label} CSS Modules composes target drift`,
+      );
+    }
+    if ("expectedCssModuleComposesImportSources" in entry) {
+      assert.deepEqual(
+        sortedUnique(actual.cssModuleComposesImportSources),
+        sortedUnique(entry.expectedCssModuleComposesImportSources),
+        `${entry.label} CSS Modules composes import source drift`,
       );
     }
 

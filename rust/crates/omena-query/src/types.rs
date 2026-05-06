@@ -106,6 +106,8 @@ pub struct OmenaQueryOmenaParserStyleFactsV0 {
     pub css_module_value_definition_names: Vec<String>,
     pub css_module_value_reference_names: Vec<String>,
     pub css_module_value_import_sources: Vec<String>,
+    pub css_module_composes_target_names: Vec<String>,
+    pub css_module_composes_import_sources: Vec<String>,
     pub variable_names: Vec<String>,
     pub custom_property_names: Vec<String>,
     pub at_rule_names: Vec<String>,

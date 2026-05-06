@@ -36,6 +36,8 @@ interface OmenaParserStyleFactsV0 {
   readonly cssModuleValueDefinitionNames: readonly string[];
   readonly cssModuleValueReferenceNames: readonly string[];
   readonly cssModuleValueImportSources: readonly string[];
+  readonly cssModuleComposesTargetNames: readonly string[];
+  readonly cssModuleComposesImportSources: readonly string[];
   readonly atRuleNames: readonly string[];
   readonly parserErrorCount: number;
 }
@@ -249,6 +251,20 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "css-modules-composes-facts",
+    dialect: "css",
+    source: `.btn { composes: base utility from "./base.module.css"; } .global { composes: reset from global; }`,
+    expected: {
+      classSelectorNames: ["btn", "global"],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: [],
+      cssModuleComposesTargetNames: ["base", "utility", "reset"],
+      cssModuleComposesImportSources: ["./base.module.css", "global"],
+      atRuleNames: [],
+    },
+  },
+  {
     label: "css-color-function-micro-grammars",
     dialect: "css",
     source: `.paint { color: color-mix(in srgb, red, blue 30%); background: light-dark(white, black); border-color: contrast-color(red); accent-color: device-cmyk(0 1 1 0); }`,
@@ -358,6 +374,8 @@ const PARSER_ONLY_CORPUS = [
     readonly cssModuleValueDefinitionNames?: readonly string[];
     readonly cssModuleValueReferenceNames?: readonly string[];
     readonly cssModuleValueImportSources?: readonly string[];
+    readonly cssModuleComposesTargetNames?: readonly string[];
+    readonly cssModuleComposesImportSources?: readonly string[];
     readonly atRuleNames: readonly string[];
   };
 }[];
@@ -793,6 +811,20 @@ void (async () => {
         sortedUnique(actual.cssModuleValueImportSources),
         sortedUnique(entry.expected.cssModuleValueImportSources),
         `${entry.label} parser-only CSS Modules @value import source drift`,
+      );
+    }
+    if (entry.expected.cssModuleComposesTargetNames) {
+      assert.deepEqual(
+        sortedUnique(actual.cssModuleComposesTargetNames),
+        sortedUnique(entry.expected.cssModuleComposesTargetNames),
+        `${entry.label} parser-only CSS Modules composes target drift`,
+      );
+    }
+    if (entry.expected.cssModuleComposesImportSources) {
+      assert.deepEqual(
+        sortedUnique(actual.cssModuleComposesImportSources),
+        sortedUnique(entry.expected.cssModuleComposesImportSources),
+        `${entry.label} parser-only CSS Modules composes import source drift`,
       );
     }
     assert.deepEqual(

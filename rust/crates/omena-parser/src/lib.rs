@@ -156,6 +156,8 @@ pub struct ParsedStyleFacts {
     pub animations: Vec<ParsedAnimationFact>,
     pub css_module_value_count: usize,
     pub css_module_values: Vec<ParsedCssModuleValueFact>,
+    pub css_module_composes_count: usize,
+    pub css_module_composes: Vec<ParsedCssModuleComposesFact>,
     pub at_rule_count: usize,
     pub at_rules: Vec<ParsedAtRuleFact>,
     pub error_count: usize,
@@ -216,6 +218,19 @@ pub struct ParsedCssModuleValueFact {
 pub enum ParsedCssModuleValueFactKind {
     Definition,
     Reference,
+    ImportSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedCssModuleComposesFact {
+    pub kind: ParsedCssModuleComposesFactKind,
+    pub name: String,
+    pub range: TextRange,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ParsedCssModuleComposesFactKind {
+    Target,
     ImportSource,
 }
 
@@ -635,6 +650,7 @@ pub fn collect_style_facts_with_extension(
     let variables = collect_variable_facts_from_tokens(&tokens);
     let animations = collect_animation_facts_from_tokens(&tokens);
     let css_module_values = collect_css_module_value_facts_from_tokens(&tokens);
+    let css_module_composes = collect_css_module_composes_facts_from_tokens(&tokens);
     let at_rules = collect_at_rule_facts_from_tokens(&tokens, extension.dialect());
 
     ParsedStyleFacts {
@@ -648,6 +664,8 @@ pub fn collect_style_facts_with_extension(
         animations,
         css_module_value_count: css_module_values.len(),
         css_module_values,
+        css_module_composes_count: css_module_composes.len(),
+        css_module_composes,
         at_rule_count: at_rules.len(),
         at_rules,
         error_count: errors.len(),
@@ -687,6 +705,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "cssModuleGlobalSelectorFactFiltering",
             "cssModuleLocalIdSelectorFacts",
             "cssModuleValueStyleFacts",
+            "cssModuleComposesStyleFacts",
             "animationNameStyleFacts",
             "animationShorthandStyleFacts",
             "scssStructuredBlockAtRules",
@@ -7084,6 +7103,108 @@ fn css_module_value_source_name(token: Token<'_>) -> String {
         .to_string()
 }
 
+fn collect_css_module_composes_facts_from_tokens(
+    tokens: &[Token<'_>],
+) -> Vec<ParsedCssModuleComposesFact> {
+    let mut composes = Vec::new();
+    let mut seen = BTreeSet::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::Ident || !token.text.eq_ignore_ascii_case("composes") {
+            continue;
+        }
+        let Some(colon_index) = next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
+        else {
+            continue;
+        };
+        if tokens[colon_index].kind != SyntaxKind::Colon {
+            continue;
+        }
+
+        let start = colon_index + 1;
+        let end = css_module_value_statement_end(tokens, start);
+        let from_index = top_level_token_text_index(tokens, start, end, "from");
+        let target_end = from_index.unwrap_or(end);
+        collect_css_module_composes_targets(tokens, start, target_end, &mut composes, &mut seen);
+        if let Some(from_index) = from_index {
+            collect_css_module_composes_import_source(
+                tokens,
+                from_index + 1,
+                end,
+                &mut composes,
+                &mut seen,
+            );
+        }
+    }
+    composes
+}
+
+fn collect_css_module_composes_targets(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    composes: &mut Vec<ParsedCssModuleComposesFact>,
+    seen: &mut BTreeSet<(ParsedCssModuleComposesFactKind, String, u32, u32)>,
+) {
+    let mut index = start;
+    while index < end {
+        if matches!(
+            tokens[index].kind,
+            SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+        ) && !tokens[index].text.eq_ignore_ascii_case("from")
+        {
+            push_css_module_composes_fact(
+                composes,
+                seen,
+                ParsedCssModuleComposesFactKind::Target,
+                tokens[index].text.to_string(),
+                tokens[index].range,
+            );
+        }
+        index += 1;
+    }
+}
+
+fn collect_css_module_composes_import_source(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    composes: &mut Vec<ParsedCssModuleComposesFact>,
+    seen: &mut BTreeSet<(ParsedCssModuleComposesFactKind, String, u32, u32)>,
+) {
+    if let Some(source_index) = next_non_trivia_token_index_until(tokens, start, end) {
+        let token = tokens[source_index];
+        if matches!(
+            token.kind,
+            SyntaxKind::String | SyntaxKind::Url | SyntaxKind::Ident
+        ) {
+            push_css_module_composes_fact(
+                composes,
+                seen,
+                ParsedCssModuleComposesFactKind::ImportSource,
+                css_module_value_source_name(token),
+                token.range,
+            );
+        }
+    }
+}
+
+fn push_css_module_composes_fact(
+    composes: &mut Vec<ParsedCssModuleComposesFact>,
+    seen: &mut BTreeSet<(ParsedCssModuleComposesFactKind, String, u32, u32)>,
+    kind: ParsedCssModuleComposesFactKind,
+    name: String,
+    range: TextRange,
+) {
+    if seen.insert((
+        kind,
+        name.clone(),
+        u32::from(range.start()),
+        u32::from(range.end()),
+    )) {
+        composes.push(ParsedCssModuleComposesFact { kind, name, range });
+    }
+}
+
 fn collect_animation_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedAnimationFact> {
     let mut animations = Vec::new();
     let mut seen = BTreeSet::new();
@@ -9244,6 +9365,30 @@ mod tests {
     }
 
     #[test]
+    fn extracts_css_module_composes_style_facts() {
+        let facts = collect_style_facts(
+            ".btn { composes: base utility from \"./base.module.scss\"; } .global { composes: reset from global; }",
+            StyleDialect::Css,
+        );
+        let targets = facts
+            .css_module_composes
+            .iter()
+            .filter(|composes| composes.kind == ParsedCssModuleComposesFactKind::Target)
+            .map(|composes| composes.name.as_str())
+            .collect::<Vec<_>>();
+        let import_sources = facts
+            .css_module_composes
+            .iter()
+            .filter(|composes| composes.kind == ParsedCssModuleComposesFactKind::ImportSource)
+            .map(|composes| composes.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(facts.css_module_composes_count, 5);
+        assert_eq!(targets, vec!["base", "utility", "reset"]);
+        assert_eq!(import_sources, vec!["./base.module.scss", "global"]);
+    }
+
+    #[test]
     fn parses_icss_import_export_blocks() {
         let result = parse(
             ":export { primary: #fff; } :import(\"./tokens.css\") { imported: primary; } .btn { composes: imported; }",
@@ -11389,6 +11534,11 @@ mod tests {
                 .contains(&"cssModuleLocalIdSelectorFacts")
         );
         assert!(summary.ready_surfaces.contains(&"cssModuleValueStyleFacts"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"cssModuleComposesStyleFacts")
+        );
         assert!(summary.ready_surfaces.contains(&"animationNameStyleFacts"));
         assert!(
             summary

@@ -40,6 +40,8 @@ pub fn summarize_omena_query_omena_parser_style_facts(
     let mut css_module_value_definition_names = BTreeSet::new();
     let mut css_module_value_reference_names = BTreeSet::new();
     let mut css_module_value_import_sources = BTreeSet::new();
+    let mut css_module_composes_target_names = BTreeSet::new();
+    let mut css_module_composes_import_sources = BTreeSet::new();
     let mut variable_names = BTreeSet::new();
     let mut custom_property_names = BTreeSet::new();
 
@@ -89,6 +91,17 @@ pub fn summarize_omena_query_omena_parser_style_facts(
         }
     }
 
+    for composes in facts.css_module_composes {
+        match composes.kind {
+            ParsedCssModuleComposesFactKind::Target => {
+                css_module_composes_target_names.insert(composes.name);
+            }
+            ParsedCssModuleComposesFactKind::ImportSource => {
+                css_module_composes_import_sources.insert(composes.name);
+            }
+        }
+    }
+
     OmenaQueryOmenaParserStyleFactsV0 {
         schema_version: "0",
         product: "omena-query.omena-parser-style-facts",
@@ -101,6 +114,10 @@ pub fn summarize_omena_query_omena_parser_style_facts(
         css_module_value_definition_names: css_module_value_definition_names.into_iter().collect(),
         css_module_value_reference_names: css_module_value_reference_names.into_iter().collect(),
         css_module_value_import_sources: css_module_value_import_sources.into_iter().collect(),
+        css_module_composes_target_names: css_module_composes_target_names.into_iter().collect(),
+        css_module_composes_import_sources: css_module_composes_import_sources
+            .into_iter()
+            .collect(),
         variable_names: variable_names.into_iter().collect(),
         custom_property_names: custom_property_names.into_iter().collect(),
         at_rule_names: facts
