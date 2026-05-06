@@ -728,6 +728,20 @@ describe("style semantic graph query backend", () => {
         styleFiles: [SCSS_PATH, CARD_SCSS_PATH],
         styleSemanticGraphCache: new Map(),
         runRustSelectedQueryBackendJson: <T>(command: string, input: unknown): T => {
+          if (command === "omena-parser-style-facts") {
+            expect(input).toMatchObject({
+              styleSource: `@use "@design/tokens/theme";\n.button { color: var(--brand); }`,
+              dialect: "scss",
+            });
+            return {
+              schemaVersion: "0",
+              product: "omena-query.omena-parser-style-facts",
+              dialect: "scss",
+              sassModuleUseSources: ["@design/tokens/theme"],
+              sassModuleForwardSources: [],
+              sassModuleImportSources: [],
+            } as T;
+          }
           if (command !== "style-semantic-graph-batch") {
             throw new Error(`unexpected runner command: ${command}`);
           }

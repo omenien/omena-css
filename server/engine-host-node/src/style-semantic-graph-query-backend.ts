@@ -2,7 +2,6 @@ import path from "node:path";
 import type { Range } from "@css-module-explainer/shared";
 import type { EngineInputV2 } from "../../engine-core-ts/src/contracts";
 import type { StyleDocumentHIR } from "../../engine-core-ts/src/core/hir/style-types";
-import { parseStyleDocument } from "../../engine-core-ts/src/core/scss/scss-parser";
 import type { ProviderDeps } from "../../engine-core-ts/src/provider-deps";
 import { buildEngineInputV2 } from "./engine-input-v2";
 import {
@@ -298,6 +297,15 @@ export interface StyleSemanticGraphBatchRunnerInputV0 {
 export interface StyleSemanticGraphBatchStyleInputV0 {
   readonly stylePath: string;
   readonly styleSource: string;
+}
+
+export interface OmenaParserStyleFactsV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-query.omena-parser-style-facts";
+  readonly dialect: string;
+  readonly sassModuleUseSources: readonly string[];
+  readonly sassModuleForwardSources: readonly string[];
+  readonly sassModuleImportSources: readonly string[];
 }
 
 export interface StyleSemanticGraphPackageManifestInputV0 {
@@ -1006,10 +1014,15 @@ async function maybePopulateStyleSemanticGraphCacheFromBatchAsync(
     styles.push({ stylePath, styleSource });
   }
   if (styles.length <= 1) return;
-  const batchStyles = expandStyleSemanticGraphBatchStyles(styles, options.readStyleFile);
+  const batchStyles = expandStyleSemanticGraphBatchStyles(
+    styles,
+    options.readStyleFile,
+    queryOptions,
+  );
   const packageManifests = collectStyleSemanticGraphPackageManifests(
     batchStyles,
     options.readStyleFile,
+    queryOptions,
   );
 
   const requestedStylePaths = new Set(batchStyles.map((style) => style.stylePath));
@@ -1056,10 +1069,15 @@ function maybePopulateStyleSemanticGraphCacheFromBatch(
     styles.push({ stylePath, styleSource });
   }
   if (styles.length <= 1) return;
-  const batchStyles = expandStyleSemanticGraphBatchStyles(styles, options.readStyleFile);
+  const batchStyles = expandStyleSemanticGraphBatchStyles(
+    styles,
+    options.readStyleFile,
+    queryOptions,
+  );
   const packageManifests = collectStyleSemanticGraphPackageManifests(
     batchStyles,
     options.readStyleFile,
+    queryOptions,
   );
 
   const requestedStylePaths = new Set(batchStyles.map((style) => style.stylePath));
@@ -1097,12 +1115,17 @@ function resolveRustStyleSemanticGraphBatchOutput(
     options.readStyleFile,
   );
   if (styles.length === 0) return null;
-  const batchStyles = expandStyleSemanticGraphBatchStyles(styles, options.readStyleFile);
+  const batchStyles = expandStyleSemanticGraphBatchStyles(
+    styles,
+    options.readStyleFile,
+    queryOptions,
+  );
   const cached = readStyleSemanticGraphBatchOutputCache(batchStyles, queryOptions);
   if (cached !== undefined) return cached;
   const packageManifests = collectStyleSemanticGraphPackageManifests(
     batchStyles,
     options.readStyleFile,
+    queryOptions,
   );
 
   try {
@@ -1138,12 +1161,17 @@ async function resolveRustStyleSemanticGraphBatchOutputAsync(
     options.readStyleFile,
   );
   if (styles.length === 0) return null;
-  const batchStyles = expandStyleSemanticGraphBatchStyles(styles, options.readStyleFile);
+  const batchStyles = expandStyleSemanticGraphBatchStyles(
+    styles,
+    options.readStyleFile,
+    queryOptions,
+  );
   const cached = readStyleSemanticGraphBatchOutputCache(batchStyles, queryOptions);
   if (cached !== undefined) return cached;
   const packageManifests = collectStyleSemanticGraphPackageManifests(
     batchStyles,
     options.readStyleFile,
+    queryOptions,
   );
 
   try {
@@ -1226,13 +1254,14 @@ function styleSemanticGraphBatchOutputCacheKey(
 function expandStyleSemanticGraphBatchStyles(
   styles: readonly StyleSemanticGraphBatchStyleInputV0[],
   readStyleFile: ProviderDeps["readStyleFile"],
+  queryOptions: StyleSemanticGraphQueryOptions,
 ): readonly StyleSemanticGraphBatchStyleInputV0[] {
   const byPath = new Map(styles.map((style) => [style.stylePath, style] as const));
   const pending = [...styles];
 
   while (pending.length > 0) {
     const style = pending.shift()!;
-    for (const source of collectSassModuleSources(style)) {
+    for (const source of collectSassModuleSources(style, queryOptions)) {
       for (const candidate of styleModuleSourceCandidates(style.stylePath, source, readStyleFile)) {
         if (byPath.has(candidate)) continue;
         const styleSource = readStyleFile(candidate);
@@ -1251,10 +1280,11 @@ function expandStyleSemanticGraphBatchStyles(
 function collectStyleSemanticGraphPackageManifests(
   styles: readonly StyleSemanticGraphBatchStyleInputV0[],
   readStyleFile: ProviderDeps["readStyleFile"],
+  queryOptions: StyleSemanticGraphQueryOptions,
 ): readonly StyleSemanticGraphPackageManifestInputV0[] {
   const manifests = new Map<string, StyleSemanticGraphPackageManifestInputV0>();
   for (const style of styles) {
-    for (const source of collectSassModuleSources(style)) {
+    for (const source of collectSassModuleSources(style, queryOptions)) {
       const packageName = parsePackageStyleSource(source)?.packageName;
       if (!packageName) continue;
       for (const packageJsonPath of packageJsonCandidatePaths(style.stylePath, packageName)) {
@@ -1269,12 +1299,43 @@ function collectStyleSemanticGraphPackageManifests(
   return [...manifests.values()];
 }
 
-function collectSassModuleSources(style: StyleSemanticGraphBatchStyleInputV0): readonly string[] {
-  const styleDocument = parseStyleDocument(style.styleSource, style.stylePath);
+function collectSassModuleSources(
+  style: StyleSemanticGraphBatchStyleInputV0,
+  queryOptions: StyleSemanticGraphQueryOptions,
+): readonly string[] {
+  if (!hasSassModuleDirective(style.styleSource)) return [];
+  const facts = runOmenaParserStyleFacts(style, queryOptions);
   return [
-    ...styleDocument.sassModuleUses.map((moduleUse) => moduleUse.source),
-    ...styleDocument.sassModuleForwards.map((moduleForward) => moduleForward.source),
+    ...facts.sassModuleUseSources,
+    ...facts.sassModuleForwardSources,
+    ...facts.sassModuleImportSources,
   ];
+}
+
+function runOmenaParserStyleFacts(
+  style: StyleSemanticGraphBatchStyleInputV0,
+  queryOptions: StyleSemanticGraphQueryOptions,
+): OmenaParserStyleFactsV0 {
+  const runJson = queryOptions.runRustSelectedQueryBackendJson ?? runRustSelectedQueryBackendJson;
+  return runJson<OmenaParserStyleFactsV0>(SELECTED_QUERY_RUNNER_COMMANDS.omenaParserStyleFacts, {
+    styleSource: style.styleSource,
+    dialect: omenaParserDialectForStylePath(style.stylePath),
+  });
+}
+
+function hasSassModuleDirective(styleSource: string): boolean {
+  return (
+    styleSource.includes("@use") ||
+    styleSource.includes("@forward") ||
+    styleSource.includes("@import")
+  );
+}
+
+function omenaParserDialectForStylePath(stylePath: string): string {
+  if (stylePath.endsWith(".sass")) return "sass";
+  if (stylePath.endsWith(".scss")) return "scss";
+  if (stylePath.endsWith(".less")) return "less";
+  return "css";
 }
 
 function styleModuleSourceCandidates(
