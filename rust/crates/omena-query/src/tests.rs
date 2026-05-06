@@ -99,6 +99,16 @@ fn summarizes_query_boundary_over_producer_fragments() {
     );
     assert!(
         summary
+            .delegated_fragment_products
+            .contains(&"omena-transform-bundle.source")
+    );
+    assert!(
+        summary
+            .delegated_fragment_products
+            .contains(&"omena-transform-passes.plan")
+    );
+    assert!(
+        summary
             .ready_surfaces
             .contains(&"expressionDomainFlowAnalysisBoundary")
     );
@@ -127,6 +137,7 @@ fn summarizes_query_boundary_over_producer_fragments() {
             .ready_surfaces
             .contains(&"omenaParserStyleFactExtraction")
     );
+    assert!(summary.ready_surfaces.contains(&"transformPlanFacade"));
     assert!(summary.ready_surfaces.contains(&"readCascadeAtPosition"));
     assert!(
         summary
