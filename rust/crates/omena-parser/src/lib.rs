@@ -6390,7 +6390,8 @@ fn resolve_selector_group(
     end: usize,
     parent_branches: &[SelectorBranch],
 ) -> Vec<SelectorBranch> {
-    if let Some(local_names) = collect_local_function_selector_names(tokens, start, end) {
+    if let Some(mut local_names) = collect_local_function_selector_names(tokens, start, end) {
+        local_names.extend(collect_class_selector_names_from_header(tokens, start, end));
         let bare_suffix_base = parent_branches.is_empty() && local_names.len() == 1;
         return local_names
             .into_iter()
@@ -11369,6 +11370,23 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(class_names, vec!["button", "link"]);
+    }
+
+    #[test]
+    fn keeps_trailing_local_selector_group_classes() {
+        let facts = collect_style_facts(
+            ":local(.button) .icon, :local(.card).active { color: red; }",
+            StyleDialect::Css,
+        );
+        let mut class_names = facts
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+            .map(|selector| selector.name.as_str())
+            .collect::<Vec<_>>();
+        class_names.sort_unstable();
+
+        assert_eq!(class_names, vec!["active", "button", "card", "icon"]);
     }
 
     #[test]

@@ -97,6 +97,13 @@ const CORPUS = [
     expectedClassSelectorNames: ["button", "link"],
   },
   {
+    label: "css-modules-local-trailing-selector-facts",
+    filePath: "/f.module.css",
+    dialect: "css",
+    source: `:local(.button) .icon, :local(.card).active { color: red; }`,
+    expectedClassSelectorNames: ["button", "icon", "card", "active"],
+  },
+  {
     label: "css-animation-name-facts",
     filePath: "/f.module.css",
     dialect: "css",
