@@ -71,6 +71,14 @@ const CORPUS = [
     expectedClassSelectorNames: ["button", "card"],
   },
   {
+    label: "css-modules-local-id-scope-facts",
+    filePath: "/f.module.css",
+    dialect: "css",
+    source: `:local(#panel) { color: red; } :global(#reset) { color: red; } .card :global(#child) { color: blue; }`,
+    expectedClassSelectorNames: ["card"],
+    expectedIdSelectorNames: ["panel"],
+  },
+  {
     label: "scss-sass-symbol-facts",
     filePath: "/f.module.scss",
     dialect: "scss",
@@ -179,6 +187,13 @@ void (async () => {
       sortedUnique(entry.expectedClassSelectorNames ?? legacy.selectors.names),
       `${entry.label} class selector parity drift`,
     );
+    if ("expectedIdSelectorNames" in entry) {
+      assert.deepEqual(
+        sortedUnique(actual.idSelectorNames),
+        sortedUnique(entry.expectedIdSelectorNames),
+        `${entry.label} id selector parity drift`,
+      );
+    }
 
     const legacyCustomProperties = sortedUnique([
       ...legacy.customProperties.declNames,

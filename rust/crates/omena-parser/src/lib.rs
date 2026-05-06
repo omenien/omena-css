@@ -648,6 +648,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "functionArgumentValueLists",
             "cssModuleScopeFunctionCstNodes",
             "cssModuleGlobalSelectorFactFiltering",
+            "cssModuleLocalIdSelectorFacts",
             "scssStructuredBlockAtRules",
             "scssControlPreludeValidation",
             "scssControlStyleFactExtraction",
@@ -6228,7 +6229,12 @@ fn collect_selector_facts_in_range(
                     branch.range,
                 );
             }
-            for id in collect_id_selector_facts_from_header(tokens, index, open) {
+            for id in collect_id_selector_facts_from_header(tokens, index, open)
+                .into_iter()
+                .chain(collect_local_function_id_selector_facts_from_header(
+                    tokens, index, open,
+                ))
+            {
                 push_selector_fact(selectors, seen, ParsedSelectorFactKind::Id, id.0, id.1);
             }
             for placeholder in collect_placeholder_selector_facts_from_header(tokens, index, open) {
@@ -6480,6 +6486,35 @@ fn collect_local_function_selector_names(
         open_index + 1,
         end.saturating_sub(1),
     ))
+}
+
+fn collect_local_function_id_selector_facts_from_header(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> Vec<(String, TextRange)> {
+    let mut ids = Vec::new();
+    let mut index = start;
+    while index < end {
+        if tokens[index].kind == SyntaxKind::Colon
+            && let Some(scope) = next_non_trivia_token_until(tokens, index + 1, end)
+            && scope.kind == SyntaxKind::Ident
+            && scope.text == "local"
+            && let Some(open) = next_non_trivia_token_after_range(tokens, scope.range, end)
+            && open.kind == SyntaxKind::LeftParen
+            && let Some(close) = matching_right_paren_from_range(tokens, open.range, end)
+        {
+            ids.extend(collect_id_selector_facts_from_header(
+                tokens,
+                token_index_by_range(tokens, open.range).map_or(index + 1, |value| value + 1),
+                close,
+            ));
+            index = close.saturating_add(1);
+            continue;
+        }
+        index += 1;
+    }
+    ids
 }
 
 fn css_module_block_scope_marker_in_header(
@@ -6909,6 +6944,42 @@ fn next_non_trivia_token_until<'text>(
         let token = tokens.get(index).copied()?;
         if !token.kind.is_trivia() {
             return Some(token);
+        }
+        index += 1;
+    }
+    None
+}
+
+fn next_non_trivia_token_after_range<'text>(
+    tokens: &'text [Token<'text>],
+    range: TextRange,
+    end: usize,
+) -> Option<Token<'text>> {
+    let index = token_index_by_range(tokens, range)?;
+    next_non_trivia_token_until(tokens, index + 1, end)
+}
+
+fn token_index_by_range(tokens: &[Token<'_>], range: TextRange) -> Option<usize> {
+    tokens.iter().position(|token| token.range == range)
+}
+
+fn matching_right_paren_from_range(
+    tokens: &[Token<'_>],
+    open_range: TextRange,
+    end: usize,
+) -> Option<usize> {
+    let mut depth = 0usize;
+    let mut index = token_index_by_range(tokens, open_range)?;
+    while index < end {
+        match tokens[index].kind {
+            SyntaxKind::LeftParen => depth += 1,
+            SyntaxKind::RightParen => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
         }
         index += 1;
     }
@@ -10212,6 +10283,29 @@ mod tests {
     }
 
     #[test]
+    fn extracts_css_module_local_id_selector_facts() {
+        let facts = collect_style_facts(
+            ":local(#panel) { color: red; } :global(#reset) { color: red; } .card :global(#child) { color: blue; }",
+            StyleDialect::Css,
+        );
+        let class_names = facts
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+            .map(|selector| selector.name.as_str())
+            .collect::<Vec<_>>();
+        let id_names = facts
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Id)
+            .map(|selector| selector.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(class_names, vec!["card"]);
+        assert_eq!(id_names, vec!["panel"]);
+    }
+
+    #[test]
     fn parses_functional_pseudo_selector_lists_with_bogus_item_recovery() {
         let result = parse(
             ".btn:is(#it/typo, .ok):where(.wide, .compact) { color: red; }",
@@ -10601,6 +10695,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"cssModuleGlobalSelectorFactFiltering")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"cssModuleLocalIdSelectorFacts")
         );
         assert!(
             summary
