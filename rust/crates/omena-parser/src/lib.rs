@@ -677,6 +677,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "keyframesAtRuleNameValidation",
             "emptyBlockAtRulePreludeValidation",
             "layerScopePreludeCstNodes",
+            "layerAtRulePreludeValidation",
             "pageMarginAtRuleCstNodes",
             "modernDeclarationAtRuleCstNodes",
             "fontFeatureValuesAtRuleCstNodes",
@@ -2967,7 +2968,7 @@ impl<'text> Parser<'text> {
                 "invalid @counter-style name",
             ),
             SyntaxKind::FontFeatureValuesRule => self.parse_font_feature_values_prelude(),
-            SyntaxKind::LayerRule => self.parse_at_rule_prelude_node(SyntaxKind::LayerName),
+            SyntaxKind::LayerRule => self.parse_layer_rule_prelude(),
             SyntaxKind::ScopeRule => self.parse_at_rule_prelude_node(SyntaxKind::ScopeRange),
             _ => self.consume_at_rule_prelude_tokens(),
         }
@@ -3135,6 +3136,69 @@ impl<'text> Parser<'text> {
             })
     }
 
+    fn parse_layer_rule_prelude(&mut self) {
+        self.eat_trivia();
+        match self.current_kind() {
+            Some(SyntaxKind::LeftBrace | SyntaxKind::SassIndent) => return,
+            Some(SyntaxKind::Semicolon | SyntaxKind::SassOptionalSemicolon) | None => {
+                self.empty_bogus_node(
+                    SyntaxKind::BogusLayerName,
+                    ParseErrorCode::ExpectedValue,
+                    "invalid @layer prelude",
+                );
+                return;
+            }
+            Some(_) => {}
+        }
+
+        let valid = self.layer_rule_prelude_is_valid();
+        if !valid {
+            self.error_at_current(ParseErrorCode::ExpectedValue, "invalid @layer prelude");
+        }
+        self.builder.start_node(if valid {
+            SyntaxKind::LayerName
+        } else {
+            SyntaxKind::BogusLayerName
+        });
+        self.consume_at_rule_prelude_tokens_without_wrapping();
+        self.builder.finish_node();
+    }
+
+    fn layer_rule_prelude_is_valid(&self) -> bool {
+        let mut saw_name = false;
+        let mut expecting_segment = true;
+        let mut index = self.position;
+
+        while let Some(token) = self.tokens.get(index) {
+            if token.kind.is_trivia() {
+                index += 1;
+                continue;
+            }
+            if is_at_rule_prelude_boundary(token.kind) {
+                return saw_name && !expecting_segment;
+            }
+            if is_interpolation_start(token.kind) {
+                return true;
+            }
+            match token.kind {
+                SyntaxKind::Ident if expecting_segment => {
+                    saw_name = true;
+                    expecting_segment = false;
+                }
+                SyntaxKind::Comma if saw_name && !expecting_segment => {
+                    expecting_segment = true;
+                }
+                SyntaxKind::Dot if saw_name && !expecting_segment => {
+                    expecting_segment = true;
+                }
+                _ => return false,
+            }
+            index += 1;
+        }
+
+        saw_name && !expecting_segment
+    }
+
     fn parse_import_prelude(&mut self) {
         self.eat_trivia();
         self.parse_import_source();
@@ -3233,6 +3297,11 @@ impl<'text> Parser<'text> {
         }
         self.builder
             .start_node(self.current_generic_at_rule_prelude_node_kind());
+        self.consume_at_rule_prelude_tokens_without_wrapping();
+        self.builder.finish_node();
+    }
+
+    fn consume_at_rule_prelude_tokens_without_wrapping(&mut self) {
         while !self.at_end() {
             match self.current_kind() {
                 Some(kind) if is_at_rule_prelude_boundary(kind) => break,
@@ -3244,7 +3313,6 @@ impl<'text> Parser<'text> {
                 None => break,
             }
         }
-        self.builder.finish_node();
     }
 
     fn parse_balanced_parenthesized_prelude(&mut self, node_kind: Option<SyntaxKind>) {
@@ -7468,7 +7536,7 @@ mod tests {
     #[test]
     fn parses_layer_and_scope_preludes() {
         let result = parse(
-            "@layer reset, app.ui; @scope (.card) to (.card-content) { .title { color: red; } }",
+            "@layer reset, app.ui; @layer components { .card { color: red; } } @layer { .anon { color: blue; } } @scope (.card) to (.card-content) { .title { color: red; } }",
             StyleDialect::Css,
         );
         let kinds = node_kinds(&result.syntax());
@@ -7479,6 +7547,28 @@ mod tests {
         assert!(kinds.contains(&SyntaxKind::ScopeRule));
         assert!(kinds.contains(&SyntaxKind::ScopeRange));
         assert!(kinds.contains(&SyntaxKind::RuleList));
+    }
+
+    #[test]
+    fn validates_layer_rule_preludes() {
+        let result = parse(
+            "@layer , reset; @layer app.; @layer 1; @layer ok.name;",
+            StyleDialect::Css,
+        );
+        let kinds = node_kinds(&result.syntax());
+        let invalid_layer_errors = result
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @layer prelude")
+            .count();
+        let bogus_layer_names = kinds
+            .iter()
+            .filter(|kind| **kind == SyntaxKind::BogusLayerName)
+            .count();
+
+        assert_eq!(invalid_layer_errors, 3);
+        assert_eq!(bogus_layer_names, 3);
+        assert!(kinds.contains(&SyntaxKind::LayerName));
     }
 
     #[test]
@@ -9056,6 +9146,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"layerScopePreludeCstNodes")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"layerAtRulePreludeValidation")
         );
         assert!(summary.ready_surfaces.contains(&"pageMarginAtRuleCstNodes"));
         assert!(
