@@ -671,6 +671,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "conditionalLevel5AtRuleCstNodes",
             "mediaQueryCstNodes",
             "importPreludeCstNodes",
+            "propertyAtRuleNameValidation",
             "layerScopePreludeCstNodes",
             "pageMarginAtRuleCstNodes",
             "modernDeclarationAtRuleCstNodes",
@@ -2815,6 +2816,7 @@ impl<'text> Parser<'text> {
                 self.parse_at_rule_prelude_node(SyntaxKind::ContainerCondition)
             }
             SyntaxKind::ImportRule => self.parse_import_prelude(),
+            SyntaxKind::PropertyRule => self.parse_property_rule_prelude(),
             SyntaxKind::LayerRule => self.parse_at_rule_prelude_node(SyntaxKind::LayerName),
             SyntaxKind::ScopeRule => self.parse_at_rule_prelude_node(SyntaxKind::ScopeRange),
             _ => self.consume_at_rule_prelude_tokens(),
@@ -2919,6 +2921,21 @@ impl<'text> Parser<'text> {
             Some(_) => {}
             None => {}
         }
+    }
+
+    fn parse_property_rule_prelude(&mut self) {
+        if self.current_kind().is_none_or(is_at_rule_prelude_boundary) {
+            return;
+        }
+        let valid_name = self
+            .non_trivia_token_from(self.position)
+            .is_some_and(|(_, kind)| {
+                kind == SyntaxKind::CustomPropertyName || is_interpolation_start(kind)
+            });
+        if !valid_name {
+            self.error_at_current(ParseErrorCode::ExpectedValue, "invalid @property name");
+        }
+        self.consume_at_rule_prelude_tokens();
     }
 
     fn parse_import_tail_node(&mut self, kind: SyntaxKind) {
@@ -7118,6 +7135,31 @@ mod tests {
     }
 
     #[test]
+    fn validates_property_at_rule_names() {
+        let valid = parse(
+            "@property --accent { syntax: \"<color>\"; inherits: false; initial-value: red; }",
+            StyleDialect::Css,
+        );
+        let dynamic = parse(
+            "@property #{$name} { syntax: \"<color>\"; inherits: false; initial-value: red; }",
+            StyleDialect::Scss,
+        );
+        let invalid = parse(
+            "@property accent { syntax: \"<color>\"; inherits: false; initial-value: red; }",
+            StyleDialect::Css,
+        );
+        let invalid_property_name_count = invalid
+            .errors()
+            .iter()
+            .filter(|error| error.message == "invalid @property name")
+            .count();
+
+        assert!(valid.errors().is_empty());
+        assert!(dynamic.errors().is_empty());
+        assert_eq!(invalid_property_name_count, 1);
+    }
+
+    #[test]
     fn classifies_initial_scss_at_rule_nodes() {
         let module_rules = parse(
             "@use \"sass:map\"; @forward \"tokens\";",
@@ -8371,6 +8413,11 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"mediaQueryCstNodes"));
         assert!(summary.ready_surfaces.contains(&"importPreludeCstNodes"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"propertyAtRuleNameValidation")
+        );
         assert!(
             summary
                 .ready_surfaces
