@@ -185,6 +185,24 @@ pub fn execute_transform_passes_on_source_with_dialect(
         let pass = transform_pass_kind_from_id(pass_id);
         let input_byte_len = output_css.len();
         let outcome = match pass {
+            Some(TransformPassKind::WhitespaceStrip) => {
+                let (next_css, mutation_count) = normalize_css_whitespace(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "normalized lexer trivia where adjacent token boundaries remain unambiguous",
+                }
+            }
             Some(TransformPassKind::CommentStrip) => {
                 let (next_css, mutation_count) = strip_css_comments(&output_css, dialect);
                 let status = if mutation_count == 0 {
@@ -261,6 +279,7 @@ pub fn execute_transform_passes_on_source_with_dialect(
 
 pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
     vec![
+        TransformPassKind::WhitespaceStrip.id(),
         TransformPassKind::CommentStrip.id(),
         TransformPassKind::PrintCss.id(),
     ]
@@ -386,6 +405,97 @@ fn strip_css_comments(source: &str, dialect: StyleDialect) -> (String, usize) {
     strip_css_comments_with_lexer(source, dialect)
 }
 
+fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
+    normalize_css_whitespace_with_lexer(source, dialect)
+}
+
+fn normalize_css_whitespace_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut output = String::with_capacity(source.len());
+    let mut mutation_count = 0;
+
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::Whitespace && token.kind != SyntaxKind::SassIndentedNewline {
+            output.push_str(&token.text);
+            continue;
+        }
+
+        let replacement = whitespace_replacement_for_tokens(
+            previous_non_comment_token_kind(tokens, index),
+            next_non_comment_token_kind(tokens, index),
+        );
+        if replacement != token.text {
+            mutation_count += 1;
+        }
+        output.push_str(replacement);
+    }
+
+    (output, mutation_count)
+}
+
+fn whitespace_replacement_for_tokens(
+    previous: Option<SyntaxKind>,
+    next: Option<SyntaxKind>,
+) -> &'static str {
+    match (previous, next) {
+        (None, _) | (_, None) => "",
+        (Some(previous), Some(next))
+            if can_remove_whitespace_after(previous) || can_remove_whitespace_before(next) =>
+        {
+            ""
+        }
+        _ => " ",
+    }
+}
+
+fn previous_non_comment_token_kind(
+    tokens: &[omena_parser::LexedToken],
+    index: usize,
+) -> Option<SyntaxKind> {
+    tokens[..index]
+        .iter()
+        .rev()
+        .find(|token| !is_comment_token(token.kind) && token.kind != SyntaxKind::Whitespace)
+        .map(|token| token.kind)
+}
+
+fn next_non_comment_token_kind(
+    tokens: &[omena_parser::LexedToken],
+    index: usize,
+) -> Option<SyntaxKind> {
+    tokens
+        .get(index + 1..)
+        .unwrap_or_default()
+        .iter()
+        .find(|token| !is_comment_token(token.kind) && token.kind != SyntaxKind::Whitespace)
+        .map(|token| token.kind)
+}
+
+fn can_remove_whitespace_after(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::LeftBrace
+            | SyntaxKind::RightBrace
+            | SyntaxKind::LeftParen
+            | SyntaxKind::LeftBracket
+            | SyntaxKind::Comma
+            | SyntaxKind::Semicolon
+    )
+}
+
+fn can_remove_whitespace_before(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::LeftBrace
+            | SyntaxKind::RightBrace
+            | SyntaxKind::RightParen
+            | SyntaxKind::RightBracket
+            | SyntaxKind::Comma
+            | SyntaxKind::Semicolon
+    )
+}
+
 fn strip_css_comments_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
     let lexed = lex(source, dialect);
     let mut output = String::with_capacity(source.len());
@@ -444,7 +554,7 @@ mod tests {
         assert!(boundary.execution_runtime_ready);
         assert_eq!(
             boundary.implemented_mutation_pass_ids,
-            vec!["p02-comment-strip", "p40-print-css"]
+            vec!["p01-whitespace-strip", "p02-comment-strip", "p40-print-css"]
         );
         assert!(boundary.registry_entries.iter().any(|entry| {
             entry.contract.kind == TransformPassKind::TreeShakeClass
@@ -528,6 +638,29 @@ mod tests {
             outcome.pass_id == "p29-css-modules-class-hashing"
                 && outcome.status == TransformPassRuntimeStatus::PlannedOnly
         }));
+    }
+
+    #[test]
+    fn execution_runtime_applies_conservative_whitespace_normalization() {
+        let source = r#".a , .b { color : red ; content: "x y"; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::WhitespaceStrip,
+                TransformPassKind::CommentStrip,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 7);
+        assert_eq!(
+            execution.output_css,
+            r#".a,.b{color : red;content: "x y";}"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p01-whitespace-strip", "p02-comment-strip", "p40-print-css"]
+        );
     }
 
     #[test]

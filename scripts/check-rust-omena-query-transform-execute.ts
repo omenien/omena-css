@@ -43,7 +43,12 @@ const result = spawnSync(
     input: JSON.stringify({
       stylePath: "Button.module.css",
       styleSource,
-      requestedPassIds: ["p02-comment-strip", "p40-print-css", "p99-unknown"],
+      requestedPassIds: [
+        "p01-whitespace-strip",
+        "p02-comment-strip",
+        "p40-print-css",
+        "p99-unknown",
+      ],
     }),
     maxBuffer: 8 * 1024 * 1024,
   },
@@ -58,16 +63,21 @@ assert.equal(summary.schemaVersion, "0");
 assert.equal(summary.product, "omena-query.transform-execute");
 assert.equal(summary.stylePath, "Button.module.css");
 assert.deepEqual(summary.requestedPassIds, [
+  "p01-whitespace-strip",
   "p02-comment-strip",
   "p40-print-css",
   "p99-unknown",
 ]);
 assert.deepEqual(summary.unknownPassIds, ["p99-unknown"]);
 assert.equal(summary.execution.product, "omena-transform-passes.execution");
-assert.equal(summary.execution.outputCss, '.a { color: red;  content: "/* keep */"; }');
-assert.deepEqual(summary.execution.executedPassIds, ["p02-comment-strip", "p40-print-css"]);
+assert.equal(summary.execution.outputCss, '.a{color: red;content: "/* keep */";}');
+assert.deepEqual(summary.execution.executedPassIds, [
+  "p01-whitespace-strip",
+  "p02-comment-strip",
+  "p40-print-css",
+]);
 assert.deepEqual(summary.execution.plannedOnlyPassIds, []);
-assert.equal(summary.execution.mutationCount, 1);
+assert.equal(summary.execution.mutationCount, 6);
 assert.equal(summary.execution.provenancePreserved, true);
 assert.equal(summary.execution.passPlan.product, "omena-transform-passes.plan");
 assert.equal(summary.execution.passPlan.violatedDagEdgeCount, 0);
