@@ -257,6 +257,24 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "compressed declaration-leading hex color tokens",
                 }
             }
+            Some(TransformPassKind::UrlQuoteStrip) => {
+                let (next_css, mutation_count) = strip_css_url_quotes(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "stripped quotes from safe url() string arguments",
+                }
+            }
             Some(TransformPassKind::PrintCss) => TransformPassExecutionOutcomeV0 {
                 pass_id,
                 status: TransformPassRuntimeStatus::NoChange,
@@ -319,6 +337,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::CommentStrip.id(),
         TransformPassKind::NumberCompression.id(),
         TransformPassKind::ColorCompression.id(),
+        TransformPassKind::UrlQuoteStrip.id(),
         TransformPassKind::PrintCss.id(),
     ]
 }
@@ -451,8 +470,76 @@ fn compress_css_colors(source: &str, dialect: StyleDialect) -> (String, usize) {
     compress_css_colors_with_lexer(source, dialect)
 }
 
+fn strip_css_url_quotes(source: &str, dialect: StyleDialect) -> (String, usize) {
+    strip_css_url_quotes_with_lexer(source, dialect)
+}
+
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
+}
+
+fn strip_css_url_quotes_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut output = String::with_capacity(source.len());
+    let mut index = 0;
+    let mut mutation_count = 0;
+
+    while index < tokens.len() {
+        if let Some((replacement, consumed)) = rewrite_safe_quoted_url(tokens, index) {
+            output.push_str(&replacement);
+            mutation_count += 1;
+            index += consumed;
+            continue;
+        }
+
+        output.push_str(&tokens[index].text);
+        index += 1;
+    }
+
+    (output, mutation_count)
+}
+
+fn rewrite_safe_quoted_url(
+    tokens: &[omena_parser::LexedToken],
+    index: usize,
+) -> Option<(String, usize)> {
+    let ident = tokens.get(index)?;
+    let left_paren = tokens.get(index + 1)?;
+    let string = tokens.get(index + 2)?;
+    let right_paren = tokens.get(index + 3)?;
+
+    if ident.kind != SyntaxKind::Ident
+        || !ident.text.eq_ignore_ascii_case("url")
+        || left_paren.kind != SyntaxKind::LeftParen
+        || string.kind != SyntaxKind::String
+        || right_paren.kind != SyntaxKind::RightParen
+    {
+        return None;
+    }
+
+    let inner = unquote_safe_url_string(&string.text)?;
+    Some((format!("{}({inner})", ident.text), 4))
+}
+
+fn unquote_safe_url_string(text: &str) -> Option<&str> {
+    let quote = text.as_bytes().first().copied()?;
+    if quote != b'\'' && quote != b'"' {
+        return None;
+    }
+    if text.as_bytes().last().copied() != Some(quote) || text.len() < 2 {
+        return None;
+    }
+
+    let inner = &text[1..text.len() - 1];
+    if inner
+        .chars()
+        .any(|ch| ch.is_whitespace() || matches!(ch, '"' | '\'' | '(' | ')' | '\\'))
+    {
+        return None;
+    }
+
+    Some(inner)
 }
 
 fn compress_css_colors_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -790,6 +877,7 @@ mod tests {
                 "p02-comment-strip",
                 "p03-number-compression",
                 "p05-color-compression",
+                "p06-url-quote-strip",
                 "p40-print-css"
             ]
         );
@@ -934,6 +1022,24 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".a { color: #fff; box-shadow: 0 0 #AABBCC; } #FFFFFF { color: red; }"#
+        );
+    }
+
+    #[test]
+    fn execution_runtime_strips_safe_url_quotes_only() {
+        let source = r#".a { background: url("img/icon.svg"); mask: url("has space.svg"); content: "url(\"keep\")"; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::UrlQuoteStrip,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#".a { background: url(img/icon.svg); mask: url("has space.svg"); content: "url(\"keep\")"; }"#
         );
     }
 
