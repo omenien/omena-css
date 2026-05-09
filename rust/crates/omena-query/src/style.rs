@@ -93,7 +93,8 @@ pub fn summarize_omena_query_transform_plan_from_source(
         style_path,
         style_source.len()
     );
-    let execution = execute_transform_passes_on_source(style_source, &combined_passes);
+    let execution =
+        execute_transform_passes_on_source_with_dialect(style_source, dialect, &combined_passes);
     let print = print_transform_cst_source(
         style_path,
         &execution.output_css,
@@ -143,7 +144,9 @@ pub fn execute_omena_query_transform_passes_from_source(
         }
     }
 
-    let execution = execute_transform_passes_on_source(style_source, &requested_passes);
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let execution =
+        execute_transform_passes_on_source_with_dialect(style_source, dialect, &requested_passes);
 
     OmenaQueryTransformExecuteSummaryV0 {
         schema_version: "0",

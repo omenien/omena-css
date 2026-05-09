@@ -4,6 +4,8 @@
 //! the pass catalog; its job is to register every P01-P40 pass and produce a
 //! DAG-respecting execution plan for downstream transform crates.
 
+use omena_parser::{StyleDialect, lex};
+use omena_syntax::SyntaxKind;
 use omena_transform_cst::{
     TRANSFORM_PASS_CATALOG_LEN, TransformDagEdgeV0, TransformLayer, TransformPassContractV0,
     TransformPassKind, all_transform_pass_kinds, default_transform_dag_edges,
@@ -165,6 +167,14 @@ pub fn execute_transform_passes_on_source(
     source: &str,
     requested: &[TransformPassKind],
 ) -> TransformExecutionSummaryV0 {
+    execute_transform_passes_on_source_with_dialect(source, StyleDialect::Css, requested)
+}
+
+pub fn execute_transform_passes_on_source_with_dialect(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+) -> TransformExecutionSummaryV0 {
     let pass_plan = plan_transform_passes(requested);
     let requested_pass_ids = requested.iter().map(|pass| pass.id()).collect::<Vec<_>>();
     let ordered_pass_ids = pass_plan.ordered_pass_ids.clone();
@@ -176,7 +186,7 @@ pub fn execute_transform_passes_on_source(
         let input_byte_len = output_css.len();
         let outcome = match pass {
             Some(TransformPassKind::CommentStrip) => {
-                let (next_css, mutation_count) = strip_css_comments(&output_css);
+                let (next_css, mutation_count) = strip_css_comments(&output_css, dialect);
                 let status = if mutation_count == 0 {
                     TransformPassRuntimeStatus::NoChange
                 } else {
@@ -372,61 +382,52 @@ fn execution_rank(kind: TransformPassKind) -> u8 {
     }
 }
 
-fn strip_css_comments(source: &str) -> (String, usize) {
+fn strip_css_comments(source: &str, dialect: StyleDialect) -> (String, usize) {
+    strip_css_comments_with_lexer(source, dialect)
+}
+
+fn strip_css_comments_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
     let mut output = String::with_capacity(source.len());
-    let mut chars = source.chars().peekable();
-    let mut quote: Option<char> = None;
-    let mut escaped = false;
+    let mut cursor = 0;
     let mut removed_comment_count = 0;
 
-    while let Some(ch) = chars.next() {
-        if let Some(active_quote) = quote {
-            output.push(ch);
-            if escaped {
-                escaped = false;
-                continue;
-            }
-            if ch == '\\' {
-                escaped = true;
-                continue;
-            }
-            if ch == active_quote {
-                quote = None;
-            }
-            continue;
+    for token in lexed.tokens() {
+        let start = u32::from(token.range.start()) as usize;
+        let end = u32::from(token.range.end()) as usize;
+        if start > cursor {
+            output.push_str(&source[cursor..start]);
         }
-
-        if ch == '"' || ch == '\'' {
-            quote = Some(ch);
-            output.push(ch);
-            continue;
-        }
-
-        if ch == '/' && chars.peek() == Some(&'*') {
-            chars.next();
+        if is_comment_token(token.kind) {
             removed_comment_count += 1;
-            let mut previous = '\0';
-            for comment_ch in chars.by_ref() {
-                if previous == '*' && comment_ch == '/' {
-                    break;
-                }
-                previous = comment_ch;
-            }
-            continue;
+        } else {
+            output.push_str(&source[start..end]);
         }
+        cursor = end;
+    }
 
-        output.push(ch);
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
     }
 
     (output, removed_comment_count)
 }
 
+fn is_comment_token(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::LineComment | SyntaxKind::BlockComment | SyntaxKind::ScssSilentComment
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        TransformPassRuntimeStatus, execute_transform_passes_on_source, plan_transform_passes,
+        TransformPassRuntimeStatus, execute_transform_passes_on_source,
+        execute_transform_passes_on_source_with_dialect, plan_transform_passes,
         summarize_omena_transform_passes_boundary,
     };
+    use omena_parser::StyleDialect;
     use omena_transform_cst::{TRANSFORM_PASS_CATALOG_LEN, TransformPassKind};
 
     #[test]
@@ -527,5 +528,21 @@ mod tests {
             outcome.pass_id == "p29-css-modules-class-hashing"
                 && outcome.status == TransformPassRuntimeStatus::PlannedOnly
         }));
+    }
+
+    #[test]
+    fn execution_runtime_uses_dialect_lexer_for_scss_silent_comments() {
+        let source = ".a { // remove\n  color: red;\n  content: \"// keep\";\n}";
+        let execution = execute_transform_passes_on_source_with_dialect(
+            source,
+            StyleDialect::Scss,
+            &[TransformPassKind::CommentStrip],
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            ".a { \n  color: red;\n  content: \"// keep\";\n}"
+        );
     }
 }

@@ -13,4 +13,6 @@ workspace = true
 
 [dependencies]
 omena-transform-cst = { path = "../omena-transform-cst" }
+omena-parser = { path = "../omena-parser" }
+omena-syntax = { path = "../omena-syntax" }
 serde.workspace = true

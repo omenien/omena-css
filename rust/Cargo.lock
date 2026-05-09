@@ -691,6 +691,8 @@ dependencies = [
 name = "omena-transform-passes"
 version = "0.1.0"
 dependencies = [
+ "omena-parser",
+ "omena-syntax",
  "omena-transform-cst",
  "serde",
 ]

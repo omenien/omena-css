@@ -7,6 +7,6 @@ mutation engines will land behind this registry so transform execution cannot
 drift from the semantic/cascade proof obligations.
 
 The first execution runtime surface is intentionally narrow: it executes the
-safe P02 comment-strip mutation and observes the P40 emission boundary, while
-returning explicit `plannedOnly` outcomes for registered passes whose mutation
-engines have not landed yet.
+lexer-backed safe P02 comment-strip mutation and observes the P40 emission
+boundary, while returning explicit `plannedOnly` outcomes for registered passes
+whose mutation engines have not landed yet.
