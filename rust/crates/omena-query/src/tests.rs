@@ -318,6 +318,7 @@ fn exposes_transform_plan_facade_from_source() {
     assert!(summary.combined_pass_ids.contains(&"p40-print-css"));
     assert_eq!(summary.combined_violated_dag_edge_count, 0);
     assert_eq!(summary.print.css, source);
+    assert_eq!(summary.print.css, summary.execution.output_css);
     assert_eq!(
         summary.execution.product,
         "omena-transform-passes.execution"

@@ -166,6 +166,7 @@ assert.equal(summary.print.cstArtifact.provenancePreserved, true);
 
 assert.equal(summary.execution.product, "omena-transform-passes.execution");
 assert.equal(summary.execution.outputCss, styleSource);
+assert.equal(summary.print.css, summary.execution.outputCss);
 assert.equal(summary.execution.mutationCount, 0);
 assert.equal(summary.execution.provenancePreserved, true);
 assert.deepEqual(summary.execution.executedPassIds, ["p40-print-css"]);
