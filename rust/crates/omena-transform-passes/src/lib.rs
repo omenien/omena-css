@@ -221,6 +221,24 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "removed CSS block comments outside string literals",
                 }
             }
+            Some(TransformPassKind::NumberCompression) => {
+                let (next_css, mutation_count) = compress_css_numbers(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "compressed lexer numeric tokens without touching identifiers or strings",
+                }
+            }
             Some(TransformPassKind::PrintCss) => TransformPassExecutionOutcomeV0 {
                 pass_id,
                 status: TransformPassRuntimeStatus::NoChange,
@@ -281,6 +299,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
     vec![
         TransformPassKind::WhitespaceStrip.id(),
         TransformPassKind::CommentStrip.id(),
+        TransformPassKind::NumberCompression.id(),
         TransformPassKind::PrintCss.id(),
     ]
 }
@@ -405,8 +424,140 @@ fn strip_css_comments(source: &str, dialect: StyleDialect) -> (String, usize) {
     strip_css_comments_with_lexer(source, dialect)
 }
 
+fn compress_css_numbers(source: &str, dialect: StyleDialect) -> (String, usize) {
+    compress_css_numbers_with_lexer(source, dialect)
+}
+
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
+}
+
+fn compress_css_numbers_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    rewrite_lexer_tokens(source, dialect, |kind, text| {
+        if matches!(
+            kind,
+            SyntaxKind::Number | SyntaxKind::Percentage | SyntaxKind::Dimension
+        ) {
+            return compress_numeric_token_text(text);
+        }
+        None
+    })
+}
+
+fn rewrite_lexer_tokens(
+    source: &str,
+    dialect: StyleDialect,
+    mut rewrite: impl FnMut(SyntaxKind, &str) -> Option<String>,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    let mut mutation_count = 0;
+
+    for token in lexed.tokens() {
+        let start = u32::from(token.range.start()) as usize;
+        let end = u32::from(token.range.end()) as usize;
+        if start > cursor {
+            output.push_str(&source[cursor..start]);
+        }
+        if let Some(replacement) = rewrite(token.kind, &token.text) {
+            if replacement != token.text {
+                mutation_count += 1;
+            }
+            output.push_str(&replacement);
+        } else {
+            output.push_str(&source[start..end]);
+        }
+        cursor = end;
+    }
+
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, mutation_count)
+}
+
+fn compress_numeric_token_text(text: &str) -> Option<String> {
+    let split = numeric_prefix_end(text)?;
+    let (number, suffix) = text.split_at(split);
+    let compressed = compress_number_prefix(number);
+    let rewritten = format!("{compressed}{suffix}");
+    (rewritten != text).then_some(rewritten)
+}
+
+fn numeric_prefix_end(text: &str) -> Option<usize> {
+    let bytes = text.as_bytes();
+    let mut index = 0;
+
+    if matches!(bytes.get(index), Some(b'+') | Some(b'-')) {
+        index += 1;
+    }
+
+    let integer_start = index;
+    while matches!(bytes.get(index), Some(b'0'..=b'9')) {
+        index += 1;
+    }
+    let saw_integer_digit = index > integer_start;
+
+    if bytes.get(index) == Some(&b'.') {
+        index += 1;
+        let fraction_start = index;
+        while matches!(bytes.get(index), Some(b'0'..=b'9')) {
+            index += 1;
+        }
+        if !saw_integer_digit && index == fraction_start {
+            return None;
+        }
+    } else if !saw_integer_digit {
+        return None;
+    }
+
+    if matches!(bytes.get(index), Some(b'e') | Some(b'E')) {
+        let exponent_marker = index;
+        let mut exponent_index = index + 1;
+        if matches!(bytes.get(exponent_index), Some(b'+') | Some(b'-')) {
+            exponent_index += 1;
+        }
+        let exponent_digit_start = exponent_index;
+        while matches!(bytes.get(exponent_index), Some(b'0'..=b'9')) {
+            exponent_index += 1;
+        }
+        if exponent_index > exponent_digit_start {
+            index = exponent_index;
+        } else {
+            index = exponent_marker;
+        }
+    }
+
+    Some(index)
+}
+
+fn compress_number_prefix(number: &str) -> String {
+    let (sign, unsigned) = match number.as_bytes().first() {
+        Some(b'+') | Some(b'-') => (&number[..1], &number[1..]),
+        _ => ("", number),
+    };
+    let Some((before_dot, after_dot)) = unsigned.split_once('.') else {
+        return number.to_string();
+    };
+
+    let trimmed_fraction = after_dot.trim_end_matches('0');
+    let mut compressed_unsigned = if trimmed_fraction.is_empty() {
+        before_dot.to_string()
+    } else {
+        format!("{before_dot}.{trimmed_fraction}")
+    };
+
+    if let Some(rest) = compressed_unsigned.strip_prefix("0.") {
+        compressed_unsigned = format!(".{rest}");
+    }
+
+    if compressed_unsigned.is_empty() {
+        compressed_unsigned.push('0');
+    }
+
+    format!("{sign}{compressed_unsigned}")
 }
 
 fn normalize_css_whitespace_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -554,7 +705,12 @@ mod tests {
         assert!(boundary.execution_runtime_ready);
         assert_eq!(
             boundary.implemented_mutation_pass_ids,
-            vec!["p01-whitespace-strip", "p02-comment-strip", "p40-print-css"]
+            vec![
+                "p01-whitespace-strip",
+                "p02-comment-strip",
+                "p03-number-compression",
+                "p40-print-css"
+            ]
         );
         assert!(boundary.registry_entries.iter().any(|entry| {
             entry.contract.kind == TransformPassKind::TreeShakeClass
@@ -660,6 +816,25 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p01-whitespace-strip", "p02-comment-strip", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_compresses_numeric_tokens_only() {
+        let source =
+            r#".a { width: 0.50rem; opacity: 1.0; margin: -0.25px 10.00%; content: "0.50"; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::NumberCompression,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(
+            execution.output_css,
+            r#".a { width: .5rem; opacity: 1; margin: -.25px 10%; content: "0.50"; }"#
         );
     }
 

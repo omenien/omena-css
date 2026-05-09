@@ -23,7 +23,7 @@ interface TransformExecuteSummaryV0 {
   readonly readySurfaces: readonly string[];
 }
 
-const styleSource = '.a { color: red; /* remove */ content: "/* keep */"; }';
+const styleSource = '.a { color: red; opacity: 1.0; /* remove */ content: "/* keep */"; }';
 
 const result = spawnSync(
   "cargo",
@@ -46,6 +46,7 @@ const result = spawnSync(
       requestedPassIds: [
         "p01-whitespace-strip",
         "p02-comment-strip",
+        "p03-number-compression",
         "p40-print-css",
         "p99-unknown",
       ],
@@ -65,19 +66,21 @@ assert.equal(summary.stylePath, "Button.module.css");
 assert.deepEqual(summary.requestedPassIds, [
   "p01-whitespace-strip",
   "p02-comment-strip",
+  "p03-number-compression",
   "p40-print-css",
   "p99-unknown",
 ]);
 assert.deepEqual(summary.unknownPassIds, ["p99-unknown"]);
 assert.equal(summary.execution.product, "omena-transform-passes.execution");
-assert.equal(summary.execution.outputCss, '.a{color: red;content: "/* keep */";}');
+assert.equal(summary.execution.outputCss, '.a{color: red;opacity: 1;content: "/* keep */";}');
 assert.deepEqual(summary.execution.executedPassIds, [
   "p01-whitespace-strip",
   "p02-comment-strip",
+  "p03-number-compression",
   "p40-print-css",
 ]);
 assert.deepEqual(summary.execution.plannedOnlyPassIds, []);
-assert.equal(summary.execution.mutationCount, 6);
+assert.equal(summary.execution.mutationCount, 8);
 assert.equal(summary.execution.provenancePreserved, true);
 assert.equal(summary.execution.passPlan.product, "omena-transform-passes.plan");
 assert.equal(summary.execution.passPlan.violatedDagEdgeCount, 0);
