@@ -39,6 +39,7 @@ export const SELECTED_QUERY_RUNNER_COMMANDS = {
   readCascadeAtPosition: "read-cascade-at-position",
   styleSemanticGraphBatch: "style-semantic-graph-batch",
   transformPlan: "transform-plan",
+  transformExecute: "transform-execute",
 } as const;
 
 export function resolveSelectedQueryBackendKind(

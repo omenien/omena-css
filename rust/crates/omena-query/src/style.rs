@@ -128,12 +128,46 @@ pub fn summarize_omena_query_transform_plan_from_source(
     }
 }
 
+pub fn execute_omena_query_transform_passes_from_source(
+    style_path: &str,
+    style_source: &str,
+    requested_pass_ids: &[String],
+) -> OmenaQueryTransformExecuteSummaryV0 {
+    let mut requested_passes = Vec::new();
+    let mut unknown_pass_ids = Vec::new();
+
+    for pass_id in requested_pass_ids {
+        match transform_pass_kind_from_id(pass_id) {
+            Some(pass) => requested_passes.push(pass),
+            None => unknown_pass_ids.push(pass_id.clone()),
+        }
+    }
+
+    let execution = execute_transform_passes_on_source(style_source, &requested_passes);
+
+    OmenaQueryTransformExecuteSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.transform-execute",
+        style_path: style_path.to_string(),
+        requested_pass_ids: requested_pass_ids.to_vec(),
+        unknown_pass_ids,
+        execution,
+        ready_surfaces: vec!["transformExecutionRuntime", "transformPassOutcomeContract"],
+    }
+}
+
 fn extend_passes_from_ids(ids: &[&'static str], passes: &mut Vec<TransformPassKind>) {
     for candidate in all_transform_pass_kinds() {
         if ids.contains(&candidate.id()) && !passes.contains(&candidate) {
             passes.push(candidate);
         }
     }
+}
+
+fn transform_pass_kind_from_id(pass_id: &str) -> Option<TransformPassKind> {
+    all_transform_pass_kinds()
+        .into_iter()
+        .find(|candidate| candidate.id() == pass_id)
 }
 
 pub fn summarize_omena_query_omena_parser_style_facts(

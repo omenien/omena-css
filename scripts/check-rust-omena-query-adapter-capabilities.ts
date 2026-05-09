@@ -122,6 +122,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
       outputProduct: "omena-query.transform-plan",
     },
   ],
+  [
+    "transformExecute",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.transformExecute,
+      inputContract: "TransformExecuteInputV0",
+      outputProduct: "omena-query.transform-execute",
+    },
+  ],
 ] as const);
 
 void (async () => {
@@ -137,6 +145,7 @@ void (async () => {
     "ReadCascadeAtPositionInputV0",
     "StyleSemanticGraphBatchInputV0",
     "StyleSemanticGraphInputV0",
+    "TransformExecuteInputV0",
     "TransformPlanInputV0",
   ]);
   assert.deepEqual([...summary.expressionSemanticsPayloadContracts].toSorted(), [
@@ -158,6 +167,7 @@ void (async () => {
     "runnerCommandContract",
     "sourceResolutionRuntimeIndex",
     "styleSemanticGraphBridgeBoundary",
+    "transformExecutionRunner",
     "transformPlanRunner",
   ]);
 

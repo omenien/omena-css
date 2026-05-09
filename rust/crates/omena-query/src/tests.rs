@@ -7,8 +7,8 @@ use omena_abstract_value::SelectorProjectionCertaintyV0;
 
 use super::{
     OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryStylePackageManifestV0,
-    SelectedQueryAdapterCapabilitiesV0, summarize_omena_query_boundary,
-    summarize_omena_query_expression_domain_control_flow_analysis,
+    SelectedQueryAdapterCapabilitiesV0, execute_omena_query_transform_passes_from_source,
+    summarize_omena_query_boundary, summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
@@ -332,6 +332,42 @@ fn exposes_transform_plan_facade_from_source() {
             .contains(&"p29-css-modules-class-hashing")
     );
     assert_eq!(summary.execution.pass_plan.violated_dag_edge_count, 0);
+}
+
+#[test]
+fn exposes_transform_execution_runner_from_source() {
+    let source = r#".a { color: red; /* remove */ content: "/* keep */"; }"#;
+    let summary = execute_omena_query_transform_passes_from_source(
+        "Button.module.css",
+        source,
+        &vec![
+            "p02-comment-strip".to_string(),
+            "p40-print-css".to_string(),
+            "p99-unknown".to_string(),
+        ],
+    );
+
+    assert_eq!(summary.product, "omena-query.transform-execute");
+    assert_eq!(summary.style_path, "Button.module.css");
+    assert_eq!(summary.unknown_pass_ids, vec!["p99-unknown"]);
+    assert_eq!(
+        summary.execution.product,
+        "omena-transform-passes.execution"
+    );
+    assert_eq!(summary.execution.mutation_count, 1);
+    assert_eq!(
+        summary.execution.output_css,
+        r#".a { color: red;  content: "/* keep */"; }"#
+    );
+    assert_eq!(
+        summary.execution.executed_pass_ids,
+        vec!["p02-comment-strip", "p40-print-css"]
+    );
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"transformExecutionRuntime")
+    );
 }
 
 #[test]

@@ -31,6 +31,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "omena-transform-print.artifact",
             "omena-transform-passes.plan",
             "omena-transform-passes.execution",
+            "omena-query.transform-execute",
         ],
         expression_semantics_query_count,
         source_resolution_query_count,
@@ -58,6 +59,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "omenaParserStyleFactExtraction",
             "transformPlanFacade",
             "transformExecutionRuntime",
+            "transformExecutionRunner",
             "queryBoundarySummary",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
@@ -191,6 +193,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 input_contract: "TransformPlanInputV0",
                 output_product: "omena-query.transform-plan",
             },
+            SelectedQueryRunnerCommandV0 {
+                surface: "transformExecute",
+                command: "transform-execute",
+                input_contract: "TransformExecuteInputV0",
+                output_product: "omena-query.transform-execute",
+            },
         ],
         expression_semantics_payload_contracts: vec![
             "valueDomainKind",
@@ -204,6 +212,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "StyleSemanticGraphBatchInputV0",
             "OmenaParserStyleFactsInputV0",
             "TransformPlanInputV0",
+            "TransformExecuteInputV0",
         ],
         adapter_readiness: vec![
             "backendCapabilityMatrix",
@@ -220,6 +229,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "omenaParserStyleFactExtraction",
             "readCascadeAtPosition",
             "transformPlanRunner",
+            "transformExecutionRunner",
         ],
         routing_status: "runtimeBacked",
     }

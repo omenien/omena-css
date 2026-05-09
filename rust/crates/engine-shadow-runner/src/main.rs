@@ -42,8 +42,9 @@ use omena_query::{
     OmenaParserStyleDialect, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryStylePackageManifestV0, OmenaQueryTargetFeatureSupportV0,
     OmenaQueryTargetTransformOptionsV0, ParserPositionV0,
-    default_omena_query_transform_print_options, read_omena_query_cascade_at_position,
-    summarize_omena_query_boundary, summarize_omena_query_expression_domain_control_flow_analysis,
+    default_omena_query_transform_print_options, execute_omena_query_transform_passes_from_source,
+    read_omena_query_cascade_at_position, summarize_omena_query_boundary,
+    summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
@@ -148,6 +149,14 @@ struct TransformPlanInputV0 {
     target_label: String,
     target_support: TransformPlanTargetFeatureSupportInputV0,
     target_options: TransformPlanTargetOptionsInputV0,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TransformExecuteInputV0 {
+    style_path: String,
+    style_source: String,
+    requested_pass_ids: Vec<String>,
 }
 
 fn default_transform_target_label() -> String {
@@ -1008,6 +1017,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             serde_json::to_writer_pretty(io::stdout(), &output)?;
         }
+        Some("transform-execute") => {
+            let input: TransformExecuteInputV0 = serde_json::from_str(&stdin)?;
+            let output = execute_omena_query_transform_passes_from_source(
+                &input.style_path,
+                &input.style_source,
+                &input.requested_pass_ids,
+            );
+            serde_json::to_writer_pretty(io::stdout(), &output)?;
+        }
         Some("input-expression-semantics-query-fragments") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_omena_query_expression_semantics_query_fragments(&input);
@@ -1362,6 +1380,16 @@ fn run_daemon_selected_query_command(
                     input.target_support.into(),
                     input.target_options.into(),
                     default_omena_query_transform_print_options(),
+                ),
+            )?)
+        }
+        "transform-execute" => {
+            let input: TransformExecuteInputV0 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                execute_omena_query_transform_passes_from_source(
+                    &input.style_path,
+                    &input.style_source,
+                    &input.requested_pass_ids,
                 ),
             )?)
         }
