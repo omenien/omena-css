@@ -6,7 +6,8 @@ planner for the post-v5 omena-css track. It consumes
 mutation engines will land behind this registry so transform execution cannot
 drift from the semantic/cascade proof obligations.
 
-The first execution runtime surface is intentionally narrow: it executes the
-lexer-backed safe P02 comment-strip mutation and observes the P40 emission
-boundary, while returning explicit `plannedOnly` outcomes for registered passes
-whose mutation engines have not landed yet.
+The first execution runtime surface is intentionally conservative: it executes
+lexer-backed safe commodity mutations for P01, P02, P03, P05, P06, and P07, and
+observes the P40 emission boundary. Context-sensitive passes such as P04 unit
+normalization remain `plannedOnly` until property/value semantics can prove the
+rewrite is legal.
