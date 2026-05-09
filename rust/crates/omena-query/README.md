@@ -46,6 +46,9 @@ Current public products:
   relation resolver for `composes`, `@value`, and ICSS import/export sources.
   This resolves import sources, same-edge name matches, transitive closure, and
   cycle detection for the current parser fact surface.
+- `omena-query.transform-plan` — post-v5 omena-css transform facade that combines
+  bundle planning, target lowering, optional egg rewrite planning, P40 printing,
+  and the current transform execution runtime summary.
 
 Primary check:
 

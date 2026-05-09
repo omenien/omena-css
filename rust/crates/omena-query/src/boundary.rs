@@ -30,6 +30,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "omena-transform-egg.plan",
             "omena-transform-print.artifact",
             "omena-transform-passes.plan",
+            "omena-transform-passes.execution",
         ],
         expression_semantics_query_count,
         source_resolution_query_count,
@@ -56,6 +57,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "sassModuleSourceSelection",
             "omenaParserStyleFactExtraction",
             "transformPlanFacade",
+            "transformExecutionRuntime",
             "queryBoundarySummary",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
@@ -63,7 +65,6 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "queryEvaluationRuntime",
             "selectedQueryBackendAdapter",
             "engineStyleParserStyleDocumentSummary",
-            "transformExecutionRuntime",
         ],
     }
 }

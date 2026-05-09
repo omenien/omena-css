@@ -138,6 +138,11 @@ fn summarizes_query_boundary_over_producer_fragments() {
             .contains(&"omenaParserStyleFactExtraction")
     );
     assert!(summary.ready_surfaces.contains(&"transformPlanFacade"));
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"transformExecutionRuntime")
+    );
     assert!(summary.ready_surfaces.contains(&"readCascadeAtPosition"));
     assert!(
         summary
@@ -313,6 +318,19 @@ fn exposes_transform_plan_facade_from_source() {
     assert!(summary.combined_pass_ids.contains(&"p40-print-css"));
     assert_eq!(summary.combined_violated_dag_edge_count, 0);
     assert_eq!(summary.print.css, source);
+    assert_eq!(
+        summary.execution.product,
+        "omena-transform-passes.execution"
+    );
+    assert_eq!(summary.execution.output_css, source);
+    assert_eq!(summary.execution.executed_pass_ids, vec!["p40-print-css"]);
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"p29-css-modules-class-hashing")
+    );
+    assert_eq!(summary.execution.pass_plan.violated_dag_edge_count, 0);
 }
 
 #[test]

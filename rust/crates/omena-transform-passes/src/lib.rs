@@ -6,7 +6,8 @@
 
 use omena_transform_cst::{
     TRANSFORM_PASS_CATALOG_LEN, TransformDagEdgeV0, TransformLayer, TransformPassContractV0,
-    TransformPassKind, default_transform_dag_edges, default_transform_pass_contracts,
+    TransformPassKind, all_transform_pass_kinds, default_transform_dag_edges,
+    default_transform_pass_contracts,
 };
 use serde::Serialize;
 
@@ -37,6 +38,8 @@ pub struct TransformPassesBoundarySummaryV0 {
     pub semantic_aware_pass_count: usize,
     pub cascade_aware_pass_count: usize,
     pub planner_enforces_dag_edges: bool,
+    pub execution_runtime_ready: bool,
+    pub implemented_mutation_pass_ids: Vec<&'static str>,
     pub next_surfaces: Vec<&'static str>,
 }
 
@@ -50,6 +53,44 @@ pub struct TransformPassPlanV0 {
     pub satisfied_dag_edge_count: usize,
     pub violated_dag_edge_count: usize,
     pub all_requested_registered: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformPassRuntimeStatus {
+    Applied,
+    NoChange,
+    PlannedOnly,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformPassExecutionOutcomeV0 {
+    pub pass_id: &'static str,
+    pub status: TransformPassRuntimeStatus,
+    pub input_byte_len: usize,
+    pub output_byte_len: usize,
+    pub mutation_count: usize,
+    pub provenance_preserved: bool,
+    pub detail: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformExecutionSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_byte_len: usize,
+    pub output_byte_len: usize,
+    pub requested_pass_ids: Vec<&'static str>,
+    pub ordered_pass_ids: Vec<&'static str>,
+    pub executed_pass_ids: Vec<&'static str>,
+    pub planned_only_pass_ids: Vec<&'static str>,
+    pub mutation_count: usize,
+    pub provenance_preserved: bool,
+    pub output_css: String,
+    pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
+    pub pass_plan: TransformPassPlanV0,
 }
 
 pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySummaryV0 {
@@ -77,8 +118,10 @@ pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySum
         semantic_aware_pass_count,
         cascade_aware_pass_count,
         planner_enforces_dag_edges: true,
+        execution_runtime_ready: true,
+        implemented_mutation_pass_ids: implemented_mutation_pass_ids(),
         next_surfaces: vec![
-            "passMutationEngines",
+            "remainingPassMutationEngines",
             "transformSalsaQueries",
             "omena-transform-bundle",
             "omena-transform-print",
@@ -116,6 +159,101 @@ pub fn plan_transform_passes(requested: &[TransformPassKind]) -> TransformPassPl
         violated_dag_edge_count,
         all_requested_registered: requested.iter().all(pass_is_registered),
     }
+}
+
+pub fn execute_transform_passes_on_source(
+    source: &str,
+    requested: &[TransformPassKind],
+) -> TransformExecutionSummaryV0 {
+    let pass_plan = plan_transform_passes(requested);
+    let requested_pass_ids = requested.iter().map(|pass| pass.id()).collect::<Vec<_>>();
+    let ordered_pass_ids = pass_plan.ordered_pass_ids.clone();
+    let mut output_css = source.to_string();
+    let mut outcomes = Vec::new();
+
+    for pass_id in &ordered_pass_ids {
+        let pass = transform_pass_kind_from_id(pass_id);
+        let input_byte_len = output_css.len();
+        let outcome = match pass {
+            Some(TransformPassKind::CommentStrip) => {
+                let (next_css, mutation_count) = strip_css_comments(&output_css);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "removed CSS block comments outside string literals",
+                }
+            }
+            Some(TransformPassKind::PrintCss) => TransformPassExecutionOutcomeV0 {
+                pass_id,
+                status: TransformPassRuntimeStatus::NoChange,
+                input_byte_len,
+                output_byte_len: output_css.len(),
+                mutation_count: 0,
+                provenance_preserved: true,
+                detail: "observed final emission boundary",
+            },
+            Some(_) | None => TransformPassExecutionOutcomeV0 {
+                pass_id,
+                status: TransformPassRuntimeStatus::PlannedOnly,
+                input_byte_len,
+                output_byte_len: output_css.len(),
+                mutation_count: 0,
+                provenance_preserved: true,
+                detail: "registered in DAG planner; mutation engine not implemented yet",
+            },
+        };
+        outcomes.push(outcome);
+    }
+
+    let executed_pass_ids = outcomes
+        .iter()
+        .filter(|outcome| outcome.status != TransformPassRuntimeStatus::PlannedOnly)
+        .map(|outcome| outcome.pass_id)
+        .collect::<Vec<_>>();
+    let planned_only_pass_ids = outcomes
+        .iter()
+        .filter(|outcome| outcome.status == TransformPassRuntimeStatus::PlannedOnly)
+        .map(|outcome| outcome.pass_id)
+        .collect::<Vec<_>>();
+    let mutation_count = outcomes
+        .iter()
+        .map(|outcome| outcome.mutation_count)
+        .sum::<usize>();
+    let provenance_preserved = outcomes.iter().all(|outcome| outcome.provenance_preserved);
+    let output_byte_len = output_css.len();
+
+    TransformExecutionSummaryV0 {
+        schema_version: "0",
+        product: "omena-transform-passes.execution",
+        input_byte_len: source.len(),
+        output_byte_len,
+        requested_pass_ids,
+        ordered_pass_ids,
+        executed_pass_ids,
+        planned_only_pass_ids,
+        mutation_count,
+        provenance_preserved,
+        output_css,
+        outcomes,
+        pass_plan,
+    }
+}
+
+pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
+    vec![
+        TransformPassKind::CommentStrip.id(),
+        TransformPassKind::PrintCss.id(),
+    ]
 }
 
 fn registry_entry_for_contract(contract: TransformPassContractV0) -> TransformPassRegistryEntryV0 {
@@ -216,6 +354,12 @@ fn pass_is_registered(pass: &TransformPassKind) -> bool {
         .any(|contract| contract.kind == *pass)
 }
 
+fn transform_pass_kind_from_id(pass_id: &str) -> Option<TransformPassKind> {
+    all_transform_pass_kinds()
+        .into_iter()
+        .find(|kind| kind.id() == pass_id)
+}
+
 fn execution_rank(kind: TransformPassKind) -> u8 {
     match kind.ordinal() {
         26..=28 => 10,
@@ -228,9 +372,61 @@ fn execution_rank(kind: TransformPassKind) -> u8 {
     }
 }
 
+fn strip_css_comments(source: &str) -> (String, usize) {
+    let mut output = String::with_capacity(source.len());
+    let mut chars = source.chars().peekable();
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+    let mut removed_comment_count = 0;
+
+    while let Some(ch) = chars.next() {
+        if let Some(active_quote) = quote {
+            output.push(ch);
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+
+        if ch == '"' || ch == '\'' {
+            quote = Some(ch);
+            output.push(ch);
+            continue;
+        }
+
+        if ch == '/' && chars.peek() == Some(&'*') {
+            chars.next();
+            removed_comment_count += 1;
+            let mut previous = '\0';
+            for comment_ch in chars.by_ref() {
+                if previous == '*' && comment_ch == '/' {
+                    break;
+                }
+                previous = comment_ch;
+            }
+            continue;
+        }
+
+        output.push(ch);
+    }
+
+    (output, removed_comment_count)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{plan_transform_passes, summarize_omena_transform_passes_boundary};
+    use super::{
+        TransformPassRuntimeStatus, execute_transform_passes_on_source, plan_transform_passes,
+        summarize_omena_transform_passes_boundary,
+    };
     use omena_transform_cst::{TRANSFORM_PASS_CATALOG_LEN, TransformPassKind};
 
     #[test]
@@ -244,6 +440,11 @@ mod tests {
         assert_eq!(boundary.semantic_aware_pass_count, 14);
         assert!(boundary.cascade_aware_pass_count >= 9);
         assert!(boundary.planner_enforces_dag_edges);
+        assert!(boundary.execution_runtime_ready);
+        assert_eq!(
+            boundary.implemented_mutation_pass_ids,
+            vec!["p02-comment-strip", "p40-print-css"]
+        );
         assert!(boundary.registry_entries.iter().any(|entry| {
             entry.contract.kind == TransformPassKind::TreeShakeClass
                 && entry.module_family == "semantic-reachability"
@@ -287,5 +488,44 @@ mod tests {
                 "p12-selector-merging"
             ]
         );
+    }
+
+    #[test]
+    fn execution_runtime_applies_comment_strip_without_touching_strings() {
+        let source = r#".a { color: red; /* remove */ content: "/* keep */"; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::CommentStrip,
+                TransformPassKind::HashCssModuleClassNames,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.product, "omena-transform-passes.execution");
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#".a { color: red;  content: "/* keep */"; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p02-comment-strip", "p40-print-css"]
+        );
+        assert_eq!(
+            execution.planned_only_pass_ids,
+            vec!["p29-css-modules-class-hashing"]
+        );
+        assert!(execution.provenance_preserved);
+        assert_eq!(execution.pass_plan.violated_dag_edge_count, 0);
+        assert!(execution.outcomes.iter().any(|outcome| {
+            outcome.pass_id == "p02-comment-strip"
+                && outcome.status == TransformPassRuntimeStatus::Applied
+                && outcome.mutation_count == 1
+        }));
+        assert!(execution.outcomes.iter().any(|outcome| {
+            outcome.pass_id == "p29-css-modules-class-hashing"
+                && outcome.status == TransformPassRuntimeStatus::PlannedOnly
+        }));
     }
 }

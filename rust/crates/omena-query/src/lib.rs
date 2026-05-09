@@ -50,7 +50,10 @@ use omena_transform_bundle::{
 };
 use omena_transform_cst::{TransformPassKind, all_transform_pass_kinds};
 use omena_transform_egg::{TransformEggPlanV0, plan_egg_rewrite_passes};
-use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
+use omena_transform_passes::{
+    TransformExecutionSummaryV0, TransformPassPlanV0, execute_transform_passes_on_source,
+    plan_transform_passes,
+};
 use omena_transform_print::print_transform_cst_source;
 pub use omena_transform_print::{
     TransformPrintArtifactV0, TransformPrintOptionsV0 as OmenaQueryTransformPrintOptionsV0,

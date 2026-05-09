@@ -39,6 +39,19 @@ interface TransformPlanSummaryV0 {
       readonly provenancePreserved: boolean;
     };
   };
+  readonly execution: {
+    readonly product: string;
+    readonly outputCss: string;
+    readonly executedPassIds: readonly string[];
+    readonly plannedOnlyPassIds: readonly string[];
+    readonly mutationCount: number;
+    readonly provenancePreserved: boolean;
+    readonly passPlan: {
+      readonly product: string;
+      readonly violatedDagEdgeCount: number;
+      readonly allRequestedRegistered: boolean;
+    };
+  };
   readonly combinedPlan: PassPlanV0;
   readonly combinedPassIds: readonly string[];
   readonly combinedViolatedDagEdgeCount: number;
@@ -151,6 +164,29 @@ assert.equal(summary.print.provenancePreserved, true);
 assert.equal(summary.print.cstArtifact.product, "omena-transform-cst.artifact");
 assert.equal(summary.print.cstArtifact.provenancePreserved, true);
 
+assert.equal(summary.execution.product, "omena-transform-passes.execution");
+assert.equal(summary.execution.outputCss, styleSource);
+assert.equal(summary.execution.mutationCount, 0);
+assert.equal(summary.execution.provenancePreserved, true);
+assert.deepEqual(summary.execution.executedPassIds, ["p40-print-css"]);
+assertIncludesAll(
+  summary.execution.plannedOnlyPassIds,
+  [
+    "p26-import-inline",
+    "p27-scss-module-evaluate",
+    "p30-composes-resolution",
+    "p29-css-modules-class-hashing",
+    "p31-value-resolution",
+    "p15-light-dark-lowering",
+    "p14-vendor-prefixing",
+    "p20-nesting-unwrap",
+  ],
+  "transform execution planned-only passes",
+);
+assert.equal(summary.execution.passPlan.product, "omena-transform-passes.plan");
+assert.equal(summary.execution.passPlan.violatedDagEdgeCount, 0);
+assert.equal(summary.execution.passPlan.allRequestedRegistered, true);
+
 assert.equal(summary.combinedPlan.product, "omena-transform-passes.plan");
 assert.equal(summary.combinedPlan.violatedDagEdgeCount, 0);
 assert.equal(summary.combinedPlan.allRequestedRegistered, true);
@@ -183,6 +219,7 @@ assertIncludesAll(
     "transformTargetPlan",
     "transformEggPlan",
     "transformPrintArtifact",
+    "transformExecutionRuntime",
     "combinedTransformPassPlan",
   ],
   "transform ready surfaces",

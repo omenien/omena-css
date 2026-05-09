@@ -100,6 +100,7 @@ pub fn summarize_omena_query_transform_plan_from_source(
         &combined_passes,
         print_options,
     );
+    let execution = execute_transform_passes_on_source(style_source, &combined_passes);
     let combined_pass_ids = combined_plan.ordered_pass_ids.clone();
     let combined_violated_dag_edge_count = combined_plan.violated_dag_edge_count;
 
@@ -112,6 +113,7 @@ pub fn summarize_omena_query_transform_plan_from_source(
         target,
         egg,
         print,
+        execution,
         combined_plan,
         combined_pass_ids,
         combined_violated_dag_edge_count,
@@ -120,6 +122,7 @@ pub fn summarize_omena_query_transform_plan_from_source(
             "transformTargetPlan",
             "transformEggPlan",
             "transformPrintArtifact",
+            "transformExecutionRuntime",
             "combinedTransformPassPlan",
         ],
     }

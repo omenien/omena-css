@@ -240,6 +240,7 @@ pub struct OmenaQueryTransformPlanSummaryV0 {
     pub target: TransformTargetPlanV0,
     pub egg: TransformEggPlanV0,
     pub print: TransformPrintArtifactV0,
+    pub execution: TransformExecutionSummaryV0,
     pub combined_plan: TransformPassPlanV0,
     pub combined_pass_ids: Vec<&'static str>,
     pub combined_violated_dag_edge_count: usize,
