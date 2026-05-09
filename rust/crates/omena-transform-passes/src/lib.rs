@@ -239,6 +239,24 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "compressed lexer numeric tokens without touching identifiers or strings",
                 }
             }
+            Some(TransformPassKind::ColorCompression) => {
+                let (next_css, mutation_count) = compress_css_colors(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "compressed declaration-leading hex color tokens",
+                }
+            }
             Some(TransformPassKind::PrintCss) => TransformPassExecutionOutcomeV0 {
                 pass_id,
                 status: TransformPassRuntimeStatus::NoChange,
@@ -300,6 +318,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::WhitespaceStrip.id(),
         TransformPassKind::CommentStrip.id(),
         TransformPassKind::NumberCompression.id(),
+        TransformPassKind::ColorCompression.id(),
         TransformPassKind::PrintCss.id(),
     ]
 }
@@ -428,8 +447,69 @@ fn compress_css_numbers(source: &str, dialect: StyleDialect) -> (String, usize) 
     compress_css_numbers_with_lexer(source, dialect)
 }
 
+fn compress_css_colors(source: &str, dialect: StyleDialect) -> (String, usize) {
+    compress_css_colors_with_lexer(source, dialect)
+}
+
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
+}
+
+fn compress_css_colors_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut output = String::with_capacity(source.len());
+    let mut mutation_count = 0;
+
+    for (index, token) in tokens.iter().enumerate() {
+        let replacement = if token.kind == SyntaxKind::Hash
+            && previous_non_comment_token_kind(tokens, index) == Some(SyntaxKind::Colon)
+        {
+            compress_hex_color_token_text(&token.text)
+        } else {
+            None
+        };
+
+        if let Some(replacement) = replacement {
+            if replacement != token.text {
+                mutation_count += 1;
+            }
+            output.push_str(&replacement);
+        } else {
+            output.push_str(&token.text);
+        }
+    }
+
+    (output, mutation_count)
+}
+
+fn compress_hex_color_token_text(text: &str) -> Option<String> {
+    let hex = text.strip_prefix('#')?;
+    if !matches!(hex.len(), 3 | 4 | 6 | 8) || !hex.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        return None;
+    }
+
+    let lower = hex.to_ascii_lowercase();
+    let compressed = match lower.len() {
+        6 if can_shorten_hex_pairs(&lower) => shorten_hex_pairs(&lower),
+        8 if can_shorten_hex_pairs(&lower) => shorten_hex_pairs(&lower),
+        _ => lower,
+    };
+    let rewritten = format!("#{compressed}");
+    (rewritten != text).then_some(rewritten)
+}
+
+fn can_shorten_hex_pairs(hex: &str) -> bool {
+    hex.as_bytes()
+        .chunks_exact(2)
+        .all(|pair| pair[0] == pair[1])
+}
+
+fn shorten_hex_pairs(hex: &str) -> String {
+    hex.as_bytes()
+        .chunks_exact(2)
+        .map(|pair| pair[0] as char)
+        .collect()
 }
 
 fn compress_css_numbers_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -709,6 +789,7 @@ mod tests {
                 "p01-whitespace-strip",
                 "p02-comment-strip",
                 "p03-number-compression",
+                "p05-color-compression",
                 "p40-print-css"
             ]
         );
@@ -835,6 +916,24 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".a { width: .5rem; opacity: 1; margin: -.25px 10%; content: "0.50"; }"#
+        );
+    }
+
+    #[test]
+    fn execution_runtime_compresses_declaration_leading_hex_colors_only() {
+        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; } #FFFFFF { color: red; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::ColorCompression,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#".a { color: #fff; box-shadow: 0 0 #AABBCC; } #FFFFFF { color: red; }"#
         );
     }
 
