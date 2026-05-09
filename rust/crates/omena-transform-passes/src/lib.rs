@@ -275,6 +275,24 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "stripped quotes from safe url() string arguments",
                 }
             }
+            Some(TransformPassKind::StringQuoteNormalize) => {
+                let (next_css, mutation_count) = normalize_css_string_quotes(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "normalized safe single-quoted CSS string tokens",
+                }
+            }
             Some(TransformPassKind::PrintCss) => TransformPassExecutionOutcomeV0 {
                 pass_id,
                 status: TransformPassRuntimeStatus::NoChange,
@@ -338,6 +356,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::NumberCompression.id(),
         TransformPassKind::ColorCompression.id(),
         TransformPassKind::UrlQuoteStrip.id(),
+        TransformPassKind::StringQuoteNormalize.id(),
         TransformPassKind::PrintCss.id(),
     ]
 }
@@ -474,8 +493,36 @@ fn strip_css_url_quotes(source: &str, dialect: StyleDialect) -> (String, usize) 
     strip_css_url_quotes_with_lexer(source, dialect)
 }
 
+fn normalize_css_string_quotes(source: &str, dialect: StyleDialect) -> (String, usize) {
+    normalize_css_string_quotes_with_lexer(source, dialect)
+}
+
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
+}
+
+fn normalize_css_string_quotes_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    rewrite_lexer_tokens(source, dialect, |kind, text| {
+        if kind == SyntaxKind::String {
+            return normalize_css_string_token_quotes(text);
+        }
+        None
+    })
+}
+
+fn normalize_css_string_token_quotes(text: &str) -> Option<String> {
+    if !text.starts_with('\'') || !text.ends_with('\'') || text.len() < 2 {
+        return None;
+    }
+    let inner = &text[1..text.len() - 1];
+    if inner
+        .chars()
+        .any(|ch| matches!(ch, '"' | '\\' | '\n' | '\r'))
+    {
+        return None;
+    }
+
+    Some(format!("\"{inner}\""))
 }
 
 fn strip_css_url_quotes_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -878,6 +925,7 @@ mod tests {
                 "p03-number-compression",
                 "p05-color-compression",
                 "p06-url-quote-strip",
+                "p07-string-quote-normalize",
                 "p40-print-css"
             ]
         );
@@ -1040,6 +1088,25 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".a { background: url(img/icon.svg); mask: url("has space.svg"); content: "url(\"keep\")"; }"#
+        );
+    }
+
+    #[test]
+    fn execution_runtime_normalizes_safe_single_quoted_strings_only() {
+        let source =
+            r#".a { font-family: 'Demo'; content: 'has "quote"'; background: url('asset.svg'); }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::StringQuoteNormalize,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#".a { font-family: "Demo"; content: 'has "quote"'; background: url("asset.svg"); }"#
         );
     }
 
