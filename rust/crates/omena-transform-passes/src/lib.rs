@@ -4,6 +4,7 @@
 //! the pass catalog; its job is to register every P01-P40 pass and produce a
 //! DAG-respecting execution plan for downstream transform crates.
 
+use omena_cascade::{BoxLonghandInputV0, prove_box_shorthand_combination};
 use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 use omena_transform_cst::{
@@ -330,6 +331,24 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "compressed :is/:where selector functions only when specificity and matching semantics are preserved",
                 }
             }
+            Some(TransformPassKind::ShorthandCombining) => {
+                let (next_css, mutation_count) = combine_css_box_shorthands(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "combined adjacent margin/padding longhands only with cascade shorthand proof",
+                }
+            }
             Some(TransformPassKind::EmptyRuleRemoval) => {
                 let (next_css, mutation_count) = remove_empty_css_rules(&output_css, dialect);
                 let status = if mutation_count == 0 {
@@ -414,6 +433,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::UrlQuoteStrip.id(),
         TransformPassKind::StringQuoteNormalize.id(),
         TransformPassKind::SelectorIsWhereCompression.id(),
+        TransformPassKind::ShorthandCombining.id(),
         TransformPassKind::EmptyRuleRemoval.id(),
         TransformPassKind::PrintCss.id(),
     ]
@@ -567,8 +587,275 @@ fn remove_empty_css_rules(source: &str, dialect: StyleDialect) -> (String, usize
     remove_empty_css_rules_with_lexer(source, dialect)
 }
 
+fn combine_css_box_shorthands(source: &str, dialect: StyleDialect) -> (String, usize) {
+    combine_css_box_shorthands_with_lexer(source, dialect)
+}
+
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SimpleDeclarationSlice {
+    property: String,
+    value: String,
+    important: bool,
+    start: usize,
+    end: usize,
+    source_order: u32,
+}
+
+fn combine_css_box_shorthands_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let ranges = collect_box_shorthand_replacement_ranges(tokens);
+    if ranges.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end, replacement) in &ranges {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, ranges.len())
+}
+
+fn collect_box_shorthand_replacement_ranges(
+    tokens: &[omena_parser::LexedToken],
+) -> Vec<(usize, usize, String)> {
+    let mut ranges = Vec::new();
+    let mut index = 0;
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace {
+            if let Some(close_index) = matching_right_brace_index(tokens, index) {
+                ranges.extend(collect_box_shorthand_replacements_in_block(
+                    tokens,
+                    index,
+                    close_index,
+                ));
+                index = close_index + 1;
+                continue;
+            }
+        }
+        index += 1;
+    }
+    ranges
+}
+
+fn collect_box_shorthand_replacements_in_block(
+    tokens: &[omena_parser::LexedToken],
+    block_start: usize,
+    block_end: usize,
+) -> Vec<(usize, usize, String)> {
+    let declarations = collect_simple_declarations_in_block(tokens, block_start, block_end);
+    let mut ranges = Vec::new();
+    let mut index = 0;
+    while index + 3 < declarations.len() {
+        if let Some((start, end, replacement)) =
+            box_shorthand_replacement_for_declarations(tokens, &declarations[index..index + 4])
+        {
+            ranges.push((start, end, replacement));
+            index += 4;
+        } else {
+            index += 1;
+        }
+    }
+    ranges
+}
+
+fn collect_simple_declarations_in_block(
+    tokens: &[omena_parser::LexedToken],
+    block_start: usize,
+    block_end: usize,
+) -> Vec<SimpleDeclarationSlice> {
+    let mut declarations = Vec::new();
+    let mut index = block_start + 1;
+    let mut source_order = 0u32;
+
+    while index < block_end {
+        index = skip_whitespace_tokens(tokens, index, block_end);
+        if index >= block_end {
+            break;
+        }
+
+        if tokens[index].kind == SyntaxKind::LeftBrace {
+            if let Some(close_index) = matching_right_brace_index(tokens, index) {
+                index = close_index + 1;
+                continue;
+            }
+        }
+
+        if let Some((declaration, next_index)) =
+            parse_simple_declaration_slice(tokens, index, block_end, source_order)
+        {
+            declarations.push(declaration);
+            source_order += 1;
+            index = next_index;
+        } else {
+            index += 1;
+        }
+    }
+
+    declarations
+}
+
+fn parse_simple_declaration_slice(
+    tokens: &[omena_parser::LexedToken],
+    start_index: usize,
+    block_end: usize,
+    source_order: u32,
+) -> Option<(SimpleDeclarationSlice, usize)> {
+    let property_token = tokens.get(start_index)?;
+    if property_token.kind != SyntaxKind::Ident {
+        return None;
+    }
+
+    let colon_index = skip_whitespace_tokens(tokens, start_index + 1, block_end);
+    if tokens.get(colon_index)?.kind != SyntaxKind::Colon {
+        return None;
+    }
+
+    let mut value_tokens: Vec<&omena_parser::LexedToken> = Vec::new();
+    let mut index = colon_index + 1;
+    while index < block_end {
+        match tokens[index].kind {
+            SyntaxKind::Semicolon => {
+                if value_tokens
+                    .iter()
+                    .any(|token| is_comment_token(token.kind))
+                {
+                    return None;
+                }
+                let value = value_tokens
+                    .iter()
+                    .map(|token| token.text.as_str())
+                    .collect::<String>()
+                    .trim()
+                    .to_string();
+                if value.is_empty() {
+                    return None;
+                }
+                let important = value_tokens
+                    .iter()
+                    .any(|token| token.kind == SyntaxKind::Important);
+                return Some((
+                    SimpleDeclarationSlice {
+                        property: property_token.text.to_ascii_lowercase(),
+                        value,
+                        important,
+                        start: token_start(property_token),
+                        end: token_end(&tokens[index]),
+                        source_order,
+                    },
+                    index + 1,
+                ));
+            }
+            SyntaxKind::LeftBrace | SyntaxKind::RightBrace => return None,
+            _ => value_tokens.push(&tokens[index]),
+        }
+        index += 1;
+    }
+
+    None
+}
+
+fn box_shorthand_replacement_for_declarations(
+    tokens: &[omena_parser::LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let shorthand_property = match declarations.first()?.property.as_str() {
+        "margin-top" => "margin",
+        "padding-top" => "padding",
+        _ => return None,
+    };
+    if !declaration_ranges_are_adjacent(tokens, declarations) {
+        return None;
+    }
+
+    let proof_inputs = declarations
+        .iter()
+        .map(|declaration| BoxLonghandInputV0 {
+            property: declaration.property.clone(),
+            value: declaration.value.clone(),
+            important: declaration.important,
+            source_order: declaration.source_order,
+        })
+        .collect::<Vec<_>>();
+    let proof = prove_box_shorthand_combination(shorthand_property, &proof_inputs);
+    if !proof.accepted {
+        return None;
+    }
+
+    let values = declarations
+        .iter()
+        .map(|declaration| declaration.value.as_str())
+        .collect::<Vec<_>>();
+    let shorthand_value = compress_box_shorthand_values(&values)?;
+    let replacement = format!("{shorthand_property}: {shorthand_value};");
+    Some((
+        declarations.first()?.start,
+        declarations.last()?.end,
+        replacement,
+    ))
+}
+
+fn declaration_ranges_are_adjacent(
+    tokens: &[omena_parser::LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> bool {
+    declarations.windows(2).all(|pair| {
+        tokens_between_byte_range(tokens, pair[0].end, pair[1].start)
+            .iter()
+            .all(|token| token.kind == SyntaxKind::Whitespace)
+    })
+}
+
+fn tokens_between_byte_range(
+    tokens: &[omena_parser::LexedToken],
+    start: usize,
+    end: usize,
+) -> Vec<&omena_parser::LexedToken> {
+    tokens
+        .iter()
+        .filter(|token| token_start(token) >= start && token_end(token) <= end)
+        .collect()
+}
+
+fn compress_box_shorthand_values(values: &[&str]) -> Option<String> {
+    let [top, right, bottom, left] = values else {
+        return None;
+    };
+
+    let parts = if top == right && top == bottom && top == left {
+        vec![*top]
+    } else if top == bottom && right == left {
+        vec![*top, *right]
+    } else if right == left {
+        vec![*top, *right, *bottom]
+    } else {
+        vec![*top, *right, *bottom, *left]
+    };
+    Some(parts.join(" "))
+}
+
+fn skip_whitespace_tokens(
+    tokens: &[omena_parser::LexedToken],
+    mut index: usize,
+    end_exclusive: usize,
+) -> usize {
+    while index < end_exclusive && tokens[index].kind == SyntaxKind::Whitespace {
+        index += 1;
+    }
+    index
 }
 
 fn remove_empty_css_rules_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -1441,6 +1728,7 @@ mod tests {
                 "p06-url-quote-strip",
                 "p07-string-quote-normalize",
                 "p08-selector-is-where-compression",
+                "p09-shorthand-combining",
                 "p13-empty-rule-removal",
                 "p40-print-css"
             ]
@@ -1689,6 +1977,28 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p13-empty-rule-removal", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_combines_adjacent_box_longhands_with_cascade_proof() {
+        let source = r#".a { margin-top: 1px; margin-right: 2px; margin-bottom: 1px; margin-left: 2px; padding-top: 1px; color: red; padding-right: 2px; padding-bottom: 3px; padding-left: 4px; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::ShorthandCombining,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#".a { margin: 1px 2px; padding-top: 1px; color: red; padding-right: 2px; padding-bottom: 3px; padding-left: 4px; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p09-shorthand-combining", "p40-print-css"]
         );
     }
 

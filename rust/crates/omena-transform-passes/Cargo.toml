@@ -12,6 +12,7 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
+omena-cascade = { path = "../omena-cascade" }
 omena-transform-cst = { path = "../omena-transform-cst" }
 omena-parser = { path = "../omena-parser" }
 omena-syntax = { path = "../omena-syntax" }
