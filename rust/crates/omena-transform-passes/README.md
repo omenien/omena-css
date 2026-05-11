@@ -7,8 +7,9 @@ mutation engines will land behind this registry so transform execution cannot
 drift from the semantic/cascade proof obligations.
 
 The first execution runtime surface is intentionally conservative: it executes
-lexer-backed safe commodity mutations for P01, P02, P03, P04, P05, P06, and
-P07, and observes the P40 emission boundary. P04 unit normalization is limited
-to zero length dimensions inside declaration properties that accept unitless
-zero; broader unit/value rewrites remain planned until property/value semantics
-can prove them legal.
+lexer-backed safe commodity mutations for P01 through P08, and observes the
+P40 emission boundary. P04 unit normalization is limited to zero length
+dimensions inside declaration properties that accept unitless zero; broader
+unit/value rewrites remain planned until property/value semantics can prove them
+legal. P08 selector compression is limited to specificity-preserving `:is()`
+unwrapping and duplicate argument removal for `:is()`/`:where()`.

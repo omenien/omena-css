@@ -311,6 +311,25 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "normalized safe single-quoted CSS string tokens",
                 }
             }
+            Some(TransformPassKind::SelectorIsWhereCompression) => {
+                let (next_css, mutation_count) =
+                    compress_css_is_where_selectors(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "compressed :is/:where selector functions only when specificity and matching semantics are preserved",
+                }
+            }
             Some(TransformPassKind::PrintCss) => TransformPassExecutionOutcomeV0 {
                 pass_id,
                 status: TransformPassRuntimeStatus::NoChange,
@@ -376,6 +395,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::ColorCompression.id(),
         TransformPassKind::UrlQuoteStrip.id(),
         TransformPassKind::StringQuoteNormalize.id(),
+        TransformPassKind::SelectorIsWhereCompression.id(),
         TransformPassKind::PrintCss.id(),
     ]
 }
@@ -520,8 +540,159 @@ fn normalize_css_string_quotes(source: &str, dialect: StyleDialect) -> (String, 
     normalize_css_string_quotes_with_lexer(source, dialect)
 }
 
+fn compress_css_is_where_selectors(source: &str, dialect: StyleDialect) -> (String, usize) {
+    compress_css_is_where_selectors_with_lexer(source, dialect)
+}
+
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
+}
+
+fn compress_css_is_where_selectors_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut output = String::with_capacity(source.len());
+    let mut mutation_count = 0;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if let Some((replacement, consumed)) = rewrite_is_where_selector_function(tokens, index) {
+            output.push_str(&replacement);
+            mutation_count += 1;
+            index += consumed;
+            continue;
+        }
+
+        output.push_str(&tokens[index].text);
+        index += 1;
+    }
+
+    (output, mutation_count)
+}
+
+fn rewrite_is_where_selector_function(
+    tokens: &[omena_parser::LexedToken],
+    index: usize,
+) -> Option<(String, usize)> {
+    let colon = tokens.get(index)?;
+    let ident = tokens.get(index + 1)?;
+    let left_paren = tokens.get(index + 2)?;
+    if colon.kind != SyntaxKind::Colon
+        || ident.kind != SyntaxKind::Ident
+        || left_paren.kind != SyntaxKind::LeftParen
+    {
+        return None;
+    }
+
+    let pseudo_name = ident.text.to_ascii_lowercase();
+    if pseudo_name != "is" && pseudo_name != "where" {
+        return None;
+    }
+
+    let close_index = matching_right_paren_index(tokens, index + 2)?;
+    let inner_tokens = &tokens[index + 3..close_index];
+    let arguments = split_top_level_selector_arguments(inner_tokens)?;
+    if arguments.is_empty() {
+        return None;
+    }
+
+    let deduped = dedupe_selector_arguments(&arguments);
+    let replacement = if pseudo_name == "is" {
+        if deduped.len() == 1 {
+            deduped[0].clone()
+        } else if deduped.len() != arguments.len() {
+            format!(":is({})", deduped.join(","))
+        } else {
+            return None;
+        }
+    } else if deduped.len() != arguments.len() {
+        format!(":where({})", deduped.join(","))
+    } else {
+        return None;
+    };
+
+    let original = tokens[index..=close_index]
+        .iter()
+        .map(|token| token.text.as_str())
+        .collect::<String>();
+    (replacement != original).then_some((replacement, close_index - index + 1))
+}
+
+fn matching_right_paren_index(
+    tokens: &[omena_parser::LexedToken],
+    left_paren_index: usize,
+) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().skip(left_paren_index) {
+        match token.kind {
+            SyntaxKind::LeftParen => depth += 1,
+            SyntaxKind::RightParen => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn split_top_level_selector_arguments(tokens: &[omena_parser::LexedToken]) -> Option<Vec<String>> {
+    let mut arguments = Vec::new();
+    let mut current = String::new();
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+
+    for token in tokens {
+        match token.kind {
+            SyntaxKind::LeftParen => {
+                paren_depth += 1;
+                current.push_str(&token.text);
+            }
+            SyntaxKind::RightParen => {
+                paren_depth = paren_depth.checked_sub(1)?;
+                current.push_str(&token.text);
+            }
+            SyntaxKind::LeftBracket => {
+                bracket_depth += 1;
+                current.push_str(&token.text);
+            }
+            SyntaxKind::RightBracket => {
+                bracket_depth = bracket_depth.checked_sub(1)?;
+                current.push_str(&token.text);
+            }
+            SyntaxKind::Comma if paren_depth == 0 && bracket_depth == 0 => {
+                let argument = current.trim().to_string();
+                if argument.is_empty() {
+                    return None;
+                }
+                arguments.push(argument);
+                current.clear();
+            }
+            _ => current.push_str(&token.text),
+        }
+    }
+
+    let argument = current.trim().to_string();
+    if argument.is_empty() {
+        return None;
+    }
+    arguments.push(argument);
+    Some(arguments)
+}
+
+fn dedupe_selector_arguments(arguments: &[String]) -> Vec<String> {
+    let mut deduped = Vec::new();
+    for argument in arguments {
+        if !deduped.contains(argument) {
+            deduped.push(argument.clone());
+        }
+    }
+    deduped
 }
 
 fn normalize_css_string_quotes_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -1111,6 +1282,7 @@ mod tests {
                 "p05-color-compression",
                 "p06-url-quote-strip",
                 "p07-string-quote-normalize",
+                "p08-selector-is-where-compression",
                 "p40-print-css"
             ]
         );
@@ -1314,6 +1486,28 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".a { font-family: "Demo"; content: 'has "quote"'; background: url("asset.svg"); }"#
+        );
+    }
+
+    #[test]
+    fn execution_runtime_compresses_specificity_safe_is_where_selectors() {
+        let source = r#".a:is(.ready) { color: red; } .b:where(.x, .x) { color: blue; } .c:where(.y) { color: green; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::SelectorIsWhereCompression,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#".a.ready { color: red; } .b:where(.x) { color: blue; } .c:where(.y) { color: green; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p08-selector-is-where-compression", "p40-print-css"]
         );
     }
 
