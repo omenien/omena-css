@@ -478,6 +478,24 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "lowered in-gamut whole-value oklab()/oklch() color declarations to srgb",
                 }
             }
+            Some(TransformPassKind::ColorFunctionLowering) => {
+                let (next_css, mutation_count) = lower_css_color_function(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "lowered whole-value color(srgb ...) declarations with static channels",
+                }
+            }
             Some(TransformPassKind::EmptyRuleRemoval) => {
                 let (next_css, mutation_count) = remove_empty_css_rules(&output_css, dialect);
                 let status = if mutation_count == 0 {
@@ -571,6 +589,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::LightDarkLowering.id(),
         TransformPassKind::ColorMixLowering.id(),
         TransformPassKind::OklchOklabLowering.id(),
+        TransformPassKind::ColorFunctionLowering.id(),
         TransformPassKind::PrintCss.id(),
     ]
 }
@@ -755,6 +774,10 @@ fn lower_css_oklab_oklch(source: &str, dialect: StyleDialect) -> (String, usize)
     lower_css_oklab_oklch_with_lexer(source, dialect)
 }
 
+fn lower_css_color_function(source: &str, dialect: StyleDialect) -> (String, usize) {
+    lower_css_color_function_with_lexer(source, dialect)
+}
+
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
 }
@@ -901,6 +924,56 @@ fn lower_css_oklab_oklch_with_lexer(source: &str, dialect: StyleDialect) -> (Str
                     continue;
                 }
                 let Some(replacement_value) = parse_oklab_oklch_value(&declaration.value) else {
+                    continue;
+                };
+                replacements.push((
+                    declaration.start,
+                    declaration.end,
+                    format!("{}: {replacement_value};", declaration.property),
+                ));
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end, replacement) in &replacements {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacements.len())
+}
+
+fn lower_css_color_function_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
+            for declaration in declarations {
+                if !is_light_dark_lowerable_property(&declaration.property) {
+                    continue;
+                }
+                let Some(replacement_value) = parse_color_function_value(&declaration.value) else {
                     continue;
                 };
                 replacements.push((
@@ -1218,6 +1291,25 @@ fn parse_oklab_oklch_value(value: &str) -> Option<String> {
         .map(SrgbColor::to_css_rgb)
 }
 
+fn parse_color_function_value(value: &str) -> Option<String> {
+    let inner = parse_whole_function_value_inner(value, "color")?;
+    let parts = split_ascii_space_separated_color_args(inner)?;
+    let [space, red, green, blue] = parts.as_slice() else {
+        return None;
+    };
+    if !space.eq_ignore_ascii_case("srgb") {
+        return None;
+    }
+    Some(
+        SrgbColor {
+            red: parse_srgb_component(red)?,
+            green: parse_srgb_component(green)?,
+            blue: parse_srgb_component(blue)?,
+        }
+        .to_css_rgb(),
+    )
+}
+
 fn parse_oklab_value(value: &str) -> Option<SrgbColor> {
     let inner = parse_whole_function_value_inner(value, "oklab")?;
     let parts = split_ascii_space_separated_color_args(inner)?;
@@ -1274,6 +1366,18 @@ fn parse_plain_f64(text: &str) -> Option<f64> {
         return None;
     }
     text.parse::<f64>().ok().filter(|value| value.is_finite())
+}
+
+fn parse_srgb_component(text: &str) -> Option<u8> {
+    let value = if let Some(percent) = text.strip_suffix('%') {
+        parse_plain_f64(percent)? / 100.0
+    } else {
+        parse_plain_f64(text)?
+    };
+    if !(0.0..=1.0).contains(&value) {
+        return None;
+    }
+    Some((value * 255.0).round().clamp(0.0, 255.0) as u8)
 }
 
 fn oklab_to_srgb(lightness: f64, a_axis: f64, b_axis: f64) -> Option<SrgbColor> {
@@ -2746,6 +2850,7 @@ mod tests {
                 "p15-light-dark-lowering",
                 "p16-color-mix-lowering",
                 "p17-oklch-oklab-lowering",
+                "p18-color-function-lowering",
                 "p40-print-css"
             ]
         );
@@ -3169,6 +3274,28 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p17-oklch-oklab-lowering", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_lowers_static_srgb_color_function_declarations() {
+        let source = r#".card { color: color(srgb 1 0 0); background-color: color(srgb 50% 25% 0%); border-color: color(display-p3 1 0 0); }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::ColorFunctionLowering,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#".card { color: rgb(255 0 0); background-color: rgb(128 64 0); border-color: color(display-p3 1 0 0); }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p18-color-function-lowering", "p40-print-css"]
         );
     }
 
