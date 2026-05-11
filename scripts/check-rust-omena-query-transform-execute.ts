@@ -60,6 +60,7 @@ const result = spawnSync(
         "p13-empty-rule-removal",
         "p14-vendor-prefixing",
         "p15-light-dark-lowering",
+        "p16-color-mix-lowering",
         "p40-print-css",
         "p99-unknown",
       ],
@@ -92,6 +93,7 @@ assert.deepEqual(summary.requestedPassIds, [
   "p13-empty-rule-removal",
   "p14-vendor-prefixing",
   "p15-light-dark-lowering",
+  "p16-color-mix-lowering",
   "p40-print-css",
   "p99-unknown",
 ]);
@@ -103,6 +105,7 @@ assert.equal(
 );
 assert.deepEqual(summary.execution.executedPassIds, [
   "p15-light-dark-lowering",
+  "p16-color-mix-lowering",
   "p14-vendor-prefixing",
   "p08-selector-is-where-compression",
   "p09-shorthand-combining",

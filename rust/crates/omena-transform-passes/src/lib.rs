@@ -442,6 +442,24 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "lowered whole-value light-dark() color declarations into dark media branches",
                 }
             }
+            Some(TransformPassKind::ColorMixLowering) => {
+                let (next_css, mutation_count) = lower_css_color_mix(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "lowered whole-value srgb color-mix() declarations with static color operands",
+                }
+            }
             Some(TransformPassKind::EmptyRuleRemoval) => {
                 let (next_css, mutation_count) = remove_empty_css_rules(&output_css, dialect);
                 let status = if mutation_count == 0 {
@@ -533,6 +551,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::EmptyRuleRemoval.id(),
         TransformPassKind::VendorPrefixing.id(),
         TransformPassKind::LightDarkLowering.id(),
+        TransformPassKind::ColorMixLowering.id(),
         TransformPassKind::PrintCss.id(),
     ]
 }
@@ -709,6 +728,10 @@ fn lower_css_light_dark(source: &str, dialect: StyleDialect) -> (String, usize) 
     lower_css_light_dark_with_lexer(source, dialect)
 }
 
+fn lower_css_color_mix(source: &str, dialect: StyleDialect) -> (String, usize) {
+    lower_css_color_mix_with_lexer(source, dialect)
+}
+
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
 }
@@ -789,6 +812,56 @@ fn lower_css_light_dark_with_lexer(source: &str, dialect: StyleDialect) -> (Stri
     (output, replacements.len())
 }
 
+fn lower_css_color_mix_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
+            for declaration in declarations {
+                if !is_light_dark_lowerable_property(&declaration.property) {
+                    continue;
+                }
+                let Some(replacement_value) = parse_color_mix_value(&declaration.value) else {
+                    continue;
+                };
+                replacements.push((
+                    declaration.start,
+                    declaration.end,
+                    format!("{}: {replacement_value};", declaration.property),
+                ));
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end, replacement) in &replacements {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacements.len())
+}
+
 fn rule_block_token_indexes(
     tokens: &[omena_parser::LexedToken],
     block_start: usize,
@@ -819,28 +892,248 @@ fn is_light_dark_lowerable_property(property: &str) -> bool {
 }
 
 fn parse_light_dark_value(value: &str) -> Option<(String, String)> {
-    let value = value.trim();
-    let inner = value.strip_prefix("light-dark(")?.strip_suffix(')')?;
-    let mut depth = 0usize;
-    let mut split_index = None;
-    for (index, ch) in inner.char_indices() {
-        match ch {
-            '(' => depth += 1,
-            ')' => depth = depth.checked_sub(1)?,
-            ',' if depth == 0 => {
-                split_index = Some(index);
-                break;
-            }
-            _ => {}
-        }
-    }
-    let split_index = split_index?;
-    let light = inner[..split_index].trim();
-    let dark = inner[split_index + 1..].trim();
+    let arguments = parse_whole_function_value_arguments(value, "light-dark")?;
+    let [light, dark] = arguments.as_slice() else {
+        return None;
+    };
     if light.is_empty() || dark.is_empty() {
         return None;
     }
-    Some((light.to_string(), dark.to_string()))
+    Some((light.clone(), dark.clone()))
+}
+
+fn parse_color_mix_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "color-mix")?;
+    let [space, first, second] = arguments.as_slice() else {
+        return None;
+    };
+    if normalize_ascii_whitespace(space) != "in srgb" {
+        return None;
+    }
+
+    let first_stop = parse_static_color_mix_stop(first)?;
+    let second_stop = parse_static_color_mix_stop(second)?;
+    let (first_weight, second_weight) =
+        color_mix_weights(first_stop.percentage, second_stop.percentage)?;
+    let mixed = mix_srgb_colors(
+        first_stop.color,
+        second_stop.color,
+        first_weight,
+        second_weight,
+    );
+    Some(mixed.to_css_rgb())
+}
+
+fn parse_whole_function_value_arguments(value: &str, function_name: &str) -> Option<Vec<String>> {
+    let value = value.trim();
+    let name = value.get(..function_name.len())?;
+    if !name.eq_ignore_ascii_case(function_name) {
+        return None;
+    }
+    let inner = value
+        .get(function_name.len()..)?
+        .strip_prefix('(')?
+        .strip_suffix(')')?;
+    split_top_level_value_arguments(inner)
+}
+
+fn split_top_level_value_arguments(inner: &str) -> Option<Vec<String>> {
+    let mut arguments = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+
+    for ch in inner.chars() {
+        if let Some(active_quote) = quote {
+            current.push(ch);
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                current.push(ch);
+            }
+            '(' => {
+                depth += 1;
+                current.push(ch);
+            }
+            ')' => {
+                depth = depth.checked_sub(1)?;
+                current.push(ch);
+            }
+            '[' => {
+                bracket_depth += 1;
+                current.push(ch);
+            }
+            ']' => {
+                bracket_depth = bracket_depth.checked_sub(1)?;
+                current.push(ch);
+            }
+            ',' if depth == 0 && bracket_depth == 0 => {
+                let argument = current.trim().to_string();
+                if argument.is_empty() {
+                    return None;
+                }
+                arguments.push(argument);
+                current.clear();
+            }
+            _ => current.push(ch),
+        }
+    }
+
+    if quote.is_some() || depth != 0 || bracket_depth != 0 {
+        return None;
+    }
+
+    let argument = current.trim().to_string();
+    if argument.is_empty() {
+        return None;
+    }
+    arguments.push(argument);
+    Some(arguments)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct StaticColorMixStop {
+    color: SrgbColor,
+    percentage: Option<u8>,
+}
+
+fn parse_static_color_mix_stop(input: &str) -> Option<StaticColorMixStop> {
+    let parts = input.split_whitespace().collect::<Vec<_>>();
+    let (color_text, percentage) = match parts.as_slice() {
+        [color] => (*color, None),
+        [color, percentage] => (*color, Some(parse_percentage_integer(percentage)?)),
+        _ => return None,
+    };
+
+    Some(StaticColorMixStop {
+        color: parse_static_srgb_color(color_text)?,
+        percentage,
+    })
+}
+
+fn parse_percentage_integer(text: &str) -> Option<u8> {
+    let number = text.strip_suffix('%')?;
+    let value = number.parse::<u8>().ok()?;
+    (value <= 100).then_some(value)
+}
+
+fn color_mix_weights(first: Option<u8>, second: Option<u8>) -> Option<(f64, f64)> {
+    match (first, second) {
+        (None, None) => Some((0.5, 0.5)),
+        (Some(first), None) => Some((f64::from(first) / 100.0, f64::from(100 - first) / 100.0)),
+        (None, Some(second)) => Some((f64::from(100 - second) / 100.0, f64::from(second) / 100.0)),
+        (Some(first), Some(second)) if first + second == 100 => {
+            Some((f64::from(first) / 100.0, f64::from(second) / 100.0))
+        }
+        _ => None,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SrgbColor {
+    red: u8,
+    green: u8,
+    blue: u8,
+}
+
+impl SrgbColor {
+    fn to_css_rgb(self) -> String {
+        format!("rgb({} {} {})", self.red, self.green, self.blue)
+    }
+}
+
+fn mix_srgb_colors(
+    first: SrgbColor,
+    second: SrgbColor,
+    first_weight: f64,
+    second_weight: f64,
+) -> SrgbColor {
+    SrgbColor {
+        red: mix_srgb_channel(first.red, second.red, first_weight, second_weight),
+        green: mix_srgb_channel(first.green, second.green, first_weight, second_weight),
+        blue: mix_srgb_channel(first.blue, second.blue, first_weight, second_weight),
+    }
+}
+
+fn mix_srgb_channel(first: u8, second: u8, first_weight: f64, second_weight: f64) -> u8 {
+    let value = f64::from(first) * first_weight + f64::from(second) * second_weight;
+    value.round().clamp(0.0, 255.0) as u8
+}
+
+fn parse_static_srgb_color(text: &str) -> Option<SrgbColor> {
+    parse_static_hex_color(text).or_else(|| parse_basic_named_srgb_color(text))
+}
+
+fn parse_static_hex_color(text: &str) -> Option<SrgbColor> {
+    let hex = text.strip_prefix('#')?;
+    match hex.len() {
+        3 => {
+            let mut chars = hex.chars();
+            Some(SrgbColor {
+                red: parse_repeated_hex_digit(chars.next()?)?,
+                green: parse_repeated_hex_digit(chars.next()?)?,
+                blue: parse_repeated_hex_digit(chars.next()?)?,
+            })
+        }
+        6 => Some(SrgbColor {
+            red: u8::from_str_radix(hex.get(0..2)?, 16).ok()?,
+            green: u8::from_str_radix(hex.get(2..4)?, 16).ok()?,
+            blue: u8::from_str_radix(hex.get(4..6)?, 16).ok()?,
+        }),
+        _ => None,
+    }
+}
+
+fn parse_repeated_hex_digit(ch: char) -> Option<u8> {
+    let digit = ch.to_digit(16)? as u8;
+    Some(digit * 17)
+}
+
+fn parse_basic_named_srgb_color(text: &str) -> Option<SrgbColor> {
+    match text.to_ascii_lowercase().as_str() {
+        "black" => Some(SrgbColor {
+            red: 0,
+            green: 0,
+            blue: 0,
+        }),
+        "blue" => Some(SrgbColor {
+            red: 0,
+            green: 0,
+            blue: 255,
+        }),
+        "green" => Some(SrgbColor {
+            red: 0,
+            green: 128,
+            blue: 0,
+        }),
+        "red" => Some(SrgbColor {
+            red: 255,
+            green: 0,
+            blue: 0,
+        }),
+        "white" => Some(SrgbColor {
+            red: 255,
+            green: 255,
+            blue: 255,
+        }),
+        _ => None,
+    }
+}
+
+fn normalize_ascii_whitespace(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn add_css_vendor_prefixes_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -2270,6 +2563,7 @@ mod tests {
                 "p13-empty-rule-removal",
                 "p14-vendor-prefixing",
                 "p15-light-dark-lowering",
+                "p16-color-mix-lowering",
                 "p40-print-css"
             ]
         );
@@ -2649,6 +2943,28 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p15-light-dark-lowering", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_lowers_static_srgb_color_mix_declarations() {
+        let source = r#".card { color: color-mix(in srgb, red 50%, blue 50%); background-color: color-mix(in srgb, #000, #fff 25%); border-color: color-mix(in oklab, red, blue); }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::ColorMixLowering,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#".card { color: rgb(128 0 128); background-color: rgb(64 64 64); border-color: color-mix(in oklab, red, blue); }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p16-color-mix-lowering", "p40-print-css"]
         );
     }
 

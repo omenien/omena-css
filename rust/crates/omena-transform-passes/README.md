@@ -7,7 +7,7 @@ mutation engines will land behind this registry so transform execution cannot
 drift from the semantic/cascade proof obligations.
 
 The first execution runtime surface is intentionally conservative: it executes
-lexer-backed safe commodity mutations for P01 through P15, and observes the P40
+lexer-backed safe commodity mutations for P01 through P16, and observes the P40
 emission boundary. P04 unit normalization is limited to zero length dimensions
 inside declaration properties that accept unitless zero; broader unit/value
 rewrites remain planned until property/value semantics can prove them legal. P08
@@ -22,4 +22,6 @@ declaration blocks. P13 empty rule removal is limited to top-level ordinary
 rules whose blocks contain only whitespace. P14 vendor prefixing currently
 inserts conservative `-webkit-` synonyms for known prefix-sensitive properties
 when absent. P15 `light-dark()` lowering only rewrites whole-value color
-declarations into light defaults plus dark-mode media branches.
+declarations into light defaults plus dark-mode media branches. P16
+`color-mix()` lowering currently supports whole-value `in srgb` declarations
+with static hex/basic named color operands.
