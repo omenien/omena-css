@@ -330,6 +330,24 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "compressed :is/:where selector functions only when specificity and matching semantics are preserved",
                 }
             }
+            Some(TransformPassKind::EmptyRuleRemoval) => {
+                let (next_css, mutation_count) = remove_empty_css_rules(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "removed top-level ordinary empty rules with no comments or at-rule semantics",
+                }
+            }
             Some(TransformPassKind::PrintCss) => TransformPassExecutionOutcomeV0 {
                 pass_id,
                 status: TransformPassRuntimeStatus::NoChange,
@@ -396,6 +414,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::UrlQuoteStrip.id(),
         TransformPassKind::StringQuoteNormalize.id(),
         TransformPassKind::SelectorIsWhereCompression.id(),
+        TransformPassKind::EmptyRuleRemoval.id(),
         TransformPassKind::PrintCss.id(),
     ]
 }
@@ -544,8 +563,147 @@ fn compress_css_is_where_selectors(source: &str, dialect: StyleDialect) -> (Stri
     compress_css_is_where_selectors_with_lexer(source, dialect)
 }
 
+fn remove_empty_css_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
+    remove_empty_css_rules_with_lexer(source, dialect)
+}
+
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
+}
+
+fn remove_empty_css_rules_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let ranges = collect_top_level_empty_rule_ranges(tokens);
+    if ranges.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end) in &ranges {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, ranges.len())
+}
+
+fn collect_top_level_empty_rule_ranges(tokens: &[omena_parser::LexedToken]) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+    let mut depth = 0usize;
+    let mut top_level_prelude_start = 0usize;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => {
+                if depth == 0 {
+                    if let Some(close_index) = matching_right_brace_index(tokens, index)
+                        && is_empty_rule_block(tokens, index + 1, close_index)
+                        && is_ordinary_top_level_rule_prelude(
+                            tokens,
+                            top_level_prelude_start,
+                            index,
+                        )
+                        && let Some(start) =
+                            first_non_trivia_token_start(tokens, top_level_prelude_start, index)
+                    {
+                        let end = token_end(&tokens[close_index]);
+                        ranges.push((start, end));
+                        index = close_index + 1;
+                        top_level_prelude_start = index;
+                        continue;
+                    }
+                }
+                depth += 1;
+            }
+            SyntaxKind::RightBrace => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    top_level_prelude_start = index + 1;
+                }
+            }
+            SyntaxKind::Semicolon if depth == 0 => {
+                top_level_prelude_start = index + 1;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    ranges
+}
+
+fn matching_right_brace_index(
+    tokens: &[omena_parser::LexedToken],
+    left_brace_index: usize,
+) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().skip(left_brace_index) {
+        match token.kind {
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn is_empty_rule_block(
+    tokens: &[omena_parser::LexedToken],
+    start: usize,
+    end_exclusive: usize,
+) -> bool {
+    tokens[start..end_exclusive].iter().all(|token| {
+        matches!(
+            token.kind,
+            SyntaxKind::Whitespace | SyntaxKind::SassIndentedNewline
+        )
+    })
+}
+
+fn is_ordinary_top_level_rule_prelude(
+    tokens: &[omena_parser::LexedToken],
+    start: usize,
+    end_exclusive: usize,
+) -> bool {
+    let prelude = &tokens[start..end_exclusive];
+    prelude
+        .iter()
+        .any(|token| !is_comment_token(token.kind) && token.kind != SyntaxKind::Whitespace)
+        && prelude
+            .iter()
+            .all(|token| token.kind != SyntaxKind::AtKeyword && !is_comment_token(token.kind))
+}
+
+fn first_non_trivia_token_start(
+    tokens: &[omena_parser::LexedToken],
+    start: usize,
+    end_exclusive: usize,
+) -> Option<usize> {
+    tokens[start..end_exclusive]
+        .iter()
+        .find(|token| !is_comment_token(token.kind) && token.kind != SyntaxKind::Whitespace)
+        .map(token_start)
+}
+
+fn token_start(token: &omena_parser::LexedToken) -> usize {
+    u32::from(token.range.start()) as usize
+}
+
+fn token_end(token: &omena_parser::LexedToken) -> usize {
+    u32::from(token.range.end()) as usize
 }
 
 fn compress_css_is_where_selectors_with_lexer(
@@ -1283,6 +1441,7 @@ mod tests {
                 "p06-url-quote-strip",
                 "p07-string-quote-normalize",
                 "p08-selector-is-where-compression",
+                "p13-empty-rule-removal",
                 "p40-print-css"
             ]
         );
@@ -1508,6 +1667,28 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p08-selector-is-where-compression", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_removes_only_plain_top_level_empty_rules() {
+        let source = r#".empty { } @media (min-width: 1px) { } .with-comment { /* keep */ } .filled { color: red; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::EmptyRuleRemoval,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#" @media (min-width: 1px) { } .with-comment { /* keep */ } .filled { color: red; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p13-empty-rule-removal", "p40-print-css"]
         );
     }
 

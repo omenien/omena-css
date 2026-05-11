@@ -24,7 +24,7 @@ interface TransformExecuteSummaryV0 {
 }
 
 const styleSource =
-  '.a:is(.ready) { color: #FFFFFF; opacity: 1.0; margin: 0px; background: url("img.svg"); font-family: \'Demo\'; /* remove */ content: "/* keep */"; }';
+  '.empty { } .a:is(.ready) { color: #FFFFFF; opacity: 1.0; margin: 0px; background: url("img.svg"); font-family: \'Demo\'; /* remove */ content: "/* keep */"; }';
 
 const result = spawnSync(
   "cargo",
@@ -53,6 +53,7 @@ const result = spawnSync(
         "p06-url-quote-strip",
         "p07-string-quote-normalize",
         "p08-selector-is-where-compression",
+        "p13-empty-rule-removal",
         "p40-print-css",
         "p99-unknown",
       ],
@@ -78,6 +79,7 @@ assert.deepEqual(summary.requestedPassIds, [
   "p06-url-quote-strip",
   "p07-string-quote-normalize",
   "p08-selector-is-where-compression",
+  "p13-empty-rule-removal",
   "p40-print-css",
   "p99-unknown",
 ]);
@@ -89,6 +91,7 @@ assert.equal(
 );
 assert.deepEqual(summary.execution.executedPassIds, [
   "p08-selector-is-where-compression",
+  "p13-empty-rule-removal",
   "p01-whitespace-strip",
   "p02-comment-strip",
   "p03-number-compression",
@@ -99,7 +102,7 @@ assert.deepEqual(summary.execution.executedPassIds, [
   "p40-print-css",
 ]);
 assert.deepEqual(summary.execution.plannedOnlyPassIds, []);
-assert.equal(summary.execution.mutationCount, 16);
+assert.equal(summary.execution.mutationCount, 18);
 assert.equal(summary.execution.provenancePreserved, true);
 assert.equal(summary.execution.passPlan.product, "omena-transform-passes.plan");
 assert.equal(summary.execution.passPlan.violatedDagEdgeCount, 0);
