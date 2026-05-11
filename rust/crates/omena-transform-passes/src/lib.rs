@@ -368,6 +368,25 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "removed adjacent exact duplicate ordinary rules only",
                 }
             }
+            Some(TransformPassKind::RuleMerging) => {
+                let (next_css, mutation_count) =
+                    merge_adjacent_same_selector_css_rules(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "merged adjacent same-selector ordinary rules without reordering declarations",
+                }
+            }
             Some(TransformPassKind::EmptyRuleRemoval) => {
                 let (next_css, mutation_count) = remove_empty_css_rules(&output_css, dialect);
                 let status = if mutation_count == 0 {
@@ -454,6 +473,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::SelectorIsWhereCompression.id(),
         TransformPassKind::ShorthandCombining.id(),
         TransformPassKind::RuleDeduplication.id(),
+        TransformPassKind::RuleMerging.id(),
         TransformPassKind::EmptyRuleRemoval.id(),
         TransformPassKind::PrintCss.id(),
     ]
@@ -615,8 +635,63 @@ fn dedupe_adjacent_exact_css_rules(source: &str, dialect: StyleDialect) -> (Stri
     dedupe_adjacent_exact_css_rules_with_lexer(source, dialect)
 }
 
+fn merge_adjacent_same_selector_css_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
+    merge_adjacent_same_selector_css_rules_with_lexer(source, dialect)
+}
+
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
+}
+
+fn merge_adjacent_same_selector_css_rules_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let mut replacements = Vec::new();
+    let mut index = 0;
+
+    while index + 1 < rules.len() {
+        let current = &rules[index];
+        let next = &rules[index + 1];
+        if current.selector == next.selector
+            && current.block != next.block
+            && rule_gap_is_whitespace_only(tokens, current.end, next.start)
+        {
+            replacements.push((
+                current.start,
+                next.end,
+                format!(
+                    "{} {{ {} {} }}",
+                    current.selector, current.block, next.block
+                ),
+            ));
+            index += 2;
+        } else {
+            index += 1;
+        }
+    }
+
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end, replacement) in &replacements {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacements.len())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1872,6 +1947,7 @@ mod tests {
                 "p08-selector-is-where-compression",
                 "p09-shorthand-combining",
                 "p10-rule-deduplication",
+                "p11-rule-merging",
                 "p13-empty-rule-removal",
                 "p40-print-css"
             ]
@@ -2165,6 +2241,26 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p10-rule-deduplication", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_merges_adjacent_same_selector_rules_only() {
+        let source =
+            r#".a { color: red; } .a { background: blue; } .b { color: red; } .a { border: 0; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[TransformPassKind::RuleMerging, TransformPassKind::PrintCss],
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#".a { color: red; background: blue; } .b { color: red; } .a { border: 0; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p11-rule-merging", "p40-print-css"]
         );
     }
 
