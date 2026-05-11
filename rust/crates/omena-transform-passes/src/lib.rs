@@ -460,6 +460,24 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "lowered whole-value srgb color-mix() declarations with static color operands",
                 }
             }
+            Some(TransformPassKind::OklchOklabLowering) => {
+                let (next_css, mutation_count) = lower_css_oklab_oklch(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "lowered in-gamut whole-value oklab()/oklch() color declarations to srgb",
+                }
+            }
             Some(TransformPassKind::EmptyRuleRemoval) => {
                 let (next_css, mutation_count) = remove_empty_css_rules(&output_css, dialect);
                 let status = if mutation_count == 0 {
@@ -552,6 +570,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::VendorPrefixing.id(),
         TransformPassKind::LightDarkLowering.id(),
         TransformPassKind::ColorMixLowering.id(),
+        TransformPassKind::OklchOklabLowering.id(),
         TransformPassKind::PrintCss.id(),
     ]
 }
@@ -732,6 +751,10 @@ fn lower_css_color_mix(source: &str, dialect: StyleDialect) -> (String, usize) {
     lower_css_color_mix_with_lexer(source, dialect)
 }
 
+fn lower_css_oklab_oklch(source: &str, dialect: StyleDialect) -> (String, usize) {
+    lower_css_oklab_oklch_with_lexer(source, dialect)
+}
+
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
 }
@@ -862,6 +885,56 @@ fn lower_css_color_mix_with_lexer(source: &str, dialect: StyleDialect) -> (Strin
     (output, replacements.len())
 }
 
+fn lower_css_oklab_oklch_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
+            for declaration in declarations {
+                if !is_light_dark_lowerable_property(&declaration.property) {
+                    continue;
+                }
+                let Some(replacement_value) = parse_oklab_oklch_value(&declaration.value) else {
+                    continue;
+                };
+                replacements.push((
+                    declaration.start,
+                    declaration.end,
+                    format!("{}: {replacement_value};", declaration.property),
+                ));
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end, replacement) in &replacements {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacements.len())
+}
+
 fn rule_block_token_indexes(
     tokens: &[omena_parser::LexedToken],
     block_start: usize,
@@ -925,16 +998,19 @@ fn parse_color_mix_value(value: &str) -> Option<String> {
 }
 
 fn parse_whole_function_value_arguments(value: &str, function_name: &str) -> Option<Vec<String>> {
+    split_top_level_value_arguments(parse_whole_function_value_inner(value, function_name)?)
+}
+
+fn parse_whole_function_value_inner<'a>(value: &'a str, function_name: &str) -> Option<&'a str> {
     let value = value.trim();
     let name = value.get(..function_name.len())?;
     if !name.eq_ignore_ascii_case(function_name) {
         return None;
     }
-    let inner = value
+    value
         .get(function_name.len()..)?
         .strip_prefix('(')?
-        .strip_suffix(')')?;
-    split_top_level_value_arguments(inner)
+        .strip_suffix(')')
 }
 
 fn split_top_level_value_arguments(inner: &str) -> Option<Vec<String>> {
@@ -1134,6 +1210,111 @@ fn parse_basic_named_srgb_color(text: &str) -> Option<SrgbColor> {
 
 fn normalize_ascii_whitespace(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn parse_oklab_oklch_value(value: &str) -> Option<String> {
+    parse_oklab_value(value)
+        .or_else(|| parse_oklch_value(value))
+        .map(SrgbColor::to_css_rgb)
+}
+
+fn parse_oklab_value(value: &str) -> Option<SrgbColor> {
+    let inner = parse_whole_function_value_inner(value, "oklab")?;
+    let parts = split_ascii_space_separated_color_args(inner)?;
+    let [lightness, a_axis, b_axis] = parts.as_slice() else {
+        return None;
+    };
+    let lightness = parse_ok_lightness(lightness)?;
+    let a_axis = parse_plain_f64(a_axis)?;
+    let b_axis = parse_plain_f64(b_axis)?;
+    oklab_to_srgb(lightness, a_axis, b_axis)
+}
+
+fn parse_oklch_value(value: &str) -> Option<SrgbColor> {
+    let inner = parse_whole_function_value_inner(value, "oklch")?;
+    let parts = split_ascii_space_separated_color_args(inner)?;
+    let [lightness, chroma, hue] = parts.as_slice() else {
+        return None;
+    };
+    let lightness = parse_ok_lightness(lightness)?;
+    let chroma = parse_plain_f64(chroma)?;
+    let hue = parse_hue_degrees(hue)?.to_radians();
+    oklab_to_srgb(lightness, chroma * hue.cos(), chroma * hue.sin())
+}
+
+fn split_ascii_space_separated_color_args(inner: &str) -> Option<Vec<&str>> {
+    if inner.contains('/') || inner.contains(',') {
+        return None;
+    }
+    let parts = inner.split_whitespace().collect::<Vec<_>>();
+    (!parts.is_empty()).then_some(parts)
+}
+
+fn parse_ok_lightness(text: &str) -> Option<f64> {
+    let value = if let Some(percent) = text.strip_suffix('%') {
+        parse_plain_f64(percent)? / 100.0
+    } else {
+        parse_plain_f64(text)?
+    };
+    value
+        .is_finite()
+        .then_some(value)
+        .filter(|value| *value >= 0.0 && *value <= 1.0)
+}
+
+fn parse_hue_degrees(text: &str) -> Option<f64> {
+    let value = text
+        .strip_suffix("deg")
+        .map_or_else(|| parse_plain_f64(text), parse_plain_f64)?;
+    value.is_finite().then_some(value)
+}
+
+fn parse_plain_f64(text: &str) -> Option<f64> {
+    if text.contains('%') {
+        return None;
+    }
+    text.parse::<f64>().ok().filter(|value| value.is_finite())
+}
+
+fn oklab_to_srgb(lightness: f64, a_axis: f64, b_axis: f64) -> Option<SrgbColor> {
+    let l_prime = lightness + 0.396_337_777_4 * a_axis + 0.215_803_757_3 * b_axis;
+    let m_prime = lightness - 0.105_561_345_8 * a_axis - 0.063_854_172_8 * b_axis;
+    let s_prime = lightness - 0.089_484_177_5 * a_axis - 1.291_485_548_0 * b_axis;
+
+    let l = l_prime.powi(3);
+    let m = m_prime.powi(3);
+    let s = s_prime.powi(3);
+
+    let red_linear = 4.076_741_662_1 * l - 3.307_711_591_3 * m + 0.230_969_929_2 * s;
+    let green_linear = -1.268_438_004_6 * l + 2.609_757_401_1 * m - 0.341_319_396_5 * s;
+    let blue_linear = -0.004_196_086_3 * l - 0.703_418_614_7 * m + 1.707_614_701_0 * s;
+
+    if !is_in_gamut_linear_srgb(red_linear)
+        || !is_in_gamut_linear_srgb(green_linear)
+        || !is_in_gamut_linear_srgb(blue_linear)
+    {
+        return None;
+    }
+
+    Some(SrgbColor {
+        red: encode_srgb_channel(red_linear),
+        green: encode_srgb_channel(green_linear),
+        blue: encode_srgb_channel(blue_linear),
+    })
+}
+
+fn is_in_gamut_linear_srgb(value: f64) -> bool {
+    (-0.000_001..=1.000_001).contains(&value)
+}
+
+fn encode_srgb_channel(value: f64) -> u8 {
+    let clamped = value.clamp(0.0, 1.0);
+    let encoded = if clamped <= 0.003_130_8 {
+        12.92 * clamped
+    } else {
+        1.055 * clamped.powf(1.0 / 2.4) - 0.055
+    };
+    (encoded * 255.0).round().clamp(0.0, 255.0) as u8
 }
 
 fn add_css_vendor_prefixes_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -2564,6 +2745,7 @@ mod tests {
                 "p14-vendor-prefixing",
                 "p15-light-dark-lowering",
                 "p16-color-mix-lowering",
+                "p17-oklch-oklab-lowering",
                 "p40-print-css"
             ]
         );
@@ -2965,6 +3147,28 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p16-color-mix-lowering", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_lowers_in_gamut_oklab_oklch_declarations() {
+        let source = r#".card { color: oklab(1 0 0); background-color: oklch(0% 0 0deg); border-color: oklch(70% 0.4 40deg); }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::OklchOklabLowering,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#".card { color: rgb(255 255 255); background-color: rgb(0 0 0); border-color: oklch(70% 0.4 40deg); }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p17-oklch-oklab-lowering", "p40-print-css"]
         );
     }
 
