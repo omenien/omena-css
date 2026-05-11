@@ -59,6 +59,7 @@ const result = spawnSync(
         "p12-selector-merging",
         "p13-empty-rule-removal",
         "p14-vendor-prefixing",
+        "p15-light-dark-lowering",
         "p40-print-css",
         "p99-unknown",
       ],
@@ -90,6 +91,7 @@ assert.deepEqual(summary.requestedPassIds, [
   "p12-selector-merging",
   "p13-empty-rule-removal",
   "p14-vendor-prefixing",
+  "p15-light-dark-lowering",
   "p40-print-css",
   "p99-unknown",
 ]);
@@ -100,6 +102,7 @@ assert.equal(
   '.dupe{display: block;}.merge{color: red;background: blue;}.sel-a,.sel-b{border: 0;}.a.ready{margin: 0;color: #fff;-webkit-user-select: none;user-select: none;opacity: 1;background: url(img.svg);font-family: "Demo";content: "/* keep */";}',
 );
 assert.deepEqual(summary.execution.executedPassIds, [
+  "p15-light-dark-lowering",
   "p14-vendor-prefixing",
   "p08-selector-is-where-compression",
   "p09-shorthand-combining",

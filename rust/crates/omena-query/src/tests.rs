@@ -326,7 +326,11 @@ fn exposes_transform_plan_facade_from_source() {
     assert_eq!(summary.execution.output_css, source);
     assert_eq!(
         summary.execution.executed_pass_ids,
-        vec!["p14-vendor-prefixing", "p40-print-css"]
+        vec![
+            "p15-light-dark-lowering",
+            "p14-vendor-prefixing",
+            "p40-print-css"
+        ]
     );
     assert!(
         summary

@@ -424,6 +424,24 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "inserted conservative vendor-prefixed declaration synonyms when absent",
                 }
             }
+            Some(TransformPassKind::LightDarkLowering) => {
+                let (next_css, mutation_count) = lower_css_light_dark(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "lowered whole-value light-dark() color declarations into dark media branches",
+                }
+            }
             Some(TransformPassKind::EmptyRuleRemoval) => {
                 let (next_css, mutation_count) = remove_empty_css_rules(&output_css, dialect);
                 let status = if mutation_count == 0 {
@@ -514,6 +532,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::SelectorMerging.id(),
         TransformPassKind::EmptyRuleRemoval.id(),
         TransformPassKind::VendorPrefixing.id(),
+        TransformPassKind::LightDarkLowering.id(),
         TransformPassKind::PrintCss.id(),
     ]
 }
@@ -686,8 +705,142 @@ fn add_css_vendor_prefixes(source: &str, dialect: StyleDialect) -> (String, usiz
     add_css_vendor_prefixes_with_lexer(source, dialect)
 }
 
+fn lower_css_light_dark(source: &str, dialect: StyleDialect) -> (String, usize) {
+    lower_css_light_dark_with_lexer(source, dialect)
+}
+
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
+}
+
+fn lower_css_light_dark_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let mut replacements = Vec::new();
+    let mut insertions = Vec::new();
+
+    for rule in &rules {
+        let Some((block_start_index, block_end_index)) =
+            rule_block_token_indexes(tokens, rule.block_start, rule.block_end)
+        else {
+            continue;
+        };
+        let declarations =
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index);
+        for declaration in declarations {
+            if !is_light_dark_lowerable_property(&declaration.property) {
+                continue;
+            }
+            let Some((light_value, dark_value)) = parse_light_dark_value(&declaration.value) else {
+                continue;
+            };
+            replacements.push((
+                declaration.start,
+                declaration.end,
+                format!("{}: {light_value};", declaration.property),
+            ));
+            insertions.push((
+                rule.end,
+                format!(
+                    " @media (prefers-color-scheme: dark) {{ {} {{ {}: {dark_value}; }} }}",
+                    rule.selector, declaration.property
+                ),
+            ));
+        }
+    }
+
+    if replacements.is_empty() && insertions.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    let mut insertion_index = 0;
+    for (start, end, replacement) in &replacements {
+        while insertion_index < insertions.len() && insertions[insertion_index].0 <= *start {
+            let (position, insertion) = &insertions[insertion_index];
+            if *position > cursor {
+                output.push_str(&source[cursor..*position]);
+                cursor = *position;
+            }
+            output.push_str(insertion);
+            insertion_index += 1;
+        }
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    while insertion_index < insertions.len() {
+        let (position, insertion) = &insertions[insertion_index];
+        if *position > cursor {
+            output.push_str(&source[cursor..*position]);
+            cursor = *position;
+        }
+        output.push_str(insertion);
+        insertion_index += 1;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacements.len())
+}
+
+fn rule_block_token_indexes(
+    tokens: &[omena_parser::LexedToken],
+    block_start: usize,
+    block_end: usize,
+) -> Option<(usize, usize)> {
+    let start_index = tokens
+        .iter()
+        .position(|token| token_start(token) == block_start)?;
+    let end_index = tokens
+        .iter()
+        .position(|token| token_start(token) == block_end)?;
+    Some((start_index, end_index))
+}
+
+fn is_light_dark_lowerable_property(property: &str) -> bool {
+    matches!(
+        property,
+        "background"
+            | "background-color"
+            | "border-color"
+            | "caret-color"
+            | "color"
+            | "fill"
+            | "outline-color"
+            | "stroke"
+            | "text-decoration-color"
+    )
+}
+
+fn parse_light_dark_value(value: &str) -> Option<(String, String)> {
+    let value = value.trim();
+    let inner = value.strip_prefix("light-dark(")?.strip_suffix(')')?;
+    let mut depth = 0usize;
+    let mut split_index = None;
+    for (index, ch) in inner.char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => depth = depth.checked_sub(1)?,
+            ',' if depth == 0 => {
+                split_index = Some(index);
+                break;
+            }
+            _ => {}
+        }
+    }
+    let split_index = split_index?;
+    let light = inner[..split_index].trim();
+    let dark = inner[split_index + 1..].trim();
+    if light.is_empty() || dark.is_empty() {
+        return None;
+    }
+    Some((light.to_string(), dark.to_string()))
 }
 
 fn add_css_vendor_prefixes_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -861,6 +1014,8 @@ struct SimpleRuleSlice {
     block: String,
     start: usize,
     end: usize,
+    block_start: usize,
+    block_end: usize,
 }
 
 fn dedupe_adjacent_exact_css_rules_with_lexer(
@@ -938,6 +1093,8 @@ fn collect_top_level_ordinary_rule_slices(
                             block,
                             start,
                             end: token_end(&tokens[close_index]),
+                            block_start: token_start(&tokens[index]),
+                            block_end: token_start(&tokens[close_index]),
                         });
                     }
                     index = close_index + 1;
@@ -2112,6 +2269,7 @@ mod tests {
                 "p12-selector-merging",
                 "p13-empty-rule-removal",
                 "p14-vendor-prefixing",
+                "p15-light-dark-lowering",
                 "p40-print-css"
             ]
         );
@@ -2469,6 +2627,28 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p14-vendor-prefixing", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_lowers_whole_value_light_dark_declarations() {
+        let source = r#".card { color: light-dark(#000, #fff); background: var(--keep); }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::LightDarkLowering,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#".card { color: #000; background: var(--keep); } @media (prefers-color-scheme: dark) { .card { color: #fff; } }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p15-light-dark-lowering", "p40-print-css"]
         );
     }
 
