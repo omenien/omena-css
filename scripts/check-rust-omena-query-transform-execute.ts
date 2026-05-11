@@ -63,6 +63,7 @@ const result = spawnSync(
         "p16-color-mix-lowering",
         "p17-oklch-oklab-lowering",
         "p18-color-function-lowering",
+        "p19-logical-to-physical",
         "p40-print-css",
         "p99-unknown",
       ],
@@ -98,6 +99,7 @@ assert.deepEqual(summary.requestedPassIds, [
   "p16-color-mix-lowering",
   "p17-oklch-oklab-lowering",
   "p18-color-function-lowering",
+  "p19-logical-to-physical",
   "p40-print-css",
   "p99-unknown",
 ]);
@@ -112,6 +114,7 @@ assert.deepEqual(summary.execution.executedPassIds, [
   "p16-color-mix-lowering",
   "p17-oklch-oklab-lowering",
   "p18-color-function-lowering",
+  "p19-logical-to-physical",
   "p14-vendor-prefixing",
   "p08-selector-is-where-compression",
   "p09-shorthand-combining",

@@ -496,6 +496,25 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "lowered whole-value color(srgb ...) declarations with static channels",
                 }
             }
+            Some(TransformPassKind::LogicalToPhysical) => {
+                let (next_css, mutation_count) =
+                    lower_css_logical_to_physical(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "lowered logical properties only under static horizontal writing direction",
+                }
+            }
             Some(TransformPassKind::EmptyRuleRemoval) => {
                 let (next_css, mutation_count) = remove_empty_css_rules(&output_css, dialect);
                 let status = if mutation_count == 0 {
@@ -590,6 +609,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::ColorMixLowering.id(),
         TransformPassKind::OklchOklabLowering.id(),
         TransformPassKind::ColorFunctionLowering.id(),
+        TransformPassKind::LogicalToPhysical.id(),
         TransformPassKind::PrintCss.id(),
     ]
 }
@@ -776,6 +796,10 @@ fn lower_css_oklab_oklch(source: &str, dialect: StyleDialect) -> (String, usize)
 
 fn lower_css_color_function(source: &str, dialect: StyleDialect) -> (String, usize) {
     lower_css_color_function_with_lexer(source, dialect)
+}
+
+fn lower_css_logical_to_physical(source: &str, dialect: StyleDialect) -> (String, usize) {
+    lower_css_logical_to_physical_with_lexer(source, dialect)
 }
 
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -980,6 +1004,63 @@ fn lower_css_color_function_with_lexer(source: &str, dialect: StyleDialect) -> (
                     declaration.start,
                     declaration.end,
                     format!("{}: {replacement_value};", declaration.property),
+                ));
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end, replacement) in &replacements {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacements.len())
+}
+
+fn lower_css_logical_to_physical_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
+            let Some(direction) = static_horizontal_direction_for_declarations(&declarations)
+            else {
+                index = close_index + 1;
+                continue;
+            };
+            for declaration in declarations {
+                let Some(physical_property) =
+                    physical_property_for_logical_property(&declaration.property, direction)
+                else {
+                    continue;
+                };
+                replacements.push((
+                    declaration.start,
+                    declaration.end,
+                    format!("{physical_property}: {};", declaration.value),
                 ));
             }
             index = close_index + 1;
@@ -1378,6 +1459,124 @@ fn parse_srgb_component(text: &str) -> Option<u8> {
         return None;
     }
     Some((value * 255.0).round().clamp(0.0, 255.0) as u8)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InlineDirection {
+    Ltr,
+    Rtl,
+}
+
+fn static_horizontal_direction_for_declarations(
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<InlineDirection> {
+    let writing_mode = declarations
+        .iter()
+        .rev()
+        .find(|declaration| declaration.property == "writing-mode")
+        .map(|declaration| declaration.value.as_str());
+    if !matches!(writing_mode, None | Some("horizontal-tb")) {
+        return None;
+    }
+
+    declarations
+        .iter()
+        .rev()
+        .find(|declaration| declaration.property == "direction")
+        .and_then(|declaration| match declaration.value.as_str() {
+            "ltr" => Some(InlineDirection::Ltr),
+            "rtl" => Some(InlineDirection::Rtl),
+            _ => None,
+        })
+}
+
+fn physical_property_for_logical_property(
+    property: &str,
+    direction: InlineDirection,
+) -> Option<&'static str> {
+    match property {
+        "block-size" => Some("height"),
+        "inline-size" => Some("width"),
+        "max-block-size" => Some("max-height"),
+        "max-inline-size" => Some("max-width"),
+        "min-block-size" => Some("min-height"),
+        "min-inline-size" => Some("min-width"),
+        "inset-inline-start" => Some(inline_start_property(direction, "left", "right")),
+        "inset-inline-end" => Some(inline_end_property(direction, "left", "right")),
+        "margin-inline-start" => Some(inline_start_property(
+            direction,
+            "margin-left",
+            "margin-right",
+        )),
+        "margin-inline-end" => Some(inline_end_property(
+            direction,
+            "margin-left",
+            "margin-right",
+        )),
+        "padding-inline-start" => Some(inline_start_property(
+            direction,
+            "padding-left",
+            "padding-right",
+        )),
+        "padding-inline-end" => Some(inline_end_property(
+            direction,
+            "padding-left",
+            "padding-right",
+        )),
+        "border-inline-start-color" => Some(inline_start_property(
+            direction,
+            "border-left-color",
+            "border-right-color",
+        )),
+        "border-inline-end-color" => Some(inline_end_property(
+            direction,
+            "border-left-color",
+            "border-right-color",
+        )),
+        "border-inline-start-style" => Some(inline_start_property(
+            direction,
+            "border-left-style",
+            "border-right-style",
+        )),
+        "border-inline-end-style" => Some(inline_end_property(
+            direction,
+            "border-left-style",
+            "border-right-style",
+        )),
+        "border-inline-start-width" => Some(inline_start_property(
+            direction,
+            "border-left-width",
+            "border-right-width",
+        )),
+        "border-inline-end-width" => Some(inline_end_property(
+            direction,
+            "border-left-width",
+            "border-right-width",
+        )),
+        _ => None,
+    }
+}
+
+fn inline_start_property(
+    direction: InlineDirection,
+    ltr_property: &'static str,
+    rtl_property: &'static str,
+) -> &'static str {
+    match direction {
+        InlineDirection::Ltr => ltr_property,
+        InlineDirection::Rtl => rtl_property,
+    }
+}
+
+fn inline_end_property(
+    direction: InlineDirection,
+    ltr_property: &'static str,
+    rtl_property: &'static str,
+) -> &'static str {
+    match direction {
+        InlineDirection::Ltr => rtl_property,
+        InlineDirection::Rtl => ltr_property,
+    }
 }
 
 fn oklab_to_srgb(lightness: f64, a_axis: f64, b_axis: f64) -> Option<SrgbColor> {
@@ -2851,6 +3050,7 @@ mod tests {
                 "p16-color-mix-lowering",
                 "p17-oklch-oklab-lowering",
                 "p18-color-function-lowering",
+                "p19-logical-to-physical",
                 "p40-print-css"
             ]
         );
@@ -3296,6 +3496,28 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p18-color-function-lowering", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_lowers_logical_properties_only_with_static_direction() {
+        let source = r#".ltr { direction: ltr; margin-inline-start: 1px; padding-inline-end: 2px; inline-size: 10rem; } .unknown { margin-inline-start: 1px; } .rtl { direction: rtl; writing-mode: horizontal-tb; inset-inline-start: 3px; border-inline-end-color: red; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::LogicalToPhysical,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 5);
+        assert_eq!(
+            execution.output_css,
+            r#".ltr { direction: ltr; margin-left: 1px; padding-right: 2px; width: 10rem; } .unknown { margin-inline-start: 1px; } .rtl { direction: rtl; writing-mode: horizontal-tb; right: 3px; border-left-color: red; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p19-logical-to-physical", "p40-print-css"]
         );
     }
 

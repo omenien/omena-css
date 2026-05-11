@@ -716,6 +716,26 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
             reason: "prefixing runs after target lowering produces final declarations",
         },
         TransformDagEdgeV0 {
+            from: "p19-logical-to-physical",
+            to: "p14-vendor-prefixing",
+            reason: "prefixing runs after target lowering produces final declarations",
+        },
+        TransformDagEdgeV0 {
+            from: "p20-nesting-unwrap",
+            to: "p14-vendor-prefixing",
+            reason: "prefixing runs after target lowering produces final declarations",
+        },
+        TransformDagEdgeV0 {
+            from: "p21-scope-flatten",
+            to: "p14-vendor-prefixing",
+            reason: "prefixing runs after target lowering produces final declarations",
+        },
+        TransformDagEdgeV0 {
+            from: "p22-layer-flatten",
+            to: "p14-vendor-prefixing",
+            reason: "prefixing runs after target lowering produces final declarations",
+        },
+        TransformDagEdgeV0 {
             from: "p25-calc-reduction",
             to: "p40-print-css",
             reason: "printer consumes the final reduced transform CST",
