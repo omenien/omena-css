@@ -171,6 +171,7 @@ assert.equal(summary.execution.mutationCount, 0);
 assert.equal(summary.execution.provenancePreserved, true);
 assert.deepEqual(summary.execution.executedPassIds, [
   "p15-light-dark-lowering",
+  "p20-nesting-unwrap",
   "p14-vendor-prefixing",
   "p40-print-css",
 ]);
@@ -182,7 +183,6 @@ assertIncludesAll(
     "p30-composes-resolution",
     "p29-css-modules-class-hashing",
     "p31-value-resolution",
-    "p20-nesting-unwrap",
   ],
   "transform execution planned-only passes",
 );

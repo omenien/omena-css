@@ -328,6 +328,7 @@ fn exposes_transform_plan_facade_from_source() {
         summary.execution.executed_pass_ids,
         vec![
             "p15-light-dark-lowering",
+            "p20-nesting-unwrap",
             "p14-vendor-prefixing",
             "p40-print-css"
         ]

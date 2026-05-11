@@ -515,6 +515,24 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "lowered logical properties only under static horizontal writing direction",
                 }
             }
+            Some(TransformPassKind::NestingUnwrap) => {
+                let (next_css, mutation_count) = unwrap_css_nesting(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "unwrapped simple single-depth nested ordinary rules",
+                }
+            }
             Some(TransformPassKind::EmptyRuleRemoval) => {
                 let (next_css, mutation_count) = remove_empty_css_rules(&output_css, dialect);
                 let status = if mutation_count == 0 {
@@ -610,6 +628,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::OklchOklabLowering.id(),
         TransformPassKind::ColorFunctionLowering.id(),
         TransformPassKind::LogicalToPhysical.id(),
+        TransformPassKind::NestingUnwrap.id(),
         TransformPassKind::PrintCss.id(),
     ]
 }
@@ -800,6 +819,10 @@ fn lower_css_color_function(source: &str, dialect: StyleDialect) -> (String, usi
 
 fn lower_css_logical_to_physical(source: &str, dialect: StyleDialect) -> (String, usize) {
     lower_css_logical_to_physical_with_lexer(source, dialect)
+}
+
+fn unwrap_css_nesting(source: &str, dialect: StyleDialect) -> (String, usize) {
+    unwrap_css_nesting_with_lexer(source, dialect)
 }
 
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -1087,6 +1110,179 @@ fn lower_css_logical_to_physical_with_lexer(
     }
 
     (output, replacements.len())
+}
+
+fn unwrap_css_nesting_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut depth = 0usize;
+    let mut top_level_prelude_start = 0usize;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => {
+                if depth == 0
+                    && let Some(close_index) = matching_right_brace_index(tokens, index)
+                    && is_ordinary_top_level_rule_prelude(tokens, top_level_prelude_start, index)
+                    && let Some(start) =
+                        first_non_trivia_token_start(tokens, top_level_prelude_start, index)
+                    && let Some(replacement) =
+                        unwrap_simple_nested_rule(source, tokens, start, index, close_index)
+                {
+                    replacements.push((start, token_end(&tokens[close_index]), replacement));
+                    index = close_index + 1;
+                    top_level_prelude_start = index;
+                    continue;
+                }
+                depth += 1;
+            }
+            SyntaxKind::RightBrace => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    top_level_prelude_start = index + 1;
+                }
+            }
+            SyntaxKind::Semicolon if depth == 0 => {
+                top_level_prelude_start = index + 1;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end, replacement) in &replacements {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacements.len())
+}
+
+fn unwrap_simple_nested_rule(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+    rule_start: usize,
+    block_start_index: usize,
+    block_end_index: usize,
+) -> Option<String> {
+    if tokens[block_start_index + 1..block_end_index]
+        .iter()
+        .any(|token| is_comment_token(token.kind))
+    {
+        return None;
+    }
+
+    let parent_selector = source[rule_start..token_start(&tokens[block_start_index])]
+        .trim()
+        .to_string();
+    if parent_selector.is_empty() || parent_selector.contains(',') {
+        return None;
+    }
+
+    let declarations =
+        collect_simple_declarations_in_block(tokens, block_start_index, block_end_index);
+    let nested_rules =
+        collect_direct_nested_rule_slices(source, tokens, block_start_index, block_end_index)?;
+    if nested_rules.is_empty() {
+        return None;
+    }
+
+    let mut rule_texts = Vec::new();
+    if !declarations.is_empty() {
+        let declarations_text = declarations
+            .iter()
+            .map(|declaration| format!("{}: {};", declaration.property, declaration.value))
+            .collect::<Vec<_>>()
+            .join(" ");
+        rule_texts.push(format!("{parent_selector} {{ {declarations_text} }}"));
+    }
+
+    for nested_rule in nested_rules {
+        let selector = expand_nested_selector(&parent_selector, &nested_rule.selector)?;
+        rule_texts.push(format!("{} {{ {} }}", selector, nested_rule.block));
+    }
+
+    Some(rule_texts.join(" "))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NestedRuleSlice {
+    selector: String,
+    block: String,
+}
+
+fn collect_direct_nested_rule_slices(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+    block_start_index: usize,
+    block_end_index: usize,
+) -> Option<Vec<NestedRuleSlice>> {
+    let mut nested_rules = Vec::new();
+    let mut segment_start_index = block_start_index + 1;
+    let mut index = block_start_index + 1;
+
+    while index < block_end_index {
+        if tokens[index].kind == SyntaxKind::LeftBrace {
+            let nested_close_index = matching_right_brace_index(tokens, index)?;
+            if nested_close_index > block_end_index {
+                return None;
+            }
+            if tokens[index + 1..nested_close_index].iter().any(|token| {
+                matches!(token.kind, SyntaxKind::LeftBrace | SyntaxKind::RightBrace)
+                    || is_comment_token(token.kind)
+            }) {
+                return None;
+            }
+            let selector_start = first_non_trivia_token_start(tokens, segment_start_index, index)?;
+            let selector = source[selector_start..token_start(&tokens[index])]
+                .trim()
+                .to_string();
+            if selector.is_empty() || selector.starts_with('@') || selector.contains(',') {
+                return None;
+            }
+            let block = source[token_end(&tokens[index])..token_start(&tokens[nested_close_index])]
+                .trim()
+                .to_string();
+            if block.is_empty() {
+                return None;
+            }
+            nested_rules.push(NestedRuleSlice { selector, block });
+            index = nested_close_index + 1;
+            segment_start_index = index;
+            continue;
+        }
+        if tokens[index].kind == SyntaxKind::Semicolon {
+            segment_start_index = index + 1;
+        }
+        index += 1;
+    }
+
+    Some(nested_rules)
+}
+
+fn expand_nested_selector(parent_selector: &str, nested_selector: &str) -> Option<String> {
+    if nested_selector.contains(',') {
+        return None;
+    }
+    if nested_selector.contains('&') {
+        Some(nested_selector.replace('&', parent_selector))
+    } else {
+        Some(format!("{parent_selector} {nested_selector}"))
+    }
 }
 
 fn rule_block_token_indexes(
@@ -3051,6 +3247,7 @@ mod tests {
                 "p17-oklch-oklab-lowering",
                 "p18-color-function-lowering",
                 "p19-logical-to-physical",
+                "p20-nesting-unwrap",
                 "p40-print-css"
             ]
         );
@@ -3518,6 +3715,28 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p19-logical-to-physical", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_unwraps_simple_single_depth_nesting() {
+        let source = r#".card { color: red; & .title { color: blue; } &:hover { color: green; } } .comma, .skip { & .x { color: red; } }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::NestingUnwrap,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#".card { color: red; } .card .title { color: blue; } .card:hover { color: green; } .comma, .skip { & .x { color: red; } }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p20-nesting-unwrap", "p40-print-css"]
         );
     }
 
