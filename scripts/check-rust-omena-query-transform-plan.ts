@@ -169,7 +169,10 @@ assert.equal(summary.execution.outputCss, styleSource);
 assert.equal(summary.print.css, summary.execution.outputCss);
 assert.equal(summary.execution.mutationCount, 0);
 assert.equal(summary.execution.provenancePreserved, true);
-assert.deepEqual(summary.execution.executedPassIds, ["p40-print-css"]);
+assert.deepEqual(summary.execution.executedPassIds, [
+  "p14-vendor-prefixing",
+  "p40-print-css",
+]);
 assertIncludesAll(
   summary.execution.plannedOnlyPassIds,
   [
@@ -179,7 +182,6 @@ assertIncludesAll(
     "p29-css-modules-class-hashing",
     "p31-value-resolution",
     "p15-light-dark-lowering",
-    "p14-vendor-prefixing",
     "p20-nesting-unwrap",
   ],
   "transform execution planned-only passes",

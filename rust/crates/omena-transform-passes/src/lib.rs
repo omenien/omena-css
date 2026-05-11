@@ -406,6 +406,24 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "merged adjacent ordinary rules with identical declaration blocks",
                 }
             }
+            Some(TransformPassKind::VendorPrefixing) => {
+                let (next_css, mutation_count) = add_css_vendor_prefixes(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "inserted conservative vendor-prefixed declaration synonyms when absent",
+                }
+            }
             Some(TransformPassKind::EmptyRuleRemoval) => {
                 let (next_css, mutation_count) = remove_empty_css_rules(&output_css, dialect);
                 let status = if mutation_count == 0 {
@@ -495,6 +513,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::RuleMerging.id(),
         TransformPassKind::SelectorMerging.id(),
         TransformPassKind::EmptyRuleRemoval.id(),
+        TransformPassKind::VendorPrefixing.id(),
         TransformPassKind::PrintCss.id(),
     ]
 }
@@ -663,8 +682,75 @@ fn merge_adjacent_same_block_css_selectors(source: &str, dialect: StyleDialect) 
     merge_adjacent_same_block_css_selectors_with_lexer(source, dialect)
 }
 
+fn add_css_vendor_prefixes(source: &str, dialect: StyleDialect) -> (String, usize) {
+    add_css_vendor_prefixes_with_lexer(source, dialect)
+}
+
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
+}
+
+fn add_css_vendor_prefixes_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let insertions = collect_vendor_prefix_insertions(tokens);
+    if insertions.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (position, insertion) in &insertions {
+        if *position > cursor {
+            output.push_str(&source[cursor..*position]);
+        }
+        output.push_str(insertion);
+        cursor = *position;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, insertions.len())
+}
+
+fn collect_vendor_prefix_insertions(tokens: &[omena_parser::LexedToken]) -> Vec<(usize, String)> {
+    let mut insertions = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
+            for declaration in &declarations {
+                if let Some(prefixed_property) = prefixed_property_for(&declaration.property)
+                    && !declarations
+                        .iter()
+                        .any(|candidate| candidate.property == prefixed_property)
+                {
+                    insertions.push((
+                        declaration.start,
+                        format!("{prefixed_property}: {}; ", declaration.value),
+                    ));
+                }
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    insertions
+}
+
+fn prefixed_property_for(property: &str) -> Option<&'static str> {
+    match property {
+        "appearance" => Some("-webkit-appearance"),
+        "backdrop-filter" => Some("-webkit-backdrop-filter"),
+        "user-select" => Some("-webkit-user-select"),
+        _ => None,
+    }
 }
 
 fn merge_adjacent_same_block_css_selectors_with_lexer(
@@ -2025,6 +2111,7 @@ mod tests {
                 "p11-rule-merging",
                 "p12-selector-merging",
                 "p13-empty-rule-removal",
+                "p14-vendor-prefixing",
                 "p40-print-css"
             ]
         );
@@ -2360,6 +2447,28 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p12-selector-merging", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_adds_conservative_vendor_prefixes_when_absent() {
+        let source = r#".a { user-select: none; -webkit-appearance: none; appearance: none; backdrop-filter: blur(2px); }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::VendorPrefixing,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#".a { -webkit-user-select: none; user-select: none; -webkit-appearance: none; appearance: none; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p14-vendor-prefixing", "p40-print-css"]
         );
     }
 
