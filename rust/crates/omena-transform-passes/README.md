@@ -7,7 +7,7 @@ mutation engines will land behind this registry so transform execution cannot
 drift from the semantic/cascade proof obligations.
 
 The first execution runtime surface is intentionally conservative: it executes
-lexer-backed safe commodity mutations for P01 through P20 plus P24, and observes
+lexer-backed safe commodity mutations for P01 through P20 plus P24-P25, and observes
 the P40 emission boundary. P04 unit normalization is limited to zero length dimensions
 inside declaration properties that accept unitless zero; broader unit/value
 rewrites remain planned until property/value semantics can prove them legal. P08
@@ -31,4 +31,5 @@ P19 logical-to-physical lowering requires static horizontal `direction` context
 inside the same rule before rewriting inline logical properties. P20 nesting
 unwrap is limited to simple single-depth ordinary nested rules without comma
 selectors, at-rules, comments, or deeper nested blocks. P24 media static eval
-only unwraps literal `@media all` and removes literal `@media not all`.
+only unwraps literal `@media all` and removes literal `@media not all`. P25
+`calc()` reduction currently handles whole-value same-unit addition/subtraction.

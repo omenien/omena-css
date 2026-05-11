@@ -66,6 +66,7 @@ const result = spawnSync(
         "p19-logical-to-physical",
         "p20-nesting-unwrap",
         "p24-media-static-eval",
+        "p25-calc-reduction",
         "p40-print-css",
         "p99-unknown",
       ],
@@ -104,6 +105,7 @@ assert.deepEqual(summary.requestedPassIds, [
   "p19-logical-to-physical",
   "p20-nesting-unwrap",
   "p24-media-static-eval",
+  "p25-calc-reduction",
   "p40-print-css",
   "p99-unknown",
 ]);
@@ -128,6 +130,7 @@ assert.deepEqual(summary.execution.executedPassIds, [
   "p11-rule-merging",
   "p12-selector-merging",
   "p13-empty-rule-removal",
+  "p25-calc-reduction",
   "p01-whitespace-strip",
   "p02-comment-strip",
   "p03-number-compression",

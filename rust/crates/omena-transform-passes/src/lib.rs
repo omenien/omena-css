@@ -551,6 +551,24 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "evaluated literal @media all/not all branches",
                 }
             }
+            Some(TransformPassKind::CalcReduction) => {
+                let (next_css, mutation_count) = reduce_css_calc(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "reduced whole-value calc() expressions with simple same-unit addition/subtraction",
+                }
+            }
             Some(TransformPassKind::EmptyRuleRemoval) => {
                 let (next_css, mutation_count) = remove_empty_css_rules(&output_css, dialect);
                 let status = if mutation_count == 0 {
@@ -648,6 +666,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::LogicalToPhysical.id(),
         TransformPassKind::NestingUnwrap.id(),
         TransformPassKind::MediaStaticEval.id(),
+        TransformPassKind::CalcReduction.id(),
         TransformPassKind::PrintCss.id(),
     ]
 }
@@ -846,6 +865,10 @@ fn unwrap_css_nesting(source: &str, dialect: StyleDialect) -> (String, usize) {
 
 fn evaluate_static_media_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
     evaluate_static_media_rules_with_lexer(source, dialect)
+}
+
+fn reduce_css_calc(source: &str, dialect: StyleDialect) -> (String, usize) {
+    reduce_css_calc_with_lexer(source, dialect)
 }
 
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -1392,6 +1415,102 @@ fn at_rule_block_indexes(
         }
     }
     None
+}
+
+fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
+            for declaration in declarations {
+                let Some(replacement_value) = parse_reducible_calc_value(&declaration.value) else {
+                    continue;
+                };
+                replacements.push((
+                    declaration.start,
+                    declaration.end,
+                    format!("{}: {replacement_value};", declaration.property),
+                ));
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end, replacement) in &replacements {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacements.len())
+}
+
+fn parse_reducible_calc_value(value: &str) -> Option<String> {
+    let inner = parse_whole_function_value_inner(value, "calc")?;
+    let parts = inner.split_whitespace().collect::<Vec<_>>();
+    let [left, operator, right] = parts.as_slice() else {
+        return None;
+    };
+    if !matches!(*operator, "+" | "-") {
+        return None;
+    }
+
+    let left = parse_numeric_value_with_unit(left)?;
+    let right = parse_numeric_value_with_unit(right)?;
+    if left.unit != right.unit {
+        return None;
+    }
+    let value = match *operator {
+        "+" => left.value + right.value,
+        "-" => left.value - right.value,
+        _ => return None,
+    };
+    Some(format!("{}{}", format_css_number(value), left.unit))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct NumericValueWithUnit<'a> {
+    value: f64,
+    unit: &'a str,
+}
+
+fn parse_numeric_value_with_unit(text: &str) -> Option<NumericValueWithUnit<'_>> {
+    let split = numeric_prefix_end(text)?;
+    let (number, unit) = text.split_at(split);
+    let value = number.parse::<f64>().ok()?;
+    value
+        .is_finite()
+        .then_some(NumericValueWithUnit { value, unit })
+}
+
+fn format_css_number(value: f64) -> String {
+    if value.fract() == 0.0 {
+        return format!("{value:.0}");
+    }
+    let formatted = format!("{value:.6}");
+    formatted
+        .trim_end_matches('0')
+        .trim_end_matches('.')
+        .to_string()
 }
 
 fn rule_block_token_indexes(
@@ -3358,6 +3477,7 @@ mod tests {
                 "p19-logical-to-physical",
                 "p20-nesting-unwrap",
                 "p24-media-static-eval",
+                "p25-calc-reduction",
                 "p40-print-css"
             ]
         );
@@ -3869,6 +3989,28 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p24-media-static-eval", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_reduces_simple_same_unit_calc_values() {
+        let source = r#".card { width: calc(1px + 2px); height: calc(10rem - 2rem); margin: calc(1px + 2rem); color: calc(1 + 2); }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::CalcReduction,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 3);
+        assert_eq!(
+            execution.output_css,
+            r#".card { width: 3px; height: 8rem; margin: calc(1px + 2rem); color: 3; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p25-calc-reduction", "p40-print-css"]
         );
     }
 
