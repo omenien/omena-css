@@ -349,6 +349,25 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "combined adjacent margin/padding longhands only with cascade shorthand proof",
                 }
             }
+            Some(TransformPassKind::RuleDeduplication) => {
+                let (next_css, mutation_count) =
+                    dedupe_adjacent_exact_css_rules(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "removed adjacent exact duplicate ordinary rules only",
+                }
+            }
             Some(TransformPassKind::EmptyRuleRemoval) => {
                 let (next_css, mutation_count) = remove_empty_css_rules(&output_css, dialect);
                 let status = if mutation_count == 0 {
@@ -434,6 +453,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::StringQuoteNormalize.id(),
         TransformPassKind::SelectorIsWhereCompression.id(),
         TransformPassKind::ShorthandCombining.id(),
+        TransformPassKind::RuleDeduplication.id(),
         TransformPassKind::EmptyRuleRemoval.id(),
         TransformPassKind::PrintCss.id(),
     ]
@@ -591,8 +611,130 @@ fn combine_css_box_shorthands(source: &str, dialect: StyleDialect) -> (String, u
     combine_css_box_shorthands_with_lexer(source, dialect)
 }
 
+fn dedupe_adjacent_exact_css_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
+    dedupe_adjacent_exact_css_rules_with_lexer(source, dialect)
+}
+
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SimpleRuleSlice {
+    selector: String,
+    block: String,
+    start: usize,
+    end: usize,
+}
+
+fn dedupe_adjacent_exact_css_rules_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let mut ranges = Vec::new();
+
+    for pair in rules.windows(2) {
+        let [previous, current] = pair else {
+            continue;
+        };
+        if previous.selector == current.selector
+            && previous.block == current.block
+            && rule_gap_is_whitespace_only(tokens, previous.end, current.start)
+        {
+            ranges.push((current.start, current.end));
+        }
+    }
+
+    if ranges.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end) in &ranges {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, ranges.len())
+}
+
+fn collect_top_level_ordinary_rule_slices(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+) -> Vec<SimpleRuleSlice> {
+    let mut rules = Vec::new();
+    let mut depth = 0usize;
+    let mut top_level_prelude_start = 0usize;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => {
+                if depth == 0
+                    && let Some(close_index) = matching_right_brace_index(tokens, index)
+                    && is_ordinary_top_level_rule_prelude(tokens, top_level_prelude_start, index)
+                    && !tokens[index + 1..close_index].iter().any(|token| {
+                        matches!(token.kind, SyntaxKind::LeftBrace | SyntaxKind::RightBrace)
+                            || is_comment_token(token.kind)
+                    })
+                    && let Some(start) =
+                        first_non_trivia_token_start(tokens, top_level_prelude_start, index)
+                {
+                    let selector = source[start..token_start(&tokens[index])]
+                        .trim()
+                        .to_string();
+                    let block = source
+                        [token_end(&tokens[index])..token_start(&tokens[close_index])]
+                        .trim()
+                        .to_string();
+                    if !selector.is_empty() && !block.is_empty() {
+                        rules.push(SimpleRuleSlice {
+                            selector,
+                            block,
+                            start,
+                            end: token_end(&tokens[close_index]),
+                        });
+                    }
+                    index = close_index + 1;
+                    top_level_prelude_start = index;
+                    continue;
+                }
+                depth += 1;
+            }
+            SyntaxKind::RightBrace => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    top_level_prelude_start = index + 1;
+                }
+            }
+            SyntaxKind::Semicolon if depth == 0 => {
+                top_level_prelude_start = index + 1;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    rules
+}
+
+fn rule_gap_is_whitespace_only(
+    tokens: &[omena_parser::LexedToken],
+    start: usize,
+    end: usize,
+) -> bool {
+    tokens_between_byte_range(tokens, start, end)
+        .iter()
+        .all(|token| token.kind == SyntaxKind::Whitespace)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1729,6 +1871,7 @@ mod tests {
                 "p07-string-quote-normalize",
                 "p08-selector-is-where-compression",
                 "p09-shorthand-combining",
+                "p10-rule-deduplication",
                 "p13-empty-rule-removal",
                 "p40-print-css"
             ]
@@ -1999,6 +2142,29 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p09-shorthand-combining", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_removes_adjacent_exact_duplicate_rules_only() {
+        let source =
+            r#".a { color: red; } .a { color: red; } .b { color: red; } .a { color: red; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::RuleDeduplication,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#".a { color: red; }  .b { color: red; } .a { color: red; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p10-rule-deduplication", "p40-print-css"]
         );
     }
 
