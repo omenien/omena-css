@@ -354,6 +354,28 @@ pub struct CascadeConformanceSeedReport {
     pub results: Vec<CascadeConformanceSeedResult>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BoxLonghandInputV0 {
+    pub property: String,
+    pub value: String,
+    pub important: bool,
+    pub source_order: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShorthandCombinationProofV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub shorthand_property: String,
+    pub accepted: bool,
+    pub blocked_reason: Option<&'static str>,
+    pub ordered_longhand_properties: Vec<String>,
+    pub provenance_preserved: bool,
+    pub cascade_safe_witness: String,
+}
+
 pub type CustomPropertyEnv = BTreeMap<String, CascadeValue>;
 
 pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
@@ -373,6 +395,7 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
             "cascadeConformanceSeedCorpus",
             "customPropertySubstitution",
             "cycleToGuaranteedInvalid",
+            "shorthandCombinationProof",
         ],
         not_ready_surfaces: vec!["wptCascadeCorpus"],
     }
@@ -670,6 +693,124 @@ pub fn select_cascade_winner<T>(
 
     let winner = ranked.remove(0);
     Some((winner, ranked))
+}
+
+pub fn prove_box_shorthand_combination(
+    shorthand_property: &str,
+    longhands: &[BoxLonghandInputV0],
+) -> ShorthandCombinationProofV0 {
+    let expected = match box_shorthand_longhands(shorthand_property) {
+        Some(expected) => expected,
+        None => {
+            return shorthand_combination_proof(
+                shorthand_property,
+                false,
+                Some("unsupported shorthand property"),
+                longhands,
+                "",
+            );
+        }
+    };
+
+    if longhands.len() != expected.len() {
+        return shorthand_combination_proof(
+            shorthand_property,
+            false,
+            Some("incomplete longhand quartet"),
+            longhands,
+            "",
+        );
+    }
+
+    if longhands
+        .iter()
+        .zip(expected.iter())
+        .any(|(actual, expected)| actual.property != *expected)
+    {
+        return shorthand_combination_proof(
+            shorthand_property,
+            false,
+            Some("longhands are not in canonical top/right/bottom/left order"),
+            longhands,
+            "",
+        );
+    }
+
+    if longhands.iter().any(|longhand| longhand.important) {
+        return shorthand_combination_proof(
+            shorthand_property,
+            false,
+            Some("important longhands require explicit cascade equivalence proof"),
+            longhands,
+            "",
+        );
+    }
+
+    if longhands.iter().any(|longhand| longhand.value.is_empty()) {
+        return shorthand_combination_proof(
+            shorthand_property,
+            false,
+            Some("empty longhand value"),
+            longhands,
+            "",
+        );
+    }
+
+    if longhands
+        .windows(2)
+        .any(|pair| pair[1].source_order != pair[0].source_order + 1)
+    {
+        return shorthand_combination_proof(
+            shorthand_property,
+            false,
+            Some("intervening declaration may change cascade outcome"),
+            longhands,
+            "",
+        );
+    }
+
+    shorthand_combination_proof(
+        shorthand_property,
+        true,
+        None,
+        longhands,
+        "all four longhands are adjacent, non-important, and in canonical order",
+    )
+}
+
+fn box_shorthand_longhands(shorthand_property: &str) -> Option<[&'static str; 4]> {
+    match shorthand_property {
+        "margin" => Some(["margin-top", "margin-right", "margin-bottom", "margin-left"]),
+        "padding" => Some([
+            "padding-top",
+            "padding-right",
+            "padding-bottom",
+            "padding-left",
+        ]),
+        _ => None,
+    }
+}
+
+fn shorthand_combination_proof(
+    shorthand_property: &str,
+    accepted: bool,
+    blocked_reason: Option<&'static str>,
+    longhands: &[BoxLonghandInputV0],
+    witness: &str,
+) -> ShorthandCombinationProofV0 {
+    ShorthandCombinationProofV0 {
+        schema_version: "0",
+        product: "omena-cascade.shorthand-combination-proof",
+        shorthand_property: shorthand_property.to_string(),
+        accepted,
+        blocked_reason,
+        ordered_longhand_properties: longhands
+            .iter()
+            .map(|longhand| longhand.property.clone())
+            .collect(),
+        provenance_preserved: accepted,
+        cascade_safe_witness: witness.to_string(),
+    }
 }
 
 pub fn selector_context_witness(
@@ -1270,6 +1411,85 @@ mod tests {
         };
         assert_eq!(winner, "later");
         assert_eq!(also_considered, vec!["earlier"]);
+    }
+
+    #[test]
+    fn proves_adjacent_box_longhands_can_combine_to_shorthand() {
+        let proof = prove_box_shorthand_combination(
+            "margin",
+            &[
+                BoxLonghandInputV0 {
+                    property: "margin-top".to_string(),
+                    value: "1px".to_string(),
+                    important: false,
+                    source_order: 1,
+                },
+                BoxLonghandInputV0 {
+                    property: "margin-right".to_string(),
+                    value: "2px".to_string(),
+                    important: false,
+                    source_order: 2,
+                },
+                BoxLonghandInputV0 {
+                    property: "margin-bottom".to_string(),
+                    value: "3px".to_string(),
+                    important: false,
+                    source_order: 3,
+                },
+                BoxLonghandInputV0 {
+                    property: "margin-left".to_string(),
+                    value: "4px".to_string(),
+                    important: false,
+                    source_order: 4,
+                },
+            ],
+        );
+
+        assert_eq!(proof.product, "omena-cascade.shorthand-combination-proof");
+        assert!(proof.accepted);
+        assert_eq!(proof.blocked_reason, None);
+        assert!(proof.provenance_preserved);
+        assert!(proof.cascade_safe_witness.contains("canonical order"));
+    }
+
+    #[test]
+    fn blocks_box_shorthand_combination_when_intervening_order_is_possible() {
+        let proof = prove_box_shorthand_combination(
+            "padding",
+            &[
+                BoxLonghandInputV0 {
+                    property: "padding-top".to_string(),
+                    value: "1px".to_string(),
+                    important: false,
+                    source_order: 1,
+                },
+                BoxLonghandInputV0 {
+                    property: "padding-right".to_string(),
+                    value: "2px".to_string(),
+                    important: false,
+                    source_order: 3,
+                },
+                BoxLonghandInputV0 {
+                    property: "padding-bottom".to_string(),
+                    value: "3px".to_string(),
+                    important: false,
+                    source_order: 4,
+                },
+                BoxLonghandInputV0 {
+                    property: "padding-left".to_string(),
+                    value: "4px".to_string(),
+                    important: false,
+                    source_order: 5,
+                },
+            ],
+        );
+
+        assert!(!proof.accepted);
+        assert_eq!(
+            proof.blocked_reason,
+            Some("intervening declaration may change cascade outcome")
+        );
+        assert!(!proof.provenance_preserved);
     }
 
     #[test]
