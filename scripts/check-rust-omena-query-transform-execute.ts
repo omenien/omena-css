@@ -24,7 +24,7 @@ interface TransformExecuteSummaryV0 {
 }
 
 const styleSource =
-  '.a { color: #FFFFFF; opacity: 1.0; background: url("img.svg"); font-family: \'Demo\'; /* remove */ content: "/* keep */"; }';
+  '.a { color: #FFFFFF; opacity: 1.0; margin: 0px; background: url("img.svg"); font-family: \'Demo\'; /* remove */ content: "/* keep */"; }';
 
 const result = spawnSync(
   "cargo",
@@ -48,6 +48,7 @@ const result = spawnSync(
         "p01-whitespace-strip",
         "p02-comment-strip",
         "p03-number-compression",
+        "p04-unit-normalization",
         "p05-color-compression",
         "p06-url-quote-strip",
         "p07-string-quote-normalize",
@@ -71,6 +72,7 @@ assert.deepEqual(summary.requestedPassIds, [
   "p01-whitespace-strip",
   "p02-comment-strip",
   "p03-number-compression",
+  "p04-unit-normalization",
   "p05-color-compression",
   "p06-url-quote-strip",
   "p07-string-quote-normalize",
@@ -81,19 +83,20 @@ assert.deepEqual(summary.unknownPassIds, ["p99-unknown"]);
 assert.equal(summary.execution.product, "omena-transform-passes.execution");
 assert.equal(
   summary.execution.outputCss,
-  '.a{color: #fff;opacity: 1;background: url(img.svg);font-family: "Demo";content: "/* keep */";}',
+  '.a{color: #fff;opacity: 1;margin: 0;background: url(img.svg);font-family: "Demo";content: "/* keep */";}',
 );
 assert.deepEqual(summary.execution.executedPassIds, [
   "p01-whitespace-strip",
   "p02-comment-strip",
   "p03-number-compression",
+  "p04-unit-normalization",
   "p05-color-compression",
   "p06-url-quote-strip",
   "p07-string-quote-normalize",
   "p40-print-css",
 ]);
 assert.deepEqual(summary.execution.plannedOnlyPassIds, []);
-assert.equal(summary.execution.mutationCount, 13);
+assert.equal(summary.execution.mutationCount, 15);
 assert.equal(summary.execution.provenancePreserved, true);
 assert.equal(summary.execution.passPlan.product, "omena-transform-passes.plan");
 assert.equal(summary.execution.passPlan.violatedDagEdgeCount, 0);

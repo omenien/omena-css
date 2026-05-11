@@ -239,6 +239,24 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "compressed lexer numeric tokens without touching identifiers or strings",
                 }
             }
+            Some(TransformPassKind::UnitNormalization) => {
+                let (next_css, mutation_count) = normalize_css_units(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "normalized zero length units only inside property contexts that accept unitless zero",
+                }
+            }
             Some(TransformPassKind::ColorCompression) => {
                 let (next_css, mutation_count) = compress_css_colors(&output_css, dialect);
                 let status = if mutation_count == 0 {
@@ -354,6 +372,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::WhitespaceStrip.id(),
         TransformPassKind::CommentStrip.id(),
         TransformPassKind::NumberCompression.id(),
+        TransformPassKind::UnitNormalization.id(),
         TransformPassKind::ColorCompression.id(),
         TransformPassKind::UrlQuoteStrip.id(),
         TransformPassKind::StringQuoteNormalize.id(),
@@ -489,6 +508,10 @@ fn compress_css_colors(source: &str, dialect: StyleDialect) -> (String, usize) {
     compress_css_colors_with_lexer(source, dialect)
 }
 
+fn normalize_css_units(source: &str, dialect: StyleDialect) -> (String, usize) {
+    normalize_css_units_with_lexer(source, dialect)
+}
+
 fn strip_css_url_quotes(source: &str, dialect: StyleDialect) -> (String, usize) {
     strip_css_url_quotes_with_lexer(source, dialect)
 }
@@ -615,6 +638,167 @@ fn compress_css_colors_with_lexer(source: &str, dialect: StyleDialect) -> (Strin
     }
 
     (output, mutation_count)
+}
+
+fn normalize_css_units_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let mut output = String::with_capacity(source.len());
+    let mut mutation_count = 0;
+    let mut property_candidate: Option<String> = None;
+    let mut active_property: Option<String> = None;
+    let mut awaiting_property = false;
+
+    for token in lexed.tokens() {
+        if is_declaration_boundary_start(token.kind) {
+            awaiting_property = true;
+            property_candidate = None;
+            active_property = None;
+        } else if is_declaration_boundary_end(token.kind) {
+            awaiting_property = token.kind == SyntaxKind::Semicolon;
+            property_candidate = None;
+            active_property = None;
+        } else if token.kind == SyntaxKind::Colon && awaiting_property {
+            active_property = property_candidate.clone();
+            awaiting_property = false;
+        } else if awaiting_property
+            && !is_comment_token(token.kind)
+            && token.kind != SyntaxKind::Whitespace
+        {
+            if matches!(
+                token.kind,
+                SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+            ) {
+                property_candidate = Some(token.text.to_ascii_lowercase());
+            } else {
+                awaiting_property = false;
+                property_candidate = None;
+            }
+        }
+
+        let replacement = if token.kind == SyntaxKind::Dimension
+            && active_property
+                .as_deref()
+                .is_some_and(is_zero_length_unit_property)
+        {
+            normalize_zero_length_dimension_token(&token.text)
+        } else {
+            None
+        };
+
+        if let Some(replacement) = replacement {
+            if replacement != token.text {
+                mutation_count += 1;
+            }
+            output.push_str(&replacement);
+        } else {
+            output.push_str(&token.text);
+        }
+    }
+
+    (output, mutation_count)
+}
+
+fn is_declaration_boundary_start(kind: SyntaxKind) -> bool {
+    matches!(kind, SyntaxKind::LeftBrace | SyntaxKind::Semicolon)
+}
+
+fn is_declaration_boundary_end(kind: SyntaxKind) -> bool {
+    matches!(kind, SyntaxKind::RightBrace | SyntaxKind::Semicolon)
+}
+
+fn is_zero_length_unit_property(property: &str) -> bool {
+    matches!(
+        property,
+        "margin"
+            | "margin-block"
+            | "margin-block-end"
+            | "margin-block-start"
+            | "margin-bottom"
+            | "margin-inline"
+            | "margin-inline-end"
+            | "margin-inline-start"
+            | "margin-left"
+            | "margin-right"
+            | "margin-top"
+            | "padding"
+            | "padding-block"
+            | "padding-block-end"
+            | "padding-block-start"
+            | "padding-bottom"
+            | "padding-inline"
+            | "padding-inline-end"
+            | "padding-inline-start"
+            | "padding-left"
+            | "padding-right"
+            | "padding-top"
+            | "inset"
+            | "inset-block"
+            | "inset-block-end"
+            | "inset-block-start"
+            | "inset-inline"
+            | "inset-inline-end"
+            | "inset-inline-start"
+            | "top"
+            | "right"
+            | "bottom"
+            | "left"
+            | "width"
+            | "min-width"
+            | "max-width"
+            | "height"
+            | "min-height"
+            | "max-height"
+            | "block-size"
+            | "min-block-size"
+            | "max-block-size"
+            | "inline-size"
+            | "min-inline-size"
+            | "max-inline-size"
+            | "gap"
+            | "row-gap"
+            | "column-gap"
+    )
+}
+
+fn normalize_zero_length_dimension_token(text: &str) -> Option<String> {
+    let split = numeric_prefix_end(text)?;
+    let (number, unit) = text.split_at(split);
+    if !is_zero_number_prefix(number) || !is_css_length_unit(unit) {
+        return None;
+    }
+
+    Some("0".to_string())
+}
+
+fn is_zero_number_prefix(number: &str) -> bool {
+    number.parse::<f64>().is_ok_and(|value| value == 0.0)
+}
+
+fn is_css_length_unit(unit: &str) -> bool {
+    matches!(
+        unit.to_ascii_lowercase().as_str(),
+        "cap"
+            | "ch"
+            | "cm"
+            | "em"
+            | "ex"
+            | "ic"
+            | "in"
+            | "lh"
+            | "mm"
+            | "pc"
+            | "pt"
+            | "px"
+            | "q"
+            | "rem"
+            | "rlh"
+            | "vb"
+            | "vh"
+            | "vi"
+            | "vmax"
+            | "vmin"
+            | "vw"
+    )
 }
 
 fn compress_hex_color_token_text(text: &str) -> Option<String> {
@@ -923,6 +1107,7 @@ mod tests {
                 "p01-whitespace-strip",
                 "p02-comment-strip",
                 "p03-number-compression",
+                "p04-unit-normalization",
                 "p05-color-compression",
                 "p06-url-quote-strip",
                 "p07-string-quote-normalize",
@@ -1052,6 +1237,28 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".a { width: .5rem; opacity: 1; margin: -.25px 10%; content: "0.50"; }"#
+        );
+    }
+
+    #[test]
+    fn execution_runtime_normalizes_zero_length_units_with_property_context() {
+        let source = r#".a { margin: 0px 0.0rem -0em; rotate: 0deg; animation-delay: 0s; --x: 0px; width: 10px; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::UnitNormalization,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 3);
+        assert_eq!(
+            execution.output_css,
+            r#".a { margin: 0 0 0; rotate: 0deg; animation-delay: 0s; --x: 0px; width: 10px; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p04-unit-normalization", "p40-print-css"]
         );
     }
 
