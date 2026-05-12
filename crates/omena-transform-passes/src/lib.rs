@@ -4718,9 +4718,17 @@ fn parse_ok_lightness(text: &str) -> Option<f64> {
 }
 
 fn parse_hue_degrees(text: &str) -> Option<f64> {
-    let value = text
-        .strip_suffix("deg")
-        .map_or_else(|| parse_plain_f64(text), parse_plain_f64)?;
+    let value = if let Some(value) = text.strip_suffix("deg") {
+        parse_plain_f64(value)?
+    } else if let Some(value) = text.strip_suffix("turn") {
+        parse_plain_f64(value)? * 360.0
+    } else if let Some(value) = text.strip_suffix("grad") {
+        parse_plain_f64(value)? * 0.9
+    } else if let Some(value) = text.strip_suffix("rad") {
+        parse_plain_f64(value)?.to_degrees()
+    } else {
+        parse_plain_f64(text)?
+    };
     value.is_finite().then_some(value)
 }
 
@@ -7486,7 +7494,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_static_declaration_colors_only() {
-        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); flood-color: white; lighting-color: black; stop-color: blue; accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#;
+        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); flood-color: white; lighting-color: black; stop-color: blue; scrollbar-color: hsl(.5turn 100% 50%); border-block-color: hwb(200grad 0% 0%); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7495,10 +7503,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 12);
+        assert_eq!(execution.mutation_count, 14);
         assert_eq!(
             execution.output_css,
-            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: #808080; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: blue; accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
+            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: #808080; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: blue; scrollbar-color: #0ff; border-block-color: #0ff; accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
         );
     }
 
@@ -7737,7 +7745,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_in_gamut_oklab_oklch_declarations() {
-        let source = r#".card { color: oklab(1 0 0); background-color: oklch(0% 0 0deg); border-color: oklch(70% 0.4 40deg); }"#;
+        let source = r#".card { color: oklab(1 0 0); background-color: oklch(0% 0 0deg); outline-color: oklch(0% 0 0.5turn); border-color: oklch(70% 0.4 40deg); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7746,10 +7754,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 3);
         assert_eq!(
             execution.output_css,
-            r#".card { color: rgb(255 255 255); background-color: rgb(0 0 0); border-color: oklch(70% 0.4 40deg); }"#
+            r#".card { color: rgb(255 255 255); background-color: rgb(0 0 0); outline-color: rgb(0 0 0); border-color: oklch(70% 0.4 40deg); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
