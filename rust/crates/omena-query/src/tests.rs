@@ -12,6 +12,7 @@ use super::{
     execute_omena_query_consumer_build_style_source_for_target_query,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
+    execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     execute_omena_query_transform_passes_from_source, list_omena_query_transform_pass_summaries,
@@ -33,6 +34,7 @@ use super::{
     summarize_omena_query_style_semantic_graph_batch_from_sources,
     summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
     summarize_omena_query_style_semantic_graph_from_source,
+    summarize_omena_query_transform_context_from_engine_input,
     summarize_omena_query_transform_context_from_sources,
     summarize_omena_query_transform_plan_from_source,
     summarize_omena_query_transform_plan_from_target_query,
@@ -1531,6 +1533,60 @@ fn projects_reduced_product_flow_to_target_style_selectors() {
         ]
     );
     assert_eq!(merge.certainty, SelectorProjectionCertaintyV0::Inferred);
+}
+
+#[test]
+fn builds_semantic_reachability_transform_context_from_expression_projection() {
+    let input = reduced_product_projection_input();
+    let context_summary = summarize_omena_query_transform_context_from_engine_input(
+        &input,
+        "/tmp/App.module.scss",
+        true,
+    );
+
+    assert_eq!(
+        context_summary.product,
+        "omena-query.transform-context-from-engine-input"
+    );
+    assert!(context_summary.closed_style_world);
+    assert_eq!(context_summary.reachable_class_name_count, 2);
+    assert_eq!(
+        context_summary.context.reachable_class_names,
+        vec![
+            "btn-primary--active".to_string(),
+            "btn-secondary--active".to_string()
+        ]
+    );
+    assert!(
+        context_summary
+            .ready_surfaces
+            .contains(&"semanticReachabilityTransformContext")
+    );
+
+    let source = r#".btn-primary--active { color: red; } .btn-secondary--active { color: blue; } .btn--active { color: purple; } .card-active { color: gray; }"#;
+    let build = execute_omena_query_consumer_build_style_source_with_engine_input_context(
+        "/tmp/App.module.scss",
+        source,
+        &["tree-shake-class".to_string()],
+        &input,
+        true,
+    );
+
+    assert!(build.execution.output_css.contains(".btn-primary--active"));
+    assert!(
+        build
+            .execution
+            .output_css
+            .contains(".btn-secondary--active")
+    );
+    assert!(!build.execution.output_css.contains(".btn--active"));
+    assert!(!build.execution.output_css.contains(".card-active"));
+    assert!(
+        build
+            .execution
+            .executed_pass_ids
+            .contains(&"tree-shake-class")
+    );
 }
 
 #[test]

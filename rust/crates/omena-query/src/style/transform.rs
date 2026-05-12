@@ -257,6 +257,26 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
     }
 }
 
+pub fn execute_omena_query_consumer_build_style_source_with_engine_input_context(
+    style_path: &str,
+    style_source: &str,
+    requested_pass_ids: &[String],
+    input: &EngineInputV2,
+    closed_style_world: bool,
+) -> OmenaQueryConsumerBuildSummaryV0 {
+    let context_summary = summarize_omena_query_transform_context_from_engine_input(
+        input,
+        style_path,
+        closed_style_world,
+    );
+    execute_omena_query_consumer_build_style_source_with_context(
+        style_path,
+        style_source,
+        requested_pass_ids,
+        &context_summary.context,
+    )
+}
+
 pub fn execute_omena_query_consumer_build_style_sources_with_context(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
@@ -461,6 +481,47 @@ fn merge_workspace_transform_context(
     )
     .context;
     merge_transform_context(derived, context)
+}
+
+pub fn summarize_omena_query_transform_context_from_engine_input(
+    input: &EngineInputV2,
+    target_style_path: &str,
+    closed_style_world: bool,
+) -> OmenaQueryTransformContextFromEngineInputSummaryV0 {
+    let projection_summary = summarize_omena_query_expression_domain_selector_projection(input);
+    let mut reachable_class_names = BTreeSet::new();
+
+    for projection in &projection_summary.projections {
+        if projection.target_style_paths.is_empty()
+            || projection
+                .target_style_paths
+                .iter()
+                .any(|path| path == target_style_path)
+        {
+            reachable_class_names.extend(projection.selector_names.iter().cloned());
+        }
+    }
+
+    let context = TransformExecutionContextV0 {
+        closed_style_world,
+        reachable_class_names: reachable_class_names.into_iter().collect(),
+        ..TransformExecutionContextV0::default()
+    };
+
+    OmenaQueryTransformContextFromEngineInputSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.transform-context-from-engine-input",
+        input_version: input.version.clone(),
+        target_style_path: target_style_path.to_string(),
+        closed_style_world,
+        projection_count: projection_summary.projection_count,
+        reachable_class_name_count: context.reachable_class_names.len(),
+        context,
+        ready_surfaces: vec![
+            "expressionDomainSelectorProjection",
+            "semanticReachabilityTransformContext",
+        ],
+    }
 }
 
 fn merge_transform_context(
