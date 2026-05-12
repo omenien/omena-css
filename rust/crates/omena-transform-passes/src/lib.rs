@@ -5041,10 +5041,11 @@ fn encode_srgb_channel(value: f64) -> u8 {
 fn add_css_vendor_prefixes_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let insertions = collect_vendor_prefix_insertions(tokens);
+    let mut insertions = collect_vendor_prefix_insertions(source, tokens);
     if insertions.is_empty() {
         return (source.to_string(), 0);
     }
+    insertions.sort_by_key(|(position, _)| *position);
 
     let mut output = String::with_capacity(source.len());
     let mut cursor = 0;
@@ -5062,8 +5063,12 @@ fn add_css_vendor_prefixes_with_lexer(source: &str, dialect: StyleDialect) -> (S
     (output, insertions.len())
 }
 
-fn collect_vendor_prefix_insertions(tokens: &[omena_parser::LexedToken]) -> Vec<(usize, String)> {
+fn collect_vendor_prefix_insertions(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+) -> Vec<(usize, String)> {
     let mut insertions = Vec::new();
+    insertions.extend(collect_keyframes_vendor_prefix_insertions(source, tokens));
     let mut index = 0;
 
     while index < tokens.len() {
@@ -5103,6 +5108,75 @@ fn collect_vendor_prefix_insertions(tokens: &[omena_parser::LexedToken]) -> Vec<
     }
 
     insertions
+}
+
+fn collect_keyframes_vendor_prefix_insertions(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+) -> Vec<(usize, String)> {
+    let prefixed_names = collect_keyframes_names(tokens, "@-webkit-keyframes");
+    let mut insertions = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::AtKeyword
+            && tokens[index].text.eq_ignore_ascii_case("@keyframes")
+            && let Some(name) = keyframes_name_after(tokens, index)
+            && !prefixed_names
+                .iter()
+                .any(|prefixed_name| prefixed_name == &name.to_ascii_lowercase())
+            && let Some(block_start) = at_rule_block_start(tokens, index + 1)
+            && let Some(block_end) = matching_right_brace_index(tokens, block_start)
+        {
+            let start = token_start(&tokens[index]);
+            let end = token_end(&tokens[block_end]);
+            let original = &source[start..end];
+            let prefixed = original.replacen(&tokens[index].text, "@-webkit-keyframes", 1);
+            insertions.push((start, format!("{prefixed} ")));
+            index = block_end + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    insertions
+}
+
+fn collect_keyframes_names(tokens: &[omena_parser::LexedToken], at_keyword: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut index = 0;
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::AtKeyword
+            && tokens[index].text.eq_ignore_ascii_case(at_keyword)
+            && let Some(name) = keyframes_name_after(tokens, index)
+        {
+            names.push(name.to_ascii_lowercase());
+        }
+        index += 1;
+    }
+    names
+}
+
+fn keyframes_name_after(
+    tokens: &[omena_parser::LexedToken],
+    at_keyword_index: usize,
+) -> Option<&str> {
+    let name_index = skip_whitespace_tokens(tokens, at_keyword_index + 1, tokens.len());
+    let name_token = tokens.get(name_index)?;
+    matches!(name_token.kind, SyntaxKind::Ident | SyntaxKind::String)
+        .then_some(name_token.text.as_str())
+}
+
+fn at_rule_block_start(tokens: &[omena_parser::LexedToken], start_index: usize) -> Option<usize> {
+    let mut index = start_index;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => return Some(index),
+            SyntaxKind::RightBrace | SyntaxKind::Semicolon => return None,
+            _ => index += 1,
+        }
+    }
+    None
 }
 
 fn prefixed_property_for(property: &str) -> Option<&'static str> {
@@ -8018,7 +8092,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_adds_conservative_vendor_prefixes_when_absent() {
-        let source = r#".a { user-select: none; -webkit-appearance: none; appearance: none; backdrop-filter: blur(2px); } .flex { display: flex; position: sticky; } .inline { display: -webkit-inline-box; display: inline-flex; } .extra { text-size-adjust: 100%; mask-image: linear-gradient(red, blue); hyphens: auto; } .print { print-color-adjust: exact; -webkit-mask-size: cover; mask-size: cover; }"#;
+        let source = r#".a { user-select: none; -webkit-appearance: none; appearance: none; backdrop-filter: blur(2px); } .flex { display: flex; position: sticky; } .inline { display: -webkit-inline-box; display: inline-flex; } .extra { text-size-adjust: 100%; mask-image: linear-gradient(red, blue); hyphens: auto; } .print { print-color-adjust: exact; -webkit-mask-size: cover; mask-size: cover; } @keyframes fade { from { opacity: 0; } to { opacity: 1; } } @-webkit-keyframes spin { from { opacity: 0; } } @keyframes spin { from { opacity: 0; } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -8027,10 +8101,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 10);
+        assert_eq!(execution.mutation_count, 11);
         assert_eq!(
             execution.output_css,
-            r#".a { -webkit-user-select: none; user-select: none; -webkit-appearance: none; appearance: none; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); } .flex { display: -webkit-box; display: -ms-flexbox; display: flex; position: -webkit-sticky; position: sticky; } .inline { display: -webkit-inline-box; display: -ms-inline-flexbox; display: inline-flex; } .extra { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-mask-image: linear-gradient(red, blue); mask-image: linear-gradient(red, blue); -webkit-hyphens: auto; hyphens: auto; } .print { -webkit-print-color-adjust: exact; print-color-adjust: exact; -webkit-mask-size: cover; mask-size: cover; }"#
+            r#".a { -webkit-user-select: none; user-select: none; -webkit-appearance: none; appearance: none; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); } .flex { display: -webkit-box; display: -ms-flexbox; display: flex; position: -webkit-sticky; position: sticky; } .inline { display: -webkit-inline-box; display: -ms-inline-flexbox; display: inline-flex; } .extra { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-mask-image: linear-gradient(red, blue); mask-image: linear-gradient(red, blue); -webkit-hyphens: auto; hyphens: auto; } .print { -webkit-print-color-adjust: exact; print-color-adjust: exact; -webkit-mask-size: cover; mask-size: cover; } @-webkit-keyframes fade { from { opacity: 0; } to { opacity: 1; } } @keyframes fade { from { opacity: 0; } to { opacity: 1; } } @-webkit-keyframes spin { from { opacity: 0; } } @keyframes spin { from { opacity: 0; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
