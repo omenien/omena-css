@@ -1090,6 +1090,7 @@ dependencies = [
  "omena-query",
  "serde",
  "serde-wasm-bindgen",
+ "serde_json",
  "wasm-bindgen",
 ]
 

@@ -1,12 +1,13 @@
 use clap::{Parser, Subcommand};
 use omena_query::{
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryEngineInputV2, OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
+    summarize_omena_query_transform_context_from_engine_input,
 };
 use serde::Serialize;
 use std::{
@@ -66,6 +67,12 @@ enum Command {
         /// JSON file containing a TransformExecutionContextV0 evaluator/provenance bridge.
         #[arg(long)]
         context_json: Option<PathBuf>,
+        /// JSON file containing EngineInputV2 source/style/type facts for semantic reachability.
+        #[arg(long)]
+        engine_input_json: Option<PathBuf>,
+        /// Treat the provided context/engine input as a closed style world for tree shaking.
+        #[arg(long)]
+        closed_style_world: bool,
         /// Additional workspace style source used to derive import/composes build context.
         #[arg(long = "source")]
         source_paths: Vec<PathBuf>,
@@ -108,6 +115,8 @@ fn run(cli: Cli) -> Result<(), String> {
             enable_supports_static_eval,
             enable_media_static_eval,
             context_json,
+            engine_input_json,
+            closed_style_world,
             source_paths,
             package_manifest_paths,
             json,
@@ -117,6 +126,8 @@ fn run(cli: Cli) -> Result<(), String> {
             pass_ids: passes,
             target_query,
             context_json,
+            engine_input_json,
+            closed_style_world,
             source_paths,
             package_manifest_paths,
             target_options: OmenaQueryTargetTransformOptionsV0 {
@@ -157,6 +168,8 @@ struct BuildFileOptions {
     pass_ids: Vec<String>,
     target_query: Option<String>,
     context_json: Option<PathBuf>,
+    engine_input_json: Option<PathBuf>,
+    closed_style_world: bool,
     source_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
     target_options: OmenaQueryTargetTransformOptionsV0,
@@ -170,6 +183,8 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         pass_ids,
         target_query,
         context_json,
+        engine_input_json,
+        closed_style_world,
         source_paths,
         package_manifest_paths,
         target_options,
@@ -181,8 +196,21 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
     }
 
     let source = read_source(&path)?;
-    let context = read_context_json(context_json.as_deref())?;
     let style_path = path_string(&path);
+    let mut context = read_context_json(context_json.as_deref())?;
+    if closed_style_world {
+        context.closed_style_world = true;
+    }
+    if let Some(engine_input_path) = engine_input_json.as_deref() {
+        let engine_input = read_engine_input_json(engine_input_path)?;
+        let engine_context = summarize_omena_query_transform_context_from_engine_input(
+            &engine_input,
+            &style_path,
+            context.closed_style_world,
+        )
+        .context;
+        context = merge_cli_transform_context(context, &engine_context);
+    }
     let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
     let package_manifests = read_package_manifests(&package_manifest_paths)?;
     let summary = if let Some(target_query) = target_query {
@@ -326,6 +354,54 @@ fn read_context_json(path: Option<&Path>) -> Result<OmenaQueryTransformExecution
             path_string(path)
         )
     })
+}
+
+fn read_engine_input_json(path: &Path) -> Result<OmenaQueryEngineInputV2, String> {
+    let json = fs::read_to_string(path).map_err(|error| {
+        format!(
+            "failed to read engine input JSON {}: {error}",
+            path_string(path)
+        )
+    })?;
+    serde_json::from_str(&json).map_err(|error| {
+        format!(
+            "failed to parse engine input JSON {}: {error}",
+            path_string(path)
+        )
+    })
+}
+
+fn merge_cli_transform_context(
+    mut base: OmenaQueryTransformExecutionContextV0,
+    additional: &OmenaQueryTransformExecutionContextV0,
+) -> OmenaQueryTransformExecutionContextV0 {
+    base.closed_style_world = base.closed_style_world || additional.closed_style_world;
+    merge_cli_context_list(
+        &mut base.reachable_class_names,
+        &additional.reachable_class_names,
+    );
+    merge_cli_context_list(
+        &mut base.reachable_keyframe_names,
+        &additional.reachable_keyframe_names,
+    );
+    merge_cli_context_list(
+        &mut base.reachable_value_names,
+        &additional.reachable_value_names,
+    );
+    merge_cli_context_list(
+        &mut base.reachable_custom_property_names,
+        &additional.reachable_custom_property_names,
+    );
+    base
+}
+
+fn merge_cli_context_list(target: &mut Vec<String>, additional: &[String]) {
+    for item in additional {
+        if !target.contains(item) {
+            target.push(item.clone());
+        }
+    }
+    target.sort();
 }
 
 fn print_json<T: Serialize>(value: &T) -> Result<(), String> {

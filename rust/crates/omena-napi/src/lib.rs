@@ -16,6 +16,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
     execute_omena_query_consumer_build_style_source_with_context,
+    execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
@@ -47,6 +48,24 @@ pub fn build_style_source_with_context_json(
     let context = parse_context_json(&context_json)?;
     to_json_string(&build_style_source_with_context_summary(
         &source, &path, &pass_ids, &context,
+    ))
+}
+
+#[napi(js_name = "buildStyleSourceWithEngineInputContextJson")]
+pub fn build_style_source_with_engine_input_context_json(
+    source: String,
+    path: String,
+    pass_ids: Vec<String>,
+    input_json: String,
+    closed_style_world: bool,
+) -> napi::Result<String> {
+    let input = parse_engine_input_json(&input_json)?;
+    to_json_string(&build_style_source_with_engine_input_context_summary(
+        &source,
+        &path,
+        &pass_ids,
+        &input,
+        closed_style_world,
     ))
 }
 
@@ -174,6 +193,23 @@ pub fn build_style_source_with_context_summary(
 ) -> OmenaNapiBuildSummaryV0 {
     let path = effective_path(path);
     execute_omena_query_consumer_build_style_source_with_context(path, source, pass_ids, context)
+}
+
+pub fn build_style_source_with_engine_input_context_summary(
+    source: &str,
+    path: &str,
+    pass_ids: &[String],
+    input: &OmenaNapiEngineInputV2,
+    closed_style_world: bool,
+) -> OmenaNapiBuildSummaryV0 {
+    let path = effective_path(path);
+    execute_omena_query_consumer_build_style_source_with_engine_input_context(
+        path,
+        source,
+        pass_ids,
+        input,
+        closed_style_world,
+    )
 }
 
 pub fn build_style_source_for_target_query_summary(
@@ -490,6 +526,40 @@ mod tests {
         assert!(json.contains("\"sourceValueKind\":\"composite\""));
         assert!(json.contains("\"prefix\":\"btn-\""));
         assert!(json.contains("\"suffix\":\"-active\""));
+        Ok(())
+    }
+
+    #[test]
+    fn builds_css_from_engine_input_context_for_node_clients() -> napi::Result<()> {
+        let input = parse_engine_input_json(reduced_product_projection_engine_input_json())?;
+        let pass_ids = vec!["tree-shake-class".to_string()];
+        let summary = build_style_source_with_engine_input_context_summary(
+            r#".btn-primary--active { color: red; } .btn-secondary--active { color: blue; } .card-active { color: gray; }"#,
+            "/tmp/App.module.scss",
+            &pass_ids,
+            &input,
+            true,
+        );
+
+        assert!(
+            summary
+                .execution
+                .output_css
+                .contains(".btn-primary--active")
+        );
+        assert!(
+            summary
+                .execution
+                .output_css
+                .contains(".btn-secondary--active")
+        );
+        assert!(!summary.execution.output_css.contains(".card-active"));
+        assert!(
+            summary
+                .execution
+                .executed_pass_ids
+                .contains(&"tree-shake-class")
+        );
         Ok(())
     }
 

@@ -15,6 +15,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
     execute_omena_query_consumer_build_style_source_with_context,
+    execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
@@ -45,6 +46,25 @@ pub fn build_style_source_with_context(
     let context = parse_context_value(context)?;
     to_js_value(&build_style_source_with_context_summary(
         source, path, &pass_ids, &context,
+    ))
+}
+
+#[wasm_bindgen(js_name = buildStyleSourceWithEngineInputContext)]
+pub fn build_style_source_with_engine_input_context(
+    source: &str,
+    path: &str,
+    pass_ids: JsValue,
+    input: JsValue,
+    closed_style_world: bool,
+) -> Result<JsValue, JsValue> {
+    let pass_ids = parse_pass_ids_value(pass_ids)?;
+    let input = parse_engine_input_value(input)?;
+    to_js_value(&build_style_source_with_engine_input_context_summary(
+        source,
+        path,
+        &pass_ids,
+        &input,
+        closed_style_world,
     ))
 }
 
@@ -175,6 +195,23 @@ pub fn build_style_source_with_context_summary(
 ) -> OmenaWasmBuildSummaryV0 {
     let path = effective_path(path);
     execute_omena_query_consumer_build_style_source_with_context(path, source, pass_ids, context)
+}
+
+pub fn build_style_source_with_engine_input_context_summary(
+    source: &str,
+    path: &str,
+    pass_ids: &[String],
+    input: &OmenaWasmEngineInputV2,
+    closed_style_world: bool,
+) -> OmenaWasmBuildSummaryV0 {
+    let path = effective_path(path);
+    execute_omena_query_consumer_build_style_source_with_engine_input_context(
+        path,
+        source,
+        pass_ids,
+        input,
+        closed_style_world,
+    )
 }
 
 pub fn build_style_source_for_target_query_summary(
@@ -496,6 +533,45 @@ mod tests {
     }
 
     #[test]
+    fn builds_css_from_engine_input_context_for_browser_clients() {
+        let input = serde_json::from_str::<OmenaWasmEngineInputV2>(
+            reduced_product_projection_engine_input_json(),
+        );
+        assert!(input.is_ok());
+        let Ok(input) = input else {
+            return;
+        };
+        let pass_ids = vec!["tree-shake-class".to_string()];
+        let summary = build_style_source_with_engine_input_context_summary(
+            r#".btn-primary--active { color: red; } .btn-secondary--active { color: blue; } .card-active { color: gray; }"#,
+            "/tmp/App.module.scss",
+            &pass_ids,
+            &input,
+            true,
+        );
+
+        assert!(
+            summary
+                .execution
+                .output_css
+                .contains(".btn-primary--active")
+        );
+        assert!(
+            summary
+                .execution
+                .output_css
+                .contains(".btn-secondary--active")
+        );
+        assert!(!summary.execution.output_css.contains(".card-active"));
+        assert!(
+            summary
+                .execution
+                .executed_pass_ids
+                .contains(&"tree-shake-class")
+        );
+    }
+
+    #[test]
     fn reports_unknown_passes_without_failing_known_execution() {
         let pass_ids = vec!["whitespace-strip".to_string(), "unknown-pass".to_string()];
         let summary = build_style_source_summary(".card { color: red; }", "fixture.css", &pass_ids);
@@ -515,5 +591,122 @@ mod tests {
 
         assert_eq!(passes.len(), 40);
         assert!(passes.iter().any(|pass| pass.id == "whitespace-strip"));
+    }
+
+    fn reduced_product_projection_engine_input_json() -> &'static str {
+        r#"{
+          "version": "2",
+          "sources": [
+            {
+              "document": {
+                "classExpressions": [
+                  {
+                    "id": "expr-primary",
+                    "kind": "symbolRef",
+                    "scssModulePath": "/tmp/App.module.scss",
+                    "range": {
+                      "start": { "line": 4, "character": 12 },
+                      "end": { "line": 4, "character": 16 }
+                    },
+                    "className": null,
+                    "rootBindingDeclId": "decl-primary",
+                    "accessPath": null
+                  },
+                  {
+                    "id": "expr-secondary",
+                    "kind": "symbolRef",
+                    "scssModulePath": "/tmp/App.module.scss",
+                    "range": {
+                      "start": { "line": 5, "character": 12 },
+                      "end": { "line": 5, "character": 16 }
+                    },
+                    "className": null,
+                    "rootBindingDeclId": "decl-secondary",
+                    "accessPath": null
+                  }
+                ]
+              }
+            }
+          ],
+          "styles": [
+            {
+              "filePath": "/tmp/App.module.scss",
+              "document": {
+                "selectors": [
+                  {
+                    "name": "btn-primary--active",
+                    "viewKind": "canonical",
+                    "canonicalName": "btn-primary--active",
+                    "range": {
+                      "start": { "line": 1, "character": 1 },
+                      "end": { "line": 1, "character": 21 }
+                    },
+                    "nestedSafety": "safe",
+                    "composes": null,
+                    "bemSuffix": null
+                  },
+                  {
+                    "name": "btn-secondary--active",
+                    "viewKind": "canonical",
+                    "canonicalName": "btn-secondary--active",
+                    "range": {
+                      "start": { "line": 2, "character": 1 },
+                      "end": { "line": 2, "character": 23 }
+                    },
+                    "nestedSafety": "safe",
+                    "composes": null,
+                    "bemSuffix": null
+                  },
+                  {
+                    "name": "card-active",
+                    "viewKind": "canonical",
+                    "canonicalName": "card-active",
+                    "range": {
+                      "start": { "line": 3, "character": 1 },
+                      "end": { "line": 3, "character": 12 }
+                    },
+                    "nestedSafety": "safe",
+                    "composes": null,
+                    "bemSuffix": null
+                  }
+                ]
+              }
+            }
+          ],
+          "typeFacts": [
+            {
+              "filePath": "/tmp/App.tsx",
+              "expressionId": "expr-primary",
+              "facts": {
+                "kind": "constrained",
+                "constraintKind": "prefixSuffix",
+                "values": null,
+                "prefix": "btn-primary-",
+                "suffix": "-active",
+                "minLen": 20,
+                "maxLen": null,
+                "charMust": null,
+                "charMay": null,
+                "mayIncludeOtherChars": null
+              }
+            },
+            {
+              "filePath": "/tmp/App.tsx",
+              "expressionId": "expr-secondary",
+              "facts": {
+                "kind": "constrained",
+                "constraintKind": "prefixSuffix",
+                "values": null,
+                "prefix": "btn-secondary-",
+                "suffix": "-active",
+                "minLen": 22,
+                "maxLen": null,
+                "charMust": null,
+                "charMay": null,
+                "mayIncludeOtherChars": null
+              }
+            }
+          ]
+        }"#
     }
 }
