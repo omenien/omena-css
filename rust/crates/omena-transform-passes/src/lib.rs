@@ -6642,7 +6642,27 @@ fn is_declaration_boundary_end(kind: SyntaxKind) -> bool {
 fn is_zero_length_unit_property(property: &str) -> bool {
     matches!(
         property,
-        "margin"
+        "border-block-end-width"
+            | "border-block-start-width"
+            | "border-block-width"
+            | "border-bottom-left-radius"
+            | "border-bottom-right-radius"
+            | "border-bottom-width"
+            | "border-end-end-radius"
+            | "border-end-start-radius"
+            | "border-inline-end-width"
+            | "border-inline-start-width"
+            | "border-inline-width"
+            | "border-left-width"
+            | "border-radius"
+            | "border-right-width"
+            | "border-start-end-radius"
+            | "border-start-start-radius"
+            | "border-top-left-radius"
+            | "border-top-right-radius"
+            | "border-top-width"
+            | "border-width"
+            | "margin"
             | "margin-block"
             | "margin-block-end"
             | "margin-block-start"
@@ -6687,6 +6707,29 @@ fn is_zero_length_unit_property(property: &str) -> bool {
             | "inline-size"
             | "min-inline-size"
             | "max-inline-size"
+            | "outline-width"
+            | "scroll-margin"
+            | "scroll-margin-block"
+            | "scroll-margin-block-end"
+            | "scroll-margin-block-start"
+            | "scroll-margin-bottom"
+            | "scroll-margin-inline"
+            | "scroll-margin-inline-end"
+            | "scroll-margin-inline-start"
+            | "scroll-margin-left"
+            | "scroll-margin-right"
+            | "scroll-margin-top"
+            | "scroll-padding"
+            | "scroll-padding-block"
+            | "scroll-padding-block-end"
+            | "scroll-padding-block-start"
+            | "scroll-padding-bottom"
+            | "scroll-padding-inline"
+            | "scroll-padding-inline-end"
+            | "scroll-padding-inline-start"
+            | "scroll-padding-left"
+            | "scroll-padding-right"
+            | "scroll-padding-top"
             | "gap"
             | "row-gap"
             | "column-gap"
@@ -7758,7 +7801,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_normalizes_zero_length_units_with_property_context() {
-        let source = r#".a { margin: 0px 0.0rem -0em; rotate: 1TURN; animation-delay: 200MS; grid-template-columns: 1FR 2fr; --x: 0PX; width: 10PX; }"#;
+        let source = r#".a { margin: 0px 0.0rem -0em; border-top-width: 0PX; border-radius: -0em; scroll-margin-inline: 0rem; outline-width: 0pt; rotate: 1TURN; animation-delay: 200MS; grid-template-columns: 1FR 2fr; --x: 0PX; width: 10PX; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7767,10 +7810,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 7);
+        assert_eq!(execution.mutation_count, 11);
         assert_eq!(
             execution.output_css,
-            r#".a { margin: 0 0 0; rotate: 1turn; animation-delay: 200ms; grid-template-columns: 1fr 2fr; --x: 0PX; width: 10px; }"#
+            r#".a { margin: 0 0 0; border-top-width: 0; border-radius: 0; scroll-margin-inline: 0; outline-width: 0; rotate: 1turn; animation-delay: 200ms; grid-template-columns: 1fr 2fr; --x: 0PX; width: 10px; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
