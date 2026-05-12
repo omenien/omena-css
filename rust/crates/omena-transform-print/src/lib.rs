@@ -72,7 +72,7 @@ pub fn summarize_omena_transform_print_boundary() -> TransformPrintBoundarySumma
             TransformPrintMode::Pretty,
             TransformPrintMode::Minified,
         ],
-        source_map_contract: "one segment per emitted source range until mutation printers split spans",
+        source_map_contract: "line-level identity segments plus provenance-node mutation segments",
         planner_surface: "omena-transform-passes.plan",
     }
 }
@@ -93,14 +93,12 @@ pub fn print_transform_cst_source(
     let cst_artifact = build_transform_cst_artifact(source, semantic_signature, &passes);
     let css = render_identity_preserving_css(source, options.mode);
     let source_map_segments = if options.include_source_map {
-        vec![TransformSourceMapSegmentV0 {
-            source_path: source_path.clone(),
-            original_start: 0,
-            original_end: source.len(),
-            generated_start: 0,
-            generated_end: css.len(),
-            pass_id: TransformPassKind::PrintCss.id(),
-        }]
+        compose_identity_source_map_segments(
+            &source_path,
+            source,
+            &css,
+            TransformPassKind::PrintCss.id(),
+        )
     } else {
         Vec::new()
     };
@@ -168,6 +166,54 @@ fn compose_source_map_segments_from_execution(
         .collect()
 }
 
+fn compose_identity_source_map_segments(
+    source_path: &str,
+    source: &str,
+    generated: &str,
+    pass_id: &'static str,
+) -> Vec<TransformSourceMapSegmentV0> {
+    if source.is_empty() {
+        return vec![TransformSourceMapSegmentV0 {
+            source_path: source_path.to_string(),
+            original_start: 0,
+            original_end: 0,
+            generated_start: 0,
+            generated_end: 0,
+            pass_id,
+        }];
+    }
+
+    let mut segments = Vec::new();
+    let mut start = 0usize;
+    for (index, byte) in source.bytes().enumerate() {
+        if byte == b'\n' {
+            let end = index + 1;
+            segments.push(TransformSourceMapSegmentV0 {
+                source_path: source_path.to_string(),
+                original_start: start,
+                original_end: end,
+                generated_start: start,
+                generated_end: end.min(generated.len()),
+                pass_id,
+            });
+            start = end;
+        }
+    }
+
+    if start < source.len() {
+        segments.push(TransformSourceMapSegmentV0 {
+            source_path: source_path.to_string(),
+            original_start: start,
+            original_end: source.len(),
+            generated_start: start,
+            generated_end: generated.len(),
+            pass_id,
+        });
+    }
+
+    segments
+}
+
 fn render_identity_preserving_css(source: &str, _mode: TransformPrintMode) -> String {
     source.to_string()
 }
@@ -191,8 +237,8 @@ mod tests {
     }
 
     #[test]
-    fn prints_identity_css_with_full_source_map_segment() {
-        let source = ".button { color: var(--brand); }";
+    fn prints_identity_css_with_line_level_source_map_segments() {
+        let source = ".button {\n  color: var(--brand);\n}";
         let artifact = print_transform_cst_source(
             "Button.module.css",
             source,
@@ -204,8 +250,16 @@ mod tests {
         assert_eq!(artifact.product, "omena-transform-print.artifact");
         assert_eq!(artifact.css, source);
         assert!(artifact.provenance_preserved);
-        assert_eq!(artifact.source_map_segments.len(), 1);
-        assert_eq!(artifact.source_map_segments[0].original_end, source.len());
+        assert_eq!(artifact.source_map_segments.len(), 3);
+        assert_eq!(artifact.source_map_segments[0].original_start, 0);
+        assert_eq!(artifact.source_map_segments[0].original_end, 10);
+        assert_eq!(
+            artifact
+                .source_map_segments
+                .last()
+                .map(|segment| segment.original_end),
+            Some(source.len())
+        );
         assert_eq!(
             artifact.pass_plan.ordered_pass_ids,
             vec!["p25-calc-reduction", "p40-print-css"]
