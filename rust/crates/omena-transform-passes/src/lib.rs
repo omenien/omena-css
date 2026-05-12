@@ -1185,7 +1185,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "resolved whole-value var() references from unique literal :root custom properties",
+                    detail: "resolved whole-value var() references from unique static :root custom properties",
                 }
             }
             Some(TransformPassKind::CalcReduction) => {
@@ -4203,17 +4203,19 @@ fn collect_static_root_custom_property_env(
                 blocked_names.push(declaration.property);
                 continue;
             }
-            if declaration.value.contains("var(") {
+            let Some(value) = parse_static_custom_property_env_value(&declaration.value) else {
                 continue;
-            }
-            env.insert(
-                declaration.property,
-                CascadeValue::Literal(declaration.value),
-            );
+            };
+            env.insert(declaration.property, value);
         }
     }
 
     env
+}
+
+fn parse_static_custom_property_env_value(value: &str) -> Option<CascadeValue> {
+    parse_static_var_value(value)
+        .or_else(|| (!value.contains("var(")).then(|| CascadeValue::Literal(value.to_string())))
 }
 
 fn parse_static_var_value(value: &str) -> Option<CascadeValue> {
@@ -4223,10 +4225,11 @@ fn parse_static_var_value(value: &str) -> Option<CascadeValue> {
             name: name.clone(),
             fallback: None,
         }),
-        [name, fallback] if name.starts_with("--") && !fallback.contains("var(") => {
+        [name, fallback] if name.starts_with("--") => {
+            let fallback = parse_static_custom_property_env_value(fallback)?;
             Some(CascadeValue::Var {
                 name: name.clone(),
-                fallback: Some(Box::new(CascadeValue::Literal(fallback.clone()))),
+                fallback: Some(Box::new(fallback)),
             })
         }
         _ => None,
@@ -8424,8 +8427,8 @@ mod tests {
     }
 
     #[test]
-    fn execution_runtime_resolves_unique_literal_root_custom_properties() {
-        let source = r#":root { --brand: red; --gap: 2rem; --dup: red; --dup: blue; --dynamic: var(--brand); } .card { color: var(--brand); margin: var(--gap); border-color: var(--missing, blue); background: var(--dup); outline-color: var(--dynamic); }"#;
+    fn execution_runtime_resolves_unique_static_root_custom_properties() {
+        let source = r#":root { --brand: red; --gap: 2rem; --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: var(--brand); margin: var(--gap); border-color: var(--missing, blue); background: var(--dup); outline-color: var(--dynamic); text-decoration-color: var(--fallback); caret-color: var(--cycle-a); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -8434,10 +8437,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 3);
+        assert_eq!(execution.mutation_count, 5);
         assert_eq!(
             execution.output_css,
-            r#":root { --brand: red; --gap: 2rem; --dup: red; --dup: blue; --dynamic: var(--brand); } .card { color: red; margin: 2rem; border-color: blue; background: var(--dup); outline-color: var(--dynamic); }"#
+            r#":root { --brand: red; --gap: 2rem; --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: red; margin: 2rem; border-color: blue; background: var(--dup); outline-color: red; text-decoration-color: blue; caret-color: var(--cycle-a); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
