@@ -683,6 +683,9 @@ jobs:
 function writePublishWorkflow(destinationPath) {
   const workflowDirectory = path.join(destinationPath, ".github", "workflows");
   mkdirSync(workflowDirectory, { recursive: true });
+  const publishCrateRows = omenaCssPublishOrder
+    .map((crateName) => `            ${crateName}`)
+    .join("\n");
   writeFileSync(
     path.join(workflowDirectory, "publish.yml"),
     `name: Publish Crates
@@ -719,17 +722,7 @@ jobs:
           set -euo pipefail
 
           crates=(
-            omena-syntax
-            omena-interner
-            omena-parser
-            omena-incremental
-            omena-cascade
-            omena-transform-cst
-            omena-transform-passes
-            omena-transform-bundle
-            omena-transform-target
-            omena-transform-print
-            omena-transform-egg
+${publishCrateRows}
           )
 
           has_local_omena_dependencies() {
@@ -747,7 +740,7 @@ jobs:
 
             if crate_exists "$crate"; then
               echo "$crate already exists on crates.io; skipping"
-              return
+              return 2
             fi
 
             for attempt in 1 2 3 4 5 6; do
@@ -794,8 +787,15 @@ jobs:
             fi
 
             if [[ "$PUBLISH_MODE" == "publish" ]]; then
-              publish_with_retry "$crate"
-              sleep 30
+              if publish_with_retry "$crate"; then
+                sleep 30
+              else
+                publish_status="$?"
+                if [[ "$publish_status" == "2" ]]; then
+                  continue
+                fi
+                exit "$publish_status"
+              fi
               continue
             fi
 
