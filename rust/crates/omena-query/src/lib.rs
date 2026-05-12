@@ -14,8 +14,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use omena_abstract_value::{
     AbstractValueDomainSummaryV0, ClassValueFlowAnalysisV0, ClassValueFlowIncrementalAnalysisV0,
-    SelectorProjectionCertaintyV0, analyze_class_value_flow_incremental_with_database,
-    project_abstract_value_selectors, summarize_omena_abstract_value_domain,
+    ReducedClassValueProductV0, SelectorProjectionCertaintyV0,
+    analyze_class_value_flow_incremental_with_database, project_abstract_value_selectors,
+    summarize_omena_abstract_value_domain, summarize_reduced_class_value_product,
 };
 use omena_bridge::{
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
