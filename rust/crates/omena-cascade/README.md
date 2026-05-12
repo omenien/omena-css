@@ -19,3 +19,8 @@ That corpus covers source order, specificity, origin/importance level, layer
 rank, scope proximity, and missing-property inheritance. It is not a replacement
 for the full WPT `css/css-cascade` corpus; the full WPT mapping remains a later
 conformance target.
+
+Transform proof helpers live here as well. `@supports` static evaluation uses an
+explicit modern-browser assumption witness, and `@scope` / `@layer` flattening
+helpers reject candidates unless the caller can provide the closed-world
+cascade conditions needed to erase scope proximity or layer rank.

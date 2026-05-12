@@ -402,6 +402,52 @@ pub struct StaticSupportsEvalWitnessV0 {
     pub provenance_preserved: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopeFlattenInputV0 {
+    pub root_selector: String,
+    pub limit_selector: Option<String>,
+    pub scoped_rule_count: usize,
+    pub peer_scope_count: usize,
+    pub competing_unscoped_rule_count: usize,
+    pub inside_layer: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopeFlattenProofV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub accepted: bool,
+    pub blocked_reason: Option<&'static str>,
+    pub root_selector: String,
+    pub provenance_preserved: bool,
+    pub cascade_safe_witness: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LayerFlattenInputV0 {
+    pub layer_name: Option<String>,
+    pub layer_rule_count: usize,
+    pub peer_layer_count: usize,
+    pub unlayered_rule_count: usize,
+    pub important_declaration_count: usize,
+    pub closed_bundle: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LayerFlattenProofV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub accepted: bool,
+    pub blocked_reason: Option<&'static str>,
+    pub layer_name: Option<String>,
+    pub provenance_preserved: bool,
+    pub cascade_safe_witness: String,
+}
+
 pub type CustomPropertyEnv = BTreeMap<String, CascadeValue>;
 
 pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
@@ -423,6 +469,8 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
             "cycleToGuaranteedInvalid",
             "shorthandCombinationProof",
             "supportsStaticEvalWitness",
+            "scopeFlattenProof",
+            "layerFlattenProof",
         ],
         not_ready_surfaces: vec!["wptCascadeCorpus"],
     }
@@ -839,6 +887,66 @@ pub fn evaluate_static_supports_condition(
         verdict,
         reason,
         provenance_preserved: verdict != StaticSupportsEvalVerdictV0::Unknown,
+    }
+}
+
+pub fn prove_scope_flatten_candidate(input: ScopeFlattenInputV0) -> ScopeFlattenProofV0 {
+    let blocked_reason = if input.limit_selector.is_some() {
+        Some("scope limit selector cannot be encoded by the conservative flatten predicate")
+    } else if input.root_selector.trim() != ":root" {
+        Some("non-root scope flattening requires selector/proximity equivalence proof")
+    } else if input.peer_scope_count > 0 {
+        Some("peer scopes may change scope-proximity cascade ordering")
+    } else if input.competing_unscoped_rule_count > 0 {
+        Some("unscoped competitors may observe changed scope-proximity ordering")
+    } else if input.inside_layer {
+        Some("layer plus scope composition requires product cascade proof")
+    } else {
+        None
+    };
+    let accepted = blocked_reason.is_none();
+    ScopeFlattenProofV0 {
+        schema_version: "0",
+        product: "omena-cascade.scope-flatten-proof",
+        accepted,
+        blocked_reason,
+        root_selector: input.root_selector,
+        provenance_preserved: accepted,
+        cascade_safe_witness: if accepted {
+            "root scope without limit, peer scopes, unscoped competition, or layer context"
+        } else {
+            "scope proximity cannot be erased by local syntax alone"
+        }
+        .to_string(),
+    }
+}
+
+pub fn prove_layer_flatten_candidate(input: LayerFlattenInputV0) -> LayerFlattenProofV0 {
+    let blocked_reason = if !input.closed_bundle {
+        Some("layer flattening requires a closed bundle witness")
+    } else if input.peer_layer_count > 0 {
+        Some("peer layers may change layer-rank cascade ordering")
+    } else if input.unlayered_rule_count > 0 {
+        Some("unlayered rules compete differently from layered normal rules")
+    } else if input.important_declaration_count > 0 {
+        Some("important declarations invert layer ordering")
+    } else {
+        None
+    };
+    let accepted = blocked_reason.is_none();
+    LayerFlattenProofV0 {
+        schema_version: "0",
+        product: "omena-cascade.layer-flatten-proof",
+        accepted,
+        blocked_reason,
+        layer_name: input.layer_name,
+        provenance_preserved: accepted,
+        cascade_safe_witness: if accepted {
+            "closed bundle with a single non-important layer and no unlayered competitors"
+        } else {
+            "layer rank cannot be erased by local syntax alone"
+        }
+        .to_string(),
     }
 }
 
@@ -1610,6 +1718,64 @@ mod tests {
     }
 
     #[test]
+    fn proves_only_root_scope_flatten_candidates_without_competition() {
+        let accepted = prove_scope_flatten_candidate(ScopeFlattenInputV0 {
+            root_selector: ":root".to_string(),
+            limit_selector: None,
+            scoped_rule_count: 1,
+            peer_scope_count: 0,
+            competing_unscoped_rule_count: 0,
+            inside_layer: false,
+        });
+        assert_eq!(accepted.product, "omena-cascade.scope-flatten-proof");
+        assert!(accepted.accepted);
+        assert!(accepted.provenance_preserved);
+
+        let blocked = prove_scope_flatten_candidate(ScopeFlattenInputV0 {
+            root_selector: ".card".to_string(),
+            limit_selector: None,
+            scoped_rule_count: 1,
+            peer_scope_count: 0,
+            competing_unscoped_rule_count: 0,
+            inside_layer: false,
+        });
+        assert!(!blocked.accepted);
+        assert_eq!(
+            blocked.blocked_reason,
+            Some("non-root scope flattening requires selector/proximity equivalence proof")
+        );
+    }
+
+    #[test]
+    fn proves_layer_flatten_only_for_closed_single_layer_candidates() {
+        let accepted = prove_layer_flatten_candidate(LayerFlattenInputV0 {
+            layer_name: Some("theme".to_string()),
+            layer_rule_count: 1,
+            peer_layer_count: 0,
+            unlayered_rule_count: 0,
+            important_declaration_count: 0,
+            closed_bundle: true,
+        });
+        assert_eq!(accepted.product, "omena-cascade.layer-flatten-proof");
+        assert!(accepted.accepted);
+        assert!(accepted.provenance_preserved);
+
+        let blocked = prove_layer_flatten_candidate(LayerFlattenInputV0 {
+            layer_name: Some("theme".to_string()),
+            layer_rule_count: 1,
+            peer_layer_count: 0,
+            unlayered_rule_count: 1,
+            important_declaration_count: 0,
+            closed_bundle: true,
+        });
+        assert!(!blocked.accepted);
+        assert_eq!(
+            blocked.blocked_reason,
+            Some("unlayered rules compete differently from layered normal rules")
+        );
+    }
+
+    #[test]
     fn reports_selector_context_witness_rank() {
         let root = selector_context_witness(&[":root".to_string()], &[".button".to_string()]);
         assert_eq!(root.kind, SelectorContextMatchKind::Root);
@@ -1794,6 +1960,8 @@ mod tests {
                 .ready_surfaces
                 .contains(&"supportsStaticEvalWitness")
         );
+        assert!(summary.ready_surfaces.contains(&"scopeFlattenProof"));
+        assert!(summary.ready_surfaces.contains(&"layerFlattenProof"));
         assert!(
             summary
                 .ready_surfaces
