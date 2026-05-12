@@ -31,6 +31,11 @@ export const RUST_GATE_EVIDENCE_CORPUS: readonly RustGateEvidenceEntry[] = [
     variants: ["tsgo"],
   },
   {
+    label: "core-build",
+    argv: ["cme-check", "run", "core/build"],
+    variants: ["tsgo"],
+  },
+  {
     label: "lsp-server-smoke",
     argv: ["check:lsp-server-smoke"],
     variants: ["tsgo"],
