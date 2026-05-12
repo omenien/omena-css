@@ -19,7 +19,9 @@ use omena_abstract_value::{
 };
 use omena_bridge::{
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
-    StyleSemanticGraphSummaryV0, summarize_omena_bridge_style_semantic_graph_from_source,
+    StyleSemanticGraphSummaryV0,
+    collect_omena_bridge_design_token_workspace_declarations_from_source,
+    summarize_omena_bridge_style_semantic_graph_from_source,
     summarize_omena_bridge_style_semantic_graph_from_source_with_scoped_workspace_declarations,
 };
 pub use omena_bridge::{

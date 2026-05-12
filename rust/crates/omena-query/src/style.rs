@@ -858,7 +858,12 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
     let style_fact_entries = collect_omena_query_style_fact_entries(style_sources.as_slice());
     let workspace_declarations = style_fact_entries
         .iter()
-        .flat_map(collect_design_token_workspace_declarations_from_omena_parser_facts)
+        .flat_map(|entry| {
+            collect_omena_bridge_design_token_workspace_declarations_from_source(
+                entry.style_path.as_str(),
+                entry.style_source.as_str(),
+            )
+        })
         .collect::<Vec<_>>();
     let css_modules_resolution =
         summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
@@ -901,7 +906,6 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
 struct OmenaQueryStyleFactEntry {
     style_path: String,
     style_source: String,
-    dialect: OmenaParserStyleDialect,
     facts: OmenaQueryOmenaParserStyleFactsV0,
 }
 
@@ -913,45 +917,12 @@ fn collect_omena_query_style_fact_entries(
         .map(|(style_path, style_source)| OmenaQueryStyleFactEntry {
             style_path: (*style_path).to_string(),
             style_source: (*style_source).to_string(),
-            dialect: omena_parser_dialect_for_style_path(style_path),
             facts: summarize_omena_query_omena_parser_style_facts(
                 style_source,
                 omena_parser_dialect_for_style_path(style_path),
             ),
         })
         .collect()
-}
-
-fn collect_design_token_workspace_declarations_from_omena_parser_facts(
-    entry: &OmenaQueryStyleFactEntry,
-) -> Vec<DesignTokenWorkspaceDeclarationFactV0> {
-    let facts = collect_style_facts(entry.style_source.as_str(), entry.dialect);
-    let mut declarations = Vec::new();
-    for variable in facts.variables {
-        if variable.kind != ParsedVariableFactKind::CustomPropertyDeclaration {
-            continue;
-        }
-        let start: u32 = variable.range.start().into();
-        let end: u32 = variable.range.end().into();
-        let byte_span = ParserByteSpanV0 {
-            start: start as usize,
-            end: end as usize,
-        };
-        declarations.push(DesignTokenWorkspaceDeclarationFactV0 {
-            file_path: entry.style_path.clone(),
-            name: variable.name,
-            source_order: declarations.len(),
-            import_graph_distance: None,
-            import_graph_order: None,
-            byte_span,
-            range: parser_range_for_byte_span(entry.style_source.as_str(), byte_span),
-            selector_contexts: Vec::new(),
-            under_media: false,
-            under_supports: false,
-            under_layer: false,
-        });
-    }
-    declarations
 }
 
 fn summarize_sass_module_cross_file_resolution(
