@@ -16,12 +16,23 @@ export function enumerateGroups(selectorSource: string): Array<{ raw: string; of
     if (ch === "(" || ch === "[") depth++;
     else if (ch === ")" || ch === "]") depth--;
     else if (ch === "," && depth === 0) {
-      groups.push({ raw: selectorSource.slice(start, i).trim(), offset: start });
+      groups.push(trimmedGroup(selectorSource, start, i));
       start = i + 1;
     }
   }
-  groups.push({ raw: selectorSource.slice(start).trim(), offset: start });
+  groups.push(trimmedGroup(selectorSource, start, selectorSource.length));
   return groups;
+}
+
+function trimmedGroup(
+  selectorSource: string,
+  start: number,
+  end: number,
+): { raw: string; offset: number } {
+  const raw = selectorSource.slice(start, end);
+  const trimmedStart = raw.search(/\S/);
+  if (trimmedStart < 0) return { raw: "", offset: start };
+  return { raw: raw.trim(), offset: start + trimmedStart };
 }
 
 /**
@@ -183,15 +194,37 @@ export function findClassTokenRange(
   sourceStart: { line: number; column: number } | undefined,
   className: string,
   rawSelector: string,
+  groupOffset = 0,
 ): Range {
   if (!sourceStart) return zeroRange();
   const line = sourceStart.line - 1;
   const offset = findClassOffset(rawSelector, className);
   const baseCol = sourceStart.column - 1;
-  const character = offset >= 0 ? baseCol + offset + 1 : baseCol;
+  if (offset >= 0) {
+    const character = baseCol + groupOffset + offset + 1;
+    return {
+      start: { line, character },
+      end: { line, character: character + className.length },
+    };
+  }
+
+  const suffixRange = findAmpersandSuffixRange(rawSelector, className);
+  const character = baseCol + groupOffset + (suffixRange?.start ?? 0);
   return {
     start: { line, character },
-    end: { line, character: character + className.length },
+    end: { line, character: character + (suffixRange?.length ?? className.length) },
+  };
+}
+
+function findAmpersandSuffixRange(
+  rawSelector: string,
+  className: string,
+): { readonly start: number; readonly length: number } | null {
+  const match = /&((?:--|__)[a-zA-Z_][\w-]*)/.exec(rawSelector);
+  if (!match?.[1] || !className.endsWith(match[1])) return null;
+  return {
+    start: match.index + 1,
+    length: match[1].length,
   };
 }
 

@@ -897,6 +897,33 @@ function sliceRange(
 }
 
 describe("StyleIndexCache", () => {
+  it("keeps grouped and nested selector definition ranges on the source token", () => {
+    const document = parseStyleDocument(
+      `.a, .b { &__icon { &--small { color: red; } } }`,
+      "/fake/a.module.scss",
+    );
+    const selectorRanges = new Map(
+      document.selectors.map((selector) => [selector.name, selector.range]),
+    );
+
+    expect(selectorRanges.get("a")).toEqual({
+      start: { line: 0, character: 1 },
+      end: { line: 0, character: 2 },
+    });
+    expect(selectorRanges.get("b")).toEqual({
+      start: { line: 0, character: 5 },
+      end: { line: 0, character: 6 },
+    });
+    expect(selectorRanges.get("a__icon")).toEqual({
+      start: { line: 0, character: 10 },
+      end: { line: 0, character: 16 },
+    });
+    expect(selectorRanges.get("a__icon--small")).toEqual({
+      start: { line: 0, character: 20 },
+      end: { line: 0, character: 27 },
+    });
+  });
+
   it("uses an injected style document builder as the parser choke point", () => {
     let buildCount = 0;
     const cache = new StyleIndexCache({
@@ -1076,7 +1103,7 @@ describe("enumerateGroups", () => {
   it("splits a simple comma-separated selector", () => {
     expect(enumerateGroups(".a, .b")).toEqual([
       { raw: ".a", offset: 0 },
-      { raw: ".b", offset: 3 },
+      { raw: ".b", offset: 4 },
     ]);
   });
 

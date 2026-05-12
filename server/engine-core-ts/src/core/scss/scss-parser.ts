@@ -314,6 +314,7 @@ function recordRule(
           className,
           resolved,
           raw,
+          groupOffset: offset,
           rule,
           declarations,
           composes,
@@ -365,6 +366,7 @@ interface BuildEntryArgs {
   readonly className: string;
   readonly resolved: string;
   readonly raw: string;
+  readonly groupOffset: number;
   readonly rule: Rule;
   readonly declarations: string;
   readonly composes: readonly ComposesRef[];
@@ -375,7 +377,12 @@ interface BuildEntryArgs {
 }
 
 function buildSelectorDecl(args: BuildEntryArgs): SelectorDeclHIR {
-  const tokenRange = findClassTokenRange(args.rule.source?.start, args.className, args.raw);
+  const tokenRange = findClassTokenRange(
+    args.rule.source?.start,
+    args.className,
+    args.raw,
+    args.groupOffset,
+  );
   return {
     kind: "selector",
     id: `selector:${args.className}:${tokenRange.start.line}:${tokenRange.start.character}`,
