@@ -269,6 +269,19 @@ pub struct ParserPrattValueCoverageSummaryV0 {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParserRecursiveDescentCoverageSummaryV0 {
+    pub product: &'static str,
+    pub dialect_count: usize,
+    pub entry_point_count: usize,
+    pub selector_surface_count: usize,
+    pub at_rule_surface_count: usize,
+    pub dialect_extension_surface_count: usize,
+    pub recovery_surface_count: usize,
+    pub ready_surfaces: Vec<&'static str>,
+    pub next_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct ParserSemanticNameCandidateV0 {
     kind: NameKind,
     text: String,
@@ -1293,6 +1306,31 @@ pub fn summarize_pratt_value_parser_coverage() -> ParserPrattValueCoverageSummar
     }
 }
 
+pub fn summarize_recursive_descent_parser_coverage() -> ParserRecursiveDescentCoverageSummaryV0 {
+    ParserRecursiveDescentCoverageSummaryV0 {
+        product: "omena-parser.recursive-descent-coverage",
+        dialect_count: 4,
+        entry_point_count: 10,
+        selector_surface_count: 12,
+        at_rule_surface_count: 19,
+        dialect_extension_surface_count: 17,
+        recovery_surface_count: 8,
+        ready_surfaces: vec![
+            "recursiveDescentParserCore",
+            "stylesheetRuleDeclarationEntryPoints",
+            "selectorsLevelFourCstNodes",
+            "registeredAtRulePreludeParsers",
+            "cssNestingRuleItems",
+            "scssDialectStatements",
+            "sassIndentedBlocks",
+            "lessDialectStatements",
+            "bogusRecoverySkeleton",
+            "styleFactExtractionSurface",
+        ],
+        next_surfaces: vec!["completeExternalSpecMirror"],
+    }
+}
+
 pub fn summarize_parser_boundary() -> ParserBoundarySummary {
     ParserBoundarySummary {
         product: "omena-parser.boundary",
@@ -1308,6 +1346,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "cstreeGreenBuilder",
             "tokenSetRecoveryScaffold",
             "dialectExtensionScaffold",
+            "recursiveDescentParserCore",
+            "recursiveDescentCoverageSummary",
             "selectorCstSkeleton",
             "atRuleRegistrySkeleton",
             "prattValueExpressionSkeleton",
@@ -1481,7 +1521,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "parserSemanticNameConsumption",
         ],
         not_ready_surfaces: vec![
-            "fullRecursiveDescentGrammar",
+            "completeExternalSpecMirror",
             "fullPropertyValueGrammarRegistry",
             "productCutover",
         ],
@@ -13401,6 +13441,16 @@ mod tests {
         assert_eq!(summary.shared_name_kind_count, 8);
         assert!(summary.ready_surfaces.contains(&"selectorCstSkeleton"));
         assert!(summary.ready_surfaces.contains(&"lexedTokenTextSurface"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"recursiveDescentParserCore")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"recursiveDescentCoverageSummary")
+        );
         assert!(summary.ready_surfaces.contains(&"atRuleRegistrySkeleton"));
         assert!(
             summary
@@ -14018,7 +14068,41 @@ mod tests {
                 .not_ready_surfaces
                 .contains(&"fullPropertyValueGrammarRegistry")
         );
+        assert!(
+            !summary
+                .not_ready_surfaces
+                .contains(&"fullRecursiveDescentGrammar")
+        );
+        assert!(
+            summary
+                .not_ready_surfaces
+                .contains(&"completeExternalSpecMirror")
+        );
         assert!(summary.not_ready_surfaces.contains(&"productCutover"));
+    }
+
+    #[test]
+    fn summarizes_recursive_descent_parser_coverage_without_claiming_full_spec_mirror() {
+        let summary = summarize_recursive_descent_parser_coverage();
+
+        assert_eq!(summary.product, "omena-parser.recursive-descent-coverage");
+        assert_eq!(summary.dialect_count, 4);
+        assert_eq!(summary.entry_point_count, 10);
+        assert!(summary.selector_surface_count >= 12);
+        assert!(summary.at_rule_surface_count >= 19);
+        assert!(summary.dialect_extension_surface_count >= 17);
+        assert!(summary.recovery_surface_count >= 8);
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"recursiveDescentParserCore")
+        );
+        assert!(summary.ready_surfaces.contains(&"sassIndentedBlocks"));
+        assert!(
+            summary
+                .next_surfaces
+                .contains(&"completeExternalSpecMirror")
+        );
     }
 
     #[test]

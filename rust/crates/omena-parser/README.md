@@ -12,6 +12,11 @@ Current scope:
   and typed-wrapper evidence.
 - `LexResult` exposes token kind, original range, and token text for
   differential token checks.
+- Recursive-descent parser core coverage is explicit: stylesheet/rule/
+  declaration entry points, Selectors L4 CST slices, registered at-rule
+  preludes, CSS nesting, SCSS/Sass/Less dialect statements, Bogus recovery, and
+  style-fact extraction are ready. The complete external CSS-family spec mirror
+  remains a separate conformance target.
 - Typed CST wrapper accessors for the current stylesheet, rule, selector,
   declaration, value, component-value, component-value-list, simple-block,
   custom-property-value, and at-rule nodes.

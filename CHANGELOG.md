@@ -19,6 +19,7 @@
 - **Parser CST equivalence** - `omena-parser` now exposes a runtime CST equivalence summary proving that parser CST nodes/tokens consume the shared `omena-syntax` `SyntaxKind` contract with source-text round-trip and typed-wrapper evidence.
 - **Cascade WPT-style seed corpus** - `omena-cascade` now runs a 200+ case WPT-style ordering matrix for origin/importance, layers, scope proximity, and specificity while keeping the full external WPT mirror as a separate conformance target.
 - **Parser Pratt value boundary** - `omena-parser` now reports Pratt value parser core coverage separately from the still-deferred full CSS property-value grammar registry, avoiding the older over-broad `fullPrattValueParser` blocker label.
+- **Parser recursive-descent boundary** - `omena-parser` now reports recursive-descent parser core coverage separately from the still-deferred complete external CSS-family spec mirror, avoiding the older over-broad `fullRecursiveDescentGrammar` blocker label.
 - **Reduced product overlap semantics** - `omena-abstract-value` now computes prefix/suffix reduced-product minimum lengths with overlap awareness and accounts for required character constraints, so `Pr ⊗ Su` and `Pr/Su ⊗ CI` intersections no longer exclude valid selectors or understate required selector length.
 - **Query adapter status** - `omena-query.selected-query-adapter-capabilities` now reports the selected-query adapter as `runtimeBacked`, matching the packaged runner/protocol/default-candidate path instead of the older declaration-only transition status.
 
