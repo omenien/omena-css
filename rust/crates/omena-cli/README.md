@@ -18,6 +18,7 @@ omena build path/to/file.css --pass whitespace-strip
 omena passes
 ```
 
-The CLI intentionally consumes the same public parser and transform crates that
-library users consume. Checker-grade diagnostics can be layered in through the
-query and checker crates as those crates become part of the standalone surface.
+The CLI intentionally consumes `omena-query` as the public facade instead of
+calling parser or transform crates directly. Checker-grade diagnostics can be
+layered in through the same query boundary as those checks become part of the
+standalone surface.

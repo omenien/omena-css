@@ -57,6 +57,10 @@ Current public products:
 - `omena-query.transform-plan` — post-v5 omena-css transform facade that combines
   bundle planning, target lowering, optional egg rewrite planning, CSS printing,
   and the current transform execution runtime summary.
+- `omena-query.consumer-check-style-source` and
+  `omena-query.consumer-build-style-source` — stable consumer facades used by
+  `omena-cli`, `omena-wasm`, and `omena-napi` so those crates do not depend on
+  parser or transform crates directly.
 
 Primary check:
 

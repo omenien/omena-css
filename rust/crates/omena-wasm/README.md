@@ -1,12 +1,13 @@
 # omena-wasm
 
 `omena-wasm` exposes the first browser-side binding for the Omena CSS
-workspace.
+workspace. The binding consumes `omena-query` as the public Rust facade and
+keeps parser and transform crates behind that boundary.
 
 The current API is intentionally in-memory:
 
-- `checkStyleSource(source, path)` parses CSS-family source text and returns
-  parser-owned facts.
+- `checkStyleSource(source, path)` checks CSS-family source text and returns
+  query-owned parser facts.
 - `buildStyleSource(source, path, passIds)` runs conservative transform passes
   and returns the execution summary plus output CSS.
 - `listTransformPasses()` lists transform pass ids accepted by

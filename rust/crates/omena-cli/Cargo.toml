@@ -13,8 +13,6 @@ workspace = true
 
 [dependencies]
 clap.workspace = true
-omena-parser = { path = "../omena-parser" }
-omena-transform-cst = { path = "../omena-transform-cst" }
-omena-transform-passes = { path = "../omena-transform-passes" }
+omena-query = { path = "../omena-query" }
 serde.workspace = true
 serde_json.workspace = true

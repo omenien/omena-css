@@ -280,6 +280,43 @@ pub struct OmenaQueryStyleDocumentSummaryV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryConsumerCheckSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub style_path: String,
+    pub dialect: &'static str,
+    pub token_count: usize,
+    pub parser_error_count: usize,
+    pub class_selector_count: usize,
+    pub custom_property_count: usize,
+    pub keyframe_count: usize,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryConsumerBuildSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub style_path: String,
+    pub dialect: &'static str,
+    pub requested_pass_ids: Vec<String>,
+    pub unknown_pass_ids: Vec<String>,
+    pub execution: TransformExecutionSummaryV0,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryTransformPassSummaryV0 {
+    pub id: &'static str,
+    pub title: &'static str,
+    pub reads_semantic_graph: bool,
+    pub reads_cascade_model: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryTransformPlanSummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

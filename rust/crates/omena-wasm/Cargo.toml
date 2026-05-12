@@ -15,9 +15,7 @@ crate-type = ["cdylib", "rlib"]
 workspace = true
 
 [dependencies]
-omena-parser = { path = "../omena-parser" }
-omena-transform-cst = { path = "../omena-transform-cst" }
-omena-transform-passes = { path = "../omena-transform-passes" }
+omena-query = { path = "../omena-query" }
 serde.workspace = true
 serde-wasm-bindgen.workspace = true
 wasm-bindgen.workspace = true

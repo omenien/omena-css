@@ -15,33 +15,45 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const omenaCssCrates = [
+  "omena-abstract-value",
+  "engine-input-producers",
   "omena-interner",
   "omena-syntax",
   "omena-parser",
   "omena-incremental",
   "omena-cascade",
+  "omena-resolver",
+  "omena-semantic",
+  "omena-bridge",
   "omena-transform-cst",
   "omena-transform-passes",
   "omena-transform-bundle",
   "omena-transform-target",
   "omena-transform-print",
   "omena-transform-egg",
+  "omena-query",
   "omena-cli",
   "omena-napi",
   "omena-wasm",
 ];
 const omenaCssPublishOrder = [
+  "omena-incremental",
+  "omena-abstract-value",
+  "engine-input-producers",
   "omena-syntax",
   "omena-interner",
   "omena-parser",
-  "omena-incremental",
   "omena-cascade",
+  "omena-resolver",
+  "omena-semantic",
+  "omena-bridge",
   "omena-transform-cst",
   "omena-transform-passes",
   "omena-transform-bundle",
   "omena-transform-target",
   "omena-transform-print",
   "omena-transform-egg",
+  "omena-query",
   "omena-cli",
   "omena-napi",
   "omena-wasm",
@@ -350,10 +362,14 @@ sharing one release train.
 
 ## Crate Layers
 
+- Abstract value and producer inputs: \`omena-abstract-value\`,
+  \`engine-input-producers\`
 - Syntax and interning: \`omena-syntax\`, \`omena-interner\`
 - Parser surface: \`omena-parser\`
 - Incremental substrate: \`omena-incremental\`
 - Cascade substrate: \`omena-cascade\`
+- Semantic bridge: \`omena-resolver\`, \`omena-semantic\`, \`omena-bridge\`
+- Query facade: \`omena-query\`
 - Transform substrate: \`omena-transform-cst\`, \`omena-transform-passes\`,
   \`omena-transform-bundle\`, \`omena-transform-target\`,
   \`omena-transform-print\`, \`omena-transform-egg\`
@@ -369,8 +385,9 @@ The first public surface focuses on parser and transform foundations:
   proof helpers.
 - Conservative transform planning and execution surfaces with explicit
   provenance.
+- Query-owned consumer facade for CLI, Node native, and browser bindings.
 - Node native JSON binding substrate through \`omena-napi\`.
-- Browser-side in-memory parser and transform bindings through \`omena-wasm\`.
+- Browser-side in-memory query bindings through \`omena-wasm\`.
 
 ## Design Rules
 
@@ -399,12 +416,13 @@ Add the crate that matches the layer you need:
 \`\`\`sh
 cargo add omena-parser
 cargo add omena-cascade
-cargo add omena-transform-passes
+cargo add omena-query
 \`\`\`
 
-Most consumers should start with \`omena-parser\` for source facts or
-\`omena-transform-passes\` for transform planning. Lower-level crates remain
-public so integrations can opt into smaller boundaries when needed.
+Most consumers should start with \`omena-query\`, which owns the public facade
+for parser facts, transform execution, and consumer summaries. Lower-level
+crates remain public so integrations can opt into smaller boundaries when
+needed.
 
 ## Install the CLI
 
@@ -443,8 +461,8 @@ const built = buildStyleSource(".card { color: #ffffff; }", "demo.css", [
 ## Use the Node Native Binding Substrate
 
 \`omena-napi\` is the Rust N-API substrate for future npm packaging. It exposes
-JSON-string APIs so Node clients can consume the same parser and transform
-contracts without depending on unstable Rust structs. A future npm wrapper can
+JSON-string APIs so Node clients can consume the same query-owned parser and
+transform contracts without depending on unstable Rust structs. A future npm wrapper can
 export this shape:
 
 \`\`\`js
@@ -480,6 +498,18 @@ cargo publish --dry-run --manifest-path crates/omena-parser/Cargo.toml
 
 This page summarizes the stable public boundaries exposed by the initial
 workspace. Use crate rustdoc for full type-level documentation.
+
+## Query Facade
+
+\`omena-query\` is the default facade for consumers. It exposes query-owned
+summaries for parser facts, transform execution, and source/style semantic
+lookups while keeping parser and transform crates behind one boundary.
+
+Primary consumers:
+
+- CLI, Node native, and browser bindings.
+- Editors and tools that need a stable product surface.
+- Integrations that should not depend on lower-level crate internals.
 
 ## Parser
 
@@ -520,17 +550,19 @@ Primary consumers:
 
 ## CLI
 
-\`omena-cli\` exposes the first command-line consumer surface:
+\`omena-cli\` exposes the first command-line consumer surface through
+\`omena-query\`:
 
-- \`omena check <file>\` reports parser-owned facts and parse-error counts.
+- \`omena check <file>\` reports query-owned parser facts and parse-error counts.
 - \`omena build <file>\` runs the conservative transform pipeline.
 - \`omena passes\` lists accepted transform pass ids.
 
 ## Wasm
 
-\`omena-wasm\` exposes the first browser-side in-memory consumer surface:
+\`omena-wasm\` exposes the first browser-side in-memory consumer surface through
+\`omena-query\`:
 
-- \`checkStyleSource(source, path)\` reports parser-owned facts.
+- \`checkStyleSource(source, path)\` reports query-owned parser facts.
 - \`buildStyleSource(source, path, passIds)\` runs conservative transform passes.
 - \`listTransformPasses()\` lists accepted transform pass ids.
 
@@ -538,7 +570,7 @@ Primary consumers:
 
 \`omena-napi\` exposes the first Node native binding substrate:
 
-- \`checkStyleSourceJson(source, path)\` reports parser-owned facts as JSON.
+- \`checkStyleSourceJson(source, path)\` reports query-owned parser facts as JSON.
 - \`buildStyleSourceJson(source, path, passIds)\` runs conservative transform
   passes and returns JSON.
 - \`listTransformPassesJson()\` lists accepted transform pass ids as JSON.
@@ -801,8 +833,8 @@ jobs:
 ${publishCrateRows}
           )
 
-          has_local_omena_dependencies() {
-            grep -Eq '^omena-[a-z0-9-]+ = \\{ path = "\\.\\./omena-[a-z0-9-]+".* \\}$' "$1"
+          has_local_workspace_dependencies() {
+            grep -Eq '^(omena-[a-z0-9-]+|engine-input-producers) = \\{ path = "\\.\\./(omena-[a-z0-9-]+|engine-input-producers)".* \\}$' "$1"
           }
 
           crate_exists() {
@@ -854,7 +886,7 @@ ${publishCrateRows}
 
             if [[ "$PUBLISH_MODE" == "dry-run" ]]; then
               cargo package --list --manifest-path "$manifest" >/dev/null
-              if has_local_omena_dependencies "$manifest"; then
+              if has_local_workspace_dependencies "$manifest"; then
                 echo "$crate package surface checked; full dry-run waits for upstream Omena crates on crates.io"
               else
                 cargo publish --dry-run --manifest-path "$manifest"
@@ -895,7 +927,7 @@ function rewriteCrateManifest(manifestPath) {
     );
   }
   manifest = manifest.replace(
-    /^(omena-[a-z0-9-]+ = \{ path = "\.\.\/omena-[a-z0-9-]+") \}$/gm,
+    /^((?:omena-[a-z0-9-]+|engine-input-producers) = \{ path = "\.\.\/(?:omena-[a-z0-9-]+|engine-input-producers)") \}$/gm,
     `$1, version = "${omenaCssDependencyVersion}" }`,
   );
   writeFileSync(manifestPath, manifest);
@@ -949,7 +981,7 @@ function verifyPublishDryRun(destinationPath) {
       continue;
     }
 
-    if (hasLocalOmenaDependencies(manifestPath)) {
+    if (hasLocalWorkspaceDependencies(manifestPath)) {
       process.stderr.write(
         `validated package surface for ${crateName}; full publish dry-run waits for upstream omena crates on crates.io\n`,
       );
@@ -964,8 +996,8 @@ function verifyPublishDryRun(destinationPath) {
   }
 }
 
-function hasLocalOmenaDependencies(manifestPath) {
-  return /^omena-[a-z0-9-]+ = \{ path = "\.\.\/omena-[a-z0-9-]+"/m.test(
+function hasLocalWorkspaceDependencies(manifestPath) {
+  return /^(omena-[a-z0-9-]+|engine-input-producers) = \{ path = "\.\.\/(omena-[a-z0-9-]+|engine-input-producers)"/m.test(
     readFileSync(manifestPath, "utf8"),
   );
 }
@@ -973,7 +1005,9 @@ function hasLocalOmenaDependencies(manifestPath) {
 function assertVersionedLocalDependencies(manifestPath) {
   const manifest = readFileSync(manifestPath, "utf8");
   const localDependencies =
-    manifest.match(/^omena-[a-z0-9-]+ = \{ path = "\.\.\/omena-[a-z0-9-]+".* \}$/gm) ?? [];
+    manifest.match(
+      /^(omena-[a-z0-9-]+|engine-input-producers) = \{ path = "\.\.\/(omena-[a-z0-9-]+|engine-input-producers)".* \}$/gm,
+    ) ?? [];
 
   for (const dependency of localDependencies) {
     if (!/, version = "[^"]+"/.test(dependency)) {

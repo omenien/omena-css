@@ -810,9 +810,7 @@ name = "omena-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
- "omena-parser",
- "omena-transform-cst",
- "omena-transform-passes",
+ "omena-query",
  "serde",
  "serde_json",
 ]
@@ -861,9 +859,7 @@ version = "0.1.0"
 dependencies = [
  "napi",
  "napi-derive",
- "omena-parser",
- "omena-transform-cst",
- "omena-transform-passes",
+ "omena-query",
  "serde",
  "serde_json",
 ]
@@ -998,9 +994,7 @@ dependencies = [
 name = "omena-wasm"
 version = "0.1.0"
 dependencies = [
- "omena-parser",
- "omena-transform-cst",
- "omena-transform-passes",
+ "omena-query",
  "serde",
  "serde-wasm-bindgen",
  "wasm-bindgen",

@@ -8,7 +8,9 @@ use omena_abstract_value::SelectorProjectionCertaintyV0;
 use super::{
     OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryStylePackageManifestV0, ParserPositionV0,
     ParserRangeV0, SelectedQueryAdapterCapabilitiesV0,
-    execute_omena_query_transform_passes_from_source, summarize_omena_query_boundary,
+    execute_omena_query_consumer_build_style_source,
+    execute_omena_query_transform_passes_from_source, list_omena_query_transform_pass_summaries,
+    summarize_omena_query_boundary, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_evaluation_runtime,
     summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
@@ -112,6 +114,16 @@ fn summarizes_query_boundary_over_producer_fragments() {
     );
     assert!(
         summary
+            .delegated_fragment_products
+            .contains(&"omena-query.consumer-check-style-source")
+    );
+    assert!(
+        summary
+            .delegated_fragment_products
+            .contains(&"omena-query.consumer-build-style-source")
+    );
+    assert!(
+        summary
             .ready_surfaces
             .contains(&"expressionDomainFlowAnalysisBoundary")
     );
@@ -145,6 +157,13 @@ fn summarizes_query_boundary_over_producer_fragments() {
         summary
             .ready_surfaces
             .contains(&"transformExecutionRuntime")
+    );
+    assert!(summary.ready_surfaces.contains(&"consumerCheckFacade"));
+    assert!(summary.ready_surfaces.contains(&"consumerBuildFacade"));
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"consumerTransformPassListFacade")
     );
     assert!(summary.ready_surfaces.contains(&"readCascadeAtPosition"));
     assert!(
@@ -387,6 +406,51 @@ fn exposes_transform_execution_runner_from_source() {
             .ready_surfaces
             .contains(&"transformExecutionRuntime")
     );
+}
+
+#[test]
+fn exposes_consumer_check_facade_from_query() {
+    let summary = summarize_omena_query_consumer_check_style_source(
+        "Button.module.scss",
+        ".card { color: red; }\n:root { --brand: blue; }",
+    );
+
+    assert_eq!(summary.product, "omena-query.consumer-check-style-source");
+    assert_eq!(summary.style_path, "Button.module.scss");
+    assert_eq!(summary.dialect, "scss");
+    assert_eq!(summary.parser_error_count, 0);
+    assert_eq!(summary.class_selector_count, 1);
+    assert_eq!(summary.custom_property_count, 1);
+    assert!(summary.ready_surfaces.contains(&"consumerCheckFacade"));
+}
+
+#[test]
+fn exposes_consumer_build_facade_from_query() {
+    let pass_ids = vec![
+        "color-compression".to_string(),
+        "unknown-transform-pass".to_string(),
+    ];
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.css",
+        ".card { color: #ffffff; }",
+        &pass_ids,
+    );
+
+    assert_eq!(summary.product, "omena-query.consumer-build-style-source");
+    assert_eq!(summary.dialect, "css");
+    assert_eq!(summary.requested_pass_ids, pass_ids);
+    assert_eq!(summary.unknown_pass_ids, vec!["unknown-transform-pass"]);
+    assert!(summary.execution.output_css.contains("#fff"));
+    assert!(summary.ready_surfaces.contains(&"consumerBuildFacade"));
+}
+
+#[test]
+fn lists_transform_pass_summaries_from_query() {
+    let passes = list_omena_query_transform_pass_summaries();
+
+    assert_eq!(passes.len(), 40);
+    assert!(passes.iter().any(|pass| pass.id == "whitespace-strip"));
+    assert!(passes.iter().any(|pass| pass.id == "print-css"));
 }
 
 #[test]

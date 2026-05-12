@@ -38,6 +38,7 @@ use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
     ParsedCssModuleValueFactKind, ParsedIcssFactKind, ParsedSassModuleEdgeFactKind,
     ParsedSassSymbolFactKind, ParsedSelectorFactKind, ParsedVariableFactKind, collect_style_facts,
+    parse,
 };
 pub use omena_parser::{
     ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleDialect as OmenaParserStyleDialect,
@@ -59,6 +60,7 @@ pub use omena_transform_passes::{
     TransformCssModuleComposesResolutionV0 as OmenaQueryTransformCssModuleComposesResolutionV0,
     TransformDesignTokenRouteV0 as OmenaQueryTransformDesignTokenRouteV0,
     TransformExecutionContextV0 as OmenaQueryTransformExecutionContextV0,
+    TransformExecutionSummaryV0 as OmenaQueryTransformExecutionSummaryV0,
     TransformImportInlineV0 as OmenaQueryTransformImportInlineV0,
     TransformModuleEvaluationV0 as OmenaQueryTransformModuleEvaluationV0,
 };
