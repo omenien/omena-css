@@ -3282,7 +3282,7 @@ fn tree_shake_css_class_rules_with_lexer(
 ) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
     let ranges = rules
         .iter()
         .filter(|rule| {
@@ -9070,8 +9070,8 @@ mod tests {
     }
 
     #[test]
-    fn execution_runtime_tree_shakes_simple_class_rules_with_closed_world_context() {
-        let source = r#".used { color: red; } .dead { color: blue; } .dead:hover { color: green; } button.other-dead { color: black; } .also-dead, .other-dead { color: black; } .used .child { color: purple; } :global(.external) { color: gray; }"#;
+    fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
+        let source = r#".used { color: red; } .dead { color: blue; } .dead:hover { color: green; } button.other-dead { color: black; } .also-dead, .other-dead { color: black; } .used .child { color: purple; } :global(.external) { color: gray; } @media (min-width: 1px) { .media-dead { color: orange; } .used { color: brown; } }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             reachable_class_names: vec!["used".to_string()],
@@ -9087,12 +9087,17 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(execution.mutation_count, 5);
         assert!(execution.output_css.contains(".used { color: red; }"));
         assert!(
             execution
                 .output_css
                 .contains(".used .child { color: purple; }")
+        );
+        assert!(
+            execution
+                .output_css
+                .contains("@media (min-width: 1px) {  .used { color: brown; } }")
         );
         assert!(
             execution
@@ -9104,6 +9109,7 @@ mod tests {
         assert!(!execution.output_css.contains("button.other-dead"));
         assert!(!execution.output_css.contains(".also-dead"));
         assert!(!execution.output_css.contains(".other-dead"));
+        assert!(!execution.output_css.contains(".media-dead"));
         assert_eq!(
             execution.executed_pass_ids,
             vec!["tree-shake-class", "print-css"]
