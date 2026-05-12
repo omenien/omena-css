@@ -159,10 +159,10 @@ fn compose_source_map_segments_from_execution(
         .iter()
         .map(|node| TransformSourceMapSegmentV0 {
             source_path: source_path.to_string(),
-            original_start: 0,
-            original_end: node.input_byte_len,
-            generated_start: 0,
-            generated_end: node.output_byte_len,
+            original_start: node.source_span_start,
+            original_end: node.source_span_end,
+            generated_start: node.generated_span_start,
+            generated_end: node.generated_span_end,
             pass_id: node.pass_id,
         })
         .collect()
@@ -244,6 +244,22 @@ mod tests {
         assert_eq!(
             artifact.source_map_segments[0].source_path,
             "Button.module.css"
+        );
+        assert_eq!(
+            artifact.source_map_segments[0].original_start,
+            execution.provenance_derivation_forest.nodes[0].source_span_start
+        );
+        assert_eq!(
+            artifact.source_map_segments[0].original_end,
+            execution.provenance_derivation_forest.nodes[0].source_span_end
+        );
+        assert_eq!(
+            artifact.source_map_segments[0].generated_start,
+            execution.provenance_derivation_forest.nodes[0].generated_span_start
+        );
+        assert_eq!(
+            artifact.source_map_segments[0].generated_end,
+            execution.provenance_derivation_forest.nodes[0].generated_span_end
         );
         assert!(
             artifact

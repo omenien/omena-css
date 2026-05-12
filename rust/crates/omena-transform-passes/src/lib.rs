@@ -102,6 +102,10 @@ pub struct TransformProvenanceDerivationNodeV0 {
     pub status: TransformPassRuntimeStatus,
     pub input_byte_len: usize,
     pub output_byte_len: usize,
+    pub source_span_start: usize,
+    pub source_span_end: usize,
+    pub generated_span_start: usize,
+    pub generated_span_end: usize,
     pub mutation_count: usize,
     pub provenance_preserved: bool,
     pub detail: &'static str,
@@ -208,11 +212,7 @@ pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySum
         planner_enforces_dag_edges: true,
         execution_runtime_ready: true,
         implemented_mutation_pass_ids: implemented_mutation_pass_ids(),
-        next_surfaces: vec![
-            "transformSalsaQueries",
-            "sourceMapSpanPrecision",
-            "provenanceSourceSpanMapping",
-        ],
+        next_surfaces: vec!["transformSalsaQueries", "sourceMapSpanPrecision"],
     }
 }
 
@@ -1234,6 +1234,10 @@ fn provenance_derivation_forest_from_outcomes(
             status: outcome.status,
             input_byte_len: outcome.input_byte_len,
             output_byte_len: outcome.output_byte_len,
+            source_span_start: 0,
+            source_span_end: outcome.input_byte_len,
+            generated_span_start: 0,
+            generated_span_end: outcome.output_byte_len,
             mutation_count: outcome.mutation_count,
             provenance_preserved: outcome.provenance_preserved,
             detail: outcome.detail,
@@ -5638,6 +5642,11 @@ mod tests {
                 .next_surfaces
                 .contains(&"transformContextProducers")
         );
+        assert!(
+            !boundary
+                .next_surfaces
+                .contains(&"provenanceSourceSpanMapping")
+        );
     }
 
     #[test]
@@ -5933,6 +5942,13 @@ mod tests {
         };
         assert_eq!(comment_node.status, TransformPassRuntimeStatus::Applied);
         assert_eq!(comment_node.mutation_count, 1);
+        assert_eq!(comment_node.source_span_start, 0);
+        assert_eq!(comment_node.source_span_end, comment_node.input_byte_len);
+        assert_eq!(comment_node.generated_span_start, 0);
+        assert_eq!(
+            comment_node.generated_span_end,
+            comment_node.output_byte_len
+        );
         assert_eq!(
             execution.provenance_derivation_forest.nodes[0].parent_index,
             None
