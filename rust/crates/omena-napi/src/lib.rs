@@ -9,6 +9,7 @@ use omena_query::{
     OmenaQueryStylePackageManifestV0 as OmenaNapiStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0 as OmenaNapiStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaNapiTargetTransformOptionsV0,
+    OmenaQueryTransformContextFromEngineInputSummaryV0 as OmenaNapiTransformContextFromEngineInputSummaryV0,
     OmenaQueryTransformExecutionContextV0 as OmenaNapiTransformExecutionContextV0,
     OmenaQueryTransformPassSummaryV0 as OmenaNapiPassSummaryV0,
     execute_omena_query_consumer_build_style_source,
@@ -21,6 +22,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_selector_projection,
+    summarize_omena_query_transform_context_from_engine_input,
 };
 use serde::Serialize;
 
@@ -171,6 +173,20 @@ pub fn expression_domain_selector_projection_json(input_json: String) -> napi::R
     to_json_string(&expression_domain_selector_projection_summary(&input))
 }
 
+#[napi(js_name = "transformContextFromEngineInputJson")]
+pub fn transform_context_from_engine_input_json(
+    input_json: String,
+    target_path: String,
+    closed_style_world: bool,
+) -> napi::Result<String> {
+    let input = parse_engine_input_json(&input_json)?;
+    to_json_string(&transform_context_from_engine_input_summary(
+        &input,
+        &target_path,
+        closed_style_world,
+    ))
+}
+
 pub fn check_style_source_summary(source: &str, path: &str) -> OmenaNapiCheckSummaryV0 {
     let path = effective_path(path);
     summarize_omena_query_consumer_check_style_source(path, source)
@@ -297,6 +313,18 @@ pub fn expression_domain_selector_projection_summary(
     input: &OmenaNapiEngineInputV2,
 ) -> OmenaNapiExpressionDomainSelectorProjectionV0 {
     summarize_omena_query_expression_domain_selector_projection(input)
+}
+
+pub fn transform_context_from_engine_input_summary(
+    input: &OmenaNapiEngineInputV2,
+    target_path: &str,
+    closed_style_world: bool,
+) -> OmenaNapiTransformContextFromEngineInputSummaryV0 {
+    summarize_omena_query_transform_context_from_engine_input(
+        input,
+        target_path,
+        closed_style_world,
+    )
 }
 
 fn parse_target_options_json(
@@ -526,6 +554,23 @@ mod tests {
         assert!(json.contains("\"sourceValueKind\":\"composite\""));
         assert!(json.contains("\"prefix\":\"btn-\""));
         assert!(json.contains("\"suffix\":\"-active\""));
+        Ok(())
+    }
+
+    #[test]
+    fn serializes_transform_context_reachability_sources_for_node_clients() -> napi::Result<()> {
+        let json = transform_context_from_engine_input_json(
+            reduced_product_projection_engine_input_json().to_string(),
+            "/tmp/App.module.scss".to_string(),
+            true,
+        )
+        .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
+
+        assert!(json.contains("\"product\":\"omena-query.transform-context-from-engine-input\""));
+        assert!(json.contains("\"selectedProjectionCount\":3"));
+        assert!(json.contains("\"reachabilitySources\""));
+        assert!(json.contains("\"nodeId\":\"file-merge\""));
+        assert!(json.contains("\"btn-primary--active\""));
         Ok(())
     }
 
