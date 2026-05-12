@@ -770,7 +770,7 @@ fn consumer_build_derives_workspace_context_for_import_inline_and_composes() {
         OmenaQueryStyleSourceInputV0 {
             style_path: "Button.module.css".to_string(),
             style_source:
-                r#"@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }"#
+                r#"@import "./tokens.css" supports(display: grid) screen and (min-width: 40rem); .button { composes: base; color: var(--brand); } .base { color: blue; }"#
                     .to_string(),
         },
         OmenaQueryStyleSourceInputV0 {
@@ -824,6 +824,12 @@ fn consumer_build_derives_workspace_context_for_import_inline_and_composes() {
             .contains(&"composes-resolution")
     );
     assert!(summary.execution.output_css.contains("--brand: red"));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("@media screen and (min-width: 40rem) { @supports (display: grid) { :root { --brand: red; } } }")
+    );
     assert!(!summary.execution.output_css.contains("@import"));
     assert!(!summary.execution.output_css.contains("composes:"));
 }
