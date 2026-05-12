@@ -66,10 +66,7 @@ interface ParserSelectorDefinitionFactV0 {
   readonly underLayer: boolean;
 }
 
-type ParserSelectorDefinitionSemanticFactV0 = Omit<
-  ParserSelectorDefinitionFactV0,
-  "byteSpan" | "range"
->;
+type ParserSelectorDefinitionSemanticFactV0 = Omit<ParserSelectorDefinitionFactV0, "byteSpan">;
 
 interface ParserEvaluatorCandidateV0 {
   readonly selectorName: string;
@@ -461,6 +458,7 @@ function deriveTsSummary(filePath: string, source: string): ParserConsumerBounda
         document.selectors.map((selector, sourceOrder) => ({
           name: selector.name,
           sourceOrder,
+          range: selector.range,
           nestedSafetyKind: selector.nestedSafety,
           ...(selector.bemSuffix?.parentResolvedName
             ? { bemSuffixParentName: selector.bemSuffix.parentResolvedName }
@@ -615,7 +613,7 @@ function deriveTsSummary(filePath: string, source: string): ParserConsumerBounda
 function toSelectorDefinitionSemanticFact(
   fact: ParserSelectorDefinitionFactV0,
 ): ParserSelectorDefinitionSemanticFactV0 {
-  const { byteSpan: _byteSpan, range: _range, ...rest } = fact;
+  const { byteSpan: _byteSpan, ...rest } = fact;
   return rest;
 }
 
@@ -625,6 +623,10 @@ function sortSelectorDefinitionFacts(
   return [...facts].toSorted((left, right) => {
     const name = left.name.localeCompare(right.name);
     if (name !== 0) return name;
+    const line = left.range.start.line - right.range.start.line;
+    if (line !== 0) return line;
+    const character = left.range.start.character - right.range.start.character;
+    if (character !== 0) return character;
     return left.sourceOrder - right.sourceOrder;
   });
 }

@@ -220,7 +220,7 @@ function findAmpersandSuffixRange(
   rawSelector: string,
   className: string,
 ): { readonly start: number; readonly length: number } | null {
-  const match = /&((?:--|__)[a-zA-Z_][\w-]*)/.exec(rawSelector);
+  const match = /&([-_]+[a-zA-Z_][\w-]*)/.exec(rawSelector);
   if (!match?.[1] || !className.endsWith(match[1])) return null;
   return {
     start: match.index + 1,
