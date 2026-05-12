@@ -250,6 +250,51 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
     }
 }
 
+pub fn execute_omena_query_consumer_build_style_sources_with_context(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
+    let Some(target_source) = find_target_style_source(target_style_path, style_sources) else {
+        return Err(format!(
+            "target style path {target_style_path:?} was not found in workspace style sources"
+        ));
+    };
+    let context = merge_workspace_transform_context(
+        target_style_path,
+        style_sources,
+        context,
+        package_manifests,
+    );
+    let mut summary = execute_omena_query_consumer_build_style_source_with_context(
+        target_style_path,
+        target_source,
+        requested_pass_ids,
+        &context,
+    );
+    summary
+        .ready_surfaces
+        .push("multiSourceTransformContextProducer");
+    Ok(summary)
+}
+
+pub fn execute_omena_query_consumer_build_style_sources(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    requested_pass_ids: &[String],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
+    execute_omena_query_consumer_build_style_sources_with_context(
+        target_style_path,
+        style_sources,
+        requested_pass_ids,
+        &TransformExecutionContextV0::default(),
+        package_manifests,
+    )
+}
+
 pub fn execute_omena_query_consumer_build_style_source_for_target_query(
     style_path: &str,
     style_source: &str,
@@ -319,6 +364,56 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
     }
 }
 
+pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    target_query: &str,
+    context: &TransformExecutionContextV0,
+    target_options: OmenaQueryTargetTransformOptionsV0,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
+    let Some(target_source) = find_target_style_source(target_style_path, style_sources) else {
+        return Err(format!(
+            "target style path {target_style_path:?} was not found in workspace style sources"
+        ));
+    };
+    let context = merge_workspace_transform_context(
+        target_style_path,
+        style_sources,
+        context,
+        package_manifests,
+    );
+    let mut summary =
+        execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
+            target_style_path,
+            target_source,
+            target_query,
+            &context,
+            target_options,
+        );
+    summary
+        .ready_surfaces
+        .push("multiSourceTransformContextProducer");
+    Ok(summary)
+}
+
+pub fn execute_omena_query_consumer_build_style_sources_for_target_query_with_options(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    target_query: &str,
+    target_options: OmenaQueryTargetTransformOptionsV0,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Result<OmenaQueryConsumerBuildSummaryV0, String> {
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
+        target_style_path,
+        style_sources,
+        target_query,
+        &TransformExecutionContextV0::default(),
+        target_options,
+        package_manifests,
+    )
+}
+
 fn derive_single_source_transform_context(
     style_path: &str,
     style_source: &str,
@@ -336,8 +431,35 @@ fn merge_single_source_transform_context(
     style_source: &str,
     context: &TransformExecutionContextV0,
 ) -> TransformExecutionContextV0 {
-    let mut merged = derive_single_source_transform_context(style_path, style_source);
+    merge_transform_context(
+        derive_single_source_transform_context(style_path, style_source),
+        context,
+    )
+}
 
+fn merge_workspace_transform_context(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    context: &TransformExecutionContextV0,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> TransformExecutionContextV0 {
+    let style_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let derived = summarize_omena_query_transform_context_from_sources(
+        target_style_path,
+        style_refs,
+        package_manifests,
+    )
+    .context;
+    merge_transform_context(derived, context)
+}
+
+fn merge_transform_context(
+    mut merged: TransformExecutionContextV0,
+    context: &TransformExecutionContextV0,
+) -> TransformExecutionContextV0 {
     merged.closed_style_world = merged.closed_style_world || context.closed_style_world;
     merge_context_list(
         &mut merged.reachable_class_names,
@@ -376,6 +498,16 @@ fn merge_single_source_transform_context(
     }
 
     merged
+}
+
+fn find_target_style_source<'a>(
+    target_style_path: &str,
+    style_sources: &'a [OmenaQueryStyleSourceInputV0],
+) -> Option<&'a str> {
+    style_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)
+        .map(|source| source.style_source.as_str())
 }
 
 fn merge_context_list(target: &mut Vec<String>, additional: &[String]) {

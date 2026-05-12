@@ -65,6 +65,8 @@ Primary consumers:
   opts into compatibility lowerings that are disabled by default.
 - `omena build <file> --context-json context.json` accepts explicit evaluator
   and provenance context, including dart-sass-compatible SCSS output.
+- `omena build <file> --source other.css` derives import/composes context from
+  additional workspace style sources before running requested passes.
 - `omena passes` lists accepted transform pass ids.
 
 ## Wasm
@@ -83,6 +85,12 @@ Primary consumers:
 - `buildStyleSourceForTargetQueryWithContext(source, path, targetQuery,
   targetOptions, context)` combines target planning with explicit evaluator
   context.
+- `buildStyleSourcesWithContext(targetPath, sources, passIds, context,
+  packageManifests)` derives import/composes context from in-memory workspace
+  sources and merges explicit evaluator/provenance context.
+- `buildStyleSourcesForTargetQueryWithContext(targetPath, sources, targetQuery,
+  targetOptions, context, packageManifests)` combines target planning with
+  workspace-derived import/composes context.
 - `listTransformPasses()` lists accepted transform pass ids.
 
 ## Node Native Binding
@@ -101,4 +109,10 @@ Primary consumers:
 - `buildStyleSourceForTargetQueryWithContextJson(source, path, targetQuery,
   targetOptionsJson, contextJson)` combines target planning with explicit
   evaluator context.
+- `buildStyleSourcesWithContextJson(targetPath, sourcesJson, passIds,
+  contextJson, packageManifestsJson)` derives import/composes context from
+  workspace source JSON and merges explicit evaluator/provenance context.
+- `buildStyleSourcesForTargetQueryWithContextJson(targetPath, sourcesJson,
+  targetQuery, targetOptionsJson, contextJson, packageManifestsJson)` combines
+  target planning with workspace-derived import/composes context.
 - `listTransformPassesJson()` lists accepted transform pass ids as JSON.

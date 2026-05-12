@@ -22,6 +22,13 @@ targetOptions)` accepts camelCase target transform options for explicit
 - `buildStyleSourceForTargetQueryWithContext(source, path, targetQuery,
 targetOptions, context)` combines target planning with explicit evaluator
   context, including dart-sass-compatible SCSS output.
+- `buildStyleSourcesWithContext(targetPath, sources, passIds, context,
+packageManifests)` derives import/composes context from an in-memory workspace
+  source array, merges explicit evaluator/provenance context, and returns an
+  execution summary plus output CSS.
+- `buildStyleSourcesForTargetQueryWithContext(targetPath, sources, targetQuery,
+targetOptions, context, packageManifests)` combines target planning with
+  workspace-derived import/composes context.
 - `listTransformPasses()` lists transform pass ids accepted by
   `buildStyleSource`.
 

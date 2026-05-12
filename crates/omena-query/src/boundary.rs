@@ -273,6 +273,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 output_product: "omena-query.consumer-build-style-source",
             },
             SelectedQueryRunnerCommandV0 {
+                surface: "consumerBuildStyleSources",
+                command: "consumer-build-style-sources",
+                input_contract: "ConsumerStyleSourcesBuildInputV0",
+                output_product: "omena-query.consumer-build-style-source",
+            },
+            SelectedQueryRunnerCommandV0 {
                 surface: "consumerTransformPassList",
                 command: "consumer-transform-pass-list",
                 input_contract: "None",
@@ -295,6 +301,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "TransformExecuteInputV0",
             "ConsumerStyleSourceInputV0",
             "ConsumerStyleSourceBuildInputV0",
+            "ConsumerStyleSourcesBuildInputV0",
         ],
         adapter_readiness: vec![
             "backendCapabilityMatrix",

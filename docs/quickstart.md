@@ -31,6 +31,7 @@ omena check path/to/file.module.scss
 omena build path/to/file.css --pass whitespace-strip
 omena build path/to/file.css --target-query "ie 11"
 omena build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
+omena build path/to/Button.module.css --source path/to/tokens.css --pass import-inline
 omena passes
 ```
 
@@ -41,6 +42,7 @@ cargo run -p omena-cli -- check path/to/file.module.scss
 cargo run -p omena-cli -- build path/to/file.css --pass whitespace-strip
 cargo run -p omena-cli -- build path/to/file.css --target-query "ie 11"
 cargo run -p omena-cli -- build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
+cargo run -p omena-cli -- build path/to/Button.module.css --source path/to/tokens.css --pass import-inline
 cargo run -p omena-cli -- passes
 ```
 
@@ -59,6 +61,8 @@ import init, {
   buildStyleSourceForTargetQuery,
   buildStyleSourceForTargetQueryWithOptions,
   buildStyleSourceForTargetQueryWithContext,
+  buildStyleSourcesWithContext,
+  buildStyleSourcesForTargetQueryWithContext,
 } from "./pkg/omena_wasm.js";
 
 await init();
@@ -89,6 +93,20 @@ const evaluatedScss = buildStyleSourceForTargetQueryWithContext(
     },
   },
 );
+const bundledModule = buildStyleSourcesWithContext(
+  "Button.module.css",
+  [
+    {
+      stylePath: "Button.module.css",
+      styleSource:
+        '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }',
+    },
+    { stylePath: "tokens.css", styleSource: ":root { --brand: red; }" },
+  ],
+  ["import-inline", "composes-resolution"],
+  {},
+  [],
+);
 ```
 
 ## Use the Node Native Binding Substrate
@@ -106,6 +124,8 @@ import {
   buildStyleSourceForTargetQueryJson,
   buildStyleSourceForTargetQueryWithOptionsJson,
   buildStyleSourceForTargetQueryWithContextJson,
+  buildStyleSourcesWithContextJson,
+  buildStyleSourcesForTargetQueryWithContextJson,
 } from "omena-napi";
 
 const facts = JSON.parse(
@@ -143,6 +163,22 @@ const evaluatedScss = JSON.parse(
         evaluatedCss: ".card { color: red; }",
       },
     }),
+  ),
+);
+const bundledModule = JSON.parse(
+  buildStyleSourcesWithContextJson(
+    "Button.module.css",
+    JSON.stringify([
+      {
+        stylePath: "Button.module.css",
+        styleSource:
+          '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }',
+      },
+      { stylePath: "tokens.css", styleSource: ":root { --brand: red; }" },
+    ]),
+    ["import-inline", "composes-resolution"],
+    "{}",
+    "[]",
   ),
 );
 ```
