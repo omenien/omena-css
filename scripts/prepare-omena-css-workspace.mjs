@@ -274,6 +274,15 @@ Publishing is manual through the \`Publish Crates\` GitHub Actions workflow.
 Run the workflow in \`dry-run\` mode first, then run \`publish\` only after CI is
 green and the crates.io order has been checked. The workflow intentionally skips
 \`omena-incremental\` because it publishes from its own Omena repository.
+
+## Documentation
+
+- [Overview](docs/overview.md)
+- [Quickstart](docs/quickstart.md)
+- [API reference](docs/api-reference.md)
+- [Benchmarks](docs/benchmarks.md)
+- [Release process](docs/release.md)
+- [Paper draft outline](docs/paper-draft.md)
 `,
   );
   writeFileSync(
@@ -308,6 +317,321 @@ commit messages. Public history should describe the product change directly.
 
 Be respectful, precise, and constructive. Keep discussion focused on the code,
 the evidence, and the product goals of the omena-css workspace.
+`,
+  );
+  writePublicDocs(destinationPath);
+  writeGithubTemplates(destinationPath);
+}
+
+function writePublicDocs(destinationPath) {
+  const docsDirectory = path.join(destinationPath, "docs");
+  mkdirSync(docsDirectory, { recursive: true });
+  writeFileSync(
+    path.join(docsDirectory, "overview.md"),
+    `# Overview
+
+omena-css is a Rust workspace for CSS-family parsing, semantic substrates,
+cascade modeling, incremental recomputation, and conservative CSS transforms.
+
+The workspace is split into small crates so parser, cascade, incremental, and
+transform responsibilities can be tested and published independently while still
+sharing one release train.
+
+## Crate Layers
+
+- Syntax and interning: \`omena-syntax\`, \`omena-interner\`
+- Parser surface: \`omena-parser\`
+- Incremental substrate: \`omena-incremental\`
+- Cascade substrate: \`omena-cascade\`
+- Transform substrate: \`omena-transform-cst\`, \`omena-transform-passes\`,
+  \`omena-transform-bundle\`, \`omena-transform-target\`,
+  \`omena-transform-print\`, \`omena-transform-egg\`
+
+## Current Product Surface
+
+The first public surface focuses on parser and transform foundations:
+
+- CSS, SCSS, Sass, and Less dialect classification.
+- Recovery-aware parser summaries for CSS Modules and style facts.
+- Cascade ordering, specificity, custom-property substitution, and transform
+  proof helpers.
+- Conservative transform planning and execution surfaces with explicit
+  provenance.
+
+## Design Rules
+
+- Keep parser facts canonical at the parser boundary.
+- Keep cascade-sensitive rewrites behind proof helpers.
+- Keep source-map provenance attached to every emitted transform result.
+- Prefer public crate names and product terms over private planning labels.
+`,
+  );
+  writeFileSync(
+    path.join(docsDirectory, "quickstart.md"),
+    `# Quickstart
+
+## Verify the Workspace
+
+\`\`\`sh
+cargo fmt --all --check
+cargo test --workspace
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+\`\`\`
+
+## Use a Crate
+
+Add the crate that matches the layer you need:
+
+\`\`\`sh
+cargo add omena-parser
+cargo add omena-cascade
+cargo add omena-transform-passes
+\`\`\`
+
+Most consumers should start with \`omena-parser\` for source facts or
+\`omena-transform-passes\` for transform planning. Lower-level crates remain
+public so integrations can opt into smaller boundaries when needed.
+
+## Publish Readiness
+
+Run the manual GitHub Actions publish workflow in \`dry-run\` mode first. For a
+local check, package the crate you changed:
+
+\`\`\`sh
+cargo package --list --manifest-path crates/omena-parser/Cargo.toml
+cargo publish --dry-run --manifest-path crates/omena-parser/Cargo.toml
+\`\`\`
+`,
+  );
+  writeFileSync(
+    path.join(docsDirectory, "api-reference.md"),
+    `# API Reference
+
+This page summarizes the stable public boundaries exposed by the initial
+workspace. Use crate rustdoc for full type-level documentation.
+
+## Parser
+
+\`omena-parser\` exposes parse and lex results, dialect classification, parser
+summaries, CSS Modules intermediate summaries, and canonical producer signals.
+
+Primary consumers:
+
+- Editors and language servers that need style facts.
+- Transform engines that need parser-owned source summaries.
+- Differential tests that compare token and CST behavior.
+
+## Cascade
+
+\`omena-cascade\` exposes cascade keys, specificity, declaration winners,
+selector-context witnesses, custom-property substitution, and proof helpers for
+scope, layer, supports, and box-shorthand rewrites.
+
+Primary consumers:
+
+- Semantic analyzers that need cascade-aware ranking.
+- Transform passes that need proof-carrying safety checks.
+- Test harnesses that need deterministic cascade witnesses.
+
+## Transform
+
+\`omena-transform-cst\` defines transform contracts and DAG metadata.
+\`omena-transform-passes\` registers and plans safe mutations.
+\`omena-transform-bundle\`, \`omena-transform-target\`,
+\`omena-transform-print\`, and \`omena-transform-egg\` split bundle planning,
+target lowering, emission, and equality-saturation concerns.
+
+Primary consumers:
+
+- CSS build tools.
+- Editor quick-fix pipelines.
+- Benchmark and conformance runners.
+`,
+  );
+  writeFileSync(
+    path.join(docsDirectory, "benchmarks.md"),
+    `# Benchmarks
+
+The public benchmark story is intentionally evidence-based. Benchmark changes
+must report the command, input set, machine class, and comparison baseline.
+
+## Current Baseline Checks
+
+- Parser product-cutover checks compare parser output against the current
+  product lane.
+- Runtime loop checks track request-path latency for hover, definition,
+  references, and completion.
+- Fuzz checks cover parser, cascade, incremental, and transform safety targets.
+
+## Reporting Template
+
+\`\`\`text
+Command:
+Inputs:
+Machine:
+Baseline:
+Result:
+Regression threshold:
+Notes:
+\`\`\`
+
+Do not treat a single synthetic benchmark as product readiness. Parser,
+cascade, transform, editor, and packaging paths each need their own evidence.
+`,
+  );
+  writeFileSync(
+    path.join(docsDirectory, "release.md"),
+    `# Release Process
+
+omena-css uses one workspace release train for the public crates in this repo.
+Patch releases may be crate-specific when only one crate needs a compatibility
+or packaging fix.
+
+## Required Checks
+
+\`\`\`sh
+cargo fmt --all --check
+cargo test --workspace
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+\`\`\`
+
+Run the \`Publish Crates\` GitHub Actions workflow in \`dry-run\` mode before
+publishing. Publish only after CI is green and dependency order has been
+checked.
+
+## Commit Messages
+
+Use plain imperative commit subjects:
+
+\`\`\`text
+Add parser differential coverage
+Tighten transform workspace packaging
+Fix source-map segment ordering
+\`\`\`
+
+Avoid private planning labels in public history, docs, rustdoc, and release
+notes.
+`,
+  );
+  writeFileSync(
+    path.join(docsDirectory, "paper-draft.md"),
+    `# Paper Draft Outline
+
+This is the initial public outline for the research track behind omena-css.
+It is not a submitted paper; it records the external-facing argument and the
+evidence that must exist before publication.
+
+## Candidate 1: Cascade-Proven CSS Transforms
+
+- Problem: many CSS transforms are syntactically simple but semantically unsafe
+  without cascade, layer, scope, or selector evidence.
+- Contribution: proof-carrying transform helpers that reject unsafe rewrites
+  unless the caller provides closed-world evidence.
+- Evaluation: compare accepted and rejected transform candidates across real
+  CSS Modules, SCSS, and Less projects.
+
+## Candidate 2: Incremental CSS-Family Analysis
+
+- Problem: editor latency depends on reusing parser, cascade, and transform
+  facts across small edits.
+- Contribution: incremental fact boundaries for style analysis and conservative
+  transform planning.
+- Evaluation: measure cold and warm editor request latency across project-size
+  buckets.
+
+## Candidate 3: Parser-Owned Style Facts
+
+- Problem: editor integrations often duplicate style parsing in ad hoc request
+  handlers.
+- Contribution: parser-owned canonical fact production for CSS Modules and
+  CSS-family dialects.
+- Evaluation: compare diagnostics, hover, definition, references, and transform
+  results before and after request handlers consume parser-owned facts.
+`,
+  );
+}
+
+function writeGithubTemplates(destinationPath) {
+  const githubDirectory = path.join(destinationPath, ".github");
+  const issueTemplateDirectory = path.join(githubDirectory, "ISSUE_TEMPLATE");
+  mkdirSync(issueTemplateDirectory, { recursive: true });
+  writeFileSync(
+    path.join(githubDirectory, "PULL_REQUEST_TEMPLATE.md"),
+    `## Summary
+
+## Verification
+
+- [ ] \`cargo fmt --all --check\`
+- [ ] \`cargo test --workspace\`
+- [ ] \`cargo clippy --workspace --all-targets --all-features -- -D warnings\`
+
+## Notes
+
+Use a plain imperative commit subject and avoid private planning labels in
+public docs, rustdoc, release notes, and commit history.
+`,
+  );
+  writeFileSync(
+    path.join(issueTemplateDirectory, "bug_report.yml"),
+    `name: Bug report
+description: Report incorrect parser, cascade, transform, or packaging behavior.
+title: "Describe the failing behavior"
+labels: ["bug"]
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Include CSS, SCSS, Less, Rust code, or commands needed to reproduce.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: Commands or checks you ran.
+`,
+  );
+  writeFileSync(
+    path.join(issueTemplateDirectory, "feature_request.yml"),
+    `name: Feature request
+description: Propose a parser, cascade, transform, tooling, or documentation addition.
+title: "Describe the product capability"
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user-facing or integration problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the API, behavior, or documentation change.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Link examples, specs, benchmarks, or downstream consumers.
 `,
   );
 }
