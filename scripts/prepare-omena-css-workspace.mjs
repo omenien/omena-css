@@ -440,6 +440,7 @@ needed.
 cargo install omena-cli
 omena check path/to/file.module.scss
 omena build path/to/file.css --pass whitespace-strip
+omena build path/to/file.css --target-query "ie 11"
 omena passes
 \`\`\`
 
@@ -448,6 +449,7 @@ Use the checkout form when developing the workspace locally:
 \`\`\`sh
 cargo run -p omena-cli -- check path/to/file.module.scss
 cargo run -p omena-cli -- build path/to/file.css --pass whitespace-strip
+cargo run -p omena-cli -- build path/to/file.css --target-query "ie 11"
 cargo run -p omena-cli -- passes
 \`\`\`
 
@@ -459,13 +461,22 @@ the dialect can be inferred. Generate a web package with \`wasm-pack build
 crates/omena-wasm --target web\`, then import the generated module:
 
 \`\`\`js
-import init, { checkStyleSource, buildStyleSource } from "./pkg/omena_wasm.js";
+import init, {
+  checkStyleSource,
+  buildStyleSource,
+  buildStyleSourceForTargetQuery,
+} from "./pkg/omena_wasm.js";
 
 await init();
 const facts = checkStyleSource(".card { color: red; }", "demo.module.css");
 const built = buildStyleSource(".card { color: #ffffff; }", "demo.css", [
   "color-compression",
 ]);
+const legacyBuilt = buildStyleSourceForTargetQuery(
+  ".card { display: flex; color: light-dark(#000, #fff); }",
+  "demo.css",
+  "ie 11",
+);
 \`\`\`
 
 ## Use the Node Native Binding Substrate
@@ -479,6 +490,7 @@ export this shape:
 import {
   checkStyleSourceJson,
   buildStyleSourceJson,
+  buildStyleSourceForTargetQueryJson,
 } from "omena-napi";
 
 const facts = JSON.parse(
@@ -488,6 +500,13 @@ const built = JSON.parse(
   buildStyleSourceJson(".card { color: #ffffff; }", "demo.css", [
     "color-compression",
   ]),
+);
+const legacyBuilt = JSON.parse(
+  buildStyleSourceForTargetQueryJson(
+    ".card { display: flex; color: light-dark(#000, #fff); }",
+    "demo.css",
+    "ie 11",
+  ),
 );
 \`\`\`
 
@@ -565,6 +584,8 @@ Primary consumers:
 
 - \`omena check <file>\` reports query-owned parser facts and parse-error counts.
 - \`omena build <file>\` runs the conservative transform pipeline.
+- \`omena build <file> --target-query "ie 11"\` plans target-sensitive passes
+  from a Browserslist query or named target profile.
 - \`omena passes\` lists accepted transform pass ids.
 
 ## Wasm
@@ -574,6 +595,8 @@ Primary consumers:
 
 - \`checkStyleSource(source, path)\` reports query-owned parser facts.
 - \`buildStyleSource(source, path, passIds)\` runs conservative transform passes.
+- \`buildStyleSourceForTargetQuery(source, path, targetQuery)\` plans
+  target-sensitive passes from a Browserslist query or named target profile.
 - \`listTransformPasses()\` lists accepted transform pass ids.
 
 ## Node Native Binding
@@ -583,6 +606,8 @@ Primary consumers:
 - \`checkStyleSourceJson(source, path)\` reports query-owned parser facts as JSON.
 - \`buildStyleSourceJson(source, path, passIds)\` runs conservative transform
   passes and returns JSON.
+- \`buildStyleSourceForTargetQueryJson(source, path, targetQuery)\` plans
+  target-sensitive passes from a Browserslist query or named target profile.
 - \`listTransformPassesJson()\` lists accepted transform pass ids as JSON.
 `,
   );

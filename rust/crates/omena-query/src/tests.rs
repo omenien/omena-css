@@ -9,6 +9,7 @@ use super::{
     OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryStylePackageManifestV0, ParserPositionV0,
     ParserRangeV0, SelectedQueryAdapterCapabilitiesV0,
     execute_omena_query_consumer_build_style_source,
+    execute_omena_query_consumer_build_style_source_for_target_query,
     execute_omena_query_transform_passes_from_source, list_omena_query_transform_pass_summaries,
     summarize_omena_query_boundary, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_evaluation_runtime,
@@ -483,9 +484,42 @@ fn exposes_consumer_build_facade_from_query() {
     assert_eq!(summary.product, "omena-query.consumer-build-style-source");
     assert_eq!(summary.dialect, "css");
     assert_eq!(summary.requested_pass_ids, pass_ids);
+    assert_eq!(summary.target_query, None);
     assert_eq!(summary.unknown_pass_ids, vec!["unknown-transform-pass"]);
     assert!(summary.execution.output_css.contains("#fff"));
     assert!(summary.ready_surfaces.contains(&"consumerBuildFacade"));
+}
+
+#[test]
+fn exposes_consumer_build_facade_from_target_query() {
+    let summary = execute_omena_query_consumer_build_style_source_for_target_query(
+        "Button.module.css",
+        ".card { display: flex; color: light-dark(#000, #fff); }",
+        "ie 11",
+    );
+
+    assert_eq!(summary.product, "omena-query.consumer-build-style-source");
+    assert_eq!(summary.dialect, "css");
+    assert!(summary.unknown_pass_ids.is_empty());
+    assert!(summary.target_query.is_some());
+    let Some(target_query) = summary.target_query.as_ref() else {
+        return;
+    };
+    assert_eq!(target_query.profile_id, "browserslist-resolved");
+    assert_eq!(target_query.resolved_targets, vec!["ie 11"]);
+    assert!(
+        summary
+            .requested_pass_ids
+            .iter()
+            .any(|pass_id| pass_id == "vendor-prefixing")
+    );
+    assert!(
+        summary
+            .requested_pass_ids
+            .iter()
+            .any(|pass_id| pass_id == "light-dark-lowering")
+    );
+    assert!(summary.ready_surfaces.contains(&"targetQueryBuildFacade"));
 }
 
 #[test]

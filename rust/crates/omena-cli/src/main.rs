@@ -1,7 +1,8 @@
 use clap::{Parser, Subcommand};
 use omena_query::{
-    execute_omena_query_consumer_build_style_source, list_omena_query_transform_pass_summaries,
-    summarize_omena_query_consumer_check_style_source,
+    execute_omena_query_consumer_build_style_source,
+    execute_omena_query_consumer_build_style_source_for_target_query,
+    list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
 };
 use serde::Serialize;
 use std::{
@@ -40,6 +41,9 @@ enum Command {
         /// Transform pass id. Repeat to choose specific passes.
         #[arg(long = "pass")]
         passes: Vec<String>,
+        /// Browserslist query or named target profile used to plan target-sensitive passes.
+        #[arg(long)]
+        target_query: Option<String>,
         /// Print a machine-readable execution summary.
         #[arg(long)]
         json: bool,
@@ -69,8 +73,9 @@ fn run(cli: Cli) -> Result<(), String> {
             path,
             output,
             passes,
+            target_query,
             json,
-        } => build_file(path, output, passes, json),
+        } => build_file(path, output, passes, target_query, json),
         Command::Passes { json } => list_passes(json),
     }
 }
@@ -98,11 +103,23 @@ fn build_file(
     path: PathBuf,
     output: Option<PathBuf>,
     pass_ids: Vec<String>,
+    target_query: Option<String>,
     json: bool,
 ) -> Result<(), String> {
+    if target_query.is_some() && !pass_ids.is_empty() {
+        return Err("cannot combine --target-query with explicit --pass values".to_string());
+    }
+
     let source = read_source(&path)?;
-    let summary =
-        execute_omena_query_consumer_build_style_source(&path_string(&path), &source, &pass_ids);
+    let summary = if let Some(target_query) = target_query {
+        execute_omena_query_consumer_build_style_source_for_target_query(
+            &path_string(&path),
+            &source,
+            &target_query,
+        )
+    } else {
+        execute_omena_query_consumer_build_style_source(&path_string(&path), &source, &pass_ids)
+    };
 
     if !summary.unknown_pass_ids.is_empty() {
         return Err(format!(
