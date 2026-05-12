@@ -97,6 +97,7 @@ pub struct TransformExecutionSummaryV0 {
     pub mutation_count: usize,
     pub provenance_preserved: bool,
     pub output_css: String,
+    pub css_module_evaluation: Option<TransformModuleEvaluationV0>,
     pub css_import_inlines: Vec<TransformImportInlineV0>,
     pub css_module_composes_exports: Vec<TransformCssModuleComposesResolutionV0>,
     pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
@@ -111,9 +112,18 @@ pub struct TransformExecutionContextV0 {
     pub reachable_keyframe_names: Vec<String>,
     pub reachable_value_names: Vec<String>,
     pub reachable_custom_property_names: Vec<String>,
+    pub scss_module_evaluation: Option<TransformModuleEvaluationV0>,
+    pub less_module_evaluation: Option<TransformModuleEvaluationV0>,
     pub import_inlines: Vec<TransformImportInlineV0>,
     pub class_name_rewrites: Vec<TransformClassNameRewriteV0>,
     pub css_module_composes_resolutions: Vec<TransformCssModuleComposesResolutionV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformModuleEvaluationV0 {
+    pub evaluator: String,
+    pub evaluated_css: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -234,6 +244,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
     let ordered_pass_ids = pass_plan.ordered_pass_ids.clone();
     let mut output_css = source.to_string();
     let mut outcomes = Vec::new();
+    let mut css_module_evaluation = None;
     let mut css_import_inlines = Vec::new();
     let mut css_module_composes_exports = Vec::new();
 
@@ -707,6 +718,75 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     detail: "removed dead @supports branches through the static cascade witness evaluator",
                 }
             }
+            Some(TransformPassKind::ScssModuleEvaluate)
+                if matches!(dialect, StyleDialect::Scss | StyleDialect::Sass)
+                    && context.scss_module_evaluation.is_some() =>
+            {
+                let evaluation = context
+                    .scss_module_evaluation
+                    .as_ref()
+                    .expect("checked above");
+                let mutation_count = usize::from(output_css != evaluation.evaluated_css);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = evaluation.evaluated_css.clone();
+                css_module_evaluation = Some(evaluation.clone());
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "applied explicit SCSS module evaluation output from the evaluator boundary",
+                }
+            }
+            Some(TransformPassKind::ScssModuleEvaluate) => TransformPassExecutionOutcomeV0 {
+                pass_id,
+                status: TransformPassRuntimeStatus::PlannedOnly,
+                input_byte_len,
+                output_byte_len: output_css.len(),
+                mutation_count: 0,
+                provenance_preserved: true,
+                detail: "requires explicit SCSS evaluator output before mutation",
+            },
+            Some(TransformPassKind::LessModuleEvaluate)
+                if dialect == StyleDialect::Less && context.less_module_evaluation.is_some() =>
+            {
+                let evaluation = context
+                    .less_module_evaluation
+                    .as_ref()
+                    .expect("checked above");
+                let mutation_count = usize::from(output_css != evaluation.evaluated_css);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = evaluation.evaluated_css.clone();
+                css_module_evaluation = Some(evaluation.clone());
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "applied explicit Less module evaluation output from the evaluator boundary",
+                }
+            }
+            Some(TransformPassKind::LessModuleEvaluate) => TransformPassExecutionOutcomeV0 {
+                pass_id,
+                status: TransformPassRuntimeStatus::PlannedOnly,
+                input_byte_len,
+                output_byte_len: output_css.len(),
+                mutation_count: 0,
+                provenance_preserved: true,
+                detail: "requires explicit Less evaluator output before mutation",
+            },
             Some(TransformPassKind::ImportInline) if !context.import_inlines.is_empty() => {
                 let (next_css, mutation_count) =
                     inline_css_imports(&output_css, dialect, &context.import_inlines);
@@ -1052,6 +1132,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
         mutation_count,
         provenance_preserved,
         output_css,
+        css_module_evaluation,
         css_import_inlines,
         css_module_composes_exports,
         outcomes,
@@ -1088,6 +1169,8 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::DeadMediaBranchRemoval.id(),
         TransformPassKind::DeadSupportsBranchRemoval.id(),
         TransformPassKind::ImportInline.id(),
+        TransformPassKind::ScssModuleEvaluate.id(),
+        TransformPassKind::LessModuleEvaluate.id(),
         TransformPassKind::ValueResolution.id(),
         TransformPassKind::StaticVarSubstitution.id(),
         TransformPassKind::ResolveCssModulesComposes.id(),
@@ -5301,8 +5384,9 @@ fn is_comment_token(kind: SyntaxKind) -> bool {
 mod tests {
     use super::{
         TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
-        TransformExecutionContextV0, TransformImportInlineV0, TransformPassRuntimeStatus,
-        execute_transform_passes_on_source, execute_transform_passes_on_source_with_dialect,
+        TransformExecutionContextV0, TransformImportInlineV0, TransformModuleEvaluationV0,
+        TransformPassRuntimeStatus, execute_transform_passes_on_source,
+        execute_transform_passes_on_source_with_dialect,
         execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
         summarize_omena_transform_passes_boundary,
     };
@@ -5351,6 +5435,8 @@ mod tests {
                 "p37-dead-media-branch-removal",
                 "p38-dead-supports-branch-removal",
                 "p26-import-inline",
+                "p27-scss-module-evaluate",
+                "p28-less-module-evaluate",
                 "p31-value-resolution",
                 "p32-custom-property-static-resolve",
                 "p30-composes-resolution",
@@ -5453,6 +5539,76 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p26-import-inline", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_applies_explicit_scss_module_evaluation() {
+        let source = r#"$brand: red; .button { color: $brand; }"#;
+        let context = TransformExecutionContextV0 {
+            scss_module_evaluation: Some(TransformModuleEvaluationV0 {
+                evaluator: "dart-sass-compatible".to_string(),
+                evaluated_css: ".button { color: red; }".to_string(),
+            }),
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Scss,
+            &[
+                TransformPassKind::ScssModuleEvaluate,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(execution.output_css, ".button { color: red; }");
+        assert_eq!(
+            execution.css_module_evaluation,
+            Some(TransformModuleEvaluationV0 {
+                evaluator: "dart-sass-compatible".to_string(),
+                evaluated_css: ".button { color: red; }".to_string(),
+            })
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p27-scss-module-evaluate", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_applies_explicit_less_module_evaluation() {
+        let source = r#"@brand: red; .button { color: @brand; }"#;
+        let context = TransformExecutionContextV0 {
+            less_module_evaluation: Some(TransformModuleEvaluationV0 {
+                evaluator: "less-js-compatible".to_string(),
+                evaluated_css: ".button { color: red; }".to_string(),
+            }),
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Less,
+            &[
+                TransformPassKind::LessModuleEvaluate,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(execution.output_css, ".button { color: red; }");
+        assert_eq!(
+            execution.css_module_evaluation,
+            Some(TransformModuleEvaluationV0 {
+                evaluator: "less-js-compatible".to_string(),
+                evaluated_css: ".button { color: red; }".to_string(),
+            })
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p28-less-module-evaluate", "p40-print-css"]
         );
     }
 
