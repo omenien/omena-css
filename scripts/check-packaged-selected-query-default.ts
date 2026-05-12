@@ -7,6 +7,10 @@ import {
   shouldUseEngineShadowRunnerDaemon,
 } from "../server/engine-host-node/src/selected-query-backend";
 import {
+  buildStyleDocumentWithOmenaParser,
+  resolveRuntimeStyleDocumentBuilder,
+} from "../server/engine-host-node/src/omena-parser-style-document-builder";
+import {
   buildTsgoProbeInvocation,
   resolveTsgoBinaryPathForEnv,
 } from "../server/engine-host-node/src/tsgo-probe-type-resolver";
@@ -212,6 +216,11 @@ if (defaultBackend !== "rust-selected-query") {
   throw new Error(`Expected packaged default backend rust-selected-query, got ${defaultBackend}`);
 }
 
+const defaultStyleBuilder = resolveRuntimeStyleDocumentBuilder(packagedEnv, fileExists);
+if (defaultStyleBuilder !== buildStyleDocumentWithOmenaParser) {
+  throw new Error("Expected packaged default style-document builder to use omena-parser");
+}
+
 const autoBackend = resolveSelectedQueryBackendKind(
   { ...packagedEnv, CME_SELECTED_QUERY_BACKEND: "auto" },
   fileExists,
@@ -243,8 +252,16 @@ if (explicitTypescriptBackend !== "typescript-current") {
   );
 }
 
+const explicitTypescriptStyleBuilder = resolveRuntimeStyleDocumentBuilder(
+  { ...packagedEnv, CME_STYLE_DOCUMENT_BUILDER: "typescript-current" },
+  fileExists,
+);
+if (explicitTypescriptStyleBuilder !== undefined) {
+  throw new Error("Expected explicit typescript-current style builder override to win");
+}
+
 console.log(
-  `Packaged selected-query default ok: ${vsixFile} -> ${defaultBackend} daemon=on lsp=${packagedLspRuntime.runtime} lspTargets=${omenaLspServerTargets.join(",")}`,
+  `Packaged selected-query default ok: ${vsixFile} -> ${defaultBackend} styleBuilder=omena-parser daemon=on lsp=${packagedLspRuntime.runtime} lspTargets=${omenaLspServerTargets.join(",")}`,
 );
 
 function readVsixEntries(filePath: string): ReadonlySet<string> {
