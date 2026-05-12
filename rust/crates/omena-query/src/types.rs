@@ -324,6 +324,7 @@ pub struct OmenaQueryTransformPlanSummaryV0 {
     pub dialect: &'static str,
     pub bundle: TransformBundleSourceSummaryV0,
     pub target: TransformTargetPlanV0,
+    pub target_query: Option<OmenaQueryTransformTargetQueryPlanV0>,
     pub egg: TransformEggPlanV0,
     pub print: TransformPrintArtifactV0,
     pub execution: TransformExecutionSummaryV0,

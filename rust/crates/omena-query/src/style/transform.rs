@@ -34,11 +34,78 @@ pub fn summarize_omena_query_transform_plan_from_source_with_context(
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let bundle = summarize_omena_transform_bundle_from_source(style_path, style_source, dialect);
     let target = plan_target_transforms(target_label, target_support, target_options);
+    summarize_omena_query_transform_plan_from_parts(TransformPlanPartsV0 {
+        style_path,
+        style_source,
+        dialect,
+        bundle,
+        target,
+        target_query: None,
+        print_options,
+        context,
+    })
+}
+
+pub fn summarize_omena_query_transform_plan_from_target_query(
+    style_path: &str,
+    style_source: &str,
+    target_query: &str,
+    target_options: OmenaQueryTargetTransformOptionsV0,
+    print_options: OmenaQueryTransformPrintOptionsV0,
+) -> OmenaQueryTransformPlanSummaryV0 {
+    summarize_omena_query_transform_plan_from_target_query_with_context(
+        style_path,
+        style_source,
+        target_query,
+        target_options,
+        print_options,
+        &TransformExecutionContextV0::default(),
+    )
+}
+
+pub fn summarize_omena_query_transform_plan_from_target_query_with_context(
+    style_path: &str,
+    style_source: &str,
+    target_query: &str,
+    target_options: OmenaQueryTargetTransformOptionsV0,
+    print_options: OmenaQueryTransformPrintOptionsV0,
+    context: &TransformExecutionContextV0,
+) -> OmenaQueryTransformPlanSummaryV0 {
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let bundle = summarize_omena_transform_bundle_from_source(style_path, style_source, dialect);
+    let target_query_plan = plan_target_transforms_from_query(target_query, target_options);
+    let target = target_query_plan.transform_plan.clone();
+    summarize_omena_query_transform_plan_from_parts(TransformPlanPartsV0 {
+        style_path,
+        style_source,
+        dialect,
+        bundle,
+        target,
+        target_query: Some(target_query_plan),
+        print_options,
+        context,
+    })
+}
+
+struct TransformPlanPartsV0<'a> {
+    style_path: &'a str,
+    style_source: &'a str,
+    dialect: OmenaParserStyleDialect,
+    bundle: TransformBundleSourceSummaryV0,
+    target: TransformTargetPlanV0,
+    target_query: Option<OmenaQueryTransformTargetQueryPlanV0>,
+    print_options: OmenaQueryTransformPrintOptionsV0,
+    context: &'a TransformExecutionContextV0,
+}
+
+fn summarize_omena_query_transform_plan_from_parts(
+    parts: TransformPlanPartsV0<'_>,
+) -> OmenaQueryTransformPlanSummaryV0 {
     let egg = plan_egg_rewrite_passes(false, false);
 
     let mut combined_passes = Vec::new();
-    extend_passes_from_ids(&bundle.planned_pass_ids, &mut combined_passes);
-    extend_passes_from_ids(&target.planned_pass_ids, &mut combined_passes);
+    extend_passes_from_ids(&parts.bundle.planned_pass_ids, &mut combined_passes);
+    extend_passes_from_ids(&parts.target.planned_pass_ids, &mut combined_passes);
     extend_passes_from_ids(&egg.planned_pass_ids, &mut combined_passes);
     combined_passes.push(TransformPassKind::PrintCss);
     combined_passes.sort_by_key(|pass| pass.ordinal());
@@ -47,20 +114,20 @@ pub fn summarize_omena_query_transform_plan_from_source_with_context(
     let combined_plan = plan_transform_passes(&combined_passes);
     let semantic_signature = format!(
         "omena-query-transform:{}:{}",
-        style_path,
-        style_source.len()
+        parts.style_path,
+        parts.style_source.len()
     );
     let execution = execute_transform_passes_on_source_with_dialect_and_context(
-        style_source,
-        dialect,
+        parts.style_source,
+        parts.dialect,
         &combined_passes,
-        context,
+        parts.context,
     );
     let print = print_transform_execution_artifact(
-        style_path,
+        parts.style_path,
         semantic_signature,
         &combined_passes,
-        print_options,
+        parts.print_options,
         &execution,
     );
     let combined_pass_ids = combined_plan.ordered_pass_ids.clone();
@@ -69,10 +136,11 @@ pub fn summarize_omena_query_transform_plan_from_source_with_context(
     OmenaQueryTransformPlanSummaryV0 {
         schema_version: "0",
         product: "omena-query.transform-plan",
-        style_path: style_path.to_string(),
-        dialect: omena_parser_style_dialect_label(dialect),
-        bundle,
-        target,
+        style_path: parts.style_path.to_string(),
+        dialect: omena_parser_style_dialect_label(parts.dialect),
+        bundle: parts.bundle,
+        target: parts.target,
+        target_query: parts.target_query,
         egg,
         print,
         execution,

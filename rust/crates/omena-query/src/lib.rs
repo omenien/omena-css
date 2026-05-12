@@ -76,10 +76,13 @@ pub use omena_transform_print::{
 pub use omena_transform_target::{
     TargetFeatureSupportV0 as OmenaQueryTargetFeatureSupportV0,
     TargetTransformOptionsV0 as OmenaQueryTargetTransformOptionsV0,
+    TransformTargetQueryPlanV0 as OmenaQueryTransformTargetQueryPlanV0,
     conservative_target_options as conservative_omena_query_target_options,
     modern_feature_support as modern_omena_query_target_feature_support,
 };
-use omena_transform_target::{TransformTargetPlanV0, plan_target_transforms};
+use omena_transform_target::{
+    TransformTargetPlanV0, plan_target_transforms, plan_target_transforms_from_query,
+};
 use serde::Serialize;
 
 mod boundary;

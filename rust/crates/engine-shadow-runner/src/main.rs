@@ -63,6 +63,7 @@ use omena_query::{
     summarize_omena_query_style_semantic_graph_from_source,
     summarize_omena_query_transform_context_from_sources,
     summarize_omena_query_transform_plan_from_source_with_context,
+    summarize_omena_query_transform_plan_from_target_query_with_context,
 };
 use omena_resolver::{
     OmenaResolverModuleGraphSummaryV0, OmenaResolverStylePackageManifestV0,
@@ -151,6 +152,9 @@ struct TransformPlanInputV0 {
     style_source: String,
     #[serde(default = "default_transform_target_label")]
     target_label: String,
+    #[serde(default)]
+    target_query: Option<String>,
+    #[serde(default)]
     target_support: TransformPlanTargetFeatureSupportInputV0,
     target_options: TransformPlanTargetOptionsInputV0,
     #[serde(default)]
@@ -192,6 +196,22 @@ struct TransformPlanTargetFeatureSupportInputV0 {
     supports_css_nesting: bool,
     supports_css_scope: bool,
     supports_cascade_layers: bool,
+}
+
+impl Default for TransformPlanTargetFeatureSupportInputV0 {
+    fn default() -> Self {
+        Self {
+            vendor_prefix_required: false,
+            supports_light_dark: true,
+            supports_color_mix: true,
+            supports_oklch_oklab: true,
+            supports_color_function: true,
+            supports_logical_properties: true,
+            supports_css_nesting: true,
+            supports_css_scope: true,
+            supports_cascade_layers: true,
+        }
+    }
 }
 
 impl From<TransformPlanTargetFeatureSupportInputV0> for OmenaQueryTargetFeatureSupportV0 {
@@ -1042,15 +1062,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("transform-plan") => {
             let input: TransformPlanInputV0 = serde_json::from_str(&stdin)?;
-            let output = summarize_omena_query_transform_plan_from_source_with_context(
-                &input.style_path,
-                &input.style_source,
-                &input.target_label,
-                input.target_support.into(),
-                input.target_options.into(),
-                default_omena_query_transform_print_options(),
-                &input.transform_context,
-            );
+            let output = if let Some(target_query) = input.target_query.as_deref() {
+                summarize_omena_query_transform_plan_from_target_query_with_context(
+                    &input.style_path,
+                    &input.style_source,
+                    target_query,
+                    input.target_options.into(),
+                    default_omena_query_transform_print_options(),
+                    &input.transform_context,
+                )
+            } else {
+                summarize_omena_query_transform_plan_from_source_with_context(
+                    &input.style_path,
+                    &input.style_source,
+                    &input.target_label,
+                    input.target_support.into(),
+                    input.target_options.into(),
+                    default_omena_query_transform_print_options(),
+                    &input.transform_context,
+                )
+            };
             serde_json::to_writer_pretty(io::stdout(), &output)?;
         }
         Some("transform-context") => {
@@ -1450,7 +1481,16 @@ fn run_daemon_selected_query_command(
         }
         "transform-plan" => {
             let input: TransformPlanInputV0 = serde_json::from_value(input)?;
-            Ok(serde_json::to_value(
+            let output = if let Some(target_query) = input.target_query.as_deref() {
+                summarize_omena_query_transform_plan_from_target_query_with_context(
+                    &input.style_path,
+                    &input.style_source,
+                    target_query,
+                    input.target_options.into(),
+                    default_omena_query_transform_print_options(),
+                    &input.transform_context,
+                )
+            } else {
                 summarize_omena_query_transform_plan_from_source_with_context(
                     &input.style_path,
                     &input.style_source,
@@ -1459,8 +1499,9 @@ fn run_daemon_selected_query_command(
                     input.target_options.into(),
                     default_omena_query_transform_print_options(),
                     &input.transform_context,
-                ),
-            )?)
+                )
+            };
+            Ok(serde_json::to_value(output)?)
         }
         "transform-context" => {
             let input: TransformContextInputV0 = serde_json::from_value(input)?;

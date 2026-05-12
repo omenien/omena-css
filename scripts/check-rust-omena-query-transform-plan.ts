@@ -25,6 +25,19 @@ interface TransformPlanSummaryV0 {
     readonly blockedPassIds: readonly string[];
     readonly plannedPassIds: readonly string[];
   };
+  readonly targetQuery: {
+    readonly product: string;
+    readonly profileId: string;
+    readonly targetDataSource: string;
+    readonly resolvedTargets: readonly string[];
+    readonly resolutionError: string | null;
+    readonly transformPlan: {
+      readonly product: string;
+      readonly requiredPassIds: readonly string[];
+      readonly blockedPassIds: readonly string[];
+      readonly plannedPassIds: readonly string[];
+    };
+  } | null;
   readonly egg: {
     readonly product: string;
     readonly plannedPassIds: readonly string[];
@@ -185,6 +198,7 @@ assertIncludesAll(
   ["vendor-prefixing", "light-dark-lowering", "nesting-unwrap"],
   "target planned passes",
 );
+assert.equal(summary.targetQuery, null);
 
 assert.equal(summary.egg.product, "omena-transform-egg.plan");
 assert.deepEqual(summary.egg.plannedPassIds, []);
@@ -266,6 +280,61 @@ assertIncludesAll(
     "combinedTransformPassPlan",
   ],
   "transform ready surfaces",
+);
+
+const targetQueryResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-plan",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "Legacy.module.css",
+      styleSource: ".button { display: flex; color: light-dark(#000, #fff); }",
+      targetQuery: "ie 11",
+      targetOptions: {
+        allowLogicalToPhysical: true,
+        allowScopeFlatten: true,
+        allowLayerFlatten: true,
+        enableSupportsStaticEval: false,
+        enableMediaStaticEval: false,
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(targetQueryResult.status, 0, targetQueryResult.stderr);
+assert.equal(targetQueryResult.error, undefined);
+
+const targetQuerySummary = JSON.parse(targetQueryResult.stdout) as TransformPlanSummaryV0;
+
+assert.equal(targetQuerySummary.product, "omena-query.transform-plan");
+assert.equal(targetQuerySummary.targetQuery?.product, "omena-transform-target.query-plan");
+assert.equal(targetQuerySummary.targetQuery?.profileId, "browserslist-resolved");
+assert.equal(
+  targetQuerySummary.targetQuery?.targetDataSource,
+  "oxcBrowserslistV3+featureSubsetV0",
+);
+assert.deepEqual(targetQuerySummary.targetQuery?.resolvedTargets, ["ie 11"]);
+assert.equal(targetQuerySummary.targetQuery?.resolutionError, null);
+assert.deepEqual(
+  targetQuerySummary.target.plannedPassIds,
+  targetQuerySummary.targetQuery?.transformPlan.plannedPassIds,
+);
+assertIncludesAll(
+  targetQuerySummary.target.plannedPassIds,
+  ["vendor-prefixing", "light-dark-lowering", "color-function-lowering", "nesting-unwrap"],
+  "browserslist target-query planned passes",
 );
 
 const contextStyleSource =
