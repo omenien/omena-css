@@ -79,6 +79,46 @@ assert.ok(
     packageJson.includes("rust/parser/consumer-boundary"),
   "rust/parser/public-product must include the parser consumer boundary",
 );
+assertCutoverGateWiring(
+  "G.parse",
+  packageJson.includes('"check:rust-omena-parser-boundary"') &&
+    packageJson.includes("cargo test --manifest-path rust/Cargo.toml -p omena-parser"),
+);
+assertCutoverGateWiring(
+  "G.tree-shape",
+  packageJson.includes('"check:rust-omena-syntax-boundary"') &&
+    packageJson.includes("summarizes_parser_cst_equivalence_contract"),
+);
+assertCutoverGateWiring(
+  "G.lsp",
+  packageJson.includes('"check:rust-omena-lsp-server-boundary"') &&
+    packageJson.includes("rust/omena-lsp-server/parser-consumer"),
+);
+assertCutoverGateWiring(
+  "G.cascade",
+  packageJson.includes('"check:rust-omena-cascade-boundary"') &&
+    packageJson.includes("rust/omena-cascade/parser-consumer"),
+);
+assertCutoverGateWiring(
+  "G.bridge",
+  packageJson.includes('"check:rust-omena-bridge-boundary"') &&
+    packageJson.includes("rust/omena-bridge/parser-consumer"),
+);
+assertCutoverGateWiring(
+  "G.differential",
+  packageJson.includes('"check:rust-omena-parser-differential-corpus"') &&
+    packageJson.includes("rust/omena-parser/differential-corpus"),
+);
+assertCutoverGateWiring(
+  "G.codspeed",
+  packageJson.includes('"check:rust-z5-performance-baseline-readiness"') &&
+    packageJson.includes("rust/z5-parser-product-cutover"),
+);
+assertCutoverGateWiring(
+  "G.canary",
+  packageJson.includes('"check:rust-omena-parser-forward-canary"') &&
+    packageJson.includes("rust/omena-parser/forward-canary"),
+);
 
 const legacyReferencePaths = findLegacyReferencePaths();
 const unexpectedLegacyReferences = legacyReferencePaths.filter(
@@ -91,7 +131,7 @@ assert.deepEqual(
 );
 
 process.stdout.write(
-  `validated omena-parser cutover readiness: productCrates=${PRODUCT_CRATE_MANIFESTS.length} parserLaneScripts=${PRODUCT_PARSER_LANE_SCRIPTS.length} allowedLegacyRefs=${legacyReferencePaths.length}\n`,
+  `validated omena-parser cutover readiness: productCrates=${PRODUCT_CRATE_MANIFESTS.length} parserLaneScripts=${PRODUCT_PARSER_LANE_SCRIPTS.length} cutoverGates=8 allowedLegacyRefs=${legacyReferencePaths.length}\n`,
 );
 
 function readText(filePath: string): string {
@@ -124,4 +164,8 @@ function findLegacyReferencePaths(): string[] {
     .map((line) => line.trim())
     .filter(Boolean)
     .sort();
+}
+
+function assertCutoverGateWiring(gate: string, condition: boolean): void {
+  assert.ok(condition, `${gate} must be wired into the omena-parser cutover gate set`);
 }
