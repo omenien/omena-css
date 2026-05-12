@@ -26,6 +26,7 @@ const ALLOWED_LEGACY_REFERENCE_PATTERNS = [
   /^rust\/crates\/omena-parser\/src\/lib\.rs$/,
   /^rust\/crates\/omena-query\/src\/tests\.rs$/,
   /^scripts\/check-rust-omena-lsp-server-boundary\.ts$/,
+  /^scripts\/check-rust-omena-lsp-server-parser-consumer\.ts$/,
   /^scripts\/check-rust-omena-bridge-parser-consumer\.ts$/,
   /^scripts\/check-rust-omena-cascade-parser-consumer\.ts$/,
   /^scripts\/check-rust-omena-parser-cutover-readiness\.ts$/,
