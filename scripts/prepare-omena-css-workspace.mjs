@@ -26,6 +26,7 @@ const omenaCssCrates = [
   "omena-transform-target",
   "omena-transform-print",
   "omena-transform-egg",
+  "omena-cli",
 ];
 const omenaCssPublishOrder = [
   "omena-syntax",
@@ -39,6 +40,7 @@ const omenaCssPublishOrder = [
   "omena-transform-target",
   "omena-transform-print",
   "omena-transform-egg",
+  "omena-cli",
 ];
 const externallyPublishedCrates = new Set(["omena-incremental"]);
 const omenaCssDependencyVersion = "0.1";
@@ -229,6 +231,7 @@ criterion = "0.8.2"
 cstree = "0.14.0"
 rustc-hash = "2.1.2"
 smol_str = "0.3.6"
+clap = { version = "4.6.1", features = ["derive"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
@@ -346,6 +349,7 @@ sharing one release train.
 - Transform substrate: \`omena-transform-cst\`, \`omena-transform-passes\`,
   \`omena-transform-bundle\`, \`omena-transform-target\`,
   \`omena-transform-print\`, \`omena-transform-egg\`
+- Consumer surface: \`omena-cli\`
 
 ## Current Product Surface
 
@@ -391,6 +395,14 @@ cargo add omena-transform-passes
 Most consumers should start with \`omena-parser\` for source facts or
 \`omena-transform-passes\` for transform planning. Lower-level crates remain
 public so integrations can opt into smaller boundaries when needed.
+
+## Use the CLI from a Checkout
+
+\`\`\`sh
+cargo run -p omena-cli -- check path/to/file.module.scss
+cargo run -p omena-cli -- build path/to/file.css --pass whitespace-strip
+cargo run -p omena-cli -- passes
+\`\`\`
 
 ## Publish Readiness
 
@@ -446,6 +458,14 @@ Primary consumers:
 - CSS build tools.
 - Editor quick-fix pipelines.
 - Benchmark and conformance runners.
+
+## CLI
+
+\`omena-cli\` exposes the first command-line consumer surface:
+
+- \`omena check <file>\` reports parser-owned facts and parse-error counts.
+- \`omena build <file>\` runs the conservative transform pipeline.
+- \`omena passes\` lists accepted transform pass ids.
 `,
   );
   writeFileSync(
