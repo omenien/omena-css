@@ -1,4 +1,7 @@
-import { StyleIndexCache } from "../../../engine-core-ts/src/core/scss/scss-index";
+import {
+  StyleIndexCache,
+  type StyleDocumentBuilder,
+} from "../../../engine-core-ts/src/core/scss/scss-index";
 import { SourceFileCache } from "../../../engine-core-ts/src/core/ts/source-file-cache";
 import {
   WorkspaceSemanticWorkspaceReferenceIndex,
@@ -20,10 +23,19 @@ export interface SharedRuntimeCaches {
   readonly selectorUsagePayloadCache: SelectorUsagePayloadCache;
 }
 
-export function buildSharedRuntimeCaches(): SharedRuntimeCaches {
+export interface BuildSharedRuntimeCachesOptions {
+  readonly buildStyleDocument?: StyleDocumentBuilder;
+}
+
+export function buildSharedRuntimeCaches(
+  options: BuildSharedRuntimeCachesOptions = {},
+): SharedRuntimeCaches {
   return {
     sourceFileCache: new SourceFileCache({ max: 200 }),
-    styleIndexCache: new StyleIndexCache({ max: 500 }),
+    styleIndexCache: new StyleIndexCache({
+      max: 500,
+      ...(options.buildStyleDocument ? { buildStyleDocument: options.buildStyleDocument } : {}),
+    }),
     semanticReferenceIndex: new WorkspaceSemanticWorkspaceReferenceIndex(),
     styleDependencyGraph: new WorkspaceStyleDependencyGraph(),
     styleSemanticGraphCache: new Map(),

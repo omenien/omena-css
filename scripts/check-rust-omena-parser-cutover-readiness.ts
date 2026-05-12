@@ -81,6 +81,26 @@ assert.ok(
   "StyleIndexCache must expose a single injectable style-document builder seam for parser cutover",
 );
 
+const sharedRuntimeCaches = readText(
+  "server/engine-host-node/src/runtime/shared-runtime-caches.ts",
+);
+assert.ok(
+  sharedRuntimeCaches.includes("BuildSharedRuntimeCachesOptions") &&
+    sharedRuntimeCaches.includes("buildStyleDocument?: StyleDocumentBuilder") &&
+    sharedRuntimeCaches.includes("options.buildStyleDocument"),
+  "shared runtime caches must thread the parser builder seam into the runtime style index",
+);
+
+const serverRuntimeManager = readText(
+  "server/engine-host-node/src/runtime/server-runtime-manager.ts",
+);
+assert.ok(
+  serverRuntimeManager.includes("buildStyleDocument?: StyleDocumentBuilder") &&
+    serverRuntimeManager.includes("buildSharedRuntimeCaches") &&
+    serverRuntimeManager.includes("args.options.buildStyleDocument"),
+  "server runtime manager must expose the parser builder seam for future Rust parser injection",
+);
+
 for (const scriptPath of PRODUCT_PARSER_LANE_SCRIPTS) {
   const source = readText(scriptPath);
   assert.ok(source.includes("omena-parser"), `${scriptPath} must invoke omena-parser`);

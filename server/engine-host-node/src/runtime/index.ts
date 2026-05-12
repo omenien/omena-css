@@ -16,7 +16,11 @@ export {
   type WatchedFileChangeInput,
   type WatchedFilesPlan,
 } from "./invalidation-planner";
-export { buildSharedRuntimeCaches, type SharedRuntimeCaches } from "./shared-runtime-caches";
+export {
+  buildSharedRuntimeCaches,
+  type BuildSharedRuntimeCachesOptions,
+  type SharedRuntimeCaches,
+} from "./shared-runtime-caches";
 export { createScopedRuntimeLogger, type RuntimeLogger, type RuntimeSink } from "./runtime-sink";
 export {
   collectWatchedFileChangeInputs,

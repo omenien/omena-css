@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { DEFAULT_RESOURCE_SETTINGS } from "../../../engine-core-ts/src/settings";
 import type { FileTask } from "../../../engine-core-ts/src/core/indexing/indexer-worker";
+import type { StyleDocumentBuilder } from "../../../engine-core-ts/src/core/scss/scss-index";
 import type { TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
 import type { WorkspaceRegistry } from "../workspace/workspace-registry";
 import { buildSharedRuntimeCaches } from "./shared-runtime-caches";
@@ -20,6 +21,7 @@ export interface ServerRuntimeManagerOptions {
   readonly fileSupplier?: () => AsyncIterable<FileTask>;
   readonly readStyleFileAsync?: (path: string) => Promise<string | null>;
   readonly fileExists?: (path: string) => boolean;
+  readonly buildStyleDocument?: StyleDocumentBuilder;
 }
 
 export interface CreateServerRuntimeManagerArgs {
@@ -38,7 +40,9 @@ export interface ServerRuntimeManagerBundle {
 export function createServerRuntimeManager(
   args: CreateServerRuntimeManagerArgs,
 ): ServerRuntimeManagerBundle {
-  const caches = buildSharedRuntimeCaches();
+  const caches = buildSharedRuntimeCaches(
+    args.options.buildStyleDocument ? { buildStyleDocument: args.options.buildStyleDocument } : {},
+  );
   const typeResolver = args.options.typeResolver
     ? createRuntimeTypeResolver({ typeResolver: args.options.typeResolver })
     : createRuntimeTypeResolver({});
