@@ -238,6 +238,8 @@ struct TransformPlanTargetOptionsInputV0 {
     allow_layer_flatten: bool,
     enable_supports_static_eval: bool,
     enable_media_static_eval: bool,
+    #[serde(default)]
+    drop_dark_mode_media_queries: bool,
 }
 
 impl From<TransformPlanTargetOptionsInputV0> for OmenaQueryTargetTransformOptionsV0 {
@@ -248,6 +250,7 @@ impl From<TransformPlanTargetOptionsInputV0> for OmenaQueryTargetTransformOption
             allow_layer_flatten: input.allow_layer_flatten,
             enable_supports_static_eval: input.enable_supports_static_eval,
             enable_media_static_eval: input.enable_media_static_eval,
+            drop_dark_mode_media_queries: input.drop_dark_mode_media_queries,
         }
     }
 }

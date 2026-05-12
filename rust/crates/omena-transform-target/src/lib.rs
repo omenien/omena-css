@@ -36,6 +36,7 @@ pub struct TargetTransformOptionsV0 {
     pub allow_layer_flatten: bool,
     pub enable_supports_static_eval: bool,
     pub enable_media_static_eval: bool,
+    pub drop_dark_mode_media_queries: bool,
 }
 
 impl Default for TargetTransformOptionsV0 {
@@ -186,6 +187,9 @@ pub fn plan_target_transforms(
     if options.enable_media_static_eval {
         required_passes.push(TransformPassKind::MediaStaticEval);
     }
+    if options.drop_dark_mode_media_queries {
+        required_passes.push(TransformPassKind::DeadMediaBranchRemoval);
+    }
 
     required_passes.sort_by_key(|pass| pass.ordinal());
     required_passes.dedup();
@@ -241,6 +245,7 @@ pub const fn conservative_target_options() -> TargetTransformOptionsV0 {
         allow_layer_flatten: false,
         enable_supports_static_eval: false,
         enable_media_static_eval: false,
+        drop_dark_mode_media_queries: false,
     }
 }
 
@@ -388,7 +393,7 @@ fn push_required_or_blocked(
     }
 }
 
-fn target_managed_passes() -> [TransformPassKind; 11] {
+fn target_managed_passes() -> [TransformPassKind; 12] {
     [
         TransformPassKind::VendorPrefixing,
         TransformPassKind::LightDarkLowering,
@@ -401,6 +406,7 @@ fn target_managed_passes() -> [TransformPassKind; 11] {
         TransformPassKind::LayerFlatten,
         TransformPassKind::SupportsStaticEval,
         TransformPassKind::MediaStaticEval,
+        TransformPassKind::DeadMediaBranchRemoval,
     ]
 }
 
@@ -417,7 +423,7 @@ mod tests {
         let boundary = summarize_omena_transform_target_boundary();
 
         assert_eq!(boundary.product, "omena-transform-target.boundary");
-        assert_eq!(boundary.managed_pass_ids.len(), 11);
+        assert_eq!(boundary.managed_pass_ids.len(), 12);
         assert_eq!(
             boundary.target_data_source,
             "oxcBrowserslistV3+staticTargetProfileV0+explicitFeatureMatrixV0"
@@ -446,6 +452,7 @@ mod tests {
             allow_layer_flatten: true,
             enable_supports_static_eval: true,
             enable_media_static_eval: true,
+            drop_dark_mode_media_queries: false,
         };
 
         let plan = plan_target_transforms("legacy-webview", support, options);
@@ -488,6 +495,20 @@ mod tests {
     }
 
     #[test]
+    fn plans_dark_mode_media_drop_as_dead_media_branch_pass() {
+        let mut options = conservative_target_options();
+        options.drop_dark_mode_media_queries = true;
+
+        let plan = plan_target_transforms("modern", super::modern_feature_support(), options);
+
+        assert!(
+            plan.required_pass_ids
+                .contains(&"dead-media-branch-removal")
+        );
+        assert!(plan.planned_pass_ids.contains(&"dead-media-branch-removal"));
+    }
+
+    #[test]
     fn plans_target_lowering_from_static_target_query_profiles() {
         let options = TargetTransformOptionsV0 {
             allow_logical_to_physical: true,
@@ -495,6 +516,7 @@ mod tests {
             allow_layer_flatten: true,
             enable_supports_static_eval: true,
             enable_media_static_eval: true,
+            drop_dark_mode_media_queries: false,
         };
         let plan = plan_target_transforms_from_query("legacy-webview", options);
 
@@ -534,6 +556,7 @@ mod tests {
             allow_layer_flatten: true,
             enable_supports_static_eval: false,
             enable_media_static_eval: false,
+            drop_dark_mode_media_queries: false,
         };
         let plan = plan_target_transforms_from_query("ie 11", options);
 

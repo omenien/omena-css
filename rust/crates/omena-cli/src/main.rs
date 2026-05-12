@@ -64,6 +64,9 @@ enum Command {
         /// Enable static @media branch evaluation.
         #[arg(long)]
         enable_media_static_eval: bool,
+        /// Drop dark color-scheme media branches when workspace policy proves no dark-mode runtime.
+        #[arg(long)]
+        drop_dark_mode_media_queries: bool,
         /// JSON file containing a TransformExecutionContextV0 evaluator/provenance bridge.
         #[arg(long)]
         context_json: Option<PathBuf>,
@@ -128,6 +131,7 @@ fn run(cli: Cli) -> Result<(), String> {
             allow_layer_flatten,
             enable_supports_static_eval,
             enable_media_static_eval,
+            drop_dark_mode_media_queries,
             context_json,
             engine_input_json,
             closed_style_world,
@@ -150,6 +154,7 @@ fn run(cli: Cli) -> Result<(), String> {
                 allow_layer_flatten,
                 enable_supports_static_eval,
                 enable_media_static_eval,
+                drop_dark_mode_media_queries,
             },
             json,
         }),

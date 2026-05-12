@@ -35,6 +35,7 @@ pub fn summarize_omena_query_transform_plan_from_source_with_context(
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let bundle = summarize_omena_transform_bundle_from_source(style_path, style_source, dialect);
     let target = plan_target_transforms(target_label, target_support, target_options);
+    let execution_context = merge_target_options_transform_context(context, target_options);
     summarize_omena_query_transform_plan_from_parts(TransformPlanPartsV0 {
         style_path,
         style_source,
@@ -43,7 +44,7 @@ pub fn summarize_omena_query_transform_plan_from_source_with_context(
         target,
         target_query: None,
         print_options,
-        context,
+        context: &execution_context,
     })
 }
 
@@ -76,6 +77,7 @@ pub fn summarize_omena_query_transform_plan_from_target_query_with_context(
     let bundle = summarize_omena_transform_bundle_from_source(style_path, style_source, dialect);
     let target_query_plan = plan_target_transforms_from_query(target_query, target_options);
     let target = target_query_plan.transform_plan.clone();
+    let execution_context = merge_target_options_transform_context(context, target_options);
     summarize_omena_query_transform_plan_from_parts(TransformPlanPartsV0 {
         style_path,
         style_source,
@@ -84,7 +86,7 @@ pub fn summarize_omena_query_transform_plan_from_target_query_with_context(
         target,
         target_query: Some(target_query_plan),
         print_options,
-        context,
+        context: &execution_context,
     })
 }
 
@@ -627,6 +629,17 @@ fn merge_transform_context(
         merged.design_token_routes = context.design_token_routes.clone();
     }
 
+    merged
+}
+
+fn merge_target_options_transform_context(
+    context: &TransformExecutionContextV0,
+    target_options: OmenaQueryTargetTransformOptionsV0,
+) -> TransformExecutionContextV0 {
+    let mut merged = context.clone();
+    if target_options.drop_dark_mode_media_queries {
+        merged.drop_dark_mode_media_queries = true;
+    }
     merged
 }
 

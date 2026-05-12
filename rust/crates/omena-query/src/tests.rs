@@ -338,6 +338,7 @@ fn exposes_transform_plan_facade_from_source() {
         allow_layer_flatten: false,
         enable_supports_static_eval: false,
         enable_media_static_eval: false,
+        drop_dark_mode_media_queries: false,
     };
 
     let summary = summarize_omena_query_transform_plan_from_source(
@@ -414,6 +415,7 @@ fn exposes_transform_plan_egg_witnesses_from_source_execution() {
         allow_layer_flatten: false,
         enable_supports_static_eval: false,
         enable_media_static_eval: false,
+        drop_dark_mode_media_queries: false,
     };
 
     let summary = summarize_omena_query_transform_plan_from_source(
@@ -459,6 +461,7 @@ fn exposes_transform_plan_custom_property_fixed_point() {
             allow_layer_flatten: false,
             enable_supports_static_eval: false,
             enable_media_static_eval: false,
+            drop_dark_mode_media_queries: false,
         },
         default_omena_query_transform_print_options(),
     );
@@ -492,6 +495,7 @@ fn exposes_transform_plan_facade_from_browserslist_target_query() {
         allow_layer_flatten: true,
         enable_supports_static_eval: false,
         enable_media_static_eval: false,
+        drop_dark_mode_media_queries: false,
     };
 
     let summary = summarize_omena_query_transform_plan_from_target_query(
@@ -700,6 +704,7 @@ fn exposes_consumer_build_facade_from_target_query_options() {
             allow_layer_flatten: true,
             enable_supports_static_eval: true,
             enable_media_static_eval: true,
+            drop_dark_mode_media_queries: false,
         },
     );
 
@@ -725,6 +730,41 @@ fn exposes_consumer_build_facade_from_target_query_options() {
 }
 
 #[test]
+fn target_query_options_drop_dark_media_branches_through_execution_context() {
+    let summary = execute_omena_query_consumer_build_style_source_for_target_query_with_options(
+        "Theme.css",
+        r#"@media (prefers-color-scheme: dark) { .dark { color: white; } } @media (prefers-color-scheme: light) { .light { color: black; } }"#,
+        "modern",
+        OmenaQueryTargetTransformOptionsV0 {
+            allow_logical_to_physical: false,
+            allow_scope_flatten: false,
+            allow_layer_flatten: false,
+            enable_supports_static_eval: false,
+            enable_media_static_eval: false,
+            drop_dark_mode_media_queries: true,
+        },
+    );
+
+    assert!(
+        summary
+            .requested_pass_ids
+            .contains(&"dead-media-branch-removal".to_string())
+    );
+    assert!(
+        !summary
+            .execution
+            .output_css
+            .contains("prefers-color-scheme: dark")
+    );
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains("prefers-color-scheme: light")
+    );
+}
+
+#[test]
 fn consumer_build_accepts_explicit_scss_evaluator_context() {
     let context = OmenaQueryTransformExecutionContextV0 {
         scss_module_evaluation: Some(OmenaQueryTransformModuleEvaluationV0 {
@@ -745,6 +785,7 @@ fn consumer_build_accepts_explicit_scss_evaluator_context() {
                 allow_layer_flatten: false,
                 enable_supports_static_eval: false,
                 enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
             },
         );
 
@@ -893,6 +934,7 @@ fn target_query_build_derives_workspace_context_for_bundle_passes() {
                 allow_layer_flatten: false,
                 enable_supports_static_eval: false,
                 enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
             },
             &[],
         );
