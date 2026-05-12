@@ -396,7 +396,16 @@ Most consumers should start with \`omena-parser\` for source facts or
 \`omena-transform-passes\` for transform planning. Lower-level crates remain
 public so integrations can opt into smaller boundaries when needed.
 
-## Use the CLI from a Checkout
+## Install the CLI
+
+\`\`\`sh
+cargo install omena-cli
+omena check path/to/file.module.scss
+omena build path/to/file.css --pass whitespace-strip
+omena passes
+\`\`\`
+
+Use the checkout form when developing the workspace locally:
 
 \`\`\`sh
 cargo run -p omena-cli -- check path/to/file.module.scss
