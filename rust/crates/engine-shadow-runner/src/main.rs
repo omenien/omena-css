@@ -41,8 +41,9 @@ use omena_parser::{
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryStylePackageManifestV0, OmenaQueryTargetFeatureSupportV0,
-    OmenaQueryTargetTransformOptionsV0, ParserPositionV0,
-    default_omena_query_transform_print_options, execute_omena_query_transform_passes_from_source,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
+    default_omena_query_transform_print_options,
+    execute_omena_query_transform_passes_from_source_with_context,
     read_omena_query_cascade_at_position, summarize_omena_query_boundary,
     summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
@@ -157,6 +158,8 @@ struct TransformExecuteInputV0 {
     style_path: String,
     style_source: String,
     requested_pass_ids: Vec<String>,
+    #[serde(default)]
+    transform_context: OmenaQueryTransformExecutionContextV0,
 }
 
 fn default_transform_target_label() -> String {
@@ -1019,10 +1022,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("transform-execute") => {
             let input: TransformExecuteInputV0 = serde_json::from_str(&stdin)?;
-            let output = execute_omena_query_transform_passes_from_source(
+            let output = execute_omena_query_transform_passes_from_source_with_context(
                 &input.style_path,
                 &input.style_source,
                 &input.requested_pass_ids,
+                &input.transform_context,
             );
             serde_json::to_writer_pretty(io::stdout(), &output)?;
         }
@@ -1386,10 +1390,11 @@ fn run_daemon_selected_query_command(
         "transform-execute" => {
             let input: TransformExecuteInputV0 = serde_json::from_value(input)?;
             Ok(serde_json::to_value(
-                execute_omena_query_transform_passes_from_source(
+                execute_omena_query_transform_passes_from_source_with_context(
                     &input.style_path,
                     &input.style_source,
                     &input.requested_pass_ids,
+                    &input.transform_context,
                 ),
             )?)
         }

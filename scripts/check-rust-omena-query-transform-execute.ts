@@ -14,6 +14,18 @@ interface TransformExecuteSummaryV0 {
     readonly plannedOnlyPassIds: readonly string[];
     readonly mutationCount: number;
     readonly provenancePreserved: boolean;
+    readonly cssImportInlines: readonly {
+      readonly importSource: string;
+      readonly replacementCss: string;
+    }[];
+    readonly cssModuleComposesExports: readonly {
+      readonly localClassName: string;
+      readonly exportedClassNames: readonly string[];
+    }[];
+    readonly designTokenRoutes: readonly {
+      readonly tokenName: string;
+      readonly routedValue: string;
+    }[];
     readonly passPlan: {
       readonly product: string;
       readonly violatedDagEdgeCount: number;
@@ -167,12 +179,97 @@ assertIncludesAll(
   "transform execute ready surfaces",
 );
 
+const contextStyleSource =
+  '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }';
+
+const contextResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "Button.module.css",
+      styleSource: contextStyleSource,
+      requestedPassIds: [
+        "p26-import-inline",
+        "p30-composes-resolution",
+        "p29-css-modules-class-hashing",
+        "p39-design-token-routing",
+        "p40-print-css",
+      ],
+      transformContext: {
+        importInlines: [{ importSource: "./tokens.css", replacementCss: ":root { --brand: red; }" }],
+        cssModuleComposesResolutions: [
+          { localClassName: "button", exportedClassNames: ["button", "base"] },
+        ],
+        classNameRewrites: [
+          { originalName: "button", rewrittenName: "_button_x" },
+          { originalName: "base", rewrittenName: "_base_y" },
+        ],
+        designTokenRoutes: [{ tokenName: "--brand", routedValue: "var(--theme-brand)" }],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(contextResult.status, 0, contextResult.stderr);
+assert.equal(contextResult.error, undefined);
+
+const contextSummary = JSON.parse(contextResult.stdout) as TransformExecuteSummaryV0;
+
+assert.equal(contextSummary.schemaVersion, "0");
+assert.equal(contextSummary.product, "omena-query.transform-execute");
+assert.equal(contextSummary.stylePath, "Button.module.css");
+assert.deepEqual(contextSummary.unknownPassIds, []);
+assert.equal(
+  contextSummary.execution.outputCss,
+  ':root { --brand: red; } ._button_x{  color: var(--theme-brand); } ._base_y{ color: blue; }',
+);
+assert.deepEqual(contextSummary.execution.executedPassIds, [
+  "p26-import-inline",
+  "p30-composes-resolution",
+  "p29-css-modules-class-hashing",
+  "p39-design-token-routing",
+  "p40-print-css",
+]);
+assert.deepEqual(contextSummary.execution.plannedOnlyPassIds, []);
+assert.equal(contextSummary.execution.mutationCount, 5);
+assert.deepEqual(contextSummary.execution.cssImportInlines, [
+  { importSource: "./tokens.css", replacementCss: ":root { --brand: red; }" },
+]);
+assert.deepEqual(contextSummary.execution.cssModuleComposesExports, [
+  { localClassName: "button", exportedClassNames: ["button", "base"] },
+]);
+assert.deepEqual(contextSummary.execution.designTokenRoutes, [
+  { tokenName: "--brand", routedValue: "var(--theme-brand)" },
+]);
+assert.equal(contextSummary.execution.passPlan.violatedDagEdgeCount, 0);
+assert.equal(contextSummary.execution.passPlan.allRequestedRegistered, true);
+assertIncludesAll(
+  contextSummary.readySurfaces,
+  ["transformExecutionRuntime", "transformPassOutcomeContract"],
+  "transform context execute ready surfaces",
+);
+
 process.stdout.write(
   [
     "validated omena-query transform-execute runtime:",
     `executed=${summary.execution.executedPassIds.length}`,
     `mutations=${summary.execution.mutationCount}`,
     `unknown=${summary.unknownPassIds.length}`,
+    `contextExecuted=${contextSummary.execution.executedPassIds.length}`,
+    `contextMutations=${contextSummary.execution.mutationCount}`,
   ].join(" "),
 );
 process.stdout.write("\n");

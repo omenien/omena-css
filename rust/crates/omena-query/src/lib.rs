@@ -50,9 +50,18 @@ use omena_transform_bundle::{
 };
 use omena_transform_cst::{TransformPassKind, all_transform_pass_kinds};
 use omena_transform_egg::{TransformEggPlanV0, plan_egg_rewrite_passes};
+pub use omena_transform_passes::{
+    TransformClassNameRewriteV0 as OmenaQueryTransformClassNameRewriteV0,
+    TransformCssModuleComposesResolutionV0 as OmenaQueryTransformCssModuleComposesResolutionV0,
+    TransformDesignTokenRouteV0 as OmenaQueryTransformDesignTokenRouteV0,
+    TransformExecutionContextV0 as OmenaQueryTransformExecutionContextV0,
+    TransformImportInlineV0 as OmenaQueryTransformImportInlineV0,
+    TransformModuleEvaluationV0 as OmenaQueryTransformModuleEvaluationV0,
+};
 use omena_transform_passes::{
-    TransformExecutionSummaryV0, TransformPassPlanV0,
-    execute_transform_passes_on_source_with_dialect, plan_transform_passes,
+    TransformExecutionContextV0, TransformExecutionSummaryV0, TransformPassPlanV0,
+    execute_transform_passes_on_source_with_dialect,
+    execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
 };
 use omena_transform_print::print_transform_cst_source;
 pub use omena_transform_print::{

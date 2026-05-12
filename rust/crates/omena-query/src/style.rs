@@ -134,6 +134,20 @@ pub fn execute_omena_query_transform_passes_from_source(
     style_source: &str,
     requested_pass_ids: &[String],
 ) -> OmenaQueryTransformExecuteSummaryV0 {
+    execute_omena_query_transform_passes_from_source_with_context(
+        style_path,
+        style_source,
+        requested_pass_ids,
+        &TransformExecutionContextV0::default(),
+    )
+}
+
+pub fn execute_omena_query_transform_passes_from_source_with_context(
+    style_path: &str,
+    style_source: &str,
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+) -> OmenaQueryTransformExecuteSummaryV0 {
     let mut requested_passes = Vec::new();
     let mut unknown_pass_ids = Vec::new();
 
@@ -145,8 +159,12 @@ pub fn execute_omena_query_transform_passes_from_source(
     }
 
     let dialect = omena_parser_dialect_for_style_path(style_path);
-    let execution =
-        execute_transform_passes_on_source_with_dialect(style_source, dialect, &requested_passes);
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        style_source,
+        dialect,
+        &requested_passes,
+        context,
+    );
 
     OmenaQueryTransformExecuteSummaryV0 {
         schema_version: "0",

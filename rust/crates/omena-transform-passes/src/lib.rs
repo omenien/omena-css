@@ -17,7 +17,7 @@ use omena_transform_cst::{
     TransformPassKind, all_transform_pass_kinds, default_transform_dag_edges,
     default_transform_pass_contracts,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -105,8 +105,8 @@ pub struct TransformExecutionSummaryV0 {
     pub pass_plan: TransformPassPlanV0,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct TransformExecutionContextV0 {
     pub closed_style_world: bool,
     pub reachable_class_names: Vec<String>,
@@ -121,35 +121,35 @@ pub struct TransformExecutionContextV0 {
     pub design_token_routes: Vec<TransformDesignTokenRouteV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformModuleEvaluationV0 {
     pub evaluator: String,
     pub evaluated_css: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformImportInlineV0 {
     pub import_source: String,
     pub replacement_css: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformClassNameRewriteV0 {
     pub original_name: String,
     pub rewritten_name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformCssModuleComposesResolutionV0 {
     pub local_class_name: String,
     pub exported_class_names: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformDesignTokenRouteV0 {
     pub token_name: String,
