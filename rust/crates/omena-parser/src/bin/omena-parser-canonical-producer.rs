@@ -1,7 +1,6 @@
 use std::io::{self, Read};
 
-#[path = "omena-parser-css-modules-intermediate.rs"]
-mod css_modules_intermediate;
+mod parser_public_product_support;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_path = std::env::args()
@@ -9,9 +8,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("usage: omena-parser-canonical-producer <style-file-path>")?;
     let mut source = String::new();
     io::stdin().read_to_string(&mut source)?;
-    let summary = css_modules_intermediate::summarize_parser_canonical_producer_signal(
+    let summary = parser_public_product_support::summarize_parser_canonical_producer_signal(
         &source,
-        css_modules_intermediate::dialect_for_path(&file_path),
+        parser_public_product_support::dialect_for_path(&file_path),
     );
     serde_json::to_writer_pretty(io::stdout(), &summary)?;
     Ok(())
