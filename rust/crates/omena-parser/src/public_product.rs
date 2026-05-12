@@ -1,10 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleValueFactKind,
-    ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedSelectorFactKind,
-    ParsedStyleFacts, ParsedVariableFactKind, ParserByteSpanV0, ParserPositionV0, ParserRangeV0,
-    StyleDialect, collect_style_facts, summarize_omena_parser_parity_lite,
+    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
+    ParsedCssModuleValueFactKind, ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind,
+    ParsedSelectorFactKind, ParsedStyleFacts, ParsedVariableFactKind, ParserByteSpanV0,
+    ParserPositionV0, ParserRangeV0, StyleDialect, collect_style_facts,
+    summarize_omena_parser_parity_lite,
 };
 use cstree::text::TextRange;
 use serde::Serialize;
@@ -417,6 +418,15 @@ struct ParserIndexComposesEdgeFactV0 {
     owner_selector_names: Vec<String>,
     target_names: Vec<String>,
     import_source: Option<String>,
+    class_tokens: Vec<ParserIndexComposesClassTokenV0>,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexComposesClassTokenV0 {
+    class_name: String,
     byte_span: ParserByteSpanV0,
     range: ParserRangeV0,
 }
@@ -1638,6 +1648,7 @@ fn summarize_composes(
             owner_selector_names: edge.owner_selector_names.clone(),
             target_names: edge.target_names.clone(),
             import_source: edge.import_source.clone(),
+            class_tokens: composes_class_tokens_for_edge(source, facts, edge),
             byte_span,
             range: parser_range_for_byte_span(source, byte_span),
         });
@@ -1712,6 +1723,42 @@ fn summarize_composes(
     summary.edges.sort();
     summary.edges.dedup();
     summary
+}
+
+fn composes_class_tokens_for_edge(
+    source: &str,
+    facts: &ParsedStyleFacts,
+    edge: &crate::ParsedCssModuleComposesEdgeFact,
+) -> Vec<ParserIndexComposesClassTokenV0> {
+    let target_names = edge
+        .target_names
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let edge_start = range_start(edge.range);
+    let edge_end = u32::from(edge.range.end()) as usize;
+    let mut class_tokens = facts
+        .css_module_composes
+        .iter()
+        .filter(|fact| fact.kind == ParsedCssModuleComposesFactKind::Target)
+        .filter(|fact| target_names.contains(fact.name.as_str()))
+        .filter(|fact| {
+            let token_start = range_start(fact.range);
+            let token_end = u32::from(fact.range.end()) as usize;
+            token_start >= edge_start && token_end <= edge_end
+        })
+        .map(|fact| {
+            let byte_span = byte_span_for_range(fact.range);
+            ParserIndexComposesClassTokenV0 {
+                class_name: fact.name.clone(),
+                byte_span,
+                range: parser_range_for_byte_span(source, byte_span),
+            }
+        })
+        .collect::<Vec<_>>();
+    class_tokens.sort();
+    class_tokens.dedup();
+    class_tokens
 }
 
 fn summarize_wrappers(blocks: &[StyleBlock]) -> ParserIndexWrapperFactsV0 {

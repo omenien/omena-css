@@ -166,6 +166,27 @@ describe("selected query backend", () => {
     expect(invocation.cwd).toBe("/workspace/css-module-explainer");
   });
 
+  it("ignores stale local dist runners by default in source checkouts", () => {
+    const projectRoot = path.join("/workspace", "css-module-explainer");
+    const packagedRunner = path.join(
+      projectRoot,
+      "dist/bin",
+      `${process.platform}-${process.arch}`,
+      process.platform === "win32" ? "engine-shadow-runner.exe" : "engine-shadow-runner",
+    );
+    const invocation = buildEngineShadowRunnerInvocation(
+      "omena-parser-css-modules-intermediate",
+      {
+        CME_PROJECT_ROOT: projectRoot,
+      } as NodeJS.ProcessEnv,
+      (filePath) => filePath === packagedRunner || filePath.endsWith("rust/Cargo.toml"),
+    );
+
+    expect(invocation.command).toBe("cargo");
+    expect(invocation.args.at(-1)).toBe("omena-parser-css-modules-intermediate");
+    expect(invocation.cwd).toBe(projectRoot);
+  });
+
   it("uses the daemon flag in cargo-run daemon mode", () => {
     const invocation = buildEngineShadowRunnerDaemonInvocation({
       CME_ENGINE_SHADOW_RUNNER: "",

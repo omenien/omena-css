@@ -98,7 +98,9 @@ export function computeScssUnusedDiagnostics(
       },
       queryOptions,
     ).then((findings) =>
-      findings.map((finding) => toDiagnostic(finding, styleDocument, styleDocumentForPath)),
+      findings.map((finding) =>
+        toDiagnostic(finding, styleDocument, styleDocumentForPath, runtimeDeps?.readStyleFile),
+      ),
     );
   }
   return resolveStyleDiagnosticFindings(
@@ -124,13 +126,16 @@ export function computeScssUnusedDiagnostics(
         : {}),
     },
     queryOptions,
-  ).map((finding) => toDiagnostic(finding, styleDocument, styleDocumentForPath));
+  ).map((finding) =>
+    toDiagnostic(finding, styleDocument, styleDocumentForPath, runtimeDeps?.readStyleFile),
+  );
 }
 
 function toDiagnostic(
   finding: StyleCheckerFinding,
   styleDocument: StyleDocumentHIR,
   styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null,
+  readStyleFile?: (filePath: string) => string | null,
 ): Diagnostic {
   switch (finding.code) {
     case "unused-selector":
@@ -161,6 +166,7 @@ function toDiagnostic(
               finding.className,
               finding.targetFilePath,
               targetDocument,
+              readStyleFile?.(finding.targetFilePath) ?? undefined,
             ),
           }
         : {};
@@ -192,6 +198,7 @@ function toDiagnostic(
               finding.importedName,
               finding.targetFilePath,
               targetDocument,
+              readStyleFile?.(finding.targetFilePath) ?? undefined,
             ),
           }
         : {};

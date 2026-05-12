@@ -42,6 +42,31 @@ describe("code-action recovery data", () => {
     });
   });
 
+  it("normalizes legacy selector append ranges to after the closing brace when source text is available", () => {
+    const styleDocument = makeStyleDocumentFixture(scssPath, [
+      makeTestSelector("base", 0, {
+        ruleRange: {
+          start: { line: 0, character: 0 },
+          end: { line: 2, character: 0 },
+        },
+      }),
+    ]);
+
+    expect(
+      buildCreateSelectorActionData(
+        "missing",
+        scssPath,
+        styleDocument,
+        ".base {\n  color: red;\n}",
+      ),
+    ).toMatchObject({
+      range: {
+        start: { line: 2, character: 1 },
+        end: { line: 2, character: 1 },
+      },
+    });
+  });
+
   it("builds value creation edits after existing value declarations", () => {
     const styleDocument = makeStyleDocumentFixture(
       scssPath,
@@ -59,6 +84,25 @@ describe("code-action recovery data", () => {
       },
       newText: "\n@value accent: ;",
       valueName: "accent",
+    });
+  });
+
+  it("normalizes legacy value append ranges to after the semicolon when source text is available", () => {
+    const styleDocument = makeStyleDocumentFixture(
+      scssPath,
+      [],
+      [],
+      [],
+      [valueDecl("primary", 0, 7, 19)],
+    );
+
+    expect(
+      buildCreateValueActionData("accent", scssPath, styleDocument, "@value primary: red;"),
+    ).toMatchObject({
+      range: {
+        start: { line: 0, character: 20 },
+        end: { line: 0, character: 20 },
+      },
     });
   });
 

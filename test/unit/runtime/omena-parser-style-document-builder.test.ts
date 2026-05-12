@@ -91,6 +91,8 @@ describe("buildStyleDocumentWithOmenaParser", () => {
                 ownerSelectorNames: ["card"],
                 targetNames: ["base"],
                 importSource: "./base.module.css",
+                range: range(8, 48),
+                classTokens: [{ className: "base", range: range(18, 22) }],
               },
             ],
           },
@@ -103,7 +105,14 @@ describe("buildStyleDocumentWithOmenaParser", () => {
       canonicalName: "card",
       fullSelector: ".card",
       declarations: "&__icon { color: red; }",
-      composes: [{ classNames: ["base"], from: "./base.module.css" }],
+      composes: [
+        {
+          classNames: ["base"],
+          from: "./base.module.css",
+          range: range(8, 48),
+          classTokens: [{ className: "base", range: range(18, 22) }],
+        },
+      ],
     });
     expect(document.selectors[1]).toMatchObject({
       canonicalName: "card__icon",

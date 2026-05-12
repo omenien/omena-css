@@ -38,8 +38,9 @@ export function buildCreateSelectorActionData(
   className: string,
   scssModulePath: string,
   styleDocument: StyleDocumentHIR,
+  styleContent?: string,
 ): CreateSelectorActionData {
-  const insertionRange = findSelectorInsertionRange(styleDocument);
+  const insertionRange = findSelectorInsertionRange(styleDocument, styleContent);
   return {
     uri: pathToFileUrl(scssModulePath),
     range: insertionRange,
@@ -53,8 +54,9 @@ export function buildCreateValueActionData(
   valueName: string,
   scssModulePath: string,
   styleDocument: StyleDocumentHIR,
+  styleContent?: string,
 ): CreateValueActionData {
-  const insertionRange = findValueInsertionRange(styleDocument);
+  const insertionRange = findValueInsertionRange(styleDocument, styleContent);
   return {
     uri: pathToFileUrl(scssModulePath),
     range: insertionRange,
@@ -150,7 +152,7 @@ export function buildCreateSassSymbolActionData(
   };
 }
 
-function findSelectorInsertionRange(styleDocument: StyleDocumentHIR): Range {
+function findSelectorInsertionRange(styleDocument: StyleDocumentHIR, styleContent?: string): Range {
   if (styleDocument.selectors.length === 0) {
     return {
       start: { line: 0, character: 0 },
@@ -166,13 +168,14 @@ function findSelectorInsertionRange(styleDocument: StyleDocumentHIR): Range {
     }
   }
 
+  const position = normalizeAppendPosition(styleContent, latest);
   return {
-    start: { line: latest.line, character: latest.character },
-    end: { line: latest.line, character: latest.character },
+    start: position,
+    end: position,
   };
 }
 
-function findValueInsertionRange(styleDocument: StyleDocumentHIR): Range {
+function findValueInsertionRange(styleDocument: StyleDocumentHIR, styleContent?: string): Range {
   const valueFacts = [...styleDocument.valueDecls, ...styleDocument.valueImports];
   if (valueFacts.length === 0) {
     return {
@@ -189,9 +192,25 @@ function findValueInsertionRange(styleDocument: StyleDocumentHIR): Range {
     }
   }
 
+  const position = normalizeAppendPosition(styleContent, latest);
   return {
-    start: { line: latest.line, character: latest.character },
-    end: { line: latest.line, character: latest.character },
+    start: position,
+    end: position,
+  };
+}
+
+function normalizeAppendPosition(
+  styleContent: string | undefined,
+  position: Range["start"],
+): Range["start"] {
+  if (!styleContent) return position;
+  const line = styleContent.split(/\r\n|\n|\r/u)[position.line];
+  if (!line) return position;
+  const next = line[position.character];
+  if (next !== "}" && next !== ";") return position;
+  return {
+    line: position.line,
+    character: position.character + 1,
   };
 }
 

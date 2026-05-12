@@ -158,6 +158,11 @@ interface ParserComposesEdgeFactV0 {
   readonly ownerSelectorNames: readonly string[];
   readonly targetNames: readonly string[];
   readonly importSource?: string | null;
+  readonly classTokens?: readonly {
+    readonly className: string;
+    readonly range: ParserRangeV0;
+  }[];
+  readonly range?: ParserRangeV0;
 }
 
 interface ParserCssModulesIntermediateV0 {
@@ -375,6 +380,15 @@ function collectComposesByOwner(
         ...refs,
         {
           classNames: [...edge.targetNames],
+          ...(edge.range ? { range: toRange(edge.range) } : {}),
+          ...(edge.classTokens && edge.classTokens.length > 0
+            ? {
+                classTokens: edge.classTokens.map((token) => ({
+                  className: token.className,
+                  range: toRange(token.range),
+                })),
+              }
+            : {}),
           ...(edge.kind === "external" && edge.importSource ? { from: edge.importSource } : {}),
           ...(edge.kind === "global" ? { fromGlobal: true } : {}),
         },

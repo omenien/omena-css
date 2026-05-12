@@ -295,8 +295,8 @@ export const Button = () => <div className={styles.root}>hi</div>;
     expect(action.edit?.changes?.["file:///fake/workspace/src/Base.module.scss"]).toEqual([
       {
         range: {
-          start: { line: 3, character: 0 },
-          end: { line: 3, character: 0 },
+          start: { line: 3, character: 1 },
+          end: { line: 3, character: 1 },
         },
         newText: "\n\n.base {\n}\n",
       },
@@ -360,8 +360,8 @@ export const Button = () => <div className={styles.root}>hi</div>;
     expect(action.edit?.changes?.["file:///fake/workspace/src/tokens.module.scss"]).toEqual([
       {
         range: {
-          start: { line: 0, character: 23 },
-          end: { line: 0, character: 23 },
+          start: { line: 0, character: 24 },
+          end: { line: 0, character: 24 },
         },
         newText: "\n@value secondary: ;",
       },

@@ -176,11 +176,20 @@ export function isPackagedExtensionRuntime(
 ): boolean {
   const projectRoot = resolveProjectRoot(env, fileExists);
   const hasBundledEntrypoints = fileExists(path.join(projectRoot, "dist/client/extension.js"));
-  const hasSourceCheckoutMarkers =
-    fileExists(path.join(projectRoot, "server/engine-host-node/src/selected-query-backend.ts")) ||
-    fileExists(path.join(projectRoot, "rust/Cargo.toml"));
+  const hasSourceCheckoutMarkers = isSourceCheckoutRuntime(env, fileExists);
 
   return hasBundledEntrypoints && !hasSourceCheckoutMarkers;
+}
+
+function isSourceCheckoutRuntime(
+  env: NodeJS.ProcessEnv = process.env,
+  fileExists: (filePath: string) => boolean = existsSync,
+): boolean {
+  const projectRoot = resolveProjectRoot(env, fileExists);
+  return (
+    fileExists(path.join(projectRoot, "server/engine-host-node/src/selected-query-backend.ts")) ||
+    fileExists(path.join(projectRoot, "rust/Cargo.toml"))
+  );
 }
 
 function resolveEngineShadowRunnerBinaryPathForEnv(
@@ -234,7 +243,9 @@ function buildEngineShadowRunnerInvocationForArgs(
   const hasRunnerMode = env.CME_ENGINE_SHADOW_RUNNER !== undefined;
   if (
     runnerMode === "prebuilt" ||
-    (!hasRunnerMode && canUsePrebuiltEngineShadowRunner(env, fileExists))
+    (!hasRunnerMode &&
+      canUsePrebuiltEngineShadowRunner(env, fileExists) &&
+      !isSourceCheckoutRuntime(env, fileExists))
   ) {
     const runnerPath = resolveEngineShadowRunnerBinaryPathForEnv(env, fileExists);
     if (!fileExists(runnerPath)) {
