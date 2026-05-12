@@ -399,16 +399,31 @@ jobs:
           publish_with_retry() {
             local crate="$1"
             local manifest="crates/$crate/Cargo.toml"
+            local publish_log
 
             if crate_exists "$crate"; then
               echo "$crate already exists on crates.io; skipping"
               return
             fi
 
-            for attempt in 1 2 3 4 5; do
-              if cargo publish --manifest-path "$manifest"; then
+            for attempt in 1 2 3 4 5 6; do
+              publish_log="$(mktemp)"
+              if cargo publish --manifest-path "$manifest" 2>&1 | tee "$publish_log"; then
+                rm -f "$publish_log"
                 return
               fi
+              if crate_exists "$crate"; then
+                echo "$crate became available after a publish retry; continuing"
+                rm -f "$publish_log"
+                return
+              fi
+              if grep -q "Too Many Requests" "$publish_log"; then
+                echo "publish rate-limited for $crate on attempt $attempt; waiting for crates.io new-crate window"
+                rm -f "$publish_log"
+                sleep 630
+                continue
+              fi
+              rm -f "$publish_log"
               echo "publish failed for $crate on attempt $attempt; waiting for registry propagation"
               sleep $((attempt * 30))
             done
