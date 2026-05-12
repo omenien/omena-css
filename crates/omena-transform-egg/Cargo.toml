@@ -14,6 +14,7 @@ categories = ["development-tools", "parser-implementations"]
 workspace = true
 
 [dependencies]
+egg.workspace = true
 omena-transform-cst = { path = "../omena-transform-cst", version = "0.1" }
 omena-transform-passes = { path = "../omena-transform-passes", version = "0.1" }
 serde.workspace = true
