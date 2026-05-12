@@ -16,6 +16,7 @@ interface ParserIndexSummaryV0 {
   readonly language: "css" | "scss" | "less";
   readonly selectors: {
     readonly names: readonly string[];
+    readonly definitionFacts: readonly ParserSelectorDefinitionFactV0[];
     readonly bemSuffixParentNames: readonly string[];
     readonly bemSuffixSafeNames: readonly string[];
     readonly nestedUnsafeNames: readonly string[];
@@ -49,6 +50,26 @@ interface ParserIndexSummaryV0 {
     readonly importedClassNameCount: number;
   };
 }
+
+interface ParserSelectorDefinitionFactV0 {
+  readonly name: string;
+  readonly sourceOrder: number;
+  readonly byteSpan?: {
+    readonly start: number;
+    readonly end: number;
+  };
+  readonly range: Range;
+  readonly nestedSafetyKind: "flat" | "bemSuffixSafe" | "nestedUnsafe";
+  readonly bemSuffixParentName?: string;
+  readonly underMedia: boolean;
+  readonly underSupports: boolean;
+  readonly underLayer: boolean;
+}
+
+type ParserSelectorDefinitionSemanticFactV0 = Omit<
+  ParserSelectorDefinitionFactV0,
+  "byteSpan" | "range"
+>;
 
 interface ParserEvaluatorCandidateV0 {
   readonly selectorName: string;
@@ -85,6 +106,7 @@ interface ParserConsumerBoundarySummaryV0 {
   readonly language: "css" | "scss" | "less";
   readonly selectorUsage: {
     readonly names: readonly string[];
+    readonly definitionFacts: readonly ParserSelectorDefinitionSemanticFactV0[];
     readonly bemSuffixParentNames: readonly string[];
     readonly bemSuffixSafeNames: readonly string[];
     readonly nestedUnsafeNames: readonly string[];
@@ -349,6 +371,9 @@ function deriveSummaryFromProducer(
     language: producer.language,
     selectorUsage: {
       names: [...intermediate.selectors.names],
+      definitionFacts: sortSelectorDefinitionFacts(
+        intermediate.selectors.definitionFacts.map(toSelectorDefinitionSemanticFact),
+      ),
       bemSuffixParentNames: [...intermediate.selectors.bemSuffixParentNames],
       bemSuffixSafeNames: [...intermediate.selectors.bemSuffixSafeNames],
       nestedUnsafeNames: [...intermediate.selectors.nestedUnsafeNames],
@@ -432,6 +457,22 @@ function deriveTsSummary(filePath: string, source: string): ParserConsumerBounda
     language: findLangForPath(filePath),
     selectorUsage: {
       names: document.selectors.map((selector) => selector.name).toSorted(),
+      definitionFacts: sortSelectorDefinitionFacts(
+        document.selectors.map((selector, sourceOrder) => ({
+          name: selector.name,
+          sourceOrder,
+          nestedSafetyKind: selector.nestedSafety,
+          ...(selector.bemSuffix?.parentResolvedName
+            ? { bemSuffixParentName: selector.bemSuffix.parentResolvedName }
+            : {}),
+          underMedia:
+            selector.context?.wrapperAtRules.some((atRule) => atRule.name === "media") ?? false,
+          underSupports:
+            selector.context?.wrapperAtRules.some((atRule) => atRule.name === "supports") ?? false,
+          underLayer:
+            selector.context?.wrapperAtRules.some((atRule) => atRule.name === "layer") ?? false,
+        })),
+      ),
       bemSuffixParentNames: document.selectors
         .map((selector) => selector.bemSuffix?.parentResolvedName)
         .filter((value): value is string => value !== undefined)
@@ -571,6 +612,38 @@ function deriveTsSummary(filePath: string, source: string): ParserConsumerBounda
   };
 }
 
+function toSelectorDefinitionSemanticFact(
+  fact: ParserSelectorDefinitionFactV0,
+): ParserSelectorDefinitionSemanticFactV0 {
+  const { byteSpan: _byteSpan, range: _range, ...rest } = fact;
+  return rest;
+}
+
+function sortSelectorDefinitionFacts(
+  facts: readonly ParserSelectorDefinitionSemanticFactV0[],
+): ParserSelectorDefinitionSemanticFactV0[] {
+  return [...facts].toSorted((left, right) => {
+    const name = left.name.localeCompare(right.name);
+    if (name !== 0) return name;
+    return left.sourceOrder - right.sourceOrder;
+  });
+}
+
+function assertSelectorDefinitionRangeInvariants(
+  label: string,
+  source: string,
+  facts: readonly ParserSelectorDefinitionFactV0[],
+): void {
+  for (const fact of facts) {
+    const token = sliceRange(source, fact.range);
+    assert.ok(token.length > 0, `${label}: selector ${fact.name} must have a non-empty range`);
+    assert.ok(
+      token === fact.name || (/^[-_]/.test(token) && fact.name.endsWith(token)),
+      `${label}: selector ${fact.name} range must point at its source token; got ${JSON.stringify(token)}`,
+    );
+  }
+}
+
 async function runRustJson<T>(bin: string, filePath: string, source: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const child = spawn(
@@ -626,6 +699,11 @@ void (async () => {
     );
     const actual = deriveSummaryFromProducer(producer);
     const expected = deriveTsSummary(entry.filePath, entry.source);
+    assertSelectorDefinitionRangeInvariants(
+      entry.label,
+      entry.source,
+      producer.canonicalCandidate.cssModulesIntermediate.selectors.definitionFacts,
+    );
 
     assert.deepEqual(
       actual,
