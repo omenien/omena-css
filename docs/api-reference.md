@@ -47,3 +47,11 @@ Primary consumers:
 - `omena check <file>` reports parser-owned facts and parse-error counts.
 - `omena build <file>` runs the conservative transform pipeline.
 - `omena passes` lists accepted transform pass ids.
+
+## Wasm
+
+`omena-wasm` exposes the first browser-side in-memory consumer surface:
+
+- `checkStyleSource(source, path)` reports parser-owned facts.
+- `buildStyleSource(source, path, passIds)` runs conservative transform passes.
+- `listTransformPasses()` lists accepted transform pass ids.

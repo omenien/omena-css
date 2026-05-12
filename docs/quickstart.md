@@ -39,6 +39,23 @@ cargo run -p omena-cli -- build path/to/file.css --pass whitespace-strip
 cargo run -p omena-cli -- passes
 ```
 
+## Use the Browser Binding
+
+`omena-wasm` is an in-memory binding for browser and playground consumers.
+It does not read from the filesystem; pass source text and a path-like label so
+the dialect can be inferred. Generate a web package with `wasm-pack build
+crates/omena-wasm --target web`, then import the generated module:
+
+```js
+import init, { checkStyleSource, buildStyleSource } from "./pkg/omena_wasm.js";
+
+await init();
+const facts = checkStyleSource(".card { color: red; }", "demo.module.css");
+const built = buildStyleSource(".card { color: #ffffff; }", "demo.css", [
+  "color-compression",
+]);
+```
+
 ## Publish Readiness
 
 Run the manual GitHub Actions publish workflow in `dry-run` mode first. For a

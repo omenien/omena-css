@@ -16,7 +16,7 @@ sharing one release train.
 - Transform substrate: `omena-transform-cst`, `omena-transform-passes`,
   `omena-transform-bundle`, `omena-transform-target`,
   `omena-transform-print`, `omena-transform-egg`
-- Consumer surface: `omena-cli`
+- Consumer surfaces: `omena-cli`, `omena-wasm`
 
 ## Current Product Surface
 
@@ -28,6 +28,7 @@ The first public surface focuses on parser and transform foundations:
   proof helpers.
 - Conservative transform planning and execution surfaces with explicit
   provenance.
+- Browser-side in-memory parser and transform bindings through `omena-wasm`.
 
 ## Design Rules
 
