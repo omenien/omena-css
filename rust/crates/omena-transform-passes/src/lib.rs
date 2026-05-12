@@ -516,8 +516,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 }
             }
             Some(TransformPassKind::RuleDeduplication) => {
-                let (next_css, mutation_count) =
-                    dedupe_adjacent_exact_css_rules(&output_css, dialect);
+                let (next_css, mutation_count) = dedupe_exact_css_rules(&output_css, dialect);
                 let status = if mutation_count == 0 {
                     TransformPassRuntimeStatus::NoChange
                 } else {
@@ -531,7 +530,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "removed adjacent exact duplicate ordinary rules only",
+                    detail: "removed cascade-safe duplicate ordinary rules while preserving the final occurrence",
                 }
             }
             Some(TransformPassKind::RuleMerging) => {
@@ -1940,8 +1939,8 @@ fn combine_css_box_shorthands(source: &str, dialect: StyleDialect) -> (String, u
     combine_css_box_shorthands_with_lexer(source, dialect)
 }
 
-fn dedupe_adjacent_exact_css_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
-    dedupe_adjacent_exact_css_rules_with_lexer(source, dialect)
+fn dedupe_exact_css_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
+    dedupe_exact_css_rules_with_lexer(source, dialect)
 }
 
 fn merge_adjacent_same_selector_css_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -5032,44 +5031,32 @@ struct SimpleRuleSlice {
     block_end: usize,
 }
 
-fn dedupe_adjacent_exact_css_rules_with_lexer(
-    source: &str,
-    dialect: StyleDialect,
-) -> (String, usize) {
+fn dedupe_exact_css_rules_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let rules = collect_top_level_ordinary_rule_slices(source, tokens);
-    let mut ranges = Vec::new();
-
-    for pair in rules.windows(2) {
-        let [previous, current] = pair else {
-            continue;
-        };
-        if previous.selector == current.selector
-            && previous.block == current.block
-            && rule_gap_is_whitespace_only(tokens, previous.end, current.start)
-        {
-            ranges.push((current.start, current.end));
-        }
-    }
+    let ranges = collect_duplicate_ordinary_rule_ranges(&rules);
 
     if ranges.is_empty() {
         return (source.to_string(), 0);
     }
 
-    let mut output = String::with_capacity(source.len());
-    let mut cursor = 0;
-    for (start, end) in &ranges {
-        if *start > cursor {
-            output.push_str(&source[cursor..*start]);
+    remove_source_ranges(source, &ranges)
+}
+
+fn collect_duplicate_ordinary_rule_ranges(rules: &[SimpleRuleSlice]) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+
+    for (index, rule) in rules.iter().enumerate() {
+        let has_later_duplicate = rules[index + 1..]
+            .iter()
+            .any(|candidate| rule.selector == candidate.selector && rule.block == candidate.block);
+        if has_later_duplicate {
+            ranges.push((rule.start, rule.end));
         }
-        cursor = *end;
-    }
-    if cursor < source.len() {
-        output.push_str(&source[cursor..]);
     }
 
-    (output, ranges.len())
+    ranges
 }
 
 fn collect_top_level_ordinary_rule_slices(
@@ -7082,9 +7069,9 @@ mod tests {
     }
 
     #[test]
-    fn execution_runtime_removes_adjacent_exact_duplicate_rules_only() {
+    fn execution_runtime_removes_cascade_safe_duplicate_rules() {
         let source =
-            r#".a { color: red; } .a { color: red; } .b { color: red; } .a { color: red; }"#;
+            r#".a { color: red; } .b { color: red; } .a { color: blue; } .a { color: red; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7096,7 +7083,7 @@ mod tests {
         assert_eq!(execution.mutation_count, 1);
         assert_eq!(
             execution.output_css,
-            r#".a { color: red; }  .b { color: red; } .a { color: red; }"#
+            r#" .b { color: red; } .a { color: blue; } .a { color: red; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
