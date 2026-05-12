@@ -339,9 +339,9 @@ async function runRustSummary(
         "--manifest-path",
         "rust/Cargo.toml",
         "-p",
-        "engine-style-parser",
+        "omena-parser",
         "--bin",
-        "engine-style-parser-summary",
+        "omena-parser-summary",
         "--",
         filePath,
       ],
@@ -362,7 +362,7 @@ async function runRustSummary(
     child.on("error", reject);
     child.on("close", (code) => {
       if (code !== 0) {
-        reject(new Error(`engine-style-parser-summary exited with ${code}\n${stderr}`));
+        reject(new Error(`omena-parser-summary exited with ${code}\n${stderr}`));
         return;
       }
       resolve(JSON.parse(stdout) as ParserParityLiteSummaryV0);

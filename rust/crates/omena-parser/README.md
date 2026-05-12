@@ -12,6 +12,9 @@ Current scope:
   and typed-wrapper evidence.
 - `LexResult` exposes token kind, original range, and token text for
   differential token checks.
+- `omena-parser-summary` exposes the parser-owned parity-lite summary used by
+  the public parser lane for selectors, CSS Modules values, keyframes, and
+  structural CSS-family counts.
 - Recursive-descent parser core coverage is explicit: stylesheet/rule/
   declaration entry points, Selectors L4 CST slices, registered at-rule
   preludes, CSS nesting, SCSS/Sass/Less dialect statements, Bogus recovery, and

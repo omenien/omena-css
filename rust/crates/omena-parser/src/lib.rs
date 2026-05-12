@@ -712,6 +712,44 @@ pub struct OmenaParserLexTokenV0 {
     pub end: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserParityLiteSummaryV0 {
+    pub schema_version: &'static str,
+    pub language: &'static str,
+    pub selector_names: Vec<String>,
+    pub keyframes_names: Vec<String>,
+    pub value_decl_names: Vec<String>,
+    pub diagnostic_count: usize,
+    pub rule_count: usize,
+    pub declaration_count: usize,
+    pub grouped_selector_count: usize,
+    pub max_nesting_depth: usize,
+    pub at_rule_kind_counts: OmenaParserAtRuleKindCountsV0,
+    pub declaration_kind_counts: OmenaParserDeclarationKindCountsV0,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserAtRuleKindCountsV0 {
+    pub media: usize,
+    pub supports: usize,
+    pub layer: usize,
+    pub keyframes: usize,
+    pub value: usize,
+    pub at_root: usize,
+    pub generic: usize,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserDeclarationKindCountsV0 {
+    pub composes: usize,
+    pub animation: usize,
+    pub animation_name: usize,
+    pub generic: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedCst {
     root: SyntaxNode<SyntaxKind>,
@@ -1373,6 +1411,46 @@ pub fn summarize_omena_parser_lex(source: &str, dialect: StyleDialect) -> OmenaP
     }
 }
 
+pub fn summarize_omena_parser_parity_lite(
+    source: &str,
+    dialect: StyleDialect,
+) -> OmenaParserParityLiteSummaryV0 {
+    let facts = collect_style_facts(source, dialect);
+    let result = parse(source, dialect);
+    let (tokens, _) = tokenize(source, &BuiltinDialectExtension::new(dialect));
+    let mut structural = ParserStructuralSummary::default();
+    summarize_parser_structural_range(&tokens, 0, tokens.len(), 0, &mut structural);
+    let mut selector_names = collect_parity_lite_selector_names_from_tokens(&tokens);
+    selector_names.sort();
+
+    OmenaParserParityLiteSummaryV0 {
+        schema_version: "0",
+        language: style_dialect_label(dialect),
+        selector_names,
+        keyframes_names: sorted_unique(
+            facts
+                .animations
+                .iter()
+                .filter(|animation| animation.kind == ParsedAnimationFactKind::KeyframesDeclaration)
+                .map(|animation| animation.name.clone()),
+        ),
+        value_decl_names: sorted_unique(
+            facts
+                .css_module_values
+                .iter()
+                .filter(|value| value.kind == ParsedCssModuleValueFactKind::Definition)
+                .map(|value| value.name.clone()),
+        ),
+        diagnostic_count: result.errors().len(),
+        rule_count: structural.rule_count,
+        declaration_count: structural.declaration_count,
+        grouped_selector_count: structural.grouped_selector_count,
+        max_nesting_depth: structural.max_nesting_depth,
+        at_rule_kind_counts: structural.at_rule_kind_counts,
+        declaration_kind_counts: structural.declaration_kind_counts,
+    }
+}
+
 fn style_dialect_label(dialect: StyleDialect) -> &'static str {
     match dialect {
         StyleDialect::Css => "css",
@@ -1380,6 +1458,342 @@ fn style_dialect_label(dialect: StyleDialect) -> &'static str {
         StyleDialect::Sass => "sass",
         StyleDialect::Less => "less",
     }
+}
+
+#[derive(Default)]
+struct ParserStructuralSummary {
+    rule_count: usize,
+    declaration_count: usize,
+    grouped_selector_count: usize,
+    max_nesting_depth: usize,
+    at_rule_kind_counts: OmenaParserAtRuleKindCountsV0,
+    declaration_kind_counts: OmenaParserDeclarationKindCountsV0,
+}
+
+fn summarize_parser_structural_range(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    depth: usize,
+    summary: &mut ParserStructuralSummary,
+) {
+    let mut index = start;
+    while index < end {
+        index = skip_trivia_tokens(tokens, index, end);
+        if index >= end {
+            break;
+        }
+
+        if tokens[index].kind == SyntaxKind::AtKeyword {
+            increment_omena_parser_at_rule_kind_count(
+                &mut summary.at_rule_kind_counts,
+                classify_omena_parser_at_rule_kind(tokens[index].text),
+            );
+            let next_depth = depth + 1;
+            summary.max_nesting_depth = summary.max_nesting_depth.max(next_depth);
+            if let Some((open, close)) = find_block_after_header(tokens, index, end) {
+                summarize_parser_structural_range(tokens, open + 1, close, next_depth, summary);
+                index = close + 1;
+            } else {
+                index = skip_statement(tokens, index, end);
+            }
+            continue;
+        }
+
+        let statement_end = css_module_value_statement_end(tokens, index);
+        if is_root_less_variable_statement(tokens, index, statement_end.min(end), depth) {
+            increment_omena_parser_at_rule_kind_count(
+                &mut summary.at_rule_kind_counts,
+                keyof_omena_parser_at_rule_kind_counts::Kind::Generic,
+            );
+            if statement_end >= end || tokens[statement_end].kind == SyntaxKind::RightBrace {
+                break;
+            }
+            index = statement_end + 1;
+            continue;
+        }
+
+        if statement_end < end && tokens[statement_end].kind == SyntaxKind::LeftBrace {
+            summary.rule_count += 1;
+            let next_depth = depth + 1;
+            summary.max_nesting_depth = summary.max_nesting_depth.max(next_depth);
+            let group_count = count_omena_parser_selector_groups(tokens, index, statement_end);
+            if group_count > 1 {
+                summary.grouped_selector_count += group_count;
+            }
+            if let Some(close) = matching_right_brace(tokens, statement_end, end) {
+                summarize_parser_structural_range(
+                    tokens,
+                    statement_end + 1,
+                    close,
+                    next_depth,
+                    summary,
+                );
+                index = close + 1;
+            } else {
+                index = statement_end + 1;
+            }
+            continue;
+        }
+
+        if let Some(colon_index) = declaration_colon_index(tokens, index, statement_end.min(end)) {
+            summary.declaration_count += 1;
+            let property = previous_non_trivia_token_index(tokens, colon_index, index)
+                .map(|property| tokens[property].text)
+                .unwrap_or_default();
+            increment_omena_parser_declaration_kind_count(
+                &mut summary.declaration_kind_counts,
+                classify_omena_parser_declaration_kind(property),
+            );
+        }
+
+        if statement_end >= end || tokens[statement_end].kind == SyntaxKind::RightBrace {
+            break;
+        }
+        index = statement_end + 1;
+    }
+}
+
+fn is_root_less_variable_statement(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    depth: usize,
+) -> bool {
+    if depth != 0 {
+        return false;
+    }
+    let Some(first) = next_non_trivia_token_index_until(tokens, start, end) else {
+        return false;
+    };
+    tokens[first].kind == SyntaxKind::LessVariable
+        && declaration_colon_index(tokens, first, end).is_some()
+}
+
+fn count_omena_parser_selector_groups(tokens: &[Token<'_>], start: usize, end: usize) -> usize {
+    split_selector_groups(tokens, start, end)
+        .into_iter()
+        .filter(|(group_start, group_end)| {
+            *group_start < *group_end
+                && next_non_trivia_token_index_until(tokens, *group_start, *group_end).is_some()
+        })
+        .count()
+}
+
+fn collect_parity_lite_selector_names_from_tokens(tokens: &[Token<'_>]) -> Vec<String> {
+    let mut names = Vec::new();
+    collect_parity_lite_selector_names_in_range(tokens, 0, tokens.len(), &[], None, &mut names);
+    names
+}
+
+fn collect_parity_lite_selector_names_in_range(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    parent_branches: &[SelectorBranch],
+    css_module_scope: Option<&'static str>,
+    names: &mut Vec<String>,
+) {
+    let mut index = start;
+    while index < end {
+        index = skip_trivia_tokens(tokens, index, end);
+        if index >= end {
+            break;
+        }
+
+        if tokens[index].kind == SyntaxKind::AtKeyword {
+            let block = find_block_after_header(tokens, index, end);
+            if let Some((open, close)) = block {
+                if tokens[index].text == "@nest" {
+                    if css_module_scope == Some("global") {
+                        collect_parity_lite_selector_names_in_range(
+                            tokens,
+                            open + 1,
+                            close,
+                            &[],
+                            css_module_scope,
+                            names,
+                        );
+                    } else {
+                        let branches =
+                            resolve_selector_header(tokens, index + 1, open, parent_branches);
+                        names.extend(branches.iter().map(|branch| branch.name.clone()));
+                        collect_grouped_ampersand_compound_selector_duplicates(
+                            tokens,
+                            index + 1,
+                            open,
+                            parent_branches.len(),
+                            names,
+                        );
+                        collect_parity_lite_selector_names_in_range(
+                            tokens,
+                            open + 1,
+                            close,
+                            &branches,
+                            css_module_scope,
+                            names,
+                        );
+                    }
+                } else if style_wrapper_at_rule(tokens[index].text) {
+                    collect_parity_lite_selector_names_in_range(
+                        tokens,
+                        open + 1,
+                        close,
+                        parent_branches,
+                        css_module_scope,
+                        names,
+                    );
+                }
+                index = close + 1;
+            } else {
+                index = skip_statement(tokens, index, end);
+            }
+            continue;
+        }
+
+        let Some((open, close)) = find_block_after_header(tokens, index, end) else {
+            index = skip_statement(tokens, index, end);
+            continue;
+        };
+
+        let effective_scope = css_module_scope
+            .or_else(|| css_module_block_scope_marker_in_header(tokens, index, open));
+        if effective_scope == Some("global") {
+            collect_parity_lite_selector_names_in_range(
+                tokens,
+                open + 1,
+                close,
+                &[],
+                effective_scope,
+                names,
+            );
+        } else {
+            let branches = resolve_selector_header(tokens, index, open, parent_branches);
+            names.extend(branches.iter().map(|branch| branch.name.clone()));
+            collect_grouped_ampersand_compound_selector_duplicates(
+                tokens,
+                index,
+                open,
+                parent_branches.len(),
+                names,
+            );
+            collect_parity_lite_selector_names_in_range(
+                tokens,
+                open + 1,
+                close,
+                &branches,
+                effective_scope,
+                names,
+            );
+        }
+        index = close + 1;
+    }
+}
+
+fn collect_grouped_ampersand_compound_selector_duplicates(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+    parent_branch_count: usize,
+    names: &mut Vec<String>,
+) {
+    if parent_branch_count <= 1 || !header_contains_ampersand(tokens, start, end) {
+        return;
+    }
+    for (name, _) in collect_class_selector_names_from_header(tokens, start, end) {
+        names.extend(std::iter::repeat_n(name, parent_branch_count - 1));
+    }
+}
+
+fn header_contains_ampersand(tokens: &[Token<'_>], start: usize, end: usize) -> bool {
+    tokens[start..end]
+        .iter()
+        .any(|token| token.kind == SyntaxKind::Ampersand)
+}
+
+fn classify_omena_parser_at_rule_kind(text: &str) -> keyof_omena_parser_at_rule_kind_counts::Kind {
+    match text.trim_start_matches('@').to_ascii_lowercase().as_str() {
+        "media" => keyof_omena_parser_at_rule_kind_counts::Kind::Media,
+        "supports" => keyof_omena_parser_at_rule_kind_counts::Kind::Supports,
+        "layer" => keyof_omena_parser_at_rule_kind_counts::Kind::Layer,
+        "keyframes" | "-webkit-keyframes" => {
+            keyof_omena_parser_at_rule_kind_counts::Kind::Keyframes
+        }
+        "value" => keyof_omena_parser_at_rule_kind_counts::Kind::Value,
+        "at-root" => keyof_omena_parser_at_rule_kind_counts::Kind::AtRoot,
+        _ => keyof_omena_parser_at_rule_kind_counts::Kind::Generic,
+    }
+}
+
+fn increment_omena_parser_at_rule_kind_count(
+    counts: &mut OmenaParserAtRuleKindCountsV0,
+    kind: keyof_omena_parser_at_rule_kind_counts::Kind,
+) {
+    match kind {
+        keyof_omena_parser_at_rule_kind_counts::Kind::Media => counts.media += 1,
+        keyof_omena_parser_at_rule_kind_counts::Kind::Supports => counts.supports += 1,
+        keyof_omena_parser_at_rule_kind_counts::Kind::Layer => counts.layer += 1,
+        keyof_omena_parser_at_rule_kind_counts::Kind::Keyframes => counts.keyframes += 1,
+        keyof_omena_parser_at_rule_kind_counts::Kind::Value => counts.value += 1,
+        keyof_omena_parser_at_rule_kind_counts::Kind::AtRoot => counts.at_root += 1,
+        keyof_omena_parser_at_rule_kind_counts::Kind::Generic => counts.generic += 1,
+    }
+}
+
+fn classify_omena_parser_declaration_kind(
+    property: &str,
+) -> keyof_omena_parser_declaration_kind_counts::Kind {
+    match property.trim().to_ascii_lowercase().as_str() {
+        "composes" => keyof_omena_parser_declaration_kind_counts::Kind::Composes,
+        "animation" => keyof_omena_parser_declaration_kind_counts::Kind::Animation,
+        "animation-name" => keyof_omena_parser_declaration_kind_counts::Kind::AnimationName,
+        _ => keyof_omena_parser_declaration_kind_counts::Kind::Generic,
+    }
+}
+
+fn increment_omena_parser_declaration_kind_count(
+    counts: &mut OmenaParserDeclarationKindCountsV0,
+    kind: keyof_omena_parser_declaration_kind_counts::Kind,
+) {
+    match kind {
+        keyof_omena_parser_declaration_kind_counts::Kind::Composes => counts.composes += 1,
+        keyof_omena_parser_declaration_kind_counts::Kind::Animation => counts.animation += 1,
+        keyof_omena_parser_declaration_kind_counts::Kind::AnimationName => {
+            counts.animation_name += 1
+        }
+        keyof_omena_parser_declaration_kind_counts::Kind::Generic => counts.generic += 1,
+    }
+}
+
+mod keyof_omena_parser_at_rule_kind_counts {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum Kind {
+        Media,
+        Supports,
+        Layer,
+        Keyframes,
+        Value,
+        AtRoot,
+        Generic,
+    }
+}
+
+mod keyof_omena_parser_declaration_kind_counts {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum Kind {
+        Composes,
+        Animation,
+        AnimationName,
+        Generic,
+    }
+}
+
+fn sorted_unique(values: impl IntoIterator<Item = String>) -> Vec<String> {
+    values
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn css_module_composes_edge_kind_label(kind: ParsedCssModuleComposesEdgeKind) -> &'static str {
