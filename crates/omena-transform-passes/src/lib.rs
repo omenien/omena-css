@@ -3921,9 +3921,7 @@ fn collect_top_level_keyframes_rules(
 
     while index < tokens.len() {
         match tokens[index].kind {
-            SyntaxKind::AtKeyword
-                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@keyframes") =>
-            {
+            SyntaxKind::AtKeyword if depth == 0 && is_keyframes_at_keyword(&tokens[index].text) => {
                 if let Some((rule, next_index)) = parse_top_level_keyframes_rule(tokens, index) {
                     rules.push(rule);
                     index = next_index;
@@ -3938,6 +3936,13 @@ fn collect_top_level_keyframes_rules(
     }
 
     rules
+}
+
+fn is_keyframes_at_keyword(text: &str) -> bool {
+    matches!(
+        text.to_ascii_lowercase().as_str(),
+        "@keyframes" | "@-webkit-keyframes"
+    )
 }
 
 fn parse_top_level_keyframes_rule(
@@ -8812,7 +8817,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_tree_shakes_keyframes_with_closed_world_context() {
-        let source = r#"@keyframes fade { to { opacity: 1; } } @keyframes spin { to { transform: rotate(1turn); } } @keyframes dead { to { opacity: 0; } } .btn { animation: 1s ease fade; }"#;
+        let source = r#"@-webkit-keyframes fade { to { opacity: 1; } } @keyframes fade { to { opacity: 1; } } @-webkit-keyframes spin { to { transform: rotate(1turn); } } @keyframes spin { to { transform: rotate(1turn); } } @-webkit-keyframes dead { to { opacity: 0; } } @keyframes dead { to { opacity: 0; } } .btn { animation: 1s ease fade; }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             reachable_keyframe_names: vec!["spin".to_string()],
@@ -8828,10 +8833,10 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(execution.mutation_count, 2);
         assert_eq!(
             execution.output_css,
-            r#"@keyframes fade { to { opacity: 1; } } @keyframes spin { to { transform: rotate(1turn); } }  .btn { animation: 1s ease fade; }"#
+            r#"@-webkit-keyframes fade { to { opacity: 1; } } @keyframes fade { to { opacity: 1; } } @-webkit-keyframes spin { to { transform: rotate(1turn); } } @keyframes spin { to { transform: rotate(1turn); } }   .btn { animation: 1s ease fade; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
