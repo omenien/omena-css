@@ -3210,10 +3210,7 @@ fn parse_static_local_css_modules_value_definition(
     while index < tokens.len() {
         match tokens[index].kind {
             SyntaxKind::Semicolon => {
-                let value_tokens = tokens[value_start..index]
-                    .iter()
-                    .filter(|token| token.kind != SyntaxKind::Whitespace)
-                    .collect::<Vec<_>>();
+                let value_tokens = tokens[value_start..index].iter().collect::<Vec<_>>();
                 if value_tokens.is_empty()
                     || value_tokens.iter().any(|token| {
                         is_comment_token(token.kind) || token.kind == SyntaxKind::AtKeyword
@@ -3224,7 +3221,9 @@ fn parse_static_local_css_modules_value_definition(
                 let value = value_tokens
                     .iter()
                     .map(|token| token.text.as_str())
-                    .collect::<String>();
+                    .collect::<String>()
+                    .trim()
+                    .to_string();
                 return Some((
                     StaticCssModulesValueDefinition {
                         name,
@@ -4119,13 +4118,17 @@ fn tree_shake_css_modules_values_with_lexer(
         return (source.to_string(), 0);
     }
 
-    let referenced_names =
-        collect_reachable_css_modules_value_names(tokens, &definitions, reachable_value_names);
+    let referenced_names = collect_reachable_css_modules_value_names(
+        tokens,
+        dialect,
+        &definitions,
+        reachable_value_names,
+    );
 
     let ranges = definitions
         .iter()
         .filter(|definition| {
-            can_tree_shake_local_css_modules_value_definition(definition, &definitions)
+            can_tree_shake_local_css_modules_value_definition(definition, dialect, &definitions)
                 && !referenced_names.iter().any(|name| name == &definition.name)
         })
         .map(|definition| (definition.start, definition.end))
@@ -4136,6 +4139,7 @@ fn tree_shake_css_modules_values_with_lexer(
 
 fn collect_reachable_css_modules_value_names(
     tokens: &[omena_parser::LexedToken],
+    dialect: StyleDialect,
     definitions: &[StaticCssModulesValueDefinition],
     external_roots: &[String],
 ) -> Vec<String> {
@@ -4147,14 +4151,18 @@ fn collect_reachable_css_modules_value_names(
         .collect::<Vec<_>>();
 
     for definition in definitions {
-        if definition_names
-            .iter()
-            .any(|name| name == &definition.value)
-        {
+        for reference_name in collect_css_modules_value_references_in_value(
+            &definition.value,
+            dialect,
+            &definition_names,
+        ) {
+            if reference_name == definition.name {
+                continue;
+            }
             let dependencies = dependencies_by_name
                 .entry(definition.name.clone())
                 .or_default();
-            push_unique_string(dependencies, definition.value.clone());
+            push_unique_string(dependencies, reference_name);
         }
     }
 
@@ -4164,11 +4172,12 @@ fn collect_reachable_css_modules_value_names(
             && let Some(close_index) = matching_right_brace_index(tokens, index)
         {
             for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
-                if definition_names
-                    .iter()
-                    .any(|name| name == &declaration.value)
-                {
-                    push_unique_string(&mut root_names, declaration.value);
+                for reference_name in collect_css_modules_value_references_in_value(
+                    &declaration.value,
+                    dialect,
+                    &definition_names,
+                ) {
+                    push_unique_string(&mut root_names, reference_name);
                 }
             }
             index = close_index + 1;
@@ -4176,8 +4185,53 @@ fn collect_reachable_css_modules_value_names(
         }
         index += 1;
     }
+    collect_css_modules_value_references_in_at_rule_preludes(
+        tokens,
+        &definition_names,
+        &mut root_names,
+    );
 
     close_css_modules_value_dependency_graph(root_names, &dependencies_by_name)
+}
+
+fn collect_css_modules_value_references_in_at_rule_preludes(
+    tokens: &[omena_parser::LexedToken],
+    definition_names: &[String],
+    root_names: &mut Vec<String>,
+) {
+    let mut index = 0;
+    while index < tokens.len() {
+        if tokens[index].kind != SyntaxKind::AtKeyword
+            || !at_rule_prelude_can_reference_css_modules_values(&tokens[index].text)
+        {
+            index += 1;
+            continue;
+        }
+
+        let mut prelude_index = index + 1;
+        while prelude_index < tokens.len() {
+            match tokens[prelude_index].kind {
+                SyntaxKind::Ident
+                    if definition_names
+                        .iter()
+                        .any(|name| name == &tokens[prelude_index].text) =>
+                {
+                    push_unique_string(root_names, tokens[prelude_index].text.clone());
+                }
+                SyntaxKind::LeftBrace | SyntaxKind::Semicolon | SyntaxKind::RightBrace => break,
+                _ => {}
+            }
+            prelude_index += 1;
+        }
+        index = prelude_index.saturating_add(1);
+    }
+}
+
+fn at_rule_prelude_can_reference_css_modules_values(text: &str) -> bool {
+    matches!(
+        text.to_ascii_lowercase().as_str(),
+        "@media" | "@supports" | "@container" | "@custom-media" | "@scope"
+    )
 }
 
 fn close_css_modules_value_dependency_graph(
@@ -4205,17 +4259,42 @@ fn close_css_modules_value_dependency_graph(
 
 fn can_tree_shake_local_css_modules_value_definition(
     definition: &StaticCssModulesValueDefinition,
+    dialect: StyleDialect,
     definitions: &[StaticCssModulesValueDefinition],
 ) -> bool {
+    let definition_names = definitions
+        .iter()
+        .map(|candidate| candidate.name.clone())
+        .collect::<Vec<_>>();
     definitions
         .iter()
         .filter(|candidate| candidate.name == definition.name)
         .count()
         == 1
         && (is_static_css_modules_value_literal(&definition.value)
-            || definitions
-                .iter()
-                .any(|candidate| candidate.name == definition.value))
+            || !collect_css_modules_value_references_in_value(
+                &definition.value,
+                dialect,
+                &definition_names,
+            )
+            .is_empty())
+}
+
+fn collect_css_modules_value_references_in_value(
+    value: &str,
+    dialect: StyleDialect,
+    definition_names: &[String],
+) -> Vec<String> {
+    let lexed = lex(value, dialect);
+    let mut references = Vec::new();
+    for token in lexed.tokens() {
+        if token.kind == SyntaxKind::Ident
+            && definition_names.iter().any(|name| name == &token.text)
+        {
+            push_unique_string(&mut references, token.text.clone());
+        }
+    }
+    references
 }
 
 fn tree_shake_css_custom_properties_with_lexer(
@@ -8946,7 +9025,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_tree_shakes_local_values_with_closed_world_context() {
-        let source = r#"@value used: red; @value dead: blue; @value alias: used; @value deadAlias: dead; .btn { color: used; background: alias; }"#;
+        let source = r#"@value used: red; @value dead: blue; @value alias: used; @value shadow: 0 0 4px used; @value bp: 40rem; @value deadAlias: dead; @value deadShadow: 0 0 4px dead; @value deadBp: 50rem; .btn { color: used; background: alias; box-shadow: shadow; } @media (min-width: bp) { .btn { color: red; } }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             ..TransformExecutionContextV0::default()
@@ -8961,11 +9040,21 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 4);
         assert!(execution.output_css.contains("@value used: red;"));
         assert!(execution.output_css.contains("@value alias: used;"));
+        assert!(
+            execution
+                .output_css
+                .contains("@value shadow: 0 0 4px used;")
+        );
+        assert!(execution.output_css.contains("@value bp: 40rem;"));
+        assert!(execution.output_css.contains("box-shadow: shadow;"));
+        assert!(execution.output_css.contains("@media (min-width: bp)"));
         assert!(!execution.output_css.contains("@value dead:"));
         assert!(!execution.output_css.contains("@value deadAlias:"));
+        assert!(!execution.output_css.contains("@value deadShadow:"));
+        assert!(!execution.output_css.contains("@value deadBp:"));
         assert_eq!(
             execution.executed_pass_ids,
             vec!["tree-shake-value", "print-css"]
