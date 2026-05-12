@@ -3360,14 +3360,18 @@ fn inline_css_imports_with_lexer(
                 let start = token_start(&tokens[index]);
                 let end = token_end(&tokens[end_index]);
                 let rule_text = &source[start..end];
-                let Some(import_source) = parse_css_import_source(rule_text) else {
+                let Some(import_rule) = parse_css_import_rule(rule_text) else {
                     index = end_index + 1;
                     continue;
                 };
                 if let Some(replacement_css) =
-                    inline_replacement_for_import_source(&import_source, inlines)
+                    inline_replacement_for_import_source(&import_rule.source, inlines)
                 {
-                    replacements.push((start, end, replacement_css.to_string()));
+                    replacements.push((
+                        start,
+                        end,
+                        wrap_import_replacement(&import_rule, replacement_css),
+                    ));
                 }
                 index = end_index + 1;
                 continue;
@@ -3395,27 +3399,60 @@ fn find_import_rule_semicolon(
     None
 }
 
-fn parse_css_import_source(rule_text: &str) -> Option<String> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CssImportRule {
+    source: String,
+    layer_name: Option<String>,
+    supports_condition: Option<String>,
+    media_query: Option<String>,
+}
+
+fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
     let rest = strip_ascii_prefix_ignore_case(rule_text.trim(), "@import")?;
-    let rest = rest.trim();
+    let rest = rest.trim().trim_end_matches(';').trim();
     if rest.is_empty() {
         return None;
     }
-    if let Some(source) = parse_quoted_css_string(rest) {
-        return Some(source);
+    let (source, rest) = parse_css_import_source_prefix(rest)?;
+    let mut rest = rest.trim();
+    let mut layer_name = None;
+    let mut supports_condition = None;
+
+    loop {
+        if let Some((layer, next_rest)) = parse_layer_import_option(rest) {
+            layer_name = Some(layer);
+            rest = next_rest.trim();
+            continue;
+        }
+        if let Some((supports, next_rest)) = parse_function_prefix(rest, "supports") {
+            supports_condition = Some(format!("({})", supports.trim()));
+            rest = next_rest.trim();
+            continue;
+        }
+        break;
     }
-    parse_url_import_source(rest)
+
+    Some(CssImportRule {
+        source,
+        layer_name,
+        supports_condition,
+        media_query: (!rest.is_empty()).then(|| rest.to_string()),
+    })
 }
 
-fn parse_quoted_css_string(text: &str) -> Option<String> {
-    let mut chars = text.chars();
-    let quote = chars.next()?;
+fn parse_css_import_source_prefix(text: &str) -> Option<(String, &str)> {
+    parse_quoted_css_string_prefix(text).or_else(|| parse_url_import_source_prefix(text))
+}
+
+fn parse_quoted_css_string_prefix(text: &str) -> Option<(String, &str)> {
+    let mut chars = text.char_indices();
+    let (_, quote) = chars.next()?;
     if !matches!(quote, '"' | '\'') {
         return None;
     }
     let mut escaped = false;
     let mut output = String::new();
-    for ch in chars {
+    for (index, ch) in chars {
         if escaped {
             output.push(ch);
             escaped = false;
@@ -3426,19 +3463,22 @@ fn parse_quoted_css_string(text: &str) -> Option<String> {
             continue;
         }
         if ch == quote {
-            return Some(output);
+            let end = index + ch.len_utf8();
+            return Some((output, &text[end..]));
         }
         output.push(ch);
     }
     None
 }
 
-fn parse_url_import_source(text: &str) -> Option<String> {
+fn parse_url_import_source_prefix(text: &str) -> Option<(String, &str)> {
     let rest = strip_ascii_prefix_ignore_case(text, "url(")?;
-    let close_index = rest.find(')')?;
+    let close_index = matching_function_close_index(rest)?;
     let inner = rest[..close_index].trim();
-    if let Some(source) = parse_quoted_css_string(inner) {
-        return Some(source);
+    if let Some((source, trailing)) = parse_quoted_css_string_prefix(inner)
+        && trailing.trim().is_empty()
+    {
+        return Some((source, &rest[close_index + 1..]));
     }
     if inner.is_empty()
         || inner
@@ -3447,7 +3487,79 @@ fn parse_url_import_source(text: &str) -> Option<String> {
     {
         return None;
     }
-    Some(inner.to_string())
+    Some((inner.to_string(), &rest[close_index + 1..]))
+}
+
+fn parse_layer_import_option(text: &str) -> Option<(String, &str)> {
+    if let Some((layer, rest)) = parse_function_prefix(text, "layer") {
+        return Some((layer.trim().to_string(), rest));
+    }
+    let rest = strip_ascii_prefix_ignore_case(text, "layer")?;
+    if !rest.is_empty() && !rest.starts_with(char::is_whitespace) {
+        return None;
+    }
+    Some((String::new(), rest))
+}
+
+fn parse_function_prefix<'a>(text: &'a str, name: &str) -> Option<(String, &'a str)> {
+    let rest = strip_ascii_prefix_ignore_case(text.trim_start(), name)?;
+    let rest = rest.strip_prefix('(')?;
+    let close_index = matching_function_close_index(rest)?;
+    Some((rest[..close_index].to_string(), &rest[close_index + 1..]))
+}
+
+fn matching_function_close_index(text: &str) -> Option<usize> {
+    let mut depth = 1usize;
+    let mut quote = None::<char>;
+    let mut escaped = false;
+
+    for (index, ch) in text.char_indices() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '(' => depth += 1,
+            ')' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn wrap_import_replacement(import_rule: &CssImportRule, replacement_css: &str) -> String {
+    let mut output = replacement_css.to_string();
+    if let Some(layer_name) = &import_rule.layer_name {
+        output = if layer_name.is_empty() {
+            format!("@layer {{ {output} }}")
+        } else {
+            format!("@layer {layer_name} {{ {output} }}")
+        };
+    }
+    if let Some(supports_condition) = &import_rule.supports_condition {
+        output = format!("@supports {supports_condition} {{ {output} }}");
+    }
+    if let Some(media_query) = &import_rule.media_query {
+        output = format!("@media {media_query} {{ {output} }}");
+    }
+    output
 }
 
 fn strip_ascii_prefix_ignore_case<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
@@ -7662,8 +7774,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_inlines_imports_from_explicit_replacements() {
-        let source =
-            r#"@import "./tokens.css"; @import url(./theme.css); .button { color: var(--brand); }"#;
+        let source = r#"@import "./tokens.css"; @import url(./theme.css); @import "./conditional.css" layer(theme) supports(display: grid) screen and (min-width: 40rem); .button { color: var(--brand); }"#;
         let context = TransformExecutionContextV0 {
             import_inlines: vec![
                 TransformImportInlineV0 {
@@ -7673,6 +7784,10 @@ mod tests {
                 TransformImportInlineV0 {
                     import_source: "./theme.css".to_string(),
                     replacement_css: r#"@media screen { .theme { color: blue; } }"#.to_string(),
+                },
+                TransformImportInlineV0 {
+                    import_source: "./conditional.css".to_string(),
+                    replacement_css: r#".conditional { color: green; }"#.to_string(),
                 },
             ],
             ..TransformExecutionContextV0::default()
@@ -7684,10 +7799,10 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 3);
         assert_eq!(
             execution.output_css,
-            r#":root { --brand: red; } @media screen { .theme { color: blue; } } .button { color: var(--brand); }"#
+            r#":root { --brand: red; } @media screen { .theme { color: blue; } } @media screen and (min-width: 40rem) { @supports (display: grid) { @layer theme { .conditional { color: green; } } } } .button { color: var(--brand); }"#
         );
         assert_eq!(
             execution.css_import_inlines,
@@ -7699,6 +7814,10 @@ mod tests {
                 TransformImportInlineV0 {
                     import_source: "./theme.css".to_string(),
                     replacement_css: r#"@media screen { .theme { color: blue; } }"#.to_string(),
+                },
+                TransformImportInlineV0 {
+                    import_source: "./conditional.css".to_string(),
+                    replacement_css: r#".conditional { color: green; }"#.to_string(),
                 },
             ]
         );
