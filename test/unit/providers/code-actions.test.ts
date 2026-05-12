@@ -34,6 +34,7 @@ function makeDeps(overrides: Partial<ProviderDeps> = {}): ProviderDeps {
   return makeBaseDeps({
     selectorMapForPath: () => new Map(),
     workspaceRoot: "/fake",
+    buildStyleDocument: (filePath, content) => parseStyleDocument(content, filePath),
     ...overrides,
   });
 }

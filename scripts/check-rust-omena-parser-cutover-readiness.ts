@@ -63,6 +63,16 @@ assert.ok(
   "omena-lsp-server must not depend on engine-style-parser",
 );
 
+const codeActionQuery = readText("server/engine-host-node/src/code-action-query.ts");
+assert.ok(
+  !codeActionQuery.includes("parseStyleDocument"),
+  "code-action-query must consume style documents through the runtime buildStyleDocument choke point",
+);
+assert.ok(
+  codeActionQuery.includes("buildStyleDocumentForCodeAction"),
+  "code-action-query must keep an explicit runtime style-document builder boundary",
+);
+
 for (const scriptPath of PRODUCT_PARSER_LANE_SCRIPTS) {
   const source = readText(scriptPath);
   assert.ok(source.includes("omena-parser"), `${scriptPath} must invoke omena-parser`);

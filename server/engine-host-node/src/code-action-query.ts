@@ -4,7 +4,6 @@ import {
   getAllStyleExtensions,
   findLangForPath,
 } from "../../engine-core-ts/src/core/scss/lang-registry";
-import { parseStyleDocument } from "../../engine-core-ts/src/core/scss/scss-parser";
 import {
   findComposesTokenAtCursor,
   resolveComposesTarget,
@@ -217,7 +216,8 @@ function planInlineComposedClass(
   const filePath = fileUrlToPath(args.documentUri);
   if (findLangForPath(filePath) === null) return null;
 
-  const styleDocument = parseStyleDocument(args.documentContent, filePath);
+  const styleDocument = buildStyleDocumentForCodeAction(filePath, args.documentContent, deps);
+  if (!styleDocument) return null;
   const hit = findComposesTokenAtCursor(
     styleDocument,
     args.range.start.line,
@@ -341,9 +341,15 @@ function styleDocumentForInline(
 
   const content = deps.readStyleFile?.(candidatePath);
   if (content === undefined || content === null) return null;
-  return (
-    deps.buildStyleDocument?.(candidatePath, content) ?? parseStyleDocument(content, candidatePath)
-  );
+  return buildStyleDocumentForCodeAction(candidatePath, content, deps);
+}
+
+function buildStyleDocumentForCodeAction(
+  filePath: string,
+  content: string,
+  deps: CodeActionDeps,
+): StyleDocumentHIR | null {
+  return deps.buildStyleDocument?.(filePath, content) ?? null;
 }
 
 function planExtractCustomProperty(args: {
