@@ -7,9 +7,9 @@ mutation engines will land behind this registry so transform execution cannot
 drift from the semantic/cascade proof obligations.
 
 The first execution runtime surface is intentionally conservative: it executes
-lexer-backed safe commodity mutations for P01 through P20, P23-P25, and P32, and observes
-the P40 emission boundary. P04 unit normalization is limited to zero length dimensions
-inside declaration properties that accept unitless zero; broader unit/value
+lexer-backed safe commodity mutations for P01 through P20, P23-P25, P32, and
+P37-P38, and observes the P40 emission boundary. P04 unit normalization is
+limited to zero length dimensions inside declaration properties that accept unitless zero; broader unit/value
 rewrites remain planned until property/value semantics can prove them legal. P08
 selector compression is limited to specificity-preserving `:is()` unwrapping and
 duplicate argument removal for `:is()`/`:where()`. P09 shorthand combining
@@ -37,4 +37,6 @@ handles simple declaration feature queries under the modern-browser assumption.
 P25 `calc()` reduction currently handles whole-value same-unit
 addition/subtraction. P32 custom-property static resolve consumes
 `omena-cascade` substitution and only resolves whole-value `var()` references
-from unique literal `:root` custom properties.
+from unique literal `:root` custom properties. P37-P38 reuse the same static
+media/supports witness evaluators as P24/P23 under their semantic-aware
+dead-branch pass surfaces.

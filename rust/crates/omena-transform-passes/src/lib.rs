@@ -574,6 +574,43 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "evaluated literal @media all/not all branches",
                 }
             }
+            Some(TransformPassKind::DeadMediaBranchRemoval) => {
+                let (next_css, mutation_count) = evaluate_static_media_rules(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "removed dead @media branches through the static cascade witness evaluator",
+                }
+            }
+            Some(TransformPassKind::DeadSupportsBranchRemoval) => {
+                let (next_css, mutation_count) =
+                    evaluate_static_supports_rules(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "removed dead @supports branches through the static cascade witness evaluator",
+                }
+            }
             Some(TransformPassKind::StaticVarSubstitution) => {
                 let (next_css, mutation_count) =
                     substitute_static_css_custom_properties(&output_css, dialect);
@@ -709,6 +746,8 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::NestingUnwrap.id(),
         TransformPassKind::SupportsStaticEval.id(),
         TransformPassKind::MediaStaticEval.id(),
+        TransformPassKind::DeadMediaBranchRemoval.id(),
+        TransformPassKind::DeadSupportsBranchRemoval.id(),
         TransformPassKind::StaticVarSubstitution.id(),
         TransformPassKind::CalcReduction.id(),
         TransformPassKind::PrintCss.id(),
@@ -3728,6 +3767,8 @@ mod tests {
                 "p20-nesting-unwrap",
                 "p23-supports-static-eval",
                 "p24-media-static-eval",
+                "p37-dead-media-branch-removal",
+                "p38-dead-supports-branch-removal",
                 "p32-custom-property-static-resolve",
                 "p25-calc-reduction",
                 "p40-print-css"
@@ -4307,6 +4348,33 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p32-custom-property-static-resolve", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_removes_dead_branches_through_semantic_pass_surfaces() {
+        let source = r#"@media not all { .dead { color: red; } } @supports (display: grid) { .grid { display: grid; } } @supports (display: grid) and (color: red) { .unknown { color: red; } }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::DeadMediaBranchRemoval,
+                TransformPassKind::DeadSupportsBranchRemoval,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#" .grid { display: grid; } @supports (display: grid) and (color: red) { .unknown { color: red; } }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec![
+                "p37-dead-media-branch-removal",
+                "p38-dead-supports-branch-removal",
+                "p40-print-css"
+            ]
         );
     }
 

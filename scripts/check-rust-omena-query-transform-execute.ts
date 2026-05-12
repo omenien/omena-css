@@ -68,6 +68,8 @@ const result = spawnSync(
         "p23-supports-static-eval",
         "p24-media-static-eval",
         "p32-custom-property-static-resolve",
+        "p37-dead-media-branch-removal",
+        "p38-dead-supports-branch-removal",
         "p25-calc-reduction",
         "p40-print-css",
         "p99-unknown",
@@ -109,6 +111,8 @@ assert.deepEqual(summary.requestedPassIds, [
   "p23-supports-static-eval",
   "p24-media-static-eval",
   "p32-custom-property-static-resolve",
+  "p37-dead-media-branch-removal",
+  "p38-dead-supports-branch-removal",
   "p25-calc-reduction",
   "p40-print-css",
   "p99-unknown",
@@ -121,6 +125,8 @@ assert.equal(
 );
 assert.deepEqual(summary.execution.executedPassIds, [
   "p32-custom-property-static-resolve",
+  "p37-dead-media-branch-removal",
+  "p38-dead-supports-branch-removal",
   "p15-light-dark-lowering",
   "p16-color-mix-lowering",
   "p17-oklch-oklab-lowering",
