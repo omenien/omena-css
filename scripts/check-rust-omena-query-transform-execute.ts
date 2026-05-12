@@ -67,6 +67,7 @@ const result = spawnSync(
         "p20-nesting-unwrap",
         "p23-supports-static-eval",
         "p24-media-static-eval",
+        "p32-custom-property-static-resolve",
         "p25-calc-reduction",
         "p40-print-css",
         "p99-unknown",
@@ -107,6 +108,7 @@ assert.deepEqual(summary.requestedPassIds, [
   "p20-nesting-unwrap",
   "p23-supports-static-eval",
   "p24-media-static-eval",
+  "p32-custom-property-static-resolve",
   "p25-calc-reduction",
   "p40-print-css",
   "p99-unknown",
@@ -118,6 +120,7 @@ assert.equal(
   '.dupe{display: block;}.merge{color: red;background: blue;}.sel-a,.sel-b{border: 0;}.a.ready{margin: 0;color: #fff;-webkit-user-select: none;user-select: none;opacity: 1;background: url(img.svg);font-family: "Demo";content: "/* keep */";}',
 );
 assert.deepEqual(summary.execution.executedPassIds, [
+  "p32-custom-property-static-resolve",
   "p15-light-dark-lowering",
   "p16-color-mix-lowering",
   "p17-oklch-oklab-lowering",

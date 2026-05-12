@@ -5,8 +5,9 @@
 //! DAG-respecting execution plan for downstream transform crates.
 
 use omena_cascade::{
-    BoxLonghandInputV0, StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0,
-    evaluate_static_supports_condition, prove_box_shorthand_combination,
+    BoxLonghandInputV0, CascadeValue, CustomPropertyEnv, StaticSupportsAssumptionV0,
+    StaticSupportsEvalVerdictV0, evaluate_static_supports_condition,
+    prove_box_shorthand_combination, substitute_custom_properties,
 };
 use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
@@ -573,6 +574,25 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "evaluated literal @media all/not all branches",
                 }
             }
+            Some(TransformPassKind::StaticVarSubstitution) => {
+                let (next_css, mutation_count) =
+                    substitute_static_css_custom_properties(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "resolved whole-value var() references from unique literal :root custom properties",
+                }
+            }
             Some(TransformPassKind::CalcReduction) => {
                 let (next_css, mutation_count) = reduce_css_calc(&output_css, dialect);
                 let status = if mutation_count == 0 {
@@ -689,6 +709,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::NestingUnwrap.id(),
         TransformPassKind::SupportsStaticEval.id(),
         TransformPassKind::MediaStaticEval.id(),
+        TransformPassKind::StaticVarSubstitution.id(),
         TransformPassKind::CalcReduction.id(),
         TransformPassKind::PrintCss.id(),
     ]
@@ -892,6 +913,10 @@ fn evaluate_static_supports_rules(source: &str, dialect: StyleDialect) -> (Strin
 
 fn evaluate_static_media_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
     evaluate_static_media_rules_with_lexer(source, dialect)
+}
+
+fn substitute_static_css_custom_properties(source: &str, dialect: StyleDialect) -> (String, usize) {
+    substitute_static_css_custom_properties_with_lexer(source, dialect)
 }
 
 fn reduce_css_calc(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -1518,6 +1543,126 @@ fn at_rule_block_indexes(
         }
     }
     None
+}
+
+fn substitute_static_css_custom_properties_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let env = collect_static_root_custom_property_env(tokens, &rules);
+    if env.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut replacements = Vec::new();
+    for rule in &rules {
+        let Some((block_start_index, block_end_index)) =
+            rule_block_token_indexes(tokens, rule.block_start, rule.block_end)
+        else {
+            continue;
+        };
+        for declaration in
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+        {
+            if declaration.property.starts_with("--") {
+                continue;
+            }
+            let Some(var_value) = parse_static_var_value(&declaration.value) else {
+                continue;
+            };
+            let resolved = substitute_custom_properties(&var_value, &env);
+            let CascadeValue::Literal(resolved_value) = resolved else {
+                continue;
+            };
+            replacements.push((
+                declaration.start,
+                declaration.end,
+                format!("{}: {resolved_value};", declaration.property),
+            ));
+        }
+    }
+
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end, replacement) in &replacements {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacements.len())
+}
+
+fn collect_static_root_custom_property_env(
+    tokens: &[omena_parser::LexedToken],
+    rules: &[SimpleRuleSlice],
+) -> CustomPropertyEnv {
+    let mut env = CustomPropertyEnv::new();
+    let mut blocked_names = Vec::new();
+
+    for rule in rules {
+        if rule.selector != ":root" {
+            continue;
+        }
+        let Some((block_start_index, block_end_index)) =
+            rule_block_token_indexes(tokens, rule.block_start, rule.block_end)
+        else {
+            continue;
+        };
+        for declaration in
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+        {
+            if !declaration.property.starts_with("--") || declaration.important {
+                continue;
+            }
+            if blocked_names.contains(&declaration.property) {
+                continue;
+            }
+            if env.contains_key(&declaration.property) {
+                env.remove(&declaration.property);
+                blocked_names.push(declaration.property);
+                continue;
+            }
+            if declaration.value.contains("var(") {
+                continue;
+            }
+            env.insert(
+                declaration.property,
+                CascadeValue::Literal(declaration.value),
+            );
+        }
+    }
+
+    env
+}
+
+fn parse_static_var_value(value: &str) -> Option<CascadeValue> {
+    let arguments = parse_whole_function_value_arguments(value, "var")?;
+    match arguments.as_slice() {
+        [name] if name.starts_with("--") => Some(CascadeValue::Var {
+            name: name.clone(),
+            fallback: None,
+        }),
+        [name, fallback] if name.starts_with("--") && !fallback.contains("var(") => {
+            Some(CascadeValue::Var {
+                name: name.clone(),
+                fallback: Some(Box::new(CascadeValue::Literal(fallback.clone()))),
+            })
+        }
+        _ => None,
+    }
 }
 
 fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -2554,9 +2699,11 @@ fn parse_simple_declaration_slice(
     source_order: u32,
 ) -> Option<(SimpleDeclarationSlice, usize)> {
     let property_token = tokens.get(start_index)?;
-    if property_token.kind != SyntaxKind::Ident {
-        return None;
-    }
+    let property = match property_token.kind {
+        SyntaxKind::Ident => property_token.text.to_ascii_lowercase(),
+        SyntaxKind::CustomPropertyName => property_token.text.clone(),
+        _ => return None,
+    };
 
     let colon_index = skip_whitespace_tokens(tokens, start_index + 1, block_end);
     if tokens.get(colon_index)?.kind != SyntaxKind::Colon {
@@ -2588,7 +2735,7 @@ fn parse_simple_declaration_slice(
                     .any(|token| token.kind == SyntaxKind::Important);
                 return Some((
                     SimpleDeclarationSlice {
-                        property: property_token.text.to_ascii_lowercase(),
+                        property,
                         value,
                         important,
                         start: token_start(property_token),
@@ -3581,6 +3728,7 @@ mod tests {
                 "p20-nesting-unwrap",
                 "p23-supports-static-eval",
                 "p24-media-static-eval",
+                "p32-custom-property-static-resolve",
                 "p25-calc-reduction",
                 "p40-print-css"
             ]
@@ -4137,6 +4285,28 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p25-calc-reduction", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_resolves_unique_literal_root_custom_properties() {
+        let source = r#":root { --brand: red; --gap: 2rem; --dup: red; --dup: blue; --dynamic: var(--brand); } .card { color: var(--brand); margin: var(--gap); border-color: var(--missing, blue); background: var(--dup); outline-color: var(--dynamic); }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::StaticVarSubstitution,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 3);
+        assert_eq!(
+            execution.output_css,
+            r#":root { --brand: red; --gap: 2rem; --dup: red; --dup: blue; --dynamic: var(--brand); } .card { color: red; margin: 2rem; border-color: blue; background: var(--dup); outline-color: var(--dynamic); }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p32-custom-property-static-resolve", "p40-print-css"]
         );
     }
 

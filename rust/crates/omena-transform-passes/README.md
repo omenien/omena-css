@@ -7,7 +7,7 @@ mutation engines will land behind this registry so transform execution cannot
 drift from the semantic/cascade proof obligations.
 
 The first execution runtime surface is intentionally conservative: it executes
-lexer-backed safe commodity mutations for P01 through P20 plus P23-P25, and observes
+lexer-backed safe commodity mutations for P01 through P20, P23-P25, and P32, and observes
 the P40 emission boundary. P04 unit normalization is limited to zero length dimensions
 inside declaration properties that accept unitless zero; broader unit/value
 rewrites remain planned until property/value semantics can prove them legal. P08
@@ -35,4 +35,6 @@ only unwraps literal `@media all` and removes literal `@media not all`. P23
 supports static eval consumes `omena-cascade` supports witnesses and currently
 handles simple declaration feature queries under the modern-browser assumption.
 P25 `calc()` reduction currently handles whole-value same-unit
-addition/subtraction.
+addition/subtraction. P32 custom-property static resolve consumes
+`omena-cascade` substitution and only resolves whole-value `var()` references
+from unique literal `:root` custom properties.
