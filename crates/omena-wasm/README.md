@@ -13,6 +13,9 @@ The current API is intentionally in-memory:
 - `buildStyleSourceForTargetQuery(source, path, targetQuery)` plans
   conservative target-sensitive passes from a Browserslist query or named
   target profile.
+- `buildStyleSourceForTargetQueryWithOptions(source, path, targetQuery,
+targetOptions)` accepts camelCase target transform options for explicit
+  lowering opt-ins.
 - `listTransformPasses()` lists transform pass ids accepted by
   `buildStyleSource`.
 

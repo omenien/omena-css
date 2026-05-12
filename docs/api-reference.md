@@ -61,6 +61,8 @@ Primary consumers:
 - `omena build <file>` runs the conservative transform pipeline.
 - `omena build <file> --target-query "ie 11"` plans target-sensitive passes
   from a Browserslist query or named target profile.
+- `omena build <file> --target-query "ie 11" --allow-logical-to-physical`
+  opts into compatibility lowerings that are disabled by default.
 - `omena passes` lists accepted transform pass ids.
 
 ## Wasm
@@ -72,6 +74,8 @@ Primary consumers:
 - `buildStyleSource(source, path, passIds)` runs conservative transform passes.
 - `buildStyleSourceForTargetQuery(source, path, targetQuery)` plans
   target-sensitive passes from a Browserslist query or named target profile.
+- `buildStyleSourceForTargetQueryWithOptions(source, path, targetQuery,
+  targetOptions)` accepts explicit target transform opt-ins.
 - `listTransformPasses()` lists accepted transform pass ids.
 
 ## Node Native Binding
@@ -83,4 +87,6 @@ Primary consumers:
   passes and returns JSON.
 - `buildStyleSourceForTargetQueryJson(source, path, targetQuery)` plans
   target-sensitive passes from a Browserslist query or named target profile.
+- `buildStyleSourceForTargetQueryWithOptionsJson(source, path, targetQuery,
+  targetOptionsJson)` accepts explicit target transform opt-ins.
 - `listTransformPassesJson()` lists accepted transform pass ids as JSON.

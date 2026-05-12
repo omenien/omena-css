@@ -30,6 +30,7 @@ cargo install omena-cli
 omena check path/to/file.module.scss
 omena build path/to/file.css --pass whitespace-strip
 omena build path/to/file.css --target-query "ie 11"
+omena build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
 omena passes
 ```
 
@@ -39,6 +40,7 @@ Use the checkout form when developing the workspace locally:
 cargo run -p omena-cli -- check path/to/file.module.scss
 cargo run -p omena-cli -- build path/to/file.css --pass whitespace-strip
 cargo run -p omena-cli -- build path/to/file.css --target-query "ie 11"
+cargo run -p omena-cli -- build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
 cargo run -p omena-cli -- passes
 ```
 
@@ -54,6 +56,7 @@ import init, {
   checkStyleSource,
   buildStyleSource,
   buildStyleSourceForTargetQuery,
+  buildStyleSourceForTargetQueryWithOptions,
 } from "./pkg/omena_wasm.js";
 
 await init();
@@ -65,6 +68,12 @@ const legacyBuilt = buildStyleSourceForTargetQuery(
   ".card { display: flex; color: light-dark(#000, #fff); }",
   "demo.css",
   "ie 11",
+);
+const legacyBuiltWithOptions = buildStyleSourceForTargetQueryWithOptions(
+  ".card { margin-inline: 1rem; }",
+  "demo.css",
+  "ie 11",
+  { allowLogicalToPhysical: true },
 );
 ```
 
@@ -80,6 +89,7 @@ import {
   checkStyleSourceJson,
   buildStyleSourceJson,
   buildStyleSourceForTargetQueryJson,
+  buildStyleSourceForTargetQueryWithOptionsJson,
 } from "omena-napi";
 
 const facts = JSON.parse(
@@ -95,6 +105,14 @@ const legacyBuilt = JSON.parse(
     ".card { display: flex; color: light-dark(#000, #fff); }",
     "demo.css",
     "ie 11",
+  ),
+);
+const legacyBuiltWithOptions = JSON.parse(
+  buildStyleSourceForTargetQueryWithOptionsJson(
+    ".card { margin-inline: 1rem; }",
+    "demo.css",
+    "ie 11",
+    JSON.stringify({ allowLogicalToPhysical: true }),
   ),
 );
 ```

@@ -235,11 +235,25 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query(
     style_source: &str,
     target_query: &str,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
-    let plan = summarize_omena_query_transform_plan_from_target_query(
+    execute_omena_query_consumer_build_style_source_for_target_query_with_options(
         style_path,
         style_source,
         target_query,
         conservative_omena_query_target_options(),
+    )
+}
+
+pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_options(
+    style_path: &str,
+    style_source: &str,
+    target_query: &str,
+    target_options: OmenaQueryTargetTransformOptionsV0,
+) -> OmenaQueryConsumerBuildSummaryV0 {
+    let plan = summarize_omena_query_transform_plan_from_target_query(
+        style_path,
+        style_source,
+        target_query,
+        target_options,
         default_omena_query_transform_print_options(),
     );
     let requested_pass_ids = plan

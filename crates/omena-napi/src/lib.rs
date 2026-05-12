@@ -4,9 +4,11 @@ use napi_derive::napi;
 use omena_query::{
     OmenaQueryConsumerBuildSummaryV0 as OmenaNapiBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaNapiCheckSummaryV0,
+    OmenaQueryTargetTransformOptionsV0 as OmenaNapiTargetTransformOptionsV0,
     OmenaQueryTransformPassSummaryV0 as OmenaNapiPassSummaryV0,
     execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
+    execute_omena_query_consumer_build_style_source_for_target_query_with_options,
     list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
 };
 use serde::Serialize;
@@ -38,6 +40,22 @@ pub fn build_style_source_for_target_query_json(
     ))
 }
 
+#[napi(js_name = "buildStyleSourceForTargetQueryWithOptionsJson")]
+pub fn build_style_source_for_target_query_with_options_json(
+    source: String,
+    path: String,
+    target_query: String,
+    target_options_json: String,
+) -> napi::Result<String> {
+    let target_options = parse_target_options_json(&target_options_json)?;
+    to_json_string(&build_style_source_for_target_query_with_options_summary(
+        &source,
+        &path,
+        &target_query,
+        target_options,
+    ))
+}
+
 #[napi(js_name = "listTransformPassesJson")]
 pub fn list_transform_passes_json() -> napi::Result<String> {
     to_json_string(&list_transform_pass_summaries())
@@ -66,8 +84,31 @@ pub fn build_style_source_for_target_query_summary(
     execute_omena_query_consumer_build_style_source_for_target_query(path, source, target_query)
 }
 
+pub fn build_style_source_for_target_query_with_options_summary(
+    source: &str,
+    path: &str,
+    target_query: &str,
+    target_options: OmenaNapiTargetTransformOptionsV0,
+) -> OmenaNapiBuildSummaryV0 {
+    let path = effective_path(path);
+    execute_omena_query_consumer_build_style_source_for_target_query_with_options(
+        path,
+        source,
+        target_query,
+        target_options,
+    )
+}
+
 pub fn list_transform_pass_summaries() -> Vec<OmenaNapiPassSummaryV0> {
     list_omena_query_transform_pass_summaries()
+}
+
+fn parse_target_options_json(
+    target_options_json: &str,
+) -> napi::Result<OmenaNapiTargetTransformOptionsV0> {
+    serde_json::from_str(target_options_json).map_err(|error| {
+        napi::Error::from_reason(format!("failed to parse target options JSON: {error}"))
+    })
 }
 
 fn to_json_string<T: Serialize>(value: &T) -> napi::Result<String> {
@@ -139,6 +180,30 @@ mod tests {
                 .requested_pass_ids
                 .iter()
                 .any(|pass_id| pass_id == "light-dark-lowering")
+        );
+    }
+
+    #[test]
+    fn builds_css_from_target_query_options_for_node_clients() {
+        let summary = build_style_source_for_target_query_with_options_summary(
+            ".card { margin-inline: 1rem; }",
+            "fixture.css",
+            "ie 11",
+            OmenaNapiTargetTransformOptionsV0 {
+                allow_logical_to_physical: true,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+            },
+        );
+
+        assert!(summary.unknown_pass_ids.is_empty());
+        assert!(
+            summary
+                .requested_pass_ids
+                .iter()
+                .any(|pass_id| pass_id == "logical-to-physical")
         );
     }
 
