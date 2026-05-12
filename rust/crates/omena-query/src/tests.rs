@@ -311,31 +311,21 @@ fn exposes_transform_plan_facade_from_source() {
 
     assert_eq!(summary.product, "omena-query.transform-plan");
     assert_eq!(summary.dialect, "scss");
+    assert!(summary.bundle.required_pass_ids.contains(&"import-inline"));
     assert!(
         summary
             .bundle
             .required_pass_ids
-            .contains(&"p26-import-inline")
-    );
-    assert!(
-        summary
-            .bundle
-            .required_pass_ids
-            .contains(&"p30-composes-resolution")
+            .contains(&"composes-resolution")
     );
     assert!(
         summary
             .target
             .required_pass_ids
-            .contains(&"p15-light-dark-lowering")
+            .contains(&"light-dark-lowering")
     );
-    assert!(
-        summary
-            .target
-            .required_pass_ids
-            .contains(&"p20-nesting-unwrap")
-    );
-    assert!(summary.combined_pass_ids.contains(&"p40-print-css"));
+    assert!(summary.target.required_pass_ids.contains(&"nesting-unwrap"));
+    assert!(summary.combined_pass_ids.contains(&"print-css"));
     assert_eq!(summary.combined_violated_dag_edge_count, 0);
     assert_eq!(summary.print.css, source);
     assert_eq!(summary.print.css, summary.execution.output_css);
@@ -347,18 +337,18 @@ fn exposes_transform_plan_facade_from_source() {
     assert_eq!(
         summary.execution.executed_pass_ids,
         vec![
-            "p31-value-resolution",
-            "p15-light-dark-lowering",
-            "p20-nesting-unwrap",
-            "p14-vendor-prefixing",
-            "p40-print-css"
+            "value-resolution",
+            "light-dark-lowering",
+            "nesting-unwrap",
+            "vendor-prefixing",
+            "print-css"
         ]
     );
     assert!(
         summary
             .execution
             .planned_only_pass_ids
-            .contains(&"p29-css-modules-class-hashing")
+            .contains(&"css-modules-class-hashing")
     );
     assert_eq!(summary.execution.pass_plan.violated_dag_edge_count, 0);
 }
@@ -370,15 +360,15 @@ fn exposes_transform_execution_runner_from_source() {
         "Button.module.css",
         source,
         &[
-            "p02-comment-strip".to_string(),
-            "p40-print-css".to_string(),
-            "p99-unknown".to_string(),
+            "comment-strip".to_string(),
+            "print-css".to_string(),
+            "unknown-transform-pass".to_string(),
         ],
     );
 
     assert_eq!(summary.product, "omena-query.transform-execute");
     assert_eq!(summary.style_path, "Button.module.css");
-    assert_eq!(summary.unknown_pass_ids, vec!["p99-unknown"]);
+    assert_eq!(summary.unknown_pass_ids, vec!["unknown-transform-pass"]);
     assert_eq!(
         summary.execution.product,
         "omena-transform-passes.execution"
@@ -390,7 +380,7 @@ fn exposes_transform_execution_runner_from_source() {
     );
     assert_eq!(
         summary.execution.executed_pass_ids,
-        vec!["p02-comment-strip", "p40-print-css"]
+        vec!["comment-strip", "print-css"]
     );
     assert!(
         summary

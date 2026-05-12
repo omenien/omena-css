@@ -154,48 +154,7 @@ impl TransformPassKind {
     }
 
     pub const fn label(self) -> &'static str {
-        match self {
-            Self::WhitespaceStrip => "P01",
-            Self::CommentStrip => "P02",
-            Self::NumberCompression => "P03",
-            Self::UnitNormalization => "P04",
-            Self::ColorCompression => "P05",
-            Self::UrlQuoteStrip => "P06",
-            Self::StringQuoteNormalize => "P07",
-            Self::SelectorIsWhereCompression => "P08",
-            Self::ShorthandCombining => "P09",
-            Self::RuleDeduplication => "P10",
-            Self::RuleMerging => "P11",
-            Self::SelectorMerging => "P12",
-            Self::EmptyRuleRemoval => "P13",
-            Self::VendorPrefixing => "P14",
-            Self::LightDarkLowering => "P15",
-            Self::ColorMixLowering => "P16",
-            Self::OklchOklabLowering => "P17",
-            Self::ColorFunctionLowering => "P18",
-            Self::LogicalToPhysical => "P19",
-            Self::NestingUnwrap => "P20",
-            Self::ScopeFlatten => "P21",
-            Self::LayerFlatten => "P22",
-            Self::SupportsStaticEval => "P23",
-            Self::MediaStaticEval => "P24",
-            Self::CalcReduction => "P25",
-            Self::ImportInline => "P26",
-            Self::ScssModuleEvaluate => "P27",
-            Self::LessModuleEvaluate => "P28",
-            Self::HashCssModuleClassNames => "P29",
-            Self::ResolveCssModulesComposes => "P30",
-            Self::ValueResolution => "P31",
-            Self::StaticVarSubstitution => "P32",
-            Self::TreeShakeClass => "P33",
-            Self::TreeShakeKeyframes => "P34",
-            Self::TreeShakeValue => "P35",
-            Self::TreeShakeCustomProperty => "P36",
-            Self::DeadMediaBranchRemoval => "P37",
-            Self::DeadSupportsBranchRemoval => "P38",
-            Self::DesignTokenRouting => "P39",
-            Self::PrintCss => "P40",
-        }
+        self.id()
     }
 
     pub const fn title(self) -> &'static str {
@@ -245,46 +204,46 @@ impl TransformPassKind {
 
     pub const fn id(self) -> &'static str {
         match self {
-            Self::WhitespaceStrip => "p01-whitespace-strip",
-            Self::CommentStrip => "p02-comment-strip",
-            Self::NumberCompression => "p03-number-compression",
-            Self::UnitNormalization => "p04-unit-normalization",
-            Self::ColorCompression => "p05-color-compression",
-            Self::UrlQuoteStrip => "p06-url-quote-strip",
-            Self::StringQuoteNormalize => "p07-string-quote-normalize",
-            Self::SelectorIsWhereCompression => "p08-selector-is-where-compression",
-            Self::ShorthandCombining => "p09-shorthand-combining",
-            Self::RuleDeduplication => "p10-rule-deduplication",
-            Self::RuleMerging => "p11-rule-merging",
-            Self::SelectorMerging => "p12-selector-merging",
-            Self::EmptyRuleRemoval => "p13-empty-rule-removal",
-            Self::VendorPrefixing => "p14-vendor-prefixing",
-            Self::LightDarkLowering => "p15-light-dark-lowering",
-            Self::ColorMixLowering => "p16-color-mix-lowering",
-            Self::OklchOklabLowering => "p17-oklch-oklab-lowering",
-            Self::ColorFunctionLowering => "p18-color-function-lowering",
-            Self::LogicalToPhysical => "p19-logical-to-physical",
-            Self::NestingUnwrap => "p20-nesting-unwrap",
-            Self::ScopeFlatten => "p21-scope-flatten",
-            Self::LayerFlatten => "p22-layer-flatten",
-            Self::SupportsStaticEval => "p23-supports-static-eval",
-            Self::MediaStaticEval => "p24-media-static-eval",
-            Self::CalcReduction => "p25-calc-reduction",
-            Self::ImportInline => "p26-import-inline",
-            Self::ScssModuleEvaluate => "p27-scss-module-evaluate",
-            Self::LessModuleEvaluate => "p28-less-module-evaluate",
-            Self::HashCssModuleClassNames => "p29-css-modules-class-hashing",
-            Self::ResolveCssModulesComposes => "p30-composes-resolution",
-            Self::ValueResolution => "p31-value-resolution",
-            Self::StaticVarSubstitution => "p32-custom-property-static-resolve",
-            Self::TreeShakeClass => "p33-tree-shake-class",
-            Self::TreeShakeKeyframes => "p34-tree-shake-keyframes",
-            Self::TreeShakeValue => "p35-tree-shake-value",
-            Self::TreeShakeCustomProperty => "p36-tree-shake-custom-property",
-            Self::DeadMediaBranchRemoval => "p37-dead-media-branch-removal",
-            Self::DeadSupportsBranchRemoval => "p38-dead-supports-branch-removal",
-            Self::DesignTokenRouting => "p39-design-token-routing",
-            Self::PrintCss => "p40-print-css",
+            Self::WhitespaceStrip => "whitespace-strip",
+            Self::CommentStrip => "comment-strip",
+            Self::NumberCompression => "number-compression",
+            Self::UnitNormalization => "unit-normalization",
+            Self::ColorCompression => "color-compression",
+            Self::UrlQuoteStrip => "url-quote-strip",
+            Self::StringQuoteNormalize => "string-quote-normalize",
+            Self::SelectorIsWhereCompression => "selector-is-where-compression",
+            Self::ShorthandCombining => "shorthand-combining",
+            Self::RuleDeduplication => "rule-deduplication",
+            Self::RuleMerging => "rule-merging",
+            Self::SelectorMerging => "selector-merging",
+            Self::EmptyRuleRemoval => "empty-rule-removal",
+            Self::VendorPrefixing => "vendor-prefixing",
+            Self::LightDarkLowering => "light-dark-lowering",
+            Self::ColorMixLowering => "color-mix-lowering",
+            Self::OklchOklabLowering => "oklch-oklab-lowering",
+            Self::ColorFunctionLowering => "color-function-lowering",
+            Self::LogicalToPhysical => "logical-to-physical",
+            Self::NestingUnwrap => "nesting-unwrap",
+            Self::ScopeFlatten => "scope-flatten",
+            Self::LayerFlatten => "layer-flatten",
+            Self::SupportsStaticEval => "supports-static-eval",
+            Self::MediaStaticEval => "media-static-eval",
+            Self::CalcReduction => "calc-reduction",
+            Self::ImportInline => "import-inline",
+            Self::ScssModuleEvaluate => "scss-module-evaluate",
+            Self::LessModuleEvaluate => "less-module-evaluate",
+            Self::HashCssModuleClassNames => "css-modules-class-hashing",
+            Self::ResolveCssModulesComposes => "composes-resolution",
+            Self::ValueResolution => "value-resolution",
+            Self::StaticVarSubstitution => "custom-property-static-resolve",
+            Self::TreeShakeClass => "tree-shake-class",
+            Self::TreeShakeKeyframes => "tree-shake-keyframes",
+            Self::TreeShakeValue => "tree-shake-value",
+            Self::TreeShakeCustomProperty => "tree-shake-custom-property",
+            Self::DeadMediaBranchRemoval => "dead-media-branch-removal",
+            Self::DeadSupportsBranchRemoval => "dead-supports-branch-removal",
+            Self::DesignTokenRouting => "design-token-routing",
+            Self::PrintCss => "print-css",
         }
     }
 
@@ -641,113 +600,113 @@ fn cascade_safe_obligation(kind: TransformPassKind) -> &'static str {
 pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
     vec![
         TransformDagEdgeV0 {
-            from: "p26-import-inline",
-            to: "p32-custom-property-static-resolve",
+            from: "import-inline",
+            to: "custom-property-static-resolve",
             reason: "var() resolution needs the full custom-property graph from inlined files",
         },
         TransformDagEdgeV0 {
-            from: "p27-scss-module-evaluate",
-            to: "p32-custom-property-static-resolve",
+            from: "scss-module-evaluate",
+            to: "custom-property-static-resolve",
             reason: "SCSS evaluation can introduce custom-property declarations",
         },
         TransformDagEdgeV0 {
-            from: "p28-less-module-evaluate",
-            to: "p32-custom-property-static-resolve",
+            from: "less-module-evaluate",
+            to: "custom-property-static-resolve",
             reason: "Less evaluation can introduce custom-property declarations",
         },
         TransformDagEdgeV0 {
-            from: "p30-composes-resolution",
-            to: "p29-css-modules-class-hashing",
+            from: "composes-resolution",
+            to: "css-modules-class-hashing",
             reason: "hashing must run after composed class expansion",
         },
         TransformDagEdgeV0 {
-            from: "p29-css-modules-class-hashing",
-            to: "p12-selector-merging",
+            from: "css-modules-class-hashing",
+            to: "selector-merging",
             reason: "selector merging must see post-hash selector identities",
         },
         TransformDagEdgeV0 {
-            from: "p32-custom-property-static-resolve",
-            to: "p25-calc-reduction",
+            from: "custom-property-static-resolve",
+            to: "calc-reduction",
             reason: "var() inside calc may resolve to numeric literals that enable reduction",
         },
         TransformDagEdgeV0 {
-            from: "p33-tree-shake-class",
-            to: "p10-rule-deduplication",
+            from: "tree-shake-class",
+            to: "rule-deduplication",
             reason: "tree shaking must run before rule deduplication can hide dead rules",
         },
         TransformDagEdgeV0 {
-            from: "p34-tree-shake-keyframes",
-            to: "p10-rule-deduplication",
+            from: "tree-shake-keyframes",
+            to: "rule-deduplication",
             reason: "keyframe reachability must settle before rule deduplication",
         },
         TransformDagEdgeV0 {
-            from: "p35-tree-shake-value",
-            to: "p10-rule-deduplication",
+            from: "tree-shake-value",
+            to: "rule-deduplication",
             reason: "@value reachability must settle before rule deduplication",
         },
         TransformDagEdgeV0 {
-            from: "p36-tree-shake-custom-property",
-            to: "p10-rule-deduplication",
+            from: "tree-shake-custom-property",
+            to: "rule-deduplication",
             reason: "custom-property reachability must settle before rule deduplication",
         },
         TransformDagEdgeV0 {
-            from: "p15-light-dark-lowering",
-            to: "p14-vendor-prefixing",
+            from: "light-dark-lowering",
+            to: "vendor-prefixing",
             reason: "prefixing runs after target lowering produces final declarations",
         },
         TransformDagEdgeV0 {
-            from: "p16-color-mix-lowering",
-            to: "p14-vendor-prefixing",
+            from: "color-mix-lowering",
+            to: "vendor-prefixing",
             reason: "prefixing runs after target lowering produces final declarations",
         },
         TransformDagEdgeV0 {
-            from: "p17-oklch-oklab-lowering",
-            to: "p14-vendor-prefixing",
+            from: "oklch-oklab-lowering",
+            to: "vendor-prefixing",
             reason: "prefixing runs after target lowering produces final declarations",
         },
         TransformDagEdgeV0 {
-            from: "p18-color-function-lowering",
-            to: "p14-vendor-prefixing",
+            from: "color-function-lowering",
+            to: "vendor-prefixing",
             reason: "prefixing runs after target lowering produces final declarations",
         },
         TransformDagEdgeV0 {
-            from: "p19-logical-to-physical",
-            to: "p14-vendor-prefixing",
+            from: "logical-to-physical",
+            to: "vendor-prefixing",
             reason: "prefixing runs after target lowering produces final declarations",
         },
         TransformDagEdgeV0 {
-            from: "p20-nesting-unwrap",
-            to: "p14-vendor-prefixing",
+            from: "nesting-unwrap",
+            to: "vendor-prefixing",
             reason: "prefixing runs after target lowering produces final declarations",
         },
         TransformDagEdgeV0 {
-            from: "p21-scope-flatten",
-            to: "p14-vendor-prefixing",
+            from: "scope-flatten",
+            to: "vendor-prefixing",
             reason: "prefixing runs after target lowering produces final declarations",
         },
         TransformDagEdgeV0 {
-            from: "p22-layer-flatten",
-            to: "p14-vendor-prefixing",
+            from: "layer-flatten",
+            to: "vendor-prefixing",
             reason: "prefixing runs after target lowering produces final declarations",
         },
         TransformDagEdgeV0 {
-            from: "p23-supports-static-eval",
-            to: "p14-vendor-prefixing",
+            from: "supports-static-eval",
+            to: "vendor-prefixing",
             reason: "prefixing runs after target branch evaluation produces final declarations",
         },
         TransformDagEdgeV0 {
-            from: "p24-media-static-eval",
-            to: "p14-vendor-prefixing",
+            from: "media-static-eval",
+            to: "vendor-prefixing",
             reason: "prefixing runs after target branch evaluation produces final declarations",
         },
         TransformDagEdgeV0 {
-            from: "p25-calc-reduction",
-            to: "p40-print-css",
+            from: "calc-reduction",
+            to: "print-css",
             reason: "printer consumes the final reduced transform CST",
         },
         TransformDagEdgeV0 {
-            from: "p01-whitespace-strip",
-            to: "p40-print-css",
+            from: "whitespace-strip",
+            to: "print-css",
             reason: "printer consumes the final trivia policy",
         },
     ]
@@ -779,12 +738,12 @@ mod tests {
         assert!(!boundary.next_surfaces.contains(&"sourceMapSpanPrecision"));
         assert!(boundary.pass_contracts.iter().any(|contract| {
             contract.kind == TransformPassKind::TreeShakeClass
-                && contract.label == "P33"
+                && contract.label == "tree-shake-class"
                 && contract.layer == TransformLayer::SemanticAware
                 && contract.reads_semantic_graph
         }));
         assert!(boundary.dag_edges.iter().any(|edge| {
-            edge.from == "p30-composes-resolution" && edge.to == "p29-css-modules-class-hashing"
+            edge.from == "composes-resolution" && edge.to == "css-modules-class-hashing"
         }));
     }
 
@@ -804,10 +763,7 @@ mod tests {
         assert_eq!(artifact.semantic_signature, "semantic:button:brand");
         assert_eq!(
             artifact.pass_ids,
-            vec![
-                "p32-custom-property-static-resolve",
-                "p05-color-compression"
-            ]
+            vec!["custom-property-static-resolve", "color-compression"]
         );
         assert!(artifact.provenance_preserved);
     }

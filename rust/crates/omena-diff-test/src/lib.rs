@@ -233,7 +233,7 @@ pub fn compare_omena_parser_with_legacy(
     }
 }
 
-/// Summarize the differential harness boundary for H1 readiness gates.
+/// Summarize the differential harness boundary for parser cutover readiness gates.
 pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
     let reports: Vec<_> = PARSER_LEGACY_SEED_FIXTURES
         .iter()

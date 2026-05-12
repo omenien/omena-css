@@ -255,11 +255,11 @@ mod tests {
     use omena_transform_passes::execute_transform_passes_on_source;
 
     #[test]
-    fn exposes_p40_print_boundary() {
+    fn exposes_print_boundary() {
         let boundary = summarize_omena_transform_print_boundary();
 
         assert_eq!(boundary.product, "omena-transform-print.boundary");
-        assert_eq!(boundary.emission_pass_id, "p40-print-css");
+        assert_eq!(boundary.emission_pass_id, "print-css");
         assert_eq!(boundary.supported_modes.len(), 3);
     }
 
@@ -289,7 +289,7 @@ mod tests {
         );
         assert_eq!(
             artifact.pass_plan.ordered_pass_ids,
-            vec!["p25-calc-reduction", "p40-print-css"]
+            vec!["calc-reduction", "print-css"]
         );
     }
 
@@ -346,7 +346,7 @@ mod tests {
             artifact
                 .source_map_segments
                 .iter()
-                .any(|segment| segment.pass_id == "p02-comment-strip")
+                .any(|segment| segment.pass_id == "comment-strip")
         );
         assert_eq!(
             artifact
@@ -368,7 +368,7 @@ mod tests {
             .provenance_derivation_forest
             .nodes
             .iter()
-            .find(|node| node.pass_id == "p02-comment-strip");
+            .find(|node| node.pass_id == "comment-strip");
         assert!(comment_node.is_some());
         if let Some(comment_node) = comment_node {
             assert_eq!(comment_node.mutation_spans.len(), 2);
@@ -384,7 +384,7 @@ mod tests {
         let comment_segments = artifact
             .source_map_segments
             .iter()
-            .filter(|segment| segment.pass_id == "p02-comment-strip")
+            .filter(|segment| segment.pass_id == "comment-strip")
             .collect::<Vec<_>>();
 
         assert_eq!(comment_segments.len(), 2);

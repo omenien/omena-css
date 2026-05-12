@@ -28,15 +28,15 @@ const omenaCssCrates = [
   "omena-transform-egg",
 ];
 
-const options = parseArgs(process.argv.slice(2));
-const destination = options.temp
+const cliOptions = parseArgs(process.argv.slice(2));
+const destination = cliOptions.temp
   ? mkTempWorkspace()
-  : path.resolve(options.dest ?? path.join(repoRoot, "..", "omena-css"));
+  : path.resolve(cliOptions.dest ?? path.join(repoRoot, "..", "omena-css"));
 
-prepareWorkspace(destination, options);
+prepareWorkspace(destination, cliOptions);
 
 function parseArgs(args) {
-  const options = {
+  const parsedOptions = {
     dest: undefined,
     force: false,
     initGit: false,
@@ -51,25 +51,25 @@ function parseArgs(args) {
       if (value === undefined) {
         throw new Error("--dest requires a path");
       }
-      options.dest = value;
+      parsedOptions.dest = value;
       index += 1;
       continue;
     }
     if (arg === "--force") {
-      options.force = true;
+      parsedOptions.force = true;
       continue;
     }
     if (arg === "--init-git") {
-      options.initGit = true;
+      parsedOptions.initGit = true;
       continue;
     }
     if (arg === "--temp") {
-      options.temp = true;
-      options.force = true;
+      parsedOptions.temp = true;
+      parsedOptions.force = true;
       continue;
     }
     if (arg === "--verify") {
-      options.verify = true;
+      parsedOptions.verify = true;
       continue;
     }
     if (arg === "-h" || arg === "--help") {
@@ -79,7 +79,7 @@ function parseArgs(args) {
     throw new Error(`Unknown argument: ${arg}`);
   }
 
-  return options;
+  return parsedOptions;
 }
 
 function printHelp() {
@@ -96,15 +96,13 @@ function mkTempWorkspace() {
   return path.join(tmpdir(), `omena-css-workspace-${process.pid}`);
 }
 
-function prepareWorkspace(destinationPath, options) {
+function prepareWorkspace(destinationPath, workspaceOptions) {
   if (existsSync(destinationPath)) {
     const entries = readdirSync(destinationPath);
-    if (!options.force && entries.length > 0) {
-      throw new Error(
-        `Destination is not empty: ${destinationPath}. Pass --force to replace it.`,
-      );
+    if (!workspaceOptions.force && entries.length > 0) {
+      throw new Error(`Destination is not empty: ${destinationPath}. Pass --force to replace it.`);
     }
-    if (options.force) {
+    if (workspaceOptions.force) {
       rmSync(destinationPath, { force: true, recursive: true });
     }
   }
@@ -125,11 +123,11 @@ function prepareWorkspace(destinationPath, options) {
     rewriteCrateManifest(path.join(target, "Cargo.toml"));
   }
 
-  if (options.initGit) {
+  if (workspaceOptions.initGit) {
     initGitRepository(destinationPath);
   }
 
-  if (options.verify) {
+  if (workspaceOptions.verify) {
     verifyWorkspace(destinationPath);
   }
 
@@ -139,8 +137,8 @@ function prepareWorkspace(destinationPath, options) {
         destination: destinationPath,
         crateCount: omenaCssCrates.length,
         crates: omenaCssCrates,
-        initializedGit: options.initGit,
-        verified: options.verify,
+        initializedGit: workspaceOptions.initGit,
+        verified: workspaceOptions.verify,
       },
       null,
       2,
@@ -151,11 +149,11 @@ function prepareWorkspace(destinationPath, options) {
 
 function copyRootFiles(destinationPath) {
   cpSync(path.join(repoRoot, "LICENSE"), path.join(destinationPath, "LICENSE"));
-  writeFileSync(path.join(destinationPath, "rust-toolchain.toml"), '[toolchain]\nchannel = "stable"\n');
-  cpSync(
-    path.join(repoRoot, "rust", "rustfmt.toml"),
-    path.join(destinationPath, "rustfmt.toml"),
+  writeFileSync(
+    path.join(destinationPath, "rust-toolchain.toml"),
+    '[toolchain]\nchannel = "stable"\n',
   );
+  cpSync(path.join(repoRoot, "rust", "rustfmt.toml"), path.join(destinationPath, "rustfmt.toml"));
   writeFileSync(
     path.join(destinationPath, ".gitignore"),
     ["/target", "Cargo.lock", ".DS_Store", ""].join("\n"),

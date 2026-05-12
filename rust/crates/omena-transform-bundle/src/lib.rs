@@ -284,11 +284,11 @@ mod tests {
         assert_eq!(
             summary.planned_pass_ids,
             vec![
-                "p26-import-inline",
-                "p27-scss-module-evaluate",
-                "p30-composes-resolution",
-                "p29-css-modules-class-hashing",
-                "p31-value-resolution"
+                "import-inline",
+                "scss-module-evaluate",
+                "composes-resolution",
+                "css-modules-class-hashing",
+                "value-resolution"
             ]
         );
     }
@@ -303,15 +303,11 @@ mod tests {
 
         assert!(summary.module_evaluation_required);
         assert!(summary.import_inline_required);
+        assert!(summary.required_pass_ids.contains(&"less-module-evaluate"));
         assert!(
             summary
                 .required_pass_ids
-                .contains(&"p28-less-module-evaluate")
-        );
-        assert!(
-            summary
-                .required_pass_ids
-                .contains(&"p29-css-modules-class-hashing")
+                .contains(&"css-modules-class-hashing")
         );
     }
 }

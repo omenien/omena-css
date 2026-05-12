@@ -55,7 +55,7 @@ Current public products:
   resolves module graph closure, cycle detection, and `@forward show/hide`
   visibility filters without re-scanning style sources in the query layer.
 - `omena-query.transform-plan` — post-v5 omena-css transform facade that combines
-  bundle planning, target lowering, optional egg rewrite planning, P40 printing,
+  bundle planning, target lowering, optional egg rewrite planning, CSS printing,
   and the current transform execution runtime summary.
 
 Primary check:

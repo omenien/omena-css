@@ -140,13 +140,13 @@ mod tests {
     use omena_transform_cst::TransformPassKind;
 
     #[test]
-    fn exposes_p08_and_p25_optional_egg_boundary() {
+    fn exposes_selector_and_calc_optional_egg_boundary() {
         let boundary = summarize_omena_transform_egg_boundary();
 
         assert_eq!(boundary.product, "omena-transform-egg.boundary");
         assert_eq!(
             boundary.managed_pass_ids,
-            vec!["p08-selector-is-where-compression", "p25-calc-reduction"]
+            vec!["selector-is-where-compression", "calc-reduction"]
         );
         assert_eq!(boundary.proof_obligations.len(), 4);
     }
@@ -157,7 +157,7 @@ mod tests {
 
         assert_eq!(
             plan.planned_pass_ids,
-            vec!["p08-selector-is-where-compression", "p25-calc-reduction"]
+            vec!["selector-is-where-compression", "calc-reduction"]
         );
         assert_eq!(plan.pass_plan.violated_dag_edge_count, 0);
     }

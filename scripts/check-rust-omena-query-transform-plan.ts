@@ -158,22 +158,22 @@ assertIncludesAll(
 assertIncludesAll(
   summary.bundle.requiredPassIds,
   [
-    "p26-import-inline",
-    "p27-scss-module-evaluate",
-    "p29-css-modules-class-hashing",
-    "p30-composes-resolution",
-    "p31-value-resolution",
+    "import-inline",
+    "scss-module-evaluate",
+    "css-modules-class-hashing",
+    "composes-resolution",
+    "value-resolution",
   ],
   "bundle required passes",
 );
 assertIncludesAll(
   summary.bundle.plannedPassIds,
   [
-    "p26-import-inline",
-    "p27-scss-module-evaluate",
-    "p29-css-modules-class-hashing",
-    "p30-composes-resolution",
-    "p31-value-resolution",
+    "import-inline",
+    "scss-module-evaluate",
+    "css-modules-class-hashing",
+    "composes-resolution",
+    "value-resolution",
   ],
   "bundle planned passes",
 );
@@ -182,7 +182,7 @@ assert.equal(summary.target.product, "omena-transform-target.plan");
 assert.deepEqual(summary.target.blockedPassIds, []);
 assertIncludesAll(
   summary.target.plannedPassIds,
-  ["p14-vendor-prefixing", "p15-light-dark-lowering", "p20-nesting-unwrap"],
+  ["vendor-prefixing", "light-dark-lowering", "nesting-unwrap"],
   "target planned passes",
 );
 
@@ -206,20 +206,15 @@ assert.equal(summary.print.css, summary.execution.outputCss);
 assert.equal(summary.execution.mutationCount, 0);
 assert.equal(summary.execution.provenancePreserved, true);
 assert.deepEqual(summary.execution.executedPassIds, [
-  "p31-value-resolution",
-  "p15-light-dark-lowering",
-  "p20-nesting-unwrap",
-  "p14-vendor-prefixing",
-  "p40-print-css",
+  "value-resolution",
+  "light-dark-lowering",
+  "nesting-unwrap",
+  "vendor-prefixing",
+  "print-css",
 ]);
 assertIncludesAll(
   summary.execution.plannedOnlyPassIds,
-  [
-    "p26-import-inline",
-    "p27-scss-module-evaluate",
-    "p30-composes-resolution",
-    "p29-css-modules-class-hashing",
-  ],
+  ["import-inline", "scss-module-evaluate", "composes-resolution", "css-modules-class-hashing"],
   "transform execution planned-only passes",
 );
 assert.equal(summary.execution.passPlan.product, "omena-transform-passes.plan");
@@ -242,15 +237,15 @@ assert.equal(summary.combinedViolatedDagEdgeCount, 0);
 assertIncludesAll(
   summary.combinedPassIds,
   [
-    "p26-import-inline",
-    "p27-scss-module-evaluate",
-    "p30-composes-resolution",
-    "p29-css-modules-class-hashing",
-    "p31-value-resolution",
-    "p15-light-dark-lowering",
-    "p14-vendor-prefixing",
-    "p20-nesting-unwrap",
-    "p40-print-css",
+    "import-inline",
+    "scss-module-evaluate",
+    "composes-resolution",
+    "css-modules-class-hashing",
+    "value-resolution",
+    "light-dark-lowering",
+    "vendor-prefixing",
+    "nesting-unwrap",
+    "print-css",
   ],
   "combined transform pass plan",
 );
@@ -348,7 +343,7 @@ assert.equal(
   contextSummary.execution.provenanceDerivationForest.nodeCount,
 );
 assert.ok(
-  contextSummary.print.sourceMapSegments.some((segment) => segment.passId === "p26-import-inline"),
+  contextSummary.print.sourceMapSegments.some((segment) => segment.passId === "import-inline"),
   "context transform-plan source map must include import inline pass",
 );
 assert.ok(
@@ -359,12 +354,7 @@ assert.ok(
 );
 assertIncludesAll(
   contextSummary.execution.executedPassIds,
-  [
-    "p26-import-inline",
-    "p30-composes-resolution",
-    "p29-css-modules-class-hashing",
-    "p40-print-css",
-  ],
+  ["import-inline", "composes-resolution", "css-modules-class-hashing", "print-css"],
   "context transform-plan executed passes",
 );
 assert.deepEqual(contextSummary.execution.cssImportInlines, [
