@@ -439,7 +439,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "compressed declaration-leading hex color tokens",
+                    detail: "compressed static declaration color values and hex color tokens",
                 }
             }
             Some(TransformPassKind::UrlQuoteStrip) => {
@@ -5907,6 +5907,17 @@ fn unquote_safe_url_string(text: &str) -> Option<&str> {
 }
 
 fn compress_css_colors_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let (source, hex_mutation_count) = compress_css_hex_color_tokens_with_lexer(source, dialect);
+    let (source, rgb_mutation_count) =
+        compress_static_rgb_declaration_values_with_lexer(&source, dialect);
+
+    (source, hex_mutation_count + rgb_mutation_count)
+}
+
+fn compress_css_hex_color_tokens_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let mut output = String::with_capacity(source.len());
@@ -5952,6 +5963,133 @@ fn compress_css_colors_with_lexer(source: &str, dialect: StyleDialect) -> (Strin
     }
 
     (output, mutation_count)
+}
+
+fn compress_static_rgb_declaration_values_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
+            for declaration in declarations {
+                if declaration.property.starts_with("--") || declaration.important {
+                    continue;
+                }
+                let Some(replacement_value) = compress_static_rgb_color_value(&declaration.value)
+                else {
+                    continue;
+                };
+                replacements.push((
+                    declaration.start,
+                    declaration.end,
+                    format!("{}: {replacement_value};", declaration.property),
+                ));
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end, replacement) in &replacements {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacements.len())
+}
+
+fn compress_static_rgb_color_value(value: &str) -> Option<String> {
+    let color = parse_static_rgb_function_color(value)?;
+    let replacement = shortest_static_srgb_color_text(color);
+    (replacement.len() < value.trim().len()).then_some(replacement)
+}
+
+fn parse_static_rgb_function_color(value: &str) -> Option<SrgbColor> {
+    let inner = parse_whole_function_value_inner(value, "rgb")?;
+    if inner.contains('/') {
+        return None;
+    }
+
+    let parts = if inner.contains(',') {
+        split_top_level_value_arguments(inner)?
+    } else {
+        inner
+            .split_whitespace()
+            .map(str::to_string)
+            .collect::<Vec<_>>()
+    };
+    let [red, green, blue] = parts.as_slice() else {
+        return None;
+    };
+
+    Some(SrgbColor {
+        red: parse_rgb_component_byte(red)?,
+        green: parse_rgb_component_byte(green)?,
+        blue: parse_rgb_component_byte(blue)?,
+    })
+}
+
+fn parse_rgb_component_byte(text: &str) -> Option<u8> {
+    if let Some(percent) = text.trim().strip_suffix('%') {
+        let value = parse_plain_f64(percent)?;
+        if !(0.0..=100.0).contains(&value) {
+            return None;
+        }
+        return Some(((value / 100.0) * 255.0).round().clamp(0.0, 255.0) as u8);
+    }
+
+    let value = parse_plain_f64(text.trim())?;
+    if !(0.0..=255.0).contains(&value) {
+        return None;
+    }
+    Some(value.round().clamp(0.0, 255.0) as u8)
+}
+
+fn shortest_static_srgb_color_text(color: SrgbColor) -> String {
+    let hex = compressed_hex_color_for_srgb(color);
+    match shortest_named_srgb_color(color) {
+        Some(name) if name.len() < hex.len() => name.to_string(),
+        _ => hex,
+    }
+}
+
+fn shortest_named_srgb_color(color: SrgbColor) -> Option<&'static str> {
+    match (color.red, color.green, color.blue) {
+        (0, 128, 0) => Some("green"),
+        (255, 0, 0) => Some("red"),
+        _ => None,
+    }
+}
+
+fn compressed_hex_color_for_srgb(color: SrgbColor) -> String {
+    let hex = format!("{:02x}{:02x}{:02x}", color.red, color.green, color.blue);
+    let compressed = if can_shorten_hex_pairs(&hex) {
+        shorten_hex_pairs(&hex)
+    } else {
+        hex
+    };
+    format!("#{compressed}")
 }
 
 fn normalize_css_units_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -7158,8 +7296,8 @@ mod tests {
     }
 
     #[test]
-    fn execution_runtime_compresses_declaration_value_hex_colors_only() {
-        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; } #FFFFFF { color: red; }"#;
+    fn execution_runtime_compresses_static_declaration_colors_only() {
+        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7168,10 +7306,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 5);
         assert_eq!(
             execution.output_css,
-            r#".a { color: #fff; box-shadow: 0 0 #abc; } #FFFFFF { color: red; }"#
+            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: #808080; --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
         );
     }
 
