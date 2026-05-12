@@ -586,20 +586,7 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
         .iter()
         .find(|entry| entry.style_path == target_style_path);
 
-    let mut context = TransformExecutionContextV0 {
-        reachable_class_names: derive_reachable_class_names_for_transform_context(
-            &style_fact_entries,
-        ),
-        reachable_keyframe_names: derive_reachable_keyframe_names_for_transform_context(
-            &style_fact_entries,
-        ),
-        reachable_value_names: derive_reachable_value_names_for_transform_context(
-            &style_fact_entries,
-        ),
-        reachable_custom_property_names:
-            derive_reachable_custom_property_names_for_transform_context(&style_fact_entries),
-        ..Default::default()
-    };
+    let mut context = TransformExecutionContextV0::default();
 
     if let Some(entry) = target_entry {
         context.import_inlines = derive_import_inlines_for_transform_context(
@@ -633,7 +620,6 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
         context,
         ready_surfaces: vec![
             "transformContextProducer",
-            "reachableNameSeedProducer",
             "cssModuleClassRewriteProducer",
             "cssModuleComposesResolutionProducer",
             "directImportInlineProducer",
@@ -770,57 +756,6 @@ fn css_module_composes_closure_for_context(
     }
 
     closure
-}
-
-fn derive_reachable_class_names_for_transform_context(
-    entries: &[OmenaQueryStyleFactEntry],
-) -> Vec<String> {
-    entries
-        .iter()
-        .flat_map(|entry| entry.facts.class_selector_names.iter().cloned())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
-}
-
-fn derive_reachable_keyframe_names_for_transform_context(
-    entries: &[OmenaQueryStyleFactEntry],
-) -> Vec<String> {
-    entries
-        .iter()
-        .flat_map(|entry| entry.facts.keyframe_names.iter().cloned())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
-}
-
-fn derive_reachable_value_names_for_transform_context(
-    entries: &[OmenaQueryStyleFactEntry],
-) -> Vec<String> {
-    entries
-        .iter()
-        .flat_map(|entry| {
-            entry
-                .facts
-                .css_module_value_definition_names
-                .iter()
-                .chain(entry.facts.icss_export_names.iter())
-                .cloned()
-        })
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
-}
-
-fn derive_reachable_custom_property_names_for_transform_context(
-    entries: &[OmenaQueryStyleFactEntry],
-) -> Vec<String> {
-    entries
-        .iter()
-        .flat_map(|entry| entry.facts.custom_property_decl_names.iter().cloned())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
 }
 
 fn stable_transform_context_class_rewrite(name: &str, index: usize) -> String {
