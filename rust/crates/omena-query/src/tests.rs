@@ -43,6 +43,7 @@ use crate::{
     OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
     OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0,
     OmenaQueryTransformModuleEvaluationV0, default_omena_query_transform_print_options,
+    modern_omena_query_target_feature_support,
 };
 
 #[test]
@@ -431,6 +432,44 @@ fn exposes_transform_plan_egg_witnesses_from_source_execution() {
     );
     assert!(summary.execution.output_css.contains(".a.ready"));
     assert!(summary.execution.output_css.contains("width: 7"));
+}
+
+#[test]
+fn exposes_transform_plan_custom_property_fixed_point() {
+    let source = r#":root { --brand: red; --alias: var(--brand); --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: var(--alias); }"#;
+    let summary = summarize_omena_query_transform_plan_from_source(
+        "tokens.css",
+        source,
+        "modern",
+        modern_omena_query_target_feature_support(),
+        OmenaQueryTargetTransformOptionsV0 {
+            allow_logical_to_physical: false,
+            allow_scope_flatten: false,
+            allow_layer_flatten: false,
+            enable_supports_static_eval: false,
+            enable_media_static_eval: false,
+        },
+        default_omena_query_transform_print_options(),
+    );
+
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"customPropertyLeastFixedPoint")
+    );
+    assert_eq!(summary.custom_property_fixed_point.input_count, 4);
+    assert_eq!(summary.custom_property_fixed_point.resolved_count, 2);
+    assert_eq!(
+        summary.custom_property_fixed_point.guaranteed_invalid_count,
+        2
+    );
+    assert!(
+        summary
+            .custom_property_fixed_point
+            .entries
+            .iter()
+            .any(|entry| entry.name == "--alias" && entry.changed)
+    );
 }
 
 #[test]

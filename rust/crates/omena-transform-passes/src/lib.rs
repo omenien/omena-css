@@ -5,11 +5,13 @@
 //! combinations, conservative lowerings, and emission boundaries as a
 //! DAG-respecting execution plan for downstream transform crates.
 
+pub use omena_cascade::CustomPropertyLeastFixedPointSummaryV0;
 use omena_cascade::{
     BoxLonghandInputV0, CascadeValue, CustomPropertyEnv, LayerFlattenInputV0, ScopeFlattenInputV0,
     StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, evaluate_static_supports_condition,
     prove_box_shorthand_combination, prove_layer_flatten_candidate, prove_scope_flatten_candidate,
     resolve_custom_property_env_least_fixed_point, substitute_custom_properties,
+    summarize_custom_property_least_fixed_point,
 };
 use omena_incremental::{
     IncrementalComputationPlanV0, IncrementalGraphInputV0, IncrementalNodeInputV0,
@@ -2065,6 +2067,17 @@ fn rewrite_css_module_class_names(
 
 fn substitute_static_css_custom_properties(source: &str, dialect: StyleDialect) -> (String, usize) {
     substitute_static_css_custom_properties_with_lexer(source, dialect)
+}
+
+pub fn summarize_static_css_custom_property_fixed_point_from_source(
+    source: &str,
+    dialect: StyleDialect,
+) -> CustomPropertyLeastFixedPointSummaryV0 {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let env_rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let env = collect_static_root_custom_property_env(tokens, &env_rules);
+    summarize_custom_property_least_fixed_point(&env)
 }
 
 fn reduce_css_calc(source: &str, dialect: StyleDialect) -> (String, usize) {

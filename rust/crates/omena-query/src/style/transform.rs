@@ -102,6 +102,10 @@ fn summarize_omena_query_transform_plan_from_parts(
     parts: TransformPlanPartsV0<'_>,
 ) -> OmenaQueryTransformPlanSummaryV0 {
     let egg = plan_egg_rewrite_passes_for_source(parts.style_source);
+    let custom_property_fixed_point = summarize_static_css_custom_property_fixed_point_from_source(
+        parts.style_source,
+        parts.dialect,
+    );
 
     let mut combined_passes = Vec::new();
     extend_passes_from_ids(&parts.bundle.planned_pass_ids, &mut combined_passes);
@@ -148,6 +152,7 @@ fn summarize_omena_query_transform_plan_from_parts(
         target_query: parts.target_query,
         egg,
         egg_witnesses,
+        custom_property_fixed_point,
         print,
         execution,
         combined_plan,
@@ -158,6 +163,7 @@ fn summarize_omena_query_transform_plan_from_parts(
             "transformTargetPlan",
             "transformEggPlan",
             "transformEggExecutionWitnesses",
+            "customPropertyLeastFixedPoint",
             "transformPrintArtifact",
             "transformExecutionRuntime",
             "combinedTransformPassPlan",

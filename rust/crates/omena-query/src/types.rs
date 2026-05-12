@@ -328,6 +328,7 @@ pub struct OmenaQueryTransformPlanSummaryV0 {
     pub target_query: Option<OmenaQueryTransformTargetQueryPlanV0>,
     pub egg: TransformEggPlanV0,
     pub egg_witnesses: Vec<EggRewriteSourceWitnessV0>,
+    pub custom_property_fixed_point: OmenaQueryCustomPropertyLeastFixedPointSummaryV0,
     pub print: TransformPrintArtifactV0,
     pub execution: TransformExecutionSummaryV0,
     pub combined_plan: TransformPassPlanV0,
