@@ -17,8 +17,9 @@ engine.
 The crate also exposes a seed conformance corpus for the cascade ordering model.
 That corpus covers source order, specificity, origin/importance level, layer
 rank, scope proximity, and missing-property inheritance. It is not a replacement
-for the full WPT `css/css-cascade` corpus; the full WPT mapping remains a later
-conformance target.
+for the full WPT `css/css-cascade` corpus. A larger WPT-style seed matrix covers
+200+ origin/importance, layer, scope-proximity, and specificity ordering cases;
+the full external WPT mirror remains a later conformance target.
 
 Transform proof helpers live here as well. `@supports` static evaluation uses an
 explicit modern-browser assumption witness, and `@scope` / `@layer` flattening

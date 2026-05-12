@@ -325,7 +325,7 @@ pub struct CascadeBoundarySummary {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeConformanceSeedCase {
-    pub name: &'static str,
+    pub name: String,
     pub property: &'static str,
     pub declarations: Vec<CascadeDeclaration>,
     pub expected_outcome: &'static str,
@@ -335,7 +335,7 @@ pub struct CascadeConformanceSeedCase {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeConformanceSeedResult {
-    pub name: &'static str,
+    pub name: String,
     pub passed: bool,
     pub expected_outcome: &'static str,
     pub actual_outcome: &'static str,
@@ -471,8 +471,9 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
             "supportsStaticEvalWitness",
             "scopeFlattenProof",
             "layerFlattenProof",
+            "wptCascadeSeedCorpus",
         ],
-        not_ready_surfaces: vec!["wptCascadeCorpus"],
+        not_ready_surfaces: vec!["fullWptCascadeCorpus"],
     }
 }
 
@@ -487,6 +488,24 @@ pub fn run_cascade_conformance_seed_corpus() -> CascadeConformanceSeedReport {
     CascadeConformanceSeedReport {
         schema_version: "0",
         product: "omena-cascade.conformance-seed-corpus",
+        case_count,
+        passed_count,
+        failed_count: case_count.saturating_sub(passed_count),
+        results,
+    }
+}
+
+pub fn run_wpt_cascade_seed_corpus() -> CascadeConformanceSeedReport {
+    let results = wpt_cascade_seed_cases()
+        .into_iter()
+        .map(run_cascade_conformance_seed_case)
+        .collect::<Vec<_>>();
+    let passed_count = results.iter().filter(|result| result.passed).count();
+    let case_count = results.len();
+
+    CascadeConformanceSeedReport {
+        schema_version: "0",
+        product: "omena-cascade.wpt-cascade-seed-corpus",
         case_count,
         passed_count,
         failed_count: case_count.saturating_sub(passed_count),
@@ -520,7 +539,7 @@ fn run_cascade_conformance_seed_case(
 fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
     vec![
         CascadeConformanceSeedCase {
-            name: "source-order-breaks-identical-key",
+            name: "source-order-breaks-identical-key".to_string(),
             property: "color",
             declarations: vec![
                 conformance_decl(
@@ -552,7 +571,7 @@ fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
             expected_winner_id: Some("source-later".to_string()),
         },
         CascadeConformanceSeedCase {
-            name: "specificity-beats-source-order",
+            name: "specificity-beats-source-order".to_string(),
             property: "color",
             declarations: vec![
                 conformance_decl(
@@ -584,7 +603,7 @@ fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
             expected_winner_id: Some("specificity-high-earlier".to_string()),
         },
         CascadeConformanceSeedCase {
-            name: "important-origin-beats-inline-normal",
+            name: "important-origin-beats-inline-normal".to_string(),
             property: "color",
             declarations: vec![
                 conformance_decl(
@@ -616,7 +635,7 @@ fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
             expected_winner_id: Some("author-important".to_string()),
         },
         CascadeConformanceSeedCase {
-            name: "layer-rank-beats-specificity-within-level",
+            name: "layer-rank-beats-specificity-within-level".to_string(),
             property: "color",
             declarations: vec![
                 conformance_decl(
@@ -648,7 +667,7 @@ fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
             expected_winner_id: Some("higher-layer".to_string()),
         },
         CascadeConformanceSeedCase {
-            name: "scope-proximity-beats-specificity-tie",
+            name: "scope-proximity-beats-specificity-tie".to_string(),
             property: "color",
             declarations: vec![
                 conformance_decl(
@@ -680,7 +699,7 @@ fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
             expected_winner_id: Some("near-scope".to_string()),
         },
         CascadeConformanceSeedCase {
-            name: "missing-property-inherits",
+            name: "missing-property-inherits".to_string(),
             property: "background",
             declarations: vec![conformance_decl(
                 "color-only",
@@ -698,6 +717,227 @@ fn cascade_conformance_seed_cases() -> Vec<CascadeConformanceSeedCase> {
             expected_winner_id: None,
         },
     ]
+}
+
+fn wpt_cascade_seed_cases() -> Vec<CascadeConformanceSeedCase> {
+    let levels = [
+        CascadeLevel::UserAgentNormal,
+        CascadeLevel::UserNormal,
+        CascadeLevel::AuthorNormal,
+        CascadeLevel::InlineNormal,
+        CascadeLevel::Animation,
+        CascadeLevel::AuthorImportant,
+        CascadeLevel::UserImportant,
+        CascadeLevel::UserAgentImportant,
+        CascadeLevel::Transition,
+    ];
+    let specificities = [
+        Specificity::new(0, 0, 1),
+        Specificity::new(0, 1, 0),
+        Specificity::new(1, 0, 0),
+    ];
+
+    let mut cases = Vec::new();
+
+    for left in levels {
+        for right in levels {
+            if left == right {
+                continue;
+            }
+
+            let winner = if left > right { "left" } else { "right" };
+            cases.push(CascadeConformanceSeedCase {
+                name: format!("wpt-origin-importance-order-{left:?}-vs-{right:?}"),
+                property: "color",
+                declarations: vec![
+                    conformance_decl(
+                        "left",
+                        "color",
+                        "red",
+                        conformance_key(left, 0, 0, Specificity::new(0, 1, 0), 1),
+                    ),
+                    conformance_decl(
+                        "right",
+                        "color",
+                        "blue",
+                        conformance_key(right, 0, 0, Specificity::new(0, 1, 0), 2),
+                    ),
+                ],
+                expected_outcome: "definite",
+                expected_winner_id: Some(winner.to_string()),
+            });
+        }
+    }
+
+    for layer_left in -3..=3 {
+        for layer_right in -3..=3 {
+            if layer_left == layer_right {
+                continue;
+            }
+
+            let winner = if layer_left > layer_right {
+                "left"
+            } else {
+                "right"
+            };
+            cases.push(CascadeConformanceSeedCase {
+                name: format!("wpt-layer-order-{layer_left}-vs-{layer_right}"),
+                property: "color",
+                declarations: vec![
+                    conformance_decl(
+                        "left",
+                        "color",
+                        "red",
+                        conformance_key(
+                            CascadeLevel::AuthorNormal,
+                            layer_left,
+                            0,
+                            Specificity::new(0, 1, 0),
+                            2,
+                        ),
+                    ),
+                    conformance_decl(
+                        "right",
+                        "color",
+                        "blue",
+                        conformance_key(
+                            CascadeLevel::AuthorNormal,
+                            layer_right,
+                            0,
+                            Specificity::new(1, 0, 0),
+                            1,
+                        ),
+                    ),
+                ],
+                expected_outcome: "definite",
+                expected_winner_id: Some(winner.to_string()),
+            });
+        }
+    }
+
+    for scope_left in 0..=7 {
+        for scope_right in 0..=7 {
+            if scope_left == scope_right {
+                continue;
+            }
+
+            let winner = if scope_left < scope_right {
+                "left"
+            } else {
+                "right"
+            };
+            cases.push(CascadeConformanceSeedCase {
+                name: format!("wpt-scope-proximity-{scope_left}-vs-{scope_right}"),
+                property: "color",
+                declarations: vec![
+                    conformance_decl(
+                        "left",
+                        "color",
+                        "red",
+                        conformance_key(
+                            CascadeLevel::AuthorNormal,
+                            0,
+                            scope_left,
+                            Specificity::new(0, 1, 0),
+                            2,
+                        ),
+                    ),
+                    conformance_decl(
+                        "right",
+                        "color",
+                        "blue",
+                        conformance_key(
+                            CascadeLevel::AuthorNormal,
+                            0,
+                            scope_right,
+                            Specificity::new(0, 1, 0),
+                            1,
+                        ),
+                    ),
+                ],
+                expected_outcome: "definite",
+                expected_winner_id: Some(winner.to_string()),
+            });
+        }
+    }
+
+    for left in specificities {
+        for right in specificities {
+            if left == right {
+                continue;
+            }
+
+            let winner = if left > right { "left" } else { "right" };
+            cases.push(CascadeConformanceSeedCase {
+                name: format!("wpt-specificity-order-{left:?}-vs-{right:?}"),
+                property: "color",
+                declarations: vec![
+                    conformance_decl(
+                        "left",
+                        "color",
+                        "red",
+                        conformance_key(CascadeLevel::AuthorNormal, 0, 0, left, 1),
+                    ),
+                    conformance_decl(
+                        "right",
+                        "color",
+                        "blue",
+                        conformance_key(CascadeLevel::AuthorNormal, 0, 0, right, 2),
+                    ),
+                ],
+                expected_outcome: "definite",
+                expected_winner_id: Some(winner.to_string()),
+            });
+        }
+    }
+
+    for source_left in 0..=15 {
+        for source_right in 0..=15 {
+            if source_left == source_right {
+                continue;
+            }
+
+            let winner = if source_left > source_right {
+                "left"
+            } else {
+                "right"
+            };
+            cases.push(CascadeConformanceSeedCase {
+                name: format!("wpt-source-order-{source_left}-vs-{source_right}"),
+                property: "color",
+                declarations: vec![
+                    conformance_decl(
+                        "left",
+                        "color",
+                        "red",
+                        conformance_key(
+                            CascadeLevel::AuthorNormal,
+                            0,
+                            0,
+                            Specificity::new(0, 1, 0),
+                            source_left,
+                        ),
+                    ),
+                    conformance_decl(
+                        "right",
+                        "color",
+                        "blue",
+                        conformance_key(
+                            CascadeLevel::AuthorNormal,
+                            0,
+                            0,
+                            Specificity::new(0, 1, 0),
+                            source_right,
+                        ),
+                    ),
+                ],
+                expected_outcome: "definite",
+                expected_winner_id: Some(winner.to_string()),
+            });
+        }
+    }
+
+    cases
 }
 
 fn conformance_key(
@@ -1962,13 +2202,15 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"scopeFlattenProof"));
         assert!(summary.ready_surfaces.contains(&"layerFlattenProof"));
+        assert!(summary.ready_surfaces.contains(&"wptCascadeSeedCorpus"));
         assert!(
             summary
                 .ready_surfaces
                 .contains(&"cascadeConformanceSeedCorpus")
         );
         assert!(!summary.not_ready_surfaces.contains(&"selectorMatchWitness"));
-        assert!(summary.not_ready_surfaces.contains(&"wptCascadeCorpus"));
+        assert!(!summary.not_ready_surfaces.contains(&"wptCascadeCorpus"));
+        assert!(summary.not_ready_surfaces.contains(&"fullWptCascadeCorpus"));
     }
 
     #[test]
@@ -1977,6 +2219,17 @@ mod tests {
 
         assert_eq!(report.product, "omena-cascade.conformance-seed-corpus");
         assert_eq!(report.case_count, 6);
+        assert_eq!(report.passed_count, report.case_count);
+        assert_eq!(report.failed_count, 0);
+        assert!(report.results.iter().all(|result| result.passed));
+    }
+
+    #[test]
+    fn wpt_cascade_seed_corpus_passes_current_cascade_model() {
+        let report = run_wpt_cascade_seed_corpus();
+
+        assert_eq!(report.product, "omena-cascade.wpt-cascade-seed-corpus");
+        assert!(report.case_count >= 200);
         assert_eq!(report.passed_count, report.case_count);
         assert_eq!(report.failed_count, 0);
         assert!(report.results.iter().all(|result| result.passed));
