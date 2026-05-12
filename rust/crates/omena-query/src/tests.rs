@@ -1034,6 +1034,34 @@ fn derives_transform_context_from_workspace_sources() {
 }
 
 #[test]
+fn derives_transform_context_with_cross_file_composes_closure() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.scss",
+        [
+            (
+                "/tmp/base.module.scss",
+                ".foundation { display: block; } .base { composes: foundation; color: red; }",
+            ),
+            (
+                "/tmp/App.module.scss",
+                r#".btn { composes: base from "./base.module.scss"; color: blue; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    assert_eq!(summary.css_module_composes_resolution_count, 1);
+    assert_eq!(
+        summary.context.css_module_composes_resolutions[0].local_class_name,
+        "btn"
+    );
+    assert_eq!(
+        summary.context.css_module_composes_resolutions[0].exported_class_names,
+        vec!["base", "btn", "foundation"]
+    );
+}
+
+#[test]
 fn derives_transform_context_from_package_manifest_style_exports() {
     let summary = summarize_omena_query_transform_context_from_sources(
         "/fake/workspace/src/App.module.css",

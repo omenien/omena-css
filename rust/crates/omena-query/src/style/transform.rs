@@ -610,7 +610,12 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
         );
         context.class_name_rewrites = derive_class_name_rewrites_for_transform_context(entry);
         context.css_module_composes_resolutions =
-            derive_css_module_composes_resolutions_for_transform_context(entry);
+            derive_css_module_composes_resolutions_for_transform_context(
+                entry,
+                &style_fact_entries,
+                &available_style_paths,
+                package_manifests,
+            );
     }
 
     OmenaQueryTransformContextFromSourcesSummaryV0 {
@@ -698,7 +703,19 @@ fn derive_class_name_rewrites_for_transform_context(
 
 fn derive_css_module_composes_resolutions_for_transform_context(
     entry: &OmenaQueryStyleFactEntry,
+    entries: &[OmenaQueryStyleFactEntry],
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Vec<TransformCssModuleComposesResolutionV0> {
+    let facts_by_path = entries
+        .iter()
+        .map(|entry| (entry.style_path.as_str(), entry.facts.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let composes_graph = collect_css_modules_composes_adjacency(
+        &facts_by_path,
+        available_style_paths,
+        package_manifests,
+    );
     let mut resolutions = BTreeMap::<String, BTreeSet<String>>::new();
 
     for edge in &entry.facts.css_module_composes_edges {
@@ -707,6 +724,13 @@ fn derive_css_module_composes_resolutions_for_transform_context(
             exports.insert(owner.clone());
             for target in &edge.target_names {
                 exports.insert(target.clone());
+            }
+            for target in css_module_composes_closure_for_context(
+                &composes_graph,
+                entry.style_path.as_str(),
+                owner,
+            ) {
+                exports.insert(target.selector_name);
             }
         }
     }
@@ -720,6 +744,32 @@ fn derive_css_module_composes_resolutions_for_transform_context(
             },
         )
         .collect()
+}
+
+fn css_module_composes_closure_for_context(
+    graph: &BTreeMap<CssModulesComposesNode, BTreeSet<CssModulesComposesNode>>,
+    style_path: &str,
+    selector_name: &str,
+) -> BTreeSet<CssModulesComposesNode> {
+    let start = CssModulesComposesNode {
+        style_path: style_path.to_string(),
+        selector_name: selector_name.to_string(),
+    };
+    let mut closure = BTreeSet::new();
+    let mut pending = VecDeque::from([start]);
+
+    while let Some(current) = pending.pop_front() {
+        let Some(targets) = graph.get(&current) else {
+            continue;
+        };
+        for target in targets {
+            if closure.insert(target.clone()) {
+                pending.push_back(target.clone());
+            }
+        }
+    }
+
+    closure
 }
 
 fn derive_reachable_class_names_for_transform_context(
