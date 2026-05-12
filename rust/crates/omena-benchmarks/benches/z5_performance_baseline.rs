@@ -1,22 +1,20 @@
 use std::hint::black_box;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use engine_style_parser::parse_style_module;
+use engine_style_parser::{
+    parse_style_module, summarize_css_modules_intermediate as summarize_legacy_intermediate,
+};
 use omena_abstract_value::{
     ClassValueFlowGraphV0, ClassValueFlowNodeV0, ClassValueFlowTransferV0,
     ExternalStringTypeFactsV0, OneCfaCallSiteFlowInputV0, analyze_class_value_flow,
     analyze_one_cfa_call_site_flows, finite_set_class_value, intersect_abstract_class_values,
     prefix_class_value,
 };
-use omena_parser::{StyleDialect, parse as parse_omena_style};
+use omena_benchmarks::style_corpus;
+use omena_parser::{
+    parse as parse_omena_style, summarize_css_modules_intermediate as summarize_omena_intermediate,
+};
 use omena_semantic::summarize_omena_parser_style_semantic_boundary_from_source;
-
-struct StyleSample {
-    name: &'static str,
-    path: &'static str,
-    dialect: StyleDialect,
-    source: String,
-}
 
 fn parser_benchmarks(c: &mut Criterion) {
     let samples = style_corpus();
@@ -48,6 +46,34 @@ fn omena_parser_benchmarks(c: &mut Criterion) {
         });
     }
     group.finish();
+}
+
+fn parser_product_benchmarks(c: &mut Criterion) {
+    let samples = style_corpus();
+    let mut legacy_group = c.benchmark_group("z5/parser-product-legacy");
+    for sample in &samples {
+        legacy_group.bench_function(sample.name, |b| {
+            b.iter(|| {
+                let sheet = parse_style_module(black_box(sample.path), black_box(&sample.source))
+                    .expect("benchmark style sample should be accepted by legacy parser");
+                black_box(summarize_legacy_intermediate(black_box(&sheet)))
+            });
+        });
+    }
+    legacy_group.finish();
+
+    let mut omena_group = c.benchmark_group("z5/parser-product-omena");
+    for sample in &samples {
+        omena_group.bench_function(sample.name, |b| {
+            b.iter(|| {
+                black_box(summarize_omena_intermediate(
+                    black_box(&sample.source),
+                    black_box(sample.dialect),
+                ))
+            });
+        });
+    }
+    omena_group.finish();
 }
 
 fn semantic_benchmarks(c: &mut Criterion) {
@@ -101,109 +127,6 @@ fn abstract_value_benchmarks(c: &mut Criterion) {
         });
     });
     group.finish();
-}
-
-fn style_corpus() -> Vec<StyleSample> {
-    vec![
-        StyleSample {
-            name: "nextjs14-dashboard-scss",
-            path: "DashboardCard.module.scss",
-            dialect: StyleDialect::Scss,
-            source: build_nextjs14_dashboard_scss(96),
-        },
-        StyleSample {
-            name: "vite-component-css",
-            path: "MarketingGrid.module.css",
-            dialect: StyleDialect::Css,
-            source: build_vite_component_css(128),
-        },
-        StyleSample {
-            name: "scss-heavy-design-system",
-            path: "DesignSystem.module.scss",
-            dialect: StyleDialect::Scss,
-            source: build_scss_heavy_design_system(72),
-        },
-    ]
-}
-
-fn build_nextjs14_dashboard_scss(count: usize) -> String {
-    let mut source = String::from(
-        r#"
-@use "./tokens" as tokens;
-@value brand: #0f766e;
-
-.dashboard {
-  display: grid;
-  gap: 12px;
-"#,
-    );
-    for index in 0..count {
-        source.push_str(&format!(
-            r#"
-  &__card{index} {{
-    color: tokens.$accent;
-    --card-tone-{index}: brand;
-
-    &--active {{
-      border-color: var(--card-tone-{index});
-    }}
-  }}
-"#
-        ));
-    }
-    source.push_str("}\n");
-    source
-}
-
-fn build_vite_component_css(count: usize) -> String {
-    let mut source = String::new();
-    for index in 0..count {
-        source.push_str(&format!(
-            r#"
-.tile{index} {{
-  color: rgb({red}, {green}, 40);
-  animation: tilePulse{index} 120ms ease-out;
-}}
-
-@keyframes tilePulse{index} {{
-  from {{ opacity: 0; }}
-  to {{ opacity: 1; }}
-}}
-"#,
-            red = index % 255,
-            green = (index * 7) % 255,
-        ));
-    }
-    source
-}
-
-fn build_scss_heavy_design_system(count: usize) -> String {
-    let mut source = String::from(
-        r#"
-@forward "./palette";
-@mixin elevation($level) {
-  box-shadow: 0 $level 12px rgb(15 23 42 / 16%);
-}
-
-.component {
-"#,
-    );
-    for index in 0..count {
-        source.push_str(&format!(
-            r#"
-  &--tone-{index} {{
-    @include elevation({level}px);
-
-    .component__label{index} {{
-      color: var(--tone-{index});
-    }}
-  }}
-"#,
-            level = (index % 8) + 1,
-        ));
-    }
-    source.push_str("}\n");
-    source
 }
 
 fn build_flow_graph(node_count: usize) -> ClassValueFlowGraphV0 {
@@ -301,6 +224,7 @@ criterion_group!(
     benches,
     parser_benchmarks,
     omena_parser_benchmarks,
+    parser_product_benchmarks,
     semantic_benchmarks,
     abstract_value_benchmarks
 );
