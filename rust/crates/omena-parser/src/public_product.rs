@@ -122,12 +122,15 @@ struct ParserIndexSelectorDefinitionFactV0 {
 #[serde(rename_all = "camelCase")]
 struct ParserIndexValueFactsV0 {
     decl_names: Vec<String>,
+    decl_facts: Vec<ParserIndexValueDeclFactV0>,
     decl_names_with_local_refs: Vec<String>,
     decl_names_with_imported_refs: Vec<String>,
     import_names: Vec<String>,
+    import_facts: Vec<ParserIndexValueImportFactV0>,
     import_sources: Vec<String>,
     import_alias_count: usize,
     ref_names: Vec<String>,
+    ref_facts: Vec<ParserIndexValueRefFactV0>,
     local_ref_names: Vec<String>,
     imported_ref_names: Vec<String>,
     imported_ref_sources: Vec<String>,
@@ -147,6 +150,45 @@ struct ParserIndexValueFactsV0 {
     selectors_with_imported_refs_under_media_names: Vec<String>,
     selectors_with_imported_refs_under_supports_names: Vec<String>,
     selectors_with_imported_refs_under_layer_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexValueDeclFactV0 {
+    name: String,
+    value: String,
+    source_order: usize,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
+    rule_byte_span: ParserByteSpanV0,
+    rule_range: ParserRangeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexValueImportFactV0 {
+    name: String,
+    imported_name: String,
+    from: String,
+    source_order: usize,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    imported_name_byte_span: Option<ParserByteSpanV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    imported_name_range: Option<ParserRangeV0>,
+    rule_byte_span: ParserByteSpanV0,
+    rule_range: ParserRangeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexValueRefFactV0 {
+    name: String,
+    source: &'static str,
+    source_order: usize,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -265,11 +307,13 @@ struct ParserIndexSassSelectorSymbolFactV0 {
 #[serde(rename_all = "camelCase")]
 struct ParserIndexKeyframesFactsV0 {
     names: Vec<String>,
+    decl_facts: Vec<ParserIndexKeyframesDeclFactV0>,
     names_under_media: Vec<String>,
     names_under_supports: Vec<String>,
     names_under_layer: Vec<String>,
     animation_ref_names: Vec<String>,
     animation_name_ref_names: Vec<String>,
+    ref_facts: Vec<ParserIndexAnimationNameRefFactV0>,
     selectors_with_animation_ref_names: Vec<String>,
     selectors_with_animation_name_ref_names: Vec<String>,
     selectors_with_animation_refs_under_media_names: Vec<String>,
@@ -278,6 +322,27 @@ struct ParserIndexKeyframesFactsV0 {
     selectors_with_animation_name_refs_under_media_names: Vec<String>,
     selectors_with_animation_name_refs_under_supports_names: Vec<String>,
     selectors_with_animation_name_refs_under_layer_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexKeyframesDeclFactV0 {
+    name: String,
+    source_order: usize,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
+    rule_byte_span: ParserByteSpanV0,
+    rule_range: ParserRangeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexAnimationNameRefFactV0 {
+    name: String,
+    property: &'static str,
+    source_order: usize,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -381,7 +446,7 @@ pub fn summarize_css_modules_intermediate(
     let facts = collect_style_facts(source, dialect);
     let blocks = collect_style_blocks(source);
     let selectors = summarize_selectors(source, &facts, &blocks);
-    let values = summarize_values(&facts, &blocks);
+    let values = summarize_values(source, &facts, &blocks);
     let custom_properties = summarize_custom_properties(source, &facts, &blocks);
     let sass = summarize_sass(source, &facts, &blocks);
     let keyframes = summarize_keyframes(source, &facts, &blocks);
@@ -681,7 +746,11 @@ fn summarize_selectors(
     }
 }
 
-fn summarize_values(facts: &ParsedStyleFacts, blocks: &[StyleBlock]) -> ParserIndexValueFactsV0 {
+fn summarize_values(
+    source: &str,
+    facts: &ParsedStyleFacts,
+    blocks: &[StyleBlock],
+) -> ParserIndexValueFactsV0 {
     let imported_sources_by_name = facts
         .css_module_value_import_edges
         .iter()
@@ -698,6 +767,53 @@ fn summarize_values(facts: &ParsedStyleFacts, blocks: &[StyleBlock]) -> ParserIn
         .map(|value| value.name.clone())
         .filter(|name| !imported_names.contains(name))
         .collect::<BTreeSet<_>>();
+    let mut decl_facts = Vec::new();
+    for value in &facts.css_module_values {
+        if value.kind != ParsedCssModuleValueFactKind::Definition
+            || !local_decl_names.contains(&value.name)
+        {
+            continue;
+        }
+        let byte_span = byte_span_for_range(value.range);
+        let rule_byte_span =
+            at_rule_statement_byte_span_for_offset(source, byte_span.start, "@value");
+        decl_facts.push(ParserIndexValueDeclFactV0 {
+            name: value.name.clone(),
+            value: css_module_value_definition_text(source, byte_span.start),
+            source_order: decl_facts.len(),
+            byte_span,
+            range: parser_range_for_byte_span(source, byte_span),
+            rule_byte_span,
+            rule_range: parser_range_for_byte_span(source, rule_byte_span),
+        });
+    }
+    decl_facts.sort();
+    decl_facts.dedup();
+    let mut import_facts = Vec::new();
+    for edge in &facts.css_module_value_import_edges {
+        let byte_span = byte_span_for_range(edge.local_range);
+        let remote_byte_span = byte_span_for_range(edge.remote_range);
+        let imported_name_byte_span =
+            (edge.remote_name != edge.local_name).then_some(remote_byte_span);
+        let rule_byte_span =
+            at_rule_statement_byte_span_for_offset(source, byte_span.start, "@value");
+        import_facts.push(ParserIndexValueImportFactV0 {
+            name: edge.local_name.clone(),
+            imported_name: edge.remote_name.clone(),
+            from: edge.import_source.clone(),
+            source_order: import_facts.len(),
+            byte_span,
+            range: parser_range_for_byte_span(source, byte_span),
+            imported_name_byte_span,
+            imported_name_range: imported_name_byte_span
+                .map(|span| parser_range_for_byte_span(source, span)),
+            rule_byte_span,
+            rule_range: parser_range_for_byte_span(source, rule_byte_span),
+        });
+    }
+    import_facts.sort();
+    import_facts.dedup();
+    let mut ref_facts = Vec::new();
     let value_decl_ref_names = facts
         .css_module_value_definition_edges
         .iter()
@@ -721,10 +837,21 @@ fn summarize_values(facts: &ParsedStyleFacts, blocks: &[StyleBlock]) -> ParserIn
         if value.kind != ParsedCssModuleValueFactKind::Reference {
             continue;
         }
+        if !local_decl_names.contains(&value.name) && !imported_names.contains(&value.name) {
+            continue;
+        }
         let offset = range_start(value.range);
         let selector_names = selector_names_for_offset(blocks, offset);
         if !selector_names.is_empty() {
             declaration_ref_names.push(value.name.clone());
+            let byte_span = byte_span_for_range(value.range);
+            ref_facts.push(ParserIndexValueRefFactV0 {
+                name: value.name.clone(),
+                source: "declaration",
+                source_order: ref_facts.len(),
+                byte_span,
+                range: parser_range_for_byte_span(source, byte_span),
+            });
             let wrapper = wrapper_for_offset(blocks, offset);
             for selector in selector_names {
                 selectors_with_refs.insert(selector.clone());
@@ -756,8 +883,19 @@ fn summarize_values(facts: &ParsedStyleFacts, blocks: &[StyleBlock]) -> ParserIn
                     );
                 }
             }
+        } else {
+            let byte_span = byte_span_for_range(value.range);
+            ref_facts.push(ParserIndexValueRefFactV0 {
+                name: value.name.clone(),
+                source: "valueDecl",
+                source_order: ref_facts.len(),
+                byte_span,
+                range: parser_range_for_byte_span(source, byte_span),
+            });
         }
     }
+    ref_facts.sort();
+    ref_facts.dedup();
 
     let mut value_decl_imported_ref_sources = Vec::new();
     for name in &value_decl_ref_names {
@@ -779,6 +917,7 @@ fn summarize_values(facts: &ParsedStyleFacts, blocks: &[StyleBlock]) -> ParserIn
 
     ParserIndexValueFactsV0 {
         decl_names: sorted(local_decl_names.clone()),
+        decl_facts,
         decl_names_with_local_refs: facts
             .css_module_value_definition_edges
             .iter()
@@ -810,6 +949,7 @@ fn summarize_values(facts: &ParsedStyleFacts, blocks: &[StyleBlock]) -> ParserIn
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect(),
+        import_facts,
         import_sources: facts
             .css_module_value_import_edges
             .iter()
@@ -822,6 +962,7 @@ fn summarize_values(facts: &ParsedStyleFacts, blocks: &[StyleBlock]) -> ParserIn
             .filter(|edge| edge.remote_name != edge.local_name)
             .count(),
         ref_names: semantic_ref_names.clone().tap_sort(),
+        ref_facts,
         local_ref_names: semantic_ref_names
             .iter()
             .filter(|name| local_decl_names.contains(*name))
@@ -1270,11 +1411,13 @@ fn summarize_keyframes(
     blocks: &[StyleBlock],
 ) -> ParserIndexKeyframesFactsV0 {
     let mut names = Vec::new();
+    let mut decl_facts = Vec::new();
     let mut names_under_media = BTreeSet::new();
     let mut names_under_supports = BTreeSet::new();
     let mut names_under_layer = BTreeSet::new();
     let mut animation_ref_names = Vec::new();
     let mut animation_name_ref_names = Vec::new();
+    let mut ref_facts = Vec::new();
     let mut selectors_with_animation_ref_names = BTreeSet::new();
     let mut selectors_with_animation_name_ref_names = BTreeSet::new();
     let mut selectors_with_animation_refs_under_media_names = BTreeSet::new();
@@ -1295,6 +1438,17 @@ fn summarize_keyframes(
         let wrapper = wrapper_for_offset(blocks, offset);
         match animation.kind {
             ParsedAnimationFactKind::KeyframesDeclaration => {
+                let byte_span = byte_span_for_range(animation.range);
+                let rule_byte_span =
+                    at_rule_block_byte_span_for_offset(source, byte_span.start, "@keyframes");
+                decl_facts.push(ParserIndexKeyframesDeclFactV0 {
+                    name: animation.name.clone(),
+                    source_order: decl_facts.len(),
+                    byte_span,
+                    range: parser_range_for_byte_span(source, byte_span),
+                    rule_byte_span,
+                    rule_range: parser_range_for_byte_span(source, rule_byte_span),
+                });
                 names.push(animation.name.clone());
                 insert_by_wrapper(
                     &mut names_under_media,
@@ -1305,12 +1459,26 @@ fn summarize_keyframes(
                 );
             }
             ParsedAnimationFactKind::AnimationNameReference => {
+                let byte_span = byte_span_for_range(animation.range);
+                let property = if property_name_before_offset(source, offset).as_deref()
+                    == Some("animation-name")
+                {
+                    "animation-name"
+                } else {
+                    "animation"
+                };
+                ref_facts.push(ParserIndexAnimationNameRefFactV0 {
+                    name: animation.name.clone(),
+                    property,
+                    source_order: ref_facts.len(),
+                    byte_span,
+                    range: parser_range_for_byte_span(source, byte_span),
+                });
                 if !declared_keyframes.contains(&animation.name) {
                     continue;
                 }
                 let selectors = selector_names_for_offset(blocks, offset);
-                if property_name_before_offset(source, offset).as_deref() == Some("animation-name")
-                {
+                if property == "animation-name" {
                     animation_name_ref_names.push(animation.name.clone());
                     for selector in selectors {
                         selectors_with_animation_name_ref_names.insert(selector.clone());
@@ -1338,14 +1506,20 @@ fn summarize_keyframes(
             }
         }
     }
+    decl_facts.sort();
+    decl_facts.dedup();
+    ref_facts.sort();
+    ref_facts.dedup();
 
     ParserIndexKeyframesFactsV0 {
         names: names.tap_sort_unique(),
+        decl_facts,
         names_under_media: sorted(names_under_media),
         names_under_supports: sorted(names_under_supports),
         names_under_layer: sorted(names_under_layer),
         animation_ref_names: animation_ref_names.tap_sort_unique(),
         animation_name_ref_names: animation_name_ref_names.tap_sort_unique(),
+        ref_facts,
         selectors_with_animation_ref_names: sorted(selectors_with_animation_ref_names),
         selectors_with_animation_name_ref_names: sorted(selectors_with_animation_name_ref_names),
         selectors_with_animation_refs_under_media_names: sorted(
@@ -2137,6 +2311,57 @@ fn property_name_before_offset(source: &str, offset: usize) -> Option<String> {
         return None;
     }
     Some(before[start..colon].trim().to_ascii_lowercase())
+}
+
+fn at_rule_statement_byte_span_for_offset(
+    source: &str,
+    offset: usize,
+    at_keyword: &str,
+) -> ParserByteSpanV0 {
+    let start = previous_at_keyword_start(source, offset, at_keyword).unwrap_or(offset);
+    let end = source
+        .get(offset..)
+        .and_then(|rest| rest.find(';').map(|index| offset + index + 1))
+        .or_else(|| {
+            source
+                .get(offset..)
+                .and_then(|rest| rest.find('\n').map(|index| offset + index))
+        })
+        .unwrap_or(source.len());
+    ParserByteSpanV0 { start, end }
+}
+
+fn at_rule_block_byte_span_for_offset(
+    source: &str,
+    offset: usize,
+    at_keyword: &str,
+) -> ParserByteSpanV0 {
+    let start = previous_at_keyword_start(source, offset, at_keyword).unwrap_or(offset);
+    let Some(open) = source.get(offset..).and_then(|rest| rest.find('{')) else {
+        return ParserByteSpanV0 { start, end: offset };
+    };
+    let open = offset + open;
+    let end = matching_brace(source, open, source.len()).map_or(source.len(), |close| close + 1);
+    ParserByteSpanV0 { start, end }
+}
+
+fn previous_at_keyword_start(source: &str, offset: usize, at_keyword: &str) -> Option<usize> {
+    source.get(..offset.min(source.len()))?.rfind(at_keyword)
+}
+
+fn css_module_value_definition_text(source: &str, offset: usize) -> String {
+    let span = at_rule_statement_byte_span_for_offset(source, offset, "@value");
+    let Some(statement) = source.get(span.start..span.end) else {
+        return String::new();
+    };
+    let Some(colon) = statement.find(':') else {
+        return String::new();
+    };
+    statement[colon + 1..]
+        .trim()
+        .trim_end_matches(';')
+        .trim()
+        .to_string()
 }
 
 fn sort_all_composes(summary: &mut ParserIndexComposesFactsV0) {

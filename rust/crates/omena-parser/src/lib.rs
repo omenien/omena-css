@@ -487,6 +487,8 @@ pub struct ParsedCssModuleValueImportEdgeFact {
     pub remote_name: String,
     pub local_name: String,
     pub import_source: String,
+    pub local_range: TextRange,
+    pub remote_range: TextRange,
     pub range: TextRange,
 }
 
@@ -9115,12 +9117,14 @@ fn collect_css_module_value_import_edges(
         }
         let remote_name = token.text.to_string();
         let mut local_name = remote_name.clone();
+        let mut local_range = token.range;
         if let Some(as_index) = next_non_trivia_token_index_until(tokens, index + 1, end)
             && tokens[as_index].text == "as"
             && let Some(local_index) = next_non_trivia_token_index_until(tokens, as_index + 1, end)
             && css_module_value_name_token_can_define(tokens[local_index])
         {
             local_name = tokens[local_index].text.to_string();
+            local_range = tokens[local_index].range;
             index = local_index + 1;
         } else {
             index += 1;
@@ -9129,6 +9133,8 @@ fn collect_css_module_value_import_edges(
             remote_name,
             local_name,
             import_source: import_source.clone(),
+            local_range,
+            remote_range: token.range,
             range: token.range,
         });
     }

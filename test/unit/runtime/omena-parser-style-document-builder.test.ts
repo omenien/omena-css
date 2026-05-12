@@ -44,6 +44,8 @@ describe("buildStyleDocumentWithOmenaParser", () => {
               },
             ],
           },
+          values: { declFacts: [], importFacts: [], refFacts: [] },
+          keyframes: { declFacts: [], refFacts: [] },
           customProperties: {
             declFacts: [
               {
@@ -127,6 +129,8 @@ describe("buildStyleDocumentWithOmenaParser", () => {
             },
           ],
         },
+        values: { declFacts: [], importFacts: [], refFacts: [] },
+        keyframes: { declFacts: [], refFacts: [] },
         customProperties: { declFacts: [], refFacts: [] },
         sass: {
           symbolDeclFacts: [
@@ -177,5 +181,105 @@ describe("buildStyleDocumentWithOmenaParser", () => {
       source: "./theme",
       visibilityKind: "all",
     });
+  });
+
+  it("maps @value and keyframes facts for definitions, references, and diagnostics", () => {
+    const document = buildStyleDocumentWithOmenaParser(
+      "/workspace/Button.module.scss",
+      '@value primary: #fff; @value secondary as accent from "./tokens.module.scss"; @keyframes fade { to { opacity: 1; } } .card { color: primary; animation: fade 1s; animation-name: missing; }',
+      () => ({
+        schemaVersion: "0",
+        language: "scss",
+        selectors: {
+          definitionFacts: [
+            {
+              name: "card",
+              sourceOrder: 0,
+              range: range(124, 128),
+              ruleRange: range(123, 183),
+              fullSelector: ".card",
+              declarations: "color: primary; animation: fade 1s; animation-name: missing;",
+              nestedSafetyKind: "flat",
+            },
+          ],
+        },
+        values: {
+          declFacts: [
+            {
+              name: "primary",
+              value: "#fff",
+              sourceOrder: 0,
+              range: range(7, 14),
+              ruleRange: range(0, 21),
+            },
+          ],
+          importFacts: [
+            {
+              name: "accent",
+              importedName: "secondary",
+              from: "./tokens.module.scss",
+              sourceOrder: 0,
+              range: range(42, 48),
+              importedNameRange: range(29, 38),
+              ruleRange: range(22, 77),
+            },
+          ],
+          refFacts: [
+            {
+              name: "primary",
+              source: "declaration",
+              sourceOrder: 0,
+              range: range(139, 146),
+            },
+          ],
+        },
+        keyframes: {
+          declFacts: [
+            {
+              name: "fade",
+              sourceOrder: 0,
+              range: range(89, 93),
+              ruleRange: range(78, 119),
+            },
+          ],
+          refFacts: [
+            {
+              name: "fade",
+              property: "animation",
+              sourceOrder: 0,
+              range: range(158, 162),
+            },
+            {
+              name: "missing",
+              property: "animation-name",
+              sourceOrder: 1,
+              range: range(181, 188),
+            },
+          ],
+        },
+        customProperties: { declFacts: [], refFacts: [] },
+        sass: {
+          symbolDeclFacts: [],
+          selectorSymbolFacts: [],
+          moduleUseEdges: [],
+          moduleForwardSources: [],
+        },
+        composes: { edges: [] },
+      }),
+    );
+
+    expect(document.valueDecls[0]).toMatchObject({ name: "primary", value: "#fff" });
+    expect(document.valueImports[0]).toMatchObject({
+      name: "accent",
+      importedName: "secondary",
+      from: "./tokens.module.scss",
+      importedNameRange: range(29, 38),
+    });
+    expect(document.valueRefs[0]).toMatchObject({ name: "primary", source: "declaration" });
+    expect(document.keyframes[0]).toMatchObject({ name: "fade", ruleRange: range(78, 119) });
+    expect(document.animationNameRefs.map((ref) => [ref.name, ref.property])).toEqual([
+      ["fade", "animation"],
+      ["missing", "animation-name"],
+    ]);
   });
 });

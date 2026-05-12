@@ -27,12 +27,15 @@ interface ParserIndexSummaryV0 {
   };
   readonly values: {
     readonly declNames: readonly string[];
+    readonly declFacts?: readonly unknown[];
     readonly declNamesWithLocalRefs: readonly string[];
     readonly declNamesWithImportedRefs: readonly string[];
     readonly importNames: readonly string[];
+    readonly importFacts?: readonly unknown[];
     readonly importSources: readonly string[];
     readonly importAliasCount: number;
     readonly refNames: readonly string[];
+    readonly refFacts?: readonly unknown[];
     readonly localRefNames: readonly string[];
     readonly importedRefNames: readonly string[];
     readonly importedRefSources: readonly string[];
@@ -70,11 +73,13 @@ interface ParserIndexSummaryV0 {
   readonly sass: ParserSassSeedFactsV0;
   readonly keyframes: {
     readonly names: readonly string[];
+    readonly declFacts?: readonly unknown[];
     readonly namesUnderMedia: readonly string[];
     readonly namesUnderSupports: readonly string[];
     readonly namesUnderLayer: readonly string[];
     readonly animationRefNames: readonly string[];
     readonly animationNameRefNames: readonly string[];
+    readonly refFacts?: readonly unknown[];
     readonly selectorsWithAnimationRefNames: readonly string[];
     readonly selectorsWithAnimationNameRefNames: readonly string[];
     readonly selectorsWithAnimationRefsUnderMediaNames: readonly string[];
@@ -1079,14 +1084,26 @@ function omitParserOnlySelectorDefinitionFacts(
   summary: ParserIndexSummaryV0,
 ): ParserIndexSummaryV0 {
   const { definitionFacts, ...selectors } = summary.selectors;
+  const { declFacts, importFacts, refFacts, ...values } = summary.values;
   const { symbolDeclFacts, moduleUseEdges, ...sassRest } = summary.sass;
+  const {
+    declFacts: keyframesDeclFacts,
+    refFacts: keyframesRefFacts,
+    ...keyframes
+  } = summary.keyframes;
   const { edges, ...composes } = summary.composes;
   void definitionFacts;
+  void declFacts;
+  void importFacts;
+  void refFacts;
   void symbolDeclFacts;
+  void keyframesDeclFacts;
+  void keyframesRefFacts;
   void edges;
   return {
     ...summary,
     selectors,
+    values,
     customProperties: {
       ...summary.customProperties,
       refFacts: summary.customProperties.refFacts.map(({ byteSpan, range, ...fact }) => {
@@ -1107,6 +1124,7 @@ function omitParserOnlySelectorDefinitionFacts(
         return rest;
       }),
     },
+    keyframes,
     composes,
   };
 }

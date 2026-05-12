@@ -69,6 +69,45 @@ interface ParserCustomPropertyRefFactV0 {
   readonly underLayer: boolean;
 }
 
+interface ParserValueDeclFactV0 {
+  readonly name: string;
+  readonly value: string;
+  readonly sourceOrder: number;
+  readonly range: ParserRangeV0;
+  readonly ruleRange: ParserRangeV0;
+}
+
+interface ParserValueImportFactV0 {
+  readonly name: string;
+  readonly importedName: string;
+  readonly from: string;
+  readonly sourceOrder: number;
+  readonly range: ParserRangeV0;
+  readonly importedNameRange?: ParserRangeV0;
+  readonly ruleRange: ParserRangeV0;
+}
+
+interface ParserValueRefFactV0 {
+  readonly name: string;
+  readonly source: "declaration" | "valueDecl";
+  readonly sourceOrder: number;
+  readonly range: ParserRangeV0;
+}
+
+interface ParserKeyframesDeclFactV0 {
+  readonly name: string;
+  readonly sourceOrder: number;
+  readonly range: ParserRangeV0;
+  readonly ruleRange: ParserRangeV0;
+}
+
+interface ParserAnimationNameRefFactV0 {
+  readonly name: string;
+  readonly property: "animation" | "animation-name";
+  readonly sourceOrder: number;
+  readonly range: ParserRangeV0;
+}
+
 interface ParserSassSymbolDeclFactV0 {
   readonly symbolKind: string;
   readonly name: string;
@@ -104,9 +143,18 @@ interface ParserCssModulesIntermediateV0 {
   readonly selectors: {
     readonly definitionFacts: readonly ParserSelectorDefinitionFactV0[];
   };
+  readonly values: {
+    readonly declFacts: readonly ParserValueDeclFactV0[];
+    readonly importFacts: readonly ParserValueImportFactV0[];
+    readonly refFacts: readonly ParserValueRefFactV0[];
+  };
   readonly customProperties: {
     readonly declFacts: readonly ParserCustomPropertyDeclFactV0[];
     readonly refFacts: readonly ParserCustomPropertyRefFactV0[];
+  };
+  readonly keyframes: {
+    readonly declFacts: readonly ParserKeyframesDeclFactV0[];
+    readonly refFacts: readonly ParserAnimationNameRefFactV0[];
   };
   readonly sass: {
     readonly symbolDeclFacts: readonly ParserSassSymbolDeclFactV0[];
@@ -160,11 +208,45 @@ export function buildStyleDocumentWithOmenaParser(
         ...(bemSuffix ? { bemSuffix } : {}),
       };
     }),
-    [],
-    [],
-    [],
-    [],
-    [],
+    intermediate.keyframes.declFacts.map((fact) => ({
+      id: `keyframes:${fact.sourceOrder}:${fact.name}`,
+      kind: "keyframes",
+      range: toRange(fact.range),
+      name: fact.name,
+      ruleRange: toRange(fact.ruleRange),
+    })),
+    intermediate.keyframes.refFacts.map((fact) => ({
+      id: `animation-name-ref:${fact.sourceOrder}:${fact.name}`,
+      kind: "animationNameRef",
+      range: toRange(fact.range),
+      name: fact.name,
+      property: fact.property,
+    })),
+    intermediate.values.declFacts.map((fact) => ({
+      id: `value:${fact.sourceOrder}:${fact.name}`,
+      kind: "valueDecl",
+      range: toRange(fact.range),
+      name: fact.name,
+      value: fact.value,
+      ruleRange: toRange(fact.ruleRange),
+    })),
+    intermediate.values.importFacts.map((fact) => ({
+      id: `value-import:${fact.sourceOrder}:${fact.name}`,
+      kind: "valueImport",
+      range: toRange(fact.range),
+      name: fact.name,
+      importedName: fact.importedName,
+      ...(fact.importedNameRange ? { importedNameRange: toRange(fact.importedNameRange) } : {}),
+      from: fact.from,
+      ruleRange: toRange(fact.ruleRange),
+    })),
+    intermediate.values.refFacts.map((fact) => ({
+      id: `value-ref:${fact.source}:${fact.sourceOrder}:${fact.name}`,
+      kind: "valueRef",
+      range: toRange(fact.range),
+      name: fact.name,
+      source: fact.source,
+    })),
     intermediate.customProperties.declFacts.map((fact) => ({
       id: `custom-property-decl:${fact.sourceOrder}:${fact.name}`,
       kind: "customPropertyDecl",
