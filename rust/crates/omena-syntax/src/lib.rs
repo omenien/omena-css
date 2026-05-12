@@ -761,8 +761,9 @@ pub fn summarize_omena_syntax_boundary() -> OmenaSyntaxBoundarySummaryV0 {
             "cstreeRawKindBridge",
             "bogusRecoveryKindSuperset",
             "semanticSoaTables",
+            "parserCstEquivalence",
         ],
-        next_surfaces: vec!["parserCstEquivalence"],
+        next_surfaces: Vec::new(),
     }
 }
 
@@ -856,6 +857,8 @@ mod tests {
                 .contains(&"symbolScopeReferenceVocabulary")
         );
         assert!(summary.ready_surfaces.contains(&"semanticSoaTables"));
+        assert!(summary.ready_surfaces.contains(&"parserCstEquivalence"));
         assert!(!summary.next_surfaces.contains(&"semanticSoaTables"));
+        assert!(!summary.next_surfaces.contains(&"parserCstEquivalence"));
     }
 }

@@ -5,6 +5,7 @@
 //! until parser parity gates are met.
 
 use cstree::{
+    Syntax,
     build::GreenNodeBuilder,
     green::GreenNode,
     interning::TokenInterner,
@@ -162,6 +163,21 @@ pub struct ParserSemanticNameConsumptionSummaryV0 {
     pub keyframes_name_count: usize,
     pub mixin_name_count: usize,
     pub file_path_count: usize,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParserCstEquivalenceSummaryV0 {
+    pub product: &'static str,
+    pub dialect: StyleDialect,
+    pub root_kind: SyntaxKind,
+    pub parser_node_count: usize,
+    pub parser_token_count: usize,
+    pub typed_wrapper_count: usize,
+    pub source_text_round_trip_ready: bool,
+    pub syntax_kind_round_trip_ready: bool,
+    pub zero_unknown_kind_ready: bool,
+    pub typed_cst_wrapper_ready: bool,
     pub ready_surfaces: Vec<&'static str>,
 }
 
@@ -790,6 +806,70 @@ pub fn collect_style_facts(text: &str, dialect: StyleDialect) -> ParsedStyleFact
     collect_style_facts_with_extension(text, &extension)
 }
 
+pub fn summarize_parser_cst_equivalence(
+    text: &str,
+    dialect: StyleDialect,
+) -> ParserCstEquivalenceSummaryV0 {
+    let result = parse(text, dialect);
+    let syntax = result.syntax();
+    let cst = result.cst();
+
+    let mut node_count = 0;
+    let mut token_count = 0;
+    let mut syntax_kind_round_trip_ready = true;
+    let mut zero_unknown_kind_ready = true;
+
+    for node in syntax.descendants() {
+        node_count += 1;
+        let kind = node.kind();
+        syntax_kind_round_trip_ready &= SyntaxKind::from_raw(kind.into_raw()) == kind;
+        zero_unknown_kind_ready &= SyntaxKind::ALL.contains(&kind);
+    }
+
+    for token in syntax
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+    {
+        token_count += 1;
+        let kind = token.kind();
+        syntax_kind_round_trip_ready &= SyntaxKind::from_raw(kind.into_raw()) == kind;
+        zero_unknown_kind_ready &= SyntaxKind::ALL.contains(&kind);
+    }
+
+    let typed_wrapper_count = usize::from(cst.stylesheet().is_some())
+        + cst.rules().len()
+        + cst.selectors().len()
+        + cst.declarations().len()
+        + cst.declaration_lists().len()
+        + cst.values().len()
+        + cst.component_values().len()
+        + cst.simple_blocks().len()
+        + cst.component_value_lists().len()
+        + cst.comma_separated_component_value_lists().len()
+        + cst.custom_property_values().len()
+        + cst.at_rules().len()
+        + cst.bogus_nodes().len();
+
+    ParserCstEquivalenceSummaryV0 {
+        product: "omena-parser.cst-equivalence",
+        dialect,
+        root_kind: syntax.kind(),
+        parser_node_count: node_count,
+        parser_token_count: token_count,
+        typed_wrapper_count,
+        source_text_round_trip_ready: result.source_text().as_deref() == Some(text),
+        syntax_kind_round_trip_ready,
+        zero_unknown_kind_ready,
+        typed_cst_wrapper_ready: cst.stylesheet().is_some() && typed_wrapper_count > 1,
+        ready_surfaces: vec![
+            "parserCstEquivalence",
+            "parserUsesOmenaSyntaxKind",
+            "parserCstSourceTextRoundTrip",
+            "typedCstWrapperEquivalence",
+        ],
+    }
+}
+
 pub fn collect_style_facts_with_extension(
     text: &str,
     extension: &impl DialectExtension,
@@ -1247,6 +1327,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "commaSeparatedComponentValueListEntryPointApiSlice",
             "simpleBlockEntryPointApiSlice",
             "typedCstWrapperSlice",
+            "parserCstEquivalence",
             "typedBogusCstWrapperSlice",
             "componentValueCstNodes",
             "simpleBlockCstNodes",
@@ -13249,6 +13330,26 @@ mod tests {
     }
 
     #[test]
+    fn summarizes_parser_cst_equivalence_contract() {
+        let summary = summarize_parser_cst_equivalence(
+            r#"@media (min-width: 1px) { .card { --tone: red; color: var(--tone); } }"#,
+            StyleDialect::Css,
+        );
+
+        assert_eq!(summary.product, "omena-parser.cst-equivalence");
+        assert_eq!(summary.dialect, StyleDialect::Css);
+        assert_eq!(summary.root_kind, SyntaxKind::Root);
+        assert!(summary.parser_node_count > 1);
+        assert!(summary.parser_token_count > 1);
+        assert!(summary.typed_wrapper_count > 4);
+        assert!(summary.source_text_round_trip_ready);
+        assert!(summary.syntax_kind_round_trip_ready);
+        assert!(summary.zero_unknown_kind_ready);
+        assert!(summary.typed_cst_wrapper_ready);
+        assert!(summary.ready_surfaces.contains(&"parserCstEquivalence"));
+    }
+
+    #[test]
     fn summarizes_green_field_parser_boundary() {
         let summary = summarize_parser_boundary();
 
@@ -13749,6 +13850,7 @@ mod tests {
                 .contains(&"simpleBlockEntryPointApiSlice")
         );
         assert!(summary.ready_surfaces.contains(&"typedCstWrapperSlice"));
+        assert!(summary.ready_surfaces.contains(&"parserCstEquivalence"));
         assert!(
             summary
                 .ready_surfaces

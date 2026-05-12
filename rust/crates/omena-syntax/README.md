@@ -8,5 +8,6 @@ Current scope:
 
 - Range-divided `SyntaxKind` values for CSS, SCSS, Sass, and Less.
 - `cstree` raw-kind conversion and typed node/token aliases.
+- Parser CST equivalence contract consumed by `omena-parser`.
 - Shared `SymbolKind`, `ScopeKind`, and `ReferenceKind` enums.
 - Bogus-node superset for lossless error recovery.
