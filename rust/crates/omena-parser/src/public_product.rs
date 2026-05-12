@@ -212,9 +212,12 @@ struct ParserIndexCustomPropertyFactsV0 {
 #[serde(rename_all = "camelCase")]
 struct ParserIndexCustomPropertyDeclFactV0 {
     name: String,
+    value: String,
     source_order: usize,
     byte_span: ParserByteSpanV0,
     range: ParserRangeV0,
+    rule_byte_span: ParserByteSpanV0,
+    rule_range: ParserRangeV0,
     selector_contexts: Vec<String>,
     under_media: bool,
     under_supports: bool,
@@ -1040,11 +1043,22 @@ fn summarize_custom_properties(
             ParsedVariableFactKind::CustomPropertyDeclaration => {
                 let byte_span = byte_span_for_range(variable.range);
                 let wrapper = wrapper_for_offset(blocks, byte_span.start);
+                let rule_byte_span = style_block_for_offset(blocks, byte_span.start)
+                    .map(|block| ParserByteSpanV0 {
+                        start: block.rule_start,
+                        end: block.rule_end,
+                    })
+                    .unwrap_or_else(|| {
+                        declaration_statement_byte_span_for_offset(source, byte_span.start)
+                    });
                 decl_facts.push(ParserIndexCustomPropertyDeclFactV0 {
                     name: variable.name.clone(),
+                    value: declaration_value_text(source, byte_span.start),
                     source_order: decl_facts.len(),
                     byte_span,
                     range: parser_range_for_byte_span(source, byte_span),
+                    rule_byte_span,
+                    rule_range: parser_range_for_byte_span(source, rule_byte_span),
                     selector_contexts: selector_contexts_for_offset(blocks, byte_span.start),
                     under_media: wrapper.under_media,
                     under_supports: wrapper.under_supports,
@@ -2073,6 +2087,14 @@ fn selector_rule_block<'a>(
         .max_by_key(|block| block.rule_start)
 }
 
+fn style_block_for_offset(blocks: &[StyleBlock], offset: usize) -> Option<&StyleBlock> {
+    blocks
+        .iter()
+        .filter(|block| !block.names.is_empty())
+        .filter(|block| block.start <= offset && offset < block.end)
+        .max_by_key(|block| block.rule_start)
+}
+
 fn split_selector_groups_text(header: &str) -> Vec<&str> {
     let mut groups = Vec::new();
     let mut start = 0usize;
@@ -2400,6 +2422,42 @@ fn previous_at_keyword_start(source: &str, offset: usize, at_keyword: &str) -> O
 
 fn css_module_value_definition_text(source: &str, offset: usize) -> String {
     let span = at_rule_statement_byte_span_for_offset(source, offset, "@value");
+    let Some(statement) = source.get(span.start..span.end) else {
+        return String::new();
+    };
+    let Some(colon) = statement.find(':') else {
+        return String::new();
+    };
+    statement[colon + 1..]
+        .trim()
+        .trim_end_matches(';')
+        .trim()
+        .to_string()
+}
+
+fn declaration_statement_byte_span_for_offset(source: &str, offset: usize) -> ParserByteSpanV0 {
+    let start = source
+        .get(..offset)
+        .and_then(|before| before.rfind(['{', ';']).map(|index| index + 1))
+        .unwrap_or(offset);
+    let end = source
+        .get(offset..)
+        .and_then(|rest| {
+            let semicolon = rest.find(';');
+            let close = rest.find('}');
+            match (semicolon, close) {
+                (Some(semicolon), Some(close)) => Some(offset + semicolon.min(close)),
+                (Some(semicolon), None) => Some(offset + semicolon + 1),
+                (None, Some(close)) => Some(offset + close),
+                (None, None) => None,
+            }
+        })
+        .unwrap_or(source.len());
+    ParserByteSpanV0 { start, end }
+}
+
+fn declaration_value_text(source: &str, offset: usize) -> String {
+    let span = declaration_statement_byte_span_for_offset(source, offset);
     let Some(statement) = source.get(span.start..span.end) else {
         return String::new();
     };

@@ -1107,6 +1107,17 @@ function omitParserOnlySelectorDefinitionFacts(
     values,
     customProperties: {
       ...summary.customProperties,
+      declFacts: summary.customProperties.declFacts.map((fact) => {
+        const { value, ruleByteSpan, ruleRange, ...rest } = fact as typeof fact & {
+          readonly value?: unknown;
+          readonly ruleByteSpan?: unknown;
+          readonly ruleRange?: unknown;
+        };
+        void value;
+        void ruleByteSpan;
+        void ruleRange;
+        return rest;
+      }),
       refFacts: summary.customProperties.refFacts.map(({ byteSpan, range, ...fact }) => {
         void byteSpan;
         void range;

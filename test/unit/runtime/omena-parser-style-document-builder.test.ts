@@ -50,8 +50,10 @@ describe("buildStyleDocumentWithOmenaParser", () => {
             declFacts: [
               {
                 name: "--gap",
+                value: "1rem",
                 sourceOrder: 0,
                 range: range(20, 25),
+                ruleRange: range(0, 33),
                 selectorContexts: [".card"],
                 underMedia: false,
                 underSupports: false,
@@ -106,6 +108,8 @@ describe("buildStyleDocumentWithOmenaParser", () => {
       },
     });
     expect(document.customPropertyDecls[0]?.context.selectorText).toBe(".card");
+    expect(document.customPropertyDecls[0]?.value).toBe("1rem");
+    expect(document.customPropertyDecls[0]?.ruleRange).toEqual(range(0, 33));
     expect(document.customPropertyRefs[0]?.range).toEqual(range(30, 35));
   });
 

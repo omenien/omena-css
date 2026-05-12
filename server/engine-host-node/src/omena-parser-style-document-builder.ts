@@ -51,8 +51,10 @@ interface ParserSelectorDefinitionFactV0 {
 
 interface ParserCustomPropertyDeclFactV0 {
   readonly name: string;
+  readonly value: string;
   readonly sourceOrder: number;
   readonly range: ParserRangeV0;
+  readonly ruleRange: ParserRangeV0;
   readonly selectorContexts: readonly string[];
   readonly underMedia: boolean;
   readonly underSupports: boolean;
@@ -266,8 +268,8 @@ export function buildStyleDocumentWithOmenaParser(
       kind: "customPropertyDecl",
       range: toRange(fact.range),
       name: fact.name,
-      value: "",
-      ruleRange: toRange(fact.range),
+      value: fact.value,
+      ruleRange: toRange(fact.ruleRange),
       context: customPropertyContext(fact),
     })),
     intermediate.customProperties.refFacts.map((fact) => ({
