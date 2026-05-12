@@ -381,6 +381,57 @@ fn exposes_transform_plan_facade_from_source() {
 }
 
 #[test]
+fn exposes_transform_plan_egg_witnesses_from_source_execution() {
+    let source = ".a:is(.ready) { width: calc(7 + 0); }";
+    let target_support = OmenaQueryTargetFeatureSupportV0 {
+        vendor_prefix_required: false,
+        supports_light_dark: true,
+        supports_color_mix: true,
+        supports_oklch_oklab: true,
+        supports_color_function: true,
+        supports_logical_properties: true,
+        supports_css_nesting: true,
+        supports_css_scope: true,
+        supports_cascade_layers: true,
+    };
+    let target_options = OmenaQueryTargetTransformOptionsV0 {
+        allow_logical_to_physical: false,
+        allow_scope_flatten: false,
+        allow_layer_flatten: false,
+        enable_supports_static_eval: false,
+        enable_media_static_eval: false,
+    };
+
+    let summary = summarize_omena_query_transform_plan_from_source(
+        "Button.css",
+        source,
+        "modern",
+        target_support,
+        target_options,
+        default_omena_query_transform_print_options(),
+    );
+
+    assert_eq!(
+        summary.egg.planned_pass_ids,
+        vec!["selector-is-where-compression", "calc-reduction"]
+    );
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"transformEggExecutionWitnesses")
+    );
+    assert_eq!(summary.egg_witnesses.len(), 2);
+    assert!(
+        summary
+            .egg_witnesses
+            .iter()
+            .all(|witness| witness.execution.accepted)
+    );
+    assert!(summary.execution.output_css.contains(".a.ready"));
+    assert!(summary.execution.output_css.contains("width: 7"));
+}
+
+#[test]
 fn exposes_transform_plan_facade_from_browserslist_target_query() {
     let source = ".button { display: flex; color: light-dark(#000, #fff); }";
     let target_options = OmenaQueryTargetTransformOptionsV0 {
