@@ -7001,7 +7001,7 @@ fn collect_sass_symbol_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSass
                         .is_some_and(|candidate| candidate.kind == SyntaxKind::LeftParen)
                     && !containing_at_rule_header_name(tokens, index)
                         .is_some_and(|name| name.eq_ignore_ascii_case("@include"))
-                    && previous_non_trivia_token(tokens, 0, index).map_or(true, |candidate| {
+                    && previous_non_trivia_token(tokens, 0, index).is_none_or(|candidate| {
                         !matches!(candidate.kind, SyntaxKind::AtKeyword)
                     }) =>
             {

@@ -753,29 +753,36 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 }
             }
             Some(TransformPassKind::ScssModuleEvaluate)
-                if matches!(dialect, StyleDialect::Scss | StyleDialect::Sass)
-                    && context.scss_module_evaluation.is_some() =>
+                if matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) =>
             {
-                let evaluation = context
-                    .scss_module_evaluation
-                    .as_ref()
-                    .expect("checked above");
-                let mutation_count = usize::from(output_css != evaluation.evaluated_css);
-                let status = if mutation_count == 0 {
-                    TransformPassRuntimeStatus::NoChange
+                if let Some(evaluation) = context.scss_module_evaluation.as_ref() {
+                    let mutation_count = usize::from(output_css != evaluation.evaluated_css);
+                    let status = if mutation_count == 0 {
+                        TransformPassRuntimeStatus::NoChange
+                    } else {
+                        TransformPassRuntimeStatus::Applied
+                    };
+                    output_css = evaluation.evaluated_css.clone();
+                    css_module_evaluation = Some(evaluation.clone());
+                    TransformPassExecutionOutcomeV0 {
+                        pass_id,
+                        status,
+                        input_byte_len,
+                        output_byte_len: output_css.len(),
+                        mutation_count,
+                        provenance_preserved: true,
+                        detail: "applied explicit SCSS module evaluation output from the evaluator boundary",
+                    }
                 } else {
-                    TransformPassRuntimeStatus::Applied
-                };
-                output_css = evaluation.evaluated_css.clone();
-                css_module_evaluation = Some(evaluation.clone());
-                TransformPassExecutionOutcomeV0 {
-                    pass_id,
-                    status,
-                    input_byte_len,
-                    output_byte_len: output_css.len(),
-                    mutation_count,
-                    provenance_preserved: true,
-                    detail: "applied explicit SCSS module evaluation output from the evaluator boundary",
+                    TransformPassExecutionOutcomeV0 {
+                        pass_id,
+                        status: TransformPassRuntimeStatus::PlannedOnly,
+                        input_byte_len,
+                        output_byte_len: output_css.len(),
+                        mutation_count: 0,
+                        provenance_preserved: true,
+                        detail: "requires explicit SCSS evaluator output before mutation",
+                    }
                 }
             }
             Some(TransformPassKind::ScssModuleEvaluate) => TransformPassExecutionOutcomeV0 {
@@ -787,29 +794,35 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 provenance_preserved: true,
                 detail: "requires explicit SCSS evaluator output before mutation",
             },
-            Some(TransformPassKind::LessModuleEvaluate)
-                if dialect == StyleDialect::Less && context.less_module_evaluation.is_some() =>
-            {
-                let evaluation = context
-                    .less_module_evaluation
-                    .as_ref()
-                    .expect("checked above");
-                let mutation_count = usize::from(output_css != evaluation.evaluated_css);
-                let status = if mutation_count == 0 {
-                    TransformPassRuntimeStatus::NoChange
+            Some(TransformPassKind::LessModuleEvaluate) if dialect == StyleDialect::Less => {
+                if let Some(evaluation) = context.less_module_evaluation.as_ref() {
+                    let mutation_count = usize::from(output_css != evaluation.evaluated_css);
+                    let status = if mutation_count == 0 {
+                        TransformPassRuntimeStatus::NoChange
+                    } else {
+                        TransformPassRuntimeStatus::Applied
+                    };
+                    output_css = evaluation.evaluated_css.clone();
+                    css_module_evaluation = Some(evaluation.clone());
+                    TransformPassExecutionOutcomeV0 {
+                        pass_id,
+                        status,
+                        input_byte_len,
+                        output_byte_len: output_css.len(),
+                        mutation_count,
+                        provenance_preserved: true,
+                        detail: "applied explicit Less module evaluation output from the evaluator boundary",
+                    }
                 } else {
-                    TransformPassRuntimeStatus::Applied
-                };
-                output_css = evaluation.evaluated_css.clone();
-                css_module_evaluation = Some(evaluation.clone());
-                TransformPassExecutionOutcomeV0 {
-                    pass_id,
-                    status,
-                    input_byte_len,
-                    output_byte_len: output_css.len(),
-                    mutation_count,
-                    provenance_preserved: true,
-                    detail: "applied explicit Less module evaluation output from the evaluator boundary",
+                    TransformPassExecutionOutcomeV0 {
+                        pass_id,
+                        status: TransformPassRuntimeStatus::PlannedOnly,
+                        input_byte_len,
+                        output_byte_len: output_css.len(),
+                        mutation_count: 0,
+                        provenance_preserved: true,
+                        detail: "requires explicit Less evaluator output before mutation",
+                    }
                 }
             }
             Some(TransformPassKind::LessModuleEvaluate) => TransformPassExecutionOutcomeV0 {
@@ -1319,13 +1332,10 @@ fn order_passes_by_dag(requested: &[TransformPassKind]) -> Vec<TransformPassKind
 
     let mut ordered = Vec::with_capacity(remaining.len());
     while !remaining.is_empty() {
-        let next_index = match remaining
+        let next_index = remaining
             .iter()
             .position(|candidate| !has_incoming_edge_from_remaining(*candidate, &remaining))
-        {
-            Some(index) => index,
-            None => 0,
-        };
+            .unwrap_or_default();
         ordered.push(remaining.remove(next_index));
     }
 
@@ -3161,7 +3171,7 @@ fn extract_animation_shorthand_name_candidates(value: &str) -> Option<Vec<String
 
 fn is_static_animation_name_candidate(value: &str) -> bool {
     !value.is_empty()
-        && !value.contains(|ch: char| matches!(ch, '(' | ')' | '"' | '\'' | '/' | '\\'))
+        && !value.contains(['(', ')', '"', '\'', '/', '\\'])
         && parse_numeric_value_with_unit(value).is_none()
 }
 
@@ -4492,16 +4502,16 @@ fn collect_box_shorthand_replacement_ranges(
     let mut ranges = Vec::new();
     let mut index = 0;
     while index < tokens.len() {
-        if tokens[index].kind == SyntaxKind::LeftBrace {
-            if let Some(close_index) = matching_right_brace_index(tokens, index) {
-                ranges.extend(collect_box_shorthand_replacements_in_block(
-                    tokens,
-                    index,
-                    close_index,
-                ));
-                index = close_index + 1;
-                continue;
-            }
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            ranges.extend(collect_box_shorthand_replacements_in_block(
+                tokens,
+                index,
+                close_index,
+            ));
+            index = close_index + 1;
+            continue;
         }
         index += 1;
     }
@@ -4544,11 +4554,11 @@ fn collect_simple_declarations_in_block(
             break;
         }
 
-        if tokens[index].kind == SyntaxKind::LeftBrace {
-            if let Some(close_index) = matching_right_brace_index(tokens, index) {
-                index = close_index + 1;
-                continue;
-            }
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            index = close_index + 1;
+            continue;
         }
 
         if let Some((declaration, next_index)) =
@@ -4749,23 +4759,18 @@ fn collect_top_level_empty_rule_ranges(tokens: &[omena_parser::LexedToken]) -> V
     while index < tokens.len() {
         match tokens[index].kind {
             SyntaxKind::LeftBrace => {
-                if depth == 0 {
-                    if let Some(close_index) = matching_right_brace_index(tokens, index)
-                        && is_empty_rule_block(tokens, index + 1, close_index)
-                        && is_ordinary_top_level_rule_prelude(
-                            tokens,
-                            top_level_prelude_start,
-                            index,
-                        )
-                        && let Some(start) =
-                            first_non_trivia_token_start(tokens, top_level_prelude_start, index)
-                    {
-                        let end = token_end(&tokens[close_index]);
-                        ranges.push((start, end));
-                        index = close_index + 1;
-                        top_level_prelude_start = index;
-                        continue;
-                    }
+                if depth == 0
+                    && let Some(close_index) = matching_right_brace_index(tokens, index)
+                    && is_empty_rule_block(tokens, index + 1, close_index)
+                    && is_ordinary_top_level_rule_prelude(tokens, top_level_prelude_start, index)
+                    && let Some(start) =
+                        first_non_trivia_token_start(tokens, top_level_prelude_start, index)
+                {
+                    let end = token_end(&tokens[close_index]);
+                    ranges.push((start, end));
+                    index = close_index + 1;
+                    top_level_prelude_start = index;
+                    continue;
                 }
                 depth += 1;
             }
@@ -5918,8 +5923,14 @@ mod tests {
             .provenance_derivation_forest
             .nodes
             .iter()
-            .find(|node| node.pass_id == "p02-comment-strip")
-            .expect("comment strip provenance node");
+            .find(|node| node.pass_id == "p02-comment-strip");
+        assert!(
+            comment_node.is_some(),
+            "comment strip provenance node should exist"
+        );
+        let Some(comment_node) = comment_node else {
+            return;
+        };
         assert_eq!(comment_node.status, TransformPassRuntimeStatus::Applied);
         assert_eq!(comment_node.mutation_count, 1);
         assert_eq!(

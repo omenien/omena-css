@@ -224,15 +224,20 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
         .iter()
         .find(|entry| entry.style_path == target_style_path);
 
-    let mut context = TransformExecutionContextV0::default();
-    context.reachable_class_names =
-        derive_reachable_class_names_for_transform_context(&style_fact_entries);
-    context.reachable_keyframe_names =
-        derive_reachable_keyframe_names_for_transform_context(&style_fact_entries);
-    context.reachable_value_names =
-        derive_reachable_value_names_for_transform_context(&style_fact_entries);
-    context.reachable_custom_property_names =
-        derive_reachable_custom_property_names_for_transform_context(&style_fact_entries);
+    let mut context = TransformExecutionContextV0 {
+        reachable_class_names: derive_reachable_class_names_for_transform_context(
+            &style_fact_entries,
+        ),
+        reachable_keyframe_names: derive_reachable_keyframe_names_for_transform_context(
+            &style_fact_entries,
+        ),
+        reachable_value_names: derive_reachable_value_names_for_transform_context(
+            &style_fact_entries,
+        ),
+        reachable_custom_property_names:
+            derive_reachable_custom_property_names_for_transform_context(&style_fact_entries),
+        ..Default::default()
+    };
 
     if let Some(entry) = target_entry {
         context.import_inlines = derive_import_inlines_for_transform_context(

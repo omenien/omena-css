@@ -350,7 +350,7 @@ fn exposes_transform_execution_runner_from_source() {
     let summary = execute_omena_query_transform_passes_from_source(
         "Button.module.css",
         source,
-        &vec![
+        &[
             "p02-comment-strip".to_string(),
             "p40-print-css".to_string(),
             "p99-unknown".to_string(),
