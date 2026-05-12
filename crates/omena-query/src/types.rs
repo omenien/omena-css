@@ -702,6 +702,8 @@ pub struct OmenaQueryExpressionDomainSelectorProjectionEntryV0 {
     pub node_id: String,
     pub target_style_paths: Vec<String>,
     pub value_kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reduced_product: Option<ReducedClassValueProductV0>,
     pub selector_names: Vec<String>,
     pub certainty: SelectorProjectionCertaintyV0,
 }

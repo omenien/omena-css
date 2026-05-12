@@ -62,6 +62,7 @@ pub fn summarize_omena_query_expression_domain_selector_projection(
                 node_id: node.id,
                 target_style_paths,
                 value_kind: node.value_kind,
+                reduced_product: summarize_reduced_class_value_product(&node.value),
                 selector_names: projection.selector_names,
                 certainty: projection.certainty,
             });

@@ -1450,6 +1450,29 @@ fn projects_reduced_product_flow_to_target_style_selectors() {
     );
     assert_eq!(merge.value_kind, "composite");
     assert_eq!(
+        merge
+            .reduced_product
+            .as_ref()
+            .map(|product| product.source_value_kind),
+        Some("composite")
+    );
+    assert_eq!(
+        merge
+            .reduced_product
+            .as_ref()
+            .and_then(|product| product.prefix.as_ref())
+            .map(|axis| axis.prefix.as_str()),
+        Some("btn-")
+    );
+    assert_eq!(
+        merge
+            .reduced_product
+            .as_ref()
+            .and_then(|product| product.suffix.as_ref())
+            .map(|axis| axis.suffix.as_str()),
+        Some("-active")
+    );
+    assert_eq!(
         merge.selector_names,
         vec![
             "btn-primary--active".to_string(),
