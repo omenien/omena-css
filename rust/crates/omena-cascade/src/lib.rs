@@ -1027,7 +1027,7 @@ pub fn cascade_property(
         return CascadeOutcome::Inherit;
     }
 
-    matching.sort_by(|left, right| right.key.cmp(&left.key));
+    matching.sort_by_key(|declaration| std::cmp::Reverse(declaration.key));
     let winner = matching.remove(0);
     let proof = CascadeProof::from_declaration(&winner);
     CascadeOutcome::Definite {
