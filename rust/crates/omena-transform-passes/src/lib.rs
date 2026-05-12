@@ -212,7 +212,7 @@ pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySum
             "transformContextProducers",
             "transformSalsaQueries",
             "sourceMapComposition",
-            "provenanceDerivationForest",
+            "provenanceSourceSpanMapping",
         ],
     }
 }
