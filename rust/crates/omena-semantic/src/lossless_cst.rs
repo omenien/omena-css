@@ -1,5 +1,6 @@
-use engine_style_parser::ParserLosslessCstFactsV0;
 use serde::Serialize;
+
+use crate::ParserLosslessCstFactsV0;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

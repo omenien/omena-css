@@ -1,4 +1,5 @@
 use super::*;
+use omena_bridge::OmenaBridgeParserRangeV0;
 use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact};
 
 mod transform;
@@ -533,7 +534,9 @@ pub fn read_omena_query_cascade_at_position_from_graph(
             .map(|ranking| ranking.winner_declaration_source_order),
         winner_declaration_file_path: ranking
             .and_then(|ranking| ranking.winner_declaration_file_path.clone()),
-        winner_declaration_range: ranking.and_then(|ranking| ranking.winner_declaration_range),
+        winner_declaration_range: ranking
+            .and_then(|ranking| ranking.winner_declaration_range)
+            .map(parser_range_from_semantic_range),
         winner_context_kind: ranking.map(|ranking| ranking.winner_context_kind),
         candidate_declaration_count: ranking
             .map(|ranking| ranking.candidate_declaration_count)
@@ -2451,6 +2454,19 @@ fn parser_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRan
     ParserRangeV0 {
         start: parser_position_for_byte_offset(source, span.start),
         end: parser_position_for_byte_offset(source, span.end),
+    }
+}
+
+fn parser_range_from_semantic_range(range: OmenaBridgeParserRangeV0) -> ParserRangeV0 {
+    ParserRangeV0 {
+        start: ParserPositionV0 {
+            line: range.start.line,
+            character: range.start.character,
+        },
+        end: ParserPositionV0 {
+            line: range.end.line,
+            character: range.end.character,
+        },
     }
 }
 

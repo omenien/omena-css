@@ -1,7 +1,8 @@
 use std::collections::BTreeSet;
 
-use engine_style_parser::StyleSelectorIdentityFactsV0;
 use serde::Serialize;
+
+use crate::StyleSelectorIdentityFactsV0;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

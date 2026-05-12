@@ -3,15 +3,17 @@ use engine_input_producers::{
     SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2, StyleSelectorV2,
     TypeFactEntryV2,
 };
-use engine_style_parser::parse_style_module;
 use omena_semantic::{
     StyleSemanticGraphSummaryV0, TheoryObservationContractV0, TheoryObservationHarnessInput,
-    TheoryObservationHarnessSummaryV0, summarize_style_semantic_graph,
+    TheoryObservationHarnessSummaryV0, summarize_style_semantic_graph_from_source,
 };
 
 pub fn consume_style_semantic_graph() -> Option<StyleSemanticGraphSummaryV0> {
-    let sheet = parse_style_module("Component.module.scss", ".button { &__icon {} }")?;
-    Some(summarize_style_semantic_graph(&sheet, &sample_input()))
+    summarize_style_semantic_graph_from_source(
+        "Component.module.scss",
+        ".button { &__icon {} }",
+        &sample_input(),
+    )
 }
 
 pub fn consume_theory_observation_harness() -> Option<TheoryObservationHarnessSummaryV0> {
@@ -115,8 +117,6 @@ mod tests {
         consume_style_semantic_graph, consume_theory_observation_contract,
         consume_theory_observation_harness,
     };
-    use engine_style_parser::parse_style_module;
-    use omena_semantic::summarize_style_semantic_boundary;
     use serde_json::json;
 
     #[test]
@@ -220,21 +220,4 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn keeps_legacy_boundary_summary_consumable() -> Result<(), String> {
-        let sheet = parse_style_module("Component.module.scss", ".button { color: red; }")
-            .ok_or_else(|| "expected stylesheet".to_string())?;
-        let summary = summarize_style_semantic_boundary(&sheet);
-
-        assert_eq!(summary.schema_version, "0");
-        assert_eq!(
-            summary
-                .selector_identity_engine
-                .canonical_ids
-                .first()
-                .map(|identity| identity.canonical_id.as_str()),
-            Some("selector:button")
-        );
-        Ok(())
-    }
 }

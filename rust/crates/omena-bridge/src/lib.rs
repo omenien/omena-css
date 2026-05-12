@@ -6,6 +6,7 @@ use omena_semantic::{
 };
 pub use omena_semantic::{
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
+    ParserRangeV0 as OmenaBridgeParserRangeV0,
 };
 use serde::Serialize;
 

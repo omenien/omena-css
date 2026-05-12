@@ -1,8 +1,7 @@
 use engine_input_producers::EngineInputV2;
-use engine_style_parser::{ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0};
 use serde::Serialize;
 
-use crate::summarize_source_input_evidence;
+use crate::{ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, summarize_source_input_evidence};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

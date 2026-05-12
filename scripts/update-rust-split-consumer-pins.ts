@@ -43,10 +43,8 @@ const fixtures: readonly Fixture[] = [
     ),
     dependencyNames: [
       "engine-input-producers",
-      "engine-style-parser",
       "omena-semantic",
       "omena-engine-input-producers",
-      "omena-engine-style-parser",
     ],
   },
   {

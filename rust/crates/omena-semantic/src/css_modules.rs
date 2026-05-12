@@ -1,12 +1,13 @@
 use std::collections::BTreeSet;
 
-use engine_style_parser::{StyleLanguage, Stylesheet};
 use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
     ParsedCssModuleValueFactKind, ParsedIcssFactKind, ParsedSelectorFactKind, StyleDialect,
     collect_style_facts,
 };
 use serde::Serialize;
+
+use crate::Stylesheet;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -58,10 +59,7 @@ pub struct CssModulesSemanticCapabilitiesV0 {
 }
 
 pub fn summarize_css_modules_semantics(sheet: &Stylesheet) -> CssModulesSemanticSummaryV0 {
-    summarize_css_modules_semantics_for_source(
-        sheet.source.as_str(),
-        dialect_for_language(sheet.language),
-    )
+    summarize_css_modules_semantics_for_source(sheet.source.as_str(), sheet.language)
 }
 
 pub fn summarize_css_modules_semantics_from_source(
@@ -238,13 +236,5 @@ fn dialect_for_style_path(style_path: &str) -> Option<StyleDialect> {
         Some(StyleDialect::Less)
     } else {
         None
-    }
-}
-
-fn dialect_for_language(language: StyleLanguage) -> StyleDialect {
-    match language {
-        StyleLanguage::Css => StyleDialect::Css,
-        StyleLanguage::Scss => StyleDialect::Scss,
-        StyleLanguage::Less => StyleDialect::Less,
     }
 }

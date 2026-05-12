@@ -2,10 +2,10 @@
 
 Internal Rust crate for the style semantic boundary.
 
-This crate is intentionally small: it consumes parser boundaries from
-`engine-style-parser` plus parser-fact seeds from `omena-parser`, then exposes
-semantic-facing summaries without moving parser implementation or changing
-existing parser consumers.
+This crate is intentionally small: it consumes parser-fact seeds from
+`omena-parser`, owns the semantic contract DTOs consumed by bridge/query
+layers, and exposes semantic-facing summaries without depending on the legacy
+`engine-style-parser` crate.
 
 Current public products:
 

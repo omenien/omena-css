@@ -1,7 +1,7 @@
 use std::hint::black_box;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use engine_style_parser::{Stylesheet, parse_style_module};
+use engine_style_parser::parse_style_module;
 use omena_abstract_value::{
     ClassValueFlowGraphV0, ClassValueFlowNodeV0, ClassValueFlowTransferV0,
     ExternalStringTypeFactsV0, OneCfaCallSiteFlowInputV0, analyze_class_value_flow,
@@ -9,18 +9,13 @@ use omena_abstract_value::{
     prefix_class_value,
 };
 use omena_parser::{StyleDialect, parse as parse_omena_style};
-use omena_semantic::summarize_style_semantic_boundary;
+use omena_semantic::summarize_omena_parser_style_semantic_boundary_from_source;
 
 struct StyleSample {
     name: &'static str,
     path: &'static str,
     dialect: StyleDialect,
     source: String,
-}
-
-struct ParsedStyleSample {
-    name: &'static str,
-    sheet: Stylesheet,
 }
 
 fn parser_benchmarks(c: &mut Criterion) {
@@ -56,12 +51,15 @@ fn omena_parser_benchmarks(c: &mut Criterion) {
 }
 
 fn semantic_benchmarks(c: &mut Criterion) {
-    let samples = parsed_style_corpus();
+    let samples = style_corpus();
     let mut group = c.benchmark_group("z5/semantic");
     for sample in &samples {
         group.bench_function(sample.name, |b| {
             b.iter(|| {
-                black_box(summarize_style_semantic_boundary(black_box(&sample.sheet)));
+                black_box(summarize_omena_parser_style_semantic_boundary_from_source(
+                    black_box(sample.path),
+                    black_box(&sample.source),
+                ));
             });
         });
     }
@@ -103,18 +101,6 @@ fn abstract_value_benchmarks(c: &mut Criterion) {
         });
     });
     group.finish();
-}
-
-fn parsed_style_corpus() -> Vec<ParsedStyleSample> {
-    style_corpus()
-        .into_iter()
-        .filter_map(|sample| {
-            parse_style_module(sample.path, &sample.source).map(|sheet| ParsedStyleSample {
-                name: sample.name,
-                sheet,
-            })
-        })
-        .collect()
 }
 
 fn style_corpus() -> Vec<StyleSample> {

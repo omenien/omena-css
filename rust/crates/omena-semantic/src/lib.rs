@@ -1,14 +1,5 @@
 use engine_input_producers::EngineInputV2;
-use engine_style_parser::{
-    NestedSafetyCountsV0, ParserIndexComposesFactsV0, ParserIndexCustomPropertyDeclFactV0,
-    ParserIndexCustomPropertyFactsV0, ParserIndexCustomPropertyRefFactV0,
-    ParserIndexKeyframesFactsV0, ParserIndexSassModuleUseFactV0,
-    ParserIndexSassSameFileResolutionFactsV0, ParserIndexSelectorDefinitionFactV0,
-    ParserIndexSelectorFactsV0, ParserIndexValueFactsV0, ParserIndexWrapperFactsV0,
-    ParserLosslessCstFactsV0, ParserSassSyntaxFactsV0, StyleCustomPropertySemanticFactsV0,
-    StyleSassSemanticFactsV0, StyleSelectorIdentityFactsV0, summarize_semantic_boundary,
-};
-pub use engine_style_parser::{ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet};
+use omena_cascade::selector_context_witness_for_declaration;
 use omena_interner::{
     intern_class_name, intern_css_ident, intern_custom_property_name, intern_keyframes_name,
     intern_mixin_name,
@@ -30,6 +21,7 @@ mod observation;
 mod selector_identity;
 mod selector_references;
 mod source_evidence;
+mod types;
 
 pub use css_modules::{
     CssModulesSemanticCapabilitiesV0, CssModulesSemanticSummaryV0, summarize_css_modules_semantics,
@@ -70,6 +62,17 @@ pub use source_evidence::{
     BindingOriginEvidenceV0, CertaintyReasonEvidenceV0, ReferenceSiteIdentityEvidenceV0,
     SourceInputPromotionEvidenceSummaryV0, StyleModuleEdgeEvidenceV0,
     ValueDomainExplanationEvidenceV0, summarize_source_input_evidence,
+};
+pub use types::{
+    NestedSafetyCountsV0, ParserBoundarySyntaxFactsV0, ParserByteSpanV0,
+    ParserIndexComposesFactsV0, ParserIndexCustomPropertyDeclFactV0,
+    ParserIndexCustomPropertyFactsV0, ParserIndexCustomPropertyRefFactV0,
+    ParserIndexKeyframesFactsV0, ParserIndexSassModuleUseFactV0,
+    ParserIndexSassSameFileResolutionFactsV0, ParserIndexSelectorDefinitionFactV0,
+    ParserIndexSelectorFactsV0, ParserIndexValueFactsV0, ParserIndexWrapperFactsV0,
+    ParserLosslessCstFactsV0, ParserPositionV0, ParserRangeV0, ParserSassSyntaxFactsV0,
+    StyleCustomPropertySemanticFactsV0, StyleSassSemanticFactsV0, StyleSelectorIdentityFactsV0,
+    StyleSemanticFactsV0, Stylesheet,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -127,25 +130,7 @@ pub struct SemanticNameSoaTableV0 {
 }
 
 pub fn summarize_style_semantic_boundary(sheet: &Stylesheet) -> StyleSemanticBoundarySummaryV0 {
-    let boundary = summarize_semantic_boundary(sheet);
-    let parser_facts = boundary.parser_facts;
-    let semantic_facts = boundary.semantic_facts;
-    let design_token_semantics = summarize_design_token_semantics(&parser_facts, &semantic_facts);
-    let selector_identity_engine =
-        summarize_selector_identity_engine(&semantic_facts.selector_identity);
-    let promotion_evidence = summarize_semantic_promotion_evidence(&parser_facts, &semantic_facts);
-    let lossless_cst_contract = summarize_lossless_cst_contract(&parser_facts.lossless_cst);
-
-    StyleSemanticBoundarySummaryV0 {
-        schema_version: "0",
-        language: boundary.language,
-        parser_facts,
-        semantic_facts,
-        design_token_semantics,
-        selector_identity_engine,
-        promotion_evidence,
-        lossless_cst_contract,
-    }
+    summarize_omena_parser_style_semantic_boundary_from_source(&sheet.path, &sheet.source)
 }
 
 pub fn summarize_style_semantic_graph(
@@ -174,13 +159,14 @@ pub fn summarize_style_semantic_graph_for_path_with_workspace_declarations(
     style_path: Option<&str>,
     workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
 ) -> StyleSemanticGraphSummaryV0 {
-    let boundary = summarize_semantic_boundary(sheet);
+    let boundary = summarize_style_semantic_boundary(sheet);
     let parser_facts = boundary.parser_facts;
     let semantic_facts = boundary.semantic_facts;
+    let effective_style_path = style_path.or(Some(sheet.path.as_str()));
     let design_token_semantics = summarize_design_token_semantics_with_workspace_declarations(
         &parser_facts,
         &semantic_facts,
-        style_path,
+        effective_style_path,
         workspace_declarations,
     );
     let css_modules_semantics = summarize_css_modules_semantics(sheet);
@@ -361,6 +347,14 @@ pub fn summarize_parser_contract_facts(sheet: &Stylesheet) -> ParserBoundarySynt
     summarize_style_semantic_boundary(sheet).parser_facts
 }
 
+pub fn parse_style_module(path: &str, source: &str) -> Option<Stylesheet> {
+    Some(Stylesheet {
+        path: path.to_string(),
+        language: dialect_for_style_path(path)?,
+        source: source.to_string(),
+    })
+}
+
 pub fn summarize_omena_parser_style_semantic_boundary_from_source(
     style_path: &str,
     style_source: &str,
@@ -375,7 +369,7 @@ pub fn summarize_omena_parser_style_semantic_boundary_from_source(
         parsed.errors().len(),
         &facts,
     );
-    let semantic_facts = summarize_omena_parser_semantic_facts(&parser_facts);
+    let semantic_facts = summarize_omena_parser_semantic_facts(style_source, &facts, &parser_facts);
     let design_token_semantics = summarize_design_token_semantics(&parser_facts, &semantic_facts);
     let selector_identity_engine =
         summarize_selector_identity_engine(&semantic_facts.selector_identity);
@@ -421,12 +415,16 @@ fn summarize_omena_parser_contract_facts(
 }
 
 fn summarize_omena_parser_semantic_facts(
+    source: &str,
+    facts: &ParsedStyleFacts,
     parser_facts: &ParserBoundarySyntaxFactsV0,
 ) -> StyleSemanticFactsV0 {
     let custom_properties =
         summarize_omena_parser_custom_property_semantic_facts(&parser_facts.custom_properties);
     let sass_same_file_resolution =
         summarize_omena_parser_sass_same_file_resolution(&parser_facts.sass);
+    let sass_selector_resolution =
+        summarize_omena_parser_sass_selector_resolution(source, facts, &sass_same_file_resolution);
     StyleSemanticFactsV0 {
         selector_identity: StyleSelectorIdentityFactsV0 {
             canonical_names: parser_facts.selectors.names.clone(),
@@ -438,10 +436,14 @@ fn summarize_omena_parser_semantic_facts(
         custom_properties,
         sass: StyleSassSemanticFactsV0 {
             selector_symbol_facts: Vec::new(),
-            selectors_with_resolved_variable_refs_names: Vec::new(),
-            selectors_with_unresolved_variable_refs_names: Vec::new(),
-            selectors_with_resolved_mixin_includes_names: Vec::new(),
-            selectors_with_unresolved_mixin_includes_names: Vec::new(),
+            selectors_with_resolved_variable_refs_names: sass_selector_resolution
+                .resolved_variable_ref_selectors,
+            selectors_with_unresolved_variable_refs_names: sass_selector_resolution
+                .unresolved_variable_ref_selectors,
+            selectors_with_resolved_mixin_includes_names: sass_selector_resolution
+                .resolved_mixin_include_selectors,
+            selectors_with_unresolved_mixin_includes_names: sass_selector_resolution
+                .unresolved_mixin_include_selectors,
             selectors_with_function_calls_names: parser_facts.sass.function_call_names.clone(),
             same_file_resolution: sass_same_file_resolution,
         },
@@ -561,37 +563,94 @@ fn summarize_omena_parser_custom_property_facts(
                     u32::from(variable.range.end()) as usize,
                 );
                 decl_names.insert(variable.name.clone());
+                let (selector_contexts, under_media, under_supports, under_layer) =
+                    style_context_for_byte_offset(source, byte_span.start);
                 decl_facts.push(ParserIndexCustomPropertyDeclFactV0 {
                     name: variable.name.clone(),
                     source_order: decl_facts.len(),
                     byte_span,
                     range: parser_range_for_byte_span(source, byte_span),
-                    selector_contexts: Vec::new(),
-                    under_media: false,
-                    under_supports: false,
-                    under_layer: false,
+                    selector_contexts,
+                    under_media,
+                    under_supports,
+                    under_layer,
                 });
             }
             ParsedVariableFactKind::CustomPropertyReference => {
+                let byte_offset = u32::from(variable.range.start()) as usize;
+                let (selector_contexts, under_media, under_supports, under_layer) =
+                    style_context_for_byte_offset(source, byte_offset);
                 ref_names.insert(variable.name.clone());
                 ref_facts.push(ParserIndexCustomPropertyRefFactV0 {
                     name: variable.name.clone(),
                     source_order: ref_facts.len(),
-                    selector_contexts: Vec::new(),
-                    under_media: false,
-                    under_supports: false,
-                    under_layer: false,
+                    selector_contexts,
+                    under_media,
+                    under_supports,
+                    under_layer,
                 });
             }
             _ => {}
         }
     }
+    let selectors_with_refs_names = ref_facts
+        .iter()
+        .flat_map(|reference| reference.selector_contexts.iter().cloned())
+        .collect::<BTreeSet<_>>();
+    let selectors_with_refs_under_media_names = ref_facts
+        .iter()
+        .filter(|reference| reference.under_media)
+        .flat_map(|reference| reference.selector_contexts.iter().cloned())
+        .collect::<BTreeSet<_>>();
+    let selectors_with_refs_under_supports_names = ref_facts
+        .iter()
+        .filter(|reference| reference.under_supports)
+        .flat_map(|reference| reference.selector_contexts.iter().cloned())
+        .collect::<BTreeSet<_>>();
+    let selectors_with_refs_under_layer_names = ref_facts
+        .iter()
+        .filter(|reference| reference.under_layer)
+        .flat_map(|reference| reference.selector_contexts.iter().cloned())
+        .collect::<BTreeSet<_>>();
+    let decl_context_selectors = decl_facts
+        .iter()
+        .flat_map(|declaration| declaration.selector_contexts.iter().cloned())
+        .collect::<BTreeSet<_>>();
+    let decl_names_under_media = decl_facts
+        .iter()
+        .filter(|declaration| declaration.under_media)
+        .map(|declaration| declaration.name.clone())
+        .collect::<BTreeSet<_>>();
+    let decl_names_under_supports = decl_facts
+        .iter()
+        .filter(|declaration| declaration.under_supports)
+        .map(|declaration| declaration.name.clone())
+        .collect::<BTreeSet<_>>();
+    let decl_names_under_layer = decl_facts
+        .iter()
+        .filter(|declaration| declaration.under_layer)
+        .map(|declaration| declaration.name.clone())
+        .collect::<BTreeSet<_>>();
+
     ParserIndexCustomPropertyFactsV0 {
         decl_names: decl_names.into_iter().collect(),
         decl_facts,
+        decl_context_selectors: decl_context_selectors.into_iter().collect(),
+        decl_names_under_media: decl_names_under_media.into_iter().collect(),
+        decl_names_under_supports: decl_names_under_supports.into_iter().collect(),
+        decl_names_under_layer: decl_names_under_layer.into_iter().collect(),
         ref_names: ref_names.into_iter().collect(),
         ref_facts,
-        ..ParserIndexCustomPropertyFactsV0::default()
+        selectors_with_refs_names: selectors_with_refs_names.into_iter().collect(),
+        selectors_with_refs_under_media_names: selectors_with_refs_under_media_names
+            .into_iter()
+            .collect(),
+        selectors_with_refs_under_supports_names: selectors_with_refs_under_supports_names
+            .into_iter()
+            .collect(),
+        selectors_with_refs_under_layer_names: selectors_with_refs_under_layer_names
+            .into_iter()
+            .collect(),
     }
 }
 
@@ -734,14 +793,17 @@ fn summarize_omena_parser_composes_facts(facts: &ParsedStyleFacts) -> ParserInde
 fn summarize_omena_parser_custom_property_semantic_facts(
     facts: &ParserIndexCustomPropertyFactsV0,
 ) -> StyleCustomPropertySemanticFactsV0 {
-    let decl_names = facts.decl_names.iter().cloned().collect::<BTreeSet<_>>();
     let mut resolved_ref_names = BTreeSet::new();
     let mut unresolved_ref_names = BTreeSet::new();
-    for name in &facts.ref_names {
-        if decl_names.contains(name) {
-            resolved_ref_names.insert(name.clone());
+    for reference in &facts.ref_facts {
+        if facts
+            .decl_facts
+            .iter()
+            .any(|declaration| custom_property_context_matches(declaration, reference))
+        {
+            resolved_ref_names.insert(reference.name.clone());
         } else {
-            unresolved_ref_names.insert(name.clone());
+            unresolved_ref_names.insert(reference.name.clone());
         }
     }
     StyleCustomPropertySemanticFactsV0 {
@@ -751,6 +813,101 @@ fn summarize_omena_parser_custom_property_semantic_facts(
         unresolved_ref_names: unresolved_ref_names.into_iter().collect(),
         selectors_with_refs_names: facts.selectors_with_refs_names.clone(),
     }
+}
+
+struct SassSelectorResolution {
+    resolved_variable_ref_selectors: Vec<String>,
+    unresolved_variable_ref_selectors: Vec<String>,
+    resolved_mixin_include_selectors: Vec<String>,
+    unresolved_mixin_include_selectors: Vec<String>,
+}
+
+fn summarize_omena_parser_sass_selector_resolution(
+    source: &str,
+    facts: &ParsedStyleFacts,
+    resolution: &ParserIndexSassSameFileResolutionFactsV0,
+) -> SassSelectorResolution {
+    let resolved_variables = resolution
+        .resolved_variable_ref_names
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let resolved_mixins = resolution
+        .resolved_mixin_include_names
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let mut resolved_variable_ref_selectors = BTreeSet::new();
+    let mut unresolved_variable_ref_selectors = BTreeSet::new();
+    let mut resolved_mixin_include_selectors = BTreeSet::new();
+    let mut unresolved_mixin_include_selectors = BTreeSet::new();
+
+    for symbol in &facts.sass_symbols {
+        match symbol.kind {
+            ParsedSassSymbolFactKind::VariableReference => {
+                let selector = semantic_selector_name_for_byte_offset(
+                    source,
+                    u32::from(symbol.range.start()) as usize,
+                );
+                let Some(selector) = selector else {
+                    continue;
+                };
+                if resolved_variables.contains(&symbol.name) {
+                    resolved_variable_ref_selectors.insert(selector);
+                } else {
+                    unresolved_variable_ref_selectors.insert(selector);
+                }
+            }
+            ParsedSassSymbolFactKind::MixinInclude => {
+                let selector = semantic_selector_name_for_byte_offset(
+                    source,
+                    u32::from(symbol.range.start()) as usize,
+                );
+                let Some(selector) = selector else {
+                    continue;
+                };
+                if resolved_mixins.contains(&symbol.name) {
+                    resolved_mixin_include_selectors.insert(selector);
+                } else {
+                    unresolved_mixin_include_selectors.insert(selector);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    SassSelectorResolution {
+        resolved_variable_ref_selectors: resolved_variable_ref_selectors.into_iter().collect(),
+        unresolved_variable_ref_selectors: unresolved_variable_ref_selectors.into_iter().collect(),
+        resolved_mixin_include_selectors: resolved_mixin_include_selectors.into_iter().collect(),
+        unresolved_mixin_include_selectors: unresolved_mixin_include_selectors
+            .into_iter()
+            .collect(),
+    }
+}
+
+fn custom_property_context_matches(
+    declaration: &ParserIndexCustomPropertyDeclFactV0,
+    reference: &ParserIndexCustomPropertyRefFactV0,
+) -> bool {
+    if declaration.name != reference.name {
+        return false;
+    }
+    if declaration.under_media && !reference.under_media {
+        return false;
+    }
+    if declaration.under_supports && !reference.under_supports {
+        return false;
+    }
+    if declaration.under_layer && !reference.under_layer {
+        return false;
+    }
+    if declaration.selector_contexts.is_empty() {
+        return true;
+    }
+    declaration.selector_contexts.iter().any(|selector| {
+        selector_context_witness_for_declaration(selector, &reference.selector_contexts).matched
+    })
 }
 
 fn summarize_omena_parser_sass_same_file_resolution(
@@ -828,6 +985,131 @@ fn selector_has_parent_ampersand_class_prefix(source: &str, selector_start: usiz
     )
 }
 
+fn style_context_for_byte_offset(
+    source: &str,
+    byte_offset: usize,
+) -> (Vec<String>, bool, bool, bool) {
+    let contexts = block_contexts_for_byte_offset(source, byte_offset);
+    let selector_contexts = contexts
+        .iter()
+        .filter_map(|context| match context {
+            StyleBlockContext::Selector(selector) => Some(selector.clone()),
+            StyleBlockContext::Media
+            | StyleBlockContext::Supports
+            | StyleBlockContext::Layer
+            | StyleBlockContext::OtherAtRule => None,
+        })
+        .collect::<Vec<_>>();
+    let under_media = contexts
+        .iter()
+        .any(|context| matches!(context, StyleBlockContext::Media));
+    let under_supports = contexts
+        .iter()
+        .any(|context| matches!(context, StyleBlockContext::Supports));
+    let under_layer = contexts
+        .iter()
+        .any(|context| matches!(context, StyleBlockContext::Layer));
+
+    (selector_contexts, under_media, under_supports, under_layer)
+}
+
+fn semantic_selector_name_for_byte_offset(source: &str, byte_offset: usize) -> Option<String> {
+    let (selector_contexts, _, _, _) = style_context_for_byte_offset(source, byte_offset);
+    selector_contexts
+        .last()
+        .and_then(|selector| selector_class_name(selector))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum StyleBlockContext {
+    Selector(String),
+    Media,
+    Supports,
+    Layer,
+    OtherAtRule,
+}
+
+fn block_contexts_for_byte_offset(source: &str, byte_offset: usize) -> Vec<StyleBlockContext> {
+    let bytes = source.as_bytes();
+    let mut contexts = Vec::new();
+    let limit = byte_offset.min(bytes.len());
+    let mut index = 0usize;
+    while index < limit {
+        match bytes[index] {
+            b'{' => {
+                let header = block_header_before_open_brace(source, index);
+                contexts.push(style_block_context_for_header(&header));
+            }
+            b'}' => {
+                contexts.pop();
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    contexts
+}
+
+fn block_header_before_open_brace(source: &str, open_brace_index: usize) -> String {
+    let bytes = source.as_bytes();
+    let mut start = 0usize;
+    let mut index = open_brace_index;
+    while let Some(previous) = index.checked_sub(1) {
+        index = previous;
+        if matches!(bytes[index], b'{' | b'}' | b';') {
+            start = index + 1;
+            break;
+        }
+        if index == 0 {
+            break;
+        }
+    }
+    source
+        .get(start..open_brace_index)
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+fn style_block_context_for_header(header: &str) -> StyleBlockContext {
+    let header = header.trim();
+    if header.starts_with("@media") {
+        StyleBlockContext::Media
+    } else if header.starts_with("@supports") {
+        StyleBlockContext::Supports
+    } else if header.starts_with("@layer") {
+        StyleBlockContext::Layer
+    } else if header.starts_with('@') {
+        StyleBlockContext::OtherAtRule
+    } else {
+        StyleBlockContext::Selector(header.to_string())
+    }
+}
+
+fn selector_class_name(selector: &str) -> Option<String> {
+    let bytes = selector.as_bytes();
+    let mut index = 0usize;
+    let mut last = None;
+    while index < bytes.len() {
+        if bytes[index] == b'.' {
+            let start = index + 1;
+            let mut end = start;
+            while end < bytes.len()
+                && (bytes[end].is_ascii_alphanumeric() || matches!(bytes[end], b'_' | b'-'))
+            {
+                end += 1;
+            }
+            if end > start {
+                last = selector.get(start..end).map(ToString::to_string);
+            }
+            index = end;
+        } else {
+            index += 1;
+        }
+    }
+    last
+}
+
 fn previous_non_whitespace_byte_index(bytes: &[u8], before: usize) -> Option<usize> {
     let mut index = before.checked_sub(1)?;
     loop {
@@ -838,24 +1120,18 @@ fn previous_non_whitespace_byte_index(bytes: &[u8], before: usize) -> Option<usi
     }
 }
 
-fn parser_byte_span_for_offsets(start: usize, end: usize) -> engine_style_parser::ParserByteSpanV0 {
-    engine_style_parser::ParserByteSpanV0 { start, end }
+fn parser_byte_span_for_offsets(start: usize, end: usize) -> ParserByteSpanV0 {
+    ParserByteSpanV0 { start, end }
 }
 
-fn parser_range_for_byte_span(
-    source: &str,
-    span: engine_style_parser::ParserByteSpanV0,
-) -> engine_style_parser::ParserRangeV0 {
-    engine_style_parser::ParserRangeV0 {
+fn parser_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRangeV0 {
+    ParserRangeV0 {
         start: parser_position_for_byte_offset(source, span.start),
         end: parser_position_for_byte_offset(source, span.end),
     }
 }
 
-fn parser_position_for_byte_offset(
-    source: &str,
-    byte_offset: usize,
-) -> engine_style_parser::ParserPositionV0 {
+fn parser_position_for_byte_offset(source: &str, byte_offset: usize) -> ParserPositionV0 {
     let mut line = 0usize;
     let mut line_start = 0usize;
     let offset = byte_offset.min(source.len());
@@ -868,22 +1144,28 @@ fn parser_position_for_byte_offset(
             line_start = index + 1;
         }
     }
-    engine_style_parser::ParserPositionV0 {
+    ParserPositionV0 {
         line,
         character: offset.saturating_sub(line_start),
     }
 }
 
-fn omena_parser_dialect_for_style_path(style_path: &str) -> StyleDialect {
+fn dialect_for_style_path(style_path: &str) -> Option<StyleDialect> {
     if style_path.ends_with(".sass") {
-        StyleDialect::Sass
+        Some(StyleDialect::Sass)
     } else if style_path.ends_with(".scss") {
-        StyleDialect::Scss
+        Some(StyleDialect::Scss)
     } else if style_path.ends_with(".less") {
-        StyleDialect::Less
+        Some(StyleDialect::Less)
+    } else if style_path.ends_with(".css") {
+        Some(StyleDialect::Css)
     } else {
-        StyleDialect::Css
+        None
     }
+}
+
+fn omena_parser_dialect_for_style_path(style_path: &str) -> StyleDialect {
+    dialect_for_style_path(style_path).unwrap_or(StyleDialect::Css)
 }
 
 fn omena_parser_dialect_label(dialect: StyleDialect) -> &'static str {
@@ -897,15 +1179,8 @@ fn omena_parser_dialect_label(dialect: StyleDialect) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use engine_input_producers::{
-        ClassExpressionInputV2, EngineInputV2, PositionV2, RangeV2, SourceAnalysisInputV2,
-        SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2,
-        StyleSelectorV2, TypeFactEntryV2,
-    };
-    use engine_style_parser::parse_style_module;
-
     use super::{
-        TheoryObservationHarnessInput, summarize_lossless_cst_contract,
+        TheoryObservationHarnessInput, parse_style_module, summarize_lossless_cst_contract,
         summarize_omena_parser_style_semantic_boundary_from_source,
         summarize_parser_contract_facts, summarize_selector_identity_engine,
         summarize_semantic_promotion_evidence,
@@ -914,6 +1189,11 @@ mod tests {
         summarize_style_semantic_graph, summarize_style_semantic_graph_from_source,
         summarize_style_semantic_soa_tables, summarize_theory_observation_contract,
         summarize_theory_observation_harness,
+    };
+    use engine_input_producers::{
+        ClassExpressionInputV2, EngineInputV2, PositionV2, RangeV2, SourceAnalysisInputV2,
+        SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2,
+        StyleSelectorV2, TypeFactEntryV2,
     };
 
     #[test]

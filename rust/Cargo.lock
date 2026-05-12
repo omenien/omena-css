@@ -649,7 +649,6 @@ name = "omena-semantic"
 version = "0.1.0"
 dependencies = [
  "engine-input-producers",
- "engine-style-parser",
  "omena-cascade",
  "omena-interner",
  "omena-parser",

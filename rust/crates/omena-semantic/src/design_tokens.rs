@@ -1,11 +1,14 @@
-use engine_style_parser::{ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0};
 use omena_cascade::{
     CascadeKey, CascadeLevel, LayerRank, Specificity, select_cascade_winner,
     selector_context_witness, selector_context_witness_for_declaration,
 };
-use omena_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
+
+use crate::{
+    ParserBoundarySyntaxFactsV0, ParserByteSpanV0, ParserIndexCustomPropertyDeclFactV0,
+    ParserIndexCustomPropertyRefFactV0, ParserRangeV0, StyleSemanticFactsV0,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -343,7 +346,7 @@ fn summarize_design_token_declaration_candidates(
                     name: declaration.name.clone(),
                     source_order: declaration.source_order,
                     file_path: file_path.to_string(),
-                    range: parser_range_from_engine(declaration.range),
+                    range: declaration.range,
                     selector_contexts: declaration.selector_contexts.clone(),
                     under_media: declaration.under_media,
                     under_supports: declaration.under_supports,
@@ -398,34 +401,14 @@ pub fn collect_design_token_workspace_declarations(
             source_order: declaration.source_order,
             import_graph_distance: None,
             import_graph_order: None,
-            byte_span: parser_byte_span_from_engine(declaration.byte_span),
-            range: parser_range_from_engine(declaration.range),
+            byte_span: declaration.byte_span,
+            range: declaration.range,
             selector_contexts: declaration.selector_contexts.clone(),
             under_media: declaration.under_media,
             under_supports: declaration.under_supports,
             under_layer: declaration.under_layer,
         })
         .collect()
-}
-
-fn parser_byte_span_from_engine(span: engine_style_parser::ParserByteSpanV0) -> ParserByteSpanV0 {
-    ParserByteSpanV0 {
-        start: span.start,
-        end: span.end,
-    }
-}
-
-fn parser_range_from_engine(range: engine_style_parser::ParserRangeV0) -> ParserRangeV0 {
-    ParserRangeV0 {
-        start: ParserPositionV0 {
-            line: range.start.line,
-            character: range.start.character,
-        },
-        end: ParserPositionV0 {
-            line: range.end.line,
-            character: range.end.character,
-        },
-    }
 }
 
 fn summarize_design_token_cascade_ranking_signal(
@@ -690,14 +673,14 @@ impl DesignTokenExternalDeclarationCandidateScopeV0 {
 
 #[derive(Clone, Copy)]
 enum DesignTokenCandidateDeclaration<'a> {
-    Local(&'a engine_style_parser::ParserIndexCustomPropertyDeclFactV0),
+    Local(&'a ParserIndexCustomPropertyDeclFactV0),
     Workspace(&'a DesignTokenWorkspaceDeclarationFactV0),
 }
 
 impl DesignTokenCandidateDeclaration<'_> {
     fn cascade_key(
         &self,
-        reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
+        reference: &ParserIndexCustomPropertyRefFactV0,
         workspace_file_ranks: Option<&BTreeMap<&str, usize>>,
     ) -> CascadeKey {
         let scope_proximity =
@@ -796,17 +779,11 @@ impl DesignTokenCandidateDeclaration<'_> {
         matches!(self, DesignTokenCandidateDeclaration::Workspace(_))
     }
 
-    fn is_theme_context_winner(
-        &self,
-        reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
-    ) -> bool {
+    fn is_theme_context_winner(&self, reference: &ParserIndexCustomPropertyRefFactV0) -> bool {
         self.context_rank(reference) >= 2
     }
 
-    fn context_rank(
-        &self,
-        reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
-    ) -> usize {
+    fn context_rank(&self, reference: &ParserIndexCustomPropertyRefFactV0) -> usize {
         match self {
             DesignTokenCandidateDeclaration::Local(declaration) => {
                 custom_property_declaration_context_rank(&declaration.selector_contexts, reference)
@@ -817,10 +794,7 @@ impl DesignTokenCandidateDeclaration<'_> {
         }
     }
 
-    fn context_kind(
-        &self,
-        reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
-    ) -> &'static str {
+    fn context_kind(&self, reference: &ParserIndexCustomPropertyRefFactV0) -> &'static str {
         match self.context_rank(reference) {
             2.. => "selector",
             1 => "root",
@@ -830,14 +804,14 @@ impl DesignTokenCandidateDeclaration<'_> {
 }
 
 fn custom_property_declaration_key(
-    declaration: &engine_style_parser::ParserIndexCustomPropertyDeclFactV0,
+    declaration: &ParserIndexCustomPropertyDeclFactV0,
 ) -> (String, usize) {
     (declaration.name.clone(), declaration.source_order)
 }
 
 fn custom_property_context_matches(
-    declaration: &engine_style_parser::ParserIndexCustomPropertyDeclFactV0,
-    reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
+    declaration: &ParserIndexCustomPropertyDeclFactV0,
+    reference: &ParserIndexCustomPropertyRefFactV0,
 ) -> bool {
     if declaration.name != reference.name {
         return false;
@@ -862,7 +836,7 @@ fn custom_property_context_matches(
 
 fn custom_property_workspace_context_matches(
     declaration: &DesignTokenWorkspaceDeclarationFactV0,
-    reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
+    reference: &ParserIndexCustomPropertyRefFactV0,
 ) -> bool {
     if declaration.name != reference.name {
         return false;
@@ -887,7 +861,7 @@ fn custom_property_workspace_context_matches(
 
 fn custom_property_selector_context_matches(
     declaration_selector: &str,
-    reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
+    reference: &ParserIndexCustomPropertyRefFactV0,
 ) -> bool {
     selector_context_witness_for_declaration(declaration_selector, &reference.selector_contexts)
         .matched
@@ -895,7 +869,7 @@ fn custom_property_selector_context_matches(
 
 fn custom_property_declaration_context_rank(
     declaration_selectors: &[String],
-    reference: &engine_style_parser::ParserIndexCustomPropertyRefFactV0,
+    reference: &ParserIndexCustomPropertyRefFactV0,
 ) -> usize {
     selector_context_witness(declaration_selectors, &reference.selector_contexts).rank
 }

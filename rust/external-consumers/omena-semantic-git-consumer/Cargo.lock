@@ -181,7 +181,8 @@ dependencies = [
 [[package]]
 name = "omena-engine-style-parser"
 version = "0.1.6"
-source = "git+https://github.com/omenien/omena-engine-style-parser.git?rev=ad4335b#ad4335bad194026d8bdaf65e4c63f3656060d7fc"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8489ff11eca7958dedeff0ecfa898fc6e39d2b8e4123c952121cc4f2a6d60c1"
 dependencies = [
  "serde",
  "serde_json",
@@ -213,7 +214,6 @@ name = "omena-semantic-git-consumer-check"
 version = "0.1.0"
 dependencies = [
  "omena-engine-input-producers",
- "omena-engine-style-parser",
  "omena-semantic",
  "serde_json",
 ]
