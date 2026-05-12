@@ -2093,7 +2093,7 @@ fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usi
 fn lower_css_light_dark_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
     let mut replacements = Vec::new();
     let mut insertions = Vec::new();
 
@@ -3708,7 +3708,7 @@ fn route_design_token_values_with_lexer(
 ) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
     let mut replacements = Vec::new();
 
     for rule in &rules {
@@ -3723,10 +3723,9 @@ fn route_design_token_values_with_lexer(
             if declaration.property.starts_with("--") || declaration.important {
                 continue;
             }
-            let Some(token_name) = parse_whole_design_token_reference(&declaration.value) else {
-                continue;
-            };
-            let Some(routed_value) = design_token_routed_value(&token_name, routes) else {
+            let Some(routed_value) =
+                route_design_token_references_in_value(&declaration.value, routes)
+            else {
                 continue;
             };
             replacements.push((
@@ -3740,12 +3739,139 @@ fn route_design_token_values_with_lexer(
     replace_source_ranges(source, &replacements)
 }
 
-fn parse_whole_design_token_reference(value: &str) -> Option<String> {
-    let arguments = parse_whole_function_value_arguments(value, "var")?;
-    match arguments.as_slice() {
-        [name] if name.starts_with("--") => Some(name.clone()),
-        _ => None,
+fn route_design_token_references_in_value(
+    value: &str,
+    routes: &[TransformDesignTokenRouteV0],
+) -> Option<String> {
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+    let mut changed = false;
+
+    while index < value.len() {
+        let ch = value[index..].chars().next()?;
+
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                let escaped = value[index..].chars().next()?;
+                index += escaped.len_utf8();
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            _ if value[index..]
+                .get(.."var(".len())
+                .is_some_and(|text| text.eq_ignore_ascii_case("var(")) =>
+            {
+                let left_paren_index = index + "var".len();
+                let close_index = matching_function_call_end(value, left_paren_index)?;
+                let arguments =
+                    split_top_level_value_arguments(&value[left_paren_index + 1..close_index])?;
+                if let Some(routed_value) =
+                    routed_design_token_value_for_var_arguments(&arguments, routes)
+                {
+                    output.push_str(&value[cursor..index]);
+                    output.push_str(&routed_value);
+                    index = close_index + ')'.len_utf8();
+                    cursor = index;
+                    changed = true;
+                } else {
+                    index += ch.len_utf8();
+                }
+            }
+            _ => {
+                index += ch.len_utf8();
+            }
+        }
     }
+
+    if !changed {
+        return None;
+    }
+    output.push_str(&value[cursor..]);
+    Some(output)
+}
+
+fn routed_design_token_value_for_var_arguments(
+    arguments: &[String],
+    routes: &[TransformDesignTokenRouteV0],
+) -> Option<String> {
+    let ([token_name] | [token_name, _]) = arguments else {
+        return None;
+    };
+    let token_name = normalize_design_token_name(token_name)?;
+    let routed_value = design_token_routed_value(token_name, routes)?;
+    if let [_, fallback] = arguments
+        && let Some(routed_token_name) = parse_single_custom_property_var_reference(routed_value)
+    {
+        return Some(format!("var({routed_token_name}, {fallback})"));
+    }
+    Some(routed_value.to_string())
+}
+
+fn parse_single_custom_property_var_reference(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "var")?;
+    let [name] = arguments.as_slice() else {
+        return None;
+    };
+    Some(normalize_design_token_name(name)?.to_string())
+}
+
+fn matching_function_call_end(value: &str, left_paren_index: usize) -> Option<usize> {
+    if value[left_paren_index..].chars().next()? != '(' {
+        return None;
+    }
+
+    let mut depth = 0usize;
+    let mut index = left_paren_index;
+    let mut quote: Option<char> = None;
+
+    while index < value.len() {
+        let ch = value[index..].chars().next()?;
+
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                let escaped = value[index..].chars().next()?;
+                index += escaped.len_utf8();
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            '(' => {
+                depth += 1;
+                index += ch.len_utf8();
+            }
+            ')' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+                index += ch.len_utf8();
+            }
+            _ => {
+                index += ch.len_utf8();
+            }
+        }
+    }
+
+    None
 }
 
 fn design_token_routed_value<'a>(
@@ -8139,12 +8265,16 @@ mod tests {
 
     #[test]
     fn execution_runtime_routes_design_tokens_from_bridge_context() {
-        let source = r#".button { color: var(--pkg-brand); background: var(--keep, blue); border-color: var(--unsafe); --local: var(--pkg-brand); }"#;
+        let source = r#".button { color: var(--pkg-brand); background: var(--pkg-brand, blue); border: 1px solid var(--pkg-border); box-shadow: 0 0 1px var(--unsafe); --local: var(--pkg-brand); } @media screen { .button { outline-color: var(--pkg-brand); } }"#;
         let context = TransformExecutionContextV0 {
             design_token_routes: vec![
                 TransformDesignTokenRouteV0 {
                     token_name: "--pkg-brand".to_string(),
                     routed_value: "var(--theme-brand)".to_string(),
+                },
+                TransformDesignTokenRouteV0 {
+                    token_name: "--pkg-border".to_string(),
+                    routed_value: "#123456".to_string(),
                 },
                 TransformDesignTokenRouteV0 {
                     token_name: "--unsafe".to_string(),
@@ -8163,10 +8293,10 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(execution.mutation_count, 4);
         assert_eq!(
             execution.output_css,
-            r#".button { color: var(--theme-brand); background: var(--keep, blue); border-color: var(--unsafe); --local: var(--pkg-brand); }"#
+            r#".button { color: var(--theme-brand); background: var(--theme-brand, blue); border: 1px solid #123456; box-shadow: 0 0 1px var(--unsafe); --local: var(--pkg-brand); } @media screen { .button { outline-color: var(--theme-brand); } }"#
         );
         assert_eq!(execution.design_token_routes, context.design_token_routes);
         assert_eq!(
