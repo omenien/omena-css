@@ -14,6 +14,6 @@ categories = ["development-tools", "parser-implementations"]
 workspace = true
 
 [dependencies]
-omena-syntax = { path = "../omena-syntax" }
+omena-syntax = { path = "../omena-syntax", version = "0.1.0" }
 salsa.workspace = true
 smol_str.workspace = true

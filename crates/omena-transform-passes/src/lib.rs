@@ -6073,7 +6073,7 @@ mod tests {
     use omena_transform_cst::{TRANSFORM_PASS_CATALOG_LEN, TransformPassKind};
 
     #[test]
-    fn registry_covers_full_p01_to_p40_catalog() {
+    fn registry_covers_full_transform_catalog() {
         let boundary = summarize_omena_transform_passes_boundary();
 
         assert_eq!(boundary.schema_version, "0");
@@ -6088,46 +6088,46 @@ mod tests {
         assert_eq!(
             boundary.implemented_mutation_pass_ids,
             vec![
-                "p01-whitespace-strip",
-                "p02-comment-strip",
-                "p03-number-compression",
-                "p04-unit-normalization",
-                "p05-color-compression",
-                "p06-url-quote-strip",
-                "p07-string-quote-normalize",
-                "p08-selector-is-where-compression",
-                "p09-shorthand-combining",
-                "p10-rule-deduplication",
-                "p11-rule-merging",
-                "p12-selector-merging",
-                "p13-empty-rule-removal",
-                "p14-vendor-prefixing",
-                "p15-light-dark-lowering",
-                "p16-color-mix-lowering",
-                "p17-oklch-oklab-lowering",
-                "p18-color-function-lowering",
-                "p19-logical-to-physical",
-                "p20-nesting-unwrap",
-                "p21-scope-flatten",
-                "p22-layer-flatten",
-                "p23-supports-static-eval",
-                "p24-media-static-eval",
-                "p37-dead-media-branch-removal",
-                "p38-dead-supports-branch-removal",
-                "p26-import-inline",
-                "p27-scss-module-evaluate",
-                "p28-less-module-evaluate",
-                "p31-value-resolution",
-                "p32-custom-property-static-resolve",
-                "p30-composes-resolution",
-                "p29-css-modules-class-hashing",
-                "p33-tree-shake-class",
-                "p34-tree-shake-keyframes",
-                "p35-tree-shake-value",
-                "p36-tree-shake-custom-property",
-                "p39-design-token-routing",
-                "p25-calc-reduction",
-                "p40-print-css"
+                "whitespace-strip",
+                "comment-strip",
+                "number-compression",
+                "unit-normalization",
+                "color-compression",
+                "url-quote-strip",
+                "string-quote-normalize",
+                "selector-is-where-compression",
+                "shorthand-combining",
+                "rule-deduplication",
+                "rule-merging",
+                "selector-merging",
+                "empty-rule-removal",
+                "vendor-prefixing",
+                "light-dark-lowering",
+                "color-mix-lowering",
+                "oklch-oklab-lowering",
+                "color-function-lowering",
+                "logical-to-physical",
+                "nesting-unwrap",
+                "scope-flatten",
+                "layer-flatten",
+                "supports-static-eval",
+                "media-static-eval",
+                "dead-media-branch-removal",
+                "dead-supports-branch-removal",
+                "import-inline",
+                "scss-module-evaluate",
+                "less-module-evaluate",
+                "value-resolution",
+                "custom-property-static-resolve",
+                "composes-resolution",
+                "css-modules-class-hashing",
+                "tree-shake-class",
+                "tree-shake-keyframes",
+                "tree-shake-value",
+                "tree-shake-custom-property",
+                "design-token-routing",
+                "calc-reduction",
+                "print-css"
             ]
         );
         assert!(boundary.registry_entries.iter().any(|entry| {
@@ -6183,7 +6183,7 @@ mod tests {
             assert!(
                 execution_node
                     .dependency_ids
-                    .contains(&"transform:pass:p40-print-css".to_string())
+                    .contains(&"transform:pass:print-css".to_string())
             );
         }
     }
@@ -6275,9 +6275,9 @@ mod tests {
         assert_eq!(
             plan.ordered_pass_ids,
             vec![
-                "p32-custom-property-static-resolve",
-                "p25-calc-reduction",
-                "p40-print-css"
+                "custom-property-static-resolve",
+                "calc-reduction",
+                "print-css"
             ]
         );
     }
@@ -6294,9 +6294,9 @@ mod tests {
         assert_eq!(
             plan.ordered_pass_ids,
             vec![
-                "p30-composes-resolution",
-                "p29-css-modules-class-hashing",
-                "p12-selector-merging"
+                "composes-resolution",
+                "css-modules-class-hashing",
+                "selector-merging"
             ]
         );
     }
@@ -6345,7 +6345,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p26-import-inline", "p40-print-css"]
+            vec!["import-inline", "print-css"]
         );
     }
 
@@ -6380,7 +6380,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p27-scss-module-evaluate", "p40-print-css"]
+            vec!["scss-module-evaluate", "print-css"]
         );
     }
 
@@ -6415,7 +6415,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p28-less-module-evaluate", "p40-print-css"]
+            vec!["less-module-evaluate", "print-css"]
         );
     }
 
@@ -6453,7 +6453,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p30-composes-resolution", "p40-print-css"]
+            vec!["composes-resolution", "print-css"]
         );
     }
 
@@ -6491,7 +6491,7 @@ mod tests {
         assert_eq!(execution.design_token_routes, context.design_token_routes);
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p39-design-token-routing", "p40-print-css"]
+            vec!["design-token-routing", "print-css"]
         );
     }
 
@@ -6515,21 +6515,21 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p02-comment-strip", "p40-print-css"]
+            vec!["comment-strip", "print-css"]
         );
         assert_eq!(
             execution.planned_only_pass_ids,
-            vec!["p29-css-modules-class-hashing"]
+            vec!["css-modules-class-hashing"]
         );
         assert!(execution.provenance_preserved);
         assert_eq!(execution.pass_plan.violated_dag_edge_count, 0);
         assert!(execution.outcomes.iter().any(|outcome| {
-            outcome.pass_id == "p02-comment-strip"
+            outcome.pass_id == "comment-strip"
                 && outcome.status == TransformPassRuntimeStatus::Applied
                 && outcome.mutation_count == 1
         }));
         assert!(execution.outcomes.iter().any(|outcome| {
-            outcome.pass_id == "p29-css-modules-class-hashing"
+            outcome.pass_id == "css-modules-class-hashing"
                 && outcome.status == TransformPassRuntimeStatus::PlannedOnly
         }));
         assert_eq!(
@@ -6545,7 +6545,7 @@ mod tests {
             .provenance_derivation_forest
             .nodes
             .iter()
-            .find(|node| node.pass_id == "p02-comment-strip");
+            .find(|node| node.pass_id == "comment-strip");
         assert!(
             comment_node.is_some(),
             "comment strip provenance node should exist"
@@ -6612,7 +6612,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p29-css-modules-class-hashing", "p40-print-css"]
+            vec!["css-modules-class-hashing", "print-css"]
         );
     }
 
@@ -6635,7 +6635,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p01-whitespace-strip", "p02-comment-strip", "p40-print-css"]
+            vec!["whitespace-strip", "comment-strip", "print-css"]
         );
     }
 
@@ -6676,7 +6676,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p04-unit-normalization", "p40-print-css"]
+            vec!["unit-normalization", "print-css"]
         );
     }
 
@@ -6753,7 +6753,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p08-selector-is-where-compression", "p40-print-css"]
+            vec!["selector-is-where-compression", "print-css"]
         );
     }
 
@@ -6775,7 +6775,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p13-empty-rule-removal", "p40-print-css"]
+            vec!["empty-rule-removal", "print-css"]
         );
     }
 
@@ -6797,7 +6797,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p09-shorthand-combining", "p40-print-css"]
+            vec!["shorthand-combining", "print-css"]
         );
     }
 
@@ -6820,7 +6820,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p10-rule-deduplication", "p40-print-css"]
+            vec!["rule-deduplication", "print-css"]
         );
     }
 
@@ -6840,7 +6840,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p11-rule-merging", "p40-print-css"]
+            vec!["rule-merging", "print-css"]
         );
     }
 
@@ -6863,7 +6863,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p12-selector-merging", "p40-print-css"]
+            vec!["selector-merging", "print-css"]
         );
     }
 
@@ -6885,7 +6885,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p14-vendor-prefixing", "p40-print-css"]
+            vec!["vendor-prefixing", "print-css"]
         );
     }
 
@@ -6907,7 +6907,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p15-light-dark-lowering", "p40-print-css"]
+            vec!["light-dark-lowering", "print-css"]
         );
     }
 
@@ -6929,7 +6929,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p16-color-mix-lowering", "p40-print-css"]
+            vec!["color-mix-lowering", "print-css"]
         );
     }
 
@@ -6951,7 +6951,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p17-oklch-oklab-lowering", "p40-print-css"]
+            vec!["oklch-oklab-lowering", "print-css"]
         );
     }
 
@@ -6973,7 +6973,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p18-color-function-lowering", "p40-print-css"]
+            vec!["color-function-lowering", "print-css"]
         );
     }
 
@@ -6995,7 +6995,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p19-logical-to-physical", "p40-print-css"]
+            vec!["logical-to-physical", "print-css"]
         );
     }
 
@@ -7017,7 +7017,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p20-nesting-unwrap", "p40-print-css"]
+            vec!["nesting-unwrap", "print-css"]
         );
     }
 
@@ -7040,7 +7040,7 @@ mod tests {
         assert_eq!(accepted.output_css, r#".card { color: red; }"#);
         assert_eq!(
             accepted.executed_pass_ids,
-            vec!["p21-scope-flatten", "p40-print-css"]
+            vec!["scope-flatten", "print-css"]
         );
     }
 
@@ -7052,7 +7052,7 @@ mod tests {
             &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],
         );
         assert_eq!(planned.output_css, source);
-        assert_eq!(planned.planned_only_pass_ids, vec!["p22-layer-flatten"]);
+        assert_eq!(planned.planned_only_pass_ids, vec!["layer-flatten"]);
 
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
@@ -7068,7 +7068,7 @@ mod tests {
         assert_eq!(execution.output_css, r#".card { color: red; }"#);
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p22-layer-flatten", "p40-print-css"]
+            vec!["layer-flatten", "print-css"]
         );
     }
 
@@ -7090,7 +7090,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p24-media-static-eval", "p40-print-css"]
+            vec!["media-static-eval", "print-css"]
         );
     }
 
@@ -7112,7 +7112,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p23-supports-static-eval", "p40-print-css"]
+            vec!["supports-static-eval", "print-css"]
         );
     }
 
@@ -7134,7 +7134,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p25-calc-reduction", "p40-print-css"]
+            vec!["calc-reduction", "print-css"]
         );
     }
 
@@ -7156,7 +7156,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p32-custom-property-static-resolve", "p40-print-css"]
+            vec!["custom-property-static-resolve", "print-css"]
         );
     }
 
@@ -7178,7 +7178,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p31-value-resolution", "p40-print-css"]
+            vec!["value-resolution", "print-css"]
         );
     }
 
@@ -7202,9 +7202,9 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec![
-                "p37-dead-media-branch-removal",
-                "p38-dead-supports-branch-removal",
-                "p40-print-css"
+                "dead-media-branch-removal",
+                "dead-supports-branch-removal",
+                "print-css"
             ]
         );
     }
@@ -7222,10 +7222,10 @@ mod tests {
 
         assert_eq!(execution.output_css, source);
         assert_eq!(execution.mutation_count, 0);
-        assert_eq!(execution.executed_pass_ids, vec!["p40-print-css"]);
+        assert_eq!(execution.executed_pass_ids, vec!["print-css"]);
         assert_eq!(
             execution.planned_only_pass_ids,
-            vec!["p34-tree-shake-keyframes"]
+            vec!["tree-shake-keyframes"]
         );
     }
 
@@ -7254,7 +7254,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p34-tree-shake-keyframes", "p40-print-css"]
+            vec!["tree-shake-keyframes", "print-css"]
         );
     }
 
@@ -7283,7 +7283,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p33-tree-shake-class", "p40-print-css"]
+            vec!["tree-shake-class", "print-css"]
         );
     }
 
@@ -7311,7 +7311,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p35-tree-shake-value", "p40-print-css"]
+            vec!["tree-shake-value", "print-css"]
         );
     }
 
@@ -7340,7 +7340,7 @@ mod tests {
         );
         assert_eq!(
             execution.executed_pass_ids,
-            vec!["p36-tree-shake-custom-property", "p40-print-css"]
+            vec!["tree-shake-custom-property", "print-css"]
         );
     }
 

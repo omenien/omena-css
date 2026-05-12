@@ -27,4 +27,5 @@ transform boundaries can be verified as one product surface.
 cargo fmt --all --check
 cargo test --workspace
 cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo publish --dry-run --manifest-path crates/omena-syntax/Cargo.toml
 ```

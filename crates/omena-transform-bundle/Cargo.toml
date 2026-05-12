@@ -14,7 +14,7 @@ categories = ["development-tools", "parser-implementations"]
 workspace = true
 
 [dependencies]
-omena-parser = { path = "../omena-parser" }
-omena-transform-cst = { path = "../omena-transform-cst" }
-omena-transform-passes = { path = "../omena-transform-passes" }
+omena-parser = { path = "../omena-parser", version = "0.1.0" }
+omena-transform-cst = { path = "../omena-transform-cst", version = "0.1.0" }
+omena-transform-passes = { path = "../omena-transform-passes", version = "0.1.0" }
 serde.workspace = true

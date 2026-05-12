@@ -212,14 +212,14 @@ mod tests {
     };
 
     #[test]
-    fn exposes_p14_to_p24_target_lowering_boundary() {
+    fn exposes_target_lowering_boundary() {
         let boundary = summarize_omena_transform_target_boundary();
 
         assert_eq!(boundary.product, "omena-transform-target.boundary");
         assert_eq!(boundary.managed_pass_ids.len(), 11);
-        assert!(boundary.managed_pass_ids.contains(&"p14-vendor-prefixing"));
-        assert!(boundary.managed_pass_ids.contains(&"p24-media-static-eval"));
-        assert!(boundary.opt_in_pass_ids.contains(&"p21-scope-flatten"));
+        assert!(boundary.managed_pass_ids.contains(&"vendor-prefixing"));
+        assert!(boundary.managed_pass_ids.contains(&"media-static-eval"));
+        assert!(boundary.opt_in_pass_ids.contains(&"scope-flatten"));
     }
 
     #[test]
@@ -246,19 +246,19 @@ mod tests {
         let plan = plan_target_transforms("legacy-webview", support, options);
 
         assert_eq!(plan.pass_plan.violated_dag_edge_count, 0);
-        assert!(plan.required_pass_ids.contains(&"p15-light-dark-lowering"));
-        assert!(plan.required_pass_ids.contains(&"p16-color-mix-lowering"));
-        assert!(plan.required_pass_ids.contains(&"p14-vendor-prefixing"));
-        assert!(plan.required_pass_ids.contains(&"p21-scope-flatten"));
-        assert!(plan.required_pass_ids.contains(&"p22-layer-flatten"));
+        assert!(plan.required_pass_ids.contains(&"light-dark-lowering"));
+        assert!(plan.required_pass_ids.contains(&"color-mix-lowering"));
+        assert!(plan.required_pass_ids.contains(&"vendor-prefixing"));
+        assert!(plan.required_pass_ids.contains(&"scope-flatten"));
+        assert!(plan.required_pass_ids.contains(&"layer-flatten"));
         let vendor_index = plan
             .planned_pass_ids
             .iter()
-            .position(|id| *id == "p14-vendor-prefixing");
+            .position(|id| *id == "vendor-prefixing");
         let light_dark_index = plan
             .planned_pass_ids
             .iter()
-            .position(|id| *id == "p15-light-dark-lowering");
+            .position(|id| *id == "light-dark-lowering");
         assert!(light_dark_index < vendor_index);
     }
 
@@ -276,9 +276,9 @@ mod tests {
             conservative_target_options(),
         );
 
-        assert!(plan.blocked_pass_ids.contains(&"p21-scope-flatten"));
-        assert!(plan.blocked_pass_ids.contains(&"p22-layer-flatten"));
-        assert!(!plan.required_pass_ids.contains(&"p21-scope-flatten"));
-        assert!(!plan.required_pass_ids.contains(&"p22-layer-flatten"));
+        assert!(plan.blocked_pass_ids.contains(&"scope-flatten"));
+        assert!(plan.blocked_pass_ids.contains(&"layer-flatten"));
+        assert!(!plan.required_pass_ids.contains(&"scope-flatten"));
+        assert!(!plan.required_pass_ids.contains(&"layer-flatten"));
     }
 }
