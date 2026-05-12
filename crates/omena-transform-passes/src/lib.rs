@@ -1111,7 +1111,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "removed unreachable local literal CSS Modules @value declarations under an explicit closed-style-world reachability context",
+                    detail: "removed unreachable local CSS Modules @value declarations under an explicit closed-style-world reachability context",
                 }
             }
             Some(TransformPassKind::TreeShakeValue) => TransformPassExecutionOutcomeV0 {
@@ -3917,18 +3917,42 @@ fn tree_shake_css_modules_values_with_lexer(
         return (source.to_string(), 0);
     }
 
-    let mut referenced_names = reachable_value_names.to_vec();
+    let referenced_names =
+        collect_reachable_css_modules_value_names(tokens, &definitions, reachable_value_names);
+
+    let ranges = definitions
+        .iter()
+        .filter(|definition| {
+            can_tree_shake_local_css_modules_value_definition(definition, &definitions)
+                && !referenced_names.iter().any(|name| name == &definition.name)
+        })
+        .map(|definition| (definition.start, definition.end))
+        .collect::<Vec<_>>();
+
+    remove_source_ranges(source, &ranges)
+}
+
+fn collect_reachable_css_modules_value_names(
+    tokens: &[omena_parser::LexedToken],
+    definitions: &[StaticCssModulesValueDefinition],
+    external_roots: &[String],
+) -> Vec<String> {
+    let mut root_names = external_roots.to_vec();
+    let mut dependencies_by_name = BTreeMap::<String, Vec<String>>::new();
     let definition_names = definitions
         .iter()
         .map(|definition| definition.name.clone())
         .collect::<Vec<_>>();
 
-    for definition in &definitions {
+    for definition in definitions {
         if definition_names
             .iter()
             .any(|name| name == &definition.value)
         {
-            push_unique_string(&mut referenced_names, definition.value.clone());
+            let dependencies = dependencies_by_name
+                .entry(definition.name.clone())
+                .or_default();
+            push_unique_string(dependencies, definition.value.clone());
         }
     }
 
@@ -3942,7 +3966,7 @@ fn tree_shake_css_modules_values_with_lexer(
                     .iter()
                     .any(|name| name == &declaration.value)
                 {
-                    push_unique_string(&mut referenced_names, declaration.value);
+                    push_unique_string(&mut root_names, declaration.value);
                 }
             }
             index = close_index + 1;
@@ -3951,21 +3975,45 @@ fn tree_shake_css_modules_values_with_lexer(
         index += 1;
     }
 
-    let ranges = definitions
-        .iter()
-        .filter(|definition| {
-            is_static_css_modules_value_literal(&definition.value)
-                && definitions
-                    .iter()
-                    .filter(|candidate| candidate.name == definition.name)
-                    .count()
-                    == 1
-                && !referenced_names.iter().any(|name| name == &definition.name)
-        })
-        .map(|definition| (definition.start, definition.end))
-        .collect::<Vec<_>>();
+    close_css_modules_value_dependency_graph(root_names, &dependencies_by_name)
+}
 
-    remove_source_ranges(source, &ranges)
+fn close_css_modules_value_dependency_graph(
+    roots: Vec<String>,
+    dependencies_by_name: &BTreeMap<String, Vec<String>>,
+) -> Vec<String> {
+    let mut reachable = Vec::new();
+    let mut queue = roots.into_iter().collect::<VecDeque<_>>();
+
+    while let Some(name) = queue.pop_front() {
+        if reachable.iter().any(|existing| existing == &name) {
+            continue;
+        }
+        reachable.push(name.clone());
+        if let Some(dependencies) = dependencies_by_name.get(&name) {
+            for dependency in dependencies {
+                queue.push_back(dependency.clone());
+            }
+        }
+    }
+
+    reachable.sort();
+    reachable
+}
+
+fn can_tree_shake_local_css_modules_value_definition(
+    definition: &StaticCssModulesValueDefinition,
+    definitions: &[StaticCssModulesValueDefinition],
+) -> bool {
+    definitions
+        .iter()
+        .filter(|candidate| candidate.name == definition.name)
+        .count()
+        == 1
+        && (is_static_css_modules_value_literal(&definition.value)
+            || definitions
+                .iter()
+                .any(|candidate| candidate.name == definition.value))
 }
 
 fn tree_shake_css_custom_properties_with_lexer(
@@ -8638,7 +8686,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_tree_shakes_local_values_with_closed_world_context() {
-        let source = r#"@value used: red; @value dead: blue; @value alias: used; .btn { color: used; background: alias; }"#;
+        let source = r#"@value used: red; @value dead: blue; @value alias: used; @value deadAlias: dead; .btn { color: used; background: alias; }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             ..TransformExecutionContextV0::default()
@@ -8653,11 +8701,11 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 1);
-        assert_eq!(
-            execution.output_css,
-            r#"@value used: red;  @value alias: used; .btn { color: used; background: alias; }"#
-        );
+        assert_eq!(execution.mutation_count, 2);
+        assert!(execution.output_css.contains("@value used: red;"));
+        assert!(execution.output_css.contains("@value alias: used;"));
+        assert!(!execution.output_css.contains("@value dead:"));
+        assert!(!execution.output_css.contains("@value deadAlias:"));
         assert_eq!(
             execution.executed_pass_ids,
             vec!["tree-shake-value", "print-css"]
