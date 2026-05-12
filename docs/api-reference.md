@@ -55,3 +55,12 @@ Primary consumers:
 - `checkStyleSource(source, path)` reports parser-owned facts.
 - `buildStyleSource(source, path, passIds)` runs conservative transform passes.
 - `listTransformPasses()` lists accepted transform pass ids.
+
+## Node Native Binding
+
+`omena-napi` exposes the first Node native binding substrate:
+
+- `checkStyleSourceJson(source, path)` reports parser-owned facts as JSON.
+- `buildStyleSourceJson(source, path, passIds)` runs conservative transform
+  passes and returns JSON.
+- `listTransformPassesJson()` lists accepted transform pass ids as JSON.

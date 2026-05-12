@@ -21,6 +21,7 @@ transform boundaries can be verified as one product surface.
 - `omena-transform-print`
 - `omena-transform-egg`
 - `omena-cli`
+- `omena-napi`
 - `omena-wasm`
 
 ## Verification

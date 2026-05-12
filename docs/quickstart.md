@@ -56,6 +56,29 @@ const built = buildStyleSource(".card { color: #ffffff; }", "demo.css", [
 ]);
 ```
 
+## Use the Node Native Binding Substrate
+
+`omena-napi` is the Rust N-API substrate for future npm packaging. It exposes
+JSON-string APIs so Node clients can consume the same parser and transform
+contracts without depending on unstable Rust structs. A future npm wrapper can
+export this shape:
+
+```js
+import {
+  checkStyleSourceJson,
+  buildStyleSourceJson,
+} from "omena-napi";
+
+const facts = JSON.parse(
+  checkStyleSourceJson(".card { color: red; }", "demo.module.css"),
+);
+const built = JSON.parse(
+  buildStyleSourceJson(".card { color: #ffffff; }", "demo.css", [
+    "color-compression",
+  ]),
+);
+```
+
 ## Publish Readiness
 
 Run the manual GitHub Actions publish workflow in `dry-run` mode first. For a

@@ -1,0 +1,26 @@
+[package]
+name = "omena-napi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Node native bindings for Omena CSS parser and transform checks"
+repository = "https://github.com/omenien/omena-css"
+readme = "README.md"
+keywords = ["omena", "css", "parser", "analysis"]
+categories = ["development-tools", "parser-implementations"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[lints]
+workspace = true
+
+[dependencies]
+napi.workspace = true
+napi-derive.workspace = true
+omena-parser = { path = "../omena-parser", version = "0.1" }
+omena-transform-cst = { path = "../omena-transform-cst", version = "0.1" }
+omena-transform-passes = { path = "../omena-transform-passes", version = "0.1" }
+serde.workspace = true
+serde_json.workspace = true
