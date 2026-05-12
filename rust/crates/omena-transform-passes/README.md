@@ -7,7 +7,7 @@ mutation engines will land behind this registry so transform execution cannot
 drift from the semantic/cascade proof obligations.
 
 The first execution runtime surface is intentionally conservative: it executes
-lexer-backed safe commodity mutations for P01 through P25, P29-P38,
+lexer-backed safe commodity mutations for P01 through P26, P29-P38,
 and observes the P40 emission boundary. P33-P36 tree shaking is context-gated
 and mutates only under an explicit closed-style-world reachability context.
 P04 unit normalization is limited to zero length dimensions
@@ -41,7 +41,9 @@ only unwraps literal `@media all` and removes literal `@media not all`. P23
 supports static eval consumes `omena-cascade` supports witnesses and currently
 handles simple declaration feature queries under the modern-browser assumption.
 P25 `calc()` reduction currently handles whole-value same-unit
-addition/subtraction. P29 class hashing requires an explicit selector identity
+addition/subtraction. P26 import inlining requires explicit resolved replacement
+CSS from the resolver/query layer, so media/supports/layer wrappers remain owned
+by the bundle provenance producer. P29 class hashing requires an explicit selector identity
 map and rewrites only simple class selector lists plus local whitespace-separated
 `composes` values through that same map. P30 composes resolution requires an
 explicit CSS Modules export set and only removes declarations from single-class

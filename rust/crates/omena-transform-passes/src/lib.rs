@@ -97,6 +97,7 @@ pub struct TransformExecutionSummaryV0 {
     pub mutation_count: usize,
     pub provenance_preserved: bool,
     pub output_css: String,
+    pub css_import_inlines: Vec<TransformImportInlineV0>,
     pub css_module_composes_exports: Vec<TransformCssModuleComposesResolutionV0>,
     pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
     pub pass_plan: TransformPassPlanV0,
@@ -110,8 +111,16 @@ pub struct TransformExecutionContextV0 {
     pub reachable_keyframe_names: Vec<String>,
     pub reachable_value_names: Vec<String>,
     pub reachable_custom_property_names: Vec<String>,
+    pub import_inlines: Vec<TransformImportInlineV0>,
     pub class_name_rewrites: Vec<TransformClassNameRewriteV0>,
     pub css_module_composes_resolutions: Vec<TransformCssModuleComposesResolutionV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformImportInlineV0 {
+    pub import_source: String,
+    pub replacement_css: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -225,6 +234,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
     let ordered_pass_ids = pass_plan.ordered_pass_ids.clone();
     let mut output_css = source.to_string();
     let mut outcomes = Vec::new();
+    let mut css_import_inlines = Vec::new();
     let mut css_module_composes_exports = Vec::new();
 
     for pass_id in &ordered_pass_ids {
@@ -697,6 +707,35 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     detail: "removed dead @supports branches through the static cascade witness evaluator",
                 }
             }
+            Some(TransformPassKind::ImportInline) if !context.import_inlines.is_empty() => {
+                let (next_css, mutation_count) =
+                    inline_css_imports(&output_css, dialect, &context.import_inlines);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                css_import_inlines = context.import_inlines.clone();
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "replaced resolved @import directives using explicit inline CSS replacements",
+                }
+            }
+            Some(TransformPassKind::ImportInline) => TransformPassExecutionOutcomeV0 {
+                pass_id,
+                status: TransformPassRuntimeStatus::PlannedOnly,
+                input_byte_len,
+                output_byte_len: output_css.len(),
+                mutation_count: 0,
+                provenance_preserved: true,
+                detail: "requires explicit resolved import replacements before mutation",
+            },
             Some(TransformPassKind::ResolveCssModulesComposes)
                 if !context.css_module_composes_resolutions.is_empty() =>
             {
@@ -1013,6 +1052,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
         mutation_count,
         provenance_preserved,
         output_css,
+        css_import_inlines,
         css_module_composes_exports,
         outcomes,
         pass_plan,
@@ -1047,6 +1087,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::MediaStaticEval.id(),
         TransformPassKind::DeadMediaBranchRemoval.id(),
         TransformPassKind::DeadSupportsBranchRemoval.id(),
+        TransformPassKind::ImportInline.id(),
         TransformPassKind::ValueResolution.id(),
         TransformPassKind::StaticVarSubstitution.id(),
         TransformPassKind::ResolveCssModulesComposes.id(),
@@ -1266,6 +1307,14 @@ fn evaluate_static_supports_rules(source: &str, dialect: StyleDialect) -> (Strin
 
 fn evaluate_static_media_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
     evaluate_static_media_rules_with_lexer(source, dialect)
+}
+
+fn inline_css_imports(
+    source: &str,
+    dialect: StyleDialect,
+    inlines: &[TransformImportInlineV0],
+) -> (String, usize) {
+    inline_css_imports_with_lexer(source, dialect, inlines)
 }
 
 fn resolve_static_css_modules_values(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -2411,6 +2460,137 @@ fn normalize_reachable_class_name(name: &str) -> Option<&str> {
         return None;
     }
     Some(name)
+}
+
+fn inline_css_imports_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+    inlines: &[TransformImportInlineV0],
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut depth = 0usize;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@import") =>
+            {
+                let Some(end_index) = find_import_rule_semicolon(tokens, index) else {
+                    index += 1;
+                    continue;
+                };
+                let start = token_start(&tokens[index]);
+                let end = token_end(&tokens[end_index]);
+                let rule_text = &source[start..end];
+                let Some(import_source) = parse_css_import_source(rule_text) else {
+                    index = end_index + 1;
+                    continue;
+                };
+                if let Some(replacement_css) =
+                    inline_replacement_for_import_source(&import_source, inlines)
+                {
+                    replacements.push((start, end, replacement_css.to_string()));
+                }
+                index = end_index + 1;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    replace_source_ranges(source, &replacements)
+}
+
+fn find_import_rule_semicolon(
+    tokens: &[omena_parser::LexedToken],
+    at_import_index: usize,
+) -> Option<usize> {
+    let mut index = at_import_index + 1;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::Semicolon => return Some(index),
+            SyntaxKind::LeftBrace | SyntaxKind::RightBrace => return None,
+            _ => index += 1,
+        }
+    }
+    None
+}
+
+fn parse_css_import_source(rule_text: &str) -> Option<String> {
+    let rest = strip_ascii_prefix_ignore_case(rule_text.trim(), "@import")?;
+    let rest = rest.trim();
+    if rest.is_empty() {
+        return None;
+    }
+    if let Some(source) = parse_quoted_css_string(rest) {
+        return Some(source);
+    }
+    parse_url_import_source(rest)
+}
+
+fn parse_quoted_css_string(text: &str) -> Option<String> {
+    let mut chars = text.chars();
+    let quote = chars.next()?;
+    if !matches!(quote, '"' | '\'') {
+        return None;
+    }
+    let mut escaped = false;
+    let mut output = String::new();
+    for ch in chars {
+        if escaped {
+            output.push(ch);
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == quote {
+            return Some(output);
+        }
+        output.push(ch);
+    }
+    None
+}
+
+fn parse_url_import_source(text: &str) -> Option<String> {
+    let rest = strip_ascii_prefix_ignore_case(text, "url(")?;
+    let close_index = rest.find(')')?;
+    let inner = rest[..close_index].trim();
+    if let Some(source) = parse_quoted_css_string(inner) {
+        return Some(source);
+    }
+    if inner.is_empty()
+        || inner
+            .chars()
+            .any(|ch| ch.is_ascii_whitespace() || matches!(ch, '"' | '\'' | '(' | ')'))
+    {
+        return None;
+    }
+    Some(inner.to_string())
+}
+
+fn strip_ascii_prefix_ignore_case<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
+    text.get(..prefix.len())?
+        .eq_ignore_ascii_case(prefix)
+        .then(|| &text[prefix.len()..])
+}
+
+fn inline_replacement_for_import_source<'a>(
+    import_source: &str,
+    inlines: &'a [TransformImportInlineV0],
+) -> Option<&'a str> {
+    inlines
+        .iter()
+        .find(|inline| inline.import_source == import_source)
+        .map(|inline| inline.replacement_css.as_str())
 }
 
 fn strip_resolved_css_module_composes_with_lexer(
@@ -5121,7 +5301,7 @@ fn is_comment_token(kind: SyntaxKind) -> bool {
 mod tests {
     use super::{
         TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
-        TransformExecutionContextV0, TransformPassRuntimeStatus,
+        TransformExecutionContextV0, TransformImportInlineV0, TransformPassRuntimeStatus,
         execute_transform_passes_on_source, execute_transform_passes_on_source_with_dialect,
         execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
         summarize_omena_transform_passes_boundary,
@@ -5170,6 +5350,7 @@ mod tests {
                 "p24-media-static-eval",
                 "p37-dead-media-branch-removal",
                 "p38-dead-supports-branch-removal",
+                "p26-import-inline",
                 "p31-value-resolution",
                 "p32-custom-property-static-resolve",
                 "p30-composes-resolution",
@@ -5224,6 +5405,54 @@ mod tests {
                 "p29-css-modules-class-hashing",
                 "p12-selector-merging"
             ]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_inlines_imports_from_explicit_replacements() {
+        let source =
+            r#"@import "./tokens.css"; @import url(./theme.css); .button { color: var(--brand); }"#;
+        let context = TransformExecutionContextV0 {
+            import_inlines: vec![
+                TransformImportInlineV0 {
+                    import_source: "./tokens.css".to_string(),
+                    replacement_css: r#":root { --brand: red; }"#.to_string(),
+                },
+                TransformImportInlineV0 {
+                    import_source: "./theme.css".to_string(),
+                    replacement_css: r#"@media screen { .theme { color: blue; } }"#.to_string(),
+                },
+            ],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[TransformPassKind::ImportInline, TransformPassKind::PrintCss],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#":root { --brand: red; } @media screen { .theme { color: blue; } } .button { color: var(--brand); }"#
+        );
+        assert_eq!(
+            execution.css_import_inlines,
+            vec![
+                TransformImportInlineV0 {
+                    import_source: "./tokens.css".to_string(),
+                    replacement_css: r#":root { --brand: red; }"#.to_string(),
+                },
+                TransformImportInlineV0 {
+                    import_source: "./theme.css".to_string(),
+                    replacement_css: r#"@media screen { .theme { color: blue; } }"#.to_string(),
+                },
+            ]
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p26-import-inline", "p40-print-css"]
         );
     }
 
