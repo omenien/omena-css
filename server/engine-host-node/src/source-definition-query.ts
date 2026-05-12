@@ -42,6 +42,9 @@ export function resolveSourceExpressionDefinitionTargets(
   options: SourceDefinitionQueryOptions = {},
 ): readonly SourceDefinitionTarget[] {
   const backend = resolveSelectedQueryBackendKind(options.env);
+  const localExactTargets = resolveExactSourceDefinitionTargetsFromTypescript(ctx, params, deps);
+  if (localExactTargets.length > 0) return localExactTargets;
+
   if (usesRustSourceResolutionBackend(backend)) {
     const rustTargets = resolveSourceDefinitionTargetsFromRust(
       ctx,
@@ -65,6 +68,9 @@ export async function resolveSourceExpressionDefinitionTargetsAsync(
   options: SourceDefinitionQueryOptions = {},
 ): Promise<readonly SourceDefinitionTarget[]> {
   const backend = resolveSelectedQueryBackendKind(options.env);
+  const localExactTargets = resolveExactSourceDefinitionTargetsFromTypescript(ctx, params, deps);
+  if (localExactTargets.length > 0) return localExactTargets;
+
   if (usesRustSourceResolutionBackend(backend)) {
     const rustTargets = await resolveSourceDefinitionTargetsFromRustAsync(
       ctx,
@@ -75,6 +81,15 @@ export async function resolveSourceExpressionDefinitionTargetsAsync(
     if (rustTargets.length > 0) return rustTargets;
   }
 
+  return resolveSourceDefinitionTargetsFromTypescript(ctx, params, deps);
+}
+
+function resolveExactSourceDefinitionTargetsFromTypescript(
+  ctx: SourceExpressionContext,
+  params: Pick<CursorParams, "filePath">,
+  deps: Pick<ProviderDeps, "styleDocumentForPath" | "typeResolver" | "workspaceRoot">,
+): readonly SourceDefinitionTarget[] {
+  if (ctx.expression.kind !== "literal" && ctx.expression.kind !== "styleAccess") return [];
   return resolveSourceDefinitionTargetsFromTypescript(ctx, params, deps);
 }
 

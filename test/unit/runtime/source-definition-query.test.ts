@@ -5,7 +5,10 @@ import { SourceFileCache } from "../../../server/engine-core-ts/src/core/ts/sour
 import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/indexing/document-analysis-cache";
 import { readSourceExpressionContextAtCursor } from "../../../server/engine-core-ts/src/core/query";
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
-import { resolveSourceExpressionDefinitionTargets } from "../../../server/engine-host-node/src/source-definition-query";
+import {
+  resolveSourceExpressionDefinitionTargets,
+  resolveSourceExpressionDefinitionTargetsAsync,
+} from "../../../server/engine-host-node/src/source-definition-query";
 import {
   EMPTY_ALIAS_RESOLVER,
   buildTestClassExpressions,
@@ -173,5 +176,39 @@ describe("resolveSourceExpressionDefinitionTargets", () => {
       start: { line: 11, character: 2 },
       end: { line: 11, character: 11 },
     });
+  });
+
+  it("keeps exact style accesses on the local definition path before rust", async () => {
+    const deps = makeDepsForExpressions([
+      {
+        kind: "styleAccess",
+        className: "indicator",
+        range: {
+          start: { line: 4, character: 15 },
+          end: { line: 4, character: 24 },
+        },
+        scssModulePath: "/fake/src/Button.module.scss",
+      },
+    ]);
+    const ctx = readSourceExpressionContextAtCursor(baseParams, {
+      analysisCache: deps.analysisCache,
+      styleDocumentForPath: deps.styleDocumentForPath,
+    });
+    let rustRunnerCalled = false;
+
+    expect(ctx).not.toBeNull();
+    const targets = await resolveSourceExpressionDefinitionTargetsAsync(ctx!, baseParams, deps, {
+      env: {
+        CME_SELECTED_QUERY_BACKEND: "rust-source-resolution",
+      } as NodeJS.ProcessEnv,
+      runRustSelectedQueryBackendJsonAsync: async () => {
+        rustRunnerCalled = true;
+        return { evaluatorCandidates: { results: [] } };
+      },
+    });
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]?.targetFilePath).toBe("/fake/src/Button.module.scss");
+    expect(rustRunnerCalled).toBe(false);
   });
 });
