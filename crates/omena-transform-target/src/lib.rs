@@ -46,6 +46,19 @@ pub struct TransformTargetBoundarySummaryV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TransformTargetQueryPlanV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub query: String,
+    pub normalized_query: String,
+    pub profile_id: &'static str,
+    pub recognized_profile: bool,
+    pub support: TargetFeatureSupportV0,
+    pub transform_plan: TransformTargetPlanV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransformTargetPlanV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -69,8 +82,30 @@ pub fn summarize_omena_transform_target_boundary() -> TransformTargetBoundarySum
             TransformPassKind::ScopeFlatten.id(),
             TransformPassKind::LayerFlatten.id(),
         ],
-        target_data_source: "explicitFeatureMatrixV0",
+        target_data_source: "staticTargetProfileV0+explicitFeatureMatrixV0",
         planner_surface: "omena-transform-passes.plan",
+    }
+}
+
+pub fn plan_target_transforms_from_query(
+    query: impl Into<String>,
+    options: TargetTransformOptionsV0,
+) -> TransformTargetQueryPlanV0 {
+    let query = query.into();
+    let normalized_query = normalize_target_query(&query);
+    let (profile_id, recognized_profile, support) =
+        target_feature_support_for_static_query(&normalized_query);
+    let transform_plan = plan_target_transforms(profile_id, support, options);
+
+    TransformTargetQueryPlanV0 {
+        schema_version: "0",
+        product: "omena-transform-target.query-plan",
+        query,
+        normalized_query,
+        profile_id,
+        recognized_profile,
+        support,
+        transform_plan,
     }
 }
 
@@ -165,6 +200,20 @@ pub const fn modern_feature_support() -> TargetFeatureSupportV0 {
     }
 }
 
+pub const fn legacy_webview_feature_support() -> TargetFeatureSupportV0 {
+    TargetFeatureSupportV0 {
+        vendor_prefix_required: true,
+        supports_light_dark: false,
+        supports_color_mix: false,
+        supports_oklch_oklab: false,
+        supports_color_function: false,
+        supports_logical_properties: false,
+        supports_css_nesting: false,
+        supports_css_scope: false,
+        supports_cascade_layers: false,
+    }
+}
+
 pub const fn conservative_target_options() -> TargetTransformOptionsV0 {
     TargetTransformOptionsV0 {
         allow_logical_to_physical: false,
@@ -173,6 +222,40 @@ pub const fn conservative_target_options() -> TargetTransformOptionsV0 {
         enable_supports_static_eval: false,
         enable_media_static_eval: false,
     }
+}
+
+fn normalize_target_query(query: &str) -> String {
+    query
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim()
+        .to_ascii_lowercase()
+}
+
+fn target_feature_support_for_static_query(
+    normalized_query: &str,
+) -> (&'static str, bool, TargetFeatureSupportV0) {
+    if matches!(
+        normalized_query,
+        "" | "modern" | "defaults" | "last 2 versions" | "baseline 2024" | "baseline-2024"
+    ) {
+        return ("modern-evergreen", true, modern_feature_support());
+    }
+
+    if normalized_query == "legacy"
+        || normalized_query == "legacy-webview"
+        || normalized_query.contains("ie 11")
+        || normalized_query.contains("ie11")
+    {
+        return ("legacy-webview", true, legacy_webview_feature_support());
+    }
+
+    (
+        "unknown-conservative",
+        false,
+        legacy_webview_feature_support(),
+    )
 }
 
 fn push_required_or_blocked(
@@ -208,7 +291,8 @@ fn target_managed_passes() -> [TransformPassKind; 11] {
 mod tests {
     use super::{
         TargetFeatureSupportV0, TargetTransformOptionsV0, conservative_target_options,
-        plan_target_transforms, summarize_omena_transform_target_boundary,
+        plan_target_transforms, plan_target_transforms_from_query,
+        summarize_omena_transform_target_boundary,
     };
 
     #[test]
@@ -217,6 +301,10 @@ mod tests {
 
         assert_eq!(boundary.product, "omena-transform-target.boundary");
         assert_eq!(boundary.managed_pass_ids.len(), 11);
+        assert_eq!(
+            boundary.target_data_source,
+            "staticTargetProfileV0+explicitFeatureMatrixV0"
+        );
         assert!(boundary.managed_pass_ids.contains(&"vendor-prefixing"));
         assert!(boundary.managed_pass_ids.contains(&"media-static-eval"));
         assert!(boundary.opt_in_pass_ids.contains(&"scope-flatten"));
@@ -280,5 +368,63 @@ mod tests {
         assert!(plan.blocked_pass_ids.contains(&"layer-flatten"));
         assert!(!plan.required_pass_ids.contains(&"scope-flatten"));
         assert!(!plan.required_pass_ids.contains(&"layer-flatten"));
+    }
+
+    #[test]
+    fn plans_target_lowering_from_static_target_query_profiles() {
+        let options = TargetTransformOptionsV0 {
+            allow_logical_to_physical: true,
+            allow_scope_flatten: true,
+            allow_layer_flatten: true,
+            enable_supports_static_eval: true,
+            enable_media_static_eval: true,
+        };
+        let plan = plan_target_transforms_from_query("legacy-webview", options);
+
+        assert!(plan.recognized_profile);
+        assert_eq!(plan.normalized_query, "legacy-webview");
+        assert_eq!(plan.profile_id, "legacy-webview");
+        assert!(plan.support.vendor_prefix_required);
+        assert_eq!(plan.transform_plan.pass_plan.violated_dag_edge_count, 0);
+        assert!(
+            plan.transform_plan
+                .required_pass_ids
+                .contains(&"vendor-prefixing")
+        );
+        assert!(
+            plan.transform_plan
+                .required_pass_ids
+                .contains(&"nesting-unwrap")
+        );
+        assert!(
+            plan.transform_plan
+                .required_pass_ids
+                .contains(&"logical-to-physical")
+        );
+
+        let modern = plan_target_transforms_from_query("defaults", conservative_target_options());
+        assert!(modern.recognized_profile);
+        assert_eq!(modern.profile_id, "modern-evergreen");
+        assert!(modern.transform_plan.required_pass_ids.is_empty());
+    }
+
+    #[test]
+    fn unknown_target_query_uses_conservative_profile_without_claiming_recognition() {
+        let plan =
+            plan_target_transforms_from_query("> 0.5%, not dead", conservative_target_options());
+
+        assert!(!plan.recognized_profile);
+        assert_eq!(plan.profile_id, "unknown-conservative");
+        assert!(plan.support.vendor_prefix_required);
+        assert!(
+            plan.transform_plan
+                .required_pass_ids
+                .contains(&"vendor-prefixing")
+        );
+        assert!(
+            plan.transform_plan
+                .blocked_pass_ids
+                .contains(&"scope-flatten")
+        );
     }
 }
