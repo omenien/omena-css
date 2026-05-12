@@ -100,6 +100,13 @@ pub struct TransformExecutionSummaryV0 {
     pub pass_plan: TransformPassPlanV0,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformExecutionContextV0 {
+    pub closed_style_world: bool,
+    pub reachable_keyframe_names: Vec<String>,
+}
+
 pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySummaryV0 {
     let registry_entries = default_transform_pass_contracts()
         .into_iter()
@@ -179,6 +186,18 @@ pub fn execute_transform_passes_on_source_with_dialect(
     source: &str,
     dialect: StyleDialect,
     requested: &[TransformPassKind],
+) -> TransformExecutionSummaryV0 {
+    let context = TransformExecutionContextV0::default();
+    execute_transform_passes_on_source_with_dialect_and_context(
+        source, dialect, requested, &context,
+    )
+}
+
+pub fn execute_transform_passes_on_source_with_dialect_and_context(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
 ) -> TransformExecutionSummaryV0 {
     let pass_plan = plan_transform_passes(requested);
     let requested_pass_ids = requested.iter().map(|pass| pass.id()).collect::<Vec<_>>();
@@ -611,6 +630,37 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "removed dead @supports branches through the static cascade witness evaluator",
                 }
             }
+            Some(TransformPassKind::TreeShakeKeyframes) if context.closed_style_world => {
+                let (next_css, mutation_count) = tree_shake_css_keyframes(
+                    &output_css,
+                    dialect,
+                    &context.reachable_keyframe_names,
+                );
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "removed unreferenced @keyframes under an explicit closed-style-world reachability context",
+                }
+            }
+            Some(TransformPassKind::TreeShakeKeyframes) => TransformPassExecutionOutcomeV0 {
+                pass_id,
+                status: TransformPassRuntimeStatus::PlannedOnly,
+                input_byte_len,
+                output_byte_len: output_css.len(),
+                mutation_count: 0,
+                provenance_preserved: true,
+                detail: "requires an explicit closed-style-world reachability context before mutation",
+            },
             Some(TransformPassKind::ValueResolution) => {
                 let (next_css, mutation_count) =
                     resolve_static_css_modules_values(&output_css, dialect);
@@ -769,6 +819,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::DeadSupportsBranchRemoval.id(),
         TransformPassKind::ValueResolution.id(),
         TransformPassKind::StaticVarSubstitution.id(),
+        TransformPassKind::TreeShakeKeyframes.id(),
         TransformPassKind::CalcReduction.id(),
         TransformPassKind::PrintCss.id(),
     ]
@@ -976,6 +1027,14 @@ fn evaluate_static_media_rules(source: &str, dialect: StyleDialect) -> (String, 
 
 fn resolve_static_css_modules_values(source: &str, dialect: StyleDialect) -> (String, usize) {
     resolve_static_css_modules_values_with_lexer(source, dialect)
+}
+
+fn tree_shake_css_keyframes(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_keyframe_names: &[String],
+) -> (String, usize) {
+    tree_shake_css_keyframes_with_lexer(source, dialect, reachable_keyframe_names)
 }
 
 fn substitute_static_css_custom_properties(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -1805,6 +1864,203 @@ fn css_modules_value_unit_is_static(unit: &str) -> bool {
             | "vmin"
             | "vw"
     )
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct KeyframesRuleSlice {
+    name: String,
+    start: usize,
+    end: usize,
+}
+
+fn tree_shake_css_keyframes_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_keyframe_names: &[String],
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let keyframes = collect_top_level_keyframes_rules(tokens);
+    if keyframes.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let Some(mut referenced_names) = collect_referenced_keyframe_names(tokens) else {
+        return (source.to_string(), 0);
+    };
+    for name in reachable_keyframe_names {
+        push_unique_string(&mut referenced_names, name.clone());
+    }
+
+    let ranges = keyframes
+        .iter()
+        .filter(|keyframe| !referenced_names.iter().any(|name| name == &keyframe.name))
+        .map(|keyframe| (keyframe.start, keyframe.end))
+        .collect::<Vec<_>>();
+    if ranges.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end) in &ranges {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, ranges.len())
+}
+
+fn collect_top_level_keyframes_rules(
+    tokens: &[omena_parser::LexedToken],
+) -> Vec<KeyframesRuleSlice> {
+    let mut rules = Vec::new();
+    let mut depth = 0usize;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@keyframes") =>
+            {
+                if let Some((rule, next_index)) = parse_top_level_keyframes_rule(tokens, index) {
+                    rules.push(rule);
+                    index = next_index;
+                    continue;
+                }
+            }
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+
+    rules
+}
+
+fn parse_top_level_keyframes_rule(
+    tokens: &[omena_parser::LexedToken],
+    at_keyframes_index: usize,
+) -> Option<(KeyframesRuleSlice, usize)> {
+    let name_index = skip_whitespace_tokens(tokens, at_keyframes_index + 1, tokens.len());
+    let name_token = tokens.get(name_index)?;
+    if name_token.kind != SyntaxKind::Ident {
+        return None;
+    }
+    let mut index = name_index + 1;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::Semicolon => return None,
+            SyntaxKind::LeftBrace => {
+                let close_index = matching_right_brace_index(tokens, index)?;
+                return Some((
+                    KeyframesRuleSlice {
+                        name: name_token.text.clone(),
+                        start: token_start(&tokens[at_keyframes_index]),
+                        end: token_end(&tokens[close_index]),
+                    },
+                    close_index + 1,
+                ));
+            }
+            _ => index += 1,
+        }
+    }
+
+    None
+}
+
+fn collect_referenced_keyframe_names(tokens: &[omena_parser::LexedToken]) -> Option<Vec<String>> {
+    let mut names = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::LeftBrace {
+            continue;
+        }
+        let Some(close_index) = matching_right_brace_index(tokens, index) else {
+            continue;
+        };
+        for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
+            match declaration.property.as_str() {
+                "animation-name" => {
+                    if declaration.value.contains("var(") {
+                        return None;
+                    }
+                    for name in split_top_level_value_arguments(&declaration.value)? {
+                        if is_static_animation_name_candidate(&name) {
+                            push_unique_string(&mut names, name);
+                        }
+                    }
+                }
+                "animation" => {
+                    if declaration.value.contains("var(") {
+                        return None;
+                    }
+                    for name in extract_animation_shorthand_name_candidates(&declaration.value)? {
+                        push_unique_string(&mut names, name);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    Some(names)
+}
+
+fn extract_animation_shorthand_name_candidates(value: &str) -> Option<Vec<String>> {
+    let mut candidates = Vec::new();
+    for branch in split_top_level_value_arguments(value)? {
+        for part in branch.split_whitespace() {
+            let candidate = part.trim();
+            if is_static_animation_name_candidate(candidate)
+                && !is_known_animation_shorthand_keyword(candidate)
+            {
+                push_unique_string(&mut candidates, candidate.to_string());
+            }
+        }
+    }
+    Some(candidates)
+}
+
+fn is_static_animation_name_candidate(value: &str) -> bool {
+    !value.is_empty()
+        && !value.contains(|ch: char| matches!(ch, '(' | ')' | '"' | '\'' | '/' | '\\'))
+        && parse_numeric_value_with_unit(value).is_none()
+}
+
+fn is_known_animation_shorthand_keyword(value: &str) -> bool {
+    matches!(
+        value.to_ascii_lowercase().as_str(),
+        "alternate"
+            | "alternate-reverse"
+            | "backwards"
+            | "both"
+            | "ease"
+            | "ease-in"
+            | "ease-in-out"
+            | "ease-out"
+            | "forwards"
+            | "infinite"
+            | "linear"
+            | "none"
+            | "normal"
+            | "paused"
+            | "reverse"
+            | "running"
+            | "step-end"
+            | "step-start"
+    )
+}
+
+fn push_unique_string(values: &mut Vec<String>, value: String) {
+    if !values.iter().any(|existing| existing == &value) {
+        values.push(value);
+    }
 }
 
 fn substitute_static_css_custom_properties_with_lexer(
@@ -3946,8 +4202,9 @@ fn is_comment_token(kind: SyntaxKind) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        TransformPassRuntimeStatus, execute_transform_passes_on_source,
-        execute_transform_passes_on_source_with_dialect, plan_transform_passes,
+        TransformExecutionContextV0, TransformPassRuntimeStatus,
+        execute_transform_passes_on_source, execute_transform_passes_on_source_with_dialect,
+        execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
         summarize_omena_transform_passes_boundary,
     };
     use omena_parser::StyleDialect;
@@ -3994,6 +4251,7 @@ mod tests {
                 "p38-dead-supports-branch-removal",
                 "p31-value-resolution",
                 "p32-custom-property-static-resolve",
+                "p34-tree-shake-keyframes",
                 "p25-calc-reduction",
                 "p40-print-css"
             ]
@@ -4621,6 +4879,54 @@ mod tests {
                 "p38-dead-supports-branch-removal",
                 "p40-print-css"
             ]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_keeps_keyframe_tree_shaking_planned_without_closed_world_context() {
+        let source = r#"@keyframes unused { to { opacity: 1; } } .btn { color: red; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::TreeShakeKeyframes,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.output_css, source);
+        assert_eq!(execution.mutation_count, 0);
+        assert_eq!(execution.executed_pass_ids, vec!["p40-print-css"]);
+        assert_eq!(
+            execution.planned_only_pass_ids,
+            vec!["p34-tree-shake-keyframes"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_tree_shakes_keyframes_with_closed_world_context() {
+        let source = r#"@keyframes fade { to { opacity: 1; } } @keyframes spin { to { transform: rotate(1turn); } } @keyframes dead { to { opacity: 0; } } .btn { animation: 1s ease fade; }"#;
+        let context = TransformExecutionContextV0 {
+            closed_style_world: true,
+            reachable_keyframe_names: vec!["spin".to_string()],
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::TreeShakeKeyframes,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#"@keyframes fade { to { opacity: 1; } } @keyframes spin { to { transform: rotate(1turn); } }  .btn { animation: 1s ease fade; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p34-tree-shake-keyframes", "p40-print-css"]
         );
     }
 

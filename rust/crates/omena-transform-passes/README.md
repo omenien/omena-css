@@ -8,8 +8,10 @@ drift from the semantic/cascade proof obligations.
 
 The first execution runtime surface is intentionally conservative: it executes
 lexer-backed safe commodity mutations for P01 through P20, P23-P25, P31-P32,
-and P37-P38, and observes the P40 emission boundary. P04 unit normalization is
-limited to zero length dimensions inside declaration properties that accept unitless zero; broader unit/value
+P34, and P37-P38, and observes the P40 emission boundary. P34 keyframe tree
+shaking is context-gated and mutates only under an explicit closed-style-world
+reachability context. P04 unit normalization is limited to zero length dimensions
+inside declaration properties that accept unitless zero; broader unit/value
 rewrites remain planned until property/value semantics can prove them legal. P08
 selector compression is limited to specificity-preserving `:is()` unwrapping and
 duplicate argument removal for `:is()`/`:where()`. P09 shorthand combining
