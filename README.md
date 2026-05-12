@@ -44,7 +44,8 @@ cargo publish --dry-run --manifest-path crates/omena-syntax/Cargo.toml
 Publishing is manual through the `Publish Crates` GitHub Actions workflow.
 Run the workflow in `dry-run` mode first, then run `publish` only after CI is
 green and the crates.io order has been checked. The workflow intentionally skips
-`omena-incremental` because it publishes from its own Omena repository.
+`omena-incremental` and `omena-engine-input-producers` because they publish
+from their own Omena repositories.
 
 ## Documentation
 
