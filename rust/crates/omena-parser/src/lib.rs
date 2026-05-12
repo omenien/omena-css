@@ -958,6 +958,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "sassIndentedBlockCstNodes",
             "sassIndentedStyleFacts",
             "differentialCorpusSeed",
+            "differentialCorpus",
             "lightningCssDifferentialCorpusSlice",
             "lightningCssSelectorIdAndAtRuleDifferentialSlice",
             "midTypingNoPanicPropertySlice",
@@ -1009,7 +1010,6 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
         not_ready_surfaces: vec![
             "fullRecursiveDescentGrammar",
             "fullPrattValueParser",
-            "differentialCorpus",
             "productCutover",
         ],
     }
@@ -13500,6 +13500,8 @@ mod tests {
                 .ready_surfaces
                 .contains(&"styleFactExtractionSurface")
         );
+        assert!(summary.ready_surfaces.contains(&"differentialCorpus"));
+        assert!(!summary.not_ready_surfaces.contains(&"differentialCorpus"));
         assert!(
             summary
                 .ready_surfaces
