@@ -5537,6 +5537,21 @@ fn compress_css_is_where_selectors_with_lexer(
     source: &str,
     dialect: StyleDialect,
 ) -> (String, usize) {
+    let (source, function_mutation_count) =
+        compress_css_is_where_functions_with_lexer(source, dialect);
+    let (source, selector_list_mutation_count) =
+        dedupe_top_level_selector_lists_with_lexer(&source, dialect);
+
+    (
+        source,
+        function_mutation_count + selector_list_mutation_count,
+    )
+}
+
+fn compress_css_is_where_functions_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let mut output = String::with_capacity(source.len());
@@ -5556,6 +5571,58 @@ fn compress_css_is_where_selectors_with_lexer(
     }
 
     (output, mutation_count)
+}
+
+fn dedupe_top_level_selector_lists_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let mut replacements = Vec::new();
+
+    for rule in rules {
+        let Some(selectors) = split_css_selector_list(&rule.selector) else {
+            continue;
+        };
+        let deduped = dedupe_selector_arguments(&selectors);
+        if deduped.len() != selectors.len() {
+            let separator = if source[rule.start..rule.block_start]
+                .chars()
+                .last()
+                .is_some_and(char::is_whitespace)
+            {
+                " "
+            } else {
+                ""
+            };
+            replacements.push((
+                rule.start,
+                rule.block_start,
+                format!("{}{separator}", deduped.join(", ")),
+            ));
+        }
+    }
+
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end, replacement) in &replacements {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacements.len())
 }
 
 fn rewrite_is_where_selector_function(
@@ -7119,7 +7186,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_specificity_safe_is_where_selectors() {
-        let source = r#".a:is(.ready) { color: red; } .b:where(.x, .x) { color: blue; } .c:where(.y) { color: green; } .d:is(:is(.u, .v), .u) { color: orange; }"#;
+        let source = r#".a:is(.ready) { color: red; } .b:where(.x, .x) { color: blue; } .c:where(.y) { color: green; } .d:is(:is(.u, .v), .u) { color: orange; } .e, .e, .f { color: purple; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7128,10 +7195,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 3);
+        assert_eq!(execution.mutation_count, 4);
         assert_eq!(
             execution.output_css,
-            r#".a.ready { color: red; } .b:where(.x) { color: blue; } .c:where(.y) { color: green; } .d:is(.u,.v) { color: orange; }"#
+            r#".a.ready { color: red; } .b:where(.x) { color: blue; } .c:where(.y) { color: green; } .d:is(.u,.v) { color: orange; } .e, .f { color: purple; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
