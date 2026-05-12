@@ -30,6 +30,7 @@ use super::{
     summarize_omena_query_style_semantic_graph_from_source,
     summarize_omena_query_transform_context_from_sources,
     summarize_omena_query_transform_plan_from_source,
+    summarize_omena_query_transform_plan_from_target_query,
 };
 use crate::{
     OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
@@ -330,6 +331,7 @@ fn exposes_transform_plan_facade_from_source() {
 
     assert_eq!(summary.product, "omena-query.transform-plan");
     assert_eq!(summary.dialect, "scss");
+    assert_eq!(summary.target_query, None);
     assert!(summary.bundle.required_pass_ids.contains(&"import-inline"));
     assert!(
         summary
@@ -370,6 +372,48 @@ fn exposes_transform_plan_facade_from_source() {
             .contains(&"css-modules-class-hashing")
     );
     assert_eq!(summary.execution.pass_plan.violated_dag_edge_count, 0);
+}
+
+#[test]
+fn exposes_transform_plan_facade_from_browserslist_target_query() {
+    let source = ".button { display: flex; color: light-dark(#000, #fff); }";
+    let target_options = OmenaQueryTargetTransformOptionsV0 {
+        allow_logical_to_physical: true,
+        allow_scope_flatten: true,
+        allow_layer_flatten: true,
+        enable_supports_static_eval: false,
+        enable_media_static_eval: false,
+    };
+
+    let summary = summarize_omena_query_transform_plan_from_target_query(
+        "Button.module.css",
+        source,
+        "ie 11",
+        target_options,
+        default_omena_query_transform_print_options(),
+    );
+
+    assert!(summary.target_query.is_some());
+    let Some(target_query) = summary.target_query.as_ref() else {
+        return;
+    };
+    assert_eq!(target_query.profile_id, "browserslist-resolved");
+    assert_eq!(target_query.resolved_targets, vec!["ie 11"]);
+    assert_eq!(target_query.resolution_error, None);
+    assert_eq!(summary.target, target_query.transform_plan);
+    assert!(
+        summary
+            .target
+            .required_pass_ids
+            .contains(&"vendor-prefixing")
+    );
+    assert!(
+        summary
+            .target
+            .required_pass_ids
+            .contains(&"light-dark-lowering")
+    );
+    assert_eq!(summary.combined_violated_dag_edge_count, 0);
 }
 
 #[test]
