@@ -10,11 +10,14 @@ use super::{
     analyze_class_value_flow_incremental_with_database,
     analyze_class_value_flow_incremental_with_reuse, analyze_k_limited_call_site_flows,
     analyze_one_cfa_call_site_flows, bottom_class_value, char_inclusion_class_value,
-    composite_class_value, concatenate_abstract_class_values, derive_selector_projection_certainty,
+    composite_class_value, concatenate_abstract_class_values,
+    concatenate_reduced_class_value_products, derive_selector_projection_certainty,
     exact_class_value, finite_set_class_value, finite_values_from_facts,
-    intersect_abstract_class_values, join_abstract_class_values, prefix_class_value,
-    prefix_suffix_class_value, project_abstract_value_selectors,
+    intersect_abstract_class_values, intersect_reduced_class_value_products,
+    join_abstract_class_values, join_reduced_class_value_products, prefix_class_value,
+    prefix_suffix_class_value, project_abstract_value_selectors, reduce_class_value_product,
     reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
+    reduced_class_value_product_is_subset, reduced_class_value_product_matches_string,
     reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
     selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
     suffix_class_value, summarize_abstract_class_value_provenance_tree,
@@ -516,6 +519,49 @@ fn exposes_reduced_product_as_explicit_axes() {
         product.as_ref().map(|summary| summary.lower_bound_length),
         Some("btn-active".len())
     );
+}
+
+#[test]
+fn exposes_reduced_product_domain_algebra() -> Result<(), &'static str> {
+    let prefix =
+        reduce_class_value_product(&prefix_class_value("btn-", None)).ok_or("prefix product")?;
+    let suffix =
+        reduce_class_value_product(&suffix_class_value("-active", None)).ok_or("suffix product")?;
+    let chars =
+        reduce_class_value_product(&char_inclusion_class_value("ab", "-abceintv", None, false))
+            .ok_or("char-inclusion product")?;
+
+    let edge = intersect_reduced_class_value_products(&prefix, &suffix)
+        .ok_or("prefix-suffix intersection")?;
+    let constrained = intersect_reduced_class_value_products(&edge, &chars)
+        .ok_or("reduced-product intersection")?;
+
+    assert_eq!(constrained.prefix.as_deref(), Some("btn-"));
+    assert_eq!(constrained.suffix.as_deref(), Some("-active"));
+    assert_eq!(constrained.allowed_chars.as_deref(), Some("-abceintv"));
+    assert!(reduced_class_value_product_matches_string(
+        &constrained,
+        "btn-active"
+    ));
+    assert!(!reduced_class_value_product_matches_string(
+        &constrained,
+        "btn-secondary"
+    ));
+    assert!(reduced_class_value_product_is_subset(&constrained, &prefix));
+
+    let primary_prefix = reduce_class_value_product(&prefix_class_value("btn-primary-", None))
+        .ok_or("primary prefix product")?;
+    let secondary_prefix = reduce_class_value_product(&prefix_class_value("btn-secondary-", None))
+        .ok_or("secondary prefix product")?;
+    let joined = join_reduced_class_value_products(&primary_prefix, &secondary_prefix)
+        .ok_or("reduced-product join")?;
+    assert_eq!(joined.prefix.as_deref(), Some("btn-"));
+
+    let concatenated = concatenate_reduced_class_value_products(&prefix, &suffix)
+        .ok_or("reduced-product concatenation")?;
+    assert_eq!(concatenated.prefix.as_deref(), Some("btn-"));
+    assert_eq!(concatenated.suffix.as_deref(), Some("-active"));
+    Ok(())
 }
 
 #[test]

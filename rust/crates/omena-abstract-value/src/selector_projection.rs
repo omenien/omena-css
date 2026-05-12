@@ -1,6 +1,9 @@
 use std::collections::BTreeSet;
 
-use crate::{AbstractClassValueV0, AbstractSelectorProjectionV0, SelectorProjectionCertaintyV0};
+use crate::{
+    AbstractClassValueV0, AbstractSelectorProjectionV0, SelectorProjectionCertaintyV0,
+    reduce_class_value_product, reduced_class_value_product_matches_string,
+};
 
 pub fn project_abstract_value_selectors(
     value: &AbstractClassValueV0,
@@ -28,60 +31,20 @@ pub fn resolve_abstract_value_selectors(
                 .iter()
                 .flat_map(|value| find_selectors(selector_universe, value)),
         ),
-        AbstractClassValueV0::Prefix { prefix, .. } => selector_universe
-            .iter()
-            .filter(|selector| selector.starts_with(prefix))
-            .cloned()
-            .collect(),
-        AbstractClassValueV0::Suffix { suffix, .. } => selector_universe
-            .iter()
-            .filter(|selector| selector.ends_with(suffix))
-            .cloned()
-            .collect(),
-        AbstractClassValueV0::PrefixSuffix { prefix, suffix, .. } => selector_universe
-            .iter()
-            .filter(|selector| selector.starts_with(prefix) && selector.ends_with(suffix))
-            .cloned()
-            .collect(),
-        AbstractClassValueV0::CharInclusion {
-            must_chars,
-            may_chars,
-            may_include_other_chars,
-            ..
-        } => selector_universe
-            .iter()
-            .filter(|selector| {
-                matches_char_constraints(selector, must_chars, may_chars, *may_include_other_chars)
-            })
-            .cloned()
-            .collect(),
-        AbstractClassValueV0::Composite {
-            prefix,
-            suffix,
-            min_length,
-            must_chars,
-            may_chars,
-            may_include_other_chars,
-            ..
-        } => selector_universe
-            .iter()
-            .filter(|selector| {
-                min_length.is_none_or(|min_length| selector.len() >= min_length)
-                    && prefix
-                        .as_ref()
-                        .is_none_or(|prefix| selector.starts_with(prefix))
-                    && suffix
-                        .as_ref()
-                        .is_none_or(|suffix| selector.ends_with(suffix))
-                    && matches_char_constraints(
-                        selector,
-                        must_chars,
-                        may_chars,
-                        *may_include_other_chars,
-                    )
-            })
-            .cloned()
-            .collect(),
+        AbstractClassValueV0::Prefix { .. }
+        | AbstractClassValueV0::Suffix { .. }
+        | AbstractClassValueV0::PrefixSuffix { .. }
+        | AbstractClassValueV0::CharInclusion { .. }
+        | AbstractClassValueV0::Composite { .. } => {
+            let Some(product) = reduce_class_value_product(value) else {
+                return Vec::new();
+            };
+            selector_universe
+                .iter()
+                .filter(|selector| reduced_class_value_product_matches_string(&product, selector))
+                .cloned()
+                .collect()
+        }
         AbstractClassValueV0::Top => selector_universe.to_vec(),
     }
 }
@@ -129,47 +92,12 @@ pub(crate) fn abstract_value_matches_string(value: &AbstractClassValueV0, candid
         AbstractClassValueV0::Bottom => false,
         AbstractClassValueV0::Exact { value } => value == candidate,
         AbstractClassValueV0::FiniteSet { values } => values.iter().any(|value| value == candidate),
-        AbstractClassValueV0::Prefix { prefix, .. } => candidate.starts_with(prefix),
-        AbstractClassValueV0::Suffix { suffix, .. } => candidate.ends_with(suffix),
-        AbstractClassValueV0::PrefixSuffix {
-            prefix,
-            suffix,
-            min_length,
-            ..
-        } => {
-            candidate.len() >= *min_length
-                && candidate.starts_with(prefix)
-                && candidate.ends_with(suffix)
-        }
-        AbstractClassValueV0::CharInclusion {
-            must_chars,
-            may_chars,
-            may_include_other_chars,
-            ..
-        } => matches_char_constraints(candidate, must_chars, may_chars, *may_include_other_chars),
-        AbstractClassValueV0::Composite {
-            prefix,
-            suffix,
-            min_length,
-            must_chars,
-            may_chars,
-            may_include_other_chars,
-            ..
-        } => {
-            min_length.is_none_or(|min_length| candidate.len() >= min_length)
-                && prefix
-                    .as_ref()
-                    .is_none_or(|prefix| candidate.starts_with(prefix))
-                && suffix
-                    .as_ref()
-                    .is_none_or(|suffix| candidate.ends_with(suffix))
-                && matches_char_constraints(
-                    candidate,
-                    must_chars,
-                    may_chars,
-                    *may_include_other_chars,
-                )
-        }
+        AbstractClassValueV0::Prefix { .. }
+        | AbstractClassValueV0::Suffix { .. }
+        | AbstractClassValueV0::PrefixSuffix { .. }
+        | AbstractClassValueV0::CharInclusion { .. }
+        | AbstractClassValueV0::Composite { .. } => reduce_class_value_product(value)
+            .is_some_and(|product| reduced_class_value_product_matches_string(&product, candidate)),
         AbstractClassValueV0::Top => true,
     }
 }
@@ -191,22 +119,4 @@ where
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect()
-}
-
-fn matches_char_constraints(
-    value: &str,
-    must_chars: &str,
-    may_chars: &str,
-    may_include_other_chars: bool,
-) -> bool {
-    let value_chars = value.chars().collect::<BTreeSet<_>>();
-    let must_chars = must_chars.chars().collect::<BTreeSet<_>>();
-    if !must_chars.iter().all(|char| value_chars.contains(char)) {
-        return false;
-    }
-    if may_include_other_chars {
-        return true;
-    }
-    let may_chars = may_chars.chars().collect::<BTreeSet<_>>();
-    value_chars.iter().all(|char| may_chars.contains(char))
 }

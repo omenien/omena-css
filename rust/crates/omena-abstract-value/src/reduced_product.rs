@@ -2,26 +2,138 @@ use crate::domain::{abstract_class_value_kind, composite_min_length_for_constrai
 use crate::{
     AbstractClassValueProvenanceV0, AbstractClassValueV0, CompositeClassValueInputV0,
     ReducedClassValueCharInclusionAxisV0, ReducedClassValuePrefixAxisV0,
-    ReducedClassValueProductV0, ReducedClassValueSuffixAxisV0, bottom_class_value,
-    char_set_for_string, char_set_is_subset, composite_class_value, intersect_char_sets,
-    meaningful_longest_common_prefix, meaningful_longest_common_suffix, prefix_suffix_class_value,
-    top_class_value, union_char_sets,
+    ReducedClassValueProductDomainV0, ReducedClassValueProductV0, ReducedClassValueSuffixAxisV0,
+    bottom_class_value, char_set_for_string, char_set_is_subset, composite_class_value,
+    intersect_char_sets, meaningful_longest_common_prefix, meaningful_longest_common_suffix,
+    prefix_suffix_class_value, top_class_value, union_char_sets,
 };
 
 pub fn summarize_reduced_class_value_product(
     value: &AbstractClassValueV0,
 ) -> Option<ReducedClassValueProductV0> {
-    ClassValueReductionFacts::from_abstract_value(value)
-        .map(|facts| facts.into_product_summary(abstract_class_value_kind(value)))
+    reduce_class_value_product(value)
+        .map(|facts| summarize_reduced_product_domain(&facts, abstract_class_value_kind(value)))
+}
+
+pub fn reduce_class_value_product(
+    value: &AbstractClassValueV0,
+) -> Option<ReducedClassValueProductDomainV0> {
+    match value {
+        AbstractClassValueV0::Bottom
+        | AbstractClassValueV0::Exact { .. }
+        | AbstractClassValueV0::FiniteSet { .. } => None,
+        AbstractClassValueV0::Prefix { prefix, .. } => Some(ReducedClassValueProductDomainV0 {
+            prefix: Some(prefix.clone()),
+            suffix: None,
+            min_length: None,
+            must_chars: String::new(),
+            allowed_chars: None,
+        }),
+        AbstractClassValueV0::Suffix { suffix, .. } => Some(ReducedClassValueProductDomainV0 {
+            prefix: None,
+            suffix: Some(suffix.clone()),
+            min_length: None,
+            must_chars: String::new(),
+            allowed_chars: None,
+        }),
+        AbstractClassValueV0::PrefixSuffix {
+            prefix,
+            suffix,
+            min_length,
+            ..
+        } => Some(ReducedClassValueProductDomainV0 {
+            prefix: Some(prefix.clone()),
+            suffix: Some(suffix.clone()),
+            min_length: Some(*min_length),
+            must_chars: String::new(),
+            allowed_chars: None,
+        }),
+        AbstractClassValueV0::CharInclusion {
+            must_chars,
+            may_chars,
+            may_include_other_chars,
+            ..
+        } => Some(ReducedClassValueProductDomainV0 {
+            prefix: None,
+            suffix: None,
+            min_length: None,
+            must_chars: must_chars.clone(),
+            allowed_chars: (!*may_include_other_chars).then_some(may_chars.clone()),
+        }),
+        AbstractClassValueV0::Composite {
+            prefix,
+            suffix,
+            min_length,
+            must_chars,
+            may_chars,
+            may_include_other_chars,
+            ..
+        } => Some(ReducedClassValueProductDomainV0 {
+            prefix: prefix.clone(),
+            suffix: suffix.clone(),
+            min_length: *min_length,
+            must_chars: must_chars.clone(),
+            allowed_chars: (!*may_include_other_chars).then_some(may_chars.clone()),
+        }),
+        AbstractClassValueV0::Top => Some(ReducedClassValueProductDomainV0 {
+            prefix: None,
+            suffix: None,
+            min_length: None,
+            must_chars: String::new(),
+            allowed_chars: None,
+        }),
+    }
+}
+
+pub fn summarize_reduced_product_domain(
+    product: &ReducedClassValueProductDomainV0,
+    source_value_kind: &'static str,
+) -> ReducedClassValueProductV0 {
+    product.clone().into_product_summary(source_value_kind)
+}
+
+pub fn intersect_reduced_class_value_products(
+    left: &ReducedClassValueProductDomainV0,
+    right: &ReducedClassValueProductDomainV0,
+) -> Option<ReducedClassValueProductDomainV0> {
+    left.intersect(right)
+}
+
+pub fn join_reduced_class_value_products(
+    left: &ReducedClassValueProductDomainV0,
+    right: &ReducedClassValueProductDomainV0,
+) -> Option<ReducedClassValueProductDomainV0> {
+    left.join(right)
+}
+
+pub fn concatenate_reduced_class_value_products(
+    left: &ReducedClassValueProductDomainV0,
+    right: &ReducedClassValueProductDomainV0,
+) -> Option<ReducedClassValueProductDomainV0> {
+    left.concat(right)
+}
+
+pub fn reduced_class_value_product_is_subset(
+    left: &ReducedClassValueProductDomainV0,
+    right: &ReducedClassValueProductDomainV0,
+) -> bool {
+    left.is_subset_of(right)
+}
+
+pub fn reduced_class_value_product_matches_string(
+    product: &ReducedClassValueProductDomainV0,
+    candidate: &str,
+) -> bool {
+    product.matches_string(candidate)
 }
 
 pub(crate) fn intersect_reduced_product_class_values(
     left: &AbstractClassValueV0,
     right: &AbstractClassValueV0,
 ) -> Option<AbstractClassValueV0> {
-    let left = ClassValueReductionFacts::from_abstract_value(left)?;
-    let right = ClassValueReductionFacts::from_abstract_value(right)?;
-    left.intersect(&right)
+    let left = reduce_class_value_product(left)?;
+    let right = reduce_class_value_product(right)?;
+    intersect_reduced_class_value_products(&left, &right)
         .map(|facts| facts.into_abstract_value(AbstractClassValueProvenanceV0::CompositeJoin))
 }
 
@@ -29,9 +141,9 @@ pub(crate) fn join_reduced_product_class_values(
     left: &AbstractClassValueV0,
     right: &AbstractClassValueV0,
 ) -> Option<AbstractClassValueV0> {
-    let left = ClassValueReductionFacts::from_abstract_value(left)?;
-    let right = ClassValueReductionFacts::from_abstract_value(right)?;
-    left.join(&right)
+    let left = reduce_class_value_product(left)?;
+    let right = reduce_class_value_product(right)?;
+    join_reduced_class_value_products(&left, &right)
         .map(|facts| facts.into_abstract_value(AbstractClassValueProvenanceV0::CompositeJoin))
 }
 
@@ -39,9 +151,9 @@ pub(crate) fn concatenate_reduced_product_class_values(
     left: &AbstractClassValueV0,
     right: &AbstractClassValueV0,
 ) -> Option<AbstractClassValueV0> {
-    let left = ClassValueReductionFacts::from_abstract_value(left)?;
-    let right = ClassValueReductionFacts::from_abstract_value(right)?;
-    left.concat(&right)
+    let left = reduce_class_value_product(left)?;
+    let right = reduce_class_value_product(right)?;
+    concatenate_reduced_class_value_products(&left, &right)
         .map(|facts| facts.into_abstract_value(AbstractClassValueProvenanceV0::CompositeConcat))
 }
 
@@ -49,89 +161,12 @@ pub(crate) fn reduced_product_class_value_is_subset(
     left: &AbstractClassValueV0,
     right: &AbstractClassValueV0,
 ) -> Option<bool> {
-    let left = ClassValueReductionFacts::from_abstract_value(left)?;
-    let right = ClassValueReductionFacts::from_abstract_value(right)?;
-    Some(left.is_subset_of(&right))
+    let left = reduce_class_value_product(left)?;
+    let right = reduce_class_value_product(right)?;
+    Some(reduced_class_value_product_is_subset(&left, &right))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ClassValueReductionFacts {
-    prefix: Option<String>,
-    suffix: Option<String>,
-    min_length: Option<usize>,
-    must_chars: String,
-    allowed_chars: Option<String>,
-}
-
-impl ClassValueReductionFacts {
-    fn from_abstract_value(value: &AbstractClassValueV0) -> Option<Self> {
-        match value {
-            AbstractClassValueV0::Bottom
-            | AbstractClassValueV0::Exact { .. }
-            | AbstractClassValueV0::FiniteSet { .. } => None,
-            AbstractClassValueV0::Prefix { prefix, .. } => Some(Self {
-                prefix: Some(prefix.clone()),
-                suffix: None,
-                min_length: None,
-                must_chars: String::new(),
-                allowed_chars: None,
-            }),
-            AbstractClassValueV0::Suffix { suffix, .. } => Some(Self {
-                prefix: None,
-                suffix: Some(suffix.clone()),
-                min_length: None,
-                must_chars: String::new(),
-                allowed_chars: None,
-            }),
-            AbstractClassValueV0::PrefixSuffix {
-                prefix,
-                suffix,
-                min_length,
-                ..
-            } => Some(Self {
-                prefix: Some(prefix.clone()),
-                suffix: Some(suffix.clone()),
-                min_length: Some(*min_length),
-                must_chars: String::new(),
-                allowed_chars: None,
-            }),
-            AbstractClassValueV0::CharInclusion {
-                must_chars,
-                may_chars,
-                may_include_other_chars,
-                ..
-            } => Some(Self {
-                prefix: None,
-                suffix: None,
-                min_length: None,
-                must_chars: must_chars.clone(),
-                allowed_chars: (!*may_include_other_chars).then_some(may_chars.clone()),
-            }),
-            AbstractClassValueV0::Composite {
-                prefix,
-                suffix,
-                min_length,
-                must_chars,
-                may_chars,
-                may_include_other_chars,
-                ..
-            } => Some(Self {
-                prefix: prefix.clone(),
-                suffix: suffix.clone(),
-                min_length: *min_length,
-                must_chars: must_chars.clone(),
-                allowed_chars: (!*may_include_other_chars).then_some(may_chars.clone()),
-            }),
-            AbstractClassValueV0::Top => Some(Self {
-                prefix: None,
-                suffix: None,
-                min_length: None,
-                must_chars: String::new(),
-                allowed_chars: None,
-            }),
-        }
-    }
-
+impl ReducedClassValueProductDomainV0 {
     fn intersect(&self, other: &Self) -> Option<Self> {
         let prefix = intersect_prefixes(self.prefix.as_deref(), other.prefix.as_deref())?;
         let suffix = intersect_suffixes(self.suffix.as_deref(), other.suffix.as_deref())?;
@@ -249,6 +284,39 @@ impl ClassValueReductionFacts {
             if !char_set_is_subset(self_allowed_chars, other_allowed_chars) {
                 return false;
             }
+        }
+
+        true
+    }
+
+    fn matches_string(&self, candidate: &str) -> bool {
+        if let Some(min_length) = self.min_length
+            && candidate.len() < min_length
+        {
+            return false;
+        }
+
+        if let Some(prefix) = self.prefix.as_deref()
+            && !candidate.starts_with(prefix)
+        {
+            return false;
+        }
+
+        if let Some(suffix) = self.suffix.as_deref()
+            && !candidate.ends_with(suffix)
+        {
+            return false;
+        }
+
+        let candidate_chars = char_set_for_string(candidate);
+        if !char_set_is_subset(&self.guaranteed_chars(), &candidate_chars) {
+            return false;
+        }
+
+        if let Some(allowed_chars) = self.allowed_chars.as_deref()
+            && !char_set_is_subset(&candidate_chars, allowed_chars)
+        {
+            return false;
         }
 
         true
