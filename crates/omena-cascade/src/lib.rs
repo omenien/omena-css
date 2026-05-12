@@ -393,6 +393,29 @@ pub struct VarSubstitutionFuzzResultV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CustomPropertyLeastFixedPointSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_count: usize,
+    pub resolved_count: usize,
+    pub guaranteed_invalid_count: usize,
+    pub iteration_count: usize,
+    pub entries: Vec<CustomPropertyLeastFixedPointEntryV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomPropertyLeastFixedPointEntryV0 {
+    pub name: String,
+    pub input: CascadeValue,
+    pub resolved: CascadeValue,
+    pub changed: bool,
+    pub guaranteed_invalid: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CascadeFuzzSeedReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -515,6 +538,7 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
             "selectorMatchWitness",
             "cascadeConformanceSeedCorpus",
             "customPropertySubstitution",
+            "customPropertyLeastFixedPoint",
             "cycleToGuaranteedInvalid",
             "shorthandCombinationProof",
             "supportsStaticEvalWitness",
@@ -1841,6 +1865,75 @@ pub fn substitute_custom_properties(value: &CascadeValue, env: &CustomPropertyEn
     substitute_custom_properties_inner(value, env, &mut visiting)
 }
 
+pub fn resolve_custom_property_env_least_fixed_point(env: &CustomPropertyEnv) -> CustomPropertyEnv {
+    compute_custom_property_env_least_fixed_point(env).0
+}
+
+pub fn summarize_custom_property_least_fixed_point(
+    env: &CustomPropertyEnv,
+) -> CustomPropertyLeastFixedPointSummaryV0 {
+    let (resolved_env, iteration_count) = compute_custom_property_env_least_fixed_point(env);
+    let entries = env
+        .iter()
+        .map(|(name, input)| {
+            let resolved = resolved_env
+                .get(name)
+                .cloned()
+                .unwrap_or(CascadeValue::GuaranteedInvalid);
+            CustomPropertyLeastFixedPointEntryV0 {
+                name: name.clone(),
+                input: input.clone(),
+                changed: &resolved != input,
+                guaranteed_invalid: resolved == CascadeValue::GuaranteedInvalid,
+                resolved,
+            }
+        })
+        .collect::<Vec<_>>();
+    let resolved_count = entries
+        .iter()
+        .filter(|entry| matches!(entry.resolved, CascadeValue::Literal(_)))
+        .count();
+    let guaranteed_invalid_count = entries
+        .iter()
+        .filter(|entry| entry.guaranteed_invalid)
+        .count();
+
+    CustomPropertyLeastFixedPointSummaryV0 {
+        schema_version: "0",
+        product: "omena-cascade.custom-property-least-fixed-point",
+        input_count: env.len(),
+        resolved_count,
+        guaranteed_invalid_count,
+        iteration_count,
+        entries,
+        ready_surfaces: vec![
+            "customPropertySubstitution",
+            "customPropertyLeastFixedPoint",
+            "cycleToGuaranteedInvalid",
+        ],
+    }
+}
+
+fn compute_custom_property_env_least_fixed_point(
+    env: &CustomPropertyEnv,
+) -> (CustomPropertyEnv, usize) {
+    let mut current = env.clone();
+    let max_iterations = env.len().saturating_add(1).max(1);
+
+    for iteration in 1..=max_iterations {
+        let next = env
+            .iter()
+            .map(|(name, value)| (name.clone(), substitute_custom_properties(value, &current)))
+            .collect::<CustomPropertyEnv>();
+        if next == current {
+            return (next, iteration);
+        }
+        current = next;
+    }
+
+    (current, max_iterations)
+}
+
 fn substitute_custom_properties_inner(
     value: &CascadeValue,
     env: &CustomPropertyEnv,
@@ -2427,6 +2520,58 @@ mod tests {
     }
 
     #[test]
+    fn summarizes_custom_property_least_fixed_point() {
+        let mut env = CustomPropertyEnv::new();
+        env.insert(
+            "--brand".to_string(),
+            CascadeValue::Literal("red".to_string()),
+        );
+        env.insert(
+            "--alias".to_string(),
+            CascadeValue::Var {
+                name: "--brand".to_string(),
+                fallback: None,
+            },
+        );
+        env.insert(
+            "--cycle-a".to_string(),
+            CascadeValue::Var {
+                name: "--cycle-b".to_string(),
+                fallback: None,
+            },
+        );
+        env.insert(
+            "--cycle-b".to_string(),
+            CascadeValue::Var {
+                name: "--cycle-a".to_string(),
+                fallback: None,
+            },
+        );
+
+        let summary = summarize_custom_property_least_fixed_point(&env);
+
+        assert_eq!(
+            summary.product,
+            "omena-cascade.custom-property-least-fixed-point"
+        );
+        assert_eq!(summary.input_count, 4);
+        assert_eq!(summary.resolved_count, 2);
+        assert_eq!(summary.guaranteed_invalid_count, 2);
+        assert!(summary.iteration_count >= 2);
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"customPropertyLeastFixedPoint")
+        );
+        assert!(summary.entries.iter().any(|entry| {
+            entry.name == "--alias" && entry.resolved == CascadeValue::Literal("red".to_string())
+        }));
+        assert!(summary.entries.iter().any(|entry| {
+            entry.name == "--cycle-a" && entry.resolved == CascadeValue::GuaranteedInvalid
+        }));
+    }
+
+    #[test]
     fn fuzz_seed_corpus_preserves_cascade_and_var_invariants() {
         let report = run_cascade_fuzz_seed_corpus();
 
@@ -2448,6 +2593,11 @@ mod tests {
         assert_eq!(summary.product, "omena-cascade.boundary");
         assert_eq!(summary.ordering_model, "lexicographicCascadeKey");
         assert!(summary.ready_surfaces.contains(&"cascadeKeyOrdering"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"customPropertyLeastFixedPoint")
+        );
         assert!(summary.ready_surfaces.contains(&"genericCascadeWinner"));
         assert!(
             summary

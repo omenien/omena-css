@@ -9,7 +9,7 @@ use omena_cascade::{
     BoxLonghandInputV0, CascadeValue, CustomPropertyEnv, LayerFlattenInputV0, ScopeFlattenInputV0,
     StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, evaluate_static_supports_condition,
     prove_box_shorthand_combination, prove_layer_flatten_candidate, prove_scope_flatten_candidate,
-    substitute_custom_properties,
+    resolve_custom_property_env_least_fixed_point, substitute_custom_properties,
 };
 use omena_incremental::{
     IncrementalComputationPlanV0, IncrementalGraphInputV0, IncrementalNodeInputV0,
@@ -4121,7 +4121,9 @@ fn substitute_static_css_custom_properties_with_lexer(
     let tokens = lexed.tokens();
     let env_rules = collect_top_level_ordinary_rule_slices(source, tokens);
     let rules = collect_declaration_ordinary_rule_slices(source, tokens);
-    let env = collect_static_root_custom_property_env(tokens, &env_rules);
+    let env = resolve_custom_property_env_least_fixed_point(
+        &collect_static_root_custom_property_env(tokens, &env_rules),
+    );
     if env.is_empty() {
         return (source.to_string(), 0);
     }
