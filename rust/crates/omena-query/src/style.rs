@@ -225,6 +225,14 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
         .find(|entry| entry.style_path == target_style_path);
 
     let mut context = TransformExecutionContextV0::default();
+    context.reachable_class_names =
+        derive_reachable_class_names_for_transform_context(&style_fact_entries);
+    context.reachable_keyframe_names =
+        derive_reachable_keyframe_names_for_transform_context(&style_fact_entries);
+    context.reachable_value_names =
+        derive_reachable_value_names_for_transform_context(&style_fact_entries);
+    context.reachable_custom_property_names =
+        derive_reachable_custom_property_names_for_transform_context(&style_fact_entries);
 
     if let Some(entry) = target_entry {
         context.import_inlines = derive_import_inlines_for_transform_context(
@@ -246,9 +254,14 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
         import_inline_count: context.import_inlines.len(),
         class_name_rewrite_count: context.class_name_rewrites.len(),
         css_module_composes_resolution_count: context.css_module_composes_resolutions.len(),
+        reachable_class_name_count: context.reachable_class_names.len(),
+        reachable_keyframe_name_count: context.reachable_keyframe_names.len(),
+        reachable_value_name_count: context.reachable_value_names.len(),
+        reachable_custom_property_name_count: context.reachable_custom_property_names.len(),
         context,
         ready_surfaces: vec![
             "transformContextProducer",
+            "reachableNameSeedProducer",
             "cssModuleClassRewriteProducer",
             "cssModuleComposesResolutionProducer",
             "directImportInlineProducer",
@@ -298,6 +311,8 @@ pub fn summarize_omena_query_omena_parser_style_facts(
     let mut sass_module_forward_sources = BTreeSet::new();
     let mut sass_module_import_sources = BTreeSet::new();
     let mut custom_property_names = BTreeSet::new();
+    let mut custom_property_decl_names = BTreeSet::new();
+    let mut custom_property_ref_names = BTreeSet::new();
 
     for selector in facts.selectors {
         match selector.kind {
@@ -317,7 +332,16 @@ pub fn summarize_omena_query_omena_parser_style_facts(
             }
             ParsedVariableFactKind::CustomPropertyDeclaration
             | ParsedVariableFactKind::CustomPropertyReference => {
-                custom_property_names.insert(variable.name);
+                custom_property_names.insert(variable.name.clone());
+                match variable.kind {
+                    ParsedVariableFactKind::CustomPropertyDeclaration => {
+                        custom_property_decl_names.insert(variable.name);
+                    }
+                    ParsedVariableFactKind::CustomPropertyReference => {
+                        custom_property_ref_names.insert(variable.name);
+                    }
+                    _ => {}
+                }
             }
         }
     }
@@ -491,6 +515,8 @@ pub fn summarize_omena_query_omena_parser_style_facts(
             })
             .collect(),
         custom_property_names: custom_property_names.into_iter().collect(),
+        custom_property_decl_names: custom_property_decl_names.into_iter().collect(),
+        custom_property_ref_names: custom_property_ref_names.into_iter().collect(),
         at_rule_names: facts
             .at_rules
             .into_iter()
@@ -1168,6 +1194,57 @@ fn derive_css_module_composes_resolutions_for_transform_context(
                 exported_class_names: exported_class_names.into_iter().collect(),
             },
         )
+        .collect()
+}
+
+fn derive_reachable_class_names_for_transform_context(
+    entries: &[OmenaQueryStyleFactEntry],
+) -> Vec<String> {
+    entries
+        .iter()
+        .flat_map(|entry| entry.facts.class_selector_names.iter().cloned())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn derive_reachable_keyframe_names_for_transform_context(
+    entries: &[OmenaQueryStyleFactEntry],
+) -> Vec<String> {
+    entries
+        .iter()
+        .flat_map(|entry| entry.facts.keyframe_names.iter().cloned())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn derive_reachable_value_names_for_transform_context(
+    entries: &[OmenaQueryStyleFactEntry],
+) -> Vec<String> {
+    entries
+        .iter()
+        .flat_map(|entry| {
+            entry
+                .facts
+                .css_module_value_definition_names
+                .iter()
+                .chain(entry.facts.icss_export_names.iter())
+                .cloned()
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn derive_reachable_custom_property_names_for_transform_context(
+    entries: &[OmenaQueryStyleFactEntry],
+) -> Vec<String> {
+    entries
+        .iter()
+        .flat_map(|entry| entry.facts.custom_property_decl_names.iter().cloned())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
         .collect()
 }
 

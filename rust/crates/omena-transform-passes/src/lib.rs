@@ -209,7 +209,6 @@ pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySum
         execution_runtime_ready: true,
         implemented_mutation_pass_ids: implemented_mutation_pass_ids(),
         next_surfaces: vec![
-            "transformContextProducers",
             "transformSalsaQueries",
             "sourceMapSpanPrecision",
             "provenanceSourceSpanMapping",
@@ -5629,6 +5628,11 @@ mod tests {
             entry.contract.kind == TransformPassKind::TreeShakeClass
                 && entry.module_family == "semantic-reachability"
         }));
+        assert!(
+            !boundary
+                .next_surfaces
+                .contains(&"transformContextProducers")
+        );
     }
 
     #[test]

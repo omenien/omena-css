@@ -586,6 +586,19 @@ fn derives_transform_context_from_workspace_sources() {
     assert_eq!(summary.import_inline_count, 1);
     assert_eq!(summary.class_name_rewrite_count, 2);
     assert_eq!(summary.css_module_composes_resolution_count, 1);
+    assert_eq!(summary.reachable_class_name_count, 2);
+    assert_eq!(summary.reachable_keyframe_name_count, 0);
+    assert_eq!(summary.reachable_value_name_count, 0);
+    assert_eq!(summary.reachable_custom_property_name_count, 1);
+    assert!(!summary.context.closed_style_world);
+    assert_eq!(
+        summary.context.reachable_class_names,
+        vec!["base", "button"]
+    );
+    assert_eq!(
+        summary.context.reachable_custom_property_names,
+        vec!["--brand"]
+    );
     assert_eq!(
         summary.context.import_inlines[0].import_source,
         "./tokens.css"

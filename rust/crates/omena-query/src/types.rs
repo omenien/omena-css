@@ -270,6 +270,10 @@ pub struct OmenaQueryTransformContextFromSourcesSummaryV0 {
     pub import_inline_count: usize,
     pub class_name_rewrite_count: usize,
     pub css_module_composes_resolution_count: usize,
+    pub reachable_class_name_count: usize,
+    pub reachable_keyframe_name_count: usize,
+    pub reachable_value_name_count: usize,
+    pub reachable_custom_property_name_count: usize,
     pub ready_surfaces: Vec<&'static str>,
 }
 
@@ -308,6 +312,8 @@ pub struct OmenaQueryOmenaParserStyleFactsV0 {
     pub sass_module_import_sources: Vec<String>,
     pub sass_module_edges: Vec<OmenaQuerySassModuleEdgeFactV0>,
     pub custom_property_names: Vec<String>,
+    pub custom_property_decl_names: Vec<String>,
+    pub custom_property_ref_names: Vec<String>,
     pub at_rule_names: Vec<String>,
     pub parser_error_count: usize,
 }

@@ -9,7 +9,16 @@ interface TransformContextSummaryV0 {
   readonly importInlineCount: number;
   readonly classNameRewriteCount: number;
   readonly cssModuleComposesResolutionCount: number;
+  readonly reachableClassNameCount: number;
+  readonly reachableKeyframeNameCount: number;
+  readonly reachableValueNameCount: number;
+  readonly reachableCustomPropertyNameCount: number;
   readonly context: {
+    readonly closedStyleWorld: boolean;
+    readonly reachableClassNames: readonly string[];
+    readonly reachableKeyframeNames: readonly string[];
+    readonly reachableValueNames: readonly string[];
+    readonly reachableCustomPropertyNames: readonly string[];
     readonly importInlines: readonly {
       readonly importSource: string;
       readonly replacementCss: string;
@@ -75,6 +84,15 @@ assert.equal(summary.styleCount, 2);
 assert.equal(summary.importInlineCount, 1);
 assert.equal(summary.classNameRewriteCount, 3);
 assert.equal(summary.cssModuleComposesResolutionCount, 1);
+assert.equal(summary.reachableClassNameCount, 3);
+assert.equal(summary.reachableKeyframeNameCount, 0);
+assert.equal(summary.reachableValueNameCount, 0);
+assert.equal(summary.reachableCustomPropertyNameCount, 1);
+assert.equal(summary.context.closedStyleWorld, false);
+assert.deepEqual(summary.context.reachableClassNames, ["base", "button", "button-primary"]);
+assert.deepEqual(summary.context.reachableKeyframeNames, []);
+assert.deepEqual(summary.context.reachableValueNames, []);
+assert.deepEqual(summary.context.reachableCustomPropertyNames, ["--brand"]);
 assert.deepEqual(summary.context.importInlines, [
   {
     importSource: "./tokens.css",
@@ -102,6 +120,7 @@ assertIncludesAll(
   summary.readySurfaces,
   [
     "transformContextProducer",
+    "reachableNameSeedProducer",
     "cssModuleClassRewriteProducer",
     "cssModuleComposesResolutionProducer",
     "directImportInlineProducer",
@@ -116,6 +135,7 @@ process.stdout.write(
     `imports=${summary.importInlineCount}`,
     `rewrites=${summary.classNameRewriteCount}`,
     `composes=${summary.cssModuleComposesResolutionCount}`,
+    `reachableClasses=${summary.reachableClassNameCount}`,
   ].join(" "),
 );
 process.stdout.write("\n");
