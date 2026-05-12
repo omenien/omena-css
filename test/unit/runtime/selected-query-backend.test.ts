@@ -365,7 +365,7 @@ process.stdin.on("end", () => {
     }
   });
 
-  it("gates daemon usage behind the explicit daemon env flag in source checkouts", () => {
+  it("gates daemon usage behind Rust backend selection or the explicit daemon env flag", () => {
     expect(shouldUseEngineShadowRunnerDaemon({} as NodeJS.ProcessEnv)).toBe(false);
     expect(
       shouldUseEngineShadowRunnerDaemon({
@@ -386,6 +386,38 @@ process.stdin.on("end", () => {
       shouldUseEngineShadowRunnerDaemon({
         CME_ENGINE_SHADOW_RUNNER_DAEMON: "off",
       } as NodeJS.ProcessEnv),
+    ).toBe(false);
+
+    const projectRoot = path.join("/workspace", "css-module-explainer");
+    const packagedRunner = path.join(
+      projectRoot,
+      "dist/bin",
+      `${process.platform}-${process.arch}`,
+      process.platform === "win32" ? "engine-shadow-runner.exe" : "engine-shadow-runner",
+    );
+    expect(
+      shouldUseEngineShadowRunnerDaemon(
+        {
+          CME_ENGINE_SHADOW_RUNNER: "prebuilt",
+          CME_PROJECT_ROOT: projectRoot,
+          CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        } as NodeJS.ProcessEnv,
+        (filePath) =>
+          filePath === packagedRunner ||
+          filePath.endsWith("server/engine-host-node/src/selected-query-backend.ts") ||
+          filePath.endsWith("rust/Cargo.toml"),
+      ),
+    ).toBe(true);
+    expect(
+      shouldUseEngineShadowRunnerDaemon(
+        {
+          CME_ENGINE_SHADOW_RUNNER: "prebuilt",
+          CME_ENGINE_SHADOW_RUNNER_DAEMON: "0",
+          CME_PROJECT_ROOT: projectRoot,
+          CME_SELECTED_QUERY_BACKEND: "rust-selected-query",
+        } as NodeJS.ProcessEnv,
+        (filePath) => filePath === packagedRunner,
+      ),
     ).toBe(false);
   });
 

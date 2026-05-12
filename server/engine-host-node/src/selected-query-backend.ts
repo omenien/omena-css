@@ -314,7 +314,7 @@ export function shouldUseEngineShadowRunnerDaemon(
 
   return (
     resolveSelectedQueryBackendKind(env, fileExists) === "rust-selected-query" &&
-    isPackagedExtensionRuntime(env, fileExists)
+    canUsePrebuiltEngineShadowRunner(env, fileExists)
   );
 }
 
