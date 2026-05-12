@@ -119,7 +119,7 @@ const CORPUS = [
     source: `@value primary: #fff; @value accent: primary; @value secondary as localSecondary from "./tokens.module.css"; .btn { color: accent; }`,
     expectedClassSelectorNames: ["btn"],
     expectedCssModuleValueDefinitionNames: ["primary", "accent", "localSecondary"],
-    expectedCssModuleValueReferenceNames: ["primary", "secondary"],
+    expectedCssModuleValueReferenceNames: ["primary", "secondary", "accent"],
     expectedCssModuleValueImportSources: ["./tokens.module.css"],
   },
   {

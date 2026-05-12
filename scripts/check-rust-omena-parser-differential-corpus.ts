@@ -273,7 +273,7 @@ const PARSER_ONLY_CORPUS = [
       variableNames: [],
       customPropertyNames: [],
       cssModuleValueDefinitionNames: ["primary", "accent", "localSecondary"],
-      cssModuleValueReferenceNames: ["primary", "secondary"],
+      cssModuleValueReferenceNames: ["primary", "secondary", "accent"],
       cssModuleValueImportSources: ["./tokens.module.css"],
       atRuleNames: ["@value", "@value", "@value"],
     },
