@@ -10,6 +10,10 @@ use omena_cascade::{
     prove_box_shorthand_combination, prove_layer_flatten_candidate, prove_scope_flatten_candidate,
     substitute_custom_properties,
 };
+use omena_incremental::{
+    IncrementalComputationPlanV0, IncrementalGraphInputV0, IncrementalNodeInputV0,
+    IncrementalRevisionV0, IncrementalSnapshotV0, OmenaIncrementalDatabaseV0,
+};
 use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 use omena_transform_cst::{
@@ -47,6 +51,7 @@ pub struct TransformPassesBoundarySummaryV0 {
     pub cascade_aware_pass_count: usize,
     pub planner_enforces_dag_edges: bool,
     pub execution_runtime_ready: bool,
+    pub incremental_execution_runtime_ready: bool,
     pub implemented_mutation_pass_ids: Vec<&'static str>,
     pub next_surfaces: Vec<&'static str>,
 }
@@ -134,6 +139,21 @@ pub struct TransformExecutionSummaryV0 {
     pub pass_plan: TransformPassPlanV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformIncrementalExecutionSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub incremental_engine: &'static str,
+    pub query_model: &'static str,
+    pub reuse_policy: &'static str,
+    pub reused_previous_execution: bool,
+    pub incremental_plan: IncrementalComputationPlanV0,
+    pub next_snapshot: IncrementalSnapshotV0,
+    pub execution: TransformExecutionSummaryV0,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TransformExecutionContextV0 {
@@ -211,8 +231,9 @@ pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySum
         cascade_aware_pass_count,
         planner_enforces_dag_edges: true,
         execution_runtime_ready: true,
+        incremental_execution_runtime_ready: true,
         implemented_mutation_pass_ids: implemented_mutation_pass_ids(),
-        next_surfaces: vec!["transformSalsaQueries", "sourceMapSpanPrecision"],
+        next_surfaces: vec!["sourceMapSpanPrecision"],
     }
 }
 
@@ -1219,6 +1240,141 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
         outcomes,
         pass_plan,
     }
+}
+
+pub fn execute_transform_passes_incremental_with_database(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
+    incremental_database: &mut OmenaIncrementalDatabaseV0,
+    previous_execution: Option<&TransformExecutionSummaryV0>,
+    revision: IncrementalRevisionV0,
+) -> TransformIncrementalExecutionSummaryV0 {
+    let incremental_input =
+        transform_pass_incremental_graph_input(source, dialect, requested, context, revision);
+    let update = incremental_database.plan_and_upsert_graph_input(&incremental_input);
+    let reused_previous_execution =
+        update.incremental_plan.dirty_node_count == 0 && previous_execution.is_some();
+    let execution = match (reused_previous_execution, previous_execution) {
+        (true, Some(previous_execution)) => previous_execution.clone(),
+        _ => execute_transform_passes_on_source_with_dialect_and_context(
+            source, dialect, requested, context,
+        ),
+    };
+
+    TransformIncrementalExecutionSummaryV0 {
+        schema_version: "0",
+        product: "omena-transform-passes.incremental-execution",
+        incremental_engine: "omena-incremental",
+        query_model: "persistentSalsaDatabase+transformPassDependencyGraph",
+        reuse_policy: "reuse previous transform execution when the omena-incremental plan is clean",
+        reused_previous_execution,
+        incremental_plan: update.incremental_plan,
+        next_snapshot: update.next_snapshot,
+        execution,
+        ready_surfaces: vec![
+            "transformSalsaQueries",
+            "transformPassIncrementalGraph",
+            "cleanTransformExecutionReuse",
+        ],
+    }
+}
+
+pub fn transform_pass_incremental_graph_input(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+    context: &TransformExecutionContextV0,
+    revision: IncrementalRevisionV0,
+) -> IncrementalGraphInputV0 {
+    let pass_plan = plan_transform_passes(requested);
+    let dialect_label = transform_style_dialect_label(dialect);
+    let context_digest = transform_execution_context_digest(context);
+    let ordered_pass_ids = pass_plan.ordered_pass_ids.join("|");
+    let mut nodes = vec![
+        IncrementalNodeInputV0 {
+            id: "transform:source".to_string(),
+            digest: stable_transform_digest(&["source", dialect_label, source]),
+            dependency_ids: Vec::new(),
+        },
+        IncrementalNodeInputV0 {
+            id: "transform:context".to_string(),
+            digest: stable_transform_digest(&["context", context_digest.as_str()]),
+            dependency_ids: Vec::new(),
+        },
+        IncrementalNodeInputV0 {
+            id: "transform:plan".to_string(),
+            digest: stable_transform_digest(&["plan", ordered_pass_ids.as_str()]),
+            dependency_ids: Vec::new(),
+        },
+    ];
+
+    let mut previous_pass_node_id = None;
+    for pass_id in pass_plan.ordered_pass_ids {
+        let node_id = format!("transform:pass:{pass_id}");
+        let mut dependency_ids = vec![
+            "transform:source".to_string(),
+            "transform:context".to_string(),
+            "transform:plan".to_string(),
+        ];
+        if let Some(previous_pass_node_id) = previous_pass_node_id {
+            dependency_ids.push(previous_pass_node_id);
+        }
+
+        nodes.push(IncrementalNodeInputV0 {
+            id: node_id.clone(),
+            digest: stable_transform_digest(&["pass", pass_id]),
+            dependency_ids,
+        });
+        previous_pass_node_id = Some(node_id);
+    }
+
+    let mut execution_dependency_ids = vec![
+        "transform:source".to_string(),
+        "transform:context".to_string(),
+        "transform:plan".to_string(),
+    ];
+    if let Some(previous_pass_node_id) = previous_pass_node_id {
+        execution_dependency_ids.push(previous_pass_node_id);
+    }
+    nodes.push(IncrementalNodeInputV0 {
+        id: "transform:execution".to_string(),
+        digest: stable_transform_digest(&["execution", ordered_pass_ids.as_str()]),
+        dependency_ids: execution_dependency_ids,
+    });
+
+    IncrementalGraphInputV0 { revision, nodes }
+}
+
+fn transform_style_dialect_label(dialect: StyleDialect) -> &'static str {
+    match dialect {
+        StyleDialect::Css => "css",
+        StyleDialect::Scss => "scss",
+        StyleDialect::Sass => "sass",
+        StyleDialect::Less => "less",
+    }
+}
+
+fn transform_execution_context_digest(context: &TransformExecutionContextV0) -> String {
+    let serialized = match serde_json::to_string(context) {
+        Ok(serialized) => serialized,
+        Err(error) => format!("serialization-error:{error}"),
+    };
+    stable_transform_digest(&["transform-context", serialized.as_str()])
+}
+
+fn stable_transform_digest(parts: &[&str]) -> String {
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for part in parts {
+        for byte in part.as_bytes() {
+            hash ^= u64::from(*byte);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        hash ^= 0xff;
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("fnv1a64:{hash:016x}")
 }
 
 fn provenance_derivation_forest_from_outcomes(
@@ -5569,10 +5725,12 @@ mod tests {
         TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
         TransformDesignTokenRouteV0, TransformExecutionContextV0, TransformImportInlineV0,
         TransformModuleEvaluationV0, TransformPassRuntimeStatus,
-        execute_transform_passes_on_source, execute_transform_passes_on_source_with_dialect,
+        execute_transform_passes_incremental_with_database, execute_transform_passes_on_source,
+        execute_transform_passes_on_source_with_dialect,
         execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
-        summarize_omena_transform_passes_boundary,
+        summarize_omena_transform_passes_boundary, transform_pass_incremental_graph_input,
     };
+    use omena_incremental::{IncrementalRevisionV0, OmenaIncrementalDatabaseV0};
     use omena_parser::StyleDialect;
     use omena_transform_cst::{TRANSFORM_PASS_CATALOG_LEN, TransformPassKind};
 
@@ -5588,6 +5746,7 @@ mod tests {
         assert!(boundary.cascade_aware_pass_count >= 9);
         assert!(boundary.planner_enforces_dag_edges);
         assert!(boundary.execution_runtime_ready);
+        assert!(boundary.incremental_execution_runtime_ready);
         assert_eq!(
             boundary.implemented_mutation_pass_ids,
             vec![
@@ -5647,6 +5806,101 @@ mod tests {
                 .next_surfaces
                 .contains(&"provenanceSourceSpanMapping")
         );
+        assert!(!boundary.next_surfaces.contains(&"transformSalsaQueries"));
+        assert!(boundary.next_surfaces.contains(&"sourceMapSpanPrecision"));
+    }
+
+    #[test]
+    fn incremental_transform_graph_tracks_source_context_plan_and_pass_dependencies() {
+        let context = TransformExecutionContextV0 {
+            reachable_class_names: vec!["used".to_string()],
+            ..TransformExecutionContextV0::default()
+        };
+        let graph = transform_pass_incremental_graph_input(
+            ".used { color: red; }",
+            StyleDialect::Css,
+            &[
+                TransformPassKind::TreeShakeClass,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+            IncrementalRevisionV0 { value: 1 },
+        );
+
+        assert_eq!(graph.revision.value, 1);
+        assert!(graph.nodes.iter().any(|node| node.id == "transform:source"));
+        assert!(
+            graph
+                .nodes
+                .iter()
+                .any(|node| node.id == "transform:context")
+        );
+        assert!(graph.nodes.iter().any(|node| node.id == "transform:plan"));
+        let execution_node = graph
+            .nodes
+            .iter()
+            .find(|node| node.id == "transform:execution");
+        assert!(execution_node.is_some());
+        if let Some(execution_node) = execution_node {
+            assert!(
+                execution_node
+                    .dependency_ids
+                    .contains(&"transform:pass:p40-print-css".to_string())
+            );
+        }
+    }
+
+    #[test]
+    fn incremental_transform_execution_reuses_clean_salsa_database_plan() {
+        let mut incremental_database = OmenaIncrementalDatabaseV0::default();
+        let context = TransformExecutionContextV0::default();
+        let requested = [TransformPassKind::CommentStrip, TransformPassKind::PrintCss];
+        let first = execute_transform_passes_incremental_with_database(
+            ".button { /* keep no comment */ color: red; }",
+            StyleDialect::Css,
+            &requested,
+            &context,
+            &mut incremental_database,
+            None,
+            IncrementalRevisionV0 { value: 1 },
+        );
+
+        assert_eq!(
+            first.product,
+            "omena-transform-passes.incremental-execution"
+        );
+        assert_eq!(first.incremental_engine, "omena-incremental");
+        assert!(!first.reused_previous_execution);
+        assert!(first.incremental_plan.dirty_node_count > 0);
+        assert!(first.ready_surfaces.contains(&"transformSalsaQueries"));
+
+        let reused = execute_transform_passes_incremental_with_database(
+            ".button { /* keep no comment */ color: red; }",
+            StyleDialect::Css,
+            &requested,
+            &context,
+            &mut incremental_database,
+            Some(&first.execution),
+            IncrementalRevisionV0 { value: 2 },
+        );
+
+        assert!(reused.reused_previous_execution);
+        assert_eq!(reused.incremental_plan.dirty_node_count, 0);
+        assert_eq!(reused.execution.output_css, first.execution.output_css);
+
+        let changed = execute_transform_passes_incremental_with_database(
+            ".button { /* changed */ color: blue; }",
+            StyleDialect::Css,
+            &requested,
+            &context,
+            &mut incremental_database,
+            Some(&reused.execution),
+            IncrementalRevisionV0 { value: 3 },
+        );
+
+        assert!(!changed.reused_previous_execution);
+        assert!(changed.incremental_plan.changed_input_count >= 1);
+        assert!(changed.execution.output_css.contains("blue"));
     }
 
     #[test]

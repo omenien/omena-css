@@ -692,10 +692,12 @@ name = "omena-transform-passes"
 version = "0.1.0"
 dependencies = [
  "omena-cascade",
+ "omena-incremental",
  "omena-parser",
  "omena-syntax",
  "omena-transform-cst",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

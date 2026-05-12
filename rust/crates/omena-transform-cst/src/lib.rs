@@ -475,12 +475,7 @@ pub fn summarize_omena_transform_cst_boundary() -> TransformCstBoundarySummaryV0
         full_pass_catalog_covered: pass_catalog_count == TRANSFORM_PASS_CATALOG_LEN,
         all_passes_declare_cascade_obligation,
         provenance_preservation_required: true,
-        next_surfaces: vec![
-            "omena-transform-passes",
-            "omena-transform-print",
-            "salsaTransformQueries",
-            "sourceMapSpanPrecision",
-        ],
+        next_surfaces: vec!["sourceMapSpanPrecision"],
     }
 }
 
@@ -778,6 +773,10 @@ mod tests {
         assert_eq!(boundary.emission_pass_count, 1);
         assert!(boundary.all_passes_declare_cascade_obligation);
         assert!(boundary.provenance_preservation_required);
+        assert!(!boundary.next_surfaces.contains(&"omena-transform-passes"));
+        assert!(!boundary.next_surfaces.contains(&"omena-transform-print"));
+        assert!(!boundary.next_surfaces.contains(&"salsaTransformQueries"));
+        assert!(boundary.next_surfaces.contains(&"sourceMapSpanPrecision"));
         assert!(boundary.pass_contracts.iter().any(|contract| {
             contract.kind == TransformPassKind::TreeShakeClass
                 && contract.label == "P33"

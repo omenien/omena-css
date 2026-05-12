@@ -13,7 +13,9 @@ workspace = true
 
 [dependencies]
 omena-cascade = { path = "../omena-cascade" }
+omena-incremental = { path = "../omena-incremental" }
 omena-transform-cst = { path = "../omena-transform-cst" }
 omena-parser = { path = "../omena-parser" }
 omena-syntax = { path = "../omena-syntax" }
 serde.workspace = true
+serde_json.workspace = true
