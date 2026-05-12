@@ -210,8 +210,13 @@ pub fn execute_omena_query_consumer_build_style_source(
     } else {
         requested_pass_ids.to_vec()
     };
-    let execution_summary =
-        execute_omena_query_transform_passes_from_source(style_path, style_source, &pass_ids);
+    let context = derive_single_source_transform_context(style_path, style_source);
+    let execution_summary = execute_omena_query_transform_passes_from_source_with_context(
+        style_path,
+        style_source,
+        &pass_ids,
+        &context,
+    );
 
     OmenaQueryConsumerBuildSummaryV0 {
         schema_version: "0",
@@ -224,6 +229,7 @@ pub fn execute_omena_query_consumer_build_style_source(
         execution: execution_summary.execution,
         ready_surfaces: vec![
             "consumerBuildFacade",
+            "singleSourceTransformContextProducer",
             "transformExecutionRuntime",
             "transformPassOutcomeContract",
         ],
@@ -249,12 +255,14 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_opt
     target_query: &str,
     target_options: OmenaQueryTargetTransformOptionsV0,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
-    let plan = summarize_omena_query_transform_plan_from_target_query(
+    let context = derive_single_source_transform_context(style_path, style_source);
+    let plan = summarize_omena_query_transform_plan_from_target_query_with_context(
         style_path,
         style_source,
         target_query,
         target_options,
         default_omena_query_transform_print_options(),
+        &context,
     );
     let requested_pass_ids = plan
         .combined_pass_ids
@@ -274,10 +282,23 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_opt
         ready_surfaces: vec![
             "consumerBuildFacade",
             "targetQueryBuildFacade",
+            "singleSourceTransformContextProducer",
             "transformExecutionRuntime",
             "transformPassOutcomeContract",
         ],
     }
+}
+
+fn derive_single_source_transform_context(
+    style_path: &str,
+    style_source: &str,
+) -> TransformExecutionContextV0 {
+    summarize_omena_query_transform_context_from_sources(
+        style_path,
+        [(style_path, style_source)],
+        &[],
+    )
+    .context
 }
 
 pub fn list_omena_query_transform_pass_summaries() -> Vec<OmenaQueryTransformPassSummaryV0> {

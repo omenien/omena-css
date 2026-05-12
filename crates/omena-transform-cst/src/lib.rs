@@ -620,6 +620,11 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
             reason: "hashing must run after composed class expansion",
         },
         TransformDagEdgeV0 {
+            from: "nesting-unwrap",
+            to: "css-modules-class-hashing",
+            reason: "hashing must run after nested selectors are expanded into final selector branches",
+        },
+        TransformDagEdgeV0 {
             from: "css-modules-class-hashing",
             to: "selector-merging",
             reason: "selector merging must see post-hash selector identities",

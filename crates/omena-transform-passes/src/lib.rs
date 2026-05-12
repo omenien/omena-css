@@ -3524,7 +3524,8 @@ fn rewrite_css_module_class_names_with_lexer(
     let mut replacements = Vec::new();
 
     for rule in &rules {
-        let Some(rewritten_selector) = rewrite_simple_class_selector_list(&rule.selector, rewrites)
+        let Some(rewritten_selector) =
+            rewrite_class_selectors_in_selector(&rule.selector, rewrites)
         else {
             continue;
         };
@@ -3560,23 +3561,89 @@ fn rewrite_css_module_class_names_with_lexer(
     replace_source_ranges(source, &replacements)
 }
 
-fn rewrite_simple_class_selector_list(
+fn rewrite_class_selectors_in_selector(
     selector: &str,
     rewrites: &[TransformClassNameRewriteV0],
 ) -> Option<String> {
-    let branches = split_top_level_value_arguments(selector)?;
+    let mut output = String::with_capacity(selector.len());
+    let mut index = 0usize;
     let mut changed = false;
-    let mut rewritten = Vec::new();
-    for branch in branches {
-        let class_name = simple_class_selector_name(&branch)?;
-        let Some(rewritten_name) = rewritten_class_name_for(&class_name, rewrites) else {
-            rewritten.push(branch);
+    let mut quote: Option<char> = None;
+    let mut bracket_depth = 0usize;
+
+    while index < selector.len() {
+        let ch = selector[index..].chars().next()?;
+
+        if let Some(quote_ch) = quote {
+            output.push(ch);
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = selector[index..].chars().next() {
+                    output.push(escaped);
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
             continue;
-        };
-        changed = true;
-        rewritten.push(format!(".{rewritten_name}"));
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                output.push(ch);
+                index += ch.len_utf8();
+            }
+            '[' => {
+                bracket_depth += 1;
+                output.push(ch);
+                index += ch.len_utf8();
+            }
+            ']' => {
+                bracket_depth = bracket_depth.saturating_sub(1);
+                output.push(ch);
+                index += ch.len_utf8();
+            }
+            '.' if bracket_depth == 0 => {
+                let name_start = index + ch.len_utf8();
+                let name_end = ascii_css_identifier_end(selector, name_start);
+                if name_end == name_start {
+                    output.push(ch);
+                    index += ch.len_utf8();
+                    continue;
+                }
+                let class_name = &selector[name_start..name_end];
+                if let Some(rewritten_name) = rewritten_class_name_for(class_name, rewrites) {
+                    output.push('.');
+                    output.push_str(rewritten_name);
+                    index = name_end;
+                    changed = true;
+                } else {
+                    output.push_str(&selector[index..name_end]);
+                    index = name_end;
+                }
+            }
+            _ => {
+                output.push(ch);
+                index += ch.len_utf8();
+            }
+        }
     }
-    changed.then(|| rewritten.join(", "))
+
+    changed.then_some(output)
+}
+
+fn ascii_css_identifier_end(text: &str, start: usize) -> usize {
+    let bytes = text.as_bytes();
+    let mut end = start;
+    while end < bytes.len() && css_identifier_byte_is_plain(bytes[end]) {
+        end += 1;
+    }
+    end
+}
+
+fn css_identifier_byte_is_plain(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-')
 }
 
 fn rewrite_local_composes_value(
@@ -6440,6 +6507,21 @@ mod tests {
     }
 
     #[test]
+    fn planner_respects_nesting_before_hash_edges() {
+        let plan = plan_transform_passes(&[
+            TransformPassKind::HashCssModuleClassNames,
+            TransformPassKind::NestingUnwrap,
+            TransformPassKind::PrintCss,
+        ]);
+
+        assert_eq!(plan.violated_dag_edge_count, 0);
+        assert_eq!(
+            plan.ordered_pass_ids,
+            vec!["nesting-unwrap", "css-modules-class-hashing", "print-css"]
+        );
+    }
+
+    #[test]
     fn execution_runtime_inlines_imports_from_explicit_replacements() {
         let source =
             r#"@import "./tokens.css"; @import url(./theme.css); .button { color: var(--brand); }"#;
@@ -6743,14 +6825,67 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 3);
+        assert_eq!(execution.mutation_count, 4);
         assert_eq!(
             execution.output_css,
-            r#"._button_abc123{ composes: _base_def456 _utility_ghi789; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } .button:hover { color: green; }"#
+            r#"._button_abc123{ composes: _base_def456 _utility_ghi789; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } ._button_abc123:hover{ color: green; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
             vec!["css-modules-class-hashing", "print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_hashes_nested_css_module_selectors_after_unwrap() {
+        let source =
+            r#".item { color: red; &--primary { color: blue; } & .body { color: green; } }"#;
+        let context = TransformExecutionContextV0 {
+            class_name_rewrites: vec![
+                TransformClassNameRewriteV0 {
+                    original_name: "item".to_string(),
+                    rewritten_name: "_item_0".to_string(),
+                },
+                TransformClassNameRewriteV0 {
+                    original_name: "item--primary".to_string(),
+                    rewritten_name: "_item--primary_1".to_string(),
+                },
+                TransformClassNameRewriteV0 {
+                    original_name: "body".to_string(),
+                    rewritten_name: "_body_2".to_string(),
+                },
+            ],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Scss,
+            &[
+                TransformPassKind::HashCssModuleClassNames,
+                TransformPassKind::NestingUnwrap,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(
+            execution.ordered_pass_ids,
+            vec!["nesting-unwrap", "css-modules-class-hashing", "print-css"]
+        );
+        assert!(execution.output_css.contains("._item_0{ color: red; }"));
+        assert!(
+            execution
+                .output_css
+                .contains("._item--primary_1{ color: blue; }")
+        );
+        assert!(
+            execution
+                .output_css
+                .contains("._item_0 ._body_2{ color: green; }")
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["nesting-unwrap", "css-modules-class-hashing", "print-css"]
         );
     }
 
