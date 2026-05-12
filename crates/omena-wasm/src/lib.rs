@@ -477,6 +477,7 @@ mod tests {
                 allow_layer_flatten: false,
                 enable_supports_static_eval: false,
                 enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
             },
         );
 
@@ -508,6 +509,7 @@ mod tests {
                 allow_layer_flatten: false,
                 enable_supports_static_eval: false,
                 enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
             },
             &context,
         );
