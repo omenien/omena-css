@@ -6146,8 +6146,32 @@ fn compress_number_prefix(number: &str) -> String {
         Some(b'+') | Some(b'-') => (&number[..1], &number[1..]),
         _ => ("", number),
     };
-    let Some((before_dot, after_dot)) = unsigned.split_once('.') else {
-        return number.to_string();
+    let (mantissa, exponent) = split_number_exponent(unsigned);
+    let compressed_mantissa = compress_decimal_mantissa(mantissa);
+    let mut compressed = format!("{sign}{compressed_mantissa}");
+
+    if let Some(exponent) = exponent {
+        let normalized_exponent = normalize_exponent_suffix(exponent);
+        if normalized_exponent != "0" && !is_zero_number_prefix(&compressed) {
+            compressed.push('e');
+            compressed.push_str(&normalized_exponent);
+        }
+    }
+
+    compressed
+}
+
+fn split_number_exponent(number: &str) -> (&str, Option<&str>) {
+    if let Some(index) = number.find(['e', 'E']) {
+        (&number[..index], Some(&number[index + 1..]))
+    } else {
+        (number, None)
+    }
+}
+
+fn compress_decimal_mantissa(mantissa: &str) -> String {
+    let Some((before_dot, after_dot)) = mantissa.split_once('.') else {
+        return mantissa.to_string();
     };
 
     let trimmed_fraction = after_dot.trim_end_matches('0');
@@ -6165,7 +6189,22 @@ fn compress_number_prefix(number: &str) -> String {
         compressed_unsigned.push('0');
     }
 
-    format!("{sign}{compressed_unsigned}")
+    compressed_unsigned
+}
+
+fn normalize_exponent_suffix(exponent: &str) -> String {
+    let (sign, digits) = match exponent.as_bytes().first() {
+        Some(b'+') => ("", &exponent[1..]),
+        Some(b'-') => ("-", &exponent[1..]),
+        _ => ("", exponent),
+    };
+    let digits = digits.trim_start_matches('0');
+    let digits = if digits.is_empty() { "0" } else { digits };
+    if digits == "0" {
+        digits.to_string()
+    } else {
+        format!("{sign}{digits}")
+    }
 }
 
 fn normalize_css_whitespace_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -6942,8 +6981,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_numeric_tokens_only() {
-        let source =
-            r#".a { width: 0.50rem; opacity: 1.0; margin: -0.25px 10.00%; content: "0.50"; }"#;
+        let source = r#".a { width: 0.50rem; opacity: 1.0; margin: -0.25px 10.00%; scale: 1.0E+03; flex-grow: 1e+00; translate: 0e+3px; content: "0.50 1.0E+03"; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -6952,10 +6990,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(execution.mutation_count, 7);
         assert_eq!(
             execution.output_css,
-            r#".a { width: .5rem; opacity: 1; margin: -.25px 10%; content: "0.50"; }"#
+            r#".a { width: .5rem; opacity: 1; margin: -.25px 10%; scale: 1e3; flex-grow: 1; translate: 0px; content: "0.50 1.0E+03"; }"#
         );
     }
 
