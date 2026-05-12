@@ -605,6 +605,47 @@ mod tests {
     }
 
     #[test]
+    fn builds_css_from_engine_input_style_sources_for_browser_clients() {
+        let input = serde_json::from_str::<OmenaWasmEngineInputV2>(
+            workspace_style_source_engine_input_json(),
+        );
+        assert!(input.is_ok());
+        let Ok(input) = input else {
+            return;
+        };
+        let pass_ids = vec![
+            "import-inline".to_string(),
+            "composes-resolution".to_string(),
+        ];
+        let summary = build_style_source_with_engine_input_context_summary(
+            r#"@import "./tokens.css" supports(display: grid); .button { composes: base; color: var(--brand); } .base { color: blue; }"#,
+            "/tmp/Button.module.css",
+            &pass_ids,
+            &input,
+            false,
+        );
+
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"semanticReachabilityTransformContext")
+        );
+        assert!(
+            summary
+                .execution
+                .output_css
+                .contains("@supports (display: grid) { :root { --brand: red; } }")
+        );
+        assert!(!summary.execution.output_css.contains("@import"));
+        assert!(!summary.execution.output_css.contains("composes:"));
+
+        let context =
+            transform_context_from_engine_input_summary(&input, "/tmp/Button.module.css", false);
+        assert_eq!(context.style_source_count, 2);
+        assert_eq!(context.import_inline_count, 1);
+    }
+
+    #[test]
     fn exposes_transform_context_reachability_sources_for_browser_clients() {
         let input = serde_json::from_str::<OmenaWasmEngineInputV2>(
             reduced_product_projection_engine_input_json(),
@@ -765,6 +806,53 @@ mod tests {
               }
             }
           ]
+        }"#
+    }
+
+    fn workspace_style_source_engine_input_json() -> &'static str {
+        r#"{
+          "version": "2",
+          "sources": [],
+          "styles": [
+            {
+              "filePath": "/tmp/Button.module.css",
+              "source": "@import \"./tokens.css\" supports(display: grid); .button { composes: base; color: var(--brand); } .base { color: blue; }",
+              "document": {
+                "selectors": [
+                  {
+                    "name": "button",
+                    "viewKind": "canonical",
+                    "canonicalName": "button",
+                    "range": {
+                      "start": { "line": 1, "character": 1 },
+                      "end": { "line": 1, "character": 7 }
+                    },
+                    "nestedSafety": "safe",
+                    "composes": null,
+                    "bemSuffix": null
+                  },
+                  {
+                    "name": "base",
+                    "viewKind": "canonical",
+                    "canonicalName": "base",
+                    "range": {
+                      "start": { "line": 1, "character": 50 },
+                      "end": { "line": 1, "character": 54 }
+                    },
+                    "nestedSafety": "safe",
+                    "composes": null,
+                    "bemSuffix": null
+                  }
+                ]
+              }
+            },
+            {
+              "filePath": "/tmp/tokens.css",
+              "source": ":root { --brand: red; }",
+              "document": { "selectors": [] }
+            }
+          ],
+          "typeFacts": []
         }"#
     }
 }
