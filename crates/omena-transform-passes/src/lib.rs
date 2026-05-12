@@ -5,6 +5,8 @@
 //! combinations, conservative lowerings, and emission boundaries as a
 //! DAG-respecting execution plan for downstream transform crates.
 
+use std::collections::{BTreeMap, VecDeque};
+
 pub use omena_cascade::CustomPropertyLeastFixedPointSummaryV0;
 use omena_cascade::{
     BoxLonghandInputV0, CascadeValue, CustomPropertyEnv, LayerFlattenInputV0, ScopeFlattenInputV0,
@@ -3973,14 +3975,11 @@ fn tree_shake_css_custom_properties_with_lexer(
 ) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let Some(mut referenced_names) = collect_referenced_custom_property_names(tokens) else {
+    let Some(referenced_names) =
+        collect_reachable_custom_property_names(tokens, reachable_custom_property_names)
+    else {
         return (source.to_string(), 0);
     };
-    for name in reachable_custom_property_names {
-        if let Some(name) = normalize_custom_property_name(name) {
-            push_unique_string(&mut referenced_names, name.to_string());
-        }
-    }
 
     let mut ranges = Vec::new();
     let mut index = 0;
@@ -4006,10 +4005,19 @@ fn tree_shake_css_custom_properties_with_lexer(
     remove_source_ranges(source, &ranges)
 }
 
-fn collect_referenced_custom_property_names(
+fn collect_reachable_custom_property_names(
     tokens: &[omena_parser::LexedToken],
+    external_roots: &[String],
 ) -> Option<Vec<String>> {
-    let mut names = Vec::new();
+    let mut root_names = Vec::new();
+    let mut dependencies_by_name = BTreeMap::<String, Vec<String>>::new();
+
+    for name in external_roots {
+        if let Some(name) = normalize_custom_property_name(name) {
+            push_unique_string(&mut root_names, name.to_string());
+        }
+    }
+
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::LeftBrace {
             continue;
@@ -4018,12 +4026,49 @@ fn collect_referenced_custom_property_names(
             continue;
         };
         for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
-            for name in collect_custom_property_references_in_value(&declaration.value)? {
-                push_unique_string(&mut names, name);
+            let referenced_names = collect_custom_property_references_in_value(&declaration.value)?;
+            if declaration.property.starts_with("--") {
+                let dependencies = dependencies_by_name
+                    .entry(declaration.property)
+                    .or_default();
+                for name in referenced_names {
+                    push_unique_string(dependencies, name);
+                }
+            } else {
+                for name in referenced_names {
+                    push_unique_string(&mut root_names, name);
+                }
             }
         }
     }
-    Some(names)
+
+    Some(close_custom_property_dependency_graph(
+        root_names,
+        &dependencies_by_name,
+    ))
+}
+
+fn close_custom_property_dependency_graph(
+    roots: Vec<String>,
+    dependencies_by_name: &BTreeMap<String, Vec<String>>,
+) -> Vec<String> {
+    let mut reachable = Vec::new();
+    let mut queue = roots.into_iter().collect::<VecDeque<_>>();
+
+    while let Some(name) = queue.pop_front() {
+        if reachable.iter().any(|existing| existing == &name) {
+            continue;
+        }
+        reachable.push(name.clone());
+        if let Some(dependencies) = dependencies_by_name.get(&name) {
+            for dependency in dependencies {
+                queue.push_back(dependency.clone());
+            }
+        }
+    }
+
+    reachable.sort();
+    reachable
 }
 
 fn collect_custom_property_references_in_value(value: &str) -> Option<Vec<String>> {
@@ -8621,7 +8666,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_tree_shakes_custom_properties_with_closed_world_context() {
-        let source = r#":root { --used: red; --dead: blue; color: var(--used); } .btn { color: var(--external); }"#;
+        let source = r#":root { --used: var(--alias); --alias: red; --dead: var(--dead-dep); --dead-dep: blue; color: var(--used); } .btn { color: var(--external); }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             reachable_custom_property_names: vec!["--external".to_string()],
@@ -8637,11 +8682,13 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 1);
-        assert_eq!(
-            execution.output_css,
-            r#":root { --used: red;  color: var(--used); } .btn { color: var(--external); }"#
-        );
+        assert_eq!(execution.mutation_count, 2);
+        assert!(execution.output_css.contains("--used: var(--alias);"));
+        assert!(execution.output_css.contains("--alias: red;"));
+        assert!(execution.output_css.contains("color: var(--used);"));
+        assert!(execution.output_css.contains("color: var(--external);"));
+        assert!(!execution.output_css.contains("--dead:"));
+        assert!(!execution.output_css.contains("--dead-dep:"));
         assert_eq!(
             execution.executed_pass_ids,
             vec!["tree-shake-custom-property", "print-css"]
