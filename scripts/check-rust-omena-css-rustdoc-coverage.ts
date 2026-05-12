@@ -46,7 +46,8 @@ function main(): void {
   for (const crateName of CRATES) {
     const crateItems = items.filter((item) => item.crateName === crateName);
     const crateDocumented = crateItems.filter((item) => item.documented).length;
-    const crateCoverage = crateItems.length === 0 ? 100 : (crateDocumented / crateItems.length) * 100;
+    const crateCoverage =
+      crateItems.length === 0 ? 100 : (crateDocumented / crateItems.length) * 100;
     console.log(
       `${crateName}: ${crateDocumented}/${crateItems.length} public items documented (${crateCoverage.toFixed(
         1,
@@ -112,7 +113,11 @@ function collectRustFiles(dir: string): string[] {
   });
 }
 
-function collectPublicItemsFromFile(crateName: string, srcDir: string, filePath: string): PublicItem[] {
+function collectPublicItemsFromFile(
+  crateName: string,
+  srcDir: string,
+  filePath: string,
+): PublicItem[] {
   const source = readFileSync(filePath, "utf8");
   const lines = source.split(/\r?\n/);
   const relativePath = path.relative(REPO_ROOT, filePath);
