@@ -1014,9 +1014,9 @@ async function runRustSummary(filePath: string, source: string): Promise<ParserI
         "--manifest-path",
         "rust/Cargo.toml",
         "-p",
-        "engine-style-parser",
+        "omena-parser",
         "--bin",
-        "engine-style-parser-css-modules-intermediate",
+        "omena-parser-css-modules-intermediate",
         "--",
         filePath,
       ],
@@ -1037,9 +1037,7 @@ async function runRustSummary(filePath: string, source: string): Promise<ParserI
     child.on("error", reject);
     child.on("close", (code) => {
       if (code !== 0) {
-        reject(
-          new Error(`engine-style-parser-css-modules-intermediate exited with ${code}\n${stderr}`),
-        );
+        reject(new Error(`omena-parser-css-modules-intermediate exited with ${code}\n${stderr}`));
         return;
       }
       resolve(JSON.parse(stdout) as ParserIndexSummaryV0);

@@ -15,6 +15,10 @@ Current scope:
 - `omena-parser-summary` exposes the parser-owned parity-lite summary used by
   the public parser lane for selectors, CSS Modules values, keyframes, and
   structural CSS-family counts.
+- `omena-parser-css-modules-intermediate` exposes the parser-owned
+  CSS Modules intermediate index summary used by the parser index-bridge gate,
+  including values, custom properties, Sass symbols, wrappers, keyframes,
+  composes, and nested BEM selector metadata.
 - Recursive-descent parser core coverage is explicit: stylesheet/rule/
   declaration entry points, Selectors L4 CST slices, registered at-rule
   preludes, CSS nesting, SCSS/Sass/Less dialect statements, Bogus recovery, and

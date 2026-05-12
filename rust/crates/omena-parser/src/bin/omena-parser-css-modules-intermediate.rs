@@ -1,0 +1,1975 @@
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    env,
+    io::{self, Read},
+};
+
+use cstree::text::TextRange;
+use omena_parser::{
+    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleValueFactKind,
+    ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedSelectorFactKind,
+    ParsedStyleFacts, ParsedVariableFactKind, ParserByteSpanV0, ParserPositionV0, ParserRangeV0,
+    StyleDialect, collect_style_facts,
+};
+use serde::Serialize;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexSummaryV0 {
+    schema_version: &'static str,
+    language: &'static str,
+    selectors: ParserIndexSelectorFactsV0,
+    values: ParserIndexValueFactsV0,
+    custom_properties: ParserIndexCustomPropertyFactsV0,
+    sass: ParserIndexSassFactsV0,
+    keyframes: ParserIndexKeyframesFactsV0,
+    composes: ParserIndexComposesFactsV0,
+    wrappers: ParserIndexWrapperFactsV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexSelectorFactsV0 {
+    names: Vec<String>,
+    definition_facts: Vec<ParserIndexSelectorDefinitionFactV0>,
+    bem_suffix_parent_names: Vec<String>,
+    bem_suffix_safe_names: Vec<String>,
+    nested_unsafe_names: Vec<String>,
+    selectors_with_value_refs_names: Vec<String>,
+    selectors_with_animation_ref_names: Vec<String>,
+    selectors_with_animation_name_ref_names: Vec<String>,
+    bem_suffix_count: usize,
+    nested_safety_counts: NestedSafetyCountsV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexSelectorDefinitionFactV0 {
+    name: String,
+    source_order: usize,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
+    nested_safety_kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bem_suffix_parent_name: Option<String>,
+    under_media: bool,
+    under_supports: bool,
+    under_layer: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexValueFactsV0 {
+    decl_names: Vec<String>,
+    decl_names_with_local_refs: Vec<String>,
+    decl_names_with_imported_refs: Vec<String>,
+    import_names: Vec<String>,
+    import_sources: Vec<String>,
+    import_alias_count: usize,
+    ref_names: Vec<String>,
+    local_ref_names: Vec<String>,
+    imported_ref_names: Vec<String>,
+    imported_ref_sources: Vec<String>,
+    declaration_ref_names: Vec<String>,
+    declaration_imported_ref_sources: Vec<String>,
+    value_decl_ref_names: Vec<String>,
+    value_decl_imported_ref_sources: Vec<String>,
+    selectors_with_refs_names: Vec<String>,
+    selectors_with_local_refs_names: Vec<String>,
+    selectors_with_imported_refs_names: Vec<String>,
+    selectors_with_refs_under_media_names: Vec<String>,
+    selectors_with_refs_under_supports_names: Vec<String>,
+    selectors_with_refs_under_layer_names: Vec<String>,
+    selectors_with_local_refs_under_media_names: Vec<String>,
+    selectors_with_local_refs_under_supports_names: Vec<String>,
+    selectors_with_local_refs_under_layer_names: Vec<String>,
+    selectors_with_imported_refs_under_media_names: Vec<String>,
+    selectors_with_imported_refs_under_supports_names: Vec<String>,
+    selectors_with_imported_refs_under_layer_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexCustomPropertyFactsV0 {
+    decl_names: Vec<String>,
+    decl_facts: Vec<ParserIndexCustomPropertyDeclFactV0>,
+    decl_context_selectors: Vec<String>,
+    decl_names_under_media: Vec<String>,
+    decl_names_under_supports: Vec<String>,
+    decl_names_under_layer: Vec<String>,
+    ref_names: Vec<String>,
+    ref_facts: Vec<ParserIndexCustomPropertyRefFactV0>,
+    selectors_with_refs_names: Vec<String>,
+    selectors_with_refs_under_media_names: Vec<String>,
+    selectors_with_refs_under_supports_names: Vec<String>,
+    selectors_with_refs_under_layer_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexCustomPropertyDeclFactV0 {
+    name: String,
+    source_order: usize,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
+    selector_contexts: Vec<String>,
+    under_media: bool,
+    under_supports: bool,
+    under_layer: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexCustomPropertyRefFactV0 {
+    name: String,
+    source_order: usize,
+    selector_contexts: Vec<String>,
+    under_media: bool,
+    under_supports: bool,
+    under_layer: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexSassFactsV0 {
+    variable_decl_names: Vec<String>,
+    symbol_decl_facts: Vec<ParserIndexSassSymbolDeclFactV0>,
+    variable_parameter_names: Vec<String>,
+    variable_ref_names: Vec<String>,
+    selectors_with_variable_refs_names: Vec<String>,
+    selectors_with_resolved_variable_refs_names: Vec<String>,
+    selectors_with_unresolved_variable_refs_names: Vec<String>,
+    mixin_decl_names: Vec<String>,
+    mixin_include_names: Vec<String>,
+    selectors_with_mixin_includes_names: Vec<String>,
+    selectors_with_resolved_mixin_includes_names: Vec<String>,
+    selectors_with_unresolved_mixin_includes_names: Vec<String>,
+    function_decl_names: Vec<String>,
+    function_call_names: Vec<String>,
+    selectors_with_function_calls_names: Vec<String>,
+    selector_symbol_facts: Vec<ParserIndexSassSelectorSymbolFactV0>,
+    module_use_sources: Vec<String>,
+    module_use_edges: Vec<ParserIndexSassModuleUseFactV0>,
+    module_forward_sources: Vec<String>,
+    module_import_sources: Vec<String>,
+    same_file_resolution: ParserIndexSassSameFileResolutionFactsV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexSassSymbolDeclFactV0 {
+    symbol_kind: &'static str,
+    name: String,
+    role: &'static str,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexSassModuleUseFactV0 {
+    source: String,
+    namespace_kind: &'static str,
+    namespace: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexSassSameFileResolutionFactsV0 {
+    resolved_variable_ref_names: Vec<String>,
+    unresolved_variable_ref_names: Vec<String>,
+    resolved_mixin_include_names: Vec<String>,
+    unresolved_mixin_include_names: Vec<String>,
+    resolved_function_call_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexSassSelectorSymbolFactV0 {
+    selector_name: String,
+    symbol_kind: &'static str,
+    name: String,
+    namespace: Option<String>,
+    role: &'static str,
+    resolution: &'static str,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexKeyframesFactsV0 {
+    names: Vec<String>,
+    names_under_media: Vec<String>,
+    names_under_supports: Vec<String>,
+    names_under_layer: Vec<String>,
+    animation_ref_names: Vec<String>,
+    animation_name_ref_names: Vec<String>,
+    selectors_with_animation_ref_names: Vec<String>,
+    selectors_with_animation_name_ref_names: Vec<String>,
+    selectors_with_animation_refs_under_media_names: Vec<String>,
+    selectors_with_animation_refs_under_supports_names: Vec<String>,
+    selectors_with_animation_refs_under_layer_names: Vec<String>,
+    selectors_with_animation_name_refs_under_media_names: Vec<String>,
+    selectors_with_animation_name_refs_under_supports_names: Vec<String>,
+    selectors_with_animation_name_refs_under_layer_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexComposesFactsV0 {
+    selectors_with_composes_names: Vec<String>,
+    selectors_with_composes_under_media_names: Vec<String>,
+    selectors_with_composes_under_supports_names: Vec<String>,
+    selectors_with_composes_under_layer_names: Vec<String>,
+    local_selector_names: Vec<String>,
+    imported_selector_names: Vec<String>,
+    global_selector_names: Vec<String>,
+    local_selector_names_under_media: Vec<String>,
+    local_selector_names_under_supports: Vec<String>,
+    local_selector_names_under_layer: Vec<String>,
+    imported_selector_names_under_media: Vec<String>,
+    imported_selector_names_under_supports: Vec<String>,
+    imported_selector_names_under_layer: Vec<String>,
+    global_selector_names_under_media: Vec<String>,
+    global_selector_names_under_supports: Vec<String>,
+    global_selector_names_under_layer: Vec<String>,
+    import_sources: Vec<String>,
+    import_sources_under_media: Vec<String>,
+    import_sources_under_supports: Vec<String>,
+    import_sources_under_layer: Vec<String>,
+    class_name_count: usize,
+    local_class_name_count: usize,
+    imported_class_name_count: usize,
+    global_class_name_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexWrapperFactsV0 {
+    selectors_under_media_names: Vec<String>,
+    selectors_under_supports_names: Vec<String>,
+    selectors_under_layer_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct NestedSafetyCountsV0 {
+    flat: usize,
+    bem_suffix_safe: usize,
+    nested_unsafe: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SelectorBranch {
+    name: String,
+    name_span: ParserByteSpanV0,
+    bare_suffix_base: bool,
+    amp_suffix_depth: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SassVariableDeclScope {
+    name: String,
+    selector_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StyleBlock {
+    names: Vec<String>,
+    context_text: Option<String>,
+    start: usize,
+    end: usize,
+    under_media: bool,
+    under_supports: bool,
+    under_layer: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+struct WrapperContext {
+    under_media: bool,
+    under_supports: bool,
+    under_layer: bool,
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let file_path = env::args()
+        .nth(1)
+        .ok_or("usage: omena-parser-css-modules-intermediate <style-file-path>")?;
+    let mut source = String::new();
+    io::stdin().read_to_string(&mut source)?;
+    let dialect = dialect_for_path(&file_path);
+    let summary = summarize_css_modules_intermediate(&source, dialect);
+    serde_json::to_writer_pretty(io::stdout(), &summary)?;
+    Ok(())
+}
+
+fn summarize_css_modules_intermediate(source: &str, dialect: StyleDialect) -> ParserIndexSummaryV0 {
+    let facts = collect_style_facts(source, dialect);
+    let blocks = collect_style_blocks(source);
+    let selectors = summarize_selectors(source, &facts, &blocks);
+    let values = summarize_values(&facts, &blocks);
+    let custom_properties = summarize_custom_properties(source, &facts, &blocks);
+    let sass = summarize_sass(source, &facts, &blocks);
+    let keyframes = summarize_keyframes(source, &facts, &blocks);
+    let composes = summarize_composes(&facts, &blocks);
+    let wrappers = summarize_wrappers(&blocks);
+
+    ParserIndexSummaryV0 {
+        schema_version: "0",
+        language: dialect_label(dialect),
+        selectors: ParserIndexSelectorFactsV0 {
+            selectors_with_value_refs_names: values.selectors_with_refs_names.clone(),
+            selectors_with_animation_ref_names: keyframes
+                .selectors_with_animation_ref_names
+                .clone(),
+            selectors_with_animation_name_ref_names: keyframes
+                .selectors_with_animation_name_ref_names
+                .clone(),
+            ..selectors
+        },
+        values,
+        custom_properties,
+        sass,
+        keyframes,
+        composes,
+        wrappers,
+    }
+}
+
+fn summarize_selectors(
+    source: &str,
+    facts: &ParsedStyleFacts,
+    blocks: &[StyleBlock],
+) -> ParserIndexSelectorFactsV0 {
+    let mut names = Vec::new();
+    let mut definition_facts = Vec::new();
+    let mut bem_suffix_parent_names = Vec::new();
+    let mut bem_suffix_safe_names = Vec::new();
+    let mut nested_unsafe_names = Vec::new();
+    let mut nested_safety_counts = NestedSafetyCountsV0::default();
+
+    for selector in &facts.selectors {
+        if selector.kind != ParsedSelectorFactKind::Class {
+            continue;
+        }
+        let name = selector.name.clone();
+        names.push(name.clone());
+        let byte_span = byte_span_for_range(selector.range);
+        let nested_safety_kind = nested_safety_for_selector(blocks, &name).unwrap_or("flat");
+        let bem_suffix_parent_name = if nested_safety_kind == "bemSuffixSafe" {
+            bem_suffix_parent_name(&name)
+        } else {
+            None
+        };
+        match nested_safety_kind {
+            "bemSuffixSafe" => {
+                nested_safety_counts.bem_suffix_safe += 1;
+                bem_suffix_safe_names.push(name.clone());
+                if let Some(parent) = &bem_suffix_parent_name {
+                    bem_suffix_parent_names.push(parent.clone());
+                }
+            }
+            "nestedUnsafe" => {
+                nested_safety_counts.nested_unsafe += 1;
+                nested_unsafe_names.push(name.clone());
+            }
+            _ => nested_safety_counts.flat += 1,
+        }
+        let wrapper = wrapper_for_offset(blocks, byte_span.start);
+        definition_facts.push(ParserIndexSelectorDefinitionFactV0 {
+            name,
+            source_order: definition_facts.len(),
+            byte_span,
+            range: parser_range_for_byte_span(source, byte_span),
+            nested_safety_kind,
+            bem_suffix_parent_name,
+            under_media: wrapper.under_media,
+            under_supports: wrapper.under_supports,
+            under_layer: wrapper.under_layer,
+        });
+    }
+
+    names.sort();
+    definition_facts.sort();
+    bem_suffix_parent_names.sort();
+    bem_suffix_safe_names.sort();
+    nested_unsafe_names.sort();
+
+    ParserIndexSelectorFactsV0 {
+        names,
+        definition_facts,
+        bem_suffix_count: bem_suffix_safe_names.len(),
+        bem_suffix_parent_names,
+        bem_suffix_safe_names,
+        nested_unsafe_names,
+        nested_safety_counts,
+        ..ParserIndexSelectorFactsV0::default()
+    }
+}
+
+fn summarize_values(facts: &ParsedStyleFacts, blocks: &[StyleBlock]) -> ParserIndexValueFactsV0 {
+    let imported_sources_by_name = facts
+        .css_module_value_import_edges
+        .iter()
+        .map(|edge| (edge.local_name.clone(), edge.import_source.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let imported_names = imported_sources_by_name
+        .keys()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let local_decl_names = facts
+        .css_module_values
+        .iter()
+        .filter(|value| value.kind == ParsedCssModuleValueFactKind::Definition)
+        .map(|value| value.name.clone())
+        .filter(|name| !imported_names.contains(name))
+        .collect::<BTreeSet<_>>();
+    let value_decl_ref_names = facts
+        .css_module_value_definition_edges
+        .iter()
+        .flat_map(|edge| edge.reference_names.iter().cloned())
+        .collect::<Vec<_>>();
+    let mut declaration_ref_names = Vec::new();
+    let mut selectors_with_refs = BTreeSet::new();
+    let mut selectors_with_local_refs = BTreeSet::new();
+    let mut selectors_with_imported_refs = BTreeSet::new();
+    let mut selectors_with_refs_under_media = BTreeSet::new();
+    let mut selectors_with_refs_under_supports = BTreeSet::new();
+    let mut selectors_with_refs_under_layer = BTreeSet::new();
+    let mut selectors_with_local_refs_under_media = BTreeSet::new();
+    let mut selectors_with_local_refs_under_supports = BTreeSet::new();
+    let mut selectors_with_local_refs_under_layer = BTreeSet::new();
+    let mut selectors_with_imported_refs_under_media = BTreeSet::new();
+    let mut selectors_with_imported_refs_under_supports = BTreeSet::new();
+    let mut selectors_with_imported_refs_under_layer = BTreeSet::new();
+
+    for value in &facts.css_module_values {
+        if value.kind != ParsedCssModuleValueFactKind::Reference {
+            continue;
+        }
+        let offset = range_start(value.range);
+        let selector_names = selector_names_for_offset(blocks, offset);
+        if !selector_names.is_empty() {
+            declaration_ref_names.push(value.name.clone());
+            let wrapper = wrapper_for_offset(blocks, offset);
+            for selector in selector_names {
+                selectors_with_refs.insert(selector.clone());
+                insert_by_wrapper(
+                    &mut selectors_with_refs_under_media,
+                    &mut selectors_with_refs_under_supports,
+                    &mut selectors_with_refs_under_layer,
+                    &selector,
+                    wrapper,
+                );
+                if local_decl_names.contains(&value.name) {
+                    selectors_with_local_refs.insert(selector.clone());
+                    insert_by_wrapper(
+                        &mut selectors_with_local_refs_under_media,
+                        &mut selectors_with_local_refs_under_supports,
+                        &mut selectors_with_local_refs_under_layer,
+                        &selector,
+                        wrapper,
+                    );
+                }
+                if imported_names.contains(&value.name) {
+                    selectors_with_imported_refs.insert(selector.clone());
+                    insert_by_wrapper(
+                        &mut selectors_with_imported_refs_under_media,
+                        &mut selectors_with_imported_refs_under_supports,
+                        &mut selectors_with_imported_refs_under_layer,
+                        &selector,
+                        wrapper,
+                    );
+                }
+            }
+        }
+    }
+
+    let mut value_decl_imported_ref_sources = Vec::new();
+    for name in &value_decl_ref_names {
+        if let Some(source) = imported_sources_by_name.get(name) {
+            value_decl_imported_ref_sources.push(source.clone());
+        }
+    }
+    let mut declaration_imported_ref_sources = Vec::new();
+    for name in &declaration_ref_names {
+        if let Some(source) = imported_sources_by_name.get(name) {
+            declaration_imported_ref_sources.push(source.clone());
+        }
+    }
+    let semantic_ref_names = declaration_ref_names
+        .iter()
+        .chain(value_decl_ref_names.iter())
+        .cloned()
+        .collect::<Vec<_>>();
+
+    ParserIndexValueFactsV0 {
+        decl_names: sorted(local_decl_names.clone()),
+        decl_names_with_local_refs: facts
+            .css_module_value_definition_edges
+            .iter()
+            .filter(|edge| {
+                edge.reference_names
+                    .iter()
+                    .any(|name| local_decl_names.contains(name))
+            })
+            .map(|edge| edge.definition_name.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect(),
+        decl_names_with_imported_refs: facts
+            .css_module_value_definition_edges
+            .iter()
+            .filter(|edge| {
+                edge.reference_names
+                    .iter()
+                    .any(|name| imported_names.contains(name))
+            })
+            .map(|edge| edge.definition_name.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect(),
+        import_names: facts
+            .css_module_value_import_edges
+            .iter()
+            .map(|edge| edge.local_name.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect(),
+        import_sources: facts
+            .css_module_value_import_edges
+            .iter()
+            .map(|edge| edge.import_source.clone())
+            .collect::<Vec<_>>()
+            .tap_sort(),
+        import_alias_count: facts
+            .css_module_value_import_edges
+            .iter()
+            .filter(|edge| edge.remote_name != edge.local_name)
+            .count(),
+        ref_names: semantic_ref_names.clone().tap_sort(),
+        local_ref_names: semantic_ref_names
+            .iter()
+            .filter(|name| local_decl_names.contains(*name))
+            .cloned()
+            .collect::<Vec<_>>()
+            .tap_sort(),
+        imported_ref_names: semantic_ref_names
+            .iter()
+            .filter(|name| imported_names.contains(*name))
+            .cloned()
+            .collect::<Vec<_>>()
+            .tap_sort(),
+        imported_ref_sources: semantic_ref_names
+            .iter()
+            .filter_map(|name| imported_sources_by_name.get(name).cloned())
+            .collect::<Vec<_>>()
+            .tap_sort(),
+        declaration_ref_names: declaration_ref_names.tap_sort(),
+        declaration_imported_ref_sources: declaration_imported_ref_sources.tap_sort(),
+        value_decl_ref_names: value_decl_ref_names.tap_sort(),
+        value_decl_imported_ref_sources: value_decl_imported_ref_sources.tap_sort(),
+        selectors_with_refs_names: sorted(selectors_with_refs),
+        selectors_with_local_refs_names: sorted(selectors_with_local_refs),
+        selectors_with_imported_refs_names: sorted(selectors_with_imported_refs),
+        selectors_with_refs_under_media_names: sorted(selectors_with_refs_under_media),
+        selectors_with_refs_under_supports_names: sorted(selectors_with_refs_under_supports),
+        selectors_with_refs_under_layer_names: sorted(selectors_with_refs_under_layer),
+        selectors_with_local_refs_under_media_names: sorted(selectors_with_local_refs_under_media),
+        selectors_with_local_refs_under_supports_names: sorted(
+            selectors_with_local_refs_under_supports,
+        ),
+        selectors_with_local_refs_under_layer_names: sorted(selectors_with_local_refs_under_layer),
+        selectors_with_imported_refs_under_media_names: sorted(
+            selectors_with_imported_refs_under_media,
+        ),
+        selectors_with_imported_refs_under_supports_names: sorted(
+            selectors_with_imported_refs_under_supports,
+        ),
+        selectors_with_imported_refs_under_layer_names: sorted(
+            selectors_with_imported_refs_under_layer,
+        ),
+    }
+}
+
+fn summarize_custom_properties(
+    source: &str,
+    facts: &ParsedStyleFacts,
+    blocks: &[StyleBlock],
+) -> ParserIndexCustomPropertyFactsV0 {
+    let mut decl_facts = Vec::new();
+    let mut ref_facts = Vec::new();
+    for variable in &facts.variables {
+        match variable.kind {
+            ParsedVariableFactKind::CustomPropertyDeclaration => {
+                let byte_span = byte_span_for_range(variable.range);
+                let wrapper = wrapper_for_offset(blocks, byte_span.start);
+                decl_facts.push(ParserIndexCustomPropertyDeclFactV0 {
+                    name: variable.name.clone(),
+                    source_order: decl_facts.len(),
+                    byte_span,
+                    range: parser_range_for_byte_span(source, byte_span),
+                    selector_contexts: selector_contexts_for_offset(blocks, byte_span.start),
+                    under_media: wrapper.under_media,
+                    under_supports: wrapper.under_supports,
+                    under_layer: wrapper.under_layer,
+                });
+            }
+            ParsedVariableFactKind::CustomPropertyReference => {
+                let offset = range_start(variable.range);
+                let wrapper = wrapper_for_offset(blocks, offset);
+                ref_facts.push(ParserIndexCustomPropertyRefFactV0 {
+                    name: variable.name.clone(),
+                    source_order: ref_facts.len(),
+                    selector_contexts: selector_contexts_for_offset(blocks, offset),
+                    under_media: wrapper.under_media,
+                    under_supports: wrapper.under_supports,
+                    under_layer: wrapper.under_layer,
+                });
+            }
+            _ => {}
+        }
+    }
+    decl_facts.sort();
+    decl_facts.dedup();
+    ref_facts.sort();
+    ref_facts.dedup();
+    ParserIndexCustomPropertyFactsV0 {
+        decl_names: sorted(decl_facts.iter().map(|fact| fact.name.clone()).collect()),
+        decl_context_selectors: sorted(
+            decl_facts
+                .iter()
+                .flat_map(|fact| fact.selector_contexts.iter().cloned())
+                .collect(),
+        ),
+        decl_names_under_media: sorted(
+            decl_facts
+                .iter()
+                .filter(|fact| fact.under_media)
+                .map(|fact| fact.name.clone())
+                .collect(),
+        ),
+        decl_names_under_supports: sorted(
+            decl_facts
+                .iter()
+                .filter(|fact| fact.under_supports)
+                .map(|fact| fact.name.clone())
+                .collect(),
+        ),
+        decl_names_under_layer: sorted(
+            decl_facts
+                .iter()
+                .filter(|fact| fact.under_layer)
+                .map(|fact| fact.name.clone())
+                .collect(),
+        ),
+        ref_names: sorted(ref_facts.iter().map(|fact| fact.name.clone()).collect()),
+        selectors_with_refs_names: sorted(
+            ref_facts
+                .iter()
+                .flat_map(|fact| selector_names_from_contexts(&fact.selector_contexts))
+                .collect(),
+        ),
+        selectors_with_refs_under_media_names: sorted(
+            ref_facts
+                .iter()
+                .filter(|fact| fact.under_media)
+                .flat_map(|fact| selector_names_from_contexts(&fact.selector_contexts))
+                .collect(),
+        ),
+        selectors_with_refs_under_supports_names: sorted(
+            ref_facts
+                .iter()
+                .filter(|fact| fact.under_supports)
+                .flat_map(|fact| selector_names_from_contexts(&fact.selector_contexts))
+                .collect(),
+        ),
+        selectors_with_refs_under_layer_names: sorted(
+            ref_facts
+                .iter()
+                .filter(|fact| fact.under_layer)
+                .flat_map(|fact| selector_names_from_contexts(&fact.selector_contexts))
+                .collect(),
+        ),
+        decl_facts,
+        ref_facts,
+    }
+}
+
+fn summarize_sass(
+    source: &str,
+    facts: &ParsedStyleFacts,
+    blocks: &[StyleBlock],
+) -> ParserIndexSassFactsV0 {
+    let mut variable_decl_names = BTreeSet::new();
+    let mut variable_parameter_names = BTreeSet::new();
+    let mut variable_ref_names = BTreeSet::new();
+    let mut mixin_decl_names = BTreeSet::new();
+    let mut mixin_include_names = BTreeSet::new();
+    let mut function_decl_names = BTreeSet::new();
+    let mut function_call_names = BTreeSet::new();
+    let mut symbol_decl_facts = Vec::new();
+    let mut selector_symbol_facts = Vec::new();
+    let mut global_variable_decl_names = BTreeSet::new();
+    let mut variable_decl_scopes = Vec::new();
+
+    for symbol in &facts.sass_symbols {
+        let byte_span = byte_span_for_range(symbol.range);
+        let range = parser_range_for_byte_span(source, byte_span);
+        match symbol.kind {
+            ParsedSassSymbolFactKind::VariableDeclaration => {
+                if symbol.role == "parameter"
+                    || is_sass_parameter_declaration(source, byte_span.start)
+                {
+                    variable_parameter_names.insert(symbol.name.clone());
+                } else {
+                    variable_decl_names.insert(symbol.name.clone());
+                    let selector_names = selector_names_for_offset(blocks, byte_span.start);
+                    if selector_names.is_empty() {
+                        global_variable_decl_names.insert(symbol.name.clone());
+                    }
+                    variable_decl_scopes.push(SassVariableDeclScope {
+                        name: symbol.name.clone(),
+                        selector_names,
+                    });
+                }
+                symbol_decl_facts.push(ParserIndexSassSymbolDeclFactV0 {
+                    symbol_kind: symbol.symbol_kind,
+                    name: symbol.name.clone(),
+                    role: symbol.role,
+                    byte_span,
+                    range,
+                });
+            }
+            ParsedSassSymbolFactKind::MixinDeclaration => {
+                mixin_decl_names.insert(symbol.name.clone());
+                symbol_decl_facts.push(ParserIndexSassSymbolDeclFactV0 {
+                    symbol_kind: symbol.symbol_kind,
+                    name: symbol.name.clone(),
+                    role: symbol.role,
+                    byte_span,
+                    range,
+                });
+            }
+            ParsedSassSymbolFactKind::FunctionDeclaration => {
+                function_decl_names.insert(symbol.name.clone());
+                symbol_decl_facts.push(ParserIndexSassSymbolDeclFactV0 {
+                    symbol_kind: symbol.symbol_kind,
+                    name: symbol.name.clone(),
+                    role: symbol.role,
+                    byte_span,
+                    range,
+                });
+            }
+            ParsedSassSymbolFactKind::VariableReference => {
+                variable_ref_names.insert(symbol.name.clone());
+            }
+            ParsedSassSymbolFactKind::MixinInclude => {
+                if symbol.namespace.is_none() {
+                    mixin_include_names.insert(symbol.name.clone());
+                }
+            }
+            ParsedSassSymbolFactKind::FunctionCall => {
+                if symbol.namespace.is_none() {
+                    function_call_names.insert(symbol.name.clone());
+                }
+            }
+        }
+    }
+
+    let mut resolved_variable_ref_names = BTreeSet::new();
+    let mut unresolved_variable_ref_names = BTreeSet::new();
+    for symbol in &facts.sass_symbols {
+        if symbol.kind != ParsedSassSymbolFactKind::VariableReference || symbol.namespace.is_some()
+        {
+            continue;
+        }
+        if is_sass_variable_reference_resolved(
+            &symbol.name,
+            range_start(symbol.range),
+            blocks,
+            &global_variable_decl_names,
+            &variable_parameter_names,
+            &variable_decl_scopes,
+        ) {
+            resolved_variable_ref_names.insert(symbol.name.clone());
+        } else {
+            unresolved_variable_ref_names.insert(symbol.name.clone());
+        }
+    }
+
+    let same_file_resolution = ParserIndexSassSameFileResolutionFactsV0 {
+        resolved_variable_ref_names: sorted(resolved_variable_ref_names),
+        unresolved_variable_ref_names: sorted(unresolved_variable_ref_names),
+        resolved_mixin_include_names: sorted(
+            mixin_include_names
+                .iter()
+                .filter(|name| mixin_decl_names.contains(*name))
+                .cloned()
+                .collect(),
+        ),
+        unresolved_mixin_include_names: sorted(
+            mixin_include_names
+                .iter()
+                .filter(|name| !mixin_decl_names.contains(*name))
+                .cloned()
+                .collect(),
+        ),
+        resolved_function_call_names: sorted(
+            function_call_names
+                .iter()
+                .filter(|name| function_decl_names.contains(*name))
+                .cloned()
+                .collect(),
+        ),
+    };
+
+    for symbol in &facts.sass_symbols {
+        if matches!(
+            symbol.kind,
+            ParsedSassSymbolFactKind::VariableDeclaration
+                | ParsedSassSymbolFactKind::MixinDeclaration
+                | ParsedSassSymbolFactKind::FunctionDeclaration
+        ) {
+            continue;
+        }
+        let offset = range_start(symbol.range);
+        let byte_span = byte_span_for_range(symbol.range);
+        for selector_name in selector_names_for_offset(blocks, offset) {
+            let resolution = match symbol.kind {
+                ParsedSassSymbolFactKind::VariableReference if symbol.namespace.is_some() => {
+                    "external"
+                }
+                ParsedSassSymbolFactKind::VariableReference
+                    if is_sass_variable_reference_resolved(
+                        &symbol.name,
+                        offset,
+                        blocks,
+                        &global_variable_decl_names,
+                        &variable_parameter_names,
+                        &variable_decl_scopes,
+                    ) =>
+                {
+                    "resolved"
+                }
+                ParsedSassSymbolFactKind::MixinInclude if symbol.namespace.is_some() => "external",
+                ParsedSassSymbolFactKind::MixinInclude
+                    if same_file_resolution
+                        .resolved_mixin_include_names
+                        .contains(&symbol.name) =>
+                {
+                    "resolved"
+                }
+                ParsedSassSymbolFactKind::FunctionCall if symbol.namespace.is_some() => "external",
+                ParsedSassSymbolFactKind::FunctionCall
+                    if same_file_resolution
+                        .resolved_function_call_names
+                        .contains(&symbol.name) =>
+                {
+                    "resolved"
+                }
+                _ => "unresolved",
+            };
+            selector_symbol_facts.push(ParserIndexSassSelectorSymbolFactV0 {
+                selector_name,
+                symbol_kind: symbol.symbol_kind,
+                name: symbol.name.clone(),
+                namespace: symbol.namespace.clone(),
+                role: symbol.role,
+                resolution,
+                byte_span,
+                range: parser_range_for_byte_span(source, byte_span),
+            });
+        }
+    }
+    selector_symbol_facts.sort();
+    selector_symbol_facts.dedup();
+
+    let mut module_use_sources = BTreeSet::new();
+    let mut module_forward_sources = BTreeSet::new();
+    let mut module_import_sources = BTreeSet::new();
+    let mut module_use_edges = Vec::new();
+    for edge in &facts.sass_module_edges {
+        match edge.kind {
+            ParsedSassModuleEdgeFactKind::Use => {
+                module_use_sources.insert(edge.source.clone());
+                module_use_edges.push(ParserIndexSassModuleUseFactV0 {
+                    source: edge.source.clone(),
+                    namespace_kind: edge.namespace_kind.unwrap_or("default"),
+                    namespace: edge.namespace.clone(),
+                });
+            }
+            ParsedSassModuleEdgeFactKind::Forward => {
+                module_forward_sources.insert(edge.source.clone());
+            }
+            ParsedSassModuleEdgeFactKind::Import => {
+                module_use_sources.insert(edge.source.clone());
+                module_import_sources.insert(edge.source.clone());
+                module_use_edges.push(ParserIndexSassModuleUseFactV0 {
+                    source: edge.source.clone(),
+                    namespace_kind: "wildcard",
+                    namespace: None,
+                });
+            }
+        }
+    }
+    module_use_edges.sort();
+    module_use_edges.dedup();
+
+    ParserIndexSassFactsV0 {
+        variable_decl_names: sorted(variable_decl_names),
+        symbol_decl_facts,
+        variable_parameter_names: sorted(variable_parameter_names.clone()),
+        variable_ref_names: sorted(variable_ref_names),
+        selectors_with_variable_refs_names: selector_names_for_variable_symbols(
+            blocks,
+            facts,
+            &global_variable_decl_names,
+            &variable_parameter_names,
+            &variable_decl_scopes,
+            None,
+        ),
+        selectors_with_resolved_variable_refs_names: selector_names_for_variable_symbols(
+            blocks,
+            facts,
+            &global_variable_decl_names,
+            &variable_parameter_names,
+            &variable_decl_scopes,
+            Some(true),
+        ),
+        selectors_with_unresolved_variable_refs_names: selector_names_for_variable_symbols(
+            blocks,
+            facts,
+            &global_variable_decl_names,
+            &variable_parameter_names,
+            &variable_decl_scopes,
+            Some(false),
+        ),
+        mixin_decl_names: sorted(mixin_decl_names),
+        mixin_include_names: sorted(mixin_include_names),
+        selectors_with_mixin_includes_names: selector_names_for_symbols(
+            blocks,
+            facts,
+            ParsedSassSymbolFactKind::MixinInclude,
+            None,
+        ),
+        selectors_with_resolved_mixin_includes_names: selector_names_for_symbols(
+            blocks,
+            facts,
+            ParsedSassSymbolFactKind::MixinInclude,
+            Some(&same_file_resolution.resolved_mixin_include_names),
+        ),
+        selectors_with_unresolved_mixin_includes_names: selector_names_for_symbols(
+            blocks,
+            facts,
+            ParsedSassSymbolFactKind::MixinInclude,
+            Some(&same_file_resolution.unresolved_mixin_include_names),
+        ),
+        function_decl_names: sorted(function_decl_names),
+        function_call_names: sorted(function_call_names),
+        selectors_with_function_calls_names: selector_names_for_symbols(
+            blocks,
+            facts,
+            ParsedSassSymbolFactKind::FunctionCall,
+            None,
+        ),
+        selector_symbol_facts,
+        module_use_sources: sorted(module_use_sources),
+        module_use_edges,
+        module_forward_sources: sorted(module_forward_sources),
+        module_import_sources: sorted(module_import_sources),
+        same_file_resolution,
+    }
+}
+
+fn summarize_keyframes(
+    source: &str,
+    facts: &ParsedStyleFacts,
+    blocks: &[StyleBlock],
+) -> ParserIndexKeyframesFactsV0 {
+    let mut names = Vec::new();
+    let mut names_under_media = BTreeSet::new();
+    let mut names_under_supports = BTreeSet::new();
+    let mut names_under_layer = BTreeSet::new();
+    let mut animation_ref_names = Vec::new();
+    let mut animation_name_ref_names = Vec::new();
+    let mut selectors_with_animation_ref_names = BTreeSet::new();
+    let mut selectors_with_animation_name_ref_names = BTreeSet::new();
+    let mut selectors_with_animation_refs_under_media_names = BTreeSet::new();
+    let mut selectors_with_animation_refs_under_supports_names = BTreeSet::new();
+    let mut selectors_with_animation_refs_under_layer_names = BTreeSet::new();
+    let mut selectors_with_animation_name_refs_under_media_names = BTreeSet::new();
+    let mut selectors_with_animation_name_refs_under_supports_names = BTreeSet::new();
+    let mut selectors_with_animation_name_refs_under_layer_names = BTreeSet::new();
+    let declared_keyframes = facts
+        .animations
+        .iter()
+        .filter(|animation| animation.kind == ParsedAnimationFactKind::KeyframesDeclaration)
+        .map(|animation| animation.name.clone())
+        .collect::<BTreeSet<_>>();
+
+    for animation in &facts.animations {
+        let offset = range_start(animation.range);
+        let wrapper = wrapper_for_offset(blocks, offset);
+        match animation.kind {
+            ParsedAnimationFactKind::KeyframesDeclaration => {
+                names.push(animation.name.clone());
+                insert_by_wrapper(
+                    &mut names_under_media,
+                    &mut names_under_supports,
+                    &mut names_under_layer,
+                    &animation.name,
+                    wrapper,
+                );
+            }
+            ParsedAnimationFactKind::AnimationNameReference => {
+                if !declared_keyframes.contains(&animation.name) {
+                    continue;
+                }
+                let selectors = selector_names_for_offset(blocks, offset);
+                if property_name_before_offset(source, offset).as_deref() == Some("animation-name")
+                {
+                    animation_name_ref_names.push(animation.name.clone());
+                    for selector in selectors {
+                        selectors_with_animation_name_ref_names.insert(selector.clone());
+                        insert_by_wrapper(
+                            &mut selectors_with_animation_name_refs_under_media_names,
+                            &mut selectors_with_animation_name_refs_under_supports_names,
+                            &mut selectors_with_animation_name_refs_under_layer_names,
+                            &selector,
+                            wrapper,
+                        );
+                    }
+                } else {
+                    animation_ref_names.push(animation.name.clone());
+                    for selector in selectors {
+                        selectors_with_animation_ref_names.insert(selector.clone());
+                        insert_by_wrapper(
+                            &mut selectors_with_animation_refs_under_media_names,
+                            &mut selectors_with_animation_refs_under_supports_names,
+                            &mut selectors_with_animation_refs_under_layer_names,
+                            &selector,
+                            wrapper,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    ParserIndexKeyframesFactsV0 {
+        names: names.tap_sort_unique(),
+        names_under_media: sorted(names_under_media),
+        names_under_supports: sorted(names_under_supports),
+        names_under_layer: sorted(names_under_layer),
+        animation_ref_names: animation_ref_names.tap_sort_unique(),
+        animation_name_ref_names: animation_name_ref_names.tap_sort_unique(),
+        selectors_with_animation_ref_names: sorted(selectors_with_animation_ref_names),
+        selectors_with_animation_name_ref_names: sorted(selectors_with_animation_name_ref_names),
+        selectors_with_animation_refs_under_media_names: sorted(
+            selectors_with_animation_refs_under_media_names,
+        ),
+        selectors_with_animation_refs_under_supports_names: sorted(
+            selectors_with_animation_refs_under_supports_names,
+        ),
+        selectors_with_animation_refs_under_layer_names: sorted(
+            selectors_with_animation_refs_under_layer_names,
+        ),
+        selectors_with_animation_name_refs_under_media_names: sorted(
+            selectors_with_animation_name_refs_under_media_names,
+        ),
+        selectors_with_animation_name_refs_under_supports_names: sorted(
+            selectors_with_animation_name_refs_under_supports_names,
+        ),
+        selectors_with_animation_name_refs_under_layer_names: sorted(
+            selectors_with_animation_name_refs_under_layer_names,
+        ),
+    }
+}
+
+fn summarize_composes(
+    facts: &ParsedStyleFacts,
+    blocks: &[StyleBlock],
+) -> ParserIndexComposesFactsV0 {
+    let mut summary = ParserIndexComposesFactsV0::default();
+    for edge in &facts.css_module_composes_edges {
+        let wrapper = wrapper_for_offset(blocks, range_start(edge.range));
+        let count = edge.owner_selector_names.len() * edge.target_names.len();
+        summary.class_name_count += count;
+        for owner in &edge.owner_selector_names {
+            summary.selectors_with_composes_names.push(owner.clone());
+            insert_vec_by_wrapper(
+                &mut summary.selectors_with_composes_under_media_names,
+                &mut summary.selectors_with_composes_under_supports_names,
+                &mut summary.selectors_with_composes_under_layer_names,
+                owner,
+                wrapper,
+            );
+        }
+        match edge.kind {
+            ParsedCssModuleComposesEdgeKind::Local => {
+                summary.local_class_name_count += count;
+                for owner in &edge.owner_selector_names {
+                    summary.local_selector_names.push(owner.clone());
+                    insert_vec_by_wrapper(
+                        &mut summary.local_selector_names_under_media,
+                        &mut summary.local_selector_names_under_supports,
+                        &mut summary.local_selector_names_under_layer,
+                        owner,
+                        wrapper,
+                    );
+                }
+            }
+            ParsedCssModuleComposesEdgeKind::External => {
+                summary.imported_class_name_count += count;
+                for owner in &edge.owner_selector_names {
+                    summary.imported_selector_names.push(owner.clone());
+                    insert_vec_by_wrapper(
+                        &mut summary.imported_selector_names_under_media,
+                        &mut summary.imported_selector_names_under_supports,
+                        &mut summary.imported_selector_names_under_layer,
+                        owner,
+                        wrapper,
+                    );
+                    if let Some(source) = &edge.import_source {
+                        summary.import_sources.push(source.clone());
+                        if wrapper.under_media {
+                            summary.import_sources_under_media.push(source.clone());
+                        }
+                        if wrapper.under_supports {
+                            summary.import_sources_under_supports.push(source.clone());
+                        }
+                        if wrapper.under_layer {
+                            summary.import_sources_under_layer.push(source.clone());
+                        }
+                    }
+                }
+            }
+            ParsedCssModuleComposesEdgeKind::Global => {
+                summary.global_class_name_count += count;
+                for owner in &edge.owner_selector_names {
+                    summary.global_selector_names.push(owner.clone());
+                    insert_vec_by_wrapper(
+                        &mut summary.global_selector_names_under_media,
+                        &mut summary.global_selector_names_under_supports,
+                        &mut summary.global_selector_names_under_layer,
+                        owner,
+                        wrapper,
+                    );
+                }
+            }
+        }
+    }
+    sort_all_composes(&mut summary);
+    summary
+}
+
+fn summarize_wrappers(blocks: &[StyleBlock]) -> ParserIndexWrapperFactsV0 {
+    ParserIndexWrapperFactsV0 {
+        selectors_under_media_names: sorted(
+            blocks
+                .iter()
+                .filter(|block| block.under_media)
+                .flat_map(|block| {
+                    block
+                        .names
+                        .iter()
+                        .filter(|name| !name.starts_with("__selector_meta:"))
+                        .cloned()
+                })
+                .collect(),
+        ),
+        selectors_under_supports_names: sorted(
+            blocks
+                .iter()
+                .filter(|block| block.under_supports)
+                .flat_map(|block| {
+                    block
+                        .names
+                        .iter()
+                        .filter(|name| !name.starts_with("__selector_meta:"))
+                        .cloned()
+                })
+                .collect(),
+        ),
+        selectors_under_layer_names: sorted(
+            blocks
+                .iter()
+                .filter(|block| block.under_layer)
+                .flat_map(|block| {
+                    block
+                        .names
+                        .iter()
+                        .filter(|name| !name.starts_with("__selector_meta:"))
+                        .cloned()
+                })
+                .collect(),
+        ),
+    }
+}
+
+fn collect_style_blocks(source: &str) -> Vec<StyleBlock> {
+    let mut blocks = Vec::new();
+    collect_style_blocks_in_range(
+        source,
+        0,
+        source.len(),
+        &[],
+        false,
+        WrapperContext::default(),
+        &mut blocks,
+    );
+    blocks
+}
+
+fn collect_style_blocks_in_range(
+    source: &str,
+    start: usize,
+    end: usize,
+    parent_branches: &[SelectorBranch],
+    parent_is_grouped: bool,
+    wrapper: WrapperContext,
+    blocks: &mut Vec<StyleBlock>,
+) {
+    let mut index = start;
+    while let Some(open) = find_next_byte(source, b'{', index, end) {
+        let header_start = block_header_start(source, open, start);
+        let header = source.get(header_start..open).unwrap_or_default().trim();
+        let Some(close) = matching_brace(source, open, end) else {
+            break;
+        };
+        let mut child_wrapper = wrapper;
+        if header.starts_with("@media") {
+            child_wrapper.under_media = true;
+            blocks.push(StyleBlock {
+                names: Vec::new(),
+                context_text: None,
+                start: open + 1,
+                end: close,
+                under_media: child_wrapper.under_media,
+                under_supports: child_wrapper.under_supports,
+                under_layer: child_wrapper.under_layer,
+            });
+            collect_style_blocks_in_range(
+                source,
+                open + 1,
+                close,
+                parent_branches,
+                parent_is_grouped,
+                child_wrapper,
+                blocks,
+            );
+        } else if header.starts_with("@supports") {
+            child_wrapper.under_supports = true;
+            blocks.push(StyleBlock {
+                names: Vec::new(),
+                context_text: None,
+                start: open + 1,
+                end: close,
+                under_media: child_wrapper.under_media,
+                under_supports: child_wrapper.under_supports,
+                under_layer: child_wrapper.under_layer,
+            });
+            collect_style_blocks_in_range(
+                source,
+                open + 1,
+                close,
+                parent_branches,
+                parent_is_grouped,
+                child_wrapper,
+                blocks,
+            );
+        } else if header.starts_with("@layer") {
+            child_wrapper.under_layer = true;
+            blocks.push(StyleBlock {
+                names: Vec::new(),
+                context_text: None,
+                start: open + 1,
+                end: close,
+                under_media: child_wrapper.under_media,
+                under_supports: child_wrapper.under_supports,
+                under_layer: child_wrapper.under_layer,
+            });
+            collect_style_blocks_in_range(
+                source,
+                open + 1,
+                close,
+                parent_branches,
+                parent_is_grouped,
+                child_wrapper,
+                blocks,
+            );
+        } else if header.starts_with("@nest") {
+            let selector_header = header.trim_start_matches("@nest").trim();
+            let branches = resolve_selector_header_text(source, selector_header, parent_branches);
+            push_style_block(
+                source,
+                open,
+                close,
+                selector_header,
+                &branches,
+                parent_branches,
+                parent_is_grouped,
+                wrapper,
+                blocks,
+            );
+            collect_style_blocks_in_range(
+                source,
+                open + 1,
+                close,
+                &branches,
+                branches.len() > 1,
+                wrapper,
+                blocks,
+            );
+        } else if header.starts_with('@') {
+            // Non-wrapper at-rules such as keyframes own their nested blocks; do not
+            // treat keyframe selectors like `from`/`to` as CSS Modules selectors.
+        } else {
+            let branches = resolve_selector_header_text(source, header, parent_branches);
+            push_style_block(
+                source,
+                open,
+                close,
+                header,
+                &branches,
+                parent_branches,
+                parent_is_grouped,
+                wrapper,
+                blocks,
+            );
+            collect_style_blocks_in_range(
+                source,
+                open + 1,
+                close,
+                &branches,
+                branches.len() > 1,
+                wrapper,
+                blocks,
+            );
+        }
+        index = close + 1;
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_style_block(
+    source: &str,
+    open: usize,
+    close: usize,
+    header: &str,
+    branches: &[SelectorBranch],
+    parent_branches: &[SelectorBranch],
+    parent_is_grouped: bool,
+    wrapper: WrapperContext,
+    blocks: &mut Vec<StyleBlock>,
+) {
+    let context_text = if branches.is_empty() {
+        let trimmed = header.trim();
+        (!trimmed.is_empty()).then(|| trimmed.to_string())
+    } else {
+        None
+    };
+    let names = branches
+        .iter()
+        .map(|branch| branch.name.clone())
+        .collect::<Vec<_>>();
+    blocks.push(StyleBlock {
+        names: names.clone(),
+        context_text,
+        start: open + 1,
+        end: close,
+        under_media: wrapper.under_media,
+        under_supports: wrapper.under_supports,
+        under_layer: wrapper.under_layer,
+    });
+    let nested_safety =
+        classify_nested_safety(header, branches, parent_branches, parent_is_grouped);
+    for branch in branches {
+        blocks.push(StyleBlock {
+            names: vec![format!("__selector_meta:{}:{nested_safety}", branch.name)],
+            context_text: Some(source[branch.name_span.start..branch.name_span.end].to_string()),
+            start: branch.name_span.start,
+            end: branch.name_span.end,
+            under_media: wrapper.under_media,
+            under_supports: wrapper.under_supports,
+            under_layer: wrapper.under_layer,
+        });
+    }
+}
+
+fn resolve_selector_header_text(
+    source: &str,
+    header: &str,
+    parent_branches: &[SelectorBranch],
+) -> Vec<SelectorBranch> {
+    split_selector_groups_text(header)
+        .into_iter()
+        .flat_map(|group| resolve_selector_group_text(source, header, group, parent_branches))
+        .collect()
+}
+
+fn resolve_selector_group_text(
+    source: &str,
+    full_header: &str,
+    group: &str,
+    parent_branches: &[SelectorBranch],
+) -> Vec<SelectorBranch> {
+    let group = group.trim();
+    if group.starts_with(":global") && !group.starts_with(":local") {
+        return Vec::new();
+    }
+    let tail = selector_tail(group);
+    if let Some(suffix) = tail.strip_prefix('&').map(str::trim)
+        && (suffix.starts_with("__") || suffix.starts_with("--"))
+    {
+        let span = source_span_for_header_piece(source, full_header, suffix);
+        return parent_branches
+            .iter()
+            .map(|parent| SelectorBranch {
+                name: format!("{}{}", parent.name, suffix),
+                name_span: span,
+                bare_suffix_base: parent.bare_suffix_base,
+                amp_suffix_depth: parent.amp_suffix_depth + 1,
+            })
+            .collect();
+    }
+    let names = class_names_in_selector(tail, source, full_header);
+    let bare_suffix_base = parent_branches.is_empty() && names.len() == 1;
+    names
+        .into_iter()
+        .map(|(name, name_span)| SelectorBranch {
+            name,
+            name_span,
+            bare_suffix_base,
+            amp_suffix_depth: 0,
+        })
+        .collect()
+}
+
+fn classify_nested_safety(
+    header: &str,
+    branches: &[SelectorBranch],
+    parent_branches: &[SelectorBranch],
+    parent_is_grouped: bool,
+) -> &'static str {
+    if branches.is_empty() {
+        return "flat";
+    }
+    let is_nested = !parent_branches.is_empty() || header.contains('&');
+    if !is_nested {
+        return "flat";
+    }
+    let header = header.trim();
+    let bem_suffix_safe = branches.len() == 1
+        && parent_branches.len() == 1
+        && parent_branches[0].bare_suffix_base
+        && !parent_is_grouped
+        && header.starts_with('&')
+        && (header[1..].trim_start().starts_with("__")
+            || header[1..].trim_start().starts_with("--"));
+    let chained_bem_modifier_safe = header.starts_with('&')
+        && header[1..].trim_start().starts_with("--")
+        && !parent_branches.is_empty()
+        && parent_branches
+            .iter()
+            .all(|parent| parent.amp_suffix_depth > 0);
+    if bem_suffix_safe || chained_bem_modifier_safe {
+        "bemSuffixSafe"
+    } else {
+        "nestedUnsafe"
+    }
+}
+
+fn nested_safety_for_selector(blocks: &[StyleBlock], name: &str) -> Option<&'static str> {
+    blocks.iter().find_map(|block| {
+        block.names.iter().find_map(|entry| {
+            entry
+                .strip_prefix("__selector_meta:")
+                .and_then(|rest| rest.rsplit_once(':'))
+                .and_then(|(entry_name, kind)| {
+                    (entry_name == name).then(|| match kind {
+                        "bemSuffixSafe" => "bemSuffixSafe",
+                        "nestedUnsafe" => "nestedUnsafe",
+                        _ => "flat",
+                    })
+                })
+        })
+    })
+}
+
+fn split_selector_groups_text(header: &str) -> Vec<&str> {
+    let mut groups = Vec::new();
+    let mut start = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    for (index, byte) in header.bytes().enumerate() {
+        match byte {
+            b'(' => paren_depth += 1,
+            b')' => paren_depth = paren_depth.saturating_sub(1),
+            b'[' => bracket_depth += 1,
+            b']' => bracket_depth = bracket_depth.saturating_sub(1),
+            b',' if paren_depth == 0 && bracket_depth == 0 => {
+                groups.push(&header[start..index]);
+                start = index + 1;
+            }
+            _ => {}
+        }
+    }
+    groups.push(&header[start..]);
+    groups
+}
+
+fn selector_tail(group: &str) -> &str {
+    let mut tail_start = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let bytes = group.as_bytes();
+    let mut index = 0usize;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'(' => paren_depth += 1,
+            b')' => paren_depth = paren_depth.saturating_sub(1),
+            b'[' => bracket_depth += 1,
+            b']' => bracket_depth = bracket_depth.saturating_sub(1),
+            b'>' | b'+' | b'~' if paren_depth == 0 && bracket_depth == 0 => tail_start = index + 1,
+            byte if byte.is_ascii_whitespace() && paren_depth == 0 && bracket_depth == 0 => {
+                let previous = group[..index].trim_end().as_bytes().last().copied();
+                let next = group[index + 1..].trim_start().as_bytes().first().copied();
+                if previous.is_some()
+                    && next.is_some_and(|value| value == b'.' || value == b':' || value == b'&')
+                {
+                    tail_start = index + 1;
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    group[tail_start..].trim()
+}
+
+fn class_names_in_selector(
+    selector: &str,
+    source: &str,
+    full_header: &str,
+) -> Vec<(String, ParserByteSpanV0)> {
+    let mut names = Vec::new();
+    let mut index = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let bytes = selector.as_bytes();
+    while index < bytes.len() {
+        match bytes[index] {
+            b'(' => paren_depth += 1,
+            b')' => paren_depth = paren_depth.saturating_sub(1),
+            b'[' => bracket_depth += 1,
+            b']' => bracket_depth = bracket_depth.saturating_sub(1),
+            b'.' if paren_depth == 0 && bracket_depth == 0 => {
+                let start = index + 1;
+                let mut end = start;
+                while end < bytes.len()
+                    && (bytes[end].is_ascii_alphanumeric() || matches!(bytes[end], b'_' | b'-'))
+                {
+                    end += 1;
+                }
+                if end > start {
+                    let name = selector[start..end].to_string();
+                    names.push((
+                        name.clone(),
+                        source_span_for_header_piece(source, full_header, &name),
+                    ));
+                }
+                index = end;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    names
+}
+
+fn selector_names_for_offset(blocks: &[StyleBlock], offset: usize) -> Vec<String> {
+    let Some(max_start) = blocks
+        .iter()
+        .filter(|block| block.start <= offset && offset < block.end && !block.names.is_empty())
+        .map(|block| block.start)
+        .max()
+    else {
+        return Vec::new();
+    };
+    blocks
+        .iter()
+        .filter(|block| block.start == max_start && block.start <= offset && offset < block.end)
+        .flat_map(|block| {
+            block
+                .names
+                .iter()
+                .filter(|name| !name.starts_with("__selector_meta:"))
+                .cloned()
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn selector_contexts_for_offset(blocks: &[StyleBlock], offset: usize) -> Vec<String> {
+    let Some(max_start) = blocks
+        .iter()
+        .filter(|block| block.start <= offset && offset < block.end)
+        .map(|block| block.start)
+        .max()
+    else {
+        return Vec::new();
+    };
+    let mut contexts = BTreeSet::new();
+    for block in blocks
+        .iter()
+        .filter(|block| block.start == max_start && block.start <= offset && offset < block.end)
+    {
+        if block.names.is_empty() {
+            if let Some(context) = &block.context_text {
+                contexts.insert(context.clone());
+            }
+        } else {
+            for name in &block.names {
+                if !name.starts_with("__selector_meta:") {
+                    contexts.insert(format!(".{name}"));
+                }
+            }
+        }
+    }
+    contexts.into_iter().collect()
+}
+
+fn wrapper_for_offset(blocks: &[StyleBlock], offset: usize) -> WrapperContext {
+    blocks
+        .iter()
+        .filter(|block| block.start <= offset && offset < block.end)
+        .max_by_key(|block| block.start)
+        .map(|block| WrapperContext {
+            under_media: block.under_media,
+            under_supports: block.under_supports,
+            under_layer: block.under_layer,
+        })
+        .unwrap_or_default()
+}
+
+fn insert_by_wrapper(
+    media: &mut BTreeSet<String>,
+    supports: &mut BTreeSet<String>,
+    layer: &mut BTreeSet<String>,
+    value: &str,
+    wrapper: WrapperContext,
+) {
+    if wrapper.under_media {
+        media.insert(value.to_string());
+    }
+    if wrapper.under_supports {
+        supports.insert(value.to_string());
+    }
+    if wrapper.under_layer {
+        layer.insert(value.to_string());
+    }
+}
+
+fn insert_vec_by_wrapper(
+    media: &mut Vec<String>,
+    supports: &mut Vec<String>,
+    layer: &mut Vec<String>,
+    value: &str,
+    wrapper: WrapperContext,
+) {
+    if wrapper.under_media {
+        media.push(value.to_string());
+    }
+    if wrapper.under_supports {
+        supports.push(value.to_string());
+    }
+    if wrapper.under_layer {
+        layer.push(value.to_string());
+    }
+}
+
+fn selector_names_from_contexts(contexts: &[String]) -> Vec<String> {
+    contexts
+        .iter()
+        .filter_map(|context| context.strip_prefix('.').map(ToString::to_string))
+        .collect()
+}
+
+fn selector_names_for_variable_symbols(
+    blocks: &[StyleBlock],
+    facts: &ParsedStyleFacts,
+    global_variable_decl_names: &BTreeSet<String>,
+    variable_parameter_names: &BTreeSet<String>,
+    variable_decl_scopes: &[SassVariableDeclScope],
+    resolved_filter: Option<bool>,
+) -> Vec<String> {
+    facts
+        .sass_symbols
+        .iter()
+        .filter(|symbol| symbol.kind == ParsedSassSymbolFactKind::VariableReference)
+        .filter(|symbol| {
+            let Some(expected_resolved) = resolved_filter else {
+                return true;
+            };
+            if symbol.namespace.is_some() {
+                return false;
+            }
+            is_sass_variable_reference_resolved(
+                &symbol.name,
+                range_start(symbol.range),
+                blocks,
+                global_variable_decl_names,
+                variable_parameter_names,
+                variable_decl_scopes,
+            ) == expected_resolved
+        })
+        .flat_map(|symbol| selector_names_for_offset(blocks, range_start(symbol.range)))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn is_sass_variable_reference_resolved(
+    name: &str,
+    offset: usize,
+    blocks: &[StyleBlock],
+    global_variable_decl_names: &BTreeSet<String>,
+    variable_parameter_names: &BTreeSet<String>,
+    variable_decl_scopes: &[SassVariableDeclScope],
+) -> bool {
+    if global_variable_decl_names.contains(name) || variable_parameter_names.contains(name) {
+        return true;
+    }
+    let reference_selectors = selector_names_for_offset(blocks, offset);
+    !reference_selectors.is_empty()
+        && variable_decl_scopes.iter().any(|scope| {
+            scope.name == name
+                && !scope.selector_names.is_empty()
+                && scope
+                    .selector_names
+                    .iter()
+                    .any(|selector| reference_selectors.contains(selector))
+        })
+}
+
+fn selector_names_for_symbols(
+    blocks: &[StyleBlock],
+    facts: &ParsedStyleFacts,
+    kind: ParsedSassSymbolFactKind,
+    names_filter: Option<&[String]>,
+) -> Vec<String> {
+    facts
+        .sass_symbols
+        .iter()
+        .filter(|symbol| symbol.kind == kind)
+        .filter(|symbol| {
+            names_filter
+                .map(|names| names.contains(&symbol.name))
+                .unwrap_or(true)
+        })
+        .flat_map(|symbol| selector_names_for_offset(blocks, range_start(symbol.range)))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn property_name_before_offset(source: &str, offset: usize) -> Option<String> {
+    let before = source.get(..offset)?;
+    let start = before.rfind(['{', ';']).map(|index| index + 1).unwrap_or(0);
+    let colon = before.rfind(':')?;
+    if colon < start {
+        return None;
+    }
+    Some(before[start..colon].trim().to_ascii_lowercase())
+}
+
+fn sort_all_composes(summary: &mut ParserIndexComposesFactsV0) {
+    sort_unique(&mut summary.selectors_with_composes_names);
+    sort_unique(&mut summary.selectors_with_composes_under_media_names);
+    sort_unique(&mut summary.selectors_with_composes_under_supports_names);
+    sort_unique(&mut summary.selectors_with_composes_under_layer_names);
+    sort_unique(&mut summary.local_selector_names);
+    sort_unique(&mut summary.imported_selector_names);
+    sort_unique(&mut summary.global_selector_names);
+    sort_unique(&mut summary.local_selector_names_under_media);
+    sort_unique(&mut summary.local_selector_names_under_supports);
+    sort_unique(&mut summary.local_selector_names_under_layer);
+    sort_unique(&mut summary.imported_selector_names_under_media);
+    sort_unique(&mut summary.imported_selector_names_under_supports);
+    sort_unique(&mut summary.imported_selector_names_under_layer);
+    sort_unique(&mut summary.global_selector_names_under_media);
+    sort_unique(&mut summary.global_selector_names_under_supports);
+    sort_unique(&mut summary.global_selector_names_under_layer);
+    summary.import_sources.sort();
+    summary.import_sources_under_media.sort();
+    summary.import_sources_under_supports.sort();
+    summary.import_sources_under_layer.sort();
+}
+
+fn sort_unique(values: &mut Vec<String>) {
+    values.sort();
+    values.dedup();
+}
+
+fn block_header_start(source: &str, open: usize, lower_bound: usize) -> usize {
+    let bytes = source.as_bytes();
+    let mut index = open;
+    while index > lower_bound {
+        index -= 1;
+        if matches!(bytes[index], b'{' | b'}' | b';') {
+            return index + 1;
+        }
+    }
+    lower_bound
+}
+
+fn matching_brace(source: &str, open: usize, end: usize) -> Option<usize> {
+    let bytes = source.as_bytes();
+    let mut depth = 0usize;
+    let mut index = open;
+    while index < end {
+        match bytes[index] {
+            b'{' => depth += 1,
+            b'}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+fn find_next_byte(source: &str, needle: u8, start: usize, end: usize) -> Option<usize> {
+    source.as_bytes()[start..end]
+        .iter()
+        .position(|byte| *byte == needle)
+        .map(|index| start + index)
+}
+
+fn source_span_for_header_piece(source: &str, full_header: &str, piece: &str) -> ParserByteSpanV0 {
+    if let Some(header_offset) = source.find(full_header)
+        && let Some(piece_offset) = full_header.find(piece)
+    {
+        let start = header_offset + piece_offset;
+        return ParserByteSpanV0 {
+            start,
+            end: start + piece.len(),
+        };
+    }
+    ParserByteSpanV0 {
+        start: 0,
+        end: piece.len(),
+    }
+}
+
+fn byte_span_for_range(range: TextRange) -> ParserByteSpanV0 {
+    ParserByteSpanV0 {
+        start: range_start(range),
+        end: u32::from(range.end()) as usize,
+    }
+}
+
+fn range_start(range: TextRange) -> usize {
+    u32::from(range.start()) as usize
+}
+
+fn parser_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRangeV0 {
+    ParserRangeV0 {
+        start: parser_position_for_byte_offset(source, span.start),
+        end: parser_position_for_byte_offset(source, span.end),
+    }
+}
+
+fn parser_position_for_byte_offset(source: &str, byte_offset: usize) -> ParserPositionV0 {
+    let mut line = 0usize;
+    let mut line_start = 0usize;
+    let offset = byte_offset.min(source.len());
+    for (index, byte) in source.as_bytes().iter().enumerate() {
+        if index >= offset {
+            break;
+        }
+        if *byte == b'\n' {
+            line += 1;
+            line_start = index + 1;
+        }
+    }
+    ParserPositionV0 {
+        line,
+        character: offset.saturating_sub(line_start),
+    }
+}
+
+fn is_sass_parameter_declaration(source: &str, byte_offset: usize) -> bool {
+    let offset = byte_offset.min(source.len());
+    let line_start = source[..offset].rfind('\n').map_or(0, |index| index + 1);
+    let line_end = source[offset..]
+        .find(['\n', '{'])
+        .map_or(source.len(), |index| offset + index);
+    let header = source.get(line_start..line_end).unwrap_or_default();
+    let relative_offset = offset.saturating_sub(line_start).min(header.len());
+    let before = &header[..relative_offset];
+    let last_open = before.rfind('(');
+    let last_close = before.rfind(')');
+    let inside_parameter_list = last_open.is_some() && last_open > last_close;
+    inside_parameter_list && (header.contains("@mixin") || header.contains("@function"))
+}
+
+fn bem_suffix_parent_name(name: &str) -> Option<String> {
+    let marker = [name.rfind("__"), name.rfind("--")]
+        .into_iter()
+        .flatten()
+        .max()?;
+    (marker > 0).then(|| name[..marker].to_string())
+}
+
+fn sorted(values: BTreeSet<String>) -> Vec<String> {
+    values.into_iter().collect()
+}
+
+trait SortVec {
+    fn tap_sort(self) -> Self;
+    fn tap_sort_unique(self) -> Self;
+}
+
+impl SortVec for Vec<String> {
+    fn tap_sort(mut self) -> Self {
+        self.sort();
+        self
+    }
+
+    fn tap_sort_unique(mut self) -> Self {
+        self.sort();
+        self.dedup();
+        self
+    }
+}
+
+fn dialect_for_path(file_path: &str) -> StyleDialect {
+    if file_path.ends_with(".sass") || file_path.ends_with(".module.sass") {
+        StyleDialect::Sass
+    } else if file_path.ends_with(".scss") || file_path.ends_with(".module.scss") {
+        StyleDialect::Scss
+    } else if file_path.ends_with(".less") || file_path.ends_with(".module.less") {
+        StyleDialect::Less
+    } else {
+        StyleDialect::Css
+    }
+}
+
+fn dialect_label(dialect: StyleDialect) -> &'static str {
+    match dialect {
+        StyleDialect::Css => "css",
+        StyleDialect::Scss => "scss",
+        StyleDialect::Sass => "sass",
+        StyleDialect::Less => "less",
+    }
+}
