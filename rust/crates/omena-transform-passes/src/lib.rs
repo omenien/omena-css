@@ -5201,12 +5201,14 @@ struct SimpleRuleSlice {
     end: usize,
     block_start: usize,
     block_end: usize,
+    context_start: usize,
+    context_end: usize,
 }
 
 fn dedupe_exact_css_rules_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
     let ranges = collect_duplicate_ordinary_rule_ranges(&rules);
 
     if ranges.is_empty() {
@@ -5220,9 +5222,12 @@ fn collect_duplicate_ordinary_rule_ranges(rules: &[SimpleRuleSlice]) -> Vec<(usi
     let mut ranges = Vec::new();
 
     for (index, rule) in rules.iter().enumerate() {
-        let has_later_duplicate = rules[index + 1..]
-            .iter()
-            .any(|candidate| rule.selector == candidate.selector && rule.block == candidate.block);
+        let has_later_duplicate = rules[index + 1..].iter().any(|candidate| {
+            rule.selector == candidate.selector
+                && rule.block == candidate.block
+                && rule.context_start == candidate.context_start
+                && rule.context_end == candidate.context_end
+        });
         if has_later_duplicate {
             ranges.push((rule.start, rule.end));
         }
@@ -5268,6 +5273,8 @@ fn collect_top_level_ordinary_rule_slices(
                             end: token_end(&tokens[close_index]),
                             block_start: token_start(&tokens[index]),
                             block_end: token_start(&tokens[close_index]),
+                            context_start: 0,
+                            context_end: source.len(),
                         });
                     }
                     index = close_index + 1;
@@ -5300,12 +5307,17 @@ fn collect_declaration_ordinary_rule_slices(
     let mut rules = Vec::new();
     let mut depth = 0usize;
     let mut prelude_starts = vec![0usize];
+    let mut rule_contexts = vec![(0usize, source.len())];
     let mut index = 0;
 
     while index < tokens.len() {
         match tokens[index].kind {
             SyntaxKind::LeftBrace => {
                 let prelude_start = prelude_starts.get(depth).copied().unwrap_or(0);
+                let parent_context = rule_contexts
+                    .get(depth)
+                    .copied()
+                    .unwrap_or((0, source.len()));
                 if let Some(close_index) = matching_right_brace_index(tokens, index)
                     && is_ordinary_rule_prelude(tokens, prelude_start, index)
                     && !tokens[index + 1..close_index].iter().any(|token| {
@@ -5329,11 +5341,19 @@ fn collect_declaration_ordinary_rule_slices(
                             end: token_end(&tokens[close_index]),
                             block_start: token_start(&tokens[index]),
                             block_end: token_start(&tokens[close_index]),
+                            context_start: parent_context.0,
+                            context_end: parent_context.1,
                         });
                     }
                 }
+                let child_context = matching_right_brace_index(tokens, index)
+                    .map(|close_index| {
+                        (token_start(&tokens[index]), token_end(&tokens[close_index]))
+                    })
+                    .unwrap_or((token_start(&tokens[index]), token_end(&tokens[index])));
                 depth += 1;
                 set_prelude_start(&mut prelude_starts, depth, index + 1);
+                set_rule_context(&mut rule_contexts, depth, child_context);
             }
             SyntaxKind::RightBrace => {
                 depth = depth.saturating_sub(1);
@@ -5688,6 +5708,17 @@ fn set_prelude_start(prelude_starts: &mut Vec<usize>, depth: usize, start: usize
     prelude_starts[depth] = start;
 }
 
+fn set_rule_context(
+    rule_contexts: &mut Vec<(usize, usize)>,
+    depth: usize,
+    context: (usize, usize),
+) {
+    if rule_contexts.len() <= depth {
+        rule_contexts.resize(depth + 1, context);
+    }
+    rule_contexts[depth] = context;
+}
+
 fn matching_right_brace_index(
     tokens: &[omena_parser::LexedToken],
     left_brace_index: usize,
@@ -5885,6 +5916,8 @@ fn collect_ordinary_rule_selector_slices(
                             end: token_end(&tokens[close_index]),
                             block_start: token_start(&tokens[index]),
                             block_end: token_start(&tokens[close_index]),
+                            context_start: 0,
+                            context_end: source.len(),
                         });
                     }
                 }
@@ -7800,8 +7833,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_removes_cascade_safe_duplicate_rules() {
-        let source =
-            r#".a { color: red; } .b { color: red; } .a { color: blue; } .a { color: red; }"#;
+        let source = r#".a { color: red; } .b { color: red; } .a { color: blue; } .a { color: red; } @media (min-width: 1px) { .m { color: red; } .x { color: blue; } .m { color: red; } } @media (max-width: 1px) { .m { color: red; } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7810,10 +7842,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(execution.mutation_count, 2);
         assert_eq!(
             execution.output_css,
-            r#" .b { color: red; } .a { color: blue; } .a { color: red; }"#
+            r#" .b { color: red; } .a { color: blue; } .a { color: red; } @media (min-width: 1px) {  .x { color: blue; } .m { color: red; } } @media (max-width: 1px) { .m { color: red; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
