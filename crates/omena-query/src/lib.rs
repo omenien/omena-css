@@ -61,6 +61,7 @@ use omena_transform_egg::{
     plan_egg_rewrite_passes_for_source,
 };
 pub use omena_transform_passes::{
+    CustomPropertyLeastFixedPointSummaryV0 as OmenaQueryCustomPropertyLeastFixedPointSummaryV0,
     TransformClassNameRewriteV0 as OmenaQueryTransformClassNameRewriteV0,
     TransformCssModuleComposesResolutionV0 as OmenaQueryTransformCssModuleComposesResolutionV0,
     TransformDesignTokenRouteV0 as OmenaQueryTransformDesignTokenRouteV0,
@@ -72,6 +73,7 @@ pub use omena_transform_passes::{
 use omena_transform_passes::{
     TransformExecutionContextV0, TransformExecutionSummaryV0, TransformPassPlanV0,
     execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
+    summarize_static_css_custom_property_fixed_point_from_source,
 };
 use omena_transform_print::print_transform_execution_artifact;
 pub use omena_transform_print::{
