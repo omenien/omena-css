@@ -21,3 +21,6 @@ omena-query = { path = "../omena-query", version = "0.1" }
 serde.workspace = true
 serde-wasm-bindgen.workspace = true
 wasm-bindgen.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
