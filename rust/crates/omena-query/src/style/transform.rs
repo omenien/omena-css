@@ -101,7 +101,7 @@ struct TransformPlanPartsV0<'a> {
 fn summarize_omena_query_transform_plan_from_parts(
     parts: TransformPlanPartsV0<'_>,
 ) -> OmenaQueryTransformPlanSummaryV0 {
-    let egg = plan_egg_rewrite_passes(false, false);
+    let egg = plan_egg_rewrite_passes_for_source(parts.style_source);
 
     let mut combined_passes = Vec::new();
     extend_passes_from_ids(&parts.bundle.planned_pass_ids, &mut combined_passes);
@@ -130,6 +130,11 @@ fn summarize_omena_query_transform_plan_from_parts(
         parts.print_options,
         &execution,
     );
+    let egg_witnesses = execute_egg_rewrite_witnesses_for_css_source(
+        parts.style_source,
+        &execution.output_css,
+        &egg.planned_pass_ids,
+    );
     let combined_pass_ids = combined_plan.ordered_pass_ids.clone();
     let combined_violated_dag_edge_count = combined_plan.violated_dag_edge_count;
 
@@ -142,6 +147,7 @@ fn summarize_omena_query_transform_plan_from_parts(
         target: parts.target,
         target_query: parts.target_query,
         egg,
+        egg_witnesses,
         print,
         execution,
         combined_plan,
@@ -151,6 +157,7 @@ fn summarize_omena_query_transform_plan_from_parts(
             "transformBundlePlan",
             "transformTargetPlan",
             "transformEggPlan",
+            "transformEggExecutionWitnesses",
             "transformPrintArtifact",
             "transformExecutionRuntime",
             "combinedTransformPassPlan",

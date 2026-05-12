@@ -56,7 +56,10 @@ use omena_transform_bundle::{
     TransformBundleSourceSummaryV0, summarize_omena_transform_bundle_from_source,
 };
 use omena_transform_cst::{TransformPassKind, all_transform_pass_kinds};
-use omena_transform_egg::{TransformEggPlanV0, plan_egg_rewrite_passes};
+use omena_transform_egg::{
+    EggRewriteSourceWitnessV0, TransformEggPlanV0, execute_egg_rewrite_witnesses_for_css_source,
+    plan_egg_rewrite_passes_for_source,
+};
 pub use omena_transform_passes::{
     TransformClassNameRewriteV0 as OmenaQueryTransformClassNameRewriteV0,
     TransformCssModuleComposesResolutionV0 as OmenaQueryTransformCssModuleComposesResolutionV0,

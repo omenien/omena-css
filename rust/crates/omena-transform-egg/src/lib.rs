@@ -72,6 +72,17 @@ pub struct EggRewriteExecutionV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct EggRewriteSourceWitnessV0 {
+    pub pass_id: &'static str,
+    pub source_kind: &'static str,
+    pub byte_offset: usize,
+    pub css_before: String,
+    pub css_after: String,
+    pub execution: EggRewriteExecutionV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransformEggBoundarySummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -124,6 +135,13 @@ pub fn plan_egg_rewrite_passes(include_selector: bool, include_calc: bool) -> Tr
         planned_pass_ids: pass_plan.ordered_pass_ids.clone(),
         pass_plan,
     }
+}
+
+pub fn plan_egg_rewrite_passes_for_source(source: &str) -> TransformEggPlanV0 {
+    plan_egg_rewrite_passes(
+        source.contains(":is(") || source.contains(":where("),
+        source.contains("calc("),
+    )
 }
 
 pub fn decide_egg_rewrite(candidate: EggRewriteCandidateV0) -> EggRewriteDecisionV0 {
@@ -201,6 +219,21 @@ pub fn execute_egg_rewrite(candidate: EggRewriteCandidateV0) -> EggRewriteExecut
     }
 }
 
+pub fn execute_egg_rewrite_witnesses_for_css_source(
+    source: &str,
+    transformed_source: &str,
+    planned_pass_ids: &[&'static str],
+) -> Vec<EggRewriteSourceWitnessV0> {
+    let mut witnesses = Vec::new();
+    if planned_pass_ids.contains(&TransformPassKind::SelectorIsWhereCompression.id()) {
+        witnesses.extend(selector_rewrite_witnesses(source, transformed_source));
+    }
+    if planned_pass_ids.contains(&TransformPassKind::CalcReduction.id()) {
+        witnesses.extend(calc_rewrite_witnesses(source, transformed_source));
+    }
+    witnesses
+}
+
 fn managed_egg_passes() -> [TransformPassKind; 2] {
     [
         TransformPassKind::SelectorIsWhereCompression,
@@ -210,6 +243,132 @@ fn managed_egg_passes() -> [TransformPassKind; 2] {
 
 fn is_managed_egg_pass_id(pass_id: &str) -> bool {
     managed_egg_passes().iter().any(|pass| pass.id() == pass_id)
+}
+
+fn selector_rewrite_witnesses(
+    source: &str,
+    transformed_source: &str,
+) -> Vec<EggRewriteSourceWitnessV0> {
+    let mut witnesses = Vec::new();
+    for (prefix, source_kind) in [(":is(", "selectorIs"), (":where(", "selectorWhere")] {
+        let mut cursor = 0usize;
+        while let Some(relative_start) = source[cursor..].find(prefix) {
+            let start = cursor + relative_start;
+            let inner_start = start + prefix.len();
+            let Some(relative_end) = source[inner_start..].find(')') else {
+                break;
+            };
+            let end = inner_start + relative_end;
+            let inner = source[inner_start..end].trim();
+            if let Some(symbol) = selector_single_argument_symbol(inner) {
+                let css_before = source[start..=end].to_string();
+                let css_after = inner.to_string();
+                if transformed_source.contains(&css_after)
+                    && !transformed_source.contains(&css_before)
+                {
+                    let execution = execute_egg_rewrite(EggRewriteCandidateV0 {
+                        pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
+                        before: format!("(is {symbol})"),
+                        after: symbol,
+                        proof: EggRewriteProofV0 {
+                            specificity_preserved: true,
+                            computed_value_preserved: false,
+                            provenance_preserved: true,
+                            cascade_safe_witness: format!(
+                                "actual CSS {source_kind} single-argument rewrite"
+                            ),
+                        },
+                    });
+                    witnesses.push(EggRewriteSourceWitnessV0 {
+                        pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
+                        source_kind,
+                        byte_offset: start,
+                        css_before,
+                        css_after,
+                        execution,
+                    });
+                }
+            }
+            cursor = end + 1;
+        }
+    }
+    witnesses
+}
+
+fn calc_rewrite_witnesses(
+    source: &str,
+    transformed_source: &str,
+) -> Vec<EggRewriteSourceWitnessV0> {
+    let mut witnesses = Vec::new();
+    let mut cursor = 0usize;
+    while let Some(relative_start) = source[cursor..].find("calc(") {
+        let start = cursor + relative_start;
+        let inner_start = start + "calc(".len();
+        let Some(relative_end) = source[inner_start..].find(')') else {
+            break;
+        };
+        let end = inner_start + relative_end;
+        let inner = source[inner_start..end].trim();
+        let css_before = source[start..=end].to_string();
+        if let Some((expression, result)) = calc_identity_expression(inner)
+            && transformed_source.contains(result.as_str())
+            && !transformed_source.contains(&css_before)
+        {
+            let execution = execute_egg_rewrite(EggRewriteCandidateV0 {
+                pass_id: TransformPassKind::CalcReduction.id(),
+                before: format!("(calc {expression})"),
+                after: result.clone(),
+                proof: EggRewriteProofV0 {
+                    specificity_preserved: false,
+                    computed_value_preserved: true,
+                    provenance_preserved: true,
+                    cascade_safe_witness: "actual CSS calc identity rewrite".to_string(),
+                },
+            });
+            witnesses.push(EggRewriteSourceWitnessV0 {
+                pass_id: TransformPassKind::CalcReduction.id(),
+                source_kind: "calcIdentity",
+                byte_offset: start,
+                css_before,
+                css_after: result,
+                execution,
+            });
+        }
+        cursor = end + 1;
+    }
+    witnesses
+}
+
+fn selector_single_argument_symbol(inner: &str) -> Option<String> {
+    let class_name = inner.strip_prefix('.')?;
+    if class_name.is_empty()
+        || !class_name
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+    {
+        return None;
+    }
+    Some(symbol_for_css_ident(class_name))
+}
+
+fn symbol_for_css_ident(value: &str) -> String {
+    value.replace('-', "_")
+}
+
+fn calc_identity_expression(inner: &str) -> Option<(String, String)> {
+    let parts = inner.split_whitespace().collect::<Vec<_>>();
+    let [left, operator, right] = parts.as_slice() else {
+        return None;
+    };
+    let left_value = left.parse::<i64>().ok()?;
+    let right_value = right.parse::<i64>().ok()?;
+    match *operator {
+        "+" if right_value == 0 => Some((format!("(+ {left_value} 0)"), left_value.to_string())),
+        "+" if left_value == 0 => Some((format!("(+ 0 {right_value})"), right_value.to_string())),
+        "*" if right_value == 1 => Some((format!("(* {left_value} 1)"), left_value.to_string())),
+        "*" if left_value == 1 => Some((format!("(* 1 {right_value})"), right_value.to_string())),
+        _ => None,
+    }
 }
 
 fn rewrite_rules_for_pass(pass_id: &'static str) -> Option<Vec<Rewrite<CssRewriteLanguage, ()>>> {
@@ -254,7 +413,8 @@ fn blocked_execution(
 mod tests {
     use super::{
         EggRewriteCandidateV0, EggRewriteProofV0, decide_egg_rewrite, execute_egg_rewrite,
-        plan_egg_rewrite_passes, summarize_omena_transform_egg_boundary,
+        execute_egg_rewrite_witnesses_for_css_source, plan_egg_rewrite_passes,
+        plan_egg_rewrite_passes_for_source, summarize_omena_transform_egg_boundary,
     };
     use omena_transform_cst::TransformPassKind;
 
@@ -273,6 +433,17 @@ mod tests {
     #[test]
     fn plans_requested_egg_passes_through_transform_pass_planner() {
         let plan = plan_egg_rewrite_passes(true, true);
+
+        assert_eq!(
+            plan.planned_pass_ids,
+            vec!["selector-is-where-compression", "calc-reduction"]
+        );
+        assert_eq!(plan.pass_plan.violated_dag_edge_count, 0);
+    }
+
+    #[test]
+    fn plans_egg_passes_from_css_source() {
+        let plan = plan_egg_rewrite_passes_for_source(".a:is(.ready) { width: calc(7 + 0); }");
 
         assert_eq!(
             plan.planned_pass_ids,
@@ -361,5 +532,30 @@ mod tests {
         assert!(execution.accepted);
         assert_eq!(execution.after, "width");
         assert!(execution.after_matches_candidate);
+    }
+
+    #[test]
+    fn executes_css_source_witnesses_through_egg_engine() {
+        let source = ".a:is(.ready) { width: calc(7 + 0); }";
+        let transformed = ".a.ready { width: 7; }";
+        let plan = plan_egg_rewrite_passes_for_source(source);
+        let witnesses = execute_egg_rewrite_witnesses_for_css_source(
+            source,
+            transformed,
+            &plan.planned_pass_ids,
+        );
+
+        assert_eq!(witnesses.len(), 2);
+        assert!(witnesses.iter().all(|witness| witness.execution.accepted));
+        assert!(
+            witnesses
+                .iter()
+                .any(|witness| witness.pass_id == "selector-is-where-compression")
+        );
+        assert!(
+            witnesses
+                .iter()
+                .any(|witness| witness.pass_id == "calc-reduction")
+        );
     }
 }
