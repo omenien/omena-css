@@ -89,6 +89,7 @@
     "check:rust-z5-performance-baseline-macro": "CME_LSP_RUNTIME_LOOP_SELECTORS=24 CME_LSP_RUNTIME_LOOP_PROBE_DURATION_MS=400 CME_LSP_RUNTIME_LOOP_P95_MS=250 CME_LSP_RUNTIME_LOOP_MAX_MS=750 pnpm cme-check run rust/omena-lsp-server/runtime-loop",
     "check:rust-z5-performance-baseline-readiness": "pnpm cme-check run rust/z5-performance-baseline-micro && pnpm cme-check run rust/z5-parser-product-cutover && pnpm cme-check run rust/z5-performance-baseline-macro",
     "check:rust-omena-css-fuzz-harness": "cargo test --manifest-path rust/Cargo.toml -p omena-cascade fuzz_seed_corpus && cargo test --manifest-path rust/Cargo.toml -p omena-incremental fuzz_seed_corpus && cargo test --manifest-path rust/Cargo.toml -p omena-transform-passes fuzz_seed_corpus",
+    "check:rust-omena-css-cargo-fuzz": "cargo +nightly fuzz check --fuzz-dir rust/fuzz && cargo +nightly fuzz run --fuzz-dir rust/fuzz cascade_evaluation -- -runs=16 && cargo +nightly fuzz run --fuzz-dir rust/fuzz var_substitution -- -runs=16 && cargo +nightly fuzz run --fuzz-dir rust/fuzz --sanitizer none incremental_consistency -- -runs=16 && cargo +nightly fuzz run --fuzz-dir rust/fuzz --sanitizer none transform_cascade_safe -- -runs=16",
     "check:rust-omena-abstract-value-domain": "cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value",
     "check:rust-omena-abstract-value-incremental-flow": "cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value flow",
     "check:rust-omena-abstract-value-one-cfa": "cargo test --manifest-path rust/Cargo.toml -p omena-abstract-value cfa",

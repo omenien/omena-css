@@ -1,0 +1,44 @@
+[package]
+name = "css-module-explainer-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+omena-cascade = { path = "../crates/omena-cascade" }
+omena-incremental = { path = "../crates/omena-incremental" }
+omena-transform-passes = { path = "../crates/omena-transform-passes" }
+
+[[bin]]
+name = "cascade_evaluation"
+path = "fuzz_targets/cascade_evaluation.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "var_substitution"
+path = "fuzz_targets/var_substitution.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "incremental_consistency"
+path = "fuzz_targets/incremental_consistency.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "transform_cascade_safe"
+path = "fuzz_targets/transform_cascade_safe.rs"
+test = false
+doc = false
+bench = false
