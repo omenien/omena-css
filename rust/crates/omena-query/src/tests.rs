@@ -1558,7 +1558,25 @@ fn builds_semantic_reachability_transform_context_from_expression_projection() {
         "omena-query.transform-context-from-engine-input"
     );
     assert!(context_summary.closed_style_world);
+    assert_eq!(context_summary.projection_count, 3);
+    assert_eq!(context_summary.selected_projection_count, 3);
     assert_eq!(context_summary.reachable_class_name_count, 2);
+    assert_eq!(context_summary.reachability_sources.len(), 3);
+    let merge_source = context_summary
+        .reachability_sources
+        .iter()
+        .find(|source| source.node_id == "file-merge");
+    assert!(merge_source.is_some());
+    let Some(merge_source) = merge_source else {
+        return;
+    };
+    assert_eq!(
+        merge_source.selector_names,
+        vec![
+            "btn-primary--active".to_string(),
+            "btn-secondary--active".to_string()
+        ]
+    );
     assert_eq!(
         context_summary.context.reachable_class_names,
         vec![
@@ -1595,6 +1613,16 @@ fn builds_semantic_reachability_transform_context_from_expression_projection() {
             .execution
             .executed_pass_ids
             .contains(&"tree-shake-class")
+    );
+    assert!(
+        build
+            .ready_surfaces
+            .contains(&"semanticReachabilityTransformContext")
+    );
+    assert!(
+        build
+            .ready_surfaces
+            .contains(&"expressionDomainSelectorProjection")
     );
 }
 
