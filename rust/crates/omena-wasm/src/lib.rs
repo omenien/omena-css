@@ -3,6 +3,8 @@
 use omena_query::{
     OmenaQueryConsumerBuildSummaryV0 as OmenaWasmBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaWasmCheckSummaryV0,
+    OmenaQueryStylePackageManifestV0 as OmenaWasmStylePackageManifestV0,
+    OmenaQueryStyleSourceInputV0 as OmenaWasmStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaWasmTargetTransformOptionsV0,
     OmenaQueryTransformExecutionContextV0 as OmenaWasmTransformExecutionContextV0,
     OmenaQueryTransformPassSummaryV0 as OmenaWasmPassSummaryV0,
@@ -11,6 +13,8 @@ use omena_query::{
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
     execute_omena_query_consumer_build_style_source_with_context,
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
+    execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
 };
 use serde::Serialize;
@@ -89,6 +93,52 @@ pub fn build_style_source_for_target_query_with_context(
     ))
 }
 
+#[wasm_bindgen(js_name = buildStyleSourcesWithContext)]
+pub fn build_style_sources_with_context(
+    target_path: &str,
+    sources: JsValue,
+    pass_ids: JsValue,
+    context: JsValue,
+    package_manifests: JsValue,
+) -> Result<JsValue, JsValue> {
+    let sources = parse_style_sources_value(sources)?;
+    let pass_ids = parse_pass_ids_value(pass_ids)?;
+    let context = parse_context_value(context)?;
+    let package_manifests = parse_package_manifests_value(package_manifests)?;
+    let summary = build_style_sources_with_context_summary(
+        target_path,
+        &sources,
+        &pass_ids,
+        &context,
+        &package_manifests,
+    )?;
+    to_js_value(&summary)
+}
+
+#[wasm_bindgen(js_name = buildStyleSourcesForTargetQueryWithContext)]
+pub fn build_style_sources_for_target_query_with_context(
+    target_path: &str,
+    sources: JsValue,
+    target_query: &str,
+    target_options: JsValue,
+    context: JsValue,
+    package_manifests: JsValue,
+) -> Result<JsValue, JsValue> {
+    let sources = parse_style_sources_value(sources)?;
+    let target_options = parse_target_options_value(target_options)?;
+    let context = parse_context_value(context)?;
+    let package_manifests = parse_package_manifests_value(package_manifests)?;
+    let summary = build_style_sources_for_target_query_with_context_summary(
+        target_path,
+        &sources,
+        target_query,
+        target_options,
+        &context,
+        &package_manifests,
+    )?;
+    to_js_value(&summary)
+}
+
 #[wasm_bindgen(js_name = listTransformPasses)]
 pub fn list_transform_passes() -> Result<JsValue, JsValue> {
     to_js_value(&list_transform_pass_summaries())
@@ -159,6 +209,42 @@ pub fn build_style_source_for_target_query_with_context_summary(
     )
 }
 
+pub fn build_style_sources_with_context_summary(
+    target_path: &str,
+    sources: &[OmenaWasmStyleSourceInputV0],
+    pass_ids: &[String],
+    context: &OmenaWasmTransformExecutionContextV0,
+    package_manifests: &[OmenaWasmStylePackageManifestV0],
+) -> Result<OmenaWasmBuildSummaryV0, JsValue> {
+    execute_omena_query_consumer_build_style_sources_with_context(
+        target_path,
+        sources,
+        pass_ids,
+        context,
+        package_manifests,
+    )
+    .map_err(|error| JsValue::from_str(&error))
+}
+
+pub fn build_style_sources_for_target_query_with_context_summary(
+    target_path: &str,
+    sources: &[OmenaWasmStyleSourceInputV0],
+    target_query: &str,
+    target_options: OmenaWasmTargetTransformOptionsV0,
+    context: &OmenaWasmTransformExecutionContextV0,
+    package_manifests: &[OmenaWasmStylePackageManifestV0],
+) -> Result<OmenaWasmBuildSummaryV0, JsValue> {
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
+        target_path,
+        sources,
+        target_query,
+        context,
+        target_options,
+        package_manifests,
+    )
+    .map_err(|error| JsValue::from_str(&error))
+}
+
 pub fn list_transform_pass_summaries() -> Vec<OmenaWasmPassSummaryV0> {
     list_omena_query_transform_pass_summaries()
 }
@@ -197,6 +283,28 @@ fn parse_context_value(value: JsValue) -> Result<OmenaWasmTransformExecutionCont
     serde_wasm_bindgen::from_value(value).map_err(|error| {
         JsValue::from_str(&format!(
             "context must be a TransformExecutionContextV0-compatible object: {error}"
+        ))
+    })
+}
+
+fn parse_style_sources_value(value: JsValue) -> Result<Vec<OmenaWasmStyleSourceInputV0>, JsValue> {
+    serde_wasm_bindgen::from_value(value).map_err(|error| {
+        JsValue::from_str(&format!(
+            "sources must be an array of {{stylePath, styleSource}} objects: {error}"
+        ))
+    })
+}
+
+fn parse_package_manifests_value(
+    value: JsValue,
+) -> Result<Vec<OmenaWasmStylePackageManifestV0>, JsValue> {
+    if value.is_null() || value.is_undefined() {
+        return Ok(Vec::new());
+    }
+
+    serde_wasm_bindgen::from_value(value).map_err(|error| {
+        JsValue::from_str(&format!(
+            "packageManifests must be an array of package manifest objects: {error}"
         ))
     })
 }
@@ -326,6 +434,45 @@ mod tests {
                 .contains(&"scss-module-evaluate")
         );
         assert!(summary.execution.output_css.contains("._card_0"));
+    }
+
+    #[test]
+    fn builds_workspace_sources_for_browser_clients() {
+        let sources = vec![
+            OmenaWasmStyleSourceInputV0 {
+                style_path: "Button.module.css".to_string(),
+                style_source:
+                    r#"@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }"#
+                        .to_string(),
+            },
+            OmenaWasmStyleSourceInputV0 {
+                style_path: "tokens.css".to_string(),
+                style_source: ":root { --brand: red; }".to_string(),
+            },
+        ];
+        let pass_ids = vec![
+            "import-inline".to_string(),
+            "composes-resolution".to_string(),
+        ];
+        let summary_result = build_style_sources_with_context_summary(
+            "Button.module.css",
+            &sources,
+            &pass_ids,
+            &OmenaWasmTransformExecutionContextV0::default(),
+            &[],
+        );
+
+        assert!(summary_result.is_ok());
+        let Ok(summary) = summary_result else {
+            return;
+        };
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"multiSourceTransformContextProducer")
+        );
+        assert!(!summary.execution.output_css.contains("@import"));
+        assert!(!summary.execution.output_css.contains("composes:"));
     }
 
     #[test]

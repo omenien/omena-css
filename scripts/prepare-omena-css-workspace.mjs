@@ -442,6 +442,7 @@ omena check path/to/file.module.scss
 omena build path/to/file.css --pass whitespace-strip
 omena build path/to/file.css --target-query "ie 11"
 omena build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
+omena build path/to/Button.module.css --source path/to/tokens.css --pass import-inline
 omena passes
 \`\`\`
 
@@ -452,6 +453,7 @@ cargo run -p omena-cli -- check path/to/file.module.scss
 cargo run -p omena-cli -- build path/to/file.css --pass whitespace-strip
 cargo run -p omena-cli -- build path/to/file.css --target-query "ie 11"
 cargo run -p omena-cli -- build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
+cargo run -p omena-cli -- build path/to/Button.module.css --source path/to/tokens.css --pass import-inline
 cargo run -p omena-cli -- passes
 \`\`\`
 
@@ -470,6 +472,8 @@ import init, {
   buildStyleSourceForTargetQuery,
   buildStyleSourceForTargetQueryWithOptions,
   buildStyleSourceForTargetQueryWithContext,
+  buildStyleSourcesWithContext,
+  buildStyleSourcesForTargetQueryWithContext,
 } from "./pkg/omena_wasm.js";
 
 await init();
@@ -500,6 +504,20 @@ const evaluatedScss = buildStyleSourceForTargetQueryWithContext(
     },
   },
 );
+const bundledModule = buildStyleSourcesWithContext(
+  "Button.module.css",
+  [
+    {
+      stylePath: "Button.module.css",
+      styleSource:
+        '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }',
+    },
+    { stylePath: "tokens.css", styleSource: ":root { --brand: red; }" },
+  ],
+  ["import-inline", "composes-resolution"],
+  {},
+  [],
+);
 \`\`\`
 
 ## Use the Node Native Binding Substrate
@@ -517,6 +535,8 @@ import {
   buildStyleSourceForTargetQueryJson,
   buildStyleSourceForTargetQueryWithOptionsJson,
   buildStyleSourceForTargetQueryWithContextJson,
+  buildStyleSourcesWithContextJson,
+  buildStyleSourcesForTargetQueryWithContextJson,
 } from "omena-napi";
 
 const facts = JSON.parse(
@@ -554,6 +574,22 @@ const evaluatedScss = JSON.parse(
         evaluatedCss: ".card { color: red; }",
       },
     }),
+  ),
+);
+const bundledModule = JSON.parse(
+  buildStyleSourcesWithContextJson(
+    "Button.module.css",
+    JSON.stringify([
+      {
+        stylePath: "Button.module.css",
+        styleSource:
+          '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }',
+      },
+      { stylePath: "tokens.css", styleSource: ":root { --brand: red; }" },
+    ]),
+    ["import-inline", "composes-resolution"],
+    "{}",
+    "[]",
   ),
 );
 \`\`\`
@@ -638,6 +674,8 @@ Primary consumers:
   opts into compatibility lowerings that are disabled by default.
 - \`omena build <file> --context-json context.json\` accepts explicit evaluator
   and provenance context, including dart-sass-compatible SCSS output.
+- \`omena build <file> --source other.css\` derives import/composes context from
+  additional workspace style sources before running requested passes.
 - \`omena passes\` lists accepted transform pass ids.
 
 ## Wasm
@@ -656,6 +694,12 @@ Primary consumers:
 - \`buildStyleSourceForTargetQueryWithContext(source, path, targetQuery,
   targetOptions, context)\` combines target planning with explicit evaluator
   context.
+- \`buildStyleSourcesWithContext(targetPath, sources, passIds, context,
+  packageManifests)\` derives import/composes context from in-memory workspace
+  sources and merges explicit evaluator/provenance context.
+- \`buildStyleSourcesForTargetQueryWithContext(targetPath, sources, targetQuery,
+  targetOptions, context, packageManifests)\` combines target planning with
+  workspace-derived import/composes context.
 - \`listTransformPasses()\` lists accepted transform pass ids.
 
 ## Node Native Binding
@@ -674,6 +718,12 @@ Primary consumers:
 - \`buildStyleSourceForTargetQueryWithContextJson(source, path, targetQuery,
   targetOptionsJson, contextJson)\` combines target planning with explicit
   evaluator context.
+- \`buildStyleSourcesWithContextJson(targetPath, sourcesJson, passIds,
+  contextJson, packageManifestsJson)\` derives import/composes context from
+  workspace source JSON and merges explicit evaluator/provenance context.
+- \`buildStyleSourcesForTargetQueryWithContextJson(targetPath, sourcesJson,
+  targetQuery, targetOptionsJson, contextJson, packageManifestsJson)\` combines
+  target planning with workspace-derived import/composes context.
 - \`listTransformPassesJson()\` lists accepted transform pass ids as JSON.
 `,
   );

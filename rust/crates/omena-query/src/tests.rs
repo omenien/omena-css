@@ -12,6 +12,8 @@ use super::{
     execute_omena_query_consumer_build_style_source_for_target_query,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
+    execute_omena_query_consumer_build_style_sources_with_context,
     execute_omena_query_transform_passes_from_source, list_omena_query_transform_pass_summaries,
     summarize_omena_query_boundary, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_evaluation_runtime,
@@ -36,9 +38,9 @@ use super::{
     summarize_omena_query_transform_plan_from_target_query,
 };
 use crate::{
-    OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformModuleEvaluationV0,
-    default_omena_query_transform_print_options,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0,
+    OmenaQueryTransformModuleEvaluationV0, default_omena_query_transform_print_options,
 };
 
 #[test]
@@ -657,6 +659,120 @@ fn consumer_build_accepts_explicit_scss_evaluator_context() {
     );
     assert!(summary.execution.output_css.contains("color: red"));
     assert!(summary.execution.output_css.contains("._button_0"));
+}
+
+#[test]
+fn consumer_build_derives_workspace_context_for_import_inline_and_composes() {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "Button.module.css".to_string(),
+            style_source:
+                r#"@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }"#
+                    .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "tokens.css".to_string(),
+            style_source: ":root { --brand: red; }".to_string(),
+        },
+    ];
+    let pass_ids = vec![
+        "import-inline".to_string(),
+        "composes-resolution".to_string(),
+    ];
+    let summary_result = execute_omena_query_consumer_build_style_sources_with_context(
+        "Button.module.css",
+        &sources,
+        &pass_ids,
+        &OmenaQueryTransformExecutionContextV0::default(),
+        &[],
+    );
+    assert!(summary_result.is_ok());
+    let Ok(summary) = summary_result else {
+        return;
+    };
+
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"multiSourceTransformContextProducer")
+    );
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"import-inline")
+    );
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"composes-resolution")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"import-inline")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"composes-resolution")
+    );
+    assert!(summary.execution.output_css.contains("--brand: red"));
+    assert!(!summary.execution.output_css.contains("@import"));
+    assert!(!summary.execution.output_css.contains("composes:"));
+}
+
+#[test]
+fn target_query_build_derives_workspace_context_for_bundle_passes() {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "Button.module.css".to_string(),
+            style_source:
+                r#"@import "./tokens.css"; .button { direction: ltr; composes: base; margin-inline-start: 1rem; } .base { color: blue; }"#
+                    .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "tokens.css".to_string(),
+            style_source: ":root { --brand: red; }".to_string(),
+        },
+    ];
+    let summary_result =
+        execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
+            "Button.module.css",
+            &sources,
+            "ie 11",
+            &OmenaQueryTransformExecutionContextV0::default(),
+            OmenaQueryTargetTransformOptionsV0 {
+                allow_logical_to_physical: true,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+            },
+            &[],
+        );
+    assert!(summary_result.is_ok());
+    let Ok(summary) = summary_result else {
+        return;
+    };
+
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"multiSourceTransformContextProducer")
+    );
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"logical-to-physical")
+    );
+    assert!(!summary.execution.output_css.contains("@import"));
+    assert!(!summary.execution.output_css.contains("composes:"));
+    assert!(summary.execution.output_css.contains("margin-left"));
 }
 
 #[test]

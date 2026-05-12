@@ -4,6 +4,8 @@ use napi_derive::napi;
 use omena_query::{
     OmenaQueryConsumerBuildSummaryV0 as OmenaNapiBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaNapiCheckSummaryV0,
+    OmenaQueryStylePackageManifestV0 as OmenaNapiStylePackageManifestV0,
+    OmenaQueryStyleSourceInputV0 as OmenaNapiStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaNapiTargetTransformOptionsV0,
     OmenaQueryTransformExecutionContextV0 as OmenaNapiTransformExecutionContextV0,
     OmenaQueryTransformPassSummaryV0 as OmenaNapiPassSummaryV0,
@@ -12,6 +14,8 @@ use omena_query::{
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
     execute_omena_query_consumer_build_style_source_with_context,
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
+    execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
 };
 use serde::Serialize;
@@ -91,6 +95,49 @@ pub fn build_style_source_for_target_query_with_context_json(
     ))
 }
 
+#[napi(js_name = "buildStyleSourcesWithContextJson")]
+pub fn build_style_sources_with_context_json(
+    target_path: String,
+    sources_json: String,
+    pass_ids: Vec<String>,
+    context_json: String,
+    package_manifests_json: String,
+) -> napi::Result<String> {
+    let sources = parse_style_sources_json(&sources_json)?;
+    let context = parse_context_json(&context_json)?;
+    let package_manifests = parse_package_manifests_json(&package_manifests_json)?;
+    to_json_string(&build_style_sources_with_context_summary(
+        &target_path,
+        &sources,
+        &pass_ids,
+        &context,
+        &package_manifests,
+    )?)
+}
+
+#[napi(js_name = "buildStyleSourcesForTargetQueryWithContextJson")]
+pub fn build_style_sources_for_target_query_with_context_json(
+    target_path: String,
+    sources_json: String,
+    target_query: String,
+    target_options_json: String,
+    context_json: String,
+    package_manifests_json: String,
+) -> napi::Result<String> {
+    let sources = parse_style_sources_json(&sources_json)?;
+    let target_options = parse_target_options_json(&target_options_json)?;
+    let context = parse_context_json(&context_json)?;
+    let package_manifests = parse_package_manifests_json(&package_manifests_json)?;
+    to_json_string(&build_style_sources_for_target_query_with_context_summary(
+        &target_path,
+        &sources,
+        &target_query,
+        target_options,
+        &context,
+        &package_manifests,
+    )?)
+}
+
 #[napi(js_name = "listTransformPassesJson")]
 pub fn list_transform_passes_json() -> napi::Result<String> {
     to_json_string(&list_transform_pass_summaries())
@@ -161,6 +208,42 @@ pub fn build_style_source_for_target_query_with_context_summary(
     )
 }
 
+pub fn build_style_sources_with_context_summary(
+    target_path: &str,
+    sources: &[OmenaNapiStyleSourceInputV0],
+    pass_ids: &[String],
+    context: &OmenaNapiTransformExecutionContextV0,
+    package_manifests: &[OmenaNapiStylePackageManifestV0],
+) -> napi::Result<OmenaNapiBuildSummaryV0> {
+    execute_omena_query_consumer_build_style_sources_with_context(
+        target_path,
+        sources,
+        pass_ids,
+        context,
+        package_manifests,
+    )
+    .map_err(napi::Error::from_reason)
+}
+
+pub fn build_style_sources_for_target_query_with_context_summary(
+    target_path: &str,
+    sources: &[OmenaNapiStyleSourceInputV0],
+    target_query: &str,
+    target_options: OmenaNapiTargetTransformOptionsV0,
+    context: &OmenaNapiTransformExecutionContextV0,
+    package_manifests: &[OmenaNapiStylePackageManifestV0],
+) -> napi::Result<OmenaNapiBuildSummaryV0> {
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
+        target_path,
+        sources,
+        target_query,
+        context,
+        target_options,
+        package_manifests,
+    )
+    .map_err(napi::Error::from_reason)
+}
+
 pub fn list_transform_pass_summaries() -> Vec<OmenaNapiPassSummaryV0> {
     list_omena_query_transform_pass_summaries()
 }
@@ -176,6 +259,23 @@ fn parse_target_options_json(
 fn parse_context_json(context_json: &str) -> napi::Result<OmenaNapiTransformExecutionContextV0> {
     serde_json::from_str(context_json).map_err(|error| {
         napi::Error::from_reason(format!("failed to parse transform context JSON: {error}"))
+    })
+}
+
+fn parse_style_sources_json(sources_json: &str) -> napi::Result<Vec<OmenaNapiStyleSourceInputV0>> {
+    serde_json::from_str(sources_json).map_err(|error| {
+        napi::Error::from_reason(format!("failed to parse style sources JSON: {error}"))
+    })
+}
+
+fn parse_package_manifests_json(
+    package_manifests_json: &str,
+) -> napi::Result<Vec<OmenaNapiStylePackageManifestV0>> {
+    if package_manifests_json.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    serde_json::from_str(package_manifests_json).map_err(|error| {
+        napi::Error::from_reason(format!("failed to parse package manifests JSON: {error}"))
     })
 }
 
@@ -305,6 +405,45 @@ mod tests {
                 .contains(&"scss-module-evaluate")
         );
         assert!(summary.execution.output_css.contains("._card_0"));
+    }
+
+    #[test]
+    fn builds_workspace_sources_for_node_clients() {
+        let sources = vec![
+            OmenaNapiStyleSourceInputV0 {
+                style_path: "Button.module.css".to_string(),
+                style_source:
+                    r#"@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }"#
+                        .to_string(),
+            },
+            OmenaNapiStyleSourceInputV0 {
+                style_path: "tokens.css".to_string(),
+                style_source: ":root { --brand: red; }".to_string(),
+            },
+        ];
+        let pass_ids = vec![
+            "import-inline".to_string(),
+            "composes-resolution".to_string(),
+        ];
+        let summary_result = build_style_sources_with_context_summary(
+            "Button.module.css",
+            &sources,
+            &pass_ids,
+            &OmenaNapiTransformExecutionContextV0::default(),
+            &[],
+        );
+
+        assert!(summary_result.is_ok());
+        let Ok(summary) = summary_result else {
+            return;
+        };
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"multiSourceTransformContextProducer")
+        );
+        assert!(!summary.execution.output_css.contains("@import"));
+        assert!(!summary.execution.output_css.contains("composes:"));
     }
 
     #[test]

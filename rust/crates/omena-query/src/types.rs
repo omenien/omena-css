@@ -365,6 +365,13 @@ pub struct OmenaQueryTransformContextFromSourcesSummaryV0 {
     pub ready_surfaces: Vec<&'static str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStyleSourceInputV0 {
+    pub style_path: String,
+    pub style_source: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryOmenaParserStyleFactsV0 {
@@ -649,7 +656,8 @@ pub struct OmenaQuerySassModuleSourcesV0 {
     pub module_forward_sources: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryStylePackageManifestV0 {
     pub package_json_path: String,
     pub package_json_source: String,

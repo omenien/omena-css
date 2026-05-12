@@ -1,8 +1,11 @@
 use clap::{Parser, Subcommand};
 use omena_query::{
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
+    OmenaQueryTransformExecutionContextV0,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
+    execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
 };
 use serde::Serialize;
@@ -63,6 +66,9 @@ enum Command {
         /// JSON file containing a TransformExecutionContextV0 evaluator/provenance bridge.
         #[arg(long)]
         context_json: Option<PathBuf>,
+        /// Additional workspace style source used to derive import/composes build context.
+        #[arg(long = "source")]
+        source_paths: Vec<PathBuf>,
         /// Print a machine-readable execution summary.
         #[arg(long)]
         json: bool,
@@ -99,14 +105,16 @@ fn run(cli: Cli) -> Result<(), String> {
             enable_supports_static_eval,
             enable_media_static_eval,
             context_json,
+            source_paths,
             json,
-        } => build_file(
+        } => build_file(BuildFileOptions {
             path,
             output,
-            passes,
+            pass_ids: passes,
             target_query,
             context_json,
-            OmenaQueryTargetTransformOptionsV0 {
+            source_paths,
+            target_options: OmenaQueryTargetTransformOptionsV0 {
                 allow_logical_to_physical,
                 allow_scope_flatten,
                 allow_layer_flatten,
@@ -114,7 +122,7 @@ fn run(cli: Cli) -> Result<(), String> {
                 enable_media_static_eval,
             },
             json,
-        ),
+        }),
         Command::Passes { json } => list_passes(json),
     }
 }
@@ -138,32 +146,67 @@ fn check_file(path: PathBuf, json: bool) -> Result<(), String> {
     Ok(())
 }
 
-fn build_file(
+struct BuildFileOptions {
     path: PathBuf,
     output: Option<PathBuf>,
     pass_ids: Vec<String>,
     target_query: Option<String>,
     context_json: Option<PathBuf>,
+    source_paths: Vec<PathBuf>,
     target_options: OmenaQueryTargetTransformOptionsV0,
     json: bool,
-) -> Result<(), String> {
+}
+
+fn build_file(options: BuildFileOptions) -> Result<(), String> {
+    let BuildFileOptions {
+        path,
+        output,
+        pass_ids,
+        target_query,
+        context_json,
+        source_paths,
+        target_options,
+        json,
+    } = options;
+
     if target_query.is_some() && !pass_ids.is_empty() {
         return Err("cannot combine --target-query with explicit --pass values".to_string());
     }
 
     let source = read_source(&path)?;
     let context = read_context_json(context_json.as_deref())?;
+    let style_path = path_string(&path);
+    let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
     let summary = if let Some(target_query) = target_query {
-        execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
-            &path_string(&path),
-            &source,
-            &target_query,
+        if workspace_sources.len() > 1 {
+            execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
+                &style_path,
+                &workspace_sources,
+                &target_query,
+                &context,
+                target_options,
+                &[],
+            )?
+        } else {
+            execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
+                &style_path,
+                &source,
+                &target_query,
+                &context,
+                target_options,
+            )
+        }
+    } else if workspace_sources.len() > 1 {
+        execute_omena_query_consumer_build_style_sources_with_context(
+            &style_path,
+            &workspace_sources,
+            &pass_ids,
             &context,
-            target_options,
-        )
+            &[],
+        )?
     } else {
         execute_omena_query_consumer_build_style_source_with_context(
-            &path_string(&path),
+            &style_path,
             &source,
             &pass_ids,
             &context,
@@ -203,6 +246,31 @@ fn build_file(
     );
     eprintln!("mutations: {}", summary.execution.mutation_count);
     Ok(())
+}
+
+fn read_workspace_sources(
+    target_path: &Path,
+    target_source: &str,
+    additional_paths: &[PathBuf],
+) -> Result<Vec<OmenaQueryStyleSourceInputV0>, String> {
+    let target_path_string = path_string(target_path);
+    let mut sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: target_path_string.clone(),
+        style_source: target_source.to_string(),
+    }];
+
+    for source_path in additional_paths {
+        let source_path_string = path_string(source_path);
+        if source_path_string == target_path_string {
+            continue;
+        }
+        sources.push(OmenaQueryStyleSourceInputV0 {
+            style_path: source_path_string,
+            style_source: read_source(source_path)?,
+        });
+    }
+
+    Ok(sources)
 }
 
 fn list_passes(json: bool) -> Result<(), String> {

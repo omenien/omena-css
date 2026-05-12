@@ -83,7 +83,7 @@ pub use omena_transform_target::{
 use omena_transform_target::{
     TransformTargetPlanV0, plan_target_transforms, plan_target_transforms_from_query,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 mod boundary;
 mod fragments;
