@@ -4447,39 +4447,107 @@ fn split_top_level_value_arguments(inner: &str) -> Option<Vec<String>> {
     Some(arguments)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct StaticColorMixStop {
     color: SrgbColor,
-    percentage: Option<u8>,
+    percentage: Option<f64>,
 }
 
 fn parse_static_color_mix_stop(input: &str) -> Option<StaticColorMixStop> {
-    let parts = input.split_whitespace().collect::<Vec<_>>();
-    let (color_text, percentage) = match parts.as_slice() {
-        [color] => (*color, None),
-        [color, percentage] => (*color, Some(parse_percentage_integer(percentage)?)),
-        _ => return None,
-    };
-
+    let (color_text, percentage) = split_static_color_mix_stop(input)?;
     Some(StaticColorMixStop {
-        color: parse_static_srgb_color(color_text)?,
+        color: parse_static_color_mix_operand(&color_text)?,
         percentage,
     })
 }
 
-fn parse_percentage_integer(text: &str) -> Option<u8> {
-    let number = text.strip_suffix('%')?;
-    let value = number.parse::<u8>().ok()?;
-    (value <= 100).then_some(value)
+fn split_static_color_mix_stop(input: &str) -> Option<(String, Option<f64>)> {
+    let input = input.trim();
+    if input.is_empty() {
+        return None;
+    }
+
+    let mut depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+    let mut in_top_level_whitespace = false;
+    let mut last_top_level_whitespace_start = None;
+
+    for (index, ch) in input.char_indices() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                in_top_level_whitespace = false;
+            }
+            '(' => {
+                depth += 1;
+                in_top_level_whitespace = false;
+            }
+            ')' => {
+                depth = depth.checked_sub(1)?;
+                in_top_level_whitespace = false;
+            }
+            '[' => {
+                bracket_depth += 1;
+                in_top_level_whitespace = false;
+            }
+            ']' => {
+                bracket_depth = bracket_depth.checked_sub(1)?;
+                in_top_level_whitespace = false;
+            }
+            ch if ch.is_ascii_whitespace() && depth == 0 && bracket_depth == 0 => {
+                if !in_top_level_whitespace {
+                    last_top_level_whitespace_start = Some(index);
+                }
+                in_top_level_whitespace = true;
+            }
+            _ => in_top_level_whitespace = false,
+        }
+    }
+
+    if quote.is_some() || depth != 0 || bracket_depth != 0 {
+        return None;
+    }
+
+    if let Some(separator_start) = last_top_level_whitespace_start {
+        let color = input[..separator_start].trim();
+        let percentage = input[separator_start..].trim();
+        if !color.is_empty()
+            && let Some(percentage) = parse_bounded_percentage(percentage)
+        {
+            return Some((color.to_string(), Some(percentage)));
+        }
+    }
+
+    Some((input.to_string(), None))
 }
 
-fn color_mix_weights(first: Option<u8>, second: Option<u8>) -> Option<(f64, f64)> {
+fn parse_static_color_mix_operand(text: &str) -> Option<SrgbColor> {
+    parse_static_srgb_color(text)
+        .or_else(|| parse_static_rgb_function_color(text))
+        .or_else(|| parse_static_hsl_function_color(text))
+        .or_else(|| parse_static_hwb_function_color(text))
+}
+
+fn color_mix_weights(first: Option<f64>, second: Option<f64>) -> Option<(f64, f64)> {
     match (first, second) {
         (None, None) => Some((0.5, 0.5)),
-        (Some(first), None) => Some((f64::from(first) / 100.0, f64::from(100 - first) / 100.0)),
-        (None, Some(second)) => Some((f64::from(100 - second) / 100.0, f64::from(second) / 100.0)),
-        (Some(first), Some(second)) if first + second == 100 => {
-            Some((f64::from(first) / 100.0, f64::from(second) / 100.0))
+        (Some(first), None) => Some((first, 1.0 - first)),
+        (None, Some(second)) => Some((1.0 - second, second)),
+        (Some(first), Some(second)) if (first + second - 1.0).abs() <= 0.000_001 => {
+            Some((first, second))
         }
         _ => None,
     }
@@ -7647,7 +7715,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_static_srgb_color_mix_declarations() {
-        let source = r#".card { color: color-mix(in srgb, red 50%, blue 50%); background-color: color-mix(in srgb, #000, #fff 25%); border-color: color-mix(in oklab, red, blue); }"#;
+        let source = r#".card { color: color-mix(in srgb, red 50%, blue 50%); background-color: color-mix(in srgb, #000, #fff 25%); outline-color: color-mix(in srgb, rgb(255 0 0) 25%, hsl(240 100% 50%) 75%); text-decoration-color: color-mix(in srgb, hwb(120 0% 50%) 40%, white 60%); caret-color: color-mix(in srgb, black 12.5%, white 87.5%); border-color: color-mix(in oklab, red, blue); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7656,10 +7724,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 5);
         assert_eq!(
             execution.output_css,
-            r#".card { color: rgb(128 0 128); background-color: rgb(64 64 64); border-color: color-mix(in oklab, red, blue); }"#
+            r#".card { color: rgb(128 0 128); background-color: rgb(64 64 64); outline-color: rgb(64 0 191); text-decoration-color: rgb(153 204 153); caret-color: rgb(223 223 223); border-color: color-mix(in oklab, red, blue); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
