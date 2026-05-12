@@ -54,6 +54,7 @@ function parseArgs(args) {
     dest: undefined,
     force: false,
     initGit: false,
+    preserveGit: false,
     publishDryRun: false,
     temp: false,
     verify: false,
@@ -76,6 +77,10 @@ function parseArgs(args) {
     }
     if (arg === "--init-git") {
       parsedOptions.initGit = true;
+      continue;
+    }
+    if (arg === "--preserve-git") {
+      parsedOptions.preserveGit = true;
       continue;
     }
     if (arg === "--publish-dry-run") {
@@ -103,7 +108,7 @@ function parseArgs(args) {
 
 function printHelp() {
   process.stdout.write(`Usage:
-  node scripts/prepare-omena-css-workspace.mjs [--dest <path>] [--force] [--verify] [--publish-dry-run] [--init-git]
+  node scripts/prepare-omena-css-workspace.mjs [--dest <path>] [--force] [--verify] [--publish-dry-run] [--preserve-git] [--init-git]
   node scripts/prepare-omena-css-workspace.mjs --temp --verify --publish-dry-run
 
 Creates a standalone omena-css workspace containing the publish-target crates.
@@ -122,7 +127,7 @@ function prepareWorkspace(destinationPath, workspaceOptions) {
       throw new Error(`Destination is not empty: ${destinationPath}. Pass --force to replace it.`);
     }
     if (workspaceOptions.force) {
-      rmSync(destinationPath, { force: true, recursive: true });
+      clearDestination(destinationPath, workspaceOptions);
     }
   }
 
@@ -160,6 +165,7 @@ function prepareWorkspace(destinationPath, workspaceOptions) {
         crateCount: omenaCssCrates.length,
         crates: omenaCssCrates,
         initializedGit: workspaceOptions.initGit,
+        preservedGit: workspaceOptions.preserveGit,
         publishDryRun: workspaceOptions.publishDryRun,
         verified: workspaceOptions.verify,
       },
@@ -168,6 +174,20 @@ function prepareWorkspace(destinationPath, workspaceOptions) {
     ),
   );
   process.stdout.write("\n");
+}
+
+function clearDestination(destinationPath, workspaceOptions) {
+  if (!workspaceOptions.preserveGit || !existsSync(path.join(destinationPath, ".git"))) {
+    rmSync(destinationPath, { force: true, recursive: true });
+    return;
+  }
+
+  for (const entry of readdirSync(destinationPath)) {
+    if (entry === ".git") {
+      continue;
+    }
+    rmSync(path.join(destinationPath, entry), { force: true, recursive: true });
+  }
 }
 
 function copyRootFiles(destinationPath) {

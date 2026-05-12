@@ -27,4 +27,5 @@ fi
 node "${repo_root}/scripts/prepare-omena-css-workspace.mjs" \
   --dest "${dest}" \
   --force \
+  --preserve-git \
   --verify
