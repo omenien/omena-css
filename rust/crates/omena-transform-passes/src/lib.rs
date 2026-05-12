@@ -184,10 +184,10 @@ pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySum
         execution_runtime_ready: true,
         implemented_mutation_pass_ids: implemented_mutation_pass_ids(),
         next_surfaces: vec![
-            "remainingPassMutationEngines",
+            "transformContextProducers",
             "transformSalsaQueries",
-            "omena-transform-bundle",
-            "omena-transform-print",
+            "sourceMapComposition",
+            "provenanceDerivationForest",
         ],
     }
 }

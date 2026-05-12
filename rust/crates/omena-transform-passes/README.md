@@ -3,13 +3,13 @@
 `omena-transform-passes` owns the P01-P40 transform pass registry and DAG
 planner for the post-v5 omena-css track. It consumes
 `omena-transform-cst` contracts instead of redefining pass metadata. Concrete
-mutation engines will land behind this registry so transform execution cannot
-drift from the semantic/cascade proof obligations.
+mutation engines plug in behind this registry so transform execution cannot drift
+from the semantic/cascade proof obligations.
 
 The first execution runtime surface is intentionally conservative: it executes
-lexer-backed safe commodity mutations for P01 through P38,
-and observes the P40 emission boundary. P33-P36 tree shaking is context-gated
-and mutates only under an explicit closed-style-world reachability context.
+lexer-backed safe commodity mutations for P01 through P39, and observes the P40
+emission boundary. P26-P30 and P33-P39 are context-gated and mutate only under
+explicit resolver/evaluator/bridge/cascade evidence.
 P04 unit normalization is limited to zero length dimensions
 inside declaration properties that accept unitless zero; broader unit/value
 rewrites remain planned until property/value semantics can prove them legal. P08
