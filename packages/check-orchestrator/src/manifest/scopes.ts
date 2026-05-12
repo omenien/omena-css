@@ -25,6 +25,7 @@ const RUST_FAMILIES = [
   "omena-bridge",
   "omena-cascade",
   "omena-checker",
+  "omena-css",
   "omena-incremental",
   "omena-interner",
   "omena-lsp-server",

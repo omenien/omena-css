@@ -105,6 +105,36 @@ pub struct IncrementalDatabaseUpdateV0 {
     pub next_snapshot: IncrementalSnapshotV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncrementalConsistencyFuzzCaseV0 {
+    pub seed: u64,
+    pub node_count: usize,
+    pub changed_node_index: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncrementalConsistencyFuzzResultV0 {
+    pub seed: u64,
+    pub node_count: usize,
+    pub changed_node_id: Option<String>,
+    pub dirty_node_count: usize,
+    pub expected_dirty_node_count: usize,
+    pub passed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncrementalFuzzSeedReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub case_count: usize,
+    pub passed_count: usize,
+    pub failed_count: usize,
+    pub results: Vec<IncrementalConsistencyFuzzResultV0>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IncrementalCancellationRegistryV0 {
     limit: usize,
@@ -241,6 +271,73 @@ pub fn plan_incremental_computation(
     }
 }
 
+pub fn run_incremental_consistency_fuzz_case(
+    case: IncrementalConsistencyFuzzCaseV0,
+) -> IncrementalConsistencyFuzzResultV0 {
+    let node_count = case.node_count.clamp(1, 64);
+    let previous_input = generated_incremental_fuzz_graph(case.seed, node_count, None);
+    let previous_snapshot = snapshot_from_graph_input(&previous_input);
+    let changed_index = case
+        .changed_node_index
+        .map(|index| index.min(node_count.saturating_sub(1)));
+    let next_input = generated_incremental_fuzz_graph(case.seed, node_count, changed_index);
+    let plan = plan_incremental_computation(&next_input, Some(&previous_snapshot));
+    let changed_node_id = changed_index.map(fuzz_node_id);
+    let expected_dirty_ids = changed_node_id
+        .as_ref()
+        .map(|changed_id| transitive_dependents(&next_input, changed_id))
+        .unwrap_or_default();
+    let actual_dirty_ids = plan
+        .nodes
+        .iter()
+        .filter(|node| node.dirty)
+        .map(|node| node.id.clone())
+        .collect::<BTreeSet<_>>();
+    let expected_dirty_node_count = expected_dirty_ids.len();
+    let passed = actual_dirty_ids == expected_dirty_ids
+        && plan.dirty_node_count == expected_dirty_node_count
+        && plan.changed_input_count == usize::from(changed_node_id.is_some());
+
+    IncrementalConsistencyFuzzResultV0 {
+        seed: case.seed,
+        node_count,
+        changed_node_id,
+        dirty_node_count: plan.dirty_node_count,
+        expected_dirty_node_count,
+        passed,
+    }
+}
+
+pub fn run_incremental_fuzz_seed_corpus() -> IncrementalFuzzSeedReportV0 {
+    let seeds = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233];
+    let results = seeds
+        .into_iter()
+        .enumerate()
+        .map(|(index, seed)| {
+            run_incremental_consistency_fuzz_case(IncrementalConsistencyFuzzCaseV0 {
+                seed,
+                node_count: index + 1,
+                changed_node_index: if index % 4 == 0 {
+                    None
+                } else {
+                    Some(index / 2)
+                },
+            })
+        })
+        .collect::<Vec<_>>();
+    let passed_count = results.iter().filter(|result| result.passed).count();
+    let case_count = results.len();
+
+    IncrementalFuzzSeedReportV0 {
+        schema_version: "0",
+        product: "omena-incremental.fuzz-seed-corpus",
+        case_count,
+        passed_count,
+        failed_count: case_count - passed_count,
+        results,
+    }
+}
+
 #[salsa::tracked(returns(clone))]
 pub fn summarize_salsa_incremental_node_snapshot(
     db: &dyn salsa::Database,
@@ -323,6 +420,74 @@ fn propagate_dependency_dirty(
             break;
         }
     }
+}
+
+fn generated_incremental_fuzz_graph(
+    seed: u64,
+    node_count: usize,
+    changed_index: Option<usize>,
+) -> IncrementalGraphInputV0 {
+    let mut state = seed ^ 0xa076_1d64_78bd_642f;
+    let nodes = (0..node_count)
+        .map(|index| {
+            let id = fuzz_node_id(index);
+            let mut digest_seed = fuzz_next(&mut state);
+            if changed_index == Some(index) {
+                digest_seed ^= 0xffff_ffff_ffff_ffff;
+            }
+            let dependency_ids = (0..index)
+                .filter(|candidate| {
+                    let divisor = ((*candidate + 2) as u64).max(2);
+                    (seed + index as u64).is_multiple_of(divisor)
+                })
+                .map(fuzz_node_id)
+                .collect::<Vec<_>>();
+            IncrementalNodeInputV0 {
+                id,
+                digest: format!("digest-{index}-{digest_seed:016x}"),
+                dependency_ids,
+            }
+        })
+        .collect();
+
+    IncrementalGraphInputV0 {
+        revision: IncrementalRevisionV0 {
+            value: 1 + if changed_index.is_some() { 1 } else { 0 },
+        },
+        nodes,
+    }
+}
+
+fn transitive_dependents(input: &IncrementalGraphInputV0, changed_id: &str) -> BTreeSet<String> {
+    let mut dirty_ids = BTreeSet::from([changed_id.to_string()]);
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for node in &input.nodes {
+            if dirty_ids.contains(&node.id) {
+                continue;
+            }
+            if node
+                .dependency_ids
+                .iter()
+                .any(|dependency_id| dirty_ids.contains(dependency_id))
+            {
+                changed = dirty_ids.insert(node.id.clone()) || changed;
+            }
+        }
+    }
+    dirty_ids
+}
+
+fn fuzz_node_id(index: usize) -> String {
+    format!("node-{index}")
+}
+
+fn fuzz_next(state: &mut u64) -> u64 {
+    *state = state
+        .wrapping_mul(6_364_136_223_846_793_005)
+        .wrapping_add(1_442_695_040_888_963_407);
+    *state
 }
 
 impl OmenaIncrementalDatabaseV0 {
@@ -514,6 +679,27 @@ mod tests {
         assert_eq!(plan.dependency_dirty_count, 1);
         assert_eq!(node_reasons(&plan, "a"), vec!["inputDigestChanged"]);
         assert_eq!(node_reasons(&plan, "b"), vec!["dependencyDirty"]);
+    }
+
+    #[test]
+    fn fuzz_seed_corpus_preserves_incremental_dirty_set_invariants() {
+        let report = super::run_incremental_fuzz_seed_corpus();
+
+        assert_eq!(report.product, "omena-incremental.fuzz-seed-corpus");
+        assert_eq!(report.failed_count, 0);
+        assert_eq!(report.passed_count, report.case_count);
+        assert!(
+            report
+                .results
+                .iter()
+                .any(|result| result.changed_node_id.is_none())
+        );
+        assert!(
+            report
+                .results
+                .iter()
+                .any(|result| result.expected_dirty_node_count > 1)
+        );
     }
 
     #[test]
