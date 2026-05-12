@@ -7,7 +7,9 @@
 use omena_transform_cst::{
     TransformCstArtifactV0, TransformPassKind, build_transform_cst_artifact,
 };
-use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
+use omena_transform_passes::{
+    TransformExecutionSummaryV0, TransformPassPlanV0, plan_transform_passes,
+};
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -115,11 +117,55 @@ pub fn print_transform_cst_source(
     }
 }
 
+pub fn print_transform_execution_artifact(
+    source_path: impl Into<String>,
+    semantic_signature: impl Into<String>,
+    upstream_passes: &[TransformPassKind],
+    options: TransformPrintOptionsV0,
+    execution: &TransformExecutionSummaryV0,
+) -> TransformPrintArtifactV0 {
+    let source_path = source_path.into();
+    let mut artifact = print_transform_cst_source(
+        source_path.clone(),
+        &execution.output_css,
+        semantic_signature,
+        upstream_passes,
+        options,
+    );
+
+    if options.include_source_map {
+        artifact.source_map_segments =
+            compose_source_map_segments_from_execution(&source_path, execution);
+    }
+
+    artifact.provenance_preserved = artifact.provenance_preserved && execution.provenance_preserved;
+    artifact
+}
+
 pub const fn default_print_options() -> TransformPrintOptionsV0 {
     TransformPrintOptionsV0 {
         mode: TransformPrintMode::Identity,
         include_source_map: true,
     }
+}
+
+fn compose_source_map_segments_from_execution(
+    source_path: &str,
+    execution: &TransformExecutionSummaryV0,
+) -> Vec<TransformSourceMapSegmentV0> {
+    execution
+        .provenance_derivation_forest
+        .nodes
+        .iter()
+        .map(|node| TransformSourceMapSegmentV0 {
+            source_path: source_path.to_string(),
+            original_start: 0,
+            original_end: node.input_byte_len,
+            generated_start: 0,
+            generated_end: node.output_byte_len,
+            pass_id: node.pass_id,
+        })
+        .collect()
 }
 
 fn render_identity_preserving_css(source: &str, _mode: TransformPrintMode) -> String {
@@ -129,9 +175,11 @@ fn render_identity_preserving_css(source: &str, _mode: TransformPrintMode) -> St
 #[cfg(test)]
 mod tests {
     use super::{
-        default_print_options, print_transform_cst_source, summarize_omena_transform_print_boundary,
+        default_print_options, print_transform_cst_source, print_transform_execution_artifact,
+        summarize_omena_transform_print_boundary,
     };
     use omena_transform_cst::TransformPassKind;
+    use omena_transform_passes::execute_transform_passes_on_source;
 
     #[test]
     fn exposes_p40_print_boundary() {
@@ -161,6 +209,54 @@ mod tests {
         assert_eq!(
             artifact.pass_plan.ordered_pass_ids,
             vec!["p25-calc-reduction", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn composes_source_map_segments_from_execution_provenance() {
+        let source = ".button { color: red; /* remove */ }";
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::CommentStrip,
+                TransformPassKind::WhitespaceStrip,
+                TransformPassKind::PrintCss,
+            ],
+        );
+        let artifact = print_transform_execution_artifact(
+            "Button.module.css",
+            "semantic:button",
+            &[
+                TransformPassKind::CommentStrip,
+                TransformPassKind::WhitespaceStrip,
+                TransformPassKind::PrintCss,
+            ],
+            default_print_options(),
+            &execution,
+        );
+
+        assert_eq!(artifact.css, execution.output_css);
+        assert!(artifact.provenance_preserved);
+        assert_eq!(
+            artifact.source_map_segments.len(),
+            execution.provenance_derivation_forest.node_count
+        );
+        assert_eq!(
+            artifact.source_map_segments[0].source_path,
+            "Button.module.css"
+        );
+        assert!(
+            artifact
+                .source_map_segments
+                .iter()
+                .any(|segment| segment.pass_id == "p02-comment-strip")
+        );
+        assert_eq!(
+            artifact
+                .source_map_segments
+                .last()
+                .map(|segment| segment.generated_end),
+            Some(execution.output_byte_len)
         );
     }
 }

@@ -119,12 +119,12 @@ pub fn summarize_omena_query_transform_plan_from_source_with_context(
         &combined_passes,
         context,
     );
-    let print = print_transform_cst_source(
+    let print = print_transform_execution_artifact(
         style_path,
-        &execution.output_css,
         semantic_signature,
         &combined_passes,
         print_options,
+        &execution,
     );
     let combined_pass_ids = combined_plan.ordered_pass_ids.clone();
     let combined_violated_dag_edge_count = combined_plan.violated_dag_edge_count;

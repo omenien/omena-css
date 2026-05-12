@@ -62,7 +62,7 @@ use omena_transform_passes::{
     TransformExecutionContextV0, TransformExecutionSummaryV0, TransformPassPlanV0,
     execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
 };
-use omena_transform_print::print_transform_cst_source;
+use omena_transform_print::print_transform_execution_artifact;
 pub use omena_transform_print::{
     TransformPrintArtifactV0, TransformPrintOptionsV0 as OmenaQueryTransformPrintOptionsV0,
     default_print_options as default_omena_query_transform_print_options,

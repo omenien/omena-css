@@ -479,7 +479,7 @@ pub fn summarize_omena_transform_cst_boundary() -> TransformCstBoundarySummaryV0
             "omena-transform-passes",
             "omena-transform-print",
             "salsaTransformQueries",
-            "sourceMapComposition",
+            "sourceMapSpanPrecision",
         ],
     }
 }

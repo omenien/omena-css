@@ -211,7 +211,7 @@ pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySum
         next_surfaces: vec![
             "transformContextProducers",
             "transformSalsaQueries",
-            "sourceMapComposition",
+            "sourceMapSpanPrecision",
             "provenanceSourceSpanMapping",
         ],
     }

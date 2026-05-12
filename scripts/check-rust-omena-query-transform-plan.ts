@@ -32,6 +32,14 @@ interface TransformPlanSummaryV0 {
   readonly print: {
     readonly product: string;
     readonly css: string;
+    readonly sourceMapSegments: readonly {
+      readonly sourcePath: string;
+      readonly originalStart: number;
+      readonly originalEnd: number;
+      readonly generatedStart: number;
+      readonly generatedEnd: number;
+      readonly passId: string;
+    }[];
     readonly provenancePreserved: boolean;
     readonly cstArtifact: {
       readonly product: string;
@@ -184,6 +192,8 @@ assert.deepEqual(summary.egg.plannedPassIds, []);
 assert.equal(summary.print.product, "omena-transform-print.artifact");
 assert.equal(summary.print.css, styleSource);
 assert.equal(summary.print.provenancePreserved, true);
+assert.equal(summary.print.sourceMapSegments.length, summary.execution.provenanceDerivationForest.nodeCount);
+assert.equal(summary.print.sourceMapSegments[0]?.sourcePath, "Button.module.scss");
 assert.equal(summary.print.cstArtifact.product, "omena-transform-cst.artifact");
 assert.equal(summary.print.cstArtifact.provenancePreserved, true);
 
@@ -328,6 +338,20 @@ assert.equal(
   ':root { --brand: red; } ._button_x{  color: var(--brand); } ._base_y{ color: blue; }',
 );
 assert.equal(contextSummary.print.css, contextSummary.execution.outputCss);
+assert.equal(
+  contextSummary.print.sourceMapSegments.length,
+  contextSummary.execution.provenanceDerivationForest.nodeCount,
+);
+assert.ok(
+  contextSummary.print.sourceMapSegments.some((segment) => segment.passId === "p26-import-inline"),
+  "context transform-plan source map must include import inline pass",
+);
+assert.ok(
+  contextSummary.print.sourceMapSegments.some(
+    (segment) => segment.generatedEnd === contextSummary.execution.outputCss.length,
+  ),
+  "context transform-plan source map must include final generated length",
+);
 assertIncludesAll(
   contextSummary.execution.executedPassIds,
   ["p26-import-inline", "p30-composes-resolution", "p29-css-modules-class-hashing", "p40-print-css"],
