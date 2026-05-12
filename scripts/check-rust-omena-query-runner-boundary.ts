@@ -52,13 +52,17 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
     "input-selector-usage-canonical-producer",
     "summarize_omena_query_selector_usage_canonical_producer_signal",
   ],
-  ["omena-parser-style-facts", "summarize_omena_query_omena_parser_style_facts"],
   ["style-semantic-graph", "summarize_omena_query_style_semantic_graph_from_source"],
   ["read-cascade-at-position", "read_omena_query_cascade_at_position"],
   ["style-semantic-graph-batch", "summarize_omena_query_style_semantic_graph_batch_from_sources"],
   ["transform-plan", "summarize_omena_query_transform_plan_from_source_with_context"],
   ["transform-context", "summarize_omena_query_transform_context_from_sources"],
   ["transform-execute", "execute_omena_query_transform_passes_from_source_with_context"],
+] as const);
+
+const PARSER_OWNED_COMMANDS = new Map([
+  ["omena-parser-style-facts", "summarize_omena_parser_style_facts"],
+  ["omena-parser-lex", "summarize_omena_parser_lex"],
 ] as const);
 
 const DIRECT_PRODUCER_LANE_COMMANDS = new Map([
@@ -141,6 +145,17 @@ for (const [command, expectedCall] of OMENA_QUERY_OWNED_COMMANDS) {
   );
 }
 
+for (const [command, expectedCall] of PARSER_OWNED_COMMANDS) {
+  const body = commandBodies.get(command);
+  assert.ok(body, `missing engine-shadow-runner parser command arm: ${command}`);
+  assert.ok(body.includes(expectedCall), `command ${command} must route through ${expectedCall}`);
+  assert.equal(
+    findDirectProducerCalls(body).length,
+    0,
+    `command ${command} must not call engine-input-producers directly`,
+  );
+}
+
 const actualDirectProducerCalls = [...commandBodies.entries()]
   .flatMap(([command, body]) =>
     findDirectProducerCalls(body).map((functionName) => [command, functionName] as const),
@@ -159,6 +174,7 @@ process.stdout.write(
   [
     "validated omena-query runner boundary:",
     `omenaOwnedCommands=${OMENA_QUERY_OWNED_COMMANDS.size}`,
+    `parserOwnedCommands=${PARSER_OWNED_COMMANDS.size}`,
     `directProducerLaneCommands=${DIRECT_PRODUCER_LANE_COMMANDS.size}`,
   ].join(" "),
 );

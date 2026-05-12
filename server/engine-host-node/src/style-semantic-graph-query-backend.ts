@@ -301,7 +301,7 @@ export interface StyleSemanticGraphBatchStyleInputV0 {
 
 export interface OmenaParserStyleFactsV0 {
   readonly schemaVersion: "0";
-  readonly product: "omena-query.omena-parser-style-facts";
+  readonly product: "omena-parser.style-facts";
   readonly dialect: string;
   readonly sassModuleUseSources: readonly string[];
   readonly sassModuleForwardSources: readonly string[];

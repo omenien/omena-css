@@ -95,7 +95,7 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.omenaParserStyleFacts,
       inputContract: "OmenaParserStyleFactsInputV0",
-      outputProduct: "omena-query.omena-parser-style-facts",
+      outputProduct: "omena-parser.style-facts",
     },
   ],
   [

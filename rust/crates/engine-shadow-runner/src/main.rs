@@ -36,12 +36,13 @@ use omena_checker::{
     evaluate_omena_checker_m_tier_rules,
 };
 use omena_parser::{
-    StyleDialect as OmenaRawParserStyleDialect, lex as summarize_omena_raw_parser_lex,
+    StyleDialect as OmenaParserStyleDialect, summarize_omena_parser_lex,
+    summarize_omena_parser_style_facts,
 };
 use omena_query::{
-    OmenaParserStyleDialect, OmenaQueryExpressionDomainFlowRuntimeV0,
-    OmenaQueryStylePackageManifestV0, OmenaQueryTargetFeatureSupportV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
+    OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryStylePackageManifestV0,
+    OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
+    OmenaQueryTransformExecutionContextV0, ParserPositionV0,
     default_omena_query_transform_print_options,
     execute_omena_query_transform_passes_from_source_with_context,
     read_omena_query_cascade_at_position, summarize_omena_query_boundary,
@@ -52,7 +53,6 @@ use omena_query::{
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_expression_semantics_canonical_producer_signal,
     summarize_omena_query_expression_semantics_query_fragments,
-    summarize_omena_query_omena_parser_style_facts,
     summarize_omena_query_selected_query_adapter_capabilities,
     summarize_omena_query_selector_usage_canonical_producer_signal,
     summarize_omena_query_selector_usage_query_fragments,
@@ -287,25 +287,6 @@ struct OmenaParserStyleFactsInputV0 {
 struct OmenaParserLexInputV0 {
     style_source: String,
     dialect: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct OmenaParserLexSummaryV0 {
-    schema_version: &'static str,
-    product: &'static str,
-    dialect: &'static str,
-    tokens: Vec<OmenaParserLexTokenV0>,
-    parser_error_count: usize,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct OmenaParserLexTokenV0 {
-    kind: String,
-    text: String,
-    start: u32,
-    end: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -993,13 +974,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("omena-parser-style-facts") => {
             let input: OmenaParserStyleFactsInputV0 = serde_json::from_str(&stdin)?;
             let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
-            let summary =
-                summarize_omena_query_omena_parser_style_facts(&input.style_source, dialect);
+            let summary = summarize_omena_parser_style_facts(&input.style_source, dialect);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("omena-parser-lex") => {
             let input: OmenaParserLexInputV0 = serde_json::from_str(&stdin)?;
-            let dialect = parse_omena_raw_parser_style_dialect(input.dialect.as_str())?;
+            let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
             let summary = summarize_omena_parser_lex(&input.style_source, dialect);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
@@ -1344,50 +1324,6 @@ fn parse_omena_parser_style_dialect(
     }
 }
 
-fn parse_omena_raw_parser_style_dialect(
-    dialect: &str,
-) -> Result<OmenaRawParserStyleDialect, Box<dyn std::error::Error>> {
-    match dialect {
-        "css" => Ok(OmenaRawParserStyleDialect::Css),
-        "scss" => Ok(OmenaRawParserStyleDialect::Scss),
-        "sass" => Ok(OmenaRawParserStyleDialect::Sass),
-        "less" => Ok(OmenaRawParserStyleDialect::Less),
-        other => Err(format!("unsupported omena parser lex dialect: {other}").into()),
-    }
-}
-
-fn omena_raw_parser_style_dialect_label(dialect: OmenaRawParserStyleDialect) -> &'static str {
-    match dialect {
-        OmenaRawParserStyleDialect::Css => "css",
-        OmenaRawParserStyleDialect::Scss => "scss",
-        OmenaRawParserStyleDialect::Sass => "sass",
-        OmenaRawParserStyleDialect::Less => "less",
-    }
-}
-
-fn summarize_omena_parser_lex(
-    source: &str,
-    dialect: OmenaRawParserStyleDialect,
-) -> OmenaParserLexSummaryV0 {
-    let result = summarize_omena_raw_parser_lex(source, dialect);
-    OmenaParserLexSummaryV0 {
-        schema_version: "0",
-        product: "omena-parser.lex-result",
-        dialect: omena_raw_parser_style_dialect_label(result.dialect()),
-        tokens: result
-            .tokens()
-            .iter()
-            .map(|token| OmenaParserLexTokenV0 {
-                kind: format!("{:?}", token.kind),
-                text: token.text.clone(),
-                start: token.range.start().into(),
-                end: token.range.end().into(),
-            })
-            .collect(),
-        parser_error_count: result.errors().len(),
-    }
-}
-
 fn run_daemon_selected_query_command(
     command: &str,
     input: serde_json::Value,
@@ -1442,9 +1378,10 @@ fn run_daemon_selected_query_command(
         "omena-parser-style-facts" => {
             let input: OmenaParserStyleFactsInputV0 = serde_json::from_value(input)?;
             let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
-            Ok(serde_json::to_value(
-                summarize_omena_query_omena_parser_style_facts(&input.style_source, dialect),
-            )?)
+            Ok(serde_json::to_value(summarize_omena_parser_style_facts(
+                &input.style_source,
+                dialect,
+            ))?)
         }
         "style-semantic-graph" => {
             let input: StyleSemanticGraphInputV0 = serde_json::from_value(input)?;

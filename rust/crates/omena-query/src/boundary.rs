@@ -217,7 +217,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 surface: "omenaParserStyleFacts",
                 command: "omena-parser-style-facts",
                 input_contract: "OmenaParserStyleFactsInputV0",
-                output_product: "omena-query.omena-parser-style-facts",
+                output_product: "omena-parser.style-facts",
             },
             SelectedQueryRunnerCommandV0 {
                 surface: "styleSemanticGraph",

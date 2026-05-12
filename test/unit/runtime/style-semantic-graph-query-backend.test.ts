@@ -735,7 +735,7 @@ describe("style semantic graph query backend", () => {
             });
             return {
               schemaVersion: "0",
-              product: "omena-query.omena-parser-style-facts",
+              product: "omena-parser.style-facts",
               dialect: "scss",
               sassModuleUseSources: ["@design/tokens/theme"],
               sassModuleForwardSources: [],
