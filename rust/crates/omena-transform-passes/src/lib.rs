@@ -97,6 +97,7 @@ pub struct TransformExecutionSummaryV0 {
     pub mutation_count: usize,
     pub provenance_preserved: bool,
     pub output_css: String,
+    pub css_module_composes_exports: Vec<TransformCssModuleComposesResolutionV0>,
     pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
     pub pass_plan: TransformPassPlanV0,
 }
@@ -110,6 +111,7 @@ pub struct TransformExecutionContextV0 {
     pub reachable_value_names: Vec<String>,
     pub reachable_custom_property_names: Vec<String>,
     pub class_name_rewrites: Vec<TransformClassNameRewriteV0>,
+    pub css_module_composes_resolutions: Vec<TransformCssModuleComposesResolutionV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -117,6 +119,13 @@ pub struct TransformExecutionContextV0 {
 pub struct TransformClassNameRewriteV0 {
     pub original_name: String,
     pub rewritten_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformCssModuleComposesResolutionV0 {
+    pub local_class_name: String,
+    pub exported_class_names: Vec<String>,
 }
 
 pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySummaryV0 {
@@ -216,6 +225,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
     let ordered_pass_ids = pass_plan.ordered_pass_ids.clone();
     let mut output_css = source.to_string();
     let mut outcomes = Vec::new();
+    let mut css_module_composes_exports = Vec::new();
 
     for pass_id in &ordered_pass_ids {
         let pass = transform_pass_kind_from_id(pass_id);
@@ -687,6 +697,40 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     detail: "removed dead @supports branches through the static cascade witness evaluator",
                 }
             }
+            Some(TransformPassKind::ResolveCssModulesComposes)
+                if !context.css_module_composes_resolutions.is_empty() =>
+            {
+                let (next_css, mutation_count) = resolve_css_module_composes(
+                    &output_css,
+                    dialect,
+                    &context.css_module_composes_resolutions,
+                );
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                css_module_composes_exports = context.css_module_composes_resolutions.clone();
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "removed resolved CSS Modules composes declarations using an explicit export set",
+                }
+            }
+            Some(TransformPassKind::ResolveCssModulesComposes) => TransformPassExecutionOutcomeV0 {
+                pass_id,
+                status: TransformPassRuntimeStatus::PlannedOnly,
+                input_byte_len,
+                output_byte_len: output_css.len(),
+                mutation_count: 0,
+                provenance_preserved: true,
+                detail: "requires an explicit CSS Modules composes export set before mutation",
+            },
             Some(TransformPassKind::HashCssModuleClassNames)
                 if !context.class_name_rewrites.is_empty() =>
             {
@@ -969,6 +1013,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
         mutation_count,
         provenance_preserved,
         output_css,
+        css_module_composes_exports,
         outcomes,
         pass_plan,
     }
@@ -1004,6 +1049,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::DeadSupportsBranchRemoval.id(),
         TransformPassKind::ValueResolution.id(),
         TransformPassKind::StaticVarSubstitution.id(),
+        TransformPassKind::ResolveCssModulesComposes.id(),
         TransformPassKind::HashCssModuleClassNames.id(),
         TransformPassKind::TreeShakeClass.id(),
         TransformPassKind::TreeShakeKeyframes.id(),
@@ -1224,6 +1270,14 @@ fn evaluate_static_media_rules(source: &str, dialect: StyleDialect) -> (String, 
 
 fn resolve_static_css_modules_values(source: &str, dialect: StyleDialect) -> (String, usize) {
     resolve_static_css_modules_values_with_lexer(source, dialect)
+}
+
+fn resolve_css_module_composes(
+    source: &str,
+    dialect: StyleDialect,
+    resolutions: &[TransformCssModuleComposesResolutionV0],
+) -> (String, usize) {
+    strip_resolved_css_module_composes_with_lexer(source, dialect, resolutions)
 }
 
 fn tree_shake_css_class_rules(
@@ -2357,6 +2411,66 @@ fn normalize_reachable_class_name(name: &str) -> Option<&str> {
         return None;
     }
     Some(name)
+}
+
+fn strip_resolved_css_module_composes_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+    resolutions: &[TransformCssModuleComposesResolutionV0],
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let mut ranges = Vec::new();
+
+    for rule in &rules {
+        let Some(class_name) = single_simple_class_selector_name(&rule.selector) else {
+            continue;
+        };
+        if !css_module_composes_resolution_exists(&class_name, resolutions) {
+            continue;
+        }
+        let Some(block_start_index) = tokens.iter().position(|token| {
+            token.kind == SyntaxKind::LeftBrace && token_start(token) == rule.block_start
+        }) else {
+            continue;
+        };
+        let Some(block_end_index) = matching_right_brace_index(tokens, block_start_index) else {
+            continue;
+        };
+        for declaration in
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+        {
+            if declaration.property == "composes" {
+                ranges.push((declaration.start, declaration.end));
+            }
+        }
+    }
+
+    remove_source_ranges(source, &ranges)
+}
+
+fn single_simple_class_selector_name(selector: &str) -> Option<String> {
+    let branches = split_top_level_value_arguments(selector)?;
+    if branches.len() != 1 {
+        return None;
+    }
+    simple_class_selector_name(&branches[0])
+}
+
+fn css_module_composes_resolution_exists(
+    class_name: &str,
+    resolutions: &[TransformCssModuleComposesResolutionV0],
+) -> bool {
+    resolutions.iter().any(|resolution| {
+        !resolution.exported_class_names.is_empty()
+            && normalize_reachable_class_name(&resolution.local_class_name)
+                .is_some_and(|resolved_name| resolved_name == class_name)
+            && resolution
+                .exported_class_names
+                .iter()
+                .all(|name| normalize_reachable_class_name(name).is_some())
+    })
 }
 
 fn rewrite_css_module_class_names_with_lexer(
@@ -5006,7 +5120,8 @@ fn is_comment_token(kind: SyntaxKind) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        TransformClassNameRewriteV0, TransformExecutionContextV0, TransformPassRuntimeStatus,
+        TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
+        TransformExecutionContextV0, TransformPassRuntimeStatus,
         execute_transform_passes_on_source, execute_transform_passes_on_source_with_dialect,
         execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
         summarize_omena_transform_passes_boundary,
@@ -5057,6 +5172,7 @@ mod tests {
                 "p38-dead-supports-branch-removal",
                 "p31-value-resolution",
                 "p32-custom-property-static-resolve",
+                "p30-composes-resolution",
                 "p29-css-modules-class-hashing",
                 "p33-tree-shake-class",
                 "p34-tree-shake-keyframes",
@@ -5108,6 +5224,44 @@ mod tests {
                 "p29-css-modules-class-hashing",
                 "p12-selector-merging"
             ]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_resolves_css_module_composes_with_export_set() {
+        let source = r#".button { composes: base from "./base.module.css"; color: red; } .button:hover { color: blue; } .card, .panel { composes: shared; color: green; }"#;
+        let context = TransformExecutionContextV0 {
+            css_module_composes_resolutions: vec![TransformCssModuleComposesResolutionV0 {
+                local_class_name: "button".to_string(),
+                exported_class_names: vec!["button".to_string(), "base".to_string()],
+            }],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::ResolveCssModulesComposes,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#".button {  color: red; } .button:hover { color: blue; } .card, .panel { composes: shared; color: green; }"#
+        );
+        assert_eq!(
+            execution.css_module_composes_exports,
+            vec![TransformCssModuleComposesResolutionV0 {
+                local_class_name: "button".to_string(),
+                exported_class_names: vec!["button".to_string(), "base".to_string()],
+            }]
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p30-composes-resolution", "p40-print-css"]
         );
     }
 
