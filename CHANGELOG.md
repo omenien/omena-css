@@ -21,6 +21,7 @@
 - **Parser Pratt value boundary** - `omena-parser` now reports Pratt value parser core coverage separately from the still-deferred full CSS property-value grammar registry, avoiding the older over-broad `fullPrattValueParser` blocker label.
 - **Parser recursive-descent boundary** - `omena-parser` now reports recursive-descent parser core coverage separately from the still-deferred complete external CSS-family spec mirror, avoiding the older over-broad `fullRecursiveDescentGrammar` blocker label.
 - **Parser-owned query contracts** - `omena-query` now owns its public parser position/range/byte-span and style-language contracts through `omena-parser`, removing its direct `engine-style-parser` dependency while keeping bridge/semantic compatibility conversions at the boundary.
+- **Bridge style resolution** - `omena-bridge` now resolves `.sass` style candidates through its own extension filter instead of depending on the legacy parser language enum for import-specifier resolution.
 - **Reduced product overlap semantics** - `omena-abstract-value` now computes prefix/suffix reduced-product minimum lengths with overlap awareness and accounts for required character constraints, so `Pr ⊗ Su` and `Pr/Su ⊗ CI` intersections no longer exclude valid selectors or understate required selector length.
 - **Query adapter status** - `omena-query.selected-query-adapter-capabilities` now reports the selected-query adapter as `runtimeBacked`, matching the packaged runner/protocol/default-candidate path instead of the older declaration-only transition status.
 

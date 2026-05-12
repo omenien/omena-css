@@ -3,7 +3,6 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use engine_style_parser::StyleLanguage;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -188,7 +187,15 @@ fn style_candidate_paths(base_path: &Path) -> Vec<PathBuf> {
 }
 
 fn is_indexable_style_path(path: &Path) -> bool {
-    StyleLanguage::from_module_path(path.to_string_lossy().as_ref()).is_some()
+    let path = path.to_string_lossy();
+    path.ends_with(".module.css")
+        || path.ends_with(".css")
+        || path.ends_with(".module.scss")
+        || path.ends_with(".scss")
+        || path.ends_with(".module.sass")
+        || path.ends_with(".sass")
+        || path.ends_with(".module.less")
+        || path.ends_with(".less")
 }
 
 fn file_uri_to_path(uri: &str) -> Option<PathBuf> {
@@ -297,6 +304,34 @@ mod tests {
             path_to_file_uri(source.as_path()).as_str(),
             Some(path_to_file_uri(root.as_path()).as_str()),
             "@styles/Button.module.scss",
+        );
+
+        assert_eq!(
+            uri.as_deref(),
+            Some(path_to_file_uri(style.as_path()).as_str())
+        );
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_sass_style_candidates_without_legacy_language_filter()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_style_sass")?;
+        let source = root.join("src/App.tsx");
+        let style = root.join("src/Button.module.sass");
+        fs::create_dir_all(
+            source
+                .parent()
+                .ok_or_else(|| std::io::Error::other("parent"))?,
+        )?;
+        fs::write(&source, "")?;
+        fs::write(&style, ".root\n  color: red\n")?;
+
+        let uri = resolve_omena_bridge_style_uri_for_specifier(
+            path_to_file_uri(source.as_path()).as_str(),
+            Some(path_to_file_uri(root.as_path()).as_str()),
+            "./Button.module.sass",
         );
 
         assert_eq!(
