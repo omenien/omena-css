@@ -8,6 +8,7 @@ use omena_query::{
     OmenaQueryStylePackageManifestV0 as OmenaWasmStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0 as OmenaWasmStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaWasmTargetTransformOptionsV0,
+    OmenaQueryTransformContextFromEngineInputSummaryV0 as OmenaWasmTransformContextFromEngineInputSummaryV0,
     OmenaQueryTransformExecutionContextV0 as OmenaWasmTransformExecutionContextV0,
     OmenaQueryTransformPassSummaryV0 as OmenaWasmPassSummaryV0,
     conservative_omena_query_target_options, execute_omena_query_consumer_build_style_source,
@@ -20,6 +21,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_selector_projection,
+    summarize_omena_query_transform_context_from_engine_input,
 };
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
@@ -173,6 +175,20 @@ pub fn expression_domain_selector_projection(input: JsValue) -> Result<JsValue, 
     to_js_value(&expression_domain_selector_projection_summary(&input))
 }
 
+#[wasm_bindgen(js_name = transformContextFromEngineInput)]
+pub fn transform_context_from_engine_input(
+    input: JsValue,
+    target_path: &str,
+    closed_style_world: bool,
+) -> Result<JsValue, JsValue> {
+    let input = parse_engine_input_value(input)?;
+    to_js_value(&transform_context_from_engine_input_summary(
+        &input,
+        target_path,
+        closed_style_world,
+    ))
+}
+
 pub fn check_style_source_summary(source: &str, path: &str) -> OmenaWasmCheckSummaryV0 {
     let path = effective_path(path);
     summarize_omena_query_consumer_check_style_source(path, source)
@@ -299,6 +315,18 @@ pub fn expression_domain_selector_projection_summary(
     input: &OmenaWasmEngineInputV2,
 ) -> OmenaWasmExpressionDomainSelectorProjectionV0 {
     summarize_omena_query_expression_domain_selector_projection(input)
+}
+
+pub fn transform_context_from_engine_input_summary(
+    input: &OmenaWasmEngineInputV2,
+    target_path: &str,
+    closed_style_world: bool,
+) -> OmenaWasmTransformContextFromEngineInputSummaryV0 {
+    summarize_omena_query_transform_context_from_engine_input(
+        input,
+        target_path,
+        closed_style_world,
+    )
 }
 
 fn parse_pass_ids_value(value: JsValue) -> Result<Vec<String>, JsValue> {
@@ -573,6 +601,31 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"semanticReachabilityTransformContext")
+        );
+    }
+
+    #[test]
+    fn exposes_transform_context_reachability_sources_for_browser_clients() {
+        let input = serde_json::from_str::<OmenaWasmEngineInputV2>(
+            reduced_product_projection_engine_input_json(),
+        );
+        assert!(input.is_ok());
+        let Ok(input) = input else {
+            return;
+        };
+        let summary =
+            transform_context_from_engine_input_summary(&input, "/tmp/App.module.scss", true);
+
+        assert_eq!(
+            summary.product,
+            "omena-query.transform-context-from-engine-input"
+        );
+        assert_eq!(summary.selected_projection_count, 3);
+        assert!(
+            summary
+                .reachability_sources
+                .iter()
+                .any(|source| source.node_id == "file-merge")
         );
     }
 

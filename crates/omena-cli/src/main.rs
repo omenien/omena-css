@@ -89,6 +89,20 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Derive transform context from EngineInputV2 semantic reachability.
+    Context {
+        /// Target CSS, SCSS, Sass, Less, or CSS Modules path.
+        path: PathBuf,
+        /// JSON file containing EngineInputV2 source/style/type facts.
+        #[arg(long)]
+        engine_input_json: PathBuf,
+        /// Treat the engine input as a closed style world for tree shaking.
+        #[arg(long)]
+        closed_style_world: bool,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -140,6 +154,12 @@ fn run(cli: Cli) -> Result<(), String> {
             json,
         }),
         Command::Passes { json } => list_passes(json),
+        Command::Context {
+            path,
+            engine_input_json,
+            closed_style_world,
+            json,
+        } => context_from_engine_input(path, engine_input_json, closed_style_world, json),
     }
 }
 
@@ -344,6 +364,39 @@ fn list_passes(json: bool) -> Result<(), String> {
 
     for pass in passes {
         println!("{}\t{}", pass.id, pass.title);
+    }
+    Ok(())
+}
+
+fn context_from_engine_input(
+    path: PathBuf,
+    engine_input_json: PathBuf,
+    closed_style_world: bool,
+    json: bool,
+) -> Result<(), String> {
+    let style_path = path_string(&path);
+    let engine_input = read_engine_input_json(&engine_input_json)?;
+    let summary = summarize_omena_query_transform_context_from_engine_input(
+        &engine_input,
+        &style_path,
+        closed_style_world,
+    );
+
+    if json {
+        print_json(&summary)?;
+        return Ok(());
+    }
+
+    println!("target: {}", summary.target_style_path);
+    println!("closed style world: {}", summary.closed_style_world);
+    println!("projections: {}", summary.projection_count);
+    println!(
+        "selected projections: {}",
+        summary.selected_projection_count
+    );
+    println!("reachable classes: {}", summary.reachable_class_name_count);
+    for class_name in &summary.context.reachable_class_names {
+        println!("  {class_name}");
     }
     Ok(())
 }
