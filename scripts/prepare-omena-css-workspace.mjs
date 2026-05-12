@@ -443,6 +443,7 @@ omena build path/to/file.css --pass whitespace-strip
 omena build path/to/file.css --target-query "ie 11"
 omena build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
 omena build path/to/Button.module.css --source path/to/tokens.css --pass import-inline
+omena build path/to/Button.module.css --source node_modules/@design/tokens/dist/theme.css --package-manifest node_modules/@design/tokens/package.json --pass import-inline
 omena passes
 \`\`\`
 
@@ -454,6 +455,7 @@ cargo run -p omena-cli -- build path/to/file.css --pass whitespace-strip
 cargo run -p omena-cli -- build path/to/file.css --target-query "ie 11"
 cargo run -p omena-cli -- build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
 cargo run -p omena-cli -- build path/to/Button.module.css --source path/to/tokens.css --pass import-inline
+cargo run -p omena-cli -- build path/to/Button.module.css --source node_modules/@design/tokens/dist/theme.css --package-manifest node_modules/@design/tokens/package.json --pass import-inline
 cargo run -p omena-cli -- passes
 \`\`\`
 
@@ -676,6 +678,9 @@ Primary consumers:
   and provenance context, including dart-sass-compatible SCSS output.
 - \`omena build <file> --source other.css\` derives import/composes context from
   additional workspace style sources before running requested passes.
+- \`omena build <file> --package-manifest node_modules/pkg/package.json\`
+  lets workspace source context resolve package style exports for import
+  inlining.
 - \`omena passes\` lists accepted transform pass ids.
 
 ## Wasm
