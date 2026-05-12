@@ -2436,15 +2436,34 @@ fn unwrap_simple_nested_rule(
     let parent_selector = source[rule_start..token_start(&tokens[block_start_index])]
         .trim()
         .to_string();
-    if parent_selector.is_empty() || parent_selector.contains(',') {
+    if parent_selector.is_empty() || split_css_selector_list(&parent_selector).is_none() {
         return None;
     }
 
+    let rule_texts = unwrap_nested_rule_body(
+        source,
+        tokens,
+        &parent_selector,
+        block_start_index,
+        block_end_index,
+        true,
+    )?;
+    Some(rule_texts.join(" "))
+}
+
+fn unwrap_nested_rule_body(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+    parent_selector: &str,
+    block_start_index: usize,
+    block_end_index: usize,
+    require_nested_rule: bool,
+) -> Option<Vec<String>> {
     let declarations =
         collect_simple_declarations_in_block(tokens, block_start_index, block_end_index);
     let nested_rules =
         collect_direct_nested_rule_slices(source, tokens, block_start_index, block_end_index)?;
-    if nested_rules.is_empty() {
+    if require_nested_rule && nested_rules.is_empty() {
         return None;
     }
 
@@ -2459,17 +2478,30 @@ fn unwrap_simple_nested_rule(
     }
 
     for nested_rule in nested_rules {
-        let selector = expand_nested_selector(&parent_selector, &nested_rule.selector)?;
-        rule_texts.push(format!("{} {{ {} }}", selector, nested_rule.block));
+        let selector = expand_nested_selector(parent_selector, &nested_rule.selector)?;
+        let nested_rule_texts = unwrap_nested_rule_body(
+            source,
+            tokens,
+            &selector,
+            nested_rule.block_start_index,
+            nested_rule.block_end_index,
+            false,
+        )?;
+        rule_texts.extend(nested_rule_texts);
     }
 
-    Some(rule_texts.join(" "))
+    if rule_texts.is_empty() {
+        None
+    } else {
+        Some(rule_texts)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct NestedRuleSlice {
     selector: String,
-    block: String,
+    block_start_index: usize,
+    block_end_index: usize,
 }
 
 fn collect_direct_nested_rule_slices(
@@ -2488,26 +2520,25 @@ fn collect_direct_nested_rule_slices(
             if nested_close_index > block_end_index {
                 return None;
             }
-            if tokens[index + 1..nested_close_index].iter().any(|token| {
-                matches!(token.kind, SyntaxKind::LeftBrace | SyntaxKind::RightBrace)
-                    || is_comment_token(token.kind)
-            }) {
-                return None;
-            }
             let selector_start = first_non_trivia_token_start(tokens, segment_start_index, index)?;
             let selector = source[selector_start..token_start(&tokens[index])]
                 .trim()
                 .to_string();
-            if selector.is_empty() || selector.starts_with('@') || selector.contains(',') {
+            if selector.is_empty() || selector.starts_with('@') {
                 return None;
             }
-            let block = source[token_end(&tokens[index])..token_start(&tokens[nested_close_index])]
+            split_css_selector_list(&selector)?;
+            if source[token_end(&tokens[index])..token_start(&tokens[nested_close_index])]
                 .trim()
-                .to_string();
-            if block.is_empty() {
+                .is_empty()
+            {
                 return None;
             }
-            nested_rules.push(NestedRuleSlice { selector, block });
+            nested_rules.push(NestedRuleSlice {
+                selector,
+                block_start_index: index,
+                block_end_index: nested_close_index,
+            });
             index = nested_close_index + 1;
             segment_start_index = index;
             continue;
@@ -2522,14 +2553,79 @@ fn collect_direct_nested_rule_slices(
 }
 
 fn expand_nested_selector(parent_selector: &str, nested_selector: &str) -> Option<String> {
-    if nested_selector.contains(',') {
+    let parent_selectors = split_css_selector_list(parent_selector)?;
+    let nested_selectors = split_css_selector_list(nested_selector)?;
+    let mut expanded_selectors = Vec::new();
+
+    for parent in &parent_selectors {
+        for nested in &nested_selectors {
+            if nested.contains('&') {
+                expanded_selectors.push(nested.replace('&', parent));
+            } else {
+                expanded_selectors.push(format!("{parent} {nested}"));
+            }
+        }
+    }
+
+    if expanded_selectors.is_empty() {
+        None
+    } else {
+        Some(expanded_selectors.join(", "))
+    }
+}
+
+fn split_css_selector_list(selector: &str) -> Option<Vec<String>> {
+    let mut selectors = Vec::new();
+    let mut segment_start = 0usize;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote = None::<char>;
+    let mut escaped = false;
+
+    for (index, character) in selector.char_indices() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if character == '\\' {
+                escaped = true;
+                continue;
+            }
+            if character == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+
+        match character {
+            '\'' | '"' => quote = Some(character),
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.checked_sub(1)?,
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.checked_sub(1)?,
+            ',' if paren_depth == 0 && bracket_depth == 0 => {
+                let selector = selector[segment_start..index].trim();
+                if selector.is_empty() {
+                    return None;
+                }
+                selectors.push(selector.to_string());
+                segment_start = index + character.len_utf8();
+            }
+            _ => {}
+        }
+    }
+
+    if quote.is_some() || paren_depth != 0 || bracket_depth != 0 {
         return None;
     }
-    if nested_selector.contains('&') {
-        Some(nested_selector.replace('&', parent_selector))
-    } else {
-        Some(format!("{parent_selector} {nested_selector}"))
+
+    let selector = selector[segment_start..].trim();
+    if selector.is_empty() {
+        return None;
     }
+    selectors.push(selector.to_string());
+    Some(selectors)
 }
 
 fn flatten_css_scopes_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -7010,14 +7106,50 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(execution.mutation_count, 2);
         assert_eq!(
             execution.output_css,
-            r#".card { color: red; } .card .title { color: blue; } .card:hover { color: green; } .comma, .skip { & .x { color: red; } }"#
+            r#".card { color: red; } .card .title { color: blue; } .card:hover { color: green; } .comma .x, .skip .x { color: red; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
             vec!["nesting-unwrap", "print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_unwraps_selector_list_nesting_without_splitting_function_commas() {
+        let source = r#".card:is(.active, .selected), .panel { &:hover, &--open { color: red; } }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::NestingUnwrap,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#".card:is(.active, .selected):hover, .card:is(.active, .selected)--open, .panel:hover, .panel--open { color: red; }"#
+        );
+    }
+
+    #[test]
+    fn execution_runtime_unwraps_nested_rule_descendants() {
+        let source = r#".card { color: red; & .title { font-weight: bold; &:hover { color: blue; } .icon, &__icon { color: green; } } }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::NestingUnwrap,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#".card { color: red; } .card .title { font-weight: bold; } .card .title:hover { color: blue; } .card .title .icon, .card .title__icon { color: green; }"#
         );
     }
 
