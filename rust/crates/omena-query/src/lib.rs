@@ -12,7 +12,6 @@ use engine_input_producers::{
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-pub use engine_style_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage};
 use omena_abstract_value::{
     AbstractValueDomainSummaryV0, ClassValueFlowAnalysisV0, ClassValueFlowIncrementalAnalysisV0,
     SelectorProjectionCertaintyV0, analyze_class_value_flow_incremental_with_database,
@@ -33,11 +32,14 @@ pub use omena_bridge::{
     SourceTypeFactTargetV0 as OmenaQuerySourceTypeFactTargetV0,
 };
 use omena_incremental::OmenaIncrementalDatabaseV0;
-pub use omena_parser::StyleDialect as OmenaParserStyleDialect;
 use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
     ParsedCssModuleValueFactKind, ParsedIcssFactKind, ParsedSassModuleEdgeFactKind,
     ParsedSassSymbolFactKind, ParsedSelectorFactKind, ParsedVariableFactKind, collect_style_facts,
+};
+pub use omena_parser::{
+    ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleDialect as OmenaParserStyleDialect,
+    StyleLanguage,
 };
 use omena_resolver::{
     OmenaResolverSourceResolutionRuntimeIndexV0, OmenaResolverStylePackageManifestV0,

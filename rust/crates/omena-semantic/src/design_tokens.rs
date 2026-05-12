@@ -3,6 +3,7 @@ use omena_cascade::{
     CascadeKey, CascadeLevel, LayerRank, Specificity, select_cascade_winner,
     selector_context_witness, selector_context_witness_for_declaration,
 };
+use omena_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -82,7 +83,7 @@ pub struct DesignTokenRankedReferenceV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub winner_declaration_file_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub winner_declaration_range: Option<engine_style_parser::ParserRangeV0>,
+    pub winner_declaration_range: Option<ParserRangeV0>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub winner_import_graph_distance: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -117,8 +118,8 @@ pub struct DesignTokenWorkspaceDeclarationFactV0 {
     pub source_order: usize,
     pub import_graph_distance: Option<usize>,
     pub import_graph_order: Option<usize>,
-    pub byte_span: engine_style_parser::ParserByteSpanV0,
-    pub range: engine_style_parser::ParserRangeV0,
+    pub byte_span: ParserByteSpanV0,
+    pub range: ParserRangeV0,
     pub selector_contexts: Vec<String>,
     pub under_media: bool,
     pub under_supports: bool,
@@ -131,7 +132,7 @@ pub struct DesignTokenDeclarationCandidateV0 {
     pub name: String,
     pub source_order: usize,
     pub file_path: String,
-    pub range: engine_style_parser::ParserRangeV0,
+    pub range: ParserRangeV0,
     pub selector_contexts: Vec<String>,
     pub under_media: bool,
     pub under_supports: bool,
@@ -342,7 +343,7 @@ fn summarize_design_token_declaration_candidates(
                     name: declaration.name.clone(),
                     source_order: declaration.source_order,
                     file_path: file_path.to_string(),
-                    range: declaration.range,
+                    range: parser_range_from_engine(declaration.range),
                     selector_contexts: declaration.selector_contexts.clone(),
                     under_media: declaration.under_media,
                     under_supports: declaration.under_supports,
@@ -397,14 +398,34 @@ pub fn collect_design_token_workspace_declarations(
             source_order: declaration.source_order,
             import_graph_distance: None,
             import_graph_order: None,
-            byte_span: declaration.byte_span,
-            range: declaration.range,
+            byte_span: parser_byte_span_from_engine(declaration.byte_span),
+            range: parser_range_from_engine(declaration.range),
             selector_contexts: declaration.selector_contexts.clone(),
             under_media: declaration.under_media,
             under_supports: declaration.under_supports,
             under_layer: declaration.under_layer,
         })
         .collect()
+}
+
+fn parser_byte_span_from_engine(span: engine_style_parser::ParserByteSpanV0) -> ParserByteSpanV0 {
+    ParserByteSpanV0 {
+        start: span.start,
+        end: span.end,
+    }
+}
+
+fn parser_range_from_engine(range: engine_style_parser::ParserRangeV0) -> ParserRangeV0 {
+    ParserRangeV0 {
+        start: ParserPositionV0 {
+            line: range.start.line,
+            character: range.start.character,
+        },
+        end: ParserPositionV0 {
+            line: range.end.line,
+            character: range.end.character,
+        },
+    }
 }
 
 fn summarize_design_token_cascade_ranking_signal(
@@ -728,7 +749,7 @@ impl DesignTokenCandidateDeclaration<'_> {
         }
     }
 
-    fn range(&self) -> Option<engine_style_parser::ParserRangeV0> {
+    fn range(&self) -> Option<ParserRangeV0> {
         match self {
             DesignTokenCandidateDeclaration::Local(_) => None,
             DesignTokenCandidateDeclaration::Workspace(declaration) => Some(declaration.range),

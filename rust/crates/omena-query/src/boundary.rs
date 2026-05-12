@@ -65,6 +65,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "selectedQueryBackendAdapter",
             "queryEvaluationRuntime",
             "omenaParserStyleDocumentSummary",
+            "omenaParserPublicContractTypes",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
         next_decoupling_targets: Vec::new(),
@@ -105,8 +106,12 @@ pub fn summarize_omena_query_evaluation_runtime(
             "expressionDomainSalsaRuntime",
             "expressionDomainSelectorProjection",
             "omenaParserStyleDocumentSummary",
+            "omenaParserPublicContractTypes",
         ],
-        retired_couplings: vec!["engineStyleParserStyleDocumentSummary"],
+        retired_couplings: vec![
+            "engineStyleParserStyleDocumentSummary",
+            "engineStyleParserQueryPublicTypes",
+        ],
     }
 }
 

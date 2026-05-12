@@ -6,9 +6,10 @@ use engine_input_producers::{
 use omena_abstract_value::SelectorProjectionCertaintyV0;
 
 use super::{
-    OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryStylePackageManifestV0,
-    SelectedQueryAdapterCapabilitiesV0, execute_omena_query_transform_passes_from_source,
-    summarize_omena_query_boundary, summarize_omena_query_evaluation_runtime,
+    OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryStylePackageManifestV0, ParserPositionV0,
+    ParserRangeV0, SelectedQueryAdapterCapabilitiesV0,
+    execute_omena_query_transform_passes_from_source, summarize_omena_query_boundary,
+    summarize_omena_query_evaluation_runtime,
     summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
@@ -156,6 +157,11 @@ fn summarizes_query_boundary_over_producer_fragments() {
         summary
             .ready_surfaces
             .contains(&"omenaParserStyleDocumentSummary")
+    );
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"omenaParserPublicContractTypes")
     );
     assert!(summary.next_decoupling_targets.is_empty());
     assert!(
@@ -842,8 +848,18 @@ fn summarizes_query_evaluation_runtime_without_engine_style_parser_coupling() {
     );
     assert!(
         first
+            .ready_surfaces
+            .contains(&"omenaParserPublicContractTypes")
+    );
+    assert!(
+        first
             .retired_couplings
             .contains(&"engineStyleParserStyleDocumentSummary")
+    );
+    assert!(
+        first
+            .retired_couplings
+            .contains(&"engineStyleParserQueryPublicTypes")
     );
 
     let second = summarize_omena_query_evaluation_runtime(&input, &mut runtime);
@@ -1763,7 +1779,7 @@ fn style_hover_render_parts_are_query_owned() {
         source,
         "sassVariableDeclaration",
         "accent",
-        engine_style_parser::ParserPositionV0 {
+        ParserPositionV0 {
             line: 0,
             character: 1,
         },
@@ -1776,7 +1792,7 @@ fn style_hover_render_parts_are_query_owned() {
         source,
         "sassMixinDeclaration",
         "tone",
-        engine_style_parser::ParserPositionV0 {
+        ParserPositionV0 {
             line: 1,
             character: 7,
         },
@@ -1789,7 +1805,7 @@ fn style_hover_render_parts_are_query_owned() {
         source,
         "selector",
         "button",
-        engine_style_parser::ParserPositionV0 {
+        ParserPositionV0 {
             line: 4,
             character: 1,
         },
@@ -1823,12 +1839,12 @@ fn missing_custom_property_diagnostics_are_query_owned() {
     );
     assert_eq!(
         diagnostic.range,
-        engine_style_parser::ParserRangeV0 {
-            start: engine_style_parser::ParserPositionV0 {
+        ParserRangeV0 {
+            start: ParserPositionV0 {
                 line: 1,
                 character: 20,
             },
-            end: engine_style_parser::ParserPositionV0 {
+            end: ParserPositionV0 {
                 line: 1,
                 character: 29,
             },
@@ -1846,12 +1862,12 @@ fn missing_custom_property_diagnostics_are_query_owned() {
             .create_custom_property
             .as_ref()
             .map(|action| action.range),
-        Some(engine_style_parser::ParserRangeV0 {
-            start: engine_style_parser::ParserPositionV0 {
+        Some(ParserRangeV0 {
+            start: ParserPositionV0 {
                 line: 1,
                 character: 33,
             },
-            end: engine_style_parser::ParserPositionV0 {
+            end: ParserPositionV0 {
                 line: 1,
                 character: 33,
             },
@@ -1866,7 +1882,7 @@ fn read_cascade_at_position_is_query_owned() {
         "Component.module.css",
         source,
         &sample_input(),
-        engine_style_parser::ParserPositionV0 {
+        ParserPositionV0 {
             line: 2,
             character: 24,
         },
@@ -1888,7 +1904,7 @@ fn read_cascade_at_position_is_query_owned() {
         "Component.module.css",
         source,
         &sample_input(),
-        engine_style_parser::ParserPositionV0 {
+        ParserPositionV0 {
             line: 0,
             character: 1,
         },
@@ -1906,12 +1922,12 @@ fn missing_selector_diagnostics_are_query_owned() {
         "file:///workspace/src/App.module.scss",
         ".root {\n}\n",
         "missing",
-        engine_style_parser::ParserRangeV0 {
-            start: engine_style_parser::ParserPositionV0 {
+        ParserRangeV0 {
+            start: ParserPositionV0 {
                 line: 2,
                 character: 18,
             },
-            end: engine_style_parser::ParserPositionV0 {
+            end: ParserPositionV0 {
                 line: 2,
                 character: 25,
             },
@@ -1935,12 +1951,12 @@ fn missing_selector_diagnostics_are_query_owned() {
             .create_selector
             .as_ref()
             .map(|action| action.range),
-        Some(engine_style_parser::ParserRangeV0 {
-            start: engine_style_parser::ParserPositionV0 {
+        Some(ParserRangeV0 {
+            start: ParserPositionV0 {
                 line: 2,
                 character: 0,
             },
-            end: engine_style_parser::ParserPositionV0 {
+            end: ParserPositionV0 {
                 line: 2,
                 character: 0,
             },
@@ -1950,22 +1966,22 @@ fn missing_selector_diagnostics_are_query_owned() {
 
 #[test]
 fn source_provider_candidate_resolution_is_query_owned() {
-    let source_range = engine_style_parser::ParserRangeV0 {
-        start: engine_style_parser::ParserPositionV0 {
+    let source_range = ParserRangeV0 {
+        start: ParserPositionV0 {
             line: 0,
             character: 0,
         },
-        end: engine_style_parser::ParserPositionV0 {
+        end: ParserPositionV0 {
             line: 0,
             character: 4,
         },
     };
-    let definition_range = engine_style_parser::ParserRangeV0 {
-        start: engine_style_parser::ParserPositionV0 {
+    let definition_range = ParserRangeV0 {
+        start: ParserPositionV0 {
             line: 1,
             character: 1,
         },
-        end: engine_style_parser::ParserPositionV0 {
+        end: ParserPositionV0 {
             line: 1,
             character: 5,
         },
@@ -2102,22 +2118,22 @@ fn source_syntax_index_adapter_is_query_owned_without_changing_product() {
 
 #[test]
 fn selector_rename_edit_planning_is_query_owned() {
-    let source_range = engine_style_parser::ParserRangeV0 {
-        start: engine_style_parser::ParserPositionV0 {
+    let source_range = ParserRangeV0 {
+        start: ParserPositionV0 {
             line: 3,
             character: 16,
         },
-        end: engine_style_parser::ParserPositionV0 {
+        end: ParserPositionV0 {
             line: 3,
             character: 20,
         },
     };
-    let definition_range = engine_style_parser::ParserRangeV0 {
-        start: engine_style_parser::ParserPositionV0 {
+    let definition_range = ParserRangeV0 {
+        start: ParserPositionV0 {
             line: 0,
             character: 1,
         },
-        end: engine_style_parser::ParserPositionV0 {
+        end: ParserPositionV0 {
             line: 0,
             character: 5,
         },

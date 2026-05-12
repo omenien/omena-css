@@ -473,7 +473,15 @@ pub fn read_omena_query_cascade_at_position_from_graph(
 ) -> OmenaQueryCascadeAtPositionV0 {
     let positioned_references = positioned_custom_property_reference_facts(
         style_source,
-        graph.parser_facts.custom_properties.ref_facts.as_slice(),
+        graph
+            .parser_facts
+            .custom_properties
+            .ref_facts
+            .iter()
+            .map(|fact| CustomPropertyReferenceFactView {
+                name: fact.name.as_str(),
+                source_order: fact.source_order,
+            }),
     );
     let reference = positioned_references
         .iter()
@@ -519,7 +527,7 @@ pub fn read_omena_query_cascade_at_position_from_graph(
             "unresolved"
         },
         cascade_engine: "omena-cascade",
-        reference_name: Some(reference.name.clone()),
+        reference_name: Some(reference.name.to_string()),
         reference_range: Some(*reference_range),
         winner_declaration_source_order: ranking
             .map(|ranking| ranking.winner_declaration_source_order),
@@ -2418,17 +2426,21 @@ fn custom_property_ref_byte_spans(source: &str, name: &str) -> Vec<ParserByteSpa
     spans
 }
 
+#[derive(Debug, Clone, Copy)]
+struct CustomPropertyReferenceFactView<'a> {
+    name: &'a str,
+    source_order: usize,
+}
+
 fn positioned_custom_property_reference_facts<'a>(
     source: &str,
-    ref_facts: &'a [engine_style_parser::ParserIndexCustomPropertyRefFactV0],
-) -> Vec<(
-    &'a engine_style_parser::ParserIndexCustomPropertyRefFactV0,
-    ParserRangeV0,
-)> {
+    ref_facts: impl IntoIterator<Item = CustomPropertyReferenceFactView<'a>>,
+) -> Vec<(CustomPropertyReferenceFactView<'a>, ParserRangeV0)> {
+    let ref_facts = ref_facts.into_iter().collect::<Vec<_>>();
     let mut ranges_by_name = BTreeMap::<&str, std::collections::VecDeque<ParserRangeV0>>::new();
     for name in ref_facts
         .iter()
-        .map(|fact| fact.name.as_str())
+        .map(|fact| fact.name)
         .collect::<BTreeSet<_>>()
     {
         ranges_by_name.insert(
@@ -2440,13 +2452,13 @@ fn positioned_custom_property_reference_facts<'a>(
         );
     }
 
-    let mut ordered_ref_facts = ref_facts.iter().collect::<Vec<_>>();
+    let mut ordered_ref_facts = ref_facts;
     ordered_ref_facts.sort_by_key(|fact| fact.source_order);
     ordered_ref_facts
         .into_iter()
         .filter_map(|fact| {
             ranges_by_name
-                .get_mut(fact.name.as_str())
+                .get_mut(fact.name)
                 .and_then(std::collections::VecDeque::pop_front)
                 .map(|range| (fact, range))
         })

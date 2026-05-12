@@ -1,4 +1,4 @@
-use engine_style_parser::ParserByteSpanV0;
+use omena_parser::ParserByteSpanV0;
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
     Argument, ArrayExpression, ArrayExpressionElement, BindingPattern, CallExpression,

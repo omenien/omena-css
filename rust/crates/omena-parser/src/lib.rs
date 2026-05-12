@@ -18,6 +18,7 @@ use omena_interner::{
 };
 pub use omena_syntax::StyleDialect;
 use omena_syntax::SyntaxKind;
+use serde::Serialize;
 use std::{collections::BTreeSet, sync::Arc};
 
 const VALUES_L4_MATH_FUNCTION_NAMES: &[&str] = &[
@@ -93,6 +94,48 @@ const CSS_IMAGE_FUNCTION_NAMES: &[&str] = &["image", "image-set", "cross-fade", 
 const CSS_SHAPE_FUNCTION_NAMES: &[&str] = &[
     "path", "shape", "ray", "inset", "circle", "ellipse", "polygon",
 ];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserByteSpanV0 {
+    pub start: usize,
+    pub end: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserPositionV0 {
+    pub line: usize,
+    pub character: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserRangeV0 {
+    pub start: ParserPositionV0,
+    pub end: ParserPositionV0,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StyleLanguage {
+    Css,
+    Scss,
+    Less,
+}
+
+impl StyleLanguage {
+    pub fn from_module_path(path: &str) -> Option<Self> {
+        if path.ends_with(".module.css") || path.ends_with(".css") {
+            Some(Self::Css)
+        } else if path.ends_with(".module.scss") || path.ends_with(".scss") {
+            Some(Self::Scss)
+        } else if path.ends_with(".module.less") || path.ends_with(".less") {
+            Some(Self::Less)
+        } else {
+            None
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ParseResult {

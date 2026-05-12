@@ -551,6 +551,7 @@ version = "0.1.0"
 dependencies = [
  "engine-input-producers",
  "engine-style-parser",
+ "omena-parser",
  "omena-semantic",
  "oxc_allocator",
  "oxc_ast",
@@ -611,6 +612,7 @@ dependencies = [
  "omena-interner",
  "omena-syntax",
  "salsa",
+ "serde",
 ]
 
 [[package]]
@@ -618,7 +620,6 @@ name = "omena-query"
 version = "0.1.0"
 dependencies = [
  "engine-input-producers",
- "engine-style-parser",
  "omena-abstract-value",
  "omena-bridge",
  "omena-incremental",
