@@ -6173,18 +6173,7 @@ fn compress_static_color_value(value: &str) -> Option<String> {
 
 fn parse_static_rgb_function_color(value: &str) -> Option<SrgbColor> {
     let inner = parse_whole_function_value_inner(value, "rgb")?;
-    if inner.contains('/') {
-        return None;
-    }
-
-    let parts = if inner.contains(',') {
-        split_top_level_value_arguments(inner)?
-    } else {
-        inner
-            .split_whitespace()
-            .map(str::to_string)
-            .collect::<Vec<_>>()
-    };
+    let parts = split_static_color_channels_with_optional_opaque_alpha(inner)?;
     let [red, green, blue] = parts.as_slice() else {
         return None;
     };
@@ -6198,18 +6187,7 @@ fn parse_static_rgb_function_color(value: &str) -> Option<SrgbColor> {
 
 fn parse_static_hsl_function_color(value: &str) -> Option<SrgbColor> {
     let inner = parse_whole_function_value_inner(value, "hsl")?;
-    if inner.contains('/') {
-        return None;
-    }
-
-    let parts = if inner.contains(',') {
-        split_top_level_value_arguments(inner)?
-    } else {
-        inner
-            .split_whitespace()
-            .map(str::to_string)
-            .collect::<Vec<_>>()
-    };
+    let parts = split_static_color_channels_with_optional_opaque_alpha(inner)?;
     let [hue, saturation, lightness] = parts.as_slice() else {
         return None;
     };
@@ -6223,18 +6201,7 @@ fn parse_static_hsl_function_color(value: &str) -> Option<SrgbColor> {
 
 fn parse_static_hwb_function_color(value: &str) -> Option<SrgbColor> {
     let inner = parse_whole_function_value_inner(value, "hwb")?;
-    if inner.contains('/') {
-        return None;
-    }
-
-    let parts = if inner.contains(',') {
-        split_top_level_value_arguments(inner)?
-    } else {
-        inner
-            .split_whitespace()
-            .map(str::to_string)
-            .collect::<Vec<_>>()
-    };
+    let parts = split_static_color_channels_with_optional_opaque_alpha(inner)?;
     let [hue, whiteness, blackness] = parts.as_slice() else {
         return None;
     };
@@ -6244,6 +6211,30 @@ fn parse_static_hwb_function_color(value: &str) -> Option<SrgbColor> {
         parse_bounded_percentage(whiteness)?,
         parse_bounded_percentage(blackness)?,
     )
+}
+
+fn split_static_color_channels_with_optional_opaque_alpha(inner: &str) -> Option<Vec<String>> {
+    if inner.contains(',') {
+        if inner.contains('/') {
+            return None;
+        }
+        return split_top_level_value_arguments(inner);
+    }
+
+    let parts = inner.split_whitespace().collect::<Vec<_>>();
+    match parts.as_slice() {
+        [first, second, third] => Some(vec![
+            (*first).to_string(),
+            (*second).to_string(),
+            (*third).to_string(),
+        ]),
+        [first, second, third, "/", alpha] if parse_opaque_alpha(alpha)? => Some(vec![
+            (*first).to_string(),
+            (*second).to_string(),
+            (*third).to_string(),
+        ]),
+        _ => None,
+    }
 }
 
 fn parse_bounded_percentage(text: &str) -> Option<f64> {
@@ -7561,7 +7552,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_static_declaration_colors_only() {
-        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); flood-color: white; lighting-color: black; stop-color: blue; scrollbar-color: hsl(.5turn 100% 50%); border-block-color: hwb(200grad 0% 0%); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#;
+        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); flood-color: white; lighting-color: black; stop-color: blue; scrollbar-color: hsl(.5turn 100% 50%); border-block-color: hwb(200grad 0% 0%); border-left-color: rgb(255 0 0 / 100%); border-right-color: hsl(120 100% 25% / 1); border-top-color: hwb(240 0% 0% / 100%); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7570,10 +7561,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 14);
+        assert_eq!(execution.mutation_count, 17);
         assert_eq!(
             execution.output_css,
-            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: #808080; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: blue; scrollbar-color: #0ff; border-block-color: #0ff; accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
+            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: #808080; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: blue; scrollbar-color: #0ff; border-block-color: #0ff; border-left-color: red; border-right-color: green; border-top-color: #00f; border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
         );
     }
 
