@@ -421,7 +421,7 @@ fn style_document_summary_is_omena_parser_owned() {
 #[test]
 fn exposes_omena_parser_sass_symbol_fact_surface() {
     let summary = summarize_omena_query_omena_parser_style_facts(
-        "@use \"./tokens\" as tokens; @forward \"./theme\"; @import \"legacy\"; @mixin tone($color) { color: $color; } @function double($x) { @return $x * 2; } .card { @include tone(red); width: double(2px); }",
+        "@use \"./tokens\" as tokens; @forward \"./theme\" show tone; @import \"legacy\"; @mixin tone($color) { color: $color; } @function double($x) { @return $x * 2; } .card { @include tone(red); width: double(2px); }",
         omena_parser::StyleDialect::Scss,
     );
 
@@ -475,6 +475,12 @@ fn exposes_omena_parser_sass_symbol_fact_surface() {
     assert_eq!(summary.sass_module_use_sources, vec!["./tokens"]);
     assert_eq!(summary.sass_module_forward_sources, vec!["./theme"]);
     assert_eq!(summary.sass_module_import_sources, vec!["legacy"]);
+    assert!(summary.sass_module_edges.iter().any(|edge| {
+        edge.kind == "sassForward"
+            && edge.source == "./theme"
+            && edge.visibility_filter_kind == Some("show")
+            && edge.visibility_filter_names == vec!["tone"]
+    }));
     assert!(summary.sass_module_edges.iter().any(|edge| {
         edge.kind == "sassUse"
             && edge.source == "./tokens"
@@ -1310,6 +1316,83 @@ fn style_semantic_graph_batch_resolves_package_root_forward_chain_token_candidat
                 == Some("/fake/workspace/node_modules/@design/tokens/src/index.scss")
             && edge.status == "resolved"
     }));
+}
+
+#[test]
+fn style_semantic_graph_batch_resolves_sass_module_graph_closure_and_filters() {
+    let input = sample_input();
+    let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [
+            ("/tmp/_palette.scss", "$brand: red; @mixin tone {}"),
+            (
+                "/tmp/_tokens.scss",
+                "@forward \"./palette\" show $brand, tone;",
+            ),
+            (
+                "/tmp/App.module.scss",
+                "@use \"./tokens\" as tokens; .button { color: tokens.$brand; }",
+            ),
+        ],
+        &input,
+    );
+    let resolution = &batch.sass_module_resolution;
+
+    assert_eq!(resolution.status, "moduleGraphClosureResolved");
+    assert_eq!(resolution.module_edge_count, 2);
+    assert_eq!(resolution.resolved_module_edge_count, 2);
+    assert_eq!(resolution.unresolved_module_edge_count, 0);
+    assert_eq!(resolution.graph_closure_edge_count, 3);
+    assert_eq!(resolution.cycle_count, 0);
+    assert_eq!(resolution.visibility_filter_count, 1);
+    assert!(resolution.capabilities.graph_closure_ready);
+    assert!(resolution.capabilities.cycle_detection_ready);
+    assert!(resolution.capabilities.namespace_show_hide_filter_ready);
+    assert!(resolution.next_priorities.is_empty());
+    assert!(resolution.edges.iter().any(|edge| {
+        edge.from_style_path == "/tmp/_tokens.scss"
+            && edge.edge_kind == "sassForward"
+            && edge.source == "./palette"
+            && edge.visibility_filter_kind == Some("show")
+            && edge.visibility_filter_names == vec!["brand", "tone"]
+            && edge.resolved_style_path.as_deref() == Some("/tmp/_palette.scss")
+    }));
+    assert!(resolution.graph_closure_edges.iter().any(|edge| {
+        edge.from_style_path == "/tmp/App.module.scss"
+            && edge.target_style_path == "/tmp/_palette.scss"
+            && edge.depth == 2
+            && edge.path
+                == vec![
+                    "/tmp/App.module.scss".to_string(),
+                    "/tmp/_tokens.scss".to_string(),
+                    "/tmp/_palette.scss".to_string(),
+                ]
+    }));
+}
+
+#[test]
+fn style_semantic_graph_batch_detects_sass_module_cycles() {
+    let input = sample_input();
+    let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [
+            ("/tmp/_a.scss", "@use \"./b\";"),
+            ("/tmp/_b.scss", "@use \"./a\";"),
+        ],
+        &input,
+    );
+    let resolution = &batch.sass_module_resolution;
+
+    assert_eq!(resolution.module_edge_count, 2);
+    assert_eq!(resolution.resolved_module_edge_count, 2);
+    assert_eq!(resolution.cycle_count, 2);
+    assert!(resolution.cycles.iter().any(|cycle| {
+        cycle.path
+            == vec![
+                "/tmp/_a.scss".to_string(),
+                "/tmp/_b.scss".to_string(),
+                "/tmp/_a.scss".to_string(),
+            ]
+    }));
+    assert!(resolution.capabilities.cycle_detection_ready);
 }
 
 #[test]

@@ -411,6 +411,11 @@ export interface StyleSemanticGraphSassModuleCrossFileResolutionV0 {
   readonly unresolvedModuleEdgeCount: number;
   readonly externalModuleEdgeCount: number;
   readonly edges: readonly StyleSemanticGraphSassModuleEdgeResolutionV0[];
+  readonly graphClosureEdgeCount: number;
+  readonly cycleCount: number;
+  readonly visibilityFilterCount: number;
+  readonly graphClosureEdges: readonly StyleSemanticGraphSassModuleGraphClosureEdgeV0[];
+  readonly cycles: readonly StyleSemanticGraphSassModuleCycleV0[];
   readonly capabilities: StyleSemanticGraphSassModuleCrossFileResolutionCapabilitiesV0;
   readonly nextPriorities: readonly string[];
 }
@@ -421,10 +426,28 @@ export interface StyleSemanticGraphSassModuleEdgeResolutionV0 {
   readonly source: string;
   readonly namespaceKind?: string | null;
   readonly namespace?: string | null;
+  readonly visibilityFilterKind?: string | null;
+  readonly visibilityFilterNames: readonly string[];
   readonly resolvedStylePath?: string | null;
   readonly status: string;
   readonly resolutionKind: string;
   readonly candidateCount: number;
+}
+
+export interface StyleSemanticGraphSassModuleGraphClosureEdgeV0 {
+  readonly fromStylePath: string;
+  readonly targetStylePath: string;
+  readonly edgeKind: string;
+  readonly depth: number;
+  readonly path: readonly string[];
+  readonly namespaceKind?: string | null;
+  readonly namespace?: string | null;
+  readonly visibilityFilterKind?: string | null;
+  readonly visibilityFilterNames: readonly string[];
+}
+
+export interface StyleSemanticGraphSassModuleCycleV0 {
+  readonly path: readonly string[];
 }
 
 export interface StyleSemanticGraphSassModuleCrossFileResolutionCapabilitiesV0 {
@@ -432,6 +455,9 @@ export interface StyleSemanticGraphSassModuleCrossFileResolutionCapabilitiesV0 {
   readonly resolverBackedSourceResolutionReady: boolean;
   readonly packageManifestResolutionReady: boolean;
   readonly externalModuleFilteringReady: boolean;
+  readonly graphClosureReady: boolean;
+  readonly cycleDetectionReady: boolean;
+  readonly namespaceShowHideFilterReady: boolean;
 }
 
 export interface StyleSemanticGraphBatchEntryV0 {

@@ -299,6 +299,8 @@ pub fn summarize_omena_query_omena_parser_style_facts(
                 source: edge.source,
                 namespace_kind: edge.namespace_kind,
                 namespace: edge.namespace,
+                visibility_filter_kind: edge.visibility_filter_kind,
+                visibility_filter_names: edge.visibility_filter_names,
             })
             .collect(),
         custom_property_names: custom_property_names.into_iter().collect(),
@@ -982,6 +984,8 @@ fn summarize_sass_module_cross_file_resolution(
                 source: edge.source.clone(),
                 namespace_kind: edge.namespace_kind,
                 namespace: edge.namespace.clone(),
+                visibility_filter_kind: edge.visibility_filter_kind,
+                visibility_filter_names: edge.visibility_filter_names.clone(),
                 resolved_style_path: resolution.resolved_style_path,
                 status,
                 resolution_kind: resolution.resolution_kind,
@@ -1008,11 +1012,16 @@ fn summarize_sass_module_cross_file_resolution(
     let unresolved_module_edge_count = edges
         .len()
         .saturating_sub(resolved_module_edge_count + external_module_edge_count);
+    let (graph_closure_edges, cycles) = summarize_sass_module_graph_closure(&edges);
+    let visibility_filter_count = edges
+        .iter()
+        .filter(|edge| edge.visibility_filter_kind.is_some())
+        .count();
 
     OmenaQuerySassModuleCrossFileResolutionV0 {
         schema_version: "0",
         product: "omena-query.sass-module-cross-file-resolution",
-        status: "omenaParserModuleEdgesResolved",
+        status: "moduleGraphClosureResolved",
         resolution_scope: "batchModuleGraph",
         style_count: style_fact_entries.len(),
         module_edge_count: edges.len(),
@@ -1020,13 +1029,141 @@ fn summarize_sass_module_cross_file_resolution(
         unresolved_module_edge_count,
         external_module_edge_count,
         edges,
+        graph_closure_edge_count: graph_closure_edges.len(),
+        cycle_count: cycles.len(),
+        visibility_filter_count,
+        graph_closure_edges,
+        cycles,
         capabilities: OmenaQuerySassModuleCrossFileResolutionCapabilitiesV0 {
             omena_parser_module_edge_consumption_ready: true,
             resolver_backed_source_resolution_ready: true,
             package_manifest_resolution_ready: true,
             external_module_filtering_ready: true,
+            graph_closure_ready: true,
+            cycle_detection_ready: true,
+            namespace_show_hide_filter_ready: true,
         },
-        next_priorities: vec!["scssModuleGraphClosure", "namespaceShowHideFilters"],
+        next_priorities: Vec::new(),
+    }
+}
+
+fn summarize_sass_module_graph_closure(
+    edges: &[OmenaQuerySassModuleEdgeResolutionV0],
+) -> (
+    Vec<OmenaQuerySassModuleGraphClosureEdgeV0>,
+    Vec<OmenaQuerySassModuleCycleV0>,
+) {
+    let mut adjacency: BTreeMap<&str, Vec<&OmenaQuerySassModuleEdgeResolutionV0>> = BTreeMap::new();
+    for edge in edges {
+        if edge.status != "resolved" {
+            continue;
+        }
+        if edge.resolved_style_path.is_none() {
+            continue;
+        }
+        adjacency
+            .entry(edge.from_style_path.as_str())
+            .or_default()
+            .push(edge);
+    }
+    for outgoing in adjacency.values_mut() {
+        outgoing.sort_by_key(|edge| {
+            (
+                edge.resolved_style_path.clone().unwrap_or_default(),
+                edge.edge_kind,
+                edge.source.clone(),
+            )
+        });
+    }
+
+    let mut collector = SassModuleGraphClosureCollector::new(&adjacency);
+    for origin in adjacency.keys() {
+        let mut path = vec![(*origin).to_string()];
+        collector.collect(origin, origin, &mut path);
+    }
+
+    let (mut closure_edges, mut cycles) = collector.finish();
+    closure_edges.sort_by_key(|edge| {
+        (
+            edge.from_style_path.clone(),
+            edge.depth,
+            edge.target_style_path.clone(),
+            edge.edge_kind,
+            edge.path.clone(),
+        )
+    });
+    cycles.sort_by_key(|cycle| cycle.path.clone());
+    (closure_edges, cycles)
+}
+
+struct SassModuleGraphClosureCollector<'a> {
+    adjacency: &'a BTreeMap<&'a str, Vec<&'a OmenaQuerySassModuleEdgeResolutionV0>>,
+    seen_edges: BTreeSet<(String, String, Vec<String>)>,
+    closure_edges: Vec<OmenaQuerySassModuleGraphClosureEdgeV0>,
+    seen_cycles: BTreeSet<Vec<String>>,
+    cycles: Vec<OmenaQuerySassModuleCycleV0>,
+}
+
+impl<'a> SassModuleGraphClosureCollector<'a> {
+    fn new(
+        adjacency: &'a BTreeMap<&'a str, Vec<&'a OmenaQuerySassModuleEdgeResolutionV0>>,
+    ) -> Self {
+        Self {
+            adjacency,
+            seen_edges: BTreeSet::new(),
+            closure_edges: Vec::new(),
+            seen_cycles: BTreeSet::new(),
+            cycles: Vec::new(),
+        }
+    }
+
+    fn collect(&mut self, origin: &str, current: &str, path: &mut Vec<String>) {
+        let Some(outgoing) = self.adjacency.get(current) else {
+            return;
+        };
+        for edge in outgoing {
+            let Some(target) = edge.resolved_style_path.as_deref() else {
+                continue;
+            };
+            let mut next_path = path.clone();
+            next_path.push(target.to_string());
+            if path.iter().any(|segment| segment == target) {
+                if self.seen_cycles.insert(next_path.clone()) {
+                    self.cycles
+                        .push(OmenaQuerySassModuleCycleV0 { path: next_path });
+                }
+                continue;
+            }
+            if self
+                .seen_edges
+                .insert((origin.to_string(), target.to_string(), next_path.clone()))
+            {
+                self.closure_edges
+                    .push(OmenaQuerySassModuleGraphClosureEdgeV0 {
+                        from_style_path: origin.to_string(),
+                        target_style_path: target.to_string(),
+                        edge_kind: edge.edge_kind,
+                        depth: next_path.len().saturating_sub(1),
+                        path: next_path.clone(),
+                        namespace_kind: edge.namespace_kind,
+                        namespace: edge.namespace.clone(),
+                        visibility_filter_kind: edge.visibility_filter_kind,
+                        visibility_filter_names: edge.visibility_filter_names.clone(),
+                    });
+            }
+            path.push(target.to_string());
+            self.collect(origin, target, path);
+            path.pop();
+        }
+    }
+
+    fn finish(
+        self,
+    ) -> (
+        Vec<OmenaQuerySassModuleGraphClosureEdgeV0>,
+        Vec<OmenaQuerySassModuleCycleV0>,
+    ) {
+        (self.closure_edges, self.cycles)
     }
 }
 

@@ -207,6 +207,11 @@ pub struct OmenaQuerySassModuleCrossFileResolutionV0 {
     pub unresolved_module_edge_count: usize,
     pub external_module_edge_count: usize,
     pub edges: Vec<OmenaQuerySassModuleEdgeResolutionV0>,
+    pub graph_closure_edge_count: usize,
+    pub cycle_count: usize,
+    pub visibility_filter_count: usize,
+    pub graph_closure_edges: Vec<OmenaQuerySassModuleGraphClosureEdgeV0>,
+    pub cycles: Vec<OmenaQuerySassModuleCycleV0>,
     pub capabilities: OmenaQuerySassModuleCrossFileResolutionCapabilitiesV0,
     pub next_priorities: Vec<&'static str>,
 }
@@ -219,10 +224,32 @@ pub struct OmenaQuerySassModuleEdgeResolutionV0 {
     pub source: String,
     pub namespace_kind: Option<&'static str>,
     pub namespace: Option<String>,
+    pub visibility_filter_kind: Option<&'static str>,
+    pub visibility_filter_names: Vec<String>,
     pub resolved_style_path: Option<String>,
     pub status: &'static str,
     pub resolution_kind: &'static str,
     pub candidate_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySassModuleGraphClosureEdgeV0 {
+    pub from_style_path: String,
+    pub target_style_path: String,
+    pub edge_kind: &'static str,
+    pub depth: usize,
+    pub path: Vec<String>,
+    pub namespace_kind: Option<&'static str>,
+    pub namespace: Option<String>,
+    pub visibility_filter_kind: Option<&'static str>,
+    pub visibility_filter_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySassModuleCycleV0 {
+    pub path: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -232,6 +259,9 @@ pub struct OmenaQuerySassModuleCrossFileResolutionCapabilitiesV0 {
     pub resolver_backed_source_resolution_ready: bool,
     pub package_manifest_resolution_ready: bool,
     pub external_module_filtering_ready: bool,
+    pub graph_closure_ready: bool,
+    pub cycle_detection_ready: bool,
+    pub namespace_show_hide_filter_ready: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -391,6 +421,8 @@ pub struct OmenaQuerySassModuleEdgeFactV0 {
     pub source: String,
     pub namespace_kind: Option<&'static str>,
     pub namespace: Option<String>,
+    pub visibility_filter_kind: Option<&'static str>,
+    pub visibility_filter_names: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

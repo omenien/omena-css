@@ -14,10 +14,13 @@ const readmeSource = readFileSync(path.join(root, "rust/crates/omena-query/READM
 
 for (const required of [
   'status: "icssExportImportClosureSeed"',
+  'status: "moduleGraphClosureResolved"',
   "transitive_closure_ready: true",
   "value_graph_closure_ready: true",
   "icss_export_import_closure_ready: true",
   "cycle_detection_ready: true",
+  "graph_closure_ready: true",
+  "namespace_show_hide_filter_ready: true",
   "next_priorities: vec![]",
 ]) {
   assert.ok(styleSource.includes(required), `omena-query style resolver must retain ${required}`);
@@ -33,6 +36,9 @@ for (const required of [
   "OmenaQueryCssModulesComposesClosureEdgeV0",
   "OmenaQueryCssModulesValueClosureEdgeV0",
   "OmenaQueryCssModulesIcssClosureEdgeV0",
+  "OmenaQuerySassModuleGraphClosureEdgeV0",
+  "visibility_filter_names",
+  "namespace_show_hide_filter_ready",
 ]) {
   assert.ok(typeSource.includes(required), `omena-query types must expose ${required}`);
 }
@@ -41,6 +47,8 @@ for (const required of [
   "style_semantic_graph_batch_detects_css_modules_composes_cycles",
   "style_semantic_graph_batch_detects_css_modules_value_cycles",
   "style_semantic_graph_batch_detects_css_modules_icss_cycles",
+  "style_semantic_graph_batch_resolves_sass_module_graph_closure_and_filters",
+  "style_semantic_graph_batch_detects_sass_module_cycles",
   "transitive_composes",
   "transitive_value",
   "transitive_icss",
@@ -52,6 +60,9 @@ for (const required of [
   "composesClosureEdges",
   "valueClosureEdges",
   "icssClosureEdges",
+  "graphClosureEdges",
+  "visibilityFilterNames",
+  "namespaceShowHideFilterReady",
   "valueGraphClosureReady",
   "icssExportImportClosureReady",
 ]) {
@@ -68,7 +79,8 @@ process.stdout.write(
   [
     "validated omena-query CSS Modules resolution:",
     "closure=composes,value,icss",
-    "cycles=composes,value,icss",
+    "cycles=composes,value,icss,sass",
+    "sassClosure=moduleGraph",
     "nextPriorities=0",
   ].join(" "),
 );

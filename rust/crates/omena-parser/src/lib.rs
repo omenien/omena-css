@@ -273,6 +273,8 @@ pub struct ParsedSassModuleEdgeFact {
     pub source: String,
     pub namespace_kind: Option<&'static str>,
     pub namespace: Option<String>,
+    pub visibility_filter_kind: Option<&'static str>,
+    pub visibility_filter_names: Vec<String>,
     pub range: TextRange,
 }
 
@@ -7420,6 +7422,12 @@ fn collect_sass_module_edge_facts_from_tokens(
         } else {
             (None, None)
         };
+        let (visibility_filter_kind, visibility_filter_names) =
+            if kind == ParsedSassModuleEdgeFactKind::Forward {
+                sass_module_forward_visibility_filter(tokens, source_index + 1, end)
+            } else {
+                (None, Vec::new())
+            };
         push_sass_module_edge_fact(
             &mut edges,
             &mut seen,
@@ -7428,6 +7436,8 @@ fn collect_sass_module_edge_facts_from_tokens(
                 source: source_name,
                 namespace_kind,
                 namespace,
+                visibility_filter_kind,
+                visibility_filter_names,
                 range: source.range,
             },
         );
@@ -7466,6 +7476,8 @@ fn collect_sass_import_module_edges(
                 source: css_module_value_source_name(*token),
                 namespace_kind: None,
                 namespace: None,
+                visibility_filter_kind: None,
+                visibility_filter_names: Vec::new(),
                 range: token.range,
             },
         );
@@ -7493,6 +7505,51 @@ fn sass_module_use_namespace(
         SyntaxKind::Ident => (Some("alias"), Some(namespace.text.to_string())),
         _ => (Some("invalid"), None),
     }
+}
+
+fn sass_module_forward_visibility_filter(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> (Option<&'static str>, Vec<String>) {
+    let show_index = top_level_token_text_index(tokens, start, end, "show");
+    let hide_index = top_level_token_text_index(tokens, start, end, "hide");
+    let (filter_kind, filter_index) = match (show_index, hide_index) {
+        (Some(show_index), Some(hide_index)) if show_index <= hide_index => ("show", show_index),
+        (Some(_), Some(hide_index)) => ("hide", hide_index),
+        (Some(show_index), None) => ("show", show_index),
+        (None, Some(hide_index)) => ("hide", hide_index),
+        (None, None) => return (None, Vec::new()),
+    };
+    let clause_end =
+        top_level_token_text_index(tokens, filter_index + 1, end, "with").unwrap_or(end);
+    (
+        Some(filter_kind),
+        sass_module_visibility_filter_names(tokens, filter_index + 1, clause_end),
+    )
+}
+
+fn sass_module_visibility_filter_names(
+    tokens: &[Token<'_>],
+    start: usize,
+    end: usize,
+) -> Vec<String> {
+    let mut names = BTreeSet::new();
+    for token in &tokens[start..end] {
+        match token.kind {
+            SyntaxKind::Ident | SyntaxKind::ScssVariable => {
+                if matches_ignore_ascii_case(token.text, &["show", "hide", "with", "as"]) {
+                    continue;
+                }
+                let name = token.text.trim_start_matches('$');
+                if !name.is_empty() {
+                    names.insert(name.to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+    names.into_iter().collect()
 }
 
 fn sass_module_default_namespace(source: &str) -> Option<&str> {
@@ -12436,7 +12493,7 @@ mod tests {
     #[test]
     fn extracts_sass_module_edge_style_facts() {
         let facts = collect_style_facts(
-            r#"@use "./tokens" as tokens; @use "./reset" as *; @use "sass:map"; @forward "./theme"; @import "legacy", url("print.css");"#,
+            r#"@use "./tokens" as tokens; @use "./reset" as *; @use "sass:map"; @forward "./theme" show $brand, tone; @import "legacy", url("print.css");"#,
             StyleDialect::Scss,
         );
 
@@ -12460,7 +12517,10 @@ mod tests {
                 && edge.namespace.as_deref() == Some("map")
         }));
         assert!(facts.sass_module_edges.iter().any(|edge| {
-            edge.kind == ParsedSassModuleEdgeFactKind::Forward && edge.source == "./theme"
+            edge.kind == ParsedSassModuleEdgeFactKind::Forward
+                && edge.source == "./theme"
+                && edge.visibility_filter_kind == Some("show")
+                && edge.visibility_filter_names == vec!["brand", "tone"]
         }));
         assert!(facts.sass_module_edges.iter().any(|edge| {
             edge.kind == ParsedSassModuleEdgeFactKind::Import && edge.source == "legacy"

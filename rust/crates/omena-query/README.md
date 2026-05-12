@@ -38,6 +38,10 @@ Current public products:
   `input-expression-domain-incremental-flow-analysis` runner command. This
   keeps per-graph `omena-incremental` Salsa databases alive across daemon
   requests so repeated query analysis can reuse clean graph results.
+- `omena-query.evaluation-runtime` — runtime-backed selected-query execution
+  summary that ties the adapter capability matrix, resolver runtime index,
+  expression-domain Salsa runtime, and parser-owned style-document summary
+  source into one decoupled runner command.
 - selected-query style semantic graph adapter wrappers. These preserve the
   `omena-semantic.style-semantic-graph` products while delegating graph assembly
   to `omena-bridge`, including the `omena-semantic.css-modules-semantics`
@@ -46,6 +50,10 @@ Current public products:
   relation resolver for `composes`, `@value`, and ICSS import/export sources.
   This resolves import sources, same-edge name matches, transitive closure, and
   cycle detection for the current parser fact surface.
+- `omena-query.sass-module-cross-file-resolution` — batch-level Sass module
+  resolver for parser-owned `@use`, `@forward`, and `@import` facts. This now
+  resolves module graph closure, cycle detection, and `@forward show/hide`
+  visibility filters without re-scanning style sources in the query layer.
 - `omena-query.transform-plan` — post-v5 omena-css transform facade that combines
   bundle planning, target lowering, optional egg rewrite planning, P40 printing,
   and the current transform execution runtime summary.
