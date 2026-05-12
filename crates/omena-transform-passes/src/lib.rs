@@ -4403,7 +4403,7 @@ fn close_custom_property_dependency_graph(
 fn collect_custom_property_references_in_value(value: &str) -> Option<Vec<String>> {
     let mut names = Vec::new();
     let mut search_start = 0;
-    while let Some(relative_index) = value[search_start..].find("var(") {
+    while let Some(relative_index) = find_ascii_case_insensitive(&value[search_start..], "var(") {
         let mut index = search_start + relative_index + "var(".len();
         while matches!(
             value.as_bytes().get(index),
@@ -4430,6 +4430,17 @@ fn collect_custom_property_references_in_value(value: &str) -> Option<Vec<String
         search_start = index;
     }
     Some(names)
+}
+
+fn find_ascii_case_insensitive(haystack: &str, needle: &str) -> Option<usize> {
+    let needle = needle.as_bytes();
+    if needle.is_empty() || haystack.len() < needle.len() {
+        return None;
+    }
+    haystack
+        .as_bytes()
+        .windows(needle.len())
+        .position(|window| window.eq_ignore_ascii_case(needle))
 }
 
 fn normalize_custom_property_name(name: &str) -> Option<&str> {
@@ -9063,7 +9074,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_tree_shakes_custom_properties_with_closed_world_context() {
-        let source = r#":root { --used: var(--alias); --alias: red; --dead: var(--dead-dep); --dead-dep: blue; color: var(--used); } .btn { color: var(--external); }"#;
+        let source = r#":root { --used: VAR(--alias); --alias: red; --dead: VAR(--dead-dep); --dead-dep: blue; color: VAR(--used); } .btn { color: var(--external); }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             reachable_custom_property_names: vec!["--external".to_string()],
@@ -9080,9 +9091,9 @@ mod tests {
         );
 
         assert_eq!(execution.mutation_count, 2);
-        assert!(execution.output_css.contains("--used: var(--alias);"));
+        assert!(execution.output_css.contains("--used: VAR(--alias);"));
         assert!(execution.output_css.contains("--alias: red;"));
-        assert!(execution.output_css.contains("color: var(--used);"));
+        assert!(execution.output_css.contains("color: VAR(--used);"));
         assert!(execution.output_css.contains("color: var(--external);"));
         assert!(!execution.output_css.contains("--dead:"));
         assert!(!execution.output_css.contains("--dead-dep:"));
