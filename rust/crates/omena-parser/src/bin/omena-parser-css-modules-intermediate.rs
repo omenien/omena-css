@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     env,
@@ -9,7 +11,7 @@ use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleValueFactKind,
     ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedSelectorFactKind,
     ParsedStyleFacts, ParsedVariableFactKind, ParserByteSpanV0, ParserPositionV0, ParserRangeV0,
-    StyleDialect, collect_style_facts,
+    StyleDialect, collect_style_facts, summarize_omena_parser_parity_lite,
 };
 use serde::Serialize;
 
@@ -25,6 +27,67 @@ struct ParserIndexSummaryV0 {
     keyframes: ParserIndexKeyframesFactsV0,
     composes: ParserIndexComposesFactsV0,
     wrappers: ParserIndexWrapperFactsV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ParserCanonicalCandidateBundleV0 {
+    schema_version: &'static str,
+    language: &'static str,
+    parity_lite: omena_parser::OmenaParserParityLiteSummaryV0,
+    css_modules_intermediate: ParserIndexSummaryV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParserEvaluatorCandidateV0 {
+    kind: &'static str,
+    selector_name: String,
+    nested_safety_kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bem_suffix_parent_name: Option<String>,
+    under_media: bool,
+    under_supports: bool,
+    under_layer: bool,
+    has_value_refs: bool,
+    has_local_value_refs: bool,
+    has_imported_value_refs: bool,
+    has_custom_property_refs: bool,
+    has_animation_ref: bool,
+    has_animation_name_ref: bool,
+    has_composes: bool,
+    has_local_composes: bool,
+    has_imported_composes: bool,
+    has_global_composes: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ParserEvaluatorCandidatesV0 {
+    schema_version: &'static str,
+    language: &'static str,
+    results: Vec<ParserEvaluatorCandidateV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ParserCanonicalProducerSignalV0 {
+    schema_version: &'static str,
+    language: &'static str,
+    canonical_candidate: ParserCanonicalCandidateBundleV0,
+    evaluator_candidates: ParserEvaluatorCandidatesV0,
+    public_product_gate: ParserPublicProductGateSignalV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParserPublicProductGateSignalV0 {
+    canonical_candidate_command: &'static str,
+    consumer_boundary_command: &'static str,
+    public_product_gate_command: &'static str,
+    included_in_parser_lane: bool,
+    included_in_rust_lane_bundle: bool,
+    included_in_rust_release_bundle: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -334,6 +397,187 @@ fn summarize_css_modules_intermediate(source: &str, dialect: StyleDialect) -> Pa
         keyframes,
         composes,
         wrappers,
+    }
+}
+
+pub(crate) fn summarize_parser_canonical_candidate(
+    source: &str,
+    dialect: StyleDialect,
+) -> ParserCanonicalCandidateBundleV0 {
+    let parity_lite = summarize_omena_parser_parity_lite(source, dialect);
+    let css_modules_intermediate = summarize_css_modules_intermediate(source, dialect);
+
+    ParserCanonicalCandidateBundleV0 {
+        schema_version: "0",
+        language: parity_lite.language,
+        parity_lite,
+        css_modules_intermediate,
+    }
+}
+
+pub(crate) fn summarize_parser_evaluator_candidates(
+    source: &str,
+    dialect: StyleDialect,
+) -> ParserEvaluatorCandidatesV0 {
+    let intermediate = summarize_css_modules_intermediate(source, dialect);
+    let bem_suffix_safe_names: BTreeSet<&str> = intermediate
+        .selectors
+        .bem_suffix_safe_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let nested_unsafe_names: BTreeSet<&str> = intermediate
+        .selectors
+        .nested_unsafe_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let selectors_under_media_names: BTreeSet<&str> = intermediate
+        .wrappers
+        .selectors_under_media_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let selectors_under_supports_names: BTreeSet<&str> = intermediate
+        .wrappers
+        .selectors_under_supports_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let selectors_under_layer_names: BTreeSet<&str> = intermediate
+        .wrappers
+        .selectors_under_layer_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let selectors_with_refs_names: BTreeSet<&str> = intermediate
+        .values
+        .selectors_with_refs_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let selectors_with_local_refs_names: BTreeSet<&str> = intermediate
+        .values
+        .selectors_with_local_refs_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let selectors_with_imported_refs_names: BTreeSet<&str> = intermediate
+        .values
+        .selectors_with_imported_refs_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let selectors_with_custom_property_refs_names: BTreeSet<&str> = intermediate
+        .custom_properties
+        .selectors_with_refs_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let selectors_with_animation_ref_names: BTreeSet<&str> = intermediate
+        .keyframes
+        .selectors_with_animation_ref_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let selectors_with_animation_name_ref_names: BTreeSet<&str> = intermediate
+        .keyframes
+        .selectors_with_animation_name_ref_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let selectors_with_composes_names: BTreeSet<&str> = intermediate
+        .composes
+        .selectors_with_composes_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let local_selector_names: BTreeSet<&str> = intermediate
+        .composes
+        .local_selector_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let imported_selector_names: BTreeSet<&str> = intermediate
+        .composes
+        .imported_selector_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let global_selector_names: BTreeSet<&str> = intermediate
+        .composes
+        .global_selector_names
+        .iter()
+        .map(String::as_str)
+        .collect();
+
+    let results = intermediate
+        .selectors
+        .names
+        .iter()
+        .map(|selector_name| {
+            let selector = selector_name.as_str();
+            let nested_safety_kind = if nested_unsafe_names.contains(selector) {
+                "nestedUnsafe"
+            } else if bem_suffix_safe_names.contains(selector) {
+                "bemSuffixSafe"
+            } else {
+                "flat"
+            };
+            ParserEvaluatorCandidateV0 {
+                kind: "selector-index-facts",
+                selector_name: selector_name.clone(),
+                nested_safety_kind,
+                bem_suffix_parent_name: if nested_safety_kind == "bemSuffixSafe" {
+                    bem_suffix_parent_name(selector)
+                } else {
+                    None
+                },
+                under_media: selectors_under_media_names.contains(selector),
+                under_supports: selectors_under_supports_names.contains(selector),
+                under_layer: selectors_under_layer_names.contains(selector),
+                has_value_refs: selectors_with_refs_names.contains(selector),
+                has_local_value_refs: selectors_with_local_refs_names.contains(selector),
+                has_imported_value_refs: selectors_with_imported_refs_names.contains(selector),
+                has_custom_property_refs: selectors_with_custom_property_refs_names
+                    .contains(selector),
+                has_animation_ref: selectors_with_animation_ref_names.contains(selector),
+                has_animation_name_ref: selectors_with_animation_name_ref_names.contains(selector),
+                has_composes: selectors_with_composes_names.contains(selector),
+                has_local_composes: local_selector_names.contains(selector),
+                has_imported_composes: imported_selector_names.contains(selector),
+                has_global_composes: global_selector_names.contains(selector),
+            }
+        })
+        .collect();
+
+    ParserEvaluatorCandidatesV0 {
+        schema_version: "0",
+        language: intermediate.language,
+        results,
+    }
+}
+
+pub(crate) fn summarize_parser_canonical_producer_signal(
+    source: &str,
+    dialect: StyleDialect,
+) -> ParserCanonicalProducerSignalV0 {
+    let canonical_candidate = summarize_parser_canonical_candidate(source, dialect);
+    let evaluator_candidates = summarize_parser_evaluator_candidates(source, dialect);
+
+    ParserCanonicalProducerSignalV0 {
+        schema_version: "0",
+        language: canonical_candidate.language,
+        canonical_candidate,
+        evaluator_candidates,
+        public_product_gate: ParserPublicProductGateSignalV0 {
+            canonical_candidate_command: "pnpm check:rust-parser-canonical-candidate",
+            consumer_boundary_command: "pnpm check:rust-parser-consumer-boundary",
+            public_product_gate_command: "pnpm check:rust-parser-public-product",
+            included_in_parser_lane: true,
+            included_in_rust_lane_bundle: true,
+            included_in_rust_release_bundle: true,
+        },
     }
 }
 
@@ -1422,7 +1666,7 @@ fn resolve_selector_group_text(
     }
     let tail = selector_tail(group);
     if let Some(suffix) = tail.strip_prefix('&').map(str::trim)
-        && (suffix.starts_with("__") || suffix.starts_with("--"))
+        && is_ampersand_suffix_text(suffix)
     {
         let span = source_span_for_header_piece(source, full_header, suffix);
         return parent_branches
@@ -1446,6 +1690,13 @@ fn resolve_selector_group_text(
             amp_suffix_depth: 0,
         })
         .collect()
+}
+
+fn is_ampersand_suffix_text(suffix: &str) -> bool {
+    suffix
+        .chars()
+        .next()
+        .is_some_and(|ch| ch == '-' || ch == '_' || ch.is_ascii_alphanumeric())
 }
 
 fn classify_nested_safety(
@@ -1904,7 +2155,10 @@ fn parser_position_for_byte_offset(source: &str, byte_offset: usize) -> ParserPo
     }
     ParserPositionV0 {
         line,
-        character: offset.saturating_sub(line_start),
+        character: source
+            .get(line_start..offset)
+            .map(|text| text.encode_utf16().count())
+            .unwrap_or_else(|| offset.saturating_sub(line_start)),
     }
 }
 
@@ -1953,7 +2207,7 @@ impl SortVec for Vec<String> {
     }
 }
 
-fn dialect_for_path(file_path: &str) -> StyleDialect {
+pub(crate) fn dialect_for_path(file_path: &str) -> StyleDialect {
     if file_path.ends_with(".sass") || file_path.ends_with(".module.sass") {
         StyleDialect::Sass
     } else if file_path.ends_with(".scss") || file_path.ends_with(".module.scss") {

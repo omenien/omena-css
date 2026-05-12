@@ -8068,7 +8068,10 @@ fn resolve_selector_group(
         let bases: Vec<&SelectorBranch> = if parent_branches.is_empty() {
             Vec::new()
         } else {
-            parent_branches.iter().collect()
+            parent_branches
+                .iter()
+                .filter(|parent| parent.bare_suffix_base)
+                .collect()
         };
         return bases
             .into_iter()
@@ -8085,7 +8088,9 @@ fn resolve_selector_group(
         return Vec::new();
     }
 
-    let bare_suffix_base = parent_branches.is_empty() && class_names.len() == 1;
+    let bare_suffix_base = parent_branches.is_empty()
+        && class_names.len() == 1
+        && is_bare_class_selector_group(tokens, tail_start, tail_end);
     class_names
         .into_iter()
         .map(|(name, range)| SelectorBranch {
@@ -8094,6 +8099,23 @@ fn resolve_selector_group(
             bare_suffix_base,
         })
         .collect()
+}
+
+fn is_bare_class_selector_group(tokens: &[Token<'_>], start: usize, end: usize) -> bool {
+    let dot_index = skip_trivia_tokens(tokens, start, end);
+    if tokens.get(dot_index).map(|token| token.kind) != Some(SyntaxKind::Dot) {
+        return false;
+    }
+    let name_index = skip_trivia_tokens(tokens, dot_index + 1, end);
+    if !tokens.get(name_index).is_some_and(|token| {
+        matches!(
+            token.kind,
+            SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+        )
+    }) {
+        return false;
+    }
+    skip_trivia_tokens(tokens, name_index + 1, end) >= end
 }
 
 fn split_selector_groups(tokens: &[Token<'_>], start: usize, end: usize) -> Vec<(usize, usize)> {
@@ -8163,8 +8185,7 @@ fn ampersand_suffix_selector(
     if matches!(
         suffix.kind,
         SyntaxKind::Ident | SyntaxKind::CustomPropertyName
-    ) && (suffix.text.starts_with("__") || suffix.text.starts_with("--"))
-    {
+    ) {
         return Some((suffix.text.to_string(), suffix.range));
     }
     None
@@ -14120,6 +14141,26 @@ mod tests {
         assert_eq!(class_names, vec!["card", "card__icon", "card__icon--small"]);
         assert!(custom_properties.contains(&"--space"));
         assert!(!custom_properties.contains(&"--small"));
+        assert_eq!(facts.error_count, 0);
+    }
+
+    #[test]
+    fn extracts_non_bem_ampersand_suffix_style_facts() {
+        let facts = collect_style_facts(
+            ".btn { &-legacy {} &_legacy {} &suffix {} }",
+            StyleDialect::Scss,
+        );
+        let class_names: Vec<&str> = facts
+            .selectors
+            .iter()
+            .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+            .map(|selector| selector.name.as_str())
+            .collect();
+
+        assert_eq!(
+            class_names,
+            vec!["btn", "btn-legacy", "btn_legacy", "btnsuffix"]
+        );
         assert_eq!(facts.error_count, 0);
     }
 

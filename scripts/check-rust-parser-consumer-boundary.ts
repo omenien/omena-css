@@ -581,7 +581,7 @@ async function runRustJson<T>(bin: string, filePath: string, source: string): Pr
         "--manifest-path",
         "rust/Cargo.toml",
         "-p",
-        "engine-style-parser",
+        "omena-parser",
         "--bin",
         bin,
         "--",
@@ -620,7 +620,7 @@ void (async () => {
 
     // oxlint-disable-next-line eslint/no-await-in-loop
     const producer = await runRustJson<ParserCanonicalProducerSignalV0>(
-      "engine-style-parser-canonical-producer",
+      "omena-parser-canonical-producer",
       entry.filePath,
       entry.source,
     );

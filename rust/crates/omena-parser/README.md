@@ -19,6 +19,9 @@ Current scope:
   CSS Modules intermediate index summary used by the parser index-bridge gate,
   including values, custom properties, Sass symbols, wrappers, keyframes,
   composes, and nested BEM selector metadata.
+- `omena-parser-canonical-candidate`, `omena-parser-evaluator-candidates`, and
+  `omena-parser-canonical-producer` expose the parser-owned wrapper summaries
+  used by the parser public-product lane.
 - Recursive-descent parser core coverage is explicit: stylesheet/rule/
   declaration entry points, Selectors L4 CST slices, registered at-rule
   preludes, CSS nesting, SCSS/Sass/Less dialect statements, Bogus recovery, and

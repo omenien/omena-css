@@ -244,9 +244,9 @@ async function runRustSummary(
         "--manifest-path",
         "rust/Cargo.toml",
         "-p",
-        "engine-style-parser",
+        "omena-parser",
         "--bin",
-        "engine-style-parser-evaluator-candidates",
+        "omena-parser-evaluator-candidates",
         "--",
         filePath,
       ],
@@ -267,9 +267,7 @@ async function runRustSummary(
     child.on("error", reject);
     child.on("close", (code) => {
       if (code !== 0) {
-        reject(
-          new Error(`engine-style-parser-evaluator-candidates exited with ${code}\n${stderr}`),
-        );
+        reject(new Error(`omena-parser-evaluator-candidates exited with ${code}\n${stderr}`));
         return;
       }
       resolve(JSON.parse(stdout) as ParserEvaluatorCandidatesV0);

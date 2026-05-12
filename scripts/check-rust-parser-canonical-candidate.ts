@@ -64,7 +64,7 @@ async function runRustJson<T>(bin: string, filePath: string, source: string): Pr
         "--manifest-path",
         "rust/Cargo.toml",
         "-p",
-        "engine-style-parser",
+        "omena-parser",
         "--bin",
         bin,
         "--",
@@ -103,19 +103,19 @@ void (async () => {
 
     // oxlint-disable-next-line eslint/no-await-in-loop
     const parityLite = await runRustJson<ParserParityLiteSummaryV0>(
-      "engine-style-parser-summary",
+      "omena-parser-summary",
       entry.filePath,
       entry.source,
     );
     // oxlint-disable-next-line eslint/no-await-in-loop
     const cssModulesIntermediate = await runRustJson<ParserIndexSummaryV0>(
-      "engine-style-parser-css-modules-intermediate",
+      "omena-parser-css-modules-intermediate",
       entry.filePath,
       entry.source,
     );
     // oxlint-disable-next-line eslint/no-await-in-loop
     const actual = await runRustJson<ParserCanonicalCandidateBundleV0>(
-      "engine-style-parser-canonical-candidate",
+      "omena-parser-canonical-candidate",
       entry.filePath,
       entry.source,
     );
