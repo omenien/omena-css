@@ -1,10 +1,19 @@
-use crate::domain::composite_min_length_for_constraints;
+use crate::domain::{abstract_class_value_kind, composite_min_length_for_constraints};
 use crate::{
     AbstractClassValueProvenanceV0, AbstractClassValueV0, CompositeClassValueInputV0,
-    bottom_class_value, char_set_for_string, char_set_is_subset, composite_class_value,
-    intersect_char_sets, meaningful_longest_common_prefix, meaningful_longest_common_suffix,
-    prefix_suffix_class_value, top_class_value, union_char_sets,
+    ReducedClassValueCharInclusionAxisV0, ReducedClassValuePrefixAxisV0,
+    ReducedClassValueProductV0, ReducedClassValueSuffixAxisV0, bottom_class_value,
+    char_set_for_string, char_set_is_subset, composite_class_value, intersect_char_sets,
+    meaningful_longest_common_prefix, meaningful_longest_common_suffix, prefix_suffix_class_value,
+    top_class_value, union_char_sets,
 };
+
+pub fn summarize_reduced_class_value_product(
+    value: &AbstractClassValueV0,
+) -> Option<ReducedClassValueProductV0> {
+    ClassValueReductionFacts::from_abstract_value(value)
+        .map(|facts| facts.into_product_summary(abstract_class_value_kind(value)))
+}
 
 pub(crate) fn intersect_reduced_product_class_values(
     left: &AbstractClassValueV0,
@@ -318,6 +327,29 @@ impl ClassValueReductionFacts {
             may_include_other_chars,
             provenance: Some(provenance),
         })
+    }
+
+    fn into_product_summary(self, source_value_kind: &'static str) -> ReducedClassValueProductV0 {
+        let lower_bound_length = self.lower_bound_length();
+        let may_include_other_chars = self.allowed_chars.is_none();
+        ReducedClassValueProductV0 {
+            schema_version: "0",
+            product: "omena-abstract-value.reduced-product",
+            source_value_kind,
+            prefix: self
+                .prefix
+                .map(|prefix| ReducedClassValuePrefixAxisV0 { prefix }),
+            suffix: self
+                .suffix
+                .map(|suffix| ReducedClassValueSuffixAxisV0 { suffix }),
+            char_inclusion: ReducedClassValueCharInclusionAxisV0 {
+                must_chars: self.must_chars,
+                allowed_chars: self.allowed_chars,
+                may_include_other_chars,
+            },
+            min_length: self.min_length,
+            lower_bound_length,
+        }
     }
 }
 

@@ -12,6 +12,7 @@ pub use domain::*;
 pub use facts::*;
 pub use flow::*;
 pub use provenance::*;
+pub use reduced_product::summarize_reduced_class_value_product;
 pub use selector_projection::*;
 pub use types::*;
 

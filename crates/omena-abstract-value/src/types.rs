@@ -11,6 +11,8 @@ pub struct AbstractValueDomainSummaryV0 {
     pub product: &'static str,
     pub domain_kinds: Vec<&'static str>,
     pub max_finite_class_values: usize,
+    pub reduced_product_structure_ready: bool,
+    pub reduced_product_axes: Vec<&'static str>,
     pub selector_projection_certainties: Vec<&'static str>,
     pub provenance_tree_ready: bool,
     pub provenance_tree_scopes: Vec<&'static str>,
@@ -54,6 +56,43 @@ pub struct ReducedClassValueDerivationStepV0 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result_provenance: Option<AbstractClassValueProvenanceV0>,
     pub reason: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReducedClassValueProductV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub source_value_kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prefix: Option<ReducedClassValuePrefixAxisV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suffix: Option<ReducedClassValueSuffixAxisV0>,
+    pub char_inclusion: ReducedClassValueCharInclusionAxisV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_length: Option<usize>,
+    pub lower_bound_length: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReducedClassValuePrefixAxisV0 {
+    pub prefix: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReducedClassValueSuffixAxisV0 {
+    pub suffix: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReducedClassValueCharInclusionAxisV0 {
+    pub must_chars: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_chars: Option<String>,
+    pub may_include_other_chars: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

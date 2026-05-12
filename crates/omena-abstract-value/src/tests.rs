@@ -19,8 +19,8 @@ use super::{
     selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
     suffix_class_value, summarize_abstract_class_value_provenance_tree,
     summarize_omena_abstract_value_domain, summarize_omena_abstract_value_flow_analysis,
-    top_class_value, value_certainty_from_facts, value_certainty_shape_kind_from_facts,
-    value_certainty_shape_label_from_facts,
+    summarize_reduced_class_value_product, top_class_value, value_certainty_from_facts,
+    value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
 };
 use omena_incremental::OmenaIncrementalDatabaseV0;
 use std::collections::BTreeMap;
@@ -34,6 +34,11 @@ fn summarizes_domain_boundary_contract() {
     assert_eq!(summary.max_finite_class_values, MAX_FINITE_CLASS_VALUES);
     assert!(summary.domain_kinds.contains(&"exact"));
     assert!(summary.domain_kinds.contains(&"composite"));
+    assert!(summary.reduced_product_structure_ready);
+    assert_eq!(
+        summary.reduced_product_axes,
+        vec!["prefix", "suffix", "charInclusion", "lengthLowerBound"]
+    );
     assert!(
         summary
             .selector_projection_certainties
@@ -442,6 +447,75 @@ fn exposes_reduced_product_subset_relation_for_composite_domains() {
         &incompatible_chars
     ));
     assert!(!abstract_class_value_is_subset(&prefix, &composite));
+}
+
+#[test]
+fn exposes_reduced_product_as_explicit_axes() {
+    let composite = composite_class_value(CompositeClassValueInputV0 {
+        prefix: Some("btn-".to_string()),
+        suffix: Some("-active".to_string()),
+        min_length: Some("btn-active".len()),
+        must_chars: "ab".to_string(),
+        may_chars: "-abceintv".to_string(),
+        may_include_other_chars: false,
+        provenance: None,
+    });
+
+    let product = summarize_reduced_class_value_product(&composite);
+
+    assert!(product.is_some());
+    assert_eq!(
+        product.as_ref().map(|summary| summary.schema_version),
+        Some("0")
+    );
+    assert_eq!(
+        product.as_ref().map(|summary| summary.product),
+        Some("omena-abstract-value.reduced-product")
+    );
+    assert_eq!(
+        product.as_ref().map(|summary| summary.source_value_kind),
+        Some("composite")
+    );
+    assert_eq!(
+        product
+            .as_ref()
+            .and_then(|summary| summary.prefix.as_ref())
+            .map(|axis| axis.prefix.as_str()),
+        Some("btn-")
+    );
+    assert_eq!(
+        product
+            .as_ref()
+            .and_then(|summary| summary.suffix.as_ref())
+            .map(|axis| axis.suffix.as_str()),
+        Some("-active")
+    );
+    assert_eq!(
+        product
+            .as_ref()
+            .map(|summary| summary.char_inclusion.must_chars.as_str()),
+        Some("-abceintv")
+    );
+    assert_eq!(
+        product
+            .as_ref()
+            .and_then(|summary| summary.char_inclusion.allowed_chars.as_deref()),
+        Some("-abceintv")
+    );
+    assert_eq!(
+        product
+            .as_ref()
+            .map(|summary| summary.char_inclusion.may_include_other_chars),
+        Some(false)
+    );
+    assert_eq!(
+        product.as_ref().and_then(|summary| summary.min_length),
+        Some("btn-active".len())
+    );
+    assert_eq!(
+        product.as_ref().map(|summary| summary.lower_bound_length),
+        Some("btn-active".len())
+    );
 }
 
 #[test]
