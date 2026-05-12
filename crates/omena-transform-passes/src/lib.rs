@@ -4812,6 +4812,19 @@ fn collect_vendor_prefix_insertions(tokens: &[omena_parser::LexedToken]) -> Vec<
                         format!("{prefixed_property}: {}; ", declaration.value),
                     ));
                 }
+                for prefixed_value in prefixed_values_for(&declaration.property, &declaration.value)
+                {
+                    if declarations.iter().any(|candidate| {
+                        candidate.property == declaration.property
+                            && candidate.value.eq_ignore_ascii_case(prefixed_value)
+                    }) {
+                        continue;
+                    }
+                    insertions.push((
+                        declaration.start,
+                        format!("{}: {prefixed_value}; ", declaration.property),
+                    ));
+                }
             }
             index = close_index + 1;
             continue;
@@ -4828,6 +4841,15 @@ fn prefixed_property_for(property: &str) -> Option<&'static str> {
         "backdrop-filter" => Some("-webkit-backdrop-filter"),
         "user-select" => Some("-webkit-user-select"),
         _ => None,
+    }
+}
+
+fn prefixed_values_for(property: &str, value: &str) -> Vec<&'static str> {
+    match (property, value.trim().to_ascii_lowercase().as_str()) {
+        ("display", "flex") => vec!["-webkit-box", "-ms-flexbox"],
+        ("display", "inline-flex") => vec!["-webkit-inline-box", "-ms-inline-flexbox"],
+        ("position", "sticky") => vec!["-webkit-sticky"],
+        _ => Vec::new(),
     }
 }
 
@@ -6965,7 +6987,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_adds_conservative_vendor_prefixes_when_absent() {
-        let source = r#".a { user-select: none; -webkit-appearance: none; appearance: none; backdrop-filter: blur(2px); }"#;
+        let source = r#".a { user-select: none; -webkit-appearance: none; appearance: none; backdrop-filter: blur(2px); } .flex { display: flex; position: sticky; } .inline { display: -webkit-inline-box; display: inline-flex; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -6974,10 +6996,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 6);
         assert_eq!(
             execution.output_css,
-            r#".a { -webkit-user-select: none; user-select: none; -webkit-appearance: none; appearance: none; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }"#
+            r#".a { -webkit-user-select: none; user-select: none; -webkit-appearance: none; appearance: none; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); } .flex { display: -webkit-box; display: -ms-flexbox; display: flex; position: -webkit-sticky; position: sticky; } .inline { display: -webkit-inline-box; display: -ms-inline-flexbox; display: inline-flex; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
