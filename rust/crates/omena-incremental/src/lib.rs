@@ -1,3 +1,10 @@
+//! Salsa-backed incremental computation substrate for omena-css.
+//!
+//! The crate owns graph snapshots, dirty-set planning, cancellation state, and
+//! fuzzable consistency cases. Downstream parser, semantic, and transform
+//! crates depend on these stable V0 payloads instead of reaching into Salsa
+//! internals directly.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use salsa::Setter;

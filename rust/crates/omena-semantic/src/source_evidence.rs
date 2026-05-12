@@ -1,3 +1,9 @@
+//! Source input evidence for semantic promotion.
+//!
+//! This module preserves reference-site identity, certainty reasons, binding
+//! origins, style-module edges, and value-domain explanations so semantic
+//! consumers can explain why a source expression maps to a CSS selector fact.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use engine_input_producers::{

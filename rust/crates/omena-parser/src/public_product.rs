@@ -1,3 +1,10 @@
+//! Product-facing parser summaries and compatibility signals.
+//!
+//! This module is the stable reporting layer above the raw parser. It exposes
+//! CSS Modules facts, canonical producer/candidate summaries, and evaluator
+//! readiness payloads used by cme gates while the parser migrates toward the
+//! standalone omena-css track.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{

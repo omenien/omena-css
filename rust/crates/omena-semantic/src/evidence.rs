@@ -1,3 +1,9 @@
+//! Promotion evidence for parser facts entering the semantic layer.
+//!
+//! These summaries are used by gate checks to verify that parser output is not
+//! merely present, but is promoted into semantic contracts with the expected
+//! counts, certainty, and downstream readiness signals.
+
 use engine_input_producers::EngineInputV2;
 use serde::Serialize;
 

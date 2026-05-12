@@ -1,3 +1,9 @@
+//! Lossless CST contract summaries consumed by semantic gates.
+//!
+//! The payloads here keep span, wrapper, and recovery invariants visible at the
+//! semantic boundary so downstream consumers can detect parser regressions
+//! without depending on internal parser node types.
+
 use serde::Serialize;
 
 use crate::ParserLosslessCstFactsV0;

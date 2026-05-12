@@ -1,3 +1,9 @@
+//! Theory-observation harness contracts for semantic milestones.
+//!
+//! The observation surface records whether selector identity, source evidence,
+//! semantic graph readiness, and coupling boundaries are present before a gate
+//! declares a semantic milestone ready.
+
 use std::collections::BTreeMap;
 
 use serde::Serialize;

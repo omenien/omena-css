@@ -1,3 +1,10 @@
+//! Shared semantic data contracts.
+//!
+//! These V0 structs are the stable schema that parser, semantic, query,
+//! checker, and LSP gates exchange. They intentionally stay serializable and
+//! explicit so product-facing diagnostics can be checked without touching
+//! internal parser state.
+
 use omena_parser::StyleDialect;
 use serde::Serialize;
 

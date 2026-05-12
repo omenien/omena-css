@@ -1,3 +1,9 @@
+//! Design-token semantic analysis for CSS custom properties.
+//!
+//! The module ranks declarations, records workspace-scoped candidates, and
+//! exposes capability signals for cross-file design-token hover, completion,
+//! diagnostics, and cascade-aware resolution.
+
 use omena_cascade::{
     CascadeKey, CascadeLevel, LayerRank, Specificity, select_cascade_winner,
     selector_context_witness, selector_context_witness_for_declaration,

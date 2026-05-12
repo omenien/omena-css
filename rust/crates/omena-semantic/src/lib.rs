@@ -1,3 +1,10 @@
+//! Semantic fact layer for parsed omena-css style modules.
+//!
+//! This crate lifts parser facts into selector, custom-property, Sass module,
+//! design-token, and source-evidence summaries. It is the bridge between the
+//! lossless parser substrate and query/LSP consumers that need stable semantic
+//! contracts rather than raw CST traversal.
+
 use engine_input_producers::EngineInputV2;
 use omena_cascade::selector_context_witness_for_declaration;
 use omena_interner::{

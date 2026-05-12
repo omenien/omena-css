@@ -1,3 +1,9 @@
+//! Canonical selector identity summaries.
+//!
+//! This module exposes the semantic identity layer that normalizes selector
+//! aliases, tracks rewrite safety, and provides stable counts for parser-to-LSP
+//! selector equivalence gates.
+
 use std::collections::BTreeSet;
 
 use serde::Serialize;

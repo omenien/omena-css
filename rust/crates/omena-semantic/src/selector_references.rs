@@ -1,3 +1,9 @@
+//! Source-side selector reference summaries.
+//!
+//! The public contracts connect engine input facts to selector reference sites,
+//! including editable direct references used by rename/refactor and code-lens
+//! consumers.
+
 use engine_input_producers::{
     EngineInputV2, RangeV2, summarize_selector_usage_evaluator_candidates_input,
 };

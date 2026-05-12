@@ -1,3 +1,9 @@
+//! CSS Modules semantic summaries over parser facts.
+//!
+//! The public V0 payloads in this module describe class definitions,
+//! compositions, exported values, and capability flags that downstream query and
+//! checker layers use without reinterpreting parser-specific fact shapes.
+
 use std::collections::BTreeSet;
 
 use omena_parser::{
