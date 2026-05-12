@@ -1049,7 +1049,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "removed unreachable simple class rules under an explicit closed-style-world reachability context",
+                    detail: "removed unreachable class-owned selector rules under an explicit closed-style-world reachability context",
                 }
             }
             Some(TransformPassKind::TreeShakeClass) => TransformPassExecutionOutcomeV0 {
@@ -3286,7 +3286,7 @@ fn tree_shake_css_class_rules_with_lexer(
     let ranges = rules
         .iter()
         .filter(|rule| {
-            selector_list_is_simple_unreachable_class_rule(&rule.selector, reachable_class_names)
+            selector_list_is_unreachable_class_rule(&rule.selector, reachable_class_names)
         })
         .map(|rule| (rule.start, rule.end))
         .collect::<Vec<_>>();
@@ -3294,7 +3294,7 @@ fn tree_shake_css_class_rules_with_lexer(
     remove_source_ranges(source, &ranges)
 }
 
-fn selector_list_is_simple_unreachable_class_rule(
+fn selector_list_is_unreachable_class_rule(
     selector: &str,
     reachable_class_names: &[String],
 ) -> bool {
@@ -3303,11 +3303,75 @@ fn selector_list_is_simple_unreachable_class_rule(
     };
     !branches.is_empty()
         && branches.iter().all(|branch| {
-            let Some(class_name) = simple_class_selector_name(branch) else {
+            let Some(class_name) = selector_branch_owner_class_name(branch) else {
                 return false;
             };
             !class_name_is_reachable(&class_name, reachable_class_names)
         })
+}
+
+fn selector_branch_owner_class_name(selector: &str) -> Option<String> {
+    let selector = selector.trim();
+    if selector.is_empty() || find_ascii_case_insensitive(selector, ":global").is_some() {
+        return None;
+    }
+
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+    let mut bracket_depth = 0usize;
+    let mut paren_depth = 0usize;
+
+    while index < selector.len() {
+        let ch = selector[index..].chars().next()?;
+
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                let escaped = selector[index..].chars().next()?;
+                index += escaped.len_utf8();
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            '[' => {
+                bracket_depth += 1;
+                index += ch.len_utf8();
+            }
+            ']' => {
+                bracket_depth = bracket_depth.saturating_sub(1);
+                index += ch.len_utf8();
+            }
+            '(' => {
+                paren_depth += 1;
+                index += ch.len_utf8();
+            }
+            ')' => {
+                paren_depth = paren_depth.saturating_sub(1);
+                index += ch.len_utf8();
+            }
+            '\\' => return None,
+            '.' if bracket_depth == 0 && paren_depth == 0 => {
+                let name_start = index + ch.len_utf8();
+                let name_end = ascii_css_identifier_end(selector, name_start);
+                if name_end == name_start {
+                    return None;
+                }
+                return Some(selector[name_start..name_end].to_string());
+            }
+            _ => {
+                index += ch.len_utf8();
+            }
+        }
+    }
+
+    None
 }
 
 fn simple_class_selector_name(selector: &str) -> Option<String> {
@@ -9007,7 +9071,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_tree_shakes_simple_class_rules_with_closed_world_context() {
-        let source = r#".used { color: red; } .dead { color: blue; } .complex:hover { color: green; } .also-dead, .other-dead { color: black; }"#;
+        let source = r#".used { color: red; } .dead { color: blue; } .dead:hover { color: green; } button.other-dead { color: black; } .also-dead, .other-dead { color: black; } .used .child { color: purple; } :global(.external) { color: gray; }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             reachable_class_names: vec!["used".to_string()],
@@ -9023,11 +9087,23 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 2);
-        assert_eq!(
-            execution.output_css,
-            r#".used { color: red; }  .complex:hover { color: green; } "#
+        assert_eq!(execution.mutation_count, 4);
+        assert!(execution.output_css.contains(".used { color: red; }"));
+        assert!(
+            execution
+                .output_css
+                .contains(".used .child { color: purple; }")
         );
+        assert!(
+            execution
+                .output_css
+                .contains(":global(.external) { color: gray; }")
+        );
+        assert!(!execution.output_css.contains(".dead {"));
+        assert!(!execution.output_css.contains(".dead:hover"));
+        assert!(!execution.output_css.contains("button.other-dead"));
+        assert!(!execution.output_css.contains(".also-dead"));
+        assert!(!execution.output_css.contains(".other-dead"));
         assert_eq!(
             execution.executed_pass_ids,
             vec!["tree-shake-class", "print-css"]
