@@ -611,6 +611,25 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "removed dead @supports branches through the static cascade witness evaluator",
                 }
             }
+            Some(TransformPassKind::ValueResolution) => {
+                let (next_css, mutation_count) =
+                    resolve_static_css_modules_values(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "resolved whole-value references from unique local literal CSS Modules @value declarations",
+                }
+            }
             Some(TransformPassKind::StaticVarSubstitution) => {
                 let (next_css, mutation_count) =
                     substitute_static_css_custom_properties(&output_css, dialect);
@@ -748,6 +767,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::MediaStaticEval.id(),
         TransformPassKind::DeadMediaBranchRemoval.id(),
         TransformPassKind::DeadSupportsBranchRemoval.id(),
+        TransformPassKind::ValueResolution.id(),
         TransformPassKind::StaticVarSubstitution.id(),
         TransformPassKind::CalcReduction.id(),
         TransformPassKind::PrintCss.id(),
@@ -952,6 +972,10 @@ fn evaluate_static_supports_rules(source: &str, dialect: StyleDialect) -> (Strin
 
 fn evaluate_static_media_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
     evaluate_static_media_rules_with_lexer(source, dialect)
+}
+
+fn resolve_static_css_modules_values(source: &str, dialect: StyleDialect) -> (String, usize) {
+    resolve_static_css_modules_values_with_lexer(source, dialect)
 }
 
 fn substitute_static_css_custom_properties(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -1582,6 +1606,205 @@ fn at_rule_block_indexes(
         }
     }
     None
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticCssModulesValueDefinition {
+    name: String,
+    value: String,
+    start: usize,
+    end: usize,
+}
+
+fn resolve_static_css_modules_values_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let definitions = collect_static_local_css_modules_value_definitions(tokens);
+    let unique_definitions = definitions
+        .iter()
+        .filter(|definition| {
+            definitions
+                .iter()
+                .filter(|candidate| candidate.name == definition.name)
+                .count()
+                == 1
+                && is_static_css_modules_value_literal(&definition.value)
+        })
+        .collect::<Vec<_>>();
+    if unique_definitions.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut replacements = unique_definitions
+        .iter()
+        .map(|definition| (definition.start, definition.end, String::new()))
+        .collect::<Vec<_>>();
+    let mut index = 0;
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
+                let Some(definition) = unique_definitions
+                    .iter()
+                    .find(|definition| declaration.value == definition.name)
+                else {
+                    continue;
+                };
+                replacements.push((
+                    declaration.start,
+                    declaration.end,
+                    format!("{}: {};", declaration.property, definition.value),
+                ));
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    replacements.sort_by_key(|(start, _, _)| *start);
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    let mut mutation_count = 0;
+    for (start, end, replacement) in &replacements {
+        if *start < cursor {
+            continue;
+        }
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+        mutation_count += 1;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, mutation_count)
+}
+
+fn collect_static_local_css_modules_value_definitions(
+    tokens: &[omena_parser::LexedToken],
+) -> Vec<StaticCssModulesValueDefinition> {
+    let mut definitions = Vec::new();
+    let mut depth = 0usize;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@value") =>
+            {
+                let Some((definition, next_index)) =
+                    parse_static_local_css_modules_value_definition(tokens, index)
+                else {
+                    index += 1;
+                    continue;
+                };
+                definitions.push(definition);
+                index = next_index;
+                continue;
+            }
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+
+    definitions
+}
+
+fn parse_static_local_css_modules_value_definition(
+    tokens: &[omena_parser::LexedToken],
+    at_value_index: usize,
+) -> Option<(StaticCssModulesValueDefinition, usize)> {
+    let mut index = skip_whitespace_tokens(tokens, at_value_index + 1, tokens.len());
+    let name_token = tokens.get(index)?;
+    if name_token.kind != SyntaxKind::Ident {
+        return None;
+    }
+    let name = name_token.text.clone();
+
+    index = skip_whitespace_tokens(tokens, index + 1, tokens.len());
+    if tokens.get(index)?.kind != SyntaxKind::Colon {
+        return None;
+    }
+
+    let value_start = index + 1;
+    index += 1;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::Semicolon => {
+                let value_tokens = tokens[value_start..index]
+                    .iter()
+                    .filter(|token| token.kind != SyntaxKind::Whitespace)
+                    .collect::<Vec<_>>();
+                if value_tokens.is_empty()
+                    || value_tokens.iter().any(|token| {
+                        is_comment_token(token.kind) || token.kind == SyntaxKind::AtKeyword
+                    })
+                {
+                    return None;
+                }
+                let value = value_tokens
+                    .iter()
+                    .map(|token| token.text.as_str())
+                    .collect::<String>();
+                return Some((
+                    StaticCssModulesValueDefinition {
+                        name,
+                        value,
+                        start: token_start(&tokens[at_value_index]),
+                        end: token_end(&tokens[index]),
+                    },
+                    index + 1,
+                ));
+            }
+            SyntaxKind::LeftBrace | SyntaxKind::RightBrace => return None,
+            _ => index += 1,
+        }
+    }
+
+    None
+}
+
+fn is_static_css_modules_value_literal(value: &str) -> bool {
+    parse_static_srgb_color(value).is_some()
+        || parse_numeric_value_with_unit(value)
+            .map(|numeric| {
+                numeric.unit.is_empty() || css_modules_value_unit_is_static(numeric.unit)
+            })
+            .unwrap_or(false)
+}
+
+fn css_modules_value_unit_is_static(unit: &str) -> bool {
+    matches!(
+        unit.to_ascii_lowercase().as_str(),
+        "%" | "ch"
+            | "cm"
+            | "deg"
+            | "dppx"
+            | "em"
+            | "fr"
+            | "in"
+            | "ms"
+            | "pc"
+            | "pt"
+            | "px"
+            | "rem"
+            | "s"
+            | "turn"
+            | "vh"
+            | "vmax"
+            | "vmin"
+            | "vw"
+    )
 }
 
 fn substitute_static_css_custom_properties_with_lexer(
@@ -3769,6 +3992,7 @@ mod tests {
                 "p24-media-static-eval",
                 "p37-dead-media-branch-removal",
                 "p38-dead-supports-branch-removal",
+                "p31-value-resolution",
                 "p32-custom-property-static-resolve",
                 "p25-calc-reduction",
                 "p40-print-css"
@@ -4348,6 +4572,28 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p32-custom-property-static-resolve", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_resolves_static_local_css_modules_values() {
+        let source = r#"@value primary: #fff; @value spacing: 8px; @value alias: primary; @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: primary; margin: spacing; background: alias; border-color: dup; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::ValueResolution,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(
+            execution.output_css,
+            r#"  @value alias: primary; @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: #fff; margin: 8px; background: alias; border-color: dup; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p31-value-resolution", "p40-print-css"]
         );
     }
 

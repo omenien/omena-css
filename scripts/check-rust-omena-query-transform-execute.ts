@@ -67,6 +67,7 @@ const result = spawnSync(
         "p20-nesting-unwrap",
         "p23-supports-static-eval",
         "p24-media-static-eval",
+        "p31-value-resolution",
         "p32-custom-property-static-resolve",
         "p37-dead-media-branch-removal",
         "p38-dead-supports-branch-removal",
@@ -110,6 +111,7 @@ assert.deepEqual(summary.requestedPassIds, [
   "p20-nesting-unwrap",
   "p23-supports-static-eval",
   "p24-media-static-eval",
+  "p31-value-resolution",
   "p32-custom-property-static-resolve",
   "p37-dead-media-branch-removal",
   "p38-dead-supports-branch-removal",
@@ -124,6 +126,7 @@ assert.equal(
   '.dupe{display: block;}.merge{color: red;background: blue;}.sel-a,.sel-b{border: 0;}.a.ready{margin: 0;color: #fff;-webkit-user-select: none;user-select: none;opacity: 1;background: url(img.svg);font-family: "Demo";content: "/* keep */";}',
 );
 assert.deepEqual(summary.execution.executedPassIds, [
+  "p31-value-resolution",
   "p32-custom-property-static-resolve",
   "p37-dead-media-branch-removal",
   "p38-dead-supports-branch-removal",

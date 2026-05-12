@@ -327,6 +327,7 @@ fn exposes_transform_plan_facade_from_source() {
     assert_eq!(
         summary.execution.executed_pass_ids,
         vec![
+            "p31-value-resolution",
             "p15-light-dark-lowering",
             "p20-nesting-unwrap",
             "p14-vendor-prefixing",
