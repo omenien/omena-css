@@ -929,7 +929,9 @@ fn source_candidate_matches_target_style(
         candidate
             .target_style_uri
             .as_deref()
-            .is_none_or(|candidate_target_uri| candidate_target_uri == target_uri)
+            .is_none_or(|candidate_target_uri| {
+                file_uri_equivalent(candidate_target_uri, target_uri)
+            })
     })
 }
 
@@ -1501,7 +1503,7 @@ fn resolve_source_lsp_completion(
     .filter(|(uri, _)| {
         target_style_uri
             .as_deref()
-            .is_none_or(|target_uri| target_uri == uri)
+            .is_none_or(|target_uri| file_uri_equivalent(target_uri, uri))
     })
     .map(|(_, definition)| definition.name)
     .filter(|label| {
@@ -1691,7 +1693,9 @@ fn resolve_source_provider_candidates(
     );
     for candidate in &source_candidates {
         if let Some(target_uri) = candidate.target_style_uri.as_deref()
-            && !definitions.iter().any(|(uri, _)| uri == target_uri)
+            && !definitions
+                .iter()
+                .any(|(uri, _)| file_uri_equivalent(uri, target_uri))
         {
             definitions.extend(style_selector_definitions_from_uri(state, target_uri));
         }
@@ -1876,7 +1880,9 @@ fn style_selector_definitions_for_source_candidate(
         workspace_folder_uri,
     );
     if let Some(target_uri) = candidate.target_style_uri.as_deref()
-        && !definitions.iter().any(|(uri, _)| uri == target_uri)
+        && !definitions
+            .iter()
+            .any(|(uri, _)| file_uri_equivalent(uri, target_uri))
     {
         definitions.extend(style_selector_definitions_from_uri(state, target_uri));
     }

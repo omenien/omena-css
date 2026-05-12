@@ -551,6 +551,7 @@ version = "0.1.0"
 dependencies = [
  "engine-input-producers",
  "omena-parser",
+ "omena-resolver",
  "omena-semantic",
  "oxc_allocator",
  "oxc_ast",

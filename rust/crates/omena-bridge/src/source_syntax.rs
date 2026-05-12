@@ -698,16 +698,12 @@ impl<'a> SourceSyntaxAstCollector<'a> {
             ArrayExpressionElement::SpreadElement(spread) => {
                 self.collect_expression(&spread.argument);
             }
-            ArrayExpressionElement::StaticMemberExpression(member) => {
-                self.collect_static_member_expression(member);
+            ArrayExpressionElement::Elision(_) => {}
+            _ => {
+                if let Some(expression) = element.as_expression() {
+                    self.collect_expression(expression);
+                }
             }
-            ArrayExpressionElement::ComputedMemberExpression(member) => {
-                self.collect_computed_member_expression(member);
-            }
-            ArrayExpressionElement::CallExpression(expression) => {
-                self.collect_call_expression(expression);
-            }
-            _ => {}
         }
     }
 
@@ -716,40 +712,11 @@ impl<'a> SourceSyntaxAstCollector<'a> {
             Argument::SpreadElement(spread) => {
                 self.collect_expression(&spread.argument);
             }
-            Argument::StaticMemberExpression(member) => {
-                self.collect_static_member_expression(member);
+            _ => {
+                if let Some(expression) = argument.as_expression() {
+                    self.collect_expression(expression);
+                }
             }
-            Argument::ComputedMemberExpression(member) => {
-                self.collect_computed_member_expression(member);
-            }
-            Argument::CallExpression(expression) => {
-                self.collect_call_expression(expression);
-            }
-            Argument::ConditionalExpression(expression) => {
-                self.collect_conditional_expression(expression);
-            }
-            Argument::LogicalExpression(expression) => {
-                self.collect_logical_expression(expression);
-            }
-            Argument::ArrayExpression(expression) => {
-                self.collect_array_expression(expression);
-            }
-            Argument::ObjectExpression(expression) => {
-                self.collect_object_expression(expression);
-            }
-            Argument::ParenthesizedExpression(expression) => {
-                self.collect_parenthesized_expression(expression);
-            }
-            Argument::TSAsExpression(expression) => {
-                self.collect_ts_as_expression(expression);
-            }
-            Argument::TSSatisfiesExpression(expression) => {
-                self.collect_ts_satisfies_expression(expression);
-            }
-            Argument::TSNonNullExpression(expression) => {
-                self.collect_ts_non_null_expression(expression);
-            }
-            _ => {}
         }
     }
 
@@ -778,16 +745,13 @@ impl<'a> SourceSyntaxAstCollector<'a> {
 
     fn collect_property_key(&mut self, key: &oxc_ast::ast::PropertyKey<'a>) {
         match key {
-            oxc_ast::ast::PropertyKey::StaticMemberExpression(member) => {
-                self.collect_static_member_expression(member);
+            oxc_ast::ast::PropertyKey::StaticIdentifier(_)
+            | oxc_ast::ast::PropertyKey::PrivateIdentifier(_) => {}
+            _ => {
+                if let Some(expression) = key.as_expression() {
+                    self.collect_expression(expression);
+                }
             }
-            oxc_ast::ast::PropertyKey::ComputedMemberExpression(member) => {
-                self.collect_computed_member_expression(member);
-            }
-            oxc_ast::ast::PropertyKey::CallExpression(expression) => {
-                self.collect_call_expression(expression);
-            }
-            _ => {}
         }
     }
 
@@ -1334,10 +1298,21 @@ fn collect_selector_references_from_js_expression(
         return;
     }
 
+    let expression_path = js_expression_path(source, start, end);
     if let Some(value) =
         source_class_value_from_js_expression(source, start, end, local_class_values)
         && !value.is_empty()
     {
+        if let Some(path) = expression_path.as_deref() {
+            push_source_type_fact_target(
+                ParserByteSpanV0 { start, end },
+                path,
+                target_style_uri,
+                "",
+                "",
+                type_fact_targets,
+            );
+        }
         push_source_class_value_reference(
             ParserByteSpanV0 { start, end },
             value,
@@ -1361,7 +1336,7 @@ fn collect_selector_references_from_js_expression(
         return;
     }
 
-    if let Some(path) = js_expression_path(source, start, end) {
+    if let Some(path) = expression_path {
         push_source_type_fact_target(
             ParserByteSpanV0 { start, end },
             path.as_str(),
@@ -1595,8 +1570,8 @@ fn source_class_value_from_object_literal(
         let key_value =
             source_class_value_from_object_key(source, property_start, key_end, local_class_values);
         object_value.merge(key_value.clone());
-        if let Some(property_name) = object_property_name(source, property_start, key_end) {
-            let property_value = colon
+        if let Some(property_name) = object_property_name(source, property_start, key_end)
+            && let Some(property_value) = colon
                 .and_then(|colon| {
                     source_class_value_from_js_expression(
                         source,
@@ -1606,7 +1581,7 @@ fn source_class_value_from_object_literal(
                     )
                 })
                 .filter(|value| !value.is_empty())
-                .unwrap_or(key_value);
+        {
             property_values.insert(property_name, property_value);
         }
     }
@@ -2730,6 +2705,114 @@ export const view = <div className={cx("root")} />;"#;
                 && reference.target_style_uri.as_deref()
                     == Some("file:///workspace/App.module.scss")
         }));
+    }
+
+    #[test]
+    fn does_not_treat_object_shorthand_aliases_as_static_class_values() {
+        let source = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+export function View({ primary }: { primary: "medium" | "small" }) {
+  const variants = { primary };
+  return <div className={cx(variants.primary)} />;
+}"#;
+
+        let index = summarize_omena_bridge_source_syntax_index(
+            source,
+            vec![SourceImportedStyleBindingV0 {
+                binding: "styles".to_string(),
+                style_uri: "file:///workspace/App.module.scss".to_string(),
+            }],
+            vec!["bind".to_string()],
+        );
+
+        assert!(!index.selector_references.iter().any(|reference| {
+            selector_reference_name(source, reference) == "primary"
+                && reference.target_style_uri.as_deref()
+                    == Some("file:///workspace/App.module.scss")
+        }));
+        assert!(index.type_fact_targets.iter().any(|target| {
+            &source[target.byte_span.start..target.byte_span.end] == "variants.primary"
+                && target.target_style_uri.as_deref() == Some("file:///workspace/App.module.scss")
+        }));
+    }
+
+    #[test]
+    fn keeps_template_prefix_selector_references_as_atomic_flat_class_prefixes() {
+        let source = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+export function View({ fontSize }: { fontSize: 10 | 12 }) {
+  return <div className={cx(`font-size-${fontSize}`)} />;
+}"#;
+
+        let index = summarize_omena_bridge_source_syntax_index(
+            source,
+            vec![SourceImportedStyleBindingV0 {
+                binding: "styles".to_string(),
+                style_uri: "file:///workspace/App.module.scss".to_string(),
+            }],
+            vec!["bind".to_string()],
+        );
+        let reference_names = index
+            .selector_references
+            .iter()
+            .filter(|reference| {
+                reference.target_style_uri.as_deref() == Some("file:///workspace/App.module.scss")
+            })
+            .map(|reference| selector_reference_name(source, reference))
+            .collect::<Vec<_>>();
+
+        assert!(reference_names.contains(&"font-size-"));
+        assert!(!reference_names.contains(&"font"));
+        assert!(!reference_names.contains(&"-size"));
+        assert!(index.type_fact_targets.iter().any(|target| {
+            &source[target.byte_span.start..target.byte_span.end] == "fontSize"
+                && target.prefix == "font-size-"
+                && target.suffix.is_empty()
+                && target.target_style_uri.as_deref() == Some("file:///workspace/App.module.scss")
+        }));
+    }
+
+    #[test]
+    fn walks_expression_like_oxc_argument_array_and_property_key_variants() {
+        let source = r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+const items = [1];
+const nodes = [<span className={cx("arrayItem")} />];
+const keyed = { [items.length ? <span className={cx("keyedItem")} /> : "fallback"]: true };
+export const view = <>{items.map(() => <a className={cx("callbackLink")} />)}{nodes}</>;"#;
+
+        let index = summarize_omena_bridge_source_syntax_index(
+            source,
+            vec![SourceImportedStyleBindingV0 {
+                binding: "styles".to_string(),
+                style_uri: "file:///workspace/App.module.scss".to_string(),
+            }],
+            vec!["bind".to_string()],
+        );
+        let names = index
+            .selector_references
+            .iter()
+            .filter(|reference| {
+                reference.target_style_uri.as_deref() == Some("file:///workspace/App.module.scss")
+            })
+            .map(|reference| selector_reference_name(source, reference))
+            .collect::<Vec<_>>();
+
+        assert!(
+            names.contains(&"arrayItem"),
+            "array literal JSX should be walked"
+        );
+        assert!(
+            names.contains(&"keyedItem"),
+            "computed property key expression should be walked"
+        );
+        assert!(
+            names.contains(&"callbackLink"),
+            "callback argument JSX should be walked"
+        );
     }
 
     #[test]

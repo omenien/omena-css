@@ -2076,6 +2076,53 @@ fn source_provider_candidate_resolution_is_query_owned() {
 }
 
 #[test]
+fn source_candidate_matching_normalizes_percent_encoded_file_uris() {
+    let source_range = ParserRangeV0 {
+        start: ParserPositionV0 {
+            line: 0,
+            character: 0,
+        },
+        end: ParserPositionV0 {
+            line: 0,
+            character: 4,
+        },
+    };
+    let definition_range = ParserRangeV0 {
+        start: ParserPositionV0 {
+            line: 1,
+            character: 1,
+        },
+        end: ParserPositionV0 {
+            line: 1,
+            character: 5,
+        },
+    };
+    let candidate = super::OmenaQuerySourceSelectorCandidateV0 {
+        kind: "sourceSelectorPrefixReference",
+        name: "btn-".to_string(),
+        range: source_range,
+        source: "omenaQuerySourceSyntaxIndex",
+        target_style_uri: Some(
+            "file:///workspace/app/%28marketing%29/Button.module.scss".to_string(),
+        ),
+    };
+    let definitions = vec![super::OmenaQueryStyleSelectorDefinitionV0 {
+        uri: "file:///workspace/app/(marketing)/Button.module.scss".to_string(),
+        name: "btn-primary".to_string(),
+        range: definition_range,
+    }];
+
+    assert_eq!(
+        super::resolve_omena_query_source_candidate_selector_names(
+            &candidate,
+            definitions.as_slice(),
+            None,
+        ),
+        vec!["btn-primary".to_string()]
+    );
+}
+
+#[test]
 fn source_syntax_index_adapter_is_query_owned_without_changing_product() {
     let style_uri = super::resolve_omena_query_style_uri_for_specifier(
         "file:///workspace/src/Button.tsx",

@@ -2589,6 +2589,20 @@ fn workspace_folder_compatibility_normalizes_percent_encoded_route_groups() {
 }
 
 #[test]
+fn path_to_file_uri_percent_encodes_route_group_paths() {
+    let uri = path_to_file_uri(Path::new("/workspace/app/(marketing)/Card.module.scss"));
+
+    assert_eq!(
+        uri,
+        "file:///workspace/app/%28marketing%29/Card.module.scss"
+    );
+    assert!(file_uri_equivalent(
+        uri.as_str(),
+        "file:///workspace/app/(marketing)/Card.module.scss",
+    ));
+}
+
+#[test]
 fn codelens_keeps_references_when_workspace_owner_uri_encoding_differs() {
     let workspace_uri = "file:///workspace/(group-a)";
     let encoded_workspace_uri = "file:///workspace/%28group-a%29";

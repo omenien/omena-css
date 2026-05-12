@@ -1,6 +1,7 @@
 use super::*;
 use omena_bridge::OmenaBridgeParserRangeV0;
 use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact};
+use std::path::{Component, PathBuf};
 
 mod transform;
 
@@ -641,7 +642,7 @@ pub fn resolve_omena_query_source_candidate_selector_names(
                 .target_style_uri
                 .as_deref()
                 .or(target_style_uri)
-                .is_none_or(|target_uri| target_uri == definition.uri)
+                .is_none_or(|target_uri| file_uri_equivalent(target_uri, definition.uri.as_str()))
         })
         .map(|definition| definition.name.clone())
         .collect::<Vec<_>>();
@@ -665,7 +666,10 @@ pub fn resolve_omena_query_selector_rename_edits(
     let mut edits = definitions
         .iter()
         .filter(|definition| definition.name == selector_name)
-        .filter(|definition| target_style_uri.is_none_or(|target_uri| target_uri == definition.uri))
+        .filter(|definition| {
+            target_style_uri
+                .is_none_or(|target_uri| file_uri_equivalent(target_uri, definition.uri.as_str()))
+        })
         .map(|definition| OmenaQueryWorkspaceTextEditV0 {
             uri: definition.uri.clone(),
             range: definition.range,
@@ -2683,7 +2687,7 @@ fn source_selector_candidate_matches_definition(
         && candidate
             .target_style_uri
             .as_deref()
-            .is_none_or(|target_uri| target_uri == definition.uri)
+            .is_none_or(|target_uri| file_uri_equivalent(target_uri, definition.uri.as_str()))
 }
 
 fn source_reference_matches_target_style(
@@ -2694,8 +2698,73 @@ fn source_reference_matches_target_style(
         reference
             .target_style_uri
             .as_deref()
-            .is_none_or(|candidate_target_uri| candidate_target_uri == target_uri)
+            .is_none_or(|candidate_target_uri| {
+                file_uri_equivalent(candidate_target_uri, target_uri)
+            })
     })
+}
+
+fn file_uri_equivalent(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
+    match (
+        file_uri_to_normalized_path(left),
+        file_uri_to_normalized_path(right),
+    ) {
+        (Some(left_path), Some(right_path)) => left_path == right_path,
+        _ => false,
+    }
+}
+
+fn file_uri_to_normalized_path(uri: &str) -> Option<PathBuf> {
+    let raw_path = uri.strip_prefix("file://")?;
+    Some(normalize_path(PathBuf::from(percent_decode_uri_path(
+        raw_path,
+    )?)))
+}
+
+fn percent_decode_uri_path(raw_path: &str) -> Option<String> {
+    let bytes = raw_path.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = bytes.get(index + 1).and_then(|byte| hex_value(*byte))?;
+            let low = bytes.get(index + 2).and_then(|byte| hex_value(*byte))?;
+            decoded.push((high << 4) | low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn normalize_path(path: PathBuf) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            Component::Normal(_) | Component::RootDir | Component::Prefix(_) => {
+                normalized.push(component.as_os_str());
+            }
+        }
+    }
+    normalized
 }
 
 fn is_sass_builtin_module_source(source: &str) -> bool {

@@ -4,7 +4,10 @@ use serde_json::Value;
 use std::path::{Component, Path, PathBuf};
 
 pub(crate) fn path_to_file_uri(path: &Path) -> String {
-    format!("file://{}", path.to_string_lossy())
+    format!(
+        "file://{}",
+        percent_encode_uri_path(path.to_string_lossy().as_ref())
+    )
 }
 
 pub(crate) fn normalize_path(path: PathBuf) -> PathBuf {
@@ -40,12 +43,48 @@ pub(crate) fn workspace_folder_uri_equivalent(left: &str, right: &str) -> bool {
     if left == right {
         return true;
     }
+    file_uri_equivalent(left, right)
+}
+
+pub(crate) fn file_uri_equivalent(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
     match (file_uri_to_path(left), file_uri_to_path(right)) {
         (Some(left_path), Some(right_path)) => {
             normalize_path(left_path) == normalize_path(right_path)
         }
         _ => false,
     }
+}
+
+fn percent_encode_uri_path(path: &str) -> String {
+    let mut encoded = String::with_capacity(path.len());
+    for byte in path.as_bytes() {
+        match *byte {
+            b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'.'
+            | b'_'
+            | b'~'
+            | b'/'
+            | b'@'
+            | b':'
+            | b'!'
+            | b'$'
+            | b'&'
+            | b'\''
+            | b'*'
+            | b'+'
+            | b','
+            | b';'
+            | b'=' => encoded.push(*byte as char),
+            _ => encoded.push_str(format!("%{byte:02X}").as_str()),
+        }
+    }
+    encoded
 }
 
 pub(crate) fn is_style_document_uri(uri: &str) -> bool {

@@ -276,9 +276,11 @@ fn push_style_module_path_candidates(
 
     for extension in [
         ".module.scss",
+        ".module.sass",
         ".module.css",
         ".module.less",
         ".scss",
+        ".sass",
         ".css",
         ".less",
     ] {

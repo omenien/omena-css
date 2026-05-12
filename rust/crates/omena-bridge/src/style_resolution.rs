@@ -1,8 +1,13 @@
 use std::{
+    collections::BTreeSet,
     fs,
     path::{Component, Path, PathBuf},
 };
 
+use omena_resolver::{
+    OmenaResolverStylePackageManifestV0, OmenaResolverTsconfigPathMappingV0,
+    collect_omena_resolver_style_module_source_candidates_with_tsconfig_paths,
+};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -24,12 +29,19 @@ pub fn summarize_omena_bridge_style_resolution_boundary() -> OmenaBridgeStyleRes
         product: "omena-bridge.style-resolution",
         owner_crate: "omena-bridge",
         resolver_name: "style-import-specifier-resolver",
-        supported_specifier_kinds: vec!["relative", "tsconfigPaths", "jsconfigPaths"],
-        candidate_extensions: vec!["scss", "sass", "css"],
+        supported_specifier_kinds: vec![
+            "relative",
+            "tsconfigPaths",
+            "jsconfigPaths",
+            "npmPackages",
+        ],
+        candidate_extensions: vec!["scss", "sass", "css", "less"],
         request_path_policy: vec![
             "resolverConsumesSourceUriWorkspaceUriAndRawSpecifier",
             "relativeSpecifierExpandsStyleModuleCandidates",
             "pathAliasResolutionUsesNearestWorkspaceTsconfigOrJsconfig",
+            "packageSpecifierResolutionUsesOmenaResolver",
+            "fileUriOutputIsPercentEncoded",
             "lspServerOwnsOnlyDocumentRoutingAndUriRangeMapping",
         ],
     }
@@ -40,36 +52,59 @@ pub fn resolve_omena_bridge_style_uri_for_specifier(
     workspace_folder_uri: Option<&str>,
     specifier: &str,
 ) -> Option<String> {
-    if specifier.starts_with('.') {
-        let source_path = file_uri_to_path(source_uri)?;
-        let imported_path = normalize_path(source_path.parent()?.join(specifier));
-        return style_uri_for_style_candidate_base(imported_path.as_path());
-    }
+    let source_path = normalize_path(file_uri_to_path(source_uri)?);
+    let source_path_text = source_path.to_string_lossy().to_string();
+    let workspace_path = workspace_folder_uri
+        .and_then(file_uri_to_path)
+        .map(normalize_path);
+    let tsconfig_mappings =
+        tsconfig_path_mappings_for_workspace(workspace_path.as_deref()).unwrap_or_default();
+    let package_manifests =
+        package_manifests_for_specifier(source_path.parent(), specifier).unwrap_or_default();
+    let requires_existing_candidate = package_name_from_specifier(specifier).is_some()
+        && !tsconfig_mappings
+            .iter()
+            .any(|mapping| tsconfig_path_pattern_matches(mapping.pattern.as_str(), specifier));
+    let candidates = collect_omena_resolver_style_module_source_candidates_with_tsconfig_paths(
+        source_path_text.as_str(),
+        specifier,
+        package_manifests.as_slice(),
+        tsconfig_mappings.as_slice(),
+    );
 
-    style_uri_for_tsconfig_path_alias(workspace_folder_uri, specifier)
+    style_uri_for_resolver_candidates(candidates.as_slice(), requires_existing_candidate)
 }
 
-fn style_uri_for_tsconfig_path_alias(
-    workspace_folder_uri: Option<&str>,
-    specifier: &str,
-) -> Option<String> {
-    let workspace_path = file_uri_to_path(workspace_folder_uri?)?;
+fn tsconfig_path_mappings_for_workspace(
+    workspace_path: Option<&Path>,
+) -> Option<Vec<OmenaResolverTsconfigPathMappingV0>> {
+    let workspace_path = workspace_path?;
+    let mut mappings = Vec::new();
     for config_path in [
         workspace_path.join("tsconfig.json"),
         workspace_path.join("jsconfig.json"),
     ] {
-        if let Some(style_uri) =
-            style_uri_for_tsconfig_path_alias_config(config_path.as_path(), specifier)
-        {
-            return Some(style_uri);
-        }
+        mappings.extend(tsconfig_path_mappings_for_config(config_path.as_path()));
     }
-    None
+    Some(mappings)
 }
 
-fn style_uri_for_tsconfig_path_alias_config(config_path: &Path, specifier: &str) -> Option<String> {
-    let config_text = fs::read_to_string(config_path).ok()?;
-    let config = serde_json::from_str::<Value>(config_text.as_str()).ok()?;
+fn tsconfig_path_mappings_for_config(
+    config_path: &Path,
+) -> Vec<OmenaResolverTsconfigPathMappingV0> {
+    let Some(config_text) = fs::read_to_string(config_path).ok() else {
+        return Vec::new();
+    };
+    let Some(config) = serde_json::from_str::<Value>(config_text.as_str()).ok() else {
+        return Vec::new();
+    };
+    tsconfig_path_mappings_from_value(config_path, &config).unwrap_or_default()
+}
+
+fn tsconfig_path_mappings_from_value(
+    config_path: &Path,
+    config: &Value,
+) -> Option<Vec<OmenaResolverTsconfigPathMappingV0>> {
     let compiler_options = config.get("compilerOptions")?;
     let paths = compiler_options.get("paths")?.as_object()?;
     let config_dir = config_path.parent()?;
@@ -78,112 +113,109 @@ fn style_uri_for_tsconfig_path_alias_config(config_path: &Path, specifier: &str)
         .and_then(Value::as_str)
         .unwrap_or(".");
     let base_path = normalize_path(config_dir.join(base_url));
-    let mut candidates = Vec::new();
-
+    let mut mappings = Vec::new();
     for (pattern, targets) in paths {
-        let Some((capture, score)) = tsconfig_path_pattern_match(pattern.as_str(), specifier)
-        else {
-            continue;
-        };
         let Some(targets) = targets.as_array() else {
             continue;
         };
-        for target in targets.iter().filter_map(Value::as_str) {
-            let candidate_path =
-                tsconfig_path_target_candidate(base_path.as_path(), target, capture.as_deref());
-            for resolved_path in style_candidate_paths(candidate_path.as_path()) {
-                candidates.push((score, resolved_path.exists(), resolved_path));
-            }
+        let target_patterns = targets
+            .iter()
+            .filter_map(Value::as_str)
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        if target_patterns.is_empty() {
+            continue;
         }
+        mappings.push(OmenaResolverTsconfigPathMappingV0 {
+            base_path: base_path.to_string_lossy().to_string(),
+            pattern: pattern.to_string(),
+            target_patterns,
+        });
     }
-
-    candidates.sort_by(|left, right| {
-        right
-            .1
-            .cmp(&left.1)
-            .then_with(|| right.0.cmp(&left.0))
-            .then_with(|| left.2.cmp(&right.2))
-    });
-    candidates
-        .into_iter()
-        .map(|(_, _, path)| path_to_file_uri(path.as_path()))
-        .next()
+    Some(mappings)
 }
 
-fn tsconfig_path_pattern_match(pattern: &str, specifier: &str) -> Option<(Option<String>, usize)> {
-    let Some(star_index) = pattern.find('*') else {
-        return (pattern == specifier).then_some((None, pattern.len()));
-    };
-    if pattern[star_index + 1..].contains('*') {
-        return None;
+fn package_manifests_for_specifier(
+    source_dir: Option<&Path>,
+    specifier: &str,
+) -> Option<Vec<OmenaResolverStylePackageManifestV0>> {
+    let package_name = package_name_from_specifier(specifier)?;
+    let mut manifests = Vec::new();
+    let mut seen = BTreeSet::new();
+    let mut current_dir = source_dir;
+    while let Some(dir) = current_dir {
+        let package_json_path = dir
+            .join("node_modules")
+            .join(package_name)
+            .join("package.json");
+        if seen.insert(package_json_path.clone())
+            && let Ok(package_json_source) = fs::read_to_string(package_json_path.as_path())
+        {
+            manifests.push(OmenaResolverStylePackageManifestV0 {
+                package_json_path: normalize_path(package_json_path)
+                    .to_string_lossy()
+                    .to_string(),
+                package_json_source,
+            });
+        }
+        current_dir = dir.parent();
     }
-    let prefix = &pattern[..star_index];
-    let suffix = &pattern[star_index + 1..];
-    if !specifier.starts_with(prefix) || !specifier.ends_with(suffix) {
-        return None;
-    }
-    let capture_end = specifier.len().saturating_sub(suffix.len());
-    if capture_end < prefix.len() {
-        return None;
-    }
-    Some((
-        specifier.get(prefix.len()..capture_end).map(str::to_string),
-        prefix.len() + suffix.len(),
-    ))
+    Some(manifests)
 }
 
-fn tsconfig_path_target_candidate(
-    base_path: &Path,
-    target_pattern: &str,
-    capture: Option<&str>,
-) -> PathBuf {
-    let target = if target_pattern.contains('*') {
-        target_pattern.replace('*', capture.unwrap_or_default())
-    } else {
-        target_pattern.to_string()
-    };
-    let target_path = PathBuf::from(target);
-    if target_path.is_absolute() {
-        normalize_path(target_path)
-    } else {
-        normalize_path(base_path.join(target_path))
+fn package_name_from_specifier(specifier: &str) -> Option<&str> {
+    if specifier.starts_with('.')
+        || specifier.starts_with('/')
+        || is_external_style_specifier(specifier)
+    {
+        return None;
     }
+    if specifier.starts_with('@') {
+        let mut segments = specifier.splitn(3, '/');
+        let scope = segments.next()?;
+        let package = segments.next()?;
+        if scope.len() <= 1 || package.is_empty() {
+            return None;
+        }
+        return specifier.get(..scope.len() + 1 + package.len());
+    }
+    specifier.split('/').next().filter(|name| !name.is_empty())
 }
 
-fn style_uri_for_style_candidate_base(base_path: &Path) -> Option<String> {
-    let candidates = style_candidate_paths(base_path);
+fn tsconfig_path_pattern_matches(pattern: &str, specifier: &str) -> bool {
+    if let Some((prefix, suffix)) = pattern.split_once('*') {
+        return !suffix.contains('*')
+            && specifier.starts_with(prefix)
+            && specifier.ends_with(suffix)
+            && specifier.len() >= prefix.len() + suffix.len();
+    }
+    pattern == specifier
+}
+
+fn is_external_style_specifier(specifier: &str) -> bool {
+    specifier.starts_with("sass:")
+        || specifier.starts_with("http://")
+        || specifier.starts_with("https://")
+}
+
+fn style_uri_for_resolver_candidates(
+    candidates: &[String],
+    requires_existing_candidate: bool,
+) -> Option<String> {
     candidates
         .iter()
-        .find(|path| path.exists())
-        .or_else(|| candidates.first())
-        .map(|path| path_to_file_uri(path.as_path()))
-}
-
-fn style_candidate_paths(base_path: &Path) -> Vec<PathBuf> {
-    let normalized = normalize_path(base_path.to_path_buf());
-    if is_indexable_style_path(normalized.as_path()) {
-        return vec![normalized];
-    }
-
-    let mut candidates = Vec::new();
-    for extension in ["scss", "sass", "css"] {
-        candidates.push(normalized.with_extension(extension));
-        if let Some(file_name) = normalized.file_name().and_then(|value| value.to_str()) {
-            candidates.push(
-                normalized
-                    .with_file_name(format!("_{file_name}"))
-                    .with_extension(extension),
-            );
-        }
-        candidates.push(normalized.join(format!("index.{extension}")));
-        candidates.push(normalized.join(format!("_index.{extension}")));
-    }
-    candidates.sort();
-    candidates.dedup();
-    candidates
-        .into_iter()
-        .filter(|path| is_indexable_style_path(path.as_path()))
-        .collect()
+        .map(PathBuf::from)
+        .find(|path| path.exists() && is_indexable_style_path(path.as_path()))
+        .or_else(|| {
+            if requires_existing_candidate {
+                return None;
+            }
+            candidates
+                .iter()
+                .map(PathBuf::from)
+                .find(|path| is_indexable_style_path(path.as_path()))
+        })
+        .map(|path| path_to_file_uri(normalize_path(path).as_path()))
 }
 
 fn is_indexable_style_path(path: &Path) -> bool {
@@ -231,7 +263,39 @@ fn hex_value(byte: u8) -> Option<u8> {
 }
 
 fn path_to_file_uri(path: &Path) -> String {
-    format!("file://{}", path.to_string_lossy())
+    format!(
+        "file://{}",
+        percent_encode_uri_path(path.to_string_lossy().as_ref())
+    )
+}
+
+fn percent_encode_uri_path(path: &str) -> String {
+    let mut encoded = String::with_capacity(path.len());
+    for byte in path.as_bytes() {
+        match *byte {
+            b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'.'
+            | b'_'
+            | b'~'
+            | b'/'
+            | b'@'
+            | b':'
+            | b'!'
+            | b'$'
+            | b'&'
+            | b'\''
+            | b'*'
+            | b'+'
+            | b','
+            | b';'
+            | b'=' => encoded.push(*byte as char),
+            _ => encoded.push_str(format!("%{byte:02X}").as_str()),
+        }
+    }
+    encoded
 }
 
 fn normalize_path(path: PathBuf) -> PathBuf {
@@ -343,12 +407,101 @@ mod tests {
     }
 
     #[test]
+    fn resolves_package_style_candidates_through_omena_resolver()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_style_package")?;
+        let source = root.join("src/App.module.scss");
+        let package_root = root.join("node_modules/@design/tokens");
+        let style = package_root.join("src/index.scss");
+        fs::create_dir_all(
+            style
+                .parent()
+                .ok_or_else(|| std::io::Error::other("parent"))?,
+        )?;
+        fs::create_dir_all(
+            source
+                .parent()
+                .ok_or_else(|| std::io::Error::other("source parent"))?,
+        )?;
+        fs::write(&source, "@use \"@design/tokens\";")?;
+        fs::write(
+            package_root.join("package.json"),
+            r#"{"sass":"src/index.scss"}"#,
+        )?;
+        fs::write(&style, "$gap: 1rem;")?;
+
+        let uri = resolve_omena_bridge_style_uri_for_specifier(
+            path_to_file_uri(source.as_path()).as_str(),
+            Some(path_to_file_uri(root.as_path()).as_str()),
+            "@design/tokens",
+        );
+
+        assert_eq!(
+            uri.as_deref(),
+            Some(path_to_file_uri(style.as_path()).as_str())
+        );
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn does_not_fabricate_missing_package_style_candidates()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_style_missing_package")?;
+        let source = root.join("src/App.tsx");
+        fs::create_dir_all(
+            source
+                .parent()
+                .ok_or_else(|| std::io::Error::other("parent"))?,
+        )?;
+        fs::write(&source, "")?;
+
+        let uri = resolve_omena_bridge_style_uri_for_specifier(
+            path_to_file_uri(source.as_path()).as_str(),
+            Some(path_to_file_uri(root.as_path()).as_str()),
+            "@design/tokens",
+        );
+
+        assert!(uri.is_none(), "{uri:?}");
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn emits_percent_encoded_file_uris_for_route_group_paths()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_style_route_group")?;
+        let source = root.join("app/(marketing)/page.tsx");
+        let style = root.join("app/(marketing)/Card.module.scss");
+        fs::create_dir_all(
+            source
+                .parent()
+                .ok_or_else(|| std::io::Error::other("parent"))?,
+        )?;
+        fs::write(&source, "")?;
+        fs::write(&style, ".card {}")?;
+
+        let uri = resolve_omena_bridge_style_uri_for_specifier(
+            path_to_file_uri(source.as_path()).as_str(),
+            Some(path_to_file_uri(root.as_path()).as_str()),
+            "./Card.module.scss",
+        )
+        .ok_or_else(|| std::io::Error::other("route group style should resolve"))?;
+
+        assert!(uri.contains("%28marketing%29"), "{uri}");
+        assert_eq!(uri, path_to_file_uri(style.as_path()));
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
     fn declares_bridge_owned_style_resolution_boundary() {
         let summary = summarize_omena_bridge_style_resolution_boundary();
 
         assert_eq!(summary.product, "omena-bridge.style-resolution");
         assert_eq!(summary.owner_crate, "omena-bridge");
         assert!(summary.supported_specifier_kinds.contains(&"tsconfigPaths"));
+        assert!(summary.supported_specifier_kinds.contains(&"npmPackages"));
         assert!(
             summary
                 .request_path_policy

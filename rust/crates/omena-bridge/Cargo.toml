@@ -14,6 +14,7 @@ workspace = true
 [dependencies]
 engine-input-producers = { path = "../engine-input-producers" }
 omena-parser = { path = "../omena-parser" }
+omena-resolver = { path = "../omena-resolver" }
 omena-semantic = { path = "../omena-semantic" }
 oxc_allocator = "0.128.0"
 oxc_ast = "0.128.0"
