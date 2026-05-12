@@ -60,7 +60,7 @@ use omena_query::{
     summarize_omena_query_source_resolution_runtime,
     summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
     summarize_omena_query_style_semantic_graph_from_source,
-    summarize_omena_query_transform_plan_from_source,
+    summarize_omena_query_transform_plan_from_source_with_context,
 };
 use omena_resolver::{
     OmenaResolverModuleGraphSummaryV0, OmenaResolverStylePackageManifestV0,
@@ -150,6 +150,8 @@ struct TransformPlanInputV0 {
     target_label: String,
     target_support: TransformPlanTargetFeatureSupportInputV0,
     target_options: TransformPlanTargetOptionsInputV0,
+    #[serde(default)]
+    transform_context: OmenaQueryTransformExecutionContextV0,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1010,13 +1012,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("transform-plan") => {
             let input: TransformPlanInputV0 = serde_json::from_str(&stdin)?;
-            let output = summarize_omena_query_transform_plan_from_source(
+            let output = summarize_omena_query_transform_plan_from_source_with_context(
                 &input.style_path,
                 &input.style_source,
                 &input.target_label,
                 input.target_support.into(),
                 input.target_options.into(),
                 default_omena_query_transform_print_options(),
+                &input.transform_context,
             );
             serde_json::to_writer_pretty(io::stdout(), &output)?;
         }
@@ -1377,13 +1380,14 @@ fn run_daemon_selected_query_command(
         "transform-plan" => {
             let input: TransformPlanInputV0 = serde_json::from_value(input)?;
             Ok(serde_json::to_value(
-                summarize_omena_query_transform_plan_from_source(
+                summarize_omena_query_transform_plan_from_source_with_context(
                     &input.style_path,
                     &input.style_source,
                     &input.target_label,
                     input.target_support.into(),
                     input.target_options.into(),
                     default_omena_query_transform_print_options(),
+                    &input.transform_context,
                 ),
             )?)
         }

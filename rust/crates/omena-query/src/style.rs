@@ -74,6 +74,26 @@ pub fn summarize_omena_query_transform_plan_from_source(
     target_options: OmenaQueryTargetTransformOptionsV0,
     print_options: OmenaQueryTransformPrintOptionsV0,
 ) -> OmenaQueryTransformPlanSummaryV0 {
+    summarize_omena_query_transform_plan_from_source_with_context(
+        style_path,
+        style_source,
+        target_label,
+        target_support,
+        target_options,
+        print_options,
+        &TransformExecutionContextV0::default(),
+    )
+}
+
+pub fn summarize_omena_query_transform_plan_from_source_with_context(
+    style_path: &str,
+    style_source: &str,
+    target_label: &str,
+    target_support: OmenaQueryTargetFeatureSupportV0,
+    target_options: OmenaQueryTargetTransformOptionsV0,
+    print_options: OmenaQueryTransformPrintOptionsV0,
+    context: &TransformExecutionContextV0,
+) -> OmenaQueryTransformPlanSummaryV0 {
     let dialect = omena_parser_dialect_for_style_path(style_path);
     let bundle = summarize_omena_transform_bundle_from_source(style_path, style_source, dialect);
     let target = plan_target_transforms(target_label, target_support, target_options);
@@ -93,8 +113,12 @@ pub fn summarize_omena_query_transform_plan_from_source(
         style_path,
         style_source.len()
     );
-    let execution =
-        execute_transform_passes_on_source_with_dialect(style_source, dialect, &combined_passes);
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        style_source,
+        dialect,
+        &combined_passes,
+        context,
+    );
     let print = print_transform_cst_source(
         style_path,
         &execution.output_css,

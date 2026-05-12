@@ -46,6 +46,18 @@ interface TransformPlanSummaryV0 {
     readonly plannedOnlyPassIds: readonly string[];
     readonly mutationCount: number;
     readonly provenancePreserved: boolean;
+    readonly cssImportInlines: readonly {
+      readonly importSource: string;
+      readonly replacementCss: string;
+    }[];
+    readonly cssModuleComposesExports: readonly {
+      readonly localClassName: string;
+      readonly exportedClassNames: readonly string[];
+    }[];
+    readonly designTokenRoutes: readonly {
+      readonly tokenName: string;
+      readonly routedValue: string;
+    }[];
     readonly passPlan: {
       readonly product: string;
       readonly violatedDagEdgeCount: number;
@@ -228,12 +240,95 @@ assertIncludesAll(
   "transform ready surfaces",
 );
 
+const contextStyleSource =
+  '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }';
+
+const contextResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-plan",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "Button.module.css",
+      styleSource: contextStyleSource,
+      targetLabel: "modern",
+      targetSupport: {
+        vendorPrefixRequired: false,
+        supportsLightDark: true,
+        supportsColorMix: true,
+        supportsOklchOklab: true,
+        supportsColorFunction: true,
+        supportsLogicalProperties: true,
+        supportsCssNesting: true,
+        supportsCssScope: true,
+        supportsCascadeLayers: true,
+      },
+      targetOptions: {
+        allowLogicalToPhysical: false,
+        allowScopeFlatten: false,
+        allowLayerFlatten: false,
+        enableSupportsStaticEval: false,
+        enableMediaStaticEval: false,
+      },
+      transformContext: {
+        importInlines: [{ importSource: "./tokens.css", replacementCss: ":root { --brand: red; }" }],
+        cssModuleComposesResolutions: [
+          { localClassName: "button", exportedClassNames: ["button", "base"] },
+        ],
+        classNameRewrites: [
+          { originalName: "button", rewrittenName: "_button_x" },
+          { originalName: "base", rewrittenName: "_base_y" },
+        ],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(contextResult.status, 0, contextResult.stderr);
+assert.equal(contextResult.error, undefined);
+
+const contextSummary = JSON.parse(contextResult.stdout) as TransformPlanSummaryV0;
+
+assert.equal(contextSummary.schemaVersion, "0");
+assert.equal(contextSummary.product, "omena-query.transform-plan");
+assert.equal(contextSummary.stylePath, "Button.module.css");
+assert.equal(
+  contextSummary.execution.outputCss,
+  ':root { --brand: red; } ._button_x{  color: var(--brand); } ._base_y{ color: blue; }',
+);
+assert.equal(contextSummary.print.css, contextSummary.execution.outputCss);
+assertIncludesAll(
+  contextSummary.execution.executedPassIds,
+  ["p26-import-inline", "p30-composes-resolution", "p29-css-modules-class-hashing", "p40-print-css"],
+  "context transform-plan executed passes",
+);
+assert.deepEqual(contextSummary.execution.cssImportInlines, [
+  { importSource: "./tokens.css", replacementCss: ":root { --brand: red; }" },
+]);
+assert.deepEqual(contextSummary.execution.cssModuleComposesExports, [
+  { localClassName: "button", exportedClassNames: ["button", "base"] },
+]);
+assert.equal(contextSummary.execution.passPlan.violatedDagEdgeCount, 0);
+assert.equal(contextSummary.combinedViolatedDagEdgeCount, 0);
+
 process.stdout.write(
   [
     "validated omena-query transform-plan runtime:",
     `edges=${summary.bundle.bundleEdges.length}`,
     `passes=${summary.combinedPassIds.length}`,
     `violatedDagEdges=${summary.combinedViolatedDagEdgeCount}`,
+    `contextMutations=${contextSummary.execution.mutationCount}`,
   ].join(" "),
 );
 process.stdout.write("\n");
