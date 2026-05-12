@@ -1262,6 +1262,10 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
             .iter()
             .any(|command| command.command == "transform-plan")
     );
+    assert!(summary.runner_commands.iter().any(|command| {
+        command.command == "transform-context-from-engine-input"
+            && command.output_product == "omena-query.transform-context-from-engine-input"
+    }));
     assert!(
         summary
             .expression_semantics_payload_contracts
@@ -1310,6 +1314,11 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
     );
     assert!(summary.adapter_readiness.contains(&"readCascadeAtPosition"));
     assert!(summary.adapter_readiness.contains(&"transformPlanRunner"));
+    assert!(
+        summary
+            .adapter_readiness
+            .contains(&"semanticReachabilityTransformContext")
+    );
     assert!(
         summary
             .adapter_readiness
