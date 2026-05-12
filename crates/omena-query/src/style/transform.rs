@@ -526,11 +526,37 @@ pub fn summarize_omena_query_transform_context_from_engine_input(
         }
     }
 
-    let context = TransformExecutionContextV0 {
+    let semantic_context = TransformExecutionContextV0 {
         closed_style_world,
         reachable_class_names: reachable_class_names.into_iter().collect(),
         ..TransformExecutionContextV0::default()
     };
+    let style_sources = input
+        .styles
+        .iter()
+        .filter_map(|style| {
+            style
+                .source
+                .as_deref()
+                .map(|source| (style.file_path.as_str(), source))
+        })
+        .collect::<Vec<_>>();
+    let source_context_summary = (!style_sources.is_empty()).then(|| {
+        summarize_omena_query_transform_context_from_sources(target_style_path, style_sources, &[])
+    });
+    let context = if let Some(source_context_summary) = &source_context_summary {
+        merge_transform_context(source_context_summary.context.clone(), &semantic_context)
+    } else {
+        semantic_context
+    };
+
+    let mut ready_surfaces = vec![
+        "expressionDomainSelectorProjection",
+        "semanticReachabilityTransformContext",
+    ];
+    if source_context_summary.is_some() {
+        ready_surfaces.push("engineInputStyleSourceTransformContext");
+    }
 
     OmenaQueryTransformContextFromEngineInputSummaryV0 {
         schema_version: "0",
@@ -538,15 +564,21 @@ pub fn summarize_omena_query_transform_context_from_engine_input(
         input_version: input.version.clone(),
         target_style_path: target_style_path.to_string(),
         closed_style_world,
+        style_source_count: source_context_summary
+            .as_ref()
+            .map_or(0, |summary| summary.style_count),
         projection_count: projection_summary.projection_count,
         selected_projection_count: reachability_sources.len(),
+        import_inline_count: context.import_inlines.len(),
+        class_name_rewrite_count: context.class_name_rewrites.len(),
+        css_module_composes_resolution_count: context.css_module_composes_resolutions.len(),
         reachable_class_name_count: context.reachable_class_names.len(),
+        reachable_keyframe_name_count: context.reachable_keyframe_names.len(),
+        reachable_value_name_count: context.reachable_value_names.len(),
+        reachable_custom_property_name_count: context.reachable_custom_property_names.len(),
         reachability_sources,
         context,
-        ready_surfaces: vec![
-            "expressionDomainSelectorProjection",
-            "semanticReachabilityTransformContext",
-        ],
+        ready_surfaces,
     }
 }
 

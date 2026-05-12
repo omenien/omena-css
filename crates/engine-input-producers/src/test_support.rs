@@ -54,6 +54,7 @@ pub fn sample_input() -> EngineInputV2 {
         styles: vec![
             StyleAnalysisInputV2 {
                 file_path: "/tmp/App.module.scss".to_string(),
+                source: None,
                 document: StyleDocumentV2 {
                     selectors: vec![StyleSelectorV2 {
                         name: "btn-active".to_string(),
@@ -77,6 +78,7 @@ pub fn sample_input() -> EngineInputV2 {
             },
             StyleAnalysisInputV2 {
                 file_path: "/tmp/Card.module.scss".to_string(),
+                source: None,
                 document: StyleDocumentV2 {
                     selectors: vec![
                         StyleSelectorV2 {
