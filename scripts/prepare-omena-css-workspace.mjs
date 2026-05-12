@@ -27,6 +27,7 @@ const omenaCssCrates = [
   "omena-transform-print",
   "omena-transform-egg",
   "omena-cli",
+  "omena-wasm",
 ];
 const omenaCssPublishOrder = [
   "omena-syntax",
@@ -41,6 +42,7 @@ const omenaCssPublishOrder = [
   "omena-transform-print",
   "omena-transform-egg",
   "omena-cli",
+  "omena-wasm",
 ];
 const externallyPublishedCrates = new Set(["omena-incremental"]);
 const omenaCssDependencyVersion = "0.1";
@@ -232,6 +234,8 @@ cstree = "0.14.0"
 rustc-hash = "2.1.2"
 smol_str = "0.3.6"
 clap = { version = "4.6.1", features = ["derive"] }
+serde-wasm-bindgen = "0.6.5"
+wasm-bindgen = "0.2.121"
 
 [workspace.lints.rust]
 unsafe_code = "deny"
@@ -349,7 +353,7 @@ sharing one release train.
 - Transform substrate: \`omena-transform-cst\`, \`omena-transform-passes\`,
   \`omena-transform-bundle\`, \`omena-transform-target\`,
   \`omena-transform-print\`, \`omena-transform-egg\`
-- Consumer surface: \`omena-cli\`
+- Consumer surfaces: \`omena-cli\`, \`omena-wasm\`
 
 ## Current Product Surface
 
@@ -361,6 +365,7 @@ The first public surface focuses on parser and transform foundations:
   proof helpers.
 - Conservative transform planning and execution surfaces with explicit
   provenance.
+- Browser-side in-memory parser and transform bindings through \`omena-wasm\`.
 
 ## Design Rules
 
@@ -411,6 +416,23 @@ Use the checkout form when developing the workspace locally:
 cargo run -p omena-cli -- check path/to/file.module.scss
 cargo run -p omena-cli -- build path/to/file.css --pass whitespace-strip
 cargo run -p omena-cli -- passes
+\`\`\`
+
+## Use the Browser Binding
+
+\`omena-wasm\` is an in-memory binding for browser and playground consumers.
+It does not read from the filesystem; pass source text and a path-like label so
+the dialect can be inferred. Generate a web package with \`wasm-pack build
+crates/omena-wasm --target web\`, then import the generated module:
+
+\`\`\`js
+import init, { checkStyleSource, buildStyleSource } from "./pkg/omena_wasm.js";
+
+await init();
+const facts = checkStyleSource(".card { color: red; }", "demo.module.css");
+const built = buildStyleSource(".card { color: #ffffff; }", "demo.css", [
+  "color-compression",
+]);
 \`\`\`
 
 ## Publish Readiness
@@ -475,6 +497,14 @@ Primary consumers:
 - \`omena check <file>\` reports parser-owned facts and parse-error counts.
 - \`omena build <file>\` runs the conservative transform pipeline.
 - \`omena passes\` lists accepted transform pass ids.
+
+## Wasm
+
+\`omena-wasm\` exposes the first browser-side in-memory consumer surface:
+
+- \`checkStyleSource(source, path)\` reports parser-owned facts.
+- \`buildStyleSource(source, path, passIds)\` runs conservative transform passes.
+- \`listTransformPasses()\` lists accepted transform pass ids.
 `,
   );
   writeFileSync(
