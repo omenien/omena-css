@@ -1034,6 +1034,39 @@ fn derives_transform_context_from_workspace_sources() {
 }
 
 #[test]
+fn derives_transform_context_from_package_manifest_style_exports() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/fake/workspace/src/App.module.css",
+        [
+            (
+                "/fake/workspace/src/App.module.css",
+                r#"@import "@design/tokens/theme"; .button { color: var(--brand); }"#,
+            ),
+            (
+                "/fake/workspace/node_modules/@design/tokens/dist/theme.css",
+                ":root { --brand: package; }",
+            ),
+        ],
+        &[OmenaQueryStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source: r#"{"exports":{"./theme":{"style":"./dist/theme.css"}}}"#
+                .to_string(),
+        }],
+    );
+
+    assert_eq!(summary.import_inline_count, 1);
+    assert_eq!(
+        summary.context.import_inlines[0].import_source,
+        "@design/tokens/theme"
+    );
+    assert_eq!(
+        summary.context.import_inlines[0].replacement_css,
+        ":root { --brand: package; }"
+    );
+}
+
+#[test]
 fn declares_runtime_backed_selected_query_adapter_capabilities() {
     let summary = summarize_omena_query_selected_query_adapter_capabilities();
 

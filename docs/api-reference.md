@@ -67,6 +67,9 @@ Primary consumers:
   and provenance context, including dart-sass-compatible SCSS output.
 - `omena build <file> --source other.css` derives import/composes context from
   additional workspace style sources before running requested passes.
+- `omena build <file> --package-manifest node_modules/pkg/package.json`
+  lets workspace source context resolve package style exports for import
+  inlining.
 - `omena passes` lists accepted transform pass ids.
 
 ## Wasm

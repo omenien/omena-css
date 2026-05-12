@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use omena_query::{
-    OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformExecutionContextV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
@@ -69,6 +69,9 @@ enum Command {
         /// Additional workspace style source used to derive import/composes build context.
         #[arg(long = "source")]
         source_paths: Vec<PathBuf>,
+        /// package.json file used to resolve package style exports for workspace sources.
+        #[arg(long = "package-manifest")]
+        package_manifest_paths: Vec<PathBuf>,
         /// Print a machine-readable execution summary.
         #[arg(long)]
         json: bool,
@@ -106,6 +109,7 @@ fn run(cli: Cli) -> Result<(), String> {
             enable_media_static_eval,
             context_json,
             source_paths,
+            package_manifest_paths,
             json,
         } => build_file(BuildFileOptions {
             path,
@@ -114,6 +118,7 @@ fn run(cli: Cli) -> Result<(), String> {
             target_query,
             context_json,
             source_paths,
+            package_manifest_paths,
             target_options: OmenaQueryTargetTransformOptionsV0 {
                 allow_logical_to_physical,
                 allow_scope_flatten,
@@ -153,6 +158,7 @@ struct BuildFileOptions {
     target_query: Option<String>,
     context_json: Option<PathBuf>,
     source_paths: Vec<PathBuf>,
+    package_manifest_paths: Vec<PathBuf>,
     target_options: OmenaQueryTargetTransformOptionsV0,
     json: bool,
 }
@@ -165,6 +171,7 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
         target_query,
         context_json,
         source_paths,
+        package_manifest_paths,
         target_options,
         json,
     } = options;
@@ -177,6 +184,7 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
     let context = read_context_json(context_json.as_deref())?;
     let style_path = path_string(&path);
     let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
+    let package_manifests = read_package_manifests(&package_manifest_paths)?;
     let summary = if let Some(target_query) = target_query {
         if workspace_sources.len() > 1 {
             execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
@@ -185,7 +193,7 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
                 &target_query,
                 &context,
                 target_options,
-                &[],
+                &package_manifests,
             )?
         } else {
             execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
@@ -202,7 +210,7 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
             &workspace_sources,
             &pass_ids,
             &context,
-            &[],
+            &package_manifests,
         )?
     } else {
         execute_omena_query_consumer_build_style_source_with_context(
@@ -271,6 +279,20 @@ fn read_workspace_sources(
     }
 
     Ok(sources)
+}
+
+fn read_package_manifests(
+    package_manifest_paths: &[PathBuf],
+) -> Result<Vec<OmenaQueryStylePackageManifestV0>, String> {
+    package_manifest_paths
+        .iter()
+        .map(|path| {
+            Ok(OmenaQueryStylePackageManifestV0 {
+                package_json_path: path_string(path),
+                package_json_source: read_source(path)?,
+            })
+        })
+        .collect()
 }
 
 fn list_passes(json: bool) -> Result<(), String> {
