@@ -3,9 +3,9 @@
 Standalone Rust workspace for the Omena CSS parser, semantic substrates, cascade
 model, and transform-planning crates.
 
-This repository is staged from the CSS Module Explainer monorepo H2 track. The
-workspace keeps the 11 publish-target crates together so parser, incremental,
-cascade, and transform boundaries can be verified as one product surface.
+This repository is staged from the CSS Module Explainer monorepo. The workspace
+keeps the publish-target crates together so parser, incremental, cascade, and
+transform boundaries can be verified as one product surface.
 
 ## Crates
 

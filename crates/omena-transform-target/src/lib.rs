@@ -1,7 +1,7 @@
 //! Target feature matrix planning for Omena CSS transforms.
 //!
-//! This crate owns the P14-P24 lowering decision boundary. It intentionally
-//! models the feature matrix directly before adding heavier browserslist /
+//! This crate owns the target-sensitive lowering decision boundary. It
+//! intentionally models the feature matrix directly before adding heavier browserslist /
 //! caniuse-lite ingestion, so target-driven transforms can be tested without
 //! coupling the core transform graph to external data formats.
 

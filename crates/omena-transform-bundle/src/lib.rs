@@ -1,8 +1,8 @@
 //! Source-fact backed bundle planning for Omena CSS transforms.
 //!
 //! This crate is the bridge from parser facts into the transform DAG. It
-//! decides which P26-P32 bundle/module passes are required for a style source
-//! and delegates ordering to `omena-transform-passes`.
+//! decides which bundle/module passes are required for a style source and
+//! delegates ordering to `omena-transform-passes`.
 
 use omena_parser::{
     ParsedCssModuleComposesEdgeKind, ParsedSassModuleEdgeFactKind, StyleDialect,

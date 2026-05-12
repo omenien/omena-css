@@ -1,7 +1,8 @@
 //! Transform pass registry and DAG planner for the post-v5 omena-css track.
 //!
 //! This crate consumes `omena-transform-cst` contracts. It does not duplicate
-//! the pass catalog; its job is to register every P01-P40 pass and produce a
+//! transform metadata; its job is to register safe mutations, cascade-proven
+//! combinations, conservative lowerings, and emission boundaries as a
 //! DAG-respecting execution plan for downstream transform crates.
 
 use omena_cascade::{

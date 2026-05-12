@@ -1,4 +1,4 @@
-//! P40 emission and source-map boundary for Omena CSS transforms.
+//! CSS emission and source-map boundary for Omena CSS transforms.
 //!
 //! The initial printer is deliberately identity-preserving. It establishes the
 //! output and source-map contract before later pretty/minified emitters start
