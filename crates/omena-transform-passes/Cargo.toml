@@ -1,0 +1,23 @@
+[package]
+name = "omena-transform-passes"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Transform pass registry and DAG planner for Omena CSS"
+repository = "https://github.com/omenien/omena-css"
+readme = "README.md"
+keywords = ["omena", "css", "parser", "analysis"]
+categories = ["development-tools", "parser-implementations"]
+
+[lints]
+workspace = true
+
+[dependencies]
+omena-cascade = { path = "../omena-cascade" }
+omena-incremental = { path = "../omena-incremental" }
+omena-transform-cst = { path = "../omena-transform-cst" }
+omena-parser = { path = "../omena-parser" }
+omena-syntax = { path = "../omena-syntax" }
+serde.workspace = true
+serde_json.workspace = true

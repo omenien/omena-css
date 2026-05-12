@@ -1,0 +1,19 @@
+[package]
+name = "omena-transform-target"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Target feature matrix planning for Omena CSS transforms"
+repository = "https://github.com/omenien/omena-css"
+readme = "README.md"
+keywords = ["omena", "css", "parser", "analysis"]
+categories = ["development-tools", "parser-implementations"]
+
+[lints]
+workspace = true
+
+[dependencies]
+omena-transform-cst = { path = "../omena-transform-cst" }
+omena-transform-passes = { path = "../omena-transform-passes" }
+serde.workspace = true

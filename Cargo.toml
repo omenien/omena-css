@@ -1,0 +1,40 @@
+[workspace]
+members = [
+  "crates/omena-interner",
+  "crates/omena-syntax",
+  "crates/omena-parser",
+  "crates/omena-incremental",
+  "crates/omena-cascade",
+  "crates/omena-transform-cst",
+  "crates/omena-transform-passes",
+  "crates/omena-transform-bundle",
+  "crates/omena-transform-target",
+  "crates/omena-transform-print",
+  "crates/omena-transform-egg",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = true
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+salsa = { version = "0.26.1", default-features = false, features = ["macros", "inventory"] }
+criterion = "0.8.2"
+cstree = "0.14.0"
+rustc-hash = "2.1.2"
+smol_str = "0.3.6"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"

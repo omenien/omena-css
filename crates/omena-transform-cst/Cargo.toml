@@ -1,0 +1,17 @@
+[package]
+name = "omena-transform-cst"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Transform CST contract substrate for Omena CSS"
+repository = "https://github.com/omenien/omena-css"
+readme = "README.md"
+keywords = ["omena", "css", "parser", "analysis"]
+categories = ["development-tools", "parser-implementations"]
+
+[lints]
+workspace = true
+
+[dependencies]
+serde.workspace = true

@@ -1,0 +1,22 @@
+[package]
+name = "omena-parser"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Green-field cstree parser substrate for the Omena CSS parser stack"
+repository = "https://github.com/omenien/omena-css"
+readme = "README.md"
+keywords = ["omena", "css", "parser", "analysis"]
+categories = ["development-tools", "parser-implementations"]
+
+[lints]
+workspace = true
+
+[dependencies]
+cstree.workspace = true
+omena-interner = { path = "../omena-interner" }
+omena-syntax = { path = "../omena-syntax" }
+salsa.workspace = true
+serde.workspace = true
+serde_json.workspace = true
