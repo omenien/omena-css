@@ -1,6 +1,7 @@
 use super::*;
 use omena_transform_passes::{
-    TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0, TransformImportInlineV0,
+    TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
+    TransformDesignTokenRouteV0, TransformImportInlineV0,
 };
 
 pub fn summarize_omena_query_transform_plan_from_source(
@@ -572,6 +573,7 @@ pub fn summarize_omena_query_transform_context_from_engine_input(
         import_inline_count: context.import_inlines.len(),
         class_name_rewrite_count: context.class_name_rewrites.len(),
         css_module_composes_resolution_count: context.css_module_composes_resolutions.len(),
+        design_token_route_count: context.design_token_routes.len(),
         reachable_class_name_count: context.reachable_class_names.len(),
         reachable_keyframe_name_count: context.reachable_keyframe_names.len(),
         reachable_value_name_count: context.reachable_value_names.len(),
@@ -729,6 +731,11 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
                 &available_style_paths,
                 package_manifests,
             );
+        context.design_token_routes = derive_design_token_routes_for_transform_context(
+            entry,
+            &style_fact_entries,
+            package_manifests,
+        );
     }
 
     OmenaQueryTransformContextFromSourcesSummaryV0 {
@@ -739,6 +746,7 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
         import_inline_count: context.import_inlines.len(),
         class_name_rewrite_count: context.class_name_rewrites.len(),
         css_module_composes_resolution_count: context.css_module_composes_resolutions.len(),
+        design_token_route_count: context.design_token_routes.len(),
         reachable_class_name_count: context.reachable_class_names.len(),
         reachable_keyframe_name_count: context.reachable_keyframe_names.len(),
         reachable_value_name_count: context.reachable_value_names.len(),
@@ -748,6 +756,7 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
             "transformContextProducer",
             "cssModuleClassRewriteProducer",
             "cssModuleComposesResolutionProducer",
+            "designTokenRouteProducer",
             "directImportInlineProducer",
         ],
     }
@@ -856,6 +865,61 @@ fn derive_css_module_composes_resolutions_for_transform_context(
             },
         )
         .collect()
+}
+
+fn derive_design_token_routes_for_transform_context(
+    entry: &OmenaQueryStyleFactEntry,
+    entries: &[OmenaQueryStyleFactEntry],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<TransformDesignTokenRouteV0> {
+    let workspace_declarations = entries
+        .iter()
+        .flat_map(|entry| {
+            collect_omena_bridge_design_token_workspace_declarations_from_source(
+                entry.style_path.as_str(),
+                entry.style_source.as_str(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let reachable_declarations = filter_import_reachable_design_token_workspace_declarations(
+        entry.style_path.as_str(),
+        entries,
+        &workspace_declarations,
+        package_manifests,
+    );
+    let local_decl_names = entry
+        .facts
+        .custom_property_decl_names
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+
+    entry
+        .facts
+        .custom_property_ref_names
+        .iter()
+        .filter(|name| !local_decl_names.contains(*name))
+        .filter_map(|name| {
+            let candidates = reachable_declarations
+                .iter()
+                .filter(|declaration| declaration.file_path != entry.style_path)
+                .filter(|declaration| declaration.name == *name)
+                .filter(|declaration| design_token_route_value_is_safe(&declaration.value))
+                .collect::<Vec<_>>();
+            let [candidate] = candidates.as_slice() else {
+                return None;
+            };
+            Some(TransformDesignTokenRouteV0 {
+                token_name: (*name).clone(),
+                routed_value: candidate.value.clone(),
+            })
+        })
+        .collect()
+}
+
+fn design_token_route_value_is_safe(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty() && !value.chars().any(|ch| matches!(ch, ';' | '{' | '}'))
 }
 
 fn css_module_composes_closure_for_context(

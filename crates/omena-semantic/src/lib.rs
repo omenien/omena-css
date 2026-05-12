@@ -574,6 +574,7 @@ fn summarize_omena_parser_custom_property_facts(
                     style_context_for_byte_offset(source, byte_span.start);
                 decl_facts.push(ParserIndexCustomPropertyDeclFactV0 {
                     name: variable.name.clone(),
+                    value: declaration_value_text(source, byte_span.start),
                     source_order: decl_facts.len(),
                     byte_span,
                     range: parser_range_for_byte_span(source, byte_span),
@@ -1018,6 +1019,42 @@ fn style_context_for_byte_offset(
         .any(|context| matches!(context, StyleBlockContext::Layer));
 
     (selector_contexts, under_media, under_supports, under_layer)
+}
+
+fn declaration_value_text(source: &str, offset: usize) -> String {
+    let span = declaration_statement_byte_span_for_offset(source, offset);
+    let Some(statement) = source.get(span.start..span.end) else {
+        return String::new();
+    };
+    let Some(colon) = statement.find(':') else {
+        return String::new();
+    };
+    statement[colon + 1..]
+        .trim()
+        .trim_end_matches(';')
+        .trim()
+        .to_string()
+}
+
+fn declaration_statement_byte_span_for_offset(source: &str, offset: usize) -> ParserByteSpanV0 {
+    let start = source
+        .get(..offset)
+        .and_then(|before| before.rfind(['{', ';']).map(|index| index + 1))
+        .unwrap_or(offset);
+    let end = source
+        .get(offset..)
+        .and_then(|rest| {
+            let semicolon = rest.find(';');
+            let close = rest.find('}');
+            match (semicolon, close) {
+                (Some(semicolon), Some(close)) => Some(offset + semicolon.min(close)),
+                (Some(semicolon), None) => Some(offset + semicolon + 1),
+                (None, Some(close)) => Some(offset + close),
+                (None, None) => None,
+            }
+        })
+        .unwrap_or(source.len());
+    ParserByteSpanV0 { start, end }
 }
 
 fn semantic_selector_name_for_byte_offset(source: &str, byte_offset: usize) -> Option<String> {

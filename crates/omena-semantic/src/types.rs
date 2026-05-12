@@ -121,6 +121,7 @@ pub struct ParserIndexCustomPropertyFactsV0 {
 #[serde(rename_all = "camelCase")]
 pub struct ParserIndexCustomPropertyDeclFactV0 {
     pub name: String,
+    pub value: String,
     pub source_order: usize,
     pub byte_span: ParserByteSpanV0,
     pub range: ParserRangeV0,
