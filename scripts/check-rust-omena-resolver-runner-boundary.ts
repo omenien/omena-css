@@ -85,6 +85,26 @@ assert.ok(
   "engine-shadow-runner daemon must support omena-resolver-style-module-resolution",
 );
 
+const resolverSpecifierRuntimeBody = commandBodies.get(
+  "omena-resolver-specifier-resolution-runtime",
+);
+assert.ok(
+  resolverSpecifierRuntimeBody,
+  "missing engine-shadow-runner command arm: omena-resolver-specifier-resolution-runtime",
+);
+assert.ok(
+  resolverSpecifierRuntimeBody.includes("OmenaResolverSpecifierResolutionRuntimeInputV0"),
+  "omena-resolver-specifier-resolution-runtime must deserialize the resolver specifier runtime input product",
+);
+assert.ok(
+  resolverSpecifierRuntimeBody.includes("summarize_omena_resolver_specifier_resolution_runtime"),
+  "omena-resolver-specifier-resolution-runtime must route through omena-resolver",
+);
+assert.ok(
+  runnerSource.includes('"omena-resolver-specifier-resolution-runtime" =>'),
+  "engine-shadow-runner daemon must support omena-resolver-specifier-resolution-runtime",
+);
+
 assert.ok(
   querySource.includes("summarize_omena_resolver_query_fragments(input)"),
   "omena-query source-resolution query fragments must route through omena-resolver",
@@ -106,6 +126,7 @@ process.stdout.write(
     "sourceResolutionRuntimeCommand=input-omena-resolver-source-resolution-runtime",
     "runtimeQueryCommand=omena-resolver-runtime-query-boundary",
     "styleModuleResolutionCommand=omena-resolver-style-module-resolution",
+    "specifierResolutionRuntimeCommand=omena-resolver-specifier-resolution-runtime",
     "tsconfigPathMapping=runner-input",
     "queryDelegation=source-resolution",
   ].join(" "),

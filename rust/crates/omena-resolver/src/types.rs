@@ -143,3 +143,27 @@ pub struct OmenaResolverStyleModuleResolutionV0 {
     pub candidates: Vec<String>,
     pub resolution_kind: &'static str,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaResolverSpecifierResolutionRuntimeV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub from_style_path: String,
+    pub specifier_count: usize,
+    pub resolved_specifier_count: usize,
+    pub external_specifier_count: usize,
+    pub unresolved_specifier_count: usize,
+    pub entries: Vec<OmenaResolverSpecifierResolutionRuntimeEntryV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaResolverSpecifierResolutionRuntimeEntryV0 {
+    pub source: String,
+    pub resolved_style_path: Option<String>,
+    pub candidate_count: usize,
+    pub resolution_kind: &'static str,
+    pub status: &'static str,
+}

@@ -144,6 +144,72 @@ pub fn collect_omena_resolver_style_module_source_candidates_with_tsconfig_paths
     candidates
 }
 
+pub fn summarize_omena_resolver_specifier_resolution_runtime(
+    from_style_path: &str,
+    sources: &[String],
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaResolverStylePackageManifestV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) -> OmenaResolverSpecifierResolutionRuntimeV0 {
+    let mut entries = sources
+        .iter()
+        .map(|source| {
+            let resolution = summarize_omena_resolver_style_module_resolution_with_tsconfig_paths(
+                from_style_path,
+                source,
+                available_style_paths,
+                package_manifests,
+                tsconfig_path_mappings,
+            );
+            let status = if resolution.resolution_kind == "externalIgnored" {
+                "external"
+            } else if resolution.resolved_style_path.is_some() {
+                "resolved"
+            } else {
+                "unresolved"
+            };
+            OmenaResolverSpecifierResolutionRuntimeEntryV0 {
+                source: source.clone(),
+                resolved_style_path: resolution.resolved_style_path,
+                candidate_count: resolution.candidate_count,
+                resolution_kind: resolution.resolution_kind,
+                status,
+            }
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by_key(|entry| (entry.status, entry.source.clone()));
+
+    let resolved_specifier_count = entries
+        .iter()
+        .filter(|entry| entry.status == "resolved")
+        .count();
+    let external_specifier_count = entries
+        .iter()
+        .filter(|entry| entry.status == "external")
+        .count();
+    let unresolved_specifier_count = entries
+        .len()
+        .saturating_sub(resolved_specifier_count + external_specifier_count);
+
+    OmenaResolverSpecifierResolutionRuntimeV0 {
+        schema_version: "0",
+        product: "omena-resolver.specifier-resolution-runtime",
+        from_style_path: from_style_path.to_string(),
+        specifier_count: entries.len(),
+        resolved_specifier_count,
+        external_specifier_count,
+        unresolved_specifier_count,
+        entries,
+        ready_surfaces: vec![
+            "specifierResolutionRuntime",
+            "batchStyleModuleResolution",
+            "tsconfigPathMapping",
+            "packageManifestResolution",
+            "externalSpecifierFiltering",
+        ],
+    }
+}
+
 fn tsconfig_style_module_base_candidates(
     source: &str,
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],

@@ -12,6 +12,7 @@ use super::{
     summarize_omena_resolver_module_graph_index, summarize_omena_resolver_query_fragments,
     summarize_omena_resolver_runtime_query_boundary,
     summarize_omena_resolver_source_resolution_runtime,
+    summarize_omena_resolver_specifier_resolution_runtime,
     summarize_omena_resolver_style_module_resolution,
     summarize_omena_resolver_style_module_resolution_with_tsconfig_paths,
 };
@@ -62,6 +63,11 @@ fn summarizes_resolver_boundary_over_source_resolution_products() {
             .resolver_owned_products
             .contains(&"omena-resolver.style-module-resolution")
     );
+    assert!(
+        summary
+            .resolver_owned_products
+            .contains(&"omena-resolver.specifier-resolution-runtime")
+    );
     assert!(summary.ready_surfaces.contains(&"resolverModuleGraphIndex"));
     assert!(
         summary
@@ -81,12 +87,88 @@ fn summarizes_resolver_boundary_over_source_resolution_products() {
     assert!(
         summary
             .ready_surfaces
+            .contains(&"resolverSpecifierResolutionRuntime")
+    );
+    assert!(
+        summary
+            .ready_surfaces
             .contains(&"resolverTsconfigPathMapping")
     );
     assert!(
         !summary
             .next_decoupling_targets
             .contains(&"tsconfigPathMapping")
+    );
+}
+
+#[test]
+fn summarizes_specifier_resolution_runtime_for_style_batches() {
+    let available_style_paths = BTreeSet::from([
+        "/fake/workspace/src/styles/Button.module.scss",
+        "/fake/workspace/node_modules/@design/tokens/dist/theme.css",
+    ]);
+    let runtime = summarize_omena_resolver_specifier_resolution_runtime(
+        "/fake/workspace/src/components/App.tsx",
+        &[
+            "@styles/Button".to_string(),
+            "@design/tokens/theme".to_string(),
+            "sass:map".to_string(),
+            "./Missing".to_string(),
+        ],
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source: r#"{"exports":{"./theme":{"style":"./dist/theme.css"}}}"#
+                .to_string(),
+        }],
+        &[OmenaResolverTsconfigPathMappingV0 {
+            base_path: "/fake/workspace".to_string(),
+            pattern: "@styles/*".to_string(),
+            target_patterns: vec!["src/styles/*".to_string()],
+        }],
+    );
+
+    assert_eq!(
+        runtime.product,
+        "omena-resolver.specifier-resolution-runtime"
+    );
+    assert_eq!(runtime.specifier_count, 4);
+    assert_eq!(runtime.resolved_specifier_count, 2);
+    assert_eq!(runtime.external_specifier_count, 1);
+    assert_eq!(runtime.unresolved_specifier_count, 1);
+    assert!(
+        runtime
+            .ready_surfaces
+            .contains(&"specifierResolutionRuntime")
+    );
+    assert!(
+        runtime
+            .entries
+            .iter()
+            .any(|entry| entry.source == "@styles/Button"
+                && entry.status == "resolved"
+                && entry.resolution_kind == "tsconfigPathStyleModule")
+    );
+    assert!(
+        runtime
+            .entries
+            .iter()
+            .any(|entry| entry.source == "@design/tokens/theme"
+                && entry.status == "resolved"
+                && entry.resolution_kind == "packageStyleModule")
+    );
+    assert!(
+        runtime
+            .entries
+            .iter()
+            .any(|entry| entry.source == "sass:map" && entry.status == "external")
+    );
+    assert!(
+        runtime
+            .entries
+            .iter()
+            .any(|entry| entry.source == "./Missing" && entry.status == "unresolved")
     );
 }
 

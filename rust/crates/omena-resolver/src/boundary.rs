@@ -20,6 +20,7 @@ pub fn summarize_omena_resolver_boundary(input: &EngineInputV2) -> OmenaResolver
             "omena-resolver.runtime-query-boundary",
             "omena-resolver.source-resolution-runtime-index",
             "omena-resolver.style-module-resolution",
+            "omena-resolver.specifier-resolution-runtime",
         ],
         source_resolution_query_count: canonical_signal.canonical_bundle.query_fragments.len(),
         source_resolution_candidate_count: canonical_signal.canonical_bundle.candidates.len(),
@@ -40,11 +41,12 @@ pub fn summarize_omena_resolver_boundary(input: &EngineInputV2) -> OmenaResolver
             "resolverRuntimeQueryBoundary",
             "resolverSourceResolutionRuntimeIndex",
             "resolverStyleModuleResolution",
+            "resolverSpecifierResolutionRuntime",
             "resolverTsconfigPathMapping",
             "sourceResolutionQueryFragments",
             "sourceResolutionCanonicalProducerSignal",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerSourceResolutionRows"],
-        next_decoupling_targets: vec!["specifierResolutionRuntime"],
+        next_decoupling_targets: Vec::new(),
     }
 }
