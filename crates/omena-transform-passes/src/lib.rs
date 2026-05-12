@@ -5712,7 +5712,7 @@ fn compress_css_is_where_selectors_with_lexer(
     let (source, function_mutation_count) =
         compress_css_is_where_functions_with_lexer(source, dialect);
     let (source, selector_list_mutation_count) =
-        dedupe_top_level_selector_lists_with_lexer(&source, dialect);
+        dedupe_ordinary_selector_lists_with_lexer(&source, dialect);
 
     (
         source,
@@ -5745,13 +5745,13 @@ fn compress_css_is_where_functions_with_lexer(
     (output, mutation_count)
 }
 
-fn dedupe_top_level_selector_lists_with_lexer(
+fn dedupe_ordinary_selector_lists_with_lexer(
     source: &str,
     dialect: StyleDialect,
 ) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let rules = collect_ordinary_rule_selector_slices(source, tokens);
     let mut replacements = Vec::new();
 
     for rule in rules {
@@ -5795,6 +5795,58 @@ fn dedupe_top_level_selector_lists_with_lexer(
     }
 
     (output, replacements.len())
+}
+
+fn collect_ordinary_rule_selector_slices(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+) -> Vec<SimpleRuleSlice> {
+    let mut rules = Vec::new();
+    let mut depth = 0usize;
+    let mut prelude_starts = vec![0usize];
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => {
+                let prelude_start = prelude_starts.get(depth).copied().unwrap_or(0);
+                if let Some(close_index) = matching_right_brace_index(tokens, index)
+                    && is_ordinary_rule_prelude(tokens, prelude_start, index)
+                    && let Some(start) = first_non_trivia_token_start(tokens, prelude_start, index)
+                {
+                    let selector = source[start..token_start(&tokens[index])]
+                        .trim()
+                        .to_string();
+                    if !selector.is_empty() {
+                        rules.push(SimpleRuleSlice {
+                            selector,
+                            block: source
+                                [token_end(&tokens[index])..token_start(&tokens[close_index])]
+                                .trim()
+                                .to_string(),
+                            start,
+                            end: token_end(&tokens[close_index]),
+                            block_start: token_start(&tokens[index]),
+                            block_end: token_start(&tokens[close_index]),
+                        });
+                    }
+                }
+                depth += 1;
+                set_prelude_start(&mut prelude_starts, depth, index + 1);
+            }
+            SyntaxKind::RightBrace => {
+                depth = depth.saturating_sub(1);
+                set_prelude_start(&mut prelude_starts, depth, index + 1);
+            }
+            SyntaxKind::Semicolon => {
+                set_prelude_start(&mut prelude_starts, depth, index + 1);
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    rules
 }
 
 fn rewrite_is_where_selector_function(
@@ -7608,7 +7660,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_specificity_safe_is_where_selectors() {
-        let source = r#".a:is(.ready) { color: red; } .b:where(.x, .x) { color: blue; } .c:where(.y) { color: green; } .d:is(:is(.u, .v), .u) { color: orange; } .e, .e, .f { color: purple; }"#;
+        let source = r#".a:is(.ready) { color: red; } .b:where(.x, .x) { color: blue; } .c:where(.y) { color: green; } .d:is(:is(.u, .v), .u) { color: orange; } .e, .e, .f { color: purple; } @media (min-width: 1px) { .m, .m, .n { color: black; } } @supports (display: grid) { .s, .s { display: grid; } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7617,10 +7669,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(execution.mutation_count, 6);
         assert_eq!(
             execution.output_css,
-            r#".a.ready { color: red; } .b:where(.x) { color: blue; } .c:where(.y) { color: green; } .d:is(.u,.v) { color: orange; } .e, .f { color: purple; }"#
+            r#".a.ready { color: red; } .b:where(.x) { color: blue; } .c:where(.y) { color: green; } .d:is(.u,.v) { color: orange; } .e, .f { color: purple; } @media (min-width: 1px) { .m, .n { color: black; } } @supports (display: grid) { .s { display: grid; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
