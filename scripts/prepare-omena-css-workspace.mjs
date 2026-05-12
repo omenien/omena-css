@@ -27,6 +27,20 @@ const omenaCssCrates = [
   "omena-transform-print",
   "omena-transform-egg",
 ];
+const omenaCssPublishOrder = [
+  "omena-syntax",
+  "omena-interner",
+  "omena-parser",
+  "omena-incremental",
+  "omena-cascade",
+  "omena-transform-cst",
+  "omena-transform-passes",
+  "omena-transform-bundle",
+  "omena-transform-target",
+  "omena-transform-print",
+  "omena-transform-egg",
+];
+const omenaCssWorkspaceVersion = "0.1.0";
 
 const cliOptions = parseArgs(process.argv.slice(2));
 const destination = cliOptions.temp
@@ -40,6 +54,7 @@ function parseArgs(args) {
     dest: undefined,
     force: false,
     initGit: false,
+    publishDryRun: false,
     temp: false,
     verify: false,
   };
@@ -63,6 +78,10 @@ function parseArgs(args) {
       parsedOptions.initGit = true;
       continue;
     }
+    if (arg === "--publish-dry-run") {
+      parsedOptions.publishDryRun = true;
+      continue;
+    }
     if (arg === "--temp") {
       parsedOptions.temp = true;
       parsedOptions.force = true;
@@ -84,8 +103,8 @@ function parseArgs(args) {
 
 function printHelp() {
   process.stdout.write(`Usage:
-  node scripts/prepare-omena-css-workspace.mjs [--dest <path>] [--force] [--verify] [--init-git]
-  node scripts/prepare-omena-css-workspace.mjs --temp --verify
+  node scripts/prepare-omena-css-workspace.mjs [--dest <path>] [--force] [--verify] [--publish-dry-run] [--init-git]
+  node scripts/prepare-omena-css-workspace.mjs --temp --verify --publish-dry-run
 
 Creates a standalone omena-css workspace containing the publish-target crates.
 Default destination: ../omena-css
@@ -130,6 +149,9 @@ function prepareWorkspace(destinationPath, workspaceOptions) {
   if (workspaceOptions.verify) {
     verifyWorkspace(destinationPath);
   }
+  if (workspaceOptions.publishDryRun) {
+    verifyPublishDryRun(destinationPath);
+  }
 
   process.stdout.write(
     JSON.stringify(
@@ -138,6 +160,7 @@ function prepareWorkspace(destinationPath, workspaceOptions) {
         crateCount: omenaCssCrates.length,
         crates: omenaCssCrates,
         initializedGit: workspaceOptions.initGit,
+        publishDryRun: workspaceOptions.publishDryRun,
         verified: workspaceOptions.verify,
       },
       null,
@@ -220,6 +243,7 @@ ${omenaCssCrates.map((crateName) => `- \`${crateName}\``).join("\n")}
 cargo fmt --all --check
 cargo test --workspace
 cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo publish --dry-run --manifest-path crates/omena-syntax/Cargo.toml
 \`\`\`
 `,
   );
@@ -295,6 +319,10 @@ function rewriteCrateManifest(manifestPath) {
       'readme = "README.md"\nkeywords = ["omena", "css", "parser", "analysis"]\ncategories = ["development-tools", "parser-implementations"]',
     );
   }
+  manifest = manifest.replace(
+    /^(omena-[a-z0-9-]+ = \{ path = "\.\.\/omena-[a-z0-9-]+") \}$/gm,
+    `$1, version = "${omenaCssWorkspaceVersion}" }`,
+  );
   writeFileSync(manifestPath, manifest);
 }
 
@@ -327,4 +355,49 @@ function verifyWorkspace(destinationPath) {
       stdio: "inherit",
     },
   );
+}
+
+function verifyPublishDryRun(destinationPath) {
+  for (const crateName of omenaCssPublishOrder) {
+    const manifestPath = path.join(destinationPath, "crates", crateName, "Cargo.toml");
+    assertVersionedLocalDependencies(manifestPath);
+    execFileSync("cargo", ["package", "--list", "--manifest-path", manifestPath], {
+      cwd: destinationPath,
+      env: { ...process.env, RUSTUP_TOOLCHAIN: "stable" },
+      stdio: "ignore",
+    });
+
+    if (hasLocalOmenaDependencies(manifestPath)) {
+      process.stderr.write(
+        `validated package surface for ${crateName}; full publish dry-run waits for upstream omena crates on crates.io\n`,
+      );
+      continue;
+    }
+
+    execFileSync("cargo", ["publish", "--dry-run", "--manifest-path", manifestPath], {
+      cwd: destinationPath,
+      env: { ...process.env, RUSTUP_TOOLCHAIN: "stable" },
+      stdio: "inherit",
+    });
+  }
+}
+
+function hasLocalOmenaDependencies(manifestPath) {
+  return /^omena-[a-z0-9-]+ = \{ path = "\.\.\/omena-[a-z0-9-]+"/m.test(
+    readFileSync(manifestPath, "utf8"),
+  );
+}
+
+function assertVersionedLocalDependencies(manifestPath) {
+  const manifest = readFileSync(manifestPath, "utf8");
+  const localDependencies =
+    manifest.match(/^omena-[a-z0-9-]+ = \{ path = "\.\.\/omena-[a-z0-9-]+".* \}$/gm) ?? [];
+
+  for (const dependency of localDependencies) {
+    if (!/, version = "[^"]+"/.test(dependency)) {
+      throw new Error(
+        `Local omena dependency must include a publish version in ${manifestPath}: ${dependency}`,
+      );
+    }
+  }
 }
