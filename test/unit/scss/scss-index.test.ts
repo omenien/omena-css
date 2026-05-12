@@ -897,6 +897,25 @@ function sliceRange(
 }
 
 describe("StyleIndexCache", () => {
+  it("uses an injected style document builder as the parser choke point", () => {
+    let buildCount = 0;
+    const cache = new StyleIndexCache({
+      max: 10,
+      buildStyleDocument: (filePath, content) => {
+        buildCount += 1;
+        return parseStyleDocument(content, filePath);
+      },
+    });
+
+    const first = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
+    const second = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);
+    const third = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: blue; }`);
+
+    expect(second).toBe(first);
+    expect(third).not.toBe(first);
+    expect(buildCount).toBe(2);
+  });
+
   it("returns the same style document for identical content", () => {
     const cache = new StyleIndexCache({ max: 10 });
     const first = cache.getStyleDocument("/fake/a.module.scss", `.btn { color: red; }`);

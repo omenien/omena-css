@@ -17,6 +17,8 @@ export interface StyleIndexEntry {
   readonly styleDocument: StyleDocumentHIR;
 }
 
+export type StyleDocumentBuilder = (filePath: string, content: string) => StyleDocumentHIR;
+
 const CLASSNAME_TRANSFORM_MODES: readonly ClassnameTransformMode[] = [
   "asIs",
   "camelCase",
@@ -39,9 +41,12 @@ const CLASSNAME_TRANSFORM_MODES: readonly ClassnameTransformMode[] = [
  */
 export class StyleIndexCache {
   private readonly lru: LruMap<string, StyleIndexEntry>;
+  private readonly buildBaseStyleDocument: StyleDocumentBuilder;
 
-  constructor(options: { max: number }) {
+  constructor(options: { max: number; buildStyleDocument?: StyleDocumentBuilder }) {
     this.lru = new LruMap(options.max);
+    this.buildBaseStyleDocument =
+      options.buildStyleDocument ?? ((filePath, content) => parseStyleDocument(content, filePath));
   }
 
   getStyleDocument(
@@ -65,7 +70,7 @@ export class StyleIndexCache {
       return cached;
     }
 
-    const base = parseStyleDocument(content, filePath);
+    const base = this.buildBaseStyleDocument(filePath, content);
     const styleDocument = expandStyleDocumentWithTransform(base, mode);
     const entry: StyleIndexEntry = {
       hash,

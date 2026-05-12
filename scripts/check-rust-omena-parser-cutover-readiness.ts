@@ -73,6 +73,14 @@ assert.ok(
   "code-action-query must keep an explicit runtime style-document builder boundary",
 );
 
+const scssIndex = readText("server/engine-core-ts/src/core/scss/scss-index.ts");
+assert.ok(
+  scssIndex.includes("export type StyleDocumentBuilder") &&
+    scssIndex.includes("buildBaseStyleDocument") &&
+    scssIndex.includes("parseStyleDocument(content, filePath)"),
+  "StyleIndexCache must expose a single injectable style-document builder seam for parser cutover",
+);
+
 for (const scriptPath of PRODUCT_PARSER_LANE_SCRIPTS) {
   const source = readText(scriptPath);
   assert.ok(source.includes("omena-parser"), `${scriptPath} must invoke omena-parser`);
