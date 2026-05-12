@@ -3951,9 +3951,7 @@ fn parse_top_level_keyframes_rule(
 ) -> Option<(KeyframesRuleSlice, usize)> {
     let name_index = skip_whitespace_tokens(tokens, at_keyframes_index + 1, tokens.len());
     let name_token = tokens.get(name_index)?;
-    if name_token.kind != SyntaxKind::Ident {
-        return None;
-    }
+    let name = static_keyframe_name_from_rule_name_token(name_token)?;
     let mut index = name_index + 1;
     while index < tokens.len() {
         match tokens[index].kind {
@@ -3962,7 +3960,7 @@ fn parse_top_level_keyframes_rule(
                 let close_index = matching_right_brace_index(tokens, index)?;
                 return Some((
                     KeyframesRuleSlice {
-                        name: name_token.text.clone(),
+                        name,
                         start: token_start(&tokens[at_keyframes_index]),
                         end: token_end(&tokens[close_index]),
                     },
@@ -3974,6 +3972,14 @@ fn parse_top_level_keyframes_rule(
     }
 
     None
+}
+
+fn static_keyframe_name_from_rule_name_token(token: &omena_parser::LexedToken) -> Option<String> {
+    match token.kind {
+        SyntaxKind::Ident => Some(token.text.clone()),
+        SyntaxKind::String => static_css_string_value(&token.text),
+        _ => None,
+    }
 }
 
 fn collect_referenced_keyframe_names(tokens: &[omena_parser::LexedToken]) -> Option<Vec<String>> {
@@ -3992,8 +3998,10 @@ fn collect_referenced_keyframe_names(tokens: &[omena_parser::LexedToken]) -> Opt
                         return None;
                     }
                     for name in split_top_level_value_arguments(&declaration.value)? {
-                        if is_static_animation_name_candidate(&name) {
-                            push_unique_string(&mut names, name);
+                        if let Some(candidate) = static_animation_name_candidate(&name)
+                            && (candidate.quoted || !candidate.name.eq_ignore_ascii_case("none"))
+                        {
+                            push_unique_string(&mut names, candidate.name);
                         }
                     }
                 }
@@ -4018,20 +4026,55 @@ fn extract_animation_shorthand_name_candidates(value: &str) -> Option<Vec<String
     for branch in split_top_level_value_arguments(value)? {
         for part in branch.split_whitespace() {
             let candidate = part.trim();
-            if is_static_animation_name_candidate(candidate)
-                && !is_known_animation_shorthand_keyword(candidate)
+            if let Some(candidate) = static_animation_name_candidate(candidate)
+                && (candidate.quoted || !is_known_animation_shorthand_keyword(&candidate.name))
             {
-                push_unique_string(&mut candidates, candidate.to_string());
+                push_unique_string(&mut candidates, candidate.name);
             }
         }
     }
     Some(candidates)
 }
 
-fn is_static_animation_name_candidate(value: &str) -> bool {
-    !value.is_empty()
-        && !value.contains(['(', ')', '"', '\'', '/', '\\'])
-        && parse_numeric_value_with_unit(value).is_none()
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticAnimationNameCandidate {
+    name: String,
+    quoted: bool,
+}
+
+fn static_animation_name_candidate(value: &str) -> Option<StaticAnimationNameCandidate> {
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    if let Some(name) = static_css_string_value(value) {
+        return Some(StaticAnimationNameCandidate { name, quoted: true });
+    }
+    if value.contains(['(', ')', '"', '\'', '/', '\\'])
+        || parse_numeric_value_with_unit(value).is_some()
+    {
+        return None;
+    }
+    Some(StaticAnimationNameCandidate {
+        name: value.to_string(),
+        quoted: false,
+    })
+}
+
+fn static_css_string_value(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.len() < 2 {
+        return None;
+    }
+    let quote = value.as_bytes()[0];
+    if !matches!(quote, b'"' | b'\'') || value.as_bytes().last().copied() != Some(quote) {
+        return None;
+    }
+    let inner = &value[1..value.len() - 1];
+    if inner.is_empty() || inner.contains(['\\', '\n', '\r', '\x0c']) {
+        return None;
+    }
+    Some(inner.to_string())
 }
 
 fn is_known_animation_shorthand_keyword(value: &str) -> bool {
@@ -8837,6 +8880,34 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#"@-webkit-keyframes fade { to { opacity: 1; } } @keyframes fade { to { opacity: 1; } } @-webkit-keyframes spin { to { transform: rotate(1turn); } } @keyframes spin { to { transform: rotate(1turn); } }   .btn { animation: 1s ease fade; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["tree-shake-keyframes", "print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_tree_shakes_quoted_keyframes_with_closed_world_context() {
+        let source = r#"@keyframes "slide" { to { opacity: 1; } } @keyframes "ghost" { to { opacity: 0; } } .btn { animation-name: "slide"; } .alt { animation: "slide" 1s ease; }"#;
+        let context = TransformExecutionContextV0 {
+            closed_style_world: true,
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::TreeShakeKeyframes,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#"@keyframes "slide" { to { opacity: 1; } }  .btn { animation-name: "slide"; } .alt { animation: "slide" 1s ease; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
