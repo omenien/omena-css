@@ -5109,6 +5109,17 @@ fn prefixed_property_for(property: &str) -> Option<&'static str> {
     match property {
         "appearance" => Some("-webkit-appearance"),
         "backdrop-filter" => Some("-webkit-backdrop-filter"),
+        "hyphens" => Some("-webkit-hyphens"),
+        "mask-clip" => Some("-webkit-mask-clip"),
+        "mask-composite" => Some("-webkit-mask-composite"),
+        "mask-image" => Some("-webkit-mask-image"),
+        "mask-mode" => Some("-webkit-mask-mode"),
+        "mask-origin" => Some("-webkit-mask-origin"),
+        "mask-position" => Some("-webkit-mask-position"),
+        "mask-repeat" => Some("-webkit-mask-repeat"),
+        "mask-size" => Some("-webkit-mask-size"),
+        "print-color-adjust" => Some("-webkit-print-color-adjust"),
+        "text-size-adjust" => Some("-webkit-text-size-adjust"),
         "user-select" => Some("-webkit-user-select"),
         _ => None,
     }
@@ -8007,7 +8018,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_adds_conservative_vendor_prefixes_when_absent() {
-        let source = r#".a { user-select: none; -webkit-appearance: none; appearance: none; backdrop-filter: blur(2px); } .flex { display: flex; position: sticky; } .inline { display: -webkit-inline-box; display: inline-flex; }"#;
+        let source = r#".a { user-select: none; -webkit-appearance: none; appearance: none; backdrop-filter: blur(2px); } .flex { display: flex; position: sticky; } .inline { display: -webkit-inline-box; display: inline-flex; } .extra { text-size-adjust: 100%; mask-image: linear-gradient(red, blue); hyphens: auto; } .print { print-color-adjust: exact; -webkit-mask-size: cover; mask-size: cover; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -8016,10 +8027,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 6);
+        assert_eq!(execution.mutation_count, 10);
         assert_eq!(
             execution.output_css,
-            r#".a { -webkit-user-select: none; user-select: none; -webkit-appearance: none; appearance: none; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); } .flex { display: -webkit-box; display: -ms-flexbox; display: flex; position: -webkit-sticky; position: sticky; } .inline { display: -webkit-inline-box; display: -ms-inline-flexbox; display: inline-flex; }"#
+            r#".a { -webkit-user-select: none; user-select: none; -webkit-appearance: none; appearance: none; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); } .flex { display: -webkit-box; display: -ms-flexbox; display: flex; position: -webkit-sticky; position: sticky; } .inline { display: -webkit-inline-box; display: -ms-inline-flexbox; display: inline-flex; } .extra { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-mask-image: linear-gradient(red, blue); mask-image: linear-gradient(red, blue); -webkit-hyphens: auto; hyphens: auto; } .print { -webkit-print-color-adjust: exact; print-color-adjust: exact; -webkit-mask-size: cover; mask-size: cover; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
