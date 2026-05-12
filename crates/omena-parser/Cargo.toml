@@ -15,8 +15,8 @@ workspace = true
 
 [dependencies]
 cstree.workspace = true
-omena-interner = { path = "../omena-interner", version = "0.1.0" }
-omena-syntax = { path = "../omena-syntax", version = "0.1.0" }
+omena-interner = { path = "../omena-interner", version = "0.1" }
+omena-syntax = { path = "../omena-syntax", version = "0.1" }
 salsa.workspace = true
 serde.workspace = true
 serde_json.workspace = true
