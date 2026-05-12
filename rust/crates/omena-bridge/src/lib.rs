@@ -1028,6 +1028,7 @@ const lazy = import("./ignored.module.scss");
             }],
             styles: vec![StyleAnalysisInputV2 {
                 file_path: "/tmp/Component.module.scss".to_string(),
+                source: None,
                 document: StyleDocumentV2 {
                     selectors: vec![StyleSelectorV2 {
                         name: "button".to_string(),

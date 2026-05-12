@@ -110,6 +110,8 @@ pub struct ClassExpressionInputV2 {
 #[serde(rename_all = "camelCase")]
 pub struct StyleAnalysisInputV2 {
     pub file_path: String,
+    #[serde(default)]
+    pub source: Option<String>,
     pub document: StyleDocumentV2,
 }
 

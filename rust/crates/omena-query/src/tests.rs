@@ -1683,6 +1683,74 @@ fn builds_semantic_reachability_transform_context_from_expression_projection() {
 }
 
 #[test]
+fn engine_input_transform_context_consumes_style_sources_for_workspace_context() {
+    let source = r#"@import "./tokens.css" supports(display: grid); .button { composes: base; color: var(--brand); } .base { color: blue; }"#;
+    let input = EngineInputV2 {
+        version: "2".to_string(),
+        sources: Vec::new(),
+        styles: vec![
+            StyleAnalysisInputV2 {
+                file_path: "/tmp/Button.module.css".to_string(),
+                source: Some(source.to_string()),
+                document: StyleDocumentV2 {
+                    selectors: vec![style_selector("button"), style_selector("base")],
+                },
+            },
+            StyleAnalysisInputV2 {
+                file_path: "/tmp/tokens.css".to_string(),
+                source: Some(":root { --brand: red; }".to_string()),
+                document: StyleDocumentV2 {
+                    selectors: Vec::new(),
+                },
+            },
+        ],
+        type_facts: Vec::new(),
+    };
+
+    let context_summary = summarize_omena_query_transform_context_from_engine_input(
+        &input,
+        "/tmp/Button.module.css",
+        false,
+    );
+    assert_eq!(context_summary.style_source_count, 2);
+    assert_eq!(context_summary.import_inline_count, 1);
+    assert_eq!(context_summary.class_name_rewrite_count, 2);
+    assert_eq!(context_summary.css_module_composes_resolution_count, 1);
+    assert!(
+        context_summary
+            .ready_surfaces
+            .contains(&"engineInputStyleSourceTransformContext")
+    );
+
+    let build = execute_omena_query_consumer_build_style_source_with_engine_input_context(
+        "/tmp/Button.module.css",
+        source,
+        &[
+            "import-inline".to_string(),
+            "composes-resolution".to_string(),
+        ],
+        &input,
+        false,
+    );
+
+    assert!(build.execution.executed_pass_ids.contains(&"import-inline"));
+    assert!(
+        build
+            .execution
+            .executed_pass_ids
+            .contains(&"composes-resolution")
+    );
+    assert!(
+        build
+            .execution
+            .output_css
+            .contains("@supports (display: grid) { :root { --brand: red; } }")
+    );
+    assert!(!build.execution.output_css.contains("@import"));
+    assert!(!build.execution.output_css.contains("composes:"));
+}
+
+#[test]
 fn owns_selected_query_canonical_producer_wrappers_without_changing_products() {
     let input = sample_input();
 
@@ -3035,6 +3103,7 @@ fn sample_input() -> EngineInputV2 {
         styles: vec![
             StyleAnalysisInputV2 {
                 file_path: "/tmp/App.module.scss".to_string(),
+                source: None,
                 document: StyleDocumentV2 {
                     selectors: vec![StyleSelectorV2 {
                         name: "btn-active".to_string(),
@@ -3049,6 +3118,7 @@ fn sample_input() -> EngineInputV2 {
             },
             StyleAnalysisInputV2 {
                 file_path: "/tmp/Card.module.scss".to_string(),
+                source: None,
                 document: StyleDocumentV2 {
                     selectors: vec![StyleSelectorV2 {
                         name: "card-header".to_string(),
@@ -3128,6 +3198,7 @@ fn reduced_product_projection_input() -> EngineInputV2 {
         }],
         styles: vec![StyleAnalysisInputV2 {
             file_path: "/tmp/App.module.scss".to_string(),
+            source: None,
             document: StyleDocumentV2 {
                 selectors: vec![
                     style_selector("btn--active"),
