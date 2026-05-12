@@ -5257,11 +5257,16 @@ fn collect_vendor_prefix_insertions(
         {
             let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
             for declaration in &declarations {
-                if let Some(prefixed_property) = prefixed_property_for(&declaration.property)
-                    && !declarations
+                for prefixed_property in prefixed_properties_for(&declaration.property)
+                    .iter()
+                    .copied()
+                {
+                    if declarations
                         .iter()
                         .any(|candidate| candidate.property == prefixed_property)
-                {
+                    {
+                        continue;
+                    }
                     insertions.push((
                         declaration.start,
                         format!("{prefixed_property}: {}; ", declaration.value),
@@ -5359,23 +5364,23 @@ fn at_rule_block_start(tokens: &[omena_parser::LexedToken], start_index: usize) 
     None
 }
 
-fn prefixed_property_for(property: &str) -> Option<&'static str> {
+fn prefixed_properties_for(property: &str) -> &'static [&'static str] {
     match property {
-        "appearance" => Some("-webkit-appearance"),
-        "backdrop-filter" => Some("-webkit-backdrop-filter"),
-        "hyphens" => Some("-webkit-hyphens"),
-        "mask-clip" => Some("-webkit-mask-clip"),
-        "mask-composite" => Some("-webkit-mask-composite"),
-        "mask-image" => Some("-webkit-mask-image"),
-        "mask-mode" => Some("-webkit-mask-mode"),
-        "mask-origin" => Some("-webkit-mask-origin"),
-        "mask-position" => Some("-webkit-mask-position"),
-        "mask-repeat" => Some("-webkit-mask-repeat"),
-        "mask-size" => Some("-webkit-mask-size"),
-        "print-color-adjust" => Some("-webkit-print-color-adjust"),
-        "text-size-adjust" => Some("-webkit-text-size-adjust"),
-        "user-select" => Some("-webkit-user-select"),
-        _ => None,
+        "appearance" => &["-webkit-appearance", "-moz-appearance"],
+        "backdrop-filter" => &["-webkit-backdrop-filter"],
+        "hyphens" => &["-webkit-hyphens", "-ms-hyphens"],
+        "mask-clip" => &["-webkit-mask-clip"],
+        "mask-composite" => &["-webkit-mask-composite"],
+        "mask-image" => &["-webkit-mask-image"],
+        "mask-mode" => &["-webkit-mask-mode"],
+        "mask-origin" => &["-webkit-mask-origin"],
+        "mask-position" => &["-webkit-mask-position"],
+        "mask-repeat" => &["-webkit-mask-repeat"],
+        "mask-size" => &["-webkit-mask-size"],
+        "print-color-adjust" => &["-webkit-print-color-adjust"],
+        "text-size-adjust" => &["-webkit-text-size-adjust"],
+        "user-select" => &["-webkit-user-select", "-moz-user-select", "-ms-user-select"],
+        _ => &[],
     }
 }
 
@@ -8281,10 +8286,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 11);
+        assert_eq!(execution.mutation_count, 15);
         assert_eq!(
             execution.output_css,
-            r#".a { -webkit-user-select: none; user-select: none; -webkit-appearance: none; appearance: none; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); } .flex { display: -webkit-box; display: -ms-flexbox; display: flex; position: -webkit-sticky; position: sticky; } .inline { display: -webkit-inline-box; display: -ms-inline-flexbox; display: inline-flex; } .extra { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-mask-image: linear-gradient(red, blue); mask-image: linear-gradient(red, blue); -webkit-hyphens: auto; hyphens: auto; } .print { -webkit-print-color-adjust: exact; print-color-adjust: exact; -webkit-mask-size: cover; mask-size: cover; } @-webkit-keyframes fade { from { opacity: 0; } to { opacity: 1; } } @keyframes fade { from { opacity: 0; } to { opacity: 1; } } @-webkit-keyframes spin { from { opacity: 0; } } @keyframes spin { from { opacity: 0; } }"#
+            r#".a { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; -webkit-appearance: none; -moz-appearance: none; appearance: none; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); } .flex { display: -webkit-box; display: -ms-flexbox; display: flex; position: -webkit-sticky; position: sticky; } .inline { display: -webkit-inline-box; display: -ms-inline-flexbox; display: inline-flex; } .extra { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-mask-image: linear-gradient(red, blue); mask-image: linear-gradient(red, blue); -webkit-hyphens: auto; -ms-hyphens: auto; hyphens: auto; } .print { -webkit-print-color-adjust: exact; print-color-adjust: exact; -webkit-mask-size: cover; mask-size: cover; } @-webkit-keyframes fade { from { opacity: 0; } to { opacity: 1; } } @keyframes fade { from { opacity: 0; } to { opacity: 1; } } @-webkit-keyframes spin { from { opacity: 0; } } @keyframes spin { from { opacity: 0; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
