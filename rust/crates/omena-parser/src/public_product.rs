@@ -256,6 +256,7 @@ struct ParserIndexSassFactsV0 {
     module_use_sources: Vec<String>,
     module_use_edges: Vec<ParserIndexSassModuleUseFactV0>,
     module_forward_sources: Vec<String>,
+    module_forward_edges: Vec<ParserIndexSassModuleForwardFactV0>,
     module_import_sources: Vec<String>,
     same_file_resolution: ParserIndexSassSameFileResolutionFactsV0,
 }
@@ -278,6 +279,26 @@ struct ParserIndexSassModuleUseFactV0 {
     namespace: Option<String>,
     byte_span: ParserByteSpanV0,
     range: ParserRangeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexSassModuleForwardFactV0 {
+    source: String,
+    prefix: String,
+    visibility_kind: &'static str,
+    visibility_members: Vec<ParserIndexSassModuleForwardMemberV0>,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
+    rule_byte_span: ParserByteSpanV0,
+    rule_range: ParserRangeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexSassModuleForwardMemberV0 {
+    name: String,
+    symbol_kind: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -1306,6 +1327,7 @@ fn summarize_sass(
     let mut module_forward_sources = BTreeSet::new();
     let mut module_import_sources = BTreeSet::new();
     let mut module_use_edges = Vec::new();
+    let mut module_forward_edges = Vec::new();
     for edge in &facts.sass_module_edges {
         match edge.kind {
             ParsedSassModuleEdgeFactKind::Use => {
@@ -1320,7 +1342,31 @@ fn summarize_sass(
                 });
             }
             ParsedSassModuleEdgeFactKind::Forward => {
+                let byte_span = byte_span_for_range(edge.range);
+                let rule_byte_span =
+                    at_rule_statement_byte_span_for_offset(source, byte_span.start, "@forward");
                 module_forward_sources.insert(edge.source.clone());
+                module_forward_edges.push(ParserIndexSassModuleForwardFactV0 {
+                    source: edge.source.clone(),
+                    prefix: sass_module_forward_prefix_from_statement(source, rule_byte_span),
+                    visibility_kind: edge.visibility_filter_kind.unwrap_or("all"),
+                    visibility_members: edge
+                        .visibility_filter_names
+                        .iter()
+                        .map(|name| ParserIndexSassModuleForwardMemberV0 {
+                            name: name.clone(),
+                            symbol_kind: sass_module_forward_member_symbol_kind(
+                                source,
+                                rule_byte_span,
+                                name,
+                            ),
+                        })
+                        .collect(),
+                    byte_span,
+                    range: parser_range_for_byte_span(source, byte_span),
+                    rule_byte_span,
+                    rule_range: parser_range_for_byte_span(source, rule_byte_span),
+                });
             }
             ParsedSassModuleEdgeFactKind::Import => {
                 let byte_span = byte_span_for_range(edge.range);
@@ -1338,6 +1384,8 @@ fn summarize_sass(
     }
     module_use_edges.sort();
     module_use_edges.dedup();
+    module_forward_edges.sort();
+    module_forward_edges.dedup();
 
     ParserIndexSassFactsV0 {
         variable_decl_names: sorted(variable_decl_names),
@@ -1400,6 +1448,7 @@ fn summarize_sass(
         module_use_sources: sorted(module_use_sources),
         module_use_edges,
         module_forward_sources: sorted(module_forward_sources),
+        module_forward_edges,
         module_import_sources: sorted(module_import_sources),
         same_file_resolution,
     }
@@ -2362,6 +2411,31 @@ fn css_module_value_definition_text(source: &str, offset: usize) -> String {
         .trim_end_matches(';')
         .trim()
         .to_string()
+}
+
+fn sass_module_forward_prefix_from_statement(source: &str, span: ParserByteSpanV0) -> String {
+    let Some(statement) = source.get(span.start..span.end) else {
+        return String::new();
+    };
+    let Some(as_index) = statement.find(" as ") else {
+        return String::new();
+    };
+    let after_as = &statement[as_index + 4..];
+    let Some(star_index) = after_as.find('*') else {
+        return String::new();
+    };
+    after_as[..star_index].trim().to_string()
+}
+
+fn sass_module_forward_member_symbol_kind(
+    source: &str,
+    span: ParserByteSpanV0,
+    name: &str,
+) -> Option<&'static str> {
+    let statement = source.get(span.start..span.end)?;
+    statement
+        .contains(&format!("${name}"))
+        .then_some("variable")
 }
 
 fn sort_all_composes(summary: &mut ParserIndexComposesFactsV0) {

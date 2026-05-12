@@ -59,6 +59,13 @@ interface ParserSelectorDefinitionFactV0 {
     readonly end: number;
   };
   readonly range: Range;
+  readonly ruleByteSpan?: {
+    readonly start: number;
+    readonly end: number;
+  };
+  readonly ruleRange?: Range;
+  readonly fullSelector?: string;
+  readonly declarations?: string;
   readonly nestedSafetyKind: "flat" | "bemSuffixSafe" | "nestedUnsafe";
   readonly bemSuffixParentName?: string;
   readonly underMedia: boolean;
@@ -66,7 +73,10 @@ interface ParserSelectorDefinitionFactV0 {
   readonly underLayer: boolean;
 }
 
-type ParserSelectorDefinitionSemanticFactV0 = Omit<ParserSelectorDefinitionFactV0, "byteSpan">;
+type ParserSelectorDefinitionSemanticFactV0 = Omit<
+  ParserSelectorDefinitionFactV0,
+  "byteSpan" | "ruleByteSpan" | "ruleRange" | "fullSelector" | "declarations"
+>;
 
 interface ParserEvaluatorCandidateV0 {
   readonly selectorName: string;
@@ -343,7 +353,15 @@ function stripParserOnlySassSeedFacts(sass: ParserSassSeedFactsV0): ParserSassSe
     selectorsWithFunctionCallsNames: sass.selectorsWithFunctionCallsNames,
     selectorSymbolFacts: sass.selectorSymbolFacts,
     moduleUseSources: sass.moduleUseSources,
-    moduleUseEdges: sass.moduleUseEdges,
+    moduleUseEdges: sass.moduleUseEdges.map((edge) => {
+      const { byteSpan, range, ...rest } = edge as typeof edge & {
+        readonly byteSpan?: unknown;
+        readonly range?: unknown;
+      };
+      void byteSpan;
+      void range;
+      return rest;
+    }),
     moduleForwardSources: sass.moduleForwardSources,
     moduleImportSources: sass.moduleImportSources,
     sameFileResolution: sass.sameFileResolution,
@@ -613,7 +631,14 @@ function deriveTsSummary(filePath: string, source: string): ParserConsumerBounda
 function toSelectorDefinitionSemanticFact(
   fact: ParserSelectorDefinitionFactV0,
 ): ParserSelectorDefinitionSemanticFactV0 {
-  const { byteSpan: _byteSpan, ...rest } = fact;
+  const {
+    byteSpan: _byteSpan,
+    ruleByteSpan: _ruleByteSpan,
+    ruleRange: _ruleRange,
+    fullSelector: _fullSelector,
+    declarations: _declarations,
+    ...rest
+  } = fact;
   return rest;
 }
 

@@ -149,6 +149,15 @@ describe("buildStyleDocumentWithOmenaParser", () => {
               resolution: "external",
               range: range(40, 46),
             },
+            {
+              selectorName: "card",
+              symbolKind: "mixin",
+              name: "raised",
+              namespace: "t",
+              role: "include",
+              resolution: "external",
+              range: range(48, 54),
+            },
           ],
           moduleUseEdges: [
             {
@@ -159,6 +168,19 @@ describe("buildStyleDocumentWithOmenaParser", () => {
             },
           ],
           moduleForwardSources: ["./theme"],
+          moduleForwardEdges: [
+            {
+              source: "./theme",
+              prefix: "theme-",
+              visibilityKind: "show",
+              visibilityMembers: [
+                { name: "gap", symbolKind: "variable" },
+                { name: "raised", symbolKind: null },
+              ],
+              range: range(58, 65),
+              ruleRange: range(46, 88),
+            },
+          ],
         },
         composes: { edges: [] },
       }),
@@ -177,9 +199,22 @@ describe("buildStyleDocumentWithOmenaParser", () => {
       role: "reference",
       resolution: "unresolved",
     });
+    expect(document.sassModuleMemberRefs[0]).toMatchObject({
+      selectorName: "card",
+      namespace: "t",
+      symbolKind: "mixin",
+      name: "raised",
+      role: "include",
+    });
     expect(document.sassModuleForwards[0]).toMatchObject({
       source: "./theme",
-      visibilityKind: "all",
+      prefix: "theme-",
+      visibilityKind: "show",
+      visibilityMembers: [
+        { name: "gap", symbolKind: "variable" },
+        { name: "raised", symbolKind: null },
+      ],
+      range: range(58, 65),
     });
   });
 

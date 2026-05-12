@@ -1085,7 +1085,7 @@ function omitParserOnlySelectorDefinitionFacts(
 ): ParserIndexSummaryV0 {
   const { definitionFacts, ...selectors } = summary.selectors;
   const { declFacts, importFacts, refFacts, ...values } = summary.values;
-  const { symbolDeclFacts, moduleUseEdges, ...sassRest } = summary.sass;
+  const { symbolDeclFacts, moduleUseEdges, moduleForwardEdges, ...sassRest } = summary.sass;
   const {
     declFacts: keyframesDeclFacts,
     refFacts: keyframesRefFacts,
@@ -1097,6 +1097,7 @@ function omitParserOnlySelectorDefinitionFacts(
   void importFacts;
   void refFacts;
   void symbolDeclFacts;
+  void moduleForwardEdges;
   void keyframesDeclFacts;
   void keyframesRefFacts;
   void edges;

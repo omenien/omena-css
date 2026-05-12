@@ -118,6 +118,7 @@ interface ParserSassSelectorSymbolFactV0 {
   readonly selectorName: string;
   readonly symbolKind: string;
   readonly name: string;
+  readonly namespace?: string | null;
   readonly role: string;
   readonly resolution: string;
   readonly range: ParserRangeV0;
@@ -128,6 +129,18 @@ interface ParserSassModuleUseFactV0 {
   readonly namespaceKind: string;
   readonly namespace: string | null;
   readonly range: ParserRangeV0;
+}
+
+interface ParserSassModuleForwardFactV0 {
+  readonly source: string;
+  readonly prefix: string;
+  readonly visibilityKind: "all" | "show" | "hide";
+  readonly visibilityMembers: readonly {
+    readonly name: string;
+    readonly symbolKind: "variable" | null;
+  }[];
+  readonly range: ParserRangeV0;
+  readonly ruleRange: ParserRangeV0;
 }
 
 interface ParserComposesEdgeFactV0 {
@@ -161,6 +174,7 @@ interface ParserCssModulesIntermediateV0 {
     readonly selectorSymbolFacts: readonly ParserSassSelectorSymbolFactV0[];
     readonly moduleUseEdges: readonly ParserSassModuleUseFactV0[];
     readonly moduleForwardSources: readonly string[];
+    readonly moduleForwardEdges?: readonly ParserSassModuleForwardFactV0[];
   };
   readonly composes: {
     readonly edges?: readonly ParserComposesEdgeFactV0[];
@@ -263,18 +277,20 @@ export function buildStyleDocumentWithOmenaParser(
       name: fact.name,
       context: customPropertyContext(fact),
     })),
-    intermediate.sass.selectorSymbolFacts.map((fact, index) => ({
-      id: `sass-symbol:${index}:${fact.selectorName}:${fact.name}`,
-      kind: "sassSymbol",
-      selectorName: fact.selectorName,
-      ...(syntax ? { syntax } : {}),
-      symbolKind: sassSymbolKind(fact.symbolKind),
-      name: fact.name,
-      role: sassSymbolRole(fact.role),
-      resolution: sassSymbolResolution(fact.resolution),
-      range: toRange(fact.range),
-      ruleRange: toRange(fact.range),
-    })),
+    intermediate.sass.selectorSymbolFacts
+      .filter((fact) => !fact.namespace)
+      .map((fact, index) => ({
+        id: `sass-symbol:${index}:${fact.selectorName}:${fact.name}`,
+        kind: "sassSymbol",
+        selectorName: fact.selectorName,
+        ...(syntax ? { syntax } : {}),
+        symbolKind: sassSymbolKind(fact.symbolKind),
+        name: fact.name,
+        role: sassSymbolRole(fact.role),
+        resolution: sassSymbolResolution(fact.resolution),
+        range: toRange(fact.range),
+        ruleRange: toRange(fact.range),
+      })),
     intermediate.sass.symbolDeclFacts.map((fact, index) => ({
       id: `sass-symbol-decl:${index}:${fact.name}`,
       kind: "sassSymbolDecl",
@@ -293,18 +309,49 @@ export function buildStyleDocumentWithOmenaParser(
       range: toRange(fact.range),
       ruleRange: toRange(fact.range),
     })),
-    [],
-    intermediate.sass.moduleForwardSources.map((source, index) => ({
-      id: `sass-module-forward:${index}:${source}`,
-      kind: "sassModuleForward",
-      source,
-      prefix: "",
-      visibilityKind: "all",
-      visibilityMembers: [],
-      range: zeroRange(),
-      ruleRange: zeroRange(),
-    })),
+    intermediate.sass.selectorSymbolFacts
+      .filter((fact): fact is ParserSassSelectorSymbolFactV0 & { readonly namespace: string } =>
+        Boolean(fact.namespace),
+      )
+      .map((fact, index) => ({
+        id: `sass-module-member-ref:${index}:${fact.selectorName}:${fact.namespace}.${fact.name}`,
+        kind: "sassModuleMemberRef",
+        selectorName: fact.selectorName,
+        namespace: fact.namespace,
+        symbolKind: sassSymbolKind(fact.symbolKind),
+        name: fact.name,
+        role: sassSymbolRole(fact.role),
+        range: toRange(fact.range),
+        ruleRange: toRange(fact.range),
+      })),
+    sassModuleForwardFacts(intermediate),
   );
+}
+
+function sassModuleForwardFacts(intermediate: ParserCssModulesIntermediateV0) {
+  if (intermediate.sass.moduleForwardEdges) {
+    return intermediate.sass.moduleForwardEdges.map((fact, index) => ({
+      id: `sass-module-forward:${index}:${fact.source}`,
+      kind: "sassModuleForward" as const,
+      source: fact.source,
+      prefix: fact.prefix,
+      visibilityKind: fact.visibilityKind,
+      visibilityMembers: [...fact.visibilityMembers],
+      range: toRange(fact.range),
+      ruleRange: toRange(fact.ruleRange),
+    }));
+  }
+
+  return intermediate.sass.moduleForwardSources.map((source, index) => ({
+    id: `sass-module-forward:${index}:${source}`,
+    kind: "sassModuleForward" as const,
+    source,
+    prefix: "",
+    visibilityKind: "all" as const,
+    visibilityMembers: [],
+    range: zeroRange(),
+    ruleRange: zeroRange(),
+  }));
 }
 
 function collectComposesByOwner(

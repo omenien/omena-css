@@ -22,6 +22,7 @@ export interface ParserSassSeedFactsV0 {
   readonly moduleUseSources: readonly string[];
   readonly moduleUseEdges: readonly ParserSassModuleUseFactV0[];
   readonly moduleForwardSources: readonly string[];
+  readonly moduleForwardEdges?: readonly unknown[];
   readonly moduleImportSources: readonly string[];
   readonly sameFileResolution: ParserSassSameFileResolutionFactsV0;
 }
