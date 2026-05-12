@@ -136,7 +136,7 @@
     "check:rust-omena-semantic-publish-readiness": "node --import tsx ./scripts/check-rust-omena-semantic-publish-readiness.ts",
     "check:rust-omena-semantic-git-consumer": "./scripts/check-rust-omena-semantic-git-consumer.sh",
     "check:rust-omena-semantic-split-boundary": "pnpm cme-check run rust/omena-semantic-boundary && pnpm cme-check run rust/omena-semantic-observation-harness && pnpm cme-check run rust/omena-semantic-publish-readiness && pnpm cme-check run rust/omena-semantic-git-consumer",
-    "check:rust-parser-scaffold": "cargo test --manifest-path rust/Cargo.toml -p engine-style-parser",
+    "check:rust-parser-scaffold": "cargo test --manifest-path rust/Cargo.toml -p omena-parser",
     "check:rust-parser-parity-lite": "node --import tsx ./scripts/check-rust-parser-parity-lite.ts",
     "check:rust-parser-css-modules-intermediate": "node --import tsx ./scripts/check-rust-parser-index-bridge.ts",
     "check:rust-parser-canonical-candidate": "node --import tsx ./scripts/check-rust-parser-canonical-candidate.ts",

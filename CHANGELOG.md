@@ -5,6 +5,7 @@
 ### Changed
 
 - **Parser-owned facts CLIs** - `omena-parser-style-facts` and `omena-parser-lex` now live in `omena-parser` as parser-owned binaries, moving the parser public lane off the query/runner-owned command surface.
+- **Parser scaffold gate ownership** - `check:rust-parser-scaffold` now validates `omena-parser` directly instead of the legacy `engine-style-parser` crate, making the parser lane start from the green-field parser track.
 - **Parser-owned selected-query facts output** - the packaged `engine-shadow-runner` compatibility commands now route parser facts and lexer summaries through `omena-parser` directly and advertise the parser-owned `omena-parser.style-facts` product.
 - **Bridge source-backed design tokens** - `omena-bridge` now exposes design-token workspace declarations directly from style source through the `omena-parser` semantic boundary, reducing the remaining legacy `Stylesheet` parser dependency surface.
 - **Query design-token bridge consumption** - `omena-query` now delegates workspace design-token declaration collection to `omena-bridge` instead of rebuilding parser facts locally in the semantic graph batch path.
