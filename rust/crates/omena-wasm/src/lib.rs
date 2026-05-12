@@ -4,10 +4,13 @@ use omena_query::{
     OmenaQueryConsumerBuildSummaryV0 as OmenaWasmBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaWasmCheckSummaryV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaWasmTargetTransformOptionsV0,
+    OmenaQueryTransformExecutionContextV0 as OmenaWasmTransformExecutionContextV0,
     OmenaQueryTransformPassSummaryV0 as OmenaWasmPassSummaryV0,
     conservative_omena_query_target_options, execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
+    execute_omena_query_consumer_build_style_source_with_context,
     list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
 };
 use serde::Serialize;
@@ -22,6 +25,20 @@ pub fn check_style_source(source: &str, path: &str) -> Result<JsValue, JsValue> 
 pub fn build_style_source(source: &str, path: &str, pass_ids: JsValue) -> Result<JsValue, JsValue> {
     let pass_ids = parse_pass_ids_value(pass_ids)?;
     to_js_value(&build_style_source_summary(source, path, &pass_ids))
+}
+
+#[wasm_bindgen(js_name = buildStyleSourceWithContext)]
+pub fn build_style_source_with_context(
+    source: &str,
+    path: &str,
+    pass_ids: JsValue,
+    context: JsValue,
+) -> Result<JsValue, JsValue> {
+    let pass_ids = parse_pass_ids_value(pass_ids)?;
+    let context = parse_context_value(context)?;
+    to_js_value(&build_style_source_with_context_summary(
+        source, path, &pass_ids, &context,
+    ))
 }
 
 #[wasm_bindgen(js_name = buildStyleSourceForTargetQuery)]
@@ -53,6 +70,25 @@ pub fn build_style_source_for_target_query_with_options(
     ))
 }
 
+#[wasm_bindgen(js_name = buildStyleSourceForTargetQueryWithContext)]
+pub fn build_style_source_for_target_query_with_context(
+    source: &str,
+    path: &str,
+    target_query: &str,
+    target_options: JsValue,
+    context: JsValue,
+) -> Result<JsValue, JsValue> {
+    let target_options = parse_target_options_value(target_options)?;
+    let context = parse_context_value(context)?;
+    to_js_value(&build_style_source_for_target_query_with_context_summary(
+        source,
+        path,
+        target_query,
+        target_options,
+        &context,
+    ))
+}
+
 #[wasm_bindgen(js_name = listTransformPasses)]
 pub fn list_transform_passes() -> Result<JsValue, JsValue> {
     to_js_value(&list_transform_pass_summaries())
@@ -70,6 +106,16 @@ pub fn build_style_source_summary(
 ) -> OmenaWasmBuildSummaryV0 {
     let path = effective_path(path);
     execute_omena_query_consumer_build_style_source(path, source, pass_ids)
+}
+
+pub fn build_style_source_with_context_summary(
+    source: &str,
+    path: &str,
+    pass_ids: &[String],
+    context: &OmenaWasmTransformExecutionContextV0,
+) -> OmenaWasmBuildSummaryV0 {
+    let path = effective_path(path);
+    execute_omena_query_consumer_build_style_source_with_context(path, source, pass_ids, context)
 }
 
 pub fn build_style_source_for_target_query_summary(
@@ -92,6 +138,23 @@ pub fn build_style_source_for_target_query_with_options_summary(
         path,
         source,
         target_query,
+        target_options,
+    )
+}
+
+pub fn build_style_source_for_target_query_with_context_summary(
+    source: &str,
+    path: &str,
+    target_query: &str,
+    target_options: OmenaWasmTargetTransformOptionsV0,
+    context: &OmenaWasmTransformExecutionContextV0,
+) -> OmenaWasmBuildSummaryV0 {
+    let path = effective_path(path);
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
+        path,
+        source,
+        target_query,
+        context,
         target_options,
     )
 }
@@ -122,6 +185,18 @@ fn parse_target_options_value(
     serde_wasm_bindgen::from_value(value).map_err(|error| {
         JsValue::from_str(&format!(
             "targetOptions must be an object with camelCase target transform option booleans: {error}"
+        ))
+    })
+}
+
+fn parse_context_value(value: JsValue) -> Result<OmenaWasmTransformExecutionContextV0, JsValue> {
+    if value.is_null() || value.is_undefined() {
+        return Ok(OmenaWasmTransformExecutionContextV0::default());
+    }
+
+    serde_wasm_bindgen::from_value(value).map_err(|error| {
+        JsValue::from_str(&format!(
+            "context must be a TransformExecutionContextV0-compatible object: {error}"
         ))
     })
 }
@@ -219,6 +294,38 @@ mod tests {
                 .iter()
                 .any(|pass_id| pass_id == "logical-to-physical")
         );
+    }
+
+    #[test]
+    fn builds_css_from_evaluator_context_for_browser_clients() {
+        let context = OmenaWasmTransformExecutionContextV0 {
+            scss_module_evaluation: Some(omena_query::OmenaQueryTransformModuleEvaluationV0 {
+                evaluator: "dart-sass-compatible".to_string(),
+                evaluated_css: ".card { color: red; }".to_string(),
+            }),
+            ..OmenaWasmTransformExecutionContextV0::default()
+        };
+        let summary = build_style_source_for_target_query_with_context_summary(
+            "$brand: red; .card { color: $brand; }",
+            "fixture.module.scss",
+            "ie 11",
+            OmenaWasmTargetTransformOptionsV0 {
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+            },
+            &context,
+        );
+
+        assert!(
+            summary
+                .execution
+                .executed_pass_ids
+                .contains(&"scss-module-evaluate")
+        );
+        assert!(summary.execution.output_css.contains("._card_0"));
     }
 
     #[test]

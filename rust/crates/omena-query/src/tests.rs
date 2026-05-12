@@ -10,6 +10,7 @@ use super::{
     ParserRangeV0, SelectedQueryAdapterCapabilitiesV0,
     execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
     execute_omena_query_transform_passes_from_source, list_omena_query_transform_pass_summaries,
     summarize_omena_query_boundary, summarize_omena_query_consumer_check_style_source,
@@ -36,6 +37,7 @@ use super::{
 };
 use crate::{
     OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
+    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformModuleEvaluationV0,
     default_omena_query_transform_print_options,
 };
 
@@ -615,6 +617,46 @@ fn exposes_consumer_build_facade_from_target_query_options() {
             .iter()
             .any(|pass_id| pass_id == "supports-static-eval")
     );
+}
+
+#[test]
+fn consumer_build_accepts_explicit_scss_evaluator_context() {
+    let context = OmenaQueryTransformExecutionContextV0 {
+        scss_module_evaluation: Some(OmenaQueryTransformModuleEvaluationV0 {
+            evaluator: "dart-sass-compatible".to_string(),
+            evaluated_css: ".button { color: red; }".to_string(),
+        }),
+        ..OmenaQueryTransformExecutionContextV0::default()
+    };
+    let summary =
+        execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
+            "Button.module.scss",
+            "$brand: red; .button { color: $brand; }",
+            "ie 11",
+            &context,
+            OmenaQueryTargetTransformOptionsV0 {
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+            },
+        );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(summary.execution.output_css.contains("._button_0"));
 }
 
 #[test]

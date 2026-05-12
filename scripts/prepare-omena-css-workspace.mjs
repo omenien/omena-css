@@ -466,8 +466,10 @@ crates/omena-wasm --target web\`, then import the generated module:
 import init, {
   checkStyleSource,
   buildStyleSource,
+  buildStyleSourceWithContext,
   buildStyleSourceForTargetQuery,
   buildStyleSourceForTargetQueryWithOptions,
+  buildStyleSourceForTargetQueryWithContext,
 } from "./pkg/omena_wasm.js";
 
 await init();
@@ -486,6 +488,18 @@ const legacyBuiltWithOptions = buildStyleSourceForTargetQueryWithOptions(
   "ie 11",
   { allowLogicalToPhysical: true },
 );
+const evaluatedScss = buildStyleSourceForTargetQueryWithContext(
+  "$brand: red; .card { color: $brand; }",
+  "demo.module.scss",
+  "ie 11",
+  null,
+  {
+    scssModuleEvaluation: {
+      evaluator: "dart-sass-compatible",
+      evaluatedCss: ".card { color: red; }",
+    },
+  },
+);
 \`\`\`
 
 ## Use the Node Native Binding Substrate
@@ -499,8 +513,10 @@ export this shape:
 import {
   checkStyleSourceJson,
   buildStyleSourceJson,
+  buildStyleSourceWithContextJson,
   buildStyleSourceForTargetQueryJson,
   buildStyleSourceForTargetQueryWithOptionsJson,
+  buildStyleSourceForTargetQueryWithContextJson,
 } from "omena-napi";
 
 const facts = JSON.parse(
@@ -524,6 +540,20 @@ const legacyBuiltWithOptions = JSON.parse(
     "demo.css",
     "ie 11",
     JSON.stringify({ allowLogicalToPhysical: true }),
+  ),
+);
+const evaluatedScss = JSON.parse(
+  buildStyleSourceForTargetQueryWithContextJson(
+    "$brand: red; .card { color: $brand; }",
+    "demo.module.scss",
+    "ie 11",
+    "{}",
+    JSON.stringify({
+      scssModuleEvaluation: {
+        evaluator: "dart-sass-compatible",
+        evaluatedCss: ".card { color: red; }",
+      },
+    }),
   ),
 );
 \`\`\`
@@ -606,6 +636,8 @@ Primary consumers:
   from a Browserslist query or named target profile.
 - \`omena build <file> --target-query "ie 11" --allow-logical-to-physical\`
   opts into compatibility lowerings that are disabled by default.
+- \`omena build <file> --context-json context.json\` accepts explicit evaluator
+  and provenance context, including dart-sass-compatible SCSS output.
 - \`omena passes\` lists accepted transform pass ids.
 
 ## Wasm
@@ -615,10 +647,15 @@ Primary consumers:
 
 - \`checkStyleSource(source, path)\` reports query-owned parser facts.
 - \`buildStyleSource(source, path, passIds)\` runs conservative transform passes.
+- \`buildStyleSourceWithContext(source, path, passIds, context)\` accepts
+  explicit evaluator/provenance context.
 - \`buildStyleSourceForTargetQuery(source, path, targetQuery)\` plans
   target-sensitive passes from a Browserslist query or named target profile.
 - \`buildStyleSourceForTargetQueryWithOptions(source, path, targetQuery,
   targetOptions)\` accepts explicit target transform opt-ins.
+- \`buildStyleSourceForTargetQueryWithContext(source, path, targetQuery,
+  targetOptions, context)\` combines target planning with explicit evaluator
+  context.
 - \`listTransformPasses()\` lists accepted transform pass ids.
 
 ## Node Native Binding
@@ -628,10 +665,15 @@ Primary consumers:
 - \`checkStyleSourceJson(source, path)\` reports query-owned parser facts as JSON.
 - \`buildStyleSourceJson(source, path, passIds)\` runs conservative transform
   passes and returns JSON.
+- \`buildStyleSourceWithContextJson(source, path, passIds, contextJson)\`
+  accepts explicit evaluator/provenance context and returns JSON.
 - \`buildStyleSourceForTargetQueryJson(source, path, targetQuery)\` plans
   target-sensitive passes from a Browserslist query or named target profile.
 - \`buildStyleSourceForTargetQueryWithOptionsJson(source, path, targetQuery,
   targetOptionsJson)\` accepts explicit target transform opt-ins.
+- \`buildStyleSourceForTargetQueryWithContextJson(source, path, targetQuery,
+  targetOptionsJson, contextJson)\` combines target planning with explicit
+  evaluator context.
 - \`listTransformPassesJson()\` lists accepted transform pass ids as JSON.
 `,
   );
