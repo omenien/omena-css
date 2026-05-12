@@ -5,9 +5,10 @@
 //! DAG-respecting execution plan for downstream transform crates.
 
 use omena_cascade::{
-    BoxLonghandInputV0, CascadeValue, CustomPropertyEnv, StaticSupportsAssumptionV0,
-    StaticSupportsEvalVerdictV0, evaluate_static_supports_condition,
-    prove_box_shorthand_combination, substitute_custom_properties,
+    BoxLonghandInputV0, CascadeValue, CustomPropertyEnv, LayerFlattenInputV0, ScopeFlattenInputV0,
+    StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, evaluate_static_supports_condition,
+    prove_box_shorthand_combination, prove_layer_flatten_candidate, prove_scope_flatten_candidate,
+    substitute_custom_properties,
 };
 use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
@@ -559,6 +560,51 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     detail: "unwrapped simple single-depth nested ordinary rules",
                 }
             }
+            Some(TransformPassKind::ScopeFlatten) => {
+                let (next_css, mutation_count) = flatten_css_scopes(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "flattened only @scope candidates accepted by the cascade scope-flatten proof",
+                }
+            }
+            Some(TransformPassKind::LayerFlatten) if context.closed_style_world => {
+                let (next_css, mutation_count) = flatten_css_layers(&output_css, dialect, true);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "flattened only @layer candidates accepted by the closed-bundle cascade proof",
+                }
+            }
+            Some(TransformPassKind::LayerFlatten) => TransformPassExecutionOutcomeV0 {
+                pass_id,
+                status: TransformPassRuntimeStatus::PlannedOnly,
+                input_byte_len,
+                output_byte_len: output_css.len(),
+                mutation_count: 0,
+                provenance_preserved: true,
+                detail: "requires an explicit closed-style-world bundle witness before mutation",
+            },
             Some(TransformPassKind::SupportsStaticEval) => {
                 let (next_css, mutation_count) =
                     evaluate_static_supports_rules(&output_css, dialect);
@@ -909,6 +955,8 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::ColorFunctionLowering.id(),
         TransformPassKind::LogicalToPhysical.id(),
         TransformPassKind::NestingUnwrap.id(),
+        TransformPassKind::ScopeFlatten.id(),
+        TransformPassKind::LayerFlatten.id(),
         TransformPassKind::SupportsStaticEval.id(),
         TransformPassKind::MediaStaticEval.id(),
         TransformPassKind::DeadMediaBranchRemoval.id(),
@@ -1114,6 +1162,14 @@ fn lower_css_logical_to_physical(source: &str, dialect: StyleDialect) -> (String
 
 fn unwrap_css_nesting(source: &str, dialect: StyleDialect) -> (String, usize) {
     unwrap_css_nesting_with_lexer(source, dialect)
+}
+
+fn flatten_css_scopes(source: &str, dialect: StyleDialect) -> (String, usize) {
+    flatten_css_scopes_with_lexer(source, dialect)
+}
+
+fn flatten_css_layers(source: &str, dialect: StyleDialect, closed_bundle: bool) -> (String, usize) {
+    flatten_css_layers_with_lexer(source, dialect, closed_bundle)
 }
 
 fn evaluate_static_supports_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -1626,6 +1682,211 @@ fn expand_nested_selector(parent_selector: &str, nested_selector: &str) -> Optio
     } else {
         Some(format!("{parent_selector} {nested_selector}"))
     }
+}
+
+fn flatten_css_scopes_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let top_level_scope_count = count_top_level_at_rules(tokens, "@scope");
+    let competing_unscoped_rule_count =
+        collect_top_level_ordinary_rule_slices(source, tokens).len();
+    let mut replacements = Vec::new();
+    let mut depth = 0usize;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@scope") =>
+            {
+                let Some((block_start_index, block_end_index)) =
+                    at_rule_block_indexes(tokens, index)
+                else {
+                    index += 1;
+                    continue;
+                };
+                let prelude = source
+                    [token_end(&tokens[index])..token_start(&tokens[block_start_index])]
+                    .trim();
+                let Some((root_selector, limit_selector)) = parse_scope_flatten_prelude(prelude)
+                else {
+                    index = block_end_index + 1;
+                    continue;
+                };
+                let scoped_rule_count = count_direct_ordinary_rules_in_block(
+                    tokens,
+                    block_start_index,
+                    block_end_index,
+                );
+                let proof = prove_scope_flatten_candidate(ScopeFlattenInputV0 {
+                    root_selector,
+                    limit_selector,
+                    scoped_rule_count,
+                    peer_scope_count: top_level_scope_count.saturating_sub(1),
+                    competing_unscoped_rule_count,
+                    inside_layer: false,
+                });
+                if proof.accepted {
+                    let replacement = source[token_end(&tokens[block_start_index])
+                        ..token_start(&tokens[block_end_index])]
+                        .trim()
+                        .to_string();
+                    replacements.push((
+                        token_start(&tokens[index]),
+                        token_end(&tokens[block_end_index]),
+                        replacement,
+                    ));
+                }
+                index = block_end_index + 1;
+                continue;
+            }
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+
+    replace_source_ranges(source, &replacements)
+}
+
+fn flatten_css_layers_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+    closed_bundle: bool,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let top_level_layer_count = count_top_level_at_rules(tokens, "@layer");
+    let unlayered_rule_count = collect_top_level_ordinary_rule_slices(source, tokens).len();
+    let mut replacements = Vec::new();
+    let mut depth = 0usize;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@layer") =>
+            {
+                let Some((block_start_index, block_end_index)) =
+                    at_rule_block_indexes(tokens, index)
+                else {
+                    index += 1;
+                    continue;
+                };
+                let prelude = source
+                    [token_end(&tokens[index])..token_start(&tokens[block_start_index])]
+                    .trim();
+                let layer_name = parse_single_layer_name(prelude);
+                let important_declaration_count = tokens[block_start_index + 1..block_end_index]
+                    .iter()
+                    .filter(|token| token.kind == SyntaxKind::Important)
+                    .count();
+                let proof = prove_layer_flatten_candidate(LayerFlattenInputV0 {
+                    layer_name,
+                    layer_rule_count: count_direct_ordinary_rules_in_block(
+                        tokens,
+                        block_start_index,
+                        block_end_index,
+                    ),
+                    peer_layer_count: top_level_layer_count.saturating_sub(1),
+                    unlayered_rule_count,
+                    important_declaration_count,
+                    closed_bundle,
+                });
+                if proof.accepted {
+                    let replacement = source[token_end(&tokens[block_start_index])
+                        ..token_start(&tokens[block_end_index])]
+                        .trim()
+                        .to_string();
+                    replacements.push((
+                        token_start(&tokens[index]),
+                        token_end(&tokens[block_end_index]),
+                        replacement,
+                    ));
+                }
+                index = block_end_index + 1;
+                continue;
+            }
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+
+    replace_source_ranges(source, &replacements)
+}
+
+fn count_top_level_at_rules(tokens: &[omena_parser::LexedToken], at_rule: &str) -> usize {
+    let mut count = 0;
+    let mut depth = 0usize;
+    for token in tokens {
+        match token.kind {
+            SyntaxKind::AtKeyword if depth == 0 && token.text.eq_ignore_ascii_case(at_rule) => {
+                count += 1;
+            }
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    count
+}
+
+fn count_direct_ordinary_rules_in_block(
+    tokens: &[omena_parser::LexedToken],
+    block_start_index: usize,
+    block_end_index: usize,
+) -> usize {
+    let mut count = 0;
+    let mut depth = 0usize;
+    let mut index = block_start_index + 1;
+    while index < block_end_index {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => {
+                if depth == 0
+                    && is_ordinary_top_level_rule_prelude(tokens, block_start_index + 1, index)
+                {
+                    count += 1;
+                }
+                depth += 1;
+            }
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+    count
+}
+
+fn parse_scope_flatten_prelude(prelude: &str) -> Option<(String, Option<String>)> {
+    let prelude = prelude.trim();
+    let (root, limit) = match prelude.split_once(" to ") {
+        Some((root, limit)) => (root, Some(limit)),
+        None => (prelude, None),
+    };
+    let root = strip_wrapping_parentheses(root.trim())?.trim().to_string();
+    let limit = match limit {
+        Some(limit) => Some(strip_wrapping_parentheses(limit.trim())?.trim().to_string()),
+        None => None,
+    };
+    Some((root, limit))
+}
+
+fn strip_wrapping_parentheses(text: &str) -> Option<&str> {
+    let text = text.trim();
+    text.strip_prefix('(')
+        .and_then(|value| value.strip_suffix(')'))
+        .or(Some(text))
+}
+
+fn parse_single_layer_name(prelude: &str) -> Option<String> {
+    let prelude = prelude.trim();
+    if prelude.is_empty() || prelude.contains(',') || !css_identifier_text_is_plain(prelude) {
+        return None;
+    }
+    Some(prelude.to_string())
 }
 
 fn evaluate_static_supports_rules_with_lexer(
@@ -2422,6 +2683,34 @@ fn remove_source_ranges(source: &str, ranges: &[(usize, usize)]) -> (String, usi
     }
 
     (output, removed_count)
+}
+
+fn replace_source_ranges(source: &str, replacements: &[(usize, usize, String)]) -> (String, usize) {
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut replacements = replacements.to_vec();
+    replacements.sort_by_key(|(start, _, _)| *start);
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    let mut replacement_count = 0;
+    for (start, end, replacement) in &replacements {
+        if *start < cursor {
+            continue;
+        }
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+        replacement_count += 1;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacement_count)
 }
 
 fn substitute_static_css_custom_properties_with_lexer(
@@ -4606,6 +4895,8 @@ mod tests {
                 "p18-color-function-lowering",
                 "p19-logical-to-physical",
                 "p20-nesting-unwrap",
+                "p21-scope-flatten",
+                "p22-layer-flatten",
                 "p23-supports-static-eval",
                 "p24-media-static-eval",
                 "p37-dead-media-branch-removal",
@@ -5106,6 +5397,57 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p20-nesting-unwrap", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_flattens_only_root_scope_proof_candidates() {
+        let source = r#"@scope (:root) { .card { color: red; } } @scope (.theme) { .title { color: blue; } }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[TransformPassKind::ScopeFlatten, TransformPassKind::PrintCss],
+        );
+
+        assert_eq!(execution.mutation_count, 0);
+        assert_eq!(execution.output_css, source);
+
+        let accepted = execute_transform_passes_on_source(
+            r#"@scope (:root) { .card { color: red; } }"#,
+            &[TransformPassKind::ScopeFlatten, TransformPassKind::PrintCss],
+        );
+        assert_eq!(accepted.mutation_count, 1);
+        assert_eq!(accepted.output_css, r#".card { color: red; }"#);
+        assert_eq!(
+            accepted.executed_pass_ids,
+            vec!["p21-scope-flatten", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_flattens_layers_only_with_closed_bundle_context() {
+        let source = r#"@layer theme { .card { color: red; } }"#;
+        let planned = execute_transform_passes_on_source(
+            source,
+            &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],
+        );
+        assert_eq!(planned.output_css, source);
+        assert_eq!(planned.planned_only_pass_ids, vec!["p22-layer-flatten"]);
+
+        let context = TransformExecutionContextV0 {
+            closed_style_world: true,
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[TransformPassKind::LayerFlatten, TransformPassKind::PrintCss],
+            &context,
+        );
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(execution.output_css, r#".card { color: red; }"#);
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p22-layer-flatten", "p40-print-css"]
         );
     }
 

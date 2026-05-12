@@ -32,7 +32,11 @@ lowering currently supports whole-value static `color(srgb ...)` declarations.
 P19 logical-to-physical lowering requires static horizontal `direction` context
 inside the same rule before rewriting inline logical properties. P20 nesting
 unwrap is limited to simple single-depth ordinary nested rules without comma
-selectors, at-rules, comments, or deeper nested blocks. P24 media static eval
+selectors, at-rules, comments, or deeper nested blocks. P21 scope flatten only
+unwraps `@scope (:root)` candidates accepted by `omena-cascade` with no limit,
+peer scopes, unscoped competition, or layer context. P22 layer flatten is
+closed-bundle gated and only unwraps single non-important layer candidates
+accepted by the layer flatten proof. P24 media static eval
 only unwraps literal `@media all` and removes literal `@media not all`. P23
 supports static eval consumes `omena-cascade` supports witnesses and currently
 handles simple declaration feature queries under the modern-browser assumption.
