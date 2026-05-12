@@ -7,10 +7,10 @@ mutation engines will land behind this registry so transform execution cannot
 drift from the semantic/cascade proof obligations.
 
 The first execution runtime surface is intentionally conservative: it executes
-lexer-backed safe commodity mutations for P01 through P20, P23-P25, P31-P32,
-P34, and P37-P38, and observes the P40 emission boundary. P34 keyframe tree
-shaking is context-gated and mutates only under an explicit closed-style-world
-reachability context. P04 unit normalization is limited to zero length dimensions
+lexer-backed safe commodity mutations for P01 through P20, P23-P25, P31-P38,
+and observes the P40 emission boundary. P33-P36 tree shaking is context-gated
+and mutates only under an explicit closed-style-world reachability context.
+P04 unit normalization is limited to zero length dimensions
 inside declaration properties that accept unitless zero; broader unit/value
 rewrites remain planned until property/value semantics can prove them legal. P08
 selector compression is limited to specificity-preserving `:is()` unwrapping and
@@ -42,6 +42,10 @@ addition/subtraction. P32 custom-property static resolve consumes
 from unique literal `:root` custom properties. P31 value resolution only resolves
 unique local literal CSS Modules `@value` declarations and whole-value
 references; imports, aliases, strings, duplicates, and composite values remain
-planned until the semantic graph can prove the full workspace closure. P37-P38
-reuse the same static media/supports witness evaluators as P24/P23 under their
-semantic-aware dead-branch pass surfaces.
+planned until the semantic graph can prove the full workspace closure. P33
+removes only simple class-rule selector lists whose classes are absent from the
+reachability context. P34 removes unreferenced top-level keyframes. P35 removes
+unreferenced local literal `@value` declarations. P36 removes unreferenced
+custom-property declarations. P37-P38 reuse the same static media/supports
+witness evaluators as P24/P23 under their semantic-aware dead-branch pass
+surfaces.

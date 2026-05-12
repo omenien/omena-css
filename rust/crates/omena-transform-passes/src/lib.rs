@@ -104,7 +104,10 @@ pub struct TransformExecutionSummaryV0 {
 #[serde(rename_all = "camelCase")]
 pub struct TransformExecutionContextV0 {
     pub closed_style_world: bool,
+    pub reachable_class_names: Vec<String>,
     pub reachable_keyframe_names: Vec<String>,
+    pub reachable_value_names: Vec<String>,
+    pub reachable_custom_property_names: Vec<String>,
 }
 
 pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySummaryV0 {
@@ -630,6 +633,37 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     detail: "removed dead @supports branches through the static cascade witness evaluator",
                 }
             }
+            Some(TransformPassKind::TreeShakeClass) if context.closed_style_world => {
+                let (next_css, mutation_count) = tree_shake_css_class_rules(
+                    &output_css,
+                    dialect,
+                    &context.reachable_class_names,
+                );
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "removed unreachable simple class rules under an explicit closed-style-world reachability context",
+                }
+            }
+            Some(TransformPassKind::TreeShakeClass) => TransformPassExecutionOutcomeV0 {
+                pass_id,
+                status: TransformPassRuntimeStatus::PlannedOnly,
+                input_byte_len,
+                output_byte_len: output_css.len(),
+                mutation_count: 0,
+                provenance_preserved: true,
+                detail: "requires an explicit closed-style-world reachability context before mutation",
+            },
             Some(TransformPassKind::TreeShakeKeyframes) if context.closed_style_world => {
                 let (next_css, mutation_count) = tree_shake_css_keyframes(
                     &output_css,
@@ -653,6 +687,68 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 }
             }
             Some(TransformPassKind::TreeShakeKeyframes) => TransformPassExecutionOutcomeV0 {
+                pass_id,
+                status: TransformPassRuntimeStatus::PlannedOnly,
+                input_byte_len,
+                output_byte_len: output_css.len(),
+                mutation_count: 0,
+                provenance_preserved: true,
+                detail: "requires an explicit closed-style-world reachability context before mutation",
+            },
+            Some(TransformPassKind::TreeShakeValue) if context.closed_style_world => {
+                let (next_css, mutation_count) = tree_shake_css_modules_values(
+                    &output_css,
+                    dialect,
+                    &context.reachable_value_names,
+                );
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "removed unreachable local literal CSS Modules @value declarations under an explicit closed-style-world reachability context",
+                }
+            }
+            Some(TransformPassKind::TreeShakeValue) => TransformPassExecutionOutcomeV0 {
+                pass_id,
+                status: TransformPassRuntimeStatus::PlannedOnly,
+                input_byte_len,
+                output_byte_len: output_css.len(),
+                mutation_count: 0,
+                provenance_preserved: true,
+                detail: "requires an explicit closed-style-world reachability context before mutation",
+            },
+            Some(TransformPassKind::TreeShakeCustomProperty) if context.closed_style_world => {
+                let (next_css, mutation_count) = tree_shake_css_custom_properties(
+                    &output_css,
+                    dialect,
+                    &context.reachable_custom_property_names,
+                );
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "removed unreachable custom-property declarations under an explicit closed-style-world reachability context",
+                }
+            }
+            Some(TransformPassKind::TreeShakeCustomProperty) => TransformPassExecutionOutcomeV0 {
                 pass_id,
                 status: TransformPassRuntimeStatus::PlannedOnly,
                 input_byte_len,
@@ -819,7 +915,10 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::DeadSupportsBranchRemoval.id(),
         TransformPassKind::ValueResolution.id(),
         TransformPassKind::StaticVarSubstitution.id(),
+        TransformPassKind::TreeShakeClass.id(),
         TransformPassKind::TreeShakeKeyframes.id(),
+        TransformPassKind::TreeShakeValue.id(),
+        TransformPassKind::TreeShakeCustomProperty.id(),
         TransformPassKind::CalcReduction.id(),
         TransformPassKind::PrintCss.id(),
     ]
@@ -1029,12 +1128,36 @@ fn resolve_static_css_modules_values(source: &str, dialect: StyleDialect) -> (St
     resolve_static_css_modules_values_with_lexer(source, dialect)
 }
 
+fn tree_shake_css_class_rules(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_class_names: &[String],
+) -> (String, usize) {
+    tree_shake_css_class_rules_with_lexer(source, dialect, reachable_class_names)
+}
+
 fn tree_shake_css_keyframes(
     source: &str,
     dialect: StyleDialect,
     reachable_keyframe_names: &[String],
 ) -> (String, usize) {
     tree_shake_css_keyframes_with_lexer(source, dialect, reachable_keyframe_names)
+}
+
+fn tree_shake_css_modules_values(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_value_names: &[String],
+) -> (String, usize) {
+    tree_shake_css_modules_values_with_lexer(source, dialect, reachable_value_names)
+}
+
+fn tree_shake_css_custom_properties(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_custom_property_names: &[String],
+) -> (String, usize) {
+    tree_shake_css_custom_properties_with_lexer(source, dialect, reachable_custom_property_names)
 }
 
 fn substitute_static_css_custom_properties(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -1866,6 +1989,65 @@ fn css_modules_value_unit_is_static(unit: &str) -> bool {
     )
 }
 
+fn tree_shake_css_class_rules_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_class_names: &[String],
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let ranges = rules
+        .iter()
+        .filter(|rule| {
+            selector_list_is_simple_unreachable_class_rule(&rule.selector, reachable_class_names)
+        })
+        .map(|rule| (rule.start, rule.end))
+        .collect::<Vec<_>>();
+
+    remove_source_ranges(source, &ranges)
+}
+
+fn selector_list_is_simple_unreachable_class_rule(
+    selector: &str,
+    reachable_class_names: &[String],
+) -> bool {
+    let Some(branches) = split_top_level_value_arguments(selector) else {
+        return false;
+    };
+    !branches.is_empty()
+        && branches.iter().all(|branch| {
+            let Some(class_name) = simple_class_selector_name(branch) else {
+                return false;
+            };
+            !class_name_is_reachable(&class_name, reachable_class_names)
+        })
+}
+
+fn simple_class_selector_name(selector: &str) -> Option<String> {
+    let name = selector.trim().strip_prefix('.')?;
+    if name.is_empty() || !css_identifier_text_is_plain(name) {
+        return None;
+    }
+    Some(name.to_string())
+}
+
+fn class_name_is_reachable(class_name: &str, reachable_class_names: &[String]) -> bool {
+    reachable_class_names
+        .iter()
+        .filter_map(|name| normalize_reachable_class_name(name))
+        .any(|name| name == class_name)
+}
+
+fn normalize_reachable_class_name(name: &str) -> Option<&str> {
+    let name = name.trim();
+    let name = name.strip_prefix('.').unwrap_or(name);
+    if name.is_empty() {
+        return None;
+    }
+    Some(name)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct KeyframesRuleSlice {
     name: String,
@@ -1897,23 +2079,7 @@ fn tree_shake_css_keyframes_with_lexer(
         .filter(|keyframe| !referenced_names.iter().any(|name| name == &keyframe.name))
         .map(|keyframe| (keyframe.start, keyframe.end))
         .collect::<Vec<_>>();
-    if ranges.is_empty() {
-        return (source.to_string(), 0);
-    }
-
-    let mut output = String::with_capacity(source.len());
-    let mut cursor = 0;
-    for (start, end) in &ranges {
-        if *start > cursor {
-            output.push_str(&source[cursor..*start]);
-        }
-        cursor = *end;
-    }
-    if cursor < source.len() {
-        output.push_str(&source[cursor..]);
-    }
-
-    (output, ranges.len())
+    remove_source_ranges(source, &ranges)
 }
 
 fn collect_top_level_keyframes_rules(
@@ -2061,6 +2227,201 @@ fn push_unique_string(values: &mut Vec<String>, value: String) {
     if !values.iter().any(|existing| existing == &value) {
         values.push(value);
     }
+}
+
+fn tree_shake_css_modules_values_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_value_names: &[String],
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let definitions = collect_static_local_css_modules_value_definitions(tokens);
+    if definitions.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut referenced_names = reachable_value_names.to_vec();
+    let definition_names = definitions
+        .iter()
+        .map(|definition| definition.name.clone())
+        .collect::<Vec<_>>();
+
+    for definition in &definitions {
+        if definition_names
+            .iter()
+            .any(|name| name == &definition.value)
+        {
+            push_unique_string(&mut referenced_names, definition.value.clone());
+        }
+    }
+
+    let mut index = 0;
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
+                if definition_names
+                    .iter()
+                    .any(|name| name == &declaration.value)
+                {
+                    push_unique_string(&mut referenced_names, declaration.value);
+                }
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    let ranges = definitions
+        .iter()
+        .filter(|definition| {
+            is_static_css_modules_value_literal(&definition.value)
+                && definitions
+                    .iter()
+                    .filter(|candidate| candidate.name == definition.name)
+                    .count()
+                    == 1
+                && !referenced_names.iter().any(|name| name == &definition.name)
+        })
+        .map(|definition| (definition.start, definition.end))
+        .collect::<Vec<_>>();
+
+    remove_source_ranges(source, &ranges)
+}
+
+fn tree_shake_css_custom_properties_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_custom_property_names: &[String],
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let Some(mut referenced_names) = collect_referenced_custom_property_names(tokens) else {
+        return (source.to_string(), 0);
+    };
+    for name in reachable_custom_property_names {
+        if let Some(name) = normalize_custom_property_name(name) {
+            push_unique_string(&mut referenced_names, name.to_string());
+        }
+    }
+
+    let mut ranges = Vec::new();
+    let mut index = 0;
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
+                if declaration.property.starts_with("--")
+                    && !referenced_names
+                        .iter()
+                        .any(|name| name == &declaration.property)
+                {
+                    ranges.push((declaration.start, declaration.end));
+                }
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    remove_source_ranges(source, &ranges)
+}
+
+fn collect_referenced_custom_property_names(
+    tokens: &[omena_parser::LexedToken],
+) -> Option<Vec<String>> {
+    let mut names = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::LeftBrace {
+            continue;
+        }
+        let Some(close_index) = matching_right_brace_index(tokens, index) else {
+            continue;
+        };
+        for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
+            for name in collect_custom_property_references_in_value(&declaration.value)? {
+                push_unique_string(&mut names, name);
+            }
+        }
+    }
+    Some(names)
+}
+
+fn collect_custom_property_references_in_value(value: &str) -> Option<Vec<String>> {
+    let mut names = Vec::new();
+    let mut search_start = 0;
+    while let Some(relative_index) = value[search_start..].find("var(") {
+        let mut index = search_start + relative_index + "var(".len();
+        while matches!(
+            value.as_bytes().get(index),
+            Some(b' ' | b'\n' | b'\r' | b'\t')
+        ) {
+            index += 1;
+        }
+        let name_start = index;
+        if !value[name_start..].starts_with("--") {
+            return None;
+        }
+        index += 2;
+        while let Some(ch) = value[index..].chars().next() {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') {
+                index += ch.len_utf8();
+            } else {
+                break;
+            }
+        }
+        if index == name_start + 2 || !value[index..].contains(')') {
+            return None;
+        }
+        push_unique_string(&mut names, value[name_start..index].to_string());
+        search_start = index;
+    }
+    Some(names)
+}
+
+fn normalize_custom_property_name(name: &str) -> Option<&str> {
+    let name = name.trim();
+    if name.starts_with("--") && name.len() > 2 {
+        return Some(name);
+    }
+    None
+}
+
+fn css_identifier_text_is_plain(text: &str) -> bool {
+    text.chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+}
+
+fn remove_source_ranges(source: &str, ranges: &[(usize, usize)]) -> (String, usize) {
+    if ranges.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut ranges = ranges.to_vec();
+    ranges.sort_by_key(|(start, _)| *start);
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    let mut removed_count = 0;
+    for (start, end) in &ranges {
+        if *start < cursor {
+            continue;
+        }
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        cursor = *end;
+        removed_count += 1;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, removed_count)
 }
 
 fn substitute_static_css_custom_properties_with_lexer(
@@ -4251,7 +4612,10 @@ mod tests {
                 "p38-dead-supports-branch-removal",
                 "p31-value-resolution",
                 "p32-custom-property-static-resolve",
+                "p33-tree-shake-class",
                 "p34-tree-shake-keyframes",
+                "p35-tree-shake-value",
+                "p36-tree-shake-custom-property",
                 "p25-calc-reduction",
                 "p40-print-css"
             ]
@@ -4908,6 +5272,7 @@ mod tests {
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             reachable_keyframe_names: vec!["spin".to_string()],
+            ..TransformExecutionContextV0::default()
         };
         let execution = execute_transform_passes_on_source_with_dialect_and_context(
             source,
@@ -4927,6 +5292,92 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p34-tree-shake-keyframes", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_tree_shakes_simple_class_rules_with_closed_world_context() {
+        let source = r#".used { color: red; } .dead { color: blue; } .complex:hover { color: green; } .also-dead, .other-dead { color: black; }"#;
+        let context = TransformExecutionContextV0 {
+            closed_style_world: true,
+            reachable_class_names: vec!["used".to_string()],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::TreeShakeClass,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#".used { color: red; }  .complex:hover { color: green; } "#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p33-tree-shake-class", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_tree_shakes_local_values_with_closed_world_context() {
+        let source = r#"@value used: red; @value dead: blue; @value alias: used; .btn { color: used; background: alias; }"#;
+        let context = TransformExecutionContextV0 {
+            closed_style_world: true,
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::TreeShakeValue,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#"@value used: red;  @value alias: used; .btn { color: used; background: alias; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p35-tree-shake-value", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_tree_shakes_custom_properties_with_closed_world_context() {
+        let source = r#":root { --used: red; --dead: blue; color: var(--used); } .btn { color: var(--external); }"#;
+        let context = TransformExecutionContextV0 {
+            closed_style_world: true,
+            reachable_custom_property_names: vec!["--external".to_string()],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::TreeShakeCustomProperty,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#":root { --used: red;  color: var(--used); } .btn { color: var(--external); }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p36-tree-shake-custom-property", "p40-print-css"]
         );
     }
 
