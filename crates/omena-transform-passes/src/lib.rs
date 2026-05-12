@@ -699,7 +699,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "unwrapped simple single-depth nested ordinary rules",
+                    detail: "unwrapped nested ordinary rules and conditional group rules",
                 }
             }
             Some(TransformPassKind::ScopeFlatten) => {
@@ -2492,16 +2492,35 @@ fn unwrap_nested_rule_body(
     }
 
     for nested_rule in nested_rules {
-        let selector = expand_nested_selector(parent_selector, &nested_rule.selector)?;
-        let nested_rule_texts = unwrap_nested_rule_body(
-            source,
-            tokens,
-            &selector,
-            nested_rule.block_start_index,
-            nested_rule.block_end_index,
-            false,
-        )?;
-        rule_texts.extend(nested_rule_texts);
+        match nested_rule.kind {
+            NestedRuleKind::Style => {
+                let selector = expand_nested_selector(parent_selector, &nested_rule.selector)?;
+                let nested_rule_texts = unwrap_nested_rule_body(
+                    source,
+                    tokens,
+                    &selector,
+                    nested_rule.block_start_index,
+                    nested_rule.block_end_index,
+                    false,
+                )?;
+                rule_texts.extend(nested_rule_texts);
+            }
+            NestedRuleKind::ConditionalGroup => {
+                let nested_rule_texts = unwrap_nested_rule_body(
+                    source,
+                    tokens,
+                    parent_selector,
+                    nested_rule.block_start_index,
+                    nested_rule.block_end_index,
+                    false,
+                )?;
+                rule_texts.push(format!(
+                    "{} {{ {} }}",
+                    nested_rule.selector,
+                    nested_rule_texts.join(" ")
+                ));
+            }
+        }
     }
 
     if rule_texts.is_empty() {
@@ -2512,10 +2531,17 @@ fn unwrap_nested_rule_body(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+enum NestedRuleKind {
+    Style,
+    ConditionalGroup,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct NestedRuleSlice {
     selector: String,
     block_start_index: usize,
     block_end_index: usize,
+    kind: NestedRuleKind,
 }
 
 fn collect_direct_nested_rule_slices(
@@ -2538,10 +2564,18 @@ fn collect_direct_nested_rule_slices(
             let selector = source[selector_start..token_start(&tokens[index])]
                 .trim()
                 .to_string();
-            if selector.is_empty() || selector.starts_with('@') {
+            if selector.is_empty() {
                 return None;
             }
-            split_css_selector_list(&selector)?;
+            let kind = if selector.starts_with('@') {
+                if !is_supported_nested_conditional_group_rule(&selector) {
+                    return None;
+                }
+                NestedRuleKind::ConditionalGroup
+            } else {
+                split_css_selector_list(&selector)?;
+                NestedRuleKind::Style
+            };
             if source[token_end(&tokens[index])..token_start(&tokens[nested_close_index])]
                 .trim()
                 .is_empty()
@@ -2552,6 +2586,7 @@ fn collect_direct_nested_rule_slices(
                 selector,
                 block_start_index: index,
                 block_end_index: nested_close_index,
+                kind,
             });
             index = nested_close_index + 1;
             segment_start_index = index;
@@ -2564,6 +2599,13 @@ fn collect_direct_nested_rule_slices(
     }
 
     Some(nested_rules)
+}
+
+fn is_supported_nested_conditional_group_rule(selector: &str) -> bool {
+    let selector = selector.trim_start().to_ascii_lowercase();
+    ["@media", "@supports", "@container", "@layer"]
+        .iter()
+        .any(|prefix| selector.starts_with(prefix))
 }
 
 fn expand_nested_selector(parent_selector: &str, nested_selector: &str) -> Option<String> {
@@ -8415,6 +8457,24 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".card { color: red; } .card .title { font-weight: bold; } .card .title:hover { color: blue; } .card .title .icon, .card .title__icon { color: green; }"#
+        );
+    }
+
+    #[test]
+    fn execution_runtime_bubbles_nested_conditional_group_rules() {
+        let source = r#".card { color: red; @media (min-width: 40rem) { color: blue; &:hover { color: green; } } @supports (display: grid) { & .title { display: grid; } } }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::NestingUnwrap,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#".card { color: red; } @media (min-width: 40rem) { .card { color: blue; } .card:hover { color: green; } } @supports (display: grid) { .card .title { display: grid; } }"#
         );
     }
 
