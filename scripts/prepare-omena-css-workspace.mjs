@@ -87,7 +87,7 @@ function printHelp() {
   node scripts/prepare-omena-css-workspace.mjs [--dest <path>] [--force] [--verify] [--init-git]
   node scripts/prepare-omena-css-workspace.mjs --temp --verify
 
-Creates a standalone omena-css workspace containing the 11 H2 publish crates.
+Creates a standalone omena-css workspace containing the publish-target crates.
 Default destination: ../omena-css
 `);
 }
@@ -208,9 +208,9 @@ function writeRootDocs(destinationPath) {
 Standalone Rust workspace for the Omena CSS parser, semantic substrates, cascade
 model, and transform-planning crates.
 
-This repository is staged from the CSS Module Explainer monorepo H2 track. The
-workspace keeps the 11 publish-target crates together so parser, incremental,
-cascade, and transform boundaries can be verified as one product surface.
+This repository is staged from the CSS Module Explainer monorepo. The workspace
+keeps the publish-target crates together so parser, incremental, cascade, and
+transform boundaries can be verified as one product surface.
 
 ## Crates
 
@@ -236,6 +236,19 @@ cargo fmt --all --check
 cargo test --workspace
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 \`\`\`
+
+## Commit Messages
+
+Use plain imperative commit subjects:
+
+\`\`\`text
+Add parser differential coverage
+Tighten transform workspace packaging
+Fix source-map segment ordering
+\`\`\`
+
+Do not use internal planning labels, phase names, or issue-triage shorthand in
+commit messages. Public history should describe the product change directly.
 `,
   );
   writeFileSync(

@@ -12,8 +12,8 @@ Usage:
 Default destination:
   ../omena-css
 
-This stages the multi-crate omena-css standalone workspace for H2. Unlike the
-single-crate subtree helpers, omena-css is assembled from the 11 publish-target
+This stages the multi-crate omena-css standalone workspace. Unlike the
+single-crate subtree helpers, omena-css is assembled from the publish-target
 crates into one workspace:
   omena-interner, omena-syntax, omena-parser, omena-incremental, omena-cascade,
   omena-transform-cst, omena-transform-passes, omena-transform-bundle,

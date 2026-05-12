@@ -1,8 +1,8 @@
 //! Optional e-graph rewrite boundary for Omena CSS transforms.
 //!
-//! P08 and P25 are the only pass catalog entries that currently require the
-//! e-graph track. This crate keeps their proof requirements explicit without
-//! forcing an e-graph dependency into the core transform path.
+//! Selector and computed-value rewrites are the current e-graph candidates.
+//! This crate keeps their proof requirements explicit without forcing an
+//! e-graph dependency into the core transform path.
 
 use omena_transform_cst::TransformPassKind;
 use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
