@@ -10,12 +10,18 @@ The current API is intentionally in-memory:
   query-owned parser facts.
 - `buildStyleSource(source, path, passIds)` runs conservative transform passes
   and returns the execution summary plus output CSS.
+- `buildStyleSourceWithContext(source, path, passIds, context)` accepts
+  explicit evaluator/provenance context and returns the execution summary plus
+  output CSS.
 - `buildStyleSourceForTargetQuery(source, path, targetQuery)` plans
   conservative target-sensitive passes from a Browserslist query or named
   target profile.
 - `buildStyleSourceForTargetQueryWithOptions(source, path, targetQuery,
 targetOptions)` accepts camelCase target transform options for explicit
   lowering opt-ins.
+- `buildStyleSourceForTargetQueryWithContext(source, path, targetQuery,
+targetOptions, context)` combines target planning with explicit evaluator
+  context, including dart-sass-compatible SCSS output.
 - `listTransformPasses()` lists transform pass ids accepted by
   `buildStyleSource`.
 

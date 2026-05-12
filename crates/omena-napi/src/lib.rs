@@ -5,10 +5,13 @@ use omena_query::{
     OmenaQueryConsumerBuildSummaryV0 as OmenaNapiBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaNapiCheckSummaryV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaNapiTargetTransformOptionsV0,
+    OmenaQueryTransformExecutionContextV0 as OmenaNapiTransformExecutionContextV0,
     OmenaQueryTransformPassSummaryV0 as OmenaNapiPassSummaryV0,
     execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
+    execute_omena_query_consumer_build_style_source_with_context,
     list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
 };
 use serde::Serialize;
@@ -25,6 +28,19 @@ pub fn build_style_source_json(
     pass_ids: Vec<String>,
 ) -> napi::Result<String> {
     to_json_string(&build_style_source_summary(&source, &path, &pass_ids))
+}
+
+#[napi(js_name = "buildStyleSourceWithContextJson")]
+pub fn build_style_source_with_context_json(
+    source: String,
+    path: String,
+    pass_ids: Vec<String>,
+    context_json: String,
+) -> napi::Result<String> {
+    let context = parse_context_json(&context_json)?;
+    to_json_string(&build_style_source_with_context_summary(
+        &source, &path, &pass_ids, &context,
+    ))
 }
 
 #[napi(js_name = "buildStyleSourceForTargetQueryJson")]
@@ -56,6 +72,25 @@ pub fn build_style_source_for_target_query_with_options_json(
     ))
 }
 
+#[napi(js_name = "buildStyleSourceForTargetQueryWithContextJson")]
+pub fn build_style_source_for_target_query_with_context_json(
+    source: String,
+    path: String,
+    target_query: String,
+    target_options_json: String,
+    context_json: String,
+) -> napi::Result<String> {
+    let target_options = parse_target_options_json(&target_options_json)?;
+    let context = parse_context_json(&context_json)?;
+    to_json_string(&build_style_source_for_target_query_with_context_summary(
+        &source,
+        &path,
+        &target_query,
+        target_options,
+        &context,
+    ))
+}
+
 #[napi(js_name = "listTransformPassesJson")]
 pub fn list_transform_passes_json() -> napi::Result<String> {
     to_json_string(&list_transform_pass_summaries())
@@ -73,6 +108,16 @@ pub fn build_style_source_summary(
 ) -> OmenaNapiBuildSummaryV0 {
     let path = effective_path(path);
     execute_omena_query_consumer_build_style_source(path, source, pass_ids)
+}
+
+pub fn build_style_source_with_context_summary(
+    source: &str,
+    path: &str,
+    pass_ids: &[String],
+    context: &OmenaNapiTransformExecutionContextV0,
+) -> OmenaNapiBuildSummaryV0 {
+    let path = effective_path(path);
+    execute_omena_query_consumer_build_style_source_with_context(path, source, pass_ids, context)
 }
 
 pub fn build_style_source_for_target_query_summary(
@@ -99,6 +144,23 @@ pub fn build_style_source_for_target_query_with_options_summary(
     )
 }
 
+pub fn build_style_source_for_target_query_with_context_summary(
+    source: &str,
+    path: &str,
+    target_query: &str,
+    target_options: OmenaNapiTargetTransformOptionsV0,
+    context: &OmenaNapiTransformExecutionContextV0,
+) -> OmenaNapiBuildSummaryV0 {
+    let path = effective_path(path);
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
+        path,
+        source,
+        target_query,
+        context,
+        target_options,
+    )
+}
+
 pub fn list_transform_pass_summaries() -> Vec<OmenaNapiPassSummaryV0> {
     list_omena_query_transform_pass_summaries()
 }
@@ -108,6 +170,12 @@ fn parse_target_options_json(
 ) -> napi::Result<OmenaNapiTargetTransformOptionsV0> {
     serde_json::from_str(target_options_json).map_err(|error| {
         napi::Error::from_reason(format!("failed to parse target options JSON: {error}"))
+    })
+}
+
+fn parse_context_json(context_json: &str) -> napi::Result<OmenaNapiTransformExecutionContextV0> {
+    serde_json::from_str(context_json).map_err(|error| {
+        napi::Error::from_reason(format!("failed to parse transform context JSON: {error}"))
     })
 }
 
@@ -205,6 +273,38 @@ mod tests {
                 .iter()
                 .any(|pass_id| pass_id == "logical-to-physical")
         );
+    }
+
+    #[test]
+    fn builds_css_from_evaluator_context_for_node_clients() {
+        let context = OmenaNapiTransformExecutionContextV0 {
+            scss_module_evaluation: Some(omena_query::OmenaQueryTransformModuleEvaluationV0 {
+                evaluator: "dart-sass-compatible".to_string(),
+                evaluated_css: ".card { color: red; }".to_string(),
+            }),
+            ..OmenaNapiTransformExecutionContextV0::default()
+        };
+        let summary = build_style_source_for_target_query_with_context_summary(
+            "$brand: red; .card { color: $brand; }",
+            "fixture.module.scss",
+            "ie 11",
+            OmenaNapiTargetTransformOptionsV0 {
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+            },
+            &context,
+        );
+
+        assert!(
+            summary
+                .execution
+                .executed_pass_ids
+                .contains(&"scss-module-evaluate")
+        );
+        assert!(summary.execution.output_css.contains("._card_0"));
     }
 
     #[test]

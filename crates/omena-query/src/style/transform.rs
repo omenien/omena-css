@@ -202,6 +202,20 @@ pub fn execute_omena_query_consumer_build_style_source(
     style_source: &str,
     requested_pass_ids: &[String],
 ) -> OmenaQueryConsumerBuildSummaryV0 {
+    execute_omena_query_consumer_build_style_source_with_context(
+        style_path,
+        style_source,
+        requested_pass_ids,
+        &TransformExecutionContextV0::default(),
+    )
+}
+
+pub fn execute_omena_query_consumer_build_style_source_with_context(
+    style_path: &str,
+    style_source: &str,
+    requested_pass_ids: &[String],
+    context: &TransformExecutionContextV0,
+) -> OmenaQueryConsumerBuildSummaryV0 {
     let pass_ids = if requested_pass_ids.is_empty() {
         all_transform_pass_kinds()
             .into_iter()
@@ -210,7 +224,7 @@ pub fn execute_omena_query_consumer_build_style_source(
     } else {
         requested_pass_ids.to_vec()
     };
-    let context = derive_single_source_transform_context(style_path, style_source);
+    let context = merge_single_source_transform_context(style_path, style_source, context);
     let execution_summary = execute_omena_query_transform_passes_from_source_with_context(
         style_path,
         style_source,
@@ -255,7 +269,23 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_opt
     target_query: &str,
     target_options: OmenaQueryTargetTransformOptionsV0,
 ) -> OmenaQueryConsumerBuildSummaryV0 {
-    let context = derive_single_source_transform_context(style_path, style_source);
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
+        style_path,
+        style_source,
+        target_query,
+        &TransformExecutionContextV0::default(),
+        target_options,
+    )
+}
+
+pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
+    style_path: &str,
+    style_source: &str,
+    target_query: &str,
+    context: &TransformExecutionContextV0,
+    target_options: OmenaQueryTargetTransformOptionsV0,
+) -> OmenaQueryConsumerBuildSummaryV0 {
+    let context = merge_single_source_transform_context(style_path, style_source, context);
     let plan = summarize_omena_query_transform_plan_from_target_query_with_context(
         style_path,
         style_source,
@@ -299,6 +329,62 @@ fn derive_single_source_transform_context(
         &[],
     )
     .context
+}
+
+fn merge_single_source_transform_context(
+    style_path: &str,
+    style_source: &str,
+    context: &TransformExecutionContextV0,
+) -> TransformExecutionContextV0 {
+    let mut merged = derive_single_source_transform_context(style_path, style_source);
+
+    merged.closed_style_world = merged.closed_style_world || context.closed_style_world;
+    merge_context_list(
+        &mut merged.reachable_class_names,
+        &context.reachable_class_names,
+    );
+    merge_context_list(
+        &mut merged.reachable_keyframe_names,
+        &context.reachable_keyframe_names,
+    );
+    merge_context_list(
+        &mut merged.reachable_value_names,
+        &context.reachable_value_names,
+    );
+    merge_context_list(
+        &mut merged.reachable_custom_property_names,
+        &context.reachable_custom_property_names,
+    );
+
+    if context.scss_module_evaluation.is_some() {
+        merged.scss_module_evaluation = context.scss_module_evaluation.clone();
+    }
+    if context.less_module_evaluation.is_some() {
+        merged.less_module_evaluation = context.less_module_evaluation.clone();
+    }
+    if !context.import_inlines.is_empty() {
+        merged.import_inlines = context.import_inlines.clone();
+    }
+    if !context.class_name_rewrites.is_empty() {
+        merged.class_name_rewrites = context.class_name_rewrites.clone();
+    }
+    if !context.css_module_composes_resolutions.is_empty() {
+        merged.css_module_composes_resolutions = context.css_module_composes_resolutions.clone();
+    }
+    if !context.design_token_routes.is_empty() {
+        merged.design_token_routes = context.design_token_routes.clone();
+    }
+
+    merged
+}
+
+fn merge_context_list(target: &mut Vec<String>, additional: &[String]) {
+    for item in additional {
+        if !target.contains(item) {
+            target.push(item.clone());
+        }
+    }
+    target.sort();
 }
 
 pub fn list_omena_query_transform_pass_summaries() -> Vec<OmenaQueryTransformPassSummaryV0> {

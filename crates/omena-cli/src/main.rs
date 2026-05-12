@@ -1,7 +1,8 @@
 use clap::{Parser, Subcommand};
 use omena_query::{
-    OmenaQueryTargetTransformOptionsV0, execute_omena_query_consumer_build_style_source,
-    execute_omena_query_consumer_build_style_source_for_target_query_with_options,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0,
+    execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
+    execute_omena_query_consumer_build_style_source_with_context,
     list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
 };
 use serde::Serialize;
@@ -59,6 +60,9 @@ enum Command {
         /// Enable static @media branch evaluation.
         #[arg(long)]
         enable_media_static_eval: bool,
+        /// JSON file containing a TransformExecutionContextV0 evaluator/provenance bridge.
+        #[arg(long)]
+        context_json: Option<PathBuf>,
         /// Print a machine-readable execution summary.
         #[arg(long)]
         json: bool,
@@ -94,12 +98,14 @@ fn run(cli: Cli) -> Result<(), String> {
             allow_layer_flatten,
             enable_supports_static_eval,
             enable_media_static_eval,
+            context_json,
             json,
         } => build_file(
             path,
             output,
             passes,
             target_query,
+            context_json,
             OmenaQueryTargetTransformOptionsV0 {
                 allow_logical_to_physical,
                 allow_scope_flatten,
@@ -137,6 +143,7 @@ fn build_file(
     output: Option<PathBuf>,
     pass_ids: Vec<String>,
     target_query: Option<String>,
+    context_json: Option<PathBuf>,
     target_options: OmenaQueryTargetTransformOptionsV0,
     json: bool,
 ) -> Result<(), String> {
@@ -145,15 +152,22 @@ fn build_file(
     }
 
     let source = read_source(&path)?;
+    let context = read_context_json(context_json.as_deref())?;
     let summary = if let Some(target_query) = target_query {
-        execute_omena_query_consumer_build_style_source_for_target_query_with_options(
+        execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options(
             &path_string(&path),
             &source,
             &target_query,
+            &context,
             target_options,
         )
     } else {
-        execute_omena_query_consumer_build_style_source(&path_string(&path), &source, &pass_ids)
+        execute_omena_query_consumer_build_style_source_with_context(
+            &path_string(&path),
+            &source,
+            &pass_ids,
+            &context,
+        )
     };
 
     if !summary.unknown_pass_ids.is_empty() {
@@ -208,6 +222,20 @@ fn list_passes(json: bool) -> Result<(), String> {
 fn read_source(path: &Path) -> Result<String, String> {
     fs::read_to_string(path)
         .map_err(|error| format!("failed to read {}: {error}", path_string(path)))
+}
+
+fn read_context_json(path: Option<&Path>) -> Result<OmenaQueryTransformExecutionContextV0, String> {
+    let Some(path) = path else {
+        return Ok(OmenaQueryTransformExecutionContextV0::default());
+    };
+    let json = fs::read_to_string(path)
+        .map_err(|error| format!("failed to read context JSON {}: {error}", path_string(path)))?;
+    serde_json::from_str(&json).map_err(|error| {
+        format!(
+            "failed to parse context JSON {}: {error}",
+            path_string(path)
+        )
+    })
 }
 
 fn print_json<T: Serialize>(value: &T) -> Result<(), String> {

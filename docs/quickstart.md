@@ -55,8 +55,10 @@ crates/omena-wasm --target web`, then import the generated module:
 import init, {
   checkStyleSource,
   buildStyleSource,
+  buildStyleSourceWithContext,
   buildStyleSourceForTargetQuery,
   buildStyleSourceForTargetQueryWithOptions,
+  buildStyleSourceForTargetQueryWithContext,
 } from "./pkg/omena_wasm.js";
 
 await init();
@@ -75,6 +77,18 @@ const legacyBuiltWithOptions = buildStyleSourceForTargetQueryWithOptions(
   "ie 11",
   { allowLogicalToPhysical: true },
 );
+const evaluatedScss = buildStyleSourceForTargetQueryWithContext(
+  "$brand: red; .card { color: $brand; }",
+  "demo.module.scss",
+  "ie 11",
+  null,
+  {
+    scssModuleEvaluation: {
+      evaluator: "dart-sass-compatible",
+      evaluatedCss: ".card { color: red; }",
+    },
+  },
+);
 ```
 
 ## Use the Node Native Binding Substrate
@@ -88,8 +102,10 @@ export this shape:
 import {
   checkStyleSourceJson,
   buildStyleSourceJson,
+  buildStyleSourceWithContextJson,
   buildStyleSourceForTargetQueryJson,
   buildStyleSourceForTargetQueryWithOptionsJson,
+  buildStyleSourceForTargetQueryWithContextJson,
 } from "omena-napi";
 
 const facts = JSON.parse(
@@ -113,6 +129,20 @@ const legacyBuiltWithOptions = JSON.parse(
     "demo.css",
     "ie 11",
     JSON.stringify({ allowLogicalToPhysical: true }),
+  ),
+);
+const evaluatedScss = JSON.parse(
+  buildStyleSourceForTargetQueryWithContextJson(
+    "$brand: red; .card { color: $brand; }",
+    "demo.module.scss",
+    "ie 11",
+    "{}",
+    JSON.stringify({
+      scssModuleEvaluation: {
+        evaluator: "dart-sass-compatible",
+        evaluatedCss: ".card { color: red; }",
+      },
+    }),
   ),
 );
 ```
