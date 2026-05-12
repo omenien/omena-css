@@ -20,6 +20,7 @@ transform boundaries can be verified as one product surface.
 - `omena-transform-target`
 - `omena-transform-print`
 - `omena-transform-egg`
+- `omena-cli`
 
 ## Verification
 

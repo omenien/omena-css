@@ -39,3 +39,11 @@ Primary consumers:
 - CSS build tools.
 - Editor quick-fix pipelines.
 - Benchmark and conformance runners.
+
+## CLI
+
+`omena-cli` exposes the first command-line consumer surface:
+
+- `omena check <file>` reports parser-owned facts and parse-error counts.
+- `omena build <file>` runs the conservative transform pipeline.
+- `omena passes` lists accepted transform pass ids.

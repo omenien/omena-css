@@ -16,6 +16,7 @@ sharing one release train.
 - Transform substrate: `omena-transform-cst`, `omena-transform-passes`,
   `omena-transform-bundle`, `omena-transform-target`,
   `omena-transform-print`, `omena-transform-egg`
+- Consumer surface: `omena-cli`
 
 ## Current Product Surface
 
