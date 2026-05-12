@@ -58,7 +58,7 @@ const omenaCssPublishOrder = [
   "omena-napi",
   "omena-wasm",
 ];
-const externallyPublishedCrates = new Set(["omena-incremental"]);
+const externallyPublishedCrates = new Set(["omena-incremental", "engine-input-producers"]);
 const omenaCssDependencyVersion = "0.1";
 
 function publicCrateName(crateName) {
@@ -304,7 +304,8 @@ cargo publish --dry-run --manifest-path crates/omena-syntax/Cargo.toml
 Publishing is manual through the \`Publish Crates\` GitHub Actions workflow.
 Run the workflow in \`dry-run\` mode first, then run \`publish\` only after CI is
 green and the crates.io order has been checked. The workflow intentionally skips
-\`omena-incremental\` because it publishes from its own Omena repository.
+\`omena-incremental\` and \`omena-engine-input-producers\` because they publish
+from their own Omena repositories.
 
 ## Documentation
 
@@ -922,8 +923,9 @@ ${publishCrateRows}
           for crate in "\${crates[@]}"; do
             manifest="crates/$crate/Cargo.toml"
 
-            if [[ "$crate" == "omena-incremental" ]]; then
-              echo "$crate publishes from its own Omena repository; skipping"
+            if [[ "$crate" == "omena-incremental" || "$crate" == "engine-input-producers" ]]; then
+              package="$(crate_package_name "$manifest")"
+              echo "$package publishes from its own Omena repository; skipping"
               continue
             fi
 
