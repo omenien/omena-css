@@ -55,6 +55,17 @@ pub fn collect_omena_bridge_design_token_workspace_declarations(
     omena_semantic::collect_design_token_workspace_declarations(style_path, &parser_facts)
 }
 
+pub fn collect_omena_bridge_design_token_workspace_declarations_from_source(
+    style_path: &str,
+    style_source: &str,
+) -> Vec<DesignTokenWorkspaceDeclarationFactV0> {
+    let boundary = omena_semantic::summarize_omena_parser_style_semantic_boundary_from_source(
+        style_path,
+        style_source,
+    );
+    omena_semantic::collect_design_token_workspace_declarations(style_path, &boundary.parser_facts)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaBridgeBoundarySummaryV0 {
@@ -129,6 +140,7 @@ pub fn summarize_omena_bridge_boundary() -> OmenaBridgeBoundarySummaryV0 {
             "styleSemanticGraphFromSource",
             "omenaParserBackedStyleSemanticBoundaryFromSource",
             "selectorReferenceEngine",
+            "designTokenWorkspaceDeclarationsFromSource",
             "sourceInputEvidence",
             "sourceImportDeclarations",
             "styleResolution",
@@ -371,6 +383,7 @@ mod tests {
     use engine_style_parser::parse_style_module;
 
     use super::{
+        collect_omena_bridge_design_token_workspace_declarations_from_source,
         summarize_omena_bridge_binder_plugin_boundary, summarize_omena_bridge_boundary,
         summarize_omena_bridge_promotion_evidence_with_source_input,
         summarize_omena_bridge_selector_reference_engine,
@@ -419,6 +432,11 @@ mod tests {
             boundary
                 .bridge_owned_surfaces
                 .contains(&"selectorReferenceEngine")
+        );
+        assert!(
+            boundary
+                .bridge_owned_surfaces
+                .contains(&"designTokenWorkspaceDeclarationsFromSource")
         );
         assert!(
             boundary
@@ -622,6 +640,29 @@ const lazy = import("./ignored.module.scss");
             "ready"
         );
         Ok(())
+    }
+
+    #[test]
+    fn collects_design_token_workspace_declarations_from_source_through_bridge() {
+        let declarations = collect_omena_bridge_design_token_workspace_declarations_from_source(
+            "/tmp/tokens.module.scss",
+            r#":root { --brand: red; } .button { --local: blue; color: var(--brand); }"#,
+        );
+
+        assert_eq!(
+            declarations
+                .iter()
+                .map(|declaration| declaration.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["--brand", "--local"]
+        );
+        assert!(
+            declarations
+                .iter()
+                .all(|declaration| declaration.file_path == "/tmp/tokens.module.scss")
+        );
+        assert_eq!(declarations[0].source_order, 0);
+        assert_eq!(declarations[1].source_order, 1);
     }
 
     #[test]
