@@ -650,7 +650,9 @@ dependencies = [
  "engine-input-producers",
  "engine-style-parser",
  "omena-cascade",
+ "omena-interner",
  "omena-parser",
+ "salsa",
  "serde",
  "serde_json",
 ]

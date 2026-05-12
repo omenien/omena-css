@@ -9,6 +9,10 @@ use engine_style_parser::{
     StyleCustomPropertySemanticFactsV0, StyleSassSemanticFactsV0, StyleSelectorIdentityFactsV0,
     StyleSemanticFactsV0, Stylesheet, summarize_semantic_boundary,
 };
+use omena_interner::{
+    intern_class_name, intern_css_ident, intern_custom_property_name, intern_keyframes_name,
+    intern_mixin_name,
+};
 use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
     ParsedCssModuleValueFactKind, ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind,
@@ -96,6 +100,30 @@ pub struct StyleSemanticGraphSummaryV0 {
     pub source_input_evidence: SourceInputPromotionEvidenceSummaryV0,
     pub promotion_evidence: SemanticPromotionEvidenceSummaryV0,
     pub lossless_cst_contract: LosslessCstContractV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleSemanticSoaTablesV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub selector_names: SemanticNameSoaTableV0,
+    pub custom_property_names: SemanticNameSoaTableV0,
+    pub sass_names: SemanticNameSoaTableV0,
+    pub total_row_count: usize,
+    pub interned_row_count: usize,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SemanticNameSoaTableV0 {
+    pub table_name: &'static str,
+    pub name_kind: &'static str,
+    pub row_indices: Vec<usize>,
+    pub names: Vec<String>,
+    pub interned_row_count: usize,
+    pub unique_name_count: usize,
 }
 
 pub fn summarize_style_semantic_boundary(sheet: &Stylesheet) -> StyleSemanticBoundarySummaryV0 {
@@ -222,6 +250,113 @@ pub fn summarize_style_semantic_facts(sheet: &Stylesheet) -> StyleSemanticFactsV
     summarize_style_semantic_boundary(sheet).semantic_facts
 }
 
+pub fn summarize_style_semantic_soa_tables(
+    semantic_facts: &StyleSemanticFactsV0,
+    db: &dyn salsa::Database,
+) -> StyleSemanticSoaTablesV0 {
+    let selector_names = semantic_name_soa_table(
+        "selectors",
+        "className",
+        semantic_facts.selector_identity.canonical_names.as_slice(),
+        |name| intern_class_name(db, name).is_ok(),
+    );
+    let custom_property_names = semantic_name_soa_table(
+        "customProperties",
+        "customPropertyName",
+        semantic_facts.custom_properties.decl_names.as_slice(),
+        |name| intern_custom_property_name(db, name).is_ok(),
+    );
+    let mut sass_name_sources = Vec::new();
+    sass_name_sources.extend(
+        semantic_facts
+            .sass
+            .same_file_resolution
+            .resolved_variable_ref_names
+            .iter()
+            .cloned(),
+    );
+    sass_name_sources.extend(
+        semantic_facts
+            .sass
+            .same_file_resolution
+            .unresolved_variable_ref_names
+            .iter()
+            .cloned(),
+    );
+    sass_name_sources.extend(
+        semantic_facts
+            .sass
+            .same_file_resolution
+            .resolved_mixin_include_names
+            .iter()
+            .cloned(),
+    );
+    sass_name_sources.extend(
+        semantic_facts
+            .sass
+            .same_file_resolution
+            .unresolved_mixin_include_names
+            .iter()
+            .cloned(),
+    );
+    sass_name_sources.extend(
+        semantic_facts
+            .sass
+            .same_file_resolution
+            .resolved_function_call_names
+            .iter()
+            .cloned(),
+    );
+    let sass_names =
+        semantic_name_soa_table("sass", "cssIdentOrMixinName", &sass_name_sources, |name| {
+            intern_css_ident(db, name).is_ok()
+                || intern_mixin_name(db, name).is_ok()
+                || intern_keyframes_name(db, name).is_ok()
+        });
+    let total_row_count = selector_names.row_indices.len()
+        + custom_property_names.row_indices.len()
+        + sass_names.row_indices.len();
+    let interned_row_count = selector_names.interned_row_count
+        + custom_property_names.interned_row_count
+        + sass_names.interned_row_count;
+
+    StyleSemanticSoaTablesV0 {
+        schema_version: "0",
+        product: "omena-semantic.soa-tables",
+        selector_names,
+        custom_property_names,
+        sass_names,
+        total_row_count,
+        interned_row_count,
+        ready_surfaces: vec!["semanticSoaTables", "semanticSoaNameTables"],
+    }
+}
+
+fn semantic_name_soa_table(
+    table_name: &'static str,
+    name_kind: &'static str,
+    names: &[String],
+    mut intern: impl FnMut(&str) -> bool,
+) -> SemanticNameSoaTableV0 {
+    let mut unique_names = BTreeSet::new();
+    let mut interned_row_count = 0usize;
+    for name in names {
+        unique_names.insert(name.clone());
+        if intern(name) {
+            interned_row_count += 1;
+        }
+    }
+
+    SemanticNameSoaTableV0 {
+        table_name,
+        name_kind,
+        row_indices: (0..names.len()).collect(),
+        names: names.to_vec(),
+        interned_row_count,
+        unique_name_count: unique_names.len(),
+    }
+}
+
 pub fn summarize_parser_contract_facts(sheet: &Stylesheet) -> ParserBoundarySyntaxFactsV0 {
     summarize_style_semantic_boundary(sheet).parser_facts
 }
@@ -290,6 +425,8 @@ fn summarize_omena_parser_semantic_facts(
 ) -> StyleSemanticFactsV0 {
     let custom_properties =
         summarize_omena_parser_custom_property_semantic_facts(&parser_facts.custom_properties);
+    let sass_same_file_resolution =
+        summarize_omena_parser_sass_same_file_resolution(&parser_facts.sass);
     StyleSemanticFactsV0 {
         selector_identity: StyleSelectorIdentityFactsV0 {
             canonical_names: parser_facts.selectors.names.clone(),
@@ -306,7 +443,7 @@ fn summarize_omena_parser_semantic_facts(
             selectors_with_resolved_mixin_includes_names: Vec::new(),
             selectors_with_unresolved_mixin_includes_names: Vec::new(),
             selectors_with_function_calls_names: parser_facts.sass.function_call_names.clone(),
-            same_file_resolution: ParserIndexSassSameFileResolutionFactsV0::default(),
+            same_file_resolution: sass_same_file_resolution,
         },
     }
 }
@@ -616,6 +753,57 @@ fn summarize_omena_parser_custom_property_semantic_facts(
     }
 }
 
+fn summarize_omena_parser_sass_same_file_resolution(
+    facts: &ParserSassSyntaxFactsV0,
+) -> ParserIndexSassSameFileResolutionFactsV0 {
+    let variable_targets = facts
+        .variable_decl_names
+        .iter()
+        .chain(facts.variable_parameter_names.iter())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let mixin_targets = facts
+        .mixin_decl_names
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let function_targets = facts
+        .function_decl_names
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+
+    ParserIndexSassSameFileResolutionFactsV0 {
+        resolved_variable_ref_names: names_matching(&facts.variable_ref_names, &variable_targets),
+        unresolved_variable_ref_names: names_not_matching(
+            &facts.variable_ref_names,
+            &variable_targets,
+        ),
+        resolved_mixin_include_names: names_matching(&facts.mixin_include_names, &mixin_targets),
+        unresolved_mixin_include_names: names_not_matching(
+            &facts.mixin_include_names,
+            &mixin_targets,
+        ),
+        resolved_function_call_names: names_matching(&facts.function_call_names, &function_targets),
+    }
+}
+
+fn names_matching(names: &[String], targets: &BTreeSet<String>) -> Vec<String> {
+    names
+        .iter()
+        .filter(|name| targets.contains(*name))
+        .cloned()
+        .collect()
+}
+
+fn names_not_matching(names: &[String], targets: &BTreeSet<String>) -> Vec<String> {
+    names
+        .iter()
+        .filter(|name| !targets.contains(*name))
+        .cloned()
+        .collect()
+}
+
 fn bem_suffix_parent_name(name: &str) -> Option<String> {
     let marker = name.find("__").or_else(|| name.find("--"))?;
     (marker > 0).then(|| name[..marker].to_string())
@@ -724,7 +912,8 @@ mod tests {
         summarize_semantic_promotion_evidence_with_source_input, summarize_source_input_evidence,
         summarize_style_semantic_boundary, summarize_style_semantic_facts,
         summarize_style_semantic_graph, summarize_style_semantic_graph_from_source,
-        summarize_theory_observation_contract, summarize_theory_observation_harness,
+        summarize_style_semantic_soa_tables, summarize_theory_observation_contract,
+        summarize_theory_observation_harness,
     };
 
     #[test]
@@ -800,6 +989,53 @@ $local: red;
                 .lossless_cst_contract
                 .span_invariants
                 .byte_span_contract_ready
+        );
+    }
+
+    #[test]
+    fn exposes_semantic_soa_tables_with_typed_name_interners() {
+        let boundary = summarize_omena_parser_style_semantic_boundary_from_source(
+            "Component.module.scss",
+            r#"
+$local: red;
+
+@mixin tone($value) {
+  color: $value;
+}
+
+.button {
+  --brand: red;
+  color: var(--brand);
+  color: $local;
+  @include tone($local);
+
+  &__icon {}
+}
+"#,
+        );
+        let db = salsa::DatabaseImpl::default();
+        let tables = summarize_style_semantic_soa_tables(&boundary.semantic_facts, &db);
+
+        assert_eq!(tables.schema_version, "0");
+        assert_eq!(tables.product, "omena-semantic.soa-tables");
+        assert!(tables.ready_surfaces.contains(&"semanticSoaTables"));
+        assert!(tables.ready_surfaces.contains(&"semanticSoaNameTables"));
+        assert_eq!(
+            tables.selector_names.names,
+            vec!["button".to_string(), "button__icon".to_string()]
+        );
+        assert_eq!(
+            tables.custom_property_names.names,
+            vec!["--brand".to_string()]
+        );
+        assert!(tables.sass_names.names.contains(&"local".to_string()));
+        assert!(tables.sass_names.names.contains(&"tone".to_string()));
+        assert_eq!(tables.total_row_count, tables.interned_row_count);
+        assert_eq!(
+            tables.total_row_count,
+            tables.selector_names.row_indices.len()
+                + tables.custom_property_names.row_indices.len()
+                + tables.sass_names.row_indices.len()
         );
     }
 

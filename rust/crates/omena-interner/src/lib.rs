@@ -205,8 +205,9 @@ pub fn summarize_omena_interner_boundary() -> OmenaInternerBoundarySummaryV0 {
             "syntaxSymbolKindMapping",
             "workspaceFilePathIdentity",
             "parserSemanticNameConsumption",
+            "semanticSoaNameTables",
         ],
-        next_surfaces: vec!["semanticSoaNameTables"],
+        next_surfaces: Vec::new(),
     }
 }
 
@@ -290,10 +291,12 @@ mod tests {
                 .ready_surfaces
                 .contains(&"parserSemanticNameConsumption")
         );
+        assert!(summary.ready_surfaces.contains(&"semanticSoaNameTables"));
         assert!(
             !summary
                 .next_surfaces
                 .contains(&"parserSemanticNameConsumption")
         );
+        assert!(!summary.next_surfaces.contains(&"semanticSoaNameTables"));
     }
 }

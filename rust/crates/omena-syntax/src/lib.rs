@@ -760,8 +760,9 @@ pub fn summarize_omena_syntax_boundary() -> OmenaSyntaxBoundarySummaryV0 {
             "styleDialectAndModuleMode",
             "cstreeRawKindBridge",
             "bogusRecoveryKindSuperset",
+            "semanticSoaTables",
         ],
-        next_surfaces: vec!["parserCstEquivalence", "semanticSoaTables"],
+        next_surfaces: vec!["parserCstEquivalence"],
     }
 }
 
@@ -854,5 +855,7 @@ mod tests {
                 .ready_surfaces
                 .contains(&"symbolScopeReferenceVocabulary")
         );
+        assert!(summary.ready_surfaces.contains(&"semanticSoaTables"));
+        assert!(!summary.next_surfaces.contains(&"semanticSoaTables"));
     }
 }

@@ -15,6 +15,8 @@ workspace = true
 engine-input-producers = { path = "../engine-input-producers" }
 engine-style-parser = { path = "../engine-style-parser" }
 omena-cascade = { path = "../omena-cascade" }
+omena-interner = { path = "../omena-interner" }
 omena-parser = { path = "../omena-parser" }
+salsa.workspace = true
 serde.workspace = true
 serde_json.workspace = true
