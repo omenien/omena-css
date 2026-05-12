@@ -1725,7 +1725,7 @@ fn nested_safety_for_selector(blocks: &[StyleBlock], name: &str) -> Option<&'sta
                 .strip_prefix("__selector_meta:")
                 .and_then(|rest| rest.rsplit_once(':'))
                 .and_then(|(entry_name, kind)| {
-                    (entry_name == name).then(|| match kind {
+                    (entry_name == name).then_some(match kind {
                         "bemSuffixSafe" => "bemSuffixSafe",
                         "nestedUnsafe" => "nestedUnsafe",
                         _ => "flat",

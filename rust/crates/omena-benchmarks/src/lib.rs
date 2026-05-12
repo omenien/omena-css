@@ -32,6 +32,23 @@ pub fn style_corpus() -> Vec<StyleSample> {
     ]
 }
 
+pub fn parse_legacy_style_sample(
+    path: &str,
+    source: &str,
+) -> Option<engine_style_parser::Stylesheet> {
+    engine_style_parser::parse_style_module(path, source)
+}
+
+pub fn validate_legacy_style_sample(path: &str, source: &str) -> Result<(), String> {
+    if parse_legacy_style_sample(path, source).is_some() {
+        Ok(())
+    } else {
+        Err(format!(
+            "benchmark style sample should be accepted by legacy parser: {path}",
+        ))
+    }
+}
+
 fn build_nextjs14_dashboard_scss(count: usize) -> String {
     let mut source = String::from(
         r#"

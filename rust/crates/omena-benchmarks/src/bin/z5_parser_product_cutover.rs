@@ -1,9 +1,7 @@
 use std::{hint::black_box, time::Instant};
 
-use engine_style_parser::{
-    parse_style_module, summarize_css_modules_intermediate as summarize_legacy_intermediate,
-};
-use omena_benchmarks::style_corpus;
+use engine_style_parser::summarize_css_modules_intermediate as summarize_legacy_intermediate;
+use omena_benchmarks::{parse_legacy_style_sample, style_corpus, validate_legacy_style_sample};
 use omena_parser::summarize_css_modules_intermediate as summarize_omena_intermediate;
 
 const DEFAULT_MAX_RATIO: f64 = 1.10;
@@ -17,12 +15,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut worst_ratio = 0.0_f64;
     for sample in style_corpus() {
-        warm_up(&sample.path, &sample.source, sample.dialect);
+        validate_legacy_style_sample(sample.path, sample.source.as_str())?;
+        warm_up(sample.path, sample.source.as_str(), sample.dialect);
 
         let legacy = measure_iterations(ITERATIONS, || {
-            let sheet = parse_style_module(black_box(sample.path), black_box(&sample.source))
-                .expect("benchmark style sample should be accepted by legacy parser");
-            black_box(summarize_legacy_intermediate(black_box(&sheet)));
+            if let Some(sheet) =
+                parse_legacy_style_sample(black_box(sample.path), black_box(sample.source.as_str()))
+            {
+                black_box(summarize_legacy_intermediate(black_box(&sheet)));
+            }
         });
         let omena = measure_iterations(ITERATIONS, || {
             black_box(summarize_omena_intermediate(
@@ -66,9 +67,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn warm_up(path: &str, source: &str, dialect: omena_parser::StyleDialect) {
     for _ in 0..4 {
-        let sheet = parse_style_module(black_box(path), black_box(source))
-            .expect("benchmark style sample should be accepted by legacy parser");
-        black_box(summarize_legacy_intermediate(black_box(&sheet)));
+        if let Some(sheet) = parse_legacy_style_sample(black_box(path), black_box(source)) {
+            black_box(summarize_legacy_intermediate(black_box(&sheet)));
+        }
         black_box(summarize_omena_intermediate(
             black_box(source),
             black_box(dialect),

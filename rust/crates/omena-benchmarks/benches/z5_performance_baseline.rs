@@ -10,7 +10,7 @@ use omena_abstract_value::{
     analyze_one_cfa_call_site_flows, finite_set_class_value, intersect_abstract_class_values,
     prefix_class_value,
 };
-use omena_benchmarks::style_corpus;
+use omena_benchmarks::{parse_legacy_style_sample, style_corpus};
 use omena_parser::{
     parse as parse_omena_style, summarize_css_modules_intermediate as summarize_omena_intermediate,
 };
@@ -54,9 +54,12 @@ fn parser_product_benchmarks(c: &mut Criterion) {
     for sample in &samples {
         legacy_group.bench_function(sample.name, |b| {
             b.iter(|| {
-                let sheet = parse_style_module(black_box(sample.path), black_box(&sample.source))
-                    .expect("benchmark style sample should be accepted by legacy parser");
-                black_box(summarize_legacy_intermediate(black_box(&sheet)))
+                if let Some(sheet) = parse_legacy_style_sample(
+                    black_box(sample.path),
+                    black_box(sample.source.as_str()),
+                ) {
+                    black_box(summarize_legacy_intermediate(black_box(&sheet)));
+                }
             });
         });
     }
