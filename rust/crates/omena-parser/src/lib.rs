@@ -20,6 +20,80 @@ pub use omena_syntax::StyleDialect;
 use omena_syntax::SyntaxKind;
 use std::{collections::BTreeSet, sync::Arc};
 
+const VALUES_L4_MATH_FUNCTION_NAMES: &[&str] = &[
+    "min", "max", "clamp", "round", "mod", "rem", "sin", "cos", "tan", "asin", "acos", "atan",
+    "atan2", "pow", "sqrt", "hypot", "log", "exp", "abs", "sign",
+];
+
+const CSS_COLOR_FUNCTION_NAMES: &[&str] = &[
+    "rgb",
+    "rgba",
+    "hsl",
+    "hsla",
+    "hwb",
+    "lab",
+    "lch",
+    "oklab",
+    "oklch",
+    "color",
+    "color-mix",
+    "device-cmyk",
+    "light-dark",
+    "contrast-color",
+];
+
+const CSS_GRADIENT_FUNCTION_NAMES: &[&str] = &[
+    "linear-gradient",
+    "radial-gradient",
+    "conic-gradient",
+    "repeating-linear-gradient",
+    "repeating-radial-gradient",
+    "repeating-conic-gradient",
+];
+
+const CSS_TRANSFORM_FUNCTION_NAMES: &[&str] = &[
+    "matrix",
+    "matrix3d",
+    "translate",
+    "translate3d",
+    "translateX",
+    "translateY",
+    "translateZ",
+    "scale",
+    "scale3d",
+    "scaleX",
+    "scaleY",
+    "scaleZ",
+    "rotate",
+    "rotate3d",
+    "rotateX",
+    "rotateY",
+    "rotateZ",
+    "skew",
+    "skewX",
+    "skewY",
+    "perspective",
+];
+
+const CSS_FILTER_FUNCTION_NAMES: &[&str] = &[
+    "blur",
+    "brightness",
+    "contrast",
+    "drop-shadow",
+    "grayscale",
+    "hue-rotate",
+    "invert",
+    "opacity",
+    "saturate",
+    "sepia",
+];
+
+const CSS_IMAGE_FUNCTION_NAMES: &[&str] = &["image", "image-set", "cross-fade", "element", "paint"];
+
+const CSS_SHAPE_FUNCTION_NAMES: &[&str] = &[
+    "path", "shape", "ray", "inset", "circle", "ellipse", "polygon",
+];
+
 #[derive(Debug, Clone)]
 pub struct ParseResult {
     green: GreenNode,
@@ -179,6 +253,19 @@ pub struct ParserCstEquivalenceSummaryV0 {
     pub zero_unknown_kind_ready: bool,
     pub typed_cst_wrapper_ready: bool,
     pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParserPrattValueCoverageSummaryV0 {
+    pub product: &'static str,
+    pub infix_operator_kinds: Vec<SyntaxKind>,
+    pub prefix_operator_kinds: Vec<SyntaxKind>,
+    pub value_expression_node_kinds: Vec<SyntaxKind>,
+    pub specialized_function_family_count: usize,
+    pub css_values_l4_math_function_count: usize,
+    pub css_color_function_count: usize,
+    pub ready_surfaces: Vec<&'static str>,
+    pub next_surfaces: Vec<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1165,6 +1252,47 @@ fn intern_parser_semantic_name(db: &dyn salsa::Database, kind: NameKind, text: &
     }
 }
 
+pub fn summarize_pratt_value_parser_coverage() -> ParserPrattValueCoverageSummaryV0 {
+    ParserPrattValueCoverageSummaryV0 {
+        product: "omena-parser.pratt-value-coverage",
+        infix_operator_kinds: vec![
+            SyntaxKind::Plus,
+            SyntaxKind::Minus,
+            SyntaxKind::Star,
+            SyntaxKind::Slash,
+            SyntaxKind::Percent,
+        ],
+        prefix_operator_kinds: vec![SyntaxKind::Plus, SyntaxKind::Minus],
+        value_expression_node_kinds: vec![
+            SyntaxKind::UnaryExpression,
+            SyntaxKind::BinaryExpression,
+            SyntaxKind::ParenthesizedExpression,
+            SyntaxKind::FunctionCall,
+            SyntaxKind::FunctionArguments,
+            SyntaxKind::ValueList,
+            SyntaxKind::ComponentValueList,
+            SyntaxKind::SimpleBlock,
+            SyntaxKind::BogusValue,
+        ],
+        specialized_function_family_count: 10,
+        css_values_l4_math_function_count: VALUES_L4_MATH_FUNCTION_NAMES.len(),
+        css_color_function_count: CSS_COLOR_FUNCTION_NAMES.len(),
+        ready_surfaces: vec![
+            "prattValueParserCore",
+            "prefixUnaryExpressions",
+            "additiveMultiplicativePrecedence",
+            "parenthesizedValueExpressions",
+            "functionArgumentValueLists",
+            "specializedCssValueFunctionFamilies",
+            "valuesL4MathFunctionArityChecks",
+            "varEnvAttrFunctionHeadChecks",
+            "dynamicInterpolationEscapeHatches",
+            "valueBogusRecovery",
+        ],
+        next_surfaces: vec!["fullPropertyValueGrammarRegistry"],
+    }
+}
+
 pub fn summarize_parser_boundary() -> ParserBoundarySummary {
     ParserBoundarySummary {
         product: "omena-parser.boundary",
@@ -1183,6 +1311,8 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "selectorCstSkeleton",
             "atRuleRegistrySkeleton",
             "prattValueExpressionSkeleton",
+            "prattValueParserCore",
+            "prattValueCoverageSummary",
             "attributeMatcherTokenization",
             "attributeMatcherCstNodes",
             "attributeNameValueModifierCstNodes",
@@ -1352,7 +1482,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
         ],
         not_ready_surfaces: vec![
             "fullRecursiveDescentGrammar",
-            "fullPrattValueParser",
+            "fullPropertyValueGrammarRegistry",
             "productCutover",
         ],
     }
@@ -9730,106 +9860,25 @@ fn specialized_function_kind(text: &str) -> Option<SyntaxKind> {
     if text.eq_ignore_ascii_case("attr") {
         return Some(SyntaxKind::AttrFunction);
     }
-    if matches_ignore_ascii_case(
-        text,
-        &[
-            "min", "max", "clamp", "round", "mod", "rem", "sin", "cos", "tan", "asin", "acos",
-            "atan", "atan2", "pow", "sqrt", "hypot", "log", "exp", "abs", "sign",
-        ],
-    ) {
+    if matches_ignore_ascii_case(text, VALUES_L4_MATH_FUNCTION_NAMES) {
         return Some(SyntaxKind::MathFunction);
     }
-    if matches_ignore_ascii_case(
-        text,
-        &[
-            "rgb",
-            "rgba",
-            "hsl",
-            "hsla",
-            "hwb",
-            "lab",
-            "lch",
-            "oklab",
-            "oklch",
-            "color",
-            "color-mix",
-            "device-cmyk",
-            "light-dark",
-            "contrast-color",
-        ],
-    ) {
+    if matches_ignore_ascii_case(text, CSS_COLOR_FUNCTION_NAMES) {
         return Some(SyntaxKind::ColorValue);
     }
-    if matches_ignore_ascii_case(
-        text,
-        &[
-            "linear-gradient",
-            "radial-gradient",
-            "conic-gradient",
-            "repeating-linear-gradient",
-            "repeating-radial-gradient",
-            "repeating-conic-gradient",
-        ],
-    ) {
+    if matches_ignore_ascii_case(text, CSS_GRADIENT_FUNCTION_NAMES) {
         return Some(SyntaxKind::GradientFunction);
     }
-    if matches_ignore_ascii_case(
-        text,
-        &[
-            "matrix",
-            "matrix3d",
-            "translate",
-            "translate3d",
-            "translateX",
-            "translateY",
-            "translateZ",
-            "scale",
-            "scale3d",
-            "scaleX",
-            "scaleY",
-            "scaleZ",
-            "rotate",
-            "rotate3d",
-            "rotateX",
-            "rotateY",
-            "rotateZ",
-            "skew",
-            "skewX",
-            "skewY",
-            "perspective",
-        ],
-    ) {
+    if matches_ignore_ascii_case(text, CSS_TRANSFORM_FUNCTION_NAMES) {
         return Some(SyntaxKind::TransformFunction);
     }
-    if matches_ignore_ascii_case(
-        text,
-        &[
-            "blur",
-            "brightness",
-            "contrast",
-            "drop-shadow",
-            "grayscale",
-            "hue-rotate",
-            "invert",
-            "opacity",
-            "saturate",
-            "sepia",
-        ],
-    ) {
+    if matches_ignore_ascii_case(text, CSS_FILTER_FUNCTION_NAMES) {
         return Some(SyntaxKind::FilterFunction);
     }
-    if matches_ignore_ascii_case(
-        text,
-        &["image", "image-set", "cross-fade", "element", "paint"],
-    ) {
+    if matches_ignore_ascii_case(text, CSS_IMAGE_FUNCTION_NAMES) {
         return Some(SyntaxKind::ImageFunction);
     }
-    if matches_ignore_ascii_case(
-        text,
-        &[
-            "path", "shape", "ray", "inset", "circle", "ellipse", "polygon",
-        ],
-    ) {
+    if matches_ignore_ascii_case(text, CSS_SHAPE_FUNCTION_NAMES) {
         return Some(SyntaxKind::ShapeFunction);
     }
     None
@@ -9876,13 +9925,7 @@ fn function_argument_count_is_valid(function_name: &str, argument_count: usize) 
 
 fn function_requires_filled_top_level_arguments(function_name: &str) -> bool {
     function_name.eq_ignore_ascii_case("calc")
-        || matches_ignore_ascii_case(
-            function_name,
-            &[
-                "min", "max", "clamp", "round", "mod", "rem", "sin", "cos", "tan", "asin", "acos",
-                "atan", "atan2", "pow", "sqrt", "hypot", "log", "exp", "abs", "sign",
-            ],
-        )
+        || matches_ignore_ascii_case(function_name, VALUES_L4_MATH_FUNCTION_NAMES)
         || matches_ignore_ascii_case(
             function_name,
             &["color-mix", "light-dark", "contrast-color"],
@@ -13364,6 +13407,12 @@ mod tests {
                 .ready_surfaces
                 .contains(&"prattValueExpressionSkeleton")
         );
+        assert!(summary.ready_surfaces.contains(&"prattValueParserCore"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"prattValueCoverageSummary")
+        );
         assert!(
             summary
                 .ready_surfaces
@@ -13963,7 +14012,42 @@ mod tests {
                 .ready_surfaces
                 .contains(&"lightningCssSelectorIdAndAtRuleDifferentialSlice")
         );
+        assert!(!summary.not_ready_surfaces.contains(&"fullPrattValueParser"));
+        assert!(
+            summary
+                .not_ready_surfaces
+                .contains(&"fullPropertyValueGrammarRegistry")
+        );
         assert!(summary.not_ready_surfaces.contains(&"productCutover"));
+    }
+
+    #[test]
+    fn summarizes_pratt_value_parser_coverage_without_overclaiming_property_grammar() {
+        let summary = summarize_pratt_value_parser_coverage();
+
+        assert_eq!(summary.product, "omena-parser.pratt-value-coverage");
+        assert!(summary.infix_operator_kinds.contains(&SyntaxKind::Plus));
+        assert!(summary.infix_operator_kinds.contains(&SyntaxKind::Star));
+        assert!(summary.prefix_operator_kinds.contains(&SyntaxKind::Minus));
+        assert!(
+            summary
+                .value_expression_node_kinds
+                .contains(&SyntaxKind::BinaryExpression)
+        );
+        assert!(
+            summary
+                .value_expression_node_kinds
+                .contains(&SyntaxKind::FunctionArguments)
+        );
+        assert!(summary.specialized_function_family_count >= 10);
+        assert!(summary.css_values_l4_math_function_count >= 20);
+        assert!(summary.css_color_function_count >= 14);
+        assert!(summary.ready_surfaces.contains(&"prattValueParserCore"));
+        assert!(
+            summary
+                .next_surfaces
+                .contains(&"fullPropertyValueGrammarRegistry")
+        );
     }
 
     fn char_boundary_offsets(source: &str) -> Vec<usize> {

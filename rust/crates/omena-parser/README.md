@@ -19,6 +19,11 @@ Current scope:
 - CSS Syntax entry points for rule lists, component values, component-value
   lists, comma-separated component-value lists, and simple blocks.
 - CSS custom property declarations parse values as arbitrary component-value lists.
+- Pratt value parser core coverage is explicit: unary `+`/`-`, additive and
+  multiplicative precedence, parenthesized expressions, function argument
+  lists, specialized CSS value function families, and value-level recovery are
+  ready. The full CSS property-value grammar registry remains a separate
+  product-cutover target.
 - Functional pseudo-classes that carry selector lists (`:is`, `:where`,
   `:has`, `:not`, `:local`, `:global`) now surface nested selector-list CST
   nodes and isolate malformed selector-list items as Bogus selectors.
