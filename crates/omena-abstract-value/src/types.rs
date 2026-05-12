@@ -60,6 +60,20 @@ pub struct ReducedClassValueDerivationStepV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReducedClassValueProductDomainV0 {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prefix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suffix: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_length: Option<usize>,
+    pub must_chars: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_chars: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReducedClassValueProductV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
