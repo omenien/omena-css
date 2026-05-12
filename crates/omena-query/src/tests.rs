@@ -726,6 +726,39 @@ fn consumer_build_derives_workspace_context_for_import_inline_and_composes() {
 }
 
 #[test]
+fn consumer_build_requires_explicit_reachability_for_tree_shaking() {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "Button.module.css".to_string(),
+        style_source: ".used { color: blue; } .dead { color: red; }".to_string(),
+    }];
+    let context = OmenaQueryTransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec!["used".to_string()],
+        ..OmenaQueryTransformExecutionContextV0::default()
+    };
+    let summary_result = execute_omena_query_consumer_build_style_sources_with_context(
+        "Button.module.css",
+        &sources,
+        &["tree-shake-class".to_string()],
+        &context,
+        &[],
+    );
+    assert!(summary_result.is_ok());
+    let Ok(summary) = summary_result else {
+        return;
+    };
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"tree-shake-class")
+    );
+    assert!(!summary.execution.output_css.contains(".dead"));
+    assert!(summary.execution.output_css.contains(".used"));
+}
+
+#[test]
 fn target_query_build_derives_workspace_context_for_bundle_passes() {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
@@ -996,18 +1029,15 @@ fn derives_transform_context_from_workspace_sources() {
     assert_eq!(summary.import_inline_count, 1);
     assert_eq!(summary.class_name_rewrite_count, 2);
     assert_eq!(summary.css_module_composes_resolution_count, 1);
-    assert_eq!(summary.reachable_class_name_count, 2);
+    assert_eq!(summary.reachable_class_name_count, 0);
     assert_eq!(summary.reachable_keyframe_name_count, 0);
     assert_eq!(summary.reachable_value_name_count, 0);
-    assert_eq!(summary.reachable_custom_property_name_count, 1);
+    assert_eq!(summary.reachable_custom_property_name_count, 0);
     assert!(!summary.context.closed_style_world);
-    assert_eq!(
-        summary.context.reachable_class_names,
-        vec!["base", "button"]
-    );
+    assert_eq!(summary.context.reachable_class_names, Vec::<String>::new());
     assert_eq!(
         summary.context.reachable_custom_property_names,
-        vec!["--brand"]
+        Vec::<String>::new()
     );
     assert_eq!(
         summary.context.import_inlines[0].import_source,
