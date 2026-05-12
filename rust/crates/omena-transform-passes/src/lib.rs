@@ -4,7 +4,10 @@
 //! the pass catalog; its job is to register every P01-P40 pass and produce a
 //! DAG-respecting execution plan for downstream transform crates.
 
-use omena_cascade::{BoxLonghandInputV0, prove_box_shorthand_combination};
+use omena_cascade::{
+    BoxLonghandInputV0, StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0,
+    evaluate_static_supports_condition, prove_box_shorthand_combination,
+};
 use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 use omena_transform_cst::{
@@ -533,6 +536,25 @@ pub fn execute_transform_passes_on_source_with_dialect(
                     detail: "unwrapped simple single-depth nested ordinary rules",
                 }
             }
+            Some(TransformPassKind::SupportsStaticEval) => {
+                let (next_css, mutation_count) =
+                    evaluate_static_supports_rules(&output_css, dialect);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "evaluated simple @supports branches with cascade supports-static witness",
+                }
+            }
             Some(TransformPassKind::MediaStaticEval) => {
                 let (next_css, mutation_count) = evaluate_static_media_rules(&output_css, dialect);
                 let status = if mutation_count == 0 {
@@ -665,6 +687,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::ColorFunctionLowering.id(),
         TransformPassKind::LogicalToPhysical.id(),
         TransformPassKind::NestingUnwrap.id(),
+        TransformPassKind::SupportsStaticEval.id(),
         TransformPassKind::MediaStaticEval.id(),
         TransformPassKind::CalcReduction.id(),
         TransformPassKind::PrintCss.id(),
@@ -861,6 +884,10 @@ fn lower_css_logical_to_physical(source: &str, dialect: StyleDialect) -> (String
 
 fn unwrap_css_nesting(source: &str, dialect: StyleDialect) -> (String, usize) {
     unwrap_css_nesting_with_lexer(source, dialect)
+}
+
+fn evaluate_static_supports_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
+    evaluate_static_supports_rules_with_lexer(source, dialect)
 }
 
 fn evaluate_static_media_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -1329,6 +1356,82 @@ fn expand_nested_selector(parent_selector: &str, nested_selector: &str) -> Optio
     } else {
         Some(format!("{parent_selector} {nested_selector}"))
     }
+}
+
+fn evaluate_static_supports_rules_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut depth = 0usize;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@supports") =>
+            {
+                let Some((block_start_index, block_end_index)) =
+                    at_rule_block_indexes(tokens, index)
+                else {
+                    index += 1;
+                    continue;
+                };
+                let condition = source
+                    [token_end(&tokens[index])..token_start(&tokens[block_start_index])]
+                    .trim();
+                let witness = evaluate_static_supports_condition(
+                    condition,
+                    StaticSupportsAssumptionV0::ModernBrowser,
+                );
+                let replacement = match witness.verdict {
+                    StaticSupportsEvalVerdictV0::AlwaysTrue => {
+                        source[token_end(&tokens[block_start_index])
+                            ..token_start(&tokens[block_end_index])]
+                            .trim()
+                            .to_string()
+                    }
+                    StaticSupportsEvalVerdictV0::AlwaysFalse => String::new(),
+                    StaticSupportsEvalVerdictV0::Unknown => {
+                        index += 1;
+                        continue;
+                    }
+                };
+                replacements.push((
+                    token_start(&tokens[index]),
+                    token_end(&tokens[block_end_index]),
+                    replacement,
+                ));
+                index = block_end_index + 1;
+                continue;
+            }
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end, replacement) in &replacements {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacements.len())
 }
 
 fn evaluate_static_media_rules_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -3476,6 +3579,7 @@ mod tests {
                 "p18-color-function-lowering",
                 "p19-logical-to-physical",
                 "p20-nesting-unwrap",
+                "p23-supports-static-eval",
                 "p24-media-static-eval",
                 "p25-calc-reduction",
                 "p40-print-css"
@@ -3989,6 +4093,28 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p24-media-static-eval", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_evaluates_simple_supports_branches_with_cascade_witness() {
+        let source = r#"@supports (display: grid) { .a { display: grid; } } @supports not (display: grid) { .b { display: block; } } @supports (display: grid) and (color: red) { .c { color: red; } }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::SupportsStaticEval,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#".a { display: grid; }  @supports (display: grid) and (color: red) { .c { color: red; } }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p23-supports-static-eval", "p40-print-css"]
         );
     }
 

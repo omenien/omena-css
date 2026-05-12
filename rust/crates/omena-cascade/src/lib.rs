@@ -376,6 +376,32 @@ pub struct ShorthandCombinationProofV0 {
     pub cascade_safe_witness: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StaticSupportsAssumptionV0 {
+    ModernBrowser,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StaticSupportsEvalVerdictV0 {
+    AlwaysTrue,
+    AlwaysFalse,
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StaticSupportsEvalWitnessV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub condition: String,
+    pub assumption: StaticSupportsAssumptionV0,
+    pub verdict: StaticSupportsEvalVerdictV0,
+    pub reason: &'static str,
+    pub provenance_preserved: bool,
+}
+
 pub type CustomPropertyEnv = BTreeMap<String, CascadeValue>;
 
 pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
@@ -396,6 +422,7 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
             "customPropertySubstitution",
             "cycleToGuaranteedInvalid",
             "shorthandCombinationProof",
+            "supportsStaticEvalWitness",
         ],
         not_ready_surfaces: vec!["wptCascadeCorpus"],
     }
@@ -776,6 +803,71 @@ pub fn prove_box_shorthand_combination(
         longhands,
         "all four longhands are adjacent, non-important, and in canonical order",
     )
+}
+
+pub fn evaluate_static_supports_condition(
+    condition: &str,
+    assumption: StaticSupportsAssumptionV0,
+) -> StaticSupportsEvalWitnessV0 {
+    let normalized_condition = normalize_ascii_whitespace(condition);
+    let (verdict, reason) = match assumption {
+        StaticSupportsAssumptionV0::ModernBrowser => {
+            if parse_not_simple_supports_declaration(&normalized_condition).is_some() {
+                (
+                    StaticSupportsEvalVerdictV0::AlwaysFalse,
+                    "modern-browser assumption rejects negated simple declaration feature queries",
+                )
+            } else if parse_simple_supports_declaration(&normalized_condition).is_some() {
+                (
+                    StaticSupportsEvalVerdictV0::AlwaysTrue,
+                    "modern-browser assumption accepts simple declaration feature queries",
+                )
+            } else {
+                (
+                    StaticSupportsEvalVerdictV0::Unknown,
+                    "unsupported supports condition shape",
+                )
+            }
+        }
+    };
+
+    StaticSupportsEvalWitnessV0 {
+        schema_version: "0",
+        product: "omena-cascade.supports-static-eval",
+        condition: normalized_condition,
+        assumption,
+        verdict,
+        reason,
+        provenance_preserved: verdict != StaticSupportsEvalVerdictV0::Unknown,
+    }
+}
+
+fn parse_not_simple_supports_declaration(condition: &str) -> Option<(&str, &str)> {
+    let inner = condition.strip_prefix("not ")?;
+    parse_simple_supports_declaration(inner)
+}
+
+fn parse_simple_supports_declaration(condition: &str) -> Option<(&str, &str)> {
+    let inner = condition.strip_prefix('(')?.strip_suffix(')')?.trim();
+    let (property, value) = inner.split_once(':')?;
+    let property = property.trim();
+    let value = value.trim();
+    if property.is_empty()
+        || value.is_empty()
+        || property.contains(|ch: char| !is_supports_declaration_token_char(ch))
+        || value.contains(['{', '}', ';', '(', ')'])
+    {
+        return None;
+    }
+    Some((property, value))
+}
+
+fn is_supports_declaration_token_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_')
+}
+
+fn normalize_ascii_whitespace(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn box_shorthand_longhands(shorthand_property: &str) -> Option<[&'static str; 4]> {
@@ -1493,6 +1585,31 @@ mod tests {
     }
 
     #[test]
+    fn evaluates_simple_supports_conditions_under_modern_browser_assumption() {
+        let positive = evaluate_static_supports_condition(
+            "(display: grid)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(positive.product, "omena-cascade.supports-static-eval");
+        assert_eq!(positive.verdict, StaticSupportsEvalVerdictV0::AlwaysTrue);
+        assert!(positive.provenance_preserved);
+
+        let negative = evaluate_static_supports_condition(
+            "not (display: grid)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(negative.verdict, StaticSupportsEvalVerdictV0::AlwaysFalse);
+        assert!(negative.provenance_preserved);
+
+        let unknown = evaluate_static_supports_condition(
+            "(display: grid) and (color: red)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(unknown.verdict, StaticSupportsEvalVerdictV0::Unknown);
+        assert!(!unknown.provenance_preserved);
+    }
+
+    #[test]
     fn reports_selector_context_witness_rank() {
         let root = selector_context_witness(&[":root".to_string()], &[".button".to_string()]);
         assert_eq!(root.kind, SelectorContextMatchKind::Root);
@@ -1672,6 +1789,11 @@ mod tests {
         );
         assert!(summary.ready_surfaces.contains(&"selectorContextWitness"));
         assert!(summary.ready_surfaces.contains(&"selectorMatchWitness"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"supportsStaticEvalWitness")
+        );
         assert!(
             summary
                 .ready_surfaces
