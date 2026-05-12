@@ -4656,9 +4656,16 @@ fn parse_oklab_oklch_value(value: &str) -> Option<String> {
 
 fn parse_color_function_value(value: &str) -> Option<String> {
     let inner = parse_whole_function_value_inner(value, "color")?;
-    let parts = split_ascii_space_separated_color_args(inner)?;
-    let [space, red, green, blue] = parts.as_slice() else {
+    if inner.contains(',') {
         return None;
+    }
+    let parts = inner.split_whitespace().collect::<Vec<_>>();
+    let (space, red, green, blue) = match parts.as_slice() {
+        [space, red, green, blue] => (*space, *red, *green, *blue),
+        [space, red, green, blue, "/", alpha] if parse_opaque_alpha(alpha)? => {
+            (*space, *red, *green, *blue)
+        }
+        _ => return None,
     };
     if !space.eq_ignore_ascii_case("srgb") {
         return None;
@@ -4671,6 +4678,15 @@ fn parse_color_function_value(value: &str) -> Option<String> {
         }
         .to_css_rgb(),
     )
+}
+
+fn parse_opaque_alpha(text: &str) -> Option<bool> {
+    let value = if let Some(percent) = text.strip_suffix('%') {
+        parse_plain_f64(percent)? / 100.0
+    } else {
+        parse_plain_f64(text)?
+    };
+    Some((value - 1.0).abs() <= f64::EPSILON)
 }
 
 fn parse_oklab_value(value: &str) -> Option<SrgbColor> {
@@ -7767,7 +7783,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_static_srgb_color_function_declarations() {
-        let source = r#".card { color: color(srgb 1 0 0); background-color: color(srgb 50% 25% 0%); border-color: color(display-p3 1 0 0); }"#;
+        let source = r#".card { color: color(srgb 1 0 0); background-color: color(srgb 50% 25% 0% / 100%); outline-color: color(srgb 0 0 1 / 1); accent-color: color(srgb 1 0 0 / .5); border-color: color(display-p3 1 0 0); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7776,10 +7792,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 3);
         assert_eq!(
             execution.output_css,
-            r#".card { color: rgb(255 0 0); background-color: rgb(128 64 0); border-color: color(display-p3 1 0 0); }"#
+            r#".card { color: rgb(255 0 0); background-color: rgb(128 64 0); outline-color: rgb(0 0 255); accent-color: color(srgb 1 0 0 / .5); border-color: color(display-p3 1 0 0); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
