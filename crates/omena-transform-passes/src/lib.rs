@@ -5983,8 +5983,7 @@ fn compress_static_color_function_declaration_values_with_lexer(
                 if declaration.property.starts_with("--") || declaration.important {
                     continue;
                 }
-                let Some(replacement_value) =
-                    compress_static_color_function_value(&declaration.value)
+                let Some(replacement_value) = compress_static_color_value(&declaration.value)
                 else {
                     continue;
                 };
@@ -6020,8 +6019,9 @@ fn compress_static_color_function_declaration_values_with_lexer(
     (output, replacements.len())
 }
 
-fn compress_static_color_function_value(value: &str) -> Option<String> {
-    let color = parse_static_rgb_function_color(value)
+fn compress_static_color_value(value: &str) -> Option<String> {
+    let color = parse_static_srgb_color(value)
+        .or_else(|| parse_static_rgb_function_color(value))
         .or_else(|| parse_static_hsl_function_color(value))
         .or_else(|| parse_static_hwb_function_color(value))?;
     let replacement = shortest_static_srgb_color_text(color);
@@ -7418,7 +7418,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_static_declaration_colors_only() {
-        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#;
+        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); flood-color: white; lighting-color: black; stop-color: blue; accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7427,10 +7427,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 10);
+        assert_eq!(execution.mutation_count, 12);
         assert_eq!(
             execution.output_css,
-            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: #808080; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
+            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: #808080; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: blue; accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
         );
     }
 
