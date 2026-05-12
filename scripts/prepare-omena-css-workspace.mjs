@@ -27,6 +27,7 @@ const omenaCssCrates = [
   "omena-transform-print",
   "omena-transform-egg",
   "omena-cli",
+  "omena-napi",
   "omena-wasm",
 ];
 const omenaCssPublishOrder = [
@@ -42,6 +43,7 @@ const omenaCssPublishOrder = [
   "omena-transform-print",
   "omena-transform-egg",
   "omena-cli",
+  "omena-napi",
   "omena-wasm",
 ];
 const externallyPublishedCrates = new Set(["omena-incremental"]);
@@ -234,6 +236,8 @@ cstree = "0.14.0"
 rustc-hash = "2.1.2"
 smol_str = "0.3.6"
 clap = { version = "4.6.1", features = ["derive"] }
+napi = "3.8.6"
+napi-derive = "3.5.5"
 serde-wasm-bindgen = "0.6.5"
 wasm-bindgen = "0.2.121"
 
@@ -353,7 +357,7 @@ sharing one release train.
 - Transform substrate: \`omena-transform-cst\`, \`omena-transform-passes\`,
   \`omena-transform-bundle\`, \`omena-transform-target\`,
   \`omena-transform-print\`, \`omena-transform-egg\`
-- Consumer surfaces: \`omena-cli\`, \`omena-wasm\`
+- Consumer surfaces: \`omena-cli\`, \`omena-napi\`, \`omena-wasm\`
 
 ## Current Product Surface
 
@@ -365,6 +369,7 @@ The first public surface focuses on parser and transform foundations:
   proof helpers.
 - Conservative transform planning and execution surfaces with explicit
   provenance.
+- Node native JSON binding substrate through \`omena-napi\`.
 - Browser-side in-memory parser and transform bindings through \`omena-wasm\`.
 
 ## Design Rules
@@ -433,6 +438,29 @@ const facts = checkStyleSource(".card { color: red; }", "demo.module.css");
 const built = buildStyleSource(".card { color: #ffffff; }", "demo.css", [
   "color-compression",
 ]);
+\`\`\`
+
+## Use the Node Native Binding Substrate
+
+\`omena-napi\` is the Rust N-API substrate for future npm packaging. It exposes
+JSON-string APIs so Node clients can consume the same parser and transform
+contracts without depending on unstable Rust structs. A future npm wrapper can
+export this shape:
+
+\`\`\`js
+import {
+  checkStyleSourceJson,
+  buildStyleSourceJson,
+} from "omena-napi";
+
+const facts = JSON.parse(
+  checkStyleSourceJson(".card { color: red; }", "demo.module.css"),
+);
+const built = JSON.parse(
+  buildStyleSourceJson(".card { color: #ffffff; }", "demo.css", [
+    "color-compression",
+  ]),
+);
 \`\`\`
 
 ## Publish Readiness
@@ -505,6 +533,15 @@ Primary consumers:
 - \`checkStyleSource(source, path)\` reports parser-owned facts.
 - \`buildStyleSource(source, path, passIds)\` runs conservative transform passes.
 - \`listTransformPasses()\` lists accepted transform pass ids.
+
+## Node Native Binding
+
+\`omena-napi\` exposes the first Node native binding substrate:
+
+- \`checkStyleSourceJson(source, path)\` reports parser-owned facts as JSON.
+- \`buildStyleSourceJson(source, path, passIds)\` runs conservative transform
+  passes and returns JSON.
+- \`listTransformPassesJson()\` lists accepted transform pass ids as JSON.
 `,
   );
   writeFileSync(

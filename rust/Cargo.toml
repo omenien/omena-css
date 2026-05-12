@@ -15,6 +15,7 @@ members = [
   "crates/omena-syntax",
   "crates/omena-incremental",
   "crates/omena-lsp-server",
+  "crates/omena-napi",
   "crates/omena-query",
   "crates/omena-resolver",
   "crates/omena-semantic",
@@ -42,6 +43,8 @@ salsa = { version = "0.26.1", default-features = false, features = ["macros", "i
 clap = { version = "4.6.1", features = ["derive"] }
 criterion = "0.8.2"
 cstree = "0.14.0"
+napi = "3.8.6"
+napi-derive = "3.5.5"
 rustc-hash = "2.1.2"
 smol_str = "0.3.6"
 serde-wasm-bindgen = "0.6.5"
