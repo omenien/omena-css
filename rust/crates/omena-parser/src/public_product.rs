@@ -1,19 +1,17 @@
-#![allow(dead_code)]
-
 use std::collections::{BTreeMap, BTreeSet};
 
-use cstree::text::TextRange;
-use omena_parser::{
+use crate::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleValueFactKind,
     ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedSelectorFactKind,
     ParsedStyleFacts, ParsedVariableFactKind, ParserByteSpanV0, ParserPositionV0, ParserRangeV0,
     StyleDialect, collect_style_facts, summarize_omena_parser_parity_lite,
 };
+use cstree::text::TextRange;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct ParserIndexSummaryV0 {
+pub struct ParserIndexSummaryV0 {
     schema_version: &'static str,
     language: &'static str,
     selectors: ParserIndexSelectorFactsV0,
@@ -27,10 +25,10 @@ pub(crate) struct ParserIndexSummaryV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct ParserCanonicalCandidateBundleV0 {
+pub struct ParserCanonicalCandidateBundleV0 {
     schema_version: &'static str,
     language: &'static str,
-    parity_lite: omena_parser::OmenaParserParityLiteSummaryV0,
+    parity_lite: crate::OmenaParserParityLiteSummaryV0,
     css_modules_intermediate: ParserIndexSummaryV0,
 }
 
@@ -59,7 +57,7 @@ struct ParserEvaluatorCandidateV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct ParserEvaluatorCandidatesV0 {
+pub struct ParserEvaluatorCandidatesV0 {
     schema_version: &'static str,
     language: &'static str,
     results: Vec<ParserEvaluatorCandidateV0>,
@@ -67,7 +65,7 @@ pub(crate) struct ParserEvaluatorCandidatesV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct ParserCanonicalProducerSignalV0 {
+pub struct ParserCanonicalProducerSignalV0 {
     schema_version: &'static str,
     language: &'static str,
     canonical_candidate: ParserCanonicalCandidateBundleV0,
@@ -351,7 +349,7 @@ struct WrapperContext {
     under_layer: bool,
 }
 
-pub(crate) fn summarize_css_modules_intermediate(
+pub fn summarize_css_modules_intermediate(
     source: &str,
     dialect: StyleDialect,
 ) -> ParserIndexSummaryV0 {
@@ -387,7 +385,7 @@ pub(crate) fn summarize_css_modules_intermediate(
     }
 }
 
-pub(crate) fn summarize_parser_canonical_candidate(
+pub fn summarize_parser_canonical_candidate(
     source: &str,
     dialect: StyleDialect,
 ) -> ParserCanonicalCandidateBundleV0 {
@@ -402,7 +400,7 @@ pub(crate) fn summarize_parser_canonical_candidate(
     }
 }
 
-pub(crate) fn summarize_parser_evaluator_candidates(
+pub fn summarize_parser_evaluator_candidates(
     source: &str,
     dialect: StyleDialect,
 ) -> ParserEvaluatorCandidatesV0 {
@@ -545,7 +543,7 @@ pub(crate) fn summarize_parser_evaluator_candidates(
     }
 }
 
-pub(crate) fn summarize_parser_canonical_producer_signal(
+pub fn summarize_parser_canonical_producer_signal(
     source: &str,
     dialect: StyleDialect,
 ) -> ParserCanonicalProducerSignalV0 {
@@ -2194,7 +2192,7 @@ impl SortVec for Vec<String> {
     }
 }
 
-pub(crate) fn dialect_for_path(file_path: &str) -> StyleDialect {
+pub fn dialect_for_path(file_path: &str) -> StyleDialect {
     if file_path.ends_with(".sass") || file_path.ends_with(".module.sass") {
         StyleDialect::Sass
     } else if file_path.ends_with(".scss") || file_path.ends_with(".module.scss") {

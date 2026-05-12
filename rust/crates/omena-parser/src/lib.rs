@@ -24,6 +24,14 @@ use std::{
     sync::Arc,
 };
 
+mod public_product;
+pub use public_product::{
+    ParserCanonicalCandidateBundleV0, ParserCanonicalProducerSignalV0, ParserEvaluatorCandidatesV0,
+    ParserIndexSummaryV0, dialect_for_path, summarize_css_modules_intermediate,
+    summarize_parser_canonical_candidate, summarize_parser_canonical_producer_signal,
+    summarize_parser_evaluator_candidates,
+};
+
 const VALUES_L4_MATH_FUNCTION_NAMES: &[&str] = &[
     "min", "max", "clamp", "round", "mod", "rem", "sin", "cos", "tan", "asin", "acos", "atan",
     "atan2", "pow", "sqrt", "hypot", "log", "exp", "abs", "sign",
