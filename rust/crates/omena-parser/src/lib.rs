@@ -11,7 +11,10 @@ use cstree::{
     syntax::SyntaxNode,
     text::{TextRange, TextSize},
 };
-use omena_interner::NameKind;
+use omena_interner::{
+    NameKind, intern_class_name, intern_css_ident, intern_custom_property_name, intern_file_path,
+    intern_keyframes_name, intern_mixin_name, intern_property_name, intern_selector_key,
+};
 pub use omena_syntax::StyleDialect;
 use omena_syntax::SyntaxKind;
 use std::{collections::BTreeSet, sync::Arc};
@@ -142,6 +145,30 @@ pub struct ParserBoundarySummary {
     pub shared_name_kind_count: usize,
     pub ready_surfaces: Vec<&'static str>,
     pub not_ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParserSemanticNameConsumptionSummaryV0 {
+    pub product: &'static str,
+    pub dialect: StyleDialect,
+    pub semantic_name_count: usize,
+    pub interned_name_count: usize,
+    pub invalid_name_count: usize,
+    pub class_name_count: usize,
+    pub css_ident_count: usize,
+    pub property_name_count: usize,
+    pub selector_key_count: usize,
+    pub custom_property_name_count: usize,
+    pub keyframes_name_count: usize,
+    pub mixin_name_count: usize,
+    pub file_path_count: usize,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParserSemanticNameCandidateV0 {
+    kind: NameKind,
+    text: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -824,6 +851,238 @@ pub fn collect_style_facts_with_extension(
     }
 }
 
+pub fn summarize_parser_semantic_name_consumption(
+    text: &str,
+    dialect: StyleDialect,
+    db: &dyn salsa::Database,
+) -> ParserSemanticNameConsumptionSummaryV0 {
+    let facts = collect_style_facts(text, dialect);
+    let candidates = parser_semantic_name_candidates(&facts);
+    let interned_name_count = candidates
+        .iter()
+        .filter(|candidate| intern_parser_semantic_name(db, candidate.kind, &candidate.text))
+        .count();
+    let invalid_name_count = candidates.len().saturating_sub(interned_name_count);
+
+    ParserSemanticNameConsumptionSummaryV0 {
+        product: "omena-parser.semantic-name-consumption",
+        dialect,
+        semantic_name_count: candidates.len(),
+        interned_name_count,
+        invalid_name_count,
+        class_name_count: count_parser_semantic_name_kind(&candidates, NameKind::ClassName),
+        css_ident_count: count_parser_semantic_name_kind(&candidates, NameKind::CssIdent),
+        property_name_count: count_parser_semantic_name_kind(&candidates, NameKind::PropertyName),
+        selector_key_count: count_parser_semantic_name_kind(&candidates, NameKind::SelectorKey),
+        custom_property_name_count: count_parser_semantic_name_kind(
+            &candidates,
+            NameKind::CustomPropertyName,
+        ),
+        keyframes_name_count: count_parser_semantic_name_kind(&candidates, NameKind::KeyframesName),
+        mixin_name_count: count_parser_semantic_name_kind(&candidates, NameKind::MixinName),
+        file_path_count: count_parser_semantic_name_kind(&candidates, NameKind::FilePath),
+        ready_surfaces: vec![
+            "parserSemanticNameConsumption",
+            "typedInternerValidation",
+            "styleFactNameKindProjection",
+        ],
+    }
+}
+
+fn parser_semantic_name_candidates(facts: &ParsedStyleFacts) -> Vec<ParserSemanticNameCandidateV0> {
+    let mut candidates = Vec::new();
+
+    for selector in &facts.selectors {
+        let kind = match selector.kind {
+            ParsedSelectorFactKind::Class => NameKind::ClassName,
+            ParsedSelectorFactKind::Id | ParsedSelectorFactKind::Placeholder => {
+                NameKind::SelectorKey
+            }
+        };
+        push_parser_semantic_name_candidate(&mut candidates, kind, &selector.name);
+    }
+
+    for variable in &facts.variables {
+        let kind = match variable.kind {
+            ParsedVariableFactKind::CustomPropertyDeclaration
+            | ParsedVariableFactKind::CustomPropertyReference => NameKind::CustomPropertyName,
+            ParsedVariableFactKind::ScssDeclaration
+            | ParsedVariableFactKind::ScssReference
+            | ParsedVariableFactKind::LessDeclaration
+            | ParsedVariableFactKind::LessReference => NameKind::CssIdent,
+        };
+        push_parser_semantic_name_candidate(&mut candidates, kind, &variable.name);
+    }
+
+    for symbol in &facts.sass_symbols {
+        let kind = match symbol.kind {
+            ParsedSassSymbolFactKind::MixinDeclaration | ParsedSassSymbolFactKind::MixinInclude => {
+                NameKind::MixinName
+            }
+            ParsedSassSymbolFactKind::VariableDeclaration
+            | ParsedSassSymbolFactKind::VariableReference
+            | ParsedSassSymbolFactKind::FunctionDeclaration
+            | ParsedSassSymbolFactKind::FunctionCall => NameKind::CssIdent,
+        };
+        push_parser_semantic_name_candidate(&mut candidates, kind, &symbol.name);
+        if let Some(namespace) = &symbol.namespace {
+            push_parser_semantic_name_candidate(&mut candidates, NameKind::CssIdent, namespace);
+        }
+    }
+
+    for include in &facts.sass_includes {
+        push_parser_semantic_name_candidate(&mut candidates, NameKind::MixinName, &include.name);
+        if let Some(namespace) = &include.namespace {
+            push_parser_semantic_name_candidate(&mut candidates, NameKind::CssIdent, namespace);
+        }
+    }
+
+    for edge in &facts.sass_module_edges {
+        push_parser_semantic_name_candidate(&mut candidates, NameKind::FilePath, &edge.source);
+        if let Some(namespace) = &edge.namespace {
+            push_parser_semantic_name_candidate(&mut candidates, NameKind::CssIdent, namespace);
+        }
+    }
+
+    for animation in &facts.animations {
+        push_parser_semantic_name_candidate(
+            &mut candidates,
+            NameKind::KeyframesName,
+            &animation.name,
+        );
+    }
+
+    for value in &facts.css_module_values {
+        let kind = match value.kind {
+            ParsedCssModuleValueFactKind::Definition | ParsedCssModuleValueFactKind::Reference => {
+                NameKind::CssIdent
+            }
+            ParsedCssModuleValueFactKind::ImportSource => NameKind::FilePath,
+        };
+        push_parser_semantic_name_candidate(&mut candidates, kind, &value.name);
+    }
+
+    for edge in &facts.css_module_value_import_edges {
+        push_parser_semantic_name_candidate(&mut candidates, NameKind::CssIdent, &edge.local_name);
+        push_parser_semantic_name_candidate(&mut candidates, NameKind::CssIdent, &edge.remote_name);
+        push_parser_semantic_name_candidate(
+            &mut candidates,
+            NameKind::FilePath,
+            &edge.import_source,
+        );
+    }
+
+    for edge in &facts.css_module_value_definition_edges {
+        push_parser_semantic_name_candidate(
+            &mut candidates,
+            NameKind::CssIdent,
+            &edge.definition_name,
+        );
+        for reference_name in &edge.reference_names {
+            push_parser_semantic_name_candidate(
+                &mut candidates,
+                NameKind::CssIdent,
+                reference_name,
+            );
+        }
+    }
+
+    for composes in &facts.css_module_composes {
+        let kind = match composes.kind {
+            ParsedCssModuleComposesFactKind::Target => NameKind::ClassName,
+            ParsedCssModuleComposesFactKind::ImportSource => NameKind::FilePath,
+        };
+        push_parser_semantic_name_candidate(&mut candidates, kind, &composes.name);
+    }
+
+    for edge in &facts.css_module_composes_edges {
+        for owner_selector_name in &edge.owner_selector_names {
+            push_parser_semantic_name_candidate(
+                &mut candidates,
+                NameKind::ClassName,
+                owner_selector_name,
+            );
+        }
+        for target_name in &edge.target_names {
+            push_parser_semantic_name_candidate(&mut candidates, NameKind::ClassName, target_name);
+        }
+        if let Some(import_source) = &edge.import_source {
+            push_parser_semantic_name_candidate(&mut candidates, NameKind::FilePath, import_source);
+        }
+    }
+
+    for icss in &facts.icss {
+        let kind = match icss.kind {
+            ParsedIcssFactKind::ImportSource => NameKind::FilePath,
+            ParsedIcssFactKind::ExportName
+            | ParsedIcssFactKind::ImportLocalName
+            | ParsedIcssFactKind::ImportRemoteName => NameKind::CssIdent,
+        };
+        push_parser_semantic_name_candidate(&mut candidates, kind, &icss.name);
+    }
+
+    for edge in &facts.icss_import_edges {
+        push_parser_semantic_name_candidate(&mut candidates, NameKind::CssIdent, &edge.local_name);
+        push_parser_semantic_name_candidate(&mut candidates, NameKind::CssIdent, &edge.remote_name);
+        push_parser_semantic_name_candidate(
+            &mut candidates,
+            NameKind::FilePath,
+            &edge.import_source,
+        );
+    }
+
+    for edge in &facts.icss_export_edges {
+        push_parser_semantic_name_candidate(&mut candidates, NameKind::CssIdent, &edge.export_name);
+        for reference_name in &edge.reference_names {
+            push_parser_semantic_name_candidate(
+                &mut candidates,
+                NameKind::CssIdent,
+                reference_name,
+            );
+        }
+    }
+
+    for at_rule in &facts.at_rules {
+        push_parser_semantic_name_candidate(&mut candidates, NameKind::CssIdent, &at_rule.name);
+    }
+
+    candidates
+}
+
+fn push_parser_semantic_name_candidate(
+    candidates: &mut Vec<ParserSemanticNameCandidateV0>,
+    kind: NameKind,
+    text: &str,
+) {
+    candidates.push(ParserSemanticNameCandidateV0 {
+        kind,
+        text: text.to_string(),
+    });
+}
+
+fn count_parser_semantic_name_kind(
+    candidates: &[ParserSemanticNameCandidateV0],
+    kind: NameKind,
+) -> usize {
+    candidates
+        .iter()
+        .filter(|candidate| candidate.kind == kind)
+        .count()
+}
+
+fn intern_parser_semantic_name(db: &dyn salsa::Database, kind: NameKind, text: &str) -> bool {
+    match kind {
+        NameKind::ClassName => intern_class_name(db, text).is_ok(),
+        NameKind::CssIdent => intern_css_ident(db, text).is_ok(),
+        NameKind::PropertyName => intern_property_name(db, text).is_ok(),
+        NameKind::SelectorKey => intern_selector_key(db, text).is_ok(),
+        NameKind::CustomPropertyName => intern_custom_property_name(db, text).is_ok(),
+        NameKind::KeyframesName => intern_keyframes_name(db, text).is_ok(),
+        NameKind::MixinName => intern_mixin_name(db, text).is_ok(),
+        NameKind::FilePath => intern_file_path(db, text).is_ok(),
+    }
+}
+
 pub fn summarize_parser_boundary() -> ParserBoundarySummary {
     ParserBoundarySummary {
         product: "omena-parser.boundary",
@@ -1006,6 +1265,7 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "initialDialectStatementNodes",
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
+            "parserSemanticNameConsumption",
         ],
         not_ready_surfaces: vec![
             "fullRecursiveDescentGrammar",
@@ -12900,6 +13160,35 @@ mod tests {
     }
 
     #[test]
+    fn consumes_parser_style_fact_names_through_typed_interner() {
+        let db = salsa::DatabaseImpl::default();
+        let summary = summarize_parser_semantic_name_consumption(
+            r#"@use "./tokens" as t;
+@mixin tone { color: $brand; }
+.button { --brand: red; animation: fade 1s; composes: base from "./base.module.css"; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }"#,
+            StyleDialect::Scss,
+            &db,
+        );
+
+        assert_eq!(summary.product, "omena-parser.semantic-name-consumption");
+        assert_eq!(summary.dialect, StyleDialect::Scss);
+        assert_eq!(summary.invalid_name_count, 0);
+        assert_eq!(summary.semantic_name_count, summary.interned_name_count);
+        assert!(summary.class_name_count >= 2);
+        assert!(summary.custom_property_name_count >= 1);
+        assert!(summary.css_ident_count >= 1);
+        assert!(summary.keyframes_name_count >= 1);
+        assert!(summary.mixin_name_count >= 1);
+        assert!(summary.file_path_count >= 1);
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"parserSemanticNameConsumption")
+        );
+    }
+
+    #[test]
     fn summarizes_green_field_parser_boundary() {
         let summary = summarize_parser_boundary();
 
@@ -13499,6 +13788,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"styleFactExtractionSurface")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"parserSemanticNameConsumption")
         );
         assert!(summary.ready_surfaces.contains(&"differentialCorpus"));
         assert!(!summary.not_ready_surfaces.contains(&"differentialCorpus"));

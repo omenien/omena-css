@@ -204,8 +204,9 @@ pub fn summarize_omena_interner_boundary() -> OmenaInternerBoundarySummaryV0 {
             "validatedNameHelpers",
             "syntaxSymbolKindMapping",
             "workspaceFilePathIdentity",
+            "parserSemanticNameConsumption",
         ],
-        next_surfaces: vec!["parserSemanticNameConsumption", "semanticSoaNameTables"],
+        next_surfaces: vec!["semanticSoaNameTables"],
     }
 }
 
@@ -284,5 +285,15 @@ mod tests {
         assert_eq!(summary.validated_helper_count, 8);
         assert_eq!(summary.symbol_mapped_name_kind_count, 4);
         assert!(summary.ready_surfaces.contains(&"typedSalsaInternedNames"));
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"parserSemanticNameConsumption")
+        );
+        assert!(
+            !summary
+                .next_surfaces
+                .contains(&"parserSemanticNameConsumption")
+        );
     }
 }

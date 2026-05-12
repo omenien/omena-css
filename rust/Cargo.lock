@@ -610,6 +610,7 @@ dependencies = [
  "cstree",
  "omena-interner",
  "omena-syntax",
+ "salsa",
 ]
 
 [[package]]

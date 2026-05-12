@@ -15,3 +15,4 @@ workspace = true
 cstree.workspace = true
 omena-interner = { path = "../omena-interner" }
 omena-syntax = { path = "../omena-syntax" }
+salsa.workspace = true
