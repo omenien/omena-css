@@ -4119,8 +4119,9 @@ fn substitute_static_css_custom_properties_with_lexer(
 ) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
-    let env = collect_static_root_custom_property_env(tokens, &rules);
+    let env_rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
+    let env = collect_static_root_custom_property_env(tokens, &env_rules);
     if env.is_empty() {
         return (source.to_string(), 0);
     }
@@ -8428,7 +8429,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_resolves_unique_static_root_custom_properties() {
-        let source = r#":root { --brand: red; --gap: 2rem; --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: var(--brand); margin: var(--gap); border-color: var(--missing, blue); background: var(--dup); outline-color: var(--dynamic); text-decoration-color: var(--fallback); caret-color: var(--cycle-a); }"#;
+        let source = r#":root { --brand: red; --gap: 2rem; --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: var(--brand); margin: var(--gap); border-color: var(--missing, blue); background: var(--dup); outline-color: var(--dynamic); text-decoration-color: var(--fallback); caret-color: var(--cycle-a); } @media screen { .card { color: var(--dynamic); } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -8437,10 +8438,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 5);
+        assert_eq!(execution.mutation_count, 6);
         assert_eq!(
             execution.output_css,
-            r#":root { --brand: red; --gap: 2rem; --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: red; margin: 2rem; border-color: blue; background: var(--dup); outline-color: red; text-decoration-color: blue; caret-color: var(--cycle-a); }"#
+            r#":root { --brand: red; --gap: 2rem; --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: red; margin: 2rem; border-color: blue; background: var(--dup); outline-color: red; text-decoration-color: blue; caret-color: var(--cycle-a); } @media screen { .card { color: red; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
