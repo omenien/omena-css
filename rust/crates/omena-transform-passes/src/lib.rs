@@ -109,6 +109,14 @@ pub struct TransformExecutionContextV0 {
     pub reachable_keyframe_names: Vec<String>,
     pub reachable_value_names: Vec<String>,
     pub reachable_custom_property_names: Vec<String>,
+    pub class_name_rewrites: Vec<TransformClassNameRewriteV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformClassNameRewriteV0 {
+    pub original_name: String,
+    pub rewritten_name: String,
 }
 
 pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySummaryV0 {
@@ -679,6 +687,39 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     detail: "removed dead @supports branches through the static cascade witness evaluator",
                 }
             }
+            Some(TransformPassKind::HashCssModuleClassNames)
+                if !context.class_name_rewrites.is_empty() =>
+            {
+                let (next_css, mutation_count) = rewrite_css_module_class_names(
+                    &output_css,
+                    dialect,
+                    &context.class_name_rewrites,
+                );
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "rewrote CSS Modules class selectors through an explicit selector identity map",
+                }
+            }
+            Some(TransformPassKind::HashCssModuleClassNames) => TransformPassExecutionOutcomeV0 {
+                pass_id,
+                status: TransformPassRuntimeStatus::PlannedOnly,
+                input_byte_len,
+                output_byte_len: output_css.len(),
+                mutation_count: 0,
+                provenance_preserved: true,
+                detail: "requires an explicit selector identity map before mutation",
+            },
             Some(TransformPassKind::TreeShakeClass) if context.closed_style_world => {
                 let (next_css, mutation_count) = tree_shake_css_class_rules(
                     &output_css,
@@ -963,6 +1004,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::DeadSupportsBranchRemoval.id(),
         TransformPassKind::ValueResolution.id(),
         TransformPassKind::StaticVarSubstitution.id(),
+        TransformPassKind::HashCssModuleClassNames.id(),
         TransformPassKind::TreeShakeClass.id(),
         TransformPassKind::TreeShakeKeyframes.id(),
         TransformPassKind::TreeShakeValue.id(),
@@ -1214,6 +1256,14 @@ fn tree_shake_css_custom_properties(
     reachable_custom_property_names: &[String],
 ) -> (String, usize) {
     tree_shake_css_custom_properties_with_lexer(source, dialect, reachable_custom_property_names)
+}
+
+fn rewrite_css_module_class_names(
+    source: &str,
+    dialect: StyleDialect,
+    rewrites: &[TransformClassNameRewriteV0],
+) -> (String, usize) {
+    rewrite_css_module_class_names_with_lexer(source, dialect, rewrites)
 }
 
 fn substitute_static_css_custom_properties(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -2307,6 +2357,110 @@ fn normalize_reachable_class_name(name: &str) -> Option<&str> {
         return None;
     }
     Some(name)
+}
+
+fn rewrite_css_module_class_names_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+    rewrites: &[TransformClassNameRewriteV0],
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let mut replacements = Vec::new();
+
+    for rule in &rules {
+        let Some(rewritten_selector) = rewrite_simple_class_selector_list(&rule.selector, rewrites)
+        else {
+            continue;
+        };
+        replacements.push((rule.start, rule.block_start, rewritten_selector));
+    }
+
+    let mut index = 0;
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
+                if declaration.property != "composes" {
+                    continue;
+                }
+                let Some(rewritten_value) =
+                    rewrite_local_composes_value(&declaration.value, rewrites)
+                else {
+                    continue;
+                };
+                replacements.push((
+                    declaration.start,
+                    declaration.end,
+                    format!("composes: {rewritten_value};"),
+                ));
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    replace_source_ranges(source, &replacements)
+}
+
+fn rewrite_simple_class_selector_list(
+    selector: &str,
+    rewrites: &[TransformClassNameRewriteV0],
+) -> Option<String> {
+    let branches = split_top_level_value_arguments(selector)?;
+    let mut changed = false;
+    let mut rewritten = Vec::new();
+    for branch in branches {
+        let class_name = simple_class_selector_name(&branch)?;
+        let Some(rewritten_name) = rewritten_class_name_for(&class_name, rewrites) else {
+            rewritten.push(branch);
+            continue;
+        };
+        changed = true;
+        rewritten.push(format!(".{rewritten_name}"));
+    }
+    changed.then(|| rewritten.join(", "))
+}
+
+fn rewrite_local_composes_value(
+    value: &str,
+    rewrites: &[TransformClassNameRewriteV0],
+) -> Option<String> {
+    if value
+        .split_whitespace()
+        .any(|part| matches!(part, "from" | "global"))
+        || value.contains(',')
+    {
+        return None;
+    }
+    let mut changed = false;
+    let mut parts = Vec::new();
+    for part in value.split_whitespace() {
+        if !css_identifier_text_is_plain(part) {
+            return None;
+        }
+        if let Some(rewritten_name) = rewritten_class_name_for(part, rewrites) {
+            changed = true;
+            parts.push(rewritten_name.to_string());
+        } else {
+            parts.push(part.to_string());
+        }
+    }
+    changed.then(|| parts.join(" "))
+}
+
+fn rewritten_class_name_for<'a>(
+    class_name: &str,
+    rewrites: &'a [TransformClassNameRewriteV0],
+) -> Option<&'a str> {
+    rewrites.iter().find_map(|rewrite| {
+        let original_name = normalize_reachable_class_name(&rewrite.original_name)?;
+        let rewritten_name = normalize_reachable_class_name(&rewrite.rewritten_name)?;
+        (original_name == class_name).then_some(rewritten_name)
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4852,7 +5006,7 @@ fn is_comment_token(kind: SyntaxKind) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        TransformExecutionContextV0, TransformPassRuntimeStatus,
+        TransformClassNameRewriteV0, TransformExecutionContextV0, TransformPassRuntimeStatus,
         execute_transform_passes_on_source, execute_transform_passes_on_source_with_dialect,
         execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
         summarize_omena_transform_passes_boundary,
@@ -4903,6 +5057,7 @@ mod tests {
                 "p38-dead-supports-branch-removal",
                 "p31-value-resolution",
                 "p32-custom-property-static-resolve",
+                "p29-css-modules-class-hashing",
                 "p33-tree-shake-class",
                 "p34-tree-shake-keyframes",
                 "p35-tree-shake-value",
@@ -4993,6 +5148,47 @@ mod tests {
             outcome.pass_id == "p29-css-modules-class-hashing"
                 && outcome.status == TransformPassRuntimeStatus::PlannedOnly
         }));
+    }
+
+    #[test]
+    fn execution_runtime_rewrites_css_module_class_names_with_identity_map() {
+        let source = r#".button { composes: base utility; color: red; } .base, .utility { color: blue; } .button:hover { color: green; }"#;
+        let context = TransformExecutionContextV0 {
+            class_name_rewrites: vec![
+                TransformClassNameRewriteV0 {
+                    original_name: "button".to_string(),
+                    rewritten_name: "_button_abc123".to_string(),
+                },
+                TransformClassNameRewriteV0 {
+                    original_name: "base".to_string(),
+                    rewritten_name: "_base_def456".to_string(),
+                },
+                TransformClassNameRewriteV0 {
+                    original_name: "utility".to_string(),
+                    rewritten_name: "_utility_ghi789".to_string(),
+                },
+            ],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::HashCssModuleClassNames,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 3);
+        assert_eq!(
+            execution.output_css,
+            r#"._button_abc123{ composes: _base_def456 _utility_ghi789; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } .button:hover { color: green; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p29-css-modules-class-hashing", "p40-print-css"]
+        );
     }
 
     #[test]
