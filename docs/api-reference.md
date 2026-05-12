@@ -3,6 +3,18 @@
 This page summarizes the stable public boundaries exposed by the initial
 workspace. Use crate rustdoc for full type-level documentation.
 
+## Query Facade
+
+`omena-query` is the default facade for consumers. It exposes query-owned
+summaries for parser facts, transform execution, and source/style semantic
+lookups while keeping parser and transform crates behind one boundary.
+
+Primary consumers:
+
+- CLI, Node native, and browser bindings.
+- Editors and tools that need a stable product surface.
+- Integrations that should not depend on lower-level crate internals.
+
 ## Parser
 
 `omena-parser` exposes parse and lex results, dialect classification, parser
@@ -42,17 +54,19 @@ Primary consumers:
 
 ## CLI
 
-`omena-cli` exposes the first command-line consumer surface:
+`omena-cli` exposes the first command-line consumer surface through
+`omena-query`:
 
-- `omena check <file>` reports parser-owned facts and parse-error counts.
+- `omena check <file>` reports query-owned parser facts and parse-error counts.
 - `omena build <file>` runs the conservative transform pipeline.
 - `omena passes` lists accepted transform pass ids.
 
 ## Wasm
 
-`omena-wasm` exposes the first browser-side in-memory consumer surface:
+`omena-wasm` exposes the first browser-side in-memory consumer surface through
+`omena-query`:
 
-- `checkStyleSource(source, path)` reports parser-owned facts.
+- `checkStyleSource(source, path)` reports query-owned parser facts.
 - `buildStyleSource(source, path, passIds)` runs conservative transform passes.
 - `listTransformPasses()` lists accepted transform pass ids.
 
@@ -60,7 +74,7 @@ Primary consumers:
 
 `omena-napi` exposes the first Node native binding substrate:
 
-- `checkStyleSourceJson(source, path)` reports parser-owned facts as JSON.
+- `checkStyleSourceJson(source, path)` reports query-owned parser facts as JSON.
 - `buildStyleSourceJson(source, path, passIds)` runs conservative transform
   passes and returns JSON.
 - `listTransformPassesJson()` lists accepted transform pass ids as JSON.

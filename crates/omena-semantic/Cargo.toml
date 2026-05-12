@@ -1,0 +1,23 @@
+[package]
+name = "omena-semantic"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Semantic boundary crate for CSS Module Explainer style analysis"
+repository = "https://github.com/omenien/omena-css"
+readme = "README.md"
+keywords = ["omena", "css", "parser", "analysis"]
+categories = ["development-tools", "parser-implementations"]
+
+[lints]
+workspace = true
+
+[dependencies]
+engine-input-producers = { path = "../engine-input-producers", version = "0.1" }
+omena-cascade = { path = "../omena-cascade", version = "0.1" }
+omena-interner = { path = "../omena-interner", version = "0.1" }
+omena-parser = { path = "../omena-parser", version = "0.1" }
+salsa.workspace = true
+serde.workspace = true
+serde_json.workspace = true

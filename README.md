@@ -9,17 +9,23 @@ transform boundaries can be verified as one product surface.
 
 ## Crates
 
+- `omena-abstract-value`
+- `engine-input-producers`
 - `omena-interner`
 - `omena-syntax`
 - `omena-parser`
 - `omena-incremental`
 - `omena-cascade`
+- `omena-resolver`
+- `omena-semantic`
+- `omena-bridge`
 - `omena-transform-cst`
 - `omena-transform-passes`
 - `omena-transform-bundle`
 - `omena-transform-target`
 - `omena-transform-print`
 - `omena-transform-egg`
+- `omena-query`
 - `omena-cli`
 - `omena-napi`
 - `omena-wasm`

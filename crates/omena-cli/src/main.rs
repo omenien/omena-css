@@ -1,8 +1,7 @@
 use clap::{Parser, Subcommand};
-use omena_parser::{StyleDialect, dialect_for_path, parse, summarize_omena_parser_style_facts};
-use omena_transform_cst::{TransformPassKind, all_transform_pass_kinds};
-use omena_transform_passes::{
-    TransformExecutionSummaryV0, execute_transform_passes_on_source_with_dialect,
+use omena_query::{
+    execute_omena_query_consumer_build_style_source, list_omena_query_transform_pass_summaries,
+    summarize_omena_query_consumer_check_style_source,
 };
 use serde::Serialize;
 use std::{
@@ -53,29 +52,6 @@ enum Command {
     },
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct CheckSummary {
-    schema_version: &'static str,
-    product: &'static str,
-    file: String,
-    dialect: &'static str,
-    token_count: usize,
-    parser_error_count: usize,
-    class_selector_count: usize,
-    custom_property_count: usize,
-    keyframe_count: usize,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct PassSummary {
-    id: &'static str,
-    title: &'static str,
-    reads_semantic_graph: bool,
-    reads_cascade_model: bool,
-}
-
 fn main() -> ExitCode {
     match run(Cli::parse()) {
         Ok(()) => ExitCode::SUCCESS,
@@ -101,27 +77,14 @@ fn run(cli: Cli) -> Result<(), String> {
 
 fn check_file(path: PathBuf, json: bool) -> Result<(), String> {
     let source = read_source(&path)?;
-    let dialect = dialect_for_path(path_string(&path).as_str());
-    let parse_result = parse(&source, dialect);
-    let style_facts = summarize_omena_parser_style_facts(&source, dialect);
-    let summary = CheckSummary {
-        schema_version: "0",
-        product: "omena-cli.check",
-        file: path_string(&path),
-        dialect: dialect_label(dialect),
-        token_count: parse_result.token_count(),
-        parser_error_count: parse_result.errors().len(),
-        class_selector_count: style_facts.class_selector_names.len(),
-        custom_property_count: style_facts.custom_property_names.len(),
-        keyframe_count: style_facts.keyframe_names.len(),
-    };
+    let summary = summarize_omena_query_consumer_check_style_source(&path_string(&path), &source);
 
     if json {
         print_json(&summary)?;
         return Ok(());
     }
 
-    println!("file: {}", summary.file);
+    println!("file: {}", summary.style_path);
     println!("dialect: {}", summary.dialect);
     println!("tokens: {}", summary.token_count);
     println!("parse errors: {}", summary.parser_error_count);
@@ -138,48 +101,46 @@ fn build_file(
     json: bool,
 ) -> Result<(), String> {
     let source = read_source(&path)?;
-    let dialect = dialect_for_path(path_string(&path).as_str());
-    let passes = parse_pass_ids(&pass_ids)?;
-    let execution = execute_transform_passes_on_source_with_dialect(&source, dialect, &passes);
+    let summary =
+        execute_omena_query_consumer_build_style_source(&path_string(&path), &source, &pass_ids);
+
+    if !summary.unknown_pass_ids.is_empty() {
+        return Err(format!(
+            "unknown transform pass id: {}",
+            summary.unknown_pass_ids.join(", ")
+        ));
+    }
 
     if let Some(output_path) = output {
-        fs::write(&output_path, &execution.output_css).map_err(|error| {
+        fs::write(&output_path, &summary.execution.output_css).map_err(|error| {
             format!(
                 "failed to write transformed CSS to {}: {error}",
                 path_string(&output_path)
             )
         })?;
     } else if !json {
-        print!("{}", execution.output_css);
+        print!("{}", summary.execution.output_css);
     }
 
     if json {
-        print_json(&execution_summary_for_cli(&execution, &path, dialect))?;
+        print_json(&summary)?;
         return Ok(());
     }
 
     eprintln!(
         "executed passes: {}",
-        execution.executed_pass_ids.join(", ")
+        summary.execution.executed_pass_ids.join(", ")
     );
     eprintln!(
         "planned-only passes: {}",
-        execution.planned_only_pass_ids.join(", ")
+        summary.execution.planned_only_pass_ids.join(", ")
     );
-    eprintln!("mutations: {}", execution.mutation_count);
+    eprintln!("mutations: {}", summary.execution.mutation_count);
     Ok(())
 }
 
 fn list_passes(json: bool) -> Result<(), String> {
-    let passes = all_transform_pass_kinds()
-        .into_iter()
-        .map(|kind| PassSummary {
-            id: kind.id(),
-            title: kind.title(),
-            reads_semantic_graph: kind.reads_semantic_graph(),
-            reads_cascade_model: kind.reads_cascade_model(),
-        })
-        .collect::<Vec<_>>();
+    let passes = list_omena_query_transform_pass_summaries();
 
     if json {
         print_json(&passes)?;
@@ -190,22 +151,6 @@ fn list_passes(json: bool) -> Result<(), String> {
         println!("{}\t{}", pass.id, pass.title);
     }
     Ok(())
-}
-
-fn parse_pass_ids(pass_ids: &[String]) -> Result<Vec<TransformPassKind>, String> {
-    if pass_ids.is_empty() {
-        return Ok(all_transform_pass_kinds().to_vec());
-    }
-
-    pass_ids
-        .iter()
-        .map(|pass_id| {
-            all_transform_pass_kinds()
-                .into_iter()
-                .find(|kind| kind.id() == pass_id)
-                .ok_or_else(|| format!("unknown transform pass id: {pass_id}"))
-        })
-        .collect()
 }
 
 fn read_source(path: &Path) -> Result<String, String> {
@@ -220,37 +165,6 @@ fn print_json<T: Serialize>(value: &T) -> Result<(), String> {
     Ok(())
 }
 
-fn execution_summary_for_cli(
-    execution: &TransformExecutionSummaryV0,
-    path: &Path,
-    dialect: StyleDialect,
-) -> serde_json::Value {
-    serde_json::json!({
-        "schemaVersion": "0",
-        "product": "omena-cli.build",
-        "file": path_string(path),
-        "dialect": dialect_label(dialect),
-        "inputByteLen": execution.input_byte_len,
-        "outputByteLen": execution.output_byte_len,
-        "requestedPassIds": execution.requested_pass_ids,
-        "orderedPassIds": execution.ordered_pass_ids,
-        "executedPassIds": execution.executed_pass_ids,
-        "plannedOnlyPassIds": execution.planned_only_pass_ids,
-        "mutationCount": execution.mutation_count,
-        "provenancePreserved": execution.provenance_preserved,
-        "outputCss": execution.output_css,
-    })
-}
-
 fn path_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
-}
-
-fn dialect_label(dialect: StyleDialect) -> &'static str {
-    match dialect {
-        StyleDialect::Css => "css",
-        StyleDialect::Scss => "scss",
-        StyleDialect::Sass => "sass",
-        StyleDialect::Less => "less",
-    }
 }

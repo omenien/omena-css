@@ -32,24 +32,30 @@ jobs:
           set -euo pipefail
 
           crates=(
+            omena-incremental
+            omena-abstract-value
+            engine-input-producers
             omena-syntax
             omena-interner
             omena-parser
-            omena-incremental
             omena-cascade
+            omena-resolver
+            omena-semantic
+            omena-bridge
             omena-transform-cst
             omena-transform-passes
             omena-transform-bundle
             omena-transform-target
             omena-transform-print
             omena-transform-egg
+            omena-query
             omena-cli
             omena-napi
             omena-wasm
           )
 
-          has_local_omena_dependencies() {
-            grep -Eq '^omena-[a-z0-9-]+ = \{ path = "\.\./omena-[a-z0-9-]+".* \}$' "$1"
+          has_local_workspace_dependencies() {
+            grep -Eq '^(omena-[a-z0-9-]+|engine-input-producers) = \{ path = "\.\./(omena-[a-z0-9-]+|engine-input-producers)".* \}$' "$1"
           }
 
           crate_exists() {
@@ -101,7 +107,7 @@ jobs:
 
             if [[ "$PUBLISH_MODE" == "dry-run" ]]; then
               cargo package --list --manifest-path "$manifest" >/dev/null
-              if has_local_omena_dependencies "$manifest"; then
+              if has_local_workspace_dependencies "$manifest"; then
                 echo "$crate package surface checked; full dry-run waits for upstream Omena crates on crates.io"
               else
                 cargo publish --dry-run --manifest-path "$manifest"

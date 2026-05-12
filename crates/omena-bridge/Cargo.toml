@@ -1,0 +1,26 @@
+[package]
+name = "omena-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "CME-coupled bridge crate for Omena semantic graph inputs"
+repository = "https://github.com/omenien/omena-css"
+readme = "README.md"
+keywords = ["omena", "css", "parser", "analysis"]
+categories = ["development-tools", "parser-implementations"]
+
+[lints]
+workspace = true
+
+[dependencies]
+engine-input-producers = { path = "../engine-input-producers", version = "0.1" }
+omena-parser = { path = "../omena-parser", version = "0.1" }
+omena-resolver = { path = "../omena-resolver", version = "0.1" }
+omena-semantic = { path = "../omena-semantic", version = "0.1" }
+oxc_allocator = "0.128.0"
+oxc_ast = "0.128.0"
+oxc_parser = "0.128.0"
+oxc_span = "0.128.0"
+serde.workspace = true
+serde_json.workspace = true

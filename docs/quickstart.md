@@ -15,12 +15,13 @@ Add the crate that matches the layer you need:
 ```sh
 cargo add omena-parser
 cargo add omena-cascade
-cargo add omena-transform-passes
+cargo add omena-query
 ```
 
-Most consumers should start with `omena-parser` for source facts or
-`omena-transform-passes` for transform planning. Lower-level crates remain
-public so integrations can opt into smaller boundaries when needed.
+Most consumers should start with `omena-query`, which owns the public facade
+for parser facts, transform execution, and consumer summaries. Lower-level
+crates remain public so integrations can opt into smaller boundaries when
+needed.
 
 ## Install the CLI
 
@@ -59,8 +60,8 @@ const built = buildStyleSource(".card { color: #ffffff; }", "demo.css", [
 ## Use the Node Native Binding Substrate
 
 `omena-napi` is the Rust N-API substrate for future npm packaging. It exposes
-JSON-string APIs so Node clients can consume the same parser and transform
-contracts without depending on unstable Rust structs. A future npm wrapper can
+JSON-string APIs so Node clients can consume the same query-owned parser and
+transform contracts without depending on unstable Rust structs. A future npm wrapper can
 export this shape:
 
 ```js

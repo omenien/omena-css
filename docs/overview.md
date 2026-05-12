@@ -9,10 +9,14 @@ sharing one release train.
 
 ## Crate Layers
 
+- Abstract value and producer inputs: `omena-abstract-value`,
+  `engine-input-producers`
 - Syntax and interning: `omena-syntax`, `omena-interner`
 - Parser surface: `omena-parser`
 - Incremental substrate: `omena-incremental`
 - Cascade substrate: `omena-cascade`
+- Semantic bridge: `omena-resolver`, `omena-semantic`, `omena-bridge`
+- Query facade: `omena-query`
 - Transform substrate: `omena-transform-cst`, `omena-transform-passes`,
   `omena-transform-bundle`, `omena-transform-target`,
   `omena-transform-print`, `omena-transform-egg`
@@ -28,8 +32,9 @@ The first public surface focuses on parser and transform foundations:
   proof helpers.
 - Conservative transform planning and execution surfaces with explicit
   provenance.
+- Query-owned consumer facade for CLI, Node native, and browser bindings.
 - Node native JSON binding substrate through `omena-napi`.
-- Browser-side in-memory parser and transform bindings through `omena-wasm`.
+- Browser-side in-memory query bindings through `omena-wasm`.
 
 ## Design Rules
 

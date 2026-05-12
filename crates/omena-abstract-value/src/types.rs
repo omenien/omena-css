@@ -1,0 +1,402 @@
+use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
+use serde::Serialize;
+
+pub const MAX_FINITE_CLASS_VALUES: usize = 8;
+pub const MAX_FLOW_ANALYSIS_ITERATIONS: usize = 32;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AbstractValueDomainSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub domain_kinds: Vec<&'static str>,
+    pub max_finite_class_values: usize,
+    pub selector_projection_certainties: Vec<&'static str>,
+    pub provenance_tree_ready: bool,
+    pub provenance_tree_scopes: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AbstractValueFlowAnalysisSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub context_sensitivity: &'static str,
+    pub incremental_engine: &'static str,
+    pub analysis_scopes: Vec<&'static str>,
+    pub reuse_policy: &'static str,
+    pub transfer_kinds: Vec<&'static str>,
+    pub max_iterations: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReducedClassValueDerivationV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_fact_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_constraint_kind: Option<String>,
+    pub input_value_count: usize,
+    pub reduced_kind: &'static str,
+    pub steps: Vec<ReducedClassValueDerivationStepV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReducedClassValueDerivationStepV0 {
+    pub operation: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_kind: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refinement_kind: Option<&'static str>,
+    pub result_kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result_provenance: Option<AbstractClassValueProvenanceV0>,
+    pub reason: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum AbstractClassValueV0 {
+    Bottom,
+    Exact {
+        value: String,
+    },
+    FiniteSet {
+        values: Vec<String>,
+    },
+    Prefix {
+        prefix: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        provenance: Option<AbstractClassValueProvenanceV0>,
+    },
+    Suffix {
+        suffix: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        provenance: Option<AbstractClassValueProvenanceV0>,
+    },
+    PrefixSuffix {
+        prefix: String,
+        suffix: String,
+        min_length: usize,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        provenance: Option<AbstractClassValueProvenanceV0>,
+    },
+    CharInclusion {
+        must_chars: String,
+        may_chars: String,
+        #[serde(skip_serializing_if = "is_false")]
+        may_include_other_chars: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        provenance: Option<AbstractClassValueProvenanceV0>,
+    },
+    Composite {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        prefix: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        suffix: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        min_length: Option<usize>,
+        must_chars: String,
+        may_chars: String,
+        #[serde(skip_serializing_if = "is_false")]
+        may_include_other_chars: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        provenance: Option<AbstractClassValueProvenanceV0>,
+    },
+    Top,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AbstractClassValueProvenanceV0 {
+    FiniteSetWideningChars,
+    FiniteSetWideningComposite,
+    PrefixJoinLcp,
+    SuffixJoinLcs,
+    PrefixSuffixJoin,
+    CompositeJoin,
+    CompositeConcat,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AbstractClassValueProvenanceTreeV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub value_kind: &'static str,
+    pub value: AbstractClassValueV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_provenance: Option<AbstractClassValueProvenanceV0>,
+    pub root: AbstractClassValueProvenanceNodeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AbstractClassValueProvenanceNodeV0 {
+    pub operation: &'static str,
+    pub result_kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result_provenance: Option<AbstractClassValueProvenanceV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    pub reason: &'static str,
+    pub children: Vec<AbstractClassValueProvenanceNodeV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompositeClassValueInputV0 {
+    pub prefix: Option<String>,
+    pub suffix: Option<String>,
+    pub min_length: Option<usize>,
+    pub must_chars: String,
+    pub may_chars: String,
+    pub may_include_other_chars: bool,
+    pub provenance: Option<AbstractClassValueProvenanceV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalStringTypeFactsV0 {
+    pub kind: String,
+    pub constraint_kind: Option<String>,
+    pub values: Option<Vec<String>>,
+    pub prefix: Option<String>,
+    pub suffix: Option<String>,
+    pub min_len: Option<usize>,
+    pub max_len: Option<usize>,
+    pub char_must: Option<String>,
+    pub char_may: Option<String>,
+    pub may_include_other_chars: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClassValueFlowGraphV0 {
+    pub context_key: Option<String>,
+    pub nodes: Vec<ClassValueFlowNodeV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClassValueControlFlowGraphV0 {
+    pub context_key: Option<String>,
+    pub entry_block_id: String,
+    pub blocks: Vec<ClassValueControlFlowBlockV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClassValueControlFlowBlockV0 {
+    pub id: String,
+    pub nodes: Vec<ClassValueFlowNodeV0>,
+    pub successor_block_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClassValueFlowNodeV0 {
+    pub id: String,
+    pub predecessors: Vec<String>,
+    pub transfer: ClassValueFlowTransferV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ClassValueFlowTransferV0 {
+    AssignFacts(ExternalStringTypeFactsV0),
+    RefineFacts(ExternalStringTypeFactsV0),
+    ConcatFacts(ExternalStringTypeFactsV0),
+    Join,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassValueFlowAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub context_sensitivity: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_key: Option<String>,
+    pub converged: bool,
+    pub iteration_count: usize,
+    pub nodes: Vec<ClassValueFlowNodeResultV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassValueFlowIncrementalAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub reused_previous_analysis: bool,
+    pub incremental_plan: IncrementalComputationPlanV0,
+    pub next_snapshot: IncrementalSnapshotV0,
+    pub analysis: ClassValueFlowAnalysisV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassValueFlowIncrementalBatchAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub revision: u64,
+    pub context_count: usize,
+    pub dirty_context_count: usize,
+    pub reused_context_count: usize,
+    pub entries: Vec<ClassValueFlowIncrementalBatchEntryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassValueFlowIncrementalBatchEntryV0 {
+    pub context_key: String,
+    pub analysis: ClassValueFlowIncrementalAnalysisV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassValueControlFlowAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub context_sensitivity: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_key: Option<String>,
+    pub block_count: usize,
+    pub edge_count: usize,
+    pub reachable_block_count: usize,
+    pub unreachable_block_ids: Vec<String>,
+    pub flow_analysis: ClassValueFlowAnalysisV0,
+    pub blocks: Vec<ClassValueControlFlowBlockResultV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassValueControlFlowBlockResultV0 {
+    pub block_id: String,
+    pub reachable: bool,
+    pub node_ids: Vec<String>,
+    pub successor_block_ids: Vec<String>,
+    pub exit_value_kind: &'static str,
+    pub exit_value: AbstractClassValueV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OneCfaCallSiteFlowInputV0 {
+    pub callee_key: String,
+    pub call_site_id: String,
+    pub graph: ClassValueFlowGraphV0,
+    pub exit_node_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OneCfaCallSiteFlowAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub context_sensitivity: &'static str,
+    pub call_site_count: usize,
+    pub callee_count: usize,
+    pub entries: Vec<OneCfaCallSiteFlowEntryV0>,
+    pub callee_summaries: Vec<OneCfaCalleeFlowSummaryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OneCfaCallSiteFlowEntryV0 {
+    pub callee_key: String,
+    pub call_site_id: String,
+    pub context_key: String,
+    pub exit_node_id: String,
+    pub exit_value_kind: &'static str,
+    pub exit_value: AbstractClassValueV0,
+    pub analysis: ClassValueFlowAnalysisV0,
+    pub derivation: OneCfaCallSiteDerivationV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OneCfaCalleeFlowSummaryV0 {
+    pub callee_key: String,
+    pub call_site_count: usize,
+    pub joined_exit_value_kind: &'static str,
+    pub joined_exit_value: AbstractClassValueV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KLimitedCallSiteFlowInputV0 {
+    pub callee_key: String,
+    pub call_site_stack: Vec<String>,
+    pub graph: ClassValueFlowGraphV0,
+    pub exit_node_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KLimitedCallSiteFlowAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub context_sensitivity: String,
+    pub max_context_depth: usize,
+    pub call_site_count: usize,
+    pub callee_count: usize,
+    pub entries: Vec<KLimitedCallSiteFlowEntryV0>,
+    pub callee_summaries: Vec<OneCfaCalleeFlowSummaryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KLimitedCallSiteFlowEntryV0 {
+    pub callee_key: String,
+    pub call_site_stack: Vec<String>,
+    pub context_key: String,
+    pub exit_node_id: String,
+    pub exit_value_kind: &'static str,
+    pub exit_value: AbstractClassValueV0,
+    pub analysis: ClassValueFlowAnalysisV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OneCfaCallSiteDerivationV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub call_site_id: String,
+    pub context_key: String,
+    pub steps: Vec<OneCfaCallSiteDerivationStepV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OneCfaCallSiteDerivationStepV0 {
+    pub operation: &'static str,
+    pub result_kind: &'static str,
+    pub reason: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassValueFlowNodeResultV0 {
+    pub id: String,
+    pub predecessor_ids: Vec<String>,
+    pub transfer_kind: &'static str,
+    pub value_kind: &'static str,
+    pub value: AbstractClassValueV0,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SelectorProjectionCertaintyV0 {
+    Exact,
+    Inferred,
+    Possible,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AbstractSelectorProjectionV0 {
+    pub selector_names: Vec<String>,
+    pub certainty: SelectorProjectionCertaintyV0,
+}
+
+fn is_false(value: &bool) -> bool {
+    !value
+}
