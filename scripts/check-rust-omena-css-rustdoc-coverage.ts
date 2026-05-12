@@ -11,6 +11,7 @@ const CRATES = [
   "omena-incremental",
   "omena-semantic",
   "omena-cascade",
+  "omena-diff-test",
   "omena-transform-cst",
   "omena-transform-passes",
   "omena-transform-bundle",

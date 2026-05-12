@@ -8,6 +8,7 @@ members = [
   "crates/omena-bridge",
   "crates/omena-cascade",
   "crates/omena-checker",
+  "crates/omena-diff-test",
   "crates/omena-interner",
   "crates/omena-parser",
   "crates/omena-syntax",

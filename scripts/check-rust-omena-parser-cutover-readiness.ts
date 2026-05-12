@@ -22,6 +22,7 @@ const ALLOWED_LEGACY_REFERENCE_PATTERNS = [
   /^rust\/Cargo\.toml$/,
   /^rust\/crates\/engine-style-parser\//,
   /^rust\/crates\/omena-benchmarks\//,
+  /^rust\/crates\/omena-diff-test\//,
   /^rust\/crates\/omena-parser\/README\.md$/,
   /^rust\/crates\/omena-parser\/src\/lib\.rs$/,
   /^rust\/crates\/omena-query\/src\/tests\.rs$/,
@@ -158,7 +159,9 @@ assertCutoverGateWiring(
 assertCutoverGateWiring(
   "G.differential",
   packageJson.includes('"check:rust-omena-parser-differential-corpus"') &&
-    packageJson.includes("rust/omena-parser/differential-corpus"),
+    packageJson.includes("rust/omena-parser/differential-corpus") &&
+    packageJson.includes('"check:rust-omena-diff-test-boundary"') &&
+    packageJson.includes("rust/omena-diff-test-boundary"),
 );
 assertCutoverGateWiring(
   "G.codspeed",

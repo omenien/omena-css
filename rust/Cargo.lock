@@ -577,6 +577,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-diff-test"
+version = "0.1.0"
+dependencies = [
+ "engine-style-parser",
+ "omena-parser",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "omena-incremental"
 version = "0.1.0"
 dependencies = [
