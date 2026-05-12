@@ -253,6 +253,7 @@ serde_json = "1.0"
 salsa = { version = "0.26.1", default-features = false, features = ["macros", "inventory"] }
 criterion = "0.8.2"
 cstree = "0.14.0"
+browserslist = { package = "oxc-browserslist", version = "3.0.2" }
 rustc-hash = "2.1.2"
 smol_str = "0.3.6"
 clap = { version = "4.6.1", features = ["derive"] }

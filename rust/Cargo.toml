@@ -43,6 +43,7 @@ salsa = { version = "0.26.1", default-features = false, features = ["macros", "i
 clap = { version = "4.6.1", features = ["derive"] }
 criterion = "0.8.2"
 cstree = "0.14.0"
+browserslist = { package = "oxc-browserslist", version = "3.0.2" }
 napi = "3.8.6"
 napi-derive = "3.5.5"
 rustc-hash = "2.1.2"

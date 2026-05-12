@@ -1,10 +1,14 @@
 //! Target feature matrix planning for Omena CSS transforms.
 //!
 //! This crate owns the target-sensitive lowering decision boundary. It
-//! intentionally models the feature matrix directly before adding heavier browserslist /
-//! caniuse-lite ingestion, so target-driven transforms can be tested without
-//! coupling the core transform graph to external data formats.
+//! resolves standard browserslist queries through an embedded Can I Use snapshot,
+//! then folds the resolved browser set into the explicit Omena transform feature
+//! matrix. Named profiles stay available for product defaults and conservative
+//! non-browser environments.
 
+use std::collections::BTreeSet;
+
+use browserslist::{Distrib, Opts, resolve as resolve_browserslist};
 use omena_transform_cst::TransformPassKind;
 use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
 use serde::Serialize;
@@ -53,6 +57,9 @@ pub struct TransformTargetQueryPlanV0 {
     pub normalized_query: String,
     pub profile_id: &'static str,
     pub recognized_profile: bool,
+    pub target_data_source: &'static str,
+    pub resolved_targets: Vec<String>,
+    pub resolution_error: Option<String>,
     pub support: TargetFeatureSupportV0,
     pub transform_plan: TransformTargetPlanV0,
 }
@@ -82,7 +89,7 @@ pub fn summarize_omena_transform_target_boundary() -> TransformTargetBoundarySum
             TransformPassKind::ScopeFlatten.id(),
             TransformPassKind::LayerFlatten.id(),
         ],
-        target_data_source: "staticTargetProfileV0+explicitFeatureMatrixV0",
+        target_data_source: "oxcBrowserslistV3+staticTargetProfileV0+explicitFeatureMatrixV0",
         planner_surface: "omena-transform-passes.plan",
     }
 }
@@ -93,18 +100,24 @@ pub fn plan_target_transforms_from_query(
 ) -> TransformTargetQueryPlanV0 {
     let query = query.into();
     let normalized_query = normalize_target_query(&query);
-    let (profile_id, recognized_profile, support) =
-        target_feature_support_for_static_query(&normalized_query);
-    let transform_plan = plan_target_transforms(profile_id, support, options);
+    let target_resolution = target_feature_support_for_query(&normalized_query);
+    let transform_plan = plan_target_transforms(
+        target_resolution.profile_id,
+        target_resolution.support,
+        options,
+    );
 
     TransformTargetQueryPlanV0 {
         schema_version: "0",
         product: "omena-transform-target.query-plan",
         query,
         normalized_query,
-        profile_id,
-        recognized_profile,
-        support,
+        profile_id: target_resolution.profile_id,
+        recognized_profile: target_resolution.recognized_profile,
+        target_data_source: target_resolution.target_data_source,
+        resolved_targets: target_resolution.resolved_targets,
+        resolution_error: target_resolution.resolution_error,
+        support: target_resolution.support,
         transform_plan,
     }
 }
@@ -224,6 +237,15 @@ pub const fn conservative_target_options() -> TargetTransformOptionsV0 {
     }
 }
 
+struct TargetQueryResolutionV0 {
+    profile_id: &'static str,
+    recognized_profile: bool,
+    target_data_source: &'static str,
+    resolved_targets: Vec<String>,
+    resolution_error: Option<String>,
+    support: TargetFeatureSupportV0,
+}
+
 fn normalize_target_query(query: &str) -> String {
     query
         .split_whitespace()
@@ -233,29 +255,117 @@ fn normalize_target_query(query: &str) -> String {
         .to_ascii_lowercase()
 }
 
-fn target_feature_support_for_static_query(
-    normalized_query: &str,
-) -> (&'static str, bool, TargetFeatureSupportV0) {
+fn target_feature_support_for_query(normalized_query: &str) -> TargetQueryResolutionV0 {
     if matches!(
         normalized_query,
-        "" | "modern" | "defaults" | "last 2 versions" | "baseline 2024" | "baseline-2024"
+        "" | "modern" | "baseline 2024" | "baseline-2024"
     ) {
-        return ("modern-evergreen", true, modern_feature_support());
+        return TargetQueryResolutionV0 {
+            profile_id: "modern-evergreen",
+            recognized_profile: true,
+            target_data_source: "staticTargetProfileV0",
+            resolved_targets: Vec::new(),
+            resolution_error: None,
+            support: modern_feature_support(),
+        };
     }
 
-    if normalized_query == "legacy"
-        || normalized_query == "legacy-webview"
-        || normalized_query.contains("ie 11")
-        || normalized_query.contains("ie11")
-    {
-        return ("legacy-webview", true, legacy_webview_feature_support());
+    if normalized_query == "legacy" || normalized_query == "legacy-webview" {
+        return TargetQueryResolutionV0 {
+            profile_id: "legacy-webview",
+            recognized_profile: true,
+            target_data_source: "staticTargetProfileV0",
+            resolved_targets: Vec::new(),
+            resolution_error: None,
+            support: legacy_webview_feature_support(),
+        };
     }
 
-    (
-        "unknown-conservative",
-        false,
-        legacy_webview_feature_support(),
-    )
+    match resolve_browserslist(&[normalized_query], &Opts::default()) {
+        Ok(distribs) if !distribs.is_empty() => {
+            let resolved_targets = distribs.iter().map(distrib_key).collect::<Vec<_>>();
+            TargetQueryResolutionV0 {
+                profile_id: "browserslist-resolved",
+                recognized_profile: true,
+                target_data_source: "oxcBrowserslistV3+featureSubsetV0",
+                support: feature_support_for_resolved_targets(&distribs),
+                resolved_targets,
+                resolution_error: None,
+            }
+        }
+        Ok(_) => unknown_conservative_resolution(None),
+        Err(error) => unknown_conservative_resolution(Some(error.to_string())),
+    }
+}
+
+fn unknown_conservative_resolution(resolution_error: Option<String>) -> TargetQueryResolutionV0 {
+    TargetQueryResolutionV0 {
+        profile_id: "unknown-conservative",
+        recognized_profile: false,
+        target_data_source: "staticTargetProfileV0",
+        resolved_targets: Vec::new(),
+        resolution_error,
+        support: legacy_webview_feature_support(),
+    }
+}
+
+fn feature_support_for_resolved_targets(distribs: &[Distrib]) -> TargetFeatureSupportV0 {
+    let flexbox_fully_supported =
+        target_set_is_subset_of_fully_supported_feature(distribs, "flexbox");
+    let sticky_fully_supported =
+        target_set_is_subset_of_fully_supported_feature(distribs, "css-sticky");
+
+    TargetFeatureSupportV0 {
+        vendor_prefix_required: !(flexbox_fully_supported && sticky_fully_supported),
+        supports_light_dark: false,
+        supports_color_mix: false,
+        supports_oklch_oklab: target_set_is_subset_of_fully_supported_feature(
+            distribs,
+            "css-lch-lab",
+        ),
+        supports_color_function: target_set_is_subset_of_fully_supported_feature(
+            distribs,
+            "css-color-function",
+        ),
+        supports_logical_properties: target_set_is_subset_of_fully_supported_feature(
+            distribs,
+            "css-logical-props",
+        ),
+        supports_css_nesting: target_set_is_subset_of_fully_supported_feature(
+            distribs,
+            "css-nesting",
+        ),
+        supports_css_scope: target_set_is_subset_of_fully_supported_feature(
+            distribs,
+            "css-cascade-scope",
+        ),
+        supports_cascade_layers: target_set_is_subset_of_fully_supported_feature(
+            distribs,
+            "css-cascade-layers",
+        ),
+    }
+}
+
+fn target_set_is_subset_of_fully_supported_feature(distribs: &[Distrib], feature: &str) -> bool {
+    let query = format!("fully supports {feature}");
+    let Ok(feature_distribs) = resolve_browserslist(&[query.as_str()], &Opts::default()) else {
+        return false;
+    };
+    if feature_distribs.is_empty() {
+        return false;
+    }
+
+    let feature_targets = feature_distribs
+        .iter()
+        .map(distrib_key)
+        .collect::<BTreeSet<_>>();
+    distribs
+        .iter()
+        .all(|distrib| feature_targets.contains(&distrib_key(distrib)))
+}
+
+fn distrib_key(distrib: &Distrib) -> String {
+    distrib.to_string()
 }
 
 fn push_required_or_blocked(
@@ -303,7 +413,7 @@ mod tests {
         assert_eq!(boundary.managed_pass_ids.len(), 11);
         assert_eq!(
             boundary.target_data_source,
-            "staticTargetProfileV0+explicitFeatureMatrixV0"
+            "oxcBrowserslistV3+staticTargetProfileV0+explicitFeatureMatrixV0"
         );
         assert!(boundary.managed_pass_ids.contains(&"vendor-prefixing"));
         assert!(boundary.managed_pass_ids.contains(&"media-static-eval"));
@@ -402,19 +512,54 @@ mod tests {
                 .contains(&"logical-to-physical")
         );
 
-        let modern = plan_target_transforms_from_query("defaults", conservative_target_options());
+        let modern = plan_target_transforms_from_query("modern", conservative_target_options());
         assert!(modern.recognized_profile);
         assert_eq!(modern.profile_id, "modern-evergreen");
+        assert_eq!(modern.target_data_source, "staticTargetProfileV0");
         assert!(modern.transform_plan.required_pass_ids.is_empty());
     }
 
     #[test]
-    fn unknown_target_query_uses_conservative_profile_without_claiming_recognition() {
-        let plan =
-            plan_target_transforms_from_query("> 0.5%, not dead", conservative_target_options());
+    fn plans_target_lowering_from_resolved_browserslist_query() {
+        let options = TargetTransformOptionsV0 {
+            allow_logical_to_physical: true,
+            allow_scope_flatten: true,
+            allow_layer_flatten: true,
+            enable_supports_static_eval: false,
+            enable_media_static_eval: false,
+        };
+        let plan = plan_target_transforms_from_query("ie 11", options);
+
+        assert!(plan.recognized_profile);
+        assert_eq!(plan.profile_id, "browserslist-resolved");
+        assert_eq!(plan.target_data_source, "oxcBrowserslistV3+featureSubsetV0");
+        assert_eq!(plan.resolved_targets, vec!["ie 11"]);
+        assert_eq!(plan.resolution_error, None);
+        assert!(plan.support.vendor_prefix_required);
+        assert!(
+            plan.transform_plan
+                .required_pass_ids
+                .contains(&"vendor-prefixing")
+        );
+        assert!(
+            plan.transform_plan
+                .required_pass_ids
+                .contains(&"nesting-unwrap")
+        );
+        assert!(
+            plan.transform_plan
+                .required_pass_ids
+                .contains(&"logical-to-physical")
+        );
+    }
+
+    #[test]
+    fn invalid_target_query_uses_conservative_profile_without_claiming_recognition() {
+        let plan = plan_target_transforms_from_query("yuru 1.0", conservative_target_options());
 
         assert!(!plan.recognized_profile);
         assert_eq!(plan.profile_id, "unknown-conservative");
+        assert!(plan.resolution_error.is_some());
         assert!(plan.support.vendor_prefix_required);
         assert!(
             plan.transform_plan

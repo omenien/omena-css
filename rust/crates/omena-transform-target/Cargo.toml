@@ -12,6 +12,7 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
+browserslist.workspace = true
 omena-transform-cst = { path = "../omena-transform-cst" }
 omena-transform-passes = { path = "../omena-transform-passes" }
 serde.workspace = true
