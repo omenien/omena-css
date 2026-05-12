@@ -5579,9 +5579,13 @@ fn rewrite_is_where_selector_function(
 
     let close_index = matching_right_paren_index(tokens, index + 2)?;
     let inner_tokens = &tokens[index + 3..close_index];
-    let arguments = split_top_level_selector_arguments(inner_tokens)?;
+    let mut arguments = split_top_level_selector_arguments(inner_tokens)?;
     if arguments.is_empty() {
         return None;
+    }
+
+    if pseudo_name == "is" {
+        arguments = flatten_nested_is_selector_arguments(&arguments)?;
     }
 
     let deduped = dedupe_selector_arguments(&arguments);
@@ -5604,6 +5608,45 @@ fn rewrite_is_where_selector_function(
         .map(|token| token.text.as_str())
         .collect::<String>();
     (replacement != original).then_some((replacement, close_index - index + 1))
+}
+
+fn flatten_nested_is_selector_arguments(arguments: &[String]) -> Option<Vec<String>> {
+    let mut flattened = Vec::new();
+    for argument in arguments {
+        if let Some(inner_arguments) = parse_exact_is_selector_argument(argument)? {
+            flattened.extend(inner_arguments);
+        } else {
+            flattened.push(argument.clone());
+        }
+    }
+    Some(flattened)
+}
+
+fn parse_exact_is_selector_argument(argument: &str) -> Option<Option<Vec<String>>> {
+    let trimmed = argument.trim();
+    let lexed = lex(trimmed, StyleDialect::Css);
+    let tokens = lexed.tokens();
+    if tokens.len() < 4 {
+        return Some(None);
+    }
+
+    let colon = tokens.first()?;
+    let ident = tokens.get(1)?;
+    let left_paren = tokens.get(2)?;
+    if colon.kind != SyntaxKind::Colon
+        || ident.kind != SyntaxKind::Ident
+        || !ident.text.eq_ignore_ascii_case("is")
+        || left_paren.kind != SyntaxKind::LeftParen
+    {
+        return Some(None);
+    }
+
+    let close_index = matching_right_paren_index(tokens, 2)?;
+    if close_index != tokens.len() - 1 {
+        return Some(None);
+    }
+
+    split_top_level_selector_arguments(&tokens[3..close_index]).map(Some)
 }
 
 fn matching_right_paren_index(
@@ -7076,7 +7119,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_specificity_safe_is_where_selectors() {
-        let source = r#".a:is(.ready) { color: red; } .b:where(.x, .x) { color: blue; } .c:where(.y) { color: green; }"#;
+        let source = r#".a:is(.ready) { color: red; } .b:where(.x, .x) { color: blue; } .c:where(.y) { color: green; } .d:is(:is(.u, .v), .u) { color: orange; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7085,10 +7128,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 3);
         assert_eq!(
             execution.output_css,
-            r#".a.ready { color: red; } .b:where(.x) { color: blue; } .c:where(.y) { color: green; }"#
+            r#".a.ready { color: red; } .b:where(.x) { color: blue; } .c:where(.y) { color: green; } .d:is(.u,.v) { color: orange; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
