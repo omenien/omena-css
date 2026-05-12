@@ -125,6 +125,14 @@ pub struct OmenaResolverStylePackageManifestV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaResolverTsconfigPathMappingV0 {
+    pub base_path: String,
+    pub pattern: String,
+    pub target_patterns: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaResolverStyleModuleResolutionV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

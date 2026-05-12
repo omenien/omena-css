@@ -40,10 +40,11 @@ pub fn summarize_omena_resolver_boundary(input: &EngineInputV2) -> OmenaResolver
             "resolverRuntimeQueryBoundary",
             "resolverSourceResolutionRuntimeIndex",
             "resolverStyleModuleResolution",
+            "resolverTsconfigPathMapping",
             "sourceResolutionQueryFragments",
             "sourceResolutionCanonicalProducerSignal",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerSourceResolutionRows"],
-        next_decoupling_targets: vec!["specifierResolutionRuntime", "tsconfigPathMapping"],
+        next_decoupling_targets: vec!["specifierResolutionRuntime"],
     }
 }

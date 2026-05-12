@@ -11,6 +11,7 @@
 - **Transform source-map provenance** - transform provenance nodes now expose diff-derived mutation spans, and the print boundary emits source-map segments from those spans while identity print output keeps line-level mappings.
 - **Parser semantic name consumption** - `omena-parser` now projects parser style facts into typed `omena-interner` name kinds and validates them through the Salsa interners, moving parser/interner integration out of the next-surface list.
 - **Semantic SoA name tables** - `omena-semantic` now exposes selector, custom-property, and Sass semantic name tables backed by typed `omena-interner` Salsa interners, promoting the `semanticSoaTables` and `semanticSoaNameTables` surfaces out of the next queue.
+- **Resolver tsconfig path mapping** - `omena-resolver` now resolves style modules through explicit tsconfig-style path aliases, including Sass partial candidates, moving `tsconfigPathMapping` out of the resolver decoupling queue.
 - **Reduced product overlap semantics** - `omena-abstract-value` now computes prefix/suffix reduced-product minimum lengths with overlap awareness and accounts for required character constraints, so `Pr ⊗ Su` and `Pr/Su ⊗ CI` intersections no longer exclude valid selectors or understate required selector length.
 - **Query adapter status** - `omena-query.selected-query-adapter-capabilities` now reports the selected-query adapter as `runtimeBacked`, matching the packaged runner/protocol/default-candidate path instead of the older declaration-only transition status.
 
