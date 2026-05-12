@@ -269,12 +269,19 @@ pub fn execute_omena_query_consumer_build_style_source_with_engine_input_context
         style_path,
         closed_style_world,
     );
-    execute_omena_query_consumer_build_style_source_with_context(
+    let mut summary = execute_omena_query_consumer_build_style_source_with_context(
         style_path,
         style_source,
         requested_pass_ids,
         &context_summary.context,
-    )
+    );
+    summary
+        .ready_surfaces
+        .push("semanticReachabilityTransformContext");
+    summary
+        .ready_surfaces
+        .push("expressionDomainSelectorProjection");
+    summary
 }
 
 pub fn execute_omena_query_consumer_build_style_sources_with_context(
@@ -490,6 +497,7 @@ pub fn summarize_omena_query_transform_context_from_engine_input(
 ) -> OmenaQueryTransformContextFromEngineInputSummaryV0 {
     let projection_summary = summarize_omena_query_expression_domain_selector_projection(input);
     let mut reachable_class_names = BTreeSet::new();
+    let mut reachability_sources = Vec::new();
 
     for projection in &projection_summary.projections {
         if projection.target_style_paths.is_empty()
@@ -499,6 +507,16 @@ pub fn summarize_omena_query_transform_context_from_engine_input(
                 .any(|path| path == target_style_path)
         {
             reachable_class_names.extend(projection.selector_names.iter().cloned());
+            reachability_sources.push(OmenaQuerySemanticReachabilitySourceV0 {
+                graph_id: projection.graph_id.clone(),
+                file_path: projection.file_path.clone(),
+                node_id: projection.node_id.clone(),
+                target_style_paths: projection.target_style_paths.clone(),
+                value_kind: projection.value_kind,
+                reduced_product: projection.reduced_product.clone(),
+                selector_names: projection.selector_names.clone(),
+                certainty: projection.certainty,
+            });
         }
     }
 
@@ -515,7 +533,9 @@ pub fn summarize_omena_query_transform_context_from_engine_input(
         target_style_path: target_style_path.to_string(),
         closed_style_world,
         projection_count: projection_summary.projection_count,
+        selected_projection_count: reachability_sources.len(),
         reachable_class_name_count: context.reachable_class_names.len(),
+        reachability_sources,
         context,
         ready_surfaces: vec![
             "expressionDomainSelectorProjection",

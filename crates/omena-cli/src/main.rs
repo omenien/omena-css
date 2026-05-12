@@ -201,6 +201,7 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
     if closed_style_world {
         context.closed_style_world = true;
     }
+    let used_engine_input = engine_input_json.is_some();
     if let Some(engine_input_path) = engine_input_json.as_deref() {
         let engine_input = read_engine_input_json(engine_input_path)?;
         let engine_context = summarize_omena_query_transform_context_from_engine_input(
@@ -213,7 +214,7 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
     }
     let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
     let package_manifests = read_package_manifests(&package_manifest_paths)?;
-    let summary = if let Some(target_query) = target_query {
+    let mut summary = if let Some(target_query) = target_query {
         if workspace_sources.len() > 1 {
             execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
                 &style_path,
@@ -248,6 +249,16 @@ fn build_file(options: BuildFileOptions) -> Result<(), String> {
             &context,
         )
     };
+    if used_engine_input {
+        push_ready_surface(
+            &mut summary.ready_surfaces,
+            "semanticReachabilityTransformContext",
+        );
+        push_ready_surface(
+            &mut summary.ready_surfaces,
+            "expressionDomainSelectorProjection",
+        );
+    }
 
     if !summary.unknown_pass_ids.is_empty() {
         return Err(format!(
@@ -393,6 +404,12 @@ fn merge_cli_transform_context(
         &additional.reachable_custom_property_names,
     );
     base
+}
+
+fn push_ready_surface(surfaces: &mut Vec<&'static str>, surface: &'static str) {
+    if !surfaces.contains(&surface) {
+        surfaces.push(surface);
+    }
 }
 
 fn merge_cli_context_list(target: &mut Vec<String>, additional: &[String]) {

@@ -375,9 +375,25 @@ pub struct OmenaQueryTransformContextFromEngineInputSummaryV0 {
     pub target_style_path: String,
     pub closed_style_world: bool,
     pub projection_count: usize,
+    pub selected_projection_count: usize,
     pub reachable_class_name_count: usize,
+    pub reachability_sources: Vec<OmenaQuerySemanticReachabilitySourceV0>,
     pub context: TransformExecutionContextV0,
     pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySemanticReachabilitySourceV0 {
+    pub graph_id: String,
+    pub file_path: String,
+    pub node_id: String,
+    pub target_style_paths: Vec<String>,
+    pub value_kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reduced_product: Option<ReducedClassValueProductV0>,
+    pub selector_names: Vec<String>,
+    pub certainty: SelectorProjectionCertaintyV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]

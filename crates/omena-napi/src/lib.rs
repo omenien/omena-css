@@ -560,6 +560,11 @@ mod tests {
                 .executed_pass_ids
                 .contains(&"tree-shake-class")
         );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"semanticReachabilityTransformContext")
+        );
         Ok(())
     }
 
