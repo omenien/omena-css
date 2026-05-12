@@ -1103,7 +1103,7 @@ pub fn run_var_substitution_fuzz_case(
     };
     let result = substitute_custom_properties(&input, &env);
     let expected = if case.cycle {
-        CascadeValue::GuaranteedInvalid
+        CascadeValue::Literal("outer-fallback".to_string())
     } else {
         terminal
     };
@@ -1859,7 +1859,19 @@ fn substitute_custom_properties_inner(
                     .as_deref()
                     .map(|fallback| substitute_custom_properties_inner(fallback, env, visiting))
                     .unwrap_or(CascadeValue::GuaranteedInvalid),
-                Some(value) => substitute_custom_properties_inner(value, env, visiting),
+                Some(value) => {
+                    let resolved = substitute_custom_properties_inner(value, env, visiting);
+                    if resolved == CascadeValue::GuaranteedInvalid {
+                        fallback
+                            .as_deref()
+                            .map(|fallback| {
+                                substitute_custom_properties_inner(fallback, env, visiting)
+                            })
+                            .unwrap_or(CascadeValue::GuaranteedInvalid)
+                    } else {
+                        resolved
+                    }
+                }
             };
             visiting.remove(name);
             resolved
@@ -2402,6 +2414,16 @@ mod tests {
         );
 
         assert_eq!(resolved, CascadeValue::GuaranteedInvalid);
+
+        let fallback = substitute_custom_properties(
+            &CascadeValue::Var {
+                name: "--a".to_string(),
+                fallback: Some(Box::new(CascadeValue::Literal("blue".to_string()))),
+            },
+            &env,
+        );
+
+        assert_eq!(fallback, CascadeValue::Literal("blue".to_string()));
     }
 
     #[test]
@@ -2415,7 +2437,7 @@ mod tests {
             report
                 .var_results
                 .iter()
-                .any(|result| result.result == CascadeValue::GuaranteedInvalid)
+                .any(|result| result.cycle && matches!(result.result, CascadeValue::Literal(_)))
         );
     }
 
