@@ -61,6 +61,13 @@ const omenaCssPublishOrder = [
 const externallyPublishedCrates = new Set(["omena-incremental"]);
 const omenaCssDependencyVersion = "0.1";
 
+function publicCrateName(crateName) {
+  if (crateName === "engine-input-producers") {
+    return "omena-engine-input-producers";
+  }
+  return crateName;
+}
+
 const cliOptions = parseArgs(process.argv.slice(2));
 const destination = cliOptions.temp
   ? mkTempWorkspace()
@@ -183,7 +190,8 @@ function prepareWorkspace(destinationPath, workspaceOptions) {
       {
         destination: destinationPath,
         crateCount: omenaCssCrates.length,
-        crates: omenaCssCrates,
+        packages: omenaCssCrates.map(publicCrateName),
+        crateDirectories: omenaCssCrates,
         initializedGit: workspaceOptions.initGit,
         preservedGit: workspaceOptions.preserveGit,
         publishDryRun: workspaceOptions.publishDryRun,
@@ -280,7 +288,7 @@ transform boundaries can be verified as one product surface.
 
 ## Crates
 
-${omenaCssCrates.map((crateName) => `- \`${crateName}\``).join("\n")}
+${omenaCssCrates.map((crateName) => `- \`${publicCrateName(crateName)}\``).join("\n")}
 
 ## Verification
 
@@ -363,7 +371,7 @@ sharing one release train.
 ## Crate Layers
 
 - Abstract value and producer inputs: \`omena-abstract-value\`,
-  \`engine-input-producers\`
+  \`omena-engine-input-producers\`
 - Syntax and interning: \`omena-syntax\`, \`omena-interner\`
 - Parser surface: \`omena-parser\`
 - Incremental substrate: \`omena-incremental\`
@@ -835,7 +843,7 @@ ${publishCrateRows}
           )
 
           has_local_workspace_dependencies() {
-            grep -Eq '^(omena-[a-z0-9-]+|engine-input-producers) = \\{ path = "\\.\\./(omena-[a-z0-9-]+|engine-input-producers)".* \\}$' "$1"
+            grep -Eq '^(omena-[a-z0-9-]+|engine-input-producers) = \\{ .*path = "\\.\\./(omena-[a-z0-9-]+|engine-input-producers)".* \\}$' "$1"
           }
 
           workspace_version() {
@@ -856,6 +864,17 @@ ${publishCrateRows}
             echo "$version"
           }
 
+          crate_package_name() {
+            local manifest="$1"
+            local package
+            package="$(sed -n 's/^name = "\\([^"]*\\)"/\\1/p' "$manifest" | head -n 1)"
+            if [[ -z "$package" ]]; then
+              echo "could not determine package name for $manifest" >&2
+              return 1
+            fi
+            echo "$package"
+          }
+
           crate_version_exists() {
             cargo info "$1@$2" --registry crates-io >/dev/null 2>&1
           }
@@ -863,13 +882,15 @@ ${publishCrateRows}
           publish_with_retry() {
             local crate="$1"
             local manifest="crates/$crate/Cargo.toml"
+            local package
             local version
             local publish_log
 
+            package="$(crate_package_name "$manifest")"
             version="$(crate_version "$manifest")"
 
-            if crate_version_exists "$crate" "$version"; then
-              echo "$crate@$version already exists on crates.io; skipping"
+            if crate_version_exists "$package" "$version"; then
+              echo "$package@$version already exists on crates.io; skipping"
               return 2
             fi
 
@@ -879,8 +900,8 @@ ${publishCrateRows}
                 rm -f "$publish_log"
                 return
               fi
-              if crate_version_exists "$crate" "$version"; then
-                echo "$crate@$version became available after a publish retry; continuing"
+              if crate_version_exists "$package" "$version"; then
+                echo "$package@$version became available after a publish retry; continuing"
                 rm -f "$publish_log"
                 return
               fi
@@ -938,10 +959,20 @@ ${publishCrateRows}
 
 function rewriteCrateManifest(manifestPath) {
   let manifest = readFileSync(manifestPath, "utf8");
+  const crateDirectoryName = path.basename(path.dirname(manifestPath));
   manifest = manifest.replaceAll(
     'repository = "https://github.com/yongsk0066/css-module-explainer"',
     'repository = "https://github.com/omenien/omena-css"',
   );
+  if (crateDirectoryName === "engine-input-producers") {
+    manifest = manifest.replace(/^name = "engine-input-producers"$/m, 'name = "omena-engine-input-producers"');
+    if (!/^\[lib\]$/m.test(manifest)) {
+      manifest = manifest.replace(
+        /^readme = "README\.md"$/m,
+        'readme = "README.md"\n\n[lib]\nname = "engine_input_producers"',
+      );
+    }
+  }
   if (!/^keywords = \[/m.test(manifest)) {
     manifest = manifest.replace(
       /^readme = "README\.md"$/m,
@@ -949,7 +980,11 @@ function rewriteCrateManifest(manifestPath) {
     );
   }
   manifest = manifest.replace(
-    /^((?:omena-[a-z0-9-]+|engine-input-producers) = \{ path = "\.\.\/(?:omena-[a-z0-9-]+|engine-input-producers)") \}$/gm,
+    /^engine-input-producers = \{ path = "\.\.\/engine-input-producers" \}$/gm,
+    `engine-input-producers = { package = "omena-engine-input-producers", path = "../engine-input-producers", version = "${omenaCssDependencyVersion}" }`,
+  );
+  manifest = manifest.replace(
+    /^((?:omena-[a-z0-9-]+) = \{ path = "\.\.\/(?:omena-[a-z0-9-]+)") \}$/gm,
     `$1, version = "${omenaCssDependencyVersion}" }`,
   );
   writeFileSync(manifestPath, manifest);
@@ -1019,7 +1054,7 @@ function verifyPublishDryRun(destinationPath) {
 }
 
 function hasLocalWorkspaceDependencies(manifestPath) {
-  return /^(omena-[a-z0-9-]+|engine-input-producers) = \{ path = "\.\.\/(omena-[a-z0-9-]+|engine-input-producers)"/m.test(
+  return /^(omena-[a-z0-9-]+|engine-input-producers) = \{ .*path = "\.\.\/(omena-[a-z0-9-]+|engine-input-producers)"/m.test(
     readFileSync(manifestPath, "utf8"),
   );
 }
@@ -1028,7 +1063,7 @@ function assertVersionedLocalDependencies(manifestPath) {
   const manifest = readFileSync(manifestPath, "utf8");
   const localDependencies =
     manifest.match(
-      /^(omena-[a-z0-9-]+|engine-input-producers) = \{ path = "\.\.\/(omena-[a-z0-9-]+|engine-input-producers)".* \}$/gm,
+      /^(omena-[a-z0-9-]+|engine-input-producers) = \{ .*path = "\.\.\/(omena-[a-z0-9-]+|engine-input-producers)".* \}$/gm,
     ) ?? [];
 
   for (const dependency of localDependencies) {
