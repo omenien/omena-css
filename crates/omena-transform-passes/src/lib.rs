@@ -4615,6 +4615,11 @@ fn parse_repeated_hex_digit(ch: char) -> Option<u8> {
 
 fn parse_basic_named_srgb_color(text: &str) -> Option<SrgbColor> {
     match text.to_ascii_lowercase().as_str() {
+        "aqua" | "cyan" => Some(SrgbColor {
+            red: 0,
+            green: 255,
+            blue: 255,
+        }),
         "black" => Some(SrgbColor {
             red: 0,
             green: 0,
@@ -4625,20 +4630,75 @@ fn parse_basic_named_srgb_color(text: &str) -> Option<SrgbColor> {
             green: 0,
             blue: 255,
         }),
+        "fuchsia" | "magenta" => Some(SrgbColor {
+            red: 255,
+            green: 0,
+            blue: 255,
+        }),
+        "gray" | "grey" => Some(SrgbColor {
+            red: 128,
+            green: 128,
+            blue: 128,
+        }),
         "green" => Some(SrgbColor {
             red: 0,
             green: 128,
             blue: 0,
+        }),
+        "lime" => Some(SrgbColor {
+            red: 0,
+            green: 255,
+            blue: 0,
+        }),
+        "maroon" => Some(SrgbColor {
+            red: 128,
+            green: 0,
+            blue: 0,
+        }),
+        "navy" => Some(SrgbColor {
+            red: 0,
+            green: 0,
+            blue: 128,
+        }),
+        "olive" => Some(SrgbColor {
+            red: 128,
+            green: 128,
+            blue: 0,
+        }),
+        "orange" => Some(SrgbColor {
+            red: 255,
+            green: 165,
+            blue: 0,
+        }),
+        "purple" => Some(SrgbColor {
+            red: 128,
+            green: 0,
+            blue: 128,
         }),
         "red" => Some(SrgbColor {
             red: 255,
             green: 0,
             blue: 0,
         }),
+        "silver" => Some(SrgbColor {
+            red: 192,
+            green: 192,
+            blue: 192,
+        }),
+        "teal" => Some(SrgbColor {
+            red: 0,
+            green: 128,
+            blue: 128,
+        }),
         "white" => Some(SrgbColor {
             red: 255,
             green: 255,
             blue: 255,
+        }),
+        "yellow" => Some(SrgbColor {
+            red: 255,
+            green: 255,
+            blue: 0,
         }),
         _ => None,
     }
@@ -6491,8 +6551,16 @@ fn shortest_static_srgb_color_text(color: SrgbColor) -> String {
 
 fn shortest_named_srgb_color(color: SrgbColor) -> Option<&'static str> {
     match (color.red, color.green, color.blue) {
+        (0, 0, 128) => Some("navy"),
+        (0, 128, 128) => Some("teal"),
         (0, 128, 0) => Some("green"),
+        (128, 0, 0) => Some("maroon"),
+        (128, 0, 128) => Some("purple"),
+        (128, 128, 0) => Some("olive"),
+        (128, 128, 128) => Some("gray"),
+        (192, 192, 192) => Some("silver"),
         (255, 0, 0) => Some("red"),
+        (255, 165, 0) => Some("orange"),
         _ => None,
     }
 }
@@ -7712,7 +7780,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_static_declaration_colors_only() {
-        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); flood-color: white; lighting-color: black; stop-color: blue; scrollbar-color: hsl(.5TURN 100% 50%); border-block-color: hwb(200GRAD 0% 0%); border-left-color: rgb(255 0 0 / 100%); border-right-color: hsl(120 100% 25% / 1); border-top-color: hwb(240 0% 0% / 100%); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#;
+        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-emphasis-color: rgb(128 0 128); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); flood-color: white; lighting-color: black; stop-color: blue; scrollbar-color: hsl(.5TURN 100% 50%); border-block-color: hwb(200GRAD 0% 0%); border-left-color: rgb(255 0 0 / 100%); border-right-color: hsl(120 100% 25% / 1); border-top-color: hwb(240 0% 0% / 100%); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7721,10 +7789,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 17);
+        assert_eq!(execution.mutation_count, 18);
         assert_eq!(
             execution.output_css,
-            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: #808080; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: blue; scrollbar-color: #0ff; border-block-color: #0ff; border-left-color: red; border-right-color: green; border-top-color: #00f; border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
+            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: gray; text-emphasis-color: purple; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: blue; scrollbar-color: #0ff; border-block-color: #0ff; border-left-color: red; border-right-color: green; border-top-color: #00f; border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
         );
     }
 
