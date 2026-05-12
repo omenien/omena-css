@@ -85,6 +85,30 @@ pub struct TransformPassExecutionOutcomeV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TransformProvenanceDerivationForestV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub root_count: usize,
+    pub node_count: usize,
+    pub nodes: Vec<TransformProvenanceDerivationNodeV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformProvenanceDerivationNodeV0 {
+    pub node_index: usize,
+    pub parent_index: Option<usize>,
+    pub pass_id: &'static str,
+    pub status: TransformPassRuntimeStatus,
+    pub input_byte_len: usize,
+    pub output_byte_len: usize,
+    pub mutation_count: usize,
+    pub provenance_preserved: bool,
+    pub detail: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransformExecutionSummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -101,6 +125,7 @@ pub struct TransformExecutionSummaryV0 {
     pub css_import_inlines: Vec<TransformImportInlineV0>,
     pub css_module_composes_exports: Vec<TransformCssModuleComposesResolutionV0>,
     pub design_token_routes: Vec<TransformDesignTokenRouteV0>,
+    pub provenance_derivation_forest: TransformProvenanceDerivationForestV0,
     pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
     pub pass_plan: TransformPassPlanV0,
 }
@@ -1159,6 +1184,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
         .map(|outcome| outcome.mutation_count)
         .sum::<usize>();
     let provenance_preserved = outcomes.iter().all(|outcome| outcome.provenance_preserved);
+    let provenance_derivation_forest = provenance_derivation_forest_from_outcomes(&outcomes);
     let output_byte_len = output_css.len();
 
     TransformExecutionSummaryV0 {
@@ -1177,8 +1203,37 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
         css_import_inlines,
         css_module_composes_exports,
         design_token_routes,
+        provenance_derivation_forest,
         outcomes,
         pass_plan,
+    }
+}
+
+fn provenance_derivation_forest_from_outcomes(
+    outcomes: &[TransformPassExecutionOutcomeV0],
+) -> TransformProvenanceDerivationForestV0 {
+    let nodes = outcomes
+        .iter()
+        .enumerate()
+        .map(|(index, outcome)| TransformProvenanceDerivationNodeV0 {
+            node_index: index,
+            parent_index: index.checked_sub(1),
+            pass_id: outcome.pass_id,
+            status: outcome.status,
+            input_byte_len: outcome.input_byte_len,
+            output_byte_len: outcome.output_byte_len,
+            mutation_count: outcome.mutation_count,
+            provenance_preserved: outcome.provenance_preserved,
+            detail: outcome.detail,
+        })
+        .collect::<Vec<_>>();
+
+    TransformProvenanceDerivationForestV0 {
+        schema_version: "0",
+        product: "omena-transform-passes.provenance-derivation-forest",
+        root_count: usize::from(!nodes.is_empty()),
+        node_count: nodes.len(),
+        nodes,
     }
 }
 
@@ -5846,6 +5901,36 @@ mod tests {
             outcome.pass_id == "p29-css-modules-class-hashing"
                 && outcome.status == TransformPassRuntimeStatus::PlannedOnly
         }));
+        assert_eq!(
+            execution.provenance_derivation_forest.product,
+            "omena-transform-passes.provenance-derivation-forest"
+        );
+        assert_eq!(execution.provenance_derivation_forest.root_count, 1);
+        assert_eq!(
+            execution.provenance_derivation_forest.node_count,
+            execution.outcomes.len()
+        );
+        let comment_node = execution
+            .provenance_derivation_forest
+            .nodes
+            .iter()
+            .find(|node| node.pass_id == "p02-comment-strip")
+            .expect("comment strip provenance node");
+        assert_eq!(comment_node.status, TransformPassRuntimeStatus::Applied);
+        assert_eq!(comment_node.mutation_count, 1);
+        assert_eq!(
+            execution.provenance_derivation_forest.nodes[0].parent_index,
+            None
+        );
+        for (index, node) in execution
+            .provenance_derivation_forest
+            .nodes
+            .iter()
+            .enumerate()
+            .skip(1)
+        {
+            assert_eq!(node.parent_index, Some(index - 1));
+        }
     }
 
     #[test]

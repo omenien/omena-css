@@ -26,6 +26,17 @@ interface TransformExecuteSummaryV0 {
       readonly tokenName: string;
       readonly routedValue: string;
     }[];
+    readonly provenanceDerivationForest: {
+      readonly product: string;
+      readonly rootCount: number;
+      readonly nodeCount: number;
+      readonly nodes: readonly {
+        readonly nodeIndex: number;
+        readonly parentIndex?: number;
+        readonly passId: string;
+        readonly mutationCount: number;
+      }[];
+    };
     readonly passPlan: {
       readonly product: string;
       readonly violatedDagEdgeCount: number;
@@ -173,6 +184,15 @@ assert.equal(summary.execution.provenancePreserved, true);
 assert.equal(summary.execution.passPlan.product, "omena-transform-passes.plan");
 assert.equal(summary.execution.passPlan.violatedDagEdgeCount, 0);
 assert.equal(summary.execution.passPlan.allRequestedRegistered, true);
+assert.equal(
+  summary.execution.provenanceDerivationForest.product,
+  "omena-transform-passes.provenance-derivation-forest",
+);
+assert.equal(summary.execution.provenanceDerivationForest.rootCount, 1);
+assert.equal(
+  summary.execution.provenanceDerivationForest.nodeCount,
+  summary.execution.provenanceDerivationForest.nodes.length,
+);
 assertIncludesAll(
   summary.readySurfaces,
   ["transformExecutionRuntime", "transformPassOutcomeContract"],
@@ -256,6 +276,15 @@ assert.deepEqual(contextSummary.execution.designTokenRoutes, [
 ]);
 assert.equal(contextSummary.execution.passPlan.violatedDagEdgeCount, 0);
 assert.equal(contextSummary.execution.passPlan.allRequestedRegistered, true);
+assert.equal(
+  contextSummary.execution.provenanceDerivationForest.product,
+  "omena-transform-passes.provenance-derivation-forest",
+);
+assert.equal(contextSummary.execution.provenanceDerivationForest.rootCount, 1);
+assert.equal(
+  contextSummary.execution.provenanceDerivationForest.nodeCount,
+  contextSummary.execution.executedPassIds.length,
+);
 assertIncludesAll(
   contextSummary.readySurfaces,
   ["transformExecutionRuntime", "transformPassOutcomeContract"],
