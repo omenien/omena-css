@@ -157,6 +157,11 @@ const CORPUS = [
     source: `@value brand as accent from "./tokens.module.scss";\n.btn { color: accent; }`,
   },
   {
+    label: "scss-value-path-alias-import-and-ref",
+    filePath: "/f.module.scss",
+    source: `@value tokens: "./tokens.module.scss";\n@value brand, secondary as accent from tokens;\n.btn { color: brand; border-color: accent; }`,
+  },
+  {
     label: "scss-local-value-ref",
     filePath: "/f.module.scss",
     source: `@value brand: red;\n.btn { color: brand; }`,

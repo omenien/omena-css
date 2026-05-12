@@ -8872,6 +8872,7 @@ fn collect_css_module_value_facts_from_tokens(
 ) -> Vec<ParsedCssModuleValueFact> {
     let mut values = Vec::new();
     let mut seen = BTreeSet::new();
+    let value_path_aliases = collect_css_module_value_path_aliases_from_tokens(tokens);
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@value") {
             continue;
@@ -8893,6 +8894,7 @@ fn collect_css_module_value_facts_from_tokens(
                 start,
                 from_index,
                 end,
+                &value_path_aliases,
                 &mut values,
                 &mut seen,
             );
@@ -8900,6 +8902,9 @@ fn collect_css_module_value_facts_from_tokens(
         }
 
         if let Some(colon_index) = colon_index {
+            if css_module_value_path_alias_from_tokens(tokens, start, colon_index, end).is_some() {
+                continue;
+            }
             collect_css_module_value_definition_facts(
                 tokens,
                 start,
@@ -8934,6 +8939,54 @@ fn collect_css_module_value_facts_from_tokens(
     values
 }
 
+fn collect_css_module_value_path_aliases_from_tokens(
+    tokens: &[Token<'_>],
+) -> BTreeMap<String, String> {
+    let mut aliases = BTreeMap::new();
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@value") {
+            continue;
+        }
+
+        let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
+        let end = css_module_value_statement_end(tokens, start);
+        let Some(colon_index) = top_level_token_kind_index(tokens, start, end, SyntaxKind::Colon)
+        else {
+            continue;
+        };
+        if top_level_token_text_index(tokens, start, end, "from").is_some() {
+            continue;
+        }
+        if let Some((name, target)) =
+            css_module_value_path_alias_from_tokens(tokens, start, colon_index, end)
+        {
+            aliases.insert(name, target);
+        }
+    }
+    aliases
+}
+
+fn css_module_value_path_alias_from_tokens(
+    tokens: &[Token<'_>],
+    start: usize,
+    colon_index: usize,
+    end: usize,
+) -> Option<(String, String)> {
+    let name_index = next_non_trivia_token_index_until(tokens, start, colon_index)?;
+    let name_token = tokens[name_index];
+    if !css_module_value_name_token_can_define(name_token) {
+        return None;
+    }
+    let source_index = next_non_trivia_token_index_until(tokens, colon_index + 1, end)?;
+    let source_token = tokens[source_index];
+    if !matches!(source_token.kind, SyntaxKind::String | SyntaxKind::Url) {
+        return None;
+    }
+    let source = css_module_value_source_name(source_token);
+    css_module_value_source_looks_like_style_request(&source)
+        .then(|| (name_token.text.to_string(), source))
+}
+
 fn css_module_value_statement_end(tokens: &[Token<'_>], start: usize) -> usize {
     let mut index = start;
     let mut paren_depth = 0usize;
@@ -8966,22 +9019,20 @@ fn collect_css_module_value_import_facts(
     start: usize,
     from_index: usize,
     end: usize,
+    value_path_aliases: &BTreeMap<String, String>,
     values: &mut Vec<ParsedCssModuleValueFact>,
     seen: &mut BTreeSet<(ParsedCssModuleValueFactKind, String, u32, u32)>,
 ) {
     collect_css_module_value_import_names(tokens, start, from_index, values, seen);
-    if let Some(source_index) = next_non_trivia_token_index_until(tokens, from_index + 1, end)
-        && matches!(
-            tokens[source_index].kind,
-            SyntaxKind::String | SyntaxKind::Url
-        )
+    if let Some((source_name, source_range)) =
+        css_module_value_import_edge_source(tokens, from_index + 1, end, value_path_aliases)
     {
         push_css_module_value_fact(
             values,
             seen,
             ParsedCssModuleValueFactKind::ImportSource,
-            css_module_value_source_name(tokens[source_index]),
-            tokens[source_index].range,
+            source_name,
+            source_range,
         );
     }
 }
@@ -8990,6 +9041,7 @@ fn collect_css_module_value_import_edge_facts_from_tokens(
     tokens: &[Token<'_>],
 ) -> Vec<ParsedCssModuleValueImportEdgeFact> {
     let mut edges = Vec::new();
+    let value_path_aliases = collect_css_module_value_path_aliases_from_tokens(tokens);
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@value") {
             continue;
@@ -9005,7 +9057,8 @@ fn collect_css_module_value_import_edge_facts_from_tokens(
         if colon_index.is_some_and(|colon_index| from_index > colon_index) {
             continue;
         }
-        let Some(import_source) = css_module_value_import_edge_source(tokens, from_index + 1, end)
+        let Some((import_source, _source_range)) =
+            css_module_value_import_edge_source(tokens, from_index + 1, end, &value_path_aliases)
         else {
             continue;
         };
@@ -9088,11 +9141,27 @@ fn css_module_value_import_edge_source(
     tokens: &[Token<'_>],
     start: usize,
     end: usize,
-) -> Option<String> {
+    value_path_aliases: &BTreeMap<String, String>,
+) -> Option<(String, TextRange)> {
     let source_index = next_non_trivia_token_index_until(tokens, start, end)?;
     let token = tokens[source_index];
-    matches!(token.kind, SyntaxKind::String | SyntaxKind::Url)
-        .then(|| css_module_value_source_name(token))
+    if matches!(token.kind, SyntaxKind::String | SyntaxKind::Url) {
+        return Some((css_module_value_source_name(token), token.range));
+    }
+    if css_module_value_name_token_can_define(token) {
+        return css_module_value_source_alias_target(token.text, token.range, value_path_aliases);
+    }
+    None
+}
+
+fn css_module_value_source_alias_target(
+    name: &str,
+    range: TextRange,
+    value_path_aliases: &BTreeMap<String, String>,
+) -> Option<(String, TextRange)> {
+    value_path_aliases
+        .get(name)
+        .map(|source| (source.clone(), range))
 }
 
 fn collect_css_module_value_import_edges(
@@ -9502,6 +9571,15 @@ fn css_module_value_source_name(token: Token<'_>) -> String {
         .text
         .trim_matches(|character| character == '"' || character == '\'')
         .to_string()
+}
+
+fn css_module_value_source_looks_like_style_request(source: &str) -> bool {
+    let lower = source.to_ascii_lowercase();
+    (lower.starts_with('/') || lower.starts_with("./") || lower.starts_with("../"))
+        && (lower.ends_with(".css")
+            || lower.ends_with(".scss")
+            || lower.ends_with(".sass")
+            || lower.ends_with(".less"))
 }
 
 fn collect_css_module_composes_facts_from_tokens(
@@ -12242,6 +12320,48 @@ mod tests {
         assert_eq!(
             facts.css_module_value_definition_edges[0].reference_names,
             vec!["primary"]
+        );
+    }
+
+    #[test]
+    fn extracts_css_module_value_path_alias_import_edges() {
+        let facts = collect_style_facts(
+            "@value colors: \"./colors.module.scss\"; @value primary, secondary as accent from colors; .btn { color: primary; border-color: accent; }",
+            StyleDialect::Css,
+        );
+        let definitions = facts
+            .css_module_values
+            .iter()
+            .filter(|value| value.kind == ParsedCssModuleValueFactKind::Definition)
+            .map(|value| value.name.as_str())
+            .collect::<Vec<_>>();
+        let import_sources = facts
+            .css_module_values
+            .iter()
+            .filter(|value| value.kind == ParsedCssModuleValueFactKind::ImportSource)
+            .map(|value| value.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(definitions, vec!["primary", "accent"]);
+        assert_eq!(import_sources, vec!["./colors.module.scss"]);
+        assert_eq!(facts.css_module_value_import_edge_count, 2);
+        assert_eq!(
+            facts.css_module_value_import_edges[0].remote_name,
+            "primary"
+        );
+        assert_eq!(facts.css_module_value_import_edges[0].local_name, "primary");
+        assert_eq!(
+            facts.css_module_value_import_edges[0].import_source,
+            "./colors.module.scss"
+        );
+        assert_eq!(
+            facts.css_module_value_import_edges[1].remote_name,
+            "secondary"
+        );
+        assert_eq!(facts.css_module_value_import_edges[1].local_name, "accent");
+        assert_eq!(
+            facts.css_module_value_import_edges[1].import_source,
+            "./colors.module.scss"
         );
     }
 
