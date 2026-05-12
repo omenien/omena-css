@@ -5877,6 +5877,8 @@ fn rewrite_is_where_selector_function(
 
     if pseudo_name == "is" {
         arguments = flatten_nested_is_selector_arguments(&arguments)?;
+    } else {
+        arguments = flatten_nested_where_selector_arguments(&arguments)?;
     }
 
     let deduped = dedupe_selector_arguments(&arguments);
@@ -5904,7 +5906,7 @@ fn rewrite_is_where_selector_function(
 fn flatten_nested_is_selector_arguments(arguments: &[String]) -> Option<Vec<String>> {
     let mut flattened = Vec::new();
     for argument in arguments {
-        if let Some(inner_arguments) = parse_exact_is_selector_argument(argument)? {
+        if let Some(inner_arguments) = parse_exact_selector_function_argument(argument, "is")? {
             flattened.extend(inner_arguments);
         } else {
             flattened.push(argument.clone());
@@ -5913,7 +5915,22 @@ fn flatten_nested_is_selector_arguments(arguments: &[String]) -> Option<Vec<Stri
     Some(flattened)
 }
 
-fn parse_exact_is_selector_argument(argument: &str) -> Option<Option<Vec<String>>> {
+fn flatten_nested_where_selector_arguments(arguments: &[String]) -> Option<Vec<String>> {
+    let mut flattened = Vec::new();
+    for argument in arguments {
+        if let Some(inner_arguments) = parse_exact_selector_function_argument(argument, "where")? {
+            flattened.extend(inner_arguments);
+        } else {
+            flattened.push(argument.clone());
+        }
+    }
+    Some(flattened)
+}
+
+fn parse_exact_selector_function_argument(
+    argument: &str,
+    function_name: &str,
+) -> Option<Option<Vec<String>>> {
     let trimmed = argument.trim();
     let lexed = lex(trimmed, StyleDialect::Css);
     let tokens = lexed.tokens();
@@ -5926,7 +5943,7 @@ fn parse_exact_is_selector_argument(argument: &str) -> Option<Option<Vec<String>
     let left_paren = tokens.get(2)?;
     if colon.kind != SyntaxKind::Colon
         || ident.kind != SyntaxKind::Ident
-        || !ident.text.eq_ignore_ascii_case("is")
+        || !ident.text.eq_ignore_ascii_case(function_name)
         || left_paren.kind != SyntaxKind::LeftParen
     {
         return Some(None);
@@ -7660,7 +7677,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_specificity_safe_is_where_selectors() {
-        let source = r#".a:is(.ready) { color: red; } .b:where(.x, .x) { color: blue; } .c:where(.y) { color: green; } .d:is(:is(.u, .v), .u) { color: orange; } .e, .e, .f { color: purple; } @media (min-width: 1px) { .m, .m, .n { color: black; } } @supports (display: grid) { .s, .s { display: grid; } }"#;
+        let source = r#".a:is(.ready) { color: red; } .b:where(.x, .x) { color: blue; } .c:where(.y) { color: green; } .d:is(:is(.u, .v), .u) { color: orange; } .e, .e, .f { color: purple; } .w:where(:where(.one, .two), .one) { color: teal; } @media (min-width: 1px) { .m, .m, .n { color: black; } } @supports (display: grid) { .s, .s { display: grid; } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7669,10 +7686,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 6);
+        assert_eq!(execution.mutation_count, 7);
         assert_eq!(
             execution.output_css,
-            r#".a.ready { color: red; } .b:where(.x) { color: blue; } .c:where(.y) { color: green; } .d:is(.u,.v) { color: orange; } .e, .f { color: purple; } @media (min-width: 1px) { .m, .n { color: black; } } @supports (display: grid) { .s { display: grid; } }"#
+            r#".a.ready { color: red; } .b:where(.x) { color: blue; } .c:where(.y) { color: green; } .d:is(.u,.v) { color: orange; } .e, .f { color: purple; } .w:where(.one,.two) { color: teal; } @media (min-width: 1px) { .m, .n { color: black; } } @supports (display: grid) { .s { display: grid; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
