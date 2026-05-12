@@ -1,5 +1,5 @@
 use engine_input_producers::EngineInputV2;
-use engine_style_parser::{ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0};
+use omena_semantic::{ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0};
 use serde::Serialize;
 
 use crate::summarize_omena_bridge_source_input_evidence;

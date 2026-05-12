@@ -13,7 +13,6 @@ workspace = true
 
 [dependencies]
 engine-input-producers = { path = "../engine-input-producers" }
-engine-style-parser = { path = "../engine-style-parser" }
 omena-parser = { path = "../omena-parser" }
 omena-semantic = { path = "../omena-semantic" }
 oxc_allocator = "0.128.0"

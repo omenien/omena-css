@@ -1,14 +1,14 @@
 use engine_input_producers::EngineInputV2;
 use engine_style_parser::{
-    NestedSafetyCountsV0, ParserBoundarySyntaxFactsV0, ParserIndexComposesFactsV0,
-    ParserIndexCustomPropertyDeclFactV0, ParserIndexCustomPropertyFactsV0,
-    ParserIndexCustomPropertyRefFactV0, ParserIndexKeyframesFactsV0,
-    ParserIndexSassModuleUseFactV0, ParserIndexSassSameFileResolutionFactsV0,
-    ParserIndexSelectorDefinitionFactV0, ParserIndexSelectorFactsV0, ParserIndexValueFactsV0,
-    ParserIndexWrapperFactsV0, ParserLosslessCstFactsV0, ParserSassSyntaxFactsV0,
-    StyleCustomPropertySemanticFactsV0, StyleSassSemanticFactsV0, StyleSelectorIdentityFactsV0,
-    StyleSemanticFactsV0, Stylesheet, summarize_semantic_boundary,
+    NestedSafetyCountsV0, ParserIndexComposesFactsV0, ParserIndexCustomPropertyDeclFactV0,
+    ParserIndexCustomPropertyFactsV0, ParserIndexCustomPropertyRefFactV0,
+    ParserIndexKeyframesFactsV0, ParserIndexSassModuleUseFactV0,
+    ParserIndexSassSameFileResolutionFactsV0, ParserIndexSelectorDefinitionFactV0,
+    ParserIndexSelectorFactsV0, ParserIndexValueFactsV0, ParserIndexWrapperFactsV0,
+    ParserLosslessCstFactsV0, ParserSassSyntaxFactsV0, StyleCustomPropertySemanticFactsV0,
+    StyleSassSemanticFactsV0, StyleSelectorIdentityFactsV0, summarize_semantic_boundary,
 };
+pub use engine_style_parser::{ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet};
 use omena_interner::{
     intern_class_name, intern_css_ident, intern_custom_property_name, intern_keyframes_name,
     intern_mixin_name,

@@ -1,8 +1,8 @@
 use engine_input_producers::EngineInputV2;
-use engine_style_parser::{ParserBoundarySyntaxFactsV0, StyleSemanticFactsV0, Stylesheet};
 use omena_semantic::{
     CssModulesSemanticSummaryV0, DesignTokenSemanticSummaryV0, LosslessCstContractV0,
-    SelectorIdentityEngineSummaryV0, StyleSemanticBoundarySummaryV0,
+    ParserBoundarySyntaxFactsV0, SelectorIdentityEngineSummaryV0, StyleSemanticBoundarySummaryV0,
+    StyleSemanticFactsV0, Stylesheet,
 };
 pub use omena_semantic::{
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
@@ -375,21 +375,19 @@ pub fn summarize_omena_bridge_style_semantic_graph_from_source_with_scoped_works
 
 #[cfg(test)]
 mod tests {
-    use engine_input_producers::{
-        ClassExpressionInputV2, EngineInputV2, PositionV2, RangeV2, SourceAnalysisInputV2,
-        SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2,
-        StyleSelectorV2, TypeFactEntryV2,
-    };
-    use engine_style_parser::parse_style_module;
-
     use super::{
         collect_omena_bridge_design_token_workspace_declarations_from_source,
         summarize_omena_bridge_binder_plugin_boundary, summarize_omena_bridge_boundary,
         summarize_omena_bridge_promotion_evidence_with_source_input,
         summarize_omena_bridge_selector_reference_engine,
         summarize_omena_bridge_source_import_declarations,
-        summarize_omena_bridge_source_input_evidence, summarize_omena_bridge_style_semantic_graph,
+        summarize_omena_bridge_source_input_evidence,
         summarize_omena_bridge_style_semantic_graph_from_source,
+    };
+    use engine_input_producers::{
+        ClassExpressionInputV2, EngineInputV2, PositionV2, RangeV2, SourceAnalysisInputV2,
+        SourceDocumentV2, StringTypeFactsV2, StyleAnalysisInputV2, StyleDocumentV2,
+        StyleSelectorV2, TypeFactEntryV2,
     };
 
     #[test]
@@ -590,9 +588,12 @@ const lazy = import("./ignored.module.scss");
 
     #[test]
     fn exposes_style_semantic_graph_through_bridge() -> Result<(), String> {
-        let sheet = parse_style_module("Component.module.scss", ".button { color: red; }")
-            .ok_or_else(|| "SCSS module path should parse".to_string())?;
-        let graph = summarize_omena_bridge_style_semantic_graph(&sheet, &sample_engine_input());
+        let graph = summarize_omena_bridge_style_semantic_graph_from_source(
+            "/tmp/Component.module.scss",
+            ".button { color: red; }",
+            &sample_engine_input(),
+        )
+        .ok_or_else(|| "SCSS module source should parse".to_string())?;
 
         assert_eq!(graph.product, "omena-semantic.style-semantic-graph");
         assert_eq!(graph.selector_reference_engine.selector_count, 1);
@@ -715,9 +716,10 @@ const lazy = import("./ignored.module.scss");
 
     #[test]
     fn owns_source_backed_promotion_evidence_without_changing_host_product() -> Result<(), String> {
-        let sheet = parse_style_module("Component.module.scss", ".button { color: red; }")
-            .ok_or_else(|| "SCSS module path should parse".to_string())?;
-        let boundary = omena_semantic::summarize_style_semantic_boundary(&sheet);
+        let boundary = omena_semantic::summarize_omena_parser_style_semantic_boundary_from_source(
+            "/tmp/Component.module.scss",
+            ".button { color: red; }",
+        );
         let input = sample_engine_input();
         let bridge_evidence = summarize_omena_bridge_promotion_evidence_with_source_input(
             &boundary.parser_facts,
@@ -737,12 +739,18 @@ const lazy = import("./ignored.module.scss");
 
     #[test]
     fn owns_graph_assembly_without_changing_host_product() -> Result<(), String> {
-        let sheet = parse_style_module("Component.module.scss", ".button { color: red; }")
-            .ok_or_else(|| "SCSS module path should parse".to_string())?;
-        let bridge_graph =
-            summarize_omena_bridge_style_semantic_graph(&sheet, &sample_engine_input());
-        let semantic_graph =
-            omena_semantic::summarize_style_semantic_graph(&sheet, &sample_engine_input());
+        let bridge_graph = summarize_omena_bridge_style_semantic_graph_from_source(
+            "/tmp/Component.module.scss",
+            ".button { color: red; }",
+            &sample_engine_input(),
+        )
+        .ok_or_else(|| "bridge should parse SCSS module source".to_string())?;
+        let semantic_graph = omena_semantic::summarize_style_semantic_graph_from_source(
+            "/tmp/Component.module.scss",
+            ".button { color: red; }",
+            &sample_engine_input(),
+        )
+        .ok_or_else(|| "semantic should parse SCSS module source".to_string())?;
 
         assert_eq!(bridge_graph.product, "omena-semantic.style-semantic-graph");
         assert_eq!(bridge_graph.product, semantic_graph.product);

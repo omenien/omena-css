@@ -550,7 +550,6 @@ name = "omena-bridge"
 version = "0.1.0"
 dependencies = [
  "engine-input-producers",
- "engine-style-parser",
  "omena-parser",
  "omena-semantic",
  "oxc_allocator",

@@ -20,6 +20,10 @@ Current public products:
   this crate.
 - `omena-semantic.design-token-semantics` — generic design-token readiness
   surface forwarded from `omena-semantic` as part of the graph product.
+- source-backed design-token workspace declarations — bridge API surface for
+  collecting CSS custom property declarations directly from style source via
+  the `omena-parser` semantic boundary, without a direct bridge dependency on
+  the legacy parser crate.
 - `omena-semantic.css-modules-semantics` — parser-fact-backed CSS Modules seed
   surface forwarded from `omena-semantic` as part of the graph product while
   cross-file `composes`/`@value`/ICSS resolution remains future graph work.
