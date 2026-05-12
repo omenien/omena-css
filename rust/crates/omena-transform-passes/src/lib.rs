@@ -2836,17 +2836,32 @@ fn evaluate_static_supports_rules_with_lexer(
     source: &str,
     dialect: StyleDialect,
 ) -> (String, usize) {
+    let mut output = source.to_string();
+    let mut mutation_count = 0;
+
+    loop {
+        let (next_output, next_mutation_count) =
+            evaluate_static_supports_rules_once_with_lexer(&output, dialect);
+        if next_mutation_count == 0 {
+            return (output, mutation_count);
+        }
+        output = next_output;
+        mutation_count += next_mutation_count;
+    }
+}
+
+fn evaluate_static_supports_rules_once_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
-    let mut depth = 0usize;
     let mut index = 0;
 
     while index < tokens.len() {
         match tokens[index].kind {
-            SyntaxKind::AtKeyword
-                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@supports") =>
-            {
+            SyntaxKind::AtKeyword if tokens[index].text.eq_ignore_ascii_case("@supports") => {
                 let Some((block_start_index, block_end_index)) =
                     at_rule_block_indexes(tokens, index)
                 else {
@@ -2881,8 +2896,6 @@ fn evaluate_static_supports_rules_with_lexer(
                 index = block_end_index + 1;
                 continue;
             }
-            SyntaxKind::LeftBrace => depth += 1,
-            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
             _ => {}
         }
         index += 1;
@@ -2909,17 +2922,32 @@ fn evaluate_static_supports_rules_with_lexer(
 }
 
 fn evaluate_static_media_rules_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let mut output = source.to_string();
+    let mut mutation_count = 0;
+
+    loop {
+        let (next_output, next_mutation_count) =
+            evaluate_static_media_rules_once_with_lexer(&output, dialect);
+        if next_mutation_count == 0 {
+            return (output, mutation_count);
+        }
+        output = next_output;
+        mutation_count += next_mutation_count;
+    }
+}
+
+fn evaluate_static_media_rules_once_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
-    let mut depth = 0usize;
     let mut index = 0;
 
     while index < tokens.len() {
         match tokens[index].kind {
-            SyntaxKind::AtKeyword
-                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@media") =>
-            {
+            SyntaxKind::AtKeyword if tokens[index].text.eq_ignore_ascii_case("@media") => {
                 let Some((block_start_index, block_end_index)) =
                     at_rule_block_indexes(tokens, index)
                 else {
@@ -2950,8 +2978,6 @@ fn evaluate_static_media_rules_with_lexer(source: &str, dialect: StyleDialect) -
                 index = block_end_index + 1;
                 continue;
             }
-            SyntaxKind::LeftBrace => depth += 1,
-            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
             _ => {}
         }
         index += 1;
@@ -8333,7 +8359,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_evaluates_literal_media_branches() {
-        let source = r#"@media all { .a { color: red; } } @media not all { .b { color: blue; } } @media screen { .c { color: green; } }"#;
+        let source = r#"@media all { .a { color: red; } } @media not all { .b { color: blue; } } @media screen { .c { color: green; } } @supports (display: grid) { @media all { @media all { .d { color: black; } } } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -8342,10 +8368,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 4);
         assert_eq!(
             execution.output_css,
-            r#".a { color: red; }  @media screen { .c { color: green; } }"#
+            r#".a { color: red; }  @media screen { .c { color: green; } } @supports (display: grid) { .d { color: black; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
@@ -8355,7 +8381,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_evaluates_simple_supports_branches_with_cascade_witness() {
-        let source = r#"@supports (display: grid) { .a { display: grid; } } @supports not (display: grid) { .b { display: block; } } @supports (display: grid) and (color: red) { .c { color: red; } }"#;
+        let source = r#"@supports (display: grid) { .a { display: grid; } } @supports not (display: grid) { .b { display: block; } } @supports (display: grid) and (color: red) { .c { color: red; } } @media all { @supports (display: grid) { @supports (display: grid) { .d { display: grid; } } } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -8364,10 +8390,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 4);
         assert_eq!(
             execution.output_css,
-            r#".a { display: grid; }  @supports (display: grid) and (color: red) { .c { color: red; } }"#
+            r#".a { display: grid; }  @supports (display: grid) and (color: red) { .c { color: red; } } @media all { .d { display: grid; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
