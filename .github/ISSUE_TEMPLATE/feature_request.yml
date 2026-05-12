@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a parser, cascade, transform, tooling, or documentation addition.
+title: "Describe the product capability"
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user-facing or integration problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the API, behavior, or documentation change.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Link examples, specs, benchmarks, or downstream consumers.

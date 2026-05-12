@@ -36,3 +36,12 @@ Publishing is manual through the `Publish Crates` GitHub Actions workflow.
 Run the workflow in `dry-run` mode first, then run `publish` only after CI is
 green and the crates.io order has been checked. The workflow intentionally skips
 `omena-incremental` because it publishes from its own Omena repository.
+
+## Documentation
+
+- [Overview](docs/overview.md)
+- [Quickstart](docs/quickstart.md)
+- [API reference](docs/api-reference.md)
+- [Benchmarks](docs/benchmarks.md)
+- [Release process](docs/release.md)
+- [Paper draft outline](docs/paper-draft.md)

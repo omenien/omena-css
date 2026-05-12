@@ -1,0 +1,31 @@
+name: Bug report
+description: Report incorrect parser, cascade, transform, or packaging behavior.
+title: "Describe the failing behavior"
+labels: ["bug"]
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Include CSS, SCSS, Less, Rust code, or commands needed to reproduce.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: Commands or checks you ran.
