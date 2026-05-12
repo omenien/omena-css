@@ -492,6 +492,51 @@ fn exposes_consumer_build_facade_from_query() {
 }
 
 #[test]
+fn consumer_build_derives_single_source_transform_context() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.css",
+        ".button { composes: base; color: red; } .base { color: blue; }",
+        &[
+            "composes-resolution".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"singleSourceTransformContextProducer")
+    );
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"composes-resolution")
+    );
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"css-modules-class-hashing")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"composes-resolution")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"css-modules-class-hashing")
+    );
+    assert!(!summary.execution.output_css.contains("composes:"));
+    assert!(summary.execution.output_css.contains("._button_0"));
+}
+
+#[test]
 fn exposes_consumer_build_facade_from_target_query() {
     let summary = execute_omena_query_consumer_build_style_source_for_target_query(
         "Button.module.css",
@@ -520,6 +565,19 @@ fn exposes_consumer_build_facade_from_target_query() {
             .iter()
             .any(|pass_id| pass_id == "light-dark-lowering")
     );
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"css-modules-class-hashing")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"css-modules-class-hashing")
+    );
+    assert!(summary.execution.output_css.contains("._card_0"));
     assert!(summary.ready_surfaces.contains(&"targetQueryBuildFacade"));
 }
 
