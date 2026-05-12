@@ -31,6 +31,7 @@ export default defineConfig({
           name: "protocol",
           include: ["test/protocol/**/*.test.ts"],
           setupFiles: ["test/_setup/matchers.ts"],
+          fileParallelism: false,
           testTimeout: 15000,
         },
       },
