@@ -219,10 +219,47 @@ pub fn execute_omena_query_consumer_build_style_source(
         style_path: style_path.to_string(),
         dialect: omena_parser_style_dialect_label(omena_parser_dialect_for_style_path(style_path)),
         requested_pass_ids: requested_pass_ids.to_vec(),
+        target_query: None,
         unknown_pass_ids: execution_summary.unknown_pass_ids,
         execution: execution_summary.execution,
         ready_surfaces: vec![
             "consumerBuildFacade",
+            "transformExecutionRuntime",
+            "transformPassOutcomeContract",
+        ],
+    }
+}
+
+pub fn execute_omena_query_consumer_build_style_source_for_target_query(
+    style_path: &str,
+    style_source: &str,
+    target_query: &str,
+) -> OmenaQueryConsumerBuildSummaryV0 {
+    let plan = summarize_omena_query_transform_plan_from_target_query(
+        style_path,
+        style_source,
+        target_query,
+        conservative_omena_query_target_options(),
+        default_omena_query_transform_print_options(),
+    );
+    let requested_pass_ids = plan
+        .combined_pass_ids
+        .iter()
+        .map(|pass_id| (*pass_id).to_string())
+        .collect::<Vec<_>>();
+
+    OmenaQueryConsumerBuildSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.consumer-build-style-source",
+        style_path: plan.style_path,
+        dialect: plan.dialect,
+        requested_pass_ids,
+        target_query: plan.target_query,
+        unknown_pass_ids: Vec::new(),
+        execution: plan.execution,
+        ready_surfaces: vec![
+            "consumerBuildFacade",
+            "targetQueryBuildFacade",
             "transformExecutionRuntime",
             "transformPassOutcomeContract",
         ],

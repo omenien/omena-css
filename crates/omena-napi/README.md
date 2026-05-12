@@ -11,6 +11,9 @@ query, parser, and transform contracts settle:
   returns query-owned parser facts.
 - `buildStyleSourceJson(source, path, passIds)` runs conservative transform
   passes and returns an execution summary plus output CSS.
+- `buildStyleSourceForTargetQueryJson(source, path, targetQuery)` plans
+  conservative target-sensitive passes from a Browserslist query or named
+  target profile.
 - `listTransformPassesJson()` lists transform pass ids accepted by
   `buildStyleSourceJson`.
 

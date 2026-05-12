@@ -5,8 +5,9 @@ use omena_query::{
     OmenaQueryConsumerBuildSummaryV0 as OmenaNapiBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaNapiCheckSummaryV0,
     OmenaQueryTransformPassSummaryV0 as OmenaNapiPassSummaryV0,
-    execute_omena_query_consumer_build_style_source, list_omena_query_transform_pass_summaries,
-    summarize_omena_query_consumer_check_style_source,
+    execute_omena_query_consumer_build_style_source,
+    execute_omena_query_consumer_build_style_source_for_target_query,
+    list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
 };
 use serde::Serialize;
 
@@ -22,6 +23,19 @@ pub fn build_style_source_json(
     pass_ids: Vec<String>,
 ) -> napi::Result<String> {
     to_json_string(&build_style_source_summary(&source, &path, &pass_ids))
+}
+
+#[napi(js_name = "buildStyleSourceForTargetQueryJson")]
+pub fn build_style_source_for_target_query_json(
+    source: String,
+    path: String,
+    target_query: String,
+) -> napi::Result<String> {
+    to_json_string(&build_style_source_for_target_query_summary(
+        &source,
+        &path,
+        &target_query,
+    ))
 }
 
 #[napi(js_name = "listTransformPassesJson")]
@@ -41,6 +55,15 @@ pub fn build_style_source_summary(
 ) -> OmenaNapiBuildSummaryV0 {
     let path = effective_path(path);
     execute_omena_query_consumer_build_style_source(path, source, pass_ids)
+}
+
+pub fn build_style_source_for_target_query_summary(
+    source: &str,
+    path: &str,
+    target_query: &str,
+) -> OmenaNapiBuildSummaryV0 {
+    let path = effective_path(path);
+    execute_omena_query_consumer_build_style_source_for_target_query(path, source, target_query)
 }
 
 pub fn list_transform_pass_summaries() -> Vec<OmenaNapiPassSummaryV0> {
@@ -92,6 +115,31 @@ mod tests {
         assert_eq!(summary.product, "omena-query.consumer-build-style-source");
         assert!(summary.unknown_pass_ids.is_empty());
         assert!(summary.execution.output_css.contains("#fff"));
+    }
+
+    #[test]
+    fn builds_css_from_target_query_for_node_clients() {
+        let summary = build_style_source_for_target_query_summary(
+            ".card { display: flex; color: light-dark(#000, #fff); }",
+            "fixture.css",
+            "ie 11",
+        );
+
+        assert_eq!(summary.product, "omena-query.consumer-build-style-source");
+        assert!(summary.unknown_pass_ids.is_empty());
+        assert!(summary.target_query.is_some());
+        assert!(
+            summary
+                .requested_pass_ids
+                .iter()
+                .any(|pass_id| pass_id == "vendor-prefixing")
+        );
+        assert!(
+            summary
+                .requested_pass_ids
+                .iter()
+                .any(|pass_id| pass_id == "light-dark-lowering")
+        );
     }
 
     #[test]

@@ -59,6 +59,8 @@ Primary consumers:
 
 - `omena check <file>` reports query-owned parser facts and parse-error counts.
 - `omena build <file>` runs the conservative transform pipeline.
+- `omena build <file> --target-query "ie 11"` plans target-sensitive passes
+  from a Browserslist query or named target profile.
 - `omena passes` lists accepted transform pass ids.
 
 ## Wasm
@@ -68,6 +70,8 @@ Primary consumers:
 
 - `checkStyleSource(source, path)` reports query-owned parser facts.
 - `buildStyleSource(source, path, passIds)` runs conservative transform passes.
+- `buildStyleSourceForTargetQuery(source, path, targetQuery)` plans
+  target-sensitive passes from a Browserslist query or named target profile.
 - `listTransformPasses()` lists accepted transform pass ids.
 
 ## Node Native Binding
@@ -77,4 +81,6 @@ Primary consumers:
 - `checkStyleSourceJson(source, path)` reports query-owned parser facts as JSON.
 - `buildStyleSourceJson(source, path, passIds)` runs conservative transform
   passes and returns JSON.
+- `buildStyleSourceForTargetQueryJson(source, path, targetQuery)` plans
+  target-sensitive passes from a Browserslist query or named target profile.
 - `listTransformPassesJson()` lists accepted transform pass ids as JSON.
