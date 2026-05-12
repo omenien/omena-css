@@ -118,9 +118,9 @@ captured on 2026-05-12 with:
 
 | Workload                   | omena-parser product | legacy product | Ratio |
 | -------------------------- | -------------------: | -------------: | ----: |
-| `nextjs14-dashboard-scss`  |             4.185 ms |       4.935 ms | 0.848 |
-| `vite-component-css`       |             2.250 ms |       2.779 ms | 0.810 |
-| `scss-heavy-design-system` |             1.819 ms |       1.812 ms | 1.004 |
+| `nextjs14-dashboard-scss`  |             1.571 ms |       4.917 ms | 0.319 |
+| `vite-component-css`       |             1.395 ms |       2.729 ms | 0.511 |
+| `scss-heavy-design-system` |             0.960 ms |       1.827 ms | 0.525 |
 
 The LSP macro-benchmark snapshot used:
 
@@ -134,8 +134,8 @@ pnpm cme-check run rust/omena-lsp-server/runtime-loop
 
 | Surface           | Samples |     p50 |     p95 |     max |
 | ----------------- | ------: | ------: | ------: | ------: |
-| source hover      |      24 | 3.27 ms | 5.45 ms | 5.60 ms |
-| source definition |      12 | 2.71 ms | 5.51 ms | 5.51 ms |
-| source completion |       5 | 3.20 ms | 5.29 ms | 5.29 ms |
-| style references  |       5 | 2.94 ms | 5.01 ms | 5.01 ms |
-| event-loop probe  |      19 |     n/a | 1.21 ms | 1.21 ms |
+| source hover      |      24 | 3.51 ms | 5.72 ms | 5.87 ms |
+| source definition |      12 | 2.92 ms | 5.79 ms | 5.79 ms |
+| source completion |       5 | 3.43 ms | 5.56 ms | 5.56 ms |
+| style references  |       5 | 3.15 ms | 5.27 ms | 5.27 ms |
+| event-loop probe  |      19 |     n/a | 1.26 ms | 1.26 ms |

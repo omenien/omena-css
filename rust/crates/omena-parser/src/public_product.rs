@@ -490,14 +490,15 @@ pub fn summarize_css_modules_intermediate(
     source: &str,
     dialect: StyleDialect,
 ) -> ParserIndexSummaryV0 {
+    let line_index = SourceLineIndex::new(source);
     let facts = collect_style_facts(source, dialect);
-    let blocks = collect_style_blocks(source);
-    let selectors = summarize_selectors(source, &facts, &blocks);
-    let values = summarize_values(source, &facts, &blocks);
-    let custom_properties = summarize_custom_properties(source, &facts, &blocks);
-    let sass = summarize_sass(source, &facts, &blocks);
-    let keyframes = summarize_keyframes(source, &facts, &blocks);
-    let composes = summarize_composes(source, &facts, &blocks);
+    let blocks = collect_style_blocks(source, &line_index);
+    let selectors = summarize_selectors(source, &line_index, &facts, &blocks);
+    let values = summarize_values(source, &line_index, &facts, &blocks);
+    let custom_properties = summarize_custom_properties(source, &line_index, &facts, &blocks);
+    let sass = summarize_sass(source, &line_index, &facts, &blocks);
+    let keyframes = summarize_keyframes(source, &line_index, &facts, &blocks);
+    let composes = summarize_composes(source, &line_index, &facts, &blocks);
     let wrappers = summarize_wrappers(&blocks);
 
     ParserIndexSummaryV0 {
@@ -705,6 +706,7 @@ pub fn summarize_parser_canonical_producer_signal(
 
 fn summarize_selectors(
     source: &str,
+    line_index: &SourceLineIndex,
     facts: &ParsedStyleFacts,
     blocks: &[StyleBlock],
 ) -> ParserIndexSelectorFactsV0 {
@@ -762,9 +764,9 @@ fn summarize_selectors(
             name,
             source_order: definition_facts.len(),
             byte_span,
-            range: parser_range_for_byte_span(source, byte_span),
+            range: parser_range_for_byte_span(source, line_index, byte_span),
             rule_byte_span,
-            rule_range: parser_range_for_byte_span(source, rule_byte_span),
+            rule_range: parser_range_for_byte_span(source, line_index, rule_byte_span),
             full_selector,
             declarations,
             nested_safety_kind,
@@ -795,6 +797,7 @@ fn summarize_selectors(
 
 fn summarize_values(
     source: &str,
+    line_index: &SourceLineIndex,
     facts: &ParsedStyleFacts,
     blocks: &[StyleBlock],
 ) -> ParserIndexValueFactsV0 {
@@ -829,9 +832,9 @@ fn summarize_values(
             value: css_module_value_definition_text(source, byte_span.start),
             source_order: decl_facts.len(),
             byte_span,
-            range: parser_range_for_byte_span(source, byte_span),
+            range: parser_range_for_byte_span(source, line_index, byte_span),
             rule_byte_span,
-            rule_range: parser_range_for_byte_span(source, rule_byte_span),
+            rule_range: parser_range_for_byte_span(source, line_index, rule_byte_span),
         });
     }
     decl_facts.sort();
@@ -850,12 +853,12 @@ fn summarize_values(
             from: edge.import_source.clone(),
             source_order: import_facts.len(),
             byte_span,
-            range: parser_range_for_byte_span(source, byte_span),
+            range: parser_range_for_byte_span(source, line_index, byte_span),
             imported_name_byte_span,
             imported_name_range: imported_name_byte_span
-                .map(|span| parser_range_for_byte_span(source, span)),
+                .map(|span| parser_range_for_byte_span(source, line_index, span)),
             rule_byte_span,
-            rule_range: parser_range_for_byte_span(source, rule_byte_span),
+            rule_range: parser_range_for_byte_span(source, line_index, rule_byte_span),
         });
     }
     import_facts.sort();
@@ -897,7 +900,7 @@ fn summarize_values(
                 source: "declaration",
                 source_order: ref_facts.len(),
                 byte_span,
-                range: parser_range_for_byte_span(source, byte_span),
+                range: parser_range_for_byte_span(source, line_index, byte_span),
             });
             let wrapper = wrapper_for_offset(blocks, offset);
             for selector in selector_names {
@@ -937,7 +940,7 @@ fn summarize_values(
                 source: "valueDecl",
                 source_order: ref_facts.len(),
                 byte_span,
-                range: parser_range_for_byte_span(source, byte_span),
+                range: parser_range_for_byte_span(source, line_index, byte_span),
             });
         }
     }
@@ -1056,6 +1059,7 @@ fn summarize_values(
 
 fn summarize_custom_properties(
     source: &str,
+    line_index: &SourceLineIndex,
     facts: &ParsedStyleFacts,
     blocks: &[StyleBlock],
 ) -> ParserIndexCustomPropertyFactsV0 {
@@ -1079,9 +1083,9 @@ fn summarize_custom_properties(
                     value: declaration_value_text(source, byte_span.start),
                     source_order: decl_facts.len(),
                     byte_span,
-                    range: parser_range_for_byte_span(source, byte_span),
+                    range: parser_range_for_byte_span(source, line_index, byte_span),
                     rule_byte_span,
-                    rule_range: parser_range_for_byte_span(source, rule_byte_span),
+                    rule_range: parser_range_for_byte_span(source, line_index, rule_byte_span),
                     selector_contexts: selector_contexts_for_offset(blocks, byte_span.start),
                     wrapper_at_rules: wrapper.wrapper_at_rules.clone(),
                     under_media: wrapper.under_media,
@@ -1096,7 +1100,7 @@ fn summarize_custom_properties(
                     name: variable.name.clone(),
                     source_order: ref_facts.len(),
                     byte_span,
-                    range: parser_range_for_byte_span(source, byte_span),
+                    range: parser_range_for_byte_span(source, line_index, byte_span),
                     selector_contexts: selector_contexts_for_offset(blocks, byte_span.start),
                     wrapper_at_rules: wrapper.wrapper_at_rules.clone(),
                     under_media: wrapper.under_media,
@@ -1175,6 +1179,7 @@ fn summarize_custom_properties(
 
 fn summarize_sass(
     source: &str,
+    line_index: &SourceLineIndex,
     facts: &ParsedStyleFacts,
     blocks: &[StyleBlock],
 ) -> ParserIndexSassFactsV0 {
@@ -1192,7 +1197,7 @@ fn summarize_sass(
 
     for symbol in &facts.sass_symbols {
         let byte_span = byte_span_for_range(symbol.range);
-        let range = parser_range_for_byte_span(source, byte_span);
+        let range = parser_range_for_byte_span(source, line_index, byte_span);
         match symbol.kind {
             ParsedSassSymbolFactKind::VariableDeclaration => {
                 if symbol.role == "parameter"
@@ -1355,7 +1360,7 @@ fn summarize_sass(
                 role: symbol.role,
                 resolution,
                 byte_span,
-                range: parser_range_for_byte_span(source, byte_span),
+                range: parser_range_for_byte_span(source, line_index, byte_span),
             });
         }
     }
@@ -1377,7 +1382,7 @@ fn summarize_sass(
                     namespace_kind: edge.namespace_kind.unwrap_or("default"),
                     namespace: edge.namespace.clone(),
                     byte_span,
-                    range: parser_range_for_byte_span(source, byte_span),
+                    range: parser_range_for_byte_span(source, line_index, byte_span),
                 });
             }
             ParsedSassModuleEdgeFactKind::Forward => {
@@ -1402,9 +1407,9 @@ fn summarize_sass(
                         })
                         .collect(),
                     byte_span,
-                    range: parser_range_for_byte_span(source, byte_span),
+                    range: parser_range_for_byte_span(source, line_index, byte_span),
                     rule_byte_span,
-                    rule_range: parser_range_for_byte_span(source, rule_byte_span),
+                    rule_range: parser_range_for_byte_span(source, line_index, rule_byte_span),
                 });
             }
             ParsedSassModuleEdgeFactKind::Import => {
@@ -1416,7 +1421,7 @@ fn summarize_sass(
                     namespace_kind: "wildcard",
                     namespace: None,
                     byte_span,
-                    range: parser_range_for_byte_span(source, byte_span),
+                    range: parser_range_for_byte_span(source, line_index, byte_span),
                 });
             }
         }
@@ -1495,6 +1500,7 @@ fn summarize_sass(
 
 fn summarize_keyframes(
     source: &str,
+    line_index: &SourceLineIndex,
     facts: &ParsedStyleFacts,
     blocks: &[StyleBlock],
 ) -> ParserIndexKeyframesFactsV0 {
@@ -1533,9 +1539,9 @@ fn summarize_keyframes(
                     name: animation.name.clone(),
                     source_order: decl_facts.len(),
                     byte_span,
-                    range: parser_range_for_byte_span(source, byte_span),
+                    range: parser_range_for_byte_span(source, line_index, byte_span),
                     rule_byte_span,
-                    rule_range: parser_range_for_byte_span(source, rule_byte_span),
+                    rule_range: parser_range_for_byte_span(source, line_index, rule_byte_span),
                 });
                 names.push(animation.name.clone());
                 insert_by_wrapper(
@@ -1560,7 +1566,7 @@ fn summarize_keyframes(
                     property,
                     source_order: ref_facts.len(),
                     byte_span,
-                    range: parser_range_for_byte_span(source, byte_span),
+                    range: parser_range_for_byte_span(source, line_index, byte_span),
                 });
                 if !declared_keyframes.contains(&animation.name) {
                     continue;
@@ -1633,6 +1639,7 @@ fn summarize_keyframes(
 
 fn summarize_composes(
     source: &str,
+    line_index: &SourceLineIndex,
     facts: &ParsedStyleFacts,
     blocks: &[StyleBlock],
 ) -> ParserIndexComposesFactsV0 {
@@ -1648,9 +1655,9 @@ fn summarize_composes(
             owner_selector_names: edge.owner_selector_names.clone(),
             target_names: edge.target_names.clone(),
             import_source: edge.import_source.clone(),
-            class_tokens: composes_class_tokens_for_edge(source, facts, edge),
+            class_tokens: composes_class_tokens_for_edge(source, line_index, facts, edge),
             byte_span,
-            range: parser_range_for_byte_span(source, byte_span),
+            range: parser_range_for_byte_span(source, line_index, byte_span),
         });
         let wrapper = wrapper_for_offset(blocks, range_start(edge.range));
         let count = edge.owner_selector_names.len() * edge.target_names.len();
@@ -1727,6 +1734,7 @@ fn summarize_composes(
 
 fn composes_class_tokens_for_edge(
     source: &str,
+    line_index: &SourceLineIndex,
     facts: &ParsedStyleFacts,
     edge: &crate::ParsedCssModuleComposesEdgeFact,
 ) -> Vec<ParserIndexComposesClassTokenV0> {
@@ -1752,7 +1760,7 @@ fn composes_class_tokens_for_edge(
             ParserIndexComposesClassTokenV0 {
                 class_name: fact.name.clone(),
                 byte_span,
-                range: parser_range_for_byte_span(source, byte_span),
+                range: parser_range_for_byte_span(source, line_index, byte_span),
             }
         })
         .collect::<Vec<_>>();
@@ -1805,10 +1813,11 @@ fn summarize_wrappers(blocks: &[StyleBlock]) -> ParserIndexWrapperFactsV0 {
     }
 }
 
-fn collect_style_blocks(source: &str) -> Vec<StyleBlock> {
+fn collect_style_blocks(source: &str, line_index: &SourceLineIndex) -> Vec<StyleBlock> {
     let mut blocks = Vec::new();
     collect_style_blocks_in_range(
         source,
+        line_index,
         0,
         source.len(),
         &[],
@@ -1821,6 +1830,7 @@ fn collect_style_blocks(source: &str) -> Vec<StyleBlock> {
 
 fn at_rule_context_for_block(
     source: &str,
+    line_index: &SourceLineIndex,
     header: &str,
     start: usize,
     end: usize,
@@ -1837,12 +1847,14 @@ fn at_rule_context_for_block(
         name,
         params,
         byte_span,
-        range: parser_range_for_byte_span(source, byte_span),
+        range: parser_range_for_byte_span(source, line_index, byte_span),
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn collect_style_blocks_in_range(
     source: &str,
+    line_index: &SourceLineIndex,
     start: usize,
     end: usize,
     parent_branches: &[SelectorBranch],
@@ -1864,6 +1876,7 @@ fn collect_style_blocks_in_range(
                 .wrapper_at_rules
                 .push(at_rule_context_for_block(
                     source,
+                    line_index,
                     header,
                     header_start,
                     close + 1,
@@ -1885,6 +1898,7 @@ fn collect_style_blocks_in_range(
             });
             collect_style_blocks_in_range(
                 source,
+                line_index,
                 open + 1,
                 close,
                 parent_branches,
@@ -1898,6 +1912,7 @@ fn collect_style_blocks_in_range(
                 .wrapper_at_rules
                 .push(at_rule_context_for_block(
                     source,
+                    line_index,
                     header,
                     header_start,
                     close + 1,
@@ -1919,6 +1934,7 @@ fn collect_style_blocks_in_range(
             });
             collect_style_blocks_in_range(
                 source,
+                line_index,
                 open + 1,
                 close,
                 parent_branches,
@@ -1932,6 +1948,7 @@ fn collect_style_blocks_in_range(
                 .wrapper_at_rules
                 .push(at_rule_context_for_block(
                     source,
+                    line_index,
                     header,
                     header_start,
                     close + 1,
@@ -1953,6 +1970,7 @@ fn collect_style_blocks_in_range(
             });
             collect_style_blocks_in_range(
                 source,
+                line_index,
                 open + 1,
                 close,
                 parent_branches,
@@ -1977,6 +1995,7 @@ fn collect_style_blocks_in_range(
             );
             collect_style_blocks_in_range(
                 source,
+                line_index,
                 open + 1,
                 close,
                 &branches,
@@ -2003,6 +2022,7 @@ fn collect_style_blocks_in_range(
             );
             collect_style_blocks_in_range(
                 source,
+                line_index,
                 open + 1,
                 close,
                 &branches,
@@ -2704,32 +2724,44 @@ fn range_start(range: TextRange) -> usize {
     u32::from(range.start()) as usize
 }
 
-fn parser_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRangeV0 {
-    ParserRangeV0 {
-        start: parser_position_for_byte_offset(source, span.start),
-        end: parser_position_for_byte_offset(source, span.end),
+struct SourceLineIndex {
+    line_starts: Vec<usize>,
+}
+
+impl SourceLineIndex {
+    fn new(source: &str) -> Self {
+        let mut line_starts = vec![0];
+        for (index, byte) in source.as_bytes().iter().enumerate() {
+            if *byte == b'\n' {
+                line_starts.push(index + 1);
+            }
+        }
+        Self { line_starts }
+    }
+
+    fn position_for_byte_offset(&self, source: &str, byte_offset: usize) -> ParserPositionV0 {
+        let offset = byte_offset.min(source.len());
+        let line = self.line_starts.partition_point(|start| *start <= offset);
+        let line_index = line.saturating_sub(1);
+        let line_start = self.line_starts.get(line_index).copied().unwrap_or(0);
+        ParserPositionV0 {
+            line: line_index,
+            character: source
+                .get(line_start..offset)
+                .map(|text| text.encode_utf16().count())
+                .unwrap_or_else(|| offset.saturating_sub(line_start)),
+        }
     }
 }
 
-fn parser_position_for_byte_offset(source: &str, byte_offset: usize) -> ParserPositionV0 {
-    let mut line = 0usize;
-    let mut line_start = 0usize;
-    let offset = byte_offset.min(source.len());
-    for (index, byte) in source.as_bytes().iter().enumerate() {
-        if index >= offset {
-            break;
-        }
-        if *byte == b'\n' {
-            line += 1;
-            line_start = index + 1;
-        }
-    }
-    ParserPositionV0 {
-        line,
-        character: source
-            .get(line_start..offset)
-            .map(|text| text.encode_utf16().count())
-            .unwrap_or_else(|| offset.saturating_sub(line_start)),
+fn parser_range_for_byte_span(
+    source: &str,
+    line_index: &SourceLineIndex,
+    span: ParserByteSpanV0,
+) -> ParserRangeV0 {
+    ParserRangeV0 {
+        start: line_index.position_for_byte_offset(source, span.start),
+        end: line_index.position_for_byte_offset(source, span.end),
     }
 }
 

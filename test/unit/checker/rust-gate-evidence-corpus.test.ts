@@ -10,10 +10,10 @@ describe("rust gate evidence corpus", () => {
     expect(new Set(labels).size).toBe(labels.length);
   });
 
-  it("targets pnpm scripts only", () => {
+  it("targets routable pnpm commands only", () => {
     for (const entry of RUST_GATE_EVIDENCE_CORPUS) {
       expect(entry.argv.length).toBeGreaterThan(0);
-      expect(entry.argv[0]).toMatch(/^check:/);
+      expect(isRoutablePnpmCommand(entry.argv)).toBe(true);
     }
   });
 
@@ -31,3 +31,8 @@ describe("rust gate evidence corpus", () => {
     }
   });
 });
+
+function isRoutablePnpmCommand(argv: readonly string[]): boolean {
+  if (argv[0]?.startsWith("check:")) return true;
+  return argv[0] === "cme-check" && (argv[1] === "run" || argv[1] === "bundle");
+}
