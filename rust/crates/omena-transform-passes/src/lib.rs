@@ -5069,7 +5069,7 @@ fn merge_adjacent_same_block_css_selectors_with_lexer(
 ) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
     let mut replacements = Vec::new();
     let mut index = 0;
 
@@ -5137,7 +5137,7 @@ fn merge_adjacent_same_selector_css_rules_with_lexer(
 ) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
     let mut replacements = Vec::new();
     let mut index = 0;
 
@@ -5284,6 +5284,63 @@ fn collect_top_level_ordinary_rule_slices(
             }
             SyntaxKind::Semicolon if depth == 0 => {
                 top_level_prelude_start = index + 1;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    rules
+}
+
+fn collect_declaration_ordinary_rule_slices(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+) -> Vec<SimpleRuleSlice> {
+    let mut rules = Vec::new();
+    let mut depth = 0usize;
+    let mut prelude_starts = vec![0usize];
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => {
+                let prelude_start = prelude_starts.get(depth).copied().unwrap_or(0);
+                if let Some(close_index) = matching_right_brace_index(tokens, index)
+                    && is_ordinary_rule_prelude(tokens, prelude_start, index)
+                    && !tokens[index + 1..close_index].iter().any(|token| {
+                        matches!(token.kind, SyntaxKind::LeftBrace | SyntaxKind::RightBrace)
+                            || is_comment_token(token.kind)
+                    })
+                    && let Some(start) = first_non_trivia_token_start(tokens, prelude_start, index)
+                {
+                    let selector = source[start..token_start(&tokens[index])]
+                        .trim()
+                        .to_string();
+                    let block = source
+                        [token_end(&tokens[index])..token_start(&tokens[close_index])]
+                        .trim()
+                        .to_string();
+                    if !selector.is_empty() && !block.is_empty() {
+                        rules.push(SimpleRuleSlice {
+                            selector,
+                            block,
+                            start,
+                            end: token_end(&tokens[close_index]),
+                            block_start: token_start(&tokens[index]),
+                            block_end: token_start(&tokens[close_index]),
+                        });
+                    }
+                }
+                depth += 1;
+                set_prelude_start(&mut prelude_starts, depth, index + 1);
+            }
+            SyntaxKind::RightBrace => {
+                depth = depth.saturating_sub(1);
+                set_prelude_start(&mut prelude_starts, depth, index + 1);
+            }
+            SyntaxKind::Semicolon => {
+                set_prelude_start(&mut prelude_starts, depth, index + 1);
             }
             _ => {}
         }
@@ -7766,16 +7823,16 @@ mod tests {
 
     #[test]
     fn execution_runtime_merges_adjacent_same_selector_rules_only() {
-        let source = r#".a { color: red; } .a { background: blue; } .a { outline: 0; } .b { color: red; } .a { border: 0; }"#;
+        let source = r#".a { color: red; } .a { background: blue; } .a { outline: 0; } .b { color: red; } .a { border: 0; } @media (min-width: 1px) { .m { color: red; } .m { background: blue; } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[TransformPassKind::RuleMerging, TransformPassKind::PrintCss],
         );
 
-        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(execution.mutation_count, 2);
         assert_eq!(
             execution.output_css,
-            r#".a { color: red; background: blue; outline: 0; } .b { color: red; } .a { border: 0; }"#
+            r#".a { color: red; background: blue; outline: 0; } .b { color: red; } .a { border: 0; } @media (min-width: 1px) { .m { color: red; background: blue; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
@@ -7785,7 +7842,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_merges_adjacent_same_block_selectors_only() {
-        let source = r#".a { color: red; } .b { color: red; } .c { color: red; } .d { color: blue; } .e { color: red; }"#;
+        let source = r#".a { color: red; } .b { color: red; } .c { color: red; } .d { color: blue; } .e { color: red; } @media (min-width: 1px) { .m { color: black; } .n { color: black; } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7794,10 +7851,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(execution.mutation_count, 2);
         assert_eq!(
             execution.output_css,
-            r#".a, .b, .c { color: red; } .d { color: blue; } .e { color: red; }"#
+            r#".a, .b, .c { color: red; } .d { color: blue; } .e { color: red; } @media (min-width: 1px) { .m, .n { color: black; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
