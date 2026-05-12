@@ -5908,10 +5908,10 @@ fn unquote_safe_url_string(text: &str) -> Option<&str> {
 
 fn compress_css_colors_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
     let (source, hex_mutation_count) = compress_css_hex_color_tokens_with_lexer(source, dialect);
-    let (source, rgb_mutation_count) =
-        compress_static_rgb_declaration_values_with_lexer(&source, dialect);
+    let (source, function_mutation_count) =
+        compress_static_color_function_declaration_values_with_lexer(&source, dialect);
 
-    (source, hex_mutation_count + rgb_mutation_count)
+    (source, hex_mutation_count + function_mutation_count)
 }
 
 fn compress_css_hex_color_tokens_with_lexer(
@@ -5965,7 +5965,7 @@ fn compress_css_hex_color_tokens_with_lexer(
     (output, mutation_count)
 }
 
-fn compress_static_rgb_declaration_values_with_lexer(
+fn compress_static_color_function_declaration_values_with_lexer(
     source: &str,
     dialect: StyleDialect,
 ) -> (String, usize) {
@@ -5983,7 +5983,8 @@ fn compress_static_rgb_declaration_values_with_lexer(
                 if declaration.property.starts_with("--") || declaration.important {
                     continue;
                 }
-                let Some(replacement_value) = compress_static_rgb_color_value(&declaration.value)
+                let Some(replacement_value) =
+                    compress_static_color_function_value(&declaration.value)
                 else {
                     continue;
                 };
@@ -6019,8 +6020,9 @@ fn compress_static_rgb_declaration_values_with_lexer(
     (output, replacements.len())
 }
 
-fn compress_static_rgb_color_value(value: &str) -> Option<String> {
-    let color = parse_static_rgb_function_color(value)?;
+fn compress_static_color_function_value(value: &str) -> Option<String> {
+    let color = parse_static_rgb_function_color(value)
+        .or_else(|| parse_static_hsl_function_color(value))?;
     let replacement = shortest_static_srgb_color_text(color);
     (replacement.len() < value.trim().len()).then_some(replacement)
 }
@@ -6048,6 +6050,69 @@ fn parse_static_rgb_function_color(value: &str) -> Option<SrgbColor> {
         green: parse_rgb_component_byte(green)?,
         blue: parse_rgb_component_byte(blue)?,
     })
+}
+
+fn parse_static_hsl_function_color(value: &str) -> Option<SrgbColor> {
+    let inner = parse_whole_function_value_inner(value, "hsl")?;
+    if inner.contains('/') {
+        return None;
+    }
+
+    let parts = if inner.contains(',') {
+        split_top_level_value_arguments(inner)?
+    } else {
+        inner
+            .split_whitespace()
+            .map(str::to_string)
+            .collect::<Vec<_>>()
+    };
+    let [hue, saturation, lightness] = parts.as_slice() else {
+        return None;
+    };
+
+    hsl_to_srgb(
+        parse_hue_degrees(hue)?,
+        parse_bounded_percentage(saturation)?,
+        parse_bounded_percentage(lightness)?,
+    )
+}
+
+fn parse_bounded_percentage(text: &str) -> Option<f64> {
+    let value = parse_plain_f64(text.trim().strip_suffix('%')?)?;
+    if !(0.0..=100.0).contains(&value) {
+        return None;
+    }
+    Some(value / 100.0)
+}
+
+fn hsl_to_srgb(hue_degrees: f64, saturation: f64, lightness: f64) -> Option<SrgbColor> {
+    if !hue_degrees.is_finite() || !saturation.is_finite() || !lightness.is_finite() {
+        return None;
+    }
+
+    let hue = hue_degrees.rem_euclid(360.0);
+    let chroma = (1.0 - (2.0 * lightness - 1.0).abs()) * saturation;
+    let hue_sector = hue / 60.0;
+    let x = chroma * (1.0 - (hue_sector.rem_euclid(2.0) - 1.0).abs());
+    let (red1, green1, blue1) = match hue_sector.floor() as u8 {
+        0 => (chroma, x, 0.0),
+        1 => (x, chroma, 0.0),
+        2 => (0.0, chroma, x),
+        3 => (0.0, x, chroma),
+        4 => (x, 0.0, chroma),
+        _ => (chroma, 0.0, x),
+    };
+    let offset = lightness - chroma / 2.0;
+
+    Some(SrgbColor {
+        red: encode_css_rgb_component(red1 + offset),
+        green: encode_css_rgb_component(green1 + offset),
+        blue: encode_css_rgb_component(blue1 + offset),
+    })
+}
+
+fn encode_css_rgb_component(value: f64) -> u8 {
+    (value * 255.0).round().clamp(0.0, 255.0) as u8
 }
 
 fn parse_rgb_component_byte(text: &str) -> Option<u8> {
@@ -7297,7 +7362,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_static_declaration_colors_only() {
-        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#;
+        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7306,10 +7371,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 5);
+        assert_eq!(execution.mutation_count, 7);
         assert_eq!(
             execution.output_css,
-            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: #808080; --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
+            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: #808080; text-decoration-color: #00f; caret-color: #000; accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
         );
     }
 
