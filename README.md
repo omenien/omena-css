@@ -10,7 +10,7 @@ transform boundaries can be verified as one product surface.
 ## Crates
 
 - `omena-abstract-value`
-- `engine-input-producers`
+- `omena-engine-input-producers`
 - `omena-interner`
 - `omena-syntax`
 - `omena-parser`

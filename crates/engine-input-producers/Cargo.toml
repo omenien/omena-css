@@ -1,5 +1,5 @@
 [package]
-name = "engine-input-producers"
+name = "omena-engine-input-producers"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,6 +9,9 @@ repository = "https://github.com/omenien/omena-css"
 readme = "README.md"
 keywords = ["omena", "css", "parser", "analysis"]
 categories = ["development-tools", "parser-implementations"]
+
+[lib]
+name = "engine_input_producers"
 
 [lints]
 workspace = true

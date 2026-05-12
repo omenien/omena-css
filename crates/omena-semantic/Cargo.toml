@@ -14,7 +14,7 @@ categories = ["development-tools", "parser-implementations"]
 workspace = true
 
 [dependencies]
-engine-input-producers = { path = "../engine-input-producers", version = "0.1" }
+engine-input-producers = { package = "omena-engine-input-producers", path = "../engine-input-producers", version = "0.1" }
 omena-cascade = { path = "../omena-cascade", version = "0.1" }
 omena-interner = { path = "../omena-interner", version = "0.1" }
 omena-parser = { path = "../omena-parser", version = "0.1" }

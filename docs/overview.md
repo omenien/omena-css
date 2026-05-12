@@ -10,7 +10,7 @@ sharing one release train.
 ## Crate Layers
 
 - Abstract value and producer inputs: `omena-abstract-value`,
-  `engine-input-producers`
+  `omena-engine-input-producers`
 - Syntax and interning: `omena-syntax`, `omena-interner`
 - Parser surface: `omena-parser`
 - Incremental substrate: `omena-incremental`
