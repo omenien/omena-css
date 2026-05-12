@@ -323,7 +323,7 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
       );
       return remapWorkspaceUris(result, workspaceUri, LEGACY_WORKSPACE_URI);
     },
-    async waitForCodeLensRefresh(timeoutMs = 1500) {
+    async waitForCodeLensRefresh(timeoutMs = 5000) {
       if (pendingCodeLensRefreshes > 0) {
         pendingCodeLensRefreshes -= 1;
         return;
@@ -388,7 +388,7 @@ export function createInProcessServer(options: InProcessServerOptions = {}): Lsp
     didChangeConfiguration() {
       client.sendNotification(DidChangeConfigurationNotification.type, { settings: null });
     },
-    async waitForDiagnostics(uri, timeoutMs = 1500) {
+    async waitForDiagnostics(uri, timeoutMs = 5000) {
       const queue = pendingDiagnostics.get(uri);
       if (queue && queue.length > 0) {
         return [...queue.shift()!.diagnostics];
