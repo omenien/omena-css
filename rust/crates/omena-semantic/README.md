@@ -5,7 +5,7 @@ Internal Rust crate for the style semantic boundary.
 This crate is intentionally small: it consumes parser-fact seeds from
 `omena-parser`, owns the semantic contract DTOs consumed by bridge/query
 layers, and exposes semantic-facing summaries without depending on the legacy
-`engine-style-parser` crate.
+parser crate.
 
 Current public products:
 
