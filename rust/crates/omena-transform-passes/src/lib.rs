@@ -421,7 +421,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "normalized zero length units only inside property contexts that accept unitless zero",
+                    detail: "normalized zero length units and known CSS unit casing inside declaration contexts",
                 }
             }
             Some(TransformPassKind::ColorCompression) => {
@@ -5851,12 +5851,10 @@ fn normalize_css_units_with_lexer(source: &str, dialect: StyleDialect) -> (Strin
             }
         }
 
-        let replacement = if token.kind == SyntaxKind::Dimension
-            && active_property
+        let replacement = if token.kind == SyntaxKind::Dimension {
+            active_property
                 .as_deref()
-                .is_some_and(is_zero_length_unit_property)
-        {
-            normalize_zero_length_dimension_token(&token.text)
+                .and_then(|property| normalize_dimension_unit_token(&token.text, property))
         } else {
             None
         };
@@ -5936,14 +5934,21 @@ fn is_zero_length_unit_property(property: &str) -> bool {
     )
 }
 
-fn normalize_zero_length_dimension_token(text: &str) -> Option<String> {
-    let split = numeric_prefix_end(text)?;
-    let (number, unit) = text.split_at(split);
-    if !is_zero_number_prefix(number) || !is_css_length_unit(unit) {
+fn normalize_dimension_unit_token(text: &str, property: &str) -> Option<String> {
+    if property.starts_with("--") {
         return None;
     }
 
-    Some("0".to_string())
+    let split = numeric_prefix_end(text)?;
+    let (number, unit) = text.split_at(split);
+    if is_zero_length_unit_property(property)
+        && is_zero_number_prefix(number)
+        && is_css_length_unit(unit)
+    {
+        return Some("0".to_string());
+    }
+
+    normalize_known_css_unit_case(number, unit)
 }
 
 fn is_zero_number_prefix(number: &str) -> bool {
@@ -5975,6 +5980,35 @@ fn is_css_length_unit(unit: &str) -> bool {
             | "vmin"
             | "vw"
     )
+}
+
+fn normalize_known_css_unit_case(number: &str, unit: &str) -> Option<String> {
+    let normalized_unit = unit.to_ascii_lowercase();
+    if normalized_unit == unit || !is_known_css_unit(&normalized_unit) {
+        return None;
+    }
+
+    Some(format!("{number}{normalized_unit}"))
+}
+
+fn is_known_css_unit(unit: &str) -> bool {
+    is_css_length_unit(unit)
+        || matches!(
+            unit,
+            "deg"
+                | "grad"
+                | "rad"
+                | "turn"
+                | "ms"
+                | "s"
+                | "hz"
+                | "khz"
+                | "dpi"
+                | "dpcm"
+                | "dppx"
+                | "x"
+                | "fr"
+        )
 }
 
 fn compress_hex_color_token_text(text: &str) -> Option<String> {
@@ -6927,7 +6961,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_normalizes_zero_length_units_with_property_context() {
-        let source = r#".a { margin: 0px 0.0rem -0em; rotate: 0deg; animation-delay: 0s; --x: 0px; width: 10px; }"#;
+        let source = r#".a { margin: 0px 0.0rem -0em; rotate: 1TURN; animation-delay: 200MS; grid-template-columns: 1FR 2fr; --x: 0PX; width: 10PX; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -6936,10 +6970,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 3);
+        assert_eq!(execution.mutation_count, 7);
         assert_eq!(
             execution.output_css,
-            r#".a { margin: 0 0 0; rotate: 0deg; animation-delay: 0s; --x: 0px; width: 10px; }"#
+            r#".a { margin: 0 0 0; rotate: 1turn; animation-delay: 200ms; grid-template-columns: 1fr 2fr; --x: 0PX; width: 10px; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
