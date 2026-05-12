@@ -17,3 +17,4 @@ omena-interner = { path = "../omena-interner" }
 omena-syntax = { path = "../omena-syntax" }
 salsa.workspace = true
 serde.workspace = true
+serde_json.workspace = true

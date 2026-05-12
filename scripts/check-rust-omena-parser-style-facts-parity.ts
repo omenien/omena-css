@@ -21,7 +21,7 @@ interface LegacyParserIndexSummaryV0 {
 
 interface OmenaParserStyleFactsV0 {
   readonly schemaVersion: "0";
-  readonly product: "omena-query.omena-parser-style-facts";
+  readonly product: "omena-parser.style-facts";
   readonly dialect: "css" | "scss" | "sass" | "less";
   readonly classSelectorNames: readonly string[];
   readonly idSelectorNames: readonly string[];
@@ -190,8 +190,8 @@ async function runOmenaParserStyleFacts(
       "--manifest-path",
       "rust/Cargo.toml",
       "-p",
-      "engine-shadow-runner",
-      "--",
+      "omena-parser",
+      "--bin",
       "omena-parser-style-facts",
     ],
     JSON.stringify({ styleSource: source, dialect }),
@@ -242,7 +242,7 @@ void (async () => {
     const actual = await runOmenaParserStyleFacts(entry.dialect, entry.source);
 
     assert.equal(actual.schemaVersion, "0");
-    assert.equal(actual.product, "omena-query.omena-parser-style-facts");
+    assert.equal(actual.product, "omena-parser.style-facts");
     assert.equal(actual.dialect, entry.dialect);
     assert.equal(actual.parserErrorCount, 0, `${entry.label} should parse without errors`);
 

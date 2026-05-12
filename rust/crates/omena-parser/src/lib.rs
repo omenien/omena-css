@@ -19,7 +19,10 @@ use omena_interner::{
 pub use omena_syntax::StyleDialect;
 use omena_syntax::SyntaxKind;
 use serde::Serialize;
-use std::{collections::BTreeSet, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 const VALUES_L4_MATH_FUNCTION_NAMES: &[&str] = &[
     "min", "max", "clamp", "round", "mod", "rem", "sin", "cos", "tan", "asin", "acos", "atan",
@@ -552,6 +555,163 @@ pub struct ParsedAtRuleFact {
     pub range: TextRange,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserStyleFactsSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub dialect: &'static str,
+    pub class_selector_names: Vec<String>,
+    pub id_selector_names: Vec<String>,
+    pub placeholder_selector_names: Vec<String>,
+    pub keyframe_names: Vec<String>,
+    pub animation_reference_names: Vec<String>,
+    pub css_module_value_definition_names: Vec<String>,
+    pub css_module_value_reference_names: Vec<String>,
+    pub css_module_value_import_sources: Vec<String>,
+    pub css_module_value_import_edges: Vec<OmenaParserCssModuleValueImportEdgeFactV0>,
+    pub css_module_value_definition_edges: Vec<OmenaParserCssModuleValueDefinitionEdgeFactV0>,
+    pub css_module_composes_target_names: Vec<String>,
+    pub css_module_composes_import_sources: Vec<String>,
+    pub css_module_composes_edges: Vec<OmenaParserCssModuleComposesEdgeFactV0>,
+    pub icss_export_names: Vec<String>,
+    pub icss_import_local_names: Vec<String>,
+    pub icss_import_remote_names: Vec<String>,
+    pub icss_import_sources: Vec<String>,
+    pub icss_import_edges: Vec<OmenaParserIcssImportEdgeFactV0>,
+    pub icss_export_edges: Vec<OmenaParserIcssExportEdgeFactV0>,
+    pub variable_names: Vec<String>,
+    pub sass_symbol_declaration_names: Vec<String>,
+    pub sass_symbol_reference_names: Vec<String>,
+    pub sass_symbol_facts: Vec<OmenaParserSassSymbolFactV0>,
+    pub sass_symbol_resolution: OmenaParserSassSymbolResolutionV0,
+    pub sass_module_use_sources: Vec<String>,
+    pub sass_module_forward_sources: Vec<String>,
+    pub sass_module_import_sources: Vec<String>,
+    pub sass_module_edges: Vec<OmenaParserSassModuleEdgeFactV0>,
+    pub custom_property_names: Vec<String>,
+    pub custom_property_decl_names: Vec<String>,
+    pub custom_property_ref_names: Vec<String>,
+    pub at_rule_names: Vec<String>,
+    pub parser_error_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserCssModuleValueImportEdgeFactV0 {
+    pub remote_name: String,
+    pub local_name: String,
+    pub import_source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserCssModuleValueDefinitionEdgeFactV0 {
+    pub definition_name: String,
+    pub reference_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserCssModuleComposesEdgeFactV0 {
+    pub kind: &'static str,
+    pub owner_selector_names: Vec<String>,
+    pub target_names: Vec<String>,
+    pub import_source: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserIcssImportEdgeFactV0 {
+    pub local_name: String,
+    pub remote_name: String,
+    pub import_source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserIcssExportEdgeFactV0 {
+    pub export_name: String,
+    pub reference_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserSassSymbolFactV0 {
+    pub kind: &'static str,
+    pub symbol_kind: &'static str,
+    pub name: String,
+    pub role: &'static str,
+    pub namespace: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserSassModuleEdgeFactV0 {
+    pub kind: &'static str,
+    pub source: String,
+    pub namespace_kind: Option<&'static str>,
+    pub namespace: Option<String>,
+    pub visibility_filter_kind: Option<&'static str>,
+    pub visibility_filter_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserSassSymbolResolutionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub resolution_scope: &'static str,
+    pub declaration_count: usize,
+    pub reference_count: usize,
+    pub resolved_reference_count: usize,
+    pub unresolved_reference_count: usize,
+    pub edges: Vec<OmenaParserSassSymbolResolutionEdgeV0>,
+    pub capabilities: OmenaParserSassSymbolResolutionCapabilitiesV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserSassSymbolResolutionEdgeV0 {
+    pub symbol_kind: &'static str,
+    pub name: String,
+    pub namespace: Option<String>,
+    pub reference_kind: &'static str,
+    pub reference_role: &'static str,
+    pub reference_source_order: usize,
+    pub declaration_kind: Option<&'static str>,
+    pub declaration_source_order: Option<usize>,
+    pub status: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserSassSymbolResolutionCapabilitiesV0 {
+    pub same_file_lexical_resolution_ready: bool,
+    pub declaration_before_reference_ready: bool,
+    pub unresolved_reference_reporting_ready: bool,
+    pub cross_file_module_resolution_ready: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserLexSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub dialect: &'static str,
+    pub tokens: Vec<OmenaParserLexTokenV0>,
+    pub parser_error_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaParserLexTokenV0 {
+    pub kind: String,
+    pub text: String,
+    pub start: usize,
+    pub end: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedCst {
     root: SyntaxNode<SyntaxKind>,
@@ -947,6 +1107,399 @@ pub fn parse_entry_point_with_extension(
 pub fn collect_style_facts(text: &str, dialect: StyleDialect) -> ParsedStyleFacts {
     let extension = BuiltinDialectExtension::new(dialect);
     collect_style_facts_with_extension(text, &extension)
+}
+
+pub fn summarize_omena_parser_style_facts(
+    style_source: &str,
+    dialect: StyleDialect,
+) -> OmenaParserStyleFactsSummaryV0 {
+    let facts = collect_style_facts(style_source, dialect);
+    let sass_symbol_resolution = summarize_omena_parser_sass_symbol_resolution(&facts.sass_symbols);
+    let mut class_selector_names = Vec::new();
+    let mut id_selector_names = Vec::new();
+    let mut placeholder_selector_names = Vec::new();
+    let mut keyframe_names = Vec::new();
+    let mut animation_reference_names = Vec::new();
+    let mut css_module_value_definition_names = BTreeSet::new();
+    let mut css_module_value_reference_names = BTreeSet::new();
+    let mut css_module_value_import_sources = BTreeSet::new();
+    let mut css_module_composes_target_names = BTreeSet::new();
+    let mut css_module_composes_import_sources = BTreeSet::new();
+    let mut icss_export_names = BTreeSet::new();
+    let mut icss_import_local_names = BTreeSet::new();
+    let mut icss_import_remote_names = BTreeSet::new();
+    let mut icss_import_sources = BTreeSet::new();
+    let mut variable_names = BTreeSet::new();
+    let mut sass_symbol_declaration_names = BTreeSet::new();
+    let mut sass_symbol_reference_names = BTreeSet::new();
+    let mut sass_module_use_sources = BTreeSet::new();
+    let mut sass_module_forward_sources = BTreeSet::new();
+    let mut sass_module_import_sources = BTreeSet::new();
+    let mut custom_property_names = BTreeSet::new();
+    let mut custom_property_decl_names = BTreeSet::new();
+    let mut custom_property_ref_names = BTreeSet::new();
+
+    for selector in facts.selectors {
+        match selector.kind {
+            ParsedSelectorFactKind::Class => class_selector_names.push(selector.name),
+            ParsedSelectorFactKind::Id => id_selector_names.push(selector.name),
+            ParsedSelectorFactKind::Placeholder => placeholder_selector_names.push(selector.name),
+        }
+    }
+
+    for variable in facts.variables {
+        match variable.kind {
+            ParsedVariableFactKind::ScssDeclaration
+            | ParsedVariableFactKind::ScssReference
+            | ParsedVariableFactKind::LessDeclaration
+            | ParsedVariableFactKind::LessReference => {
+                variable_names.insert(variable.name);
+            }
+            ParsedVariableFactKind::CustomPropertyDeclaration
+            | ParsedVariableFactKind::CustomPropertyReference => {
+                custom_property_names.insert(variable.name.clone());
+                match variable.kind {
+                    ParsedVariableFactKind::CustomPropertyDeclaration => {
+                        custom_property_decl_names.insert(variable.name);
+                    }
+                    ParsedVariableFactKind::CustomPropertyReference => {
+                        custom_property_ref_names.insert(variable.name);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    for symbol in &facts.sass_symbols {
+        match symbol.role {
+            "declaration" => {
+                sass_symbol_declaration_names.insert(symbol.name.clone());
+            }
+            _ => {
+                sass_symbol_reference_names.insert(symbol.name.clone());
+            }
+        }
+    }
+
+    for edge in &facts.sass_module_edges {
+        match edge.kind {
+            ParsedSassModuleEdgeFactKind::Use => {
+                sass_module_use_sources.insert(edge.source.clone());
+            }
+            ParsedSassModuleEdgeFactKind::Forward => {
+                sass_module_forward_sources.insert(edge.source.clone());
+            }
+            ParsedSassModuleEdgeFactKind::Import => {
+                sass_module_import_sources.insert(edge.source.clone());
+            }
+        }
+    }
+
+    for animation in facts.animations {
+        match animation.kind {
+            ParsedAnimationFactKind::KeyframesDeclaration => keyframe_names.push(animation.name),
+            ParsedAnimationFactKind::AnimationNameReference => {
+                animation_reference_names.push(animation.name);
+            }
+        }
+    }
+
+    for value in facts.css_module_values {
+        match value.kind {
+            ParsedCssModuleValueFactKind::Definition => {
+                css_module_value_definition_names.insert(value.name);
+            }
+            ParsedCssModuleValueFactKind::Reference => {
+                css_module_value_reference_names.insert(value.name);
+            }
+            ParsedCssModuleValueFactKind::ImportSource => {
+                css_module_value_import_sources.insert(value.name);
+            }
+        }
+    }
+
+    for composes in facts.css_module_composes {
+        match composes.kind {
+            ParsedCssModuleComposesFactKind::Target => {
+                css_module_composes_target_names.insert(composes.name);
+            }
+            ParsedCssModuleComposesFactKind::ImportSource => {
+                css_module_composes_import_sources.insert(composes.name);
+            }
+        }
+    }
+
+    for icss in facts.icss {
+        match icss.kind {
+            ParsedIcssFactKind::ExportName => {
+                icss_export_names.insert(icss.name);
+            }
+            ParsedIcssFactKind::ImportLocalName => {
+                icss_import_local_names.insert(icss.name);
+            }
+            ParsedIcssFactKind::ImportRemoteName => {
+                icss_import_remote_names.insert(icss.name);
+            }
+            ParsedIcssFactKind::ImportSource => {
+                icss_import_sources.insert(icss.name);
+            }
+        }
+    }
+
+    OmenaParserStyleFactsSummaryV0 {
+        schema_version: "0",
+        product: "omena-parser.style-facts",
+        dialect: style_dialect_label(dialect),
+        class_selector_names,
+        id_selector_names,
+        placeholder_selector_names,
+        keyframe_names,
+        animation_reference_names,
+        css_module_value_definition_names: css_module_value_definition_names.into_iter().collect(),
+        css_module_value_reference_names: css_module_value_reference_names.into_iter().collect(),
+        css_module_value_import_sources: css_module_value_import_sources.into_iter().collect(),
+        css_module_value_import_edges: facts
+            .css_module_value_import_edges
+            .into_iter()
+            .map(|edge| OmenaParserCssModuleValueImportEdgeFactV0 {
+                remote_name: edge.remote_name,
+                local_name: edge.local_name,
+                import_source: edge.import_source,
+            })
+            .collect(),
+        css_module_value_definition_edges: facts
+            .css_module_value_definition_edges
+            .into_iter()
+            .map(|edge| OmenaParserCssModuleValueDefinitionEdgeFactV0 {
+                definition_name: edge.definition_name,
+                reference_names: edge.reference_names,
+            })
+            .collect(),
+        css_module_composes_target_names: css_module_composes_target_names.into_iter().collect(),
+        css_module_composes_import_sources: css_module_composes_import_sources
+            .into_iter()
+            .collect(),
+        css_module_composes_edges: facts
+            .css_module_composes_edges
+            .into_iter()
+            .map(|edge| OmenaParserCssModuleComposesEdgeFactV0 {
+                kind: css_module_composes_edge_kind_label(edge.kind),
+                owner_selector_names: edge.owner_selector_names,
+                target_names: edge.target_names,
+                import_source: edge.import_source,
+            })
+            .collect(),
+        icss_export_names: icss_export_names.into_iter().collect(),
+        icss_import_local_names: icss_import_local_names.into_iter().collect(),
+        icss_import_remote_names: icss_import_remote_names.into_iter().collect(),
+        icss_import_sources: icss_import_sources.into_iter().collect(),
+        icss_import_edges: facts
+            .icss_import_edges
+            .into_iter()
+            .map(|edge| OmenaParserIcssImportEdgeFactV0 {
+                local_name: edge.local_name,
+                remote_name: edge.remote_name,
+                import_source: edge.import_source,
+            })
+            .collect(),
+        icss_export_edges: facts
+            .icss_export_edges
+            .into_iter()
+            .map(|edge| OmenaParserIcssExportEdgeFactV0 {
+                export_name: edge.export_name,
+                reference_names: edge.reference_names,
+            })
+            .collect(),
+        variable_names: variable_names.into_iter().collect(),
+        sass_symbol_declaration_names: sass_symbol_declaration_names.into_iter().collect(),
+        sass_symbol_reference_names: sass_symbol_reference_names.into_iter().collect(),
+        sass_symbol_facts: facts
+            .sass_symbols
+            .into_iter()
+            .map(|symbol| OmenaParserSassSymbolFactV0 {
+                kind: sass_symbol_fact_kind_label(symbol.kind),
+                symbol_kind: symbol.symbol_kind,
+                name: symbol.name,
+                role: symbol.role,
+                namespace: symbol.namespace,
+            })
+            .collect(),
+        sass_symbol_resolution,
+        sass_module_use_sources: sass_module_use_sources.into_iter().collect(),
+        sass_module_forward_sources: sass_module_forward_sources.into_iter().collect(),
+        sass_module_import_sources: sass_module_import_sources.into_iter().collect(),
+        sass_module_edges: facts
+            .sass_module_edges
+            .into_iter()
+            .map(|edge| OmenaParserSassModuleEdgeFactV0 {
+                kind: sass_module_edge_fact_kind_label(edge.kind),
+                source: edge.source,
+                namespace_kind: edge.namespace_kind,
+                namespace: edge.namespace,
+                visibility_filter_kind: edge.visibility_filter_kind,
+                visibility_filter_names: edge.visibility_filter_names,
+            })
+            .collect(),
+        custom_property_names: custom_property_names.into_iter().collect(),
+        custom_property_decl_names: custom_property_decl_names.into_iter().collect(),
+        custom_property_ref_names: custom_property_ref_names.into_iter().collect(),
+        at_rule_names: facts
+            .at_rules
+            .into_iter()
+            .map(|at_rule| at_rule.name)
+            .collect(),
+        parser_error_count: facts.error_count,
+    }
+}
+
+pub fn summarize_omena_parser_lex(source: &str, dialect: StyleDialect) -> OmenaParserLexSummaryV0 {
+    let result = lex(source, dialect);
+    OmenaParserLexSummaryV0 {
+        schema_version: "0",
+        product: "omena-parser.lex-result",
+        dialect: style_dialect_label(result.dialect()),
+        tokens: result
+            .tokens()
+            .iter()
+            .map(|token| OmenaParserLexTokenV0 {
+                kind: format!("{:?}", token.kind),
+                text: token.text.clone(),
+                start: token.range.start().into(),
+                end: token.range.end().into(),
+            })
+            .collect(),
+        parser_error_count: result.errors().len(),
+    }
+}
+
+fn style_dialect_label(dialect: StyleDialect) -> &'static str {
+    match dialect {
+        StyleDialect::Css => "css",
+        StyleDialect::Scss => "scss",
+        StyleDialect::Sass => "sass",
+        StyleDialect::Less => "less",
+    }
+}
+
+fn css_module_composes_edge_kind_label(kind: ParsedCssModuleComposesEdgeKind) -> &'static str {
+    match kind {
+        ParsedCssModuleComposesEdgeKind::Local => "local",
+        ParsedCssModuleComposesEdgeKind::Global => "global",
+        ParsedCssModuleComposesEdgeKind::External => "external",
+    }
+}
+
+fn sass_symbol_fact_kind_label(kind: ParsedSassSymbolFactKind) -> &'static str {
+    match kind {
+        ParsedSassSymbolFactKind::VariableDeclaration => "sassVariableDeclaration",
+        ParsedSassSymbolFactKind::VariableReference => "sassVariableReference",
+        ParsedSassSymbolFactKind::MixinDeclaration => "sassMixinDeclaration",
+        ParsedSassSymbolFactKind::MixinInclude => "sassMixinInclude",
+        ParsedSassSymbolFactKind::FunctionDeclaration => "sassFunctionDeclaration",
+        ParsedSassSymbolFactKind::FunctionCall => "sassFunctionCall",
+    }
+}
+
+fn sass_module_edge_fact_kind_label(kind: ParsedSassModuleEdgeFactKind) -> &'static str {
+    match kind {
+        ParsedSassModuleEdgeFactKind::Use => "sassUse",
+        ParsedSassModuleEdgeFactKind::Forward => "sassForward",
+        ParsedSassModuleEdgeFactKind::Import => "sassImport",
+    }
+}
+
+fn summarize_omena_parser_sass_symbol_resolution(
+    symbols: &[ParsedSassSymbolFact],
+) -> OmenaParserSassSymbolResolutionV0 {
+    let mut declaration_by_symbol: BTreeMap<
+        (&'static str, Option<String>, String),
+        (usize, &'static str),
+    > = BTreeMap::new();
+    let mut declaration_count = 0usize;
+    let mut reference_count = 0usize;
+    let mut edges = Vec::new();
+
+    for (source_order, symbol) in symbols.iter().enumerate() {
+        let kind = sass_symbol_fact_kind_label(symbol.kind);
+        if sass_symbol_fact_kind_is_declaration(symbol.kind) {
+            declaration_count += 1;
+            declaration_by_symbol.insert(
+                (
+                    symbol.symbol_kind,
+                    symbol.namespace.clone(),
+                    symbol.name.clone(),
+                ),
+                (source_order, kind),
+            );
+            continue;
+        }
+        if !sass_symbol_fact_kind_is_reference(symbol.kind) {
+            continue;
+        }
+
+        reference_count += 1;
+        let declaration = declaration_by_symbol.get(&(
+            symbol.symbol_kind,
+            symbol.namespace.clone(),
+            symbol.name.clone(),
+        ));
+        edges.push(OmenaParserSassSymbolResolutionEdgeV0 {
+            symbol_kind: symbol.symbol_kind,
+            name: symbol.name.clone(),
+            namespace: symbol.namespace.clone(),
+            reference_kind: kind,
+            reference_role: symbol.role,
+            reference_source_order: source_order,
+            declaration_kind: declaration.map(|(_, declaration_kind)| *declaration_kind),
+            declaration_source_order: declaration.map(|(declaration_order, _)| *declaration_order),
+            status: if declaration.is_some() {
+                "resolved"
+            } else {
+                "unresolved"
+            },
+        });
+    }
+
+    let resolved_reference_count = edges
+        .iter()
+        .filter(|edge| edge.status == "resolved")
+        .count();
+
+    OmenaParserSassSymbolResolutionV0 {
+        schema_version: "0",
+        product: "omena-parser.sass-symbol-same-file-resolution",
+        resolution_scope: "same-file",
+        declaration_count,
+        reference_count,
+        resolved_reference_count,
+        unresolved_reference_count: reference_count.saturating_sub(resolved_reference_count),
+        edges,
+        capabilities: OmenaParserSassSymbolResolutionCapabilitiesV0 {
+            same_file_lexical_resolution_ready: true,
+            declaration_before_reference_ready: true,
+            unresolved_reference_reporting_ready: true,
+            cross_file_module_resolution_ready: false,
+        },
+    }
+}
+
+fn sass_symbol_fact_kind_is_declaration(kind: ParsedSassSymbolFactKind) -> bool {
+    matches!(
+        kind,
+        ParsedSassSymbolFactKind::VariableDeclaration
+            | ParsedSassSymbolFactKind::MixinDeclaration
+            | ParsedSassSymbolFactKind::FunctionDeclaration
+    )
+}
+
+fn sass_symbol_fact_kind_is_reference(kind: ParsedSassSymbolFactKind) -> bool {
+    matches!(
+        kind,
+        ParsedSassSymbolFactKind::VariableReference
+            | ParsedSassSymbolFactKind::MixinInclude
+            | ParsedSassSymbolFactKind::FunctionCall
+    )
 }
 
 pub fn summarize_parser_cst_equivalence(
@@ -10293,6 +10846,17 @@ mod tests {
     }
 
     #[test]
+    fn summarizes_parser_lex_as_parser_owned_product() {
+        let summary = summarize_omena_parser_lex(".card { color: red; }", StyleDialect::Css);
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(summary.product, "omena-parser.lex-result");
+        assert_eq!(summary.dialect, "css");
+        assert_eq!(summary.parser_error_count, 0);
+        assert!(summary.tokens.iter().any(|token| token.text == "card"));
+    }
+
+    #[test]
     fn tokenizes_css_attribute_matchers_as_single_tokens() {
         let result = lex(
             ".a[data-state~=\"active\"][lang|=\"en\"][href^=\"/docs\"][href$=\".pdf\"][class*=\"btn\"] { width += 1px; }",
@@ -12610,6 +13174,23 @@ mod tests {
                 && variable.name == "--space"
         }));
         assert_eq!(facts.at_rules[0].node_kind, Some(SyntaxKind::ScssUseRule));
+    }
+
+    #[test]
+    fn summarizes_style_facts_as_parser_owned_product() {
+        let summary = summarize_omena_parser_style_facts(
+            "@use \"tokens\"; $gap: 1rem; .card { --space: $gap; }",
+            StyleDialect::Scss,
+        );
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(summary.product, "omena-parser.style-facts");
+        assert_eq!(summary.dialect, "scss");
+        assert_eq!(summary.parser_error_count, 0);
+        assert_eq!(summary.class_selector_names, vec!["card".to_string()]);
+        assert_eq!(summary.variable_names, vec!["$gap".to_string()]);
+        assert_eq!(summary.custom_property_names, vec!["--space".to_string()]);
+        assert_eq!(summary.sass_module_use_sources, vec!["tokens".to_string()]);
     }
 
     #[test]

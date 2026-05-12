@@ -4,6 +4,7 @@
 
 ### Changed
 
+- **Parser-owned facts CLIs** - `omena-parser-style-facts` and `omena-parser-lex` now live in `omena-parser` as parser-owned binaries, moving the parser public lane off the query/runner-owned command surface.
 - **Checker tier catalog** - `omena-checker` now classifies the rule registry into M/S/T tiers with boundary summary counts, and the transitional checker CLI rule help prints S/T tier metadata for TypeScript-owned runtime diagnostics.
 - **CME explain CLI surface** - added `pnpm cme explain ...` as the product-facing command for expression value-domain/provenance explanations, with `pnpm cme explain expression ...` kept as the explicit subcommand form.
 - **Query-owned transform context producer** - `omena-query` now derives transform execution context from workspace style sources, covering reachable name seeds, direct import inlines, CSS Modules class rewrites, and local `composes` export expansion before transform plan/execute consume the context.

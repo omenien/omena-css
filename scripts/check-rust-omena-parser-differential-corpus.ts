@@ -24,7 +24,7 @@ interface LegacyParserIndexSummaryV0 {
 
 interface OmenaParserStyleFactsV0 {
   readonly schemaVersion: "0";
-  readonly product: "omena-query.omena-parser-style-facts";
+  readonly product: "omena-parser.style-facts";
   readonly dialect: OmenaParserDialect;
   readonly classSelectorNames: readonly string[];
   readonly idSelectorNames: readonly string[];
@@ -543,8 +543,8 @@ async function runOmenaParserStyleFacts(
       "--manifest-path",
       "rust/Cargo.toml",
       "-p",
-      "engine-shadow-runner",
-      "--",
+      "omena-parser",
+      "--bin",
       "omena-parser-style-facts",
     ],
     JSON.stringify({ styleSource: source, dialect }),
@@ -563,8 +563,8 @@ async function runOmenaParserLex(
       "--manifest-path",
       "rust/Cargo.toml",
       "-p",
-      "engine-shadow-runner",
-      "--",
+      "omena-parser",
+      "--bin",
       "omena-parser-lex",
     ],
     JSON.stringify({ styleSource: source, dialect }),
@@ -712,7 +712,7 @@ function recordHasString(value: unknown, key: string): value is Record<string, s
 
 function assertCommonFacts(actual: OmenaParserStyleFactsV0, label: string): void {
   assert.equal(actual.schemaVersion, "0");
-  assert.equal(actual.product, "omena-query.omena-parser-style-facts");
+  assert.equal(actual.product, "omena-parser.style-facts");
   assert.equal(actual.parserErrorCount, 0, `${label} should parse without errors`);
 }
 

@@ -613,6 +613,7 @@ dependencies = [
  "omena-syntax",
  "salsa",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
