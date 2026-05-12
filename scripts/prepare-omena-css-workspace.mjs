@@ -967,7 +967,10 @@ function rewriteCrateManifest(manifestPath) {
     'repository = "https://github.com/omenien/omena-css"',
   );
   if (crateDirectoryName === "engine-input-producers") {
-    manifest = manifest.replace(/^name = "engine-input-producers"$/m, 'name = "omena-engine-input-producers"');
+    manifest = manifest.replace(
+      /^name = "engine-input-producers"$/m,
+      'name = "omena-engine-input-producers"',
+    );
     if (!/^\[lib\]$/m.test(manifest)) {
       manifest = manifest.replace(
         /^readme = "README\.md"$/m,
