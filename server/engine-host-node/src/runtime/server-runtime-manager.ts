@@ -15,6 +15,7 @@ import {
   type WorkspaceRuntimeManager,
 } from "./workspace-runtime-manager";
 import type { RuntimeSink } from "./runtime-sink";
+import { resolveRuntimeStyleDocumentBuilder } from "../omena-parser-style-document-builder";
 
 export interface ServerRuntimeManagerOptions {
   readonly typeResolver?: TypeResolver;
@@ -40,9 +41,9 @@ export interface ServerRuntimeManagerBundle {
 export function createServerRuntimeManager(
   args: CreateServerRuntimeManagerArgs,
 ): ServerRuntimeManagerBundle {
-  const caches = buildSharedRuntimeCaches(
-    args.options.buildStyleDocument ? { buildStyleDocument: args.options.buildStyleDocument } : {},
-  );
+  const buildStyleDocument =
+    args.options.buildStyleDocument ?? resolveRuntimeStyleDocumentBuilder();
+  const caches = buildSharedRuntimeCaches(buildStyleDocument ? { buildStyleDocument } : {});
   const typeResolver = args.options.typeResolver
     ? createRuntimeTypeResolver({ typeResolver: args.options.typeResolver })
     : createRuntimeTypeResolver({});

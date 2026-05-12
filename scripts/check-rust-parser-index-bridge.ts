@@ -85,6 +85,7 @@ interface ParserIndexSummaryV0 {
     readonly selectorsWithAnimationNameRefsUnderLayerNames: readonly string[];
   };
   readonly composes: {
+    readonly edges?: readonly unknown[];
     readonly selectorsWithComposesNames: readonly string[];
     readonly selectorsWithComposesUnderMediaNames: readonly string[];
     readonly selectorsWithComposesUnderSupportsNames: readonly string[];
@@ -1078,12 +1079,34 @@ function omitParserOnlySelectorDefinitionFacts(
   summary: ParserIndexSummaryV0,
 ): ParserIndexSummaryV0 {
   const { definitionFacts, ...selectors } = summary.selectors;
-  const { symbolDeclFacts, ...sass } = summary.sass;
+  const { symbolDeclFacts, moduleUseEdges, ...sassRest } = summary.sass;
+  const { edges, ...composes } = summary.composes;
   void definitionFacts;
   void symbolDeclFacts;
+  void edges;
   return {
     ...summary,
     selectors,
-    sass,
+    customProperties: {
+      ...summary.customProperties,
+      refFacts: summary.customProperties.refFacts.map(({ byteSpan, range, ...fact }) => {
+        void byteSpan;
+        void range;
+        return fact;
+      }),
+    },
+    sass: {
+      ...sassRest,
+      moduleUseEdges: moduleUseEdges.map((edge) => {
+        const { byteSpan, range, ...rest } = edge as typeof edge & {
+          readonly byteSpan?: unknown;
+          readonly range?: unknown;
+        };
+        void byteSpan;
+        void range;
+        return rest;
+      }),
+    },
+    composes,
   };
 }

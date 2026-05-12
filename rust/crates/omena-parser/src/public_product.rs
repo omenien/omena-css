@@ -106,6 +106,10 @@ struct ParserIndexSelectorDefinitionFactV0 {
     source_order: usize,
     byte_span: ParserByteSpanV0,
     range: ParserRangeV0,
+    rule_byte_span: ParserByteSpanV0,
+    rule_range: ParserRangeV0,
+    full_selector: String,
+    declarations: String,
     nested_safety_kind: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     bem_suffix_parent_name: Option<String>,
@@ -180,6 +184,8 @@ struct ParserIndexCustomPropertyDeclFactV0 {
 struct ParserIndexCustomPropertyRefFactV0 {
     name: String,
     source_order: usize,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
     selector_contexts: Vec<String>,
     under_media: bool,
     under_supports: bool,
@@ -228,6 +234,8 @@ struct ParserIndexSassModuleUseFactV0 {
     source: String,
     namespace_kind: &'static str,
     namespace: Option<String>,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -275,6 +283,7 @@ struct ParserIndexKeyframesFactsV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct ParserIndexComposesFactsV0 {
+    edges: Vec<ParserIndexComposesEdgeFactV0>,
     selectors_with_composes_names: Vec<String>,
     selectors_with_composes_under_media_names: Vec<String>,
     selectors_with_composes_under_supports_names: Vec<String>,
@@ -299,6 +308,17 @@ struct ParserIndexComposesFactsV0 {
     local_class_name_count: usize,
     imported_class_name_count: usize,
     global_class_name_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexComposesEdgeFactV0 {
+    kind: &'static str,
+    owner_selector_names: Vec<String>,
+    target_names: Vec<String>,
+    import_source: Option<String>,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -337,6 +357,11 @@ struct StyleBlock {
     context_text: Option<String>,
     start: usize,
     end: usize,
+    rule_start: usize,
+    rule_end: usize,
+    body_start: usize,
+    body_end: usize,
+    header_text: Option<String>,
     under_media: bool,
     under_supports: bool,
     under_layer: bool,
@@ -360,7 +385,7 @@ pub fn summarize_css_modules_intermediate(
     let custom_properties = summarize_custom_properties(source, &facts, &blocks);
     let sass = summarize_sass(source, &facts, &blocks);
     let keyframes = summarize_keyframes(source, &facts, &blocks);
-    let composes = summarize_composes(&facts, &blocks);
+    let composes = summarize_composes(source, &facts, &blocks);
     let wrappers = summarize_wrappers(&blocks);
 
     ParserIndexSummaryV0 {
@@ -586,6 +611,21 @@ fn summarize_selectors(
         names.push(name.clone());
         let byte_span = byte_span_for_range(selector.range);
         let nested_safety_kind = nested_safety_for_selector(blocks, &name).unwrap_or("flat");
+        let rule_block = selector_rule_block(blocks, &name, byte_span.start);
+        let rule_byte_span = rule_block
+            .map(|block| ParserByteSpanV0 {
+                start: block.rule_start,
+                end: block.rule_end,
+            })
+            .unwrap_or(byte_span);
+        let full_selector = rule_block
+            .and_then(|block| block.header_text.clone())
+            .unwrap_or_else(|| format!(".{name}"));
+        let declarations = rule_block
+            .and_then(|block| source.get(block.body_start..block.body_end))
+            .unwrap_or_default()
+            .trim()
+            .to_string();
         let bem_suffix_parent_name = if nested_safety_kind == "bemSuffixSafe" {
             bem_suffix_parent_name(&name)
         } else {
@@ -611,6 +651,10 @@ fn summarize_selectors(
             source_order: definition_facts.len(),
             byte_span,
             range: parser_range_for_byte_span(source, byte_span),
+            rule_byte_span,
+            rule_range: parser_range_for_byte_span(source, rule_byte_span),
+            full_selector,
+            declarations,
             nested_safety_kind,
             bem_suffix_parent_name,
             under_media: wrapper.under_media,
@@ -846,12 +890,14 @@ fn summarize_custom_properties(
                 });
             }
             ParsedVariableFactKind::CustomPropertyReference => {
-                let offset = range_start(variable.range);
-                let wrapper = wrapper_for_offset(blocks, offset);
+                let byte_span = byte_span_for_range(variable.range);
+                let wrapper = wrapper_for_offset(blocks, byte_span.start);
                 ref_facts.push(ParserIndexCustomPropertyRefFactV0 {
                     name: variable.name.clone(),
                     source_order: ref_facts.len(),
-                    selector_contexts: selector_contexts_for_offset(blocks, offset),
+                    byte_span,
+                    range: parser_range_for_byte_span(source, byte_span),
+                    selector_contexts: selector_contexts_for_offset(blocks, byte_span.start),
                     under_media: wrapper.under_media,
                     under_supports: wrapper.under_supports,
                     under_layer: wrapper.under_layer,
@@ -1122,23 +1168,29 @@ fn summarize_sass(
     for edge in &facts.sass_module_edges {
         match edge.kind {
             ParsedSassModuleEdgeFactKind::Use => {
+                let byte_span = byte_span_for_range(edge.range);
                 module_use_sources.insert(edge.source.clone());
                 module_use_edges.push(ParserIndexSassModuleUseFactV0 {
                     source: edge.source.clone(),
                     namespace_kind: edge.namespace_kind.unwrap_or("default"),
                     namespace: edge.namespace.clone(),
+                    byte_span,
+                    range: parser_range_for_byte_span(source, byte_span),
                 });
             }
             ParsedSassModuleEdgeFactKind::Forward => {
                 module_forward_sources.insert(edge.source.clone());
             }
             ParsedSassModuleEdgeFactKind::Import => {
+                let byte_span = byte_span_for_range(edge.range);
                 module_use_sources.insert(edge.source.clone());
                 module_import_sources.insert(edge.source.clone());
                 module_use_edges.push(ParserIndexSassModuleUseFactV0 {
                     source: edge.source.clone(),
                     namespace_kind: "wildcard",
                     namespace: None,
+                    byte_span,
+                    range: parser_range_for_byte_span(source, byte_span),
                 });
             }
         }
@@ -1318,11 +1370,25 @@ fn summarize_keyframes(
 }
 
 fn summarize_composes(
+    source: &str,
     facts: &ParsedStyleFacts,
     blocks: &[StyleBlock],
 ) -> ParserIndexComposesFactsV0 {
     let mut summary = ParserIndexComposesFactsV0::default();
     for edge in &facts.css_module_composes_edges {
+        let byte_span = byte_span_for_range(edge.range);
+        summary.edges.push(ParserIndexComposesEdgeFactV0 {
+            kind: match edge.kind {
+                ParsedCssModuleComposesEdgeKind::Local => "local",
+                ParsedCssModuleComposesEdgeKind::External => "external",
+                ParsedCssModuleComposesEdgeKind::Global => "global",
+            },
+            owner_selector_names: edge.owner_selector_names.clone(),
+            target_names: edge.target_names.clone(),
+            import_source: edge.import_source.clone(),
+            byte_span,
+            range: parser_range_for_byte_span(source, byte_span),
+        });
         let wrapper = wrapper_for_offset(blocks, range_start(edge.range));
         let count = edge.owner_selector_names.len() * edge.target_names.len();
         summary.class_name_count += count;
@@ -1391,6 +1457,8 @@ fn summarize_composes(
         }
     }
     sort_all_composes(&mut summary);
+    summary.edges.sort();
+    summary.edges.dedup();
     summary
 }
 
@@ -1476,6 +1544,11 @@ fn collect_style_blocks_in_range(
                 context_text: None,
                 start: open + 1,
                 end: close,
+                rule_start: header_start,
+                rule_end: close + 1,
+                body_start: open + 1,
+                body_end: close,
+                header_text: Some(header.to_string()),
                 under_media: child_wrapper.under_media,
                 under_supports: child_wrapper.under_supports,
                 under_layer: child_wrapper.under_layer,
@@ -1496,6 +1569,11 @@ fn collect_style_blocks_in_range(
                 context_text: None,
                 start: open + 1,
                 end: close,
+                rule_start: header_start,
+                rule_end: close + 1,
+                body_start: open + 1,
+                body_end: close,
+                header_text: Some(header.to_string()),
                 under_media: child_wrapper.under_media,
                 under_supports: child_wrapper.under_supports,
                 under_layer: child_wrapper.under_layer,
@@ -1516,6 +1594,11 @@ fn collect_style_blocks_in_range(
                 context_text: None,
                 start: open + 1,
                 end: close,
+                rule_start: header_start,
+                rule_end: close + 1,
+                body_start: open + 1,
+                body_end: close,
+                header_text: Some(header.to_string()),
                 under_media: child_wrapper.under_media,
                 under_supports: child_wrapper.under_supports,
                 under_layer: child_wrapper.under_layer,
@@ -1534,6 +1617,7 @@ fn collect_style_blocks_in_range(
             let branches = resolve_selector_header_text(source, selector_header, parent_branches);
             push_style_block(
                 source,
+                header_start,
                 open,
                 close,
                 selector_header,
@@ -1559,6 +1643,7 @@ fn collect_style_blocks_in_range(
             let branches = resolve_selector_header_text(source, header, parent_branches);
             push_style_block(
                 source,
+                header_start,
                 open,
                 close,
                 header,
@@ -1585,6 +1670,7 @@ fn collect_style_blocks_in_range(
 #[allow(clippy::too_many_arguments)]
 fn push_style_block(
     source: &str,
+    header_start: usize,
     open: usize,
     close: usize,
     header: &str,
@@ -1609,6 +1695,11 @@ fn push_style_block(
         context_text,
         start: open + 1,
         end: close,
+        rule_start: header_start,
+        rule_end: close + 1,
+        body_start: open + 1,
+        body_end: close,
+        header_text: Some(header.to_string()),
         under_media: wrapper.under_media,
         under_supports: wrapper.under_supports,
         under_layer: wrapper.under_layer,
@@ -1621,6 +1712,11 @@ fn push_style_block(
             context_text: Some(source[branch.name_span.start..branch.name_span.end].to_string()),
             start: branch.name_span.start,
             end: branch.name_span.end,
+            rule_start: header_start,
+            rule_end: close + 1,
+            body_start: open + 1,
+            body_end: close,
+            header_text: Some(header.to_string()),
             under_media: wrapper.under_media,
             under_supports: wrapper.under_supports,
             under_layer: wrapper.under_layer,
@@ -1733,6 +1829,25 @@ fn nested_safety_for_selector(blocks: &[StyleBlock], name: &str) -> Option<&'sta
                 })
         })
     })
+}
+
+fn selector_rule_block<'a>(
+    blocks: &'a [StyleBlock],
+    name: &str,
+    selector_offset: usize,
+) -> Option<&'a StyleBlock> {
+    blocks
+        .iter()
+        .filter(|block| block.start <= selector_offset && selector_offset < block.end)
+        .filter(|block| {
+            block.names.iter().any(|entry| {
+                entry
+                    .strip_prefix("__selector_meta:")
+                    .and_then(|rest| rest.rsplit_once(':'))
+                    .is_some_and(|(entry_name, _)| entry_name == name)
+            })
+        })
+        .max_by_key(|block| block.rule_start)
 }
 
 fn split_selector_groups_text(header: &str) -> Vec<&str> {

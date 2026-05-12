@@ -36,8 +36,8 @@ use omena_checker::{
     evaluate_omena_checker_m_tier_rules,
 };
 use omena_parser::{
-    StyleDialect as OmenaParserStyleDialect, summarize_omena_parser_lex,
-    summarize_omena_parser_style_facts,
+    StyleDialect as OmenaParserStyleDialect, summarize_css_modules_intermediate,
+    summarize_omena_parser_lex, summarize_omena_parser_style_facts,
 };
 use omena_query::{
     OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryStylePackageManifestV0,
@@ -278,6 +278,13 @@ struct OmenaResolverTsconfigPathMappingInputV0 {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct OmenaParserStyleFactsInputV0 {
+    style_source: String,
+    dialect: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaParserCssModulesIntermediateInputV0 {
     style_source: String,
     dialect: String,
 }
@@ -977,6 +984,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_omena_parser_style_facts(&input.style_source, dialect);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("omena-parser-css-modules-intermediate") => {
+            let input: OmenaParserCssModulesIntermediateInputV0 = serde_json::from_str(&stdin)?;
+            let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
+            let summary = summarize_css_modules_intermediate(&input.style_source, dialect);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("omena-parser-lex") => {
             let input: OmenaParserLexInputV0 = serde_json::from_str(&stdin)?;
             let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
@@ -1379,6 +1392,14 @@ fn run_daemon_selected_query_command(
             let input: OmenaParserStyleFactsInputV0 = serde_json::from_value(input)?;
             let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
             Ok(serde_json::to_value(summarize_omena_parser_style_facts(
+                &input.style_source,
+                dialect,
+            ))?)
+        }
+        "omena-parser-css-modules-intermediate" => {
+            let input: OmenaParserCssModulesIntermediateInputV0 = serde_json::from_value(input)?;
+            let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
+            Ok(serde_json::to_value(summarize_css_modules_intermediate(
                 &input.style_source,
                 dialect,
             ))?)

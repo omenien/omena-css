@@ -36,6 +36,7 @@ export const SELECTED_QUERY_RUNNER_COMMANDS = {
   expressionDomainSelectorProjection: "input-expression-domain-selector-projection",
   selectorUsageCanonicalProducer: "input-selector-usage-canonical-producer",
   omenaParserStyleFacts: "omena-parser-style-facts",
+  omenaParserCssModulesIntermediate: "omena-parser-css-modules-intermediate",
   styleSemanticGraph: "style-semantic-graph",
   readCascadeAtPosition: "read-cascade-at-position",
   styleSemanticGraphBatch: "style-semantic-graph-batch",
