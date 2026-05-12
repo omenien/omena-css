@@ -14,7 +14,8 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 Run the `Publish Crates` GitHub Actions workflow in `dry-run` mode before
 publishing. Publish only after CI is green and dependency order has been
-checked.
+checked. The publish workflow skips only crate versions that already exist on
+crates.io; an already-published crate name can still publish a new version.
 
 ## Commit Messages
 

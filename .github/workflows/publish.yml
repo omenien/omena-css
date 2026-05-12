@@ -58,17 +58,38 @@ jobs:
             grep -Eq '^(omena-[a-z0-9-]+|engine-input-producers) = \{ path = "\.\./(omena-[a-z0-9-]+|engine-input-producers)".* \}$' "$1"
           }
 
-          crate_exists() {
-            cargo info "$1" --registry crates-io >/dev/null 2>&1
+          workspace_version() {
+            sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1
+          }
+
+          crate_version() {
+            local manifest="$1"
+            local version
+            version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$manifest" | head -n 1)"
+            if [[ -z "$version" ]]; then
+              version="$(workspace_version)"
+            fi
+            if [[ -z "$version" ]]; then
+              echo "could not determine crate version for $manifest" >&2
+              return 1
+            fi
+            echo "$version"
+          }
+
+          crate_version_exists() {
+            cargo info "$1@$2" --registry crates-io >/dev/null 2>&1
           }
 
           publish_with_retry() {
             local crate="$1"
             local manifest="crates/$crate/Cargo.toml"
+            local version
             local publish_log
 
-            if crate_exists "$crate"; then
-              echo "$crate already exists on crates.io; skipping"
+            version="$(crate_version "$manifest")"
+
+            if crate_version_exists "$crate" "$version"; then
+              echo "$crate@$version already exists on crates.io; skipping"
               return 2
             fi
 
@@ -78,8 +99,8 @@ jobs:
                 rm -f "$publish_log"
                 return
               fi
-              if crate_exists "$crate"; then
-                echo "$crate became available after a publish retry; continuing"
+              if crate_version_exists "$crate" "$version"; then
+                echo "$crate@$version became available after a publish retry; continuing"
                 rm -f "$publish_log"
                 return
               fi
