@@ -13,6 +13,8 @@ pub struct AbstractValueDomainSummaryV0 {
     pub max_finite_class_values: usize,
     pub reduced_product_structure_ready: bool,
     pub reduced_product_axes: Vec<&'static str>,
+    pub reduced_product_operations: Vec<&'static str>,
+    pub reduced_product_consumers: Vec<&'static str>,
     pub selector_projection_certainties: Vec<&'static str>,
     pub provenance_tree_ready: bool,
     pub provenance_tree_scopes: Vec<&'static str>,

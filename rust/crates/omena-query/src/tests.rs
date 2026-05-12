@@ -75,6 +75,17 @@ fn summarizes_query_boundary_over_producer_fragments() {
     assert!(
         summary
             .ready_surfaces
+            .contains(&"abstractValueReducedProductAlgebra")
+    );
+    assert!(
+        summary
+            .abstract_value_domain
+            .reduced_product_operations
+            .contains(&"matchesString")
+    );
+    assert!(
+        summary
+            .ready_surfaces
             .contains(&"sourceResolutionResolverBoundary")
     );
     assert!(

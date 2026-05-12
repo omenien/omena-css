@@ -44,6 +44,16 @@ fn summarizes_domain_boundary_contract() {
     );
     assert!(
         summary
+            .reduced_product_operations
+            .contains(&"matchesString")
+    );
+    assert!(
+        summary
+            .reduced_product_consumers
+            .contains(&"semanticReachability")
+    );
+    assert!(
+        summary
             .selector_projection_certainties
             .contains(&"inferred")
     );

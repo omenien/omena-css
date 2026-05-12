@@ -46,6 +46,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
         ready_surfaces: vec![
             "queryFragmentBundle",
             "abstractValueProjectionContract",
+            "abstractValueReducedProductAlgebra",
             "sourceResolutionResolverBoundary",
             "sourceResolutionRuntimeIndex",
             "expressionDomainFlowAnalysisBoundary",
