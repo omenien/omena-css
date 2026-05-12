@@ -228,7 +228,9 @@ const contextResult = spawnSync(
         "p40-print-css",
       ],
       transformContext: {
-        importInlines: [{ importSource: "./tokens.css", replacementCss: ":root { --brand: red; }" }],
+        importInlines: [
+          { importSource: "./tokens.css", replacementCss: ":root { --brand: red; }" },
+        ],
         cssModuleComposesResolutions: [
           { localClassName: "button", exportedClassNames: ["button", "base"] },
         ],
@@ -254,7 +256,7 @@ assert.equal(contextSummary.stylePath, "Button.module.css");
 assert.deepEqual(contextSummary.unknownPassIds, []);
 assert.equal(
   contextSummary.execution.outputCss,
-  ':root { --brand: red; } ._button_x{  color: var(--theme-brand); } ._base_y{ color: blue; }',
+  ":root { --brand: red; } ._button_x{  color: var(--theme-brand); } ._base_y{ color: blue; }",
 );
 assert.deepEqual(contextSummary.execution.executedPassIds, [
   "p26-import-inline",

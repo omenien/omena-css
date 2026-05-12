@@ -41,11 +41,7 @@ const fixtures: readonly Fixture[] = [
       repoRoot,
       "rust/external-consumers/omena-semantic-git-consumer/Cargo.toml",
     ),
-    dependencyNames: [
-      "engine-input-producers",
-      "omena-semantic",
-      "omena-engine-input-producers",
-    ],
+    dependencyNames: ["engine-input-producers", "omena-semantic", "omena-engine-input-producers"],
   },
   {
     label: "omena-bridge",

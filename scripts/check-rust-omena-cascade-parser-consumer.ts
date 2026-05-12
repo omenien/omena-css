@@ -29,8 +29,7 @@ assert.ok(
 
 const designTokens = read("rust/crates/omena-semantic/src/design_tokens.rs");
 assert.ok(
-  designTokens.includes("use omena_cascade::{") &&
-    designTokens.includes("select_cascade_winner"),
+  designTokens.includes("use omena_cascade::{") && designTokens.includes("select_cascade_winner"),
   "design token semantics must call omena-cascade winner selection",
 );
 assert.ok(

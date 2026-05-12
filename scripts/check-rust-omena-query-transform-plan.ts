@@ -192,7 +192,10 @@ assert.deepEqual(summary.egg.plannedPassIds, []);
 assert.equal(summary.print.product, "omena-transform-print.artifact");
 assert.equal(summary.print.css, styleSource);
 assert.equal(summary.print.provenancePreserved, true);
-assert.equal(summary.print.sourceMapSegments.length, summary.execution.provenanceDerivationForest.nodeCount);
+assert.equal(
+  summary.print.sourceMapSegments.length,
+  summary.execution.provenanceDerivationForest.nodeCount,
+);
 assert.equal(summary.print.sourceMapSegments[0]?.sourcePath, "Button.module.scss");
 assert.equal(summary.print.cstArtifact.product, "omena-transform-cst.artifact");
 assert.equal(summary.print.cstArtifact.provenancePreserved, true);
@@ -311,7 +314,9 @@ const contextResult = spawnSync(
         enableMediaStaticEval: false,
       },
       transformContext: {
-        importInlines: [{ importSource: "./tokens.css", replacementCss: ":root { --brand: red; }" }],
+        importInlines: [
+          { importSource: "./tokens.css", replacementCss: ":root { --brand: red; }" },
+        ],
         cssModuleComposesResolutions: [
           { localClassName: "button", exportedClassNames: ["button", "base"] },
         ],
@@ -335,7 +340,7 @@ assert.equal(contextSummary.product, "omena-query.transform-plan");
 assert.equal(contextSummary.stylePath, "Button.module.css");
 assert.equal(
   contextSummary.execution.outputCss,
-  ':root { --brand: red; } ._button_x{  color: var(--brand); } ._base_y{ color: blue; }',
+  ":root { --brand: red; } ._button_x{  color: var(--brand); } ._base_y{ color: blue; }",
 );
 assert.equal(contextSummary.print.css, contextSummary.execution.outputCss);
 assert.equal(
@@ -354,7 +359,12 @@ assert.ok(
 );
 assertIncludesAll(
   contextSummary.execution.executedPassIds,
-  ["p26-import-inline", "p30-composes-resolution", "p29-css-modules-class-hashing", "p40-print-css"],
+  [
+    "p26-import-inline",
+    "p30-composes-resolution",
+    "p29-css-modules-class-hashing",
+    "p40-print-css",
+  ],
   "context transform-plan executed passes",
 );
 assert.deepEqual(contextSummary.execution.cssImportInlines, [

@@ -54,7 +54,10 @@ for (const manifestPath of PRODUCT_CRATE_MANIFESTS) {
 }
 
 const lspManifest = readText("rust/crates/omena-lsp-server/Cargo.toml");
-assert.ok(lspManifest.includes("omena-query"), "omena-lsp-server must consume parser facts through omena-query");
+assert.ok(
+  lspManifest.includes("omena-query"),
+  "omena-lsp-server must consume parser facts through omena-query",
+);
 assert.ok(
   !lspManifest.includes("engine-style-parser"),
   "omena-lsp-server must not depend on engine-style-parser",
@@ -163,7 +166,7 @@ function findLegacyReferencePaths(): string[] {
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
-    .sort();
+    .toSorted();
 }
 
 function assertCutoverGateWiring(gate: string, condition: boolean): void {

@@ -17,15 +17,14 @@ assert.ok(
 
 const bridgeLib = read("rust/crates/omena-bridge/src/lib.rs");
 assert.ok(
-  countOccurrences(
-    bridgeLib,
-    "summarize_omena_parser_style_semantic_boundary_from_source",
-  ) >= 2,
+  countOccurrences(bridgeLib, "summarize_omena_parser_style_semantic_boundary_from_source") >= 2,
   "bridge from-source paths must assemble style graphs from omena-parser-backed semantic boundaries",
 );
 assert.ok(
   bridgeLib.includes("collect_omena_bridge_design_token_workspace_declarations_from_source") &&
-    bridgeLib.includes("collect_design_token_workspace_declarations(style_path, &boundary.parser_facts)"),
+    bridgeLib.includes(
+      "collect_design_token_workspace_declarations(style_path, &boundary.parser_facts)",
+    ),
   "bridge design-token workspace declarations must be fed by parser boundary facts",
 );
 assert.ok(
@@ -40,8 +39,7 @@ assert.ok(
   "source syntax facts must use the shared omena-parser byte-span contract",
 );
 assert.ok(
-  !sourceSyntax.includes("engine_style_parser") &&
-    !sourceSyntax.includes("engine-style-parser"),
+  !sourceSyntax.includes("engine_style_parser") && !sourceSyntax.includes("engine-style-parser"),
   "source syntax indexing must not reintroduce engine-style-parser coupling",
 );
 assert.ok(

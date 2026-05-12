@@ -80,7 +80,9 @@ assert.ok(
 const lspStyleProviderParity = read("scripts/check-rust-omena-lsp-server-style-provider-parity.ts");
 assert.ok(
   lspStyleProviderParity.includes("styleHoverCandidatesRequest") &&
-    lspStyleProviderParity.includes('response.result.product, "omena-lsp-server.style-hover-candidates"'),
+    lspStyleProviderParity.includes(
+      'response.result.product, "omena-lsp-server.style-hover-candidates"',
+    ),
   "LSP provider parity must exercise the parser-backed style hover candidate request",
 );
 
