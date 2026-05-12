@@ -56,6 +56,7 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
   ["read-cascade-at-position", "read_omena_query_cascade_at_position"],
   ["style-semantic-graph-batch", "summarize_omena_query_style_semantic_graph_batch_from_sources"],
   ["transform-plan", "summarize_omena_query_transform_plan_from_source_with_context"],
+  ["transform-context", "summarize_omena_query_transform_context_from_sources"],
   ["transform-execute", "execute_omena_query_transform_passes_from_source_with_context"],
 ] as const);
 

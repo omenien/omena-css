@@ -60,6 +60,7 @@ use omena_query::{
     summarize_omena_query_source_resolution_runtime,
     summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
     summarize_omena_query_style_semantic_graph_from_source,
+    summarize_omena_query_transform_context_from_sources,
     summarize_omena_query_transform_plan_from_source_with_context,
 };
 use omena_resolver::{
@@ -152,6 +153,15 @@ struct TransformPlanInputV0 {
     target_options: TransformPlanTargetOptionsInputV0,
     #[serde(default)]
     transform_context: OmenaQueryTransformExecutionContextV0,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TransformContextInputV0 {
+    target_style_path: String,
+    styles: Vec<StyleSemanticGraphBatchStyleInputV0>,
+    #[serde(default)]
+    package_manifests: Vec<StyleSemanticGraphPackageManifestInputV0>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1023,6 +1033,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             serde_json::to_writer_pretty(io::stdout(), &output)?;
         }
+        Some("transform-context") => {
+            let input: TransformContextInputV0 = serde_json::from_str(&stdin)?;
+            let package_manifests = input
+                .package_manifests
+                .iter()
+                .map(|manifest| OmenaQueryStylePackageManifestV0 {
+                    package_json_path: manifest.package_json_path.clone(),
+                    package_json_source: manifest.package_json_source.clone(),
+                })
+                .collect::<Vec<_>>();
+            let output = summarize_omena_query_transform_context_from_sources(
+                &input.target_style_path,
+                input
+                    .styles
+                    .iter()
+                    .map(|style| (style.style_path.as_str(), style.style_source.as_str())),
+                &package_manifests,
+            );
+            serde_json::to_writer_pretty(io::stdout(), &output)?;
+        }
         Some("transform-execute") => {
             let input: TransformExecuteInputV0 = serde_json::from_str(&stdin)?;
             let output = execute_omena_query_transform_passes_from_source_with_context(
@@ -1388,6 +1418,27 @@ fn run_daemon_selected_query_command(
                     input.target_options.into(),
                     default_omena_query_transform_print_options(),
                     &input.transform_context,
+                ),
+            )?)
+        }
+        "transform-context" => {
+            let input: TransformContextInputV0 = serde_json::from_value(input)?;
+            let package_manifests = input
+                .package_manifests
+                .iter()
+                .map(|manifest| OmenaQueryStylePackageManifestV0 {
+                    package_json_path: manifest.package_json_path.clone(),
+                    package_json_source: manifest.package_json_source.clone(),
+                })
+                .collect::<Vec<_>>();
+            Ok(serde_json::to_value(
+                summarize_omena_query_transform_context_from_sources(
+                    &input.target_style_path,
+                    input
+                        .styles
+                        .iter()
+                        .map(|style| (style.style_path.as_str(), style.style_source.as_str())),
+                    &package_manifests,
                 ),
             )?)
         }

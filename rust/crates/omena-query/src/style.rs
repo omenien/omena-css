@@ -1,5 +1,8 @@
 use super::*;
 use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact};
+use omena_transform_passes::{
+    TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0, TransformImportInlineV0,
+};
 
 pub fn summarize_omena_query_style_semantic_graph_from_source(
     style_path: &str,
@@ -198,6 +201,58 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
         unknown_pass_ids,
         execution,
         ready_surfaces: vec!["transformExecutionRuntime", "transformPassOutcomeContract"],
+    }
+}
+
+pub fn summarize_omena_query_transform_context_from_sources<'a>(
+    target_style_path: &str,
+    styles: impl IntoIterator<Item = (&'a str, &'a str)>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQueryTransformContextFromSourcesSummaryV0 {
+    let style_sources = styles.into_iter().collect::<Vec<_>>();
+    let style_count = style_sources.len();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_sources.as_slice());
+    let source_by_path = style_sources
+        .iter()
+        .map(|(style_path, style_source)| ((*style_path).to_string(), (*style_source).to_string()))
+        .collect::<BTreeMap<_, _>>();
+    let available_style_paths = style_fact_entries
+        .iter()
+        .map(|entry| entry.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let target_entry = style_fact_entries
+        .iter()
+        .find(|entry| entry.style_path == target_style_path);
+
+    let mut context = TransformExecutionContextV0::default();
+
+    if let Some(entry) = target_entry {
+        context.import_inlines = derive_import_inlines_for_transform_context(
+            entry,
+            &available_style_paths,
+            &source_by_path,
+            package_manifests,
+        );
+        context.class_name_rewrites = derive_class_name_rewrites_for_transform_context(entry);
+        context.css_module_composes_resolutions =
+            derive_css_module_composes_resolutions_for_transform_context(entry);
+    }
+
+    OmenaQueryTransformContextFromSourcesSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.transform-context",
+        target_style_path: target_style_path.to_string(),
+        style_count,
+        import_inline_count: context.import_inlines.len(),
+        class_name_rewrite_count: context.class_name_rewrites.len(),
+        css_module_composes_resolution_count: context.css_module_composes_resolutions.len(),
+        context,
+        ready_surfaces: vec![
+            "transformContextProducer",
+            "cssModuleClassRewriteProducer",
+            "cssModuleComposesResolutionProducer",
+            "directImportInlineProducer",
+        ],
     }
 }
 
@@ -977,18 +1032,7 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQueryStyleSemanticGraphBatchOutputV0 {
     let style_sources = styles.into_iter().collect::<Vec<_>>();
-    let style_fact_entries = style_sources
-        .iter()
-        .map(|(style_path, style_source)| OmenaQueryStyleFactEntry {
-            style_path: (*style_path).to_string(),
-            style_source: (*style_source).to_string(),
-            dialect: omena_parser_dialect_for_style_path(style_path),
-            facts: summarize_omena_query_omena_parser_style_facts(
-                style_source,
-                omena_parser_dialect_for_style_path(style_path),
-            ),
-        })
-        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_sources.as_slice());
     let workspace_declarations = style_fact_entries
         .iter()
         .flat_map(collect_design_token_workspace_declarations_from_omena_parser_facts)
@@ -1036,6 +1080,114 @@ struct OmenaQueryStyleFactEntry {
     style_source: String,
     dialect: OmenaParserStyleDialect,
     facts: OmenaQueryOmenaParserStyleFactsV0,
+}
+
+fn collect_omena_query_style_fact_entries(
+    style_sources: &[(&str, &str)],
+) -> Vec<OmenaQueryStyleFactEntry> {
+    style_sources
+        .iter()
+        .map(|(style_path, style_source)| OmenaQueryStyleFactEntry {
+            style_path: (*style_path).to_string(),
+            style_source: (*style_source).to_string(),
+            dialect: omena_parser_dialect_for_style_path(style_path),
+            facts: summarize_omena_query_omena_parser_style_facts(
+                style_source,
+                omena_parser_dialect_for_style_path(style_path),
+            ),
+        })
+        .collect()
+}
+
+fn derive_import_inlines_for_transform_context(
+    entry: &OmenaQueryStyleFactEntry,
+    available_style_paths: &BTreeSet<&str>,
+    source_by_path: &BTreeMap<String, String>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<TransformImportInlineV0> {
+    entry
+        .facts
+        .sass_module_edges
+        .iter()
+        .filter(|edge| edge.kind == "sassImport")
+        .filter_map(|edge| {
+            let resolved = resolve_style_module_source(
+                entry.style_path.as_str(),
+                edge.source.as_str(),
+                available_style_paths,
+                package_manifests,
+            )?;
+            let replacement_css = source_by_path.get(resolved.as_str())?.clone();
+            Some(TransformImportInlineV0 {
+                import_source: edge.source.clone(),
+                replacement_css,
+            })
+        })
+        .collect()
+}
+
+fn derive_class_name_rewrites_for_transform_context(
+    entry: &OmenaQueryStyleFactEntry,
+) -> Vec<TransformClassNameRewriteV0> {
+    if !entry.style_path.contains(".module.") {
+        return Vec::new();
+    }
+
+    entry
+        .facts
+        .class_selector_names
+        .iter()
+        .enumerate()
+        .map(|(index, name)| TransformClassNameRewriteV0 {
+            original_name: name.clone(),
+            rewritten_name: stable_transform_context_class_rewrite(name, index),
+        })
+        .collect()
+}
+
+fn derive_css_module_composes_resolutions_for_transform_context(
+    entry: &OmenaQueryStyleFactEntry,
+) -> Vec<TransformCssModuleComposesResolutionV0> {
+    let mut resolutions = BTreeMap::<String, BTreeSet<String>>::new();
+
+    for edge in &entry.facts.css_module_composes_edges {
+        for owner in &edge.owner_selector_names {
+            let exports = resolutions.entry(owner.clone()).or_default();
+            exports.insert(owner.clone());
+            for target in &edge.target_names {
+                exports.insert(target.clone());
+            }
+        }
+    }
+
+    resolutions
+        .into_iter()
+        .map(
+            |(local_class_name, exported_class_names)| TransformCssModuleComposesResolutionV0 {
+                local_class_name,
+                exported_class_names: exported_class_names.into_iter().collect(),
+            },
+        )
+        .collect()
+}
+
+fn stable_transform_context_class_rewrite(name: &str, index: usize) -> String {
+    let sanitized = name
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    let sanitized = if sanitized.is_empty() {
+        "class"
+    } else {
+        sanitized.as_str()
+    };
+    format!("_{}_{}", sanitized, index)
 }
 
 fn collect_design_token_workspace_declarations_from_omena_parser_facts(

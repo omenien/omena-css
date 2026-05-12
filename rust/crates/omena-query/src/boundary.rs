@@ -194,6 +194,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 output_product: "omena-query.transform-plan",
             },
             SelectedQueryRunnerCommandV0 {
+                surface: "transformContext",
+                command: "transform-context",
+                input_contract: "TransformContextInputV0",
+                output_product: "omena-query.transform-context",
+            },
+            SelectedQueryRunnerCommandV0 {
                 surface: "transformExecute",
                 command: "transform-execute",
                 input_contract: "TransformExecuteInputV0",
@@ -212,6 +218,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "StyleSemanticGraphBatchInputV0",
             "OmenaParserStyleFactsInputV0",
             "TransformPlanInputV0",
+            "TransformContextInputV0",
             "TransformExecuteInputV0",
         ],
         adapter_readiness: vec![
@@ -229,6 +236,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "omenaParserStyleFactExtraction",
             "readCascadeAtPosition",
             "transformPlanRunner",
+            "transformContextProducer",
             "transformExecutionRunner",
         ],
         routing_status: "runtimeBacked",

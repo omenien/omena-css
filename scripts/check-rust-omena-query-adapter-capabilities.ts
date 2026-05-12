@@ -123,6 +123,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "transformContext",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.transformContext,
+      inputContract: "TransformContextInputV0",
+      outputProduct: "omena-query.transform-context",
+    },
+  ],
+  [
     "transformExecute",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.transformExecute,
@@ -145,6 +153,7 @@ void (async () => {
     "ReadCascadeAtPositionInputV0",
     "StyleSemanticGraphBatchInputV0",
     "StyleSemanticGraphInputV0",
+    "TransformContextInputV0",
     "TransformExecuteInputV0",
     "TransformPlanInputV0",
   ]);
@@ -167,6 +176,7 @@ void (async () => {
     "runnerCommandContract",
     "sourceResolutionRuntimeIndex",
     "styleSemanticGraphBridgeBoundary",
+    "transformContextProducer",
     "transformExecutionRunner",
     "transformPlanRunner",
   ]);

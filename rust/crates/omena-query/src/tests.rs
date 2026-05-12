@@ -24,6 +24,7 @@ use super::{
     summarize_omena_query_style_semantic_graph_batch_from_sources,
     summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
     summarize_omena_query_style_semantic_graph_from_source,
+    summarize_omena_query_transform_context_from_sources,
     summarize_omena_query_transform_plan_from_source,
 };
 use crate::{
@@ -563,6 +564,50 @@ fn bundles_expression_source_and_selector_query_fragments() {
         selector.fragments.len(),
         bundle.selector_usage.fragments.len()
     );
+}
+
+#[test]
+fn derives_transform_context_from_workspace_sources() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "Button.module.css",
+        [
+            (
+                "Button.module.css",
+                r#"@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }"#,
+            ),
+            ("tokens.css", r#":root { --brand: red; }"#),
+        ],
+        &[],
+    );
+
+    assert_eq!(summary.product, "omena-query.transform-context");
+    assert_eq!(summary.target_style_path, "Button.module.css");
+    assert_eq!(summary.style_count, 2);
+    assert_eq!(summary.import_inline_count, 1);
+    assert_eq!(summary.class_name_rewrite_count, 2);
+    assert_eq!(summary.css_module_composes_resolution_count, 1);
+    assert_eq!(
+        summary.context.import_inlines[0].import_source,
+        "./tokens.css"
+    );
+    assert_eq!(
+        summary.context.import_inlines[0].replacement_css,
+        ":root { --brand: red; }"
+    );
+    assert_eq!(
+        summary
+            .context
+            .class_name_rewrites
+            .iter()
+            .map(|rewrite| rewrite.original_name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["button", "base"]
+    );
+    assert_eq!(
+        summary.context.css_module_composes_resolutions[0].exported_class_names,
+        vec!["base", "button"]
+    );
+    assert!(summary.ready_surfaces.contains(&"transformContextProducer"));
 }
 
 #[test]

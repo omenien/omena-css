@@ -261,6 +261,20 @@ pub struct OmenaQueryTransformExecuteSummaryV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryTransformContextFromSourcesSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub target_style_path: String,
+    pub style_count: usize,
+    pub context: TransformExecutionContextV0,
+    pub import_inline_count: usize,
+    pub class_name_rewrite_count: usize,
+    pub css_module_composes_resolution_count: usize,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryOmenaParserStyleFactsV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
