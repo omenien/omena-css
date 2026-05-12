@@ -5712,11 +5712,31 @@ fn compress_css_colors_with_lexer(source: &str, dialect: StyleDialect) -> (Strin
     let tokens = lexed.tokens();
     let mut output = String::with_capacity(source.len());
     let mut mutation_count = 0;
+    let mut property_candidate = false;
+    let mut inside_declaration_value = false;
 
-    for (index, token) in tokens.iter().enumerate() {
-        let replacement = if token.kind == SyntaxKind::Hash
-            && previous_non_comment_token_kind(tokens, index) == Some(SyntaxKind::Colon)
+    for token in tokens {
+        if is_declaration_boundary_start(token.kind) {
+            property_candidate = true;
+            inside_declaration_value = false;
+        } else if is_declaration_boundary_end(token.kind) {
+            property_candidate = token.kind == SyntaxKind::Semicolon;
+            inside_declaration_value = false;
+        } else if token.kind == SyntaxKind::Colon && property_candidate {
+            property_candidate = false;
+            inside_declaration_value = true;
+        } else if property_candidate
+            && !is_comment_token(token.kind)
+            && token.kind != SyntaxKind::Whitespace
+            && !matches!(
+                token.kind,
+                SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+            )
         {
+            property_candidate = false;
+        }
+
+        let replacement = if token.kind == SyntaxKind::Hash && inside_declaration_value {
             compress_hex_color_token_text(&token.text)
         } else {
             None
@@ -6799,7 +6819,7 @@ mod tests {
     }
 
     #[test]
-    fn execution_runtime_compresses_declaration_leading_hex_colors_only() {
+    fn execution_runtime_compresses_declaration_value_hex_colors_only() {
         let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; } #FFFFFF { color: red; }"#;
         let execution = execute_transform_passes_on_source(
             source,
@@ -6809,10 +6829,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(execution.mutation_count, 2);
         assert_eq!(
             execution.output_css,
-            r#".a { color: #fff; box-shadow: 0 0 #AABBCC; } #FFFFFF { color: red; }"#
+            r#".a { color: #fff; box-shadow: 0 0 #abc; } #FFFFFF { color: red; }"#
         );
     }
 
