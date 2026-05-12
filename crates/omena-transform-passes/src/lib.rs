@@ -6022,7 +6022,8 @@ fn compress_static_color_function_declaration_values_with_lexer(
 
 fn compress_static_color_function_value(value: &str) -> Option<String> {
     let color = parse_static_rgb_function_color(value)
-        .or_else(|| parse_static_hsl_function_color(value))?;
+        .or_else(|| parse_static_hsl_function_color(value))
+        .or_else(|| parse_static_hwb_function_color(value))?;
     let replacement = shortest_static_srgb_color_text(color);
     (replacement.len() < value.trim().len()).then_some(replacement)
 }
@@ -6077,12 +6078,67 @@ fn parse_static_hsl_function_color(value: &str) -> Option<SrgbColor> {
     )
 }
 
+fn parse_static_hwb_function_color(value: &str) -> Option<SrgbColor> {
+    let inner = parse_whole_function_value_inner(value, "hwb")?;
+    if inner.contains('/') {
+        return None;
+    }
+
+    let parts = if inner.contains(',') {
+        split_top_level_value_arguments(inner)?
+    } else {
+        inner
+            .split_whitespace()
+            .map(str::to_string)
+            .collect::<Vec<_>>()
+    };
+    let [hue, whiteness, blackness] = parts.as_slice() else {
+        return None;
+    };
+
+    hwb_to_srgb(
+        parse_hue_degrees(hue)?,
+        parse_bounded_percentage(whiteness)?,
+        parse_bounded_percentage(blackness)?,
+    )
+}
+
 fn parse_bounded_percentage(text: &str) -> Option<f64> {
     let value = parse_plain_f64(text.trim().strip_suffix('%')?)?;
     if !(0.0..=100.0).contains(&value) {
         return None;
     }
     Some(value / 100.0)
+}
+
+fn hwb_to_srgb(hue_degrees: f64, whiteness: f64, blackness: f64) -> Option<SrgbColor> {
+    if !hue_degrees.is_finite() || !whiteness.is_finite() || !blackness.is_finite() {
+        return None;
+    }
+
+    if whiteness + blackness >= 1.0 {
+        let gray = whiteness / (whiteness + blackness);
+        return Some(SrgbColor {
+            red: encode_css_rgb_component(gray),
+            green: encode_css_rgb_component(gray),
+            blue: encode_css_rgb_component(gray),
+        });
+    }
+
+    let pure = hsl_to_srgb(hue_degrees, 1.0, 0.5)?;
+    let scale = 1.0 - whiteness - blackness;
+    Some(SrgbColor {
+        red: mix_hwb_channel(pure.red, scale, whiteness),
+        green: mix_hwb_channel(pure.green, scale, whiteness),
+        blue: mix_hwb_channel(pure.blue, scale, whiteness),
+    })
+}
+
+fn mix_hwb_channel(channel: u8, scale: f64, whiteness: f64) -> u8 {
+    ((f64::from(channel) / 255.0) * scale + whiteness)
+        .mul_add(255.0, 0.0)
+        .round()
+        .clamp(0.0, 255.0) as u8
 }
 
 fn hsl_to_srgb(hue_degrees: f64, saturation: f64, lightness: f64) -> Option<SrgbColor> {
@@ -7362,7 +7418,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_static_declaration_colors_only() {
-        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#;
+        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7371,10 +7427,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 7);
+        assert_eq!(execution.mutation_count, 10);
         assert_eq!(
             execution.output_css,
-            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: #808080; text-decoration-color: #00f; caret-color: #000; accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
+            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: #808080; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
         );
     }
 
