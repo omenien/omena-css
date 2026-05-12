@@ -29,3 +29,10 @@ cargo test --workspace
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo publish --dry-run --manifest-path crates/omena-syntax/Cargo.toml
 ```
+
+## Publishing
+
+Publishing is manual through the `Publish Crates` GitHub Actions workflow.
+Run the workflow in `dry-run` mode first, then run `publish` only after CI is
+green and the crates.io order has been checked. The workflow intentionally skips
+`omena-incremental` because it publishes from its own Omena repository.

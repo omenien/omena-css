@@ -1,0 +1,102 @@
+name: Publish Crates
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run publish readiness checks or publish crates"
+        required: true
+        default: "dry-run"
+        type: choice
+        options:
+          - dry-run
+          - publish
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+      PUBLISH_MODE: ${{ inputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo fmt --all --check
+      - run: cargo test --workspace
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Publish crates
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          crates=(
+            omena-syntax
+            omena-interner
+            omena-parser
+            omena-incremental
+            omena-cascade
+            omena-transform-cst
+            omena-transform-passes
+            omena-transform-bundle
+            omena-transform-target
+            omena-transform-print
+            omena-transform-egg
+          )
+
+          has_local_omena_dependencies() {
+            grep -Eq '^omena-[a-z0-9-]+ = \{ path = "\.\./omena-[a-z0-9-]+".* \}$' "$1"
+          }
+
+          crate_exists() {
+            cargo info "$1" --registry crates-io >/dev/null 2>&1
+          }
+
+          publish_with_retry() {
+            local crate="$1"
+            local manifest="crates/$crate/Cargo.toml"
+
+            if crate_exists "$crate"; then
+              echo "$crate already exists on crates.io; skipping"
+              return
+            fi
+
+            for attempt in 1 2 3 4 5; do
+              if cargo publish --manifest-path "$manifest"; then
+                return
+              fi
+              echo "publish failed for $crate on attempt $attempt; waiting for registry propagation"
+              sleep $((attempt * 30))
+            done
+
+            cargo publish --manifest-path "$manifest"
+          }
+
+          for crate in "${crates[@]}"; do
+            manifest="crates/$crate/Cargo.toml"
+
+            if [[ "$crate" == "omena-incremental" ]]; then
+              echo "$crate publishes from its own Omena repository; skipping"
+              continue
+            fi
+
+            if [[ "$PUBLISH_MODE" == "dry-run" ]]; then
+              cargo package --list --manifest-path "$manifest" >/dev/null
+              if has_local_omena_dependencies "$manifest"; then
+                echo "$crate package surface checked; full dry-run waits for upstream Omena crates on crates.io"
+              else
+                cargo publish --dry-run --manifest-path "$manifest"
+              fi
+              continue
+            fi
+
+            if [[ "$PUBLISH_MODE" == "publish" ]]; then
+              publish_with_retry "$crate"
+              sleep 30
+              continue
+            fi
+
+            echo "unknown publish mode: $PUBLISH_MODE" >&2
+            exit 1
+          done
