@@ -55,7 +55,10 @@ describe("buildStyleDocumentWithOmenaParser", () => {
                 range: range(20, 25),
                 ruleRange: range(0, 33),
                 selectorContexts: [".card"],
-                underMedia: false,
+                wrapperAtRules: [
+                  { name: "media", params: "(min-width: 1px)", range: range(0, 33) },
+                ],
+                underMedia: true,
                 underSupports: false,
                 underLayer: false,
               },
@@ -66,7 +69,10 @@ describe("buildStyleDocumentWithOmenaParser", () => {
                 sourceOrder: 0,
                 range: range(30, 35),
                 selectorContexts: [".card"],
-                underMedia: false,
+                wrapperAtRules: [
+                  { name: "media", params: "(min-width: 1px)", range: range(0, 33) },
+                ],
+                underMedia: true,
                 underSupports: false,
                 underLayer: false,
               },
@@ -108,6 +114,9 @@ describe("buildStyleDocumentWithOmenaParser", () => {
       },
     });
     expect(document.customPropertyDecls[0]?.context.selectorText).toBe(".card");
+    expect(document.customPropertyDecls[0]?.context.wrapperAtRules).toEqual([
+      { name: "media", params: "(min-width: 1px)", range: range(0, 33) },
+    ]);
     expect(document.customPropertyDecls[0]?.value).toBe("1rem");
     expect(document.customPropertyDecls[0]?.ruleRange).toEqual(range(0, 33));
     expect(document.customPropertyRefs[0]?.range).toEqual(range(30, 35));

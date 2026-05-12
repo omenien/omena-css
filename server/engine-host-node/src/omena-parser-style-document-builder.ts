@@ -38,6 +38,12 @@ interface ParserRangeV0 {
   readonly end: ParserPositionV0;
 }
 
+interface ParserAtRuleContextV0 {
+  readonly name: string;
+  readonly params: string;
+  readonly range: ParserRangeV0;
+}
+
 interface ParserSelectorDefinitionFactV0 {
   readonly name: string;
   readonly sourceOrder: number;
@@ -56,6 +62,7 @@ interface ParserCustomPropertyDeclFactV0 {
   readonly range: ParserRangeV0;
   readonly ruleRange: ParserRangeV0;
   readonly selectorContexts: readonly string[];
+  readonly wrapperAtRules?: readonly ParserAtRuleContextV0[];
   readonly underMedia: boolean;
   readonly underSupports: boolean;
   readonly underLayer: boolean;
@@ -66,6 +73,7 @@ interface ParserCustomPropertyRefFactV0 {
   readonly sourceOrder: number;
   readonly range: ParserRangeV0;
   readonly selectorContexts: readonly string[];
+  readonly wrapperAtRules?: readonly ParserAtRuleContextV0[];
   readonly underMedia: boolean;
   readonly underSupports: boolean;
   readonly underLayer: boolean;
@@ -379,17 +387,23 @@ function collectComposesByOwner(
 function customPropertyContext(
   fact: Pick<
     ParserCustomPropertyDeclFactV0,
-    "selectorContexts" | "underMedia" | "underSupports" | "underLayer"
+    "selectorContexts" | "wrapperAtRules" | "underMedia" | "underSupports" | "underLayer"
   >,
 ): CustomPropertyDeclContextHIR & CustomPropertyRefContextHIR {
   const selectorText = fact.selectorContexts[0] ?? null;
-  const wrapperAtRules = [
-    fact.underMedia ? "media" : null,
-    fact.underSupports ? "supports" : null,
-    fact.underLayer ? "layer" : null,
-  ]
-    .filter((name): name is string => name !== null)
-    .map((name) => ({ name, params: "", range: zeroRange() }));
+  const wrapperAtRules =
+    fact.wrapperAtRules?.map((wrapper) => ({
+      name: wrapper.name,
+      params: wrapper.params,
+      range: toRange(wrapper.range),
+    })) ??
+    [
+      fact.underMedia ? "media" : null,
+      fact.underSupports ? "supports" : null,
+      fact.underLayer ? "layer" : null,
+    ]
+      .filter((name): name is string => name !== null)
+      .map((name) => ({ name, params: "", range: zeroRange() }));
 
   return {
     containerKind: selectorText ? "rule" : wrapperAtRules.length > 0 ? "atrule" : "root",

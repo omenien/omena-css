@@ -219,6 +219,7 @@ struct ParserIndexCustomPropertyDeclFactV0 {
     rule_byte_span: ParserByteSpanV0,
     rule_range: ParserRangeV0,
     selector_contexts: Vec<String>,
+    wrapper_at_rules: Vec<ParserIndexAtRuleContextV0>,
     under_media: bool,
     under_supports: bool,
     under_layer: bool,
@@ -232,9 +233,19 @@ struct ParserIndexCustomPropertyRefFactV0 {
     byte_span: ParserByteSpanV0,
     range: ParserRangeV0,
     selector_contexts: Vec<String>,
+    wrapper_at_rules: Vec<ParserIndexAtRuleContextV0>,
     under_media: bool,
     under_supports: bool,
     under_layer: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct ParserIndexAtRuleContextV0 {
+    name: String,
+    params: String,
+    byte_span: ParserByteSpanV0,
+    range: ParserRangeV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
@@ -454,13 +465,15 @@ struct StyleBlock {
     under_media: bool,
     under_supports: bool,
     under_layer: bool,
+    wrapper_at_rules: Vec<ParserIndexAtRuleContextV0>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 struct WrapperContext {
     under_media: bool,
     under_supports: bool,
     under_layer: bool,
+    wrapper_at_rules: Vec<ParserIndexAtRuleContextV0>,
 }
 
 pub fn summarize_css_modules_intermediate(
@@ -884,7 +897,7 @@ fn summarize_values(
                     &mut selectors_with_refs_under_supports,
                     &mut selectors_with_refs_under_layer,
                     &selector,
-                    wrapper,
+                    &wrapper,
                 );
                 if local_decl_names.contains(&value.name) {
                     selectors_with_local_refs.insert(selector.clone());
@@ -893,7 +906,7 @@ fn summarize_values(
                         &mut selectors_with_local_refs_under_supports,
                         &mut selectors_with_local_refs_under_layer,
                         &selector,
-                        wrapper,
+                        &wrapper,
                     );
                 }
                 if imported_names.contains(&value.name) {
@@ -903,7 +916,7 @@ fn summarize_values(
                         &mut selectors_with_imported_refs_under_supports,
                         &mut selectors_with_imported_refs_under_layer,
                         &selector,
-                        wrapper,
+                        &wrapper,
                     );
                 }
             }
@@ -1060,6 +1073,7 @@ fn summarize_custom_properties(
                     rule_byte_span,
                     rule_range: parser_range_for_byte_span(source, rule_byte_span),
                     selector_contexts: selector_contexts_for_offset(blocks, byte_span.start),
+                    wrapper_at_rules: wrapper.wrapper_at_rules.clone(),
                     under_media: wrapper.under_media,
                     under_supports: wrapper.under_supports,
                     under_layer: wrapper.under_layer,
@@ -1074,6 +1088,7 @@ fn summarize_custom_properties(
                     byte_span,
                     range: parser_range_for_byte_span(source, byte_span),
                     selector_contexts: selector_contexts_for_offset(blocks, byte_span.start),
+                    wrapper_at_rules: wrapper.wrapper_at_rules.clone(),
                     under_media: wrapper.under_media,
                     under_supports: wrapper.under_supports,
                     under_layer: wrapper.under_layer,
@@ -1518,7 +1533,7 @@ fn summarize_keyframes(
                     &mut names_under_supports,
                     &mut names_under_layer,
                     &animation.name,
-                    wrapper,
+                    &wrapper,
                 );
             }
             ParsedAnimationFactKind::AnimationNameReference => {
@@ -1550,7 +1565,7 @@ fn summarize_keyframes(
                             &mut selectors_with_animation_name_refs_under_supports_names,
                             &mut selectors_with_animation_name_refs_under_layer_names,
                             &selector,
-                            wrapper,
+                            &wrapper,
                         );
                     }
                 } else {
@@ -1562,7 +1577,7 @@ fn summarize_keyframes(
                             &mut selectors_with_animation_refs_under_supports_names,
                             &mut selectors_with_animation_refs_under_layer_names,
                             &selector,
-                            wrapper,
+                            &wrapper,
                         );
                     }
                 }
@@ -1636,7 +1651,7 @@ fn summarize_composes(
                 &mut summary.selectors_with_composes_under_supports_names,
                 &mut summary.selectors_with_composes_under_layer_names,
                 owner,
-                wrapper,
+                &wrapper,
             );
         }
         match edge.kind {
@@ -1649,7 +1664,7 @@ fn summarize_composes(
                         &mut summary.local_selector_names_under_supports,
                         &mut summary.local_selector_names_under_layer,
                         owner,
-                        wrapper,
+                        &wrapper,
                     );
                 }
             }
@@ -1662,7 +1677,7 @@ fn summarize_composes(
                         &mut summary.imported_selector_names_under_supports,
                         &mut summary.imported_selector_names_under_layer,
                         owner,
-                        wrapper,
+                        &wrapper,
                     );
                     if let Some(source) = &edge.import_source {
                         summary.import_sources.push(source.clone());
@@ -1687,7 +1702,7 @@ fn summarize_composes(
                         &mut summary.global_selector_names_under_supports,
                         &mut summary.global_selector_names_under_layer,
                         owner,
-                        wrapper,
+                        &wrapper,
                     );
                 }
             }
@@ -1757,6 +1772,28 @@ fn collect_style_blocks(source: &str) -> Vec<StyleBlock> {
     blocks
 }
 
+fn at_rule_context_for_block(
+    source: &str,
+    header: &str,
+    start: usize,
+    end: usize,
+) -> ParserIndexAtRuleContextV0 {
+    let trimmed = header.trim();
+    let without_at = trimmed.strip_prefix('@').unwrap_or(trimmed);
+    let split_index = without_at
+        .find(|character: char| character.is_whitespace())
+        .unwrap_or(without_at.len());
+    let name = without_at[..split_index].to_string();
+    let params = without_at[split_index..].trim().to_string();
+    let byte_span = ParserByteSpanV0 { start, end };
+    ParserIndexAtRuleContextV0 {
+        name,
+        params,
+        byte_span,
+        range: parser_range_for_byte_span(source, byte_span),
+    }
+}
+
 fn collect_style_blocks_in_range(
     source: &str,
     start: usize,
@@ -1773,9 +1810,17 @@ fn collect_style_blocks_in_range(
         let Some(close) = matching_brace(source, open, end) else {
             break;
         };
-        let mut child_wrapper = wrapper;
+        let mut child_wrapper = wrapper.clone();
         if header.starts_with("@media") {
             child_wrapper.under_media = true;
+            child_wrapper
+                .wrapper_at_rules
+                .push(at_rule_context_for_block(
+                    source,
+                    header,
+                    header_start,
+                    close + 1,
+                ));
             blocks.push(StyleBlock {
                 names: Vec::new(),
                 context_text: None,
@@ -1789,6 +1834,7 @@ fn collect_style_blocks_in_range(
                 under_media: child_wrapper.under_media,
                 under_supports: child_wrapper.under_supports,
                 under_layer: child_wrapper.under_layer,
+                wrapper_at_rules: child_wrapper.wrapper_at_rules.clone(),
             });
             collect_style_blocks_in_range(
                 source,
@@ -1801,6 +1847,14 @@ fn collect_style_blocks_in_range(
             );
         } else if header.starts_with("@supports") {
             child_wrapper.under_supports = true;
+            child_wrapper
+                .wrapper_at_rules
+                .push(at_rule_context_for_block(
+                    source,
+                    header,
+                    header_start,
+                    close + 1,
+                ));
             blocks.push(StyleBlock {
                 names: Vec::new(),
                 context_text: None,
@@ -1814,6 +1868,7 @@ fn collect_style_blocks_in_range(
                 under_media: child_wrapper.under_media,
                 under_supports: child_wrapper.under_supports,
                 under_layer: child_wrapper.under_layer,
+                wrapper_at_rules: child_wrapper.wrapper_at_rules.clone(),
             });
             collect_style_blocks_in_range(
                 source,
@@ -1826,6 +1881,14 @@ fn collect_style_blocks_in_range(
             );
         } else if header.starts_with("@layer") {
             child_wrapper.under_layer = true;
+            child_wrapper
+                .wrapper_at_rules
+                .push(at_rule_context_for_block(
+                    source,
+                    header,
+                    header_start,
+                    close + 1,
+                ));
             blocks.push(StyleBlock {
                 names: Vec::new(),
                 context_text: None,
@@ -1839,6 +1902,7 @@ fn collect_style_blocks_in_range(
                 under_media: child_wrapper.under_media,
                 under_supports: child_wrapper.under_supports,
                 under_layer: child_wrapper.under_layer,
+                wrapper_at_rules: child_wrapper.wrapper_at_rules.clone(),
             });
             collect_style_blocks_in_range(
                 source,
@@ -1861,7 +1925,7 @@ fn collect_style_blocks_in_range(
                 &branches,
                 parent_branches,
                 parent_is_grouped,
-                wrapper,
+                wrapper.clone(),
                 blocks,
             );
             collect_style_blocks_in_range(
@@ -1870,7 +1934,7 @@ fn collect_style_blocks_in_range(
                 close,
                 &branches,
                 branches.len() > 1,
-                wrapper,
+                wrapper.clone(),
                 blocks,
             );
         } else if header.starts_with('@') {
@@ -1887,7 +1951,7 @@ fn collect_style_blocks_in_range(
                 &branches,
                 parent_branches,
                 parent_is_grouped,
-                wrapper,
+                wrapper.clone(),
                 blocks,
             );
             collect_style_blocks_in_range(
@@ -1896,7 +1960,7 @@ fn collect_style_blocks_in_range(
                 close,
                 &branches,
                 branches.len() > 1,
-                wrapper,
+                wrapper.clone(),
                 blocks,
             );
         }
@@ -1940,6 +2004,7 @@ fn push_style_block(
         under_media: wrapper.under_media,
         under_supports: wrapper.under_supports,
         under_layer: wrapper.under_layer,
+        wrapper_at_rules: wrapper.wrapper_at_rules.clone(),
     });
     let nested_safety =
         classify_nested_safety(header, branches, parent_branches, parent_is_grouped);
@@ -1957,6 +2022,7 @@ fn push_style_block(
             under_media: wrapper.under_media,
             under_supports: wrapper.under_supports,
             under_layer: wrapper.under_layer,
+            wrapper_at_rules: wrapper.wrapper_at_rules.clone(),
         });
     }
 }
@@ -2249,6 +2315,7 @@ fn wrapper_for_offset(blocks: &[StyleBlock], offset: usize) -> WrapperContext {
             under_media: block.under_media,
             under_supports: block.under_supports,
             under_layer: block.under_layer,
+            wrapper_at_rules: block.wrapper_at_rules.clone(),
         })
         .unwrap_or_default()
 }
@@ -2258,7 +2325,7 @@ fn insert_by_wrapper(
     supports: &mut BTreeSet<String>,
     layer: &mut BTreeSet<String>,
     value: &str,
-    wrapper: WrapperContext,
+    wrapper: &WrapperContext,
 ) {
     if wrapper.under_media {
         media.insert(value.to_string());
@@ -2276,7 +2343,7 @@ fn insert_vec_by_wrapper(
     supports: &mut Vec<String>,
     layer: &mut Vec<String>,
     value: &str,
-    wrapper: WrapperContext,
+    wrapper: &WrapperContext,
 ) {
     if wrapper.under_media {
         media.push(value.to_string());
