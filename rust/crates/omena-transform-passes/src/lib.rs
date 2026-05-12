@@ -100,6 +100,7 @@ pub struct TransformExecutionSummaryV0 {
     pub css_module_evaluation: Option<TransformModuleEvaluationV0>,
     pub css_import_inlines: Vec<TransformImportInlineV0>,
     pub css_module_composes_exports: Vec<TransformCssModuleComposesResolutionV0>,
+    pub design_token_routes: Vec<TransformDesignTokenRouteV0>,
     pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
     pub pass_plan: TransformPassPlanV0,
 }
@@ -117,6 +118,7 @@ pub struct TransformExecutionContextV0 {
     pub import_inlines: Vec<TransformImportInlineV0>,
     pub class_name_rewrites: Vec<TransformClassNameRewriteV0>,
     pub css_module_composes_resolutions: Vec<TransformCssModuleComposesResolutionV0>,
+    pub design_token_routes: Vec<TransformDesignTokenRouteV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -145,6 +147,13 @@ pub struct TransformClassNameRewriteV0 {
 pub struct TransformCssModuleComposesResolutionV0 {
     pub local_class_name: String,
     pub exported_class_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformDesignTokenRouteV0 {
+    pub token_name: String,
+    pub routed_value: String,
 }
 
 pub fn summarize_omena_transform_passes_boundary() -> TransformPassesBoundarySummaryV0 {
@@ -247,6 +256,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
     let mut css_module_evaluation = None;
     let mut css_import_inlines = Vec::new();
     let mut css_module_composes_exports = Vec::new();
+    let mut design_token_routes = Vec::new();
 
     for pass_id in &ordered_pass_ids {
         let pass = transform_pass_kind_from_id(pass_id);
@@ -850,6 +860,37 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 provenance_preserved: true,
                 detail: "requires an explicit CSS Modules composes export set before mutation",
             },
+            Some(TransformPassKind::DesignTokenRouting)
+                if !context.design_token_routes.is_empty() =>
+            {
+                let (next_css, mutation_count) =
+                    route_design_token_values(&output_css, dialect, &context.design_token_routes);
+                let status = if mutation_count == 0 {
+                    TransformPassRuntimeStatus::NoChange
+                } else {
+                    TransformPassRuntimeStatus::Applied
+                };
+                output_css = next_css;
+                design_token_routes = context.design_token_routes.clone();
+                TransformPassExecutionOutcomeV0 {
+                    pass_id,
+                    status,
+                    input_byte_len,
+                    output_byte_len: output_css.len(),
+                    mutation_count,
+                    provenance_preserved: true,
+                    detail: "routed whole-value design-token references through explicit bridge token routes",
+                }
+            }
+            Some(TransformPassKind::DesignTokenRouting) => TransformPassExecutionOutcomeV0 {
+                pass_id,
+                status: TransformPassRuntimeStatus::PlannedOnly,
+                input_byte_len,
+                output_byte_len: output_css.len(),
+                mutation_count: 0,
+                provenance_preserved: true,
+                detail: "requires explicit bridge design-token routes before mutation",
+            },
             Some(TransformPassKind::HashCssModuleClassNames)
                 if !context.class_name_rewrites.is_empty() =>
             {
@@ -1090,14 +1131,14 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 provenance_preserved: true,
                 detail: "observed final emission boundary",
             },
-            Some(_) | None => TransformPassExecutionOutcomeV0 {
+            None => TransformPassExecutionOutcomeV0 {
                 pass_id,
                 status: TransformPassRuntimeStatus::PlannedOnly,
                 input_byte_len,
                 output_byte_len: output_css.len(),
                 mutation_count: 0,
                 provenance_preserved: true,
-                detail: "registered in DAG planner; mutation engine not implemented yet",
+                detail: "unknown pass id in execution plan",
             },
         };
         outcomes.push(outcome);
@@ -1135,6 +1176,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
         css_module_evaluation,
         css_import_inlines,
         css_module_composes_exports,
+        design_token_routes,
         outcomes,
         pass_plan,
     }
@@ -1179,6 +1221,7 @@ pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
         TransformPassKind::TreeShakeKeyframes.id(),
         TransformPassKind::TreeShakeValue.id(),
         TransformPassKind::TreeShakeCustomProperty.id(),
+        TransformPassKind::DesignTokenRouting.id(),
         TransformPassKind::CalcReduction.id(),
         TransformPassKind::PrintCss.id(),
     ]
@@ -1410,6 +1453,14 @@ fn resolve_css_module_composes(
     resolutions: &[TransformCssModuleComposesResolutionV0],
 ) -> (String, usize) {
     strip_resolved_css_module_composes_with_lexer(source, dialect, resolutions)
+}
+
+fn route_design_token_values(
+    source: &str,
+    dialect: StyleDialect,
+    routes: &[TransformDesignTokenRouteV0],
+) -> (String, usize) {
+    route_design_token_values_with_lexer(source, dialect, routes)
 }
 
 fn tree_shake_css_class_rules(
@@ -2734,6 +2785,75 @@ fn css_module_composes_resolution_exists(
                 .iter()
                 .all(|name| normalize_reachable_class_name(name).is_some())
     })
+}
+
+fn route_design_token_values_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+    routes: &[TransformDesignTokenRouteV0],
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let mut replacements = Vec::new();
+
+    for rule in &rules {
+        let Some((block_start_index, block_end_index)) =
+            rule_block_token_indexes(tokens, rule.block_start, rule.block_end)
+        else {
+            continue;
+        };
+        for declaration in
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+        {
+            if declaration.property.starts_with("--") || declaration.important {
+                continue;
+            }
+            let Some(token_name) = parse_whole_design_token_reference(&declaration.value) else {
+                continue;
+            };
+            let Some(routed_value) = design_token_routed_value(&token_name, routes) else {
+                continue;
+            };
+            replacements.push((
+                declaration.start,
+                declaration.end,
+                format!("{}: {routed_value};", declaration.property),
+            ));
+        }
+    }
+
+    replace_source_ranges(source, &replacements)
+}
+
+fn parse_whole_design_token_reference(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "var")?;
+    match arguments.as_slice() {
+        [name] if name.starts_with("--") => Some(name.clone()),
+        _ => None,
+    }
+}
+
+fn design_token_routed_value<'a>(
+    token_name: &str,
+    routes: &'a [TransformDesignTokenRouteV0],
+) -> Option<&'a str> {
+    routes.iter().find_map(|route| {
+        let route_name = normalize_design_token_name(&route.token_name)?;
+        let routed_value = route.routed_value.trim();
+        if routed_value.is_empty() || routed_value.chars().any(|ch| matches!(ch, ';' | '{' | '}')) {
+            return None;
+        }
+        (route_name == token_name).then_some(routed_value)
+    })
+}
+
+fn normalize_design_token_name(name: &str) -> Option<&str> {
+    let name = name.trim();
+    if name.starts_with("--") && name.len() > 2 {
+        return Some(name);
+    }
+    None
 }
 
 fn rewrite_css_module_class_names_with_lexer(
@@ -5384,9 +5504,9 @@ fn is_comment_token(kind: SyntaxKind) -> bool {
 mod tests {
     use super::{
         TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
-        TransformExecutionContextV0, TransformImportInlineV0, TransformModuleEvaluationV0,
-        TransformPassRuntimeStatus, execute_transform_passes_on_source,
-        execute_transform_passes_on_source_with_dialect,
+        TransformDesignTokenRouteV0, TransformExecutionContextV0, TransformImportInlineV0,
+        TransformModuleEvaluationV0, TransformPassRuntimeStatus,
+        execute_transform_passes_on_source, execute_transform_passes_on_source_with_dialect,
         execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
         summarize_omena_transform_passes_boundary,
     };
@@ -5445,6 +5565,7 @@ mod tests {
                 "p34-tree-shake-keyframes",
                 "p35-tree-shake-value",
                 "p36-tree-shake-custom-property",
+                "p39-design-token-routing",
                 "p25-calc-reduction",
                 "p40-print-css"
             ]
@@ -5647,6 +5768,44 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["p30-composes-resolution", "p40-print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_routes_design_tokens_from_bridge_context() {
+        let source = r#".button { color: var(--pkg-brand); background: var(--keep, blue); border-color: var(--unsafe); --local: var(--pkg-brand); }"#;
+        let context = TransformExecutionContextV0 {
+            design_token_routes: vec![
+                TransformDesignTokenRouteV0 {
+                    token_name: "--pkg-brand".to_string(),
+                    routed_value: "var(--theme-brand)".to_string(),
+                },
+                TransformDesignTokenRouteV0 {
+                    token_name: "--unsafe".to_string(),
+                    routed_value: "red; color: blue".to_string(),
+                },
+            ],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::DesignTokenRouting,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#".button { color: var(--theme-brand); background: var(--keep, blue); border-color: var(--unsafe); --local: var(--pkg-brand); }"#
+        );
+        assert_eq!(execution.design_token_routes, context.design_token_routes);
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["p39-design-token-routing", "p40-print-css"]
         );
     }
 

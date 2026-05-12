@@ -60,4 +60,5 @@ reachability context. P34 removes unreferenced top-level keyframes. P35 removes
 unreferenced local literal `@value` declarations. P36 removes unreferenced
 custom-property declarations. P37-P38 reuse the same static media/supports
 witness evaluators as P24/P23 under their semantic-aware dead-branch pass
-surfaces.
+surfaces. P39 design-token routing requires explicit bridge token routes and
+only rewrites whole-value `var(--token)` declaration values.
