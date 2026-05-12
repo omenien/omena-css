@@ -72,7 +72,7 @@ pub fn summarize_omena_transform_print_boundary() -> TransformPrintBoundarySumma
             TransformPrintMode::Pretty,
             TransformPrintMode::Minified,
         ],
-        source_map_contract: "line-level identity segments plus provenance-node mutation segments",
+        source_map_contract: "line-level identity segments plus provenance mutation-span segments",
         planner_surface: "omena-transform-passes.plan",
     }
 }
@@ -155,13 +155,40 @@ fn compose_source_map_segments_from_execution(
         .provenance_derivation_forest
         .nodes
         .iter()
-        .map(|node| TransformSourceMapSegmentV0 {
-            source_path: source_path.to_string(),
-            original_start: node.source_span_start,
-            original_end: node.source_span_end,
-            generated_start: node.generated_span_start,
-            generated_end: node.generated_span_end,
-            pass_id: node.pass_id,
+        .flat_map(|node| {
+            let spans = if node.mutation_spans.is_empty() {
+                vec![(
+                    node.source_span_start,
+                    node.source_span_end,
+                    node.generated_span_start,
+                    node.generated_span_end,
+                )]
+            } else {
+                node.mutation_spans
+                    .iter()
+                    .map(|span| {
+                        (
+                            span.source_span_start,
+                            span.source_span_end,
+                            span.generated_span_start,
+                            span.generated_span_end,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            };
+
+            spans.into_iter().map(
+                |(original_start, original_end, generated_start, generated_end)| {
+                    TransformSourceMapSegmentV0 {
+                        source_path: source_path.to_string(),
+                        original_start,
+                        original_end,
+                        generated_start,
+                        generated_end,
+                        pass_id: node.pass_id,
+                    }
+                },
+            )
         })
         .collect()
 }
@@ -328,5 +355,39 @@ mod tests {
                 .map(|segment| segment.generated_end),
             Some(execution.output_byte_len)
         );
+    }
+
+    #[test]
+    fn emits_one_source_map_segment_per_mutation_span() {
+        let source = ".a { /* one */ color: red; }\n.b { /* two */ color: blue; }";
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[TransformPassKind::CommentStrip, TransformPassKind::PrintCss],
+        );
+        let comment_node = execution
+            .provenance_derivation_forest
+            .nodes
+            .iter()
+            .find(|node| node.pass_id == "p02-comment-strip");
+        assert!(comment_node.is_some());
+        if let Some(comment_node) = comment_node {
+            assert_eq!(comment_node.mutation_spans.len(), 2);
+        }
+
+        let artifact = print_transform_execution_artifact(
+            "Multi.module.css",
+            "semantic:multi",
+            &[TransformPassKind::CommentStrip, TransformPassKind::PrintCss],
+            default_print_options(),
+            &execution,
+        );
+        let comment_segments = artifact
+            .source_map_segments
+            .iter()
+            .filter(|segment| segment.pass_id == "p02-comment-strip")
+            .collect::<Vec<_>>();
+
+        assert_eq!(comment_segments.len(), 2);
+        assert!(comment_segments[0].original_start < comment_segments[1].original_start);
     }
 }
