@@ -4667,17 +4667,22 @@ fn parse_color_function_value(value: &str) -> Option<String> {
         }
         _ => return None,
     };
-    if !space.eq_ignore_ascii_case("srgb") {
-        return None;
-    }
-    Some(
+    let color = if space.eq_ignore_ascii_case("srgb") {
         SrgbColor {
             red: parse_srgb_component(red)?,
             green: parse_srgb_component(green)?,
             blue: parse_srgb_component(blue)?,
         }
-        .to_css_rgb(),
-    )
+    } else if space.eq_ignore_ascii_case("display-p3") {
+        display_p3_to_srgb(
+            parse_unit_interval_component(red)?,
+            parse_unit_interval_component(green)?,
+            parse_unit_interval_component(blue)?,
+        )?
+    } else {
+        return None;
+    };
+    Some(color.to_css_rgb())
 }
 
 fn parse_opaque_alpha(text: &str) -> Option<bool> {
@@ -4756,6 +4761,10 @@ fn parse_plain_f64(text: &str) -> Option<f64> {
 }
 
 fn parse_srgb_component(text: &str) -> Option<u8> {
+    Some((parse_unit_interval_component(text)? * 255.0).round() as u8)
+}
+
+fn parse_unit_interval_component(text: &str) -> Option<f64> {
     let value = if let Some(percent) = text.strip_suffix('%') {
         parse_plain_f64(percent)? / 100.0
     } else {
@@ -4764,7 +4773,7 @@ fn parse_srgb_component(text: &str) -> Option<u8> {
     if !(0.0..=1.0).contains(&value) {
         return None;
     }
-    Some((value * 255.0).round().clamp(0.0, 255.0) as u8)
+    Some(value)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4882,6 +4891,48 @@ fn inline_end_property(
     match direction {
         InlineDirection::Ltr => rtl_property,
         InlineDirection::Rtl => ltr_property,
+    }
+}
+
+fn display_p3_to_srgb(red: f64, green: f64, blue: f64) -> Option<SrgbColor> {
+    let red_linear = decode_srgb_channel(red);
+    let green_linear = decode_srgb_channel(green);
+    let blue_linear = decode_srgb_channel(blue);
+
+    let x = 0.486_570_948_648_216_2 * red_linear
+        + 0.265_667_693_169_093_1 * green_linear
+        + 0.198_217_285_234_362_5 * blue_linear;
+    let y = 0.228_974_564_069_748_8 * red_linear
+        + 0.691_738_521_836_506_4 * green_linear
+        + 0.079_286_914_093_745 * blue_linear;
+    let z = 0.045_113_381_858_902_6 * green_linear + 1.043_944_368_900_976 * blue_linear;
+
+    let red_linear_srgb =
+        3.240_969_941_904_522_6 * x - 1.537_383_177_570_094 * y - 0.498_610_760_293_003_4 * z;
+    let green_linear_srgb =
+        -0.969_243_636_280_879_6 * x + 1.875_967_501_507_720_2 * y + 0.041_555_057_407_175_59 * z;
+    let blue_linear_srgb =
+        0.055_630_079_696_993_66 * x - 0.203_976_958_888_976_52 * y + 1.056_971_514_242_878_6 * z;
+
+    if !is_in_gamut_linear_srgb(red_linear_srgb)
+        || !is_in_gamut_linear_srgb(green_linear_srgb)
+        || !is_in_gamut_linear_srgb(blue_linear_srgb)
+    {
+        return None;
+    }
+
+    Some(SrgbColor {
+        red: encode_srgb_channel(red_linear_srgb),
+        green: encode_srgb_channel(green_linear_srgb),
+        blue: encode_srgb_channel(blue_linear_srgb),
+    })
+}
+
+fn decode_srgb_channel(value: f64) -> f64 {
+    if value <= 0.040_45 {
+        value / 12.92
+    } else {
+        ((value + 0.055) / 1.055).powf(2.4)
     }
 }
 
@@ -7783,7 +7834,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_static_srgb_color_function_declarations() {
-        let source = r#".card { color: color(srgb 1 0 0); background-color: color(srgb 50% 25% 0% / 100%); outline-color: color(srgb 0 0 1 / 1); accent-color: color(srgb 1 0 0 / .5); border-color: color(display-p3 1 0 0); }"#;
+        let source = r#".card { color: color(srgb 1 0 0); background-color: color(srgb 50% 25% 0% / 100%); outline-color: color(srgb 0 0 1 / 1); fill: color(display-p3 0.5 0.5 0.5 / 100%); accent-color: color(srgb 1 0 0 / .5); border-color: color(display-p3 1 0 0); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7792,10 +7843,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 3);
+        assert_eq!(execution.mutation_count, 4);
         assert_eq!(
             execution.output_css,
-            r#".card { color: rgb(255 0 0); background-color: rgb(128 64 0); outline-color: rgb(0 0 255); accent-color: color(srgb 1 0 0 / .5); border-color: color(display-p3 1 0 0); }"#
+            r#".card { color: rgb(255 0 0); background-color: rgb(128 64 0); outline-color: rgb(0 0 255); fill: rgb(128 128 128); accent-color: color(srgb 1 0 0 / .5); border-color: color(display-p3 1 0 0); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
