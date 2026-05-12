@@ -40,7 +40,8 @@ const omenaCssPublishOrder = [
   "omena-transform-print",
   "omena-transform-egg",
 ];
-const omenaCssWorkspaceVersion = "0.1.0";
+const externallyPublishedCrates = new Set(["omena-incremental"]);
+const omenaCssDependencyVersion = "0.1";
 
 const cliOptions = parseArgs(process.argv.slice(2));
 const destination = cliOptions.temp
@@ -341,7 +342,7 @@ function rewriteCrateManifest(manifestPath) {
   }
   manifest = manifest.replace(
     /^(omena-[a-z0-9-]+ = \{ path = "\.\.\/omena-[a-z0-9-]+") \}$/gm,
-    `$1, version = "${omenaCssWorkspaceVersion}" }`,
+    `$1, version = "${omenaCssDependencyVersion}" }`,
   );
   writeFileSync(manifestPath, manifest);
 }
@@ -386,6 +387,13 @@ function verifyPublishDryRun(destinationPath) {
       env: { ...process.env, RUSTUP_TOOLCHAIN: "stable" },
       stdio: "ignore",
     });
+
+    if (externallyPublishedCrates.has(crateName)) {
+      process.stderr.write(
+        `validated package surface for ${crateName}; crate already publishes from its own omena repository\n`,
+      );
+      continue;
+    }
 
     if (hasLocalOmenaDependencies(manifestPath)) {
       process.stderr.write(
