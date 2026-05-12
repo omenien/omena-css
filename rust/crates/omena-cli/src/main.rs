@@ -440,6 +440,8 @@ fn merge_cli_transform_context(
     additional: &OmenaQueryTransformExecutionContextV0,
 ) -> OmenaQueryTransformExecutionContextV0 {
     base.closed_style_world = base.closed_style_world || additional.closed_style_world;
+    base.drop_dark_mode_media_queries =
+        base.drop_dark_mode_media_queries || additional.drop_dark_mode_media_queries;
     merge_cli_context_list(
         &mut base.reachable_class_names,
         &additional.reachable_class_names,

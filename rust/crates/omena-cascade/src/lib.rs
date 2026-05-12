@@ -1296,22 +1296,7 @@ pub fn evaluate_static_supports_condition(
     let normalized_condition = normalize_ascii_whitespace(condition);
     let (verdict, reason) = match assumption {
         StaticSupportsAssumptionV0::ModernBrowser => {
-            if parse_not_simple_supports_declaration(&normalized_condition).is_some() {
-                (
-                    StaticSupportsEvalVerdictV0::AlwaysFalse,
-                    "modern-browser assumption rejects negated simple declaration feature queries",
-                )
-            } else if parse_simple_supports_declaration(&normalized_condition).is_some() {
-                (
-                    StaticSupportsEvalVerdictV0::AlwaysTrue,
-                    "modern-browser assumption accepts simple declaration feature queries",
-                )
-            } else {
-                (
-                    StaticSupportsEvalVerdictV0::Unknown,
-                    "unsupported supports condition shape",
-                )
-            }
+            evaluate_modern_static_supports_condition(&normalized_condition)
         }
     };
 
@@ -1324,6 +1309,75 @@ pub fn evaluate_static_supports_condition(
         reason,
         provenance_preserved: verdict != StaticSupportsEvalVerdictV0::Unknown,
     }
+}
+
+fn evaluate_modern_static_supports_condition(
+    condition: &str,
+) -> (StaticSupportsEvalVerdictV0, &'static str) {
+    if let Some(parts) = parse_static_supports_and_parts(condition) {
+        let verdicts = parts
+            .iter()
+            .map(|part| evaluate_modern_static_supports_condition(part).0)
+            .collect::<Vec<_>>();
+        if verdicts.contains(&StaticSupportsEvalVerdictV0::AlwaysFalse) {
+            return (
+                StaticSupportsEvalVerdictV0::AlwaysFalse,
+                "modern-browser assumption rejects a false simple declaration inside conjunction",
+            );
+        }
+        if verdicts
+            .iter()
+            .all(|verdict| *verdict == StaticSupportsEvalVerdictV0::AlwaysTrue)
+        {
+            return (
+                StaticSupportsEvalVerdictV0::AlwaysTrue,
+                "modern-browser assumption accepts all simple declarations inside conjunction",
+            );
+        }
+        return (
+            StaticSupportsEvalVerdictV0::Unknown,
+            "unsupported supports conjunction member",
+        );
+    }
+
+    if let Some((property, value)) = parse_not_simple_supports_declaration(condition) {
+        return match evaluate_modern_simple_supports_declaration(property, value) {
+            StaticSupportsEvalVerdictV0::AlwaysTrue => (
+                StaticSupportsEvalVerdictV0::AlwaysFalse,
+                "modern-browser assumption rejects negated supported declaration queries",
+            ),
+            StaticSupportsEvalVerdictV0::AlwaysFalse => (
+                StaticSupportsEvalVerdictV0::AlwaysTrue,
+                "modern-browser assumption accepts negated unsupported declaration queries",
+            ),
+            StaticSupportsEvalVerdictV0::Unknown => (
+                StaticSupportsEvalVerdictV0::Unknown,
+                "unsupported negated supports condition shape",
+            ),
+        };
+    }
+
+    if let Some((property, value)) = parse_simple_supports_declaration(condition) {
+        return match evaluate_modern_simple_supports_declaration(property, value) {
+            StaticSupportsEvalVerdictV0::AlwaysTrue => (
+                StaticSupportsEvalVerdictV0::AlwaysTrue,
+                "modern-browser assumption accepts simple declaration feature queries",
+            ),
+            StaticSupportsEvalVerdictV0::AlwaysFalse => (
+                StaticSupportsEvalVerdictV0::AlwaysFalse,
+                "modern-browser assumption rejects known obsolete declaration feature queries",
+            ),
+            StaticSupportsEvalVerdictV0::Unknown => (
+                StaticSupportsEvalVerdictV0::Unknown,
+                "unsupported simple declaration feature query",
+            ),
+        };
+    }
+
+    (
+        StaticSupportsEvalVerdictV0::Unknown,
+        "unsupported supports condition shape",
+    )
 }
 
 pub fn prove_scope_flatten_candidate(input: ScopeFlattenInputV0) -> ScopeFlattenProofV0 {
@@ -1404,6 +1458,22 @@ fn parse_simple_supports_declaration(condition: &str) -> Option<(&str, &str)> {
         return None;
     }
     Some((property, value))
+}
+
+fn parse_static_supports_and_parts(condition: &str) -> Option<Vec<&str>> {
+    let parts = condition.split(" and ").map(str::trim).collect::<Vec<_>>();
+    (parts.len() > 1 && parts.iter().all(|part| !part.is_empty())).then_some(parts)
+}
+
+fn evaluate_modern_simple_supports_declaration(
+    property: &str,
+    value: &str,
+) -> StaticSupportsEvalVerdictV0 {
+    if property.starts_with("-ms-") || value.starts_with("-ms-") {
+        StaticSupportsEvalVerdictV0::AlwaysFalse
+    } else {
+        StaticSupportsEvalVerdictV0::AlwaysTrue
+    }
 }
 
 fn is_supports_declaration_token_char(ch: char) -> bool {
@@ -2283,12 +2353,29 @@ mod tests {
         assert_eq!(negative.verdict, StaticSupportsEvalVerdictV0::AlwaysFalse);
         assert!(negative.provenance_preserved);
 
-        let unknown = evaluate_static_supports_condition(
+        let conjunction = evaluate_static_supports_condition(
             "(display: grid) and (color: red)",
             StaticSupportsAssumptionV0::ModernBrowser,
         );
-        assert_eq!(unknown.verdict, StaticSupportsEvalVerdictV0::Unknown);
-        assert!(!unknown.provenance_preserved);
+        assert_eq!(conjunction.verdict, StaticSupportsEvalVerdictV0::AlwaysTrue);
+        assert!(conjunction.provenance_preserved);
+
+        let obsolete = evaluate_static_supports_condition(
+            "(display: -ms-grid)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(obsolete.verdict, StaticSupportsEvalVerdictV0::AlwaysFalse);
+        assert!(obsolete.provenance_preserved);
+
+        let negated_obsolete = evaluate_static_supports_condition(
+            "not (display: -ms-grid)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            negated_obsolete.verdict,
+            StaticSupportsEvalVerdictV0::AlwaysTrue
+        );
+        assert!(negated_obsolete.provenance_preserved);
     }
 
     #[test]
