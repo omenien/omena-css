@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildStyleDocumentWithOmenaParser } from "../../../server/engine-host-node/src/omena-parser-style-document-builder";
+import {
+  buildStyleDocumentWithOmenaParser,
+  resolveRuntimeStyleDocumentBuilder,
+} from "../../../server/engine-host-node/src/omena-parser-style-document-builder";
 import { SELECTED_QUERY_RUNNER_COMMANDS } from "../../../server/engine-host-node/src/selected-query-backend";
 
 const range = (start: number, end: number) => ({
@@ -8,6 +11,47 @@ const range = (start: number, end: number) => ({
 });
 
 describe("buildStyleDocumentWithOmenaParser", () => {
+  it("defaults to omena-parser in packaged extension runtimes", () => {
+    const projectRoot = "/workspace/packed-extension";
+    const builder = resolveRuntimeStyleDocumentBuilder(
+      { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
+      (filePath) => filePath === `${projectRoot}/dist/client/extension.js`,
+    );
+
+    expect(builder).toBe(buildStyleDocumentWithOmenaParser);
+  });
+
+  it("keeps source checkouts on the current TypeScript builder unless explicitly enabled", () => {
+    const projectRoot = "/workspace/css-module-explainer";
+    const builder = resolveRuntimeStyleDocumentBuilder(
+      { CME_PROJECT_ROOT: projectRoot } as NodeJS.ProcessEnv,
+      (filePath) =>
+        filePath === `${projectRoot}/dist/client/extension.js` ||
+        filePath === `${projectRoot}/rust/Cargo.toml`,
+    );
+
+    expect(builder).toBeUndefined();
+    expect(
+      resolveRuntimeStyleDocumentBuilder({
+        CME_PROJECT_ROOT: projectRoot,
+        CME_STYLE_DOCUMENT_BUILDER: "omena-parser",
+      } as NodeJS.ProcessEnv),
+    ).toBe(buildStyleDocumentWithOmenaParser);
+  });
+
+  it("allows packaged runtimes to opt out to the current TypeScript builder", () => {
+    const projectRoot = "/workspace/packed-extension";
+    const builder = resolveRuntimeStyleDocumentBuilder(
+      {
+        CME_PROJECT_ROOT: projectRoot,
+        CME_STYLE_DOCUMENT_BUILDER: "typescript-current",
+      } as NodeJS.ProcessEnv,
+      (filePath) => filePath === `${projectRoot}/dist/client/extension.js`,
+    );
+
+    expect(builder).toBeUndefined();
+  });
+
   it("maps parser intermediate selector facts into style HIR", () => {
     const document = buildStyleDocumentWithOmenaParser(
       "/workspace/Button.module.scss",

@@ -73,6 +73,16 @@ assert.ok(
   "code-action-query must keep an explicit runtime style-document builder boundary",
 );
 
+const omenaParserStyleDocumentBuilder = readText(
+  "server/engine-host-node/src/omena-parser-style-document-builder.ts",
+);
+assert.ok(
+  omenaParserStyleDocumentBuilder.includes("isPackagedExtensionRuntime") &&
+    omenaParserStyleDocumentBuilder.includes("return buildStyleDocumentWithOmenaParser") &&
+    omenaParserStyleDocumentBuilder.includes('value === "typescript-current"'),
+  "packaged extension runtimes must default to omena-parser with a typescript-current opt-out",
+);
+
 const scssIndex = readText("server/engine-core-ts/src/core/scss/scss-index.ts");
 assert.ok(
   scssIndex.includes("export type StyleDocumentBuilder") &&
