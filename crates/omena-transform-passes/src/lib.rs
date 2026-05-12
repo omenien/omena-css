@@ -205,6 +205,7 @@ pub struct TransformFuzzSeedReportV0 {
 #[serde(default, rename_all = "camelCase")]
 pub struct TransformExecutionContextV0 {
     pub closed_style_world: bool,
+    pub drop_dark_mode_media_queries: bool,
     pub reachable_class_names: Vec<String>,
     pub reachable_keyframe_names: Vec<String>,
     pub reachable_value_names: Vec<String>,
@@ -785,7 +786,8 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 }
             }
             Some(TransformPassKind::DeadMediaBranchRemoval) => {
-                let (next_css, mutation_count) = evaluate_static_media_rules(&output_css, dialect);
+                let (next_css, mutation_count) =
+                    evaluate_dead_media_branch_rules(&output_css, dialect, context);
                 let status = if mutation_count == 0 {
                     TransformPassRuntimeStatus::NoChange
                 } else {
@@ -1996,7 +1998,21 @@ fn evaluate_static_supports_rules(source: &str, dialect: StyleDialect) -> (Strin
 }
 
 fn evaluate_static_media_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
-    evaluate_static_media_rules_with_lexer(source, dialect)
+    evaluate_static_media_rules_with_lexer(source, dialect, StaticMediaEvaluationOptions::default())
+}
+
+fn evaluate_dead_media_branch_rules(
+    source: &str,
+    dialect: StyleDialect,
+    context: &TransformExecutionContextV0,
+) -> (String, usize) {
+    evaluate_static_media_rules_with_lexer(
+        source,
+        dialect,
+        StaticMediaEvaluationOptions {
+            drop_dark_mode_media_queries: context.drop_dark_mode_media_queries,
+        },
+    )
 }
 
 fn inline_css_imports(
@@ -2978,13 +2994,22 @@ fn evaluate_static_supports_rules_once_with_lexer(
     (output, replacements.len())
 }
 
-fn evaluate_static_media_rules_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct StaticMediaEvaluationOptions {
+    drop_dark_mode_media_queries: bool,
+}
+
+fn evaluate_static_media_rules_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+    options: StaticMediaEvaluationOptions,
+) -> (String, usize) {
     let mut output = source.to_string();
     let mut mutation_count = 0;
 
     loop {
         let (next_output, next_mutation_count) =
-            evaluate_static_media_rules_once_with_lexer(&output, dialect);
+            evaluate_static_media_rules_once_with_lexer(&output, dialect, options);
         if next_mutation_count == 0 {
             return (output, mutation_count);
         }
@@ -2996,6 +3021,7 @@ fn evaluate_static_media_rules_with_lexer(source: &str, dialect: StyleDialect) -
 fn evaluate_static_media_rules_once_with_lexer(
     source: &str,
     dialect: StyleDialect,
+    options: StaticMediaEvaluationOptions,
 ) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
@@ -3016,13 +3042,15 @@ fn evaluate_static_media_rules_once_with_lexer(
                         .trim(),
                 )
                 .to_ascii_lowercase();
-                let replacement = match condition.as_str() {
-                    "all" => source[token_end(&tokens[block_start_index])
-                        ..token_start(&tokens[block_end_index])]
-                        .trim()
-                        .to_string(),
-                    "not all" => String::new(),
-                    _ => {
+                let replacement = match evaluate_static_media_condition(&condition, options) {
+                    StaticMediaEvalVerdict::AlwaysTrue => {
+                        source[token_end(&tokens[block_start_index])
+                            ..token_start(&tokens[block_end_index])]
+                            .trim()
+                            .to_string()
+                    }
+                    StaticMediaEvalVerdict::AlwaysFalse => String::new(),
+                    StaticMediaEvalVerdict::Unknown => {
                         index += 1;
                         continue;
                     }
@@ -3058,6 +3086,34 @@ fn evaluate_static_media_rules_once_with_lexer(
     }
 
     (output, replacements.len())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticMediaEvalVerdict {
+    AlwaysTrue,
+    AlwaysFalse,
+    Unknown,
+}
+
+fn evaluate_static_media_condition(
+    condition: &str,
+    options: StaticMediaEvaluationOptions,
+) -> StaticMediaEvalVerdict {
+    match condition {
+        "all" => StaticMediaEvalVerdict::AlwaysTrue,
+        "not all" => StaticMediaEvalVerdict::AlwaysFalse,
+        "(max-width: 0px)" | "screen and (max-width: 0px)" | "all and (max-width: 0px)" => {
+            StaticMediaEvalVerdict::AlwaysFalse
+        }
+        "(prefers-color-scheme: dark)"
+        | "screen and (prefers-color-scheme: dark)"
+        | "all and (prefers-color-scheme: dark)"
+            if options.drop_dark_mode_media_queries =>
+        {
+            StaticMediaEvalVerdict::AlwaysFalse
+        }
+        _ => StaticMediaEvalVerdict::Unknown,
+    }
 }
 
 fn at_rule_block_indexes(
@@ -8987,7 +9043,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_evaluates_literal_media_branches() {
-        let source = r#"@media all { .a { color: red; } } @media not all { .b { color: blue; } } @media screen { .c { color: green; } } @supports (display: grid) { @media all { @media all { .d { color: black; } } } }"#;
+        let source = r#"@media all { .a { color: red; } } @media not all { .b { color: blue; } } @media (max-width: 0px) { .zero { color: red; } } @media screen { .c { color: green; } } @supports (display: grid) { @media all { @media all { .d { color: black; } } } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -8996,10 +9052,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(execution.mutation_count, 5);
         assert_eq!(
             execution.output_css,
-            r#".a { color: red; }  @media screen { .c { color: green; } } @supports (display: grid) { .d { color: black; } }"#
+            r#".a { color: red; }   @media screen { .c { color: green; } } @supports (display: grid) { .d { color: black; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
@@ -9018,10 +9074,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(execution.mutation_count, 5);
         assert_eq!(
             execution.output_css,
-            r#".a { display: grid; }  @supports (display: grid) and (color: red) { .c { color: red; } } @media all { .d { display: grid; } }"#
+            r#".a { display: grid; }  .c { color: red; } @media all { .d { display: grid; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
@@ -9097,7 +9153,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_removes_dead_branches_through_semantic_pass_surfaces() {
-        let source = r#"@media not all { .dead { color: red; } } @supports (display: grid) { .grid { display: grid; } } @supports (display: grid) and (color: red) { .unknown { color: red; } }"#;
+        let source = r#"@media not all { .dead { color: red; } } @supports (display: grid) { .grid { display: grid; } } @supports (display: -ms-grid) { .ms { display: -ms-grid; } } @supports (display: grid) and (color: red) { .conjunction { color: red; } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9107,10 +9163,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 4);
         assert_eq!(
             execution.output_css,
-            r#" .grid { display: grid; } @supports (display: grid) and (color: red) { .unknown { color: red; } }"#
+            r#" .grid { display: grid; }  .conjunction { color: red; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
@@ -9120,6 +9176,31 @@ mod tests {
                 "print-css"
             ]
         );
+    }
+
+    #[test]
+    fn execution_runtime_removes_dark_media_branches_with_workspace_context() {
+        let source = r#"@media (prefers-color-scheme: dark) { .dark { color: white; } } @media (prefers-color-scheme: light) { .light { color: black; } } @media screen and (prefers-color-scheme: dark) { .screen-dark { color: white; } }"#;
+        let context = TransformExecutionContextV0 {
+            drop_dark_mode_media_queries: true,
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::DeadMediaBranchRemoval,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#" @media (prefers-color-scheme: light) { .light { color: black; } } "#
+        );
+        assert!(!execution.output_css.contains("prefers-color-scheme: dark"));
     }
 
     #[test]

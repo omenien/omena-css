@@ -589,6 +589,8 @@ fn merge_transform_context(
     context: &TransformExecutionContextV0,
 ) -> TransformExecutionContextV0 {
     merged.closed_style_world = merged.closed_style_world || context.closed_style_world;
+    merged.drop_dark_mode_media_queries =
+        merged.drop_dark_mode_media_queries || context.drop_dark_mode_media_queries;
     merge_context_list(
         &mut merged.reachable_class_names,
         &context.reachable_class_names,
