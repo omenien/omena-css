@@ -11,9 +11,9 @@ use std::collections::BTreeSet;
 use browserslist::{Distrib, Opts, resolve as resolve_browserslist};
 use omena_transform_cst::TransformPassKind;
 use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TargetFeatureSupportV0 {
     pub vendor_prefix_required: bool,
@@ -27,14 +27,21 @@ pub struct TargetFeatureSupportV0 {
     pub supports_cascade_layers: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(default)]
 pub struct TargetTransformOptionsV0 {
     pub allow_logical_to_physical: bool,
     pub allow_scope_flatten: bool,
     pub allow_layer_flatten: bool,
     pub enable_supports_static_eval: bool,
     pub enable_media_static_eval: bool,
+}
+
+impl Default for TargetTransformOptionsV0 {
+    fn default() -> Self {
+        conservative_target_options()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

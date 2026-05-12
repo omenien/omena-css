@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use omena_query::{
-    execute_omena_query_consumer_build_style_source,
-    execute_omena_query_consumer_build_style_source_for_target_query,
+    OmenaQueryTargetTransformOptionsV0, execute_omena_query_consumer_build_style_source,
+    execute_omena_query_consumer_build_style_source_for_target_query_with_options,
     list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
 };
 use serde::Serialize;
@@ -44,6 +44,21 @@ enum Command {
         /// Browserslist query or named target profile used to plan target-sensitive passes.
         #[arg(long)]
         target_query: Option<String>,
+        /// Allow logical property lowering when target query says it is needed.
+        #[arg(long)]
+        allow_logical_to_physical: bool,
+        /// Allow @scope flattening when target query says it is needed.
+        #[arg(long)]
+        allow_scope_flatten: bool,
+        /// Allow cascade layer flattening when target query says it is needed.
+        #[arg(long)]
+        allow_layer_flatten: bool,
+        /// Enable static @supports branch evaluation.
+        #[arg(long)]
+        enable_supports_static_eval: bool,
+        /// Enable static @media branch evaluation.
+        #[arg(long)]
+        enable_media_static_eval: bool,
         /// Print a machine-readable execution summary.
         #[arg(long)]
         json: bool,
@@ -74,8 +89,26 @@ fn run(cli: Cli) -> Result<(), String> {
             output,
             passes,
             target_query,
+            allow_logical_to_physical,
+            allow_scope_flatten,
+            allow_layer_flatten,
+            enable_supports_static_eval,
+            enable_media_static_eval,
             json,
-        } => build_file(path, output, passes, target_query, json),
+        } => build_file(
+            path,
+            output,
+            passes,
+            target_query,
+            OmenaQueryTargetTransformOptionsV0 {
+                allow_logical_to_physical,
+                allow_scope_flatten,
+                allow_layer_flatten,
+                enable_supports_static_eval,
+                enable_media_static_eval,
+            },
+            json,
+        ),
         Command::Passes { json } => list_passes(json),
     }
 }
@@ -104,6 +137,7 @@ fn build_file(
     output: Option<PathBuf>,
     pass_ids: Vec<String>,
     target_query: Option<String>,
+    target_options: OmenaQueryTargetTransformOptionsV0,
     json: bool,
 ) -> Result<(), String> {
     if target_query.is_some() && !pass_ids.is_empty() {
@@ -112,10 +146,11 @@ fn build_file(
 
     let source = read_source(&path)?;
     let summary = if let Some(target_query) = target_query {
-        execute_omena_query_consumer_build_style_source_for_target_query(
+        execute_omena_query_consumer_build_style_source_for_target_query_with_options(
             &path_string(&path),
             &source,
             &target_query,
+            target_options,
         )
     } else {
         execute_omena_query_consumer_build_style_source(&path_string(&path), &source, &pass_ids)

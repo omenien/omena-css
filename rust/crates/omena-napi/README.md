@@ -14,6 +14,9 @@ query, parser, and transform contracts settle:
 - `buildStyleSourceForTargetQueryJson(source, path, targetQuery)` plans
   conservative target-sensitive passes from a Browserslist query or named
   target profile.
+- `buildStyleSourceForTargetQueryWithOptionsJson(source, path, targetQuery,
+targetOptionsJson)` accepts camelCase target transform options for explicit
+  lowering opt-ins.
 - `listTransformPassesJson()` lists transform pass ids accepted by
   `buildStyleSourceJson`.
 

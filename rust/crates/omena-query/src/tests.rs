@@ -10,6 +10,7 @@ use super::{
     ParserRangeV0, SelectedQueryAdapterCapabilitiesV0,
     execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
+    execute_omena_query_consumer_build_style_source_for_target_query_with_options,
     execute_omena_query_transform_passes_from_source, list_omena_query_transform_pass_summaries,
     summarize_omena_query_boundary, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_evaluation_runtime,
@@ -520,6 +521,42 @@ fn exposes_consumer_build_facade_from_target_query() {
             .any(|pass_id| pass_id == "light-dark-lowering")
     );
     assert!(summary.ready_surfaces.contains(&"targetQueryBuildFacade"));
+}
+
+#[test]
+fn exposes_consumer_build_facade_from_target_query_options() {
+    let summary = execute_omena_query_consumer_build_style_source_for_target_query_with_options(
+        "Button.module.css",
+        ".card { margin-inline: 1rem; @scope (.card) { & { color: red; } } }",
+        "ie 11",
+        OmenaQueryTargetTransformOptionsV0 {
+            allow_logical_to_physical: true,
+            allow_scope_flatten: true,
+            allow_layer_flatten: true,
+            enable_supports_static_eval: true,
+            enable_media_static_eval: true,
+        },
+    );
+
+    assert!(summary.unknown_pass_ids.is_empty());
+    assert!(
+        summary
+            .requested_pass_ids
+            .iter()
+            .any(|pass_id| pass_id == "logical-to-physical")
+    );
+    assert!(
+        summary
+            .requested_pass_ids
+            .iter()
+            .any(|pass_id| pass_id == "scope-flatten")
+    );
+    assert!(
+        summary
+            .requested_pass_ids
+            .iter()
+            .any(|pass_id| pass_id == "supports-static-eval")
+    );
 }
 
 #[test]
