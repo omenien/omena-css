@@ -3,6 +3,8 @@
 use omena_query::{
     OmenaQueryConsumerBuildSummaryV0 as OmenaWasmBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaWasmCheckSummaryV0,
+    OmenaQueryEngineInputV2 as OmenaWasmEngineInputV2,
+    OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaWasmExpressionDomainSelectorProjectionV0,
     OmenaQueryStylePackageManifestV0 as OmenaWasmStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0 as OmenaWasmStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaWasmTargetTransformOptionsV0,
@@ -16,6 +18,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
+    summarize_omena_query_expression_domain_selector_projection,
 };
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
@@ -144,6 +147,12 @@ pub fn list_transform_passes() -> Result<JsValue, JsValue> {
     to_js_value(&list_transform_pass_summaries())
 }
 
+#[wasm_bindgen(js_name = expressionDomainSelectorProjection)]
+pub fn expression_domain_selector_projection(input: JsValue) -> Result<JsValue, JsValue> {
+    let input = parse_engine_input_value(input)?;
+    to_js_value(&expression_domain_selector_projection_summary(&input))
+}
+
 pub fn check_style_source_summary(source: &str, path: &str) -> OmenaWasmCheckSummaryV0 {
     let path = effective_path(path);
     summarize_omena_query_consumer_check_style_source(path, source)
@@ -249,6 +258,12 @@ pub fn list_transform_pass_summaries() -> Vec<OmenaWasmPassSummaryV0> {
     list_omena_query_transform_pass_summaries()
 }
 
+pub fn expression_domain_selector_projection_summary(
+    input: &OmenaWasmEngineInputV2,
+) -> OmenaWasmExpressionDomainSelectorProjectionV0 {
+    summarize_omena_query_expression_domain_selector_projection(input)
+}
+
 fn parse_pass_ids_value(value: JsValue) -> Result<Vec<String>, JsValue> {
     if value.is_null() || value.is_undefined() {
         return Ok(Vec::new());
@@ -307,6 +322,11 @@ fn parse_package_manifests_value(
             "packageManifests must be an array of package manifest objects: {error}"
         ))
     })
+}
+
+fn parse_engine_input_value(value: JsValue) -> Result<OmenaWasmEngineInputV2, JsValue> {
+    serde_wasm_bindgen::from_value(value)
+        .map_err(|error| JsValue::from_str(&format!("failed to parse engine input: {error}")))
 }
 
 fn to_js_value<T: Serialize>(value: &T) -> Result<JsValue, JsValue> {

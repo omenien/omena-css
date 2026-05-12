@@ -4,6 +4,8 @@ use napi_derive::napi;
 use omena_query::{
     OmenaQueryConsumerBuildSummaryV0 as OmenaNapiBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaNapiCheckSummaryV0,
+    OmenaQueryEngineInputV2 as OmenaNapiEngineInputV2,
+    OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaNapiExpressionDomainSelectorProjectionV0,
     OmenaQueryStylePackageManifestV0 as OmenaNapiStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0 as OmenaNapiStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaNapiTargetTransformOptionsV0,
@@ -17,6 +19,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
+    summarize_omena_query_expression_domain_selector_projection,
 };
 use serde::Serialize;
 
@@ -143,6 +146,12 @@ pub fn list_transform_passes_json() -> napi::Result<String> {
     to_json_string(&list_transform_pass_summaries())
 }
 
+#[napi(js_name = "expressionDomainSelectorProjectionJson")]
+pub fn expression_domain_selector_projection_json(input_json: String) -> napi::Result<String> {
+    let input = parse_engine_input_json(&input_json)?;
+    to_json_string(&expression_domain_selector_projection_summary(&input))
+}
+
 pub fn check_style_source_summary(source: &str, path: &str) -> OmenaNapiCheckSummaryV0 {
     let path = effective_path(path);
     summarize_omena_query_consumer_check_style_source(path, source)
@@ -248,6 +257,12 @@ pub fn list_transform_pass_summaries() -> Vec<OmenaNapiPassSummaryV0> {
     list_omena_query_transform_pass_summaries()
 }
 
+pub fn expression_domain_selector_projection_summary(
+    input: &OmenaNapiEngineInputV2,
+) -> OmenaNapiExpressionDomainSelectorProjectionV0 {
+    summarize_omena_query_expression_domain_selector_projection(input)
+}
+
 fn parse_target_options_json(
     target_options_json: &str,
 ) -> napi::Result<OmenaNapiTargetTransformOptionsV0> {
@@ -276,6 +291,12 @@ fn parse_package_manifests_json(
     }
     serde_json::from_str(package_manifests_json).map_err(|error| {
         napi::Error::from_reason(format!("failed to parse package manifests JSON: {error}"))
+    })
+}
+
+fn parse_engine_input_json(input_json: &str) -> napi::Result<OmenaNapiEngineInputV2> {
+    serde_json::from_str(input_json).map_err(|error| {
+        napi::Error::from_reason(format!("failed to parse engine input JSON: {error}"))
     })
 }
 
@@ -457,6 +478,22 @@ mod tests {
     }
 
     #[test]
+    fn serializes_expression_domain_reduced_product_projection_for_node_clients() -> napi::Result<()>
+    {
+        let json = expression_domain_selector_projection_json(
+            reduced_product_projection_engine_input_json().to_string(),
+        )
+        .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
+
+        assert!(json.contains("\"product\":\"omena-query.expression-domain-selector-projection\""));
+        assert!(json.contains("\"reducedProduct\""));
+        assert!(json.contains("\"sourceValueKind\":\"composite\""));
+        assert!(json.contains("\"prefix\":\"btn-\""));
+        assert!(json.contains("\"suffix\":\"-active\""));
+        Ok(())
+    }
+
+    #[test]
     fn reports_unknown_passes_without_failing_known_execution() {
         let pass_ids = vec!["whitespace-strip".to_string(), "unknown-pass".to_string()];
         let summary = build_style_source_summary(".card { color: red; }", "fixture.css", &pass_ids);
@@ -476,5 +513,110 @@ mod tests {
 
         assert_eq!(passes.len(), 40);
         assert!(passes.iter().any(|pass| pass.id == "whitespace-strip"));
+    }
+
+    fn reduced_product_projection_engine_input_json() -> &'static str {
+        r#"{
+          "version": "2",
+          "sources": [
+            {
+              "document": {
+                "classExpressions": [
+                  {
+                    "id": "expr-primary",
+                    "kind": "symbolRef",
+                    "scssModulePath": "/tmp/App.module.scss",
+                    "range": {
+                      "start": { "line": 4, "character": 12 },
+                      "end": { "line": 4, "character": 16 }
+                    },
+                    "className": null,
+                    "rootBindingDeclId": "decl-primary",
+                    "accessPath": null
+                  },
+                  {
+                    "id": "expr-secondary",
+                    "kind": "symbolRef",
+                    "scssModulePath": "/tmp/App.module.scss",
+                    "range": {
+                      "start": { "line": 5, "character": 12 },
+                      "end": { "line": 5, "character": 16 }
+                    },
+                    "className": null,
+                    "rootBindingDeclId": "decl-secondary",
+                    "accessPath": null
+                  }
+                ]
+              }
+            }
+          ],
+          "styles": [
+            {
+              "filePath": "/tmp/App.module.scss",
+              "document": {
+                "selectors": [
+                  {
+                    "name": "btn-primary--active",
+                    "viewKind": "canonical",
+                    "canonicalName": "btn-primary--active",
+                    "range": {
+                      "start": { "line": 1, "character": 1 },
+                      "end": { "line": 1, "character": 20 }
+                    },
+                    "nestedSafety": "safe",
+                    "composes": null,
+                    "bemSuffix": null
+                  },
+                  {
+                    "name": "btn-secondary--active",
+                    "viewKind": "canonical",
+                    "canonicalName": "btn-secondary--active",
+                    "range": {
+                      "start": { "line": 2, "character": 1 },
+                      "end": { "line": 2, "character": 22 }
+                    },
+                    "nestedSafety": "safe",
+                    "composes": null,
+                    "bemSuffix": null
+                  }
+                ]
+              }
+            }
+          ],
+          "typeFacts": [
+            {
+              "filePath": "/tmp/App.tsx",
+              "expressionId": "expr-primary",
+              "facts": {
+                "kind": "constrained",
+                "constraintKind": "prefixSuffix",
+                "values": null,
+                "prefix": "btn-primary-",
+                "suffix": "-active",
+                "minLen": 19,
+                "maxLen": null,
+                "charMust": null,
+                "charMay": null,
+                "mayIncludeOtherChars": null
+              }
+            },
+            {
+              "filePath": "/tmp/App.tsx",
+              "expressionId": "expr-secondary",
+              "facts": {
+                "kind": "constrained",
+                "constraintKind": "prefixSuffix",
+                "values": null,
+                "prefix": "btn-secondary-",
+                "suffix": "-active",
+                "minLen": 21,
+                "maxLen": null,
+                "charMust": null,
+                "charMay": null,
+                "mayIncludeOtherChars": null
+              }
+            }
+          ]
+        }"#
     }
 }

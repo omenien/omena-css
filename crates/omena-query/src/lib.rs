@@ -1,3 +1,4 @@
+pub use engine_input_producers::EngineInputV2 as OmenaQueryEngineInputV2;
 use engine_input_producers::{
     EngineInputV2, ExpressionDomainControlFlowAnalysisV0, ExpressionDomainFlowAnalysisV0,
     ExpressionSemanticsCanonicalProducerSignalV0, ExpressionSemanticsQueryFragmentsV0,
