@@ -1138,6 +1138,7 @@ fn derives_transform_context_from_workspace_sources() {
     assert_eq!(summary.import_inline_count, 1);
     assert_eq!(summary.class_name_rewrite_count, 2);
     assert_eq!(summary.css_module_composes_resolution_count, 1);
+    assert_eq!(summary.design_token_route_count, 1);
     assert_eq!(summary.reachable_class_name_count, 0);
     assert_eq!(summary.reachable_keyframe_name_count, 0);
     assert_eq!(summary.reachable_value_name_count, 0);
@@ -1152,6 +1153,9 @@ fn derives_transform_context_from_workspace_sources() {
         summary.context.import_inlines[0].import_source,
         "./tokens.css"
     );
+    assert_eq!(summary.context.design_token_routes[0].token_name, "--brand");
+    assert_eq!(summary.context.design_token_routes[0].routed_value, "red");
+    assert!(summary.ready_surfaces.contains(&"designTokenRouteProducer"));
     assert_eq!(
         summary.context.import_inlines[0].replacement_css,
         ":root { --brand: red; }"
@@ -1223,6 +1227,7 @@ fn derives_transform_context_from_package_manifest_style_exports() {
     );
 
     assert_eq!(summary.import_inline_count, 1);
+    assert_eq!(summary.design_token_route_count, 1);
     assert_eq!(
         summary.context.import_inlines[0].import_source,
         "@design/tokens/theme"
@@ -1230,6 +1235,11 @@ fn derives_transform_context_from_package_manifest_style_exports() {
     assert_eq!(
         summary.context.import_inlines[0].replacement_css,
         ":root { --brand: package; }"
+    );
+    assert_eq!(summary.context.design_token_routes[0].token_name, "--brand");
+    assert_eq!(
+        summary.context.design_token_routes[0].routed_value,
+        "package"
     );
 }
 
@@ -1716,6 +1726,7 @@ fn engine_input_transform_context_consumes_style_sources_for_workspace_context()
     assert_eq!(context_summary.import_inline_count, 1);
     assert_eq!(context_summary.class_name_rewrite_count, 2);
     assert_eq!(context_summary.css_module_composes_resolution_count, 1);
+    assert_eq!(context_summary.design_token_route_count, 1);
     assert!(
         context_summary
             .ready_surfaces

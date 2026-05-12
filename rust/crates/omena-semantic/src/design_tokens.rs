@@ -124,6 +124,7 @@ pub struct DesignTokenSemanticCapabilitiesV0 {
 pub struct DesignTokenWorkspaceDeclarationFactV0 {
     pub file_path: String,
     pub name: String,
+    pub value: String,
     pub source_order: usize,
     pub import_graph_distance: Option<usize>,
     pub import_graph_order: Option<usize>,
@@ -139,6 +140,7 @@ pub struct DesignTokenWorkspaceDeclarationFactV0 {
 #[serde(rename_all = "camelCase")]
 pub struct DesignTokenDeclarationCandidateV0 {
     pub name: String,
+    pub value: String,
     pub source_order: usize,
     pub file_path: String,
     pub range: ParserRangeV0,
@@ -350,6 +352,7 @@ fn summarize_design_token_declaration_candidates(
                 .iter()
                 .map(|declaration| DesignTokenDeclarationCandidateV0 {
                     name: declaration.name.clone(),
+                    value: declaration.value.clone(),
                     source_order: declaration.source_order,
                     file_path: file_path.to_string(),
                     range: declaration.range,
@@ -366,6 +369,7 @@ fn summarize_design_token_declaration_candidates(
     candidates.extend(workspace_declarations.iter().map(|declaration| {
         DesignTokenDeclarationCandidateV0 {
             name: declaration.name.clone(),
+            value: declaration.value.clone(),
             source_order: declaration.source_order,
             file_path: declaration.file_path.clone(),
             range: declaration.range,
@@ -404,6 +408,7 @@ pub fn collect_design_token_workspace_declarations(
         .map(|declaration| DesignTokenWorkspaceDeclarationFactV0 {
             file_path: style_path.to_string(),
             name: declaration.name.clone(),
+            value: declaration.value.clone(),
             source_order: declaration.source_order,
             import_graph_distance: None,
             import_graph_order: None,
