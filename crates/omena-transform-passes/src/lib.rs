@@ -549,7 +549,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "merged adjacent same-selector ordinary rules without reordering declarations",
+                    detail: "merged adjacent same-selector ordinary rule runs without reordering declarations",
                 }
             }
             Some(TransformPassKind::SelectorMerging) => {
@@ -568,7 +568,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "merged adjacent ordinary rules with identical declaration blocks",
+                    detail: "merged adjacent ordinary rule runs with identical declaration blocks",
                 }
             }
             Some(TransformPassKind::VendorPrefixing) => {
@@ -4929,25 +4929,42 @@ fn merge_adjacent_same_block_css_selectors_with_lexer(
     let mut replacements = Vec::new();
     let mut index = 0;
 
-    while index + 1 < rules.len() {
+    while index < rules.len() {
         let current = &rules[index];
-        let next = &rules[index + 1];
-        if current.selector != next.selector
-            && current.block == next.block
-            && rule_gap_is_whitespace_only(tokens, current.end, next.start)
-        {
+        let mut selectors = vec![current.selector.clone()];
+        let mut run_end = index + 1;
+
+        while run_end < rules.len() {
+            let previous = &rules[run_end - 1];
+            let next = &rules[run_end];
+            if current.block != next.block
+                || !rule_gap_is_whitespace_only(tokens, previous.end, next.start)
+            {
+                break;
+            }
+            selectors.push(next.selector.clone());
+            run_end += 1;
+        }
+
+        let deduped_selectors = dedupe_selector_arguments(&selectors);
+        if deduped_selectors.len() > 1 {
+            let last = &rules[run_end - 1];
             replacements.push((
                 current.start,
-                next.end,
+                last.end,
                 format!(
                     "{}, {} {{ {} }}",
-                    current.selector, next.selector, current.block
+                    deduped_selectors[0],
+                    deduped_selectors[1..].join(", "),
+                    current.block
                 ),
             ));
-            index += 2;
         } else {
             index += 1;
+            continue;
         }
+
+        index = run_end;
     }
 
     if replacements.is_empty() {
@@ -4980,25 +4997,36 @@ fn merge_adjacent_same_selector_css_rules_with_lexer(
     let mut replacements = Vec::new();
     let mut index = 0;
 
-    while index + 1 < rules.len() {
+    while index < rules.len() {
         let current = &rules[index];
-        let next = &rules[index + 1];
-        if current.selector == next.selector
-            && current.block != next.block
-            && rule_gap_is_whitespace_only(tokens, current.end, next.start)
-        {
+        let mut blocks = vec![current.block.clone()];
+        let mut run_end = index + 1;
+
+        while run_end < rules.len() {
+            let previous = &rules[run_end - 1];
+            let next = &rules[run_end];
+            if current.selector != next.selector
+                || !rule_gap_is_whitespace_only(tokens, previous.end, next.start)
+            {
+                break;
+            }
+            blocks.push(next.block.clone());
+            run_end += 1;
+        }
+
+        if blocks.len() > 1 && blocks.iter().any(|block| block != &blocks[0]) {
+            let last = &rules[run_end - 1];
             replacements.push((
                 current.start,
-                next.end,
-                format!(
-                    "{} {{ {} {} }}",
-                    current.selector, current.block, next.block
-                ),
+                last.end,
+                format!("{} {{ {} }}", current.selector, blocks.join(" ")),
             ));
-            index += 2;
         } else {
             index += 1;
+            continue;
         }
+
+        index = run_end;
     }
 
     if replacements.is_empty() {
@@ -7275,8 +7303,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_merges_adjacent_same_selector_rules_only() {
-        let source =
-            r#".a { color: red; } .a { background: blue; } .b { color: red; } .a { border: 0; }"#;
+        let source = r#".a { color: red; } .a { background: blue; } .a { outline: 0; } .b { color: red; } .a { border: 0; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[TransformPassKind::RuleMerging, TransformPassKind::PrintCss],
@@ -7285,7 +7312,7 @@ mod tests {
         assert_eq!(execution.mutation_count, 1);
         assert_eq!(
             execution.output_css,
-            r#".a { color: red; background: blue; } .b { color: red; } .a { border: 0; }"#
+            r#".a { color: red; background: blue; outline: 0; } .b { color: red; } .a { border: 0; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
@@ -7295,8 +7322,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_merges_adjacent_same_block_selectors_only() {
-        let source =
-            r#".a { color: red; } .b { color: red; } .c { color: blue; } .d { color: red; }"#;
+        let source = r#".a { color: red; } .b { color: red; } .c { color: red; } .d { color: blue; } .e { color: red; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7308,7 +7334,7 @@ mod tests {
         assert_eq!(execution.mutation_count, 1);
         assert_eq!(
             execution.output_css,
-            r#".a, .b { color: red; } .c { color: blue; } .d { color: red; }"#
+            r#".a, .b, .c { color: red; } .d { color: blue; } .e { color: red; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
