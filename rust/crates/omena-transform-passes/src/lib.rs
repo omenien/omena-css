@@ -1222,7 +1222,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "removed top-level ordinary empty rules with no comments or at-rule semantics",
+                    detail: "removed ordinary empty rules with no comments or at-rule semantics",
                 }
             }
             Some(TransformPassKind::PrintCss) => TransformPassExecutionOutcomeV0 {
@@ -5410,60 +5410,52 @@ fn skip_whitespace_tokens(
 }
 
 fn remove_empty_css_rules_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let ranges = collect_top_level_empty_rule_ranges(tokens);
-    if ranges.is_empty() {
-        return (source.to_string(), 0);
-    }
+    let mut output = source.to_string();
+    let mut mutation_count = 0;
 
-    let mut output = String::with_capacity(source.len());
-    let mut cursor = 0;
-    for (start, end) in &ranges {
-        if *start > cursor {
-            output.push_str(&source[cursor..*start]);
+    loop {
+        let lexed = lex(&output, dialect);
+        let tokens = lexed.tokens();
+        let ranges = collect_empty_rule_ranges(tokens);
+        let (next_output, removed_count) = remove_source_ranges(&output, &ranges);
+        if removed_count == 0 {
+            return (output, mutation_count);
         }
-        cursor = *end;
+        output = next_output;
+        mutation_count += removed_count;
     }
-    if cursor < source.len() {
-        output.push_str(&source[cursor..]);
-    }
-
-    (output, ranges.len())
 }
 
-fn collect_top_level_empty_rule_ranges(tokens: &[omena_parser::LexedToken]) -> Vec<(usize, usize)> {
+fn collect_empty_rule_ranges(tokens: &[omena_parser::LexedToken]) -> Vec<(usize, usize)> {
     let mut ranges = Vec::new();
     let mut depth = 0usize;
-    let mut top_level_prelude_start = 0usize;
+    let mut prelude_starts = vec![0usize];
     let mut index = 0;
 
     while index < tokens.len() {
         match tokens[index].kind {
             SyntaxKind::LeftBrace => {
-                if depth == 0
-                    && let Some(close_index) = matching_right_brace_index(tokens, index)
+                let prelude_start = prelude_starts.get(depth).copied().unwrap_or(0);
+                if let Some(close_index) = matching_right_brace_index(tokens, index)
                     && is_empty_rule_block(tokens, index + 1, close_index)
-                    && is_ordinary_top_level_rule_prelude(tokens, top_level_prelude_start, index)
-                    && let Some(start) =
-                        first_non_trivia_token_start(tokens, top_level_prelude_start, index)
+                    && is_ordinary_rule_prelude(tokens, prelude_start, index)
+                    && let Some(start) = first_non_trivia_token_start(tokens, prelude_start, index)
                 {
                     let end = token_end(&tokens[close_index]);
                     ranges.push((start, end));
                     index = close_index + 1;
-                    top_level_prelude_start = index;
+                    set_prelude_start(&mut prelude_starts, depth, index);
                     continue;
                 }
                 depth += 1;
+                set_prelude_start(&mut prelude_starts, depth, index + 1);
             }
             SyntaxKind::RightBrace => {
                 depth = depth.saturating_sub(1);
-                if depth == 0 {
-                    top_level_prelude_start = index + 1;
-                }
+                set_prelude_start(&mut prelude_starts, depth, index + 1);
             }
-            SyntaxKind::Semicolon if depth == 0 => {
-                top_level_prelude_start = index + 1;
+            SyntaxKind::Semicolon => {
+                set_prelude_start(&mut prelude_starts, depth, index + 1);
             }
             _ => {}
         }
@@ -5471,6 +5463,13 @@ fn collect_top_level_empty_rule_ranges(tokens: &[omena_parser::LexedToken]) -> V
     }
 
     ranges
+}
+
+fn set_prelude_start(prelude_starts: &mut Vec<usize>, depth: usize, start: usize) {
+    if prelude_starts.len() <= depth {
+        prelude_starts.resize(depth + 1, start);
+    }
+    prelude_starts[depth] = start;
 }
 
 fn matching_right_brace_index(
@@ -5506,7 +5505,7 @@ fn is_empty_rule_block(
     })
 }
 
-fn is_ordinary_top_level_rule_prelude(
+fn is_ordinary_rule_prelude(
     tokens: &[omena_parser::LexedToken],
     start: usize,
     end_exclusive: usize,
@@ -5518,6 +5517,14 @@ fn is_ordinary_top_level_rule_prelude(
         && prelude
             .iter()
             .all(|token| token.kind != SyntaxKind::AtKeyword && !is_comment_token(token.kind))
+}
+
+fn is_ordinary_top_level_rule_prelude(
+    tokens: &[omena_parser::LexedToken],
+    start: usize,
+    end_exclusive: usize,
+) -> bool {
+    is_ordinary_rule_prelude(tokens, start, end_exclusive)
 }
 
 fn first_non_trivia_token_start(
@@ -7031,8 +7038,8 @@ mod tests {
     }
 
     #[test]
-    fn execution_runtime_removes_only_plain_top_level_empty_rules() {
-        let source = r#".empty { } @media (min-width: 1px) { } .with-comment { /* keep */ } .filled { color: red; }"#;
+    fn execution_runtime_removes_only_plain_empty_rules() {
+        let source = r#".empty { } @media (min-width: 1px) { .nested { } } .outer { .inner { } } .with-comment { /* keep */ } .filled { color: red; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7041,10 +7048,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(execution.mutation_count, 4);
         assert_eq!(
             execution.output_css,
-            r#" @media (min-width: 1px) { } .with-comment { /* keep */ } .filled { color: red; }"#
+            r#" @media (min-width: 1px) {  }  .with-comment { /* keep */ } .filled { color: red; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
