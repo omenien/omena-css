@@ -21,6 +21,25 @@ pub struct OmenaQueryBoundarySummaryV0 {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryEvaluationRuntimeSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_version: String,
+    pub selected_query_adapter_capabilities: SelectedQueryAdapterCapabilitiesV0,
+    pub runtime_products: Vec<&'static str>,
+    pub source_resolution_expression_count: usize,
+    pub source_resolution_unresolved_expression_count: usize,
+    pub expression_domain_revision: u64,
+    pub expression_domain_graph_count: usize,
+    pub expression_domain_dirty_graph_count: usize,
+    pub expression_domain_reused_graph_count: usize,
+    pub style_document_summary_source: &'static str,
+    pub ready_surfaces: Vec<&'static str>,
+    pub retired_couplings: Vec<&'static str>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryFragmentBundleV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

@@ -14,6 +14,7 @@
 - **Resolver tsconfig path mapping** - `omena-resolver` now resolves style modules through explicit tsconfig-style path aliases, including Sass partial candidates, moving `tsconfigPathMapping` out of the resolver decoupling queue.
 - **Resolver specifier runtime** - `omena-resolver` now exposes a batch specifier-resolution runtime and runner command over relative, package, tsconfig-path, external, and unresolved style module sources.
 - **Query transform module split** - `omena-query` now keeps transform planning/execution/context façade code in a dedicated `style::transform` module while preserving the public query API.
+- **Query evaluation runtime** - `omena-query` now exposes a runtime-backed evaluation summary and runner command that ties the selected-query adapter, resolver runtime index, expression-domain Salsa runtime, and parser-owned style-document summaries into one decoupled surface.
 - **Reduced product overlap semantics** - `omena-abstract-value` now computes prefix/suffix reduced-product minimum lengths with overlap awareness and accounts for required character constraints, so `Pr ⊗ Su` and `Pr/Su ⊗ CI` intersections no longer exclude valid selectors or understate required selector length.
 - **Query adapter status** - `omena-query.selected-query-adapter-capabilities` now reports the selected-query adapter as `runtimeBacked`, matching the packaged runner/protocol/default-candidate path instead of the older declaration-only transition status.
 

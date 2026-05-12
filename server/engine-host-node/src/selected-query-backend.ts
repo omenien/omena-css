@@ -26,6 +26,7 @@ export interface SelectedQueryBackendDocument {
 }
 
 export const SELECTED_QUERY_RUNNER_COMMANDS = {
+  queryEvaluationRuntime: "input-omena-query-evaluation-runtime",
   sourceResolutionCanonicalProducer: "input-source-resolution-canonical-producer",
   sourceResolutionRuntime: "input-omena-resolver-source-resolution-runtime",
   expressionSemanticsCanonicalProducer: "input-expression-semantics-canonical-producer",

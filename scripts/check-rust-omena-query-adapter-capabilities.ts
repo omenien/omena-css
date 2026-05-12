@@ -19,6 +19,14 @@ const BACKEND_KINDS: readonly SelectedQueryBackendKind[] = [
 
 const EXPECTED_RUNNER_COMMANDS = new Map([
   [
+    "queryEvaluationRuntime",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.queryEvaluationRuntime,
+      inputContract: "EngineInputV2 + OmenaQueryExpressionDomainFlowRuntimeV0",
+      outputProduct: "omena-query.evaluation-runtime",
+    },
+  ],
+  [
     "sourceResolution",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.sourceResolutionCanonicalProducer,
@@ -172,6 +180,7 @@ void (async () => {
     "expressionSemanticsDerivationPayload",
     "fragmentBundleBoundary",
     "omenaParserStyleFactExtraction",
+    "queryEvaluationRuntime",
     "readCascadeAtPosition",
     "runnerCommandContract",
     "sourceResolutionRuntimeIndex",

@@ -45,6 +45,7 @@ use omena_query::{
     default_omena_query_transform_print_options,
     execute_omena_query_transform_passes_from_source_with_context,
     read_omena_query_cascade_at_position, summarize_omena_query_boundary,
+    summarize_omena_query_evaluation_runtime,
     summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
@@ -1129,6 +1130,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_omena_query_boundary(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("input-omena-query-evaluation-runtime") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let mut runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
+            let summary = summarize_omena_query_evaluation_runtime(&input, &mut runtime);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("input-omena-resolver-boundary") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_omena_resolver_boundary(&input);
@@ -1387,6 +1394,12 @@ fn run_daemon_selected_query_command(
     expression_domain_runtime: &mut OmenaQueryExpressionDomainFlowRuntimeV0,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     match command {
+        "input-omena-query-evaluation-runtime" => {
+            let input: EngineInputV2 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_query_evaluation_runtime(&input, expression_domain_runtime),
+            )?)
+        }
         "input-source-resolution-canonical-producer" => {
             let input: EngineInputV2 = serde_json::from_value(input)?;
             Ok(serde_json::to_value(

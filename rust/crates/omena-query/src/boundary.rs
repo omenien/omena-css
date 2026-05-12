@@ -32,6 +32,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "omena-transform-passes.plan",
             "omena-transform-passes.execution",
             "omena-query.transform-execute",
+            "omena-query.evaluation-runtime",
         ],
         expression_semantics_query_count,
         source_resolution_query_count,
@@ -61,13 +62,51 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "transformExecutionRuntime",
             "transformExecutionRunner",
             "queryBoundarySummary",
+            "selectedQueryBackendAdapter",
+            "queryEvaluationRuntime",
+            "omenaParserStyleDocumentSummary",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
-        next_decoupling_targets: vec![
-            "queryEvaluationRuntime",
-            "selectedQueryBackendAdapter",
-            "engineStyleParserStyleDocumentSummary",
+        next_decoupling_targets: Vec::new(),
+    }
+}
+
+pub fn summarize_omena_query_evaluation_runtime(
+    input: &EngineInputV2,
+    runtime: &mut OmenaQueryExpressionDomainFlowRuntimeV0,
+) -> OmenaQueryEvaluationRuntimeSummaryV0 {
+    let selected_query_adapter_capabilities =
+        summarize_omena_query_selected_query_adapter_capabilities();
+    let source_resolution_runtime = summarize_omena_query_source_resolution_runtime(input);
+    let expression_domain_runtime =
+        summarize_omena_query_expression_domain_incremental_flow_analysis(input, runtime);
+
+    OmenaQueryEvaluationRuntimeSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.evaluation-runtime",
+        input_version: input.version.clone(),
+        selected_query_adapter_capabilities,
+        runtime_products: vec![
+            source_resolution_runtime.product,
+            expression_domain_runtime.product,
+            "omena-query.style-document-summary",
         ],
+        source_resolution_expression_count: source_resolution_runtime.expression_count,
+        source_resolution_unresolved_expression_count: source_resolution_runtime
+            .unresolved_expression_count,
+        expression_domain_revision: expression_domain_runtime.revision,
+        expression_domain_graph_count: expression_domain_runtime.graph_count,
+        expression_domain_dirty_graph_count: expression_domain_runtime.dirty_graph_count,
+        expression_domain_reused_graph_count: expression_domain_runtime.reused_graph_count,
+        style_document_summary_source: "omena-parser.style-facts",
+        ready_surfaces: vec![
+            "selectedQueryBackendAdapter",
+            "sourceResolutionRuntimeIndex",
+            "expressionDomainSalsaRuntime",
+            "expressionDomainSelectorProjection",
+            "omenaParserStyleDocumentSummary",
+        ],
+        retired_couplings: vec!["engineStyleParserStyleDocumentSummary"],
     }
 }
 
@@ -115,6 +154,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             },
         ],
         runner_commands: vec![
+            SelectedQueryRunnerCommandV0 {
+                surface: "queryEvaluationRuntime",
+                command: "input-omena-query-evaluation-runtime",
+                input_contract: "EngineInputV2 + OmenaQueryExpressionDomainFlowRuntimeV0",
+                output_product: "omena-query.evaluation-runtime",
+            },
             SelectedQueryRunnerCommandV0 {
                 surface: "sourceResolution",
                 command: "input-source-resolution-canonical-producer",
@@ -238,6 +283,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "transformPlanRunner",
             "transformContextProducer",
             "transformExecutionRunner",
+            "queryEvaluationRuntime",
         ],
         routing_status: "runtimeBacked",
     }

@@ -6,6 +6,7 @@ const RUNNER_PATH = path.join(process.cwd(), "rust/crates/engine-shadow-runner/s
 
 const OMENA_QUERY_OWNED_COMMANDS = new Map([
   ["input-omena-query-boundary", "summarize_omena_query_boundary"],
+  ["input-omena-query-evaluation-runtime", "summarize_omena_query_evaluation_runtime"],
   [
     "omena-query-selected-query-adapter-capabilities",
     "summarize_omena_query_selected_query_adapter_capabilities",

@@ -8,7 +8,8 @@ use omena_abstract_value::SelectorProjectionCertaintyV0;
 use super::{
     OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryStylePackageManifestV0,
     SelectedQueryAdapterCapabilitiesV0, execute_omena_query_transform_passes_from_source,
-    summarize_omena_query_boundary, summarize_omena_query_expression_domain_control_flow_analysis,
+    summarize_omena_query_boundary, summarize_omena_query_evaluation_runtime,
+    summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
@@ -145,6 +146,18 @@ fn summarizes_query_boundary_over_producer_fragments() {
             .contains(&"transformExecutionRuntime")
     );
     assert!(summary.ready_surfaces.contains(&"readCascadeAtPosition"));
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"selectedQueryBackendAdapter")
+    );
+    assert!(summary.ready_surfaces.contains(&"queryEvaluationRuntime"));
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"omenaParserStyleDocumentSummary")
+    );
+    assert!(summary.next_decoupling_targets.is_empty());
     assert!(
         summary
             .cme_coupled_surfaces
@@ -659,6 +672,12 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
         summary
             .runner_commands
             .iter()
+            .any(|command| command.command == "input-omena-query-evaluation-runtime")
+    );
+    assert!(
+        summary
+            .runner_commands
+            .iter()
             .any(|command| command.command == "input-omena-resolver-source-resolution-runtime")
     );
     assert!(
@@ -750,6 +769,81 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
     );
     assert!(summary.adapter_readiness.contains(&"readCascadeAtPosition"));
     assert!(summary.adapter_readiness.contains(&"transformPlanRunner"));
+    assert!(
+        summary
+            .adapter_readiness
+            .contains(&"queryEvaluationRuntime")
+    );
+}
+
+#[test]
+fn summarizes_query_evaluation_runtime_without_engine_style_parser_coupling() {
+    let input = sample_input();
+    let mut runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
+
+    let first = summarize_omena_query_evaluation_runtime(&input, &mut runtime);
+    assert_eq!(first.schema_version, "0");
+    assert_eq!(first.product, "omena-query.evaluation-runtime");
+    assert_eq!(first.input_version, "2");
+    assert_eq!(
+        first.selected_query_adapter_capabilities.routing_status,
+        "runtimeBacked"
+    );
+    assert!(
+        first
+            .runtime_products
+            .contains(&"omena-resolver.source-resolution-runtime-index")
+    );
+    assert!(
+        first
+            .runtime_products
+            .contains(&"omena-query.expression-domain-incremental-flow-analysis")
+    );
+    assert!(
+        first
+            .runtime_products
+            .contains(&"omena-query.style-document-summary")
+    );
+    assert_eq!(first.source_resolution_expression_count, 2);
+    assert_eq!(first.source_resolution_unresolved_expression_count, 0);
+    assert_eq!(first.expression_domain_revision, 1);
+    assert_eq!(first.expression_domain_graph_count, 2);
+    assert_eq!(first.expression_domain_dirty_graph_count, 2);
+    assert_eq!(first.expression_domain_reused_graph_count, 0);
+    assert_eq!(
+        first.style_document_summary_source,
+        "omena-parser.style-facts"
+    );
+    assert!(
+        first
+            .ready_surfaces
+            .contains(&"selectedQueryBackendAdapter")
+    );
+    assert!(
+        first
+            .ready_surfaces
+            .contains(&"sourceResolutionRuntimeIndex")
+    );
+    assert!(
+        first
+            .ready_surfaces
+            .contains(&"expressionDomainSalsaRuntime")
+    );
+    assert!(
+        first
+            .ready_surfaces
+            .contains(&"omenaParserStyleDocumentSummary")
+    );
+    assert!(
+        first
+            .retired_couplings
+            .contains(&"engineStyleParserStyleDocumentSummary")
+    );
+
+    let second = summarize_omena_query_evaluation_runtime(&input, &mut runtime);
+    assert_eq!(second.expression_domain_revision, 2);
+    assert_eq!(second.expression_domain_dirty_graph_count, 0);
+    assert_eq!(second.expression_domain_reused_graph_count, 2);
 }
 
 #[test]
