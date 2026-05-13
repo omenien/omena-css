@@ -1,9 +1,9 @@
 use clap::{Parser, Subcommand};
 use omena_query::{
     OmenaQueryEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
-    OmenaQuerySourceMissingSelectorDiagnosticCandidateV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformExecutionContextV0, ParserPositionV0,
+    OmenaQuerySourceDocumentInputV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
@@ -169,6 +169,9 @@ enum Command {
         /// Additional workspace style source used to resolve CSS Modules imports.
         #[arg(long = "source")]
         source_paths: Vec<PathBuf>,
+        /// Additional source document used to resolve selector usage.
+        #[arg(long = "source-document")]
+        source_document_paths: Vec<PathBuf>,
         /// package.json file used to resolve package style exports for workspace sources.
         #[arg(long = "package-manifest")]
         package_manifest_paths: Vec<PathBuf>,
@@ -291,9 +294,16 @@ fn run(cli: Cli) -> Result<(), String> {
         Command::StyleDiagnostics {
             path,
             source_paths,
+            source_document_paths,
             package_manifest_paths,
             json,
-        } => style_diagnostics(path, source_paths, package_manifest_paths, json),
+        } => style_diagnostics(
+            path,
+            source_paths,
+            source_document_paths,
+            package_manifest_paths,
+            json,
+        ),
         Command::StyleHoverCandidates { path, json } => style_hover_candidates(path, json),
         Command::StyleCompletion {
             path,
@@ -484,6 +494,20 @@ fn read_workspace_sources(
     }
 
     Ok(sources)
+}
+
+fn read_source_documents(
+    source_document_paths: &[PathBuf],
+) -> Result<Vec<OmenaQuerySourceDocumentInputV0>, String> {
+    source_document_paths
+        .iter()
+        .map(|path| {
+            Ok(OmenaQuerySourceDocumentInputV0 {
+                source_path: path_string(path),
+                source_source: read_source(path)?,
+            })
+        })
+        .collect()
 }
 
 fn read_package_manifests(
@@ -718,13 +742,17 @@ fn context_index(
 fn style_diagnostics(
     path: PathBuf,
     source_paths: Vec<PathBuf>,
+    source_document_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
     json: bool,
 ) -> Result<(), String> {
     let source = read_source(&path)?;
     let style_path = path_string(&path);
     let package_manifests = read_package_manifests(&package_manifest_paths)?;
-    let summary = if source_paths.is_empty() && package_manifests.is_empty() {
+    let summary = if source_paths.is_empty()
+        && source_document_paths.is_empty()
+        && package_manifests.is_empty()
+    {
         let Some(candidates) = summarize_omena_query_style_hover_candidates(&style_path, &source)
         else {
             return Err(format!(
@@ -739,9 +767,11 @@ fn style_diagnostics(
         )
     } else {
         let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
+        let source_documents = read_source_documents(&source_document_paths)?;
         summarize_omena_query_style_diagnostics_for_workspace_file(
             &style_path,
             workspace_sources.as_slice(),
+            source_documents.as_slice(),
             package_manifests.as_slice(),
         )
         .ok_or_else(|| format!("failed to read workspace style diagnostics for {style_path}"))?
@@ -1049,6 +1079,7 @@ mod tests {
             command: Command::StyleDiagnostics {
                 path: source_path.clone(),
                 source_paths: Vec::new(),
+                source_document_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
                 json: true,
             },

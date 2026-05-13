@@ -14,6 +14,7 @@ const DIRECT_STYLE_DIAGNOSTIC_CODES = new Set([
   "missing-composed-selector",
   "missing-value-module",
   "missing-imported-value",
+  "unused-selector",
 ]);
 const OMENA_QUERY_STYLE_DIAGNOSTIC_CODE_MAP = new Map([
   ["missingCustomProperty", "missing-custom-property"],
@@ -23,6 +24,7 @@ const OMENA_QUERY_STYLE_DIAGNOSTIC_CODE_MAP = new Map([
   ["missingComposedSelector", "missing-composed-selector"],
   ["missingValueModule", "missing-value-module"],
   ["missingImportedValue", "missing-imported-value"],
+  ["unusedSelector", "unused-selector"],
 ]);
 
 module.exports = {
@@ -87,19 +89,26 @@ function runStyleChecks(filePath, ruleOptions, includeCodes = ["unused-selector"
 function readDirectStyleDiagnostics(filePath, ruleOptions, includeCodes, sourceText) {
   if (!canUseDirectStyleDiagnostics(includeCodes)) return null;
   const workspaceStylePaths = resolveWorkspaceStyleModulePaths(ruleOptions.workspaceRoot, filePath);
+  const workspaceSourceDocumentPaths = resolveWorkspaceSourceDocumentPaths(ruleOptions.workspaceRoot);
 
   const cacheKey = JSON.stringify({
     filePath,
     sourceText,
     includeCodes: [...includeCodes].toSorted(),
     workspaceStylePaths: workspaceStylePathSignature(workspaceStylePaths),
+    workspaceSourceDocumentPaths: workspaceStylePathSignature(workspaceSourceDocumentPaths),
     backend: process.env.CME_STYLELINT_QUERY_BACKEND ?? null,
     cli: process.env.CME_OMENA_CLI_BIN ?? null,
   });
   const cached = DIRECT_STYLE_DIAGNOSTICS_CACHE.get(cacheKey);
   if (cached) return cached;
 
-  const report = readOmenaCliStyleDiagnostics(filePath, ruleOptions, workspaceStylePaths);
+  const report = readOmenaCliStyleDiagnostics(
+    filePath,
+    ruleOptions,
+    workspaceStylePaths,
+    workspaceSourceDocumentPaths,
+  );
   if (!report) return null;
 
   const includeCodeSet = new Set(includeCodes);
@@ -129,7 +138,12 @@ function canUseDirectStyleDiagnostics(includeCodes) {
   return Boolean(process.env.CME_OMENA_CLI_BIN);
 }
 
-function readOmenaCliStyleDiagnostics(filePath, ruleOptions, workspaceStylePaths) {
+function readOmenaCliStyleDiagnostics(
+  filePath,
+  ruleOptions,
+  workspaceStylePaths,
+  workspaceSourceDocumentPaths,
+) {
   const invocation = resolveOmenaCliInvocation();
   if (!invocation) return null;
 
@@ -137,6 +151,9 @@ function readOmenaCliStyleDiagnostics(filePath, ruleOptions, workspaceStylePaths
     const args = [...invocation.args, "style-diagnostics", filePath, "--json"];
     for (const sourcePath of workspaceStylePaths) {
       args.push("--source", sourcePath);
+    }
+    for (const sourceDocumentPath of workspaceSourceDocumentPaths) {
+      args.push("--source-document", sourceDocumentPath);
     }
     const stdout = execFileSync(
       invocation.command,
@@ -180,6 +197,13 @@ function resolveWorkspaceStyleModulePaths(workspaceRoot, targetFilePath) {
   return paths.filter((candidate) => candidate !== target).toSorted();
 }
 
+function resolveWorkspaceSourceDocumentPaths(workspaceRoot) {
+  const root = path.resolve(workspaceRoot);
+  const paths = [];
+  collectWorkspaceSourceDocumentPaths(root, paths);
+  return paths.toSorted();
+}
+
 function collectWorkspaceStyleModulePaths(dir, paths) {
   if (!fs.existsSync(dir)) return;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -190,6 +214,21 @@ function collectWorkspaceStyleModulePaths(dir, paths) {
       continue;
     }
     if (entry.isFile() && STYLE_MODULE_FILE_PATTERN.test(entryPath)) {
+      paths.push(entryPath);
+    }
+  }
+}
+
+function collectWorkspaceSourceDocumentPaths(dir, paths) {
+  if (!fs.existsSync(dir)) return;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const entryPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (shouldSkipWorkspaceDir(entry.name)) continue;
+      collectWorkspaceSourceDocumentPaths(entryPath, paths);
+      continue;
+    }
+    if (entry.isFile() && /\.(c|m)?(jsx?|tsx?)$/.test(entryPath)) {
       paths.push(entryPath);
     }
   }

@@ -43,7 +43,8 @@ Current limitations:
 
 - first cut is focused on `.module.css` / `.module.scss` / `.module.less`
 - current package is still a local repo package, not a published artifact
-- `css-module-explainer/missing-composed-module`,
+- `css-module-explainer/unused-selector`,
+  `css-module-explainer/missing-composed-module`,
   `css-module-explainer/missing-composed-selector`,
   `css-module-explainer/missing-value-module`,
   `css-module-explainer/missing-imported-value`,

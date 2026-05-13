@@ -427,6 +427,13 @@ pub struct OmenaQueryStyleSourceInputV0 {
     pub style_source: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySourceDocumentInputV0 {
+    pub source_path: String,
+    pub source_source: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryOmenaParserStyleFactsV0 {

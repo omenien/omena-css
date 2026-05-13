@@ -131,6 +131,7 @@ async function assertOmenaQueryStyleDiagnosticsAdapter() {
   try {
     const result = await stylelint.lint({
       files: [
+        path.join(WORKSPACE_ROOT, "src/App.module.css"),
         path.join(WORKSPACE_ROOT, "src/ComposesMissingModule.module.css"),
         path.join(WORKSPACE_ROOT, "src/ComposesMissingSelector.module.css"),
         path.join(WORKSPACE_ROOT, "src/ValueMissingModule.module.css"),
@@ -144,6 +145,12 @@ async function assertOmenaQueryStyleDiagnosticsAdapter() {
         customSyntax: "postcss-scss",
         plugins: [PLUGIN_NAME],
         rules: {
+          "css-module-explainer/unused-selector": [
+            true,
+            {
+              workspaceRoot: WORKSPACE_ROOT,
+            },
+          ],
           "css-module-explainer/missing-composed-module": [
             true,
             {
@@ -194,6 +201,10 @@ async function assertOmenaQueryStyleDiagnosticsAdapter() {
         path.basename(fileResult.source ?? ""),
         fileResult.warnings,
       ]),
+    );
+    assertSingleWarning(
+      warningsByFile.get("App.module.css"),
+      "Selector '.ghost' is declared but never used.",
     );
     assertSingleWarning(
       warningsByFile.get("ComposesMissingModule.module.css"),
