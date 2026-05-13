@@ -9,6 +9,7 @@ interface TransformContextSummaryV0 {
   readonly importInlineCount: number;
   readonly classNameRewriteCount: number;
   readonly cssModuleComposesResolutionCount: number;
+  readonly designTokenRouteCount: number;
   readonly reachableClassNameCount: number;
   readonly reachableKeyframeNameCount: number;
   readonly reachableValueNameCount: number;
@@ -84,15 +85,16 @@ assert.equal(summary.styleCount, 2);
 assert.equal(summary.importInlineCount, 1);
 assert.equal(summary.classNameRewriteCount, 3);
 assert.equal(summary.cssModuleComposesResolutionCount, 1);
-assert.equal(summary.reachableClassNameCount, 3);
+assert.equal(summary.designTokenRouteCount, 1);
+assert.equal(summary.reachableClassNameCount, 0);
 assert.equal(summary.reachableKeyframeNameCount, 0);
 assert.equal(summary.reachableValueNameCount, 0);
-assert.equal(summary.reachableCustomPropertyNameCount, 1);
+assert.equal(summary.reachableCustomPropertyNameCount, 0);
 assert.equal(summary.context.closedStyleWorld, false);
-assert.deepEqual(summary.context.reachableClassNames, ["base", "button", "button-primary"]);
+assert.deepEqual(summary.context.reachableClassNames, []);
 assert.deepEqual(summary.context.reachableKeyframeNames, []);
 assert.deepEqual(summary.context.reachableValueNames, []);
-assert.deepEqual(summary.context.reachableCustomPropertyNames, ["--brand"]);
+assert.deepEqual(summary.context.reachableCustomPropertyNames, []);
 assert.deepEqual(summary.context.importInlines, [
   {
     importSource: "./tokens.css",
@@ -115,14 +117,19 @@ assertIncludesAll(
   ["_button_0", "_base_1", "_button-primary_2"],
   "class rewrite outputs",
 );
-assert.deepEqual(summary.context.designTokenRoutes, []);
+assert.deepEqual(summary.context.designTokenRoutes, [
+  {
+    tokenName: "--brand",
+    routedValue: "red",
+  },
+]);
 assertIncludesAll(
   summary.readySurfaces,
   [
     "transformContextProducer",
-    "reachableNameSeedProducer",
     "cssModuleClassRewriteProducer",
     "cssModuleComposesResolutionProducer",
+    "designTokenRouteProducer",
     "directImportInlineProducer",
   ],
   "transform context ready surfaces",

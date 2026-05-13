@@ -139,11 +139,51 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "semanticReachabilityTransformContext",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.semanticReachabilityTransformContext,
+      inputContract: "EngineInputV2 + targetStylePath + closedStyleWorld",
+      outputProduct: "omena-query.transform-context-from-engine-input",
+    },
+  ],
+  [
     "transformExecute",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.transformExecute,
       inputContract: "TransformExecuteInputV0",
       outputProduct: "omena-query.transform-execute",
+    },
+  ],
+  [
+    "consumerCheckStyleSource",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.consumerCheckStyleSource,
+      inputContract: "ConsumerStyleSourceInputV0",
+      outputProduct: "omena-query.consumer-check-style-source",
+    },
+  ],
+  [
+    "consumerBuildStyleSource",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.consumerBuildStyleSource,
+      inputContract: "ConsumerStyleSourceBuildInputV0",
+      outputProduct: "omena-query.consumer-build-style-source",
+    },
+  ],
+  [
+    "consumerBuildStyleSources",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.consumerBuildStyleSources,
+      inputContract: "ConsumerStyleSourcesBuildInputV0",
+      outputProduct: "omena-query.consumer-build-style-source",
+    },
+  ],
+  [
+    "consumerTransformPassList",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.consumerTransformPassList,
+      inputContract: "None",
+      outputProduct: "omena-query.transform-pass-list",
     },
   ],
 ] as const);
@@ -156,11 +196,15 @@ void (async () => {
   assert.equal(summary.defaultCandidateBackend, "rust-selected-query");
   assert.equal(summary.routingStatus, "runtimeBacked");
   assert.deepEqual([...summary.requiredInputContracts].toSorted(), [
+    "ConsumerStyleSourceBuildInputV0",
+    "ConsumerStyleSourceInputV0",
+    "ConsumerStyleSourcesBuildInputV0",
     "EngineInputV2",
     "OmenaParserStyleFactsInputV0",
     "ReadCascadeAtPositionInputV0",
     "StyleSemanticGraphBatchInputV0",
     "StyleSemanticGraphInputV0",
+    "TransformContextFromEngineInputV0",
     "TransformContextInputV0",
     "TransformExecuteInputV0",
     "TransformPlanInputV0",
@@ -173,6 +217,9 @@ void (async () => {
   assert.deepEqual([...summary.adapterReadiness].toSorted(), [
     "backendCapabilityMatrix",
     "canonicalProducerWrapperBoundary",
+    "consumerBuildFacade",
+    "consumerCheckFacade",
+    "consumerTransformPassListFacade",
     "expressionDomainControlFlowAnalysisRunner",
     "expressionDomainFlowAnalysisRunner",
     "expressionDomainSalsaRuntime",
@@ -183,9 +230,11 @@ void (async () => {
     "queryEvaluationRuntime",
     "readCascadeAtPosition",
     "runnerCommandContract",
+    "semanticReachabilityTransformContext",
     "sourceResolutionRuntimeIndex",
     "styleSemanticGraphBridgeBoundary",
     "transformContextProducer",
+    "transformEggExecutionWitnesses",
     "transformExecutionRunner",
     "transformPlanRunner",
   ]);

@@ -42,7 +42,12 @@ export const SELECTED_QUERY_RUNNER_COMMANDS = {
   styleSemanticGraphBatch: "style-semantic-graph-batch",
   transformPlan: "transform-plan",
   transformContext: "transform-context",
+  semanticReachabilityTransformContext: "transform-context-from-engine-input",
   transformExecute: "transform-execute",
+  consumerCheckStyleSource: "consumer-check-style-source",
+  consumerBuildStyleSource: "consumer-build-style-source",
+  consumerBuildStyleSources: "consumer-build-style-sources",
+  consumerTransformPassList: "consumer-transform-pass-list",
 } as const;
 
 export function resolveSelectedQueryBackendKind(

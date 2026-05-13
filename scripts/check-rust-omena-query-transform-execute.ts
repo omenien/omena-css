@@ -146,7 +146,7 @@ assert.deepEqual(summary.unknownPassIds, ["unknown-transform-pass"]);
 assert.equal(summary.execution.product, "omena-transform-passes.execution");
 assert.equal(
   summary.execution.outputCss,
-  '.dupe{display: block;}.merge{color: red;background: blue;}.sel-a,.sel-b{border: 0;}.a.ready{margin: 0;color: #fff;-webkit-user-select: none;user-select: none;opacity: 1;background: url(img.svg);font-family: "Demo";content: "/* keep */";}',
+  '.dupe{display: block;}.merge{color: red;background: blue;}.sel-a,.sel-b{border: 0;}.a.ready{margin: 0;color: #fff;-webkit-user-select: none;-moz-user-select: none;-ms-user-select: none;user-select: none;opacity: 1;background: url(img.svg);font-family: "Demo";content: "/* keep */";}',
 );
 assert.deepEqual(summary.execution.executedPassIds, [
   "value-resolution",
@@ -179,7 +179,7 @@ assert.deepEqual(summary.execution.executedPassIds, [
   "print-css",
 ]);
 assert.deepEqual(summary.execution.plannedOnlyPassIds, []);
-assert.equal(summary.execution.mutationCount, 38);
+assert.equal(summary.execution.mutationCount, 43);
 assert.equal(summary.execution.provenancePreserved, true);
 assert.equal(summary.execution.passPlan.product, "omena-transform-passes.plan");
 assert.equal(summary.execution.passPlan.violatedDagEdgeCount, 0);
