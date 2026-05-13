@@ -8753,6 +8753,16 @@ fn normalize_css_whitespace_with_lexer(source: &str, dialect: StyleDialect) -> (
     let mut mutation_count = 0;
 
     for (index, token) in tokens.iter().enumerate() {
+        if token.kind == SyntaxKind::Semicolon
+            && matches!(
+                next_non_comment_token_kind(tokens, index),
+                Some(SyntaxKind::RightBrace)
+            )
+        {
+            mutation_count += 1;
+            continue;
+        }
+
         if token.kind != SyntaxKind::Whitespace && token.kind != SyntaxKind::SassIndentedNewline {
             output.push_str(&token.text);
             continue;
@@ -8793,7 +8803,7 @@ fn previous_non_comment_token_kind(
     tokens[..index]
         .iter()
         .rev()
-        .find(|token| !is_comment_token(token.kind) && token.kind != SyntaxKind::Whitespace)
+        .find(|token| !is_trivia_token(token.kind))
         .map(|token| token.kind)
 }
 
@@ -8805,7 +8815,7 @@ fn next_non_comment_token_kind(
         .get(index + 1..)
         .unwrap_or_default()
         .iter()
-        .find(|token| !is_comment_token(token.kind) && token.kind != SyntaxKind::Whitespace)
+        .find(|token| !is_trivia_token(token.kind))
         .map(|token| token.kind)
 }
 
@@ -8817,6 +8827,7 @@ fn can_remove_whitespace_after(kind: SyntaxKind) -> bool {
             | SyntaxKind::LeftParen
             | SyntaxKind::LeftBracket
             | SyntaxKind::Comma
+            | SyntaxKind::Colon
             | SyntaxKind::Semicolon
     )
 }
@@ -8829,6 +8840,7 @@ fn can_remove_whitespace_before(kind: SyntaxKind) -> bool {
             | SyntaxKind::RightParen
             | SyntaxKind::RightBracket
             | SyntaxKind::Comma
+            | SyntaxKind::Colon
             | SyntaxKind::Semicolon
     )
 }
@@ -8865,6 +8877,14 @@ fn is_comment_token(kind: SyntaxKind) -> bool {
         kind,
         SyntaxKind::LineComment | SyntaxKind::BlockComment | SyntaxKind::ScssSilentComment
     )
+}
+
+fn is_trivia_token(kind: SyntaxKind) -> bool {
+    is_comment_token(kind)
+        || matches!(
+            kind,
+            SyntaxKind::Whitespace | SyntaxKind::SassIndentedNewline
+        )
 }
 
 #[cfg(test)]
@@ -9518,11 +9538,8 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 7);
-        assert_eq!(
-            execution.output_css,
-            r#".a,.b{color : red;content: "x y";}"#
-        );
+        assert_eq!(execution.mutation_count, 11);
+        assert_eq!(execution.output_css, r#".a,.b{color:red;content:"x y"}"#);
         assert_eq!(
             execution.executed_pass_ids,
             vec!["whitespace-strip", "comment-strip", "print-css"]
