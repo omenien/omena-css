@@ -161,6 +161,7 @@ pub enum CascadeOutcome {
 #[serde(rename_all = "camelCase")]
 pub enum CascadeValue {
     Literal(String),
+    Composite(Vec<CascadeValue>),
     Var {
         name: String,
         fallback: Option<Box<CascadeValue>>,
@@ -1979,7 +1980,7 @@ pub fn summarize_custom_property_least_fixed_point(
         .collect::<Vec<_>>();
     let resolved_count = entries
         .iter()
-        .filter(|entry| matches!(entry.resolved, CascadeValue::Literal(_)))
+        .filter(|entry| cascade_value_is_resolved(&entry.resolved))
         .count();
     let guaranteed_invalid_count = entries
         .iter()
@@ -2031,6 +2032,19 @@ fn substitute_custom_properties_inner(
         CascadeValue::Literal(_) | CascadeValue::GuaranteedInvalid | CascadeValue::Unset => {
             value.clone()
         }
+        CascadeValue::Composite(parts) => {
+            let resolved_parts = parts
+                .iter()
+                .map(|part| substitute_custom_properties_inner(part, env, visiting))
+                .collect::<Vec<_>>();
+            if resolved_parts
+                .iter()
+                .any(|part| *part == CascadeValue::GuaranteedInvalid)
+            {
+                return CascadeValue::GuaranteedInvalid;
+            }
+            CascadeValue::Composite(resolved_parts)
+        }
         CascadeValue::Var { name, fallback } => {
             if !visiting.insert(name.clone()) {
                 return CascadeValue::GuaranteedInvalid;
@@ -2057,6 +2071,14 @@ fn substitute_custom_properties_inner(
             visiting.remove(name);
             resolved
         }
+    }
+}
+
+fn cascade_value_is_resolved(value: &CascadeValue) -> bool {
+    match value {
+        CascadeValue::Literal(_) => true,
+        CascadeValue::Composite(parts) => parts.iter().all(cascade_value_is_resolved),
+        CascadeValue::Var { .. } | CascadeValue::GuaranteedInvalid | CascadeValue::Unset => false,
     }
 }
 
@@ -2618,6 +2640,59 @@ mod tests {
     }
 
     #[test]
+    fn substitutes_custom_properties_inside_composite_values() {
+        let mut env = CustomPropertyEnv::new();
+        env.insert(
+            "--gap".to_string(),
+            CascadeValue::Literal("2px".to_string()),
+        );
+        env.insert(
+            "--shadow".to_string(),
+            CascadeValue::Composite(vec![
+                CascadeValue::Literal("0 0 ".to_string()),
+                CascadeValue::Var {
+                    name: "--gap".to_string(),
+                    fallback: None,
+                },
+            ]),
+        );
+        env.insert(
+            "--invalid-shadow".to_string(),
+            CascadeValue::Composite(vec![
+                CascadeValue::Literal("0 0 ".to_string()),
+                CascadeValue::Var {
+                    name: "--missing".to_string(),
+                    fallback: None,
+                },
+            ]),
+        );
+
+        let resolved = substitute_custom_properties(
+            &CascadeValue::Var {
+                name: "--shadow".to_string(),
+                fallback: None,
+            },
+            &env,
+        );
+        assert_eq!(
+            resolved,
+            CascadeValue::Composite(vec![
+                CascadeValue::Literal("0 0 ".to_string()),
+                CascadeValue::Literal("2px".to_string()),
+            ])
+        );
+
+        let fallback = substitute_custom_properties(
+            &CascadeValue::Var {
+                name: "--invalid-shadow".to_string(),
+                fallback: Some(Box::new(CascadeValue::Literal("none".to_string()))),
+            },
+            &env,
+        );
+        assert_eq!(fallback, CascadeValue::Literal("none".to_string()));
+    }
+
+    #[test]
     fn substitutes_cycles_to_guaranteed_invalid() {
         let mut env = CustomPropertyEnv::new();
         env.insert(
@@ -2671,6 +2746,16 @@ mod tests {
             },
         );
         env.insert(
+            "--shadow".to_string(),
+            CascadeValue::Composite(vec![
+                CascadeValue::Literal("0 0 ".to_string()),
+                CascadeValue::Var {
+                    name: "--alias".to_string(),
+                    fallback: None,
+                },
+            ]),
+        );
+        env.insert(
             "--cycle-a".to_string(),
             CascadeValue::Var {
                 name: "--cycle-b".to_string(),
@@ -2691,8 +2776,8 @@ mod tests {
             summary.product,
             "omena-cascade.custom-property-least-fixed-point"
         );
-        assert_eq!(summary.input_count, 4);
-        assert_eq!(summary.resolved_count, 2);
+        assert_eq!(summary.input_count, 5);
+        assert_eq!(summary.resolved_count, 3);
         assert_eq!(summary.guaranteed_invalid_count, 2);
         assert!(summary.iteration_count >= 2);
         assert!(
@@ -2702,6 +2787,14 @@ mod tests {
         );
         assert!(summary.entries.iter().any(|entry| {
             entry.name == "--alias" && entry.resolved == CascadeValue::Literal("red".to_string())
+        }));
+        assert!(summary.entries.iter().any(|entry| {
+            entry.name == "--shadow"
+                && entry.resolved
+                    == CascadeValue::Composite(vec![
+                        CascadeValue::Literal("0 0 ".to_string()),
+                        CascadeValue::Literal("red".to_string()),
+                    ])
         }));
         assert!(summary.entries.iter().any(|entry| {
             entry.name == "--cycle-a" && entry.resolved == CascadeValue::GuaranteedInvalid
