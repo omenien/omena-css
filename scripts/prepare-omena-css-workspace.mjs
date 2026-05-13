@@ -59,6 +59,7 @@ const omenaCssPublishOrder = [
   "omena-wasm",
 ];
 const externallyPublishedCrates = new Set(["omena-incremental", "engine-input-producers"]);
+const omenaCssWorkspaceVersion = "0.1.14";
 const omenaCssDependencyVersion = "0.1";
 
 function publicCrateName(crateName) {
@@ -242,7 +243,7 @@ ${members}
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "${omenaCssWorkspaceVersion}"
 edition = "2024"
 license = "MIT"
 publish = true
@@ -1079,6 +1080,10 @@ ${publishCrateRows}
 
             if [[ "$PUBLISH_MODE" == "dry-run" ]]; then
               cargo package --list --manifest-path "$manifest" >/dev/null
+              if crate_version_exists "$package" "$version"; then
+                echo "$package@$version already exists on crates.io; bump the omena-css release train before publishing" >&2
+                exit 1
+              fi
               if has_local_workspace_dependencies "$manifest"; then
                 echo "$crate package surface checked; full dry-run waits for upstream Omena crates on crates.io"
               else
@@ -1191,6 +1196,8 @@ function verifyPublishDryRun(destinationPath) {
       continue;
     }
 
+    assertFreshPublishVersion(manifestPath);
+
     if (hasLocalWorkspaceDependencies(manifestPath)) {
       process.stderr.write(
         `validated package surface for ${crateName}; full publish dry-run waits for upstream omena crates on crates.io\n`,
@@ -1204,6 +1211,58 @@ function verifyPublishDryRun(destinationPath) {
       stdio: "inherit",
     });
   }
+}
+
+function assertFreshPublishVersion(manifestPath) {
+  const packageName = readManifestPackageName(manifestPath);
+  const version = readManifestVersion(manifestPath);
+  try {
+    execFileSync("cargo", ["info", `${packageName}@${version}`, "--registry", "crates-io"], {
+      cwd: path.dirname(manifestPath),
+      encoding: "utf8",
+      env: { ...process.env, RUSTUP_TOOLCHAIN: "stable" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    throw new Error(
+      `${packageName}@${version} already exists on crates.io; bump omenaCssWorkspaceVersion before publishing.`,
+    );
+  } catch (error) {
+    const stderr =
+      typeof error === "object" && error !== null && "stderr" in error
+        ? Buffer.isBuffer(error.stderr)
+          ? error.stderr.toString("utf8")
+          : String(error.stderr ?? "")
+        : "";
+    if (
+      stderr.includes("could not find")
+    ) {
+      return;
+    }
+    throw error;
+  }
+}
+
+function readManifestPackageName(manifestPath) {
+  const manifest = readFileSync(manifestPath, "utf8");
+  const match = manifest.match(/^name = "([^"]+)"/m);
+  if (!match) {
+    throw new Error(`Could not determine package name for ${manifestPath}`);
+  }
+  return match[1];
+}
+
+function readManifestVersion(manifestPath) {
+  const manifest = readFileSync(manifestPath, "utf8");
+  const explicitVersion = manifest.match(/^version = "([^"]+)"/m);
+  if (explicitVersion) {
+    return explicitVersion[1];
+  }
+  const workspaceManifest = readFileSync(path.join(path.dirname(manifestPath), "..", "..", "Cargo.toml"), "utf8");
+  const workspaceVersion = workspaceManifest.match(/^version = "([^"]+)"/m);
+  if (!workspaceVersion) {
+    throw new Error(`Could not determine package version for ${manifestPath}`);
+  }
+  return workspaceVersion[1];
 }
 
 function hasLocalWorkspaceDependencies(manifestPath) {
