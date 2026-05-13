@@ -671,7 +671,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "lowered whole-value srgb color-mix() declarations with static color operands",
+                    detail: "lowered static srgb color-mix() references with static color operands",
                 }
             }
             Some(TransformPassKind::OklchOklabLowering) => {
@@ -689,7 +689,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "lowered in-gamut whole-value oklab()/oklch() color declarations to srgb",
+                    detail: "lowered in-gamut oklab()/oklch() color references to srgb",
                 }
             }
             Some(TransformPassKind::ColorFunctionLowering) => {
@@ -707,7 +707,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "lowered whole-value color(srgb ...) declarations with static channels",
+                    detail: "lowered static color(...) references with static channels",
                 }
             }
             Some(TransformPassKind::LogicalToPhysical) => {
@@ -2266,7 +2266,10 @@ fn lower_css_color_mix_with_lexer(source: &str, dialect: StyleDialect) -> (Strin
                 if !is_light_dark_lowerable_property(&declaration.property) {
                     continue;
                 }
-                let Some(replacement_value) = parse_color_mix_value(&declaration.value) else {
+                let Some(replacement_value) = substitute_static_css_function_references_in_value(
+                    &declaration.value,
+                    &[("color-mix", parse_color_mix_value)],
+                ) else {
                     continue;
                 };
                 replacements.push((
@@ -2316,7 +2319,13 @@ fn lower_css_oklab_oklch_with_lexer(source: &str, dialect: StyleDialect) -> (Str
                 if !is_light_dark_lowerable_property(&declaration.property) {
                     continue;
                 }
-                let Some(replacement_value) = parse_oklab_oklch_value(&declaration.value) else {
+                let Some(replacement_value) = substitute_static_css_function_references_in_value(
+                    &declaration.value,
+                    &[
+                        ("oklab", parse_oklab_oklch_value),
+                        ("oklch", parse_oklab_oklch_value),
+                    ],
+                ) else {
                     continue;
                 };
                 replacements.push((
@@ -2366,7 +2375,10 @@ fn lower_css_color_function_with_lexer(source: &str, dialect: StyleDialect) -> (
                 if !is_light_dark_lowerable_property(&declaration.property) {
                     continue;
                 }
-                let Some(replacement_value) = parse_color_function_value(&declaration.value) else {
+                let Some(replacement_value) = substitute_static_css_function_references_in_value(
+                    &declaration.value,
+                    &[("color", parse_color_function_value)],
+                ) else {
                     continue;
                 };
                 replacements.push((
@@ -5286,6 +5298,81 @@ fn parse_light_dark_value(value: &str) -> Option<(String, String)> {
         return None;
     }
     Some((light.clone(), dark.clone()))
+}
+
+fn substitute_static_css_function_references_in_value(
+    value: &str,
+    functions: &[(&str, fn(&str) -> Option<String>)],
+) -> Option<String> {
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+    let mut changed = false;
+
+    while index < value.len() {
+        let ch = value[index..].chars().next()?;
+
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                let escaped = value[index..].chars().next()?;
+                index += escaped.len_utf8();
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            _ => {
+                let Some((function_name, parse_function_value)) =
+                    static_css_function_at(value, index, functions)
+                else {
+                    index += ch.len_utf8();
+                    continue;
+                };
+                let left_paren_index = index + function_name.len();
+                let Some(close_index) = matching_function_call_end(value, left_paren_index) else {
+                    index += ch.len_utf8();
+                    continue;
+                };
+                let function_value = &value[index..close_index + ')'.len_utf8()];
+                let Some(replacement_value) = parse_function_value(function_value) else {
+                    index += ch.len_utf8();
+                    continue;
+                };
+                output.push_str(&value[cursor..index]);
+                output.push_str(&replacement_value);
+                index = close_index + ')'.len_utf8();
+                cursor = index;
+                changed = true;
+            }
+        }
+    }
+
+    if !changed {
+        return None;
+    }
+    output.push_str(&value[cursor..]);
+    Some(output)
+}
+
+fn static_css_function_at<'a>(
+    value: &str,
+    index: usize,
+    functions: &'a [(&str, fn(&str) -> Option<String>)],
+) -> Option<(&'a str, fn(&str) -> Option<String>)> {
+    functions.iter().find_map(|(function_name, parser)| {
+        let name = value.get(index..index + function_name.len())?;
+        let open_paren = value[index + function_name.len()..].chars().next()?;
+        (name.eq_ignore_ascii_case(function_name) && open_paren == '(')
+            .then_some((*function_name, *parser))
+    })
 }
 
 fn parse_color_mix_value(value: &str) -> Option<String> {
@@ -9120,7 +9207,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_static_srgb_color_mix_declarations() {
-        let source = r#".card { color: color-mix(in srgb, red 50%, blue 50%); background-color: color-mix(in srgb, #000, #fff 25%); outline-color: color-mix(in srgb, rgb(255 0 0) 25%, hsl(240 100% 50%) 75%); text-decoration-color: color-mix(in srgb, hwb(120 0% 50%) 40%, white 60%); caret-color: color-mix(in srgb, black 12.5%, white 87.5%); border-color: color-mix(in oklab, red, blue); }"#;
+        let source = r#".card { color: color-mix(in srgb, red 50%, blue 50%); background-color: color-mix(in srgb, #000, #fff 25%); outline-color: color-mix(in srgb, rgb(255 0 0) 25%, hsl(240 100% 50%) 75%); text-decoration-color: color-mix(in srgb, hwb(120 0% 50%) 40%, white 60%); caret-color: color-mix(in srgb, black 12.5%, white 87.5%); background: linear-gradient(color-mix(in srgb, red 25%, blue 75%), white); border-color: color-mix(in oklab, red, blue); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9129,10 +9216,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 5);
+        assert_eq!(execution.mutation_count, 6);
         assert_eq!(
             execution.output_css,
-            r#".card { color: rgb(128 0 128); background-color: rgb(64 64 64); outline-color: rgb(64 0 191); text-decoration-color: rgb(153 204 153); caret-color: rgb(223 223 223); border-color: color-mix(in oklab, red, blue); }"#
+            r#".card { color: rgb(128 0 128); background-color: rgb(64 64 64); outline-color: rgb(64 0 191); text-decoration-color: rgb(153 204 153); caret-color: rgb(223 223 223); background: linear-gradient(rgb(64 0 191), white); border-color: color-mix(in oklab, red, blue); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
@@ -9142,7 +9229,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_in_gamut_oklab_oklch_declarations() {
-        let source = r#".card { color: oklab(1 0 0); background-color: oklch(0% 0 0deg); outline-color: oklch(0% 0 0.5TURN); border-color: oklch(70% 0.4 40deg); }"#;
+        let source = r#".card { color: oklab(1 0 0); background-color: oklch(0% 0 0deg); outline-color: oklch(0% 0 0.5TURN); background: linear-gradient(oklch(0% 0 0deg), white); border-color: oklch(70% 0.4 40deg); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9151,10 +9238,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 3);
+        assert_eq!(execution.mutation_count, 4);
         assert_eq!(
             execution.output_css,
-            r#".card { color: rgb(255 255 255); background-color: rgb(0 0 0); outline-color: rgb(0 0 0); border-color: oklch(70% 0.4 40deg); }"#
+            r#".card { color: rgb(255 255 255); background-color: rgb(0 0 0); outline-color: rgb(0 0 0); background: linear-gradient(rgb(0 0 0), white); border-color: oklch(70% 0.4 40deg); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
@@ -9164,7 +9251,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_static_srgb_color_function_declarations() {
-        let source = r#".card { color: color(srgb 1 0 0); background-color: color(srgb 50% 25% 0% / 100%); outline-color: color(srgb 0 0 1 / 1); fill: color(display-p3 0.5 0.5 0.5 / 100%); accent-color: color(srgb 1 0 0 / .5); border-color: color(display-p3 1 0 0); }"#;
+        let source = r#".card { color: color(srgb 1 0 0); background-color: color(srgb 50% 25% 0% / 100%); outline-color: color(srgb 0 0 1 / 1); fill: color(display-p3 0.5 0.5 0.5 / 100%); background: linear-gradient(color(srgb 1 0 0), white); accent-color: color(srgb 1 0 0 / .5); border-color: color(display-p3 1 0 0); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9173,10 +9260,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(execution.mutation_count, 5);
         assert_eq!(
             execution.output_css,
-            r#".card { color: rgb(255 0 0); background-color: rgb(128 64 0); outline-color: rgb(0 0 255); fill: rgb(128 128 128); accent-color: color(srgb 1 0 0 / .5); border-color: color(display-p3 1 0 0); }"#
+            r#".card { color: rgb(255 0 0); background-color: rgb(128 64 0); outline-color: rgb(0 0 255); fill: rgb(128 128 128); background: linear-gradient(rgb(255 0 0), white); accent-color: color(srgb 1 0 0 / .5); border-color: color(display-p3 1 0 0); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
