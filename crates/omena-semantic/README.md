@@ -23,7 +23,7 @@ Current public products:
   and identity-preserving reference sites derived from `EngineInputV2`.
 - `omena-semantic.design-token-semantics` — CSS custom property resolver
   readiness surface that exposes same-file and occurrence-level resolution
-  counts, source-order facts, same-file cascade ranking records,
+  counts, source-order and layer-order facts, same-file cascade ranking records,
   selector/wrapper context signals, and the remaining cross-file/package/theme
   gaps.
 - `omena-semantic.style-context-index` — explicit `@layer`, `@container`, and

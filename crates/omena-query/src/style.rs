@@ -529,6 +529,8 @@ pub fn read_omena_query_cascade_at_position_from_graph(
             winner_declaration_file_path: None,
             winner_declaration_range: None,
             winner_context_kind: None,
+            winner_declaration_layer_rank: None,
+            winner_declaration_layer_name: None,
             candidate_declaration_count: 0,
             shadowed_declaration_source_orders: Vec::new(),
             referenced_declaration_property: None,
@@ -586,6 +588,9 @@ pub fn read_omena_query_cascade_at_position_from_graph(
             .and_then(|ranking| ranking.winner_declaration_range)
             .map(parser_range_from_semantic_range),
         winner_context_kind: ranking.map(|ranking| ranking.winner_context_kind),
+        winner_declaration_layer_rank: ranking.map(|ranking| ranking.winner_declaration_layer_rank),
+        winner_declaration_layer_name: ranking
+            .and_then(|ranking| ranking.winner_declaration_layer_name.clone()),
         candidate_declaration_count: ranking
             .map(|ranking| ranking.candidate_declaration_count)
             .unwrap_or(0),
