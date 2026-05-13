@@ -3453,46 +3453,68 @@ fn tree_shake_css_class_rules_with_lexer(
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let rules = collect_declaration_ordinary_rule_slices(source, tokens);
-    let removals = rules
-        .iter()
-        .filter_map(|rule| {
-            selector_list_unreachable_owner_class_names(&rule.selector, reachable_class_names).map(
-                |owner_class_names| TransformSemanticRemovalCandidate {
-                    symbol_kind: "class",
-                    name: owner_class_names.join(","),
-                    source_span_start: rule.start,
-                    source_span_end: rule.end,
-                    reason: "selector owner classes were absent from the closed-style-world reachable class set",
-                },
-            )
-        })
-        .collect::<Vec<_>>();
-    let ranges = removals
-        .iter()
-        .map(|removal| (removal.source_span_start, removal.source_span_end))
-        .collect::<Vec<_>>();
+    let mut removals = Vec::new();
+    let mut replacements = Vec::new();
 
-    let (output, _) = remove_source_ranges(source, &ranges);
+    for rule in &rules {
+        let Some(plan) = selector_list_class_tree_shake_plan(&rule.selector, reachable_class_names)
+        else {
+            continue;
+        };
+        removals.push(TransformSemanticRemovalCandidate {
+            symbol_kind: "class",
+            name: plan.unreachable_owner_class_names.join(","),
+            source_span_start: rule.start,
+            source_span_end: rule.end,
+            reason: "selector owner classes were absent from the closed-style-world reachable class set",
+        });
+        if let Some(reachable_selector) = plan.reachable_selector {
+            replacements.push((
+                rule.start,
+                rule.block_start,
+                format!("{reachable_selector} "),
+            ));
+        } else {
+            replacements.push((rule.start, rule.end, String::new()));
+        }
+    }
+
+    let (output, _) = replace_source_ranges(source, &replacements);
     (output, removals)
 }
 
-fn selector_list_unreachable_owner_class_names(
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SelectorListClassTreeShakePlan {
+    reachable_selector: Option<String>,
+    unreachable_owner_class_names: Vec<String>,
+}
+
+fn selector_list_class_tree_shake_plan(
     selector: &str,
     reachable_class_names: &[String],
-) -> Option<Vec<String>> {
+) -> Option<SelectorListClassTreeShakePlan> {
     let branches = split_top_level_value_arguments(selector)?;
     if branches.is_empty() {
         return None;
     }
     let mut owner_class_names = Vec::new();
+    let mut reachable_branches = Vec::new();
     for branch in branches {
         let class_name = selector_branch_owner_class_name(&branch)?;
         if class_name_is_reachable(&class_name, reachable_class_names) {
-            return None;
+            reachable_branches.push(branch);
+        } else {
+            push_unique_string(&mut owner_class_names, class_name);
         }
-        push_unique_string(&mut owner_class_names, class_name);
     }
-    Some(owner_class_names)
+    if owner_class_names.is_empty() {
+        return None;
+    }
+
+    Some(SelectorListClassTreeShakePlan {
+        reachable_selector: (!reachable_branches.is_empty()).then(|| reachable_branches.join(", ")),
+        unreachable_owner_class_names: owner_class_names,
+    })
 }
 
 fn selector_branch_owner_class_name(selector: &str) -> Option<String> {
@@ -9877,7 +9899,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
-        let source = r#".used { color: red; } .dead { color: blue; } .dead:hover { color: green; } button.other-dead { color: black; } .also-dead, .other-dead { color: black; } .used .child { color: purple; } :global(.external) { color: gray; } @media (min-width: 1px) { .media-dead { color: orange; } .used { color: brown; } }"#;
+        let source = r#".used { color: red; } .dead { color: blue; } .dead:hover { color: green; } button.other-dead { color: black; } .also-dead, .other-dead { color: black; } .used, .dead-mixed { color: cyan; } .used .child { color: purple; } :global(.external) { color: gray; } @media (min-width: 1px) { .media-dead { color: orange; } .used { color: brown; } }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             reachable_class_names: vec!["used".to_string()],
@@ -9893,8 +9915,9 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 5);
+        assert_eq!(execution.mutation_count, 6);
         assert!(execution.output_css.contains(".used { color: red; }"));
+        assert!(execution.output_css.contains(".used { color: cyan; }"));
         assert!(
             execution
                 .output_css
@@ -9915,12 +9938,13 @@ mod tests {
         assert!(!execution.output_css.contains("button.other-dead"));
         assert!(!execution.output_css.contains(".also-dead"));
         assert!(!execution.output_css.contains(".other-dead"));
+        assert!(!execution.output_css.contains(".dead-mixed"));
         assert!(!execution.output_css.contains(".media-dead"));
         assert_eq!(
             execution.executed_pass_ids,
             vec!["tree-shake-class", "print-css"]
         );
-        assert_eq!(execution.semantic_removals.len(), 5);
+        assert_eq!(execution.semantic_removals.len(), 6);
         assert!(execution.semantic_removals.iter().any(|removal| {
             removal.symbol_kind == "class"
                 && removal.name == "also-dead,other-dead"
