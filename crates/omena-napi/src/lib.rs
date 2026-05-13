@@ -8,6 +8,7 @@ use omena_query::{
     OmenaQueryEngineInputV2 as OmenaNapiEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 as OmenaNapiExpressionDomainIncrementalFlowAnalysisV0,
     OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaNapiExpressionDomainSelectorProjectionV0,
+    OmenaQueryStyleContextIndexV0 as OmenaNapiStyleContextIndexV0,
     OmenaQueryStylePackageManifestV0 as OmenaNapiStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0 as OmenaNapiStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaNapiTargetTransformOptionsV0,
@@ -23,7 +24,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
-    summarize_omena_query_consumer_check_style_source,
+    read_omena_query_style_context_index, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_transform_context_from_engine_input,
@@ -219,6 +220,16 @@ pub fn read_cascade_at_position_json(
     ))
 }
 
+#[napi(js_name = "readStyleContextIndexJson")]
+pub fn read_style_context_index_json(
+    source: String,
+    path: String,
+    input_json: String,
+) -> napi::Result<String> {
+    let input = parse_optional_engine_input_json(&input_json)?;
+    to_json_string(&read_style_context_index_summary(&source, &path, &input))
+}
+
 #[napi(js_name = "ExpressionDomainFlowRuntime")]
 pub struct OmenaNapiExpressionDomainFlowRuntimeV0 {
     inner: OmenaQueryExpressionDomainFlowRuntimeV0,
@@ -401,6 +412,15 @@ pub fn read_cascade_at_position_summary(
     read_omena_query_cascade_at_position(path, source, input, ParserPositionV0 { line, character })
 }
 
+pub fn read_style_context_index_summary(
+    source: &str,
+    path: &str,
+    input: &OmenaNapiEngineInputV2,
+) -> Option<OmenaNapiStyleContextIndexV0> {
+    let path = effective_path(path);
+    read_omena_query_style_context_index(path, source, input)
+}
+
 fn parse_target_options_json(
     target_options_json: &str,
 ) -> napi::Result<OmenaNapiTargetTransformOptionsV0> {
@@ -515,6 +535,24 @@ mod tests {
                 .reference_custom_property_fixed_point_value
                 .as_deref(),
             Some("#2563eb")
+        );
+    }
+
+    #[test]
+    fn reads_style_context_index_for_node_clients() {
+        let input = empty_engine_input();
+        let summary = read_style_context_index_summary(
+            "@layer components { @container card (min-width: 20rem) { .card { color: red; } } }",
+            "fixture.module.css",
+            &input,
+        )
+        .expect("context index summary should be available");
+
+        assert_eq!(summary.product, "omena-query.style-context-index");
+        assert_eq!(summary.context_index.layer_index.block_layers.len(), 1);
+        assert_eq!(
+            summary.context_index.container_index.named_container_count,
+            1
         );
     }
 
@@ -678,6 +716,22 @@ mod tests {
         assert!(json.contains("\"product\":\"omena-query.read-cascade-at-position\""));
         assert!(json.contains("\"referenceName\":\"--known\""));
         assert!(json.contains("\"referenceCustomPropertyFixedPointValue\":\"#2563eb\""));
+        Ok(())
+    }
+
+    #[test]
+    fn serializes_style_context_index_for_node_clients() -> napi::Result<()> {
+        let json = read_style_context_index_json(
+            "@layer components { @container card (min-width: 20rem) { .card { color: red; } } }"
+                .to_string(),
+            "fixture.module.css".to_string(),
+            String::new(),
+        )
+        .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
+
+        assert!(json.contains("\"product\":\"omena-query.style-context-index\""));
+        assert!(json.contains("\"contextIndexSource\":\"omena-semantic.style-context-index\""));
+        assert!(json.contains("\"namedContainerCount\":1"));
         Ok(())
     }
 

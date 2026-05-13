@@ -34,6 +34,9 @@ targetQuery, targetOptionsJson, contextJson, packageManifestsJson)` combines
   cascade, computed-value, and custom-property LFP information at a `var(...)`
   reference position. Pass an empty string for `inputJson` when no EngineInputV2
   context is needed.
+- `readStyleContextIndexJson(source, path, inputJson)` reads query-owned
+  `@layer`, `@container`, and `@scope` context indexes. Pass an empty string for
+  `inputJson` when no EngineInputV2 context is needed.
 - `expressionDomainIncrementalFlowJson(inputJson)` runs one query-owned
   expression-domain incremental-flow pass for simple Node clients.
 - `new ExpressionDomainFlowRuntime().analyzeJson(inputJson)` keeps the

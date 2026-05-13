@@ -79,6 +79,23 @@ pub fn summarize_omena_query_style_document(
     })
 }
 
+pub fn read_omena_query_style_context_index(
+    style_path: &str,
+    style_source: &str,
+    input: &EngineInputV2,
+) -> Option<OmenaQueryStyleContextIndexV0> {
+    let graph =
+        summarize_omena_query_style_semantic_graph_from_source(style_path, style_source, input)?;
+    Some(OmenaQueryStyleContextIndexV0 {
+        schema_version: "0",
+        product: "omena-query.style-context-index",
+        style_path: style_path.to_string(),
+        language: graph.language,
+        context_index_source: graph.semantic_facts.context_index.product,
+        context_index: graph.semantic_facts.context_index,
+    })
+}
+
 pub fn summarize_omena_query_omena_parser_style_facts(
     style_source: &str,
     dialect: OmenaParserStyleDialect,

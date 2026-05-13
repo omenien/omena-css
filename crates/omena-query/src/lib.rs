@@ -52,6 +52,7 @@ use omena_resolver::{
     summarize_omena_resolver_query_fragments, summarize_omena_resolver_source_resolution_runtime,
     summarize_omena_resolver_style_module_resolution,
 };
+use omena_semantic::StyleContextIndexV0;
 use omena_transform_bundle::{
     TransformBundleSourceSummaryV0, summarize_omena_transform_bundle_from_source,
 };

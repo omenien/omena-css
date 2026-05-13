@@ -33,6 +33,9 @@ targetOptions, context, packageManifests)` combines target planning with
   computed-value, and custom-property LFP information at a `var(...)` reference
   position. Pass `null` or `undefined` for `input` when no EngineInputV2 context
   is needed.
+- `readStyleContextIndex(source, path, input)` reads query-owned `@layer`,
+  `@container`, and `@scope` context indexes. Pass `null` or `undefined` for
+  `input` when no EngineInputV2 context is needed.
 - `expressionDomainIncrementalFlow(input)` runs one query-owned
   expression-domain incremental-flow pass for simple browser clients.
 - `new ExpressionDomainFlowRuntime().analyze(input)` keeps the query-owned

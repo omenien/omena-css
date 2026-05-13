@@ -15,6 +15,8 @@ Current commands:
 - `omena cascade <file> --line <n> --character <n>` reads cascade,
   computed-value, and custom-property LFP information at a `var(...)`
   reference position.
+- `omena context-index <file>` reads semantic-owned `@layer`, `@container`,
+  and `@scope` indexes for cascade-aware consumers.
 - `omena expression-flow --engine-input-json input.json` analyzes
   cross-language class-value flow through the query-owned incremental runtime.
 - `omena selector-projection --engine-input-json input.json` projects
@@ -30,6 +32,7 @@ omena build path/to/file.css --pass whitespace-strip
 omena build path/to/file.css --target-query "ie 11"
 omena build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
 omena cascade path/to/file.module.css --line 10 --character 16 --json
+omena context-index path/to/file.module.scss --json
 omena expression-flow --engine-input-json input.json --json
 omena selector-projection --engine-input-json input.json --json
 omena passes

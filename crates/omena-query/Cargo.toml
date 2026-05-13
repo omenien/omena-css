@@ -21,6 +21,7 @@ omena-cascade = { path = "../omena-cascade", version = "0.1" }
 omena-incremental = { path = "../omena-incremental", version = "0.1" }
 omena-parser = { path = "../omena-parser", version = "0.1" }
 omena-resolver = { path = "../omena-resolver", version = "0.1" }
+omena-semantic = { path = "../omena-semantic", version = "0.1" }
 omena-transform-bundle = { path = "../omena-transform-bundle", version = "0.1" }
 omena-transform-cst = { path = "../omena-transform-cst", version = "0.1" }
 omena-transform-egg = { path = "../omena-transform-egg", version = "0.1" }

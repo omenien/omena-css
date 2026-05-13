@@ -46,6 +46,8 @@ Current public products:
   `omena-semantic.style-semantic-graph` products while delegating graph assembly
   to `omena-bridge`, including the `omena-semantic.css-modules-semantics`
   per-file seed surface.
+- `omena-query.style-context-index` — consumer read model for the
+  semantic-owned `@layer`, `@container`, and `@scope` context index.
 - `omena-query.css-modules-cross-file-resolution` — batch-level CSS Modules
   relation resolver for `composes`, `@value`, and ICSS import/export sources.
   This resolves import sources, same-edge name matches, transitive closure, and
