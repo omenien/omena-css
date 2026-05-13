@@ -33,7 +33,9 @@ use omena_query::{
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_style_completion_at_position,
-    summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
+    summarize_omena_query_style_diagnostics_for_file,
+    summarize_omena_query_style_diagnostics_for_workspace_file,
+    summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
 use serde::Serialize;
@@ -243,6 +245,21 @@ pub fn read_style_context_index(
 #[wasm_bindgen(js_name = readStyleDiagnostics)]
 pub fn read_style_diagnostics(source: &str, path: &str) -> Result<JsValue, JsValue> {
     to_js_value(&read_style_diagnostics_summary(source, path)?)
+}
+
+#[wasm_bindgen(js_name = readWorkspaceStyleDiagnostics)]
+pub fn read_workspace_style_diagnostics(
+    target_path: &str,
+    sources: JsValue,
+    package_manifests: JsValue,
+) -> Result<JsValue, JsValue> {
+    let sources = parse_style_sources_value(sources)?;
+    let package_manifests = parse_package_manifests_value(package_manifests)?;
+    to_js_value(&read_workspace_style_diagnostics_summary(
+        target_path,
+        &sources,
+        &package_manifests,
+    )?)
 }
 
 #[wasm_bindgen(js_name = readStyleHoverCandidates)]
@@ -485,6 +502,24 @@ pub fn read_style_diagnostics_summary(
     ))
 }
 
+pub fn read_workspace_style_diagnostics_summary(
+    target_path: &str,
+    sources: &[OmenaWasmStyleSourceInputV0],
+    package_manifests: &[OmenaWasmStylePackageManifestV0],
+) -> Result<OmenaWasmStyleDiagnosticsForFileV0, JsValue> {
+    let target_path = effective_path(target_path);
+    summarize_omena_query_style_diagnostics_for_workspace_file(
+        target_path,
+        sources,
+        package_manifests,
+    )
+    .ok_or_else(|| {
+        JsValue::from_str(&format!(
+            "failed to read workspace style diagnostics for {target_path}"
+        ))
+    })
+}
+
 pub fn read_style_hover_candidates_summary(
     source: &str,
     path: &str,
@@ -725,6 +760,50 @@ mod tests {
                 .diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code == "missingKeyframes")
+        );
+    }
+
+    #[test]
+    fn reads_workspace_style_diagnostics_for_browser_clients() {
+        let sources = vec![
+            OmenaWasmStyleSourceInputV0 {
+                style_path: "/workspace/src/App.module.css".to_string(),
+                style_source: r#".button { composes: missing from "./Base.module.css"; }
+@value absent from "./Tokens.module.css";"#
+                    .to_string(),
+            },
+            OmenaWasmStyleSourceInputV0 {
+                style_path: "/workspace/src/Base.module.css".to_string(),
+                style_source: ".base { color: blue; }".to_string(),
+            },
+            OmenaWasmStyleSourceInputV0 {
+                style_path: "/workspace/src/Tokens.module.css".to_string(),
+                style_source: "@value accent: blue;".to_string(),
+            },
+        ];
+        let summary = read_workspace_style_diagnostics_summary(
+            "/workspace/src/App.module.css",
+            &sources,
+            &[],
+        )
+        .expect("workspace diagnostics should be available");
+
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"cssModulesComposesResolutionDiagnostics")
+        );
+        assert!(
+            summary
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "missingComposedSelector")
+        );
+        assert!(
+            summary
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "missingImportedValue")
         );
     }
 

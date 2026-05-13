@@ -2947,6 +2947,72 @@ fn style_diagnostics_for_file_include_same_file_sass_symbol_lints() {
 }
 
 #[test]
+fn style_diagnostics_for_workspace_file_include_css_modules_resolution_lints() {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/Component.module.css".to_string(),
+            style_source: r#".button { composes: missingLocal; }
+.missingModule { composes: root from "./Missing.module.css"; }
+.external { composes: ghost from "./Base.module.css"; }
+@value primary from "./MissingTokens.module.css";
+@value absent from "./Tokens.module.css";"#
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/Base.module.css".to_string(),
+            style_source: ".base { color: blue; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/Tokens.module.css".to_string(),
+            style_source: "@value accent: blue;".to_string(),
+        },
+    ];
+
+    let diagnostics = super::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/workspace/src/Component.module.css",
+        sources.as_slice(),
+        &[],
+    )
+    .expect("workspace style diagnostics");
+
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"cssModulesComposesResolutionDiagnostics")
+    );
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"cssModulesValueResolutionDiagnostics")
+    );
+    let messages = diagnostics
+        .diagnostics
+        .iter()
+        .map(|diagnostic| (diagnostic.code, diagnostic.message.as_str()))
+        .collect::<Vec<_>>();
+    assert!(messages.contains(&(
+        "missingComposedSelector",
+        "Selector '.missingLocal' not found in this file for composes.",
+    )));
+    assert!(messages.contains(&(
+        "missingComposedModule",
+        "Cannot resolve composed CSS Module './Missing.module.css'.",
+    )));
+    assert!(messages.contains(&(
+        "missingComposedSelector",
+        "Selector '.ghost' not found in composed module './Base.module.css'.",
+    )));
+    assert!(messages.contains(&(
+        "missingValueModule",
+        "Cannot resolve imported @value module './MissingTokens.module.css'.",
+    )));
+    assert!(messages.contains(&(
+        "missingImportedValue",
+        "@value 'absent' not found in './Tokens.module.css'.",
+    )));
+}
+
+#[test]
 fn completion_at_position_is_query_owned_for_style_and_source() {
     let source = ":root { --brand: red; }\n.root { color: var(--br); }\n.row { display: flex; }";
     let candidates =

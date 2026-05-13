@@ -34,7 +34,9 @@ use omena_query::{
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_style_completion_at_position,
-    summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
+    summarize_omena_query_style_diagnostics_for_file,
+    summarize_omena_query_style_diagnostics_for_workspace_file,
+    summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
 use serde::Serialize;
@@ -241,6 +243,21 @@ pub fn read_style_context_index_json(
 #[napi(js_name = "readStyleDiagnosticsJson")]
 pub fn read_style_diagnostics_json(source: String, path: String) -> napi::Result<String> {
     to_json_string(&read_style_diagnostics_summary(&source, &path)?)
+}
+
+#[napi(js_name = "readWorkspaceStyleDiagnosticsJson")]
+pub fn read_workspace_style_diagnostics_json(
+    target_path: String,
+    sources_json: String,
+    package_manifests_json: String,
+) -> napi::Result<String> {
+    let sources = parse_style_sources_json(&sources_json)?;
+    let package_manifests = parse_package_manifests_json(&package_manifests_json)?;
+    to_json_string(&read_workspace_style_diagnostics_summary(
+        &target_path,
+        &sources,
+        &package_manifests,
+    )?)
 }
 
 #[napi(js_name = "readStyleHoverCandidatesJson")]
@@ -482,6 +499,24 @@ pub fn read_style_diagnostics_summary(
     ))
 }
 
+pub fn read_workspace_style_diagnostics_summary(
+    target_path: &str,
+    sources: &[OmenaNapiStyleSourceInputV0],
+    package_manifests: &[OmenaNapiStylePackageManifestV0],
+) -> napi::Result<OmenaNapiStyleDiagnosticsForFileV0> {
+    let target_path = effective_path(target_path);
+    summarize_omena_query_style_diagnostics_for_workspace_file(
+        target_path,
+        sources,
+        package_manifests,
+    )
+    .ok_or_else(|| {
+        napi::Error::from_reason(format!(
+            "failed to read workspace style diagnostics for {target_path}"
+        ))
+    })
+}
+
 pub fn read_style_hover_candidates_summary(
     source: &str,
     path: &str,
@@ -696,6 +731,50 @@ mod tests {
                 .diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code == "missingKeyframes")
+        );
+    }
+
+    #[test]
+    fn reads_workspace_style_diagnostics_for_node_clients() {
+        let sources = vec![
+            OmenaNapiStyleSourceInputV0 {
+                style_path: "/workspace/src/App.module.css".to_string(),
+                style_source: r#".button { composes: missing from "./Base.module.css"; }
+@value absent from "./Tokens.module.css";"#
+                    .to_string(),
+            },
+            OmenaNapiStyleSourceInputV0 {
+                style_path: "/workspace/src/Base.module.css".to_string(),
+                style_source: ".base { color: blue; }".to_string(),
+            },
+            OmenaNapiStyleSourceInputV0 {
+                style_path: "/workspace/src/Tokens.module.css".to_string(),
+                style_source: "@value accent: blue;".to_string(),
+            },
+        ];
+        let summary = read_workspace_style_diagnostics_summary(
+            "/workspace/src/App.module.css",
+            &sources,
+            &[],
+        )
+        .expect("workspace diagnostics should be available");
+
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"cssModulesComposesResolutionDiagnostics")
+        );
+        assert!(
+            summary
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "missingComposedSelector")
+        );
+        assert!(
+            summary
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "missingImportedValue")
         );
     }
 
@@ -926,6 +1005,24 @@ mod tests {
         assert!(json.contains("\"product\":\"omena-query.diagnostics-for-file\""));
         assert!(json.contains("\"fileKind\":\"style\""));
         assert!(json.contains("\"code\":\"missingCustomProperty\""));
+        Ok(())
+    }
+
+    #[test]
+    fn serializes_workspace_style_diagnostics_for_node_clients() -> napi::Result<()> {
+        let sources = r#"[
+{"stylePath":"/workspace/src/App.module.css","styleSource":".button { composes: missing from \"./Base.module.css\"; }"},
+{"stylePath":"/workspace/src/Base.module.css","styleSource":".base { color: blue; }"}
+]"#;
+        let json = read_workspace_style_diagnostics_json(
+            "/workspace/src/App.module.css".to_string(),
+            sources.to_string(),
+            String::new(),
+        )
+        .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
+
+        assert!(json.contains("\"product\":\"omena-query.diagnostics-for-file\""));
+        assert!(json.contains("\"code\":\"missingComposedSelector\""));
         Ok(())
     }
 
