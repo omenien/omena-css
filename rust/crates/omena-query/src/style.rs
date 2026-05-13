@@ -497,8 +497,6 @@ pub fn read_omena_query_cascade_at_position_from_graph(
     graph: &StyleSemanticGraphSummaryV0,
     position: ParserPositionV0,
 ) -> OmenaQueryCascadeAtPositionV0 {
-    let custom_property_env = collect_same_file_custom_property_env_from_graph(graph);
-    let fixed_point = summarize_custom_property_least_fixed_point(&custom_property_env);
     let positioned_references = positioned_custom_property_reference_facts(
         style_source,
         graph
@@ -516,6 +514,8 @@ pub fn read_omena_query_cascade_at_position_from_graph(
         .find(|(_, range)| parser_range_contains_position(range, position));
 
     let Some((reference, reference_range)) = reference else {
+        let custom_property_env = collect_same_file_custom_property_env_from_graph(graph);
+        let fixed_point = summarize_custom_property_least_fixed_point(&custom_property_env);
         return OmenaQueryCascadeAtPositionV0 {
             schema_version: "0",
             product: "omena-query.read-cascade-at-position",
@@ -556,6 +556,12 @@ pub fn read_omena_query_cascade_at_position_from_graph(
             ranking.reference_name == reference.name
                 && ranking.reference_source_order == reference.source_order
         });
+    let custom_property_env = collect_same_file_custom_property_env_from_graph_for_reference_winner(
+        graph,
+        reference.name,
+        ranking.map(|ranking| ranking.winner_declaration_source_order),
+    );
+    let fixed_point = summarize_custom_property_least_fixed_point(&custom_property_env);
     let computed = compute_referenced_declaration_cascade_value_seed(
         style_path,
         style_source,
@@ -710,6 +716,34 @@ fn collect_same_file_custom_property_env_from_graph(
         .into_iter()
         .map(|(name, (_, value))| (name, value))
         .collect()
+}
+
+fn collect_same_file_custom_property_env_from_graph_for_reference_winner(
+    graph: &StyleSemanticGraphSummaryV0,
+    reference_name: &str,
+    winner_declaration_source_order: Option<usize>,
+) -> CustomPropertyEnv {
+    let mut env = collect_same_file_custom_property_env_from_graph(graph);
+    let Some(winner_declaration_source_order) = winner_declaration_source_order else {
+        return env;
+    };
+    let Some(winner) = graph
+        .parser_facts
+        .custom_properties
+        .decl_facts
+        .iter()
+        .find(|declaration| {
+            declaration.name == reference_name
+                && declaration.source_order == winner_declaration_source_order
+        })
+    else {
+        return env;
+    };
+    let Some(value) = parse_static_css_cascade_value(&winner.value) else {
+        return env;
+    };
+    env.insert(reference_name.to_string(), value);
+    env
 }
 
 fn style_declaration_at_byte_offset(

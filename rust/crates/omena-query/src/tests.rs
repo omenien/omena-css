@@ -2917,6 +2917,42 @@ fn read_cascade_at_position_is_query_owned() {
 }
 
 #[test]
+fn read_cascade_at_position_uses_layer_ranked_lfp_winner() {
+    let source = r#".button { --surface: unlayered; }
+@layer components {
+  .button {
+    --surface: layered;
+    color: var(--surface);
+  }
+}
+"#;
+    let cascade = super::read_omena_query_cascade_at_position(
+        "Component.module.css",
+        source,
+        &sample_input(),
+        ParserPositionV0 {
+            line: 4,
+            character: 15,
+        },
+    );
+    assert!(cascade.is_some());
+    let Some(cascade) = cascade else {
+        return;
+    };
+
+    assert_eq!(cascade.status, "resolved");
+    assert_eq!(cascade.reference_name.as_deref(), Some("--surface"));
+    assert_eq!(cascade.winner_declaration_source_order, Some(0));
+    assert_eq!(cascade.winner_declaration_layer_rank, Some(2));
+    assert_eq!(
+        cascade
+            .reference_custom_property_fixed_point_value
+            .as_deref(),
+        Some("unlayered")
+    );
+}
+
+#[test]
 fn read_cascade_at_position_reports_iacvt_seed() {
     let source = ":root { --a: var(--b); --b: var(--a); }\n.button { color: var(--a); }\n";
     let cascade = super::read_omena_query_cascade_at_position(
