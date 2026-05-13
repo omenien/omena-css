@@ -40,7 +40,8 @@ use super::{
     summarize_omena_query_transform_plan_from_target_query,
 };
 use crate::{
-    OmenaQueryCompletionCandidateV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
+    OmenaQueryCompletionCandidateV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
     OmenaQuerySourceSelectorReferenceCandidateV0, OmenaQuerySourceSelectorReferenceEditTargetV0,
     OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0,
     OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
@@ -2972,6 +2973,7 @@ fn style_diagnostics_for_workspace_file_include_css_modules_resolution_lints() {
         "/workspace/src/Component.module.css",
         sources.as_slice(),
         &[],
+        &[],
     )
     .expect("workspace style diagnostics");
 
@@ -3010,6 +3012,48 @@ fn style_diagnostics_for_workspace_file_include_css_modules_resolution_lints() {
         "missingImportedValue",
         "@value 'absent' not found in './Tokens.module.css'.",
     )));
+}
+
+#[test]
+fn style_diagnostics_for_workspace_file_include_unused_selector_lints() {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/App.module.css".to_string(),
+        style_source:
+            ".used { color: red; }\n.ghost { color: blue; }\n.composed { composes: used; }"
+                .to_string(),
+    }];
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "/workspace/src/App.tsx".to_string(),
+        source_source: r#"import styles from "./App.module.css";
+export function App() {
+  return <div className={styles.composed}>hi</div>;
+}"#
+        .to_string(),
+    }];
+
+    let diagnostics = super::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/workspace/src/App.module.css",
+        sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+    )
+    .expect("workspace style diagnostics");
+
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"unusedSelectorDiagnostics")
+    );
+    let unused = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "unusedSelector")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        unused,
+        vec!["Selector '.ghost' is declared but never used."]
+    );
 }
 
 #[test]

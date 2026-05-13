@@ -10,6 +10,7 @@ use omena_query::{
     OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 as OmenaNapiExpressionDomainIncrementalFlowAnalysisV0,
     OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaNapiExpressionDomainSelectorProjectionV0,
     OmenaQuerySourceDiagnosticsForFileV0 as OmenaNapiSourceDiagnosticsForFileV0,
+    OmenaQuerySourceDocumentInputV0 as OmenaNapiSourceDocumentInputV0,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 as OmenaNapiSourceMissingSelectorDiagnosticCandidateV0,
     OmenaQueryStyleContextIndexV0 as OmenaNapiStyleContextIndexV0,
     OmenaQueryStyleDiagnosticsForFileV0 as OmenaNapiStyleDiagnosticsForFileV0,
@@ -249,13 +250,16 @@ pub fn read_style_diagnostics_json(source: String, path: String) -> napi::Result
 pub fn read_workspace_style_diagnostics_json(
     target_path: String,
     sources_json: String,
+    source_documents_json: String,
     package_manifests_json: String,
 ) -> napi::Result<String> {
     let sources = parse_style_sources_json(&sources_json)?;
+    let source_documents = parse_source_documents_json(&source_documents_json)?;
     let package_manifests = parse_package_manifests_json(&package_manifests_json)?;
     to_json_string(&read_workspace_style_diagnostics_summary(
         &target_path,
         &sources,
+        &source_documents,
         &package_manifests,
     )?)
 }
@@ -502,12 +506,14 @@ pub fn read_style_diagnostics_summary(
 pub fn read_workspace_style_diagnostics_summary(
     target_path: &str,
     sources: &[OmenaNapiStyleSourceInputV0],
+    source_documents: &[OmenaNapiSourceDocumentInputV0],
     package_manifests: &[OmenaNapiStylePackageManifestV0],
 ) -> napi::Result<OmenaNapiStyleDiagnosticsForFileV0> {
     let target_path = effective_path(target_path);
     summarize_omena_query_style_diagnostics_for_workspace_file(
         target_path,
         sources,
+        source_documents,
         package_manifests,
     )
     .ok_or_else(|| {
@@ -567,6 +573,17 @@ fn parse_context_json(context_json: &str) -> napi::Result<OmenaNapiTransformExec
 fn parse_style_sources_json(sources_json: &str) -> napi::Result<Vec<OmenaNapiStyleSourceInputV0>> {
     serde_json::from_str(sources_json).map_err(|error| {
         napi::Error::from_reason(format!("failed to parse style sources JSON: {error}"))
+    })
+}
+
+fn parse_source_documents_json(
+    source_documents_json: &str,
+) -> napi::Result<Vec<OmenaNapiSourceDocumentInputV0>> {
+    if source_documents_json.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    serde_json::from_str(source_documents_json).map_err(|error| {
+        napi::Error::from_reason(format!("failed to parse source documents JSON: {error}"))
     })
 }
 
@@ -755,6 +772,7 @@ mod tests {
         let summary = read_workspace_style_diagnostics_summary(
             "/workspace/src/App.module.css",
             &sources,
+            &[],
             &[],
         )
         .expect("workspace diagnostics should be available");
@@ -1017,6 +1035,7 @@ mod tests {
         let json = read_workspace_style_diagnostics_json(
             "/workspace/src/App.module.css".to_string(),
             sources.to_string(),
+            String::new(),
             String::new(),
         )
         .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;

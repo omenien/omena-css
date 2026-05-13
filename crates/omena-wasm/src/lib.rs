@@ -9,6 +9,7 @@ use omena_query::{
     OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 as OmenaWasmExpressionDomainIncrementalFlowAnalysisV0,
     OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaWasmExpressionDomainSelectorProjectionV0,
     OmenaQuerySourceDiagnosticsForFileV0 as OmenaWasmSourceDiagnosticsForFileV0,
+    OmenaQuerySourceDocumentInputV0 as OmenaWasmSourceDocumentInputV0,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 as OmenaWasmSourceMissingSelectorDiagnosticCandidateV0,
     OmenaQueryStyleContextIndexV0 as OmenaWasmStyleContextIndexV0,
     OmenaQueryStyleDiagnosticsForFileV0 as OmenaWasmStyleDiagnosticsForFileV0,
@@ -251,13 +252,16 @@ pub fn read_style_diagnostics(source: &str, path: &str) -> Result<JsValue, JsVal
 pub fn read_workspace_style_diagnostics(
     target_path: &str,
     sources: JsValue,
+    source_documents: JsValue,
     package_manifests: JsValue,
 ) -> Result<JsValue, JsValue> {
     let sources = parse_style_sources_value(sources)?;
+    let source_documents = parse_source_documents_value(source_documents)?;
     let package_manifests = parse_package_manifests_value(package_manifests)?;
     to_js_value(&read_workspace_style_diagnostics_summary(
         target_path,
         &sources,
+        &source_documents,
         &package_manifests,
     )?)
 }
@@ -505,12 +509,14 @@ pub fn read_style_diagnostics_summary(
 pub fn read_workspace_style_diagnostics_summary(
     target_path: &str,
     sources: &[OmenaWasmStyleSourceInputV0],
+    source_documents: &[OmenaWasmSourceDocumentInputV0],
     package_manifests: &[OmenaWasmStylePackageManifestV0],
 ) -> Result<OmenaWasmStyleDiagnosticsForFileV0, JsValue> {
     let target_path = effective_path(target_path);
     summarize_omena_query_style_diagnostics_for_workspace_file(
         target_path,
         sources,
+        source_documents,
         package_manifests,
     )
     .ok_or_else(|| {
@@ -594,6 +600,20 @@ fn parse_style_sources_value(value: JsValue) -> Result<Vec<OmenaWasmStyleSourceI
     serde_wasm_bindgen::from_value(value).map_err(|error| {
         JsValue::from_str(&format!(
             "sources must be an array of {{stylePath, styleSource}} objects: {error}"
+        ))
+    })
+}
+
+fn parse_source_documents_value(
+    value: JsValue,
+) -> Result<Vec<OmenaWasmSourceDocumentInputV0>, JsValue> {
+    if value.is_null() || value.is_undefined() {
+        return Ok(Vec::new());
+    }
+
+    serde_wasm_bindgen::from_value(value).map_err(|error| {
+        JsValue::from_str(&format!(
+            "sourceDocuments must be an array of {{sourcePath, sourceSource}} objects: {error}"
         ))
     })
 }
@@ -784,6 +804,7 @@ mod tests {
         let summary = read_workspace_style_diagnostics_summary(
             "/workspace/src/App.module.css",
             &sources,
+            &[],
             &[],
         )
         .expect("workspace diagnostics should be available");
