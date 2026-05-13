@@ -89,6 +89,10 @@ const fixtures: readonly DifferentialFixture[] = [
     label: "alpha-hex-zero-line-height-calc",
     source: ".alpha { color: #ffffffff; border-color: #00000000; width: calc(2px * 3); height: calc(6px / 2); line-height: 0em; }",
   },
+  {
+    label: "opaque-rgba-hsla",
+    source: ".opaque { color: rgba(255, 0, 0, 1); text-decoration-color: hsla(240, 100%, 50%, 100%); }",
+  },
 ];
 
 const reports = fixtures.map((fixture) => {
