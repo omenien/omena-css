@@ -77,6 +77,10 @@ const fixtures: readonly DifferentialFixture[] = [
     label: "rule-selector-merge-with-named-color",
     source: ".a { color: red; } .b { color: red; } .a { background: blue; } .empty {}",
   },
+  {
+    label: "url-zero-font-family",
+    source: '.a { background: url("/icons/a.svg"); margin: 0 0 0 0%; font-family: "Inter"; }',
+  },
 ];
 
 const reports = fixtures.map((fixture) => {

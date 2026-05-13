@@ -524,7 +524,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "normalized safe single-quoted CSS string tokens",
+                    detail: "normalized safe CSS string tokens and declaration-scoped font family strings",
                 }
             }
             Some(TransformPassKind::SelectorIsWhereCompression) => {
@@ -2002,7 +2002,10 @@ fn strip_css_url_quotes(source: &str, dialect: StyleDialect) -> (String, usize) 
 }
 
 fn normalize_css_string_quotes(source: &str, dialect: StyleDialect) -> (String, usize) {
-    normalize_css_string_quotes_with_lexer(source, dialect)
+    let (source, font_family_mutations) =
+        normalize_css_font_family_strings_with_lexer(source, dialect);
+    let (source, token_mutations) = normalize_css_string_quotes_with_lexer(&source, dialect);
+    (source, font_family_mutations + token_mutations)
 }
 
 fn compress_css_is_where_selectors(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -7985,6 +7988,93 @@ fn normalize_css_string_quotes_with_lexer(source: &str, dialect: StyleDialect) -
     })
 }
 
+fn normalize_css_font_family_strings_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
+            for declaration in declarations {
+                if !declaration.property.eq_ignore_ascii_case("font-family") {
+                    continue;
+                }
+                let Some(replacement_value) = unquote_static_font_family_value(&declaration.value)
+                else {
+                    continue;
+                };
+                replacements.push((
+                    declaration.start,
+                    declaration.end,
+                    format_replacement_declaration_like_source(
+                        source,
+                        &declaration,
+                        &replacement_value,
+                    ),
+                ));
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    replace_source_ranges(source, &replacements)
+}
+
+fn unquote_static_font_family_value(value: &str) -> Option<String> {
+    let family = static_css_string_value(value)?;
+    if !is_safe_unquoted_font_family_identifier(&family) {
+        return None;
+    }
+    Some(family)
+}
+
+fn is_safe_unquoted_font_family_identifier(value: &str) -> bool {
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if !(first.is_ascii_alphabetic() || first == '_') {
+        return false;
+    }
+    if !chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_')) {
+        return false;
+    }
+    !is_reserved_unquoted_font_family_identifier(value)
+}
+
+fn is_reserved_unquoted_font_family_identifier(value: &str) -> bool {
+    matches!(
+        value.to_ascii_lowercase().as_str(),
+        "serif"
+            | "sans-serif"
+            | "monospace"
+            | "cursive"
+            | "fantasy"
+            | "system-ui"
+            | "ui-serif"
+            | "ui-sans-serif"
+            | "ui-monospace"
+            | "ui-rounded"
+            | "math"
+            | "emoji"
+            | "fangsong"
+            | "inherit"
+            | "initial"
+            | "unset"
+            | "revert"
+            | "revert-layer"
+    )
+}
+
 fn normalize_css_string_token_quotes(text: &str) -> Option<String> {
     if !text.starts_with('\'') || !text.ends_with('\'') || text.len() < 2 {
         return None;
@@ -9717,9 +9807,8 @@ mod tests {
     }
 
     #[test]
-    fn execution_runtime_normalizes_safe_single_quoted_strings_only() {
-        let source =
-            r#".a { font-family: 'Demo'; content: 'has "quote"'; background: url('asset.svg'); }"#;
+    fn execution_runtime_normalizes_safe_strings_without_rewriting_semantic_strings() {
+        let source = r#".a { font-family: 'Demo'; content: 'has "quote"'; background: url('asset.svg'); } .b { font-family: "serif"; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9731,7 +9820,7 @@ mod tests {
         assert_eq!(execution.mutation_count, 2);
         assert_eq!(
             execution.output_css,
-            r#".a { font-family: "Demo"; content: 'has "quote"'; background: url("asset.svg"); }"#
+            r#".a { font-family: Demo; content: 'has "quote"'; background: url("asset.svg"); } .b { font-family: "serif"; }"#
         );
     }
 
