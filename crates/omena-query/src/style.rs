@@ -475,6 +475,24 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
         .collect()
 }
 
+pub fn summarize_omena_query_style_diagnostics_for_file(
+    style_uri: &str,
+    source: &str,
+    candidates: &[OmenaQueryStyleHoverCandidateV0],
+) -> OmenaQueryStyleDiagnosticsForFileV0 {
+    let diagnostics =
+        summarize_omena_query_missing_custom_property_diagnostics(style_uri, source, candidates);
+    OmenaQueryStyleDiagnosticsForFileV0 {
+        schema_version: "0",
+        product: "omena-query.diagnostics-for-file",
+        file_uri: style_uri.to_string(),
+        file_kind: "style",
+        diagnostic_count: diagnostics.len(),
+        diagnostics,
+        ready_surfaces: vec!["missingCustomPropertyDiagnostics"],
+    }
+}
+
 pub fn read_omena_query_cascade_at_position(
     style_path: &str,
     style_source: &str,
