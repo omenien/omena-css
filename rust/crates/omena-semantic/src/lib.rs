@@ -882,8 +882,8 @@ fn summarize_omena_parser_custom_property_facts(
                     u32::from(variable.range.end()) as usize,
                 );
                 decl_names.insert(variable.name.clone());
-                let (selector_contexts, under_media, under_supports, under_layer) =
-                    style_context_for_byte_offset(source, byte_span.start);
+                let (selector_contexts, under_media, under_supports, under_layer, layer_names) =
+                    style_context_with_layers_for_byte_offset(source, byte_span.start);
                 decl_facts.push(ParserIndexCustomPropertyDeclFactV0 {
                     name: variable.name.clone(),
                     value: declaration_value_text(source, byte_span.start),
@@ -891,6 +891,7 @@ fn summarize_omena_parser_custom_property_facts(
                     byte_span,
                     range: parser_range_for_byte_span(source, byte_span),
                     selector_contexts,
+                    layer_names,
                     under_media,
                     under_supports,
                     under_layer,
@@ -898,13 +899,14 @@ fn summarize_omena_parser_custom_property_facts(
             }
             ParsedVariableFactKind::CustomPropertyReference => {
                 let byte_offset = u32::from(variable.range.start()) as usize;
-                let (selector_contexts, under_media, under_supports, under_layer) =
-                    style_context_for_byte_offset(source, byte_offset);
+                let (selector_contexts, under_media, under_supports, under_layer, layer_names) =
+                    style_context_with_layers_for_byte_offset(source, byte_offset);
                 ref_names.insert(variable.name.clone());
                 ref_facts.push(ParserIndexCustomPropertyRefFactV0 {
                     name: variable.name.clone(),
                     source_order: ref_facts.len(),
                     selector_contexts,
+                    layer_names,
                     under_media,
                     under_supports,
                     under_layer,
@@ -1309,6 +1311,15 @@ fn style_context_for_byte_offset(
     source: &str,
     byte_offset: usize,
 ) -> (Vec<String>, bool, bool, bool) {
+    let (selector_contexts, under_media, under_supports, under_layer, _) =
+        style_context_with_layers_for_byte_offset(source, byte_offset);
+    (selector_contexts, under_media, under_supports, under_layer)
+}
+
+fn style_context_with_layers_for_byte_offset(
+    source: &str,
+    byte_offset: usize,
+) -> (Vec<String>, bool, bool, bool, Vec<String>) {
     let contexts = block_contexts_for_byte_offset(source, byte_offset);
     let selector_contexts = contexts
         .iter()
@@ -1316,7 +1327,7 @@ fn style_context_for_byte_offset(
             StyleBlockContext::Selector(selector) => Some(selector.clone()),
             StyleBlockContext::Media
             | StyleBlockContext::Supports
-            | StyleBlockContext::Layer
+            | StyleBlockContext::Layer(_)
             | StyleBlockContext::OtherAtRule => None,
         })
         .collect::<Vec<_>>();
@@ -1328,9 +1339,22 @@ fn style_context_for_byte_offset(
         .any(|context| matches!(context, StyleBlockContext::Supports));
     let under_layer = contexts
         .iter()
-        .any(|context| matches!(context, StyleBlockContext::Layer));
+        .any(|context| matches!(context, StyleBlockContext::Layer(_)));
+    let layer_names = contexts
+        .iter()
+        .filter_map(|context| match context {
+            StyleBlockContext::Layer(Some(name)) => Some(name.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
 
-    (selector_contexts, under_media, under_supports, under_layer)
+    (
+        selector_contexts,
+        under_media,
+        under_supports,
+        under_layer,
+        layer_names,
+    )
 }
 
 fn declaration_value_text(source: &str, offset: usize) -> String {
@@ -1381,7 +1405,7 @@ enum StyleBlockContext {
     Selector(String),
     Media,
     Supports,
-    Layer,
+    Layer(Option<String>),
     OtherAtRule,
 }
 
@@ -1434,7 +1458,11 @@ fn style_block_context_for_header(header: &str) -> StyleBlockContext {
     } else if header.starts_with("@supports") {
         StyleBlockContext::Supports
     } else if header.starts_with("@layer") {
-        StyleBlockContext::Layer
+        StyleBlockContext::Layer(
+            header
+                .strip_prefix("@layer")
+                .and_then(|prelude| split_layer_names(prelude).into_iter().next()),
+        )
     } else if header.starts_with('@') {
         StyleBlockContext::OtherAtRule
     } else {
@@ -2359,6 +2387,75 @@ $color: red;
         assert!(summary.capabilities.theme_override_context_ready);
         assert!(!summary.blocking_gaps.contains(&"themeOverrideContext"));
         assert!(!summary.next_priorities.contains(&"themeOverrideContext"));
+        Ok(())
+    }
+
+    #[test]
+    fn ranks_unlayered_design_tokens_above_later_layered_tokens() -> Result<(), String> {
+        let sheet = parse_style_module(
+            "Component.module.css",
+            r#"
+.button {
+  --surface: unlayered;
+}
+
+@layer components {
+  .button {
+    --surface: layered;
+    color: var(--surface);
+  }
+}
+"#,
+        )
+        .ok_or_else(|| "CSS module path should parse".to_string())?;
+
+        let summary = summarize_style_semantic_boundary(&sheet).design_token_semantics;
+
+        assert_eq!(summary.cascade_ranking_signal.ranked_reference_count, 1);
+        let ranked_reference = &summary.cascade_ranking_signal.ranked_references[0];
+        assert_eq!(ranked_reference.reference_name, "--surface");
+        assert_eq!(ranked_reference.winner_declaration_source_order, 0);
+        assert_eq!(ranked_reference.winner_declaration_layer_rank, 2);
+        assert_eq!(ranked_reference.winner_declaration_layer_name, None);
+        assert_eq!(ranked_reference.shadowed_declaration_source_orders, vec![1]);
+        Ok(())
+    }
+
+    #[test]
+    fn ranks_named_layer_order_above_later_layer_source_order() -> Result<(), String> {
+        let sheet = parse_style_module(
+            "Component.module.css",
+            r#"
+@layer reset, components;
+
+@layer components {
+  .button {
+    --surface: components;
+  }
+}
+
+@layer reset {
+  .button {
+    --surface: reset;
+    color: var(--surface);
+  }
+}
+"#,
+        )
+        .ok_or_else(|| "CSS module path should parse".to_string())?;
+
+        let summary = summarize_style_semantic_boundary(&sheet).design_token_semantics;
+
+        assert_eq!(summary.cascade_ranking_signal.ranked_reference_count, 1);
+        let ranked_reference = &summary.cascade_ranking_signal.ranked_references[0];
+        assert_eq!(ranked_reference.reference_name, "--surface");
+        assert_eq!(ranked_reference.winner_declaration_source_order, 0);
+        assert_eq!(ranked_reference.winner_declaration_layer_rank, 1);
+        assert_eq!(
+            ranked_reference.winner_declaration_layer_name.as_deref(),
+            Some("components")
+        );
+        assert_eq!(ranked_reference.shadowed_declaration_source_orders, vec![1]);
         Ok(())
     }
 

@@ -2859,6 +2859,7 @@ fn read_cascade_at_position_is_query_owned() {
     assert_eq!(cascade.cascade_engine, "omena-cascade");
     assert_eq!(cascade.reference_name.as_deref(), Some("--surface"));
     assert_eq!(cascade.winner_declaration_source_order, Some(1));
+    assert_eq!(cascade.winner_declaration_layer_rank, Some(1));
     assert_eq!(cascade.candidate_declaration_count, 2);
     assert_eq!(cascade.shadowed_declaration_source_orders, vec![0]);
     assert_eq!(

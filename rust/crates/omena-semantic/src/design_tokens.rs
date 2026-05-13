@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     ParserBoundarySyntaxFactsV0, ParserByteSpanV0, ParserIndexCustomPropertyDeclFactV0,
-    ParserIndexCustomPropertyRefFactV0, ParserRangeV0, StyleSemanticFactsV0,
+    ParserIndexCustomPropertyRefFactV0, ParserRangeV0, StyleContextIndexV0, StyleSemanticFactsV0,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -97,6 +97,9 @@ pub struct DesignTokenRankedReferenceV0 {
     pub winner_import_graph_distance: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub winner_import_graph_order: Option<usize>,
+    pub winner_declaration_layer_rank: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub winner_declaration_layer_name: Option<String>,
     pub shadowed_declaration_source_orders: Vec<usize>,
     pub candidate_declaration_count: usize,
     pub winner_context_kind: &'static str,
@@ -131,6 +134,7 @@ pub struct DesignTokenWorkspaceDeclarationFactV0 {
     pub byte_span: ParserByteSpanV0,
     pub range: ParserRangeV0,
     pub selector_contexts: Vec<String>,
+    pub layer_names: Vec<String>,
     pub under_media: bool,
     pub under_supports: bool,
     pub under_layer: bool,
@@ -145,6 +149,7 @@ pub struct DesignTokenDeclarationCandidateV0 {
     pub file_path: String,
     pub range: ParserRangeV0,
     pub selector_contexts: Vec<String>,
+    pub layer_names: Vec<String>,
     pub under_media: bool,
     pub under_supports: bool,
     pub under_layer: bool,
@@ -228,6 +233,7 @@ pub fn summarize_design_token_semantics_with_scoped_workspace_declarations(
     );
     let cascade_ranking_signal = summarize_design_token_cascade_ranking_signal(
         parser_facts,
+        semantic_facts,
         target_style_path,
         workspace_declarations,
     );
@@ -357,6 +363,7 @@ fn summarize_design_token_declaration_candidates(
                     file_path: file_path.to_string(),
                     range: declaration.range,
                     selector_contexts: declaration.selector_contexts.clone(),
+                    layer_names: declaration.layer_names.clone(),
                     under_media: declaration.under_media,
                     under_supports: declaration.under_supports,
                     under_layer: declaration.under_layer,
@@ -374,6 +381,7 @@ fn summarize_design_token_declaration_candidates(
             file_path: declaration.file_path.clone(),
             range: declaration.range,
             selector_contexts: declaration.selector_contexts.clone(),
+            layer_names: declaration.layer_names.clone(),
             under_media: declaration.under_media,
             under_supports: declaration.under_supports,
             under_layer: declaration.under_layer,
@@ -415,6 +423,7 @@ pub fn collect_design_token_workspace_declarations(
             byte_span: declaration.byte_span,
             range: declaration.range,
             selector_contexts: declaration.selector_contexts.clone(),
+            layer_names: declaration.layer_names.clone(),
             under_media: declaration.under_media,
             under_supports: declaration.under_supports,
             under_layer: declaration.under_layer,
@@ -424,10 +433,13 @@ pub fn collect_design_token_workspace_declarations(
 
 fn summarize_design_token_cascade_ranking_signal(
     parser_facts: &ParserBoundarySyntaxFactsV0,
+    semantic_facts: &StyleSemanticFactsV0,
     target_style_path: Option<&str>,
     workspace_declarations: &[DesignTokenWorkspaceDeclarationFactV0],
 ) -> DesignTokenCascadeRankingSignalV0 {
     let custom_properties = &parser_facts.custom_properties;
+    let cascade_context =
+        DesignTokenCascadeContext::from_style_context_index(&semantic_facts.context_index);
     let mut declaration_name_counts = BTreeMap::<&str, usize>::new();
     let mut winner_declarations = BTreeSet::<(String, usize)>::new();
     let mut shadowed_declarations = BTreeSet::<(String, usize)>::new();
@@ -464,7 +476,7 @@ fn summarize_design_token_cascade_ranking_signal(
                 .iter()
                 .copied()
                 .map(DesignTokenCandidateDeclaration::Local),
-            |candidate| candidate.cascade_key(reference, None),
+            |candidate| candidate.cascade_key(reference, None, &cascade_context),
         )
         .map(|(winner, _)| winner);
         let workspace_file_ranks = summarize_workspace_candidate_file_ranks(&workspace_candidates);
@@ -473,7 +485,9 @@ fn summarize_design_token_cascade_ranking_signal(
                 .iter()
                 .copied()
                 .map(DesignTokenCandidateDeclaration::Workspace),
-            |candidate| candidate.cascade_key(reference, Some(&workspace_file_ranks)),
+            |candidate| {
+                candidate.cascade_key(reference, Some(&workspace_file_ranks), &cascade_context)
+            },
         )
         .map(|(winner, _)| winner);
         let winner = local_winner.or(workspace_winner);
@@ -516,6 +530,8 @@ fn summarize_design_token_cascade_ranking_signal(
             winner_declaration_range: winner.range(),
             winner_import_graph_distance: winner.import_graph_distance(),
             winner_import_graph_order: winner.import_graph_order(),
+            winner_declaration_layer_rank: winner.layer_rank(&cascade_context).0,
+            winner_declaration_layer_name: winner.layer_name(&cascade_context),
             shadowed_declaration_source_orders,
             candidate_declaration_count,
             winner_context_kind: winner.context_kind(reference),
@@ -688,18 +704,146 @@ enum DesignTokenCandidateDeclaration<'a> {
     Workspace(&'a DesignTokenWorkspaceDeclarationFactV0),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DesignTokenCascadeContext {
+    layer_name_ranks: BTreeMap<String, i32>,
+    layer_ranks_by_selector: BTreeMap<String, i32>,
+    layer_names_by_selector: BTreeMap<String, String>,
+    unlayered_rank: i32,
+}
+
+impl DesignTokenCascadeContext {
+    fn from_style_context_index(index: &StyleContextIndexV0) -> Self {
+        let mut layer_name_ranks = BTreeMap::<String, i32>::new();
+        for layer in &index.layer_index.statement_layers {
+            let next_rank = layer_name_ranks.len().min(i32::MAX as usize) as i32;
+            layer_name_ranks
+                .entry(layer.name.clone())
+                .or_insert(next_rank);
+        }
+        for layer in &index.layer_index.block_layers {
+            let Some(name) = layer.name.as_ref() else {
+                continue;
+            };
+            let next_rank = layer_name_ranks.len().min(i32::MAX as usize) as i32;
+            layer_name_ranks.entry(name.clone()).or_insert(next_rank);
+        }
+
+        let mut block_layer_ranks = BTreeMap::<String, (i32, Option<String>)>::new();
+        for layer in &index.layer_index.block_layers {
+            let rank = layer
+                .name
+                .as_ref()
+                .and_then(|name| layer_name_ranks.get(name).copied())
+                .unwrap_or(0);
+            block_layer_ranks.insert(layer.id.clone(), (rank, layer.name.clone()));
+        }
+
+        let mut layer_ranks_by_selector = BTreeMap::<String, i32>::new();
+        let mut layer_names_by_selector = BTreeMap::<String, String>::new();
+        for membership in &index.layer_index.selector_memberships {
+            let Some((rank, name)) = block_layer_ranks.get(&membership.context_id) else {
+                continue;
+            };
+            let entry = layer_ranks_by_selector
+                .entry(membership.selector_name.clone())
+                .or_insert(*rank);
+            if *rank >= *entry {
+                *entry = *rank;
+                if let Some(name) = name {
+                    layer_names_by_selector.insert(membership.selector_name.clone(), name.clone());
+                }
+            }
+        }
+
+        let unlayered_rank =
+            (layer_name_ranks.len() + index.layer_index.anonymous_layer_block_count + 1)
+                .min(i32::MAX as usize) as i32;
+
+        Self {
+            layer_name_ranks,
+            layer_ranks_by_selector,
+            layer_names_by_selector,
+            unlayered_rank,
+        }
+    }
+
+    fn layer_rank_for(
+        &self,
+        layer_names: &[String],
+        selector_contexts: &[String],
+        under_layer: bool,
+    ) -> LayerRank {
+        if !under_layer {
+            return LayerRank(self.unlayered_rank);
+        }
+        if let Some(rank) = layer_names
+            .iter()
+            .filter_map(|name| self.layer_name_ranks.get(name))
+            .copied()
+            .max()
+        {
+            return LayerRank(rank);
+        }
+        selector_contexts
+            .iter()
+            .filter_map(|selector| {
+                self.layer_ranks_by_selector
+                    .get(normalized_selector(selector))
+            })
+            .copied()
+            .max()
+            .map(LayerRank)
+            .unwrap_or(LayerRank(0))
+    }
+
+    fn layer_name_for(
+        &self,
+        layer_names: &[String],
+        selector_contexts: &[String],
+        under_layer: bool,
+    ) -> Option<String> {
+        if !under_layer {
+            return None;
+        }
+        if let Some(name) = layer_names
+            .iter()
+            .filter(|name| self.layer_name_ranks.contains_key(*name))
+            .max_by_key(|name| self.layer_name_ranks.get(*name).copied().unwrap_or(0))
+        {
+            return Some(name.clone());
+        }
+        selector_contexts
+            .iter()
+            .filter_map(|selector| {
+                let selector = normalized_selector(selector);
+                self.layer_ranks_by_selector
+                    .get(selector)
+                    .copied()
+                    .map(|rank| (rank, selector))
+            })
+            .max_by_key(|(rank, _)| *rank)
+            .and_then(|(_, selector)| self.layer_names_by_selector.get(selector).cloned())
+    }
+}
+
 impl DesignTokenCandidateDeclaration<'_> {
     fn cascade_key(
         &self,
         reference: &ParserIndexCustomPropertyRefFactV0,
         workspace_file_ranks: Option<&BTreeMap<&str, usize>>,
+        cascade_context: &DesignTokenCascadeContext,
     ) -> CascadeKey {
         let scope_proximity =
             cascade_scope_proximity_for_context_rank(self.context_rank(reference));
         match self {
             DesignTokenCandidateDeclaration::Local(declaration) => CascadeKey::new(
                 CascadeLevel::AuthorNormal,
-                LayerRank(0),
+                cascade_context.layer_rank_for(
+                    &declaration.layer_names,
+                    &declaration.selector_contexts,
+                    declaration.under_layer,
+                ),
                 scope_proximity,
                 Specificity::ZERO,
                 cascade_u32_rank(declaration.source_order),
@@ -710,7 +854,11 @@ impl DesignTokenCandidateDeclaration<'_> {
                     .unwrap_or(usize::MAX);
                 CascadeKey::new(
                     CascadeLevel::AuthorNormal,
-                    LayerRank(0),
+                    cascade_context.layer_rank_for(
+                        &declaration.layer_names,
+                        &declaration.selector_contexts,
+                        declaration.under_layer,
+                    ),
                     scope_proximity,
                     // Import graph tie-breakers are encoded into specificity slots
                     // until selector-match witnesses provide real CSS specificity.
@@ -790,6 +938,38 @@ impl DesignTokenCandidateDeclaration<'_> {
         matches!(self, DesignTokenCandidateDeclaration::Workspace(_))
     }
 
+    fn layer_rank(&self, cascade_context: &DesignTokenCascadeContext) -> LayerRank {
+        match self {
+            DesignTokenCandidateDeclaration::Local(declaration) => cascade_context.layer_rank_for(
+                &declaration.layer_names,
+                &declaration.selector_contexts,
+                declaration.under_layer,
+            ),
+            DesignTokenCandidateDeclaration::Workspace(declaration) => cascade_context
+                .layer_rank_for(
+                    &declaration.layer_names,
+                    &declaration.selector_contexts,
+                    declaration.under_layer,
+                ),
+        }
+    }
+
+    fn layer_name(&self, cascade_context: &DesignTokenCascadeContext) -> Option<String> {
+        match self {
+            DesignTokenCandidateDeclaration::Local(declaration) => cascade_context.layer_name_for(
+                &declaration.layer_names,
+                &declaration.selector_contexts,
+                declaration.under_layer,
+            ),
+            DesignTokenCandidateDeclaration::Workspace(declaration) => cascade_context
+                .layer_name_for(
+                    &declaration.layer_names,
+                    &declaration.selector_contexts,
+                    declaration.under_layer,
+                ),
+        }
+    }
+
     fn is_theme_context_winner(&self, reference: &ParserIndexCustomPropertyRefFactV0) -> bool {
         self.context_rank(reference) >= 2
     }
@@ -833,9 +1013,6 @@ fn custom_property_context_matches(
     if declaration.under_supports && !reference.under_supports {
         return false;
     }
-    if declaration.under_layer && !reference.under_layer {
-        return false;
-    }
     if declaration.selector_contexts.is_empty() {
         return true;
     }
@@ -856,9 +1033,6 @@ fn custom_property_workspace_context_matches(
         return false;
     }
     if declaration.under_supports && !reference.under_supports {
-        return false;
-    }
-    if declaration.under_layer && !reference.under_layer {
         return false;
     }
     if declaration.selector_contexts.is_empty() {
@@ -912,4 +1086,8 @@ fn cascade_u32_rank(rank: usize) -> u32 {
 
 fn cascade_inverse_rank(rank: usize) -> u32 {
     u32::MAX - cascade_u32_rank(rank)
+}
+
+fn normalized_selector(selector: &str) -> &str {
+    selector.trim().trim_start_matches('.')
 }
