@@ -144,11 +144,23 @@ importers:
         specifier: ^3.3.3
         version: 3.3.3
 
+  packages/oxlint-plugin:
+    dependencies:
+      oxlint:
+        specifier: ^1.60.0
+        version: 1.60.0(oxlint-tsgolint@0.20.0)
+
   packages/stylelint-plugin:
     dependencies:
       stylelint:
         specifier: ^17.0.0
         version: 17.8.0(typescript@6.0.2)
+
+  packages/vite-plugin:
+    dependencies:
+      vite:
+        specifier: ^8.0.0
+        version: 8.0.8(@types/node@25.6.0)(esbuild@0.27.7)(less@4.6.4)(sass@1.99.0)(tsx@4.21.0)
 
   packages/vitest-cme: {}
 
