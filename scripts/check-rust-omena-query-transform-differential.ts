@@ -48,6 +48,10 @@ const fixtures: readonly DifferentialFixture[] = [
       '.a { color: #FFFFFF; opacity: 1.0; background: url("x.svg"); width: 0.50rem; margin: 0px; }',
   },
   {
+    label: "integer-leading-zero-number",
+    source: ".a { z-index: 001; opacity: 000.50; }",
+  },
+  {
     label: "selector-list-and-spacing",
     source: '.a , .b { color : #FFFFFF ; opacity: 1.0; background: url("x.svg"); }',
   },

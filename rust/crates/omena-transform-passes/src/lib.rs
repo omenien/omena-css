@@ -9182,6 +9182,11 @@ fn compress_number_prefix(number: &str) -> String {
         Some(b'+') | Some(b'-') => (&number[..1], &number[1..]),
         _ => ("", number),
     };
+    let sign = if sign == "+" || is_zero_number_prefix(unsigned) {
+        ""
+    } else {
+        sign
+    };
     let (mantissa, exponent) = split_number_exponent(unsigned);
     let compressed_mantissa = compress_decimal_mantissa(mantissa);
     let mut compressed = format!("{sign}{compressed_mantissa}");
@@ -9207,14 +9212,15 @@ fn split_number_exponent(number: &str) -> (&str, Option<&str>) {
 
 fn compress_decimal_mantissa(mantissa: &str) -> String {
     let Some((before_dot, after_dot)) = mantissa.split_once('.') else {
-        return mantissa.to_string();
+        return compress_integer_digits(mantissa);
     };
 
     let trimmed_fraction = after_dot.trim_end_matches('0');
+    let compressed_integer = compress_integer_digits(before_dot);
     let mut compressed_unsigned = if trimmed_fraction.is_empty() {
-        before_dot.to_string()
+        compressed_integer
     } else {
-        format!("{before_dot}.{trimmed_fraction}")
+        format!("{compressed_integer}.{trimmed_fraction}")
     };
 
     if let Some(rest) = compressed_unsigned.strip_prefix("0.") {
@@ -9226,6 +9232,15 @@ fn compress_decimal_mantissa(mantissa: &str) -> String {
     }
 
     compressed_unsigned
+}
+
+fn compress_integer_digits(digits: &str) -> String {
+    let trimmed = digits.trim_start_matches('0');
+    if trimmed.is_empty() {
+        "0".to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 fn normalize_exponent_suffix(exponent: &str) -> String {
@@ -10045,7 +10060,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_numeric_tokens_only() {
-        let source = r#".a { width: 0.50rem; opacity: 1.0; margin: -0.25px 10.00%; scale: 1.0E+03; flex-grow: 1e+00; translate: 0e+3px; content: "0.50 1.0E+03"; }"#;
+        let source = r#".a { width: 0.50rem; opacity: 000.50; margin: -0.25px 10.00%; scale: 1.0E+03; flex-grow: 1e+00; z-index: 001; order: +001; translate: 0e+3px; rotate: -0deg; content: "0.50 1.0E+03"; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -10054,10 +10069,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 7);
+        assert_eq!(execution.mutation_count, 10);
         assert_eq!(
             execution.output_css,
-            r#".a { width: .5rem; opacity: 1; margin: -.25px 10%; scale: 1e3; flex-grow: 1; translate: 0px; content: "0.50 1.0E+03"; }"#
+            r#".a { width: .5rem; opacity: .5; margin: -.25px 10%; scale: 1e3; flex-grow: 1; z-index: 1; order: 1; translate: 0px; rotate: 0deg; content: "0.50 1.0E+03"; }"#
         );
     }
 
