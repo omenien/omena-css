@@ -13,6 +13,7 @@ use omena_query::{
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_diagnostics_for_file,
+    summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
@@ -167,6 +168,28 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Read query-owned style hover candidates for a CSS-family file.
+    StyleHoverCandidates {
+        /// CSS, SCSS, Sass, Less, or CSS Modules file to inspect.
+        path: PathBuf,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Read query-owned style completions at a source position.
+    StyleCompletion {
+        /// CSS, SCSS, Sass, Less, or CSS Modules file to inspect.
+        path: PathBuf,
+        /// Zero-based line number.
+        #[arg(long)]
+        line: usize,
+        /// Zero-based UTF-16-like character offset used by the query protocol.
+        #[arg(long)]
+        character: usize,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Read query-owned source diagnostics from precomputed missing-selector candidates.
     SourceDiagnostics {
         /// Source document URI used in the diagnostics result.
@@ -258,6 +281,13 @@ fn run(cli: Cli) -> Result<(), String> {
             json,
         } => context_index(path, engine_input_json, json),
         Command::StyleDiagnostics { path, json } => style_diagnostics(path, json),
+        Command::StyleHoverCandidates { path, json } => style_hover_candidates(path, json),
+        Command::StyleCompletion {
+            path,
+            line,
+            character,
+            json,
+        } => style_completion(path, line, character, json),
         Command::SourceDiagnostics {
             source_uri,
             candidates_json,
@@ -701,6 +731,69 @@ fn style_diagnostics(path: PathBuf, json: bool) -> Result<(), String> {
     Ok(())
 }
 
+fn style_hover_candidates(path: PathBuf, json: bool) -> Result<(), String> {
+    let source = read_source(&path)?;
+    let style_path = path_string(&path);
+    let Some(summary) = summarize_omena_query_style_hover_candidates(&style_path, &source) else {
+        return Err(format!(
+            "failed to read style candidates for {}",
+            path_string(&path)
+        ));
+    };
+
+    if json {
+        print_json(&summary)?;
+        return Ok(());
+    }
+
+    println!("file: {style_path}");
+    println!("language: {}", summary.language);
+    println!("candidates: {}", summary.candidates.len());
+    for candidate in &summary.candidates {
+        println!(
+            "{}\t{}\t{}",
+            candidate.kind, candidate.name, candidate.source
+        );
+    }
+    Ok(())
+}
+
+fn style_completion(
+    path: PathBuf,
+    line: usize,
+    character: usize,
+    json: bool,
+) -> Result<(), String> {
+    let source = read_source(&path)?;
+    let style_path = path_string(&path);
+    let Some(candidates) = summarize_omena_query_style_hover_candidates(&style_path, &source)
+    else {
+        return Err(format!(
+            "failed to read style candidates for {}",
+            path_string(&path)
+        ));
+    };
+    let summary = summarize_omena_query_style_completion_at_position(
+        &style_path,
+        &source,
+        ParserPositionV0 { line, character },
+        candidates.candidates.as_slice(),
+    );
+
+    if json {
+        print_json(&summary)?;
+        return Ok(());
+    }
+
+    println!("file: {}", summary.file_uri);
+    println!("context: {}", summary.context_kind);
+    println!("items: {}", summary.item_count);
+    for item in &summary.items {
+        println!("{}\t{}\t{}", item.label, item.detail, item.source);
+    }
+    Ok(())
+}
+
 fn source_diagnostics(
     source_uri: String,
     candidates_json: PathBuf,
@@ -931,6 +1024,36 @@ mod tests {
         });
 
         assert!(result.is_ok(), "{result:?}");
+
+        cleanup(&source_path);
+    }
+
+    #[test]
+    fn style_hover_and_completion_commands_read_query_owned_surfaces() {
+        let source_path = temp_path("hover.module.css");
+        fs::write(
+            &source_path,
+            ":root { --brand: #2563eb; }\n.button { color: var(--); }\n",
+        )
+        .expect("fixture source should be writable");
+
+        let hover_result = run(Cli {
+            command: Command::StyleHoverCandidates {
+                path: source_path.clone(),
+                json: true,
+            },
+        });
+        assert!(hover_result.is_ok(), "{hover_result:?}");
+
+        let completion_result = run(Cli {
+            command: Command::StyleCompletion {
+                path: source_path.clone(),
+                line: 1,
+                character: 23,
+                json: true,
+            },
+        });
+        assert!(completion_result.is_ok(), "{completion_result:?}");
 
         cleanup(&source_path);
     }

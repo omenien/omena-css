@@ -3,6 +3,7 @@
 use napi_derive::napi;
 use omena_query::{
     OmenaQueryCascadeAtPositionV0 as OmenaNapiCascadeAtPositionV0,
+    OmenaQueryCompletionAtPositionV0 as OmenaNapiCompletionAtPositionV0,
     OmenaQueryConsumerBuildSummaryV0 as OmenaNapiBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaNapiCheckSummaryV0,
     OmenaQueryEngineInputV2 as OmenaNapiEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
@@ -12,6 +13,7 @@ use omena_query::{
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 as OmenaNapiSourceMissingSelectorDiagnosticCandidateV0,
     OmenaQueryStyleContextIndexV0 as OmenaNapiStyleContextIndexV0,
     OmenaQueryStyleDiagnosticsForFileV0 as OmenaNapiStyleDiagnosticsForFileV0,
+    OmenaQueryStyleHoverCandidatesV0 as OmenaNapiStyleHoverCandidatesV0,
     OmenaQueryStylePackageManifestV0 as OmenaNapiStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0 as OmenaNapiStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaNapiTargetTransformOptionsV0,
@@ -31,6 +33,7 @@ use omena_query::{
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_diagnostics_for_file,
+    summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
@@ -238,6 +241,26 @@ pub fn read_style_context_index_json(
 #[napi(js_name = "readStyleDiagnosticsJson")]
 pub fn read_style_diagnostics_json(source: String, path: String) -> napi::Result<String> {
     to_json_string(&read_style_diagnostics_summary(&source, &path)?)
+}
+
+#[napi(js_name = "readStyleHoverCandidatesJson")]
+pub fn read_style_hover_candidates_json(source: String, path: String) -> napi::Result<String> {
+    to_json_string(&read_style_hover_candidates_summary(&source, &path)?)
+}
+
+#[napi(js_name = "readStyleCompletionAtPositionJson")]
+pub fn read_style_completion_at_position_json(
+    source: String,
+    path: String,
+    line: u32,
+    character: u32,
+) -> napi::Result<String> {
+    to_json_string(&read_style_completion_at_position_summary(
+        &source,
+        &path,
+        line as usize,
+        character as usize,
+    )?)
 }
 
 #[napi(js_name = "readSourceDiagnosticsJson")]
@@ -459,6 +482,32 @@ pub fn read_style_diagnostics_summary(
     ))
 }
 
+pub fn read_style_hover_candidates_summary(
+    source: &str,
+    path: &str,
+) -> napi::Result<OmenaNapiStyleHoverCandidatesV0> {
+    let path = effective_path(path);
+    summarize_omena_query_style_hover_candidates(path, source).ok_or_else(|| {
+        napi::Error::from_reason(format!("failed to read style candidates for {path}"))
+    })
+}
+
+pub fn read_style_completion_at_position_summary(
+    source: &str,
+    path: &str,
+    line: usize,
+    character: usize,
+) -> napi::Result<OmenaNapiCompletionAtPositionV0> {
+    let path = effective_path(path);
+    let candidates = read_style_hover_candidates_summary(source, path)?;
+    Ok(summarize_omena_query_style_completion_at_position(
+        path,
+        source,
+        ParserPositionV0 { line, character },
+        candidates.candidates.as_slice(),
+    ))
+}
+
 pub fn read_source_diagnostics_summary(
     source_uri: &str,
     candidates: &[OmenaNapiSourceMissingSelectorDiagnosticCandidateV0],
@@ -632,6 +681,28 @@ mod tests {
                 .iter()
                 .any(|diagnostic| diagnostic.code == "missingCustomProperty")
         );
+    }
+
+    #[test]
+    fn reads_style_hover_and_completion_for_node_clients() {
+        let source = ":root { --brand: #2563eb; }\n.button { color: var(--); }\n";
+        let hover = read_style_hover_candidates_summary(source, "fixture.module.css")
+            .expect("style hover candidates should be available");
+
+        assert_eq!(hover.product, "omena-query.style-hover-candidates");
+        assert!(
+            hover
+                .candidates
+                .iter()
+                .any(|candidate| candidate.name == "--brand")
+        );
+
+        let completion =
+            read_style_completion_at_position_summary(source, "fixture.module.css", 1, 23)
+                .expect("style completion should be available");
+
+        assert_eq!(completion.product, "omena-query.completion-at");
+        assert!(completion.items.iter().any(|item| item.label == "--brand"));
     }
 
     #[test]
@@ -839,6 +910,23 @@ mod tests {
         assert!(json.contains("\"product\":\"omena-query.diagnostics-for-file\""));
         assert!(json.contains("\"fileKind\":\"style\""));
         assert!(json.contains("\"code\":\"missingCustomProperty\""));
+        Ok(())
+    }
+
+    #[test]
+    fn serializes_style_hover_and_completion_for_node_clients() -> napi::Result<()> {
+        let source = ":root { --brand: #2563eb; }\n.button { color: var(--); }\n".to_string();
+        let hover_json =
+            read_style_hover_candidates_json(source.clone(), "fixture.module.css".to_string())
+                .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
+        assert!(hover_json.contains("\"product\":\"omena-query.style-hover-candidates\""));
+        assert!(hover_json.contains("\"name\":\"--brand\""));
+
+        let completion_json =
+            read_style_completion_at_position_json(source, "fixture.module.css".to_string(), 1, 23)
+                .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
+        assert!(completion_json.contains("\"product\":\"omena-query.completion-at\""));
+        assert!(completion_json.contains("\"label\":\"--brand\""));
         Ok(())
     }
 
