@@ -15,7 +15,7 @@ pub use boundary::*;
 pub(crate) use message_loop::current_time_millis;
 pub use message_loop::{handle_lsp_message, handle_lsp_message_outputs};
 use omena_query::{
-    OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0,
+    OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0, OmenaQueryEngineInputV2,
     OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
@@ -25,7 +25,8 @@ use omena_query::{
     is_omena_query_sass_symbol_declaration_kind as is_sass_symbol_declaration_kind,
     is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,
     omena_query_sass_symbol_kind_from_candidate_kind as sass_symbol_kind_from_candidate_kind,
-    omena_query_sass_symbol_target_matches, resolve_omena_query_sass_forward_sources,
+    omena_query_sass_symbol_target_matches, read_omena_query_cascade_at_position,
+    read_omena_query_style_context_index, resolve_omena_query_sass_forward_sources,
     resolve_omena_query_sass_module_use_sources_for_candidate,
     resolve_omena_query_sass_symbol_declarations,
     resolve_omena_query_source_candidate_selector_names,
@@ -69,6 +70,8 @@ pub const RUNTIME_LOOP_PROBE_REQUEST: &str = "cssModuleExplainer/runtimeLoopProb
 pub const STYLE_HOVER_CANDIDATES_REQUEST: &str = "cssModuleExplainer/rustStyleHoverCandidates";
 pub const STYLE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustStyleDiagnostics";
 pub const SOURCE_DIAGNOSTICS_REQUEST: &str = "cssModuleExplainer/rustSourceDiagnostics";
+pub const CASCADE_AT_POSITION_REQUEST: &str = "cssModuleExplainer/rustCascadeAtPosition";
+pub const STYLE_CONTEXT_INDEX_REQUEST: &str = "cssModuleExplainer/rustStyleContextIndex";
 const CANCEL_REQUEST_METHOD: &str = "$/cancelRequest";
 const REQUEST_CANCELLED_ERROR_CODE: i32 = -32800;
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -613,6 +616,66 @@ fn resolve_style_diagnostics(state: &LspShellState, params: Option<&Value>) -> V
 fn resolve_source_diagnostics(state: &LspShellState, params: Option<&Value>) -> Value {
     let document_uri = document_uri_from_params(params);
     resolve_source_diagnostics_for_uri(state, document_uri.as_str())
+}
+
+fn resolve_cascade_at_position(state: &LspShellState, params: Option<&Value>) -> Value {
+    let document_uri = document_uri_from_params(params);
+    let Some(position) = lsp_position_from_params(params) else {
+        return Value::Null;
+    };
+    let Some(document) = state.document(&document_uri) else {
+        return Value::Null;
+    };
+    if !is_style_document_uri(document.uri.as_str()) {
+        return Value::Null;
+    }
+    let Some(engine_input) = query_engine_input_from_params(params) else {
+        return Value::Null;
+    };
+
+    read_omena_query_cascade_at_position(
+        document.uri.as_str(),
+        document.text.as_str(),
+        &engine_input,
+        position,
+    )
+    .map(|result| json!(result))
+    .unwrap_or(Value::Null)
+}
+
+fn resolve_style_context_index(state: &LspShellState, params: Option<&Value>) -> Value {
+    let document_uri = document_uri_from_params(params);
+    let Some(document) = state.document(&document_uri) else {
+        return Value::Null;
+    };
+    if !is_style_document_uri(document.uri.as_str()) {
+        return Value::Null;
+    }
+    let Some(engine_input) = query_engine_input_from_params(params) else {
+        return Value::Null;
+    };
+
+    read_omena_query_style_context_index(
+        document.uri.as_str(),
+        document.text.as_str(),
+        &engine_input,
+    )
+    .map(|result| json!(result))
+    .unwrap_or(Value::Null)
+}
+
+fn query_engine_input_from_params(params: Option<&Value>) -> Option<OmenaQueryEngineInputV2> {
+    if let Some(engine_input) = params.and_then(|value| value.get("engineInput")) {
+        return serde_json::from_value(engine_input.clone()).ok();
+    }
+
+    serde_json::from_value(json!({
+        "version": "2",
+        "sources": [],
+        "styles": [],
+        "typeFacts": [],
+    }))
+    .ok()
 }
 
 fn resolve_document_diagnostics_for_uri(state: &LspShellState, document_uri: &str) -> Value {

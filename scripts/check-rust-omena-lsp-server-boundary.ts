@@ -123,6 +123,8 @@ assert.deepEqual(
   rustSummary.handlerSurfaces.map((surface) => surface.method).toSorted(),
   [
     "$/cancelRequest",
+    "cssModuleExplainer/rustCascadeAtPosition",
+    "cssModuleExplainer/rustStyleContextIndex",
     "textDocument/codeAction",
     "textDocument/codeLens",
     "textDocument/completion",
@@ -189,6 +191,16 @@ assert.ok(
   rustSummary.sourceProviderAdapter.requestPathPolicy.includes("consumeQuerySassModuleSources"),
 );
 assert.ok(rustSummary.sourceProviderAdapter.providerSurfaces.includes("textDocument/definition"));
+assert.ok(
+  rustSummary.sourceProviderAdapter.providerSurfaces.includes(
+    "cssModuleExplainer/rustCascadeAtPosition",
+  ),
+);
+assert.ok(
+  rustSummary.sourceProviderAdapter.providerSurfaces.includes(
+    "cssModuleExplainer/rustStyleContextIndex",
+  ),
+);
 assertDefaultHostPathHasNoNodeWorkspaceResolver(repoRoot);
 assert.equal(
   rustSummary.workspaceRuntimeRegistry.product,

@@ -1,14 +1,16 @@
 use crate::diagnostics_scheduler::{diagnostics_schedule_event, run_diagnostics_schedule};
 use crate::{
-    CANCEL_REQUEST_METHOD, DEBUG_STATE_REQUEST, LspShellState, REQUEST_CANCELLED_ERROR_CODE,
-    RUNTIME_LOOP_PROBE_REQUEST, SOURCE_DIAGNOSTICS_REQUEST, STYLE_DIAGNOSTICS_REQUEST,
-    STYLE_HOVER_CANDIDATES_REQUEST, apply_diagnostic_settings, apply_feature_settings,
-    current_node_lsp_capability_contract, did_change_text_document, did_change_watched_files,
-    did_change_workspace_folders, did_close_text_document, did_open_text_document,
-    index_workspace_style_files, initialize_workspace_folders, resolve_lsp_code_actions,
+    CANCEL_REQUEST_METHOD, CASCADE_AT_POSITION_REQUEST, DEBUG_STATE_REQUEST, LspShellState,
+    REQUEST_CANCELLED_ERROR_CODE, RUNTIME_LOOP_PROBE_REQUEST, SOURCE_DIAGNOSTICS_REQUEST,
+    STYLE_CONTEXT_INDEX_REQUEST, STYLE_DIAGNOSTICS_REQUEST, STYLE_HOVER_CANDIDATES_REQUEST,
+    apply_diagnostic_settings, apply_feature_settings, current_node_lsp_capability_contract,
+    did_change_text_document, did_change_watched_files, did_change_workspace_folders,
+    did_close_text_document, did_open_text_document, index_workspace_style_files,
+    initialize_workspace_folders, resolve_cascade_at_position, resolve_lsp_code_actions,
     resolve_lsp_code_lens, resolve_lsp_completion, resolve_lsp_definition, resolve_lsp_hover,
     resolve_lsp_prepare_rename, resolve_lsp_references, resolve_lsp_rename,
-    resolve_source_diagnostics, resolve_style_diagnostics, resolve_style_hover_candidates,
+    resolve_source_diagnostics, resolve_style_context_index, resolve_style_diagnostics,
+    resolve_style_hover_candidates,
 };
 use serde_json::{Value, json};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -136,6 +138,16 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
             "jsonrpc": "2.0",
             "id": request_id,
             "result": resolve_source_diagnostics(state, message.get("params")),
+        })),
+        (Some(CASCADE_AT_POSITION_REQUEST), Some(request_id)) => Some(json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": resolve_cascade_at_position(state, message.get("params")),
+        })),
+        (Some(STYLE_CONTEXT_INDEX_REQUEST), Some(request_id)) => Some(json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": resolve_style_context_index(state, message.get("params")),
         })),
         (Some("shutdown"), Some(request_id)) => {
             state.shutdown_requested = true;

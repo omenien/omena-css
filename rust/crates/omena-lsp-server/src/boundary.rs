@@ -5,7 +5,10 @@ use crate::query_reuse::{RustQueryReuseBoundaryV0, rust_query_reuse_contract};
 use crate::workspace_runtime_registry::{
     WorkspaceRuntimeRegistryBoundaryV0, workspace_runtime_registry_contract,
 };
-use crate::{CANCEL_REQUEST_METHOD, NODE_TEXT_DOCUMENT_SYNC_KIND};
+use crate::{
+    CANCEL_REQUEST_METHOD, CASCADE_AT_POSITION_REQUEST, NODE_TEXT_DOCUMENT_SYNC_KIND,
+    STYLE_CONTEXT_INDEX_REQUEST,
+};
 use omena_tsgo_client::{OmenaTsgoClientBoundarySummaryV0, summarize_omena_tsgo_client_boundary};
 use serde::Serialize;
 
@@ -199,6 +202,8 @@ pub fn source_provider_direct_rust_adapter_contract() -> SourceProviderDirectRus
             "textDocument/references",
             "textDocument/completion",
             "textDocument/publishDiagnostics",
+            CASCADE_AT_POSITION_REQUEST,
+            STYLE_CONTEXT_INDEX_REQUEST,
         ],
     }
 }
@@ -311,6 +316,8 @@ pub fn lsp_handler_surfaces() -> Vec<LspHandlerSurfaceV0> {
         runtime_handler("workspace/didChangeConfiguration"),
         runtime_handler("workspace/didChangeWorkspaceFolders"),
         diagnostics_handler("textDocument/publishDiagnostics"),
+        query_inspection_handler(CASCADE_AT_POSITION_REQUEST),
+        query_inspection_handler(STYLE_CONTEXT_INDEX_REQUEST),
         runtime_handler(CANCEL_REQUEST_METHOD),
     ]
 }
@@ -338,6 +345,15 @@ fn diagnostics_handler(method: &'static str) -> LspHandlerSurfaceV0 {
         method,
         node_owner: "server/lsp-server/src/diagnostics-scheduler.ts",
         rust_owner_target: "omena-lsp-server/diagnostics",
+        migration_state: "implemented",
+    }
+}
+
+fn query_inspection_handler(method: &'static str) -> LspHandlerSurfaceV0 {
+    LspHandlerSurfaceV0 {
+        method,
+        node_owner: "server/lsp-server/src/query-inspection",
+        rust_owner_target: "omena-lsp-server/query-inspection",
         migration_state: "implemented",
     }
 }
