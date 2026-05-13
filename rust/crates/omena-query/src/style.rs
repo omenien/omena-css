@@ -1233,6 +1233,85 @@ pub fn summarize_omena_query_rename_plan(
     }
 }
 
+pub fn summarize_omena_query_style_completion_for_workspace_file(
+    target_style_path: &str,
+    style_source: &str,
+    position: ParserPositionV0,
+) -> OmenaQueryCompletionAtPositionV0 {
+    let candidates = summarize_omena_query_style_hover_candidates(target_style_path, style_source)
+        .map(|summary| summary.candidates)
+        .unwrap_or_default();
+    summarize_omena_query_style_completion_at_position(
+        target_style_path,
+        style_source,
+        position,
+        candidates.as_slice(),
+    )
+}
+
+pub fn summarize_omena_query_source_completion_for_workspace_file(
+    source_path: &str,
+    position: ParserPositionV0,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    target_style_uri: Option<&str>,
+    value_prefix: Option<&str>,
+) -> OmenaQueryCompletionAtPositionV0 {
+    let candidates = collect_omena_query_completion_candidates(style_sources);
+    summarize_omena_query_source_completion_at_position(
+        source_path,
+        position,
+        candidates.as_slice(),
+        target_style_uri,
+        value_prefix,
+    )
+}
+
+pub fn summarize_omena_query_refs_for_workspace_class(
+    selector_name: &str,
+    target_style_uri: Option<&str>,
+    include_declaration: bool,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQueryRefsForClassV0 {
+    let definitions = summarize_omena_query_style_selector_definitions(style_sources);
+    let references = collect_omena_query_source_selector_reference_candidates(
+        style_sources,
+        source_documents,
+        package_manifests,
+    );
+    summarize_omena_query_refs_for_class(
+        selector_name,
+        target_style_uri,
+        include_declaration,
+        definitions.as_slice(),
+        references.as_slice(),
+    )
+}
+
+pub fn summarize_omena_query_rename_plan_for_workspace_class(
+    selector_name: &str,
+    new_name: &str,
+    target_style_uri: Option<&str>,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQueryRenamePlanV0 {
+    let definitions = summarize_omena_query_style_selector_definitions(style_sources);
+    let references = collect_omena_query_source_selector_reference_edit_targets(
+        style_sources,
+        source_documents,
+        package_manifests,
+    );
+    summarize_omena_query_rename_plan(
+        selector_name,
+        new_name,
+        target_style_uri,
+        definitions.as_slice(),
+        references.as_slice(),
+    )
+}
+
 pub fn read_omena_query_cascade_at_position(
     style_path: &str,
     style_source: &str,
@@ -1779,6 +1858,177 @@ fn summarize_omena_query_style_selector_definitions(
     });
     definitions.dedup();
     definitions
+}
+
+fn collect_omena_query_completion_candidates(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+) -> Vec<OmenaQueryCompletionCandidateV0> {
+    let mut candidates = Vec::new();
+    for source in style_sources {
+        let Some(summary) = summarize_omena_query_style_hover_candidates(
+            source.style_path.as_str(),
+            source.style_source.as_str(),
+        ) else {
+            continue;
+        };
+        candidates.extend(summary.candidates.into_iter().filter_map(|candidate| {
+            (candidate.kind == "selector").then(|| OmenaQueryCompletionCandidateV0 {
+                file_uri: source.style_path.clone(),
+                name: candidate.name,
+                kind: "selector",
+                range: candidate.range,
+                source: "omenaQueryStyleHoverCandidates",
+            })
+        }));
+    }
+    candidates.sort_by_key(|candidate| {
+        (
+            candidate.file_uri.clone(),
+            candidate.range.start.line,
+            candidate.range.start.character,
+            candidate.name.clone(),
+        )
+    });
+    candidates.dedup_by(|left, right| {
+        left.file_uri == right.file_uri && left.name == right.name && left.range == right.range
+    });
+    candidates
+}
+
+fn collect_omena_query_source_selector_reference_candidates(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<OmenaQuerySourceSelectorReferenceCandidateV0> {
+    collect_omena_query_source_selector_references(
+        style_sources,
+        source_documents,
+        package_manifests,
+    )
+    .into_iter()
+    .map(|reference| reference.candidate)
+    .collect()
+}
+
+fn collect_omena_query_source_selector_reference_edit_targets(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<OmenaQuerySourceSelectorReferenceEditTargetV0> {
+    collect_omena_query_source_selector_references(
+        style_sources,
+        source_documents,
+        package_manifests,
+    )
+    .into_iter()
+    .filter_map(|reference| {
+        reference
+            .is_exact
+            .then_some(OmenaQuerySourceSelectorReferenceEditTargetV0 {
+                uri: reference.candidate.uri,
+                name: reference.candidate.name,
+                range: reference.candidate.range,
+                target_style_uri: reference.candidate.target_style_uri,
+            })
+    })
+    .collect()
+}
+
+fn collect_omena_query_source_selector_references(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<OmenaQueryWorkspaceSourceReferenceCandidateV0> {
+    let available_style_paths = style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut references = Vec::new();
+
+    for document in source_documents {
+        let imports = summarize_omena_query_source_import_declarations(&document.source_source);
+        let mut imported_style_bindings = Vec::new();
+        let mut classnames_bind_bindings = Vec::new();
+
+        for import in imports.imports {
+            if import.specifier == "classnames/bind" {
+                classnames_bind_bindings.push(import.binding);
+                continue;
+            }
+            let Some(style_uri) = resolve_style_module_source(
+                &document.source_path,
+                &import.specifier,
+                &available_style_paths,
+                package_manifests,
+            ) else {
+                continue;
+            };
+            imported_style_bindings.push(OmenaQuerySourceImportedStyleBindingV0 {
+                binding: import.binding,
+                style_uri,
+            });
+        }
+
+        if imported_style_bindings.is_empty() {
+            continue;
+        }
+
+        let mut index = summarize_omena_query_source_syntax_index(
+            &document.source_source,
+            imported_style_bindings,
+            classnames_bind_bindings,
+        );
+        canonicalize_omena_query_source_selector_references(&mut index.selector_references);
+
+        for reference in index.selector_references {
+            let Some(name) = reference.selector_name.clone().or_else(|| {
+                source_reference_text_selector_name(&document.source_source, reference.byte_span)
+            }) else {
+                continue;
+            };
+            let is_exact = matches!(
+                reference.match_kind,
+                OmenaQuerySourceSelectorReferenceMatchKindV0::Exact
+            );
+            references.push(OmenaQueryWorkspaceSourceReferenceCandidateV0 {
+                is_exact,
+                candidate: OmenaQuerySourceSelectorReferenceCandidateV0 {
+                    uri: document.source_path.clone(),
+                    kind: if is_exact {
+                        "sourceSelectorReference"
+                    } else {
+                        "sourceSelectorPrefixReference"
+                    },
+                    name,
+                    range: parser_range_for_byte_span(&document.source_source, reference.byte_span),
+                    source: "omenaQuerySourceSyntaxIndex",
+                    target_style_uri: reference.target_style_uri,
+                },
+            });
+        }
+    }
+
+    references.sort_by_key(|reference| {
+        (
+            reference.candidate.uri.clone(),
+            reference.candidate.range.start.line,
+            reference.candidate.range.start.character,
+            reference.candidate.name.clone(),
+        )
+    });
+    references.dedup_by(|left, right| {
+        left.candidate.uri == right.candidate.uri
+            && left.candidate.range == right.candidate.range
+            && left.candidate.name == right.candidate.name
+            && left.candidate.target_style_uri == right.candidate.target_style_uri
+    });
+    references
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OmenaQueryWorkspaceSourceReferenceCandidateV0 {
+    is_exact: bool,
+    candidate: OmenaQuerySourceSelectorReferenceCandidateV0,
 }
 
 fn summarize_omena_query_unresolved_source_reference_diagnostic(

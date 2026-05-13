@@ -115,6 +115,54 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "styleDiagnosticsForFile",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.styleDiagnosticsForFile,
+      inputContract: "StyleDiagnosticsForFileInputV0",
+      outputProduct: "omena-query.diagnostics-for-file",
+    },
+  ],
+  [
+    "sourceDiagnosticsForFile",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.sourceDiagnosticsForFile,
+      inputContract: "SourceDiagnosticsForFileInputV0",
+      outputProduct: "omena-query.diagnostics-for-file",
+    },
+  ],
+  [
+    "completionAt",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.completionAt,
+      inputContract: "CompletionAtInputV0",
+      outputProduct: "omena-query.completion-at",
+    },
+  ],
+  [
+    "refsForClass",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.refsForClass,
+      inputContract: "RefsForClassInputV0",
+      outputProduct: "omena-query.refs-for-class",
+    },
+  ],
+  [
+    "renamePlan",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.renamePlan,
+      inputContract: "RenamePlanInputV0",
+      outputProduct: "omena-query.rename-plan",
+    },
+  ],
+  [
+    "readStyleContextIndex",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.readStyleContextIndex,
+      inputContract: "ReadStyleContextIndexInputV0",
+      outputProduct: "omena-query.style-context-index",
+    },
+  ],
+  [
     "styleSemanticGraphBatch",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.styleSemanticGraphBatch,
@@ -196,12 +244,18 @@ void (async () => {
   assert.equal(summary.defaultCandidateBackend, "rust-selected-query");
   assert.equal(summary.routingStatus, "runtimeBacked");
   assert.deepEqual([...summary.requiredInputContracts].toSorted(), [
+    "CompletionAtInputV0",
     "ConsumerStyleSourceBuildInputV0",
     "ConsumerStyleSourceInputV0",
     "ConsumerStyleSourcesBuildInputV0",
     "EngineInputV2",
     "OmenaParserStyleFactsInputV0",
     "ReadCascadeAtPositionInputV0",
+    "ReadStyleContextIndexInputV0",
+    "RefsForClassInputV0",
+    "RenamePlanInputV0",
+    "SourceDiagnosticsForFileInputV0",
+    "StyleDiagnosticsForFileInputV0",
     "StyleSemanticGraphBatchInputV0",
     "StyleSemanticGraphInputV0",
     "TransformContextFromEngineInputV0",
@@ -217,6 +271,7 @@ void (async () => {
   assert.deepEqual([...summary.adapterReadiness].toSorted(), [
     "backendCapabilityMatrix",
     "canonicalProducerWrapperBoundary",
+    "completionAtRunner",
     "consumerBuildFacade",
     "consumerCheckFacade",
     "consumerTransformPassListFacade",
@@ -230,9 +285,14 @@ void (async () => {
     "queryEvaluationRuntime",
     "readCascadeAtPosition",
     "readCascadeCustomPropertyLeastFixedPoint",
+    "readStyleContextIndexRunner",
+    "refsForClassRunner",
+    "renamePlanRunner",
     "runnerCommandContract",
     "semanticReachabilityTransformContext",
+    "sourceDiagnosticsForFileRunner",
     "sourceResolutionRuntimeIndex",
+    "styleDiagnosticsForFileRunner",
     "styleSemanticGraphBridgeBoundary",
     "transformContextProducer",
     "transformEggExecutionWitnesses",

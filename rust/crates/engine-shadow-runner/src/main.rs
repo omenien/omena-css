@@ -40,27 +40,38 @@ use omena_parser::{
     summarize_omena_parser_lex, summarize_omena_parser_style_facts,
 };
 use omena_query::{
-    OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryStylePackageManifestV0,
+    OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
     OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
     OmenaQueryTransformExecutionContextV0, ParserPositionV0,
     default_omena_query_transform_print_options,
+    execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
+    execute_omena_query_consumer_build_style_sources_with_context,
     execute_omena_query_transform_passes_from_source_with_context,
-    read_omena_query_cascade_at_position, summarize_omena_query_boundary,
-    summarize_omena_query_evaluation_runtime,
+    list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
+    read_omena_query_style_context_index, summarize_omena_query_boundary,
+    summarize_omena_query_consumer_check_style_source, summarize_omena_query_evaluation_runtime,
     summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_expression_semantics_canonical_producer_signal,
     summarize_omena_query_expression_semantics_query_fragments,
+    summarize_omena_query_refs_for_workspace_class,
+    summarize_omena_query_rename_plan_for_workspace_class,
     summarize_omena_query_selected_query_adapter_capabilities,
     summarize_omena_query_selector_usage_canonical_producer_signal,
     summarize_omena_query_selector_usage_query_fragments,
+    summarize_omena_query_source_completion_for_workspace_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_source_resolution_canonical_producer_signal,
     summarize_omena_query_source_resolution_query_fragments,
     summarize_omena_query_source_resolution_runtime,
+    summarize_omena_query_style_completion_for_workspace_file,
+    summarize_omena_query_style_diagnostics_for_workspace_file,
     summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
     summarize_omena_query_style_semantic_graph_from_source,
+    summarize_omena_query_transform_context_from_engine_input,
     summarize_omena_query_transform_context_from_sources,
     summarize_omena_query_transform_plan_from_source_with_context,
     summarize_omena_query_transform_plan_from_target_query_with_context,
@@ -104,6 +115,86 @@ struct ReadCascadeAtPositionInputV0 {
     style_source: String,
     engine_input: EngineInputV2,
     position: ParserPositionInputV0,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReadStyleContextIndexInputV0 {
+    style_path: String,
+    style_source: String,
+    engine_input: EngineInputV2,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StyleDiagnosticsForFileInputV0 {
+    target_style_path: String,
+    styles: Vec<OmenaQueryStyleSourceInputV0>,
+    #[serde(default)]
+    source_documents: Vec<OmenaQuerySourceDocumentInputV0>,
+    #[serde(default)]
+    package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SourceDiagnosticsForFileInputV0 {
+    source_path: String,
+    source_source: String,
+    styles: Vec<OmenaQueryStyleSourceInputV0>,
+    #[serde(default)]
+    package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CompletionAtInputV0 {
+    file_uri: String,
+    file_kind: CompletionFileKindV0,
+    position: ParserPositionInputV0,
+    #[serde(default)]
+    style_source: Option<String>,
+    #[serde(default)]
+    styles: Vec<OmenaQueryStyleSourceInputV0>,
+    #[serde(default)]
+    target_style_uri: Option<String>,
+    #[serde(default)]
+    value_prefix: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum CompletionFileKindV0 {
+    Style,
+    Source,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RefsForClassInputV0 {
+    selector_name: String,
+    #[serde(default)]
+    target_style_uri: Option<String>,
+    include_declaration: bool,
+    styles: Vec<OmenaQueryStyleSourceInputV0>,
+    #[serde(default)]
+    source_documents: Vec<OmenaQuerySourceDocumentInputV0>,
+    #[serde(default)]
+    package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RenamePlanInputV0 {
+    selector_name: String,
+    new_name: String,
+    #[serde(default)]
+    target_style_uri: Option<String>,
+    styles: Vec<OmenaQueryStyleSourceInputV0>,
+    #[serde(default)]
+    source_documents: Vec<OmenaQuerySourceDocumentInputV0>,
+    #[serde(default)]
+    package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -180,6 +271,53 @@ struct TransformExecuteInputV0 {
     transform_context: OmenaQueryTransformExecutionContextV0,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TransformContextFromEngineInputV0 {
+    engine_input: EngineInputV2,
+    target_style_path: String,
+    closed_style_world: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ConsumerStyleSourceInputV0 {
+    style_path: String,
+    style_source: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ConsumerStyleSourceBuildInputV0 {
+    style_path: String,
+    style_source: String,
+    #[serde(default)]
+    requested_pass_ids: Vec<String>,
+    #[serde(default)]
+    target_query: Option<String>,
+    #[serde(default)]
+    target_options: TransformPlanTargetOptionsInputV0,
+    #[serde(default)]
+    transform_context: OmenaQueryTransformExecutionContextV0,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ConsumerStyleSourcesBuildInputV0 {
+    target_style_path: String,
+    styles: Vec<OmenaQueryStyleSourceInputV0>,
+    #[serde(default)]
+    requested_pass_ids: Vec<String>,
+    #[serde(default)]
+    target_query: Option<String>,
+    #[serde(default)]
+    target_options: TransformPlanTargetOptionsInputV0,
+    #[serde(default)]
+    transform_context: OmenaQueryTransformExecutionContextV0,
+    #[serde(default)]
+    package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+}
+
 fn default_transform_target_label() -> String {
     "explicit-feature-matrix".to_string()
 }
@@ -230,7 +368,7 @@ impl From<TransformPlanTargetFeatureSupportInputV0> for OmenaQueryTargetFeatureS
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct TransformPlanTargetOptionsInputV0 {
     allow_logical_to_physical: bool,
@@ -1042,6 +1180,96 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("style-diagnostics-for-file") => {
+            let input: StyleDiagnosticsForFileInputV0 = serde_json::from_str(&stdin)?;
+            let Some(summary) = summarize_omena_query_style_diagnostics_for_workspace_file(
+                &input.target_style_path,
+                &input.styles,
+                &input.source_documents,
+                &input.package_manifests,
+            ) else {
+                return Err("unsupported style module path".into());
+            };
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("source-diagnostics-for-file") => {
+            let input: SourceDiagnosticsForFileInputV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_query_source_diagnostics_for_workspace_file(
+                &input.source_path,
+                &input.source_source,
+                &input.styles,
+                &input.package_manifests,
+            );
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("completion-at") => {
+            let input: CompletionAtInputV0 = serde_json::from_str(&stdin)?;
+            let position = input.position.into();
+            let summary = match input.file_kind {
+                CompletionFileKindV0::Style => {
+                    let style_source = input
+                        .style_source
+                        .or_else(|| {
+                            input
+                                .styles
+                                .iter()
+                                .find(|source| source.style_path == input.file_uri)
+                                .map(|source| source.style_source.clone())
+                        })
+                        .ok_or("missing style source for completion-at style request")?;
+                    summarize_omena_query_style_completion_for_workspace_file(
+                        &input.file_uri,
+                        &style_source,
+                        position,
+                    )
+                }
+                CompletionFileKindV0::Source => {
+                    summarize_omena_query_source_completion_for_workspace_file(
+                        &input.file_uri,
+                        position,
+                        &input.styles,
+                        input.target_style_uri.as_deref(),
+                        input.value_prefix.as_deref(),
+                    )
+                }
+            };
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("refs-for-class") => {
+            let input: RefsForClassInputV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_query_refs_for_workspace_class(
+                &input.selector_name,
+                input.target_style_uri.as_deref(),
+                input.include_declaration,
+                &input.styles,
+                &input.source_documents,
+                &input.package_manifests,
+            );
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("rename-plan") => {
+            let input: RenamePlanInputV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_query_rename_plan_for_workspace_class(
+                &input.selector_name,
+                &input.new_name,
+                input.target_style_uri.as_deref(),
+                &input.styles,
+                &input.source_documents,
+                &input.package_manifests,
+            );
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("read-style-context-index") => {
+            let input: ReadStyleContextIndexInputV0 = serde_json::from_str(&stdin)?;
+            let Some(summary) = read_omena_query_style_context_index(
+                &input.style_path,
+                &input.style_source,
+                &input.engine_input,
+            ) else {
+                return Err("unsupported style module path".into());
+            };
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("style-semantic-graph-batch") => {
             let input: StyleSemanticGraphBatchInputV0 = serde_json::from_str(&stdin)?;
             let package_manifests = input
@@ -1107,6 +1335,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             serde_json::to_writer_pretty(io::stdout(), &output)?;
         }
+        Some("transform-context-from-engine-input") => {
+            let input: TransformContextFromEngineInputV0 = serde_json::from_str(&stdin)?;
+            let output = summarize_omena_query_transform_context_from_engine_input(
+                &input.engine_input,
+                &input.target_style_path,
+                input.closed_style_world,
+            );
+            serde_json::to_writer_pretty(io::stdout(), &output)?;
+        }
         Some("transform-execute") => {
             let input: TransformExecuteInputV0 = serde_json::from_str(&stdin)?;
             let output = execute_omena_query_transform_passes_from_source_with_context(
@@ -1115,6 +1352,72 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &input.requested_pass_ids,
                 &input.transform_context,
             );
+            serde_json::to_writer_pretty(io::stdout(), &output)?;
+        }
+        Some("consumer-check-style-source") => {
+            let input: ConsumerStyleSourceInputV0 = serde_json::from_str(&stdin)?;
+            let output = summarize_omena_query_consumer_check_style_source(
+                &input.style_path,
+                &input.style_source,
+            );
+            serde_json::to_writer_pretty(io::stdout(), &output)?;
+        }
+        Some("consumer-build-style-source") => {
+            let input: ConsumerStyleSourceBuildInputV0 = serde_json::from_str(&stdin)?;
+            let output = if let Some(target_query) = input.target_query.as_deref() {
+                execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
+                    &input.style_path,
+                    &[OmenaQueryStyleSourceInputV0 {
+                        style_path: input.style_path.clone(),
+                        style_source: input.style_source.clone(),
+                    }],
+                    target_query,
+                    &input.transform_context,
+                    input.target_options.into(),
+                    &[],
+                )
+                .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?
+            } else {
+                execute_omena_query_consumer_build_style_sources_with_context(
+                    &input.style_path,
+                    &[OmenaQueryStyleSourceInputV0 {
+                        style_path: input.style_path.clone(),
+                        style_source: input.style_source.clone(),
+                    }],
+                    &input.requested_pass_ids,
+                    &input.transform_context,
+                    &[],
+                )
+                .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?
+            };
+            serde_json::to_writer_pretty(io::stdout(), &output)?;
+        }
+        Some("consumer-build-style-sources") => {
+            let input: ConsumerStyleSourcesBuildInputV0 = serde_json::from_str(&stdin)?;
+            let output = if let Some(target_query) = input.target_query.as_deref() {
+                execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options(
+                    &input.target_style_path,
+                    &input.styles,
+                    target_query,
+                    &input.transform_context,
+                    input.target_options.into(),
+                    &input.package_manifests,
+                )
+                .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?
+            } else {
+                execute_omena_query_consumer_build_style_sources_with_context(
+                    &input.target_style_path,
+                    &input.styles,
+                    &input.requested_pass_ids,
+                    &input.transform_context,
+                    &input.package_manifests,
+                )
+                .map_err(|message| io::Error::new(io::ErrorKind::InvalidInput, message))?
+            };
+            serde_json::to_writer_pretty(io::stdout(), &output)?;
+        }
+        Some("consumer-transform-pass-list") => {
+            let output = list_omena_query_transform_pass_summaries();
             serde_json::to_writer_pretty(io::stdout(), &output)?;
         }
         Some("input-expression-semantics-query-fragments") => {

@@ -5,59 +5,88 @@ import { strict as assert } from "node:assert";
 const RUNNER_PATH = path.join(process.cwd(), "rust/crates/engine-shadow-runner/src/main.rs");
 
 const OMENA_QUERY_OWNED_COMMANDS = new Map([
-  ["input-omena-query-boundary", "summarize_omena_query_boundary"],
-  ["input-omena-query-evaluation-runtime", "summarize_omena_query_evaluation_runtime"],
+  ["input-omena-query-boundary", ["summarize_omena_query_boundary"]],
+  ["input-omena-query-evaluation-runtime", ["summarize_omena_query_evaluation_runtime"]],
   [
     "omena-query-selected-query-adapter-capabilities",
-    "summarize_omena_query_selected_query_adapter_capabilities",
+    ["summarize_omena_query_selected_query_adapter_capabilities"],
   ],
   [
     "input-source-resolution-query-fragments",
-    "summarize_omena_query_source_resolution_query_fragments",
+    ["summarize_omena_query_source_resolution_query_fragments"],
   ],
   [
     "input-expression-semantics-query-fragments",
-    "summarize_omena_query_expression_semantics_query_fragments",
+    ["summarize_omena_query_expression_semantics_query_fragments"],
   ],
-  ["input-selector-usage-query-fragments", "summarize_omena_query_selector_usage_query_fragments"],
+  ["input-selector-usage-query-fragments", ["summarize_omena_query_selector_usage_query_fragments"]],
   [
     "input-source-resolution-canonical-producer",
-    "summarize_omena_query_source_resolution_canonical_producer_signal",
+    ["summarize_omena_query_source_resolution_canonical_producer_signal"],
   ],
   [
     "input-omena-resolver-source-resolution-runtime",
-    "summarize_omena_query_source_resolution_runtime",
+    ["summarize_omena_query_source_resolution_runtime"],
   ],
   [
     "input-expression-semantics-canonical-producer",
-    "summarize_omena_query_expression_semantics_canonical_producer_signal",
+    ["summarize_omena_query_expression_semantics_canonical_producer_signal"],
   ],
   [
     "input-expression-domain-flow-analysis",
-    "summarize_omena_query_expression_domain_flow_analysis",
+    ["summarize_omena_query_expression_domain_flow_analysis"],
   ],
   [
     "input-expression-domain-control-flow-analysis",
-    "summarize_omena_query_expression_domain_control_flow_analysis",
+    ["summarize_omena_query_expression_domain_control_flow_analysis"],
   ],
   [
     "input-expression-domain-incremental-flow-analysis",
-    "summarize_omena_query_expression_domain_incremental_flow_analysis",
+    ["summarize_omena_query_expression_domain_incremental_flow_analysis"],
   ],
   [
     "input-expression-domain-selector-projection",
-    "summarize_omena_query_expression_domain_selector_projection",
+    ["summarize_omena_query_expression_domain_selector_projection"],
   ],
   [
     "input-selector-usage-canonical-producer",
-    "summarize_omena_query_selector_usage_canonical_producer_signal",
+    ["summarize_omena_query_selector_usage_canonical_producer_signal"],
   ],
-  ["style-semantic-graph", "summarize_omena_query_style_semantic_graph_from_source"],
-  ["read-cascade-at-position", "read_omena_query_cascade_at_position"],
-  ["style-semantic-graph-batch", "summarize_omena_query_style_semantic_graph_batch_from_sources"],
-  ["transform-plan", "summarize_omena_query_transform_plan_from_source_with_context"],
-  ["transform-context", "summarize_omena_query_transform_context_from_sources"],
-  ["transform-execute", "execute_omena_query_transform_passes_from_source_with_context"],
+  ["style-semantic-graph", ["summarize_omena_query_style_semantic_graph_from_source"]],
+  ["read-cascade-at-position", ["read_omena_query_cascade_at_position"]],
+  ["style-diagnostics-for-file", ["summarize_omena_query_style_diagnostics_for_workspace_file"]],
+  ["source-diagnostics-for-file", ["summarize_omena_query_source_diagnostics_for_workspace_file"]],
+  [
+    "completion-at",
+    [
+      "summarize_omena_query_style_completion_for_workspace_file",
+      "summarize_omena_query_source_completion_for_workspace_file",
+    ],
+  ],
+  ["refs-for-class", ["summarize_omena_query_refs_for_workspace_class"]],
+  ["rename-plan", ["summarize_omena_query_rename_plan_for_workspace_class"]],
+  ["read-style-context-index", ["read_omena_query_style_context_index"]],
+  ["style-semantic-graph-batch", ["summarize_omena_query_style_semantic_graph_batch_from_sources"]],
+  ["transform-plan", ["summarize_omena_query_transform_plan_from_source_with_context"]],
+  ["transform-context", ["summarize_omena_query_transform_context_from_sources"]],
+  ["transform-context-from-engine-input", ["summarize_omena_query_transform_context_from_engine_input"]],
+  ["transform-execute", ["execute_omena_query_transform_passes_from_source_with_context"]],
+  ["consumer-check-style-source", ["summarize_omena_query_consumer_check_style_source"]],
+  [
+    "consumer-build-style-source",
+    [
+      "execute_omena_query_consumer_build_style_sources_with_context",
+      "execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options",
+    ],
+  ],
+  [
+    "consumer-build-style-sources",
+    [
+      "execute_omena_query_consumer_build_style_sources_with_context",
+      "execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options",
+    ],
+  ],
+  ["consumer-transform-pass-list", ["list_omena_query_transform_pass_summaries"]],
 ] as const);
 
 const PARSER_OWNED_COMMANDS = new Map([
@@ -134,10 +163,12 @@ const DIRECT_PRODUCER_LANE_COMMANDS = new Map([
 const runnerSource = readFileSync(RUNNER_PATH, "utf8");
 const commandBodies = extractCommandBodies(runnerSource);
 
-for (const [command, expectedCall] of OMENA_QUERY_OWNED_COMMANDS) {
+for (const [command, expectedCalls] of OMENA_QUERY_OWNED_COMMANDS) {
   const body = commandBodies.get(command);
   assert.ok(body, `missing engine-shadow-runner command arm: ${command}`);
-  assert.ok(body.includes(expectedCall), `command ${command} must route through ${expectedCall}`);
+  for (const expectedCall of expectedCalls) {
+    assert.ok(body.includes(expectedCall), `command ${command} must route through ${expectedCall}`);
+  }
   assert.equal(
     findDirectProducerCalls(body).length,
     0,
@@ -209,5 +240,6 @@ function readBraceBody(source: string, bodyStart: number): string {
 function findDirectProducerCalls(body: string): string[] {
   return [...body.matchAll(/\b(summarize_[A-Za-z0-9_]+_input)\s*\(/g)]
     .map((match) => match[1])
-    .filter((functionName): functionName is string => functionName !== undefined);
+    .filter((functionName): functionName is string => functionName !== undefined)
+    .filter((functionName) => !functionName.startsWith("summarize_omena_query_"));
 }
