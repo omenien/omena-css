@@ -229,6 +229,7 @@ void (async () => {
     "omenaParserStyleFactExtraction",
     "queryEvaluationRuntime",
     "readCascadeAtPosition",
+    "readCascadeCustomPropertyLeastFixedPoint",
     "runnerCommandContract",
     "semanticReachabilityTransformContext",
     "sourceResolutionRuntimeIndex",

@@ -2836,6 +2836,21 @@ fn read_cascade_at_position_is_query_owned() {
         Some("black")
     );
     assert!(!cascade.referenced_declaration_invalid_at_computed_value_time);
+    assert_eq!(cascade.custom_property_fixed_point_iteration_count, 1);
+    assert_eq!(
+        cascade.custom_property_fixed_point_guaranteed_invalid_count,
+        0
+    );
+    assert_eq!(
+        cascade.reference_custom_property_fixed_point_status,
+        Some("fixedPointStable")
+    );
+    assert_eq!(
+        cascade
+            .reference_custom_property_fixed_point_value
+            .as_deref(),
+        Some("black")
+    );
     assert!(
         cascade
             .referenced_declaration_computed_value_derivation_steps
@@ -2886,6 +2901,21 @@ fn read_cascade_at_position_reports_iacvt_seed() {
         Some("canvastext")
     );
     assert!(cascade.referenced_declaration_invalid_at_computed_value_time);
+    assert!(cascade.custom_property_fixed_point_iteration_count >= 2);
+    assert_eq!(
+        cascade.custom_property_fixed_point_guaranteed_invalid_count,
+        2
+    );
+    assert_eq!(
+        cascade.reference_custom_property_fixed_point_status,
+        Some("guaranteedInvalid")
+    );
+    assert_eq!(
+        cascade
+            .reference_custom_property_fixed_point_value
+            .as_deref(),
+        Some("guaranteed-invalid")
+    );
     assert!(
         cascade
             .referenced_declaration_computed_value_derivation_steps

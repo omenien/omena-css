@@ -2,8 +2,9 @@ use super::*;
 use omena_bridge::OmenaBridgeParserRangeV0;
 use omena_cascade::{
     CascadeComputedValueInputV0, CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue,
-    ComputedCascadeValueStatusV0, CustomPropertyEnv, LayerRank, Specificity,
-    compute_cascade_computed_value,
+    ComputedCascadeValueStatusV0, CustomPropertyEnv, CustomPropertyLeastFixedPointEntryV0,
+    LayerRank, Specificity, compute_cascade_computed_value,
+    summarize_custom_property_least_fixed_point,
 };
 use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact};
 use omena_transform_passes::parse_static_css_cascade_value;
@@ -479,6 +480,8 @@ pub fn read_omena_query_cascade_at_position_from_graph(
     graph: &StyleSemanticGraphSummaryV0,
     position: ParserPositionV0,
 ) -> OmenaQueryCascadeAtPositionV0 {
+    let custom_property_env = collect_same_file_custom_property_env_from_graph(graph);
+    let fixed_point = summarize_custom_property_least_fixed_point(&custom_property_env);
     let positioned_references = positioned_custom_property_reference_facts(
         style_source,
         graph
@@ -517,6 +520,11 @@ pub fn read_omena_query_cascade_at_position_from_graph(
             referenced_declaration_computed_value: None,
             referenced_declaration_invalid_at_computed_value_time: false,
             referenced_declaration_computed_value_derivation_steps: Vec::new(),
+            custom_property_fixed_point_iteration_count: fixed_point.iteration_count,
+            custom_property_fixed_point_guaranteed_invalid_count: fixed_point
+                .guaranteed_invalid_count,
+            reference_custom_property_fixed_point_status: None,
+            reference_custom_property_fixed_point_value: None,
         };
     };
 
@@ -532,9 +540,13 @@ pub fn read_omena_query_cascade_at_position_from_graph(
     let computed = compute_referenced_declaration_cascade_value_seed(
         style_path,
         style_source,
-        graph,
         *reference_range,
+        &custom_property_env,
     );
+    let fixed_point_entry = fixed_point
+        .entries
+        .iter()
+        .find(|entry| entry.name == reference.name);
 
     OmenaQueryCascadeAtPositionV0 {
         schema_version: "0",
@@ -579,6 +591,12 @@ pub fn read_omena_query_cascade_at_position_from_graph(
         referenced_declaration_computed_value_derivation_steps: computed
             .map(|computed| computed.derivation_steps)
             .unwrap_or_default(),
+        custom_property_fixed_point_iteration_count: fixed_point.iteration_count,
+        custom_property_fixed_point_guaranteed_invalid_count: fixed_point.guaranteed_invalid_count,
+        reference_custom_property_fixed_point_status: fixed_point_entry
+            .map(query_custom_property_fixed_point_entry_status),
+        reference_custom_property_fixed_point_value: fixed_point_entry
+            .and_then(|entry| render_query_cascade_value(&entry.resolved)),
     }
 }
 
@@ -602,13 +620,12 @@ struct StyleDeclarationAtOffset {
 fn compute_referenced_declaration_cascade_value_seed(
     style_path: &str,
     style_source: &str,
-    graph: &StyleSemanticGraphSummaryV0,
     reference_range: ParserRangeV0,
+    custom_property_env: &CustomPropertyEnv,
 ) -> Option<ReferencedDeclarationComputedValueSeed> {
     let reference_offset = byte_offset_for_parser_position(style_source, reference_range.start)?;
     let declaration = style_declaration_at_byte_offset(style_source, reference_offset)?;
     let cascade_value = parse_static_css_cascade_value(&declaration.value)?;
-    let custom_property_env = collect_same_file_custom_property_env_from_graph(graph);
     let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
         property: declaration.property.clone(),
         declarations: vec![CascadeDeclaration {
@@ -626,7 +643,7 @@ fn compute_referenced_declaration_cascade_value_seed(
                 declaration.source_order.min(u32::MAX as usize) as u32,
             ),
         }],
-        custom_property_env,
+        custom_property_env: custom_property_env.clone(),
         parent_computed_value: None,
     });
 
@@ -638,6 +655,18 @@ fn compute_referenced_declaration_cascade_value_seed(
         invalid_at_computed_value_time: result.invalid_at_computed_value_time,
         derivation_steps: result.derivation_steps,
     })
+}
+
+fn query_custom_property_fixed_point_entry_status(
+    entry: &CustomPropertyLeastFixedPointEntryV0,
+) -> &'static str {
+    if entry.guaranteed_invalid {
+        "guaranteedInvalid"
+    } else if entry.changed {
+        "resolvedByLeastFixedPoint"
+    } else {
+        "fixedPointStable"
+    }
 }
 
 fn collect_same_file_custom_property_env_from_graph(
