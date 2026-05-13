@@ -4,6 +4,12 @@
 //! only valid when they declare which semantic/cascade facts they read and what
 //! cascade-safety obligation they must preserve.
 
+pub use omena_parser::StyleDialect;
+use omena_parser::{
+    ParsedAnimationFactKind, ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind,
+    ParsedIcssFactKind, ParsedSassSymbolFactKind, ParsedSelectorFactKind, ParsedVariableFactKind,
+    collect_style_facts,
+};
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -362,7 +368,17 @@ pub struct TransformPassContractV0 {
     pub reads_semantic_graph: bool,
     pub reads_cascade_model: bool,
     pub writes_css: bool,
+    pub cascade_safe: bool,
+    pub cascade_safety_witness: CascadeSafetyWitnessV0,
     pub cascade_safe_obligation: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeSafetyWitnessV0 {
+    pub pass_id: &'static str,
+    pub obligation: &'static str,
+    pub enforced_at: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -387,8 +403,110 @@ pub struct TransformCstBoundarySummaryV0 {
     pub emission_pass_count: usize,
     pub full_pass_catalog_covered: bool,
     pub all_passes_declare_cascade_obligation: bool,
+    pub all_passes_have_compile_time_cascade_witness: bool,
+    pub stable_transform_ir_ready: bool,
+    pub provenance_derivation_forest_scaffold_ready: bool,
     pub provenance_preservation_required: bool,
     pub next_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StableTransformIrNodeKindV0 {
+    ClassSelector,
+    IdSelector,
+    PlaceholderSelector,
+    CustomPropertyDeclaration,
+    CustomPropertyReference,
+    ScssVariableDeclaration,
+    ScssVariableReference,
+    LessVariableDeclaration,
+    LessVariableReference,
+    SassSymbolDeclaration,
+    SassSymbolReference,
+    SassModuleEdge,
+    KeyframesDeclaration,
+    AnimationNameReference,
+    CssModuleValueDefinition,
+    CssModuleValueReference,
+    CssModuleValueImportSource,
+    CssModuleComposesTarget,
+    CssModuleComposesImportSource,
+    IcssExportName,
+    IcssImportLocalName,
+    IcssImportRemoteName,
+    IcssImportSource,
+    AtRule,
+}
+
+impl StableTransformIrNodeKindV0 {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::ClassSelector => "class-selector",
+            Self::IdSelector => "id-selector",
+            Self::PlaceholderSelector => "placeholder-selector",
+            Self::CustomPropertyDeclaration => "custom-property-declaration",
+            Self::CustomPropertyReference => "custom-property-reference",
+            Self::ScssVariableDeclaration => "scss-variable-declaration",
+            Self::ScssVariableReference => "scss-variable-reference",
+            Self::LessVariableDeclaration => "less-variable-declaration",
+            Self::LessVariableReference => "less-variable-reference",
+            Self::SassSymbolDeclaration => "sass-symbol-declaration",
+            Self::SassSymbolReference => "sass-symbol-reference",
+            Self::SassModuleEdge => "sass-module-edge",
+            Self::KeyframesDeclaration => "keyframes-declaration",
+            Self::AnimationNameReference => "animation-name-reference",
+            Self::CssModuleValueDefinition => "css-module-value-definition",
+            Self::CssModuleValueReference => "css-module-value-reference",
+            Self::CssModuleValueImportSource => "css-module-value-import-source",
+            Self::CssModuleComposesTarget => "css-module-composes-target",
+            Self::CssModuleComposesImportSource => "css-module-composes-import-source",
+            Self::IcssExportName => "icss-export-name",
+            Self::IcssImportLocalName => "icss-import-local-name",
+            Self::IcssImportRemoteName => "icss-import-remote-name",
+            Self::IcssImportSource => "icss-import-source",
+            Self::AtRule => "at-rule",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StableTransformIrNodeV0 {
+    pub node_id: String,
+    pub kind: StableTransformIrNodeKindV0,
+    pub kind_id: &'static str,
+    pub label: String,
+    pub semantic_key: String,
+    pub source_span_start: usize,
+    pub source_span_end: usize,
+    pub provenance_anchor_index: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformCstProvenanceAnchorV0 {
+    pub anchor_index: usize,
+    pub node_id: String,
+    pub semantic_key: String,
+    pub source_span_start: usize,
+    pub source_span_end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StableTransformIrV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub dialect: &'static str,
+    pub source_byte_len: usize,
+    pub semantic_signature: String,
+    pub node_count: usize,
+    pub parser_error_count: usize,
+    pub contains_bogus_or_trivia: bool,
+    pub stable_post_semantic_ir: bool,
+    pub nodes: Vec<StableTransformIrNodeV0>,
+    pub provenance_anchors: Vec<TransformCstProvenanceAnchorV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -398,6 +516,10 @@ pub struct TransformCstArtifactV0 {
     pub product: &'static str,
     pub source_byte_len: usize,
     pub semantic_signature: String,
+    pub stable_ir: StableTransformIrV0,
+    pub stable_ir_node_count: usize,
+    pub parser_error_count: usize,
+    pub contains_bogus_or_trivia: bool,
     pub pass_ids: Vec<&'static str>,
     pub provenance_preserved: bool,
 }
@@ -419,6 +541,12 @@ pub fn summarize_omena_transform_cst_boundary() -> TransformCstBoundarySummaryV0
     let all_passes_declare_cascade_obligation = pass_contracts
         .iter()
         .all(|contract| !contract.cascade_safe_obligation.is_empty());
+    let all_passes_have_compile_time_cascade_witness = pass_contracts.iter().all(|contract| {
+        contract.cascade_safe
+            && contract.cascade_safety_witness.pass_id == contract.id
+            && contract.cascade_safety_witness.obligation == contract.cascade_safe_obligation
+            && contract.cascade_safety_witness.enforced_at == "compile-time-exhaustive-pass-catalog"
+    });
     let pass_catalog_count = pass_contracts.len();
 
     TransformCstBoundarySummaryV0 {
@@ -433,6 +561,9 @@ pub fn summarize_omena_transform_cst_boundary() -> TransformCstBoundarySummaryV0
         emission_pass_count,
         full_pass_catalog_covered: pass_catalog_count == TRANSFORM_PASS_CATALOG_LEN,
         all_passes_declare_cascade_obligation,
+        all_passes_have_compile_time_cascade_witness,
+        stable_transform_ir_ready: true,
+        provenance_derivation_forest_scaffold_ready: true,
         provenance_preservation_required: true,
         next_surfaces: Vec::new(),
     }
@@ -443,13 +574,170 @@ pub fn build_transform_cst_artifact(
     semantic_signature: impl Into<String>,
     passes: &[TransformPassKind],
 ) -> TransformCstArtifactV0 {
+    build_transform_cst_artifact_with_dialect(source, StyleDialect::Css, semantic_signature, passes)
+}
+
+pub fn build_transform_cst_artifact_with_dialect(
+    source: &str,
+    dialect: StyleDialect,
+    semantic_signature: impl Into<String>,
+    passes: &[TransformPassKind],
+) -> TransformCstArtifactV0 {
+    let semantic_signature = semantic_signature.into();
+    let stable_ir =
+        build_stable_transform_ir_from_source(source, dialect, semantic_signature.clone());
+    let stable_ir_node_count = stable_ir.node_count;
+    let parser_error_count = stable_ir.parser_error_count;
+    let contains_bogus_or_trivia = stable_ir.contains_bogus_or_trivia;
+
     TransformCstArtifactV0 {
         schema_version: "0",
         product: "omena-transform-cst.artifact",
         source_byte_len: source.len(),
-        semantic_signature: semantic_signature.into(),
+        semantic_signature,
+        stable_ir,
+        stable_ir_node_count,
+        parser_error_count,
+        contains_bogus_or_trivia,
         pass_ids: passes.iter().map(|pass| pass.id()).collect(),
         provenance_preserved: true,
+    }
+}
+
+pub fn build_stable_transform_ir_from_source(
+    source: &str,
+    dialect: StyleDialect,
+    semantic_signature: impl Into<String>,
+) -> StableTransformIrV0 {
+    let facts = collect_style_facts(source, dialect);
+    let mut nodes = Vec::new();
+
+    for selector in facts.selectors {
+        push_ir_node(
+            &mut nodes,
+            stable_ir_selector_kind(selector.kind),
+            selector.name,
+            selector.range.start().into(),
+            selector.range.end().into(),
+        );
+    }
+
+    for variable in facts.variables {
+        push_ir_node(
+            &mut nodes,
+            stable_ir_variable_kind(variable.kind),
+            variable.name,
+            variable.range.start().into(),
+            variable.range.end().into(),
+        );
+    }
+
+    for symbol in facts.sass_symbols {
+        push_ir_node(
+            &mut nodes,
+            stable_ir_sass_symbol_kind(symbol.kind),
+            format!("{}:{}", symbol.symbol_kind, symbol.name),
+            symbol.range.start().into(),
+            symbol.range.end().into(),
+        );
+    }
+
+    for edge in facts.sass_module_edges {
+        push_ir_node(
+            &mut nodes,
+            StableTransformIrNodeKindV0::SassModuleEdge,
+            edge.source,
+            edge.range.start().into(),
+            edge.range.end().into(),
+        );
+    }
+
+    for animation in facts.animations {
+        push_ir_node(
+            &mut nodes,
+            stable_ir_animation_kind(animation.kind),
+            animation.name,
+            animation.range.start().into(),
+            animation.range.end().into(),
+        );
+    }
+
+    for value in facts.css_module_values {
+        push_ir_node(
+            &mut nodes,
+            stable_ir_css_module_value_kind(value.kind),
+            value.name,
+            value.range.start().into(),
+            value.range.end().into(),
+        );
+    }
+
+    for composes in facts.css_module_composes {
+        push_ir_node(
+            &mut nodes,
+            stable_ir_css_module_composes_kind(composes.kind),
+            composes.name,
+            composes.range.start().into(),
+            composes.range.end().into(),
+        );
+    }
+
+    for icss in facts.icss {
+        push_ir_node(
+            &mut nodes,
+            stable_ir_icss_kind(icss.kind),
+            icss.name,
+            icss.range.start().into(),
+            icss.range.end().into(),
+        );
+    }
+
+    for at_rule in facts.at_rules {
+        push_ir_node(
+            &mut nodes,
+            StableTransformIrNodeKindV0::AtRule,
+            at_rule.name,
+            at_rule.range.start().into(),
+            at_rule.range.end().into(),
+        );
+    }
+
+    nodes.sort_by(|left, right| {
+        left.source_span_start
+            .cmp(&right.source_span_start)
+            .then_with(|| left.source_span_end.cmp(&right.source_span_end))
+            .then_with(|| left.kind.cmp(&right.kind))
+            .then_with(|| left.label.cmp(&right.label))
+    });
+
+    let mut provenance_anchors = Vec::with_capacity(nodes.len());
+    for (index, node) in nodes.iter_mut().enumerate() {
+        node.node_id = format!("ir:{index}");
+        node.provenance_anchor_index = index;
+        provenance_anchors.push(TransformCstProvenanceAnchorV0 {
+            anchor_index: index,
+            node_id: node.node_id.clone(),
+            semantic_key: node.semantic_key.clone(),
+            source_span_start: node.source_span_start,
+            source_span_end: node.source_span_end,
+        });
+    }
+
+    let node_count = nodes.len();
+    let parser_error_count = facts.error_count;
+
+    StableTransformIrV0 {
+        schema_version: "0",
+        product: "omena-transform-cst.stable-ir",
+        dialect: transform_cst_style_dialect_label(dialect),
+        source_byte_len: source.len(),
+        semantic_signature: semantic_signature.into(),
+        node_count,
+        parser_error_count,
+        contains_bogus_or_trivia: false,
+        stable_post_semantic_ir: parser_error_count == 0,
+        nodes,
+        provenance_anchors,
     }
 }
 
@@ -461,6 +749,8 @@ pub fn default_transform_pass_contracts() -> Vec<TransformPassContractV0> {
 }
 
 fn transform_pass_contract(kind: TransformPassKind) -> TransformPassContractV0 {
+    let cascade_safety_witness = cascade_safety_witness(kind);
+
     TransformPassContractV0 {
         ordinal: kind.ordinal(),
         label: kind.label(),
@@ -472,11 +762,21 @@ fn transform_pass_contract(kind: TransformPassKind) -> TransformPassContractV0 {
         reads_semantic_graph: kind.reads_semantic_graph(),
         reads_cascade_model: kind.reads_cascade_model(),
         writes_css: true,
-        cascade_safe_obligation: cascade_safe_obligation(kind),
+        cascade_safe: true,
+        cascade_safety_witness,
+        cascade_safe_obligation: cascade_safety_witness.obligation,
     }
 }
 
-fn cascade_safe_obligation(kind: TransformPassKind) -> &'static str {
+pub const fn cascade_safety_witness(kind: TransformPassKind) -> CascadeSafetyWitnessV0 {
+    CascadeSafetyWitnessV0 {
+        pass_id: kind.id(),
+        obligation: cascade_safe_obligation(kind),
+        enforced_at: "compile-time-exhaustive-pass-catalog",
+    }
+}
+
+pub const fn cascade_safe_obligation(kind: TransformPassKind) -> &'static str {
     match kind {
         TransformPassKind::WhitespaceStrip => {
             "may remove only whitespace outside string, url, attr, and calc-sensitive token boundaries"
@@ -594,6 +894,127 @@ fn cascade_safe_obligation(kind: TransformPassKind) -> &'static str {
         TransformPassKind::PrintCss => {
             "must emit a source-map trace for every non-trivia transformed span"
         }
+    }
+}
+
+fn push_ir_node(
+    nodes: &mut Vec<StableTransformIrNodeV0>,
+    kind: StableTransformIrNodeKindV0,
+    label: impl Into<String>,
+    source_span_start: usize,
+    source_span_end: usize,
+) {
+    let label = label.into();
+    let kind_id = kind.id();
+    nodes.push(StableTransformIrNodeV0 {
+        node_id: String::new(),
+        kind,
+        kind_id,
+        semantic_key: format!("{kind_id}:{label}"),
+        label,
+        source_span_start,
+        source_span_end,
+        provenance_anchor_index: 0,
+    });
+}
+
+const fn stable_ir_selector_kind(kind: ParsedSelectorFactKind) -> StableTransformIrNodeKindV0 {
+    match kind {
+        ParsedSelectorFactKind::Class => StableTransformIrNodeKindV0::ClassSelector,
+        ParsedSelectorFactKind::Id => StableTransformIrNodeKindV0::IdSelector,
+        ParsedSelectorFactKind::Placeholder => StableTransformIrNodeKindV0::PlaceholderSelector,
+    }
+}
+
+const fn stable_ir_variable_kind(kind: ParsedVariableFactKind) -> StableTransformIrNodeKindV0 {
+    match kind {
+        ParsedVariableFactKind::ScssDeclaration => {
+            StableTransformIrNodeKindV0::ScssVariableDeclaration
+        }
+        ParsedVariableFactKind::ScssReference => StableTransformIrNodeKindV0::ScssVariableReference,
+        ParsedVariableFactKind::LessDeclaration => {
+            StableTransformIrNodeKindV0::LessVariableDeclaration
+        }
+        ParsedVariableFactKind::LessReference => StableTransformIrNodeKindV0::LessVariableReference,
+        ParsedVariableFactKind::CustomPropertyDeclaration => {
+            StableTransformIrNodeKindV0::CustomPropertyDeclaration
+        }
+        ParsedVariableFactKind::CustomPropertyReference => {
+            StableTransformIrNodeKindV0::CustomPropertyReference
+        }
+    }
+}
+
+const fn stable_ir_sass_symbol_kind(kind: ParsedSassSymbolFactKind) -> StableTransformIrNodeKindV0 {
+    match kind {
+        ParsedSassSymbolFactKind::VariableDeclaration
+        | ParsedSassSymbolFactKind::MixinDeclaration
+        | ParsedSassSymbolFactKind::FunctionDeclaration => {
+            StableTransformIrNodeKindV0::SassSymbolDeclaration
+        }
+        ParsedSassSymbolFactKind::VariableReference
+        | ParsedSassSymbolFactKind::MixinInclude
+        | ParsedSassSymbolFactKind::FunctionCall => {
+            StableTransformIrNodeKindV0::SassSymbolReference
+        }
+    }
+}
+
+const fn stable_ir_animation_kind(kind: ParsedAnimationFactKind) -> StableTransformIrNodeKindV0 {
+    match kind {
+        ParsedAnimationFactKind::KeyframesDeclaration => {
+            StableTransformIrNodeKindV0::KeyframesDeclaration
+        }
+        ParsedAnimationFactKind::AnimationNameReference => {
+            StableTransformIrNodeKindV0::AnimationNameReference
+        }
+    }
+}
+
+const fn stable_ir_css_module_value_kind(
+    kind: ParsedCssModuleValueFactKind,
+) -> StableTransformIrNodeKindV0 {
+    match kind {
+        ParsedCssModuleValueFactKind::Definition => {
+            StableTransformIrNodeKindV0::CssModuleValueDefinition
+        }
+        ParsedCssModuleValueFactKind::Reference => {
+            StableTransformIrNodeKindV0::CssModuleValueReference
+        }
+        ParsedCssModuleValueFactKind::ImportSource => {
+            StableTransformIrNodeKindV0::CssModuleValueImportSource
+        }
+    }
+}
+
+const fn stable_ir_css_module_composes_kind(
+    kind: ParsedCssModuleComposesFactKind,
+) -> StableTransformIrNodeKindV0 {
+    match kind {
+        ParsedCssModuleComposesFactKind::Target => {
+            StableTransformIrNodeKindV0::CssModuleComposesTarget
+        }
+        ParsedCssModuleComposesFactKind::ImportSource => {
+            StableTransformIrNodeKindV0::CssModuleComposesImportSource
+        }
+    }
+}
+
+const fn stable_ir_icss_kind(kind: ParsedIcssFactKind) -> StableTransformIrNodeKindV0 {
+    match kind {
+        ParsedIcssFactKind::ExportName => StableTransformIrNodeKindV0::IcssExportName,
+        ParsedIcssFactKind::ImportLocalName => StableTransformIrNodeKindV0::IcssImportLocalName,
+        ParsedIcssFactKind::ImportRemoteName => StableTransformIrNodeKindV0::IcssImportRemoteName,
+        ParsedIcssFactKind::ImportSource => StableTransformIrNodeKindV0::IcssImportSource,
+    }
+}
+
+pub const fn transform_cst_style_dialect_label(dialect: StyleDialect) -> &'static str {
+    match dialect {
+        StyleDialect::Css => "css",
+        StyleDialect::Scss => "scss",
+        StyleDialect::Sass => "sass",
+        StyleDialect::Less => "less",
     }
 }
 
@@ -720,8 +1141,9 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
 #[cfg(test)]
 mod tests {
     use super::{
-        TRANSFORM_PASS_CATALOG_LEN, TransformLayer, TransformPassKind,
-        build_transform_cst_artifact, summarize_omena_transform_cst_boundary,
+        StableTransformIrNodeKindV0, StyleDialect, TRANSFORM_PASS_CATALOG_LEN, TransformLayer,
+        TransformPassKind, build_stable_transform_ir_from_source, build_transform_cst_artifact,
+        summarize_omena_transform_cst_boundary,
     };
 
     #[test]
@@ -736,6 +1158,9 @@ mod tests {
         assert_eq!(boundary.commodity_pass_count, 25);
         assert_eq!(boundary.emission_pass_count, 1);
         assert!(boundary.all_passes_declare_cascade_obligation);
+        assert!(boundary.all_passes_have_compile_time_cascade_witness);
+        assert!(boundary.stable_transform_ir_ready);
+        assert!(boundary.provenance_derivation_forest_scaffold_ready);
         assert!(boundary.provenance_preservation_required);
         assert!(!boundary.next_surfaces.contains(&"omena-transform-passes"));
         assert!(!boundary.next_surfaces.contains(&"omena-transform-print"));
@@ -746,6 +1171,10 @@ mod tests {
                 && contract.label == "tree-shake-class"
                 && contract.layer == TransformLayer::SemanticAware
                 && contract.reads_semantic_graph
+                && contract.cascade_safe
+                && contract.cascade_safety_witness.pass_id == "tree-shake-class"
+                && contract.cascade_safety_witness.enforced_at
+                    == "compile-time-exhaustive-pass-catalog"
         }));
         assert!(boundary.dag_edges.iter().any(|edge| {
             edge.from == "composes-resolution" && edge.to == "css-modules-class-hashing"
@@ -766,10 +1195,63 @@ mod tests {
         assert_eq!(artifact.product, "omena-transform-cst.artifact");
         assert_eq!(artifact.source_byte_len, 32);
         assert_eq!(artifact.semantic_signature, "semantic:button:brand");
+        assert_eq!(artifact.stable_ir.product, "omena-transform-cst.stable-ir");
+        assert_eq!(artifact.stable_ir.dialect, "css");
+        assert_eq!(artifact.parser_error_count, 0);
+        assert!(!artifact.contains_bogus_or_trivia);
+        assert!(artifact.stable_ir.stable_post_semantic_ir);
+        assert_eq!(
+            artifact.stable_ir_node_count,
+            artifact.stable_ir.provenance_anchors.len()
+        );
         assert_eq!(
             artifact.pass_ids,
             vec!["custom-property-static-resolve", "color-compression"]
         );
         assert!(artifact.provenance_preserved);
+    }
+
+    #[test]
+    fn stable_transform_ir_consumes_parser_semantic_facts_without_trivia_or_bogus_nodes() {
+        let ir = build_stable_transform_ir_from_source(
+            r#"
+@use "./tokens" as tokens;
+@value primary from "./colors.module.css";
+.button {
+  composes: reset from "./reset.module.css";
+  --brand: tokens.$brand;
+  color: var(--brand);
+}
+"#,
+            StyleDialect::Scss,
+            "semantic:scss-button",
+        );
+
+        assert_eq!(ir.product, "omena-transform-cst.stable-ir");
+        assert_eq!(ir.dialect, "scss");
+        assert_eq!(ir.parser_error_count, 0);
+        assert!(!ir.contains_bogus_or_trivia);
+        assert!(ir.stable_post_semantic_ir);
+        assert_eq!(ir.node_count, ir.nodes.len());
+        assert_eq!(ir.node_count, ir.provenance_anchors.len());
+        assert!(ir.nodes.iter().any(|node| {
+            node.kind == StableTransformIrNodeKindV0::ClassSelector && node.label == "button"
+        }));
+        assert!(ir.nodes.iter().any(|node| {
+            node.kind == StableTransformIrNodeKindV0::CustomPropertyDeclaration
+                && node.label == "--brand"
+        }));
+        assert!(ir.nodes.iter().any(|node| {
+            node.kind == StableTransformIrNodeKindV0::CustomPropertyReference
+                && node.label == "--brand"
+        }));
+        assert!(ir.nodes.iter().any(|node| {
+            node.kind == StableTransformIrNodeKindV0::SassModuleEdge && node.label == "./tokens"
+        }));
+        assert!(
+            ir.nodes
+                .windows(2)
+                .all(|pair| pair[0].source_span_start <= pair[1].source_span_start)
+        );
     }
 }

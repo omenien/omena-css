@@ -130,8 +130,9 @@ fn summarize_omena_query_transform_plan_from_parts(
         &combined_passes,
         parts.context,
     );
-    let print = print_transform_execution_artifact(
+    let print = print_transform_execution_artifact_with_dialect(
         parts.style_path,
+        parts.dialect,
         semantic_signature,
         &combined_passes,
         parts.print_options,
