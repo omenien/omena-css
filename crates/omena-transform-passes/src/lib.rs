@@ -5049,25 +5049,68 @@ fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) -> (String, u
 
 fn parse_reducible_calc_value(value: &str) -> Option<String> {
     let inner = parse_whole_function_value_inner(value, "calc")?;
-    let parts = inner.split_whitespace().collect::<Vec<_>>();
-    let [left, operator, right] = parts.as_slice() else {
-        return None;
-    };
-    if !matches!(*operator, "+" | "-") {
-        return None;
+
+    for (operator_index, operator) in top_level_calc_additive_operators(inner) {
+        let Some(left) = parse_numeric_value_with_unit(inner[..operator_index].trim()) else {
+            continue;
+        };
+        let Some(right) =
+            parse_numeric_value_with_unit(inner[operator_index + operator.len_utf8()..].trim())
+        else {
+            continue;
+        };
+        if left.unit != right.unit {
+            continue;
+        }
+        let value = match operator {
+            '+' => left.value + right.value,
+            '-' => left.value - right.value,
+            _ => return None,
+        };
+        return Some(format!("{}{}", format_css_number(value), left.unit));
     }
 
-    let left = parse_numeric_value_with_unit(left)?;
-    let right = parse_numeric_value_with_unit(right)?;
-    if left.unit != right.unit {
-        return None;
+    None
+}
+
+fn top_level_calc_additive_operators(inner: &str) -> Vec<(usize, char)> {
+    let mut operators = Vec::new();
+    let mut depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+
+    for (index, ch) in inner.char_indices() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            '+' | '-' if depth == 0 && bracket_depth == 0 => {
+                let left = inner[..index].trim_end();
+                let right = inner[index + ch.len_utf8()..].trim_start();
+                if left.is_empty() || right.is_empty() || left.ends_with(['e', 'E']) {
+                    continue;
+                }
+                operators.push((index, ch));
+            }
+            _ => {}
+        }
     }
-    let value = match *operator {
-        "+" => left.value + right.value,
-        "-" => left.value - right.value,
-        _ => return None,
-    };
-    Some(format!("{}{}", format_css_number(value), left.unit))
+
+    operators
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -9204,7 +9247,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_reduces_simple_same_unit_calc_values() {
-        let source = r#".card { width: calc(1px + 2px); height: calc(10rem - 2rem); margin: calc(1px + 2rem); color: calc(1 + 2); }"#;
+        let source = r#".card { width: calc(1px + 2px); height: calc(10rem - 2rem); margin: calc(1px + 2rem); color: calc(1 + 2); gap: calc(.5rem+.25rem); inset: calc(1px - -2px); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9213,10 +9256,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 3);
+        assert_eq!(execution.mutation_count, 5);
         assert_eq!(
             execution.output_css,
-            r#".card { width: 3px; height: 8rem; margin: calc(1px + 2rem); color: 3; }"#
+            r#".card { width: 3px; height: 8rem; margin: calc(1px + 2rem); color: 3; gap: 0.75rem; inset: 3px; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
