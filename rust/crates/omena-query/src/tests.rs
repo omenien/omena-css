@@ -2914,6 +2914,39 @@ fn style_diagnostics_for_file_include_keyframes_resolution_lints() {
 }
 
 #[test]
+fn style_diagnostics_for_file_include_same_file_sass_symbol_lints() {
+    let source = "$known: 1rem;\n@mixin raised() { box-shadow: 0 0 $known; }\n.button { color: $missing; @include absent; }";
+    let candidates =
+        super::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .expect("style candidates");
+
+    let diagnostics = super::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"missingSassSymbolDiagnostics")
+    );
+    let messages = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingSassSymbol")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        messages,
+        vec![
+            "Sass variable '$missing' not found in this file.",
+            "Sass mixin '@mixin absent' not found in this file.",
+        ]
+    );
+}
+
+#[test]
 fn completion_at_position_is_query_owned_for_style_and_source() {
     let source = ":root { --brand: red; }\n.root { color: var(--br); }\n.row { display: flex; }";
     let candidates =

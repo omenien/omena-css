@@ -131,6 +131,7 @@ const REQUIRED_STYLE_DIAGNOSTICS_SURFACE_SNIPPETS = new Map<string, readonly str
       "read_style_diagnostics_summary",
       "missingCustomPropertyDiagnostics",
       "missingKeyframesDiagnostics",
+      "missingSassSymbolDiagnostics",
     ],
   ],
   [
@@ -140,6 +141,7 @@ const REQUIRED_STYLE_DIAGNOSTICS_SURFACE_SNIPPETS = new Map<string, readonly str
       "read_style_diagnostics_summary",
       "missingCustomPropertyDiagnostics",
       "missingKeyframesDiagnostics",
+      "missingSassSymbolDiagnostics",
     ],
   ],
 ]);

@@ -551,6 +551,62 @@ pub fn summarize_omena_query_missing_keyframes_diagnostics(
         .collect()
 }
 
+pub fn summarize_omena_query_missing_sass_symbol_diagnostics(
+    style_uri: &str,
+    source: &str,
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let dialect = omena_parser_dialect_for_style_path(style_uri);
+    let facts = collect_style_facts(source, dialect);
+    let mut declarations = BTreeSet::<(&'static str, Option<String>, String)>::new();
+    let mut emitted = BTreeSet::new();
+    let mut diagnostics = Vec::new();
+
+    for symbol in facts.sass_symbols {
+        let key = (
+            symbol.symbol_kind,
+            symbol.namespace.clone(),
+            symbol.name.clone(),
+        );
+        if omena_query_sass_symbol_fact_kind_is_declaration(symbol.kind) {
+            declarations.insert(key);
+            continue;
+        }
+        if !omena_query_sass_symbol_fact_kind_is_reference(symbol.kind) {
+            continue;
+        }
+        if declarations.contains(&key) {
+            continue;
+        }
+
+        let start: u32 = symbol.range.start().into();
+        let end: u32 = symbol.range.end().into();
+        let byte_span = ParserByteSpanV0 {
+            start: start as usize,
+            end: end as usize,
+        };
+        if !emitted.insert((
+            symbol.symbol_kind,
+            symbol.namespace.clone(),
+            symbol.name.clone(),
+            byte_span.start,
+            byte_span.end,
+        )) {
+            continue;
+        }
+        diagnostics.push(OmenaQueryStyleDiagnosticV0 {
+            code: "missingSassSymbol",
+            range: parser_range_for_byte_span(source, byte_span),
+            message: format!(
+                "{} not found in this file.",
+                format_query_sass_symbol_label(symbol.symbol_kind, symbol.name.as_str())
+            ),
+            create_custom_property: None,
+        });
+    }
+
+    diagnostics
+}
+
 pub fn summarize_omena_query_style_diagnostics_for_file(
     style_uri: &str,
     source: &str,
@@ -564,6 +620,9 @@ pub fn summarize_omena_query_style_diagnostics_for_file(
     diagnostics.extend(summarize_omena_query_missing_keyframes_diagnostics(
         style_uri, source,
     ));
+    diagnostics.extend(summarize_omena_query_missing_sass_symbol_diagnostics(
+        style_uri, source,
+    ));
     OmenaQueryStyleDiagnosticsForFileV0 {
         schema_version: "0",
         product: "omena-query.diagnostics-for-file",
@@ -575,6 +634,7 @@ pub fn summarize_omena_query_style_diagnostics_for_file(
             "missingCustomPropertyDiagnostics",
             "cascadeAwareDiagnostics",
             "missingKeyframesDiagnostics",
+            "missingSassSymbolDiagnostics",
         ],
     }
 }
@@ -3464,6 +3524,15 @@ fn omena_query_sass_symbol_fact_kind_label(kind: ParsedSassSymbolFactKind) -> &'
         ParsedSassSymbolFactKind::MixinInclude => "sassMixinInclude",
         ParsedSassSymbolFactKind::FunctionDeclaration => "sassFunctionDeclaration",
         ParsedSassSymbolFactKind::FunctionCall => "sassFunctionCall",
+    }
+}
+
+fn format_query_sass_symbol_label(symbol_kind: &str, name: &str) -> String {
+    match symbol_kind {
+        "variable" => format!("Sass variable '${name}'"),
+        "mixin" => format!("Sass mixin '@mixin {name}'"),
+        "function" => format!("Sass function '{name}()'"),
+        _ => format!("Sass symbol '{name}'"),
     }
 }
 

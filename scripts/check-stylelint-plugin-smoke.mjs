@@ -133,6 +133,7 @@ async function assertOmenaQueryStyleDiagnosticsAdapter() {
       files: [
         path.join(WORKSPACE_ROOT, "src/CustomPropertyMissing.module.css"),
         path.join(WORKSPACE_ROOT, "src/KeyframesMissing.module.css"),
+        path.join(WORKSPACE_ROOT, "src/SassSymbolMissing.module.scss"),
       ],
       configBasedir: REPO_ROOT,
       config: {
@@ -146,6 +147,12 @@ async function assertOmenaQueryStyleDiagnosticsAdapter() {
             },
           ],
           "css-module-explainer/missing-keyframes": [
+            true,
+            {
+              workspaceRoot: WORKSPACE_ROOT,
+            },
+          ],
+          "css-module-explainer/missing-sass-symbol": [
             true,
             {
               workspaceRoot: WORKSPACE_ROOT,
@@ -167,6 +174,14 @@ async function assertOmenaQueryStyleDiagnosticsAdapter() {
     assertSingleWarning(
       warningsByFile.get("KeyframesMissing.module.css"),
       "@keyframes 'fade' not found in this file.",
+    );
+    assertSingleWarning(
+      warningsByFile.get("SassSymbolMissing.module.scss"),
+      "Sass variable '$missing' not found in this file.",
+    );
+    assertSingleWarning(
+      warningsByFile.get("SassSymbolMissing.module.scss"),
+      "Sass mixin '@mixin absent' not found in this file.",
     );
   } finally {
     if (previousBackend === undefined) {

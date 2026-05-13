@@ -711,6 +711,11 @@ mod tests {
         );
         assert!(
             summary
+                .ready_surfaces
+                .contains(&"missingSassSymbolDiagnostics")
+        );
+        assert!(
+            summary
                 .diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code == "missingCustomProperty")
