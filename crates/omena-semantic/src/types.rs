@@ -280,6 +280,83 @@ pub struct StyleSemanticFactsV0 {
     pub selector_identity: StyleSelectorIdentityFactsV0,
     pub custom_properties: StyleCustomPropertySemanticFactsV0,
     pub sass: StyleSassSemanticFactsV0,
+    pub context_index: StyleContextIndexV0,
+}
+
+/// Explicit semantic indexes for CSS wrapper contexts that affect cascade and queries.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleContextIndexV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_index: StyleLayerIndexV0,
+    pub container_index: StyleContainerIndexV0,
+    pub scope_index: StyleScopeIndexV0,
+    pub selector_context_count: usize,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+/// Cascade layer declarations, blocks, and selector membership.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleLayerIndexV0 {
+    pub statement_layers: Vec<StyleLayerStatementV0>,
+    pub block_layers: Vec<StyleContextBlockV0>,
+    pub selector_memberships: Vec<StyleContextSelectorMembershipV0>,
+    pub named_layer_count: usize,
+    pub anonymous_layer_block_count: usize,
+}
+
+/// `@layer` statement-layer ordering fact.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleLayerStatementV0 {
+    pub name: String,
+    pub source_order: usize,
+    pub byte_span: ParserByteSpanV0,
+    pub range: ParserRangeV0,
+}
+
+/// Container-query blocks and selector membership.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleContainerIndexV0 {
+    pub containers: Vec<StyleContextBlockV0>,
+    pub selector_memberships: Vec<StyleContextSelectorMembershipV0>,
+    pub named_container_count: usize,
+    pub anonymous_container_count: usize,
+}
+
+/// CSS `@scope` blocks and selector membership.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleScopeIndexV0 {
+    pub scopes: Vec<StyleContextBlockV0>,
+    pub selector_memberships: Vec<StyleContextSelectorMembershipV0>,
+    pub scoped_selector_count: usize,
+}
+
+/// A semantic wrapper block with normalized prelude and source range.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleContextBlockV0 {
+    pub id: String,
+    pub kind: &'static str,
+    pub name: Option<String>,
+    pub prelude: String,
+    pub source_order: usize,
+    pub byte_span: ParserByteSpanV0,
+    pub range: ParserRangeV0,
+}
+
+/// Selector membership edge from a selector to an enclosing context block.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleContextSelectorMembershipV0 {
+    pub selector_name: String,
+    pub context_id: String,
+    pub context_kind: &'static str,
+    pub source_order: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

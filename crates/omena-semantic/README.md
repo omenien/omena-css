@@ -26,6 +26,9 @@ Current public products:
   counts, source-order facts, same-file cascade ranking records,
   selector/wrapper context signals, and the remaining cross-file/package/theme
   gaps.
+- `omena-semantic.style-context-index` — explicit `@layer`, `@container`, and
+  `@scope` indexes plus selector membership edges for cascade-aware semantic
+  consumers.
 - `omena-semantic.promotion-evidence` — explicit readiness/gap checklist for
   promotion beyond output parity, including parser-backed design-token seed
   evidence from CSS custom properties.

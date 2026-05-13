@@ -78,8 +78,10 @@ pub use types::{
     ParserIndexSassSameFileResolutionFactsV0, ParserIndexSelectorDefinitionFactV0,
     ParserIndexSelectorFactsV0, ParserIndexValueFactsV0, ParserIndexWrapperFactsV0,
     ParserLosslessCstFactsV0, ParserPositionV0, ParserRangeV0, ParserSassSyntaxFactsV0,
-    StyleCustomPropertySemanticFactsV0, StyleSassSemanticFactsV0, StyleSelectorIdentityFactsV0,
-    StyleSemanticFactsV0, Stylesheet,
+    StyleContainerIndexV0, StyleContextBlockV0, StyleContextIndexV0,
+    StyleContextSelectorMembershipV0, StyleCustomPropertySemanticFactsV0, StyleLayerIndexV0,
+    StyleLayerStatementV0, StyleSassSemanticFactsV0, StyleScopeIndexV0,
+    StyleSelectorIdentityFactsV0, StyleSemanticFactsV0, Stylesheet,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -454,7 +456,317 @@ fn summarize_omena_parser_semantic_facts(
             selectors_with_function_calls_names: parser_facts.sass.function_call_names.clone(),
             same_file_resolution: sass_same_file_resolution,
         },
+        context_index: summarize_style_context_index(source),
     }
+}
+
+fn summarize_style_context_index(source: &str) -> StyleContextIndexV0 {
+    let layer_statements = collect_layer_statement_facts(source);
+    let (context_blocks, memberships) = collect_style_context_blocks_and_memberships(source);
+    let block_layers = context_blocks
+        .iter()
+        .filter(|block| block.kind == "layer")
+        .cloned()
+        .collect::<Vec<_>>();
+    let containers = context_blocks
+        .iter()
+        .filter(|block| block.kind == "container")
+        .cloned()
+        .collect::<Vec<_>>();
+    let scopes = context_blocks
+        .iter()
+        .filter(|block| block.kind == "scope")
+        .cloned()
+        .collect::<Vec<_>>();
+    let layer_memberships = memberships
+        .iter()
+        .filter(|membership| membership.context_kind == "layer")
+        .cloned()
+        .collect::<Vec<_>>();
+    let container_memberships = memberships
+        .iter()
+        .filter(|membership| membership.context_kind == "container")
+        .cloned()
+        .collect::<Vec<_>>();
+    let scope_memberships = memberships
+        .iter()
+        .filter(|membership| membership.context_kind == "scope")
+        .cloned()
+        .collect::<Vec<_>>();
+    let named_layer_count = layer_statements
+        .iter()
+        .map(|statement| statement.name.clone())
+        .chain(block_layers.iter().filter_map(|block| block.name.clone()))
+        .collect::<BTreeSet<_>>()
+        .len();
+
+    StyleContextIndexV0 {
+        schema_version: "0",
+        product: "omena-semantic.style-context-index",
+        layer_index: StyleLayerIndexV0 {
+            statement_layers: layer_statements,
+            anonymous_layer_block_count: block_layers
+                .iter()
+                .filter(|block| block.name.is_none())
+                .count(),
+            block_layers,
+            selector_memberships: layer_memberships,
+            named_layer_count,
+        },
+        container_index: StyleContainerIndexV0 {
+            named_container_count: containers
+                .iter()
+                .filter(|block| block.name.is_some())
+                .count(),
+            anonymous_container_count: containers
+                .iter()
+                .filter(|block| block.name.is_none())
+                .count(),
+            containers,
+            selector_memberships: container_memberships,
+        },
+        scope_index: StyleScopeIndexV0 {
+            scoped_selector_count: scope_memberships
+                .iter()
+                .map(|membership| membership.selector_name.as_str())
+                .collect::<BTreeSet<_>>()
+                .len(),
+            scopes,
+            selector_memberships: scope_memberships,
+        },
+        selector_context_count: memberships.len(),
+        ready_surfaces: vec![
+            "layerIndex",
+            "containerIndex",
+            "scopeIndex",
+            "selectorContextMembership",
+        ],
+    }
+}
+
+fn collect_layer_statement_facts(source: &str) -> Vec<StyleLayerStatementV0> {
+    let mut statements = Vec::new();
+    let mut search_start = 0usize;
+    while let Some(relative_start) = source
+        .get(search_start..)
+        .and_then(|tail| tail.find("@layer"))
+    {
+        let at_index = search_start + relative_start;
+        let prelude_start = at_index + "@layer".len();
+        let tail = source.get(prelude_start..).unwrap_or_default();
+        let semicolon = tail.find(';');
+        let open_brace = tail.find('{');
+        let Some(semicolon) = semicolon else {
+            break;
+        };
+        if open_brace.is_some_and(|open| open < semicolon) {
+            search_start = prelude_start + open_brace.unwrap_or(0) + 1;
+            continue;
+        }
+
+        let prelude_end = prelude_start + semicolon;
+        let prelude = source.get(prelude_start..prelude_end).unwrap_or_default();
+        let byte_span = ParserByteSpanV0 {
+            start: at_index,
+            end: prelude_end + 1,
+        };
+        for name in split_layer_names(prelude) {
+            statements.push(StyleLayerStatementV0 {
+                name,
+                source_order: statements.len(),
+                byte_span,
+                range: parser_range_for_byte_span(source, byte_span),
+            });
+        }
+        search_start = prelude_end + 1;
+    }
+    statements
+}
+
+fn collect_style_context_blocks_and_memberships(
+    source: &str,
+) -> (
+    Vec<StyleContextBlockV0>,
+    Vec<StyleContextSelectorMembershipV0>,
+) {
+    let bytes = source.as_bytes();
+    let mut blocks = Vec::new();
+    let mut memberships = Vec::new();
+    let mut active_contexts = Vec::<StyleContextBlockV0>::new();
+    let mut block_stack = Vec::<Option<String>>::new();
+    let mut index = 0usize;
+
+    while index < bytes.len() {
+        match bytes[index] {
+            b'{' => {
+                let (header, header_start) =
+                    block_header_and_start_before_open_brace(source, index);
+                if let Some(context) = style_context_block_for_header(
+                    source,
+                    &header,
+                    header_start,
+                    index,
+                    blocks.len(),
+                ) {
+                    block_stack.push(Some(context.id.clone()));
+                    active_contexts.push(context.clone());
+                    blocks.push(context);
+                } else {
+                    for selector_name in selector_class_names(&header) {
+                        for context in &active_contexts {
+                            memberships.push(StyleContextSelectorMembershipV0 {
+                                selector_name: selector_name.clone(),
+                                context_id: context.id.clone(),
+                                context_kind: context.kind,
+                                source_order: memberships.len(),
+                            });
+                        }
+                    }
+                    block_stack.push(None);
+                }
+            }
+            b'}' => {
+                if let Some(Some(context_id)) = block_stack.pop() {
+                    if active_contexts
+                        .last()
+                        .is_some_and(|context| context.id == context_id)
+                    {
+                        active_contexts.pop();
+                    } else {
+                        active_contexts.retain(|context| context.id != context_id);
+                    }
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    (blocks, memberships)
+}
+
+fn style_context_block_for_header(
+    source: &str,
+    header: &str,
+    header_start: usize,
+    open_brace_index: usize,
+    source_order: usize,
+) -> Option<StyleContextBlockV0> {
+    let header = header.trim();
+    let (kind, raw_prelude) = if let Some(prelude) = header.strip_prefix("@layer") {
+        ("layer", prelude)
+    } else if let Some(prelude) = header.strip_prefix("@container") {
+        ("container", prelude)
+    } else if let Some(prelude) = header.strip_prefix("@scope") {
+        ("scope", prelude)
+    } else {
+        return None;
+    };
+    let prelude = raw_prelude.trim().to_string();
+    let name = match kind {
+        "layer" => split_layer_names(&prelude).into_iter().next(),
+        "container" => container_name_from_prelude(&prelude),
+        "scope" => None,
+        _ => None,
+    };
+    let byte_span = ParserByteSpanV0 {
+        start: header_start,
+        end: open_brace_index + 1,
+    };
+
+    Some(StyleContextBlockV0 {
+        id: format!("{kind}:{source_order}"),
+        kind,
+        name,
+        prelude,
+        source_order,
+        byte_span,
+        range: parser_range_for_byte_span(source, byte_span),
+    })
+}
+
+fn split_layer_names(prelude: &str) -> Vec<String> {
+    prelude
+        .split(',')
+        .filter_map(|name| {
+            let name = name.trim();
+            if name.is_empty() || name == "{" {
+                None
+            } else {
+                Some(name.to_string())
+            }
+        })
+        .collect()
+}
+
+fn container_name_from_prelude(prelude: &str) -> Option<String> {
+    let trimmed = prelude.trim();
+    if trimmed.is_empty() || trimmed.starts_with('(') || trimmed.starts_with("style(") {
+        return None;
+    }
+    let name = trimmed.split_whitespace().next().unwrap_or_default().trim();
+    if css_identifier_text_is_plain(name) {
+        Some(name.to_string())
+    } else {
+        None
+    }
+}
+
+fn css_identifier_text_is_plain(value: &str) -> bool {
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    (first.is_ascii_alphabetic() || matches!(first, '_' | '-'))
+        && chars.all(|char| char.is_ascii_alphanumeric() || matches!(char, '_' | '-'))
+}
+
+fn block_header_and_start_before_open_brace(
+    source: &str,
+    open_brace_index: usize,
+) -> (String, usize) {
+    let bytes = source.as_bytes();
+    let mut start = 0usize;
+    let mut index = open_brace_index;
+    while let Some(previous) = index.checked_sub(1) {
+        index = previous;
+        if matches!(bytes[index], b'{' | b'}' | b';') {
+            start = index + 1;
+            break;
+        }
+        if index == 0 {
+            break;
+        }
+    }
+    let raw = source.get(start..open_brace_index).unwrap_or_default();
+    let trimmed_start_delta = raw.len().saturating_sub(raw.trim_start().len());
+    (raw.trim().to_string(), start + trimmed_start_delta)
+}
+
+fn selector_class_names(selector: &str) -> Vec<String> {
+    let bytes = selector.as_bytes();
+    let mut names = BTreeSet::new();
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index] == b'.' {
+            let start = index + 1;
+            let mut end = start;
+            while end < bytes.len()
+                && (bytes[end].is_ascii_alphanumeric() || matches!(bytes[end], b'_' | b'-'))
+            {
+                end += 1;
+            }
+            if end > start
+                && let Some(name) = selector.get(start..end)
+            {
+                names.insert(name.to_string());
+            }
+            index = end;
+            continue;
+        }
+        index += 1;
+    }
+    names.into_iter().collect()
 }
 
 fn summarize_omena_parser_selector_facts(
@@ -1313,6 +1625,68 @@ $local: red;
                 .lossless_cst_contract
                 .span_invariants
                 .byte_span_contract_ready
+        );
+    }
+
+    #[test]
+    fn indexes_layer_container_and_scope_contexts_for_semantic_consumers() {
+        let summary = summarize_omena_parser_style_semantic_boundary_from_source(
+            "Component.module.css",
+            r#"
+@layer reset, components;
+@layer components {
+  @container card (inline-size > 40rem) {
+    @scope (.card) to (.card__body) {
+      .card { color: red; }
+      .card__body { color: blue; }
+    }
+  }
+}
+"#,
+        );
+        let context_index = summary.semantic_facts.context_index;
+
+        assert_eq!(context_index.product, "omena-semantic.style-context-index");
+        assert!(
+            context_index
+                .ready_surfaces
+                .contains(&"selectorContextMembership")
+        );
+        assert_eq!(
+            context_index
+                .layer_index
+                .statement_layers
+                .iter()
+                .map(|layer| layer.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["reset", "components"]
+        );
+        assert_eq!(context_index.layer_index.named_layer_count, 2);
+        assert_eq!(context_index.layer_index.block_layers.len(), 1);
+        assert_eq!(
+            context_index.layer_index.block_layers[0].name.as_deref(),
+            Some("components")
+        );
+        assert_eq!(context_index.container_index.containers.len(), 1);
+        assert_eq!(
+            context_index.container_index.containers[0].name.as_deref(),
+            Some("card")
+        );
+        assert_eq!(context_index.scope_index.scopes.len(), 1);
+        assert_eq!(context_index.scope_index.scoped_selector_count, 2);
+        assert!(
+            context_index
+                .scope_index
+                .selector_memberships
+                .iter()
+                .any(|membership| membership.selector_name == "card")
+        );
+        assert!(
+            context_index
+                .container_index
+                .selector_memberships
+                .iter()
+                .any(|membership| membership.selector_name == "card__body")
         );
     }
 
