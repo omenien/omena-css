@@ -6660,7 +6660,8 @@ fn collect_empty_rule_ranges(tokens: &[omena_parser::LexedToken]) -> Vec<(usize,
                 let prelude_start = prelude_starts.get(depth).copied().unwrap_or(0);
                 if let Some(close_index) = matching_right_brace_index(tokens, index)
                     && is_empty_rule_block(tokens, index + 1, close_index)
-                    && is_ordinary_rule_prelude(tokens, prelude_start, index)
+                    && (is_ordinary_rule_prelude(tokens, prelude_start, index)
+                        || is_empty_group_rule_prelude(tokens, prelude_start, index))
                     && let Some(start) = first_non_trivia_token_start(tokens, prelude_start, index)
                 {
                     let end = token_end(&tokens[close_index]);
@@ -6750,6 +6751,28 @@ fn is_ordinary_rule_prelude(
         && prelude
             .iter()
             .all(|token| token.kind != SyntaxKind::AtKeyword && !is_comment_token(token.kind))
+}
+
+fn is_empty_group_rule_prelude(
+    tokens: &[omena_parser::LexedToken],
+    start: usize,
+    end_exclusive: usize,
+) -> bool {
+    let prelude = &tokens[start..end_exclusive];
+    let mut significant_tokens = prelude
+        .iter()
+        .filter(|token| !is_comment_token(token.kind) && token.kind != SyntaxKind::Whitespace);
+    let Some(first) = significant_tokens.next() else {
+        return false;
+    };
+    first.kind == SyntaxKind::AtKeyword && is_empty_removable_group_at_keyword(&first.text)
+}
+
+fn is_empty_removable_group_at_keyword(text: &str) -> bool {
+    matches!(
+        text.to_ascii_lowercase().as_str(),
+        "@container" | "@layer" | "@media" | "@scope" | "@supports"
+    )
 }
 
 fn is_ordinary_top_level_rule_prelude(
@@ -8846,10 +8869,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(execution.mutation_count, 5);
         assert_eq!(
             execution.output_css,
-            r#" @media (min-width: 1px) {  }  .with-comment { /* keep */ } .filled { color: red; }"#
+            r#"   .with-comment { /* keep */ } .filled { color: red; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
