@@ -601,6 +601,9 @@ mod tests {
                 .contains(".btn-secondary--active")
         );
         assert!(!summary.execution.output_css.contains(".card-active"));
+        assert_eq!(summary.semantic_removal_count, 1);
+        assert_eq!(summary.execution.semantic_removals.len(), 1);
+        assert_eq!(summary.execution.semantic_removals[0].name, "card-active");
         assert!(
             summary
                 .execution

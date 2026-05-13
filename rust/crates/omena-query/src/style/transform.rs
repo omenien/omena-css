@@ -142,6 +142,7 @@ fn summarize_omena_query_transform_plan_from_parts(
         &execution.output_css,
         &egg.planned_pass_ids,
     );
+    let semantic_removal_count = execution.semantic_removals.len();
     let combined_pass_ids = combined_plan.ordered_pass_ids.clone();
     let combined_violated_dag_edge_count = combined_plan.violated_dag_edge_count;
 
@@ -158,6 +159,7 @@ fn summarize_omena_query_transform_plan_from_parts(
         custom_property_fixed_point,
         print,
         execution,
+        semantic_removal_count,
         combined_plan,
         combined_pass_ids,
         combined_violated_dag_edge_count,
@@ -256,6 +258,7 @@ pub fn execute_omena_query_consumer_build_style_source_with_context(
         requested_pass_ids: requested_pass_ids.to_vec(),
         target_query: None,
         unknown_pass_ids: execution_summary.unknown_pass_ids,
+        semantic_removal_count: execution_summary.semantic_removal_count,
         execution: execution_summary.execution,
         ready_surfaces: vec![
             "consumerBuildFacade",
@@ -396,6 +399,7 @@ pub fn execute_omena_query_consumer_build_style_source_for_target_query_with_con
         requested_pass_ids,
         target_query: plan.target_query,
         unknown_pass_ids: Vec::new(),
+        semantic_removal_count: plan.semantic_removal_count,
         execution: plan.execution,
         ready_surfaces: vec![
             "consumerBuildFacade",
@@ -697,6 +701,7 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
         &requested_passes,
         context,
     );
+    let semantic_removal_count = execution.semantic_removals.len();
 
     OmenaQueryTransformExecuteSummaryV0 {
         schema_version: "0",
@@ -705,6 +710,7 @@ pub fn execute_omena_query_transform_passes_from_source_with_context(
         requested_pass_ids: requested_pass_ids.to_vec(),
         unknown_pass_ids,
         execution,
+        semantic_removal_count,
         ready_surfaces: vec!["transformExecutionRuntime", "transformPassOutcomeContract"],
     }
 }
