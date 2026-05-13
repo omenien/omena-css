@@ -30,6 +30,10 @@ contextJson, packageManifestsJson)` derives import/composes context from a
 - `buildStyleSourcesForTargetQueryWithContextJson(targetPath, sourcesJson,
 targetQuery, targetOptionsJson, contextJson, packageManifestsJson)` combines
   target planning with workspace-derived import/composes context.
+- `readCascadeAtPositionJson(source, path, line, character, inputJson)` reads
+  cascade, computed-value, and custom-property LFP information at a `var(...)`
+  reference position. Pass an empty string for `inputJson` when no EngineInputV2
+  context is needed.
 - `listTransformPassesJson()` lists transform pass ids accepted by
   `buildStyleSourceJson`.
 

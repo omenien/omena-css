@@ -480,6 +480,7 @@ import init, {
   buildStyleSourceForTargetQueryWithContext,
   buildStyleSourcesWithContext,
   buildStyleSourcesForTargetQueryWithContext,
+  readCascadeAtPosition,
 } from "./pkg/omena_wasm.js";
 
 await init();
@@ -524,6 +525,13 @@ const bundledModule = buildStyleSourcesWithContext(
   {},
   [],
 );
+const cascade = readCascadeAtPosition(
+  ":root { --brand: red; } .button { color: var(--brand); }",
+  "Button.module.css",
+  0,
+  44,
+  null,
+);
 \`\`\`
 
 ## Use the Node Native Binding Substrate
@@ -543,6 +551,7 @@ import {
   buildStyleSourceForTargetQueryWithContextJson,
   buildStyleSourcesWithContextJson,
   buildStyleSourcesForTargetQueryWithContextJson,
+  readCascadeAtPositionJson,
 } from "omena-napi";
 
 const facts = JSON.parse(
@@ -596,6 +605,15 @@ const bundledModule = JSON.parse(
     ["import-inline", "composes-resolution"],
     "{}",
     "[]",
+  ),
+);
+const cascade = JSON.parse(
+  readCascadeAtPositionJson(
+    ":root { --brand: red; } .button { color: var(--brand); }",
+    "Button.module.css",
+    0,
+    44,
+    "",
   ),
 );
 \`\`\`
@@ -712,6 +730,9 @@ Primary consumers:
 - \`buildStyleSourcesForTargetQueryWithContext(targetPath, sources, targetQuery,
   targetOptions, context, packageManifests)\` combines target planning with
   workspace-derived import/composes context.
+- \`readCascadeAtPosition(source, path, line, character, input)\` reads
+  cascade, computed-value, and custom-property LFP information at a \`var(...)\`
+  reference position.
 - \`listTransformPasses()\` lists accepted transform pass ids.
 
 ## Node Native Binding
@@ -736,6 +757,9 @@ Primary consumers:
 - \`buildStyleSourcesForTargetQueryWithContextJson(targetPath, sourcesJson,
   targetQuery, targetOptionsJson, contextJson, packageManifestsJson)\` combines
   target planning with workspace-derived import/composes context.
+- \`readCascadeAtPositionJson(source, path, line, character, inputJson)\`
+  reads cascade, computed-value, and custom-property LFP information at a
+  \`var(...)\` reference position.
 - \`listTransformPassesJson()\` lists accepted transform pass ids as JSON.
 `,
   );

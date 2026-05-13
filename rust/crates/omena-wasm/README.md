@@ -29,6 +29,10 @@ packageManifests)` derives import/composes context from an in-memory workspace
 - `buildStyleSourcesForTargetQueryWithContext(targetPath, sources, targetQuery,
 targetOptions, context, packageManifests)` combines target planning with
   workspace-derived import/composes context.
+- `readCascadeAtPosition(source, path, line, character, input)` reads cascade,
+  computed-value, and custom-property LFP information at a `var(...)` reference
+  position. Pass `null` or `undefined` for `input` when no EngineInputV2 context
+  is needed.
 - `listTransformPasses()` lists transform pass ids accepted by
   `buildStyleSource`.
 

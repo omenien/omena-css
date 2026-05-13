@@ -45,6 +45,33 @@ const FORBIDDEN_SOURCE_PREFIXES = [
   "omena_transform_target",
 ] as const;
 
+const REQUIRED_CASCADE_SURFACE_SNIPPETS = new Map<string, readonly string[]>([
+  [
+    "omena-cli",
+    [
+      "Command::Cascade",
+      "read_omena_query_cascade_at_position",
+      "reference_custom_property_fixed_point_value",
+    ],
+  ],
+  [
+    "omena-wasm",
+    [
+      "readCascadeAtPosition",
+      "read_cascade_at_position_summary",
+      "reference_custom_property_fixed_point_value",
+    ],
+  ],
+  [
+    "omena-napi",
+    [
+      "readCascadeAtPositionJson",
+      "read_cascade_at_position_summary",
+      "reference_custom_property_fixed_point_value",
+    ],
+  ],
+]);
+
 for (const consumer of CONSUMER_CRATES) {
   const manifest = readFileSync(join(consumer.cratePath, "Cargo.toml"), "utf8");
 
@@ -71,6 +98,16 @@ for (const consumer of CONSUMER_CRATES) {
         `${consumer.crateName} must not call ${prefix} directly in ${sourcePath}; route through omena-query`,
       );
     }
+  }
+
+  const combinedSource = listRustSourceFiles(join(consumer.cratePath, "src"))
+    .map((sourcePath) => readFileSync(sourcePath, "utf8"))
+    .join("\n");
+  for (const snippet of REQUIRED_CASCADE_SURFACE_SNIPPETS.get(consumer.crateName) ?? []) {
+    assert(
+      combinedSource.includes(snippet),
+      `${consumer.crateName} must expose query-owned cascade/LFP surface: ${snippet}`,
+    );
   }
 }
 
