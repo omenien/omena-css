@@ -5178,7 +5178,10 @@ fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) -> (String, u
         {
             let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
             for declaration in declarations {
-                let Some(replacement_value) = parse_reducible_calc_value(&declaration.value) else {
+                let Some(replacement_value) = substitute_static_css_function_references_in_value(
+                    &declaration.value,
+                    &[("calc", parse_reducible_calc_value)],
+                ) else {
                     continue;
                 };
                 replacements.push((
@@ -9792,7 +9795,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_reduces_simple_same_unit_calc_values() {
-        let source = r#".card { width: calc(1px + 2px); height: calc(10rem - 2rem); margin: calc(1px + 2rem); color: calc(1 + 2); gap: calc(.5rem+.25rem); inset: calc(1px - -2px); }"#;
+        let source = r#".card { width: calc(1px + 2px); height: calc(10rem - 2rem); margin: calc(1px + 2rem); color: calc(1 + 2); gap: calc(.5rem+.25rem); inset: calc(1px - -2px); box-shadow: 0 0 calc(1px + 2px) red; transform: translate(calc(10px - 2px), calc(1rem + 1rem)); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9801,10 +9804,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 5);
+        assert_eq!(execution.mutation_count, 7);
         assert_eq!(
             execution.output_css,
-            r#".card { width: 3px; height: 8rem; margin: calc(1px + 2rem); color: 3; gap: 0.75rem; inset: 3px; }"#
+            r#".card { width: 3px; height: 8rem; margin: calc(1px + 2rem); color: 3; gap: 0.75rem; inset: 3px; box-shadow: 0 0 3px red; transform: translate(8px, 2rem); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
