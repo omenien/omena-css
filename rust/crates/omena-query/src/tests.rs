@@ -40,12 +40,12 @@ use super::{
     summarize_omena_query_transform_plan_from_target_query,
 };
 use crate::{
-    OmenaQueryCompletionCandidateV0, OmenaQuerySourceSelectorReferenceCandidateV0,
-    OmenaQuerySourceSelectorReferenceEditTargetV0, OmenaQueryStyleSelectorDefinitionV0,
-    OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0,
-    OmenaQueryTransformModuleEvaluationV0, default_omena_query_transform_print_options,
-    modern_omena_query_target_feature_support,
+    OmenaQueryCompletionCandidateV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
+    OmenaQuerySourceSelectorReferenceCandidateV0, OmenaQuerySourceSelectorReferenceEditTargetV0,
+    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
+    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformModuleEvaluationV0,
+    default_omena_query_transform_print_options, modern_omena_query_target_feature_support,
 };
 
 #[test]
@@ -3274,6 +3274,38 @@ fn missing_selector_diagnostics_are_query_owned() {
                 character: 0,
             },
         })
+    );
+}
+
+#[test]
+fn source_diagnostics_for_file_are_query_owned() {
+    let diagnostics = super::summarize_omena_query_source_diagnostics_for_file(
+        "file:///workspace/src/App.tsx",
+        &[OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 {
+            target_style_uri: "file:///workspace/src/App.module.scss".to_string(),
+            target_style_source: ".root {\n}\n".to_string(),
+            selector_name: "missing".to_string(),
+            source_reference_range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 2,
+                    character: 18,
+                },
+                end: ParserPositionV0 {
+                    line: 2,
+                    character: 25,
+                },
+            },
+        }],
+    );
+
+    assert_eq!(diagnostics.product, "omena-query.diagnostics-for-file");
+    assert_eq!(diagnostics.file_kind, "source");
+    assert_eq!(diagnostics.diagnostic_count, 1);
+    assert_eq!(diagnostics.diagnostics[0].code, "missingSelector");
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"crossLanguageDiagnostics")
     );
 }
 

@@ -1064,6 +1064,35 @@ pub fn summarize_omena_query_missing_selector_diagnostic(
     }
 }
 
+pub fn summarize_omena_query_source_diagnostics_for_file(
+    source_uri: &str,
+    candidates: &[OmenaQuerySourceMissingSelectorDiagnosticCandidateV0],
+) -> OmenaQuerySourceDiagnosticsForFileV0 {
+    let diagnostics = candidates
+        .iter()
+        .map(|candidate| {
+            summarize_omena_query_missing_selector_diagnostic(
+                candidate.target_style_uri.as_str(),
+                candidate.target_style_source.as_str(),
+                candidate.selector_name.as_str(),
+                candidate.source_reference_range,
+            )
+        })
+        .collect::<Vec<_>>();
+    OmenaQuerySourceDiagnosticsForFileV0 {
+        schema_version: "0",
+        product: "omena-query.diagnostics-for-file",
+        file_uri: source_uri.to_string(),
+        file_kind: "source",
+        diagnostic_count: diagnostics.len(),
+        diagnostics,
+        ready_surfaces: vec![
+            "sourceMissingSelectorDiagnostics",
+            "crossLanguageDiagnostics",
+        ],
+    }
+}
+
 pub fn resolve_omena_query_source_provider_candidates(
     source_candidates: Vec<OmenaQuerySourceSelectorCandidateV0>,
     definitions: &[OmenaQueryStyleSelectorDefinitionV0],

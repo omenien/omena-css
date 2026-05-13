@@ -17,6 +17,7 @@ pub use message_loop::{handle_lsp_message, handle_lsp_message_outputs};
 use omena_query::{
     OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0,
     OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
+    OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
     OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, ParserByteSpanV0, ParserPositionV0,
@@ -30,9 +31,10 @@ use omena_query::{
     resolve_omena_query_source_candidate_selector_names,
     resolve_omena_query_source_provider_candidates,
     resolve_omena_query_style_selector_definitions_for_source_candidate,
-    resolve_omena_query_style_uri_for_specifier, summarize_omena_query_missing_selector_diagnostic,
-    summarize_omena_query_refs_for_class, summarize_omena_query_rename_plan,
-    summarize_omena_query_sass_module_sources, summarize_omena_query_source_completion_at_position,
+    resolve_omena_query_style_uri_for_specifier, summarize_omena_query_refs_for_class,
+    summarize_omena_query_rename_plan, summarize_omena_query_sass_module_sources,
+    summarize_omena_query_source_completion_at_position,
+    summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_import_declarations, summarize_omena_query_source_syntax_index,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_document,
@@ -671,7 +673,7 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
         return json!([]);
     }
 
-    let diagnostics: Vec<Value> = resolve_source_provider_candidates(state, document)
+    let candidates = resolve_source_provider_candidates(state, document)
         .unresolved
         .into_iter()
         .filter(|candidate| candidate.kind == "sourceSelectorReference")
@@ -681,27 +683,36 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
                 &candidate,
                 document.workspace_folder_uri.as_deref(),
             )?;
-            let diagnostic = summarize_omena_query_missing_selector_diagnostic(
-                target_style_uri.as_str(),
-                target_style_document.text.as_str(),
-                candidate.name.as_str(),
-                candidate.range,
-            );
-            let data = diagnostic.create_selector.map(|create_selector| {
-                json!({
-                    "createSelector": create_selector,
-                })
-            })?;
-
-            Some(json!({
-                "range": diagnostic.range,
-                "severity": state.diagnostics.severity,
-                "source": "css-module-explainer",
-                "message": diagnostic.message,
-                "data": data,
-            }))
+            Some(OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 {
+                target_style_uri,
+                target_style_source: target_style_document.text.clone(),
+                selector_name: candidate.name,
+                source_reference_range: candidate.range,
+            })
         })
-        .collect();
+        .collect::<Vec<_>>();
+    let diagnostics: Vec<Value> = summarize_omena_query_source_diagnostics_for_file(
+        document.uri.as_str(),
+        candidates.as_slice(),
+    )
+    .diagnostics
+    .into_iter()
+    .filter_map(|diagnostic| {
+        let data = diagnostic.create_selector.map(|create_selector| {
+            json!({
+                "createSelector": create_selector,
+            })
+        })?;
+
+        Some(json!({
+            "range": diagnostic.range,
+            "severity": state.diagnostics.severity,
+            "source": "css-module-explainer",
+            "message": diagnostic.message,
+            "data": data,
+        }))
+    })
+    .collect();
 
     json!(diagnostics)
 }
