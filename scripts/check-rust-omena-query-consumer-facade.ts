@@ -72,6 +72,34 @@ const REQUIRED_CASCADE_SURFACE_SNIPPETS = new Map<string, readonly string[]>([
   ],
 ]);
 
+const REQUIRED_EXPRESSION_DOMAIN_SURFACE_SNIPPETS = new Map<string, readonly string[]>([
+  [
+    "omena-cli",
+    [
+      "Command::ExpressionFlow",
+      "Command::SelectorProjection",
+      "summarize_omena_query_expression_domain_incremental_flow_analysis",
+      "summarize_omena_query_expression_domain_selector_projection",
+    ],
+  ],
+  [
+    "omena-wasm",
+    [
+      "ExpressionDomainFlowRuntime",
+      "expressionDomainIncrementalFlow",
+      "expression_domain_incremental_flow_analysis_summary",
+    ],
+  ],
+  [
+    "omena-napi",
+    [
+      "ExpressionDomainFlowRuntime",
+      "expressionDomainIncrementalFlowJson",
+      "expression_domain_incremental_flow_analysis_summary",
+    ],
+  ],
+]);
+
 for (const consumer of CONSUMER_CRATES) {
   const manifest = readFileSync(join(consumer.cratePath, "Cargo.toml"), "utf8");
 
@@ -107,6 +135,12 @@ for (const consumer of CONSUMER_CRATES) {
     assert(
       combinedSource.includes(snippet),
       `${consumer.crateName} must expose query-owned cascade/LFP surface: ${snippet}`,
+    );
+  }
+  for (const snippet of REQUIRED_EXPRESSION_DOMAIN_SURFACE_SNIPPETS.get(consumer.crateName) ?? []) {
+    assert(
+      combinedSource.includes(snippet),
+      `${consumer.crateName} must expose query-owned expression-domain surface: ${snippet}`,
     );
   }
 }

@@ -4,7 +4,8 @@ use omena_query::{
     OmenaQueryCascadeAtPositionV0 as OmenaWasmCascadeAtPositionV0,
     OmenaQueryConsumerBuildSummaryV0 as OmenaWasmBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaWasmCheckSummaryV0,
-    OmenaQueryEngineInputV2 as OmenaWasmEngineInputV2,
+    OmenaQueryEngineInputV2 as OmenaWasmEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
+    OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 as OmenaWasmExpressionDomainIncrementalFlowAnalysisV0,
     OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaWasmExpressionDomainSelectorProjectionV0,
     OmenaQueryStylePackageManifestV0 as OmenaWasmStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0 as OmenaWasmStyleSourceInputV0,
@@ -22,6 +23,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
     summarize_omena_query_consumer_check_style_source,
+    summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_transform_context_from_engine_input,
 };
@@ -177,6 +179,16 @@ pub fn expression_domain_selector_projection(input: JsValue) -> Result<JsValue, 
     to_js_value(&expression_domain_selector_projection_summary(&input))
 }
 
+#[wasm_bindgen(js_name = expressionDomainIncrementalFlow)]
+pub fn expression_domain_incremental_flow(input: JsValue) -> Result<JsValue, JsValue> {
+    let input = parse_engine_input_value(input)?;
+    let mut runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
+    to_js_value(&expression_domain_incremental_flow_analysis_summary(
+        &input,
+        &mut runtime,
+    ))
+}
+
 #[wasm_bindgen(js_name = transformContextFromEngineInput)]
 pub fn transform_context_from_engine_input(
     input: JsValue,
@@ -207,6 +219,36 @@ pub fn read_cascade_at_position(
         character as usize,
         &input,
     ))
+}
+
+#[wasm_bindgen(js_name = ExpressionDomainFlowRuntime)]
+pub struct OmenaWasmExpressionDomainFlowRuntimeV0 {
+    inner: OmenaQueryExpressionDomainFlowRuntimeV0,
+}
+
+#[wasm_bindgen(js_class = ExpressionDomainFlowRuntime)]
+impl OmenaWasmExpressionDomainFlowRuntimeV0 {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        Self {
+            inner: OmenaQueryExpressionDomainFlowRuntimeV0::default(),
+        }
+    }
+
+    #[wasm_bindgen(js_name = analyze)]
+    pub fn analyze(&mut self, input: JsValue) -> Result<JsValue, JsValue> {
+        let input = parse_engine_input_value(input)?;
+        to_js_value(&self.analyze_summary(&input))
+    }
+}
+
+impl OmenaWasmExpressionDomainFlowRuntimeV0 {
+    pub fn analyze_summary(
+        &mut self,
+        input: &OmenaWasmEngineInputV2,
+    ) -> OmenaWasmExpressionDomainIncrementalFlowAnalysisV0 {
+        expression_domain_incremental_flow_analysis_summary(input, &mut self.inner)
+    }
 }
 
 pub fn check_style_source_summary(source: &str, path: &str) -> OmenaWasmCheckSummaryV0 {
@@ -335,6 +377,13 @@ pub fn expression_domain_selector_projection_summary(
     input: &OmenaWasmEngineInputV2,
 ) -> OmenaWasmExpressionDomainSelectorProjectionV0 {
     summarize_omena_query_expression_domain_selector_projection(input)
+}
+
+pub fn expression_domain_incremental_flow_analysis_summary(
+    input: &OmenaWasmEngineInputV2,
+    runtime: &mut OmenaQueryExpressionDomainFlowRuntimeV0,
+) -> OmenaWasmExpressionDomainIncrementalFlowAnalysisV0 {
+    summarize_omena_query_expression_domain_incremental_flow_analysis(input, runtime)
 }
 
 pub fn transform_context_from_engine_input_summary(
@@ -750,6 +799,37 @@ mod tests {
                 .reachability_sources
                 .iter()
                 .any(|source| source.node_id == "file-merge")
+        );
+    }
+
+    #[test]
+    fn reuses_expression_domain_flow_runtime_for_browser_clients() {
+        let input = serde_json::from_str::<OmenaWasmEngineInputV2>(
+            reduced_product_projection_engine_input_json(),
+        );
+        assert!(input.is_ok());
+        let Ok(input) = input else {
+            return;
+        };
+        let mut runtime = OmenaWasmExpressionDomainFlowRuntimeV0::new();
+
+        let first = runtime.analyze_summary(&input);
+        assert_eq!(
+            first.product,
+            "omena-query.expression-domain-incremental-flow-analysis"
+        );
+        assert_eq!(first.revision, 1);
+        assert_eq!(first.reused_graph_count, 0);
+
+        let second = runtime.analyze_summary(&input);
+        assert_eq!(second.revision, 2);
+        assert_eq!(second.dirty_graph_count, 0);
+        assert_eq!(second.reused_graph_count, 1);
+        assert!(
+            second
+                .analyses
+                .iter()
+                .all(|entry| entry.analysis.reused_previous_analysis)
         );
     }
 

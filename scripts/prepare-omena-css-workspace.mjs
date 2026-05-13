@@ -706,6 +706,10 @@ Primary consumers:
 - \`omena cascade <file> --line <n> --character <n>\` reads cascade,
   computed-value, and custom-property LFP information at a \`var(...)\`
   reference position.
+- \`omena expression-flow --engine-input-json input.json\` analyzes
+  cross-language class-value flow through the query-owned incremental runtime.
+- \`omena selector-projection --engine-input-json input.json\` projects
+  expression-domain values to target style selectors.
 - \`omena passes\` lists accepted transform pass ids.
 
 ## Wasm
@@ -733,6 +737,13 @@ Primary consumers:
 - \`readCascadeAtPosition(source, path, line, character, input)\` reads
   cascade, computed-value, and custom-property LFP information at a \`var(...)\`
   reference position.
+- \`expressionDomainIncrementalFlow(input)\` runs one query-owned
+  expression-domain incremental-flow pass.
+- \`new ExpressionDomainFlowRuntime().analyze(input)\` keeps the query-owned
+  incremental-flow runtime alive across calls so browser clients can observe
+  graph reuse.
+- \`expressionDomainSelectorProjection(input)\` projects expression-domain flow
+  values to target style selectors.
 - \`listTransformPasses()\` lists accepted transform pass ids.
 
 ## Node Native Binding
@@ -760,6 +771,13 @@ Primary consumers:
 - \`readCascadeAtPositionJson(source, path, line, character, inputJson)\`
   reads cascade, computed-value, and custom-property LFP information at a
   \`var(...)\` reference position.
+- \`expressionDomainIncrementalFlowJson(inputJson)\` runs one query-owned
+  expression-domain incremental-flow pass.
+- \`new ExpressionDomainFlowRuntime().analyzeJson(inputJson)\` keeps the
+  query-owned incremental-flow runtime alive across calls so Node clients can
+  observe graph reuse.
+- \`expressionDomainSelectorProjectionJson(inputJson)\` projects
+  expression-domain flow values to target style selectors.
 - \`listTransformPassesJson()\` lists accepted transform pass ids as JSON.
 `,
   );
