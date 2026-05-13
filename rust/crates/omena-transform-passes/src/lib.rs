@@ -8006,7 +8006,8 @@ fn normalize_css_font_family_strings_with_lexer(
                 if !declaration.property.eq_ignore_ascii_case("font-family") {
                     continue;
                 }
-                let Some(replacement_value) = unquote_static_font_family_value(&declaration.value)
+                let Some(replacement_value) =
+                    normalize_static_font_family_value(&declaration.value)
                 else {
                     continue;
                 };
@@ -8029,12 +8030,39 @@ fn normalize_css_font_family_strings_with_lexer(
     replace_source_ranges(source, &replacements)
 }
 
-fn unquote_static_font_family_value(value: &str) -> Option<String> {
-    let family = static_css_string_value(value)?;
-    if !is_safe_unquoted_font_family_identifier(&family) {
+fn normalize_static_font_family_value(value: &str) -> Option<String> {
+    let families = split_top_level_value_arguments(value)?;
+    let mut normalized = Vec::with_capacity(families.len());
+    let mut changed = false;
+
+    for family in families {
+        let Some(quoted_family) = static_css_string_value(&family) else {
+            normalized.push(family);
+            continue;
+        };
+        let Some(unquoted_family) = unquote_static_font_family_name(&quoted_family) else {
+            normalized.push(family);
+            continue;
+        };
+        changed = true;
+        normalized.push(unquoted_family);
+    }
+
+    changed.then(|| normalized.join(","))
+}
+
+fn unquote_static_font_family_name(value: &str) -> Option<String> {
+    let parts = value.split_ascii_whitespace().collect::<Vec<_>>();
+    if parts.is_empty() {
         return None;
     }
-    Some(family)
+    if parts
+        .iter()
+        .any(|part| !is_safe_unquoted_font_family_identifier(part))
+    {
+        return None;
+    }
+    Some(parts.join(" "))
 }
 
 fn is_safe_unquoted_font_family_identifier(value: &str) -> bool {
@@ -8042,6 +8070,20 @@ fn is_safe_unquoted_font_family_identifier(value: &str) -> bool {
     let Some(first) = chars.next() else {
         return false;
     };
+    if value.starts_with("--") && value.len() > 2 {
+        return chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+            && !is_reserved_unquoted_font_family_identifier(value);
+    }
+    if first == '-' {
+        let Some(second) = chars.next() else {
+            return false;
+        };
+        if !(second.is_ascii_alphabetic() || second == '_') {
+            return false;
+        }
+        return chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+            && !is_reserved_unquoted_font_family_identifier(value);
+    }
     if !(first.is_ascii_alphabetic() || first == '_') {
         return false;
     }
@@ -9808,7 +9850,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_normalizes_safe_strings_without_rewriting_semantic_strings() {
-        let source = r#".a { font-family: 'Demo'; content: 'has "quote"'; background: url('asset.svg'); } .b { font-family: "serif"; }"#;
+        let source = r#".a { font-family: 'Demo'; content: 'has "quote"'; background: url('asset.svg'); } .b { font-family: "serif"; } .c { font-family: "Open Sans", "Helvetica Neue", "system-ui"; } .d { font-family: "--brand"; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9817,10 +9859,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 4);
         assert_eq!(
             execution.output_css,
-            r#".a { font-family: Demo; content: 'has "quote"'; background: url("asset.svg"); } .b { font-family: "serif"; }"#
+            r#".a { font-family: Demo; content: 'has "quote"'; background: url("asset.svg"); } .b { font-family: "serif"; } .c { font-family: Open Sans,Helvetica Neue,"system-ui"; } .d { font-family: --brand; }"#
         );
     }
 

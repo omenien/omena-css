@@ -81,6 +81,10 @@ const fixtures: readonly DifferentialFixture[] = [
     label: "url-zero-font-family",
     source: '.a { background: url("/icons/a.svg"); margin: 0 0 0 0%; font-family: "Inter"; }',
   },
+  {
+    label: "font-family-list",
+    source: '.fonts { font-family: "Arial", "Helvetica Neue", "system-ui", sans-serif; }',
+  },
 ];
 
 const reports = fixtures.map((fixture) => {
