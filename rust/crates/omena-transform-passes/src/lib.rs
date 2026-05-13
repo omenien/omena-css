@@ -5907,8 +5907,12 @@ fn physical_property_for_logical_property(
         "max-inline-size" => Some("max-width"),
         "min-block-size" => Some("min-height"),
         "min-inline-size" => Some("min-width"),
+        "inset-block-start" => Some("top"),
+        "inset-block-end" => Some("bottom"),
         "inset-inline-start" => Some(inline_start_property(direction, "left", "right")),
         "inset-inline-end" => Some(inline_end_property(direction, "left", "right")),
+        "margin-block-start" => Some("margin-top"),
+        "margin-block-end" => Some("margin-bottom"),
         "margin-inline-start" => Some(inline_start_property(
             direction,
             "margin-left",
@@ -5929,6 +5933,10 @@ fn physical_property_for_logical_property(
             "padding-left",
             "padding-right",
         )),
+        "padding-block-start" => Some("padding-top"),
+        "padding-block-end" => Some("padding-bottom"),
+        "border-block-start-color" => Some("border-top-color"),
+        "border-block-end-color" => Some("border-bottom-color"),
         "border-inline-start-color" => Some(inline_start_property(
             direction,
             "border-left-color",
@@ -5949,6 +5957,8 @@ fn physical_property_for_logical_property(
             "border-left-style",
             "border-right-style",
         )),
+        "border-block-start-style" => Some("border-top-style"),
+        "border-block-end-style" => Some("border-bottom-style"),
         "border-inline-start-width" => Some(inline_start_property(
             direction,
             "border-left-width",
@@ -5959,6 +5969,10 @@ fn physical_property_for_logical_property(
             "border-left-width",
             "border-right-width",
         )),
+        "border-block-start-width" => Some("border-top-width"),
+        "border-block-end-width" => Some("border-bottom-width"),
+        "border-block-start" => Some("border-top"),
+        "border-block-end" => Some("border-bottom"),
         "border-inline-start" => Some(inline_start_property(
             direction,
             "border-left",
@@ -6007,37 +6021,45 @@ fn physical_pair_properties_for_logical_pair(
     direction: InlineDirection,
 ) -> Option<(&'static str, &'static str)> {
     match property {
+        "inset-block" => Some(("top", "bottom")),
         "inset-inline" => Some(inline_start_end_properties(direction, "left", "right")),
+        "margin-block" => Some(("margin-top", "margin-bottom")),
         "margin-inline" => Some(inline_start_end_properties(
             direction,
             "margin-left",
             "margin-right",
         )),
+        "padding-block" => Some(("padding-top", "padding-bottom")),
         "padding-inline" => Some(inline_start_end_properties(
             direction,
             "padding-left",
             "padding-right",
         )),
+        "scroll-margin-block" => Some(("scroll-margin-top", "scroll-margin-bottom")),
         "scroll-margin-inline" => Some(inline_start_end_properties(
             direction,
             "scroll-margin-left",
             "scroll-margin-right",
         )),
+        "scroll-padding-block" => Some(("scroll-padding-top", "scroll-padding-bottom")),
         "scroll-padding-inline" => Some(inline_start_end_properties(
             direction,
             "scroll-padding-left",
             "scroll-padding-right",
         )),
+        "border-block-color" => Some(("border-top-color", "border-bottom-color")),
         "border-inline-color" => Some(inline_start_end_properties(
             direction,
             "border-left-color",
             "border-right-color",
         )),
+        "border-block-style" => Some(("border-top-style", "border-bottom-style")),
         "border-inline-style" => Some(inline_start_end_properties(
             direction,
             "border-left-style",
             "border-right-style",
         )),
+        "border-block-width" => Some(("border-top-width", "border-bottom-width")),
         "border-inline-width" => Some(inline_start_end_properties(
             direction,
             "border-left-width",
@@ -6052,6 +6074,7 @@ fn physical_pair_properties_for_logical_mirror(
     direction: InlineDirection,
 ) -> Option<(&'static str, &'static str)> {
     match property {
+        "border-block" => Some(("border-top", "border-bottom")),
         "border-inline" => Some(inline_start_end_properties(
             direction,
             "border-left",
@@ -9450,7 +9473,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_logical_properties_only_with_static_direction() {
-        let source = r#".ltr { direction: ltr; margin-inline-start: 1px; padding-inline-end: 2px; inline-size: 10rem; margin-inline: 1px 2px; padding-inline: calc(1rem + 1px) 3px; border-inline-color: red blue; } .unknown { margin-inline-start: 1px; } .rtl { direction: rtl; writing-mode: horizontal-tb; inset-inline-start: 3px; border-inline-end-color: red; inset-inline: 4px 5px; border-inline: 1px solid red; border-inline-start: 2px dashed blue; }"#;
+        let source = r#".ltr { direction: ltr; margin-inline-start: 1px; padding-inline-end: 2px; inline-size: 10rem; margin-inline: 1px 2px; padding-inline: calc(1rem + 1px) 3px; border-inline-color: red blue; margin-block: 4px 5px; padding-block-start: 6px; border-block-color: green yellow; border-block: 1px solid blue; inset-block-end: 7px; } .unknown { margin-inline-start: 1px; } .rtl { direction: rtl; writing-mode: horizontal-tb; inset-inline-start: 3px; border-inline-end-color: red; inset-inline: 4px 5px; border-inline: 1px solid red; border-inline-start: 2px dashed blue; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9459,10 +9482,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 11);
+        assert_eq!(execution.mutation_count, 16);
         assert_eq!(
             execution.output_css,
-            r#".ltr { direction: ltr; margin-left: 1px; padding-right: 2px; width: 10rem; margin-left: 1px; margin-right: 2px; padding-left: calc(1rem + 1px); padding-right: 3px; border-left-color: red; border-right-color: blue; } .unknown { margin-inline-start: 1px; } .rtl { direction: rtl; writing-mode: horizontal-tb; right: 3px; border-left-color: red; right: 4px; left: 5px; border-right: 1px solid red; border-left: 1px solid red; border-right: 2px dashed blue; }"#
+            r#".ltr { direction: ltr; margin-left: 1px; padding-right: 2px; width: 10rem; margin-left: 1px; margin-right: 2px; padding-left: calc(1rem + 1px); padding-right: 3px; border-left-color: red; border-right-color: blue; margin-top: 4px; margin-bottom: 5px; padding-top: 6px; border-top-color: green; border-bottom-color: yellow; border-top: 1px solid blue; border-bottom: 1px solid blue; bottom: 7px; } .unknown { margin-inline-start: 1px; } .rtl { direction: rtl; writing-mode: horizontal-tb; right: 3px; border-left-color: red; right: 4px; left: 5px; border-right: 1px solid red; border-left: 1px solid red; border-right: 2px dashed blue; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
