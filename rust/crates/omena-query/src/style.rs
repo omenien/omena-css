@@ -511,6 +511,46 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics(
         .collect()
 }
 
+pub fn summarize_omena_query_missing_keyframes_diagnostics(
+    style_uri: &str,
+    source: &str,
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let dialect = omena_parser_dialect_for_style_path(style_uri);
+    let facts = collect_style_facts(source, dialect);
+    let declared_keyframes = facts
+        .animations
+        .iter()
+        .filter(|animation| animation.kind == ParsedAnimationFactKind::KeyframesDeclaration)
+        .map(|animation| animation.name.clone())
+        .collect::<BTreeSet<_>>();
+    let mut emitted = BTreeSet::new();
+
+    facts
+        .animations
+        .into_iter()
+        .filter(|animation| animation.kind == ParsedAnimationFactKind::AnimationNameReference)
+        .filter(|animation| !declared_keyframes.contains(animation.name.as_str()))
+        .filter_map(|animation| {
+            let start: u32 = animation.range.start().into();
+            let end: u32 = animation.range.end().into();
+            let byte_span = ParserByteSpanV0 {
+                start: start as usize,
+                end: end as usize,
+            };
+            if !emitted.insert((animation.name.clone(), byte_span.start, byte_span.end)) {
+                return None;
+            }
+            Some((animation, parser_range_for_byte_span(source, byte_span)))
+        })
+        .map(|(animation, range)| OmenaQueryStyleDiagnosticV0 {
+            code: "missingKeyframes",
+            range,
+            message: format!("@keyframes '{}' not found in this file.", animation.name),
+            create_custom_property: None,
+        })
+        .collect()
+}
+
 pub fn summarize_omena_query_style_diagnostics_for_file(
     style_uri: &str,
     source: &str,
@@ -520,6 +560,9 @@ pub fn summarize_omena_query_style_diagnostics_for_file(
         summarize_omena_query_missing_custom_property_diagnostics(style_uri, source, candidates);
     diagnostics.extend(summarize_omena_query_cascade_aware_style_diagnostics(
         style_uri, source, candidates,
+    ));
+    diagnostics.extend(summarize_omena_query_missing_keyframes_diagnostics(
+        style_uri, source,
     ));
     OmenaQueryStyleDiagnosticsForFileV0 {
         schema_version: "0",
@@ -531,6 +574,7 @@ pub fn summarize_omena_query_style_diagnostics_for_file(
         ready_surfaces: vec![
             "missingCustomPropertyDiagnostics",
             "cascadeAwareDiagnostics",
+            "missingKeyframesDiagnostics",
         ],
     }
 }

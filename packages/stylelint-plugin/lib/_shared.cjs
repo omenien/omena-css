@@ -6,9 +6,10 @@ const STYLE_MODULE_FILE_PATTERN = /\.module\.(css|scss|less)$/;
 const REPO_ROOT = path.resolve(__dirname, "../../../");
 const STYLE_CHECK_REPORT_CACHE = new Map();
 const DIRECT_STYLE_DIAGNOSTICS_CACHE = new Map();
-const DIRECT_STYLE_DIAGNOSTIC_CODES = new Set(["missing-custom-property"]);
+const DIRECT_STYLE_DIAGNOSTIC_CODES = new Set(["missing-custom-property", "missing-keyframes"]);
 const OMENA_QUERY_STYLE_DIAGNOSTIC_CODE_MAP = new Map([
   ["missingCustomProperty", "missing-custom-property"],
+  ["missingKeyframes", "missing-keyframes"],
 ]);
 
 module.exports = {

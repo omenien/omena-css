@@ -2884,6 +2884,36 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() {
 }
 
 #[test]
+fn style_diagnostics_for_file_include_keyframes_resolution_lints() {
+    let source = ".button { animation: fade 1s ease; }\n@keyframes spin { to { opacity: 1; } }";
+    let candidates =
+        super::summarize_omena_query_style_hover_candidates("Component.module.css", source)
+            .expect("style candidates");
+
+    let diagnostics = super::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.css",
+        source,
+        candidates.candidates.as_slice(),
+    );
+
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"missingKeyframesDiagnostics")
+    );
+    let keyframes_diagnostics = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingKeyframes")
+        .collect::<Vec<_>>();
+    assert_eq!(keyframes_diagnostics.len(), 1);
+    assert_eq!(
+        keyframes_diagnostics[0].message,
+        "@keyframes 'fade' not found in this file."
+    );
+}
+
+#[test]
 fn completion_at_position_is_query_owned_for_style_and_source() {
     let source = ":root { --brand: red; }\n.root { color: var(--br); }\n.row { display: flex; }";
     let candidates =

@@ -692,7 +692,7 @@ mod tests {
     #[test]
     fn reads_style_diagnostics_for_browser_clients() {
         let summary = read_style_diagnostics_summary(
-            ":root { --known: #2563eb; }\n.button { color: var(--missing); }\n",
+            ":root { --known: #2563eb; }\n.button { color: var(--missing); animation: fade 1s; }\n",
             "fixture.module.css",
         )
         .expect("style diagnostics should be available");
@@ -706,9 +706,20 @@ mod tests {
         );
         assert!(
             summary
+                .ready_surfaces
+                .contains(&"missingKeyframesDiagnostics")
+        );
+        assert!(
+            summary
                 .diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code == "missingCustomProperty")
+        );
+        assert!(
+            summary
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "missingKeyframes")
         );
     }
 

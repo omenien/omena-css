@@ -130,7 +130,10 @@ async function assertOmenaQueryStyleDiagnosticsAdapter() {
   process.env.CME_STYLELINT_QUERY_BACKEND = "omena-cli";
   try {
     const result = await stylelint.lint({
-      files: [path.join(WORKSPACE_ROOT, "src/CustomPropertyMissing.module.css")],
+      files: [
+        path.join(WORKSPACE_ROOT, "src/CustomPropertyMissing.module.css"),
+        path.join(WORKSPACE_ROOT, "src/KeyframesMissing.module.css"),
+      ],
       configBasedir: REPO_ROOT,
       config: {
         customSyntax: "postcss-scss",
@@ -142,13 +145,28 @@ async function assertOmenaQueryStyleDiagnosticsAdapter() {
               workspaceRoot: WORKSPACE_ROOT,
             },
           ],
+          "css-module-explainer/missing-keyframes": [
+            true,
+            {
+              workspaceRoot: WORKSPACE_ROOT,
+            },
+          ],
         },
       },
     });
-    const [fileResult] = result.results;
+    const warningsByFile = new Map(
+      result.results.map((fileResult) => [
+        path.basename(fileResult.source ?? ""),
+        fileResult.warnings,
+      ]),
+    );
     assertSingleWarning(
-      fileResult?.warnings,
+      warningsByFile.get("CustomPropertyMissing.module.css"),
       "CSS custom property '--missing' not found in indexed style tokens.",
+    );
+    assertSingleWarning(
+      warningsByFile.get("KeyframesMissing.module.css"),
+      "@keyframes 'fade' not found in this file.",
     );
   } finally {
     if (previousBackend === undefined) {
