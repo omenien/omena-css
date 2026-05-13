@@ -40,10 +40,10 @@ use super::{
     summarize_omena_query_transform_plan_from_target_query,
 };
 use crate::{
-    OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0,
-    OmenaQueryTransformModuleEvaluationV0, default_omena_query_transform_print_options,
-    modern_omena_query_target_feature_support,
+    OmenaQueryCompletionCandidateV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
+    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformModuleEvaluationV0,
+    default_omena_query_transform_print_options, modern_omena_query_target_feature_support,
 };
 
 #[test]
@@ -2849,6 +2849,90 @@ fn missing_custom_property_diagnostics_are_query_owned() {
         summary
             .ready_surfaces
             .contains(&"missingCustomPropertyDiagnostics")
+    );
+}
+
+#[test]
+fn completion_at_position_is_query_owned_for_style_and_source() {
+    let source = ":root { --brand: red; }\n.root { color: var(--br); }\n.row { display: flex; }";
+    let candidates =
+        super::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .expect("style candidates");
+
+    let style_completion = super::summarize_omena_query_style_completion_at_position(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        ParserPositionV0 {
+            line: 1,
+            character: 23,
+        },
+        candidates.candidates.as_slice(),
+    );
+    assert_eq!(style_completion.product, "omena-query.completion-at");
+    assert_eq!(
+        style_completion.context_kind,
+        "styleCustomPropertyReference"
+    );
+    assert_eq!(style_completion.prefix.as_deref(), Some("--br"));
+    assert_eq!(
+        style_completion
+            .items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["--brand"]
+    );
+
+    let source_completion = super::summarize_omena_query_source_completion_at_position(
+        "file:///workspace/src/App.tsx",
+        ParserPositionV0 {
+            line: 1,
+            character: 22,
+        },
+        &[
+            OmenaQueryCompletionCandidateV0 {
+                file_uri: "file:///workspace/src/Component.module.scss".to_string(),
+                name: "root".to_string(),
+                kind: "selector",
+                range: ParserRangeV0 {
+                    start: ParserPositionV0 {
+                        line: 1,
+                        character: 1,
+                    },
+                    end: ParserPositionV0 {
+                        line: 1,
+                        character: 5,
+                    },
+                },
+                source: "omenaQueryStyleHoverCandidates",
+            },
+            OmenaQueryCompletionCandidateV0 {
+                file_uri: "file:///workspace/src/Other.module.scss".to_string(),
+                name: "rootOther".to_string(),
+                kind: "selector",
+                range: ParserRangeV0 {
+                    start: ParserPositionV0 {
+                        line: 0,
+                        character: 1,
+                    },
+                    end: ParserPositionV0 {
+                        line: 0,
+                        character: 10,
+                    },
+                },
+                source: "omenaQueryStyleHoverCandidates",
+            },
+        ],
+        Some("file:///workspace/src/Component.module.scss"),
+        Some("ro"),
+    );
+    assert_eq!(source_completion.context_kind, "sourceCssModuleTarget");
+    assert_eq!(source_completion.item_count, 1);
+    assert_eq!(source_completion.items[0].label, "root");
+    assert!(
+        source_completion
+            .ready_surfaces
+            .contains(&"bridgeAwareSelectorCompletion")
     );
 }
 

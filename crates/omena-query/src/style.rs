@@ -493,6 +493,115 @@ pub fn summarize_omena_query_style_diagnostics_for_file(
     }
 }
 
+pub fn summarize_omena_query_style_completion_at_position(
+    style_uri: &str,
+    source: &str,
+    position: ParserPositionV0,
+    candidates: &[OmenaQueryStyleHoverCandidateV0],
+) -> OmenaQueryCompletionAtPositionV0 {
+    let (context_kind, prefix) =
+        style_completion_context_at_position(source, position).unwrap_or(("styleDocument", None));
+    let mut emitted_labels = BTreeSet::new();
+    let mut items = candidates
+        .iter()
+        .filter_map(|candidate| {
+            let (label, detail, item_kind) = match candidate.kind {
+                "selector" if context_kind == "styleDocument" => (
+                    format!(".{}", candidate.name),
+                    "CSS Module selector",
+                    "cssModuleSelector",
+                ),
+                "customPropertyDeclaration" => (
+                    candidate.name.clone(),
+                    "CSS custom property",
+                    "cssCustomProperty",
+                ),
+                _ => return None,
+            };
+            if prefix
+                .as_deref()
+                .is_some_and(|prefix| !label.starts_with(prefix))
+            {
+                return None;
+            }
+            if !emitted_labels.insert(label.clone()) {
+                return None;
+            }
+            Some(OmenaQueryCompletionItemV0 {
+                insert_text: label.clone(),
+                label,
+                detail,
+                item_kind,
+                source: "omenaQueryCompletionAtPosition",
+            })
+        })
+        .collect::<Vec<_>>();
+    items.sort_by_key(|item| item.label.clone());
+
+    OmenaQueryCompletionAtPositionV0 {
+        schema_version: "0",
+        product: "omena-query.completion-at",
+        file_uri: style_uri.to_string(),
+        file_kind: "style",
+        query_position: position,
+        context_kind,
+        prefix,
+        is_incomplete: false,
+        item_count: items.len(),
+        items,
+        ready_surfaces: vec!["styleCompletionAt"],
+    }
+}
+
+pub fn summarize_omena_query_source_completion_at_position(
+    source_uri: &str,
+    position: ParserPositionV0,
+    candidates: &[OmenaQueryCompletionCandidateV0],
+    target_style_uri: Option<&str>,
+    value_prefix: Option<&str>,
+) -> OmenaQueryCompletionAtPositionV0 {
+    let mut emitted_labels = BTreeSet::new();
+    let mut items = candidates
+        .iter()
+        .filter(|candidate| candidate.kind == "selector")
+        .filter(|candidate| {
+            target_style_uri.is_none_or(|target_uri| candidate.file_uri == target_uri)
+        })
+        .filter(|candidate| value_prefix.is_none_or(|prefix| candidate.name.starts_with(prefix)))
+        .filter_map(|candidate| {
+            if !emitted_labels.insert(candidate.name.clone()) {
+                return None;
+            }
+            Some(OmenaQueryCompletionItemV0 {
+                label: candidate.name.clone(),
+                insert_text: candidate.name.clone(),
+                detail: "CSS Module selector",
+                item_kind: "cssModuleSelector",
+                source: "omenaQueryCompletionAtPosition",
+            })
+        })
+        .collect::<Vec<_>>();
+    items.sort_by_key(|item| item.label.clone());
+
+    OmenaQueryCompletionAtPositionV0 {
+        schema_version: "0",
+        product: "omena-query.completion-at",
+        file_uri: source_uri.to_string(),
+        file_kind: "source",
+        query_position: position,
+        context_kind: if target_style_uri.is_some() {
+            "sourceCssModuleTarget"
+        } else {
+            "sourceClassToken"
+        },
+        prefix: value_prefix.map(ToString::to_string),
+        is_incomplete: false,
+        item_count: items.len(),
+        items,
+        ready_surfaces: vec!["sourceCompletionAt", "bridgeAwareSelectorCompletion"],
+    }
+}
+
 pub fn read_omena_query_cascade_at_position(
     style_path: &str,
     style_source: &str,
@@ -2648,6 +2757,34 @@ fn line_snippet_at_position(source: &str, position: ParserPositionV0) -> Option<
         .map(|offset| line_start + offset)
         .unwrap_or(source.len());
     Some(source[line_start..line_end].trim().to_string())
+}
+
+fn style_completion_context_at_position(
+    source: &str,
+    position: ParserPositionV0,
+) -> Option<(&'static str, Option<String>)> {
+    let cursor = byte_offset_for_parser_position(source, position)?;
+    let line_start = byte_offset_for_parser_position(
+        source,
+        ParserPositionV0 {
+            line: position.line,
+            character: 0,
+        },
+    )?;
+    let line_prefix = source.get(line_start..cursor)?;
+    if let Some(var_start) = line_prefix.rfind("var(") {
+        let var_prefix = &line_prefix[var_start + "var(".len()..];
+        if !var_prefix.contains(')') {
+            let prefix = var_prefix
+                .rsplit(|ch: char| ch == ',' || ch.is_ascii_whitespace())
+                .next()
+                .unwrap_or_default();
+            let prefix = (!prefix.is_empty()).then(|| prefix.to_string());
+            return Some(("styleCustomPropertyReference", prefix));
+        }
+    }
+
+    Some(("styleDocument", None))
 }
 
 fn trim_hover_snippet(snippet: &str) -> String {
