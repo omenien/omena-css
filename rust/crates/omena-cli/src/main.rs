@@ -1047,11 +1047,11 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    fn build_command_writes_query_owned_transform_output() {
+    fn build_command_writes_query_owned_transform_output() -> Result<(), String> {
         let source_path = temp_path("input.css");
         let output_path = temp_path("output.css");
         fs::write(&source_path, ".card { color: #ffffff; }")
-            .expect("fixture source should be writable");
+            .map_err(|error| format!("fixture source should be writable: {error}"))?;
 
         let result = run(Cli {
             command: Command::Build {
@@ -1078,22 +1078,24 @@ mod tests {
         });
 
         assert!(result.is_ok(), "{result:?}");
-        let output = fs::read_to_string(&output_path).expect("build output should be written");
+        let output = fs::read_to_string(&output_path)
+            .map_err(|error| format!("build output should be written: {error}"))?;
         assert!(output.contains("#fff"));
         assert!(!output.contains("#ffffff"));
 
         cleanup(&source_path);
         cleanup(&output_path);
+        Ok(())
     }
 
     #[test]
-    fn cascade_and_context_index_commands_read_query_surfaces() {
+    fn cascade_and_context_index_commands_read_query_surfaces() -> Result<(), String> {
         let source_path = temp_path("input.module.css");
         fs::write(
             &source_path,
             "@layer components { :root { --brand: #2563eb; } }\n.button { color: var(--brand); }\n",
         )
-        .expect("fixture source should be writable");
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
 
         let cascade_result = run(Cli {
             command: Command::Cascade {
@@ -1116,16 +1118,17 @@ mod tests {
         assert!(context_result.is_ok(), "{context_result:?}");
 
         cleanup(&source_path);
+        Ok(())
     }
 
     #[test]
-    fn style_diagnostics_command_reads_query_owned_diagnostics() {
+    fn style_diagnostics_command_reads_query_owned_diagnostics() -> Result<(), String> {
         let source_path = temp_path("diagnostics.module.css");
         fs::write(
             &source_path,
             ":root { --known: #2563eb; }\n.button { color: var(--missing); animation: fade 1s; }\n",
         )
-        .expect("fixture source should be writable");
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
 
         let result = run(Cli {
             command: Command::StyleDiagnostics {
@@ -1140,16 +1143,17 @@ mod tests {
         assert!(result.is_ok(), "{result:?}");
 
         cleanup(&source_path);
+        Ok(())
     }
 
     #[test]
-    fn style_hover_and_completion_commands_read_query_owned_surfaces() {
+    fn style_hover_and_completion_commands_read_query_owned_surfaces() -> Result<(), String> {
         let source_path = temp_path("hover.module.css");
         fs::write(
             &source_path,
             ":root { --brand: #2563eb; }\n.button { color: var(--); }\n",
         )
-        .expect("fixture source should be writable");
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
 
         let hover_result = run(Cli {
             command: Command::StyleHoverCandidates {
@@ -1170,10 +1174,11 @@ mod tests {
         assert!(completion_result.is_ok(), "{completion_result:?}");
 
         cleanup(&source_path);
+        Ok(())
     }
 
     #[test]
-    fn source_diagnostics_command_reads_query_owned_diagnostics() {
+    fn source_diagnostics_command_reads_query_owned_diagnostics() -> Result<(), String> {
         let candidates_path = temp_path("source-diagnostics.json");
         fs::write(
             &candidates_path,
@@ -1189,7 +1194,7 @@ mod tests {
               }
             ]"#,
         )
-        .expect("fixture candidates should be writable");
+        .map_err(|error| format!("fixture candidates should be writable: {error}"))?;
 
         let result = run(Cli {
             command: Command::SourceDiagnostics {
@@ -1205,10 +1210,11 @@ mod tests {
         assert!(result.is_ok(), "{result:?}");
 
         cleanup(&candidates_path);
+        Ok(())
     }
 
     #[test]
-    fn source_diagnostics_command_reads_workspace_query_owned_diagnostics() {
+    fn source_diagnostics_command_reads_workspace_query_owned_diagnostics() -> Result<(), String> {
         let source_path = temp_path("App.tsx");
         let style_path = temp_path("App.module.scss");
         fs::write(
@@ -1222,8 +1228,9 @@ export function App() {
 }
 "#,
         )
-        .expect("fixture source should be writable");
-        fs::write(&style_path, ".chip {}\n").expect("fixture style should be writable");
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+        fs::write(&style_path, ".chip {}\n")
+            .map_err(|error| format!("fixture style should be writable: {error}"))?;
 
         let result = run(Cli {
             command: Command::SourceDiagnostics {
@@ -1240,13 +1247,14 @@ export function App() {
 
         cleanup(&source_path);
         cleanup(&style_path);
+        Ok(())
     }
 
     fn temp_path(name: &str) -> PathBuf {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system time should be after unix epoch")
-            .as_nanos();
+        let nanos = match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(duration) => duration.as_nanos(),
+            Err(_) => 0,
+        };
         std::env::temp_dir().join(format!("omena-cli-{nanos}-{name}"))
     }
 

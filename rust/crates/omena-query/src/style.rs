@@ -1812,7 +1812,7 @@ fn summarize_omena_query_unresolved_source_reference_diagnostic(
                 OmenaQuerySourceSelectorReferenceMatchKindV0::Exact
             )
         })
-        .map(|(target_style_uri, target_style_source)| {
+        .and_then(|(target_style_uri, target_style_source)| {
             summarize_omena_query_missing_selector_diagnostic(
                 target_style_uri,
                 target_style_source,
@@ -1820,8 +1820,7 @@ fn summarize_omena_query_unresolved_source_reference_diagnostic(
                 range,
             )
             .create_selector
-        })
-        .flatten();
+        });
 
     OmenaQuerySourceDiagnosticV0 {
         code,

@@ -2856,11 +2856,11 @@ fn missing_custom_property_diagnostics_are_query_owned() {
 }
 
 #[test]
-fn style_diagnostics_for_file_include_cascade_aware_lints() {
+fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'static str> {
     let source = ":root { --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); }";
     let candidates =
         super::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
-            .expect("style candidates");
+            .ok_or("style candidates")?;
 
     let diagnostics = super::summarize_omena_query_style_diagnostics_for_file(
         "file:///workspace/src/Component.module.scss",
@@ -2882,14 +2882,15 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() {
             .count(),
         2
     );
+    Ok(())
 }
 
 #[test]
-fn style_diagnostics_for_file_include_keyframes_resolution_lints() {
+fn style_diagnostics_for_file_include_keyframes_resolution_lints() -> Result<(), &'static str> {
     let source = ".button { animation: fade 1s ease; }\n@keyframes spin { to { opacity: 1; } }";
     let candidates =
         super::summarize_omena_query_style_hover_candidates("Component.module.css", source)
-            .expect("style candidates");
+            .ok_or("style candidates")?;
 
     let diagnostics = super::summarize_omena_query_style_diagnostics_for_file(
         "file:///workspace/src/Component.module.css",
@@ -2912,14 +2913,15 @@ fn style_diagnostics_for_file_include_keyframes_resolution_lints() {
         keyframes_diagnostics[0].message,
         "@keyframes 'fade' not found in this file."
     );
+    Ok(())
 }
 
 #[test]
-fn style_diagnostics_for_file_include_same_file_sass_symbol_lints() {
+fn style_diagnostics_for_file_include_same_file_sass_symbol_lints() -> Result<(), &'static str> {
     let source = "$known: 1rem;\n@mixin raised() { box-shadow: 0 0 $known; }\n.button { color: $missing; @include absent; }";
     let candidates =
         super::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
-            .expect("style candidates");
+            .ok_or("style candidates")?;
 
     let diagnostics = super::summarize_omena_query_style_diagnostics_for_file(
         "file:///workspace/src/Component.module.scss",
@@ -2945,10 +2947,12 @@ fn style_diagnostics_for_file_include_same_file_sass_symbol_lints() {
             "Sass mixin '@mixin absent' not found in this file.",
         ]
     );
+    Ok(())
 }
 
 #[test]
-fn style_diagnostics_for_workspace_file_include_css_modules_resolution_lints() {
+fn style_diagnostics_for_workspace_file_include_css_modules_resolution_lints()
+-> Result<(), &'static str> {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
             style_path: "/workspace/src/Component.module.css".to_string(),
@@ -2975,7 +2979,7 @@ fn style_diagnostics_for_workspace_file_include_css_modules_resolution_lints() {
         &[],
         &[],
     )
-    .expect("workspace style diagnostics");
+    .ok_or("workspace style diagnostics")?;
 
     assert!(
         diagnostics
@@ -3012,10 +3016,12 @@ fn style_diagnostics_for_workspace_file_include_css_modules_resolution_lints() {
         "missingImportedValue",
         "@value 'absent' not found in './Tokens.module.css'.",
     )));
+    Ok(())
 }
 
 #[test]
-fn style_diagnostics_for_workspace_file_include_unused_selector_lints() {
+fn style_diagnostics_for_workspace_file_include_unused_selector_lints() -> Result<(), &'static str>
+{
     let sources = vec![OmenaQueryStyleSourceInputV0 {
         style_path: "/workspace/src/App.module.css".to_string(),
         style_source:
@@ -3037,7 +3043,7 @@ export function App() {
         source_documents.as_slice(),
         &[],
     )
-    .expect("workspace style diagnostics");
+    .ok_or("workspace style diagnostics")?;
 
     assert!(
         diagnostics
@@ -3054,14 +3060,15 @@ export function App() {
         unused,
         vec!["Selector '.ghost' is declared but never used."]
     );
+    Ok(())
 }
 
 #[test]
-fn completion_at_position_is_query_owned_for_style_and_source() {
+fn completion_at_position_is_query_owned_for_style_and_source() -> Result<(), &'static str> {
     let source = ":root { --brand: red; }\n.root { color: var(--br); }\n.row { display: flex; }";
     let candidates =
         super::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
-            .expect("style candidates");
+            .ok_or("style candidates")?;
 
     let style_completion = super::summarize_omena_query_style_completion_at_position(
         "file:///workspace/src/Component.module.scss",
@@ -3138,6 +3145,7 @@ fn completion_at_position_is_query_owned_for_style_and_source() {
             .ready_surfaces
             .contains(&"bridgeAwareSelectorCompletion")
     );
+    Ok(())
 }
 
 #[test]

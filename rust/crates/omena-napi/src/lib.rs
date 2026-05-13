@@ -319,6 +319,12 @@ pub struct OmenaNapiExpressionDomainFlowRuntimeV0 {
     inner: OmenaQueryExpressionDomainFlowRuntimeV0,
 }
 
+impl Default for OmenaNapiExpressionDomainFlowRuntimeV0 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[napi]
 impl OmenaNapiExpressionDomainFlowRuntimeV0 {
     #[napi(constructor)]
@@ -696,16 +702,17 @@ mod tests {
     }
 
     #[test]
-    fn reads_cascade_lfp_for_node_clients() {
+    fn reads_cascade_lfp_for_node_clients() -> Result<(), String> {
         let input = empty_engine_input();
-        let summary = read_cascade_at_position_summary(
+        let Some(summary) = read_cascade_at_position_summary(
             ":root { --known: #2563eb; }\n.button { color: var(--known); }\n",
             "fixture.module.css",
             1,
             24,
             &input,
-        )
-        .expect("cascade summary should be available");
+        ) else {
+            return Err("cascade summary should be available".to_string());
+        };
 
         assert_eq!(summary.product, "omena-query.read-cascade-at-position");
         assert_eq!(summary.status, "resolved");
@@ -724,17 +731,19 @@ mod tests {
                 .as_deref(),
             Some("#2563eb")
         );
+        Ok(())
     }
 
     #[test]
-    fn reads_style_context_index_for_node_clients() {
+    fn reads_style_context_index_for_node_clients() -> Result<(), String> {
         let input = empty_engine_input();
-        let summary = read_style_context_index_summary(
+        let Some(summary) = read_style_context_index_summary(
             "@layer components { @container card (min-width: 20rem) { .card { color: red; } } }",
             "fixture.module.css",
             &input,
-        )
-        .expect("context index summary should be available");
+        ) else {
+            return Err("context index summary should be available".to_string());
+        };
 
         assert_eq!(summary.product, "omena-query.style-context-index");
         assert_eq!(summary.context_index.layer_index.block_layers.len(), 1);
@@ -742,15 +751,16 @@ mod tests {
             summary.context_index.container_index.named_container_count,
             1
         );
+        Ok(())
     }
 
     #[test]
-    fn reads_style_diagnostics_for_node_clients() {
+    fn reads_style_diagnostics_for_node_clients() -> Result<(), String> {
         let summary = read_style_diagnostics_summary(
             ":root { --known: #2563eb; }\n.button { color: var(--missing); animation: fade 1s; }\n",
             "fixture.module.css",
         )
-        .expect("style diagnostics should be available");
+        .map_err(|_| "style diagnostics should be available".to_string())?;
 
         assert_eq!(summary.product, "omena-query.diagnostics-for-file");
         assert_eq!(summary.file_kind, "style");
@@ -781,10 +791,11 @@ mod tests {
                 .iter()
                 .any(|diagnostic| diagnostic.code == "missingKeyframes")
         );
+        Ok(())
     }
 
     #[test]
-    fn reads_workspace_style_diagnostics_for_node_clients() {
+    fn reads_workspace_style_diagnostics_for_node_clients() -> Result<(), String> {
         let sources = vec![
             OmenaNapiStyleSourceInputV0 {
                 style_path: "/workspace/src/App.module.css".to_string(),
@@ -807,7 +818,7 @@ mod tests {
             &[],
             &[],
         )
-        .expect("workspace diagnostics should be available");
+        .map_err(|_| "workspace diagnostics should be available".to_string())?;
 
         assert!(
             summary
@@ -826,13 +837,14 @@ mod tests {
                 .iter()
                 .any(|diagnostic| diagnostic.code == "missingImportedValue")
         );
+        Ok(())
     }
 
     #[test]
-    fn reads_style_hover_and_completion_for_node_clients() {
+    fn reads_style_hover_and_completion_for_node_clients() -> Result<(), String> {
         let source = ":root { --brand: #2563eb; }\n.button { color: var(--); }\n";
         let hover = read_style_hover_candidates_summary(source, "fixture.module.css")
-            .expect("style hover candidates should be available");
+            .map_err(|_| "style hover candidates should be available".to_string())?;
 
         assert_eq!(hover.product, "omena-query.style-hover-candidates");
         assert!(
@@ -844,17 +856,18 @@ mod tests {
 
         let completion =
             read_style_completion_at_position_summary(source, "fixture.module.css", 1, 23)
-                .expect("style completion should be available");
+                .map_err(|_| "style completion should be available".to_string())?;
 
         assert_eq!(completion.product, "omena-query.completion-at");
         assert!(completion.items.iter().any(|item| item.label == "--brand"));
+        Ok(())
     }
 
     #[test]
-    fn reads_source_diagnostics_for_node_clients() {
+    fn reads_source_diagnostics_for_node_clients() -> Result<(), String> {
         let candidates =
             parse_source_diagnostic_candidates_json(source_diagnostic_candidates_json())
-                .expect("source diagnostic candidates should parse");
+                .map_err(|_| "source diagnostic candidates should parse".to_string())?;
         let summary =
             read_source_diagnostics_summary("file:///workspace/src/App.tsx", candidates.as_slice());
 
@@ -863,6 +876,7 @@ mod tests {
         assert_eq!(summary.diagnostic_count, 1);
         assert_eq!(summary.diagnostics[0].code, "missingSelector");
         assert!(summary.ready_surfaces.contains(&"crossLanguageDiagnostics"));
+        Ok(())
     }
 
     #[test]

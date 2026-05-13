@@ -307,6 +307,7 @@ dependencies = [
 name = "omena-transform-cst"
 version = "0.1.0"
 dependencies = [
+ "omena-parser",
  "serde",
 ]
 

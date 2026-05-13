@@ -5132,9 +5132,7 @@ fn substitute_static_custom_property_references_in_value(
                 .is_some_and(|text| text.eq_ignore_ascii_case("var(")) =>
             {
                 let left_paren_index = index + "var".len();
-                let Some(close_index) = matching_function_call_end(value, left_paren_index) else {
-                    return None;
-                };
+                let close_index = matching_function_call_end(value, left_paren_index)?;
                 let Some(arguments) =
                     split_top_level_value_arguments(&value[left_paren_index + 1..close_index])
                 else {
@@ -5568,9 +5566,12 @@ fn substitute_light_dark_references_in_value(value: &str) -> Option<(String, Str
     Some((light_output, dark_output))
 }
 
+type StaticCssFunctionParser = fn(&str) -> Option<String>;
+type StaticCssFunctionSpec<'a> = (&'a str, StaticCssFunctionParser);
+
 fn substitute_static_css_function_references_in_value(
     value: &str,
-    functions: &[(&str, fn(&str) -> Option<String>)],
+    functions: &[StaticCssFunctionSpec<'_>],
 ) -> Option<String> {
     let mut output = String::with_capacity(value.len());
     let mut cursor = 0usize;
@@ -5633,8 +5634,8 @@ fn substitute_static_css_function_references_in_value(
 fn static_css_function_at<'a>(
     value: &str,
     index: usize,
-    functions: &'a [(&str, fn(&str) -> Option<String>)],
-) -> Option<(&'a str, fn(&str) -> Option<String>)> {
+    functions: &'a [StaticCssFunctionSpec<'a>],
+) -> Option<StaticCssFunctionSpec<'a>> {
     functions.iter().find_map(|(function_name, parser)| {
         let name = value.get(index..index + function_name.len())?;
         let open_paren = value[index + function_name.len()..].chars().next()?;

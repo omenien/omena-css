@@ -2301,10 +2301,7 @@ fn substitute_custom_properties_inner(
                 .iter()
                 .map(|part| substitute_custom_properties_inner(part, env, visiting))
                 .collect::<Vec<_>>();
-            if resolved_parts
-                .iter()
-                .any(|part| *part == CascadeValue::GuaranteedInvalid)
-            {
+            if resolved_parts.contains(&CascadeValue::GuaranteedInvalid) {
                 return CascadeValue::GuaranteedInvalid;
             }
             CascadeValue::Composite(resolved_parts)
