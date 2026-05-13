@@ -2433,16 +2433,14 @@ fn lower_css_logical_to_physical_with_lexer(
                 continue;
             };
             for declaration in declarations {
-                let Some(physical_property) =
-                    physical_property_for_logical_property(&declaration.property, direction)
-                else {
+                let Some(physical_declaration) = physical_declaration_for_logical_declaration(
+                    &declaration.property,
+                    &declaration.value,
+                    direction,
+                ) else {
                     continue;
                 };
-                replacements.push((
-                    declaration.start,
-                    declaration.end,
-                    format!("{physical_property}: {};", declaration.value),
-                ));
+                replacements.push((declaration.start, declaration.end, physical_declaration));
             }
             index = close_index + 1;
             continue;
@@ -5961,7 +5959,186 @@ fn physical_property_for_logical_property(
             "border-left-width",
             "border-right-width",
         )),
+        "border-inline-start" => Some(inline_start_property(
+            direction,
+            "border-left",
+            "border-right",
+        )),
+        "border-inline-end" => Some(inline_end_property(
+            direction,
+            "border-left",
+            "border-right",
+        )),
         _ => None,
+    }
+}
+
+fn physical_declaration_for_logical_declaration(
+    property: &str,
+    value: &str,
+    direction: InlineDirection,
+) -> Option<String> {
+    if let Some(physical_property) = physical_property_for_logical_property(property, direction) {
+        return Some(format!("{physical_property}: {value};"));
+    }
+
+    if let Some((start_property, end_property)) =
+        physical_pair_properties_for_logical_pair(property, direction)
+    {
+        let (start_value, end_value) = logical_pair_values(value)?;
+        return Some(format!(
+            "{start_property}: {start_value}; {end_property}: {end_value};"
+        ));
+    }
+
+    if let Some((start_property, end_property)) =
+        physical_pair_properties_for_logical_mirror(property, direction)
+    {
+        return Some(format!(
+            "{start_property}: {value}; {end_property}: {value};"
+        ));
+    }
+
+    None
+}
+
+fn physical_pair_properties_for_logical_pair(
+    property: &str,
+    direction: InlineDirection,
+) -> Option<(&'static str, &'static str)> {
+    match property {
+        "inset-inline" => Some(inline_start_end_properties(direction, "left", "right")),
+        "margin-inline" => Some(inline_start_end_properties(
+            direction,
+            "margin-left",
+            "margin-right",
+        )),
+        "padding-inline" => Some(inline_start_end_properties(
+            direction,
+            "padding-left",
+            "padding-right",
+        )),
+        "scroll-margin-inline" => Some(inline_start_end_properties(
+            direction,
+            "scroll-margin-left",
+            "scroll-margin-right",
+        )),
+        "scroll-padding-inline" => Some(inline_start_end_properties(
+            direction,
+            "scroll-padding-left",
+            "scroll-padding-right",
+        )),
+        "border-inline-color" => Some(inline_start_end_properties(
+            direction,
+            "border-left-color",
+            "border-right-color",
+        )),
+        "border-inline-style" => Some(inline_start_end_properties(
+            direction,
+            "border-left-style",
+            "border-right-style",
+        )),
+        "border-inline-width" => Some(inline_start_end_properties(
+            direction,
+            "border-left-width",
+            "border-right-width",
+        )),
+        _ => None,
+    }
+}
+
+fn physical_pair_properties_for_logical_mirror(
+    property: &str,
+    direction: InlineDirection,
+) -> Option<(&'static str, &'static str)> {
+    match property {
+        "border-inline" => Some(inline_start_end_properties(
+            direction,
+            "border-left",
+            "border-right",
+        )),
+        _ => None,
+    }
+}
+
+fn logical_pair_values(value: &str) -> Option<(String, String)> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    match components.as_slice() {
+        [both] => Some((both.clone(), both.clone())),
+        [start, end] => Some((start.clone(), end.clone())),
+        _ => None,
+    }
+}
+
+fn split_top_level_whitespace_value_components(value: &str) -> Option<Vec<String>> {
+    let mut components = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+
+    for ch in value.chars() {
+        if let Some(active_quote) = quote {
+            current.push(ch);
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                current.push(ch);
+            }
+            '(' => {
+                depth += 1;
+                current.push(ch);
+            }
+            ')' => {
+                depth = depth.checked_sub(1)?;
+                current.push(ch);
+            }
+            '[' => {
+                bracket_depth += 1;
+                current.push(ch);
+            }
+            ']' => {
+                bracket_depth = bracket_depth.checked_sub(1)?;
+                current.push(ch);
+            }
+            ch if ch.is_ascii_whitespace() && depth == 0 && bracket_depth == 0 => {
+                if !current.trim().is_empty() {
+                    components.push(current.trim().to_string());
+                    current.clear();
+                }
+            }
+            _ => current.push(ch),
+        }
+    }
+
+    if quote.is_some() || depth != 0 || bracket_depth != 0 {
+        return None;
+    }
+    if !current.trim().is_empty() {
+        components.push(current.trim().to_string());
+    }
+    (!components.is_empty()).then_some(components)
+}
+
+fn inline_start_end_properties(
+    direction: InlineDirection,
+    ltr_start_property: &'static str,
+    ltr_end_property: &'static str,
+) -> (&'static str, &'static str) {
+    match direction {
+        InlineDirection::Ltr => (ltr_start_property, ltr_end_property),
+        InlineDirection::Rtl => (ltr_end_property, ltr_start_property),
     }
 }
 
@@ -9273,7 +9450,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_logical_properties_only_with_static_direction() {
-        let source = r#".ltr { direction: ltr; margin-inline-start: 1px; padding-inline-end: 2px; inline-size: 10rem; } .unknown { margin-inline-start: 1px; } .rtl { direction: rtl; writing-mode: horizontal-tb; inset-inline-start: 3px; border-inline-end-color: red; }"#;
+        let source = r#".ltr { direction: ltr; margin-inline-start: 1px; padding-inline-end: 2px; inline-size: 10rem; margin-inline: 1px 2px; padding-inline: calc(1rem + 1px) 3px; border-inline-color: red blue; } .unknown { margin-inline-start: 1px; } .rtl { direction: rtl; writing-mode: horizontal-tb; inset-inline-start: 3px; border-inline-end-color: red; inset-inline: 4px 5px; border-inline: 1px solid red; border-inline-start: 2px dashed blue; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9282,10 +9459,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 5);
+        assert_eq!(execution.mutation_count, 11);
         assert_eq!(
             execution.output_css,
-            r#".ltr { direction: ltr; margin-left: 1px; padding-right: 2px; width: 10rem; } .unknown { margin-inline-start: 1px; } .rtl { direction: rtl; writing-mode: horizontal-tb; right: 3px; border-left-color: red; }"#
+            r#".ltr { direction: ltr; margin-left: 1px; padding-right: 2px; width: 10rem; margin-left: 1px; margin-right: 2px; padding-left: calc(1rem + 1px); padding-right: 3px; border-left-color: red; border-right-color: blue; } .unknown { margin-inline-start: 1px; } .rtl { direction: rtl; writing-mode: horizontal-tb; right: 3px; border-left-color: red; right: 4px; left: 5px; border-right: 1px solid red; border-left: 1px solid red; border-right: 2px dashed blue; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
