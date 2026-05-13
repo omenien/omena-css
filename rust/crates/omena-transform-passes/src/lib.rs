@@ -4937,11 +4937,9 @@ fn substitute_static_css_custom_properties_with_lexer(
             if declaration.property.starts_with("--") {
                 continue;
             }
-            let Some(var_value) = parse_static_var_value(&declaration.value) else {
-                continue;
-            };
-            let resolved = substitute_custom_properties(&var_value, &env);
-            let CascadeValue::Literal(resolved_value) = resolved else {
+            let Some(resolved_value) =
+                substitute_static_custom_property_references_in_value(&declaration.value, &env)
+            else {
                 continue;
             };
             replacements.push((
@@ -4970,6 +4968,78 @@ fn substitute_static_css_custom_properties_with_lexer(
     }
 
     (output, replacements.len())
+}
+
+fn substitute_static_custom_property_references_in_value(
+    value: &str,
+    env: &CustomPropertyEnv,
+) -> Option<String> {
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+    let mut changed = false;
+
+    while index < value.len() {
+        let ch = value[index..].chars().next()?;
+
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                let escaped = value[index..].chars().next()?;
+                index += escaped.len_utf8();
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            _ if value[index..]
+                .get(.."var(".len())
+                .is_some_and(|text| text.eq_ignore_ascii_case("var(")) =>
+            {
+                let left_paren_index = index + "var".len();
+                let Some(close_index) = matching_function_call_end(value, left_paren_index) else {
+                    return None;
+                };
+                let Some(arguments) =
+                    split_top_level_value_arguments(&value[left_paren_index + 1..close_index])
+                else {
+                    index += ch.len_utf8();
+                    continue;
+                };
+                let Some(var_value) = parse_static_var_arguments(&arguments) else {
+                    index += ch.len_utf8();
+                    continue;
+                };
+                let CascadeValue::Literal(resolved_value) =
+                    substitute_custom_properties(&var_value, env)
+                else {
+                    index += ch.len_utf8();
+                    continue;
+                };
+                output.push_str(&value[cursor..index]);
+                output.push_str(&resolved_value);
+                index = close_index + ')'.len_utf8();
+                cursor = index;
+                changed = true;
+            }
+            _ => {
+                index += ch.len_utf8();
+            }
+        }
+    }
+
+    if !changed {
+        return None;
+    }
+    output.push_str(&value[cursor..]);
+    Some(output)
 }
 
 fn collect_static_root_custom_property_env(
@@ -5019,7 +5089,11 @@ fn parse_static_custom_property_env_value(value: &str) -> Option<CascadeValue> {
 
 fn parse_static_var_value(value: &str) -> Option<CascadeValue> {
     let arguments = parse_whole_function_value_arguments(value, "var")?;
-    match arguments.as_slice() {
+    parse_static_var_arguments(&arguments)
+}
+
+fn parse_static_var_arguments(arguments: &[String]) -> Option<CascadeValue> {
+    match arguments {
         [name] if name.starts_with("--") => Some(CascadeValue::Var {
             name: name.clone(),
             fallback: None,
@@ -9327,7 +9401,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_resolves_unique_static_root_custom_properties() {
-        let source = r#":root { --brand: red; --gap: 2rem; --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: var(--brand); margin: var(--gap); border-color: var(--missing, blue); background: var(--dup); outline-color: var(--dynamic); text-decoration-color: var(--fallback); caret-color: var(--cycle-a, green); } @media screen { .card { color: var(--dynamic); } }"#;
+        let source = r#":root { --brand: red; --gap: 2rem; --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: var(--brand); margin: var(--gap); border-color: var(--missing, blue); background: var(--dup); outline-color: var(--dynamic); text-decoration-color: var(--fallback); caret-color: var(--cycle-a, green); box-shadow: 0 0 1px var(--gap); filter: drop-shadow(var(--missing, blue) 0 0); } @media screen { .card { color: var(--dynamic); } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9336,10 +9410,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 7);
+        assert_eq!(execution.mutation_count, 9);
         assert_eq!(
             execution.output_css,
-            r#":root { --brand: red; --gap: 2rem; --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: red; margin: 2rem; border-color: blue; background: var(--dup); outline-color: red; text-decoration-color: blue; caret-color: green; } @media screen { .card { color: red; } }"#
+            r#":root { --brand: red; --gap: 2rem; --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: red; margin: 2rem; border-color: blue; background: var(--dup); outline-color: red; text-decoration-color: blue; caret-color: green; box-shadow: 0 0 1px 2rem; filter: drop-shadow(blue 0 0); } @media screen { .card { color: red; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
