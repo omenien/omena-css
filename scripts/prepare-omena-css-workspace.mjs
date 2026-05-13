@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const omenaCssCrates = [
   "omena-abstract-value",
+  "omena-checker",
   "engine-input-producers",
   "omena-interner",
   "omena-syntax",
@@ -39,6 +40,7 @@ const omenaCssCrates = [
 const omenaCssPublishOrder = [
   "omena-incremental",
   "omena-abstract-value",
+  "omena-checker",
   "engine-input-producers",
   "omena-syntax",
   "omena-interner",
