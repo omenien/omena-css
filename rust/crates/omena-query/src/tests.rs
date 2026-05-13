@@ -1580,7 +1580,7 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
 }
 
 #[test]
-fn summarizes_query_evaluation_runtime_without_engine_style_parser_coupling() {
+fn summarizes_query_evaluation_runtime_without_legacy_parser_coupling() {
     let input = sample_input();
     let mut runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
 

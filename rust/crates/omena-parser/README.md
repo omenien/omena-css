@@ -1,8 +1,8 @@
 # omena-parser
 
-`omena-parser` is the green-field parser track for the future Omena CSS engine.
+`omena-parser` is the parser track for the Omena CSS engine.
 
-It lives next to the current `engine-style-parser` and does not replace product behavior until parity gates are met. The crate starts with the stable public parser surface, tokenizer, CST builder, recovery vocabulary, and dialect-extension seams that later full grammar work will fill in.
+It owns the stable public parser surface, tokenizer, CST builder, recovery vocabulary, style-fact extraction, and dialect-extension seams used by the product query, bridge, LSP, and transform consumers.
 
 Current scope:
 

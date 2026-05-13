@@ -1,8 +1,7 @@
 //! Green-field parser substrate for omena-css.
 //!
-//! This crate is intentionally built next to `engine-style-parser`. It owns the
-//! future cstree parser track, but it does not replace the current product path
-//! until parser parity gates are met.
+//! This crate owns the cstree parser track and publishes parser facts for the
+//! product query, bridge, LSP, and transform consumers.
 
 use cstree::{
     Syntax,
