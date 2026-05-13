@@ -43,7 +43,11 @@ Current limitations:
 
 - first cut is focused on `.module.css` / `.module.scss` / `.module.less`
 - current package is still a local repo package, not a published artifact
-- `css-module-explainer/missing-custom-property` and
+- `css-module-explainer/missing-composed-module`,
+  `css-module-explainer/missing-composed-selector`,
+  `css-module-explainer/missing-value-module`,
+  `css-module-explainer/missing-imported-value`,
+  `css-module-explainer/missing-custom-property`, and
   `css-module-explainer/missing-keyframes` can read the `omena-query`
   style diagnostics surface through `omena-cli` by setting
   `CME_STYLELINT_QUERY_BACKEND=omena-cli` or `CME_OMENA_CLI_BIN=/path/to/omena`

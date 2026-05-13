@@ -10,11 +10,19 @@ const DIRECT_STYLE_DIAGNOSTIC_CODES = new Set([
   "missing-custom-property",
   "missing-keyframes",
   "missing-sass-symbol",
+  "missing-composed-module",
+  "missing-composed-selector",
+  "missing-value-module",
+  "missing-imported-value",
 ]);
 const OMENA_QUERY_STYLE_DIAGNOSTIC_CODE_MAP = new Map([
   ["missingCustomProperty", "missing-custom-property"],
   ["missingKeyframes", "missing-keyframes"],
   ["missingSassSymbol", "missing-sass-symbol"],
+  ["missingComposedModule", "missing-composed-module"],
+  ["missingComposedSelector", "missing-composed-selector"],
+  ["missingValueModule", "missing-value-module"],
+  ["missingImportedValue", "missing-imported-value"],
 ]);
 
 module.exports = {
@@ -78,18 +86,20 @@ function runStyleChecks(filePath, ruleOptions, includeCodes = ["unused-selector"
 
 function readDirectStyleDiagnostics(filePath, ruleOptions, includeCodes, sourceText) {
   if (!canUseDirectStyleDiagnostics(includeCodes)) return null;
+  const workspaceStylePaths = resolveWorkspaceStyleModulePaths(ruleOptions.workspaceRoot, filePath);
 
   const cacheKey = JSON.stringify({
     filePath,
     sourceText,
     includeCodes: [...includeCodes].toSorted(),
+    workspaceStylePaths: workspaceStylePathSignature(workspaceStylePaths),
     backend: process.env.CME_STYLELINT_QUERY_BACKEND ?? null,
     cli: process.env.CME_OMENA_CLI_BIN ?? null,
   });
   const cached = DIRECT_STYLE_DIAGNOSTICS_CACHE.get(cacheKey);
   if (cached) return cached;
 
-  const report = readOmenaCliStyleDiagnostics(filePath, ruleOptions);
+  const report = readOmenaCliStyleDiagnostics(filePath, ruleOptions, workspaceStylePaths);
   if (!report) return null;
 
   const includeCodeSet = new Set(includeCodes);
@@ -119,14 +129,18 @@ function canUseDirectStyleDiagnostics(includeCodes) {
   return Boolean(process.env.CME_OMENA_CLI_BIN);
 }
 
-function readOmenaCliStyleDiagnostics(filePath, ruleOptions) {
+function readOmenaCliStyleDiagnostics(filePath, ruleOptions, workspaceStylePaths) {
   const invocation = resolveOmenaCliInvocation();
   if (!invocation) return null;
 
   try {
+    const args = [...invocation.args, "style-diagnostics", filePath, "--json"];
+    for (const sourcePath of workspaceStylePaths) {
+      args.push("--source", sourcePath);
+    }
     const stdout = execFileSync(
       invocation.command,
-      [...invocation.args, "style-diagnostics", filePath, "--json"],
+      args,
       {
         cwd: ruleOptions.workspaceRoot,
         encoding: "utf8",
@@ -156,6 +170,46 @@ function resolveOmenaCliInvocation() {
   }
 
   return null;
+}
+
+function resolveWorkspaceStyleModulePaths(workspaceRoot, targetFilePath) {
+  const root = path.resolve(workspaceRoot);
+  const target = path.resolve(targetFilePath);
+  const paths = [];
+  collectWorkspaceStyleModulePaths(root, paths);
+  return paths.filter((candidate) => candidate !== target).toSorted();
+}
+
+function collectWorkspaceStyleModulePaths(dir, paths) {
+  if (!fs.existsSync(dir)) return;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const entryPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (shouldSkipWorkspaceDir(entry.name)) continue;
+      collectWorkspaceStyleModulePaths(entryPath, paths);
+      continue;
+    }
+    if (entry.isFile() && STYLE_MODULE_FILE_PATTERN.test(entryPath)) {
+      paths.push(entryPath);
+    }
+  }
+}
+
+function shouldSkipWorkspaceDir(name) {
+  return new Set([".git", "node_modules", "dist", "build", "coverage", ".next", "target"]).has(
+    name,
+  );
+}
+
+function workspaceStylePathSignature(paths) {
+  return paths.map((stylePath) => {
+    try {
+      const stat = fs.statSync(stylePath);
+      return `${stylePath}:${stat.size}:${stat.mtimeMs}`;
+    } catch {
+      return `${stylePath}:missing`;
+    }
+  });
 }
 
 function readStyleCheckReport(ruleOptions) {

@@ -121,6 +121,7 @@ const REQUIRED_STYLE_DIAGNOSTICS_SURFACE_SNIPPETS = new Map<string, readonly str
     [
       "Command::StyleDiagnostics",
       "summarize_omena_query_style_diagnostics_for_file",
+      "summarize_omena_query_style_diagnostics_for_workspace_file",
       "style_diagnostics",
     ],
   ],
@@ -128,7 +129,9 @@ const REQUIRED_STYLE_DIAGNOSTICS_SURFACE_SNIPPETS = new Map<string, readonly str
     "omena-wasm",
     [
       "readStyleDiagnostics",
+      "readWorkspaceStyleDiagnostics",
       "read_style_diagnostics_summary",
+      "read_workspace_style_diagnostics_summary",
       "missingCustomPropertyDiagnostics",
       "missingKeyframesDiagnostics",
       "missingSassSymbolDiagnostics",
@@ -138,7 +141,9 @@ const REQUIRED_STYLE_DIAGNOSTICS_SURFACE_SNIPPETS = new Map<string, readonly str
     "omena-napi",
     [
       "readStyleDiagnosticsJson",
+      "readWorkspaceStyleDiagnosticsJson",
       "read_style_diagnostics_summary",
+      "read_workspace_style_diagnostics_summary",
       "missingCustomPropertyDiagnostics",
       "missingKeyframesDiagnostics",
       "missingSassSymbolDiagnostics",

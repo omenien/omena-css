@@ -131,6 +131,10 @@ async function assertOmenaQueryStyleDiagnosticsAdapter() {
   try {
     const result = await stylelint.lint({
       files: [
+        path.join(WORKSPACE_ROOT, "src/ComposesMissingModule.module.css"),
+        path.join(WORKSPACE_ROOT, "src/ComposesMissingSelector.module.css"),
+        path.join(WORKSPACE_ROOT, "src/ValueMissingModule.module.css"),
+        path.join(WORKSPACE_ROOT, "src/ValueMissingImported.module.css"),
         path.join(WORKSPACE_ROOT, "src/CustomPropertyMissing.module.css"),
         path.join(WORKSPACE_ROOT, "src/KeyframesMissing.module.css"),
         path.join(WORKSPACE_ROOT, "src/SassSymbolMissing.module.scss"),
@@ -140,6 +144,30 @@ async function assertOmenaQueryStyleDiagnosticsAdapter() {
         customSyntax: "postcss-scss",
         plugins: [PLUGIN_NAME],
         rules: {
+          "css-module-explainer/missing-composed-module": [
+            true,
+            {
+              workspaceRoot: WORKSPACE_ROOT,
+            },
+          ],
+          "css-module-explainer/missing-composed-selector": [
+            true,
+            {
+              workspaceRoot: WORKSPACE_ROOT,
+            },
+          ],
+          "css-module-explainer/missing-value-module": [
+            true,
+            {
+              workspaceRoot: WORKSPACE_ROOT,
+            },
+          ],
+          "css-module-explainer/missing-imported-value": [
+            true,
+            {
+              workspaceRoot: WORKSPACE_ROOT,
+            },
+          ],
           "css-module-explainer/missing-custom-property": [
             true,
             {
@@ -166,6 +194,22 @@ async function assertOmenaQueryStyleDiagnosticsAdapter() {
         path.basename(fileResult.source ?? ""),
         fileResult.warnings,
       ]),
+    );
+    assertSingleWarning(
+      warningsByFile.get("ComposesMissingModule.module.css"),
+      "Cannot resolve composed CSS Module './Missing.module.css'.",
+    );
+    assertSingleWarning(
+      warningsByFile.get("ComposesMissingSelector.module.css"),
+      "Selector '.base' not found in composed module './Base.module.css'.",
+    );
+    assertSingleWarning(
+      warningsByFile.get("ValueMissingModule.module.css"),
+      "Cannot resolve imported @value module './MissingTokens.module.css'.",
+    );
+    assertSingleWarning(
+      warningsByFile.get("ValueMissingImported.module.css"),
+      "@value 'primary' not found in './Tokens.module.css'.",
     );
     assertSingleWarning(
       warningsByFile.get("CustomPropertyMissing.module.css"),

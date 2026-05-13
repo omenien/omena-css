@@ -14,7 +14,9 @@ use omena_query::{
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_style_completion_at_position,
-    summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
+    summarize_omena_query_style_diagnostics_for_file,
+    summarize_omena_query_style_diagnostics_for_workspace_file,
+    summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
 use serde::Serialize;
@@ -164,6 +166,12 @@ enum Command {
     StyleDiagnostics {
         /// CSS, SCSS, Sass, Less, or CSS Modules file to inspect.
         path: PathBuf,
+        /// Additional workspace style source used to resolve CSS Modules imports.
+        #[arg(long = "source")]
+        source_paths: Vec<PathBuf>,
+        /// package.json file used to resolve package style exports for workspace sources.
+        #[arg(long = "package-manifest")]
+        package_manifest_paths: Vec<PathBuf>,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -280,7 +288,12 @@ fn run(cli: Cli) -> Result<(), String> {
             engine_input_json,
             json,
         } => context_index(path, engine_input_json, json),
-        Command::StyleDiagnostics { path, json } => style_diagnostics(path, json),
+        Command::StyleDiagnostics {
+            path,
+            source_paths,
+            package_manifest_paths,
+            json,
+        } => style_diagnostics(path, source_paths, package_manifest_paths, json),
         Command::StyleHoverCandidates { path, json } => style_hover_candidates(path, json),
         Command::StyleCompletion {
             path,
@@ -702,21 +715,37 @@ fn context_index(
     Ok(())
 }
 
-fn style_diagnostics(path: PathBuf, json: bool) -> Result<(), String> {
+fn style_diagnostics(
+    path: PathBuf,
+    source_paths: Vec<PathBuf>,
+    package_manifest_paths: Vec<PathBuf>,
+    json: bool,
+) -> Result<(), String> {
     let source = read_source(&path)?;
     let style_path = path_string(&path);
-    let Some(candidates) = summarize_omena_query_style_hover_candidates(&style_path, &source)
-    else {
-        return Err(format!(
-            "failed to read style candidates for {}",
-            path_string(&path)
-        ));
+    let package_manifests = read_package_manifests(&package_manifest_paths)?;
+    let summary = if source_paths.is_empty() && package_manifests.is_empty() {
+        let Some(candidates) = summarize_omena_query_style_hover_candidates(&style_path, &source)
+        else {
+            return Err(format!(
+                "failed to read style candidates for {}",
+                path_string(&path)
+            ));
+        };
+        summarize_omena_query_style_diagnostics_for_file(
+            &style_path,
+            &source,
+            candidates.candidates.as_slice(),
+        )
+    } else {
+        let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
+        summarize_omena_query_style_diagnostics_for_workspace_file(
+            &style_path,
+            workspace_sources.as_slice(),
+            package_manifests.as_slice(),
+        )
+        .ok_or_else(|| format!("failed to read workspace style diagnostics for {style_path}"))?
     };
-    let summary = summarize_omena_query_style_diagnostics_for_file(
-        &style_path,
-        &source,
-        candidates.candidates.as_slice(),
-    );
 
     if json {
         print_json(&summary)?;
@@ -1019,6 +1048,8 @@ mod tests {
         let result = run(Cli {
             command: Command::StyleDiagnostics {
                 path: source_path.clone(),
+                source_paths: Vec::new(),
+                package_manifest_paths: Vec::new(),
                 json: true,
             },
         });
