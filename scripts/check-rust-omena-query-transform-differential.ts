@@ -70,6 +70,11 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { margin: calc(2rem + 3rem); padding: calc(10px - 4px); }",
   },
   {
+    label: "calc-additive-chain",
+    source:
+      ".a { width: calc(2px + 3px + 4px); height: calc(.5rem + .25rem + .25rem); margin: calc(10px - 3px - 2px); }",
+  },
+  {
     label: "is-where-multi",
     source: ":is(.a) { color: #ffffff; } :where(.b) { color: #0000ff; }",
   },
@@ -87,11 +92,13 @@ const fixtures: readonly DifferentialFixture[] = [
   },
   {
     label: "alpha-hex-zero-line-height-calc",
-    source: ".alpha { color: #ffffffff; border-color: #00000000; width: calc(2px * 3); height: calc(6px / 2); line-height: 0em; }",
+    source:
+      ".alpha { color: #ffffffff; border-color: #00000000; width: calc(2px * 3); height: calc(6px / 2); line-height: 0em; }",
   },
   {
     label: "opaque-rgba-hsla",
-    source: ".opaque { color: rgba(255, 0, 0, 1); text-decoration-color: hsla(240, 100%, 50%, 100%); }",
+    source:
+      ".opaque { color: rgba(255, 0, 0, 1); text-decoration-color: hsla(240, 100%, 50%, 100%); }",
   },
 ];
 

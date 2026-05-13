@@ -5382,6 +5382,10 @@ fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) -> (String, u
 fn parse_reducible_calc_value(value: &str) -> Option<String> {
     let inner = parse_whole_function_value_inner(value, "calc")?;
 
+    if let Some(reduced) = parse_reducible_calc_additive_chain(inner) {
+        return Some(reduced);
+    }
+
     for (operator_index, operator) in top_level_calc_binary_operators(inner) {
         let Some(left) = parse_numeric_value_with_unit(inner[..operator_index].trim()) else {
             continue;
@@ -5437,6 +5441,41 @@ fn parse_reducible_calc_value(value: &str) -> Option<String> {
     None
 }
 
+fn parse_reducible_calc_additive_chain(inner: &str) -> Option<String> {
+    let operators = top_level_calc_binary_operators(inner);
+    if operators.is_empty()
+        || operators
+            .iter()
+            .any(|(_, operator)| !matches!(operator, '+' | '-'))
+    {
+        return None;
+    }
+
+    let first_operator_index = operators.first()?.0;
+    let first = parse_numeric_value_with_unit(inner[..first_operator_index].trim())?;
+    let mut value = first.value;
+    let unit = first.unit;
+
+    for (index, (operator_index, operator)) in operators.iter().enumerate() {
+        let term_start = operator_index + operator.len_utf8();
+        let term_end = operators
+            .get(index + 1)
+            .map(|(next_operator_index, _)| *next_operator_index)
+            .unwrap_or(inner.len());
+        let term = parse_numeric_value_with_unit(inner[term_start..term_end].trim())?;
+        if term.unit != unit {
+            return None;
+        }
+        if *operator == '+' {
+            value += term.value;
+        } else {
+            value -= term.value;
+        }
+    }
+
+    Some(format!("{}{}", format_css_number(value), unit))
+}
+
 fn top_level_calc_binary_operators(inner: &str) -> Vec<(usize, char)> {
     let mut operators = Vec::new();
     let mut depth = 0usize;
@@ -5465,7 +5504,12 @@ fn top_level_calc_binary_operators(inner: &str) -> Vec<(usize, char)> {
             '+' | '-' | '*' | '/' if depth == 0 && bracket_depth == 0 => {
                 let left = inner[..index].trim_end();
                 let right = inner[index + ch.len_utf8()..].trim_start();
-                if left.is_empty() || right.is_empty() || left.ends_with(['e', 'E']) {
+                let previous = left.chars().rev().find(|ch| !ch.is_whitespace());
+                if left.is_empty()
+                    || right.is_empty()
+                    || left.ends_with(['e', 'E'])
+                    || previous.is_some_and(|ch| matches!(ch, '+' | '-' | '*' | '/'))
+                {
                     continue;
                 }
                 operators.push((index, ch));
@@ -10341,7 +10385,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_reduces_simple_same_unit_calc_values() {
-        let source = r#".card { width: calc(1px + 2px); height: calc(10rem - 2rem); margin: calc(1px + 2rem); color: calc(1 + 2); gap: calc(.5rem+.25rem); inset: calc(1px - -2px); letter-spacing: calc(2px * 1); border-width: calc(1 * 3px); z-index: calc(4 / 1); scale: calc(3 * 0); box-shadow: 0 0 calc(1px + 2px) red; transform: translate(calc(10px - 2px), calc(1rem + 1rem)); }"#;
+        let source = r#".card { width: calc(1px + 2px); height: calc(10rem - 2rem); margin: calc(1px + 2rem); padding: calc(2px + 3px + 4px); margin-block-start: calc(10px - 3px - 2px); color: calc(1 + 2); gap: calc(.5rem+.25rem); inset: calc(1px - -2px); letter-spacing: calc(2px * 1); border-width: calc(1 * 3px); z-index: calc(4 / 1); scale: calc(3 * 0); box-shadow: 0 0 calc(1px + 2px) red; transform: translate(calc(10px - 2px), calc(1rem + 1rem)); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -10350,10 +10394,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 11);
+        assert_eq!(execution.mutation_count, 13);
         assert_eq!(
             execution.output_css,
-            r#".card { width: 3px; height: 8rem; margin: calc(1px + 2rem); color: 3; gap: 0.75rem; inset: 3px; letter-spacing: 2px; border-width: 3px; z-index: 4; scale: 0; box-shadow: 0 0 3px red; transform: translate(8px, 2rem); }"#
+            r#".card { width: 3px; height: 8rem; margin: calc(1px + 2rem); padding: 9px; margin-block-start: 5px; color: 3; gap: 0.75rem; inset: 3px; letter-spacing: 2px; border-width: 3px; z-index: 4; scale: 0; box-shadow: 0 0 3px red; transform: translate(8px, 2rem); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
