@@ -304,6 +304,7 @@ pub struct OmenaQueryConsumerBuildSummaryV0 {
     pub target_query: Option<OmenaQueryTransformTargetQueryPlanV0>,
     pub unknown_pass_ids: Vec<String>,
     pub execution: TransformExecutionSummaryV0,
+    pub semantic_removal_count: usize,
     pub ready_surfaces: Vec<&'static str>,
 }
 
@@ -331,6 +332,7 @@ pub struct OmenaQueryTransformPlanSummaryV0 {
     pub custom_property_fixed_point: OmenaQueryCustomPropertyLeastFixedPointSummaryV0,
     pub print: TransformPrintArtifactV0,
     pub execution: TransformExecutionSummaryV0,
+    pub semantic_removal_count: usize,
     pub combined_plan: TransformPassPlanV0,
     pub combined_pass_ids: Vec<&'static str>,
     pub combined_violated_dag_edge_count: usize,
@@ -346,6 +348,7 @@ pub struct OmenaQueryTransformExecuteSummaryV0 {
     pub requested_pass_ids: Vec<String>,
     pub unknown_pass_ids: Vec<String>,
     pub execution: TransformExecutionSummaryV0,
+    pub semantic_removal_count: usize,
     pub ready_surfaces: Vec<&'static str>,
 }
 

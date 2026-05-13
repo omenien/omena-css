@@ -904,6 +904,19 @@ fn consumer_build_requires_explicit_reachability_for_tree_shaking() {
             .executed_pass_ids
             .contains(&"tree-shake-class")
     );
+    assert_eq!(summary.semantic_removal_count, 1);
+    assert_eq!(summary.execution.semantic_removals.len(), 1);
+    assert_eq!(summary.execution.semantic_removals[0].symbol_kind, "class");
+    assert_eq!(summary.execution.semantic_removals[0].name, "dead");
+    assert_eq!(
+        summary.execution.semantic_removals[0].derivation_steps,
+        vec![
+            "closedStyleWorld",
+            "reachableRootSetComputed",
+            "symbolNotMarkedReachable",
+            "sourceRangeRemoved",
+        ]
+    );
     assert!(!summary.execution.output_css.contains(".dead"));
     assert!(summary.execution.output_css.contains(".used"));
 }
