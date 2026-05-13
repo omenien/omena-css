@@ -776,7 +776,7 @@ assertSingleCandidate(styleHoverResponse, selectorQueryPosition, {
   kind: "selector",
   name: nodeSelector.name,
   range: nodeSelector.range,
-  source: "engineStyleParserSelectorDefinitionFacts",
+  source: "omenaParserSelectorFacts",
 });
 
 const customPropertyReferenceResponse = responses[2]!;
@@ -785,7 +785,7 @@ assertSingleCandidate(customPropertyReferenceResponse, customPropertyReferenceQu
   kind: "customPropertyReference",
   name: nodeCustomPropertyReference.name,
   range: nodeCustomPropertyReference.range,
-  source: "openedStyleDocumentIndex",
+  source: "omenaParserVariableFacts",
 });
 
 const customPropertyDeclarationResponse = responses[3]!;
@@ -794,7 +794,7 @@ assertSingleCandidate(customPropertyDeclarationResponse, customPropertyDeclarati
   kind: "customPropertyDeclaration",
   name: nodeCustomPropertyDeclaration.name,
   range: nodeCustomPropertyDeclaration.range,
-  source: "openedStyleDocumentIndex",
+  source: "omenaParserVariableFacts",
 });
 
 const lspHoverResponse = responses[4]!;
@@ -830,7 +830,7 @@ assert.equal(lspCompletionResponse.id, 8);
 assert.equal(lspCompletionResponse.result.isIncomplete, false);
 assert.deepEqual(
   lspCompletionResponse.result.items.map((item: { readonly label: string }) => item.label),
-  ["--brand", ".alert", ".conditional", ".root", ".theme"],
+  ["--brand"],
 );
 
 const styleDiagnosticsResponse = responses[8]!;

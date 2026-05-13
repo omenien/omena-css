@@ -618,6 +618,42 @@ pub struct OmenaQueryStyleDiagnosticsForFileV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCompletionCandidateV0 {
+    pub file_uri: String,
+    pub name: String,
+    pub kind: &'static str,
+    pub range: ParserRangeV0,
+    pub source: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCompletionItemV0 {
+    pub label: String,
+    pub insert_text: String,
+    pub detail: &'static str,
+    pub item_kind: &'static str,
+    pub source: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCompletionAtPositionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub file_uri: String,
+    pub file_kind: &'static str,
+    pub query_position: ParserPositionV0,
+    pub context_kind: &'static str,
+    pub prefix: Option<String>,
+    pub is_incomplete: bool,
+    pub item_count: usize,
+    pub items: Vec<OmenaQueryCompletionItemV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCascadeAtPositionV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

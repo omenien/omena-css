@@ -15,6 +15,7 @@ pub use boundary::*;
 pub(crate) use message_loop::current_time_millis;
 pub use message_loop::{handle_lsp_message, handle_lsp_message_outputs};
 use omena_query::{
+    OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0,
     OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
@@ -30,9 +31,11 @@ use omena_query::{
     resolve_omena_query_source_provider_candidates,
     resolve_omena_query_style_selector_definitions_for_source_candidate,
     resolve_omena_query_style_uri_for_specifier, summarize_omena_query_missing_selector_diagnostic,
-    summarize_omena_query_sass_module_sources, summarize_omena_query_source_import_declarations,
-    summarize_omena_query_source_syntax_index, summarize_omena_query_style_diagnostics_for_file,
-    summarize_omena_query_style_document, summarize_omena_query_style_hover_render_parts,
+    summarize_omena_query_sass_module_sources, summarize_omena_query_source_completion_at_position,
+    summarize_omena_query_source_import_declarations, summarize_omena_query_source_syntax_index,
+    summarize_omena_query_style_completion_at_position,
+    summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_document,
+    summarize_omena_query_style_hover_render_parts,
 };
 #[cfg(test)]
 pub(crate) use omena_tsgo_client::{TsgoResolvedTypeV0, TsgoTypeFactResultEntryV0};
@@ -553,36 +556,49 @@ fn resolve_lsp_completion(state: &LspShellState, params: Option<&Value>) -> Valu
         return resolve_source_lsp_completion(state, document, params);
     }
 
+    let Some(position) = lsp_position_from_params(params) else {
+        return Value::Null;
+    };
     let Some((_, candidates)) = style_hover_candidates_for_document(document) else {
         return Value::Null;
     };
 
-    let mut emitted_labels = BTreeSet::new();
-    let items: Vec<Value> = candidates
+    let query_candidates = candidates
         .iter()
-        .filter_map(|candidate| match candidate.kind {
-            "selector" => Some((format!(".{}", candidate.name), 7, "CSS Module selector")),
-            "customPropertyDeclaration" => {
-                Some((candidate.name.clone(), 10, "CSS custom property"))
-            }
-            _ => None,
-        })
-        .filter(|(label, _, _)| emitted_labels.insert(label.clone()))
-        .map(|(label, kind, detail)| {
-            json!({
-                "label": label,
-                "kind": kind,
-                "detail": detail,
-                "data": {
-                    "source": "openedStyleDocumentIndex",
-                },
-            })
-        })
+        .map(query_style_hover_candidate_from_lsp)
+        .collect::<Vec<_>>();
+    let completion = summarize_omena_query_style_completion_at_position(
+        document.uri.as_str(),
+        document.text.as_str(),
+        position,
+        query_candidates.as_slice(),
+    );
+    let items: Vec<Value> = completion
+        .items
+        .into_iter()
+        .map(|item| lsp_completion_item_from_query(completion.file_kind, item))
         .collect();
 
     json!({
         "isIncomplete": false,
         "items": items,
+    })
+}
+
+fn lsp_completion_item_from_query(file_kind: &str, item: OmenaQueryCompletionItemV0) -> Value {
+    let kind = match (file_kind, item.item_kind) {
+        ("style", "cssModuleSelector") => 7,
+        (_, "cssModuleSelector") | (_, "cssCustomProperty") => 10,
+        _ => 1,
+    };
+    json!({
+        "label": item.label,
+        "kind": kind,
+        "detail": item.detail,
+        "insertText": item.insert_text,
+        "data": {
+            "source": item.source,
+        },
     })
 }
 
@@ -1494,7 +1510,7 @@ fn resolve_source_lsp_completion(
         return Value::Null;
     };
 
-    let labels: BTreeSet<String> = style_selector_definitions_from_open_documents(
+    let candidates = style_selector_definitions_from_open_documents(
         state,
         "",
         document.workspace_folder_uri.as_deref(),
@@ -1505,25 +1521,32 @@ fn resolve_source_lsp_completion(
             .as_deref()
             .is_none_or(|target_uri| file_uri_equivalent(target_uri, uri))
     })
-    .map(|(_, definition)| definition.name)
-    .filter(|label| {
-        value_prefix
+    .map(|(uri, definition)| {
+        let file_uri = target_style_uri
             .as_deref()
-            .is_none_or(|prefix| label.starts_with(prefix))
+            .filter(|target_uri| file_uri_equivalent(target_uri, uri.as_str()))
+            .map(ToString::to_string)
+            .unwrap_or(uri);
+        OmenaQueryCompletionCandidateV0 {
+            file_uri,
+            name: definition.name,
+            kind: definition.kind,
+            range: definition.range,
+            source: definition.source,
+        }
     })
-    .collect();
-    let items: Vec<Value> = labels
+    .collect::<Vec<_>>();
+    let completion = summarize_omena_query_source_completion_at_position(
+        document.uri.as_str(),
+        position,
+        candidates.as_slice(),
+        target_style_uri.as_deref(),
+        value_prefix.as_deref(),
+    );
+    let items: Vec<Value> = completion
+        .items
         .into_iter()
-        .map(|label| {
-            json!({
-                "label": label,
-                "kind": 10,
-                "detail": "CSS Module selector",
-                "data": {
-                    "source": "openedStyleDocumentIndex",
-                },
-            })
-        })
+        .map(|item| lsp_completion_item_from_query(completion.file_kind, item))
         .collect();
 
     json!({

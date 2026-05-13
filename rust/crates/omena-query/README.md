@@ -50,6 +50,8 @@ Current public products:
   semantic-owned `@layer`, `@container`, and `@scope` context index.
 - `omena-query.diagnostics-for-file` — file-scoped diagnostics read model for
   style diagnostics currently backed by missing custom-property checks.
+- `omena-query.completion-at` — position-scoped completion read model for
+  style-side token completions and bridge-aware source selector completions.
 - `omena-query.css-modules-cross-file-resolution` — batch-level CSS Modules
   relation resolver for `composes`, `@value`, and ICSS import/export sources.
   This resolves import sources, same-edge name matches, transitive closure, and

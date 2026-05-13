@@ -948,8 +948,10 @@ fn resolves_style_hover_candidates_from_opened_style_documents() {
     assert_eq!(
         completion_response
             .as_ref()
-            .and_then(|value| value.pointer("/result/items/1/label")),
-        Some(&json!(".root")),
+            .and_then(|value| value.pointer("/result/items"))
+            .and_then(Value::as_array)
+            .map(Vec::len),
+        Some(1),
     );
 
     let prepare_rename_response = handle_lsp_message(

@@ -59,6 +59,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "styleHoverRenderParts",
             "styleMissingCustomPropertyDiagnostics",
             "styleDiagnosticsForFile",
+            "completionAt",
             "readCascadeAtPosition",
             "readStyleContextIndex",
             "readCascadeCustomPropertyLeastFixedPoint",
@@ -251,6 +252,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 command: "style-diagnostics-for-file",
                 input_contract: "StyleDiagnosticsForFileInputV0",
                 output_product: "omena-query.diagnostics-for-file",
+            },
+            SelectedQueryRunnerCommandV0 {
+                surface: "completionAt",
+                command: "completion-at",
+                input_contract: "CompletionAtInputV0",
+                output_product: "omena-query.completion-at",
             },
             SelectedQueryRunnerCommandV0 {
                 surface: "readStyleContextIndex",
