@@ -16,6 +16,11 @@ const STYLE_FILE_PATHS = [
 const PLUGIN_NAME = "stylelint-plugin-css-module-explainer";
 
 async function main() {
+  await assertRecommendedStylelintBridge();
+  await assertOmenaQueryStyleDiagnosticsAdapter();
+}
+
+async function assertRecommendedStylelintBridge() {
   const result = await stylelint.lint({
     files: STYLE_FILE_PATHS,
     configBasedir: REPO_ROOT,
@@ -118,6 +123,40 @@ async function main() {
     warningsByFile.get("SassSymbolMissing.module.scss"),
     "Sass mixin '@mixin absent' not found in this file.",
   );
+}
+
+async function assertOmenaQueryStyleDiagnosticsAdapter() {
+  const previousBackend = process.env.CME_STYLELINT_QUERY_BACKEND;
+  process.env.CME_STYLELINT_QUERY_BACKEND = "omena-cli";
+  try {
+    const result = await stylelint.lint({
+      files: [path.join(WORKSPACE_ROOT, "src/CustomPropertyMissing.module.css")],
+      configBasedir: REPO_ROOT,
+      config: {
+        customSyntax: "postcss-scss",
+        plugins: [PLUGIN_NAME],
+        rules: {
+          "css-module-explainer/missing-custom-property": [
+            true,
+            {
+              workspaceRoot: WORKSPACE_ROOT,
+            },
+          ],
+        },
+      },
+    });
+    const [fileResult] = result.results;
+    assertSingleWarning(
+      fileResult?.warnings,
+      "CSS custom property '--missing' not found in indexed style tokens.",
+    );
+  } finally {
+    if (previousBackend === undefined) {
+      delete process.env.CME_STYLELINT_QUERY_BACKEND;
+    } else {
+      process.env.CME_STYLELINT_QUERY_BACKEND = previousBackend;
+    }
+  }
 }
 
 function assertSingleWarning(warnings, expectedText) {

@@ -1,9 +1,15 @@
 const path = require("node:path");
+const fs = require("node:fs");
 const { execFileSync } = require("node:child_process");
 
 const STYLE_MODULE_FILE_PATTERN = /\.module\.(css|scss|less)$/;
 const REPO_ROOT = path.resolve(__dirname, "../../../");
 const STYLE_CHECK_REPORT_CACHE = new Map();
+const DIRECT_STYLE_DIAGNOSTICS_CACHE = new Map();
+const DIRECT_STYLE_DIAGNOSTIC_CODES = new Set(["missing-custom-property"]);
+const OMENA_QUERY_STYLE_DIAGNOSTIC_CODE_MAP = new Map([
+  ["missingCustomProperty", "missing-custom-property"],
+]);
 
 module.exports = {
   STYLE_MODULE_FILE_PATTERN,
@@ -27,7 +33,7 @@ function createFindingRule({ stylelint, ruleName, code, possible = [true] }) {
       const sourceText = root.source?.input?.css ?? root.toString();
 
       const ruleOptions = getRuleOptions(filePath, secondaryOptions);
-      const findings = runStyleChecks(filePath, ruleOptions, [code]);
+      const findings = runStyleChecks(filePath, ruleOptions, [code], sourceText);
 
       for (const finding of findings) {
         stylelint.utils.report({
@@ -53,12 +59,97 @@ function getRuleOptions(filePath, secondaryOptions = {}) {
   };
 }
 
-function runStyleChecks(filePath, ruleOptions, includeCodes = ["unused-selector"]) {
+function runStyleChecks(filePath, ruleOptions, includeCodes = ["unused-selector"], sourceText = "") {
+  const directFindings = readDirectStyleDiagnostics(filePath, ruleOptions, includeCodes, sourceText);
+  if (directFindings) return directFindings;
+
   const report = readStyleCheckReport(ruleOptions);
   const includeCodeSet = new Set(includeCodes);
   return (report.findings ?? []).filter(
     (finding) => finding.filePath === filePath && includeCodeSet.has(finding.code),
   );
+}
+
+function readDirectStyleDiagnostics(filePath, ruleOptions, includeCodes, sourceText) {
+  if (!canUseDirectStyleDiagnostics(includeCodes)) return null;
+
+  const cacheKey = JSON.stringify({
+    filePath,
+    sourceText,
+    includeCodes: [...includeCodes].toSorted(),
+    backend: process.env.CME_STYLELINT_QUERY_BACKEND ?? null,
+    cli: process.env.CME_OMENA_CLI_BIN ?? null,
+  });
+  const cached = DIRECT_STYLE_DIAGNOSTICS_CACHE.get(cacheKey);
+  if (cached) return cached;
+
+  const report = readOmenaCliStyleDiagnostics(filePath, ruleOptions);
+  if (!report) return null;
+
+  const includeCodeSet = new Set(includeCodes);
+  const findings = (report.diagnostics ?? [])
+    .map((diagnostic) => {
+      const code = OMENA_QUERY_STYLE_DIAGNOSTIC_CODE_MAP.get(diagnostic.code);
+      if (!code) return null;
+      return {
+        filePath,
+        code,
+        category: "style",
+        severity: "warning",
+        range: diagnostic.range,
+        message: diagnostic.message,
+      };
+    })
+    .filter((finding) => finding && includeCodeSet.has(finding.code));
+
+  DIRECT_STYLE_DIAGNOSTICS_CACHE.set(cacheKey, findings);
+  return findings;
+}
+
+function canUseDirectStyleDiagnostics(includeCodes) {
+  if (!includeCodes.every((code) => DIRECT_STYLE_DIAGNOSTIC_CODES.has(code))) return false;
+  if (process.env.CME_STYLELINT_QUERY_BACKEND === "legacy") return false;
+  if (process.env.CME_STYLELINT_QUERY_BACKEND === "omena-cli") return true;
+  return Boolean(process.env.CME_OMENA_CLI_BIN);
+}
+
+function readOmenaCliStyleDiagnostics(filePath, ruleOptions) {
+  const invocation = resolveOmenaCliInvocation();
+  if (!invocation) return null;
+
+  try {
+    const stdout = execFileSync(
+      invocation.command,
+      [...invocation.args, "style-diagnostics", filePath, "--json"],
+      {
+        cwd: ruleOptions.workspaceRoot,
+        encoding: "utf8",
+        env: process.env,
+      },
+    );
+    return JSON.parse(stdout);
+  } catch (error) {
+    if (process.env.CME_STYLELINT_QUERY_BACKEND === "omena-cli") {
+      throw error;
+    }
+    return null;
+  }
+}
+
+function resolveOmenaCliInvocation() {
+  if (process.env.CME_OMENA_CLI_BIN) {
+    return { command: process.env.CME_OMENA_CLI_BIN, args: [] };
+  }
+
+  const manifestPath = path.join(REPO_ROOT, "rust/Cargo.toml");
+  if (process.env.CME_STYLELINT_QUERY_BACKEND === "omena-cli" && fs.existsSync(manifestPath)) {
+    return {
+      command: "cargo",
+      args: ["run", "--manifest-path", manifestPath, "-p", "omena-cli", "--quiet", "--"],
+    };
+  }
+
+  return null;
 }
 
 function readStyleCheckReport(ruleOptions) {
