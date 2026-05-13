@@ -746,7 +746,7 @@ pub struct OmenaQueryCreateSelectorActionV0 {
     pub selector_name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 {
     pub target_style_uri: String,

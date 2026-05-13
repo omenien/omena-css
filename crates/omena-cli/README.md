@@ -19,6 +19,9 @@ Current commands:
   and `@scope` indexes for cascade-aware consumers.
 - `omena style-diagnostics <file>` reads query-owned style diagnostics for a
   CSS-family file.
+- `omena source-diagnostics <source-uri> --candidates-json candidates.json`
+  reads query-owned source diagnostics from precomputed missing-selector
+  candidates.
 - `omena expression-flow --engine-input-json input.json` analyzes
   cross-language class-value flow through the query-owned incremental runtime.
 - `omena selector-projection --engine-input-json input.json` projects
@@ -36,6 +39,7 @@ omena build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
 omena cascade path/to/file.module.css --line 10 --character 16 --json
 omena context-index path/to/file.module.scss --json
 omena style-diagnostics path/to/file.module.scss --json
+omena source-diagnostics file:///workspace/src/App.tsx --candidates-json candidates.json --json
 omena expression-flow --engine-input-json input.json --json
 omena selector-projection --engine-input-json input.json --json
 omena passes

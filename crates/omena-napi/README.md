@@ -39,6 +39,8 @@ targetQuery, targetOptionsJson, contextJson, packageManifestsJson)` combines
   `inputJson` when no EngineInputV2 context is needed.
 - `readStyleDiagnosticsJson(source, path)` reads query-owned style diagnostics
   for a CSS-family file.
+- `readSourceDiagnosticsJson(sourceUri, candidatesJson)` reads query-owned
+  source diagnostics from precomputed missing-selector candidates.
 - `expressionDomainIncrementalFlowJson(inputJson)` runs one query-owned
   expression-domain incremental-flow pass for simple Node clients.
 - `new ExpressionDomainFlowRuntime().analyzeJson(inputJson)` keeps the
