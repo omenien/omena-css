@@ -677,6 +677,19 @@ pub struct OmenaQueryRefsForClassV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryRenamePlanV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub selector_name: String,
+    pub new_name: String,
+    pub target_style_uri: Option<String>,
+    pub edit_count: usize,
+    pub edits: Vec<OmenaQueryWorkspaceTextEditV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCascadeAtPositionV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
