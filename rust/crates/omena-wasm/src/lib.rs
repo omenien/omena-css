@@ -33,6 +33,7 @@ use omena_query::{
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_diagnostics_for_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_workspace_file,
@@ -292,6 +293,23 @@ pub fn read_source_diagnostics(source_uri: &str, candidates: JsValue) -> Result<
     to_js_value(&read_source_diagnostics_summary(
         source_uri,
         candidates.as_slice(),
+    ))
+}
+
+#[wasm_bindgen(js_name = readWorkspaceSourceDiagnostics)]
+pub fn read_workspace_source_diagnostics(
+    source_uri: &str,
+    source: &str,
+    style_sources: JsValue,
+    package_manifests: JsValue,
+) -> Result<JsValue, JsValue> {
+    let style_sources = parse_style_sources_value(style_sources)?;
+    let package_manifests = parse_package_manifests_value(package_manifests)?;
+    to_js_value(&read_workspace_source_diagnostics_summary(
+        source_uri,
+        source,
+        &style_sources,
+        &package_manifests,
     ))
 }
 
@@ -556,6 +574,20 @@ pub fn read_source_diagnostics_summary(
     candidates: &[OmenaWasmSourceMissingSelectorDiagnosticCandidateV0],
 ) -> OmenaWasmSourceDiagnosticsForFileV0 {
     summarize_omena_query_source_diagnostics_for_file(source_uri, candidates)
+}
+
+pub fn read_workspace_source_diagnostics_summary(
+    source_uri: &str,
+    source: &str,
+    style_sources: &[OmenaWasmStyleSourceInputV0],
+    package_manifests: &[OmenaWasmStylePackageManifestV0],
+) -> OmenaWasmSourceDiagnosticsForFileV0 {
+    summarize_omena_query_source_diagnostics_for_workspace_file(
+        source_uri,
+        source,
+        style_sources,
+        package_manifests,
+    )
 }
 
 fn parse_pass_ids_value(value: JsValue) -> Result<Vec<String>, JsValue> {
@@ -867,6 +899,36 @@ mod tests {
         assert_eq!(summary.diagnostic_count, 1);
         assert_eq!(summary.diagnostics[0].code, "missingSelector");
         assert!(summary.ready_surfaces.contains(&"crossLanguageDiagnostics"));
+    }
+
+    #[test]
+    fn reads_workspace_source_diagnostics_for_browser_clients() {
+        let sources = vec![OmenaWasmStyleSourceInputV0 {
+            style_path: "/workspace/src/App.module.scss".to_string(),
+            style_source: ".chip {}".to_string(),
+        }];
+        let summary = read_workspace_source_diagnostics_summary(
+            "/workspace/src/App.tsx",
+            r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+const variant = Math.random() > 0.5 ? "chip" : "ghost";
+export function App() {
+  return <div className={cx(variant)} />;
+}
+"#,
+            &sources,
+            &[],
+        );
+
+        assert_eq!(summary.product, "omena-query.diagnostics-for-file");
+        assert_eq!(summary.file_kind, "source");
+        assert!(
+            summary
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "missingResolvedClassValues")
+        );
     }
 
     #[test]

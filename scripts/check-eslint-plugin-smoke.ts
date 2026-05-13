@@ -24,6 +24,7 @@ async function main(): Promise<void> {
   await assertNoImpreciseValueRule();
   await assertMTierConfig();
   await assertMissingModuleRule();
+  await assertOmenaCliDirectBackend();
 }
 
 async function assertInvalidClassReferenceRule(): Promise<void> {
@@ -404,6 +405,58 @@ async function assertMissingModuleRule(): Promise<void> {
   const [message] = result.messages;
   if (!message || !message.message.includes("Cannot resolve CSS Module './Missing.module.scss'")) {
     throw new Error(`Unexpected missing-module message: ${message?.message ?? "<missing>"}`);
+  }
+}
+
+async function assertOmenaCliDirectBackend(): Promise<void> {
+  const previousBackend = process.env.CME_ESLINT_QUERY_BACKEND;
+  process.env.CME_ESLINT_QUERY_BACKEND = "omena-cli";
+  try {
+    const eslint = new ESLint({
+      cwd: WORKSPACE_ROOT,
+      ignore: false,
+      overrideConfigFile: true,
+      overrideConfig: [
+        {
+          files: ["**/*.{js,jsx}"],
+          languageOptions: {
+            ecmaVersion: "latest",
+            sourceType: "module",
+            parserOptions: {
+              ecmaFeatures: { jsx: true },
+            },
+          },
+        },
+        ...plugin.configs.focused,
+      ],
+    });
+
+    const results = await eslint.lintFiles([
+      INVALID_CLASS_FILE_PATH,
+      TEMPLATE_PREFIX_FILE_PATH,
+      DYNAMIC_CLASS_FILE_PATH,
+      DYNAMIC_DOMAIN_FILE_PATH,
+      MISSING_MODULE_FILE_PATH,
+    ]);
+    const messages = results.flatMap((result) => result.messages);
+    const expectedRuleIds = [
+      "css-module-explainer/missing-static-class",
+      "css-module-explainer/missing-template-prefix",
+      "css-module-explainer/missing-resolved-class-values",
+      "css-module-explainer/missing-resolved-class-domain",
+      "css-module-explainer/missing-module",
+    ];
+    for (const ruleId of expectedRuleIds) {
+      if (!messages.some((message) => message.ruleId === ruleId)) {
+        throw new Error(`Expected direct omena-cli backend message for ${ruleId}.`);
+      }
+    }
+  } finally {
+    if (previousBackend === undefined) {
+      delete process.env.CME_ESLINT_QUERY_BACKEND;
+    } else {
+      process.env.CME_ESLINT_QUERY_BACKEND = previousBackend;
+    }
   }
 }
 

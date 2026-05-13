@@ -40,6 +40,7 @@ module.exports = {
         const findings = runSourceChecks(context, {
           ...ruleOptions,
           includeMissingModule: false,
+          includeCodes: ["missing-template-prefix"],
         }).filter((finding) => finding.code === "missing-template-prefix");
 
         for (const finding of findings) {

@@ -1,3 +1,4 @@
+use omena_parser::ParserByteSpanV0;
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{ImportDeclaration, ImportDeclarationSpecifier, ImportOrExportKind, Statement};
 use oxc_parser::{Parser, ParserReturn};
@@ -18,6 +19,7 @@ pub struct SourceImportDeclarationSummaryV0 {
 pub struct SourceImportDeclarationV0 {
     pub binding: String,
     pub specifier: String,
+    pub specifier_byte_span: ParserByteSpanV0,
 }
 
 pub fn summarize_omena_bridge_source_import_declarations(
@@ -68,6 +70,10 @@ fn push_import_declarations_from_ast(
         return;
     };
     let specifier = import.source.value.as_str();
+    let specifier_byte_span = ParserByteSpanV0 {
+        start: import.source.span.start as usize,
+        end: import.source.span.end as usize,
+    };
 
     for specifier_item in specifiers {
         match specifier_item {
@@ -75,12 +81,14 @@ fn push_import_declarations_from_ast(
                 imports.push(SourceImportDeclarationV0 {
                     binding: default_specifier.local.name.as_str().to_string(),
                     specifier: specifier.to_string(),
+                    specifier_byte_span,
                 });
             }
             ImportDeclarationSpecifier::ImportNamespaceSpecifier(namespace_specifier) => {
                 imports.push(SourceImportDeclarationV0 {
                     binding: namespace_specifier.local.name.as_str().to_string(),
                     specifier: specifier.to_string(),
+                    specifier_byte_span,
                 });
             }
             ImportDeclarationSpecifier::ImportSpecifier(_) => {}

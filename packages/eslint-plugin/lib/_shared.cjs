@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
+const { execFileSync } = require("node:child_process");
 const fastGlob = require("fast-glob");
 const {
   buildStyleFileWatcherGlob,
@@ -10,7 +11,7 @@ const {
   checkSourceDocument,
 } = require("../../../server/engine-core-ts/dist/core/checker/check-source-document.js");
 const {
-  formatCheckerFinding,
+  formatCheckerFinding: formatLegacyCheckerFinding,
 } = require("../../../server/engine-core-ts/dist/checker-surface/format-checker-finding.js");
 const {
   createWorkspaceAnalysisHost,
@@ -19,7 +20,24 @@ const {
 
 const DEFAULT_IGNORES = ["**/node_modules/**", "**/dist/**", "**/.git/**"];
 const SOURCE_FILE_PATTERN = /\.[cm]?[jt]sx?$/;
+const STYLE_MODULE_FILE_PATTERN = /\.module\.(css|scss|sass|less)$/;
+const REPO_ROOT = path.resolve(__dirname, "../../../");
 const HOST_CACHE = new Map();
+const DIRECT_SOURCE_DIAGNOSTICS_CACHE = new Map();
+const DIRECT_SOURCE_DIAGNOSTIC_CODES = new Set([
+  "missing-module",
+  "missing-static-class",
+  "missing-template-prefix",
+  "missing-resolved-class-values",
+  "missing-resolved-class-domain",
+]);
+const OMENA_QUERY_SOURCE_DIAGNOSTIC_CODE_MAP = new Map([
+  ["missingModule", "missing-module"],
+  ["missingStaticClass", "missing-static-class"],
+  ["missingTemplatePrefix", "missing-template-prefix"],
+  ["missingResolvedClassValues", "missing-resolved-class-values"],
+  ["missingResolvedClassDomain", "missing-resolved-class-domain"],
+]);
 
 module.exports = {
   SOURCE_FILE_PATTERN,
@@ -43,6 +61,9 @@ function getRuleOptions(context) {
 }
 
 function runSourceChecks(context, ruleOptions) {
+  const directFindings = readDirectSourceDiagnostics(context, ruleOptions);
+  if (directFindings) return directFindings;
+
   const host = getWorkspaceHost(ruleOptions);
   return checkSourceDocument(
     {
@@ -61,6 +82,106 @@ function runSourceChecks(context, ruleOptions) {
       includeMissingModule: ruleOptions.includeMissingModule,
     },
   );
+}
+
+function formatCheckerFinding(finding, workspaceRoot) {
+  if (typeof finding.message === "string" && finding.message.length > 0) {
+    return finding.message;
+  }
+  return formatLegacyCheckerFinding(finding, workspaceRoot);
+}
+
+function readDirectSourceDiagnostics(context, ruleOptions) {
+  const includeCodes = ruleOptions.includeCodes;
+  if (!canUseDirectSourceDiagnostics(includeCodes)) return null;
+
+  const workspaceStylePaths = resolveWorkspaceStyleModulePaths(ruleOptions.workspaceRoot);
+  const cacheKey = JSON.stringify({
+    filePath: context.filename,
+    sourceText: context.sourceCode.text,
+    includeCodes: [...includeCodes].toSorted(),
+    workspaceStylePaths: workspacePathSignature(workspaceStylePaths),
+    backend: process.env.CME_ESLINT_QUERY_BACKEND ?? null,
+    cli: process.env.CME_OMENA_CLI_BIN ?? null,
+  });
+  const cached = DIRECT_SOURCE_DIAGNOSTICS_CACHE.get(cacheKey);
+  if (cached) return cached;
+
+  const report = readOmenaCliSourceDiagnostics(context.filename, ruleOptions, workspaceStylePaths);
+  if (!report) return null;
+
+  const includeCodeSet = new Set(includeCodes);
+  const findings = (report.diagnostics ?? [])
+    .map((diagnostic) => {
+      const code = OMENA_QUERY_SOURCE_DIAGNOSTIC_CODE_MAP.get(diagnostic.code);
+      if (!code) return null;
+      return {
+        filePath: context.filename,
+        code,
+        category: "source",
+        severity: "warning",
+        range: diagnostic.range,
+        message: diagnostic.message,
+      };
+    })
+    .filter((finding) => finding && includeCodeSet.has(finding.code));
+
+  DIRECT_SOURCE_DIAGNOSTICS_CACHE.set(cacheKey, findings);
+  return findings;
+}
+
+function canUseDirectSourceDiagnostics(includeCodes) {
+  if (!Array.isArray(includeCodes) || includeCodes.length === 0) return false;
+  if (!includeCodes.every((code) => DIRECT_SOURCE_DIAGNOSTIC_CODES.has(code))) return false;
+  if (process.env.CME_ESLINT_QUERY_BACKEND === "legacy") return false;
+  if (process.env.CME_ESLINT_QUERY_BACKEND === "omena-cli") return true;
+  return Boolean(process.env.CME_OMENA_CLI_BIN);
+}
+
+function readOmenaCliSourceDiagnostics(filePath, ruleOptions, workspaceStylePaths) {
+  const invocation = resolveOmenaCliInvocation();
+  if (!invocation) return null;
+
+  try {
+    const args = [
+      ...invocation.args,
+      "source-diagnostics",
+      filePath,
+      "--source-path",
+      filePath,
+      "--json",
+    ];
+    for (const sourcePath of workspaceStylePaths) {
+      args.push("--source", sourcePath);
+    }
+    const stdout = execFileSync(invocation.command, args, {
+      cwd: ruleOptions.workspaceRoot,
+      encoding: "utf8",
+      env: process.env,
+    });
+    return JSON.parse(stdout);
+  } catch (error) {
+    if (process.env.CME_ESLINT_QUERY_BACKEND === "omena-cli") {
+      throw error;
+    }
+    return null;
+  }
+}
+
+function resolveOmenaCliInvocation() {
+  if (process.env.CME_OMENA_CLI_BIN) {
+    return { command: process.env.CME_OMENA_CLI_BIN, args: [] };
+  }
+
+  const manifestPath = path.join(REPO_ROOT, "rust/Cargo.toml");
+  if (process.env.CME_ESLINT_QUERY_BACKEND === "omena-cli" && fs.existsSync(manifestPath)) {
+    return {
+      command: "cargo",
+      args: ["run", "--manifest-path", manifestPath, "-p", "omena-cli", "--quiet", "--"],
+    };
+  }
+
+  return null;
 }
 
 function getWorkspaceHost({ workspaceRoot, classnameTransform, pathAlias }) {
@@ -98,6 +219,45 @@ function getWorkspaceHost({ workspaceRoot, classnameTransform, pathAlias }) {
   const host = { styleHost, analysisHost };
   HOST_CACHE.set(cacheKey, host);
   return host;
+}
+
+function resolveWorkspaceStyleModulePaths(workspaceRoot) {
+  const root = path.resolve(workspaceRoot);
+  const paths = [];
+  collectWorkspaceStyleModulePaths(root, paths);
+  return paths.toSorted();
+}
+
+function collectWorkspaceStyleModulePaths(dir, paths) {
+  if (!fs.existsSync(dir)) return;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const entryPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (shouldSkipWorkspaceDir(entry.name)) continue;
+      collectWorkspaceStyleModulePaths(entryPath, paths);
+      continue;
+    }
+    if (entry.isFile() && STYLE_MODULE_FILE_PATTERN.test(entryPath)) {
+      paths.push(entryPath);
+    }
+  }
+}
+
+function shouldSkipWorkspaceDir(name) {
+  return new Set([".git", "node_modules", "dist", "build", "coverage", ".next", "target"]).has(
+    name,
+  );
+}
+
+function workspacePathSignature(paths) {
+  return paths.map((workspacePath) => {
+    try {
+      const stat = fs.statSync(workspacePath);
+      return `${workspacePath}:${stat.size}:${stat.mtimeMs}`;
+    } catch {
+      return `${workspacePath}:missing`;
+    }
+  });
 }
 
 function resolveWorkspaceRoot(filePath, configuredRoot) {

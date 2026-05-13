@@ -41,6 +41,7 @@ module.exports = {
         const findings = runSourceChecks(context, {
           ...ruleOptions,
           includeMissingModule: false,
+          includeCodes: ["missing-resolved-class-domain"],
         }).filter((finding) => finding.code === "missing-resolved-class-domain");
 
         for (const finding of findings) {

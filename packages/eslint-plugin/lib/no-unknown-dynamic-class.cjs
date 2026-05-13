@@ -46,6 +46,7 @@ module.exports = {
         const findings = runSourceChecks(context, {
           ...ruleOptions,
           includeMissingModule: false,
+          includeCodes: [...DYNAMIC_FINDING_CODES],
         }).filter((finding) => DYNAMIC_FINDING_CODES.has(finding.code));
 
         for (const finding of findings) {

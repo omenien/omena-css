@@ -40,6 +40,7 @@ module.exports = {
         const findings = runSourceChecks(context, {
           ...ruleOptions,
           includeMissingModule: false,
+          includeCodes: ["missing-static-class"],
         }).filter((finding) => finding.code === "missing-static-class");
 
         for (const finding of findings) {
