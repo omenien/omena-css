@@ -610,6 +610,12 @@ pub struct OmenaQueryCascadeAtPositionV0 {
     pub winner_context_kind: Option<&'static str>,
     pub candidate_declaration_count: usize,
     pub shadowed_declaration_source_orders: Vec<usize>,
+    pub referenced_declaration_property: Option<String>,
+    pub referenced_declaration_value: Option<String>,
+    pub referenced_declaration_computed_value_status: Option<&'static str>,
+    pub referenced_declaration_computed_value: Option<String>,
+    pub referenced_declaration_invalid_at_computed_value_time: bool,
+    pub referenced_declaration_computed_value_derivation_steps: Vec<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

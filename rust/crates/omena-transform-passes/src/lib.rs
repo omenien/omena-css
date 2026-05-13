@@ -2188,6 +2188,15 @@ pub fn summarize_static_css_custom_property_fixed_point_from_source(
     summarize_custom_property_least_fixed_point(&env)
 }
 
+pub fn parse_static_css_cascade_value(value: &str) -> Option<CascadeValue> {
+    match value.trim() {
+        "initial" => Some(CascadeValue::Initial),
+        "inherit" => Some(CascadeValue::Inherit),
+        "unset" => Some(CascadeValue::Unset),
+        value => parse_static_custom_property_env_value(value),
+    }
+}
+
 fn reduce_css_calc(source: &str, dialect: StyleDialect) -> (String, usize) {
     reduce_css_calc_with_lexer(source, dialect)
 }

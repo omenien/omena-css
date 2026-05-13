@@ -974,6 +974,7 @@ dependencies = [
  "engine-input-producers",
  "omena-abstract-value",
  "omena-bridge",
+ "omena-cascade",
  "omena-incremental",
  "omena-parser",
  "omena-resolver",
