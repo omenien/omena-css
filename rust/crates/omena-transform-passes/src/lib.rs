@@ -149,9 +149,52 @@ pub struct TransformExecutionSummaryV0 {
     pub css_import_inlines: Vec<TransformImportInlineV0>,
     pub css_module_composes_exports: Vec<TransformCssModuleComposesResolutionV0>,
     pub design_token_routes: Vec<TransformDesignTokenRouteV0>,
+    pub semantic_removals: Vec<TransformSemanticRemovalV0>,
     pub provenance_derivation_forest: TransformProvenanceDerivationForestV0,
     pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
     pub pass_plan: TransformPassPlanV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformSemanticRemovalV0 {
+    pub pass_id: &'static str,
+    pub symbol_kind: &'static str,
+    pub name: String,
+    pub source_span_start: usize,
+    pub source_span_end: usize,
+    pub reason: &'static str,
+    pub certainty: &'static str,
+    pub derivation_steps: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TransformSemanticRemovalCandidate {
+    symbol_kind: &'static str,
+    name: String,
+    source_span_start: usize,
+    source_span_end: usize,
+    reason: &'static str,
+}
+
+impl TransformSemanticRemovalCandidate {
+    fn into_public(self, pass_id: &'static str) -> TransformSemanticRemovalV0 {
+        TransformSemanticRemovalV0 {
+            pass_id,
+            symbol_kind: self.symbol_kind,
+            name: self.name,
+            source_span_start: self.source_span_start,
+            source_span_end: self.source_span_end,
+            reason: self.reason,
+            certainty: "high",
+            derivation_steps: vec![
+                "closedStyleWorld",
+                "reachableRootSetComputed",
+                "symbolNotMarkedReachable",
+                "sourceRangeRemoved",
+            ],
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -350,6 +393,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
     let mut css_import_inlines = Vec::new();
     let mut css_module_composes_exports = Vec::new();
     let mut design_token_routes = Vec::new();
+    let mut semantic_removals = Vec::new();
     let mut outcome_mutation_spans = Vec::new();
 
     for pass_id in &ordered_pass_ids {
@@ -1033,17 +1077,23 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 detail: "requires an explicit selector identity map before mutation",
             },
             Some(TransformPassKind::TreeShakeClass) if context.closed_style_world => {
-                let (next_css, mutation_count) = tree_shake_css_class_rules(
+                let (next_css, removals) = tree_shake_css_class_rules_with_removals(
                     &output_css,
                     dialect,
                     &context.reachable_class_names,
                 );
+                let mutation_count = removals.len();
                 let status = if mutation_count == 0 {
                     TransformPassRuntimeStatus::NoChange
                 } else {
                     TransformPassRuntimeStatus::Applied
                 };
                 output_css = next_css;
+                semantic_removals.extend(
+                    removals
+                        .into_iter()
+                        .map(|removal| removal.into_public(pass_id)),
+                );
                 TransformPassExecutionOutcomeV0 {
                     pass_id,
                     status,
@@ -1064,17 +1114,23 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 detail: "requires an explicit closed-style-world reachability context before mutation",
             },
             Some(TransformPassKind::TreeShakeKeyframes) if context.closed_style_world => {
-                let (next_css, mutation_count) = tree_shake_css_keyframes(
+                let (next_css, removals) = tree_shake_css_keyframes_with_removals(
                     &output_css,
                     dialect,
                     &context.reachable_keyframe_names,
                 );
+                let mutation_count = removals.len();
                 let status = if mutation_count == 0 {
                     TransformPassRuntimeStatus::NoChange
                 } else {
                     TransformPassRuntimeStatus::Applied
                 };
                 output_css = next_css;
+                semantic_removals.extend(
+                    removals
+                        .into_iter()
+                        .map(|removal| removal.into_public(pass_id)),
+                );
                 TransformPassExecutionOutcomeV0 {
                     pass_id,
                     status,
@@ -1095,17 +1151,23 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 detail: "requires an explicit closed-style-world reachability context before mutation",
             },
             Some(TransformPassKind::TreeShakeValue) if context.closed_style_world => {
-                let (next_css, mutation_count) = tree_shake_css_modules_values(
+                let (next_css, removals) = tree_shake_css_modules_values_with_removals(
                     &output_css,
                     dialect,
                     &context.reachable_value_names,
                 );
+                let mutation_count = removals.len();
                 let status = if mutation_count == 0 {
                     TransformPassRuntimeStatus::NoChange
                 } else {
                     TransformPassRuntimeStatus::Applied
                 };
                 output_css = next_css;
+                semantic_removals.extend(
+                    removals
+                        .into_iter()
+                        .map(|removal| removal.into_public(pass_id)),
+                );
                 TransformPassExecutionOutcomeV0 {
                     pass_id,
                     status,
@@ -1126,17 +1188,23 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 detail: "requires an explicit closed-style-world reachability context before mutation",
             },
             Some(TransformPassKind::TreeShakeCustomProperty) if context.closed_style_world => {
-                let (next_css, mutation_count) = tree_shake_css_custom_properties(
+                let (next_css, removals) = tree_shake_css_custom_properties_with_removals(
                     &output_css,
                     dialect,
                     &context.reachable_custom_property_names,
                 );
+                let mutation_count = removals.len();
                 let status = if mutation_count == 0 {
                     TransformPassRuntimeStatus::NoChange
                 } else {
                     TransformPassRuntimeStatus::Applied
                 };
                 output_css = next_css;
+                semantic_removals.extend(
+                    removals
+                        .into_iter()
+                        .map(|removal| removal.into_public(pass_id)),
+                );
                 TransformPassExecutionOutcomeV0 {
                     pass_id,
                     status,
@@ -1291,6 +1359,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
         css_import_inlines,
         css_module_composes_exports,
         design_token_routes,
+        semantic_removals,
         provenance_derivation_forest,
         outcomes,
         pass_plan,
@@ -2043,35 +2112,35 @@ fn route_design_token_values(
     route_design_token_values_with_lexer(source, dialect, routes)
 }
 
-fn tree_shake_css_class_rules(
+fn tree_shake_css_class_rules_with_removals(
     source: &str,
     dialect: StyleDialect,
     reachable_class_names: &[String],
-) -> (String, usize) {
+) -> (String, Vec<TransformSemanticRemovalCandidate>) {
     tree_shake_css_class_rules_with_lexer(source, dialect, reachable_class_names)
 }
 
-fn tree_shake_css_keyframes(
+fn tree_shake_css_keyframes_with_removals(
     source: &str,
     dialect: StyleDialect,
     reachable_keyframe_names: &[String],
-) -> (String, usize) {
+) -> (String, Vec<TransformSemanticRemovalCandidate>) {
     tree_shake_css_keyframes_with_lexer(source, dialect, reachable_keyframe_names)
 }
 
-fn tree_shake_css_modules_values(
+fn tree_shake_css_modules_values_with_removals(
     source: &str,
     dialect: StyleDialect,
     reachable_value_names: &[String],
-) -> (String, usize) {
+) -> (String, Vec<TransformSemanticRemovalCandidate>) {
     tree_shake_css_modules_values_with_lexer(source, dialect, reachable_value_names)
 }
 
-fn tree_shake_css_custom_properties(
+fn tree_shake_css_custom_properties_with_removals(
     source: &str,
     dialect: StyleDialect,
     reachable_custom_property_names: &[String],
-) -> (String, usize) {
+) -> (String, Vec<TransformSemanticRemovalCandidate>) {
     tree_shake_css_custom_properties_with_lexer(source, dialect, reachable_custom_property_names)
 }
 
@@ -3335,35 +3404,50 @@ fn tree_shake_css_class_rules_with_lexer(
     source: &str,
     dialect: StyleDialect,
     reachable_class_names: &[String],
-) -> (String, usize) {
+) -> (String, Vec<TransformSemanticRemovalCandidate>) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let rules = collect_declaration_ordinary_rule_slices(source, tokens);
-    let ranges = rules
+    let removals = rules
         .iter()
-        .filter(|rule| {
-            selector_list_is_unreachable_class_rule(&rule.selector, reachable_class_names)
+        .filter_map(|rule| {
+            selector_list_unreachable_owner_class_names(&rule.selector, reachable_class_names).map(
+                |owner_class_names| TransformSemanticRemovalCandidate {
+                    symbol_kind: "class",
+                    name: owner_class_names.join(","),
+                    source_span_start: rule.start,
+                    source_span_end: rule.end,
+                    reason: "selector owner classes were absent from the closed-style-world reachable class set",
+                },
+            )
         })
-        .map(|rule| (rule.start, rule.end))
+        .collect::<Vec<_>>();
+    let ranges = removals
+        .iter()
+        .map(|removal| (removal.source_span_start, removal.source_span_end))
         .collect::<Vec<_>>();
 
-    remove_source_ranges(source, &ranges)
+    let (output, _) = remove_source_ranges(source, &ranges);
+    (output, removals)
 }
 
-fn selector_list_is_unreachable_class_rule(
+fn selector_list_unreachable_owner_class_names(
     selector: &str,
     reachable_class_names: &[String],
-) -> bool {
-    let Some(branches) = split_top_level_value_arguments(selector) else {
-        return false;
-    };
-    !branches.is_empty()
-        && branches.iter().all(|branch| {
-            let Some(class_name) = selector_branch_owner_class_name(branch) else {
-                return false;
-            };
-            !class_name_is_reachable(&class_name, reachable_class_names)
-        })
+) -> Option<Vec<String>> {
+    let branches = split_top_level_value_arguments(selector)?;
+    if branches.is_empty() {
+        return None;
+    }
+    let mut owner_class_names = Vec::new();
+    for branch in branches {
+        let class_name = selector_branch_owner_class_name(&branch)?;
+        if class_name_is_reachable(&class_name, reachable_class_names) {
+            return None;
+        }
+        push_unique_string(&mut owner_class_names, class_name);
+    }
+    Some(owner_class_names)
 }
 
 fn selector_branch_owner_class_name(selector: &str) -> Option<String> {
@@ -4134,27 +4218,38 @@ fn tree_shake_css_keyframes_with_lexer(
     source: &str,
     dialect: StyleDialect,
     reachable_keyframe_names: &[String],
-) -> (String, usize) {
+) -> (String, Vec<TransformSemanticRemovalCandidate>) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let keyframes = collect_top_level_keyframes_rules(tokens);
     if keyframes.is_empty() {
-        return (source.to_string(), 0);
+        return (source.to_string(), Vec::new());
     }
 
     let Some(mut referenced_names) = collect_referenced_keyframe_names(tokens) else {
-        return (source.to_string(), 0);
+        return (source.to_string(), Vec::new());
     };
     for name in reachable_keyframe_names {
         push_unique_string(&mut referenced_names, name.clone());
     }
 
-    let ranges = keyframes
+    let removals = keyframes
         .iter()
         .filter(|keyframe| !referenced_names.iter().any(|name| name == &keyframe.name))
-        .map(|keyframe| (keyframe.start, keyframe.end))
+        .map(|keyframe| TransformSemanticRemovalCandidate {
+            symbol_kind: "keyframes",
+            name: keyframe.name.clone(),
+            source_span_start: keyframe.start,
+            source_span_end: keyframe.end,
+            reason: "keyframes name was absent from animation references and the closed-style-world reachable keyframe set",
+        })
         .collect::<Vec<_>>();
-    remove_source_ranges(source, &ranges)
+    let ranges = removals
+        .iter()
+        .map(|removal| (removal.source_span_start, removal.source_span_end))
+        .collect::<Vec<_>>();
+    let (output, _) = remove_source_ranges(source, &ranges);
+    (output, removals)
 }
 
 fn collect_top_level_keyframes_rules(
@@ -4356,12 +4451,12 @@ fn tree_shake_css_modules_values_with_lexer(
     source: &str,
     dialect: StyleDialect,
     reachable_value_names: &[String],
-) -> (String, usize) {
+) -> (String, Vec<TransformSemanticRemovalCandidate>) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let definitions = collect_static_local_css_modules_value_definitions(tokens);
     if definitions.is_empty() {
-        return (source.to_string(), 0);
+        return (source.to_string(), Vec::new());
     }
 
     let referenced_names = collect_reachable_css_modules_value_names(
@@ -4371,16 +4466,27 @@ fn tree_shake_css_modules_values_with_lexer(
         reachable_value_names,
     );
 
-    let ranges = definitions
+    let removals = definitions
         .iter()
         .filter(|definition| {
             can_tree_shake_local_css_modules_value_definition(definition, dialect, &definitions)
                 && !referenced_names.iter().any(|name| name == &definition.name)
         })
-        .map(|definition| (definition.start, definition.end))
+        .map(|definition| TransformSemanticRemovalCandidate {
+            symbol_kind: "cssModuleValue",
+            name: definition.name.clone(),
+            source_span_start: definition.start,
+            source_span_end: definition.end,
+            reason: "CSS Modules value definition was absent from transitive value references and the closed-style-world reachable value set",
+        })
         .collect::<Vec<_>>();
 
-    remove_source_ranges(source, &ranges)
+    let ranges = removals
+        .iter()
+        .map(|removal| (removal.source_span_start, removal.source_span_end))
+        .collect::<Vec<_>>();
+    let (output, _) = remove_source_ranges(source, &ranges);
+    (output, removals)
 }
 
 fn collect_reachable_css_modules_value_names(
@@ -4547,16 +4653,16 @@ fn tree_shake_css_custom_properties_with_lexer(
     source: &str,
     dialect: StyleDialect,
     reachable_custom_property_names: &[String],
-) -> (String, usize) {
+) -> (String, Vec<TransformSemanticRemovalCandidate>) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let Some(referenced_names) =
         collect_reachable_custom_property_names(tokens, reachable_custom_property_names)
     else {
-        return (source.to_string(), 0);
+        return (source.to_string(), Vec::new());
     };
 
-    let mut ranges = Vec::new();
+    let mut removals = Vec::new();
     let mut index = 0;
     while index < tokens.len() {
         if tokens[index].kind == SyntaxKind::LeftBrace
@@ -4568,7 +4674,13 @@ fn tree_shake_css_custom_properties_with_lexer(
                         .iter()
                         .any(|name| name == &declaration.property)
                 {
-                    ranges.push((declaration.start, declaration.end));
+                    removals.push(TransformSemanticRemovalCandidate {
+                        symbol_kind: "customProperty",
+                        name: declaration.property,
+                        source_span_start: declaration.start,
+                        source_span_end: declaration.end,
+                        reason: "custom property declaration was absent from transitive var() references and the closed-style-world reachable custom-property set",
+                    });
                 }
             }
             index = close_index + 1;
@@ -4577,7 +4689,12 @@ fn tree_shake_css_custom_properties_with_lexer(
         index += 1;
     }
 
-    remove_source_ranges(source, &ranges)
+    let ranges = removals
+        .iter()
+        .map(|removal| (removal.source_span_start, removal.source_span_end))
+        .collect::<Vec<_>>();
+    let (output, _) = remove_source_ranges(source, &ranges);
+    (output, removals)
 }
 
 fn collect_reachable_custom_property_names(
@@ -9250,6 +9367,19 @@ mod tests {
             execution.executed_pass_ids,
             vec!["tree-shake-keyframes", "print-css"]
         );
+        assert_eq!(execution.semantic_removals.len(), 2);
+        assert!(
+            execution
+                .semantic_removals
+                .iter()
+                .all(|removal| removal.symbol_kind == "keyframes")
+        );
+        assert!(
+            execution
+                .semantic_removals
+                .iter()
+                .any(|removal| removal.name == "dead" && removal.pass_id == "tree-shake-keyframes")
+        );
     }
 
     #[test]
@@ -9325,6 +9455,15 @@ mod tests {
             execution.executed_pass_ids,
             vec!["tree-shake-class", "print-css"]
         );
+        assert_eq!(execution.semantic_removals.len(), 5);
+        assert!(execution.semantic_removals.iter().any(|removal| {
+            removal.symbol_kind == "class"
+                && removal.name == "also-dead,other-dead"
+                && removal.pass_id == "tree-shake-class"
+                && removal
+                    .derivation_steps
+                    .contains(&"symbolNotMarkedReachable")
+        }));
     }
 
     #[test]
@@ -9363,6 +9502,14 @@ mod tests {
             execution.executed_pass_ids,
             vec!["tree-shake-value", "print-css"]
         );
+        assert_eq!(
+            execution
+                .semantic_removals
+                .iter()
+                .map(|removal| removal.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["dead", "deadAlias", "deadShadow", "deadBp"]
+        );
     }
 
     #[test]
@@ -9393,6 +9540,17 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["tree-shake-custom-property", "print-css"]
+        );
+        assert_eq!(
+            execution
+                .semantic_removals
+                .iter()
+                .map(|removal| (removal.symbol_kind, removal.name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("customProperty", "--dead"),
+                ("customProperty", "--dead-dep")
+            ]
         );
     }
 
