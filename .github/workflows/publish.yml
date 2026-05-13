@@ -142,6 +142,10 @@ jobs:
 
             if [[ "$PUBLISH_MODE" == "dry-run" ]]; then
               cargo package --list --manifest-path "$manifest" >/dev/null
+              if crate_version_exists "$package" "$version"; then
+                echo "$package@$version already exists on crates.io; bump the omena-css release train before publishing" >&2
+                exit 1
+              fi
               if has_local_workspace_dependencies "$manifest"; then
                 echo "$crate package surface checked; full dry-run waits for upstream Omena crates on crates.io"
               else
