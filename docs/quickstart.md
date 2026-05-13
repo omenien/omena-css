@@ -33,6 +33,7 @@ omena build path/to/file.css --target-query "ie 11"
 omena build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
 omena build path/to/Button.module.css --source path/to/tokens.css --pass import-inline
 omena build path/to/Button.module.css --source node_modules/@design/tokens/dist/theme.css --package-manifest node_modules/@design/tokens/package.json --pass import-inline
+omena cascade path/to/file.module.css --line 10 --character 16 --json
 omena passes
 ```
 
@@ -45,6 +46,7 @@ cargo run -p omena-cli -- build path/to/file.css --target-query "ie 11"
 cargo run -p omena-cli -- build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
 cargo run -p omena-cli -- build path/to/Button.module.css --source path/to/tokens.css --pass import-inline
 cargo run -p omena-cli -- build path/to/Button.module.css --source node_modules/@design/tokens/dist/theme.css --package-manifest node_modules/@design/tokens/package.json --pass import-inline
+cargo run -p omena-cli -- cascade path/to/file.module.css --line 10 --character 16 --json
 cargo run -p omena-cli -- passes
 ```
 

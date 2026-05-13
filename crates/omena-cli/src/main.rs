@@ -1,12 +1,13 @@
 use clap::{Parser, Subcommand};
 use omena_query::{
     OmenaQueryEngineInputV2, OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
-    list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
+    list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
+    summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_transform_context_from_engine_input,
 };
 use serde::Serialize;
@@ -106,6 +107,23 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Read cascade and custom-property LFP information at a source position.
+    Cascade {
+        /// CSS, SCSS, Sass, Less, or CSS Modules file to inspect.
+        path: PathBuf,
+        /// Zero-based line number.
+        #[arg(long)]
+        line: usize,
+        /// Zero-based UTF-16-like character offset used by the query protocol.
+        #[arg(long)]
+        character: usize,
+        /// Optional EngineInputV2 JSON file for source/type context.
+        #[arg(long)]
+        engine_input_json: Option<PathBuf>,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -165,6 +183,13 @@ fn run(cli: Cli) -> Result<(), String> {
             closed_style_world,
             json,
         } => context_from_engine_input(path, engine_input_json, closed_style_world, json),
+        Command::Cascade {
+            path,
+            line,
+            character,
+            engine_input_json,
+            json,
+        } => cascade_at_position(path, line, character, engine_input_json, json),
     }
 }
 
@@ -406,6 +431,77 @@ fn context_from_engine_input(
     Ok(())
 }
 
+fn cascade_at_position(
+    path: PathBuf,
+    line: usize,
+    character: usize,
+    engine_input_json: Option<PathBuf>,
+    json: bool,
+) -> Result<(), String> {
+    let source = read_source(&path)?;
+    let style_path = path_string(&path);
+    let engine_input = if let Some(engine_input_path) = engine_input_json.as_deref() {
+        read_engine_input_json(engine_input_path)?
+    } else {
+        empty_engine_input()
+    };
+    let position = ParserPositionV0 { line, character };
+    let Some(summary) =
+        read_omena_query_cascade_at_position(&style_path, &source, &engine_input, position)
+    else {
+        return Err(format!(
+            "failed to read cascade information for {style_path}:{line}:{character}",
+        ));
+    };
+
+    if json {
+        print_json(&summary)?;
+        return Ok(());
+    }
+
+    println!("file: {}", summary.style_path);
+    println!("status: {}", summary.status);
+    println!(
+        "reference: {}",
+        summary.reference_name.as_deref().unwrap_or("-")
+    );
+    println!(
+        "computed status: {}",
+        summary
+            .referenced_declaration_computed_value_status
+            .unwrap_or("-")
+    );
+    println!(
+        "computed value: {}",
+        summary
+            .referenced_declaration_computed_value
+            .as_deref()
+            .unwrap_or("-")
+    );
+    println!(
+        "lfp status: {}",
+        summary
+            .reference_custom_property_fixed_point_status
+            .unwrap_or("-")
+    );
+    println!(
+        "lfp value: {}",
+        summary
+            .reference_custom_property_fixed_point_value
+            .as_deref()
+            .unwrap_or("-")
+    );
+    println!(
+        "lfp iterations: {}",
+        summary.custom_property_fixed_point_iteration_count
+    );
+    println!(
+        "lfp guaranteed-invalid count: {}",
+        summary.custom_property_fixed_point_guaranteed_invalid_count
+    );
+    Ok(())
+}
+
 fn read_source(path: &Path) -> Result<String, String> {
     fs::read_to_string(path)
         .map_err(|error| format!("failed to read {}: {error}", path_string(path)))
@@ -438,6 +534,15 @@ fn read_engine_input_json(path: &Path) -> Result<OmenaQueryEngineInputV2, String
             path_string(path)
         )
     })
+}
+
+fn empty_engine_input() -> OmenaQueryEngineInputV2 {
+    OmenaQueryEngineInputV2 {
+        version: "2".to_string(),
+        sources: Vec::new(),
+        styles: Vec::new(),
+        type_facts: Vec::new(),
+    }
 }
 
 fn merge_cli_transform_context(

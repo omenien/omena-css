@@ -70,6 +70,9 @@ Primary consumers:
 - `omena build <file> --package-manifest node_modules/pkg/package.json`
   lets workspace source context resolve package style exports for import
   inlining.
+- `omena cascade <file> --line <n> --character <n>` reads cascade,
+  computed-value, and custom-property LFP information at a `var(...)`
+  reference position.
 - `omena passes` lists accepted transform pass ids.
 
 ## Wasm

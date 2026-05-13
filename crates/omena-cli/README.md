@@ -12,6 +12,9 @@ Current commands:
 - `omena build <file> --target-query "ie 11" --allow-logical-to-physical`
   opts into blocked target-sensitive lowering classes when a project has chosen
   that compatibility tradeoff.
+- `omena cascade <file> --line <n> --character <n>` reads cascade,
+  computed-value, and custom-property LFP information at a `var(...)`
+  reference position.
 - `omena passes` lists the transform pass ids accepted by `omena build`.
 
 Install the published CLI with Cargo:
@@ -22,6 +25,7 @@ omena check path/to/file.module.scss
 omena build path/to/file.css --pass whitespace-strip
 omena build path/to/file.css --target-query "ie 11"
 omena build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
+omena cascade path/to/file.module.css --line 10 --character 16 --json
 omena passes
 ```
 
