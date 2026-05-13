@@ -653,7 +653,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "lowered whole-value light-dark() color declarations into dark media branches",
+                    detail: "lowered light-dark() color references into dark media branches",
                 }
             }
             Some(TransformPassKind::ColorMixLowering) => {
@@ -2194,7 +2194,9 @@ fn lower_css_light_dark_with_lexer(source: &str, dialect: StyleDialect) -> (Stri
             if !is_light_dark_lowerable_property(&declaration.property) {
                 continue;
             }
-            let Some((light_value, dark_value)) = parse_light_dark_value(&declaration.value) else {
+            let Some((light_value, dark_value)) =
+                substitute_light_dark_references_in_value(&declaration.value)
+            else {
                 continue;
             };
             replacements.push((
@@ -5341,6 +5343,69 @@ fn parse_light_dark_value(value: &str) -> Option<(String, String)> {
         return None;
     }
     Some((light.clone(), dark.clone()))
+}
+
+fn substitute_light_dark_references_in_value(value: &str) -> Option<(String, String)> {
+    let mut light_output = String::with_capacity(value.len());
+    let mut dark_output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+    let mut changed = false;
+
+    while index < value.len() {
+        let ch = value[index..].chars().next()?;
+
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                let escaped = value[index..].chars().next()?;
+                index += escaped.len_utf8();
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            _ if value[index..]
+                .get(.."light-dark(".len())
+                .is_some_and(|text| text.eq_ignore_ascii_case("light-dark(")) =>
+            {
+                let left_paren_index = index + "light-dark".len();
+                let Some(close_index) = matching_function_call_end(value, left_paren_index) else {
+                    index += ch.len_utf8();
+                    continue;
+                };
+                let function_value = &value[index..close_index + ')'.len_utf8()];
+                let Some((light_value, dark_value)) = parse_light_dark_value(function_value) else {
+                    index += ch.len_utf8();
+                    continue;
+                };
+                light_output.push_str(&value[cursor..index]);
+                dark_output.push_str(&value[cursor..index]);
+                light_output.push_str(&light_value);
+                dark_output.push_str(&dark_value);
+                index = close_index + ')'.len_utf8();
+                cursor = index;
+                changed = true;
+            }
+            _ => {
+                index += ch.len_utf8();
+            }
+        }
+    }
+
+    if !changed {
+        return None;
+    }
+    light_output.push_str(&value[cursor..]);
+    dark_output.push_str(&value[cursor..]);
+    Some((light_output, dark_output))
 }
 
 fn substitute_static_css_function_references_in_value(
@@ -9433,7 +9498,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_whole_value_light_dark_declarations() {
-        let source = r#".card { color: light-dark(#000, #fff); background: var(--keep); }"#;
+        let source = r#".card { color: light-dark(#000, #fff); background: linear-gradient(light-dark(red, blue), white); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9442,10 +9507,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(execution.mutation_count, 2);
         assert_eq!(
             execution.output_css,
-            r#".card { color: #000; background: var(--keep); } @media (prefers-color-scheme: dark) { .card { color: #fff; } }"#
+            r#".card { color: #000; background: linear-gradient(red, white); } @media (prefers-color-scheme: dark) { .card { color: #fff; } } @media (prefers-color-scheme: dark) { .card { background: linear-gradient(blue, white); } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
