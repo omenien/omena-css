@@ -41,10 +41,11 @@ use super::{
 };
 use crate::{
     OmenaQueryCompletionCandidateV0, OmenaQuerySourceSelectorReferenceCandidateV0,
-    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0,
-    OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformModuleEvaluationV0,
-    default_omena_query_transform_print_options, modern_omena_query_target_feature_support,
+    OmenaQuerySourceSelectorReferenceEditTargetV0, OmenaQueryStyleSelectorDefinitionV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0,
+    OmenaQueryTransformModuleEvaluationV0, default_omena_query_transform_print_options,
+    modern_omena_query_target_feature_support,
 };
 
 #[test]
@@ -3006,6 +3007,61 @@ fn refs_for_class_is_query_owned_and_workspace_scoped() {
         refs.ready_surfaces
             .contains(&"workspaceWideSelectorReferences")
     );
+}
+
+#[test]
+fn rename_plan_is_query_owned_and_workspace_scoped() {
+    let definition = OmenaQueryStyleSelectorDefinitionV0 {
+        uri: "file:///workspace/src/Component.module.scss".to_string(),
+        name: "root".to_string(),
+        range: ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 0,
+                character: 1,
+            },
+            end: ParserPositionV0 {
+                line: 0,
+                character: 5,
+            },
+        },
+    };
+    let reference = OmenaQuerySourceSelectorReferenceEditTargetV0 {
+        uri: "file:///workspace/src/App.tsx".to_string(),
+        name: "root".to_string(),
+        range: ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 1,
+                character: 31,
+            },
+            end: ParserPositionV0 {
+                line: 1,
+                character: 35,
+            },
+        },
+        target_style_uri: Some("file:///workspace/src/Component.module.scss".to_string()),
+    };
+
+    let plan = super::summarize_omena_query_rename_plan(
+        "root",
+        "button",
+        Some("file:///workspace/src/Component.module.scss"),
+        &[definition],
+        &[reference],
+    );
+    assert_eq!(plan.product, "omena-query.rename-plan");
+    assert_eq!(plan.edit_count, 2);
+    assert_eq!(plan.edits[0].new_text, "button");
+    assert_eq!(
+        plan.edits
+            .iter()
+            .map(|edit| edit.uri.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "file:///workspace/src/App.tsx",
+            "file:///workspace/src/Component.module.scss"
+        ]
+    );
+    assert!(plan.ready_surfaces.contains(&"workspaceWideSelectorRename"));
 }
 
 #[test]

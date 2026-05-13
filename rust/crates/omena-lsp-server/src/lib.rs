@@ -26,13 +26,13 @@ use omena_query::{
     omena_query_sass_symbol_kind_from_candidate_kind as sass_symbol_kind_from_candidate_kind,
     omena_query_sass_symbol_target_matches, resolve_omena_query_sass_forward_sources,
     resolve_omena_query_sass_module_use_sources_for_candidate,
-    resolve_omena_query_sass_symbol_declarations, resolve_omena_query_selector_rename_edits,
+    resolve_omena_query_sass_symbol_declarations,
     resolve_omena_query_source_candidate_selector_names,
     resolve_omena_query_source_provider_candidates,
     resolve_omena_query_style_selector_definitions_for_source_candidate,
     resolve_omena_query_style_uri_for_specifier, summarize_omena_query_missing_selector_diagnostic,
-    summarize_omena_query_refs_for_class, summarize_omena_query_sass_module_sources,
-    summarize_omena_query_source_completion_at_position,
+    summarize_omena_query_refs_for_class, summarize_omena_query_rename_plan,
+    summarize_omena_query_sass_module_sources, summarize_omena_query_source_completion_at_position,
     summarize_omena_query_source_import_declarations, summarize_omena_query_source_syntax_index,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_document,
@@ -2054,19 +2054,19 @@ fn resolve_selector_rename(
                 .map(|candidate| query_source_selector_reference_edit_target(document, candidate)),
         );
     }
-    let edits = resolve_omena_query_selector_rename_edits(
+    let rename_plan = summarize_omena_query_rename_plan(
         selector_name,
         new_name,
         target_style_uri,
         query_definitions.as_slice(),
         query_references.as_slice(),
     );
-    if edits.is_empty() {
+    if rename_plan.edits.is_empty() {
         return Value::Null;
     }
 
     let mut changes: BTreeMap<String, Vec<Value>> = BTreeMap::new();
-    for edit in edits {
+    for edit in rename_plan.edits {
         changes.entry(edit.uri).or_default().push(json!({
             "range": edit.range,
             "newText": edit.new_text,

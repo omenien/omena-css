@@ -54,6 +54,8 @@ Current public products:
   style-side token completions and bridge-aware source selector completions.
 - `omena-query.refs-for-class` — workspace-scoped selector reference read model
   for CSS Module definitions and source references.
+- `omena-query.rename-plan` — workspace edit read model for selector rename
+  plans across CSS Module definitions and source references.
 - `omena-query.css-modules-cross-file-resolution` — batch-level CSS Modules
   relation resolver for `composes`, `@value`, and ICSS import/export sources.
   This resolves import sources, same-edge name matches, transitive closure, and

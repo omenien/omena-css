@@ -680,6 +680,32 @@ pub fn summarize_omena_query_refs_for_class(
     }
 }
 
+pub fn summarize_omena_query_rename_plan(
+    selector_name: &str,
+    new_name: &str,
+    target_style_uri: Option<&str>,
+    definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+    references: &[OmenaQuerySourceSelectorReferenceEditTargetV0],
+) -> OmenaQueryRenamePlanV0 {
+    let edits = resolve_omena_query_selector_rename_edits(
+        selector_name,
+        new_name,
+        target_style_uri,
+        definitions,
+        references,
+    );
+    OmenaQueryRenamePlanV0 {
+        schema_version: "0",
+        product: "omena-query.rename-plan",
+        selector_name: selector_name.to_string(),
+        new_name: new_name.to_string(),
+        target_style_uri: target_style_uri.map(ToString::to_string),
+        edit_count: edits.len(),
+        edits,
+        ready_surfaces: vec!["renamePlan", "workspaceWideSelectorRename"],
+    }
+}
+
 pub fn read_omena_query_cascade_at_position(
     style_path: &str,
     style_source: &str,

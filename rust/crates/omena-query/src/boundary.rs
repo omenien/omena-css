@@ -61,6 +61,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "styleDiagnosticsForFile",
             "completionAt",
             "refsForClass",
+            "renamePlan",
             "readCascadeAtPosition",
             "readStyleContextIndex",
             "readCascadeCustomPropertyLeastFixedPoint",
@@ -265,6 +266,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 command: "refs-for-class",
                 input_contract: "RefsForClassInputV0",
                 output_product: "omena-query.refs-for-class",
+            },
+            SelectedQueryRunnerCommandV0 {
+                surface: "renamePlan",
+                command: "rename-plan",
+                input_contract: "RenamePlanInputV0",
+                output_product: "omena-query.rename-plan",
             },
             SelectedQueryRunnerCommandV0 {
                 surface: "readStyleContextIndex",
