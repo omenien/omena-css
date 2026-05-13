@@ -1156,6 +1156,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     &output_css,
                     dialect,
                     &context.reachable_value_names,
+                    &context.reachable_class_names,
                 );
                 let mutation_count = removals.len();
                 let status = if mutation_count == 0 {
@@ -2140,8 +2141,14 @@ fn tree_shake_css_modules_values_with_removals(
     source: &str,
     dialect: StyleDialect,
     reachable_value_names: &[String],
+    reachable_class_names: &[String],
 ) -> (String, Vec<TransformSemanticRemovalCandidate>) {
-    tree_shake_css_modules_values_with_lexer(source, dialect, reachable_value_names)
+    tree_shake_css_modules_values_with_lexer(
+        source,
+        dialect,
+        reachable_value_names,
+        reachable_class_names,
+    )
 }
 
 fn tree_shake_css_custom_properties_with_removals(
@@ -4559,6 +4566,7 @@ fn tree_shake_css_modules_values_with_lexer(
     source: &str,
     dialect: StyleDialect,
     reachable_value_names: &[String],
+    reachable_class_names: &[String],
 ) -> (String, Vec<TransformSemanticRemovalCandidate>) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
@@ -4568,10 +4576,12 @@ fn tree_shake_css_modules_values_with_lexer(
     }
 
     let referenced_names = collect_reachable_css_modules_value_names(
+        source,
         tokens,
         dialect,
         &definitions,
         reachable_value_names,
+        reachable_class_names,
     );
 
     let removals = definitions
@@ -4598,10 +4608,12 @@ fn tree_shake_css_modules_values_with_lexer(
 }
 
 fn collect_reachable_css_modules_value_names(
+    source: &str,
     tokens: &[omena_parser::LexedToken],
     dialect: StyleDialect,
     definitions: &[StaticCssModulesValueDefinition],
     external_roots: &[String],
+    reachable_class_names: &[String],
 ) -> Vec<String> {
     let mut root_names = external_roots.to_vec();
     let mut dependencies_by_name = BTreeMap::<String, Vec<String>>::new();
@@ -4626,24 +4638,26 @@ fn collect_reachable_css_modules_value_names(
         }
     }
 
-    let mut index = 0;
-    while index < tokens.len() {
-        if tokens[index].kind == SyntaxKind::LeftBrace
-            && let Some(close_index) = matching_right_brace_index(tokens, index)
-        {
-            for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
-                for reference_name in collect_css_modules_value_references_in_value(
-                    &declaration.value,
-                    dialect,
-                    &definition_names,
-                ) {
-                    push_unique_string(&mut root_names, reference_name);
-                }
-            }
-            index = close_index + 1;
+    for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
+        if !rule_matches_reachable_class_context(&rule.selector, reachable_class_names) {
             continue;
         }
-        index += 1;
+        let Some((block_start_index, block_end_index)) =
+            rule_block_token_indexes(tokens, rule.block_start, rule.block_end)
+        else {
+            continue;
+        };
+        for declaration in
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+        {
+            for reference_name in collect_css_modules_value_references_in_value(
+                &declaration.value,
+                dialect,
+                &definition_names,
+            ) {
+                push_unique_string(&mut root_names, reference_name);
+            }
+        }
     }
     collect_css_modules_value_references_in_at_rule_preludes(
         tokens,
@@ -10113,9 +10127,10 @@ mod tests {
 
     #[test]
     fn execution_runtime_tree_shakes_local_values_with_closed_world_context() {
-        let source = r#"@value used: red; @value dead: blue; @value alias: used; @value shadow: 0 0 4px used; @value bp: 40rem; @value deadAlias: dead; @value deadShadow: 0 0 4px dead; @value deadBp: 50rem; .btn { color: used; background: alias; box-shadow: shadow; } @media (min-width: bp) { .btn { color: red; } }"#;
+        let source = r#"@value used: red; @value dead: blue; @value alias: used; @value shadow: 0 0 4px used; @value bp: 40rem; @value deadAlias: dead; @value deadShadow: 0 0 4px dead; @value deadBp: 50rem; @value deadFromRule: orange; .btn { color: used; background: alias; box-shadow: shadow; } .dead { color: deadFromRule; } @media (min-width: bp) { .btn { color: red; } }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
+            reachable_class_names: vec!["btn".to_string()],
             ..TransformExecutionContextV0::default()
         };
         let execution = execute_transform_passes_on_source_with_dialect_and_context(
@@ -10128,7 +10143,7 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(execution.mutation_count, 5);
         assert!(execution.output_css.contains("@value used: red;"));
         assert!(execution.output_css.contains("@value alias: used;"));
         assert!(
@@ -10143,6 +10158,7 @@ mod tests {
         assert!(!execution.output_css.contains("@value deadAlias:"));
         assert!(!execution.output_css.contains("@value deadShadow:"));
         assert!(!execution.output_css.contains("@value deadBp:"));
+        assert!(!execution.output_css.contains("@value deadFromRule:"));
         assert_eq!(
             execution.executed_pass_ids,
             vec!["tree-shake-value", "print-css"]
@@ -10153,7 +10169,7 @@ mod tests {
                 .iter()
                 .map(|removal| removal.name.as_str())
                 .collect::<Vec<_>>(),
-            vec!["dead", "deadAlias", "deadShadow", "deadBp"]
+            vec!["dead", "deadAlias", "deadShadow", "deadBp", "deadFromRule"]
         );
     }
 
