@@ -3217,7 +3217,7 @@ fn resolve_static_css_modules_values_with_lexer(
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let definitions = collect_static_local_css_modules_value_definitions(tokens);
-    let unique_definitions = definitions
+    let unique_definitions_by_name = definitions
         .iter()
         .filter(|definition| {
             definitions
@@ -3225,16 +3225,28 @@ fn resolve_static_css_modules_values_with_lexer(
                 .filter(|candidate| candidate.name == definition.name)
                 .count()
                 == 1
-                && is_static_css_modules_value_literal(&definition.value)
+        })
+        .map(|definition| (definition.name.clone(), definition))
+        .collect::<BTreeMap<_, _>>();
+    let resolved_definitions = unique_definitions_by_name
+        .keys()
+        .filter_map(|name| {
+            let definition = unique_definitions_by_name.get(name)?;
+            let resolved_value = resolve_static_css_modules_value_definition(
+                name,
+                &unique_definitions_by_name,
+                &mut Vec::new(),
+            )?;
+            Some((*definition, resolved_value))
         })
         .collect::<Vec<_>>();
-    if unique_definitions.is_empty() {
+    if resolved_definitions.is_empty() {
         return (source.to_string(), 0);
     }
 
-    let mut replacements = unique_definitions
+    let mut replacements = resolved_definitions
         .iter()
-        .map(|definition| (definition.start, definition.end, String::new()))
+        .map(|(definition, _)| (definition.start, definition.end, String::new()))
         .collect::<Vec<_>>();
     let mut index = 0;
     while index < tokens.len() {
@@ -3242,16 +3254,16 @@ fn resolve_static_css_modules_values_with_lexer(
             && let Some(close_index) = matching_right_brace_index(tokens, index)
         {
             for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
-                let Some(definition) = unique_definitions
+                let Some((_, resolved_value)) = resolved_definitions
                     .iter()
-                    .find(|definition| declaration.value == definition.name)
+                    .find(|(definition, _)| declaration.value == definition.name)
                 else {
                     continue;
                 };
                 replacements.push((
                     declaration.start,
                     declaration.end,
-                    format!("{}: {};", declaration.property, definition.value),
+                    format!("{}: {resolved_value};", declaration.property),
                 ));
             }
             index = close_index + 1;
@@ -3280,6 +3292,29 @@ fn resolve_static_css_modules_values_with_lexer(
     }
 
     (output, mutation_count)
+}
+
+fn resolve_static_css_modules_value_definition(
+    name: &str,
+    definitions_by_name: &BTreeMap<String, &StaticCssModulesValueDefinition>,
+    visiting: &mut Vec<String>,
+) -> Option<String> {
+    if visiting.iter().any(|candidate| candidate == name) {
+        return None;
+    }
+    let definition = definitions_by_name.get(name)?;
+    if is_static_css_modules_value_literal(&definition.value) {
+        return Some(definition.value.clone());
+    }
+    let alias = definition.value.trim();
+    if !css_identifier_text_is_plain(alias) || !definitions_by_name.contains_key(alias) {
+        return None;
+    }
+    visiting.push(name.to_string());
+    let resolved =
+        resolve_static_css_modules_value_definition(alias, definitions_by_name, visiting);
+    visiting.pop();
+    resolved
 }
 
 fn collect_static_local_css_modules_value_definitions(
@@ -9323,10 +9358,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(execution.mutation_count, 6);
         assert_eq!(
             execution.output_css,
-            r#"  @value alias: primary; @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: #fff; margin: 8px; background: alias; border-color: dup; }"#
+            r#"   @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: #fff; margin: 8px; background: #fff; border-color: dup; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
