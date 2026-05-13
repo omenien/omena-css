@@ -38,6 +38,8 @@ targetOptions, context, packageManifests)` combines target planning with
   `input` when no EngineInputV2 context is needed.
 - `readStyleDiagnostics(source, path)` reads query-owned style diagnostics for
   a CSS-family file.
+- `readSourceDiagnostics(sourceUri, candidates)` reads query-owned source
+  diagnostics from precomputed missing-selector candidates.
 - `expressionDomainIncrementalFlow(input)` runs one query-owned
   expression-domain incremental-flow pass for simple browser clients.
 - `new ExpressionDomainFlowRuntime().analyze(input)` keeps the query-owned

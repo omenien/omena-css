@@ -1,8 +1,9 @@
 use clap::{Parser, Subcommand};
 use omena_query::{
     OmenaQueryEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
+    OmenaQuerySourceMissingSelectorDiagnosticCandidateV0, OmenaQueryStylePackageManifestV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
+    OmenaQueryTransformExecutionContextV0, ParserPositionV0,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
@@ -11,6 +12,7 @@ use omena_query::{
     read_omena_query_style_context_index, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
+    summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
@@ -165,6 +167,17 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Read query-owned source diagnostics from precomputed missing-selector candidates.
+    SourceDiagnostics {
+        /// Source document URI used in the diagnostics result.
+        source_uri: String,
+        /// JSON file containing source missing-selector diagnostic candidates.
+        #[arg(long)]
+        candidates_json: PathBuf,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -245,6 +258,11 @@ fn run(cli: Cli) -> Result<(), String> {
             json,
         } => context_index(path, engine_input_json, json),
         Command::StyleDiagnostics { path, json } => style_diagnostics(path, json),
+        Command::SourceDiagnostics {
+            source_uri,
+            candidates_json,
+            json,
+        } => source_diagnostics(source_uri, candidates_json, json),
     }
 }
 
@@ -683,6 +701,30 @@ fn style_diagnostics(path: PathBuf, json: bool) -> Result<(), String> {
     Ok(())
 }
 
+fn source_diagnostics(
+    source_uri: String,
+    candidates_json: PathBuf,
+    json: bool,
+) -> Result<(), String> {
+    let candidates = read_source_diagnostic_candidates_json(&candidates_json)?;
+    let summary = summarize_omena_query_source_diagnostics_for_file(
+        source_uri.as_str(),
+        candidates.as_slice(),
+    );
+
+    if json {
+        print_json(&summary)?;
+        return Ok(());
+    }
+
+    println!("file: {}", summary.file_uri);
+    println!("diagnostics: {}", summary.diagnostic_count);
+    for diagnostic in &summary.diagnostics {
+        println!("{}\t{}", diagnostic.code, diagnostic.message);
+    }
+    Ok(())
+}
+
 fn read_source(path: &Path) -> Result<String, String> {
     fs::read_to_string(path)
         .map_err(|error| format!("failed to read {}: {error}", path_string(path)))
@@ -712,6 +754,23 @@ fn read_engine_input_json(path: &Path) -> Result<OmenaQueryEngineInputV2, String
     serde_json::from_str(&json).map_err(|error| {
         format!(
             "failed to parse engine input JSON {}: {error}",
+            path_string(path)
+        )
+    })
+}
+
+fn read_source_diagnostic_candidates_json(
+    path: &Path,
+) -> Result<Vec<OmenaQuerySourceMissingSelectorDiagnosticCandidateV0>, String> {
+    let json = fs::read_to_string(path).map_err(|error| {
+        format!(
+            "failed to read source diagnostics candidates JSON {}: {error}",
+            path_string(path)
+        )
+    })?;
+    serde_json::from_str(&json).map_err(|error| {
+        format!(
+            "failed to parse source diagnostics candidates JSON {}: {error}",
             path_string(path)
         )
     })
@@ -874,6 +933,38 @@ mod tests {
         assert!(result.is_ok(), "{result:?}");
 
         cleanup(&source_path);
+    }
+
+    #[test]
+    fn source_diagnostics_command_reads_query_owned_diagnostics() {
+        let candidates_path = temp_path("source-diagnostics.json");
+        fs::write(
+            &candidates_path,
+            r#"[
+              {
+                "targetStyleUri": "file:///workspace/src/App.module.css",
+                "targetStyleSource": ".root {\n}\n",
+                "selectorName": "missing",
+                "sourceReferenceRange": {
+                  "start": { "line": 2, "character": 18 },
+                  "end": { "line": 2, "character": 25 }
+                }
+              }
+            ]"#,
+        )
+        .expect("fixture candidates should be writable");
+
+        let result = run(Cli {
+            command: Command::SourceDiagnostics {
+                source_uri: "file:///workspace/src/App.tsx".to_string(),
+                candidates_json: candidates_path.clone(),
+                json: true,
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+
+        cleanup(&candidates_path);
     }
 
     fn temp_path(name: &str) -> PathBuf {

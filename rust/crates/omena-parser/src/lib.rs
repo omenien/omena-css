@@ -18,7 +18,7 @@ use omena_interner::{
 };
 pub use omena_syntax::StyleDialect;
 use omena_syntax::SyntaxKind;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -113,14 +113,14 @@ pub struct ParserByteSpanV0 {
     pub end: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserPositionV0 {
     pub line: usize,
     pub character: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ParserRangeV0 {
     pub start: ParserPositionV0,

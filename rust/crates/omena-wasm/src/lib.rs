@@ -7,6 +7,8 @@ use omena_query::{
     OmenaQueryEngineInputV2 as OmenaWasmEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 as OmenaWasmExpressionDomainIncrementalFlowAnalysisV0,
     OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaWasmExpressionDomainSelectorProjectionV0,
+    OmenaQuerySourceDiagnosticsForFileV0 as OmenaWasmSourceDiagnosticsForFileV0,
+    OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 as OmenaWasmSourceMissingSelectorDiagnosticCandidateV0,
     OmenaQueryStyleContextIndexV0 as OmenaWasmStyleContextIndexV0,
     OmenaQueryStyleDiagnosticsForFileV0 as OmenaWasmStyleDiagnosticsForFileV0,
     OmenaQueryStylePackageManifestV0 as OmenaWasmStylePackageManifestV0,
@@ -27,6 +29,7 @@ use omena_query::{
     read_omena_query_style_context_index, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
+    summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
@@ -237,6 +240,15 @@ pub fn read_style_context_index(
 #[wasm_bindgen(js_name = readStyleDiagnostics)]
 pub fn read_style_diagnostics(source: &str, path: &str) -> Result<JsValue, JsValue> {
     to_js_value(&read_style_diagnostics_summary(source, path)?)
+}
+
+#[wasm_bindgen(js_name = readSourceDiagnostics)]
+pub fn read_source_diagnostics(source_uri: &str, candidates: JsValue) -> Result<JsValue, JsValue> {
+    let candidates = parse_source_diagnostic_candidates_value(candidates)?;
+    to_js_value(&read_source_diagnostics_summary(
+        source_uri,
+        candidates.as_slice(),
+    ))
 }
 
 #[wasm_bindgen(js_name = ExpressionDomainFlowRuntime)]
@@ -450,6 +462,13 @@ pub fn read_style_diagnostics_summary(
     ))
 }
 
+pub fn read_source_diagnostics_summary(
+    source_uri: &str,
+    candidates: &[OmenaWasmSourceMissingSelectorDiagnosticCandidateV0],
+) -> OmenaWasmSourceDiagnosticsForFileV0 {
+    summarize_omena_query_source_diagnostics_for_file(source_uri, candidates)
+}
+
 fn parse_pass_ids_value(value: JsValue) -> Result<Vec<String>, JsValue> {
     if value.is_null() || value.is_undefined() {
         return Ok(Vec::new());
@@ -513,6 +532,16 @@ fn parse_package_manifests_value(
 fn parse_engine_input_value(value: JsValue) -> Result<OmenaWasmEngineInputV2, JsValue> {
     serde_wasm_bindgen::from_value(value)
         .map_err(|error| JsValue::from_str(&format!("failed to parse engine input: {error}")))
+}
+
+fn parse_source_diagnostic_candidates_value(
+    value: JsValue,
+) -> Result<Vec<OmenaWasmSourceMissingSelectorDiagnosticCandidateV0>, JsValue> {
+    serde_wasm_bindgen::from_value(value).map_err(|error| {
+        JsValue::from_str(&format!(
+            "failed to parse source diagnostic candidates value: {error}"
+        ))
+    })
 }
 
 fn parse_optional_engine_input_value(value: JsValue) -> Result<OmenaWasmEngineInputV2, JsValue> {
@@ -633,6 +662,25 @@ mod tests {
                 .iter()
                 .any(|diagnostic| diagnostic.code == "missingCustomProperty")
         );
+    }
+
+    #[test]
+    fn reads_source_diagnostics_for_browser_clients() {
+        let candidates = serde_json::from_str::<
+            Vec<OmenaWasmSourceMissingSelectorDiagnosticCandidateV0>,
+        >(source_diagnostic_candidates_json());
+        assert!(candidates.is_ok());
+        let Ok(candidates) = candidates else {
+            return;
+        };
+        let summary =
+            read_source_diagnostics_summary("file:///workspace/src/App.tsx", candidates.as_slice());
+
+        assert_eq!(summary.product, "omena-query.diagnostics-for-file");
+        assert_eq!(summary.file_kind, "source");
+        assert_eq!(summary.diagnostic_count, 1);
+        assert_eq!(summary.diagnostics[0].code, "missingSelector");
+        assert!(summary.ready_surfaces.contains(&"crossLanguageDiagnostics"));
     }
 
     #[test]
@@ -1099,5 +1147,19 @@ mod tests {
           ],
           "typeFacts": []
         }"#
+    }
+
+    fn source_diagnostic_candidates_json() -> &'static str {
+        r#"[
+          {
+            "targetStyleUri": "file:///workspace/src/App.module.css",
+            "targetStyleSource": ".root {\n}\n",
+            "selectorName": "missing",
+            "sourceReferenceRange": {
+              "start": { "line": 2, "character": 18 },
+              "end": { "line": 2, "character": 25 }
+            }
+          }
+        ]"#
     }
 }

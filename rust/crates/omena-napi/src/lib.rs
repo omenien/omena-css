@@ -8,6 +8,8 @@ use omena_query::{
     OmenaQueryEngineInputV2 as OmenaNapiEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 as OmenaNapiExpressionDomainIncrementalFlowAnalysisV0,
     OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaNapiExpressionDomainSelectorProjectionV0,
+    OmenaQuerySourceDiagnosticsForFileV0 as OmenaNapiSourceDiagnosticsForFileV0,
+    OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 as OmenaNapiSourceMissingSelectorDiagnosticCandidateV0,
     OmenaQueryStyleContextIndexV0 as OmenaNapiStyleContextIndexV0,
     OmenaQueryStyleDiagnosticsForFileV0 as OmenaNapiStyleDiagnosticsForFileV0,
     OmenaQueryStylePackageManifestV0 as OmenaNapiStylePackageManifestV0,
@@ -28,6 +30,7 @@ use omena_query::{
     read_omena_query_style_context_index, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
+    summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
@@ -237,6 +240,18 @@ pub fn read_style_diagnostics_json(source: String, path: String) -> napi::Result
     to_json_string(&read_style_diagnostics_summary(&source, &path)?)
 }
 
+#[napi(js_name = "readSourceDiagnosticsJson")]
+pub fn read_source_diagnostics_json(
+    source_uri: String,
+    candidates_json: String,
+) -> napi::Result<String> {
+    let candidates = parse_source_diagnostic_candidates_json(&candidates_json)?;
+    to_json_string(&read_source_diagnostics_summary(
+        &source_uri,
+        candidates.as_slice(),
+    ))
+}
+
 #[napi(js_name = "ExpressionDomainFlowRuntime")]
 pub struct OmenaNapiExpressionDomainFlowRuntimeV0 {
     inner: OmenaQueryExpressionDomainFlowRuntimeV0,
@@ -444,6 +459,13 @@ pub fn read_style_diagnostics_summary(
     ))
 }
 
+pub fn read_source_diagnostics_summary(
+    source_uri: &str,
+    candidates: &[OmenaNapiSourceMissingSelectorDiagnosticCandidateV0],
+) -> OmenaNapiSourceDiagnosticsForFileV0 {
+    summarize_omena_query_source_diagnostics_for_file(source_uri, candidates)
+}
+
 fn parse_target_options_json(
     target_options_json: &str,
 ) -> napi::Result<OmenaNapiTargetTransformOptionsV0> {
@@ -478,6 +500,16 @@ fn parse_package_manifests_json(
 fn parse_engine_input_json(input_json: &str) -> napi::Result<OmenaNapiEngineInputV2> {
     serde_json::from_str(input_json).map_err(|error| {
         napi::Error::from_reason(format!("failed to parse engine input JSON: {error}"))
+    })
+}
+
+fn parse_source_diagnostic_candidates_json(
+    candidates_json: &str,
+) -> napi::Result<Vec<OmenaNapiSourceMissingSelectorDiagnosticCandidateV0>> {
+    serde_json::from_str(candidates_json).map_err(|error| {
+        napi::Error::from_reason(format!(
+            "failed to parse source diagnostic candidates JSON: {error}"
+        ))
     })
 }
 
@@ -600,6 +632,21 @@ mod tests {
                 .iter()
                 .any(|diagnostic| diagnostic.code == "missingCustomProperty")
         );
+    }
+
+    #[test]
+    fn reads_source_diagnostics_for_node_clients() {
+        let candidates =
+            parse_source_diagnostic_candidates_json(source_diagnostic_candidates_json())
+                .expect("source diagnostic candidates should parse");
+        let summary =
+            read_source_diagnostics_summary("file:///workspace/src/App.tsx", candidates.as_slice());
+
+        assert_eq!(summary.product, "omena-query.diagnostics-for-file");
+        assert_eq!(summary.file_kind, "source");
+        assert_eq!(summary.diagnostic_count, 1);
+        assert_eq!(summary.diagnostics[0].code, "missingSelector");
+        assert!(summary.ready_surfaces.contains(&"crossLanguageDiagnostics"));
     }
 
     #[test]
@@ -792,6 +839,20 @@ mod tests {
         assert!(json.contains("\"product\":\"omena-query.diagnostics-for-file\""));
         assert!(json.contains("\"fileKind\":\"style\""));
         assert!(json.contains("\"code\":\"missingCustomProperty\""));
+        Ok(())
+    }
+
+    #[test]
+    fn serializes_source_diagnostics_for_node_clients() -> napi::Result<()> {
+        let json = read_source_diagnostics_json(
+            "file:///workspace/src/App.tsx".to_string(),
+            source_diagnostic_candidates_json().to_string(),
+        )
+        .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
+
+        assert!(json.contains("\"product\":\"omena-query.diagnostics-for-file\""));
+        assert!(json.contains("\"fileKind\":\"source\""));
+        assert!(json.contains("\"code\":\"missingSelector\""));
         Ok(())
     }
 
@@ -1100,5 +1161,19 @@ mod tests {
           ],
           "typeFacts": []
         }"#
+    }
+
+    fn source_diagnostic_candidates_json() -> &'static str {
+        r#"[
+          {
+            "targetStyleUri": "file:///workspace/src/App.module.css",
+            "targetStyleSource": ".root {\n}\n",
+            "selectorName": "missing",
+            "sourceReferenceRange": {
+              "start": { "line": 2, "character": 18 },
+              "end": { "line": 2, "character": 25 }
+            }
+          }
+        ]"#
     }
 }
