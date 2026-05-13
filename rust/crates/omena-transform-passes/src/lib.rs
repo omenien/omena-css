@@ -4832,33 +4832,56 @@ fn close_custom_property_dependency_graph(
 
 fn collect_custom_property_references_in_value(value: &str) -> Option<Vec<String>> {
     let mut names = Vec::new();
-    let mut search_start = 0;
-    while let Some(relative_index) = find_ascii_case_insensitive(&value[search_start..], "var(") {
-        let mut index = search_start + relative_index + "var(".len();
-        while matches!(
-            value.as_bytes().get(index),
-            Some(b' ' | b'\n' | b'\r' | b'\t')
-        ) {
-            index += 1;
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+
+    while index < value.len() {
+        let ch = value[index..].chars().next()?;
+
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                let escaped = value[index..].chars().next()?;
+                index += escaped.len_utf8();
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
         }
-        let name_start = index;
-        if !value[name_start..].starts_with("--") {
-            return None;
-        }
-        index += 2;
-        while let Some(ch) = value[index..].chars().next() {
-            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') {
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
                 index += ch.len_utf8();
-            } else {
-                break;
+            }
+            _ if value[index..]
+                .get(.."var(".len())
+                .is_some_and(|text| text.eq_ignore_ascii_case("var(")) =>
+            {
+                let left_paren_index = index + "var".len();
+                let close_index = matching_function_call_end(value, left_paren_index)?;
+                let arguments =
+                    split_top_level_value_arguments(&value[left_paren_index + 1..close_index])?;
+                let [name, fallback @ ..] = arguments.as_slice() else {
+                    return None;
+                };
+                let name = normalize_custom_property_name(name)?;
+                push_unique_string(&mut names, name.to_string());
+                for fallback_value in fallback {
+                    for fallback_name in
+                        collect_custom_property_references_in_value(fallback_value)?
+                    {
+                        push_unique_string(&mut names, fallback_name);
+                    }
+                }
+                index = close_index + ')'.len_utf8();
+            }
+            _ => {
+                index += ch.len_utf8();
             }
         }
-        if index == name_start + 2 || !value[index..].contains(')') {
-            return None;
-        }
-        push_unique_string(&mut names, value[name_start..index].to_string());
-        search_start = index;
     }
+
     Some(names)
 }
 
@@ -10003,7 +10026,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_tree_shakes_custom_properties_with_closed_world_context() {
-        let source = r#":root { --used: VAR(--alias); --alias: red; --dead: VAR(--dead-dep); --dead-dep: blue; color: VAR(--used); } .btn { color: var(--external); }"#;
+        let source = r#":root { --used: VAR(--alias); --alias: red; --dead: VAR(--dead-dep); --dead-dep: blue; --string-only: orange; color: VAR(--used); content: "var(--string-only)"; } .btn { color: var(--external); }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             reachable_custom_property_names: vec!["--external".to_string()],
@@ -10019,13 +10042,19 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 3);
         assert!(execution.output_css.contains("--used: VAR(--alias);"));
         assert!(execution.output_css.contains("--alias: red;"));
         assert!(execution.output_css.contains("color: VAR(--used);"));
+        assert!(
+            execution
+                .output_css
+                .contains(r#"content: "var(--string-only)";"#)
+        );
         assert!(execution.output_css.contains("color: var(--external);"));
         assert!(!execution.output_css.contains("--dead:"));
         assert!(!execution.output_css.contains("--dead-dep:"));
+        assert!(!execution.output_css.contains("--string-only:"));
         assert_eq!(
             execution.executed_pass_ids,
             vec!["tree-shake-custom-property", "print-css"]
@@ -10038,7 +10067,8 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 ("customProperty", "--dead"),
-                ("customProperty", "--dead-dep")
+                ("customProperty", "--dead-dep"),
+                ("customProperty", "--string-only")
             ]
         );
     }
