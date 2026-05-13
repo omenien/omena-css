@@ -4431,7 +4431,7 @@ fn collect_referenced_keyframe_names(tokens: &[omena_parser::LexedToken]) -> Opt
 fn extract_animation_shorthand_name_candidates(value: &str) -> Option<Vec<String>> {
     let mut candidates = Vec::new();
     for branch in split_top_level_value_arguments(value)? {
-        for part in branch.split_whitespace() {
+        for part in split_top_level_whitespace_value_components(&branch)? {
             let candidate = part.trim();
             if let Some(candidate) = static_animation_name_candidate(candidate)
                 && (candidate.quoted || !is_known_animation_shorthand_keyword(&candidate.name))
@@ -9894,7 +9894,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_tree_shakes_quoted_keyframes_with_closed_world_context() {
-        let source = r#"@keyframes "slide" { to { opacity: 1; } } @keyframes "ghost" { to { opacity: 0; } } .btn { animation-name: "slide"; } .alt { animation: "slide" 1s ease; }"#;
+        let source = r#"@keyframes "slide" { to { opacity: 1; } } @keyframes "fade in" { to { opacity: 1; } } @keyframes "ghost" { to { opacity: 0; } } .btn { animation-name: "slide"; } .alt { animation: "slide" 1s ease; } .space { animation: "fade in" 1s ease; }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             ..TransformExecutionContextV0::default()
@@ -9912,7 +9912,7 @@ mod tests {
         assert_eq!(execution.mutation_count, 1);
         assert_eq!(
             execution.output_css,
-            r#"@keyframes "slide" { to { opacity: 1; } }  .btn { animation-name: "slide"; } .alt { animation: "slide" 1s ease; }"#
+            r#"@keyframes "slide" { to { opacity: 1; } } @keyframes "fade in" { to { opacity: 1; } }  .btn { animation-name: "slide"; } .alt { animation: "slide" 1s ease; } .space { animation: "fade in" 1s ease; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
