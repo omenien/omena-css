@@ -13,6 +13,7 @@ use omena_query::{
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_diagnostics_for_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_workspace_file,
@@ -207,7 +208,16 @@ enum Command {
         source_uri: String,
         /// JSON file containing source missing-selector diagnostic candidates.
         #[arg(long)]
-        candidates_json: PathBuf,
+        candidates_json: Option<PathBuf>,
+        /// Source document path used to compute workspace diagnostics directly.
+        #[arg(long)]
+        source_path: Option<PathBuf>,
+        /// Workspace style source used to resolve CSS Module selectors.
+        #[arg(long = "source")]
+        source_paths: Vec<PathBuf>,
+        /// package.json file used to resolve package style exports for workspace sources.
+        #[arg(long = "package-manifest")]
+        package_manifest_paths: Vec<PathBuf>,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -314,8 +324,18 @@ fn run(cli: Cli) -> Result<(), String> {
         Command::SourceDiagnostics {
             source_uri,
             candidates_json,
+            source_path,
+            source_paths,
+            package_manifest_paths,
             json,
-        } => source_diagnostics(source_uri, candidates_json, json),
+        } => source_diagnostics(
+            source_uri,
+            candidates_json,
+            source_path,
+            source_paths,
+            package_manifest_paths,
+            json,
+        ),
     }
 }
 
@@ -505,6 +525,20 @@ fn read_source_documents(
             Ok(OmenaQuerySourceDocumentInputV0 {
                 source_path: path_string(path),
                 source_source: read_source(path)?,
+            })
+        })
+        .collect()
+}
+
+fn read_style_sources(
+    source_paths: &[PathBuf],
+) -> Result<Vec<OmenaQueryStyleSourceInputV0>, String> {
+    source_paths
+        .iter()
+        .map(|path| {
+            Ok(OmenaQueryStyleSourceInputV0 {
+                style_path: path_string(path),
+                style_source: read_source(path)?,
             })
         })
         .collect()
@@ -855,14 +889,32 @@ fn style_completion(
 
 fn source_diagnostics(
     source_uri: String,
-    candidates_json: PathBuf,
+    candidates_json: Option<PathBuf>,
+    source_path: Option<PathBuf>,
+    source_paths: Vec<PathBuf>,
+    package_manifest_paths: Vec<PathBuf>,
     json: bool,
 ) -> Result<(), String> {
-    let candidates = read_source_diagnostic_candidates_json(&candidates_json)?;
-    let summary = summarize_omena_query_source_diagnostics_for_file(
-        source_uri.as_str(),
-        candidates.as_slice(),
-    );
+    let summary = if let Some(candidates_json) = candidates_json {
+        let candidates = read_source_diagnostic_candidates_json(&candidates_json)?;
+        summarize_omena_query_source_diagnostics_for_file(
+            source_uri.as_str(),
+            candidates.as_slice(),
+        )
+    } else {
+        let source_path = source_path.ok_or_else(|| {
+            "source-diagnostics requires either --candidates-json or --source-path".to_string()
+        })?;
+        let source_source = read_source(&source_path)?;
+        let style_sources = read_style_sources(&source_paths)?;
+        let package_manifests = read_package_manifests(&package_manifest_paths)?;
+        summarize_omena_query_source_diagnostics_for_workspace_file(
+            source_uri.as_str(),
+            source_source.as_str(),
+            style_sources.as_slice(),
+            package_manifests.as_slice(),
+        )
+    };
 
     if json {
         print_json(&summary)?;
@@ -1142,7 +1194,10 @@ mod tests {
         let result = run(Cli {
             command: Command::SourceDiagnostics {
                 source_uri: "file:///workspace/src/App.tsx".to_string(),
-                candidates_json: candidates_path.clone(),
+                candidates_json: Some(candidates_path.clone()),
+                source_path: None,
+                source_paths: Vec::new(),
+                package_manifest_paths: Vec::new(),
                 json: true,
             },
         });
@@ -1150,6 +1205,41 @@ mod tests {
         assert!(result.is_ok(), "{result:?}");
 
         cleanup(&candidates_path);
+    }
+
+    #[test]
+    fn source_diagnostics_command_reads_workspace_query_owned_diagnostics() {
+        let source_path = temp_path("App.tsx");
+        let style_path = temp_path("App.module.scss");
+        fs::write(
+            &source_path,
+            r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+const variant = Math.random() > 0.5 ? "chip" : "ghost";
+export function App() {
+  return <div className={cx(variant)} />;
+}
+"#,
+        )
+        .expect("fixture source should be writable");
+        fs::write(&style_path, ".chip {}\n").expect("fixture style should be writable");
+
+        let result = run(Cli {
+            command: Command::SourceDiagnostics {
+                source_uri: path_string(&source_path),
+                candidates_json: None,
+                source_path: Some(source_path.clone()),
+                source_paths: vec![style_path.clone()],
+                package_manifest_paths: Vec::new(),
+                json: true,
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+
+        cleanup(&source_path);
+        cleanup(&style_path);
     }
 
     fn temp_path(name: &str) -> PathBuf {

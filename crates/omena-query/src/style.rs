@@ -1620,6 +1620,241 @@ pub fn summarize_omena_query_source_diagnostics_for_file(
     }
 }
 
+pub fn summarize_omena_query_source_diagnostics_for_workspace_file(
+    source_path: &str,
+    source_source: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQuerySourceDiagnosticsForFileV0 {
+    let available_style_paths = style_sources
+        .iter()
+        .map(|source| source.style_path.as_str())
+        .collect::<BTreeSet<_>>();
+    let style_sources_by_path = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<BTreeMap<_, _>>();
+    let definitions = summarize_omena_query_style_selector_definitions(style_sources);
+    let imports = summarize_omena_query_source_import_declarations(source_source);
+    let mut imported_style_bindings = Vec::new();
+    let mut classnames_bind_bindings = Vec::new();
+    let mut diagnostics = Vec::new();
+
+    for import in imports.imports {
+        if import.specifier == "classnames/bind" {
+            classnames_bind_bindings.push(import.binding);
+            continue;
+        }
+
+        if !is_query_source_style_module_specifier(import.specifier.as_str()) {
+            continue;
+        }
+
+        match resolve_style_module_source(
+            source_path,
+            import.specifier.as_str(),
+            &available_style_paths,
+            package_manifests,
+        ) {
+            Some(style_path) => {
+                imported_style_bindings.push(OmenaQuerySourceImportedStyleBindingV0 {
+                    binding: import.binding,
+                    style_uri: style_path,
+                })
+            }
+            None => diagnostics.push(OmenaQuerySourceDiagnosticV0 {
+                code: "missingModule",
+                range: parser_range_for_byte_span(source_source, import.specifier_byte_span),
+                message: format!(
+                    "Cannot resolve CSS Module '{}'. The file does not exist.",
+                    import.specifier
+                ),
+                create_selector: None,
+            }),
+        }
+    }
+
+    if !imported_style_bindings.is_empty() {
+        let index = summarize_omena_query_source_syntax_index(
+            source_source,
+            imported_style_bindings,
+            classnames_bind_bindings,
+        );
+        for reference in index.selector_references {
+            let Some(target_style_uri) = reference.target_style_uri.as_deref() else {
+                continue;
+            };
+            let Some(selector_name) = reference.selector_name.clone().or_else(|| {
+                source_reference_text_selector_name(source_source, reference.byte_span)
+            }) else {
+                continue;
+            };
+            let candidate = OmenaQuerySourceSelectorCandidateV0 {
+                kind: match reference.match_kind {
+                    OmenaQuerySourceSelectorReferenceMatchKindV0::Exact => {
+                        "sourceSelectorReference"
+                    }
+                    OmenaQuerySourceSelectorReferenceMatchKindV0::Prefix => {
+                        "sourceSelectorPrefixReference"
+                    }
+                },
+                name: selector_name.clone(),
+                range: parser_range_for_byte_span(source_source, reference.byte_span),
+                source: "omenaQuerySourceSyntaxIndex",
+                target_style_uri: Some(target_style_uri.to_string()),
+            };
+            if !resolve_omena_query_style_selector_definitions_for_source_candidate(
+                &candidate,
+                definitions.as_slice(),
+            )
+            .is_empty()
+            {
+                continue;
+            }
+            diagnostics.push(
+                summarize_omena_query_unresolved_source_reference_diagnostic(
+                    source_source,
+                    &reference,
+                    selector_name.as_str(),
+                    style_sources_by_path.get(target_style_uri).copied(),
+                ),
+            );
+        }
+    }
+
+    diagnostics.sort_by_key(|diagnostic| {
+        (
+            diagnostic.range.start.line,
+            diagnostic.range.start.character,
+            diagnostic.code,
+            diagnostic.message.clone(),
+        )
+    });
+    diagnostics.dedup_by(|left, right| {
+        left.code == right.code && left.range == right.range && left.message == right.message
+    });
+
+    OmenaQuerySourceDiagnosticsForFileV0 {
+        schema_version: "0",
+        product: "omena-query.diagnostics-for-file",
+        file_uri: source_path.to_string(),
+        file_kind: "source",
+        diagnostic_count: diagnostics.len(),
+        diagnostics,
+        ready_surfaces: vec![
+            "sourceMissingModuleDiagnostics",
+            "sourceMissingSelectorDiagnostics",
+            "sourceResolvedClassDiagnostics",
+            "crossLanguageDiagnostics",
+        ],
+    }
+}
+
+fn summarize_omena_query_style_selector_definitions(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+) -> Vec<OmenaQueryStyleSelectorDefinitionV0> {
+    let mut definitions = Vec::new();
+    for source in style_sources {
+        let Some(candidates) = summarize_omena_query_style_hover_candidates(
+            source.style_path.as_str(),
+            source.style_source.as_str(),
+        ) else {
+            continue;
+        };
+        definitions.extend(candidates.candidates.into_iter().filter_map(|candidate| {
+            (candidate.kind == "selector").then(|| OmenaQueryStyleSelectorDefinitionV0 {
+                uri: source.style_path.clone(),
+                name: candidate.name,
+                range: candidate.range,
+            })
+        }));
+    }
+    definitions.sort_by_key(|definition| {
+        (
+            definition.uri.clone(),
+            definition.range.start.line,
+            definition.range.start.character,
+            definition.name.clone(),
+        )
+    });
+    definitions.dedup();
+    definitions
+}
+
+fn summarize_omena_query_unresolved_source_reference_diagnostic(
+    source: &str,
+    reference: &OmenaQuerySourceSelectorReferenceFactV0,
+    selector_name: &str,
+    target_style_source: Option<&str>,
+) -> OmenaQuerySourceDiagnosticV0 {
+    let range = parser_range_for_byte_span(source, reference.byte_span);
+    let reference_text = source
+        .get(reference.byte_span.start..reference.byte_span.end)
+        .unwrap_or_default()
+        .trim_matches(['"', '\'', '`']);
+    let code = match reference.match_kind {
+        OmenaQuerySourceSelectorReferenceMatchKindV0::Exact if reference_text == selector_name => {
+            "missingStaticClass"
+        }
+        OmenaQuerySourceSelectorReferenceMatchKindV0::Exact => "missingResolvedClassValues",
+        OmenaQuerySourceSelectorReferenceMatchKindV0::Prefix if reference_text == selector_name => {
+            "missingTemplatePrefix"
+        }
+        OmenaQuerySourceSelectorReferenceMatchKindV0::Prefix => "missingResolvedClassDomain",
+    };
+    let create_selector = reference
+        .target_style_uri
+        .as_deref()
+        .zip(target_style_source)
+        .filter(|_| {
+            matches!(
+                reference.match_kind,
+                OmenaQuerySourceSelectorReferenceMatchKindV0::Exact
+            )
+        })
+        .map(|(target_style_uri, target_style_source)| {
+            summarize_omena_query_missing_selector_diagnostic(
+                target_style_uri,
+                target_style_source,
+                selector_name,
+                range,
+            )
+            .create_selector
+        })
+        .flatten();
+
+    OmenaQuerySourceDiagnosticV0 {
+        code,
+        range,
+        message: query_source_diagnostic_message(code, selector_name),
+        create_selector,
+    }
+}
+
+fn query_source_diagnostic_message(code: &str, selector_name: &str) -> String {
+    match code {
+        "missingStaticClass" => format!("Class '.{selector_name}' not found in target CSS Module."),
+        "missingTemplatePrefix" => {
+            format!("No class starting with '{selector_name}' found in target CSS Module.")
+        }
+        "missingResolvedClassValues" => {
+            format!("Missing class for possible value: '{selector_name}'.")
+        }
+        "missingResolvedClassDomain" => {
+            format!("No class matched resolved prefix '{selector_name}'.")
+        }
+        _ => "Source diagnostic reported by omena-query.".to_string(),
+    }
+}
+
+fn is_query_source_style_module_specifier(specifier: &str) -> bool {
+    specifier.contains(".module.")
+        || specifier.ends_with(".css")
+        || specifier.ends_with(".scss")
+        || specifier.ends_with(".sass")
+        || specifier.ends_with(".less")
+}
+
 pub fn resolve_omena_query_source_provider_candidates(
     source_candidates: Vec<OmenaQuerySourceSelectorCandidateV0>,
     definitions: &[OmenaQueryStyleSelectorDefinitionV0],

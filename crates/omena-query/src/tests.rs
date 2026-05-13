@@ -3512,6 +3512,45 @@ fn source_diagnostics_for_file_are_query_owned() {
 }
 
 #[test]
+fn source_diagnostics_for_workspace_file_are_query_owned() {
+    let diagnostics = super::summarize_omena_query_source_diagnostics_for_workspace_file(
+        "/workspace/src/App.tsx",
+        r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+import missing from "./Missing.module.scss";
+const cx = bind.bind(styles);
+const variant = Math.random() > 0.5 ? "chip" : "ghost";
+const dynamicPrefix = "lost-" + suffix;
+export function App({ suffix }) {
+  return <div className={cx("ghost", variant, dynamicPrefix, `empty-${suffix}`)} data-x={styles.ghost} />;
+}"#,
+        &[OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/App.module.scss".to_string(),
+            style_source: ".root {}\n.chip {}\n".to_string(),
+        }],
+        &[],
+    );
+
+    let codes = diagnostics
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.code)
+        .collect::<Vec<_>>();
+    assert_eq!(diagnostics.product, "omena-query.diagnostics-for-file");
+    assert_eq!(diagnostics.file_kind, "source");
+    assert!(codes.contains(&"missingModule"));
+    assert!(codes.contains(&"missingStaticClass"));
+    assert!(codes.contains(&"missingResolvedClassValues"));
+    assert!(codes.contains(&"missingResolvedClassDomain"));
+    assert!(codes.contains(&"missingTemplatePrefix"));
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"sourceResolvedClassDiagnostics")
+    );
+}
+
+#[test]
 fn source_provider_candidate_resolution_is_query_owned() {
     let source_range = ParserRangeV0 {
         start: ParserPositionV0 {

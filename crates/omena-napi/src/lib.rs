@@ -34,6 +34,7 @@ use omena_query::{
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_diagnostics_for_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_workspace_file,
@@ -296,6 +297,23 @@ pub fn read_source_diagnostics_json(
     ))
 }
 
+#[napi(js_name = "readWorkspaceSourceDiagnosticsJson")]
+pub fn read_workspace_source_diagnostics_json(
+    source_uri: String,
+    source: String,
+    sources_json: String,
+    package_manifests_json: String,
+) -> napi::Result<String> {
+    let sources = parse_style_sources_json(&sources_json)?;
+    let package_manifests = parse_package_manifests_json(&package_manifests_json)?;
+    to_json_string(&read_workspace_source_diagnostics_summary(
+        &source_uri,
+        &source,
+        &sources,
+        &package_manifests,
+    ))
+}
+
 #[napi(js_name = "ExpressionDomainFlowRuntime")]
 pub struct OmenaNapiExpressionDomainFlowRuntimeV0 {
     inner: OmenaQueryExpressionDomainFlowRuntimeV0,
@@ -554,6 +572,20 @@ pub fn read_source_diagnostics_summary(
     candidates: &[OmenaNapiSourceMissingSelectorDiagnosticCandidateV0],
 ) -> OmenaNapiSourceDiagnosticsForFileV0 {
     summarize_omena_query_source_diagnostics_for_file(source_uri, candidates)
+}
+
+pub fn read_workspace_source_diagnostics_summary(
+    source_uri: &str,
+    source: &str,
+    style_sources: &[OmenaNapiStyleSourceInputV0],
+    package_manifests: &[OmenaNapiStylePackageManifestV0],
+) -> OmenaNapiSourceDiagnosticsForFileV0 {
+    summarize_omena_query_source_diagnostics_for_workspace_file(
+        source_uri,
+        source,
+        style_sources,
+        package_manifests,
+    )
 }
 
 fn parse_target_options_json(
@@ -1073,6 +1105,36 @@ mod tests {
         assert!(json.contains("\"product\":\"omena-query.diagnostics-for-file\""));
         assert!(json.contains("\"fileKind\":\"source\""));
         assert!(json.contains("\"code\":\"missingSelector\""));
+        Ok(())
+    }
+
+    #[test]
+    fn serializes_workspace_source_diagnostics_for_node_clients() -> napi::Result<()> {
+        let json = read_workspace_source_diagnostics_json(
+            "/workspace/src/App.tsx".to_string(),
+            r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+const variant = Math.random() > 0.5 ? "chip" : "ghost";
+export function App() {
+  return <div className={cx(variant)} />;
+}
+"#
+            .to_string(),
+            r#"[
+              {
+                "stylePath": "/workspace/src/App.module.scss",
+                "styleSource": ".chip {}"
+              }
+            ]"#
+            .to_string(),
+            "[]".to_string(),
+        )
+        .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
+
+        assert!(json.contains("\"product\":\"omena-query.diagnostics-for-file\""));
+        assert!(json.contains("\"fileKind\":\"source\""));
+        assert!(json.contains("\"code\":\"missingResolvedClassValues\""));
         Ok(())
     }
 
