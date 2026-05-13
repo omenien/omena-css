@@ -6944,6 +6944,9 @@ fn box_shorthand_replacement_for_declarations(
     let shorthand_property = match declarations.first()?.property.as_str() {
         "margin-top" => "margin",
         "padding-top" => "padding",
+        "border-top-color" => "border-color",
+        "border-top-style" => "border-style",
+        "border-top-width" => "border-width",
         _ => return None,
     };
     if !declaration_ranges_are_adjacent(tokens, declarations) {
@@ -9278,7 +9281,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_combines_adjacent_box_longhands_with_cascade_proof() {
-        let source = r#".a { margin-top: 1px; margin-right: 2px; margin-bottom: 1px; margin-left: 2px; padding-top: 1px; color: red; padding-right: 2px; padding-bottom: 3px; padding-left: 4px; }"#;
+        let source = r#".a { margin-top: 1px; margin-right: 2px; margin-bottom: 1px; margin-left: 2px; border-top-color: red; border-right-color: blue; border-bottom-color: red; border-left-color: blue; border-top-width: 1px; border-right-width: 2px; border-bottom-width: 3px; border-left-width: 2px; padding-top: 1px; color: red; padding-right: 2px; padding-bottom: 3px; padding-left: 4px; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9287,10 +9290,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(execution.mutation_count, 3);
         assert_eq!(
             execution.output_css,
-            r#".a { margin: 1px 2px; padding-top: 1px; color: red; padding-right: 2px; padding-bottom: 3px; padding-left: 4px; }"#
+            r#".a { margin: 1px 2px; border-color: red blue; border-width: 1px 2px 3px; padding-top: 1px; color: red; padding-right: 2px; padding-bottom: 3px; padding-left: 4px; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,

@@ -1493,6 +1493,24 @@ fn box_shorthand_longhands(shorthand_property: &str) -> Option<[&'static str; 4]
             "padding-bottom",
             "padding-left",
         ]),
+        "border-color" => Some([
+            "border-top-color",
+            "border-right-color",
+            "border-bottom-color",
+            "border-left-color",
+        ]),
+        "border-style" => Some([
+            "border-top-style",
+            "border-right-style",
+            "border-bottom-style",
+            "border-left-style",
+        ]),
+        "border-width" => Some([
+            "border-top-width",
+            "border-right-width",
+            "border-bottom-width",
+            "border-left-width",
+        ]),
         _ => None,
     }
 }
@@ -2294,6 +2312,38 @@ mod tests {
         assert_eq!(proof.blocked_reason, None);
         assert!(proof.provenance_preserved);
         assert!(proof.cascade_safe_witness.contains("canonical order"));
+
+        let border_proof = prove_box_shorthand_combination(
+            "border-color",
+            &[
+                BoxLonghandInputV0 {
+                    property: "border-top-color".to_string(),
+                    value: "red".to_string(),
+                    important: false,
+                    source_order: 1,
+                },
+                BoxLonghandInputV0 {
+                    property: "border-right-color".to_string(),
+                    value: "blue".to_string(),
+                    important: false,
+                    source_order: 2,
+                },
+                BoxLonghandInputV0 {
+                    property: "border-bottom-color".to_string(),
+                    value: "red".to_string(),
+                    important: false,
+                    source_order: 3,
+                },
+                BoxLonghandInputV0 {
+                    property: "border-left-color".to_string(),
+                    value: "blue".to_string(),
+                    important: false,
+                    source_order: 4,
+                },
+            ],
+        );
+        assert!(border_proof.accepted);
+        assert!(border_proof.provenance_preserved);
     }
 
     #[test]
