@@ -2819,6 +2819,28 @@ fn read_cascade_at_position_is_query_owned() {
     assert_eq!(cascade.winner_declaration_source_order, Some(1));
     assert_eq!(cascade.candidate_declaration_count, 2);
     assert_eq!(cascade.shadowed_declaration_source_orders, vec![0]);
+    assert_eq!(
+        cascade.referenced_declaration_property.as_deref(),
+        Some("color")
+    );
+    assert_eq!(
+        cascade.referenced_declaration_value.as_deref(),
+        Some("var(--surface)")
+    );
+    assert_eq!(
+        cascade.referenced_declaration_computed_value_status,
+        Some("resolved")
+    );
+    assert_eq!(
+        cascade.referenced_declaration_computed_value.as_deref(),
+        Some("black")
+    );
+    assert!(!cascade.referenced_declaration_invalid_at_computed_value_time);
+    assert!(
+        cascade
+            .referenced_declaration_computed_value_derivation_steps
+            .contains(&"computedValueResolved")
+    );
 
     let no_reference = super::read_omena_query_cascade_at_position(
         "Component.module.css",
@@ -2833,6 +2855,41 @@ fn read_cascade_at_position_is_query_owned() {
     assert_eq!(
         no_reference.map(|cascade| cascade.status),
         Some("noCustomPropertyReference")
+    );
+}
+
+#[test]
+fn read_cascade_at_position_reports_iacvt_seed() {
+    let source = ":root { --a: var(--b); --b: var(--a); }\n.button { color: var(--a); }\n";
+    let cascade = super::read_omena_query_cascade_at_position(
+        "Component.module.css",
+        source,
+        &sample_input(),
+        ParserPositionV0 {
+            line: 1,
+            character: 22,
+        },
+    );
+    assert!(cascade.is_some());
+    let Some(cascade) = cascade else {
+        return;
+    };
+
+    assert_eq!(cascade.status, "resolved");
+    assert_eq!(cascade.reference_name.as_deref(), Some("--a"));
+    assert_eq!(
+        cascade.referenced_declaration_computed_value_status,
+        Some("invalidAtComputedValueTime")
+    );
+    assert_eq!(
+        cascade.referenced_declaration_computed_value.as_deref(),
+        Some("canvastext")
+    );
+    assert!(cascade.referenced_declaration_invalid_at_computed_value_time);
+    assert!(
+        cascade
+            .referenced_declaration_computed_value_derivation_steps
+            .contains(&"invalidAtComputedValueTimeFallsBackAsUnset")
     );
 }
 

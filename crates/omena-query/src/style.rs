@@ -1,6 +1,12 @@
 use super::*;
 use omena_bridge::OmenaBridgeParserRangeV0;
+use omena_cascade::{
+    CascadeComputedValueInputV0, CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue,
+    ComputedCascadeValueStatusV0, CustomPropertyEnv, LayerRank, Specificity,
+    compute_cascade_computed_value,
+};
 use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact};
+use omena_transform_passes::parse_static_css_cascade_value;
 use std::path::{Component, PathBuf};
 
 mod transform;
@@ -505,6 +511,12 @@ pub fn read_omena_query_cascade_at_position_from_graph(
             winner_context_kind: None,
             candidate_declaration_count: 0,
             shadowed_declaration_source_orders: Vec::new(),
+            referenced_declaration_property: None,
+            referenced_declaration_value: None,
+            referenced_declaration_computed_value_status: None,
+            referenced_declaration_computed_value: None,
+            referenced_declaration_invalid_at_computed_value_time: false,
+            referenced_declaration_computed_value_derivation_steps: Vec::new(),
         };
     };
 
@@ -517,6 +529,12 @@ pub fn read_omena_query_cascade_at_position_from_graph(
             ranking.reference_name == reference.name
                 && ranking.reference_source_order == reference.source_order
         });
+    let computed = compute_referenced_declaration_cascade_value_seed(
+        style_path,
+        style_source,
+        graph,
+        *reference_range,
+    );
 
     OmenaQueryCascadeAtPositionV0 {
         schema_version: "0",
@@ -545,6 +563,161 @@ pub fn read_omena_query_cascade_at_position_from_graph(
         shadowed_declaration_source_orders: ranking
             .map(|ranking| ranking.shadowed_declaration_source_orders.clone())
             .unwrap_or_default(),
+        referenced_declaration_property: computed
+            .as_ref()
+            .map(|computed| computed.property.clone()),
+        referenced_declaration_value: computed.as_ref().map(|computed| computed.value.clone()),
+        referenced_declaration_computed_value_status: computed
+            .as_ref()
+            .map(|computed| computed.status),
+        referenced_declaration_computed_value: computed
+            .as_ref()
+            .and_then(|computed| computed.computed_value.clone()),
+        referenced_declaration_invalid_at_computed_value_time: computed
+            .as_ref()
+            .is_some_and(|computed| computed.invalid_at_computed_value_time),
+        referenced_declaration_computed_value_derivation_steps: computed
+            .map(|computed| computed.derivation_steps)
+            .unwrap_or_default(),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ReferencedDeclarationComputedValueSeed {
+    property: String,
+    value: String,
+    status: &'static str,
+    computed_value: Option<String>,
+    invalid_at_computed_value_time: bool,
+    derivation_steps: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StyleDeclarationAtOffset {
+    property: String,
+    value: String,
+    source_order: usize,
+}
+
+fn compute_referenced_declaration_cascade_value_seed(
+    style_path: &str,
+    style_source: &str,
+    graph: &StyleSemanticGraphSummaryV0,
+    reference_range: ParserRangeV0,
+) -> Option<ReferencedDeclarationComputedValueSeed> {
+    let reference_offset = byte_offset_for_parser_position(style_source, reference_range.start)?;
+    let declaration = style_declaration_at_byte_offset(style_source, reference_offset)?;
+    let cascade_value = parse_static_css_cascade_value(&declaration.value)?;
+    let custom_property_env = collect_same_file_custom_property_env_from_graph(graph);
+    let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+        property: declaration.property.clone(),
+        declarations: vec![CascadeDeclaration {
+            id: format!(
+                "{style_path}:{}:{}",
+                declaration.property, declaration.source_order
+            ),
+            property: declaration.property.clone(),
+            value: cascade_value,
+            key: CascadeKey::new(
+                CascadeLevel::AuthorNormal,
+                LayerRank(0),
+                0,
+                Specificity::ZERO,
+                declaration.source_order.min(u32::MAX as usize) as u32,
+            ),
+        }],
+        custom_property_env,
+        parent_computed_value: None,
+    });
+
+    Some(ReferencedDeclarationComputedValueSeed {
+        property: declaration.property,
+        value: declaration.value,
+        status: query_computed_cascade_value_status(&result.status),
+        computed_value: render_query_cascade_value(&result.value),
+        invalid_at_computed_value_time: result.invalid_at_computed_value_time,
+        derivation_steps: result.derivation_steps,
+    })
+}
+
+fn collect_same_file_custom_property_env_from_graph(
+    graph: &StyleSemanticGraphSummaryV0,
+) -> CustomPropertyEnv {
+    let mut latest_values = BTreeMap::<String, (usize, CascadeValue)>::new();
+    for declaration in &graph.parser_facts.custom_properties.decl_facts {
+        let Some(value) = parse_static_css_cascade_value(&declaration.value) else {
+            continue;
+        };
+        let entry = latest_values
+            .entry(declaration.name.clone())
+            .or_insert((declaration.source_order, value.clone()));
+        if declaration.source_order >= entry.0 {
+            *entry = (declaration.source_order, value);
+        }
+    }
+    latest_values
+        .into_iter()
+        .map(|(name, (_, value))| (name, value))
+        .collect()
+}
+
+fn style_declaration_at_byte_offset(
+    source: &str,
+    offset: usize,
+) -> Option<StyleDeclarationAtOffset> {
+    let start = source
+        .get(..offset)?
+        .rfind(['{', ';'])
+        .map(|index| index + 1)
+        .unwrap_or(0);
+    let end = source
+        .get(offset..)?
+        .find([';', '}'])
+        .map(|index| offset + index)
+        .unwrap_or(source.len());
+    if start >= end {
+        return None;
+    }
+
+    let statement = source.get(start..end)?.trim();
+    let colon = statement.find(':')?;
+    let property = statement.get(..colon)?.trim();
+    let value = statement.get(colon + 1..)?.trim();
+    if property.is_empty() || value.is_empty() {
+        return None;
+    }
+
+    Some(StyleDeclarationAtOffset {
+        property: property.to_string(),
+        value: value.to_string(),
+        source_order: source.get(..start).unwrap_or_default().matches(';').count(),
+    })
+}
+
+fn query_computed_cascade_value_status(status: &ComputedCascadeValueStatusV0) -> &'static str {
+    match status {
+        ComputedCascadeValueStatusV0::Resolved => "resolved",
+        ComputedCascadeValueStatusV0::Inherited => "inherited",
+        ComputedCascadeValueStatusV0::Initial => "initial",
+        ComputedCascadeValueStatusV0::InvalidAtComputedValueTime => "invalidAtComputedValueTime",
+    }
+}
+
+fn render_query_cascade_value(value: &CascadeValue) -> Option<String> {
+    match value {
+        CascadeValue::Literal(value) => Some(value.clone()),
+        CascadeValue::Composite(parts) => {
+            let mut output = String::new();
+            for part in parts {
+                output.push_str(&render_query_cascade_value(part)?);
+            }
+            Some(output)
+        }
+        CascadeValue::Initial => Some("initial".to_string()),
+        CascadeValue::Inherit => Some("inherit".to_string()),
+        CascadeValue::GuaranteedInvalid => Some("guaranteed-invalid".to_string()),
+        CascadeValue::Unset => Some("unset".to_string()),
+        CascadeValue::Var { .. } => None,
     }
 }
 
