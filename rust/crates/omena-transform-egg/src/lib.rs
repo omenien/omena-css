@@ -5,8 +5,8 @@
 //! e-graph dependency into the core transform path.
 
 use egg::{
-    AstSize, Extractor, Id, RecExpr, Rewrite, Runner, Symbol, define_language,
-    rewrite as egg_rewrite,
+    Applier, AstSize, EGraph, Extractor, Id, Pattern, PatternAst, RecExpr, Rewrite, Runner, Subst,
+    Symbol, Var, define_language, rewrite as egg_rewrite,
 };
 use omena_transform_cst::TransformPassKind;
 use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
@@ -21,6 +21,7 @@ define_language! {
         "*" = Mul([Id; 2]),
         "/" = Div([Id; 2]),
         "calc" = Calc(Id),
+        "unit" = Unit([Id; 2]),
         "is" = Is(Id),
         "where" = Where(Id),
         "list" = List([Id; 2]),
@@ -104,6 +105,69 @@ pub struct TransformEggPlanV0 {
     pub requested_pass_ids: Vec<&'static str>,
     pub planned_pass_ids: Vec<&'static str>,
     pub pass_plan: TransformPassPlanV0,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CalcFoldOperator {
+    Add,
+    Sub,
+}
+
+#[derive(Debug, Clone)]
+struct ConstFoldSameUnitApplier {
+    left_var: Var,
+    right_var: Var,
+    unit_var: Option<Var>,
+    operator: CalcFoldOperator,
+}
+
+impl ConstFoldSameUnitApplier {
+    fn new(operator: CalcFoldOperator, unit_var: Option<Var>) -> Option<Self> {
+        Some(Self {
+            left_var: "?a".parse().ok()?,
+            right_var: "?b".parse().ok()?,
+            unit_var,
+            operator,
+        })
+    }
+}
+
+impl Applier<CssRewriteLanguage, ()> for ConstFoldSameUnitApplier {
+    fn apply_one(
+        &self,
+        egraph: &mut EGraph<CssRewriteLanguage, ()>,
+        eclass: Id,
+        subst: &Subst,
+        _searcher_ast: Option<&PatternAst<CssRewriteLanguage>>,
+        _rule_name: Symbol,
+    ) -> Vec<Id> {
+        let Some(left) = numeric_value_from_eclass(egraph, subst[self.left_var]) else {
+            return Vec::new();
+        };
+        let Some(right) = numeric_value_from_eclass(egraph, subst[self.right_var]) else {
+            return Vec::new();
+        };
+        let value = match self.operator {
+            CalcFoldOperator::Add => left + right,
+            CalcFoldOperator::Sub => left - right,
+        };
+        let value_id = egraph.add(CssRewriteLanguage::Num(value));
+        let result_id = if let Some(unit_var) = self.unit_var {
+            egraph.add(CssRewriteLanguage::Unit([value_id, subst[unit_var]]))
+        } else {
+            value_id
+        };
+        egraph.union(eclass, result_id);
+        vec![eclass]
+    }
+
+    fn vars(&self) -> Vec<Var> {
+        let mut vars = vec![self.left_var, self.right_var];
+        if let Some(unit_var) = self.unit_var {
+            vars.push(unit_var);
+        }
+        vars
+    }
 }
 
 pub fn summarize_omena_transform_egg_boundary() -> TransformEggBoundarySummaryV0 {
@@ -249,6 +313,13 @@ fn is_managed_egg_pass_id(pass_id: &str) -> bool {
     managed_egg_passes().iter().any(|pass| pass.id() == pass_id)
 }
 
+fn numeric_value_from_eclass(egraph: &EGraph<CssRewriteLanguage, ()>, id: Id) -> Option<i64> {
+    egraph[id].nodes.iter().find_map(|node| match node {
+        CssRewriteLanguage::Num(value) => Some(*value),
+        _ => None,
+    })
+}
+
 fn selector_rewrite_witnesses(
     source: &str,
     transformed_source: &str,
@@ -312,27 +383,27 @@ fn calc_rewrite_witnesses(
         let end = inner_start + relative_end;
         let inner = source[inner_start..end].trim();
         let css_before = source[start..=end].to_string();
-        if let Some((expression, result)) = calc_identity_expression(inner)
-            && transformed_source.contains(result.as_str())
+        if let Some(candidate) = calc_rewrite_candidate(inner)
+            && transformed_source.contains(candidate.css_after.as_str())
             && !transformed_source.contains(&css_before)
         {
             let execution = execute_egg_rewrite(EggRewriteCandidateV0 {
                 pass_id: TransformPassKind::CalcReduction.id(),
-                before: format!("(calc {expression})"),
-                after: result.clone(),
+                before: format!("(calc {})", candidate.before),
+                after: candidate.after,
                 proof: EggRewriteProofV0 {
                     specificity_preserved: false,
                     computed_value_preserved: true,
                     provenance_preserved: true,
-                    cascade_safe_witness: "actual CSS calc identity rewrite".to_string(),
+                    cascade_safe_witness: candidate.witness,
                 },
             });
             witnesses.push(EggRewriteSourceWitnessV0 {
                 pass_id: TransformPassKind::CalcReduction.id(),
-                source_kind: "calcIdentity",
+                source_kind: candidate.source_kind,
                 byte_offset: start,
                 css_before,
-                css_after: result,
+                css_after: candidate.css_after,
                 execution,
             });
         }
@@ -410,27 +481,168 @@ fn symbol_for_css_ident(value: &str) -> String {
     value.replace('-', "_")
 }
 
-fn calc_identity_expression(inner: &str) -> Option<(String, String)> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CalcRewriteCandidate {
+    before: String,
+    after: String,
+    css_after: String,
+    source_kind: &'static str,
+    witness: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CalcNumericValue {
+    value: i64,
+    unit: String,
+}
+
+fn calc_rewrite_candidate(inner: &str) -> Option<CalcRewriteCandidate> {
     let parts = inner.split_whitespace().collect::<Vec<_>>();
     let [left, operator, right] = parts.as_slice() else {
         return None;
     };
-    let left_value = left.parse::<i64>().ok()?;
-    let right_value = right.parse::<i64>().ok()?;
+    let left_value = parse_calc_numeric_value(left)?;
+    let right_value = parse_calc_numeric_value(right)?;
+    if left_value.unit != right_value.unit {
+        return None;
+    }
+    let term_left = calc_numeric_term(&left_value);
+    let term_right = calc_numeric_term(&right_value);
     match *operator {
-        "+" if right_value == 0 => Some((format!("(+ {left_value} 0)"), left_value.to_string())),
-        "+" if left_value == 0 => Some((format!("(+ 0 {right_value})"), right_value.to_string())),
-        "-" if right_value == 0 => Some((format!("(- {left_value} 0)"), left_value.to_string())),
-        "-" if left_value == right_value => {
-            Some((format!("(- {left_value} {right_value})"), "0".to_string()))
+        "+" => Some(calc_fold_candidate(
+            format!("(+ {term_left} {term_right})"),
+            left_value.value + right_value.value,
+            &left_value.unit,
+            "calcSameUnitAdd",
+            "actual CSS calc same-unit addition rewrite",
+        )),
+        "-" => Some(calc_fold_candidate(
+            format!("(- {term_left} {term_right})"),
+            left_value.value - right_value.value,
+            &left_value.unit,
+            "calcSameUnitSub",
+            "actual CSS calc same-unit subtraction rewrite",
+        )),
+        "*" if right_value.value == 1 && right_value.unit.is_empty() => {
+            Some(calc_passthrough_candidate(
+                format!("(* {term_left} 1)"),
+                &left_value,
+                "calcIdentity",
+                "actual CSS calc multiplicative identity rewrite",
+            ))
         }
-        "*" if right_value == 1 => Some((format!("(* {left_value} 1)"), left_value.to_string())),
-        "*" if left_value == 1 => Some((format!("(* 1 {right_value})"), right_value.to_string())),
-        "*" if right_value == 0 => Some((format!("(* {left_value} 0)"), "0".to_string())),
-        "*" if left_value == 0 => Some((format!("(* 0 {right_value})"), "0".to_string())),
-        "/" if right_value == 1 => Some((format!("(/ {left_value} 1)"), left_value.to_string())),
+        "*" if left_value.value == 1 && left_value.unit.is_empty() => {
+            Some(calc_passthrough_candidate(
+                format!("(* 1 {term_right})"),
+                &right_value,
+                "calcIdentity",
+                "actual CSS calc multiplicative identity rewrite",
+            ))
+        }
+        "*" if right_value.value == 0 && right_value.unit.is_empty() => Some(calc_fold_candidate(
+            format!("(* {term_left} 0)"),
+            0,
+            "",
+            "calcZero",
+            "actual CSS calc safe zero multiplication rewrite",
+        )),
+        "*" if left_value.value == 0 && left_value.unit.is_empty() => Some(calc_fold_candidate(
+            format!("(* 0 {term_right})"),
+            0,
+            "",
+            "calcZero",
+            "actual CSS calc safe zero multiplication rewrite",
+        )),
+        "/" if right_value.value == 1 && right_value.unit.is_empty() => {
+            Some(calc_passthrough_candidate(
+                format!("(/ {term_left} 1)"),
+                &left_value,
+                "calcIdentity",
+                "actual CSS calc division identity rewrite",
+            ))
+        }
         _ => None,
     }
+}
+
+fn parse_calc_numeric_value(text: &str) -> Option<CalcNumericValue> {
+    let split = text
+        .char_indices()
+        .find_map(|(index, ch)| (!matches!(ch, '-' | '+') && !ch.is_ascii_digit()).then_some(index))
+        .unwrap_or(text.len());
+    let (value, unit) = text.split_at(split);
+    let value = value.parse::<i64>().ok()?;
+    unit.chars()
+        .all(|ch| ch.is_ascii_alphabetic() || ch == '%')
+        .then_some(CalcNumericValue {
+            value,
+            unit: unit.to_string(),
+        })
+}
+
+fn calc_numeric_term(value: &CalcNumericValue) -> String {
+    if value.unit.is_empty() {
+        value.value.to_string()
+    } else {
+        format!("(unit {} {})", value.value, value.unit)
+    }
+}
+
+fn calc_fold_candidate(
+    before: String,
+    value: i64,
+    unit: &str,
+    source_kind: &'static str,
+    witness: &'static str,
+) -> CalcRewriteCandidate {
+    let result = CalcNumericValue {
+        value,
+        unit: unit.to_string(),
+    };
+    CalcRewriteCandidate {
+        before,
+        after: calc_numeric_term(&result),
+        css_after: format!("{}{}", result.value, result.unit),
+        source_kind,
+        witness: witness.to_string(),
+    }
+}
+
+fn calc_passthrough_candidate(
+    before: String,
+    value: &CalcNumericValue,
+    source_kind: &'static str,
+    witness: &'static str,
+) -> CalcRewriteCandidate {
+    CalcRewriteCandidate {
+        before,
+        after: calc_numeric_term(value),
+        css_after: format!("{}{}", value.value, value.unit),
+        source_kind,
+        witness: witness.to_string(),
+    }
+}
+
+fn rewrite_pattern(text: &str) -> Option<Pattern<CssRewriteLanguage>> {
+    text.parse().ok()
+}
+
+fn calc_const_fold_rule(
+    name: &'static str,
+    search: &'static str,
+    operator: CalcFoldOperator,
+    unit_var: Option<Var>,
+) -> Option<Rewrite<CssRewriteLanguage, ()>> {
+    Rewrite::new(
+        name,
+        rewrite_pattern(search)?,
+        ConstFoldSameUnitApplier::new(operator, unit_var)?,
+    )
+    .ok()
+}
+
+fn egg_var(name: &str) -> Option<Var> {
+    name.parse().ok()
 }
 
 fn rewrite_rules_for_pass(pass_id: &'static str) -> Option<Vec<Rewrite<CssRewriteLanguage, ()>>> {
@@ -443,7 +655,7 @@ fn rewrite_rules_for_pass(pass_id: &'static str) -> Option<Vec<Rewrite<CssRewrit
         ]);
     }
     if pass_id == TransformPassKind::CalcReduction.id() {
-        return Some(vec![
+        let mut rules = vec![
             egg_rewrite!("unwrap-calc"; "(calc ?a)" => "?a"),
             egg_rewrite!("add-zero-right"; "(+ ?a 0)" => "?a"),
             egg_rewrite!("add-zero-left"; "(+ 0 ?a)" => "?a"),
@@ -454,7 +666,44 @@ fn rewrite_rules_for_pass(pass_id: &'static str) -> Option<Vec<Rewrite<CssRewrit
             egg_rewrite!("mul-zero-right"; "(* ?a 0)" => "0"),
             egg_rewrite!("mul-zero-left"; "(* 0 ?a)" => "0"),
             egg_rewrite!("div-one-right"; "(/ ?a 1)" => "?a"),
-        ]);
+        ];
+        if let Some(rule) = calc_const_fold_rule(
+            "constfold-add-number",
+            "(+ ?a ?b)",
+            CalcFoldOperator::Add,
+            None,
+        ) {
+            rules.push(rule);
+        }
+        if let Some(unit_var) = egg_var("?u")
+            && let Some(rule) = calc_const_fold_rule(
+                "constfold-add-same-unit",
+                "(+ (unit ?a ?u) (unit ?b ?u))",
+                CalcFoldOperator::Add,
+                Some(unit_var),
+            )
+        {
+            rules.push(rule);
+        }
+        if let Some(rule) = calc_const_fold_rule(
+            "constfold-sub-number",
+            "(- ?a ?b)",
+            CalcFoldOperator::Sub,
+            None,
+        ) {
+            rules.push(rule);
+        }
+        if let Some(unit_var) = egg_var("?u")
+            && let Some(rule) = calc_const_fold_rule(
+                "constfold-sub-same-unit",
+                "(- (unit ?a ?u) (unit ?b ?u))",
+                CalcFoldOperator::Sub,
+                Some(unit_var),
+            )
+        {
+            rules.push(rule);
+        }
+        return Some(rules);
     }
     None
 }
@@ -665,10 +914,35 @@ mod tests {
     }
 
     #[test]
+    fn executes_same_unit_calc_const_folding_through_egg_engine() {
+        for (before, after) in [
+            ("(calc (+ (unit 1 px) (unit 2 px)))", "(unit 3 px)"),
+            ("(calc (- (unit 10 rem) (unit 2 rem)))", "(unit 8 rem)"),
+            ("(calc (+ 1 2))", "3"),
+        ] {
+            let execution = execute_egg_rewrite(EggRewriteCandidateV0 {
+                pass_id: TransformPassKind::CalcReduction.id(),
+                before: before.to_string(),
+                after: after.to_string(),
+                proof: EggRewriteProofV0 {
+                    specificity_preserved: false,
+                    computed_value_preserved: true,
+                    provenance_preserved: true,
+                    cascade_safe_witness: "same-unit calc arithmetic preserves computed value"
+                        .to_string(),
+                },
+            });
+
+            assert!(execution.accepted, "{before} -> {after}");
+            assert_eq!(execution.after, after);
+        }
+    }
+
+    #[test]
     fn executes_css_source_witnesses_through_egg_engine() {
-        let source = ".a:is(.ready) { width: calc(7 + 0); } .b:is(.x, .x) { color: red; } .c:where(.y, .y) { color: blue; }";
+        let source = ".a:is(.ready) { width: calc(1px + 2px); } .b:is(.x, .x) { color: red; } .c:where(.y, .y) { color: blue; }";
         let transformed =
-            ".a.ready { width: 7; } .b.x { color: red; } .c:where(.y) { color: blue; }";
+            ".a.ready { width: 3px; } .b.x { color: red; } .c:where(.y) { color: blue; }";
         let plan = plan_egg_rewrite_passes_for_source(source);
         let witnesses = execute_egg_rewrite_witnesses_for_css_source(
             source,
@@ -693,6 +967,11 @@ mod tests {
         }));
         assert!(witnesses.iter().any(|witness| {
             witness.source_kind == "selectorWhereDedup" && witness.css_after == ":where(.y)"
+        }));
+        assert!(witnesses.iter().any(|witness| {
+            witness.source_kind == "calcSameUnitAdd"
+                && witness.css_after == "3px"
+                && witness.execution.after == "(unit 3 px)"
         }));
     }
 }
