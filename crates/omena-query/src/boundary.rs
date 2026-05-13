@@ -59,6 +59,8 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "styleHoverRenderParts",
             "styleMissingCustomPropertyDiagnostics",
             "styleDiagnosticsForFile",
+            "sourceDiagnosticsForFile",
+            "crossLanguageDiagnostics",
             "completionAt",
             "refsForClass",
             "renamePlan",
@@ -253,6 +255,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 surface: "styleDiagnosticsForFile",
                 command: "style-diagnostics-for-file",
                 input_contract: "StyleDiagnosticsForFileInputV0",
+                output_product: "omena-query.diagnostics-for-file",
+            },
+            SelectedQueryRunnerCommandV0 {
+                surface: "sourceDiagnosticsForFile",
+                command: "source-diagnostics-for-file",
+                input_contract: "SourceDiagnosticsForFileInputV0",
                 output_product: "omena-query.diagnostics-for-file",
             },
             SelectedQueryRunnerCommandV0 {

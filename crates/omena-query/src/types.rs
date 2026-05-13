@@ -746,6 +746,27 @@ pub struct OmenaQueryCreateSelectorActionV0 {
     pub selector_name: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 {
+    pub target_style_uri: String,
+    pub target_style_source: String,
+    pub selector_name: String,
+    pub source_reference_range: ParserRangeV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySourceDiagnosticsForFileV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub file_uri: String,
+    pub file_kind: &'static str,
+    pub diagnostic_count: usize,
+    pub diagnostics: Vec<OmenaQuerySourceDiagnosticV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQuerySourceSelectorCandidateV0 {
