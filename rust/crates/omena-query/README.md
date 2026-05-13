@@ -48,6 +48,8 @@ Current public products:
   per-file seed surface.
 - `omena-query.style-context-index` — consumer read model for the
   semantic-owned `@layer`, `@container`, and `@scope` context index.
+- `omena-query.diagnostics-for-file` — file-scoped diagnostics read model for
+  style diagnostics currently backed by missing custom-property checks.
 - `omena-query.css-modules-cross-file-resolution` — batch-level CSS Modules
   relation resolver for `composes`, `@value`, and ICSS import/export sources.
   This resolves import sources, same-edge name matches, transitive closure, and

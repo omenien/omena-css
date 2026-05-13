@@ -2835,6 +2835,21 @@ fn missing_custom_property_diagnostics_are_query_owned() {
             },
         })
     );
+
+    let summary = super::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/App.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+    assert_eq!(summary.product, "omena-query.diagnostics-for-file");
+    assert_eq!(summary.file_kind, "style");
+    assert_eq!(summary.diagnostic_count, 1);
+    assert_eq!(summary.diagnostics[0].code, "missingCustomProperty");
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"missingCustomPropertyDiagnostics")
+    );
 }
 
 #[test]

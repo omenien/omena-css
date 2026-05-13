@@ -606,6 +606,18 @@ pub struct OmenaQueryStyleDiagnosticV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStyleDiagnosticsForFileV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub file_uri: String,
+    pub file_kind: &'static str,
+    pub diagnostic_count: usize,
+    pub diagnostics: Vec<OmenaQueryStyleDiagnosticV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCascadeAtPositionV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

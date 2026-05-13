@@ -29,10 +29,9 @@ use omena_query::{
     resolve_omena_query_source_candidate_selector_names,
     resolve_omena_query_source_provider_candidates,
     resolve_omena_query_style_selector_definitions_for_source_candidate,
-    resolve_omena_query_style_uri_for_specifier,
-    summarize_omena_query_missing_custom_property_diagnostics,
-    summarize_omena_query_missing_selector_diagnostic, summarize_omena_query_sass_module_sources,
-    summarize_omena_query_source_import_declarations, summarize_omena_query_source_syntax_index,
+    resolve_omena_query_style_uri_for_specifier, summarize_omena_query_missing_selector_diagnostic,
+    summarize_omena_query_sass_module_sources, summarize_omena_query_source_import_declarations,
+    summarize_omena_query_source_syntax_index, summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_render_parts,
 };
 #[cfg(test)]
@@ -617,11 +616,12 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
         .iter()
         .map(query_style_hover_candidate_from_lsp)
         .collect::<Vec<_>>();
-    let diagnostics = summarize_omena_query_missing_custom_property_diagnostics(
+    let diagnostics = summarize_omena_query_style_diagnostics_for_file(
         document.uri.as_str(),
         document.text.as_str(),
         query_candidates.as_slice(),
     )
+    .diagnostics
     .into_iter()
     .map(|diagnostic| {
         let data = diagnostic
