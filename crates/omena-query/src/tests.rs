@@ -469,7 +469,7 @@ fn exposes_transform_plan_egg_witnesses_from_source_execution() {
 
 #[test]
 fn exposes_transform_plan_custom_property_fixed_point() {
-    let source = r#":root { --brand: red; --alias: var(--brand); --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: var(--alias); }"#;
+    let source = r#":root { --brand: red; --alias: var(--brand); --shadow: 0 0 var(--alias); --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: var(--alias); box-shadow: var(--shadow); }"#;
     let summary = summarize_omena_query_transform_plan_from_source(
         "tokens.css",
         source,
@@ -491,8 +491,8 @@ fn exposes_transform_plan_custom_property_fixed_point() {
             .ready_surfaces
             .contains(&"customPropertyLeastFixedPoint")
     );
-    assert_eq!(summary.custom_property_fixed_point.input_count, 4);
-    assert_eq!(summary.custom_property_fixed_point.resolved_count, 2);
+    assert_eq!(summary.custom_property_fixed_point.input_count, 5);
+    assert_eq!(summary.custom_property_fixed_point.resolved_count, 3);
     assert_eq!(
         summary.custom_property_fixed_point.guaranteed_invalid_count,
         2
@@ -503,6 +503,13 @@ fn exposes_transform_plan_custom_property_fixed_point() {
             .entries
             .iter()
             .any(|entry| entry.name == "--alias" && entry.changed)
+    );
+    assert!(
+        summary
+            .custom_property_fixed_point
+            .entries
+            .iter()
+            .any(|entry| entry.name == "--shadow" && entry.changed)
     );
 }
 

@@ -5136,9 +5136,8 @@ fn substitute_static_custom_property_references_in_value(
                     index += ch.len_utf8();
                     continue;
                 };
-                let CascadeValue::Literal(resolved_value) =
-                    substitute_custom_properties(&var_value, env)
-                else {
+                let resolved_value = substitute_custom_properties(&var_value, env);
+                let Some(resolved_value) = render_static_cascade_value(&resolved_value) else {
                     index += ch.len_utf8();
                     continue;
                 };
@@ -5203,7 +5202,65 @@ fn collect_static_root_custom_property_env(
 
 fn parse_static_custom_property_env_value(value: &str) -> Option<CascadeValue> {
     parse_static_var_value(value)
-        .or_else(|| (!value.contains("var(")).then(|| CascadeValue::Literal(value.to_string())))
+        .or_else(|| parse_static_composite_custom_property_env_value(value))
+}
+
+fn parse_static_composite_custom_property_env_value(value: &str) -> Option<CascadeValue> {
+    let mut parts = Vec::new();
+    let mut cursor = 0;
+    let mut index = 0;
+    let mut quote = None;
+    let mut found_var = false;
+
+    while index < value.len() {
+        let ch = value[index..].chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(next_ch) = value[index..].chars().next() {
+                    index += next_ch.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            _ if value[index..]
+                .get(.."var(".len())
+                .is_some_and(|text| text.eq_ignore_ascii_case("var(")) =>
+            {
+                let left_paren_index = index + "var".len();
+                let close_index = matching_function_call_end(value, left_paren_index)?;
+                let arguments =
+                    split_top_level_value_arguments(&value[left_paren_index + 1..close_index])?;
+                let var_value = parse_static_var_arguments(&arguments)?;
+                if cursor < index {
+                    parts.push(CascadeValue::Literal(value[cursor..index].to_string()));
+                }
+                parts.push(var_value);
+                index = close_index + ')'.len_utf8();
+                cursor = index;
+                found_var = true;
+            }
+            _ => {
+                index += ch.len_utf8();
+            }
+        }
+    }
+
+    if !found_var {
+        return Some(CascadeValue::Literal(value.to_string()));
+    }
+    if cursor < value.len() {
+        parts.push(CascadeValue::Literal(value[cursor..].to_string()));
+    }
+    Some(CascadeValue::Composite(parts))
 }
 
 fn parse_static_var_value(value: &str) -> Option<CascadeValue> {
@@ -5225,6 +5282,20 @@ fn parse_static_var_arguments(arguments: &[String]) -> Option<CascadeValue> {
             })
         }
         _ => None,
+    }
+}
+
+fn render_static_cascade_value(value: &CascadeValue) -> Option<String> {
+    match value {
+        CascadeValue::Literal(value) => Some(value.clone()),
+        CascadeValue::Composite(parts) => {
+            let mut output = String::new();
+            for part in parts {
+                output.push_str(&render_static_cascade_value(part)?);
+            }
+            Some(output)
+        }
+        CascadeValue::Var { .. } | CascadeValue::GuaranteedInvalid | CascadeValue::Unset => None,
     }
 }
 
@@ -9879,7 +9950,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_resolves_unique_static_root_custom_properties() {
-        let source = r#":root { --brand: red; --gap: 2rem; --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: var(--brand); margin: var(--gap); border-color: var(--missing, blue); background: var(--dup); outline-color: var(--dynamic); text-decoration-color: var(--fallback); caret-color: var(--cycle-a, green); box-shadow: 0 0 1px var(--gap); filter: drop-shadow(var(--missing, blue) 0 0); } @media screen { .card { color: var(--dynamic); } }"#;
+        let source = r#":root { --brand: red; --gap: 2rem; --shadow: 0 0 var(--gap); --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: var(--brand); margin: var(--gap); border-color: var(--missing, blue); background: var(--dup); outline-color: var(--dynamic); text-decoration-color: var(--fallback); caret-color: var(--cycle-a, green); box-shadow: var(--shadow); filter: drop-shadow(var(--missing, blue) 0 0); } @media screen { .card { color: var(--dynamic); } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9891,7 +9962,7 @@ mod tests {
         assert_eq!(execution.mutation_count, 9);
         assert_eq!(
             execution.output_css,
-            r#":root { --brand: red; --gap: 2rem; --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: red; margin: 2rem; border-color: blue; background: var(--dup); outline-color: red; text-decoration-color: blue; caret-color: green; box-shadow: 0 0 1px 2rem; filter: drop-shadow(blue 0 0); } @media screen { .card { color: red; } }"#
+            r#":root { --brand: red; --gap: 2rem; --shadow: 0 0 var(--gap); --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: red; margin: 2rem; border-color: blue; background: var(--dup); outline-color: red; text-decoration-color: blue; caret-color: green; box-shadow: 0 0 2rem; filter: drop-shadow(blue 0 0); } @media screen { .card { color: red; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
