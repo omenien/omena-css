@@ -5406,8 +5406,29 @@ fn parse_reducible_calc_value(value: &str) -> Option<String> {
             '*' if left.unit.is_empty() && left.value == 1.0 => {
                 return Some(format!("{}{}", format_css_number(right.value), right.unit));
             }
+            '*' if right.unit.is_empty() => {
+                return Some(format!(
+                    "{}{}",
+                    format_css_number(left.value * right.value),
+                    left.unit
+                ));
+            }
+            '*' if left.unit.is_empty() => {
+                return Some(format!(
+                    "{}{}",
+                    format_css_number(left.value * right.value),
+                    right.unit
+                ));
+            }
             '/' if right.unit.is_empty() && right.value == 1.0 => {
                 return Some(format!("{}{}", format_css_number(left.value), left.unit));
+            }
+            '/' if right.unit.is_empty() && right.value != 0.0 => {
+                return Some(format!(
+                    "{}{}",
+                    format_css_number(left.value / right.value),
+                    left.unit
+                ));
             }
             _ => {}
         }
@@ -8680,6 +8701,7 @@ fn is_zero_length_unit_property(property: &str) -> bool {
             | "gap"
             | "row-gap"
             | "column-gap"
+            | "line-height"
     )
 }
 
@@ -8768,7 +8790,12 @@ fn compress_hex_color_token_text(text: &str) -> Option<String> {
 
     let lower = hex.to_ascii_lowercase();
     let compressed = match lower.len() {
+        4 if lower.ends_with('f') => lower[..3].to_string(),
         6 if can_shorten_hex_pairs(&lower) => shorten_hex_pairs(&lower),
+        8 if lower.ends_with("ff") && can_shorten_hex_pairs(&lower[..6]) => {
+            shorten_hex_pairs(&lower[..6])
+        }
+        8 if lower.ends_with("ff") => lower[..6].to_string(),
         8 if can_shorten_hex_pairs(&lower) => shorten_hex_pairs(&lower),
         _ => lower,
     };
@@ -9776,7 +9803,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_normalizes_zero_length_units_with_property_context() {
-        let source = r#".a { margin: 0px 0.0rem -0em; border-top-width: 0PX; border-radius: -0em; scroll-margin-inline: 0rem; outline-width: 0pt; rotate: 1TURN; animation-delay: 200MS; grid-template-columns: 1FR 2fr; --x: 0PX; width: 10PX; }"#;
+        let source = r#".a { margin: 0px 0.0rem -0em; border-top-width: 0PX; border-radius: -0em; scroll-margin-inline: 0rem; outline-width: 0pt; line-height: 0em; rotate: 1TURN; animation-delay: 200MS; grid-template-columns: 1FR 2fr; --x: 0PX; width: 10PX; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9785,10 +9812,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 11);
+        assert_eq!(execution.mutation_count, 12);
         assert_eq!(
             execution.output_css,
-            r#".a { margin: 0 0 0; border-top-width: 0; border-radius: 0; scroll-margin-inline: 0; outline-width: 0; rotate: 1turn; animation-delay: 200ms; grid-template-columns: 1fr 2fr; --x: 0PX; width: 10px; }"#
+            r#".a { margin: 0 0 0; border-top-width: 0; border-radius: 0; scroll-margin-inline: 0; outline-width: 0; line-height: 0; rotate: 1turn; animation-delay: 200ms; grid-template-columns: 1fr 2fr; --x: 0PX; width: 10px; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
@@ -9798,7 +9825,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_static_declaration_colors_only() {
-        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-emphasis-color: rgb(128 0 128); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); flood-color: white; lighting-color: black; stop-color: blue; scrollbar-color: hsl(.5TURN 100% 50%); border-block-color: hwb(200GRAD 0% 0%); border-left-color: rgb(255 0 0 / 100%); border-right-color: hsl(120 100% 25% / 1); border-top-color: hwb(240 0% 0% / 100%); background: linear-gradient(rgb(255 0 0), hsl(240 100% 50%)); filter: drop-shadow(0 0 1px hwb(0 100% 0%)); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#;
+        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-emphasis-color: rgb(128 0 128); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); flood-color: white; lighting-color: black; stop-color: blue; scrollbar-color: hsl(.5TURN 100% 50%); border-block-color: hwb(200GRAD 0% 0%); border-left-color: rgb(255 0 0 / 100%); border-right-color: hsl(120 100% 25% / 1); border-top-color: hwb(240 0% 0% / 100%); background: linear-gradient(rgb(255 0 0), hsl(240 100% 50%)); filter: drop-shadow(0 0 1px hwb(0 100% 0%)); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } .alpha { color: #FFFFFFFF; background-color: #ffff; border-color: #00000000; } #FFFFFF { color: red; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9807,16 +9834,16 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 21);
+        assert_eq!(execution.mutation_count, 24);
         assert_eq!(
             execution.output_css,
-            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: gray; text-emphasis-color: purple; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: #00f; scrollbar-color: #0ff; border-block-color: #0ff; border-left-color: red; border-right-color: green; border-top-color: #00f; background: linear-gradient(red, #00f); filter: drop-shadow(0 0 1px #fff); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
+            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: gray; text-emphasis-color: purple; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: #00f; scrollbar-color: #0ff; border-block-color: #0ff; border-left-color: red; border-right-color: green; border-top-color: #00f; background: linear-gradient(red, #00f); filter: drop-shadow(0 0 1px #fff); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } .alpha { color: #fff; background-color: #fff; border-color: #0000; } #FFFFFF { color: red; }"#
         );
     }
 
     #[test]
     fn execution_runtime_preserves_minified_declaration_shape_for_value_replacements() {
-        let source = ".a{background:blue}.b{margin:calc(2rem + 3rem)}";
+        let source = ".a{background:blue}.b{margin:calc(2rem + 3rem)}.c{width:calc(2px * 3);height:calc(6px / 2)}";
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9826,8 +9853,11 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 2);
-        assert_eq!(execution.output_css, ".a{background:#00f}.b{margin:5rem}");
+        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(
+            execution.output_css,
+            ".a{background:#00f}.b{margin:5rem}.c{width:6px;height:3px}"
+        );
     }
 
     #[test]
@@ -10309,10 +10339,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 10);
+        assert_eq!(execution.mutation_count, 11);
         assert_eq!(
             execution.output_css,
-            r#".card { width: 3px; height: 8rem; margin: calc(1px + 2rem); color: 3; gap: 0.75rem; inset: 3px; letter-spacing: 2px; border-width: 3px; z-index: 4; scale: calc(3 * 0); box-shadow: 0 0 3px red; transform: translate(8px, 2rem); }"#
+            r#".card { width: 3px; height: 8rem; margin: calc(1px + 2rem); color: 3; gap: 0.75rem; inset: 3px; letter-spacing: 2px; border-width: 3px; z-index: 4; scale: 0; box-shadow: 0 0 3px red; transform: translate(8px, 2rem); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
