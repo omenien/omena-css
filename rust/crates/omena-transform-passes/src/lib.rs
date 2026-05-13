@@ -5295,7 +5295,11 @@ fn render_static_cascade_value(value: &CascadeValue) -> Option<String> {
             }
             Some(output)
         }
-        CascadeValue::Var { .. } | CascadeValue::GuaranteedInvalid | CascadeValue::Unset => None,
+        CascadeValue::Var { .. }
+        | CascadeValue::Initial
+        | CascadeValue::Inherit
+        | CascadeValue::GuaranteedInvalid
+        | CascadeValue::Unset => None,
     }
 }
 

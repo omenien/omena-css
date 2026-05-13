@@ -166,8 +166,43 @@ pub enum CascadeValue {
         name: String,
         fallback: Option<Box<CascadeValue>>,
     },
+    Initial,
+    Inherit,
     GuaranteedInvalid,
     Unset,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ComputedCascadeValueStatusV0 {
+    Resolved,
+    Inherited,
+    Initial,
+    InvalidAtComputedValueTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeComputedValueInputV0 {
+    pub property: String,
+    pub declarations: Vec<CascadeDeclaration>,
+    pub custom_property_env: CustomPropertyEnv,
+    pub parent_computed_value: Option<CascadeValue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeComputedValueResultV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub property: String,
+    pub status: ComputedCascadeValueStatusV0,
+    pub value: CascadeValue,
+    pub winner_declaration_id: Option<String>,
+    pub inherited: bool,
+    pub used_initial_value: bool,
+    pub invalid_at_computed_value_time: bool,
+    pub derivation_steps: Vec<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -541,13 +576,15 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
             "customPropertySubstitution",
             "customPropertyLeastFixedPoint",
             "cycleToGuaranteedInvalid",
+            "computedValueResolutionSeed",
+            "inheritanceInitialValueSeed",
             "shorthandCombinationProof",
             "supportsStaticEvalWitness",
             "scopeFlattenProof",
             "layerFlattenProof",
             "wptCascadeSeedCorpus",
         ],
-        not_ready_surfaces: vec!["fullWptCascadeCorpus"],
+        not_ready_surfaces: vec!["fullInitialValueTable", "fullWptCascadeCorpus"],
     }
 }
 
@@ -1060,6 +1097,231 @@ pub fn cascade_property(
         proof,
         also_considered: matching,
     }
+}
+
+pub fn compute_cascade_computed_value(
+    input: CascadeComputedValueInputV0,
+) -> CascadeComputedValueResultV0 {
+    let property = input.property.clone();
+    let outcome = cascade_property(input.declarations, &property);
+    let (winner_declaration_id, cascaded_value, mut derivation_steps) = match outcome {
+        CascadeOutcome::Definite { winner, .. } => (
+            Some(winner.id),
+            winner.value,
+            vec!["cascadeWinnerSelected", "computedValueResolutionStarted"],
+        ),
+        CascadeOutcome::Inherit => (
+            None,
+            if property_is_inherited(&property) {
+                CascadeValue::Inherit
+            } else {
+                CascadeValue::Initial
+            },
+            vec!["noCascadeWinner", "inheritanceOrInitialSelected"],
+        ),
+        CascadeOutcome::RankedSet(_) | CascadeOutcome::Top => {
+            return CascadeComputedValueResultV0 {
+                schema_version: "0",
+                product: "omena-cascade.computed-value",
+                property,
+                status: ComputedCascadeValueStatusV0::InvalidAtComputedValueTime,
+                value: CascadeValue::GuaranteedInvalid,
+                winner_declaration_id: None,
+                inherited: false,
+                used_initial_value: false,
+                invalid_at_computed_value_time: true,
+                derivation_steps: vec!["cascadeOutcomeIndeterminate"],
+            };
+        }
+    };
+
+    let substituted_value =
+        substitute_custom_properties(&cascaded_value, &input.custom_property_env);
+    if substituted_value == CascadeValue::GuaranteedInvalid {
+        derivation_steps.push("substitutionProducedGuaranteedInvalid");
+        derivation_steps.push("invalidAtComputedValueTimeFallsBackAsUnset");
+        return computed_value_from_unset(
+            property,
+            winner_declaration_id,
+            input.parent_computed_value,
+            true,
+            derivation_steps,
+        );
+    }
+
+    match substituted_value {
+        CascadeValue::Unset => computed_value_from_unset(
+            property,
+            winner_declaration_id,
+            input.parent_computed_value,
+            false,
+            {
+                derivation_steps.push("unsetKeywordResolved");
+                derivation_steps
+            },
+        ),
+        CascadeValue::Inherit => computed_value_from_inherit(
+            property,
+            winner_declaration_id,
+            input.parent_computed_value,
+            {
+                derivation_steps.push("inheritKeywordResolved");
+                derivation_steps
+            },
+        ),
+        CascadeValue::Initial => computed_value_from_initial(property, winner_declaration_id, {
+            derivation_steps.push("initialKeywordResolved");
+            derivation_steps
+        }),
+        value => {
+            derivation_steps.push("computedValueResolved");
+            CascadeComputedValueResultV0 {
+                schema_version: "0",
+                product: "omena-cascade.computed-value",
+                property,
+                status: ComputedCascadeValueStatusV0::Resolved,
+                value,
+                winner_declaration_id,
+                inherited: false,
+                used_initial_value: false,
+                invalid_at_computed_value_time: false,
+                derivation_steps,
+            }
+        }
+    }
+}
+
+fn computed_value_from_unset(
+    property: String,
+    winner_declaration_id: Option<String>,
+    parent_computed_value: Option<CascadeValue>,
+    invalid_at_computed_value_time: bool,
+    mut derivation_steps: Vec<&'static str>,
+) -> CascadeComputedValueResultV0 {
+    if property_is_inherited(&property) {
+        derivation_steps.push("unsetForInheritedPropertyUsesInheritance");
+        return computed_value_from_inherit(
+            property,
+            winner_declaration_id,
+            parent_computed_value,
+            derivation_steps,
+        )
+        .with_invalid_at_computed_value_time(invalid_at_computed_value_time);
+    }
+
+    derivation_steps.push("unsetForNonInheritedPropertyUsesInitial");
+    computed_value_from_initial(property, winner_declaration_id, derivation_steps)
+        .with_invalid_at_computed_value_time(invalid_at_computed_value_time)
+}
+
+fn computed_value_from_inherit(
+    property: String,
+    winner_declaration_id: Option<String>,
+    parent_computed_value: Option<CascadeValue>,
+    mut derivation_steps: Vec<&'static str>,
+) -> CascadeComputedValueResultV0 {
+    match parent_computed_value {
+        Some(value) => {
+            derivation_steps.push("parentComputedValueUsed");
+            CascadeComputedValueResultV0 {
+                schema_version: "0",
+                product: "omena-cascade.computed-value",
+                property,
+                status: ComputedCascadeValueStatusV0::Inherited,
+                value,
+                winner_declaration_id,
+                inherited: true,
+                used_initial_value: false,
+                invalid_at_computed_value_time: false,
+                derivation_steps,
+            }
+        }
+        None => {
+            derivation_steps.push("missingParentFallsBackToInitial");
+            computed_value_from_initial(property, winner_declaration_id, derivation_steps)
+        }
+    }
+}
+
+fn computed_value_from_initial(
+    property: String,
+    winner_declaration_id: Option<String>,
+    mut derivation_steps: Vec<&'static str>,
+) -> CascadeComputedValueResultV0 {
+    derivation_steps.push("initialValueTableConsulted");
+    CascadeComputedValueResultV0 {
+        schema_version: "0",
+        product: "omena-cascade.computed-value",
+        value: initial_cascade_value_for_property(&property),
+        property,
+        status: ComputedCascadeValueStatusV0::Initial,
+        winner_declaration_id,
+        inherited: false,
+        used_initial_value: true,
+        invalid_at_computed_value_time: false,
+        derivation_steps,
+    }
+}
+
+impl CascadeComputedValueResultV0 {
+    fn with_invalid_at_computed_value_time(mut self, invalid_at_computed_value_time: bool) -> Self {
+        if invalid_at_computed_value_time {
+            self.status = ComputedCascadeValueStatusV0::InvalidAtComputedValueTime;
+            self.invalid_at_computed_value_time = true;
+        }
+        self
+    }
+}
+
+fn property_is_inherited(property: &str) -> bool {
+    property.starts_with("--")
+        || matches!(
+            property,
+            "color"
+                | "cursor"
+                | "direction"
+                | "font"
+                | "font-family"
+                | "font-size"
+                | "font-style"
+                | "font-variant"
+                | "font-weight"
+                | "letter-spacing"
+                | "line-height"
+                | "text-align"
+                | "text-indent"
+                | "text-transform"
+                | "visibility"
+                | "white-space"
+                | "word-spacing"
+        )
+}
+
+fn initial_cascade_value_for_property(property: &str) -> CascadeValue {
+    if property.starts_with("--") {
+        return CascadeValue::GuaranteedInvalid;
+    }
+
+    let value = match property {
+        "background-color" | "border-color" | "caret-color" | "outline-color" => "transparent",
+        "border-style" | "display" => "none",
+        "border-width" | "margin" | "padding" => "0",
+        "box-shadow" | "text-shadow" => "none",
+        "color" => "canvastext",
+        "cursor" => "auto",
+        "font-family" => "serif",
+        "font-size" => "medium",
+        "font-style" | "font-variant" | "font-weight" => "normal",
+        "letter-spacing" | "line-height" | "word-spacing" => "normal",
+        "opacity" => "1",
+        "text-align" => "start",
+        "text-indent" => "0",
+        "text-transform" => "none",
+        "visibility" => "visible",
+        "white-space" => "normal",
+        _ => "initial",
+    };
+    CascadeValue::Literal(value.to_string())
 }
 
 pub fn run_cascade_evaluation_fuzz_case(
@@ -2029,9 +2291,11 @@ fn substitute_custom_properties_inner(
     visiting: &mut BTreeSet<String>,
 ) -> CascadeValue {
     match value {
-        CascadeValue::Literal(_) | CascadeValue::GuaranteedInvalid | CascadeValue::Unset => {
-            value.clone()
-        }
+        CascadeValue::Literal(_)
+        | CascadeValue::Initial
+        | CascadeValue::Inherit
+        | CascadeValue::GuaranteedInvalid
+        | CascadeValue::Unset => value.clone(),
         CascadeValue::Composite(parts) => {
             let resolved_parts = parts
                 .iter()
@@ -2078,7 +2342,11 @@ fn cascade_value_is_resolved(value: &CascadeValue) -> bool {
     match value {
         CascadeValue::Literal(_) => true,
         CascadeValue::Composite(parts) => parts.iter().all(cascade_value_is_resolved),
-        CascadeValue::Var { .. } | CascadeValue::GuaranteedInvalid | CascadeValue::Unset => false,
+        CascadeValue::Var { .. }
+        | CascadeValue::Initial
+        | CascadeValue::Inherit
+        | CascadeValue::GuaranteedInvalid
+        | CascadeValue::Unset => false,
     }
 }
 
@@ -2149,6 +2417,26 @@ mod tests {
             property: "color".to_string(),
             value: CascadeValue::Literal(value.to_string()),
             key,
+        }
+    }
+
+    fn property_declaration(
+        id: &str,
+        property: &str,
+        value: CascadeValue,
+        source_order: u32,
+    ) -> CascadeDeclaration {
+        CascadeDeclaration {
+            id: id.to_string(),
+            property: property.to_string(),
+            value,
+            key: key(
+                CascadeLevel::AuthorNormal,
+                0,
+                1,
+                Specificity::new(0, 1, 0),
+                source_order,
+            ),
         }
     }
 
@@ -2295,6 +2583,143 @@ mod tests {
         };
         assert_eq!(winner, "later");
         assert_eq!(also_considered, vec!["earlier"]);
+    }
+
+    #[test]
+    fn computes_values_through_var_substitution() {
+        let mut env = CustomPropertyEnv::new();
+        env.insert(
+            "--brand".to_string(),
+            CascadeValue::Literal("red".to_string()),
+        );
+
+        let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+            property: "color".to_string(),
+            declarations: vec![property_declaration(
+                "color-decl",
+                "color",
+                CascadeValue::Var {
+                    name: "--brand".to_string(),
+                    fallback: None,
+                },
+                1,
+            )],
+            custom_property_env: env,
+            parent_computed_value: Some(CascadeValue::Literal("blue".to_string())),
+        });
+
+        assert_eq!(result.product, "omena-cascade.computed-value");
+        assert_eq!(result.status, ComputedCascadeValueStatusV0::Resolved);
+        assert_eq!(result.value, CascadeValue::Literal("red".to_string()));
+        assert_eq!(result.winner_declaration_id.as_deref(), Some("color-decl"));
+        assert!(!result.inherited);
+        assert!(!result.used_initial_value);
+        assert!(!result.invalid_at_computed_value_time);
+        assert!(result.derivation_steps.contains(&"computedValueResolved"));
+    }
+
+    #[test]
+    fn resolves_inheritance_initial_and_unset_keywords() {
+        let inherited = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+            property: "color".to_string(),
+            declarations: Vec::new(),
+            custom_property_env: CustomPropertyEnv::new(),
+            parent_computed_value: Some(CascadeValue::Literal("purple".to_string())),
+        });
+        assert_eq!(inherited.status, ComputedCascadeValueStatusV0::Inherited);
+        assert_eq!(inherited.value, CascadeValue::Literal("purple".to_string()));
+        assert!(inherited.inherited);
+
+        let initial = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+            property: "opacity".to_string(),
+            declarations: Vec::new(),
+            custom_property_env: CustomPropertyEnv::new(),
+            parent_computed_value: Some(CascadeValue::Literal("0.5".to_string())),
+        });
+        assert_eq!(initial.status, ComputedCascadeValueStatusV0::Initial);
+        assert_eq!(initial.value, CascadeValue::Literal("1".to_string()));
+        assert!(initial.used_initial_value);
+
+        let unset_inherited = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+            property: "color".to_string(),
+            declarations: vec![property_declaration(
+                "unset-color",
+                "color",
+                CascadeValue::Unset,
+                1,
+            )],
+            custom_property_env: CustomPropertyEnv::new(),
+            parent_computed_value: Some(CascadeValue::Literal("green".to_string())),
+        });
+        assert_eq!(
+            unset_inherited.status,
+            ComputedCascadeValueStatusV0::Inherited
+        );
+        assert_eq!(
+            unset_inherited.value,
+            CascadeValue::Literal("green".to_string())
+        );
+
+        let unset_initial = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+            property: "opacity".to_string(),
+            declarations: vec![property_declaration(
+                "unset-opacity",
+                "opacity",
+                CascadeValue::Unset,
+                1,
+            )],
+            custom_property_env: CustomPropertyEnv::new(),
+            parent_computed_value: Some(CascadeValue::Literal("0.5".to_string())),
+        });
+        assert_eq!(unset_initial.status, ComputedCascadeValueStatusV0::Initial);
+        assert_eq!(unset_initial.value, CascadeValue::Literal("1".to_string()));
+    }
+
+    #[test]
+    fn treats_guaranteed_invalid_var_substitution_as_iacvt_unset() {
+        let mut env = CustomPropertyEnv::new();
+        env.insert(
+            "--a".to_string(),
+            CascadeValue::Var {
+                name: "--b".to_string(),
+                fallback: None,
+            },
+        );
+        env.insert(
+            "--b".to_string(),
+            CascadeValue::Var {
+                name: "--a".to_string(),
+                fallback: None,
+            },
+        );
+
+        let result = compute_cascade_computed_value(CascadeComputedValueInputV0 {
+            property: "color".to_string(),
+            declarations: vec![property_declaration(
+                "cycle-color",
+                "color",
+                CascadeValue::Var {
+                    name: "--a".to_string(),
+                    fallback: None,
+                },
+                1,
+            )],
+            custom_property_env: env,
+            parent_computed_value: Some(CascadeValue::Literal("canvas".to_string())),
+        });
+
+        assert_eq!(
+            result.status,
+            ComputedCascadeValueStatusV0::InvalidAtComputedValueTime
+        );
+        assert_eq!(result.value, CascadeValue::Literal("canvas".to_string()));
+        assert!(result.inherited);
+        assert!(result.invalid_at_computed_value_time);
+        assert!(
+            result
+                .derivation_steps
+                .contains(&"invalidAtComputedValueTimeFallsBackAsUnset")
+        );
     }
 
     #[test]
