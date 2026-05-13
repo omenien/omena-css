@@ -8,6 +8,7 @@ use omena_query::{
     OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 as OmenaWasmExpressionDomainIncrementalFlowAnalysisV0,
     OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaWasmExpressionDomainSelectorProjectionV0,
     OmenaQueryStyleContextIndexV0 as OmenaWasmStyleContextIndexV0,
+    OmenaQueryStyleDiagnosticsForFileV0 as OmenaWasmStyleDiagnosticsForFileV0,
     OmenaQueryStylePackageManifestV0 as OmenaWasmStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0 as OmenaWasmStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaWasmTargetTransformOptionsV0,
@@ -26,6 +27,7 @@ use omena_query::{
     read_omena_query_style_context_index, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
+    summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
 use serde::Serialize;
@@ -232,6 +234,11 @@ pub fn read_style_context_index(
     to_js_value(&read_style_context_index_summary(source, path, &input))
 }
 
+#[wasm_bindgen(js_name = readStyleDiagnostics)]
+pub fn read_style_diagnostics(source: &str, path: &str) -> Result<JsValue, JsValue> {
+    to_js_value(&read_style_diagnostics_summary(source, path)?)
+}
+
 #[wasm_bindgen(js_name = ExpressionDomainFlowRuntime)]
 pub struct OmenaWasmExpressionDomainFlowRuntimeV0 {
     inner: OmenaQueryExpressionDomainFlowRuntimeV0,
@@ -429,6 +436,20 @@ pub fn read_style_context_index_summary(
     read_omena_query_style_context_index(path, source, input)
 }
 
+pub fn read_style_diagnostics_summary(
+    source: &str,
+    path: &str,
+) -> Result<OmenaWasmStyleDiagnosticsForFileV0, JsValue> {
+    let path = effective_path(path);
+    let candidates = summarize_omena_query_style_hover_candidates(path, source)
+        .ok_or_else(|| JsValue::from_str(&format!("failed to read style candidates for {path}")))?;
+    Ok(summarize_omena_query_style_diagnostics_for_file(
+        path,
+        source,
+        candidates.candidates.as_slice(),
+    ))
+}
+
 fn parse_pass_ids_value(value: JsValue) -> Result<Vec<String>, JsValue> {
     if value.is_null() || value.is_undefined() {
         return Ok(Vec::new());
@@ -588,6 +609,29 @@ mod tests {
         assert_eq!(
             summary.context_index.container_index.named_container_count,
             1
+        );
+    }
+
+    #[test]
+    fn reads_style_diagnostics_for_browser_clients() {
+        let summary = read_style_diagnostics_summary(
+            ":root { --known: #2563eb; }\n.button { color: var(--missing); }\n",
+            "fixture.module.css",
+        )
+        .expect("style diagnostics should be available");
+
+        assert_eq!(summary.product, "omena-query.diagnostics-for-file");
+        assert_eq!(summary.file_kind, "style");
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"missingCustomPropertyDiagnostics")
+        );
+        assert!(
+            summary
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "missingCustomProperty")
         );
     }
 

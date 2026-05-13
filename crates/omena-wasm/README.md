@@ -36,6 +36,8 @@ targetOptions, context, packageManifests)` combines target planning with
 - `readStyleContextIndex(source, path, input)` reads query-owned `@layer`,
   `@container`, and `@scope` context indexes. Pass `null` or `undefined` for
   `input` when no EngineInputV2 context is needed.
+- `readStyleDiagnostics(source, path)` reads query-owned style diagnostics for
+  a CSS-family file.
 - `expressionDomainIncrementalFlow(input)` runs one query-owned
   expression-domain incremental-flow pass for simple browser clients.
 - `new ExpressionDomainFlowRuntime().analyze(input)` keeps the query-owned

@@ -9,6 +9,7 @@ use omena_query::{
     OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 as OmenaNapiExpressionDomainIncrementalFlowAnalysisV0,
     OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaNapiExpressionDomainSelectorProjectionV0,
     OmenaQueryStyleContextIndexV0 as OmenaNapiStyleContextIndexV0,
+    OmenaQueryStyleDiagnosticsForFileV0 as OmenaNapiStyleDiagnosticsForFileV0,
     OmenaQueryStylePackageManifestV0 as OmenaNapiStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0 as OmenaNapiStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaNapiTargetTransformOptionsV0,
@@ -27,6 +28,7 @@ use omena_query::{
     read_omena_query_style_context_index, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
+    summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
 use serde::Serialize;
@@ -230,6 +232,11 @@ pub fn read_style_context_index_json(
     to_json_string(&read_style_context_index_summary(&source, &path, &input))
 }
 
+#[napi(js_name = "readStyleDiagnosticsJson")]
+pub fn read_style_diagnostics_json(source: String, path: String) -> napi::Result<String> {
+    to_json_string(&read_style_diagnostics_summary(&source, &path)?)
+}
+
 #[napi(js_name = "ExpressionDomainFlowRuntime")]
 pub struct OmenaNapiExpressionDomainFlowRuntimeV0 {
     inner: OmenaQueryExpressionDomainFlowRuntimeV0,
@@ -421,6 +428,22 @@ pub fn read_style_context_index_summary(
     read_omena_query_style_context_index(path, source, input)
 }
 
+pub fn read_style_diagnostics_summary(
+    source: &str,
+    path: &str,
+) -> napi::Result<OmenaNapiStyleDiagnosticsForFileV0> {
+    let path = effective_path(path);
+    let candidates =
+        summarize_omena_query_style_hover_candidates(path, source).ok_or_else(|| {
+            napi::Error::from_reason(format!("failed to read style candidates for {path}"))
+        })?;
+    Ok(summarize_omena_query_style_diagnostics_for_file(
+        path,
+        source,
+        candidates.candidates.as_slice(),
+    ))
+}
+
 fn parse_target_options_json(
     target_options_json: &str,
 ) -> napi::Result<OmenaNapiTargetTransformOptionsV0> {
@@ -553,6 +576,29 @@ mod tests {
         assert_eq!(
             summary.context_index.container_index.named_container_count,
             1
+        );
+    }
+
+    #[test]
+    fn reads_style_diagnostics_for_node_clients() {
+        let summary = read_style_diagnostics_summary(
+            ":root { --known: #2563eb; }\n.button { color: var(--missing); }\n",
+            "fixture.module.css",
+        )
+        .expect("style diagnostics should be available");
+
+        assert_eq!(summary.product, "omena-query.diagnostics-for-file");
+        assert_eq!(summary.file_kind, "style");
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"missingCustomPropertyDiagnostics")
+        );
+        assert!(
+            summary
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "missingCustomProperty")
         );
     }
 
@@ -732,6 +778,20 @@ mod tests {
         assert!(json.contains("\"product\":\"omena-query.style-context-index\""));
         assert!(json.contains("\"contextIndexSource\":\"omena-semantic.style-context-index\""));
         assert!(json.contains("\"namedContainerCount\":1"));
+        Ok(())
+    }
+
+    #[test]
+    fn serializes_style_diagnostics_for_node_clients() -> napi::Result<()> {
+        let json = read_style_diagnostics_json(
+            ":root { --known: #2563eb; }\n.button { color: var(--missing); }\n".to_string(),
+            "fixture.module.css".to_string(),
+        )
+        .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
+
+        assert!(json.contains("\"product\":\"omena-query.diagnostics-for-file\""));
+        assert!(json.contains("\"fileKind\":\"style\""));
+        assert!(json.contains("\"code\":\"missingCustomProperty\""));
         Ok(())
     }
 

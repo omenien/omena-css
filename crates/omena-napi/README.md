@@ -37,6 +37,8 @@ targetQuery, targetOptionsJson, contextJson, packageManifestsJson)` combines
 - `readStyleContextIndexJson(source, path, inputJson)` reads query-owned
   `@layer`, `@container`, and `@scope` context indexes. Pass an empty string for
   `inputJson` when no EngineInputV2 context is needed.
+- `readStyleDiagnosticsJson(source, path)` reads query-owned style diagnostics
+  for a CSS-family file.
 - `expressionDomainIncrementalFlowJson(inputJson)` runs one query-owned
   expression-domain incremental-flow pass for simple Node clients.
 - `new ExpressionDomainFlowRuntime().analyzeJson(inputJson)` keeps the

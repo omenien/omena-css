@@ -11,6 +11,7 @@ use omena_query::{
     read_omena_query_style_context_index, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
+    summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
 use serde::Serialize;
@@ -156,6 +157,14 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Read query-owned style diagnostics for a CSS-family file.
+    StyleDiagnostics {
+        /// CSS, SCSS, Sass, Less, or CSS Modules file to inspect.
+        path: PathBuf,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -235,6 +244,7 @@ fn run(cli: Cli) -> Result<(), String> {
             engine_input_json,
             json,
         } => context_index(path, engine_input_json, json),
+        Command::StyleDiagnostics { path, json } => style_diagnostics(path, json),
     }
 }
 
@@ -644,6 +654,35 @@ fn context_index(
     Ok(())
 }
 
+fn style_diagnostics(path: PathBuf, json: bool) -> Result<(), String> {
+    let source = read_source(&path)?;
+    let style_path = path_string(&path);
+    let Some(candidates) = summarize_omena_query_style_hover_candidates(&style_path, &source)
+    else {
+        return Err(format!(
+            "failed to read style candidates for {}",
+            path_string(&path)
+        ));
+    };
+    let summary = summarize_omena_query_style_diagnostics_for_file(
+        &style_path,
+        &source,
+        candidates.candidates.as_slice(),
+    );
+
+    if json {
+        print_json(&summary)?;
+        return Ok(());
+    }
+
+    println!("file: {}", summary.file_uri);
+    println!("diagnostics: {}", summary.diagnostic_count);
+    for diagnostic in &summary.diagnostics {
+        println!("{}\t{}", diagnostic.code, diagnostic.message);
+    }
+    Ok(())
+}
+
 fn read_source(path: &Path) -> Result<String, String> {
     fs::read_to_string(path)
         .map_err(|error| format!("failed to read {}: {error}", path_string(path)))
@@ -812,6 +851,27 @@ mod tests {
             },
         });
         assert!(context_result.is_ok(), "{context_result:?}");
+
+        cleanup(&source_path);
+    }
+
+    #[test]
+    fn style_diagnostics_command_reads_query_owned_diagnostics() {
+        let source_path = temp_path("diagnostics.module.css");
+        fs::write(
+            &source_path,
+            ":root { --known: #2563eb; }\n.button { color: var(--missing); }\n",
+        )
+        .expect("fixture source should be writable");
+
+        let result = run(Cli {
+            command: Command::StyleDiagnostics {
+                path: source_path.clone(),
+                json: true,
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
 
         cleanup(&source_path);
     }
