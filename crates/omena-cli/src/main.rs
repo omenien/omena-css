@@ -1012,7 +1012,7 @@ mod tests {
         let source_path = temp_path("diagnostics.module.css");
         fs::write(
             &source_path,
-            ":root { --known: #2563eb; }\n.button { color: var(--missing); }\n",
+            ":root { --known: #2563eb; }\n.button { color: var(--missing); animation: fade 1s; }\n",
         )
         .expect("fixture source should be writable");
 
