@@ -7466,12 +7466,14 @@ fn compress_css_is_where_selectors_with_lexer(
 ) -> (String, usize) {
     let (source, function_mutation_count) =
         compress_css_is_where_functions_with_lexer(source, dialect);
+    let (source, list_expansion_mutation_count) =
+        expand_specificity_safe_is_selector_lists_with_lexer(&source, dialect);
     let (source, selector_list_mutation_count) =
         dedupe_ordinary_selector_lists_with_lexer(&source, dialect);
 
     (
         source,
-        function_mutation_count + selector_list_mutation_count,
+        function_mutation_count + list_expansion_mutation_count + selector_list_mutation_count,
     )
 }
 
@@ -7550,6 +7552,110 @@ fn dedupe_ordinary_selector_lists_with_lexer(
     }
 
     (output, replacements.len())
+}
+
+fn expand_specificity_safe_is_selector_lists_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let rules = collect_ordinary_rule_selector_slices(source, tokens);
+    let mut replacements = Vec::new();
+
+    for rule in rules {
+        let Some(selectors) = split_css_selector_list(&rule.selector) else {
+            continue;
+        };
+        let mut expanded_selectors = Vec::new();
+        let mut changed = false;
+        for selector in selectors {
+            if let Some(expanded) = expand_specificity_safe_is_selector(&selector) {
+                expanded_selectors.extend(expanded);
+                changed = true;
+            } else {
+                expanded_selectors.push(selector);
+            }
+        }
+        if !changed {
+            continue;
+        }
+        let deduped = dedupe_selector_arguments(&expanded_selectors);
+        let separator = if source[rule.start..rule.block_start]
+            .chars()
+            .last()
+            .is_some_and(char::is_whitespace)
+        {
+            " "
+        } else {
+            ""
+        };
+        replacements.push((
+            rule.start,
+            rule.block_start,
+            format!("{}{separator}", deduped.join(", ")),
+        ));
+    }
+
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end, replacement) in &replacements {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacements.len())
+}
+
+fn expand_specificity_safe_is_selector(selector: &str) -> Option<Vec<String>> {
+    let start = selector.find(":is(")?;
+    if selector[start + ":is(".len()..].contains(":is(") {
+        return None;
+    }
+    let left_paren_index = start + ":is".len();
+    let close_index = matching_function_call_end(selector, left_paren_index)?;
+    if selector[close_index + ')'.len_utf8()..].contains(":is(") {
+        return None;
+    }
+
+    let inner = selector[left_paren_index + '('.len_utf8()..close_index].trim();
+    let arguments = split_css_selector_list(inner)?;
+    if arguments.len() < 2
+        || !arguments
+            .iter()
+            .all(|argument| is_simple_class_selector(argument))
+    {
+        return None;
+    }
+
+    let prefix = &selector[..start];
+    let suffix = &selector[close_index + ')'.len_utf8()..];
+    Some(
+        arguments
+            .into_iter()
+            .map(|argument| format!("{prefix}{argument}{suffix}"))
+            .collect(),
+    )
+}
+
+fn is_simple_class_selector(selector: &str) -> bool {
+    let Some(class_name) = selector.trim().strip_prefix('.') else {
+        return false;
+    };
+    !class_name.is_empty()
+        && class_name
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
 }
 
 fn collect_ordinary_rule_selector_slices(
@@ -9509,7 +9615,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_specificity_safe_is_where_selectors() {
-        let source = r#".a:is(.ready) { color: red; } .b:where(.x, .x) { color: blue; } .c:where(.y) { color: green; } .d:is(:is(.u, .v), .u) { color: orange; } .e, .e, .f { color: purple; } .w:where(:where(.one, .two), .one) { color: teal; } @media (min-width: 1px) { .m, .m, .n { color: black; } } @supports (display: grid) { .s, .s { display: grid; } }"#;
+        let source = r#".a:is(.ready) { color: red; } .b:where(.x, .x) { color: blue; } .c:where(.y) { color: green; } .d:is(:is(.u, .v), .u) { color: orange; } .g:is(.p, .q):hover { color: lime; } .e, .e, .f { color: purple; } .w:where(:where(.one, .two), .one) { color: teal; } @media (min-width: 1px) { .m, .m, .n { color: black; } } @supports (display: grid) { .s, .s { display: grid; } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9518,10 +9624,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 7);
+        assert_eq!(execution.mutation_count, 9);
         assert_eq!(
             execution.output_css,
-            r#".a.ready { color: red; } .b:where(.x) { color: blue; } .c:where(.y) { color: green; } .d:is(.u,.v) { color: orange; } .e, .f { color: purple; } .w:where(.one,.two) { color: teal; } @media (min-width: 1px) { .m, .n { color: black; } } @supports (display: grid) { .s { display: grid; } }"#
+            r#".a.ready { color: red; } .b:where(.x) { color: blue; } .c:where(.y) { color: green; } .d.u, .d.v { color: orange; } .g.p:hover, .g.q:hover { color: lime; } .e, .f { color: purple; } .w:where(.one,.two) { color: teal; } @media (min-width: 1px) { .m, .n { color: black; } } @supports (display: grid) { .s { display: grid; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
