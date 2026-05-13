@@ -738,3 +738,93 @@ fn print_json<T: Serialize>(value: &T) -> Result<(), String> {
 fn path_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn build_command_writes_query_owned_transform_output() {
+        let source_path = temp_path("input.css");
+        let output_path = temp_path("output.css");
+        fs::write(&source_path, ".card { color: #ffffff; }")
+            .expect("fixture source should be writable");
+
+        let result = run(Cli {
+            command: Command::Build {
+                path: source_path.clone(),
+                output: Some(output_path.clone()),
+                passes: vec![
+                    "whitespace-strip".to_string(),
+                    "color-compression".to_string(),
+                ],
+                target_query: None,
+                allow_logical_to_physical: false,
+                allow_scope_flatten: false,
+                allow_layer_flatten: false,
+                enable_supports_static_eval: false,
+                enable_media_static_eval: false,
+                drop_dark_mode_media_queries: false,
+                context_json: None,
+                engine_input_json: None,
+                closed_style_world: false,
+                source_paths: Vec::new(),
+                package_manifest_paths: Vec::new(),
+                json: false,
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+        let output = fs::read_to_string(&output_path).expect("build output should be written");
+        assert!(output.contains("#fff"));
+        assert!(!output.contains("#ffffff"));
+
+        cleanup(&source_path);
+        cleanup(&output_path);
+    }
+
+    #[test]
+    fn cascade_and_context_index_commands_read_query_surfaces() {
+        let source_path = temp_path("input.module.css");
+        fs::write(
+            &source_path,
+            "@layer components { :root { --brand: #2563eb; } }\n.button { color: var(--brand); }\n",
+        )
+        .expect("fixture source should be writable");
+
+        let cascade_result = run(Cli {
+            command: Command::Cascade {
+                path: source_path.clone(),
+                line: 1,
+                character: 24,
+                engine_input_json: None,
+                json: true,
+            },
+        });
+        assert!(cascade_result.is_ok(), "{cascade_result:?}");
+
+        let context_result = run(Cli {
+            command: Command::ContextIndex {
+                path: source_path.clone(),
+                engine_input_json: None,
+                json: true,
+            },
+        });
+        assert!(context_result.is_ok(), "{context_result:?}");
+
+        cleanup(&source_path);
+    }
+
+    fn temp_path(name: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("omena-cli-{nanos}-{name}"))
+    }
+
+    fn cleanup(path: &Path) {
+        let _ = fs::remove_file(path);
+    }
+}
