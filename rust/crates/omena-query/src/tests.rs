@@ -942,6 +942,61 @@ fn consumer_build_requires_explicit_reachability_for_tree_shaking() {
 }
 
 #[test]
+fn consumer_build_scopes_semantic_tree_shaking_to_reachable_class_rules() {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "Button.module.css".to_string(),
+        style_source: r#"@value liveValue: red; @value deadValue: orange; @keyframes liveSpin { to { opacity: 1; } } @keyframes deadSpin { to { opacity: 0; } } :root { --live: blue; --dead: gray; } .used { color: liveValue; border-color: var(--live); animation: liveSpin 1s; } .dead { color: deadValue; background: var(--dead); animation: deadSpin 1s; }"#
+            .to_string(),
+    }];
+    let context = OmenaQueryTransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec!["used".to_string()],
+        ..OmenaQueryTransformExecutionContextV0::default()
+    };
+    let summary_result = execute_omena_query_consumer_build_style_sources_with_context(
+        "Button.module.css",
+        &sources,
+        &[
+            "tree-shake-keyframes".to_string(),
+            "tree-shake-value".to_string(),
+            "tree-shake-custom-property".to_string(),
+        ],
+        &context,
+        &[],
+    );
+    assert!(summary_result.is_ok());
+    let Ok(summary) = summary_result else {
+        return;
+    };
+
+    assert!(summary.execution.output_css.contains("@value liveValue:"));
+    assert!(summary.execution.output_css.contains("@keyframes liveSpin"));
+    assert!(summary.execution.output_css.contains("--live: blue"));
+    assert!(!summary.execution.output_css.contains("@value deadValue:"));
+    assert!(!summary.execution.output_css.contains("@keyframes deadSpin"));
+    assert!(!summary.execution.output_css.contains("--dead: gray"));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(".dead { color: deadValue;")
+    );
+    assert_eq!(
+        summary
+            .execution
+            .semantic_removals
+            .iter()
+            .map(|removal| (removal.pass_id, removal.name.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("tree-shake-keyframes", "deadSpin"),
+            ("tree-shake-value", "deadValue"),
+            ("tree-shake-custom-property", "--dead"),
+        ]
+    );
+}
+
+#[test]
 fn target_query_build_derives_workspace_context_for_bundle_passes() {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
