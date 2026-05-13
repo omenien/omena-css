@@ -52,6 +52,8 @@ Current public products:
   style diagnostics currently backed by missing custom-property checks.
 - `omena-query.completion-at` — position-scoped completion read model for
   style-side token completions and bridge-aware source selector completions.
+- `omena-query.refs-for-class` — workspace-scoped selector reference read model
+  for CSS Module definitions and source references.
 - `omena-query.css-modules-cross-file-resolution` — batch-level CSS Modules
   relation resolver for `composes`, `@value`, and ICSS import/export sources.
   This resolves import sources, same-edge name matches, transitive closure, and

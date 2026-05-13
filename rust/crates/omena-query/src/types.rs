@@ -654,6 +654,29 @@ pub struct OmenaQueryCompletionAtPositionV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryReferenceLocationV0 {
+    pub uri: String,
+    pub range: ParserRangeV0,
+    pub name: String,
+    pub role: &'static str,
+    pub source: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryRefsForClassV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub selector_name: String,
+    pub target_style_uri: Option<String>,
+    pub include_declaration: bool,
+    pub location_count: usize,
+    pub locations: Vec<OmenaQueryReferenceLocationV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCascadeAtPositionV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -713,6 +736,17 @@ pub struct OmenaQueryCreateSelectorActionV0 {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQuerySourceSelectorCandidateV0 {
+    pub kind: &'static str,
+    pub name: String,
+    pub range: ParserRangeV0,
+    pub source: &'static str,
+    pub target_style_uri: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySourceSelectorReferenceCandidateV0 {
+    pub uri: String,
     pub kind: &'static str,
     pub name: String,
     pub range: ParserRangeV0,

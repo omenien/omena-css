@@ -1,8 +1,9 @@
 use crate::{LspStyleHoverCandidate, LspStyleHoverCandidatesResult, LspTextDocumentState};
 use omena_query::{
-    OmenaQuerySourceSelectorCandidateV0, OmenaQuerySourceSelectorReferenceEditTargetV0,
-    OmenaQueryStyleHoverCandidateV0, OmenaQueryStyleSelectorDefinitionV0, ParserPositionV0,
-    ParserRangeV0, summarize_omena_query_style_hover_candidates,
+    OmenaQuerySourceSelectorCandidateV0, OmenaQuerySourceSelectorReferenceCandidateV0,
+    OmenaQuerySourceSelectorReferenceEditTargetV0, OmenaQueryStyleHoverCandidateV0,
+    OmenaQueryStyleSelectorDefinitionV0, ParserPositionV0, ParserRangeV0,
+    summarize_omena_query_style_hover_candidates,
 };
 
 pub(crate) fn empty_style_hover_candidates_result(
@@ -106,6 +107,20 @@ pub(crate) fn query_source_selector_reference_edit_target(
         uri: document.uri.clone(),
         name: candidate.name.clone(),
         range: candidate.range,
+        target_style_uri: candidate.target_style_uri.clone(),
+    }
+}
+
+pub(crate) fn query_source_selector_reference_candidate(
+    document: &LspTextDocumentState,
+    candidate: &LspStyleHoverCandidate,
+) -> OmenaQuerySourceSelectorReferenceCandidateV0 {
+    OmenaQuerySourceSelectorReferenceCandidateV0 {
+        uri: document.uri.clone(),
+        kind: candidate.kind,
+        name: candidate.name.clone(),
+        range: candidate.range,
+        source: candidate.source,
         target_style_uri: candidate.target_style_uri.clone(),
     }
 }

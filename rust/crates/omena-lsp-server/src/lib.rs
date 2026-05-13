@@ -31,7 +31,8 @@ use omena_query::{
     resolve_omena_query_source_provider_candidates,
     resolve_omena_query_style_selector_definitions_for_source_candidate,
     resolve_omena_query_style_uri_for_specifier, summarize_omena_query_missing_selector_diagnostic,
-    summarize_omena_query_sass_module_sources, summarize_omena_query_source_completion_at_position,
+    summarize_omena_query_refs_for_class, summarize_omena_query_sass_module_sources,
+    summarize_omena_query_source_completion_at_position,
     summarize_omena_query_source_import_declarations, summarize_omena_query_source_syntax_index,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_document,
@@ -870,13 +871,36 @@ fn selector_reference_locations_from_open_documents(
     workspace_folder_uri: Option<&str>,
     target_style_uri: Option<&str>,
 ) -> Vec<Value> {
-    selector_reference_locations_by_name_from_open_documents(
-        state,
-        workspace_folder_uri,
+    let definitions =
+        style_selector_definitions_from_open_documents(state, "", workspace_folder_uri)
+            .iter()
+            .map(|(uri, definition)| query_style_selector_definition(uri, definition))
+            .collect::<Vec<_>>();
+    let mut references = Vec::new();
+    for document in state.documents.values() {
+        if is_style_document_uri(document.uri.as_str()) {
+            continue;
+        }
+        if !workspace_folder_compatible(workspace_folder_uri, document) {
+            continue;
+        }
+        references.extend(
+            collect_source_selector_reference_candidates(state, document)
+                .iter()
+                .map(|candidate| query_source_selector_reference_candidate(document, candidate)),
+        );
+    }
+    summarize_omena_query_refs_for_class(
+        selector_name,
         target_style_uri,
+        false,
+        definitions.as_slice(),
+        references.as_slice(),
     )
-    .remove(selector_name)
-    .unwrap_or_default()
+    .locations
+    .into_iter()
+    .map(|location| json!({ "uri": location.uri, "range": location.range }))
+    .collect()
 }
 
 fn selector_reference_locations_by_name_from_open_documents(

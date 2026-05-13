@@ -602,6 +602,84 @@ pub fn summarize_omena_query_source_completion_at_position(
     }
 }
 
+pub fn summarize_omena_query_refs_for_class(
+    selector_name: &str,
+    target_style_uri: Option<&str>,
+    include_declaration: bool,
+    definitions: &[OmenaQueryStyleSelectorDefinitionV0],
+    references: &[OmenaQuerySourceSelectorReferenceCandidateV0],
+) -> OmenaQueryRefsForClassV0 {
+    let mut locations = Vec::new();
+
+    if include_declaration {
+        locations.extend(
+            definitions
+                .iter()
+                .filter(|definition| definition.name == selector_name)
+                .filter(|definition| {
+                    target_style_uri.is_none_or(|target_uri| {
+                        file_uri_equivalent(target_uri, definition.uri.as_str())
+                    })
+                })
+                .map(|definition| OmenaQueryReferenceLocationV0 {
+                    uri: definition.uri.clone(),
+                    range: definition.range,
+                    name: definition.name.clone(),
+                    role: "definition",
+                    source: "omenaQueryStyleSelectorDefinitions",
+                }),
+        );
+    }
+
+    for reference in references {
+        let reference_candidate = OmenaQuerySourceSelectorCandidateV0 {
+            kind: reference.kind,
+            name: reference.name.clone(),
+            range: reference.range,
+            source: reference.source,
+            target_style_uri: reference.target_style_uri.clone(),
+        };
+        if !source_selector_candidate_matches_target_uri(&reference_candidate, target_style_uri) {
+            continue;
+        }
+        let selector_names = resolve_omena_query_source_candidate_selector_names(
+            &reference_candidate,
+            definitions,
+            target_style_uri,
+        );
+        if selector_names.iter().any(|name| name == selector_name) {
+            locations.push(OmenaQueryReferenceLocationV0 {
+                uri: reference.uri.clone(),
+                range: reference.range,
+                name: selector_name.to_string(),
+                role: "reference",
+                source: "omenaQuerySourceSelectorReferences",
+            });
+        }
+    }
+
+    locations.sort_by_key(|location| {
+        (
+            reference_location_role_rank(location.role),
+            location.uri.clone(),
+            location.range.start.line,
+            location.range.start.character,
+        )
+    });
+    locations.dedup_by(|left, right| left.uri == right.uri && left.range == right.range);
+
+    OmenaQueryRefsForClassV0 {
+        schema_version: "0",
+        product: "omena-query.refs-for-class",
+        selector_name: selector_name.to_string(),
+        target_style_uri: target_style_uri.map(ToString::to_string),
+        include_declaration,
+        location_count: locations.len(),
+        locations,
+        ready_surfaces: vec!["refsForClass", "workspaceWideSelectorReferences"],
+    }
+}
+
 pub fn read_omena_query_cascade_at_position(
     style_path: &str,
     style_source: &str,
@@ -3115,6 +3193,28 @@ fn source_reference_matches_target_style(
                 file_uri_equivalent(candidate_target_uri, target_uri)
             })
     })
+}
+
+fn source_selector_candidate_matches_target_uri(
+    candidate: &OmenaQuerySourceSelectorCandidateV0,
+    target_style_uri: Option<&str>,
+) -> bool {
+    target_style_uri.is_none_or(|target_uri| {
+        candidate
+            .target_style_uri
+            .as_deref()
+            .is_none_or(|candidate_target_uri| {
+                file_uri_equivalent(candidate_target_uri, target_uri)
+            })
+    })
+}
+
+fn reference_location_role_rank(role: &str) -> u8 {
+    match role {
+        "definition" => 0,
+        "reference" => 1,
+        _ => 2,
+    }
 }
 
 fn file_uri_equivalent(left: &str, right: &str) -> bool {

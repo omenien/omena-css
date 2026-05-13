@@ -40,7 +40,8 @@ use super::{
     summarize_omena_query_transform_plan_from_target_query,
 };
 use crate::{
-    OmenaQueryCompletionCandidateV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryCompletionCandidateV0, OmenaQuerySourceSelectorReferenceCandidateV0,
+    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0,
     OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
     OmenaQueryTransformExecutionContextV0, OmenaQueryTransformModuleEvaluationV0,
     default_omena_query_transform_print_options, modern_omena_query_target_feature_support,
@@ -2933,6 +2934,77 @@ fn completion_at_position_is_query_owned_for_style_and_source() {
         source_completion
             .ready_surfaces
             .contains(&"bridgeAwareSelectorCompletion")
+    );
+}
+
+#[test]
+fn refs_for_class_is_query_owned_and_workspace_scoped() {
+    let definition = OmenaQueryStyleSelectorDefinitionV0 {
+        uri: "file:///workspace/src/Component.module.scss".to_string(),
+        name: "root".to_string(),
+        range: ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 0,
+                character: 1,
+            },
+            end: ParserPositionV0 {
+                line: 0,
+                character: 5,
+            },
+        },
+    };
+    let references = vec![
+        OmenaQuerySourceSelectorReferenceCandidateV0 {
+            uri: "file:///workspace/src/App.tsx".to_string(),
+            kind: "sourceSelectorReference",
+            name: "root".to_string(),
+            range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 1,
+                    character: 31,
+                },
+                end: ParserPositionV0 {
+                    line: 1,
+                    character: 35,
+                },
+            },
+            source: "omenaQuerySourceSyntaxIndex",
+            target_style_uri: Some("file:///workspace/src/Component.module.scss".to_string()),
+        },
+        OmenaQuerySourceSelectorReferenceCandidateV0 {
+            uri: "file:///workspace/src/Other.tsx".to_string(),
+            kind: "sourceSelectorReference",
+            name: "root".to_string(),
+            range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 1,
+                    character: 31,
+                },
+                end: ParserPositionV0 {
+                    line: 1,
+                    character: 35,
+                },
+            },
+            source: "omenaQuerySourceSyntaxIndex",
+            target_style_uri: Some("file:///workspace/src/Other.module.scss".to_string()),
+        },
+    ];
+
+    let refs = super::summarize_omena_query_refs_for_class(
+        "root",
+        Some("file:///workspace/src/Component.module.scss"),
+        true,
+        &[definition],
+        references.as_slice(),
+    );
+    assert_eq!(refs.product, "omena-query.refs-for-class");
+    assert_eq!(refs.location_count, 2);
+    assert_eq!(refs.locations[0].role, "definition");
+    assert_eq!(refs.locations[1].role, "reference");
+    assert_eq!(refs.locations[1].uri, "file:///workspace/src/App.tsx");
+    assert!(
+        refs.ready_surfaces
+            .contains(&"workspaceWideSelectorReferences")
     );
 }
 
