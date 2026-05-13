@@ -2307,7 +2307,11 @@ fn lower_css_color_mix_with_lexer(source: &str, dialect: StyleDialect) -> (Strin
                 replacements.push((
                     declaration.start,
                     declaration.end,
-                    format!("{}: {replacement_value};", declaration.property),
+                    format_replacement_declaration_like_source(
+                        source,
+                        &declaration,
+                        &replacement_value,
+                    ),
                 ));
             }
             index = close_index + 1;
@@ -2363,7 +2367,11 @@ fn lower_css_oklab_oklch_with_lexer(source: &str, dialect: StyleDialect) -> (Str
                 replacements.push((
                     declaration.start,
                     declaration.end,
-                    format!("{}: {replacement_value};", declaration.property),
+                    format_replacement_declaration_like_source(
+                        source,
+                        &declaration,
+                        &replacement_value,
+                    ),
                 ));
             }
             index = close_index + 1;
@@ -2416,7 +2424,11 @@ fn lower_css_color_function_with_lexer(source: &str, dialect: StyleDialect) -> (
                 replacements.push((
                     declaration.start,
                     declaration.end,
-                    format!("{}: {replacement_value};", declaration.property),
+                    format_replacement_declaration_like_source(
+                        source,
+                        &declaration,
+                        &replacement_value,
+                    ),
                 ));
             }
             index = close_index + 1;
@@ -5331,7 +5343,11 @@ fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) -> (String, u
                 replacements.push((
                     declaration.start,
                     declaration.end,
-                    format!("{}: {replacement_value};", declaration.property),
+                    format_replacement_declaration_like_source(
+                        source,
+                        &declaration,
+                        &replacement_value,
+                    ),
                 ));
             }
             index = close_index + 1;
@@ -7169,35 +7185,14 @@ fn parse_simple_declaration_slice(
     while index < block_end {
         match tokens[index].kind {
             SyntaxKind::Semicolon => {
-                if value_tokens
-                    .iter()
-                    .any(|token| is_comment_token(token.kind))
-                {
-                    return None;
-                }
-                let value = value_tokens
-                    .iter()
-                    .map(|token| token.text.as_str())
-                    .collect::<String>()
-                    .trim()
-                    .to_string();
-                if value.is_empty() {
-                    return None;
-                }
-                let important = value_tokens
-                    .iter()
-                    .any(|token| token.kind == SyntaxKind::Important);
-                return Some((
-                    SimpleDeclarationSlice {
-                        property,
-                        value,
-                        important,
-                        start: token_start(property_token),
-                        end: token_end(&tokens[index]),
-                        source_order,
-                    },
+                return build_simple_declaration_slice(
+                    property,
+                    property_token,
+                    &value_tokens,
+                    token_end(&tokens[index]),
+                    source_order,
                     index + 1,
-                ));
+                );
             }
             SyntaxKind::LeftBrace | SyntaxKind::RightBrace => return None,
             _ => value_tokens.push(&tokens[index]),
@@ -7205,7 +7200,82 @@ fn parse_simple_declaration_slice(
         index += 1;
     }
 
-    None
+    let last_value_token = value_tokens.last()?;
+    build_simple_declaration_slice(
+        property,
+        property_token,
+        &value_tokens,
+        token_end(last_value_token),
+        source_order,
+        index,
+    )
+}
+
+fn build_simple_declaration_slice(
+    property: String,
+    property_token: &omena_parser::LexedToken,
+    value_tokens: &[&omena_parser::LexedToken],
+    end: usize,
+    source_order: u32,
+    next_index: usize,
+) -> Option<(SimpleDeclarationSlice, usize)> {
+    if value_tokens
+        .iter()
+        .any(|token| is_comment_token(token.kind))
+    {
+        return None;
+    }
+    let value = value_tokens
+        .iter()
+        .map(|token| token.text.as_str())
+        .collect::<String>()
+        .trim()
+        .to_string();
+    if value.is_empty() {
+        return None;
+    }
+    let important = value_tokens
+        .iter()
+        .any(|token| token.kind == SyntaxKind::Important);
+    Some((
+        SimpleDeclarationSlice {
+            property,
+            value,
+            important,
+            start: token_start(property_token),
+            end,
+            source_order,
+        },
+        next_index,
+    ))
+}
+
+fn format_replacement_declaration_like_source(
+    source: &str,
+    declaration: &SimpleDeclarationSlice,
+    replacement_value: &str,
+) -> String {
+    let original = source
+        .get(declaration.start..declaration.end)
+        .unwrap_or_default();
+    let after_colon = original
+        .split_once(':')
+        .map(|(_, after_colon)| after_colon)
+        .unwrap_or_default();
+    let separator = if after_colon.chars().next().is_some_and(char::is_whitespace) {
+        ": "
+    } else {
+        ":"
+    };
+    let terminator = if original.trim_end().ends_with(';') {
+        ";"
+    } else {
+        ""
+    };
+    format!(
+        "{}{separator}{replacement_value}{terminator}",
+        declaration.property
+    )
 }
 
 fn box_shorthand_replacement_for_declarations(
@@ -8079,7 +8149,11 @@ fn compress_static_color_function_declaration_values_with_lexer(
                 replacements.push((
                     declaration.start,
                     declaration.end,
-                    format!("{}: {replacement_value};", declaration.property),
+                    format_replacement_declaration_like_source(
+                        source,
+                        &declaration,
+                        &replacement_value,
+                    ),
                 ));
             }
             index = close_index + 1;
@@ -8109,12 +8183,15 @@ fn compress_static_color_function_declaration_values_with_lexer(
 }
 
 fn compress_static_color_value(value: &str) -> Option<String> {
+    let trimmed = value.trim();
     let color = parse_static_srgb_color(value)
         .or_else(|| parse_static_rgb_function_color(value))
         .or_else(|| parse_static_hsl_function_color(value))
         .or_else(|| parse_static_hwb_function_color(value))?;
     let replacement = shortest_static_srgb_color_text(color);
-    (replacement.len() < value.trim().len()).then_some(replacement)
+    (replacement.len() < trimmed.len()
+        || (replacement.len() == trimmed.len() && replacement != trimmed))
+        .then_some(replacement)
 }
 
 fn compress_static_color_references_in_value(value: &str) -> Option<String> {
@@ -9598,11 +9675,27 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 20);
+        assert_eq!(execution.mutation_count, 21);
         assert_eq!(
             execution.output_css,
-            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: gray; text-emphasis-color: purple; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: blue; scrollbar-color: #0ff; border-block-color: #0ff; border-left-color: red; border-right-color: green; border-top-color: #00f; background: linear-gradient(red, #00f); filter: drop-shadow(0 0 1px #fff); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
+            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: gray; text-emphasis-color: purple; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: #00f; scrollbar-color: #0ff; border-block-color: #0ff; border-left-color: red; border-right-color: green; border-top-color: #00f; background: linear-gradient(red, #00f); filter: drop-shadow(0 0 1px #fff); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } #FFFFFF { color: red; }"#
         );
+    }
+
+    #[test]
+    fn execution_runtime_preserves_minified_declaration_shape_for_value_replacements() {
+        let source = ".a{background:blue}.b{margin:calc(2rem + 3rem)}";
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::ColorCompression,
+                TransformPassKind::CalcReduction,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.output_css, ".a{background:#00f}.b{margin:5rem}");
     }
 
     #[test]

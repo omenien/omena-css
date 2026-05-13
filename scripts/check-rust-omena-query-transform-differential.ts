@@ -61,6 +61,22 @@ const fixtures: readonly DifferentialFixture[] = [
     source:
       ".dupe { display: block; } .dupe { display: block; } .sel-a { border: 0; } .sel-b { border: 0; } .merge { color: red; } .merge { background: #0000FF; }",
   },
+  {
+    label: "comment-empty-calc",
+    source: "/* head */ .calc { width: calc(1px + 2px); } .empty { } /* tail */",
+  },
+  {
+    label: "calc-same-unit-nested",
+    source: ".a { margin: calc(2rem + 3rem); padding: calc(10px - 4px); }",
+  },
+  {
+    label: "is-where-multi",
+    source: ":is(.a) { color: #ffffff; } :where(.b) { color: #0000ff; }",
+  },
+  {
+    label: "rule-selector-merge-with-named-color",
+    source: ".a { color: red; } .b { color: red; } .a { background: blue; } .empty {}",
+  },
 ];
 
 const reports = fixtures.map((fixture) => {
