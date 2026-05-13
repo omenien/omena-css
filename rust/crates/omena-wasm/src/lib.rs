@@ -7,6 +7,7 @@ use omena_query::{
     OmenaQueryEngineInputV2 as OmenaWasmEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 as OmenaWasmExpressionDomainIncrementalFlowAnalysisV0,
     OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaWasmExpressionDomainSelectorProjectionV0,
+    OmenaQueryStyleContextIndexV0 as OmenaWasmStyleContextIndexV0,
     OmenaQueryStylePackageManifestV0 as OmenaWasmStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0 as OmenaWasmStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaWasmTargetTransformOptionsV0,
@@ -22,7 +23,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
-    summarize_omena_query_consumer_check_style_source,
+    read_omena_query_style_context_index, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_transform_context_from_engine_input,
@@ -221,6 +222,16 @@ pub fn read_cascade_at_position(
     ))
 }
 
+#[wasm_bindgen(js_name = readStyleContextIndex)]
+pub fn read_style_context_index(
+    source: &str,
+    path: &str,
+    input: JsValue,
+) -> Result<JsValue, JsValue> {
+    let input = parse_optional_engine_input_value(input)?;
+    to_js_value(&read_style_context_index_summary(source, path, &input))
+}
+
 #[wasm_bindgen(js_name = ExpressionDomainFlowRuntime)]
 pub struct OmenaWasmExpressionDomainFlowRuntimeV0 {
     inner: OmenaQueryExpressionDomainFlowRuntimeV0,
@@ -409,6 +420,15 @@ pub fn read_cascade_at_position_summary(
     read_omena_query_cascade_at_position(path, source, input, ParserPositionV0 { line, character })
 }
 
+pub fn read_style_context_index_summary(
+    source: &str,
+    path: &str,
+    input: &OmenaWasmEngineInputV2,
+) -> Option<OmenaWasmStyleContextIndexV0> {
+    let path = effective_path(path);
+    read_omena_query_style_context_index(path, source, input)
+}
+
 fn parse_pass_ids_value(value: JsValue) -> Result<Vec<String>, JsValue> {
     if value.is_null() || value.is_undefined() {
         return Ok(Vec::new());
@@ -550,6 +570,24 @@ mod tests {
                 .reference_custom_property_fixed_point_value
                 .as_deref(),
             Some("#2563eb")
+        );
+    }
+
+    #[test]
+    fn reads_style_context_index_for_browser_clients() {
+        let input = empty_engine_input();
+        let summary = read_style_context_index_summary(
+            "@layer components { @container card (min-width: 20rem) { .card { color: red; } } }",
+            "fixture.module.css",
+            &input,
+        )
+        .expect("context index summary should be available");
+
+        assert_eq!(summary.product, "omena-query.style-context-index");
+        assert_eq!(summary.context_index.layer_index.block_layers.len(), 1);
+        assert_eq!(
+            summary.context_index.container_index.named_container_count,
+            1
         );
     }
 

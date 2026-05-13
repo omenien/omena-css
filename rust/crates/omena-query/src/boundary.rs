@@ -33,6 +33,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "omena-transform-passes.plan",
             "omena-transform-passes.execution",
             "omena-cascade.custom-property-least-fixed-point",
+            "omena-semantic.style-context-index",
             "omena-query.transform-execute",
             "omena-query.transform-context-from-engine-input",
             "omena-query.consumer-check-style-source",
@@ -58,6 +59,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "styleHoverRenderParts",
             "styleMissingCustomPropertyDiagnostics",
             "readCascadeAtPosition",
+            "readStyleContextIndex",
             "readCascadeCustomPropertyLeastFixedPoint",
             "sourceMissingSelectorDiagnostics",
             "sourceProviderCandidateResolution",
@@ -242,6 +244,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 command: "read-cascade-at-position",
                 input_contract: "ReadCascadeAtPositionInputV0",
                 output_product: "omena-query.read-cascade-at-position",
+            },
+            SelectedQueryRunnerCommandV0 {
+                surface: "readStyleContextIndex",
+                command: "read-style-context-index",
+                input_contract: "ReadStyleContextIndexInputV0",
+                output_product: "omena-query.style-context-index",
             },
             SelectedQueryRunnerCommandV0 {
                 surface: "styleSemanticGraphBatch",

@@ -978,6 +978,7 @@ dependencies = [
  "omena-incremental",
  "omena-parser",
  "omena-resolver",
+ "omena-semantic",
  "omena-transform-bundle",
  "omena-transform-cst",
  "omena-transform-egg",

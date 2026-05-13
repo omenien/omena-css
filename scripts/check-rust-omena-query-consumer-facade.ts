@@ -100,6 +100,21 @@ const REQUIRED_EXPRESSION_DOMAIN_SURFACE_SNIPPETS = new Map<string, readonly str
   ],
 ]);
 
+const REQUIRED_STYLE_CONTEXT_INDEX_SURFACE_SNIPPETS = new Map<string, readonly string[]>([
+  [
+    "omena-cli",
+    ["Command::ContextIndex", "read_omena_query_style_context_index", "context_index_source"],
+  ],
+  [
+    "omena-wasm",
+    ["readStyleContextIndex", "read_style_context_index_summary", "context_index"],
+  ],
+  [
+    "omena-napi",
+    ["readStyleContextIndexJson", "read_style_context_index_summary", "context_index"],
+  ],
+]);
+
 for (const consumer of CONSUMER_CRATES) {
   const manifest = readFileSync(join(consumer.cratePath, "Cargo.toml"), "utf8");
 
@@ -141,6 +156,12 @@ for (const consumer of CONSUMER_CRATES) {
     assert(
       combinedSource.includes(snippet),
       `${consumer.crateName} must expose query-owned expression-domain surface: ${snippet}`,
+    );
+  }
+  for (const snippet of REQUIRED_STYLE_CONTEXT_INDEX_SURFACE_SNIPPETS.get(consumer.crateName) ?? []) {
+    assert(
+      combinedSource.includes(snippet),
+      `${consumer.crateName} must expose query-owned style context index surface: ${snippet}`,
     );
   }
 }

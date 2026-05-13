@@ -1089,6 +1089,48 @@ fn style_document_summary_is_omena_parser_owned() {
 }
 
 #[test]
+fn reads_style_context_index_from_query_boundary() {
+    let summary = super::read_omena_query_style_context_index(
+        "Component.module.scss",
+        r#"
+@layer reset, components;
+@layer components {
+  @container card (min-width: 20rem) {
+    @scope (.card) {
+      .card { color: red; }
+    }
+  }
+}
+"#,
+        &sample_input(),
+    );
+    assert!(summary.is_some());
+    let Some(summary) = summary else {
+        return;
+    };
+
+    assert_eq!(summary.product, "omena-query.style-context-index");
+    assert_eq!(
+        summary.context_index_source,
+        "omena-semantic.style-context-index"
+    );
+    assert_eq!(summary.context_index.layer_index.named_layer_count, 2);
+    assert_eq!(
+        summary.context_index.container_index.named_container_count,
+        1
+    );
+    assert_eq!(summary.context_index.scope_index.scopes.len(), 1);
+    assert!(
+        summary
+            .context_index
+            .container_index
+            .selector_memberships
+            .iter()
+            .any(|membership| membership.selector_name == "card")
+    );
+}
+
+#[test]
 fn exposes_omena_parser_sass_symbol_fact_surface() {
     let summary = summarize_omena_query_omena_parser_style_facts(
         "@use \"./tokens\" as tokens; @forward \"./theme\" show tone; @import \"legacy\"; @mixin tone($color) { color: $color; } @function double($x) { @return $x * 2; } .card { @include tone(red); width: double(2px); }",

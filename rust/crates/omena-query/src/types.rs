@@ -280,6 +280,17 @@ pub struct OmenaQueryStyleDocumentSummaryV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryStyleContextIndexV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub style_path: String,
+    pub language: &'static str,
+    pub context_index_source: &'static str,
+    pub context_index: StyleContextIndexV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryConsumerCheckSummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

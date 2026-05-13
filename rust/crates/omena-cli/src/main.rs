@@ -8,7 +8,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
-    summarize_omena_query_consumer_check_style_source,
+    read_omena_query_style_context_index, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_transform_context_from_engine_input,
@@ -145,6 +145,17 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Read @layer, @container, and @scope context indexes.
+    ContextIndex {
+        /// CSS, SCSS, Sass, Less, or CSS Modules file to inspect.
+        path: PathBuf,
+        /// Optional EngineInputV2 JSON file for source/type context.
+        #[arg(long)]
+        engine_input_json: Option<PathBuf>,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -219,6 +230,11 @@ fn run(cli: Cli) -> Result<(), String> {
             engine_input_json,
             json,
         } => cascade_at_position(path, line, character, engine_input_json, json),
+        Command::ContextIndex {
+            path,
+            engine_input_json,
+            json,
+        } => context_index(path, engine_input_json, json),
     }
 }
 
@@ -580,6 +596,50 @@ fn cascade_at_position(
     println!(
         "lfp guaranteed-invalid count: {}",
         summary.custom_property_fixed_point_guaranteed_invalid_count
+    );
+    Ok(())
+}
+
+fn context_index(
+    path: PathBuf,
+    engine_input_json: Option<PathBuf>,
+    json: bool,
+) -> Result<(), String> {
+    let source = read_source(&path)?;
+    let style_path = path_string(&path);
+    let engine_input = if let Some(engine_input_path) = engine_input_json.as_deref() {
+        read_engine_input_json(engine_input_path)?
+    } else {
+        empty_engine_input()
+    };
+    let Some(summary) = read_omena_query_style_context_index(&style_path, &source, &engine_input)
+    else {
+        return Err(format!("failed to read context index for {style_path}"));
+    };
+
+    if json {
+        print_json(&summary)?;
+        return Ok(());
+    }
+
+    println!("file: {}", summary.style_path);
+    println!("source: {}", summary.context_index_source);
+    println!(
+        "layer blocks: {}",
+        summary.context_index.layer_index.block_layers.len()
+    );
+    println!(
+        "layer statements: {}",
+        summary.context_index.layer_index.statement_layers.len()
+    );
+    println!(
+        "containers: {}",
+        summary.context_index.container_index.containers.len()
+    );
+    println!("scopes: {}", summary.context_index.scope_index.scopes.len());
+    println!(
+        "selector context memberships: {}",
+        summary.context_index.selector_context_count
     );
     Ok(())
 }
