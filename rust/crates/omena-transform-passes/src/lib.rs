@@ -8359,9 +8359,10 @@ fn compress_static_color_function_declaration_values_with_lexer(
                 if declaration.property.starts_with("--") || declaration.important {
                     continue;
                 }
-                let Some(replacement_value) =
-                    compress_static_color_references_in_value(&declaration.value)
-                else {
+                let Some(replacement_value) = compress_static_color_references_in_declaration_value(
+                    &declaration.property,
+                    &declaration.value,
+                ) else {
                     continue;
                 };
                 replacements.push((
@@ -8424,6 +8425,153 @@ fn compress_static_color_references_in_value(value: &str) -> Option<String> {
         ],
     )
     .or_else(|| compress_static_color_value(value))
+}
+
+fn compress_static_color_references_in_declaration_value(
+    property: &str,
+    value: &str,
+) -> Option<String> {
+    if !is_static_color_reference_property(property) {
+        return None;
+    }
+
+    let mut current = value.to_string();
+    let mut changed = false;
+
+    if let Some(replacement) = compress_static_color_references_in_value(&current) {
+        current = replacement;
+        changed = true;
+    }
+    if let Some(replacement) = compress_static_named_srgb_color_references_in_value(&current) {
+        current = replacement;
+        changed = true;
+    }
+
+    changed.then_some(current)
+}
+
+fn compress_static_named_srgb_color_references_in_value(value: &str) -> Option<String> {
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+    let mut changed = false;
+
+    while index < value.len() {
+        let ch = value[index..].chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = value[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            _ if is_css_ident_start(ch) => {
+                let start = index;
+                index += ch.len_utf8();
+                while let Some(next_ch) = value[index..].chars().next() {
+                    if !is_css_ident_continue(next_ch) {
+                        break;
+                    }
+                    index += next_ch.len_utf8();
+                }
+                let ident = &value[start..index];
+                if ident.eq_ignore_ascii_case("url")
+                    && value[index..].trim_start().starts_with('(')
+                    && let Some(open_offset) = value[index..].find('(')
+                    && let Some(close_index) =
+                        matching_function_call_end(value, index + open_offset)
+                {
+                    index = close_index + ')'.len_utf8();
+                    continue;
+                }
+                let Some(color) = parse_basic_named_srgb_color(ident) else {
+                    continue;
+                };
+                let replacement = shortest_static_srgb_color_text(color);
+                if replacement == ident {
+                    continue;
+                }
+                output.push_str(&value[cursor..start]);
+                output.push_str(&replacement);
+                cursor = index;
+                changed = true;
+            }
+            _ => index += ch.len_utf8(),
+        }
+    }
+
+    if !changed {
+        return None;
+    }
+    output.push_str(&value[cursor..]);
+    Some(output)
+}
+
+fn is_static_color_reference_property(property: &str) -> bool {
+    matches!(
+        property,
+        "accent-color"
+            | "background"
+            | "background-color"
+            | "border"
+            | "border-block"
+            | "border-block-color"
+            | "border-block-end"
+            | "border-block-end-color"
+            | "border-block-start"
+            | "border-block-start-color"
+            | "border-bottom"
+            | "border-bottom-color"
+            | "border-color"
+            | "border-inline"
+            | "border-inline-color"
+            | "border-inline-end"
+            | "border-inline-end-color"
+            | "border-inline-start"
+            | "border-inline-start-color"
+            | "border-left"
+            | "border-left-color"
+            | "border-right"
+            | "border-right-color"
+            | "border-top"
+            | "border-top-color"
+            | "box-shadow"
+            | "caret-color"
+            | "color"
+            | "column-rule"
+            | "column-rule-color"
+            | "fill"
+            | "filter"
+            | "flood-color"
+            | "lighting-color"
+            | "outline"
+            | "outline-color"
+            | "scrollbar-color"
+            | "stop-color"
+            | "stroke"
+            | "text-decoration-color"
+            | "text-emphasis-color"
+            | "text-shadow"
+    )
+}
+
+fn is_css_ident_start(ch: char) -> bool {
+    ch == '-' || ch == '_' || ch.is_ascii_alphabetic()
+}
+
+fn is_css_ident_continue(ch: char) -> bool {
+    is_css_ident_start(ch) || ch.is_ascii_digit()
 }
 
 fn parse_static_rgb_function_color(value: &str) -> Option<SrgbColor> {
@@ -9937,7 +10085,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_static_declaration_colors_only() {
-        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC; background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-emphasis-color: rgb(128 0 128); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); flood-color: white; lighting-color: black; stop-color: blue; scrollbar-color: hsl(.5TURN 100% 50%); border-block-color: hwb(200GRAD 0% 0%); border-left-color: rgb(255 0 0 / 100%); border-right-color: hsl(120 100% 25% / 1); border-top-color: hwb(240 0% 0% / 100%); background: linear-gradient(rgb(255 0 0), hsl(240 100% 50%)); filter: drop-shadow(0 0 1px hwb(0 100% 0%)); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } .alpha { color: #FFFFFFFF; background-color: #ffff; border-color: #00000000; outline-color: rgba(255, 0, 0, 1); text-decoration-color: hsla(240, 100%, 50%, 100%); } #FFFFFF { color: red; }"#;
+        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC, 0 0 blue; border: 1px solid black; font-family: blue; background: url(blue.svg); background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-emphasis-color: rgb(128 0 128); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); flood-color: white; lighting-color: black; stop-color: blue; scrollbar-color: hsl(.5TURN 100% 50%); border-block-color: hwb(200GRAD 0% 0%); border-left-color: rgb(255 0 0 / 100%); border-right-color: hsl(120 100% 25% / 1); border-top-color: hwb(240 0% 0% / 100%); background: linear-gradient(rgb(255 0 0), hsl(240 100% 50%)); filter: drop-shadow(0 0 1px hwb(0 100% 0%)); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } .alpha { color: #FFFFFFFF; background-color: #ffff; border-color: #00000000; outline-color: rgba(255, 0, 0, 1); text-decoration-color: hsla(240, 100%, 50%, 100%); } #FFFFFF { color: red; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9946,10 +10094,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 26);
+        assert_eq!(execution.mutation_count, 28);
         assert_eq!(
             execution.output_css,
-            r#".a { color: #fff; box-shadow: 0 0 #abc; background-color: red; border-color: green; outline-color: gray; text-emphasis-color: purple; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: #00f; scrollbar-color: #0ff; border-block-color: #0ff; border-left-color: red; border-right-color: green; border-top-color: #00f; background: linear-gradient(red, #00f); filter: drop-shadow(0 0 1px #fff); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } .alpha { color: #fff; background-color: #fff; border-color: #0000; outline-color: red; text-decoration-color: #00f; } #FFFFFF { color: red; }"#
+            r#".a { color: #fff; box-shadow: 0 0 #abc, 0 0 #00f; border: 1px solid #000; font-family: blue; background: url(blue.svg); background-color: red; border-color: green; outline-color: gray; text-emphasis-color: purple; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: #00f; scrollbar-color: #0ff; border-block-color: #0ff; border-left-color: red; border-right-color: green; border-top-color: #00f; background: linear-gradient(red, #00f); filter: drop-shadow(0 0 1px #fff); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } .alpha { color: #fff; background-color: #fff; border-color: #0000; outline-color: red; text-decoration-color: #00f; } #FFFFFF { color: red; }"#
         );
     }
 

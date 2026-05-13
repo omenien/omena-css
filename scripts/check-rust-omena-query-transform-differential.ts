@@ -87,6 +87,10 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { color: red; } .b { color: red; } .a { background: blue; } .empty {}",
   },
   {
+    label: "border-composite-named-color",
+    source: ".a { border: 1px solid black; }",
+  },
+  {
     label: "url-zero-font-family",
     source: '.a { background: url("/icons/a.svg"); margin: 0 0 0 0%; font-family: "Inter"; }',
   },
