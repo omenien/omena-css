@@ -2855,6 +2855,35 @@ fn missing_custom_property_diagnostics_are_query_owned() {
 }
 
 #[test]
+fn style_diagnostics_for_file_include_cascade_aware_lints() {
+    let source = ":root { --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); }";
+    let candidates =
+        super::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .expect("style candidates");
+
+    let diagnostics = super::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+
+    assert_eq!(diagnostics.product, "omena-query.diagnostics-for-file");
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"cascadeAwareDiagnostics")
+    );
+    assert_eq!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == "guaranteedInvalidCustomProperty")
+            .count(),
+        2
+    );
+}
+
+#[test]
 fn completion_at_position_is_query_owned_for_style_and_source() {
     let source = ":root { --brand: red; }\n.root { color: var(--br); }\n.row { display: flex; }";
     let candidates =
