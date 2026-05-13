@@ -136,6 +136,11 @@ fn summarizes_query_boundary_over_producer_fragments() {
     assert!(
         summary
             .delegated_fragment_products
+            .contains(&"omena-transform-egg.execution")
+    );
+    assert!(
+        summary
+            .delegated_fragment_products
             .contains(&"omena-query.consumer-check-style-source")
     );
     assert!(
@@ -162,6 +167,11 @@ fn summarizes_query_boundary_over_producer_fragments() {
         summary
             .ready_surfaces
             .contains(&"expressionDomainSelectorProjection")
+    );
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"transformEggExecutionWitnesses")
     );
     assert!(
         summary
@@ -1445,6 +1455,11 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
     );
     assert!(summary.adapter_readiness.contains(&"readCascadeAtPosition"));
     assert!(summary.adapter_readiness.contains(&"transformPlanRunner"));
+    assert!(
+        summary
+            .adapter_readiness
+            .contains(&"transformEggExecutionWitnesses")
+    );
     assert!(
         summary
             .adapter_readiness
