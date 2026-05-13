@@ -1,0 +1,283 @@
+import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+type JsonRpcMessage = {
+  readonly id?: number;
+  readonly result?: unknown;
+  readonly error?: unknown;
+};
+
+const repoRoot = process.cwd();
+const platformDir = `${process.platform}-${process.arch}`;
+const serverBinaryName = process.platform === "win32" ? "omena-lsp-server.exe" : "omena-lsp-server";
+const serverPath = path.join(repoRoot, "dist", "bin", platformDir, serverBinaryName);
+
+if (!existsSync(serverPath)) {
+  throw new Error(
+    `Missing built omena-lsp-server binary at ${serverPath}. Run pnpm cme-check run core/build/omena-lsp-server first.`,
+  );
+}
+
+const workspaceRoot = mkdtempSync(path.join(tmpdir(), "cme-rust-lsp-typefacts-"));
+const srcDir = path.join(workspaceRoot, "src");
+mkdirSync(srcDir, { recursive: true });
+
+const sourceText = `import bind from "classnames/bind";
+import styles from "./App.module.scss";
+const cx = bind.bind(styles);
+interface Props { size: "medium" | "small"; fontSize?: 10 | 12; }
+export function Badge({ size, fontSize }: Props) {
+  return <span className={cx(size, \`font-size-\${fontSize}\`)} />;
+}
+`;
+const styleText = `.medium { color: red; }
+.small { color: blue; }
+.font-size-10 { font-size: 10px; }
+.font-size-12 { font-size: 12px; }
+`;
+
+async function main(): Promise<void> {
+  try {
+    writeFixtureProject();
+    await runTypeFactProtocolSmoke();
+  } finally {
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+}
+
+function writeFixtureProject(): void {
+  writeFileSync(
+    path.join(workspaceRoot, "tsconfig.json"),
+    JSON.stringify(
+      {
+        compilerOptions: {
+          strict: true,
+          jsx: "react-jsx",
+          module: "esnext",
+          moduleResolution: "bundler",
+          target: "es2022",
+          allowArbitraryExtensions: true,
+        },
+        include: ["src"],
+      },
+      null,
+      2,
+    ),
+  );
+  writeFileSync(
+    path.join(srcDir, "global.d.ts"),
+    [
+      'declare module "*.module.scss" {',
+      "  const classes: Record<string, string>;",
+      "  export default classes;",
+      "}",
+      "declare namespace JSX { interface IntrinsicElements { span: any } }",
+      "",
+    ].join("\n"),
+  );
+  writeFileSync(path.join(srcDir, "App.tsx"), sourceText);
+  writeFileSync(path.join(srcDir, "App.module.scss"), styleText);
+}
+
+async function runTypeFactProtocolSmoke(): Promise<void> {
+  const sourceUri = fileUri(path.join(srcDir, "App.tsx"));
+  const styleUri = fileUri(path.join(srcDir, "App.module.scss"));
+  const sizePosition = positionForOffset(sourceText, sourceText.indexOf("cx(size") + "cx(".length);
+  const client = new JsonRpcClient(serverPath, repoRoot);
+
+  try {
+    await client.request("initialize", {
+      processId: process.pid,
+      rootUri: fileUri(workspaceRoot),
+      workspaceFolders: [{ uri: fileUri(workspaceRoot), name: "typefacts" }],
+      capabilities: {},
+    });
+    client.notify("initialized", {});
+    client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: sourceUri,
+        languageId: "typescriptreact",
+        version: 1,
+        text: sourceText,
+      },
+    });
+    client.notify("textDocument/didOpen", {
+      textDocument: {
+        uri: styleUri,
+        languageId: "scss",
+        version: 1,
+        text: styleText,
+      },
+    });
+
+    const hover = await client.request("textDocument/hover", {
+      textDocument: { uri: sourceUri },
+      position: sizePosition,
+    });
+    const definition = await client.request("textDocument/definition", {
+      textDocument: { uri: sourceUri },
+      position: sizePosition,
+    });
+    const references = await client.request("textDocument/references", {
+      textDocument: { uri: sourceUri },
+      position: sizePosition,
+      context: { includeDeclaration: true },
+    });
+
+    const hoverText = readString(hover, ["contents", "value"]);
+    const definitionUris = readArray(definition).map((location) => readString(location, ["uri"]));
+    const referenceUris = readArray(references).map((location) => readString(location, ["uri"]));
+
+    assert(
+      hoverText.includes("`.medium`") && hoverText.includes("`.small`"),
+      `hover did not include projected selector facts: ${hoverText}`,
+    );
+    assert(
+      definitionUris.filter((uri) => uri === styleUri).length === 2,
+      `definition did not resolve both projected style selectors: ${JSON.stringify(definition)}`,
+    );
+    assert(
+      referenceUris.includes(styleUri) && referenceUris.includes(sourceUri),
+      `references did not include style and source locations: ${JSON.stringify(references)}`,
+    );
+
+    process.stdout.write(
+      [
+        "validated rust omena-lsp-server type-fact protocol:",
+        `definitions=${definitionUris.length}`,
+        `references=${referenceUris.length}`,
+        "projection=omena-query",
+      ].join(" "),
+    );
+    process.stdout.write("\n");
+  } finally {
+    await client.shutdown();
+  }
+}
+
+class JsonRpcClient {
+  readonly #child;
+  readonly #pending = new Map<number, (message: JsonRpcMessage) => void>();
+  #buffer = Buffer.alloc(0);
+  #stderr = "";
+  #nextId = 1;
+
+  constructor(command: string, cwd: string) {
+    this.#child = spawn(command, [], {
+      cwd,
+      env: { ...process.env },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    this.#child.stdout.on("data", (chunk: Buffer) => {
+      this.#buffer = Buffer.concat([this.#buffer, chunk]);
+      this.#pump();
+    });
+    this.#child.stderr.on("data", (chunk: Buffer) => {
+      this.#stderr += chunk.toString("utf8");
+    });
+  }
+
+  request(method: string, params: unknown): Promise<unknown> {
+    const id = this.#nextId++;
+    this.#send({ jsonrpc: "2.0", id, method, params });
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(
+          new Error(
+            `Timed out waiting for ${method}${
+              this.#stderr.trim() ? `\nstderr:\n${this.#stderr.trim()}` : ""
+            }`,
+          ),
+        );
+      }, 8_000);
+      this.#pending.set(id, (message) => {
+        clearTimeout(timer);
+        if (message.error) {
+          reject(new Error(`${method} returned error: ${JSON.stringify(message.error)}`));
+          return;
+        }
+        resolve(message.result);
+      });
+    });
+  }
+
+  notify(method: string, params: unknown): void {
+    this.#send({ jsonrpc: "2.0", method, params });
+  }
+
+  async shutdown(): Promise<void> {
+    await this.request("shutdown", null).catch(() => undefined);
+    this.notify("exit", {});
+    this.#child.kill();
+  }
+
+  #send(message: unknown): void {
+    const body = Buffer.from(JSON.stringify(message));
+    this.#child.stdin.write(`Content-Length: ${body.length}\r\n\r\n`);
+    this.#child.stdin.write(body);
+  }
+
+  #pump(): void {
+    while (true) {
+      const headerEnd = this.#buffer.indexOf("\r\n\r\n");
+      if (headerEnd < 0) return;
+      const header = this.#buffer.subarray(0, headerEnd).toString("utf8");
+      const match = /Content-Length: (\d+)/iu.exec(header);
+      if (!match) {
+        throw new Error(`Invalid JSON-RPC header: ${header}`);
+      }
+      const contentLength = Number(match[1]);
+      const bodyStart = headerEnd + 4;
+      const bodyEnd = bodyStart + contentLength;
+      if (this.#buffer.length < bodyEnd) return;
+      const body = this.#buffer.subarray(bodyStart, bodyEnd).toString("utf8");
+      this.#buffer = this.#buffer.subarray(bodyEnd);
+      const message = JSON.parse(body) as JsonRpcMessage;
+      if (message.id !== undefined) {
+        this.#pending.get(message.id)?.(message);
+        this.#pending.delete(message.id);
+      }
+    }
+  }
+}
+
+function fileUri(filePath: string): string {
+  return `file://${filePath}`;
+}
+
+function positionForOffset(source: string, offset: number): { line: number; character: number } {
+  const prefix = source.slice(0, offset);
+  const lines = prefix.split("\n");
+  return { line: lines.length - 1, character: lines[lines.length - 1]?.length ?? 0 };
+}
+
+function readArray(value: unknown): readonly unknown[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`Expected array result, got ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
+function readString(value: unknown, pathParts: readonly string[]): string {
+  let current = value;
+  for (const pathPart of pathParts) {
+    current =
+      current && typeof current === "object"
+        ? (current as Record<string, unknown>)[pathPart]
+        : undefined;
+  }
+  if (typeof current !== "string") {
+    throw new Error(`Expected string at ${pathParts.join(".")}, got ${JSON.stringify(value)}`);
+  }
+  return current;
+}
+
+function assert(condition: unknown, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+void main();
