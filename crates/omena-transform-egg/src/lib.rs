@@ -17,9 +17,13 @@ define_language! {
         Num(i64),
         Symbol(Symbol),
         "+" = Add([Id; 2]),
+        "-" = Sub([Id; 2]),
         "*" = Mul([Id; 2]),
+        "/" = Div([Id; 2]),
         "calc" = Calc(Id),
         "is" = Is(Id),
+        "where" = Where(Id),
+        "list" = List([Id; 2]),
     }
 }
 
@@ -260,34 +264,32 @@ fn selector_rewrite_witnesses(
             };
             let end = inner_start + relative_end;
             let inner = source[inner_start..end].trim();
-            if let Some(symbol) = selector_single_argument_symbol(inner) {
-                let css_before = source[start..=end].to_string();
-                let css_after = inner.to_string();
-                if transformed_source.contains(&css_after)
-                    && !transformed_source.contains(&css_before)
-                {
-                    let execution = execute_egg_rewrite(EggRewriteCandidateV0 {
-                        pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
-                        before: format!("(is {symbol})"),
-                        after: symbol,
-                        proof: EggRewriteProofV0 {
-                            specificity_preserved: true,
-                            computed_value_preserved: false,
-                            provenance_preserved: true,
-                            cascade_safe_witness: format!(
-                                "actual CSS {source_kind} single-argument rewrite"
-                            ),
-                        },
-                    });
-                    witnesses.push(EggRewriteSourceWitnessV0 {
-                        pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
-                        source_kind,
-                        byte_offset: start,
-                        css_before,
-                        css_after,
-                        execution,
-                    });
-                }
+            let css_before = source[start..=end].to_string();
+            let pseudo_name = prefix.trim_start_matches(':').trim_end_matches('(');
+            if let Some((source_kind, css_after, before, after, witness)) =
+                selector_witness_candidate(pseudo_name, source_kind, inner)
+                && transformed_source.contains(&css_after)
+                && !transformed_source.contains(&css_before)
+            {
+                let execution = execute_egg_rewrite(EggRewriteCandidateV0 {
+                    pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
+                    before,
+                    after,
+                    proof: EggRewriteProofV0 {
+                        specificity_preserved: true,
+                        computed_value_preserved: false,
+                        provenance_preserved: true,
+                        cascade_safe_witness: witness,
+                    },
+                });
+                witnesses.push(EggRewriteSourceWitnessV0 {
+                    pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
+                    source_kind,
+                    byte_offset: start,
+                    css_before,
+                    css_after,
+                    execution,
+                });
             }
             cursor = end + 1;
         }
@@ -339,8 +341,61 @@ fn calc_rewrite_witnesses(
     witnesses
 }
 
-fn selector_single_argument_symbol(inner: &str) -> Option<String> {
-    let class_name = inner.strip_prefix('.')?;
+fn selector_witness_candidate(
+    pseudo_name: &str,
+    source_kind: &'static str,
+    inner: &str,
+) -> Option<(&'static str, String, String, String, String)> {
+    if pseudo_name == "is"
+        && let Some((symbol, css_ident)) = selector_single_argument_parts(inner)
+    {
+        return Some((
+            source_kind,
+            format!(".{css_ident}"),
+            format!("(is {symbol})"),
+            symbol,
+            "actual CSS selectorIs single-argument rewrite".to_string(),
+        ));
+    }
+
+    let args = split_simple_selector_arguments(inner)?;
+    let [left, right] = args.as_slice() else {
+        return None;
+    };
+    if left != right {
+        return None;
+    }
+    let (symbol, css_ident) = selector_single_argument_parts(left)?;
+    match pseudo_name {
+        "is" => Some((
+            "selectorIsDedup",
+            format!(".{css_ident}"),
+            format!("(is (list {symbol} {symbol}))"),
+            symbol,
+            "actual CSS selectorIs duplicate-argument rewrite".to_string(),
+        )),
+        "where" => Some((
+            "selectorWhereDedup",
+            format!(":where(.{css_ident})"),
+            format!("(where (list {symbol} {symbol}))"),
+            format!("(where {symbol})"),
+            "actual CSS selectorWhere duplicate-argument rewrite".to_string(),
+        )),
+        _ => None,
+    }
+}
+
+fn split_simple_selector_arguments(inner: &str) -> Option<Vec<String>> {
+    let args = inner
+        .split(',')
+        .map(str::trim)
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    (!args.is_empty() && args.iter().all(|arg| !arg.is_empty())).then_some(args)
+}
+
+fn selector_single_argument_parts(inner: &str) -> Option<(String, String)> {
+    let class_name = inner.trim().strip_prefix('.')?;
     if class_name.is_empty()
         || !class_name
             .chars()
@@ -348,7 +403,7 @@ fn selector_single_argument_symbol(inner: &str) -> Option<String> {
     {
         return None;
     }
-    Some(symbol_for_css_ident(class_name))
+    Some((symbol_for_css_ident(class_name), class_name.to_string()))
 }
 
 fn symbol_for_css_ident(value: &str) -> String {
@@ -365,23 +420,40 @@ fn calc_identity_expression(inner: &str) -> Option<(String, String)> {
     match *operator {
         "+" if right_value == 0 => Some((format!("(+ {left_value} 0)"), left_value.to_string())),
         "+" if left_value == 0 => Some((format!("(+ 0 {right_value})"), right_value.to_string())),
+        "-" if right_value == 0 => Some((format!("(- {left_value} 0)"), left_value.to_string())),
+        "-" if left_value == right_value => {
+            Some((format!("(- {left_value} {right_value})"), "0".to_string()))
+        }
         "*" if right_value == 1 => Some((format!("(* {left_value} 1)"), left_value.to_string())),
         "*" if left_value == 1 => Some((format!("(* 1 {right_value})"), right_value.to_string())),
+        "*" if right_value == 0 => Some((format!("(* {left_value} 0)"), "0".to_string())),
+        "*" if left_value == 0 => Some((format!("(* 0 {right_value})"), "0".to_string())),
+        "/" if right_value == 1 => Some((format!("(/ {left_value} 1)"), left_value.to_string())),
         _ => None,
     }
 }
 
 fn rewrite_rules_for_pass(pass_id: &'static str) -> Option<Vec<Rewrite<CssRewriteLanguage, ()>>> {
     if pass_id == TransformPassKind::SelectorIsWhereCompression.id() {
-        return Some(vec![egg_rewrite!("single-is-selector"; "(is ?a)" => "?a")]);
+        return Some(vec![
+            egg_rewrite!("single-is-selector"; "(is ?a)" => "?a"),
+            egg_rewrite!("nested-is-selector"; "(is (is ?a))" => "?a"),
+            egg_rewrite!("duplicate-is-selector"; "(is (list ?a ?a))" => "?a"),
+            egg_rewrite!("duplicate-where-selector"; "(where (list ?a ?a))" => "(where ?a)"),
+        ]);
     }
     if pass_id == TransformPassKind::CalcReduction.id() {
         return Some(vec![
             egg_rewrite!("unwrap-calc"; "(calc ?a)" => "?a"),
             egg_rewrite!("add-zero-right"; "(+ ?a 0)" => "?a"),
             egg_rewrite!("add-zero-left"; "(+ 0 ?a)" => "?a"),
+            egg_rewrite!("sub-zero-right"; "(- ?a 0)" => "?a"),
+            egg_rewrite!("self-sub"; "(- ?a ?a)" => "0"),
             egg_rewrite!("mul-one-right"; "(* ?a 1)" => "?a"),
             egg_rewrite!("mul-one-left"; "(* 1 ?a)" => "?a"),
+            egg_rewrite!("mul-zero-right"; "(* ?a 0)" => "0"),
+            egg_rewrite!("mul-zero-left"; "(* 0 ?a)" => "0"),
+            egg_rewrite!("div-one-right"; "(/ ?a 1)" => "?a"),
         ]);
     }
     None
@@ -516,6 +588,38 @@ mod tests {
     }
 
     #[test]
+    fn executes_selector_dedup_rewrites_through_egg_engine() {
+        let is_execution = execute_egg_rewrite(EggRewriteCandidateV0 {
+            pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
+            before: "(is (list ready ready))".to_string(),
+            after: "ready".to_string(),
+            proof: EggRewriteProofV0 {
+                specificity_preserved: true,
+                computed_value_preserved: false,
+                provenance_preserved: true,
+                cascade_safe_witness: "duplicate :is() argument keeps specificity".to_string(),
+            },
+        });
+        let where_execution = execute_egg_rewrite(EggRewriteCandidateV0 {
+            pass_id: TransformPassKind::SelectorIsWhereCompression.id(),
+            before: "(where (list ready ready))".to_string(),
+            after: "(where ready)".to_string(),
+            proof: EggRewriteProofV0 {
+                specificity_preserved: true,
+                computed_value_preserved: false,
+                provenance_preserved: true,
+                cascade_safe_witness: "duplicate :where() argument keeps zero specificity"
+                    .to_string(),
+            },
+        });
+
+        assert!(is_execution.accepted);
+        assert_eq!(is_execution.after, "ready");
+        assert!(where_execution.accepted);
+        assert_eq!(where_execution.after, "(where ready)");
+    }
+
+    #[test]
     fn executes_calc_rewrite_through_egg_engine() {
         let execution = execute_egg_rewrite(EggRewriteCandidateV0 {
             pass_id: TransformPassKind::CalcReduction.id(),
@@ -535,9 +639,36 @@ mod tests {
     }
 
     #[test]
+    fn executes_extended_calc_identity_rewrites_through_egg_engine() {
+        for (before, after) in [
+            ("(calc (- width 0))", "width"),
+            ("(calc (/ width 1))", "width"),
+            ("(calc (* width 0))", "0"),
+            ("(calc (- width width))", "0"),
+        ] {
+            let execution = execute_egg_rewrite(EggRewriteCandidateV0 {
+                pass_id: TransformPassKind::CalcReduction.id(),
+                before: before.to_string(),
+                after: after.to_string(),
+                proof: EggRewriteProofV0 {
+                    specificity_preserved: false,
+                    computed_value_preserved: true,
+                    provenance_preserved: true,
+                    cascade_safe_witness: "calc algebra identity preserves computed value"
+                        .to_string(),
+                },
+            });
+
+            assert!(execution.accepted, "{before} -> {after}");
+            assert_eq!(execution.after, after);
+        }
+    }
+
+    #[test]
     fn executes_css_source_witnesses_through_egg_engine() {
-        let source = ".a:is(.ready) { width: calc(7 + 0); }";
-        let transformed = ".a.ready { width: 7; }";
+        let source = ".a:is(.ready) { width: calc(7 + 0); } .b:is(.x, .x) { color: red; } .c:where(.y, .y) { color: blue; }";
+        let transformed =
+            ".a.ready { width: 7; } .b.x { color: red; } .c:where(.y) { color: blue; }";
         let plan = plan_egg_rewrite_passes_for_source(source);
         let witnesses = execute_egg_rewrite_witnesses_for_css_source(
             source,
@@ -545,7 +676,7 @@ mod tests {
             &plan.planned_pass_ids,
         );
 
-        assert_eq!(witnesses.len(), 2);
+        assert_eq!(witnesses.len(), 4);
         assert!(witnesses.iter().all(|witness| witness.execution.accepted));
         assert!(
             witnesses
@@ -557,5 +688,11 @@ mod tests {
                 .iter()
                 .any(|witness| witness.pass_id == "calc-reduction")
         );
+        assert!(witnesses.iter().any(|witness| {
+            witness.source_kind == "selectorIsDedup" && witness.css_after == ".x"
+        }));
+        assert!(witnesses.iter().any(|witness| {
+            witness.source_kind == "selectorWhereDedup" && witness.css_after == ":where(.y)"
+        }));
     }
 }

@@ -397,7 +397,7 @@ fn exposes_transform_plan_facade_from_source() {
 
 #[test]
 fn exposes_transform_plan_egg_witnesses_from_source_execution() {
-    let source = ".a:is(.ready) { width: calc(7 + 0); }";
+    let source = ".a:is(.ready) { width: calc(7 + 0); } .b:is(.x, .x) { color: red; } .c:where(.y, .y) { color: blue; }";
     let target_support = OmenaQueryTargetFeatureSupportV0 {
         vendor_prefix_required: false,
         supports_light_dark: true,
@@ -436,7 +436,7 @@ fn exposes_transform_plan_egg_witnesses_from_source_execution() {
             .ready_surfaces
             .contains(&"transformEggExecutionWitnesses")
     );
-    assert_eq!(summary.egg_witnesses.len(), 2);
+    assert_eq!(summary.egg_witnesses.len(), 4);
     assert!(
         summary
             .egg_witnesses
@@ -444,7 +444,17 @@ fn exposes_transform_plan_egg_witnesses_from_source_execution() {
             .all(|witness| witness.execution.accepted)
     );
     assert!(summary.execution.output_css.contains(".a.ready"));
+    assert!(summary.execution.output_css.contains(".b.x"));
+    assert!(summary.execution.output_css.contains(".c:where(.y)"));
     assert!(summary.execution.output_css.contains("width: 7"));
+    assert!(
+        summary.egg_witnesses.iter().any(|witness| {
+            witness.source_kind == "selectorIsDedup" && witness.css_after == ".x"
+        })
+    );
+    assert!(summary.egg_witnesses.iter().any(|witness| {
+        witness.source_kind == "selectorWhereDedup" && witness.css_after == ":where(.y)"
+    }));
 }
 
 #[test]
