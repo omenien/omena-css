@@ -62,6 +62,10 @@ const fixtures: readonly DifferentialFixture[] = [
       ".dupe { display: block; } .dupe { display: block; } .sel-a { border: 0; } .sel-b { border: 0; } .merge { color: red; } .merge { background: #0000FF; }",
   },
   {
+    label: "rule-merge-semicolonless",
+    source: ".b{color:red}.b{background:blue}",
+  },
+  {
     label: "comment-empty-calc",
     source: "/* head */ .calc { width: calc(1px + 2px); } .empty { } /* tail */",
   },

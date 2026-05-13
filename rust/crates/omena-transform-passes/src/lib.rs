@@ -6900,7 +6900,11 @@ fn merge_adjacent_same_selector_css_rules_with_lexer(
             replacements.push((
                 current.start,
                 last.end,
-                format!("{} {{ {} }}", current.selector, blocks.join(" ")),
+                format!(
+                    "{} {{ {} }}",
+                    current.selector,
+                    join_rule_blocks_for_merge(&blocks)
+                ),
             ));
         } else {
             index += 1;
@@ -6928,6 +6932,23 @@ fn merge_adjacent_same_selector_css_rules_with_lexer(
     }
 
     (output, replacements.len())
+}
+
+fn join_rule_blocks_for_merge(blocks: &[String]) -> String {
+    blocks
+        .iter()
+        .filter_map(|block| {
+            let trimmed = block.trim();
+            if trimmed.is_empty() {
+                None
+            } else if trimmed.ends_with(';') {
+                Some(trimmed.to_string())
+            } else {
+                Some(format!("{trimmed};"))
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -10051,6 +10072,25 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".a { color: red; background: blue; outline: 0; } .b { color: red; } .a { border: 0; } @media (min-width: 1px) { .m { color: red; background: blue; } }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["rule-merging", "print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_preserves_declaration_boundaries_when_merging_semicolonless_rules() {
+        let source = r#".b{color:red}.b{background:blue} @media (min-width: 1px) { .m { color: red } .m { background: blue } }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[TransformPassKind::RuleMerging, TransformPassKind::PrintCss],
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#".b { color:red; background:blue; } @media (min-width: 1px) { .m { color: red; background: blue; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
