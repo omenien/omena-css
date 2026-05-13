@@ -142,6 +142,33 @@ const REQUIRED_STYLE_DIAGNOSTICS_SURFACE_SNIPPETS = new Map<string, readonly str
   ],
 ]);
 
+const REQUIRED_STYLE_READ_MODEL_SURFACE_SNIPPETS = new Map<string, readonly string[]>([
+  [
+    "omena-cli",
+    [
+      "Command::StyleHoverCandidates",
+      "Command::StyleCompletion",
+      "summarize_omena_query_style_completion_at_position",
+    ],
+  ],
+  [
+    "omena-wasm",
+    [
+      "readStyleHoverCandidates",
+      "readStyleCompletionAtPosition",
+      "read_style_completion_at_position_summary",
+    ],
+  ],
+  [
+    "omena-napi",
+    [
+      "readStyleHoverCandidatesJson",
+      "readStyleCompletionAtPositionJson",
+      "read_style_completion_at_position_summary",
+    ],
+  ],
+]);
+
 const REQUIRED_SOURCE_DIAGNOSTICS_SURFACE_SNIPPETS = new Map<string, readonly string[]>([
   [
     "omena-cli",
@@ -222,6 +249,12 @@ for (const consumer of CONSUMER_CRATES) {
     assert(
       combinedSource.includes(snippet),
       `${consumer.crateName} must expose query-owned style diagnostics surface: ${snippet}`,
+    );
+  }
+  for (const snippet of REQUIRED_STYLE_READ_MODEL_SURFACE_SNIPPETS.get(consumer.crateName) ?? []) {
+    assert(
+      combinedSource.includes(snippet),
+      `${consumer.crateName} must expose query-owned style read-model surface: ${snippet}`,
     );
   }
   for (const snippet of REQUIRED_SOURCE_DIAGNOSTICS_SURFACE_SNIPPETS.get(consumer.crateName) ?? []) {

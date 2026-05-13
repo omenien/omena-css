@@ -38,6 +38,10 @@ targetOptions, context, packageManifests)` combines target planning with
   `input` when no EngineInputV2 context is needed.
 - `readStyleDiagnostics(source, path)` reads query-owned style diagnostics for
   a CSS-family file.
+- `readStyleHoverCandidates(source, path)` reads query-owned style hover
+  candidates for a CSS-family file.
+- `readStyleCompletionAtPosition(source, path, line, character)` reads
+  query-owned style completions at a source position.
 - `readSourceDiagnostics(sourceUri, candidates)` reads query-owned source
   diagnostics from precomputed missing-selector candidates.
 - `expressionDomainIncrementalFlow(input)` runs one query-owned

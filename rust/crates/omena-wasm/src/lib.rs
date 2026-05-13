@@ -2,6 +2,7 @@
 
 use omena_query::{
     OmenaQueryCascadeAtPositionV0 as OmenaWasmCascadeAtPositionV0,
+    OmenaQueryCompletionAtPositionV0 as OmenaWasmCompletionAtPositionV0,
     OmenaQueryConsumerBuildSummaryV0 as OmenaWasmBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaWasmCheckSummaryV0,
     OmenaQueryEngineInputV2 as OmenaWasmEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
@@ -11,6 +12,7 @@ use omena_query::{
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 as OmenaWasmSourceMissingSelectorDiagnosticCandidateV0,
     OmenaQueryStyleContextIndexV0 as OmenaWasmStyleContextIndexV0,
     OmenaQueryStyleDiagnosticsForFileV0 as OmenaWasmStyleDiagnosticsForFileV0,
+    OmenaQueryStyleHoverCandidatesV0 as OmenaWasmStyleHoverCandidatesV0,
     OmenaQueryStylePackageManifestV0 as OmenaWasmStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0 as OmenaWasmStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0 as OmenaWasmTargetTransformOptionsV0,
@@ -30,6 +32,7 @@ use omena_query::{
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_source_diagnostics_for_file,
+    summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
@@ -240,6 +243,26 @@ pub fn read_style_context_index(
 #[wasm_bindgen(js_name = readStyleDiagnostics)]
 pub fn read_style_diagnostics(source: &str, path: &str) -> Result<JsValue, JsValue> {
     to_js_value(&read_style_diagnostics_summary(source, path)?)
+}
+
+#[wasm_bindgen(js_name = readStyleHoverCandidates)]
+pub fn read_style_hover_candidates(source: &str, path: &str) -> Result<JsValue, JsValue> {
+    to_js_value(&read_style_hover_candidates_summary(source, path)?)
+}
+
+#[wasm_bindgen(js_name = readStyleCompletionAtPosition)]
+pub fn read_style_completion_at_position(
+    source: &str,
+    path: &str,
+    line: u32,
+    character: u32,
+) -> Result<JsValue, JsValue> {
+    to_js_value(&read_style_completion_at_position_summary(
+        source,
+        path,
+        line as usize,
+        character as usize,
+    )?)
 }
 
 #[wasm_bindgen(js_name = readSourceDiagnostics)]
@@ -462,6 +485,31 @@ pub fn read_style_diagnostics_summary(
     ))
 }
 
+pub fn read_style_hover_candidates_summary(
+    source: &str,
+    path: &str,
+) -> Result<OmenaWasmStyleHoverCandidatesV0, JsValue> {
+    let path = effective_path(path);
+    summarize_omena_query_style_hover_candidates(path, source)
+        .ok_or_else(|| JsValue::from_str(&format!("failed to read style candidates for {path}")))
+}
+
+pub fn read_style_completion_at_position_summary(
+    source: &str,
+    path: &str,
+    line: usize,
+    character: usize,
+) -> Result<OmenaWasmCompletionAtPositionV0, JsValue> {
+    let path = effective_path(path);
+    let candidates = read_style_hover_candidates_summary(source, path)?;
+    Ok(summarize_omena_query_style_completion_at_position(
+        path,
+        source,
+        ParserPositionV0 { line, character },
+        candidates.candidates.as_slice(),
+    ))
+}
+
 pub fn read_source_diagnostics_summary(
     source_uri: &str,
     candidates: &[OmenaWasmSourceMissingSelectorDiagnosticCandidateV0],
@@ -662,6 +710,28 @@ mod tests {
                 .iter()
                 .any(|diagnostic| diagnostic.code == "missingCustomProperty")
         );
+    }
+
+    #[test]
+    fn reads_style_hover_and_completion_for_browser_clients() {
+        let source = ":root { --brand: #2563eb; }\n.button { color: var(--); }\n";
+        let hover = read_style_hover_candidates_summary(source, "fixture.module.css")
+            .expect("style hover candidates should be available");
+
+        assert_eq!(hover.product, "omena-query.style-hover-candidates");
+        assert!(
+            hover
+                .candidates
+                .iter()
+                .any(|candidate| candidate.name == "--brand")
+        );
+
+        let completion =
+            read_style_completion_at_position_summary(source, "fixture.module.css", 1, 23)
+                .expect("style completion should be available");
+
+        assert_eq!(completion.product, "omena-query.completion-at");
+        assert!(completion.items.iter().any(|item| item.label == "--brand"));
     }
 
     #[test]

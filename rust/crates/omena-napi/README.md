@@ -39,6 +39,10 @@ targetQuery, targetOptionsJson, contextJson, packageManifestsJson)` combines
   `inputJson` when no EngineInputV2 context is needed.
 - `readStyleDiagnosticsJson(source, path)` reads query-owned style diagnostics
   for a CSS-family file.
+- `readStyleHoverCandidatesJson(source, path)` reads query-owned style hover
+  candidates for a CSS-family file.
+- `readStyleCompletionAtPositionJson(source, path, line, character)` reads
+  query-owned style completions at a source position.
 - `readSourceDiagnosticsJson(sourceUri, candidatesJson)` reads query-owned
   source diagnostics from precomputed missing-selector candidates.
 - `expressionDomainIncrementalFlowJson(inputJson)` runs one query-owned
