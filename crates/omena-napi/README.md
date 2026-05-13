@@ -34,6 +34,13 @@ targetQuery, targetOptionsJson, contextJson, packageManifestsJson)` combines
   cascade, computed-value, and custom-property LFP information at a `var(...)`
   reference position. Pass an empty string for `inputJson` when no EngineInputV2
   context is needed.
+- `expressionDomainIncrementalFlowJson(inputJson)` runs one query-owned
+  expression-domain incremental-flow pass for simple Node clients.
+- `new ExpressionDomainFlowRuntime().analyzeJson(inputJson)` keeps the
+  query-owned incremental-flow runtime alive across calls so Node clients can
+  observe graph reuse.
+- `expressionDomainSelectorProjectionJson(inputJson)` projects
+  expression-domain flow values to target style selectors.
 - `listTransformPassesJson()` lists transform pass ids accepted by
   `buildStyleSourceJson`.
 

@@ -5,7 +5,8 @@ use omena_query::{
     OmenaQueryCascadeAtPositionV0 as OmenaNapiCascadeAtPositionV0,
     OmenaQueryConsumerBuildSummaryV0 as OmenaNapiBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaNapiCheckSummaryV0,
-    OmenaQueryEngineInputV2 as OmenaNapiEngineInputV2,
+    OmenaQueryEngineInputV2 as OmenaNapiEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
+    OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 as OmenaNapiExpressionDomainIncrementalFlowAnalysisV0,
     OmenaQueryExpressionDomainSelectorProjectionV0 as OmenaNapiExpressionDomainSelectorProjectionV0,
     OmenaQueryStylePackageManifestV0 as OmenaNapiStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0 as OmenaNapiStyleSourceInputV0,
@@ -23,6 +24,7 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
     summarize_omena_query_consumer_check_style_source,
+    summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_transform_context_from_engine_input,
 };
@@ -175,6 +177,16 @@ pub fn expression_domain_selector_projection_json(input_json: String) -> napi::R
     to_json_string(&expression_domain_selector_projection_summary(&input))
 }
 
+#[napi(js_name = "expressionDomainIncrementalFlowJson")]
+pub fn expression_domain_incremental_flow_json(input_json: String) -> napi::Result<String> {
+    let input = parse_engine_input_json(&input_json)?;
+    let mut runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
+    to_json_string(&expression_domain_incremental_flow_analysis_summary(
+        &input,
+        &mut runtime,
+    ))
+}
+
 #[napi(js_name = "transformContextFromEngineInputJson")]
 pub fn transform_context_from_engine_input_json(
     input_json: String,
@@ -205,6 +217,30 @@ pub fn read_cascade_at_position_json(
         character as usize,
         &input,
     ))
+}
+
+#[napi(js_name = "ExpressionDomainFlowRuntime")]
+pub struct OmenaNapiExpressionDomainFlowRuntimeV0 {
+    inner: OmenaQueryExpressionDomainFlowRuntimeV0,
+}
+
+#[napi]
+impl OmenaNapiExpressionDomainFlowRuntimeV0 {
+    #[napi(constructor)]
+    pub fn new() -> Self {
+        Self {
+            inner: OmenaQueryExpressionDomainFlowRuntimeV0::default(),
+        }
+    }
+
+    #[napi(js_name = "analyzeJson")]
+    pub fn analyze_json(&mut self, input_json: String) -> napi::Result<String> {
+        let input = parse_engine_input_json(&input_json)?;
+        to_json_string(&expression_domain_incremental_flow_analysis_summary(
+            &input,
+            &mut self.inner,
+        ))
+    }
 }
 
 pub fn check_style_source_summary(source: &str, path: &str) -> OmenaNapiCheckSummaryV0 {
@@ -333,6 +369,13 @@ pub fn expression_domain_selector_projection_summary(
     input: &OmenaNapiEngineInputV2,
 ) -> OmenaNapiExpressionDomainSelectorProjectionV0 {
     summarize_omena_query_expression_domain_selector_projection(input)
+}
+
+pub fn expression_domain_incremental_flow_analysis_summary(
+    input: &OmenaNapiEngineInputV2,
+    runtime: &mut OmenaQueryExpressionDomainFlowRuntimeV0,
+) -> OmenaNapiExpressionDomainIncrementalFlowAnalysisV0 {
+    summarize_omena_query_expression_domain_incremental_flow_analysis(input, runtime)
 }
 
 pub fn transform_context_from_engine_input_summary(
@@ -651,6 +694,28 @@ mod tests {
         assert!(json.contains("\"sourceValueKind\":\"composite\""));
         assert!(json.contains("\"prefix\":\"btn-\""));
         assert!(json.contains("\"suffix\":\"-active\""));
+        Ok(())
+    }
+
+    #[test]
+    fn reuses_expression_domain_flow_runtime_for_node_clients() -> napi::Result<()> {
+        let mut runtime = OmenaNapiExpressionDomainFlowRuntimeV0::new();
+        let input_json = reduced_product_projection_engine_input_json().to_string();
+
+        let first_json = runtime.analyze_json(input_json.clone())?;
+        assert!(
+            first_json.contains(
+                "\"product\":\"omena-query.expression-domain-incremental-flow-analysis\""
+            )
+        );
+        assert!(first_json.contains("\"revision\":1"));
+        assert!(first_json.contains("\"reusedGraphCount\":0"));
+
+        let second_json = runtime.analyze_json(input_json)?;
+        assert!(second_json.contains("\"revision\":2"));
+        assert!(second_json.contains("\"dirtyGraphCount\":0"));
+        assert!(second_json.contains("\"reusedGraphCount\":1"));
+        assert!(second_json.contains("\"reusedPreviousAnalysis\":true"));
         Ok(())
     }
 

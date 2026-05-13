@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use omena_query::{
-    OmenaQueryEngineInputV2, OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
     OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
@@ -8,6 +9,8 @@ use omena_query::{
     execute_omena_query_consumer_build_style_sources_with_context,
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
     summarize_omena_query_consumer_check_style_source,
+    summarize_omena_query_expression_domain_incremental_flow_analysis,
+    summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_transform_context_from_engine_input,
 };
 use serde::Serialize;
@@ -107,6 +110,24 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Analyze cross-language class-value flow from EngineInputV2.
+    ExpressionFlow {
+        /// JSON file containing EngineInputV2 source/style/type facts.
+        #[arg(long)]
+        engine_input_json: PathBuf,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Project expression-domain flow values to target style selectors.
+    SelectorProjection {
+        /// JSON file containing EngineInputV2 source/style/type facts.
+        #[arg(long)]
+        engine_input_json: PathBuf,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Read cascade and custom-property LFP information at a source position.
     Cascade {
         /// CSS, SCSS, Sass, Less, or CSS Modules file to inspect.
@@ -183,6 +204,14 @@ fn run(cli: Cli) -> Result<(), String> {
             closed_style_world,
             json,
         } => context_from_engine_input(path, engine_input_json, closed_style_world, json),
+        Command::ExpressionFlow {
+            engine_input_json,
+            json,
+        } => expression_flow(engine_input_json, json),
+        Command::SelectorProjection {
+            engine_input_json,
+            json,
+        } => selector_projection(engine_input_json, json),
         Command::Cascade {
             path,
             line,
@@ -427,6 +456,59 @@ fn context_from_engine_input(
     println!("reachable classes: {}", summary.reachable_class_name_count);
     for class_name in &summary.context.reachable_class_names {
         println!("  {class_name}");
+    }
+    Ok(())
+}
+
+fn expression_flow(engine_input_json: PathBuf, json: bool) -> Result<(), String> {
+    let engine_input = read_engine_input_json(&engine_input_json)?;
+    let mut runtime = OmenaQueryExpressionDomainFlowRuntimeV0::default();
+    let summary = summarize_omena_query_expression_domain_incremental_flow_analysis(
+        &engine_input,
+        &mut runtime,
+    );
+
+    if json {
+        print_json(&summary)?;
+        return Ok(());
+    }
+
+    println!("product: {}", summary.product);
+    println!("revision: {}", summary.revision);
+    println!("graphs: {}", summary.graph_count);
+    println!("dirty graphs: {}", summary.dirty_graph_count);
+    println!("reused graphs: {}", summary.reused_graph_count);
+    for entry in &summary.analyses {
+        println!(
+            "{}\tnodes={}\tdirty={}\treused={}",
+            entry.graph_id,
+            entry.analysis.analysis.nodes.len(),
+            entry.analysis.incremental_plan.dirty_node_count,
+            entry.analysis.reused_previous_analysis
+        );
+    }
+    Ok(())
+}
+
+fn selector_projection(engine_input_json: PathBuf, json: bool) -> Result<(), String> {
+    let engine_input = read_engine_input_json(&engine_input_json)?;
+    let summary = summarize_omena_query_expression_domain_selector_projection(&engine_input);
+
+    if json {
+        print_json(&summary)?;
+        return Ok(());
+    }
+
+    println!("product: {}", summary.product);
+    println!("projections: {}", summary.projection_count);
+    for projection in &summary.projections {
+        println!(
+            "{}\t{}\t{:?}\t{}",
+            projection.graph_id,
+            projection.node_id,
+            projection.certainty,
+            projection.selector_names.join(",")
+        );
     }
     Ok(())
 }

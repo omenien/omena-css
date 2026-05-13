@@ -15,6 +15,10 @@ Current commands:
 - `omena cascade <file> --line <n> --character <n>` reads cascade,
   computed-value, and custom-property LFP information at a `var(...)`
   reference position.
+- `omena expression-flow --engine-input-json input.json` analyzes
+  cross-language class-value flow through the query-owned incremental runtime.
+- `omena selector-projection --engine-input-json input.json` projects
+  expression-domain values to target style selectors.
 - `omena passes` lists the transform pass ids accepted by `omena build`.
 
 Install the published CLI with Cargo:
@@ -26,6 +30,8 @@ omena build path/to/file.css --pass whitespace-strip
 omena build path/to/file.css --target-query "ie 11"
 omena build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
 omena cascade path/to/file.module.css --line 10 --character 16 --json
+omena expression-flow --engine-input-json input.json --json
+omena selector-projection --engine-input-json input.json --json
 omena passes
 ```
 
