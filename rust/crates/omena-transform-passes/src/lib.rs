@@ -8788,6 +8788,9 @@ fn normalize_dimension_unit_token(text: &str, property: &str) -> Option<String> 
 
     let split = numeric_prefix_end(text)?;
     let (number, unit) = text.split_at(split);
+    if let Some(replacement) = normalize_css_time_unit_token(number, unit) {
+        return (replacement != text).then_some(replacement);
+    }
     if is_zero_length_unit_property(property)
         && is_zero_number_prefix(number)
         && is_css_length_unit(unit)
@@ -8796,6 +8799,39 @@ fn normalize_dimension_unit_token(text: &str, property: &str) -> Option<String> 
     }
 
     normalize_known_css_unit_case(number, unit)
+}
+
+fn normalize_css_time_unit_token(number: &str, unit: &str) -> Option<String> {
+    let normalized_unit = unit.to_ascii_lowercase();
+    if !matches!(normalized_unit.as_str(), "ms" | "s") {
+        return None;
+    }
+
+    let value = number.parse::<f64>().ok()?;
+    if !value.is_finite() {
+        return None;
+    }
+    if value == 0.0 {
+        return Some("0s".to_string());
+    }
+
+    let seconds = if normalized_unit == "ms" {
+        value / 1000.0
+    } else {
+        value
+    };
+    let seconds_text = format!("{}s", format_css_time_number(seconds));
+    let milliseconds_text = format!("{}ms", format_css_time_number(seconds * 1000.0));
+
+    if seconds_text.len() < milliseconds_text.len() {
+        Some(seconds_text)
+    } else {
+        Some(milliseconds_text)
+    }
+}
+
+fn format_css_time_number(value: f64) -> String {
+    compress_number_prefix(&format_css_number(value))
 }
 
 fn is_zero_number_prefix(number: &str) -> bool {
@@ -9879,7 +9915,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_normalizes_zero_length_units_with_property_context() {
-        let source = r#".a { margin: 0px 0.0rem -0em; border-top-width: 0PX; border-radius: -0em; scroll-margin-inline: 0rem; outline-width: 0pt; line-height: 0em; rotate: 1TURN; animation-delay: 200MS; grid-template-columns: 1FR 2fr; --x: 0PX; width: 10PX; }"#;
+        let source = r#".a { margin: 0px 0.0rem -0em; border-top-width: 0PX; border-radius: -0em; scroll-margin-inline: 0rem; outline-width: 0pt; line-height: 0em; rotate: 1TURN; animation-delay: 200MS; transition-duration: .05s; transition-delay: 0ms; grid-template-columns: 1FR 2fr; --x: 0PX; width: 10PX; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -9888,10 +9924,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 12);
+        assert_eq!(execution.mutation_count, 14);
         assert_eq!(
             execution.output_css,
-            r#".a { margin: 0 0 0; border-top-width: 0; border-radius: 0; scroll-margin-inline: 0; outline-width: 0; line-height: 0; rotate: 1turn; animation-delay: 200ms; grid-template-columns: 1fr 2fr; --x: 0PX; width: 10px; }"#
+            r#".a { margin: 0 0 0; border-top-width: 0; border-radius: 0; scroll-margin-inline: 0; outline-width: 0; line-height: 0; rotate: 1turn; animation-delay: .2s; transition-duration: 50ms; transition-delay: 0s; grid-template-columns: 1fr 2fr; --x: 0PX; width: 10px; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,

@@ -91,6 +91,10 @@ const fixtures: readonly DifferentialFixture[] = [
     source: '.a { background: url("/icons/a.svg"); margin: 0 0 0 0%; font-family: "Inter"; }',
   },
   {
+    label: "time-unit-shortening",
+    source: ".a { transition-duration: 100ms; transition-delay: .05s; animation-delay: 0ms; }",
+  },
+  {
     label: "font-family-list",
     source: '.fonts { font-family: "Arial", "Helvetica Neue", "system-ui", sans-serif; }',
   },
