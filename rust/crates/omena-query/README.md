@@ -49,7 +49,8 @@ Current public products:
 - `omena-query.style-context-index` — consumer read model for the
   semantic-owned `@layer`, `@container`, and `@scope` context index.
 - `omena-query.diagnostics-for-file` — file-scoped diagnostics read model for
-  style diagnostics and cross-language source missing-selector diagnostics.
+  style diagnostics, cascade-aware custom-property lints, and cross-language
+  source missing-selector diagnostics.
 - `omena-query.completion-at` — position-scoped completion read model for
   style-side token completions and bridge-aware source selector completions.
 - `omena-query.refs-for-class` — workspace-scoped selector reference read model

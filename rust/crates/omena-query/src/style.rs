@@ -475,13 +475,52 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
         .collect()
 }
 
+pub fn summarize_omena_query_cascade_aware_style_diagnostics(
+    style_uri: &str,
+    source: &str,
+    candidates: &[OmenaQueryStyleHoverCandidateV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let declarations_by_name = candidates
+        .iter()
+        .filter(|candidate| candidate.kind == "customPropertyDeclaration")
+        .map(|candidate| (candidate.name.as_str(), candidate.range))
+        .collect::<BTreeMap<_, _>>();
+    if declarations_by_name.is_empty() {
+        return Vec::new();
+    }
+
+    let dialect = omena_parser_dialect_for_style_path(style_uri);
+    summarize_static_css_custom_property_fixed_point_from_source(source, dialect)
+        .entries
+        .into_iter()
+        .filter(|entry| entry.guaranteed_invalid)
+        .filter_map(|entry| {
+            declarations_by_name
+                .get(entry.name.as_str())
+                .copied()
+                .map(|range| OmenaQueryStyleDiagnosticV0 {
+                    code: "guaranteedInvalidCustomProperty",
+                    range,
+                    message: format!(
+                        "CSS custom property '{}' resolves to the guaranteed-invalid value.",
+                        entry.name
+                    ),
+                    create_custom_property: None,
+                })
+        })
+        .collect()
+}
+
 pub fn summarize_omena_query_style_diagnostics_for_file(
     style_uri: &str,
     source: &str,
     candidates: &[OmenaQueryStyleHoverCandidateV0],
 ) -> OmenaQueryStyleDiagnosticsForFileV0 {
-    let diagnostics =
+    let mut diagnostics =
         summarize_omena_query_missing_custom_property_diagnostics(style_uri, source, candidates);
+    diagnostics.extend(summarize_omena_query_cascade_aware_style_diagnostics(
+        style_uri, source, candidates,
+    ));
     OmenaQueryStyleDiagnosticsForFileV0 {
         schema_version: "0",
         product: "omena-query.diagnostics-for-file",
@@ -489,7 +528,10 @@ pub fn summarize_omena_query_style_diagnostics_for_file(
         file_kind: "style",
         diagnostic_count: diagnostics.len(),
         diagnostics,
-        ready_surfaces: vec!["missingCustomPropertyDiagnostics"],
+        ready_surfaces: vec![
+            "missingCustomPropertyDiagnostics",
+            "cascadeAwareDiagnostics",
+        ],
     }
 }
 

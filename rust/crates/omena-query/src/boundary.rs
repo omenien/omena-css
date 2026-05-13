@@ -61,6 +61,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "styleDiagnosticsForFile",
             "sourceDiagnosticsForFile",
             "crossLanguageDiagnostics",
+            "cascadeAwareDiagnostics",
             "completionAt",
             "refsForClass",
             "renamePlan",
