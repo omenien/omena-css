@@ -1839,6 +1839,83 @@ export function Badge({ size, fontSize }: BadgeProps) {
         .ok_or_else(|| std::io::Error::other("size hover should render markdown"))?;
     assert!(hover_text.contains("`.medium`"));
     assert!(hover_text.contains("`.small`"));
+
+    let size_references = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "textDocument/references",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(source_text, size_target.byte_span.start),
+                "context": {
+                    "includeDeclaration": true,
+                },
+            },
+        }),
+    );
+    let reference_results = size_references
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("size references should return results"))?;
+    assert!(
+        reference_results
+            .iter()
+            .any(|location| location.get("uri") == Some(&json!(style_uri)))
+    );
+    assert!(
+        reference_results
+            .iter()
+            .any(|location| location.get("uri") == Some(&json!(source_uri)))
+    );
+
+    let size_prepare_rename = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "textDocument/prepareRename",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(source_text, size_target.byte_span.start),
+            },
+        }),
+    );
+    let placeholder = size_prepare_rename
+        .as_ref()
+        .and_then(|value| value.pointer("/result/placeholder"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| std::io::Error::other("size prepareRename should use CSS selector path"))?;
+    assert!(matches!(placeholder, "medium" | "small"));
+
+    let size_rename = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "textDocument/rename",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                },
+                "position": parser_position_for_byte_offset(source_text, size_target.byte_span.start),
+                "newName": "large",
+            },
+        }),
+    );
+    let style_edits = size_rename
+        .as_ref()
+        .and_then(|value| value.pointer("/result/changes"))
+        .and_then(|changes| changes.get(style_uri))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("size rename should produce style edits"))?;
+    assert!(!style_edits.is_empty());
     Ok(())
 }
 
