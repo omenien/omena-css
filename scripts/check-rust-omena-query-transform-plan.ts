@@ -57,6 +57,23 @@ interface TransformPlanSummaryV0 {
     readonly cstArtifact: {
       readonly product: string;
       readonly passIds: readonly string[];
+      readonly stableIrNodeCount: number;
+      readonly parserErrorCount: number;
+      readonly containsBogusOrTrivia: boolean;
+      readonly stableIr: {
+        readonly product: string;
+        readonly dialect: string;
+        readonly nodeCount: number;
+        readonly parserErrorCount: number;
+        readonly containsBogusOrTrivia: boolean;
+        readonly stablePostSemanticIr: boolean;
+        readonly nodes: readonly {
+          readonly kind: string;
+          readonly label: string;
+          readonly sourceSpanStart: number;
+        }[];
+        readonly provenanceAnchors: readonly unknown[];
+      };
       readonly provenancePreserved: boolean;
     };
   };
@@ -103,7 +120,7 @@ interface TransformPlanSummaryV0 {
 }
 
 const styleSource =
-  '@use "./tokens" as tokens; @value primary from "./colors.module.css"; .button { composes: reset from "./reset.module.css"; color: tokens.$brand; }';
+  '@use "./tokens" as tokens; @value primary from "./colors.module.css"; .button { composes: reset from "./reset.module.css"; --brand: tokens.$brand; color: var(--brand); }';
 
 const result = spawnSync(
   "cargo",
@@ -212,6 +229,54 @@ assert.equal(
 );
 assert.equal(summary.print.sourceMapSegments[0]?.sourcePath, "Button.module.scss");
 assert.equal(summary.print.cstArtifact.product, "omena-transform-cst.artifact");
+assert.equal(summary.print.cstArtifact.stableIr.product, "omena-transform-cst.stable-ir");
+assert.equal(summary.print.cstArtifact.stableIr.dialect, "scss");
+assert.equal(summary.print.cstArtifact.parserErrorCount, 0);
+assert.equal(summary.print.cstArtifact.containsBogusOrTrivia, false);
+assert.equal(summary.print.cstArtifact.stableIr.parserErrorCount, 0);
+assert.equal(summary.print.cstArtifact.stableIr.containsBogusOrTrivia, false);
+assert.equal(summary.print.cstArtifact.stableIr.stablePostSemanticIr, true);
+assert.equal(
+  summary.print.cstArtifact.stableIrNodeCount,
+  summary.print.cstArtifact.stableIr.provenanceAnchors.length,
+);
+assert.equal(
+  summary.print.cstArtifact.stableIr.nodeCount,
+  summary.print.cstArtifact.stableIr.nodes.length,
+);
+assert(
+  summary.print.cstArtifact.stableIr.nodes.some(
+    (node) => node.kind === "classSelector" && node.label === "button",
+  ),
+  "stable transform IR should include parser-owned class selector fact",
+);
+assert(
+  summary.print.cstArtifact.stableIr.nodes.some(
+    (node) => node.kind === "sassModuleEdge" && node.label === "./tokens",
+  ),
+  "stable transform IR should include parser-owned Sass module edge fact",
+);
+assert(
+  summary.print.cstArtifact.stableIr.nodes.some(
+    (node) => node.kind === "customPropertyDeclaration" && node.label === "--brand",
+  ),
+  "stable transform IR should include parser-owned custom property declaration fact",
+);
+assert(
+  summary.print.cstArtifact.stableIr.nodes.some(
+    (node) => node.kind === "customPropertyReference" && node.label === "--brand",
+  ),
+  "stable transform IR should include parser-owned custom property reference fact",
+);
+assert(
+  summary.print.cstArtifact.stableIr.nodes
+    .slice(1)
+    .every(
+      (node, index) =>
+        summary.print.cstArtifact.stableIr.nodes[index]!.sourceSpanStart <= node.sourceSpanStart,
+    ),
+  "stable transform IR nodes should be source ordered",
+);
 assert.equal(summary.print.cstArtifact.provenancePreserved, true);
 
 assert.equal(summary.execution.product, "omena-transform-passes.execution");

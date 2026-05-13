@@ -5,7 +5,8 @@
 //! changing bytes.
 
 use omena_transform_cst::{
-    TransformCstArtifactV0, TransformPassKind, build_transform_cst_artifact,
+    StyleDialect, TransformCstArtifactV0, TransformPassKind,
+    build_transform_cst_artifact_with_dialect,
 };
 use omena_transform_passes::{
     TransformExecutionSummaryV0, TransformPassPlanV0, plan_transform_passes,
@@ -84,13 +85,32 @@ pub fn print_transform_cst_source(
     upstream_passes: &[TransformPassKind],
     options: TransformPrintOptionsV0,
 ) -> TransformPrintArtifactV0 {
+    print_transform_cst_source_with_dialect(
+        source_path,
+        source,
+        StyleDialect::Css,
+        semantic_signature,
+        upstream_passes,
+        options,
+    )
+}
+
+pub fn print_transform_cst_source_with_dialect(
+    source_path: impl Into<String>,
+    source: &str,
+    dialect: StyleDialect,
+    semantic_signature: impl Into<String>,
+    upstream_passes: &[TransformPassKind],
+    options: TransformPrintOptionsV0,
+) -> TransformPrintArtifactV0 {
     let source_path = source_path.into();
     let mut passes = upstream_passes.to_vec();
     if !passes.contains(&TransformPassKind::PrintCss) {
         passes.push(TransformPassKind::PrintCss);
     }
     let pass_plan = plan_transform_passes(&passes);
-    let cst_artifact = build_transform_cst_artifact(source, semantic_signature, &passes);
+    let cst_artifact =
+        build_transform_cst_artifact_with_dialect(source, dialect, semantic_signature, &passes);
     let css = render_identity_preserving_css(source, options.mode);
     let source_map_segments = if options.include_source_map {
         compose_identity_source_map_segments(
@@ -122,10 +142,29 @@ pub fn print_transform_execution_artifact(
     options: TransformPrintOptionsV0,
     execution: &TransformExecutionSummaryV0,
 ) -> TransformPrintArtifactV0 {
+    print_transform_execution_artifact_with_dialect(
+        source_path,
+        StyleDialect::Css,
+        semantic_signature,
+        upstream_passes,
+        options,
+        execution,
+    )
+}
+
+pub fn print_transform_execution_artifact_with_dialect(
+    source_path: impl Into<String>,
+    dialect: StyleDialect,
+    semantic_signature: impl Into<String>,
+    upstream_passes: &[TransformPassKind],
+    options: TransformPrintOptionsV0,
+    execution: &TransformExecutionSummaryV0,
+) -> TransformPrintArtifactV0 {
     let source_path = source_path.into();
-    let mut artifact = print_transform_cst_source(
+    let mut artifact = print_transform_cst_source_with_dialect(
         source_path.clone(),
         &execution.output_css,
+        dialect,
         semantic_signature,
         upstream_passes,
         options,
