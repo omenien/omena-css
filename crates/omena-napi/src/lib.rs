@@ -2,6 +2,7 @@
 
 use napi_derive::napi;
 use omena_query::{
+    OmenaQueryCascadeAtPositionV0 as OmenaNapiCascadeAtPositionV0,
     OmenaQueryConsumerBuildSummaryV0 as OmenaNapiBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaNapiCheckSummaryV0,
     OmenaQueryEngineInputV2 as OmenaNapiEngineInputV2,
@@ -11,7 +12,7 @@ use omena_query::{
     OmenaQueryTargetTransformOptionsV0 as OmenaNapiTargetTransformOptionsV0,
     OmenaQueryTransformContextFromEngineInputSummaryV0 as OmenaNapiTransformContextFromEngineInputSummaryV0,
     OmenaQueryTransformExecutionContextV0 as OmenaNapiTransformExecutionContextV0,
-    OmenaQueryTransformPassSummaryV0 as OmenaNapiPassSummaryV0,
+    OmenaQueryTransformPassSummaryV0 as OmenaNapiPassSummaryV0, ParserPositionV0,
     execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
@@ -20,7 +21,8 @@ use omena_query::{
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
-    list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
+    list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
+    summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_transform_context_from_engine_input,
 };
@@ -187,6 +189,24 @@ pub fn transform_context_from_engine_input_json(
     ))
 }
 
+#[napi(js_name = "readCascadeAtPositionJson")]
+pub fn read_cascade_at_position_json(
+    source: String,
+    path: String,
+    line: u32,
+    character: u32,
+    input_json: String,
+) -> napi::Result<String> {
+    let input = parse_optional_engine_input_json(&input_json)?;
+    to_json_string(&read_cascade_at_position_summary(
+        &source,
+        &path,
+        line as usize,
+        character as usize,
+        &input,
+    ))
+}
+
 pub fn check_style_source_summary(source: &str, path: &str) -> OmenaNapiCheckSummaryV0 {
     let path = effective_path(path);
     summarize_omena_query_consumer_check_style_source(path, source)
@@ -327,6 +347,17 @@ pub fn transform_context_from_engine_input_summary(
     )
 }
 
+pub fn read_cascade_at_position_summary(
+    source: &str,
+    path: &str,
+    line: usize,
+    character: usize,
+    input: &OmenaNapiEngineInputV2,
+) -> Option<OmenaNapiCascadeAtPositionV0> {
+    let path = effective_path(path);
+    read_omena_query_cascade_at_position(path, source, input, ParserPositionV0 { line, character })
+}
+
 fn parse_target_options_json(
     target_options_json: &str,
 ) -> napi::Result<OmenaNapiTargetTransformOptionsV0> {
@@ -364,6 +395,22 @@ fn parse_engine_input_json(input_json: &str) -> napi::Result<OmenaNapiEngineInpu
     })
 }
 
+fn parse_optional_engine_input_json(input_json: &str) -> napi::Result<OmenaNapiEngineInputV2> {
+    if input_json.trim().is_empty() {
+        return Ok(empty_engine_input());
+    }
+    parse_engine_input_json(input_json)
+}
+
+fn empty_engine_input() -> OmenaNapiEngineInputV2 {
+    OmenaNapiEngineInputV2 {
+        version: "2".to_string(),
+        sources: Vec::new(),
+        styles: Vec::new(),
+        type_facts: Vec::new(),
+    }
+}
+
 fn to_json_string<T: Serialize>(value: &T) -> napi::Result<String> {
     serde_json::to_string(value).map_err(|error| {
         napi::Error::from_reason(format!("failed to serialize Omena CSS result: {error}"))
@@ -395,6 +442,37 @@ mod tests {
         assert_eq!(summary.parser_error_count, 0);
         assert_eq!(summary.class_selector_count, 1);
         assert_eq!(summary.custom_property_count, 1);
+    }
+
+    #[test]
+    fn reads_cascade_lfp_for_node_clients() {
+        let input = empty_engine_input();
+        let summary = read_cascade_at_position_summary(
+            ":root { --known: #2563eb; }\n.button { color: var(--known); }\n",
+            "fixture.module.css",
+            1,
+            24,
+            &input,
+        )
+        .expect("cascade summary should be available");
+
+        assert_eq!(summary.product, "omena-query.read-cascade-at-position");
+        assert_eq!(summary.status, "resolved");
+        assert_eq!(summary.reference_name.as_deref(), Some("--known"));
+        assert_eq!(
+            summary.referenced_declaration_computed_value.as_deref(),
+            Some("#2563eb")
+        );
+        assert_eq!(
+            summary.reference_custom_property_fixed_point_status,
+            Some("fixedPointStable")
+        );
+        assert_eq!(
+            summary
+                .reference_custom_property_fixed_point_value
+                .as_deref(),
+            Some("#2563eb")
+        );
     }
 
     #[test]
@@ -540,6 +618,23 @@ mod tests {
 
         assert!(json.contains("\"product\":\"omena-query.consumer-check-style-source\""));
         assert!(json.contains("\"classSelectorCount\":1"));
+        Ok(())
+    }
+
+    #[test]
+    fn serializes_cascade_lfp_for_node_clients() -> napi::Result<()> {
+        let json = read_cascade_at_position_json(
+            ":root { --known: #2563eb; }\n.button { color: var(--known); }\n".to_string(),
+            "fixture.module.css".to_string(),
+            1,
+            24,
+            String::new(),
+        )
+        .map_err(|error| napi::Error::from_reason(format!("{error:?}")))?;
+
+        assert!(json.contains("\"product\":\"omena-query.read-cascade-at-position\""));
+        assert!(json.contains("\"referenceName\":\"--known\""));
+        assert!(json.contains("\"referenceCustomPropertyFixedPointValue\":\"#2563eb\""));
         Ok(())
     }
 

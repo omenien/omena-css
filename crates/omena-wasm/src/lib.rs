@@ -1,6 +1,7 @@
 //! Browser-side in-memory bindings for the Omena CSS parser and transform surface.
 
 use omena_query::{
+    OmenaQueryCascadeAtPositionV0 as OmenaWasmCascadeAtPositionV0,
     OmenaQueryConsumerBuildSummaryV0 as OmenaWasmBuildSummaryV0,
     OmenaQueryConsumerCheckSummaryV0 as OmenaWasmCheckSummaryV0,
     OmenaQueryEngineInputV2 as OmenaWasmEngineInputV2,
@@ -10,7 +11,7 @@ use omena_query::{
     OmenaQueryTargetTransformOptionsV0 as OmenaWasmTargetTransformOptionsV0,
     OmenaQueryTransformContextFromEngineInputSummaryV0 as OmenaWasmTransformContextFromEngineInputSummaryV0,
     OmenaQueryTransformExecutionContextV0 as OmenaWasmTransformExecutionContextV0,
-    OmenaQueryTransformPassSummaryV0 as OmenaWasmPassSummaryV0,
+    OmenaQueryTransformPassSummaryV0 as OmenaWasmPassSummaryV0, ParserPositionV0,
     conservative_omena_query_target_options, execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
@@ -19,7 +20,8 @@ use omena_query::{
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
-    list_omena_query_transform_pass_summaries, summarize_omena_query_consumer_check_style_source,
+    list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
+    summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_transform_context_from_engine_input,
 };
@@ -189,6 +191,24 @@ pub fn transform_context_from_engine_input(
     ))
 }
 
+#[wasm_bindgen(js_name = readCascadeAtPosition)]
+pub fn read_cascade_at_position(
+    source: &str,
+    path: &str,
+    line: u32,
+    character: u32,
+    input: JsValue,
+) -> Result<JsValue, JsValue> {
+    let input = parse_optional_engine_input_value(input)?;
+    to_js_value(&read_cascade_at_position_summary(
+        source,
+        path,
+        line as usize,
+        character as usize,
+        &input,
+    ))
+}
+
 pub fn check_style_source_summary(source: &str, path: &str) -> OmenaWasmCheckSummaryV0 {
     let path = effective_path(path);
     summarize_omena_query_consumer_check_style_source(path, source)
@@ -329,6 +349,17 @@ pub fn transform_context_from_engine_input_summary(
     )
 }
 
+pub fn read_cascade_at_position_summary(
+    source: &str,
+    path: &str,
+    line: usize,
+    character: usize,
+    input: &OmenaWasmEngineInputV2,
+) -> Option<OmenaWasmCascadeAtPositionV0> {
+    let path = effective_path(path);
+    read_omena_query_cascade_at_position(path, source, input, ParserPositionV0 { line, character })
+}
+
 fn parse_pass_ids_value(value: JsValue) -> Result<Vec<String>, JsValue> {
     if value.is_null() || value.is_undefined() {
         return Ok(Vec::new());
@@ -394,6 +425,22 @@ fn parse_engine_input_value(value: JsValue) -> Result<OmenaWasmEngineInputV2, Js
         .map_err(|error| JsValue::from_str(&format!("failed to parse engine input: {error}")))
 }
 
+fn parse_optional_engine_input_value(value: JsValue) -> Result<OmenaWasmEngineInputV2, JsValue> {
+    if value.is_null() || value.is_undefined() {
+        return Ok(empty_engine_input());
+    }
+    parse_engine_input_value(value)
+}
+
+fn empty_engine_input() -> OmenaWasmEngineInputV2 {
+    OmenaWasmEngineInputV2 {
+        version: "2".to_string(),
+        sources: Vec::new(),
+        styles: Vec::new(),
+        type_facts: Vec::new(),
+    }
+}
+
 fn to_js_value<T: Serialize>(value: &T) -> Result<JsValue, JsValue> {
     serde_wasm_bindgen::to_value(value)
         .map_err(|error| JsValue::from_str(&format!("failed to serialize result: {error}")))
@@ -424,6 +471,37 @@ mod tests {
         assert_eq!(summary.parser_error_count, 0);
         assert_eq!(summary.class_selector_count, 1);
         assert_eq!(summary.custom_property_count, 1);
+    }
+
+    #[test]
+    fn reads_cascade_lfp_for_browser_clients() {
+        let input = empty_engine_input();
+        let summary = read_cascade_at_position_summary(
+            ":root { --known: #2563eb; }\n.button { color: var(--known); }\n",
+            "fixture.module.css",
+            1,
+            24,
+            &input,
+        )
+        .expect("cascade summary should be available");
+
+        assert_eq!(summary.product, "omena-query.read-cascade-at-position");
+        assert_eq!(summary.status, "resolved");
+        assert_eq!(summary.reference_name.as_deref(), Some("--known"));
+        assert_eq!(
+            summary.referenced_declaration_computed_value.as_deref(),
+            Some("#2563eb")
+        );
+        assert_eq!(
+            summary.reference_custom_property_fixed_point_status,
+            Some("fixedPointStable")
+        );
+        assert_eq!(
+            summary
+                .reference_custom_property_fixed_point_value
+                .as_deref(),
+            Some("#2563eb")
+        );
     }
 
     #[test]

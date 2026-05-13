@@ -97,6 +97,9 @@ Primary consumers:
 - `buildStyleSourcesForTargetQueryWithContext(targetPath, sources, targetQuery,
   targetOptions, context, packageManifests)` combines target planning with
   workspace-derived import/composes context.
+- `readCascadeAtPosition(source, path, line, character, input)` reads
+  cascade, computed-value, and custom-property LFP information at a `var(...)`
+  reference position.
 - `listTransformPasses()` lists accepted transform pass ids.
 
 ## Node Native Binding
@@ -121,4 +124,7 @@ Primary consumers:
 - `buildStyleSourcesForTargetQueryWithContextJson(targetPath, sourcesJson,
   targetQuery, targetOptionsJson, contextJson, packageManifestsJson)` combines
   target planning with workspace-derived import/composes context.
+- `readCascadeAtPositionJson(source, path, line, character, inputJson)`
+  reads cascade, computed-value, and custom-property LFP information at a
+  `var(...)` reference position.
 - `listTransformPassesJson()` lists accepted transform pass ids as JSON.

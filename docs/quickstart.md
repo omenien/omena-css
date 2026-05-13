@@ -67,6 +67,7 @@ import init, {
   buildStyleSourceForTargetQueryWithContext,
   buildStyleSourcesWithContext,
   buildStyleSourcesForTargetQueryWithContext,
+  readCascadeAtPosition,
 } from "./pkg/omena_wasm.js";
 
 await init();
@@ -111,6 +112,13 @@ const bundledModule = buildStyleSourcesWithContext(
   {},
   [],
 );
+const cascade = readCascadeAtPosition(
+  ":root { --brand: red; } .button { color: var(--brand); }",
+  "Button.module.css",
+  0,
+  44,
+  null,
+);
 ```
 
 ## Use the Node Native Binding Substrate
@@ -130,6 +138,7 @@ import {
   buildStyleSourceForTargetQueryWithContextJson,
   buildStyleSourcesWithContextJson,
   buildStyleSourcesForTargetQueryWithContextJson,
+  readCascadeAtPositionJson,
 } from "omena-napi";
 
 const facts = JSON.parse(
@@ -183,6 +192,15 @@ const bundledModule = JSON.parse(
     ["import-inline", "composes-resolution"],
     "{}",
     "[]",
+  ),
+);
+const cascade = JSON.parse(
+  readCascadeAtPositionJson(
+    ":root { --brand: red; } .button { color: var(--brand); }",
+    "Button.module.css",
+    0,
+    44,
+    "",
   ),
 );
 ```
