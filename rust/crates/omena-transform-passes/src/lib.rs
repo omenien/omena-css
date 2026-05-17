@@ -3525,9 +3525,9 @@ pub fn resolve_static_css_modules_local_value_resolutions_from_source(
     resolutions
 }
 
-fn unique_static_css_modules_value_definitions_by_name<'a>(
-    definitions: &'a [StaticCssModulesValueDefinition],
-) -> BTreeMap<String, &'a StaticCssModulesValueDefinition> {
+fn unique_static_css_modules_value_definitions_by_name(
+    definitions: &[StaticCssModulesValueDefinition],
+) -> BTreeMap<String, &StaticCssModulesValueDefinition> {
     let mut count_by_name = BTreeMap::<String, usize>::new();
     for definition in definitions {
         *count_by_name.entry(definition.name.clone()).or_default() += 1;
@@ -5920,7 +5920,7 @@ fn css_function_name_starts_at(value: &str, index: usize, function_name: &str) -
     if !name.eq_ignore_ascii_case(function_name) {
         return false;
     }
-    if value[index + function_name.len()..].chars().next() != Some('(') {
+    if !value[index + function_name.len()..].starts_with('(') {
         return false;
     }
     if index == 0 {

@@ -1452,7 +1452,8 @@ fn derives_transform_context_with_cross_file_value_resolutions() {
 }
 
 #[test]
-fn consumer_build_resolves_cross_file_css_modules_values_through_query_context() {
+fn consumer_build_resolves_cross_file_css_modules_values_through_query_context()
+-> Result<(), Box<dyn std::error::Error>> {
     let summary = execute_omena_query_consumer_build_style_sources(
         "/tmp/App.module.css",
         &[
@@ -1467,8 +1468,7 @@ fn consumer_build_resolves_cross_file_css_modules_values_through_query_context()
         ],
         &["value-resolution".to_string(), "print-css".to_string()],
         &[],
-    )
-    .expect("workspace consumer build summary");
+    )?;
 
     assert_eq!(summary.product, "omena-query.consumer-build-style-source");
     assert_eq!(
@@ -1481,6 +1481,7 @@ fn consumer_build_resolves_cross_file_css_modules_values_through_query_context()
             .ready_surfaces
             .contains(&"multiSourceTransformContextProducer")
     );
+    Ok(())
 }
 
 #[test]
