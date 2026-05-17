@@ -5826,6 +5826,10 @@ fn collect_static_root_custom_property_env(
                 continue;
             }
             let Some(value) = parse_static_custom_property_env_value(&declaration.value) else {
+                env.remove(&declaration.property);
+                if !blocked_names.contains(&declaration.property) {
+                    blocked_names.push(declaration.property);
+                }
                 continue;
             };
             env.insert(declaration.property, value);
@@ -5859,8 +5863,70 @@ fn collect_static_root_custom_property_env(
 }
 
 fn parse_static_custom_property_env_value(value: &str) -> Option<CascadeValue> {
+    if contains_runtime_dependent_css_function(value) {
+        return None;
+    }
     parse_static_var_value(value)
         .or_else(|| parse_static_composite_custom_property_env_value(value))
+}
+
+fn contains_runtime_dependent_css_function(value: &str) -> bool {
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+
+    while index < value.len() {
+        let Some(ch) = value[index..].chars().next() else {
+            break;
+        };
+
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = value[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            _ if css_function_name_starts_at(value, index, "env")
+                || css_function_name_starts_at(value, index, "attr") =>
+            {
+                return true;
+            }
+            _ => {
+                index += ch.len_utf8();
+            }
+        }
+    }
+
+    false
+}
+
+fn css_function_name_starts_at(value: &str, index: usize, function_name: &str) -> bool {
+    let Some(name) = value.get(index..index + function_name.len()) else {
+        return false;
+    };
+    if !name.eq_ignore_ascii_case(function_name) {
+        return false;
+    }
+    if value[index + function_name.len()..].chars().next() != Some('(') {
+        return false;
+    }
+    if index == 0 {
+        return true;
+    }
+    let Some(previous) = value[..index].chars().next_back() else {
+        return true;
+    };
+    !is_css_ident_continue(previous)
 }
 
 fn parse_static_composite_custom_property_env_value(value: &str) -> Option<CascadeValue> {
@@ -11831,7 +11897,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_resolves_unique_property_initial_values() {
-        let source = r#"@property --brand { syntax: "<color>"; inherits: false; initial-value: red; } @property --shadowed { syntax: "<color>"; inherits: false; initial-value: green; } @property --dup { syntax: "<color>"; inherits: false; initial-value: blue; } @property --dup { syntax: "<color>"; inherits: false; initial-value: purple; } .card { --shadowed: orange; color: var(--brand); background: var(--shadowed); border-color: var(--dup); }"#;
+        let source = r#"@property --brand { syntax: "<color>"; inherits: false; initial-value: red; } @property --shadowed { syntax: "<color>"; inherits: false; initial-value: green; } @property --dynamic { syntax: "<color>"; inherits: false; initial-value: teal; } @property --dup { syntax: "<color>"; inherits: false; initial-value: blue; } @property --dup { syntax: "<color>"; inherits: false; initial-value: purple; } :root { --dynamic: env(theme-color); } .card { --shadowed: orange; color: var(--brand); background: var(--shadowed); border-color: var(--dup); outline-color: var(--dynamic); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -11843,7 +11909,7 @@ mod tests {
         assert_eq!(execution.mutation_count, 1);
         assert_eq!(
             execution.output_css,
-            r#"@property --brand { syntax: "<color>"; inherits: false; initial-value: red; } @property --shadowed { syntax: "<color>"; inherits: false; initial-value: green; } @property --dup { syntax: "<color>"; inherits: false; initial-value: blue; } @property --dup { syntax: "<color>"; inherits: false; initial-value: purple; } .card { --shadowed: orange; color: red; background: var(--shadowed); border-color: var(--dup); }"#
+            r#"@property --brand { syntax: "<color>"; inherits: false; initial-value: red; } @property --shadowed { syntax: "<color>"; inherits: false; initial-value: green; } @property --dynamic { syntax: "<color>"; inherits: false; initial-value: teal; } @property --dup { syntax: "<color>"; inherits: false; initial-value: blue; } @property --dup { syntax: "<color>"; inherits: false; initial-value: purple; } :root { --dynamic: env(theme-color); } .card { --shadowed: orange; color: red; background: var(--shadowed); border-color: var(--dup); outline-color: var(--dynamic); }"#
         );
     }
 
