@@ -5330,6 +5330,20 @@ fn tree_shake_css_custom_properties_with_lexer(
     };
 
     let mut removals = Vec::new();
+    for registration in collect_custom_property_registration_rules(tokens) {
+        if !referenced_names
+            .iter()
+            .any(|name| name == &registration.name)
+        {
+            removals.push(TransformSemanticRemovalCandidate {
+                symbol_kind: "customPropertyRegistration",
+                name: registration.name,
+                source_span_start: registration.start,
+                source_span_end: registration.end,
+                reason: "custom-property registration was absent from the closed-style-world reachable custom-property set",
+            });
+        }
+    }
     let mut index = 0;
     while index < tokens.len() {
         if tokens[index].kind == SyntaxKind::LeftBrace
@@ -5362,6 +5376,53 @@ fn tree_shake_css_custom_properties_with_lexer(
         .collect::<Vec<_>>();
     let (output, _) = remove_source_ranges(source, &ranges);
     (output, removals)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CustomPropertyRegistrationRule {
+    name: String,
+    start: usize,
+    end: usize,
+}
+
+fn collect_custom_property_registration_rules(
+    tokens: &[omena_parser::LexedToken],
+) -> Vec<CustomPropertyRegistrationRule> {
+    let mut rules = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::AtKeyword
+            && tokens[index].text.eq_ignore_ascii_case("@property")
+            && let Some((rule, next_index)) = parse_custom_property_registration_rule(tokens, index)
+        {
+            rules.push(rule);
+            index = next_index;
+            continue;
+        }
+        index += 1;
+    }
+
+    rules
+}
+
+fn parse_custom_property_registration_rule(
+    tokens: &[omena_parser::LexedToken],
+    at_property_index: usize,
+) -> Option<(CustomPropertyRegistrationRule, usize)> {
+    let name_index = skip_whitespace_tokens(tokens, at_property_index + 1, tokens.len());
+    let name = normalize_custom_property_name(tokens.get(name_index)?.text.as_str())?.to_string();
+    let block_start_index = at_rule_block_start(tokens, name_index + 1)?;
+    let close_index = matching_right_brace_index(tokens, block_start_index)?;
+
+    Some((
+        CustomPropertyRegistrationRule {
+            name,
+            start: token_start(&tokens[at_property_index]),
+            end: token_end(&tokens[close_index]),
+        },
+        close_index + 1,
+    ))
 }
 
 fn collect_reachable_custom_property_names(
@@ -12133,6 +12194,43 @@ mod tests {
                 ("customProperty", "--dead-dep"),
                 ("customProperty", "--string-only"),
                 ("customProperty", "--dead-from-rule")
+            ]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_tree_shakes_custom_property_registrations_with_closed_world_context() {
+        let source = r#"@property --used { syntax: "<color>"; inherits: false; initial-value: red; } @property --dead { syntax: "<color>"; inherits: false; initial-value: blue; } :root { --used: red; --dead: blue; } .btn { color: var(--used); } .dead { color: var(--dead); }"#;
+        let context = TransformExecutionContextV0 {
+            closed_style_world: true,
+            reachable_class_names: vec!["btn".to_string()],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::TreeShakeCustomProperty,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert!(execution.output_css.contains("@property --used"));
+        assert!(execution.output_css.contains("--used: red"));
+        assert!(execution.output_css.contains("color: var(--used);"));
+        assert!(!execution.output_css.contains("@property --dead"));
+        assert!(!execution.output_css.contains("--dead: blue"));
+        assert_eq!(
+            execution
+                .semantic_removals
+                .iter()
+                .map(|removal| (removal.symbol_kind, removal.name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("customPropertyRegistration", "--dead"),
+                ("customProperty", "--dead")
             ]
         );
     }
