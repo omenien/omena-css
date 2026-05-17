@@ -13,6 +13,7 @@ use super::{
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
+    execute_omena_query_consumer_build_style_sources,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     execute_omena_query_transform_passes_from_source, list_omena_query_transform_pass_summaries,
@@ -1371,6 +1372,7 @@ fn derives_transform_context_from_workspace_sources() {
     assert_eq!(summary.import_inline_count, 1);
     assert_eq!(summary.class_name_rewrite_count, 2);
     assert_eq!(summary.css_module_composes_resolution_count, 1);
+    assert_eq!(summary.css_module_value_resolution_count, 0);
     assert_eq!(summary.design_token_route_count, 1);
     assert_eq!(summary.reachable_class_name_count, 0);
     assert_eq!(summary.reachable_keyframe_name_count, 0);
@@ -1407,6 +1409,78 @@ fn derives_transform_context_from_workspace_sources() {
         vec!["base", "button"]
     );
     assert!(summary.ready_surfaces.contains(&"transformContextProducer"));
+}
+
+#[test]
+fn derives_transform_context_with_cross_file_value_resolutions() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.css",
+        [
+            (
+                "/tmp/tokens.module.css",
+                "@value primary: #fff; @value gap: 8px; @value alias: primary;",
+            ),
+            (
+                "/tmp/App.module.css",
+                r#"@value primary as brand, gap, alias from "./tokens.module.css"; .btn { color: brand; margin: gap; border-color: alias; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    assert_eq!(summary.product, "omena-query.transform-context");
+    assert_eq!(summary.css_module_value_resolution_count, 3);
+    assert_eq!(
+        summary
+            .context
+            .css_module_value_resolutions
+            .iter()
+            .map(|resolution| {
+                (
+                    resolution.local_name.as_str(),
+                    resolution.resolved_value.as_str(),
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![("alias", "#fff"), ("brand", "#fff"), ("gap", "8px")]
+    );
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"cssModuleValueResolutionProducer")
+    );
+}
+
+#[test]
+fn consumer_build_resolves_cross_file_css_modules_values_through_query_context() {
+    let summary = execute_omena_query_consumer_build_style_sources(
+        "/tmp/App.module.css",
+        &[
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.module.css".to_string(),
+                style_source: "@value primary: #fff; @value gap: 8px;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/App.module.css".to_string(),
+                style_source: r#"@value primary as brand, gap from "./tokens.module.css"; .btn { color: brand; margin: gap; } @media (min-width: gap) { .btn { color: brand; } }"#.to_string(),
+            },
+        ],
+        &["value-resolution".to_string(), "print-css".to_string()],
+        &[],
+    )
+    .expect("workspace consumer build summary");
+
+    assert_eq!(summary.product, "omena-query.consumer-build-style-source");
+    assert_eq!(
+        summary.execution.output_css,
+        r#" .btn { color: #fff; margin: 8px; } @media (min-width: 8px) { .btn { color: #fff; } }"#
+    );
+    assert_eq!(summary.execution.mutation_count, 5);
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"multiSourceTransformContextProducer")
+    );
 }
 
 #[test]
@@ -1964,6 +2038,7 @@ fn engine_input_transform_context_consumes_style_sources_for_workspace_context()
     assert_eq!(context_summary.import_inline_count, 1);
     assert_eq!(context_summary.class_name_rewrite_count, 2);
     assert_eq!(context_summary.css_module_composes_resolution_count, 1);
+    assert_eq!(context_summary.css_module_value_resolution_count, 0);
     assert_eq!(context_summary.design_token_route_count, 1);
     assert!(
         context_summary

@@ -258,6 +258,7 @@ pub struct TransformExecutionContextV0 {
     pub import_inlines: Vec<TransformImportInlineV0>,
     pub class_name_rewrites: Vec<TransformClassNameRewriteV0>,
     pub css_module_composes_resolutions: Vec<TransformCssModuleComposesResolutionV0>,
+    pub css_module_value_resolutions: Vec<TransformCssModuleValueResolutionV0>,
     pub design_token_routes: Vec<TransformDesignTokenRouteV0>,
 }
 
@@ -287,6 +288,13 @@ pub struct TransformClassNameRewriteV0 {
 pub struct TransformCssModuleComposesResolutionV0 {
     pub local_class_name: String,
     pub exported_class_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformCssModuleValueResolutionV0 {
+    pub local_name: String,
+    pub resolved_value: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -1232,8 +1240,11 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 detail: "requires an explicit closed-style-world reachability context before mutation",
             },
             Some(TransformPassKind::ValueResolution) => {
-                let (next_css, mutation_count) =
-                    resolve_static_css_modules_values(&output_css, dialect);
+                let (next_css, mutation_count) = resolve_static_css_modules_values(
+                    &output_css,
+                    dialect,
+                    &context.css_module_value_resolutions,
+                );
                 let status = if mutation_count == 0 {
                     TransformPassRuntimeStatus::NoChange
                 } else {
@@ -2102,8 +2113,12 @@ fn inline_css_imports(
     inline_css_imports_with_lexer(source, dialect, inlines)
 }
 
-fn resolve_static_css_modules_values(source: &str, dialect: StyleDialect) -> (String, usize) {
-    resolve_static_css_modules_values_with_lexer(source, dialect)
+fn resolve_static_css_modules_values(
+    source: &str,
+    dialect: StyleDialect,
+    resolutions: &[TransformCssModuleValueResolutionV0],
+) -> (String, usize) {
+    resolve_static_css_modules_values_with_lexer(source, dialect, resolutions)
 }
 
 fn resolve_css_module_composes(
@@ -3368,24 +3383,23 @@ struct StaticCssModulesValueDefinition {
     end: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticCssModulesValueImportStatement {
+    local_names: Vec<String>,
+    start: usize,
+    end: usize,
+}
+
 fn resolve_static_css_modules_values_with_lexer(
     source: &str,
     dialect: StyleDialect,
+    resolutions: &[TransformCssModuleValueResolutionV0],
 ) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let definitions = collect_static_local_css_modules_value_definitions(tokens);
-    let unique_definitions_by_name = definitions
-        .iter()
-        .filter(|definition| {
-            definitions
-                .iter()
-                .filter(|candidate| candidate.name == definition.name)
-                .count()
-                == 1
-        })
-        .map(|definition| (definition.name.clone(), definition))
-        .collect::<BTreeMap<_, _>>();
+    let unique_definitions_by_name =
+        unique_static_css_modules_value_definitions_by_name(&definitions);
     let resolved_definitions = unique_definitions_by_name
         .keys()
         .filter_map(|name| {
@@ -3399,7 +3413,7 @@ fn resolve_static_css_modules_values_with_lexer(
             Some((*definition, resolved_value))
         })
         .collect::<Vec<_>>();
-    if resolved_definitions.is_empty() {
+    if resolved_definitions.is_empty() && resolutions.is_empty() {
         return (source.to_string(), 0);
     }
 
@@ -3410,7 +3424,17 @@ fn resolve_static_css_modules_values_with_lexer(
     let resolved_definitions_by_name = resolved_definitions
         .iter()
         .map(|(definition, resolved_value)| (definition.name.clone(), resolved_value.clone()))
+        .chain(resolutions.iter().map(|resolution| {
+            (
+                resolution.local_name.clone(),
+                resolution.resolved_value.clone(),
+            )
+        }))
         .collect::<BTreeMap<_, _>>();
+    replacements.extend(collect_static_css_modules_value_import_replacements(
+        tokens,
+        &resolved_definitions_by_name,
+    ));
     replacements.extend(collect_static_css_modules_value_query_prelude_replacements(
         tokens,
         &resolved_definitions_by_name,
@@ -3460,6 +3484,67 @@ fn resolve_static_css_modules_values_with_lexer(
     }
 
     (output, mutation_count)
+}
+
+pub fn resolve_static_css_modules_local_value_resolutions_from_source(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<TransformCssModuleValueResolutionV0> {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let definitions = collect_static_local_css_modules_value_definitions(tokens);
+    let unique_definitions_by_name =
+        unique_static_css_modules_value_definitions_by_name(&definitions);
+
+    let mut resolutions = unique_definitions_by_name
+        .keys()
+        .filter_map(|name| {
+            let resolved_value = resolve_static_css_modules_value_definition(
+                name,
+                dialect,
+                &unique_definitions_by_name,
+                &mut Vec::new(),
+            )?;
+            Some(TransformCssModuleValueResolutionV0 {
+                local_name: name.clone(),
+                resolved_value,
+            })
+        })
+        .collect::<Vec<_>>();
+    resolutions.sort_by(|left, right| left.local_name.cmp(&right.local_name));
+    resolutions
+}
+
+fn unique_static_css_modules_value_definitions_by_name<'a>(
+    definitions: &'a [StaticCssModulesValueDefinition],
+) -> BTreeMap<String, &'a StaticCssModulesValueDefinition> {
+    let mut count_by_name = BTreeMap::<String, usize>::new();
+    for definition in definitions {
+        *count_by_name.entry(definition.name.clone()).or_default() += 1;
+    }
+
+    definitions
+        .iter()
+        .filter(|definition| count_by_name.get(&definition.name) == Some(&1))
+        .map(|definition| (definition.name.clone(), definition))
+        .collect()
+}
+
+fn collect_static_css_modules_value_import_replacements(
+    tokens: &[omena_parser::LexedToken],
+    resolved_definitions_by_name: &BTreeMap<String, String>,
+) -> Vec<(usize, usize, String)> {
+    collect_static_css_modules_value_import_statements(tokens)
+        .into_iter()
+        .filter(|statement| {
+            !statement.local_names.is_empty()
+                && statement
+                    .local_names
+                    .iter()
+                    .all(|name| resolved_definitions_by_name.contains_key(name))
+        })
+        .map(|statement| (statement.start, statement.end, String::new()))
+        .collect()
 }
 
 fn collect_static_css_modules_value_query_prelude_replacements(
@@ -3649,6 +3734,104 @@ fn collect_static_local_css_modules_value_definitions(
     }
 
     definitions
+}
+
+fn collect_static_css_modules_value_import_statements(
+    tokens: &[omena_parser::LexedToken],
+) -> Vec<StaticCssModulesValueImportStatement> {
+    let mut statements = Vec::new();
+    let mut depth = 0usize;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@value") =>
+            {
+                let Some((statement, next_index)) =
+                    parse_static_css_modules_value_import_statement(tokens, index)
+                else {
+                    index += 1;
+                    continue;
+                };
+                statements.push(statement);
+                index = next_index;
+                continue;
+            }
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+
+    statements
+}
+
+fn parse_static_css_modules_value_import_statement(
+    tokens: &[omena_parser::LexedToken],
+    at_value_index: usize,
+) -> Option<(StaticCssModulesValueImportStatement, usize)> {
+    let mut end_index = at_value_index + 1;
+    while end_index < tokens.len() && tokens[end_index].kind != SyntaxKind::Semicolon {
+        if matches!(
+            tokens[end_index].kind,
+            SyntaxKind::LeftBrace | SyntaxKind::RightBrace
+        ) {
+            return None;
+        }
+        end_index += 1;
+    }
+    if end_index >= tokens.len() {
+        return None;
+    }
+
+    let from_index = (at_value_index + 1..end_index).find(|index| {
+        tokens[*index].kind == SyntaxKind::Ident && tokens[*index].text.eq_ignore_ascii_case("from")
+    })?;
+    let mut local_names = Vec::new();
+    let mut index = at_value_index + 1;
+
+    while index < from_index {
+        index = skip_whitespace_tokens(tokens, index, from_index);
+        if index >= from_index {
+            break;
+        }
+        if tokens[index].text == "," {
+            index += 1;
+            continue;
+        }
+        if tokens[index].kind != SyntaxKind::Ident {
+            index += 1;
+            continue;
+        }
+
+        let mut local_name = tokens[index].text.clone();
+        index += 1;
+        let maybe_as_index = skip_whitespace_tokens(tokens, index, from_index);
+        if maybe_as_index < from_index
+            && tokens[maybe_as_index].kind == SyntaxKind::Ident
+            && tokens[maybe_as_index].text.eq_ignore_ascii_case("as")
+        {
+            let alias_index = skip_whitespace_tokens(tokens, maybe_as_index + 1, from_index);
+            if alias_index < from_index && tokens[alias_index].kind == SyntaxKind::Ident {
+                local_name = tokens[alias_index].text.clone();
+                index = alias_index + 1;
+            }
+        }
+        if !local_names.iter().any(|name| name == &local_name) {
+            local_names.push(local_name);
+        }
+    }
+
+    Some((
+        StaticCssModulesValueImportStatement {
+            local_names,
+            start: token_start(&tokens[at_value_index]),
+            end: token_end(&tokens[end_index]),
+        },
+        end_index + 1,
+    ))
 }
 
 fn parse_static_local_css_modules_value_definition(
@@ -10017,10 +10200,10 @@ fn is_trivia_token(kind: SyntaxKind) -> bool {
 mod tests {
     use super::{
         TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
-        TransformDesignTokenRouteV0, TransformExecutionContextV0, TransformImportInlineV0,
-        TransformModuleEvaluationV0, TransformPassRuntimeStatus,
-        execute_transform_passes_incremental_with_database, execute_transform_passes_on_source,
-        execute_transform_passes_on_source_with_dialect,
+        TransformCssModuleValueResolutionV0, TransformDesignTokenRouteV0,
+        TransformExecutionContextV0, TransformImportInlineV0, TransformModuleEvaluationV0,
+        TransformPassRuntimeStatus, execute_transform_passes_incremental_with_database,
+        execute_transform_passes_on_source, execute_transform_passes_on_source_with_dialect,
         execute_transform_passes_on_source_with_dialect_and_context, plan_transform_passes,
         run_transform_fuzz_seed_corpus, summarize_omena_transform_passes_boundary,
         transform_pass_incremental_graph_input,
@@ -11441,6 +11624,43 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#"      @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: #fff; margin: 8px 8px; background: #fff; box-shadow: 0 0 4px #fff; border-color: dup; } @media screen and (min-width: 40rem) and (width >= 80rem) { .btn { color: #fff; } } @container card (inline-size >= 80rem) { .btn { margin: 8px; } }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["value-resolution", "print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_resolves_imported_static_css_modules_values_from_context() {
+        let source = r#"@value primary as brand, gap from "./tokens.module.css"; .btn { color: brand; margin: gap; } @media (min-width: gap) { .btn { color: brand; } }"#;
+        let context = TransformExecutionContextV0 {
+            css_module_value_resolutions: vec![
+                TransformCssModuleValueResolutionV0 {
+                    local_name: "brand".to_string(),
+                    resolved_value: "#fff".to_string(),
+                },
+                TransformCssModuleValueResolutionV0 {
+                    local_name: "gap".to_string(),
+                    resolved_value: "8px".to_string(),
+                },
+            ],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::ValueResolution,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 5);
+        assert_eq!(
+            execution.output_css,
+            r#" .btn { color: #fff; margin: 8px; } @media (min-width: 8px) { .btn { color: #fff; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,

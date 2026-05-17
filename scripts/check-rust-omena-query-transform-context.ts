@@ -9,6 +9,7 @@ interface TransformContextSummaryV0 {
   readonly importInlineCount: number;
   readonly classNameRewriteCount: number;
   readonly cssModuleComposesResolutionCount: number;
+  readonly cssModuleValueResolutionCount: number;
   readonly designTokenRouteCount: number;
   readonly reachableClassNameCount: number;
   readonly reachableKeyframeNameCount: number;
@@ -27,6 +28,10 @@ interface TransformContextSummaryV0 {
     readonly cssModuleComposesResolutions: readonly {
       readonly localClassName: string;
       readonly exportedClassNames: readonly string[];
+    }[];
+    readonly cssModuleValueResolutions: readonly {
+      readonly localName: string;
+      readonly resolvedValue: string;
     }[];
     readonly classNameRewrites: readonly {
       readonly originalName: string;
@@ -67,6 +72,15 @@ const result = spawnSync(
           stylePath: "src/tokens.css",
           styleSource: ":root { --brand: red; }",
         },
+        {
+          stylePath: "src/values.module.css",
+          styleSource: "@value primary: #fff; @value gap: 8px; @value alias: primary;",
+        },
+        {
+          stylePath: "src/ValueButton.module.css",
+          styleSource:
+            '@value primary as brand, gap, alias from "./values.module.css"; .valueButton { color: brand; margin: gap; border-color: alias; }',
+        },
       ],
     }),
     maxBuffer: 8 * 1024 * 1024,
@@ -81,10 +95,11 @@ const summary = JSON.parse(result.stdout) as TransformContextSummaryV0;
 assert.equal(summary.schemaVersion, "0");
 assert.equal(summary.product, "omena-query.transform-context");
 assert.equal(summary.targetStylePath, "src/Button.module.css");
-assert.equal(summary.styleCount, 2);
+assert.equal(summary.styleCount, 4);
 assert.equal(summary.importInlineCount, 1);
 assert.equal(summary.classNameRewriteCount, 3);
 assert.equal(summary.cssModuleComposesResolutionCount, 1);
+assert.equal(summary.cssModuleValueResolutionCount, 0);
 assert.equal(summary.designTokenRouteCount, 1);
 assert.equal(summary.reachableClassNameCount, 0);
 assert.equal(summary.reachableKeyframeNameCount, 0);
@@ -107,6 +122,7 @@ assert.deepEqual(summary.context.cssModuleComposesResolutions, [
     exportedClassNames: ["base", "button", "utility"],
   },
 ]);
+assert.deepEqual(summary.context.cssModuleValueResolutions, []);
 assertIncludesAll(
   summary.context.classNameRewrites.map((rewrite) => rewrite.originalName),
   ["button", "base", "button-primary"],
@@ -135,6 +151,59 @@ assertIncludesAll(
   "transform context ready surfaces",
 );
 
+const valueContextResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-context",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "src/ValueButton.module.css",
+      styles: [
+        {
+          stylePath: "src/values.module.css",
+          styleSource: "@value primary: #fff; @value gap: 8px; @value alias: primary;",
+        },
+        {
+          stylePath: "src/ValueButton.module.css",
+          styleSource:
+            '@value primary as brand, gap, alias from "./values.module.css"; .valueButton { color: brand; margin: gap; border-color: alias; }',
+        },
+      ],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(valueContextResult.status, 0, valueContextResult.stderr);
+assert.equal(valueContextResult.error, undefined);
+
+const valueContextSummary = JSON.parse(valueContextResult.stdout) as TransformContextSummaryV0;
+
+assert.equal(valueContextSummary.product, "omena-query.transform-context");
+assert.equal(valueContextSummary.targetStylePath, "src/ValueButton.module.css");
+assert.equal(valueContextSummary.styleCount, 2);
+assert.equal(valueContextSummary.cssModuleValueResolutionCount, 3);
+assert.deepEqual(valueContextSummary.context.cssModuleValueResolutions, [
+  { localName: "alias", resolvedValue: "#fff" },
+  { localName: "brand", resolvedValue: "#fff" },
+  { localName: "gap", resolvedValue: "8px" },
+]);
+assertIncludesAll(
+  valueContextSummary.readySurfaces,
+  ["cssModuleValueResolutionProducer"],
+  "value transform context ready surfaces",
+);
+
 process.stdout.write(
   [
     "validated omena-query transform-context runtime:",
@@ -142,6 +211,7 @@ process.stdout.write(
     `imports=${summary.importInlineCount}`,
     `rewrites=${summary.classNameRewriteCount}`,
     `composes=${summary.cssModuleComposesResolutionCount}`,
+    `values=${valueContextSummary.cssModuleValueResolutionCount}`,
     `reachableClasses=${summary.reachableClassNameCount}`,
   ].join(" "),
 );

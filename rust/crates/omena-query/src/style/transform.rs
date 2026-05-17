@@ -1,7 +1,8 @@
 use super::*;
 use omena_transform_passes::{
     TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
-    TransformDesignTokenRouteV0, TransformImportInlineV0,
+    TransformCssModuleValueResolutionV0, TransformDesignTokenRouteV0, TransformImportInlineV0,
+    resolve_static_css_modules_local_value_resolutions_from_source,
 };
 
 pub fn summarize_omena_query_transform_plan_from_source(
@@ -580,6 +581,7 @@ pub fn summarize_omena_query_transform_context_from_engine_input(
         import_inline_count: context.import_inlines.len(),
         class_name_rewrite_count: context.class_name_rewrites.len(),
         css_module_composes_resolution_count: context.css_module_composes_resolutions.len(),
+        css_module_value_resolution_count: context.css_module_value_resolutions.len(),
         design_token_route_count: context.design_token_routes.len(),
         reachable_class_name_count: context.reachable_class_names.len(),
         reachable_keyframe_name_count: context.reachable_keyframe_names.len(),
@@ -629,6 +631,9 @@ fn merge_transform_context(
     }
     if !context.css_module_composes_resolutions.is_empty() {
         merged.css_module_composes_resolutions = context.css_module_composes_resolutions.clone();
+    }
+    if !context.css_module_value_resolutions.is_empty() {
+        merged.css_module_value_resolutions = context.css_module_value_resolutions.clone();
     }
     if !context.design_token_routes.is_empty() {
         merged.design_token_routes = context.design_token_routes.clone();
@@ -794,6 +799,14 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
                 &available_style_paths,
                 package_manifests,
             );
+        context.css_module_value_resolutions =
+            derive_css_module_value_resolutions_for_transform_context(
+                entry,
+                &style_fact_entries,
+                &available_style_paths,
+                &source_by_path,
+                package_manifests,
+            );
         context.design_token_routes = derive_design_token_routes_for_transform_context(
             entry,
             &style_fact_entries,
@@ -809,6 +822,7 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
         import_inline_count: context.import_inlines.len(),
         class_name_rewrite_count: context.class_name_rewrites.len(),
         css_module_composes_resolution_count: context.css_module_composes_resolutions.len(),
+        css_module_value_resolution_count: context.css_module_value_resolutions.len(),
         design_token_route_count: context.design_token_routes.len(),
         reachable_class_name_count: context.reachable_class_names.len(),
         reachable_keyframe_name_count: context.reachable_keyframe_names.len(),
@@ -819,6 +833,7 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
             "transformContextProducer",
             "cssModuleClassRewriteProducer",
             "cssModuleComposesResolutionProducer",
+            "cssModuleValueResolutionProducer",
             "designTokenRouteProducer",
             "directImportInlineProducer",
         ],
@@ -925,6 +940,66 @@ fn derive_css_module_composes_resolutions_for_transform_context(
             |(local_class_name, exported_class_names)| TransformCssModuleComposesResolutionV0 {
                 local_class_name,
                 exported_class_names: exported_class_names.into_iter().collect(),
+            },
+        )
+        .collect()
+}
+
+fn derive_css_module_value_resolutions_for_transform_context(
+    entry: &OmenaQueryStyleFactEntry,
+    _entries: &[OmenaQueryStyleFactEntry],
+    available_style_paths: &BTreeSet<&str>,
+    source_by_path: &BTreeMap<String, String>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<TransformCssModuleValueResolutionV0> {
+    let mut resolutions_by_name = BTreeMap::<String, String>::new();
+    let mut blocked_names = Vec::<String>::new();
+
+    for edge in &entry.facts.css_module_value_import_edges {
+        if blocked_names.iter().any(|name| name == &edge.local_name) {
+            continue;
+        }
+        let Some(resolved_style_path) = resolve_style_module_source(
+            entry.style_path.as_str(),
+            edge.import_source.as_str(),
+            available_style_paths,
+            package_manifests,
+        ) else {
+            continue;
+        };
+        let Some(source) = source_by_path.get(resolved_style_path.as_str()) else {
+            continue;
+        };
+        let target_resolutions = resolve_static_css_modules_local_value_resolutions_from_source(
+            source,
+            omena_parser_dialect_for_style_path(resolved_style_path.as_str()),
+        );
+        let Some(target_resolution) = target_resolutions
+            .iter()
+            .find(|resolution| resolution.local_name == edge.remote_name)
+        else {
+            continue;
+        };
+
+        if let Some(existing) = resolutions_by_name.get(&edge.local_name) {
+            if existing != &target_resolution.resolved_value {
+                resolutions_by_name.remove(&edge.local_name);
+                blocked_names.push(edge.local_name.clone());
+            }
+            continue;
+        }
+        resolutions_by_name.insert(
+            edge.local_name.clone(),
+            target_resolution.resolved_value.clone(),
+        );
+    }
+
+    resolutions_by_name
+        .into_iter()
+        .map(
+            |(local_name, resolved_value)| TransformCssModuleValueResolutionV0 {
+                local_name,
+                resolved_value,
             },
         )
         .collect()

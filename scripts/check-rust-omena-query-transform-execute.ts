@@ -487,6 +487,50 @@ assert.deepEqual(compositeValueSummary.execution.executedPassIds, [
 ]);
 assert.equal(compositeValueSummary.execution.mutationCount, 14);
 
+const importedValueResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "imported-values.module.css",
+      styleSource:
+        '@value primary as brand, gap from "./tokens.module.css"; .button { color: brand; margin: gap; } @media (min-width: gap) { .button { color: brand; } }',
+      requestedPassIds: ["value-resolution", "print-css"],
+      transformContext: {
+        cssModuleValueResolutions: [
+          { localName: "brand", resolvedValue: "#fff" },
+          { localName: "gap", resolvedValue: "8px" },
+        ],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(importedValueResult.status, 0, importedValueResult.stderr);
+assert.equal(importedValueResult.error, undefined);
+
+const importedValueSummary = JSON.parse(importedValueResult.stdout) as TransformExecuteSummaryV0;
+
+assert.equal(importedValueSummary.product, "omena-query.transform-execute");
+assert.equal(
+  importedValueSummary.execution.outputCss,
+  " .button { color: #fff; margin: 8px; } @media (min-width: 8px) { .button { color: #fff; } }",
+);
+assert.deepEqual(importedValueSummary.execution.executedPassIds, ["value-resolution", "print-css"]);
+assert.equal(importedValueSummary.execution.mutationCount, 5);
+
 const alphaColorCompressionResult = spawnSync(
   "cargo",
   [

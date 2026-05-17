@@ -64,6 +64,7 @@ pub use omena_transform_passes::{
     CustomPropertyLeastFixedPointSummaryV0 as OmenaQueryCustomPropertyLeastFixedPointSummaryV0,
     TransformClassNameRewriteV0 as OmenaQueryTransformClassNameRewriteV0,
     TransformCssModuleComposesResolutionV0 as OmenaQueryTransformCssModuleComposesResolutionV0,
+    TransformCssModuleValueResolutionV0 as OmenaQueryTransformCssModuleValueResolutionV0,
     TransformDesignTokenRouteV0 as OmenaQueryTransformDesignTokenRouteV0,
     TransformExecutionContextV0 as OmenaQueryTransformExecutionContextV0,
     TransformExecutionSummaryV0 as OmenaQueryTransformExecutionSummaryV0,
