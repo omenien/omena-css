@@ -4751,8 +4751,11 @@ fn rewrite_class_selectors_in_selector(
         if bracket_depth == 0
             && let Some(global_end) = global_pseudo_function_end(selector, index)
         {
-            output.push_str(&selector[index..global_end]);
+            let inner_start = index + ":global(".len();
+            let inner_end = global_end.saturating_sub(1);
+            output.push_str(&selector[inner_start..inner_end]);
             index = global_end;
+            changed = true;
             continue;
         }
         if bracket_depth == 0
@@ -11248,7 +11251,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_rewrites_css_module_class_names_with_identity_map() {
-        let source = r#".button { composes: base utility; color: red; } .base, .utility { color: blue; } .button:hover { color: green; } .button :global(.external) { color: purple; } :global(.root) .button { color: orange; } :local(.button) { color: navy; } @media (min-width: 1px) { .button { color: black; } }"#;
+        let source = r#".button { composes: base utility; color: red; } .base, .utility { color: blue; } .button:hover { color: green; } .button :global(.external) { color: purple; } :global(.root) .button { color: orange; } :global(.standalone) { color: teal; } :local(.button) { color: navy; } @media (min-width: 1px) { .button { color: black; } }"#;
         let context = TransformExecutionContextV0 {
             class_name_rewrites: vec![
                 TransformClassNameRewriteV0 {
@@ -11284,10 +11287,10 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 8);
+        assert_eq!(execution.mutation_count, 9);
         assert_eq!(
             execution.output_css,
-            r#"._button_abc123{ composes: _base_def456 _utility_ghi789; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } ._button_abc123:hover{ color: green; } ._button_abc123 :global(.external){ color: purple; } :global(.root) ._button_abc123{ color: orange; } ._button_abc123{ color: navy; } @media (min-width: 1px) { ._button_abc123{ color: black; } }"#
+            r#"._button_abc123{ composes: _base_def456 _utility_ghi789; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } ._button_abc123:hover{ color: green; } ._button_abc123 .external{ color: purple; } .root ._button_abc123{ color: orange; } .standalone{ color: teal; } ._button_abc123{ color: navy; } @media (min-width: 1px) { ._button_abc123{ color: black; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,

@@ -280,7 +280,7 @@ assert.equal(contextSummary.stylePath, "Button.module.css");
 assert.deepEqual(contextSummary.unknownPassIds, []);
 assert.equal(
   contextSummary.execution.outputCss,
-  ":root { --brand: red; } ._button_x{  color: var(--theme-brand); } ._base_y{ color: blue; } ._button_x :global(.external){ color: var(--theme-brand); } ._button_x{  color: var(--theme-brand); } @media (min-width: 1px) { ._button_x{  color: var(--theme-brand); } }",
+  ":root { --brand: red; } ._button_x{  color: var(--theme-brand); } ._base_y{ color: blue; } ._button_x .external{ color: var(--theme-brand); } ._button_x{  color: var(--theme-brand); } @media (min-width: 1px) { ._button_x{  color: var(--theme-brand); } }",
 );
 assert.deepEqual(contextSummary.execution.executedPassIds, [
   "import-inline",
