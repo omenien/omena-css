@@ -4088,6 +4088,14 @@ fn selector_branch_owner_class_name(selector: &str) -> Option<String> {
             index = global_end;
             continue;
         }
+        if bracket_depth == 0
+            && paren_depth == 0
+            && let Some(local_end) = local_pseudo_function_end(selector, index)
+        {
+            let inner_start = index + ":local(".len();
+            let inner_end = local_end.saturating_sub(1);
+            return selector_branch_owner_class_name(&selector[inner_start..inner_end]);
+        }
 
         match ch {
             '"' | '\'' => {
@@ -4738,6 +4746,21 @@ fn rewrite_class_selectors_in_selector(
             index = global_end;
             continue;
         }
+        if bracket_depth == 0
+            && let Some(local_end) = local_pseudo_function_end(selector, index)
+        {
+            let inner_start = index + ":local(".len();
+            let inner_end = local_end.saturating_sub(1);
+            let inner = &selector[inner_start..inner_end];
+            if let Some(rewritten_inner) = rewrite_class_selectors_in_selector(inner, rewrites) {
+                output.push_str(&rewritten_inner);
+            } else {
+                output.push_str(inner);
+            }
+            index = local_end;
+            changed = true;
+            continue;
+        }
 
         match ch {
             '"' | '\'' => {
@@ -4790,6 +4813,14 @@ fn global_pseudo_function_end(selector: &str, index: usize) -> Option<usize> {
         return None;
     }
     matching_function_end(selector, index + GLOBAL_PREFIX.len() - 1)
+}
+
+fn local_pseudo_function_end(selector: &str, index: usize) -> Option<usize> {
+    const LOCAL_PREFIX: &str = ":local(";
+    if !starts_with_ascii_case_insensitive(&selector[index..], LOCAL_PREFIX) {
+        return None;
+    }
+    matching_function_end(selector, index + LOCAL_PREFIX.len() - 1)
 }
 
 fn starts_with_ascii_case_insensitive(text: &str, prefix: &str) -> bool {
@@ -11208,7 +11239,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_rewrites_css_module_class_names_with_identity_map() {
-        let source = r#".button { composes: base utility; color: red; } .base, .utility { color: blue; } .button:hover { color: green; } .button :global(.external) { color: purple; } :global(.root) .button { color: orange; } @media (min-width: 1px) { .button { color: black; } }"#;
+        let source = r#".button { composes: base utility; color: red; } .base, .utility { color: blue; } .button:hover { color: green; } .button :global(.external) { color: purple; } :global(.root) .button { color: orange; } :local(.button) { color: navy; } @media (min-width: 1px) { .button { color: black; } }"#;
         let context = TransformExecutionContextV0 {
             class_name_rewrites: vec![
                 TransformClassNameRewriteV0 {
@@ -11244,10 +11275,10 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 7);
+        assert_eq!(execution.mutation_count, 8);
         assert_eq!(
             execution.output_css,
-            r#"._button_abc123{ composes: _base_def456 _utility_ghi789; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } ._button_abc123:hover{ color: green; } ._button_abc123 :global(.external){ color: purple; } :global(.root) ._button_abc123{ color: orange; } @media (min-width: 1px) { ._button_abc123{ color: black; } }"#
+            r#"._button_abc123{ composes: _base_def456 _utility_ghi789; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } ._button_abc123:hover{ color: green; } ._button_abc123 :global(.external){ color: purple; } :global(.root) ._button_abc123{ color: orange; } ._button_abc123{ color: navy; } @media (min-width: 1px) { ._button_abc123{ color: black; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
@@ -12290,7 +12321,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
-        let source = r#".used { color: red; } .dead { color: blue; } .dead:hover { color: green; } button.other-dead { color: black; } .also-dead, .other-dead { color: black; } .used, .dead-mixed { color: cyan; } .used .child { color: purple; } :global(.external) { color: gray; } .dead :global(.external) { color: pink; } :global(.root) .dead-global { color: lime; } @media (min-width: 1px) { .media-dead { color: orange; } .used { color: brown; } }"#;
+        let source = r#".used { color: red; } .dead { color: blue; } .dead:hover { color: green; } button.other-dead { color: black; } .also-dead, .other-dead { color: black; } .used, .dead-mixed { color: cyan; } .used .child { color: purple; } :global(.external) { color: gray; } .dead :global(.external) { color: pink; } :global(.root) .dead-global { color: lime; } :local(.dead-local) { color: brown; } @media (min-width: 1px) { .media-dead { color: orange; } .used { color: brown; } }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             reachable_class_names: vec!["used".to_string()],
@@ -12306,7 +12337,7 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 8);
+        assert_eq!(execution.mutation_count, 9);
         assert!(execution.output_css.contains(".used { color: red; }"));
         assert!(execution.output_css.contains(".used { color: cyan; }"));
         assert!(
@@ -12328,6 +12359,7 @@ mod tests {
         assert!(!execution.output_css.contains(".dead:hover"));
         assert!(!execution.output_css.contains(".dead :global"));
         assert!(!execution.output_css.contains(".dead-global"));
+        assert!(!execution.output_css.contains(".dead-local"));
         assert!(!execution.output_css.contains("button.other-dead"));
         assert!(!execution.output_css.contains(".also-dead"));
         assert!(!execution.output_css.contains(".other-dead"));
@@ -12337,7 +12369,7 @@ mod tests {
             execution.executed_pass_ids,
             vec!["tree-shake-class", "print-css"]
         );
-        assert_eq!(execution.semantic_removals.len(), 8);
+        assert_eq!(execution.semantic_removals.len(), 9);
         assert!(execution.semantic_removals.iter().any(|removal| {
             removal.symbol_kind == "class"
                 && removal.name == "also-dead,other-dead"
