@@ -3386,6 +3386,16 @@ struct StaticCssModulesValueDefinition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StaticCssModulesValueImportStatement {
     local_names: Vec<String>,
+    bindings: Vec<StaticCssModulesValueImportBinding>,
+    from_clause: String,
+    start: usize,
+    end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticCssModulesValueImportBinding {
+    local_name: String,
+    binding_text: String,
     start: usize,
     end: usize,
 }
@@ -3789,7 +3799,14 @@ fn parse_static_css_modules_value_import_statement(
     let from_index = (at_value_index + 1..end_index).find(|index| {
         tokens[*index].kind == SyntaxKind::Ident && tokens[*index].text.eq_ignore_ascii_case("from")
     })?;
+    let from_clause = tokens[from_index..end_index]
+        .iter()
+        .map(|token| token.text.as_str())
+        .collect::<String>()
+        .trim()
+        .to_string();
     let mut local_names = Vec::new();
+    let mut bindings = Vec::new();
     let mut index = at_value_index + 1;
 
     while index < from_index {
@@ -3806,8 +3823,10 @@ fn parse_static_css_modules_value_import_statement(
             continue;
         }
 
+        let binding_start_index = index;
         let mut local_name = tokens[index].text.clone();
         index += 1;
+        let mut binding_end_index = index;
         let maybe_as_index = skip_whitespace_tokens(tokens, index, from_index);
         if maybe_as_index < from_index
             && tokens[maybe_as_index].kind == SyntaxKind::Ident
@@ -3817,9 +3836,22 @@ fn parse_static_css_modules_value_import_statement(
             if alias_index < from_index && tokens[alias_index].kind == SyntaxKind::Ident {
                 local_name = tokens[alias_index].text.clone();
                 index = alias_index + 1;
+                binding_end_index = index;
             }
         }
         if !local_names.iter().any(|name| name == &local_name) {
+            let binding_text = tokens[binding_start_index..binding_end_index]
+                .iter()
+                .map(|token| token.text.as_str())
+                .collect::<String>()
+                .trim()
+                .to_string();
+            bindings.push(StaticCssModulesValueImportBinding {
+                local_name: local_name.clone(),
+                binding_text,
+                start: token_start(&tokens[binding_start_index]),
+                end: token_end(&tokens[binding_end_index - 1]),
+            });
             local_names.push(local_name);
         }
     }
@@ -3827,6 +3859,8 @@ fn parse_static_css_modules_value_import_statement(
     Some((
         StaticCssModulesValueImportStatement {
             local_names,
+            bindings,
+            from_clause,
             start: token_start(&tokens[at_value_index]),
             end: token_end(&tokens[end_index]),
         },
@@ -5072,30 +5106,57 @@ fn tree_shake_css_modules_values_with_lexer(
             reason: "CSS Modules value definition was absent from transitive value references and the closed-style-world reachable value set",
         })
         .collect::<Vec<_>>();
-    removals.extend(
-        import_statements
-            .iter()
-            .filter(|statement| {
-                !statement.local_names.is_empty()
-                    && statement
-                        .local_names
-                        .iter()
-                        .all(|name| !referenced_names.iter().any(|reachable| reachable == name))
-            })
-            .map(|statement| TransformSemanticRemovalCandidate {
-                symbol_kind: "cssModuleValue",
-                name: statement.local_names.join(","),
-                source_span_start: statement.start,
-                source_span_end: statement.end,
-                reason: "imported CSS Modules value bindings were absent from transitive value references and the closed-style-world reachable value set",
-            }),
-    );
-
-    let ranges = removals
+    let mut replacements = removals
         .iter()
         .map(|removal| (removal.source_span_start, removal.source_span_end))
+        .map(|(start, end)| (start, end, String::new()))
         .collect::<Vec<_>>();
-    let (output, _) = remove_source_ranges(source, &ranges);
+    for statement in &import_statements {
+        let unreachable_bindings = statement
+            .bindings
+            .iter()
+            .filter(|binding| {
+                !referenced_names
+                    .iter()
+                    .any(|reachable| reachable == &binding.local_name)
+            })
+            .collect::<Vec<_>>();
+        if unreachable_bindings.is_empty() {
+            continue;
+        }
+        removals.extend(
+            unreachable_bindings
+                .iter()
+                .map(|binding| TransformSemanticRemovalCandidate {
+                    symbol_kind: "cssModuleValue",
+                    name: binding.local_name.clone(),
+                    source_span_start: binding.start,
+                    source_span_end: binding.end,
+                    reason: "imported CSS Modules value binding was absent from transitive value references and the closed-style-world reachable value set",
+                }),
+        );
+        let reachable_binding_texts = statement
+            .bindings
+            .iter()
+            .filter(|binding| {
+                referenced_names
+                    .iter()
+                    .any(|reachable| reachable == &binding.local_name)
+            })
+            .map(|binding| binding.binding_text.as_str())
+            .collect::<Vec<_>>();
+        let replacement = if reachable_binding_texts.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "@value {} {};",
+                reachable_binding_texts.join(", "),
+                statement.from_clause
+            )
+        };
+        replacements.push((statement.start, statement.end, replacement));
+    }
+    let (output, _) = replace_source_ranges(source, &replacements);
     (output, removals)
 }
 
@@ -11988,7 +12049,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_tree_shakes_imported_values_with_closed_world_context() {
-        let source = r#"@value used from "./tokens.module.css"; @value dead, ghost from "./tokens.module.css"; @value local: used; .btn { color: local; } .dead { color: dead; }"#;
+        let source = r#"@value used, dead, ghost from "./tokens.module.css"; @value local: used; .btn { color: local; } .dead { color: dead; }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             reachable_class_names: vec!["btn".to_string()],
@@ -12004,10 +12065,14 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 1);
-        assert!(execution.output_css.contains("@value used from"));
+        assert_eq!(execution.mutation_count, 2);
+        assert!(
+            execution
+                .output_css
+                .contains(r#"@value used from "./tokens.module.css";"#)
+        );
         assert!(execution.output_css.contains("@value local: used;"));
-        assert!(!execution.output_css.contains("@value dead, ghost"));
+        assert!(!execution.output_css.contains("dead, ghost from"));
         assert!(execution.output_css.contains(".btn { color: local; }"));
         assert!(execution.output_css.contains(".dead { color: dead; }"));
         assert_eq!(
@@ -12016,7 +12081,7 @@ mod tests {
                 .iter()
                 .map(|removal| removal.name.as_str())
                 .collect::<Vec<_>>(),
-            vec!["dead,ghost"]
+            vec!["dead", "ghost"]
         );
     }
 
