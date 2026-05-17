@@ -5768,6 +5768,26 @@ fn collect_static_root_custom_property_env(
     let mut blocked_names = Vec::new();
 
     for rule in rules {
+        if rule.selector == ":root" {
+            continue;
+        }
+        let Some((block_start_index, block_end_index)) =
+            rule_block_token_indexes(tokens, rule.block_start, rule.block_end)
+        else {
+            continue;
+        };
+        for declaration in
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+        {
+            if declaration.property.starts_with("--")
+                && !blocked_names.contains(&declaration.property)
+            {
+                blocked_names.push(declaration.property);
+            }
+        }
+    }
+
+    for rule in rules {
         if rule.selector != ":root" {
             continue;
         }
@@ -5779,7 +5799,14 @@ fn collect_static_root_custom_property_env(
         for declaration in
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
         {
-            if !declaration.property.starts_with("--") || declaration.important {
+            if !declaration.property.starts_with("--") {
+                continue;
+            }
+            if declaration.important {
+                env.remove(&declaration.property);
+                if !blocked_names.contains(&declaration.property) {
+                    blocked_names.push(declaration.property);
+                }
                 continue;
             }
             if blocked_names.contains(&declaration.property) {
@@ -11750,6 +11777,24 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["custom-property-static-resolve", "print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_keeps_shadowed_custom_properties_unresolved() {
+        let source = r#":root { --brand: red; --gap: 2rem; --tone: red; --tone: blue !important; } .card { --brand: blue; color: var(--brand); margin: var(--gap); border-color: var(--tone); } .other { color: var(--brand); }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::StaticVarSubstitution,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#":root { --brand: red; --gap: 2rem; --tone: red; --tone: blue !important; } .card { --brand: blue; color: var(--brand); margin: 2rem; border-color: var(--tone); } .other { color: var(--brand); }"#
         );
     }
 
