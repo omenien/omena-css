@@ -703,6 +703,52 @@ assert.deepEqual(staticVarShadowSummary.execution.executedPassIds, [
 ]);
 assert.equal(staticVarShadowSummary.execution.mutationCount, 2);
 
+const customPropertyReachabilityResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "custom-property-reachability.css",
+      styleSource:
+        ":root { --used: var(--dep); --dep: red; --ghost: blue; } .btn { color: var(--used); } .dead { --used: var(--ghost); color: var(--ghost); }",
+      requestedPassIds: ["tree-shake-custom-property", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["btn"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(customPropertyReachabilityResult.status, 0, customPropertyReachabilityResult.stderr);
+assert.equal(customPropertyReachabilityResult.error, undefined);
+
+const customPropertyReachabilitySummary = JSON.parse(
+  customPropertyReachabilityResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(customPropertyReachabilitySummary.product, "omena-query.transform-execute");
+assert.ok(customPropertyReachabilitySummary.execution.outputCss.includes("--used: var(--dep);"));
+assert.ok(customPropertyReachabilitySummary.execution.outputCss.includes("--dep: red;"));
+assert.ok(!customPropertyReachabilitySummary.execution.outputCss.includes("--ghost: blue;"));
+assert.deepEqual(customPropertyReachabilitySummary.execution.executedPassIds, [
+  "tree-shake-custom-property",
+  "print-css",
+]);
+assert.equal(customPropertyReachabilitySummary.execution.mutationCount, 1);
+
 const semanticReachabilityResult = spawnSync(
   "cargo",
   [
@@ -818,6 +864,7 @@ process.stdout.write(
     `colorMixPercentageMutations=${colorMixPercentageSummary.execution.mutationCount}`,
     `mathFunctionMutations=${mathFunctionReductionSummary.execution.mutationCount}`,
     `staticVarShadowMutations=${staticVarShadowSummary.execution.mutationCount}`,
+    `customPropertyReachabilityMutations=${customPropertyReachabilitySummary.execution.mutationCount}`,
     `semanticRemovals=${semanticReachabilitySummary.semanticRemovalCount}`,
   ].join(" "),
 );

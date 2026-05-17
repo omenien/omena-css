@@ -5460,6 +5460,9 @@ fn collect_reachable_custom_property_names(
         {
             let referenced_names = collect_custom_property_references_in_value(&declaration.value)?;
             if declaration.property.starts_with("--") {
+                if !rule_is_reachable {
+                    continue;
+                }
                 let dependencies = dependencies_by_name
                     .entry(declaration.property)
                     .or_default();
@@ -12355,6 +12358,38 @@ mod tests {
                 ("customProperty", "--string-only"),
                 ("customProperty", "--dead-from-rule")
             ]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_ignores_unreachable_custom_property_dependencies() {
+        let source = r#":root { --used: var(--dep); --dep: red; --ghost: blue; } .btn { color: var(--used); } .dead { --used: var(--ghost); color: var(--ghost); }"#;
+        let context = TransformExecutionContextV0 {
+            closed_style_world: true,
+            reachable_class_names: vec!["btn".to_string()],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::TreeShakeCustomProperty,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert!(execution.output_css.contains("--used: var(--dep);"));
+        assert!(execution.output_css.contains("--dep: red;"));
+        assert!(!execution.output_css.contains("--ghost: blue;"));
+        assert_eq!(
+            execution
+                .semantic_removals
+                .iter()
+                .map(|removal| (removal.symbol_kind, removal.name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("customProperty", "--ghost")]
         );
     }
 
