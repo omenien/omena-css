@@ -3411,7 +3411,7 @@ fn resolve_static_css_modules_values_with_lexer(
         .iter()
         .map(|(definition, resolved_value)| (definition.name.clone(), resolved_value.clone()))
         .collect::<BTreeMap<_, _>>();
-    replacements.extend(collect_static_css_modules_value_media_prelude_replacements(
+    replacements.extend(collect_static_css_modules_value_query_prelude_replacements(
         tokens,
         &resolved_definitions_by_name,
     ));
@@ -3462,7 +3462,7 @@ fn resolve_static_css_modules_values_with_lexer(
     (output, mutation_count)
 }
 
-fn collect_static_css_modules_value_media_prelude_replacements(
+fn collect_static_css_modules_value_query_prelude_replacements(
     tokens: &[omena_parser::LexedToken],
     resolved_definitions_by_name: &BTreeMap<String, String>,
 ) -> Vec<(usize, usize, String)> {
@@ -3471,7 +3471,7 @@ fn collect_static_css_modules_value_media_prelude_replacements(
 
     while index < tokens.len() {
         if tokens[index].kind == SyntaxKind::AtKeyword
-            && tokens[index].text.eq_ignore_ascii_case("@media")
+            && css_modules_value_query_prelude_at_rule(&tokens[index].text)
         {
             let prelude_start = index + 1;
             let Some(prelude_end) = at_rule_prelude_end_index(tokens, prelude_start) else {
@@ -3481,7 +3481,7 @@ fn collect_static_css_modules_value_media_prelude_replacements(
             for candidate_index in prelude_start..prelude_end {
                 let token = &tokens[candidate_index];
                 if token.kind != SyntaxKind::Ident
-                    || !media_prelude_ident_is_feature_value(tokens, candidate_index, prelude_start)
+                    || !query_prelude_ident_is_feature_value(tokens, candidate_index, prelude_start)
                 {
                     continue;
                 }
@@ -3499,6 +3499,10 @@ fn collect_static_css_modules_value_media_prelude_replacements(
     replacements
 }
 
+fn css_modules_value_query_prelude_at_rule(text: &str) -> bool {
+    text.eq_ignore_ascii_case("@media") || text.eq_ignore_ascii_case("@container")
+}
+
 fn at_rule_prelude_end_index(tokens: &[omena_parser::LexedToken], start: usize) -> Option<usize> {
     (start..tokens.len()).find(|index| {
         matches!(
@@ -3508,7 +3512,7 @@ fn at_rule_prelude_end_index(tokens: &[omena_parser::LexedToken], start: usize) 
     })
 }
 
-fn media_prelude_ident_is_feature_value(
+fn query_prelude_ident_is_feature_value(
     tokens: &[omena_parser::LexedToken],
     candidate_index: usize,
     prelude_start: usize,
@@ -11424,7 +11428,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_resolves_static_local_css_modules_values() {
-        let source = r#"@value primary: #fff; @value spacing: 8px; @value alias: primary; @value shadow: 0 0 4px primary; @value bp: 40rem; @value wide: 80rem; @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: primary; margin: spacing spacing; background: alias; box-shadow: shadow; border-color: dup; } @media screen and (min-width: bp) and (width >= wide) { .btn { color: primary; } }"#;
+        let source = r#"@value primary: #fff; @value spacing: 8px; @value alias: primary; @value shadow: 0 0 4px primary; @value bp: 40rem; @value wide: 80rem; @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: primary; margin: spacing spacing; background: alias; box-shadow: shadow; border-color: dup; } @media screen and (min-width: bp) and (width >= wide) { .btn { color: primary; } } @container card (inline-size >= wide) { .btn { margin: spacing; } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -11433,10 +11437,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 13);
+        assert_eq!(execution.mutation_count, 15);
         assert_eq!(
             execution.output_css,
-            r#"      @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: #fff; margin: 8px 8px; background: #fff; box-shadow: 0 0 4px #fff; border-color: dup; } @media screen and (min-width: 40rem) and (width >= 80rem) { .btn { color: #fff; } }"#
+            r#"      @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: #fff; margin: 8px 8px; background: #fff; box-shadow: 0 0 4px #fff; border-color: dup; } @media screen and (min-width: 40rem) and (width >= 80rem) { .btn { color: #fff; } } @container card (inline-size >= 80rem) { .btn { margin: 8px; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,

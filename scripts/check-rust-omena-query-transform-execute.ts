@@ -464,7 +464,7 @@ const compositeValueResult = spawnSync(
     input: JSON.stringify({
       stylePath: "values.module.css",
       styleSource:
-        "@value primary: #fff; @value gap: 8px; @value alias: primary; @value shadow: 0 0 4px primary; @value bp: 40rem; @value wide: 80rem; .button { color: alias; padding: gap gap; box-shadow: shadow; } @media screen and (min-width: bp) and (width >= wide) { .button { color: alias; } }",
+        "@value primary: #fff; @value gap: 8px; @value alias: primary; @value shadow: 0 0 4px primary; @value bp: 40rem; @value wide: 80rem; .button { color: alias; padding: gap gap; box-shadow: shadow; } @media screen and (min-width: bp) and (width >= wide) { .button { color: alias; } } @container card (inline-size >= wide) { .button { padding: gap; } }",
       requestedPassIds: ["value-resolution", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
@@ -479,13 +479,13 @@ const compositeValueSummary = JSON.parse(compositeValueResult.stdout) as Transfo
 assert.equal(compositeValueSummary.product, "omena-query.transform-execute");
 assert.equal(
   compositeValueSummary.execution.outputCss,
-  "      .button { color: #fff; padding: 8px 8px; box-shadow: 0 0 4px #fff; } @media screen and (min-width: 40rem) and (width >= 80rem) { .button { color: #fff; } }",
+  "      .button { color: #fff; padding: 8px 8px; box-shadow: 0 0 4px #fff; } @media screen and (min-width: 40rem) and (width >= 80rem) { .button { color: #fff; } } @container card (inline-size >= 80rem) { .button { padding: 8px; } }",
 );
 assert.deepEqual(compositeValueSummary.execution.executedPassIds, [
   "value-resolution",
   "print-css",
 ]);
-assert.equal(compositeValueSummary.execution.mutationCount, 12);
+assert.equal(compositeValueSummary.execution.mutationCount, 14);
 
 const alphaColorCompressionResult = spawnSync(
   "cargo",
