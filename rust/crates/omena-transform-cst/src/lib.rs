@@ -172,7 +172,7 @@ impl TransformPassKind {
             Self::ColorCompression => "color compression",
             Self::UrlQuoteStrip => "url quote strip",
             Self::StringQuoteNormalize => "string quote normalize",
-            Self::SelectorIsWhereCompression => "selector :is/:where compression",
+            Self::SelectorIsWhereCompression => "selector alias compression",
             Self::ShorthandCombining => "shorthand combining",
             Self::RuleDeduplication => "rule deduplication",
             Self::RuleMerging => "rule merging",
@@ -798,7 +798,7 @@ pub const fn cascade_safe_obligation(kind: TransformPassKind) -> &'static str {
             "may normalize string quotes only when escaped contents remain byte-equivalent after decoding"
         }
         TransformPassKind::SelectorIsWhereCompression => {
-            "must preserve selector specificity and matching semantics under the cascade model"
+            "must preserve selector specificity, keyframe timeline positions, and matching semantics under the cascade model"
         }
         TransformPassKind::ShorthandCombining => {
             "must prove longhand and shorthand cascade outcomes are equivalent"

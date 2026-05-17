@@ -84,6 +84,10 @@ const fixtures: readonly DifferentialFixture[] = [
     source: "@keyframes fade { 0% {} to { opacity: 1 } } .empty{}",
   },
   {
+    label: "keyframes-selector-aliases",
+    source: "@keyframes fade { from { opacity: 0 } 100% { opacity: 1 } 50%, TO { opacity: .5 } }",
+  },
+  {
     label: "media-range-normalization",
     source: "@media screen and (min-width: 1px) and (max-width: 10px) { .a { color: red; } }",
   },

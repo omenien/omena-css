@@ -543,7 +543,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "compressed :is/:where selector functions only when specificity and matching semantics are preserved",
+                    detail: "compressed :is/:where selector functions and keyframe selector aliases only when matching semantics are preserved",
                 }
             }
             Some(TransformPassKind::ShorthandCombining) => {
@@ -7739,11 +7739,139 @@ fn compress_css_is_where_selectors_with_lexer(
         expand_specificity_safe_is_selector_lists_with_lexer(&source, dialect);
     let (source, selector_list_mutation_count) =
         dedupe_ordinary_selector_lists_with_lexer(&source, dialect);
+    let (source, keyframe_selector_mutation_count) =
+        normalize_keyframe_selector_aliases_with_lexer(&source, dialect);
 
     (
         source,
-        function_mutation_count + list_expansion_mutation_count + selector_list_mutation_count,
+        function_mutation_count
+            + list_expansion_mutation_count
+            + selector_list_mutation_count
+            + keyframe_selector_mutation_count,
     )
+}
+
+fn normalize_keyframe_selector_aliases_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::AtKeyword
+            && is_keyframes_at_keyword(&tokens[index].text)
+            && let Some((block_start_index, block_end_index)) = at_rule_block_indexes(tokens, index)
+        {
+            collect_keyframe_selector_alias_replacements(
+                source,
+                tokens,
+                block_start_index,
+                block_end_index,
+                &mut replacements,
+            );
+            index = block_end_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+
+    replacements.sort_by_key(|(start, _, _)| *start);
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    for (start, end, replacement) in &replacements {
+        if *start > cursor {
+            output.push_str(&source[cursor..*start]);
+        }
+        output.push_str(replacement);
+        cursor = *end;
+    }
+    if cursor < source.len() {
+        output.push_str(&source[cursor..]);
+    }
+
+    (output, replacements.len())
+}
+
+fn collect_keyframe_selector_alias_replacements(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+    keyframes_block_start_index: usize,
+    keyframes_block_end_index: usize,
+    replacements: &mut Vec<(usize, usize, String)>,
+) {
+    let mut frame_prelude_start_index = keyframes_block_start_index + 1;
+    let mut index = keyframes_block_start_index + 1;
+
+    while index < keyframes_block_end_index {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => {
+                let Some(frame_prelude_start) =
+                    first_non_trivia_token_start(tokens, frame_prelude_start_index, index)
+                else {
+                    index += 1;
+                    continue;
+                };
+                let frame_prelude_end = token_start(&tokens[index]);
+                let frame_prelude = source[frame_prelude_start..frame_prelude_end].trim();
+                if let Some(normalized_frame_prelude) =
+                    normalize_keyframe_selector_alias_list(frame_prelude)
+                    && normalized_frame_prelude != frame_prelude
+                {
+                    replacements.push((
+                        frame_prelude_start,
+                        frame_prelude_end,
+                        normalized_frame_prelude,
+                    ));
+                }
+
+                let Some(close_index) = matching_right_brace_index(tokens, index) else {
+                    return;
+                };
+                index = close_index + 1;
+                frame_prelude_start_index = index;
+                continue;
+            }
+            SyntaxKind::Semicolon => {
+                frame_prelude_start_index = index + 1;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+}
+
+fn normalize_keyframe_selector_alias_list(selector_list: &str) -> Option<String> {
+    let selectors = split_top_level_value_arguments(selector_list)?;
+    let mut changed = false;
+    let normalized = selectors
+        .into_iter()
+        .map(
+            |selector| match normalize_keyframe_selector_alias(&selector) {
+                Some(normalized_selector) => {
+                    changed = true;
+                    normalized_selector.to_string()
+                }
+                None => selector,
+            },
+        )
+        .collect::<Vec<_>>();
+
+    changed.then(|| normalized.join(","))
+}
+
+fn normalize_keyframe_selector_alias(selector: &str) -> Option<&'static str> {
+    match selector.trim().to_ascii_lowercase().as_str() {
+        "from" => Some("0%"),
+        "100%" | "to" => Some("to"),
+        _ => None,
+    }
 }
 
 fn compress_css_is_where_functions_with_lexer(
@@ -10299,6 +10427,28 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".a.ready { color: red; } .b:where(.x) { color: blue; } .c:where(.y) { color: green; } .d.u, .d.v { color: orange; } .g.p:hover, .g.q:hover { color: lime; } .e, .f { color: purple; } .w:where(.one,.two) { color: teal; } @media (min-width: 1px) { .m, .n { color: black; } } @supports (display: grid) { .s { display: grid; } }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["selector-is-where-compression", "print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_normalizes_keyframe_selector_aliases() {
+        let source = r#"@keyframes fade { from { opacity: 0; } 100% { opacity: 1; } 50%, TO { opacity: .5; } } @-webkit-keyframes spin { FROM { transform: rotate(0deg); } }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::SelectorIsWhereCompression,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(
+            execution.output_css,
+            r#"@keyframes fade { 0%{ opacity: 0; } to{ opacity: 1; } 50%,to{ opacity: .5; } } @-webkit-keyframes spin { 0%{ transform: rotate(0deg); } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
