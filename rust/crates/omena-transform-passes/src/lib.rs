@@ -4021,10 +4021,13 @@ fn strip_resolved_css_module_composes_with_lexer(
     let mut ranges = Vec::new();
 
     for rule in &rules {
-        let Some(class_name) = single_simple_class_selector_name(&rule.selector) else {
+        let Some(class_names) = simple_class_selector_names(&rule.selector) else {
             continue;
         };
-        if !css_module_composes_resolution_exists(&class_name, resolutions) {
+        if !class_names
+            .iter()
+            .all(|class_name| css_module_composes_resolution_exists(class_name, resolutions))
+        {
             continue;
         }
         let Some(block_start_index) = tokens.iter().position(|token| {
@@ -4047,12 +4050,15 @@ fn strip_resolved_css_module_composes_with_lexer(
     remove_source_ranges(source, &ranges)
 }
 
-fn single_simple_class_selector_name(selector: &str) -> Option<String> {
+fn simple_class_selector_names(selector: &str) -> Option<Vec<String>> {
     let branches = split_top_level_value_arguments(selector)?;
-    if branches.len() != 1 {
+    if branches.is_empty() {
         return None;
     }
-    simple_class_selector_name(&branches[0])
+    branches
+        .iter()
+        .map(|branch| simple_class_selector_name(branch))
+        .collect()
 }
 
 fn css_module_composes_resolution_exists(
@@ -10091,10 +10097,20 @@ mod tests {
     fn execution_runtime_resolves_css_module_composes_with_export_set() {
         let source = r#".button { composes: base from "./base.module.css"; color: red; } .button:hover { color: blue; } .card, .panel { composes: shared; color: green; }"#;
         let context = TransformExecutionContextV0 {
-            css_module_composes_resolutions: vec![TransformCssModuleComposesResolutionV0 {
-                local_class_name: "button".to_string(),
-                exported_class_names: vec!["button".to_string(), "base".to_string()],
-            }],
+            css_module_composes_resolutions: vec![
+                TransformCssModuleComposesResolutionV0 {
+                    local_class_name: "button".to_string(),
+                    exported_class_names: vec!["button".to_string(), "base".to_string()],
+                },
+                TransformCssModuleComposesResolutionV0 {
+                    local_class_name: "card".to_string(),
+                    exported_class_names: vec!["card".to_string(), "shared".to_string()],
+                },
+                TransformCssModuleComposesResolutionV0 {
+                    local_class_name: "panel".to_string(),
+                    exported_class_names: vec!["panel".to_string(), "shared".to_string()],
+                },
+            ],
             ..TransformExecutionContextV0::default()
         };
         let execution = execute_transform_passes_on_source_with_dialect_and_context(
@@ -10107,17 +10123,27 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(execution.mutation_count, 2);
         assert_eq!(
             execution.output_css,
-            r#".button {  color: red; } .button:hover { color: blue; } .card, .panel { composes: shared; color: green; }"#
+            r#".button {  color: red; } .button:hover { color: blue; } .card, .panel {  color: green; }"#
         );
         assert_eq!(
             execution.css_module_composes_exports,
-            vec![TransformCssModuleComposesResolutionV0 {
-                local_class_name: "button".to_string(),
-                exported_class_names: vec!["button".to_string(), "base".to_string()],
-            }]
+            vec![
+                TransformCssModuleComposesResolutionV0 {
+                    local_class_name: "button".to_string(),
+                    exported_class_names: vec!["button".to_string(), "base".to_string()],
+                },
+                TransformCssModuleComposesResolutionV0 {
+                    local_class_name: "card".to_string(),
+                    exported_class_names: vec!["card".to_string(), "shared".to_string()],
+                },
+                TransformCssModuleComposesResolutionV0 {
+                    local_class_name: "panel".to_string(),
+                    exported_class_names: vec!["panel".to_string(), "shared".to_string()],
+                },
+            ]
         );
         assert_eq!(
             execution.executed_pass_ids,

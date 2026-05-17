@@ -316,6 +316,54 @@ assertIncludesAll(
   "transform context execute ready surfaces",
 );
 
+const groupedComposesResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "Button.module.css",
+      styleSource: ".button, .card { composes: base; color: red; } .base { color: blue; }",
+      requestedPassIds: ["composes-resolution", "print-css"],
+      transformContext: {
+        cssModuleComposesResolutions: [
+          { localClassName: "button", exportedClassNames: ["button", "base"] },
+          { localClassName: "card", exportedClassNames: ["card", "base"] },
+        ],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(groupedComposesResult.status, 0, groupedComposesResult.stderr);
+assert.equal(groupedComposesResult.error, undefined);
+
+const groupedComposesSummary = JSON.parse(
+  groupedComposesResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(groupedComposesSummary.product, "omena-query.transform-execute");
+assert.equal(
+  groupedComposesSummary.execution.outputCss,
+  ".button, .card {  color: red; } .base { color: blue; }",
+);
+assert.deepEqual(groupedComposesSummary.execution.executedPassIds, [
+  "composes-resolution",
+  "print-css",
+]);
+assert.equal(groupedComposesSummary.execution.mutationCount, 1);
+
 const semanticReachabilityResult = spawnSync(
   "cargo",
   [
@@ -402,6 +450,7 @@ process.stdout.write(
     `unknown=${summary.unknownPassIds.length}`,
     `contextExecuted=${contextSummary.execution.executedPassIds.length}`,
     `contextMutations=${contextSummary.execution.mutationCount}`,
+    `groupedComposesMutations=${groupedComposesSummary.execution.mutationCount}`,
     `semanticRemovals=${semanticReachabilitySummary.semanticRemovalCount}`,
   ].join(" "),
 );
