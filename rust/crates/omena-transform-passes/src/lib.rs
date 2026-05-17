@@ -4723,6 +4723,14 @@ fn rewrite_class_selectors_in_selector(
             continue;
         }
 
+        if bracket_depth == 0
+            && let Some(global_end) = global_pseudo_function_end(selector, index)
+        {
+            output.push_str(&selector[index..global_end]);
+            index = global_end;
+            continue;
+        }
+
         match ch {
             '"' | '\'' => {
                 quote = Some(ch);
@@ -4766,6 +4774,67 @@ fn rewrite_class_selectors_in_selector(
     }
 
     changed.then_some(output)
+}
+
+fn global_pseudo_function_end(selector: &str, index: usize) -> Option<usize> {
+    const GLOBAL_PREFIX: &str = ":global(";
+    if !starts_with_ascii_case_insensitive(&selector[index..], GLOBAL_PREFIX) {
+        return None;
+    }
+    matching_function_end(selector, index + GLOBAL_PREFIX.len() - 1)
+}
+
+fn starts_with_ascii_case_insensitive(text: &str, prefix: &str) -> bool {
+    let text_bytes = text.as_bytes();
+    let prefix_bytes = prefix.as_bytes();
+    text_bytes.len() >= prefix_bytes.len()
+        && text_bytes
+            .iter()
+            .take(prefix_bytes.len())
+            .zip(prefix_bytes)
+            .all(|(left, right)| left.eq_ignore_ascii_case(right))
+}
+
+fn matching_function_end(text: &str, open_paren_index: usize) -> Option<usize> {
+    let mut index = open_paren_index;
+    let mut depth = 0usize;
+    let mut quote: Option<char> = None;
+
+    while index < text.len() {
+        let ch = text[index..].chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = text[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            '(' => {
+                depth += 1;
+                index += ch.len_utf8();
+            }
+            ')' => {
+                depth = depth.checked_sub(1)?;
+                index += ch.len_utf8();
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => index += ch.len_utf8(),
+        }
+    }
+
+    None
 }
 
 fn ascii_css_identifier_end(text: &str, start: usize) -> usize {
@@ -11142,7 +11211,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_rewrites_css_module_class_names_with_identity_map() {
-        let source = r#".button { composes: base utility; color: red; } .base, .utility { color: blue; } .button:hover { color: green; }"#;
+        let source = r#".button { composes: base utility; color: red; } .base, .utility { color: blue; } .button:hover { color: green; } .button :global(.external) { color: purple; } :global(.root) .button { color: orange; }"#;
         let context = TransformExecutionContextV0 {
             class_name_rewrites: vec![
                 TransformClassNameRewriteV0 {
@@ -11157,6 +11226,14 @@ mod tests {
                     original_name: "utility".to_string(),
                     rewritten_name: "_utility_ghi789".to_string(),
                 },
+                TransformClassNameRewriteV0 {
+                    original_name: "external".to_string(),
+                    rewritten_name: "_external_global".to_string(),
+                },
+                TransformClassNameRewriteV0 {
+                    original_name: "root".to_string(),
+                    rewritten_name: "_root_global".to_string(),
+                },
             ],
             ..TransformExecutionContextV0::default()
         };
@@ -11170,10 +11247,10 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(execution.mutation_count, 6);
         assert_eq!(
             execution.output_css,
-            r#"._button_abc123{ composes: _base_def456 _utility_ghi789; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } ._button_abc123:hover{ color: green; }"#
+            r#"._button_abc123{ composes: _base_def456 _utility_ghi789; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } ._button_abc123:hover{ color: green; } ._button_abc123 :global(.external){ color: purple; } :global(.root) ._button_abc123{ color: orange; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,

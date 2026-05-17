@@ -223,7 +223,7 @@ assertIncludesAll(
 );
 
 const contextStyleSource =
-  '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }';
+  '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; } .button :global(.external) { color: var(--brand); }';
 
 const contextResult = spawnSync(
   "cargo",
@@ -260,6 +260,7 @@ const contextResult = spawnSync(
         classNameRewrites: [
           { originalName: "button", rewrittenName: "_button_x" },
           { originalName: "base", rewrittenName: "_base_y" },
+          { originalName: "external", rewrittenName: "_external_global" },
         ],
         designTokenRoutes: [{ tokenName: "--brand", routedValue: "var(--theme-brand)" }],
       },
@@ -279,7 +280,7 @@ assert.equal(contextSummary.stylePath, "Button.module.css");
 assert.deepEqual(contextSummary.unknownPassIds, []);
 assert.equal(
   contextSummary.execution.outputCss,
-  ":root { --brand: red; } ._button_x{  color: var(--theme-brand); } ._base_y{ color: blue; }",
+  ":root { --brand: red; } ._button_x{  color: var(--theme-brand); } ._base_y{ color: blue; } ._button_x :global(.external){ color: var(--theme-brand); }",
 );
 assert.deepEqual(contextSummary.execution.executedPassIds, [
   "import-inline",
@@ -289,7 +290,7 @@ assert.deepEqual(contextSummary.execution.executedPassIds, [
   "print-css",
 ]);
 assert.deepEqual(contextSummary.execution.plannedOnlyPassIds, []);
-assert.equal(contextSummary.execution.mutationCount, 5);
+assert.equal(contextSummary.execution.mutationCount, 7);
 assert.deepEqual(contextSummary.execution.cssImportInlines, [
   { importSource: "./tokens.css", replacementCss: ":root { --brand: red; }" },
 ]);
