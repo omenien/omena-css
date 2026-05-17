@@ -5029,8 +5029,18 @@ fn tree_shake_css_modules_values_with_lexer(
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let definitions = collect_static_local_css_modules_value_definitions(tokens);
-    if definitions.is_empty() {
+    let import_statements = collect_static_css_modules_value_import_statements(tokens);
+    if definitions.is_empty() && import_statements.is_empty() {
         return (source.to_string(), Vec::new());
+    }
+    let mut value_names = definitions
+        .iter()
+        .map(|definition| definition.name.clone())
+        .collect::<Vec<_>>();
+    for statement in &import_statements {
+        for local_name in &statement.local_names {
+            push_unique_string(&mut value_names, local_name.clone());
+        }
     }
 
     let referenced_names = collect_reachable_css_modules_value_names(
@@ -5038,14 +5048,20 @@ fn tree_shake_css_modules_values_with_lexer(
         tokens,
         dialect,
         &definitions,
+        &value_names,
         reachable_value_names,
         reachable_class_names,
     );
 
-    let removals = definitions
+    let mut removals = definitions
         .iter()
         .filter(|definition| {
-            can_tree_shake_local_css_modules_value_definition(definition, dialect, &definitions)
+            can_tree_shake_local_css_modules_value_definition(
+                definition,
+                dialect,
+                &definitions,
+                &value_names,
+            )
                 && !referenced_names.iter().any(|name| name == &definition.name)
         })
         .map(|definition| TransformSemanticRemovalCandidate {
@@ -5056,6 +5072,24 @@ fn tree_shake_css_modules_values_with_lexer(
             reason: "CSS Modules value definition was absent from transitive value references and the closed-style-world reachable value set",
         })
         .collect::<Vec<_>>();
+    removals.extend(
+        import_statements
+            .iter()
+            .filter(|statement| {
+                !statement.local_names.is_empty()
+                    && statement
+                        .local_names
+                        .iter()
+                        .all(|name| !referenced_names.iter().any(|reachable| reachable == name))
+            })
+            .map(|statement| TransformSemanticRemovalCandidate {
+                symbol_kind: "cssModuleValue",
+                name: statement.local_names.join(","),
+                source_span_start: statement.start,
+                source_span_end: statement.end,
+                reason: "imported CSS Modules value bindings were absent from transitive value references and the closed-style-world reachable value set",
+            }),
+    );
 
     let ranges = removals
         .iter()
@@ -5070,22 +5104,17 @@ fn collect_reachable_css_modules_value_names(
     tokens: &[omena_parser::LexedToken],
     dialect: StyleDialect,
     definitions: &[StaticCssModulesValueDefinition],
+    value_names: &[String],
     external_roots: &[String],
     reachable_class_names: &[String],
 ) -> Vec<String> {
     let mut root_names = external_roots.to_vec();
     let mut dependencies_by_name = BTreeMap::<String, Vec<String>>::new();
-    let definition_names = definitions
-        .iter()
-        .map(|definition| definition.name.clone())
-        .collect::<Vec<_>>();
 
     for definition in definitions {
-        for reference_name in collect_css_modules_value_references_in_value(
-            &definition.value,
-            dialect,
-            &definition_names,
-        ) {
+        for reference_name in
+            collect_css_modules_value_references_in_value(&definition.value, dialect, value_names)
+        {
             if reference_name == definition.name {
                 continue;
             }
@@ -5111,17 +5140,13 @@ fn collect_reachable_css_modules_value_names(
             for reference_name in collect_css_modules_value_references_in_value(
                 &declaration.value,
                 dialect,
-                &definition_names,
+                value_names,
             ) {
                 push_unique_string(&mut root_names, reference_name);
             }
         }
     }
-    collect_css_modules_value_references_in_at_rule_preludes(
-        tokens,
-        &definition_names,
-        &mut root_names,
-    );
+    collect_css_modules_value_references_in_at_rule_preludes(tokens, value_names, &mut root_names);
 
     close_css_modules_value_dependency_graph(root_names, &dependencies_by_name)
 }
@@ -5193,11 +5218,8 @@ fn can_tree_shake_local_css_modules_value_definition(
     definition: &StaticCssModulesValueDefinition,
     dialect: StyleDialect,
     definitions: &[StaticCssModulesValueDefinition],
+    value_names: &[String],
 ) -> bool {
-    let definition_names = definitions
-        .iter()
-        .map(|candidate| candidate.name.clone())
-        .collect::<Vec<_>>();
     definitions
         .iter()
         .filter(|candidate| candidate.name == definition.name)
@@ -5207,7 +5229,7 @@ fn can_tree_shake_local_css_modules_value_definition(
             || !collect_css_modules_value_references_in_value(
                 &definition.value,
                 dialect,
-                &definition_names,
+                value_names,
             )
             .is_empty())
 }
@@ -11961,6 +11983,40 @@ mod tests {
                 .map(|removal| removal.name.as_str())
                 .collect::<Vec<_>>(),
             vec!["dead", "deadAlias", "deadShadow", "deadBp", "deadFromRule"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_tree_shakes_imported_values_with_closed_world_context() {
+        let source = r#"@value used from "./tokens.module.css"; @value dead, ghost from "./tokens.module.css"; @value local: used; .btn { color: local; } .dead { color: dead; }"#;
+        let context = TransformExecutionContextV0 {
+            closed_style_world: true,
+            reachable_class_names: vec!["btn".to_string()],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::TreeShakeValue,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert!(execution.output_css.contains("@value used from"));
+        assert!(execution.output_css.contains("@value local: used;"));
+        assert!(!execution.output_css.contains("@value dead, ghost"));
+        assert!(execution.output_css.contains(".btn { color: local; }"));
+        assert!(execution.output_css.contains(".dead { color: dead; }"));
+        assert_eq!(
+            execution
+                .semantic_removals
+                .iter()
+                .map(|removal| removal.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["dead,ghost"]
         );
     }
 

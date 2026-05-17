@@ -681,10 +681,15 @@ const semanticReachabilityResult = spawnSync(
         {
           stylePath: "Button.module.css",
           styleSource:
-            ".button { composes: base utility; color: red; } .base { color: blue; } .utility { animation: spin 1s; color: var(--brand); } .dead { color: black; } @keyframes spin { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } } :root { --brand: red; --dead: blue; }",
+            '@value used from "./tokens.module.css"; @value deadValue from "./tokens.module.css"; @value localValue: used; .button { composes: base utility; color: red; border-color: localValue; } .base { color: blue; } .utility { animation: spin 1s; color: var(--brand); } .dead { color: black; background: deadValue; } @keyframes spin { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } } :root { --brand: red; --dead: blue; }',
         },
       ],
-      requestedPassIds: ["tree-shake-class", "tree-shake-keyframes", "tree-shake-custom-property"],
+      requestedPassIds: [
+        "tree-shake-class",
+        "tree-shake-keyframes",
+        "tree-shake-value",
+        "tree-shake-custom-property",
+      ],
       transformContext: {
         closedStyleWorld: true,
         reachableClassNames: ["button"],
@@ -709,29 +714,34 @@ assert.equal(semanticReachabilitySummary.execution.passPlan.violatedDagEdgeCount
 assert.equal(semanticReachabilitySummary.execution.passPlan.allRequestedRegistered, true);
 assertIncludesAll(
   semanticReachabilitySummary.execution.executedPassIds,
-  ["tree-shake-class", "tree-shake-keyframes", "tree-shake-custom-property"],
+  ["tree-shake-class", "tree-shake-keyframes", "tree-shake-value", "tree-shake-custom-property"],
   "semantic reachability executed passes",
 );
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes(".button"));
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes(".base"));
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes(".utility"));
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes("@keyframes spin"));
+assert.ok(semanticReachabilitySummary.execution.outputCss.includes("@value used from"));
+assert.ok(semanticReachabilitySummary.execution.outputCss.includes("@value localValue: used;"));
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes("--brand: red"));
 assert.ok(!semanticReachabilitySummary.execution.outputCss.includes(".dead"));
 assert.ok(!semanticReachabilitySummary.execution.outputCss.includes("@keyframes ghost"));
+assert.ok(!semanticReachabilitySummary.execution.outputCss.includes("@value deadValue from"));
 assert.ok(!semanticReachabilitySummary.execution.outputCss.includes("--dead: blue"));
-assert.deepEqual(
-  semanticReachabilitySummary.execution.semanticRemovals.map((removal) => [
-    removal.passId,
-    removal.name,
-  ]),
-  [
-    ["tree-shake-class", "dead"],
-    ["tree-shake-keyframes", "ghost"],
-    ["tree-shake-custom-property", "--dead"],
-  ],
+const semanticRemovalPairs = semanticReachabilitySummary.execution.semanticRemovals.map(
+  (removal) => `${removal.passId}:${removal.name}`,
 );
-assert.equal(semanticReachabilitySummary.semanticRemovalCount, 3);
+assertIncludesAll(
+  semanticRemovalPairs,
+  [
+    "tree-shake-class:dead",
+    "tree-shake-keyframes:ghost",
+    "tree-shake-value:deadValue",
+    "tree-shake-custom-property:--dead",
+  ],
+  "semantic reachability removals",
+);
+assert.equal(semanticReachabilitySummary.semanticRemovalCount, 4);
 assertIncludesAll(
   semanticReachabilitySummary.readySurfaces,
   ["consumerBuildFacade", "multiSourceTransformContextProducer"],
