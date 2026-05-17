@@ -487,6 +487,49 @@ assert.deepEqual(compositeValueSummary.execution.executedPassIds, [
 ]);
 assert.equal(compositeValueSummary.execution.mutationCount, 7);
 
+const alphaColorCompressionResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "alpha-colors.css",
+      styleSource:
+        ".card { color: rgba(255, 0, 0, .5); box-shadow: 0 0 hsla(240, 100%, 50%, 50%); border-color: hwb(0 0% 0% / 50%); }",
+      requestedPassIds: ["color-compression", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(alphaColorCompressionResult.status, 0, alphaColorCompressionResult.stderr);
+assert.equal(alphaColorCompressionResult.error, undefined);
+
+const alphaColorCompressionSummary = JSON.parse(
+  alphaColorCompressionResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(alphaColorCompressionSummary.product, "omena-query.transform-execute");
+assert.equal(
+  alphaColorCompressionSummary.execution.outputCss,
+  ".card { color: #ff000080; box-shadow: 0 0 #0000ff80; border-color: #ff000080; }",
+);
+assert.deepEqual(alphaColorCompressionSummary.execution.executedPassIds, [
+  "color-compression",
+  "print-css",
+]);
+assert.equal(alphaColorCompressionSummary.execution.mutationCount, 3);
+
 const semanticReachabilityResult = spawnSync(
   "cargo",
   [
@@ -577,6 +620,7 @@ process.stdout.write(
     `alphaColorMutations=${alphaColorFunctionSummary.execution.mutationCount}`,
     `alphaOkColorMutations=${alphaOkColorSummary.execution.mutationCount}`,
     `compositeValueMutations=${compositeValueSummary.execution.mutationCount}`,
+    `alphaColorCompressionMutations=${alphaColorCompressionSummary.execution.mutationCount}`,
     `semanticRemovals=${semanticReachabilitySummary.semanticRemovalCount}`,
   ].join(" "),
 );

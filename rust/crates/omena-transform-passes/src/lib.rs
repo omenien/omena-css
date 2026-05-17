@@ -6118,6 +6118,12 @@ struct SrgbColor {
     blue: u8,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct StaticSrgbColorWithAlpha {
+    color: SrgbColor,
+    alpha: Option<f64>,
+}
+
 impl SrgbColor {
     fn to_css_rgb(self) -> String {
         format!("rgb({} {} {})", self.red, self.green, self.blue)
@@ -6157,6 +6163,13 @@ fn mix_srgb_channel(first: u8, second: u8, first_weight: f64, second_weight: f64
 
 fn parse_static_srgb_color(text: &str) -> Option<SrgbColor> {
     parse_static_hex_color(text).or_else(|| parse_basic_named_srgb_color(text))
+}
+
+fn parse_static_srgb_color_with_alpha(text: &str) -> Option<StaticSrgbColorWithAlpha> {
+    Some(StaticSrgbColorWithAlpha {
+        color: parse_static_srgb_color(text)?,
+        alpha: None,
+    })
 }
 
 fn parse_static_hex_color(text: &str) -> Option<SrgbColor> {
@@ -6315,11 +6328,6 @@ fn parse_color_function_value(value: &str) -> Option<String> {
         return None;
     };
     Some(color.to_css_rgb_with_alpha(alpha))
-}
-
-fn parse_opaque_alpha(text: &str) -> Option<bool> {
-    let value = parse_alpha_value(text)?;
-    Some((value - 1.0).abs() <= f64::EPSILON)
 }
 
 fn parse_alpha_value(text: &str) -> Option<f64> {
@@ -8798,11 +8806,11 @@ fn compress_static_color_function_declaration_values_with_lexer(
 
 fn compress_static_color_value(value: &str) -> Option<String> {
     let trimmed = value.trim();
-    let color = parse_static_srgb_color(value)
-        .or_else(|| parse_static_rgb_function_color(value))
-        .or_else(|| parse_static_hsl_function_color(value))
-        .or_else(|| parse_static_hwb_function_color(value))?;
-    let replacement = shortest_static_srgb_color_text(color);
+    let color = parse_static_srgb_color_with_alpha(value)
+        .or_else(|| parse_static_rgb_function_color_with_alpha(value))
+        .or_else(|| parse_static_hsl_function_color_with_alpha(value))
+        .or_else(|| parse_static_hwb_function_color_with_alpha(value))?;
+    let replacement = shortest_static_srgb_color_with_alpha_text(color);
     (replacement.len() < trimmed.len()
         || (replacement.len() == trimmed.len() && replacement != trimmed))
         .then_some(replacement)
@@ -8970,76 +8978,111 @@ fn is_css_ident_continue(ch: char) -> bool {
 }
 
 fn parse_static_rgb_function_color(value: &str) -> Option<SrgbColor> {
+    let parsed = parse_static_rgb_function_color_with_alpha(value)?;
+    parsed.alpha.is_none().then_some(parsed.color)
+}
+
+fn parse_static_rgb_function_color_with_alpha(value: &str) -> Option<StaticSrgbColorWithAlpha> {
     let inner = parse_whole_function_value_inner(value, "rgb")
         .or_else(|| parse_whole_function_value_inner(value, "rgba"))?;
-    let parts = split_static_color_channels_with_optional_opaque_alpha(inner)?;
+    let (parts, alpha) = split_static_color_channels_with_optional_alpha(inner)?;
     let [red, green, blue] = parts.as_slice() else {
         return None;
     };
 
-    Some(SrgbColor {
-        red: parse_rgb_component_byte(red)?,
-        green: parse_rgb_component_byte(green)?,
-        blue: parse_rgb_component_byte(blue)?,
+    Some(StaticSrgbColorWithAlpha {
+        color: SrgbColor {
+            red: parse_rgb_component_byte(red)?,
+            green: parse_rgb_component_byte(green)?,
+            blue: parse_rgb_component_byte(blue)?,
+        },
+        alpha,
     })
 }
 
 fn parse_static_hsl_function_color(value: &str) -> Option<SrgbColor> {
+    let parsed = parse_static_hsl_function_color_with_alpha(value)?;
+    parsed.alpha.is_none().then_some(parsed.color)
+}
+
+fn parse_static_hsl_function_color_with_alpha(value: &str) -> Option<StaticSrgbColorWithAlpha> {
     let inner = parse_whole_function_value_inner(value, "hsl")
         .or_else(|| parse_whole_function_value_inner(value, "hsla"))?;
-    let parts = split_static_color_channels_with_optional_opaque_alpha(inner)?;
+    let (parts, alpha) = split_static_color_channels_with_optional_alpha(inner)?;
     let [hue, saturation, lightness] = parts.as_slice() else {
         return None;
     };
 
-    hsl_to_srgb(
-        parse_hue_degrees(hue)?,
-        parse_bounded_percentage(saturation)?,
-        parse_bounded_percentage(lightness)?,
-    )
+    Some(StaticSrgbColorWithAlpha {
+        color: hsl_to_srgb(
+            parse_hue_degrees(hue)?,
+            parse_bounded_percentage(saturation)?,
+            parse_bounded_percentage(lightness)?,
+        )?,
+        alpha,
+    })
 }
 
 fn parse_static_hwb_function_color(value: &str) -> Option<SrgbColor> {
+    let parsed = parse_static_hwb_function_color_with_alpha(value)?;
+    parsed.alpha.is_none().then_some(parsed.color)
+}
+
+fn parse_static_hwb_function_color_with_alpha(value: &str) -> Option<StaticSrgbColorWithAlpha> {
     let inner = parse_whole_function_value_inner(value, "hwb")?;
-    let parts = split_static_color_channels_with_optional_opaque_alpha(inner)?;
+    let (parts, alpha) = split_static_color_channels_with_optional_alpha(inner)?;
     let [hue, whiteness, blackness] = parts.as_slice() else {
         return None;
     };
 
-    hwb_to_srgb(
-        parse_hue_degrees(hue)?,
-        parse_bounded_percentage(whiteness)?,
-        parse_bounded_percentage(blackness)?,
-    )
+    Some(StaticSrgbColorWithAlpha {
+        color: hwb_to_srgb(
+            parse_hue_degrees(hue)?,
+            parse_bounded_percentage(whiteness)?,
+            parse_bounded_percentage(blackness)?,
+        )?,
+        alpha,
+    })
 }
 
-fn split_static_color_channels_with_optional_opaque_alpha(inner: &str) -> Option<Vec<String>> {
+fn split_static_color_channels_with_optional_alpha(
+    inner: &str,
+) -> Option<(Vec<String>, Option<f64>)> {
     if inner.contains(',') {
         if inner.contains('/') {
             return None;
         }
         let arguments = split_top_level_value_arguments(inner)?;
         return match arguments.as_slice() {
-            [first, second, third] => Some(vec![first.clone(), second.clone(), third.clone()]),
-            [first, second, third, alpha] if parse_opaque_alpha(alpha)? => {
-                Some(vec![first.clone(), second.clone(), third.clone()])
+            [first, second, third] => {
+                Some((vec![first.clone(), second.clone(), third.clone()], None))
             }
+            [first, second, third, alpha] => Some((
+                vec![first.clone(), second.clone(), third.clone()],
+                non_opaque_alpha_value(alpha)?,
+            )),
             _ => None,
         };
     }
 
     let parts = inner.split_whitespace().collect::<Vec<_>>();
     match parts.as_slice() {
-        [first, second, third] => Some(vec![
-            (*first).to_string(),
-            (*second).to_string(),
-            (*third).to_string(),
-        ]),
-        [first, second, third, "/", alpha] if parse_opaque_alpha(alpha)? => Some(vec![
-            (*first).to_string(),
-            (*second).to_string(),
-            (*third).to_string(),
-        ]),
+        [first, second, third] => Some((
+            vec![
+                (*first).to_string(),
+                (*second).to_string(),
+                (*third).to_string(),
+            ],
+            None,
+        )),
+        [first, second, third, "/", alpha] => Some((
+            vec![
+                (*first).to_string(),
+                (*second).to_string(),
+                (*third).to_string(),
+            ],
+            non_opaque_alpha_value(alpha)?,
+        )),
         _ => None,
     }
 }
@@ -9136,6 +9179,13 @@ fn shortest_static_srgb_color_text(color: SrgbColor) -> String {
     }
 }
 
+fn shortest_static_srgb_color_with_alpha_text(color: StaticSrgbColorWithAlpha) -> String {
+    match color.alpha {
+        Some(alpha) => compressed_hex_color_for_srgb_with_alpha(color.color, alpha),
+        None => shortest_static_srgb_color_text(color.color),
+    }
+}
+
 fn shortest_named_srgb_color(color: SrgbColor) -> Option<&'static str> {
     match (color.red, color.green, color.blue) {
         (0, 0, 128) => Some("navy"),
@@ -9154,6 +9204,20 @@ fn shortest_named_srgb_color(color: SrgbColor) -> Option<&'static str> {
 
 fn compressed_hex_color_for_srgb(color: SrgbColor) -> String {
     let hex = format!("{:02x}{:02x}{:02x}", color.red, color.green, color.blue);
+    let compressed = if can_shorten_hex_pairs(&hex) {
+        shorten_hex_pairs(&hex)
+    } else {
+        hex
+    };
+    format!("#{compressed}")
+}
+
+fn compressed_hex_color_for_srgb_with_alpha(color: SrgbColor, alpha: f64) -> String {
+    let alpha = encode_css_rgb_component(alpha);
+    let hex = format!(
+        "{:02x}{:02x}{:02x}{:02x}",
+        color.red, color.green, color.blue, alpha
+    );
     let compressed = if can_shorten_hex_pairs(&hex) {
         shorten_hex_pairs(&hex)
     } else {
@@ -10530,7 +10594,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_static_declaration_colors_only() {
-        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC, 0 0 blue; border: 1px solid black; font-family: blue; background: url(blue.svg); background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-emphasis-color: rgb(128 0 128); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); flood-color: white; lighting-color: black; stop-color: blue; scrollbar-color: hsl(.5TURN 100% 50%); border-block-color: hwb(200GRAD 0% 0%); border-left-color: rgb(255 0 0 / 100%); border-right-color: hsl(120 100% 25% / 1); border-top-color: hwb(240 0% 0% / 100%); background: linear-gradient(rgb(255 0 0), hsl(240 100% 50%)); filter: drop-shadow(0 0 1px hwb(0 100% 0%)); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } .alpha { color: #FFFFFFFF; background-color: #ffff; border-color: #00000000; outline-color: rgba(255, 0, 0, 1); text-decoration-color: hsla(240, 100%, 50%, 100%); } #FFFFFF { color: red; }"#;
+        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC, 0 0 blue; border: 1px solid black; font-family: blue; background: url(blue.svg); background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-emphasis-color: rgb(128 0 128); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); flood-color: white; lighting-color: black; stop-color: blue; scrollbar-color: hsl(.5TURN 100% 50%); border-block-color: hwb(200GRAD 0% 0%); border-left-color: rgb(255 0 0 / 100%); border-right-color: hsl(120 100% 25% / 1); border-top-color: hwb(240 0% 0% / 100%); background: linear-gradient(rgb(255 0 0), hsl(240 100% 50%)); filter: drop-shadow(0 0 1px hwb(0 100% 0%)); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } .alpha { color: #FFFFFFFF; background-color: #ffff; border-color: #00000000; outline-color: rgba(255, 0, 0, 1); text-decoration-color: hsla(240, 100%, 50%, 100%); accent-color: rgba(255, 0, 0, .5); text-shadow: 0 0 hsla(240, 100%, 50%, 50%); column-rule-color: hwb(0 0% 0% / 50%); } #FFFFFF { color: red; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -10539,10 +10603,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 28);
+        assert_eq!(execution.mutation_count, 33);
         assert_eq!(
             execution.output_css,
-            r#".a { color: #fff; box-shadow: 0 0 #abc, 0 0 #00f; border: 1px solid #000; font-family: blue; background: url(blue.svg); background-color: red; border-color: green; outline-color: gray; text-emphasis-color: purple; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: #00f; scrollbar-color: #0ff; border-block-color: #0ff; border-left-color: red; border-right-color: green; border-top-color: #00f; background: linear-gradient(red, #00f); filter: drop-shadow(0 0 1px #fff); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } .alpha { color: #fff; background-color: #fff; border-color: #0000; outline-color: red; text-decoration-color: #00f; } #FFFFFF { color: red; }"#
+            r#".a { color: #fff; box-shadow: 0 0 #abc, 0 0 #00f; border: 1px solid #000; font-family: blue; background: url(blue.svg); background-color: red; border-color: green; outline-color: gray; text-emphasis-color: purple; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: #00f; scrollbar-color: #0ff; border-block-color: #0ff; border-left-color: red; border-right-color: green; border-top-color: #00f; background: linear-gradient(red, #00f); filter: drop-shadow(0 0 1px #fff); border-bottom-color: #ff000080; accent-color: #00000080; --brand: rgb(255 0 0); } .alpha { color: #fff; background-color: #fff; border-color: #0000; outline-color: red; text-decoration-color: #00f; accent-color: #ff000080; text-shadow: 0 0 #0000ff80; column-rule-color: #ff000080; } #FFFFFF { color: red; }"#
         );
     }
 
