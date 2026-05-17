@@ -1076,6 +1076,26 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
             reason: "custom-property reachability must settle before rule deduplication",
         },
         TransformDagEdgeV0 {
+            from: "tree-shake-class",
+            to: "empty-rule-removal",
+            reason: "class tree shaking can leave ordinary and group rules empty",
+        },
+        TransformDagEdgeV0 {
+            from: "tree-shake-keyframes",
+            to: "empty-rule-removal",
+            reason: "keyframe tree shaking can leave enclosing group rules empty",
+        },
+        TransformDagEdgeV0 {
+            from: "tree-shake-value",
+            to: "empty-rule-removal",
+            reason: "@value tree shaking can leave module-only wrappers empty",
+        },
+        TransformDagEdgeV0 {
+            from: "tree-shake-custom-property",
+            to: "empty-rule-removal",
+            reason: "custom-property tree shaking can leave declaration-only rules empty",
+        },
+        TransformDagEdgeV0 {
             from: "comment-strip",
             to: "empty-rule-removal",
             reason: "comment-only rules become removable empty rules after comment stripping",

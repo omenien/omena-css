@@ -10795,6 +10795,31 @@ mod tests {
     }
 
     #[test]
+    fn planner_respects_semantic_tree_shaking_before_empty_rule_removal_edges() {
+        let plan = plan_transform_passes(&[
+            TransformPassKind::EmptyRuleRemoval,
+            TransformPassKind::TreeShakeCustomProperty,
+            TransformPassKind::TreeShakeValue,
+            TransformPassKind::TreeShakeKeyframes,
+            TransformPassKind::TreeShakeClass,
+            TransformPassKind::PrintCss,
+        ]);
+
+        assert_eq!(plan.violated_dag_edge_count, 0);
+        assert_eq!(
+            plan.ordered_pass_ids,
+            vec![
+                "tree-shake-class",
+                "tree-shake-keyframes",
+                "tree-shake-value",
+                "tree-shake-custom-property",
+                "empty-rule-removal",
+                "print-css"
+            ]
+        );
+    }
+
+    #[test]
     fn execution_runtime_inlines_imports_from_explicit_replacements() {
         let source = r#"@import "./tokens.css"; @import url(./theme.css); @import "./conditional.css" layer(theme) supports(display: grid) screen and (min-width: 40rem); .button { color: var(--brand); }"#;
         let context = TransformExecutionContextV0 {

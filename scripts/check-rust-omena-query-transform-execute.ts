@@ -778,6 +778,7 @@ const semanticReachabilityResult = spawnSync(
         "tree-shake-keyframes",
         "tree-shake-value",
         "tree-shake-custom-property",
+        "empty-rule-removal",
       ],
       transformContext: {
         closedStyleWorld: true,
@@ -803,7 +804,13 @@ assert.equal(semanticReachabilitySummary.execution.passPlan.violatedDagEdgeCount
 assert.equal(semanticReachabilitySummary.execution.passPlan.allRequestedRegistered, true);
 assertIncludesAll(
   semanticReachabilitySummary.execution.executedPassIds,
-  ["tree-shake-class", "tree-shake-keyframes", "tree-shake-value", "tree-shake-custom-property"],
+  [
+    "tree-shake-class",
+    "tree-shake-keyframes",
+    "tree-shake-value",
+    "tree-shake-custom-property",
+    "empty-rule-removal",
+  ],
   "semantic reachability executed passes",
 );
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes(".button"));
@@ -820,6 +827,7 @@ assert.ok(!semanticReachabilitySummary.execution.outputCss.includes("@value dead
 assert.ok(!semanticReachabilitySummary.execution.outputCss.includes("@value deadBp from"));
 assert.ok(!semanticReachabilitySummary.execution.outputCss.includes("@property --dead"));
 assert.ok(!semanticReachabilitySummary.execution.outputCss.includes("--dead: blue"));
+assert.ok(!semanticReachabilitySummary.execution.outputCss.includes("@media (min-width: deadBp)"));
 const semanticRemovalPairs = semanticReachabilitySummary.execution.semanticRemovals.map(
   (removal) => `${removal.passId}:${removal.name}`,
 );
