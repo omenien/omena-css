@@ -524,7 +524,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "normalized safe CSS string tokens and declaration-scoped font family strings",
+                    detail: "normalized safe CSS string tokens, declaration-scoped font family strings, and static font keyword aliases",
                 }
             }
             Some(TransformPassKind::SelectorIsWhereCompression) => {
@@ -2002,10 +2002,10 @@ fn strip_css_url_quotes(source: &str, dialect: StyleDialect) -> (String, usize) 
 }
 
 fn normalize_css_string_quotes(source: &str, dialect: StyleDialect) -> (String, usize) {
-    let (source, font_family_mutations) =
-        normalize_css_font_family_strings_with_lexer(source, dialect);
+    let (source, font_declaration_mutations) =
+        normalize_css_font_declarations_with_lexer(source, dialect);
     let (source, token_mutations) = normalize_css_string_quotes_with_lexer(&source, dialect);
-    (source, font_family_mutations + token_mutations)
+    (source, font_declaration_mutations + token_mutations)
 }
 
 fn compress_css_is_where_selectors(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -8300,7 +8300,7 @@ fn normalize_css_string_quotes_with_lexer(source: &str, dialect: StyleDialect) -
     })
 }
 
-fn normalize_css_font_family_strings_with_lexer(
+fn normalize_css_font_declarations_with_lexer(
     source: &str,
     dialect: StyleDialect,
 ) -> (String, usize) {
@@ -8315,12 +8315,10 @@ fn normalize_css_font_family_strings_with_lexer(
         {
             let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
             for declaration in declarations {
-                if !declaration.property.eq_ignore_ascii_case("font-family") {
-                    continue;
-                }
-                let Some(replacement_value) =
-                    normalize_static_font_family_value(&declaration.value)
-                else {
+                let Some(replacement_value) = normalize_static_font_declaration_value(
+                    &declaration.property,
+                    &declaration.value,
+                ) else {
                     continue;
                 };
                 replacements.push((
@@ -8342,6 +8340,15 @@ fn normalize_css_font_family_strings_with_lexer(
     replace_source_ranges(source, &replacements)
 }
 
+fn normalize_static_font_declaration_value(property: &str, value: &str) -> Option<String> {
+    match property {
+        "font-family" => normalize_static_font_family_value(value),
+        "font-weight" => normalize_static_font_weight_value(value),
+        "font-stretch" => normalize_static_font_stretch_value(value),
+        _ => None,
+    }
+}
+
 fn normalize_static_font_family_value(value: &str) -> Option<String> {
     let families = split_top_level_value_arguments(value)?;
     let mut normalized = Vec::with_capacity(families.len());
@@ -8361,6 +8368,30 @@ fn normalize_static_font_family_value(value: &str) -> Option<String> {
     }
 
     changed.then(|| normalized.join(","))
+}
+
+fn normalize_static_font_weight_value(value: &str) -> Option<String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "normal" => Some("400".to_string()),
+        "bold" => Some("700".to_string()),
+        _ => None,
+    }
+}
+
+fn normalize_static_font_stretch_value(value: &str) -> Option<String> {
+    let normalized = match value.trim().to_ascii_lowercase().as_str() {
+        "ultra-condensed" => "50%",
+        "extra-condensed" => "62.5%",
+        "condensed" => "75%",
+        "semi-condensed" => "87.5%",
+        "normal" => "100%",
+        "semi-expanded" => "112.5%",
+        "expanded" => "125%",
+        "extra-expanded" => "150%",
+        "ultra-expanded" => "200%",
+        _ => return None,
+    };
+    Some(normalized.to_string())
 }
 
 fn unquote_static_font_family_name(value: &str) -> Option<String> {
@@ -10409,6 +10440,24 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".a { font-family: Demo; content: 'has "quote"'; background: url("asset.svg"); } .b { font-family: "serif"; } .c { font-family: Open Sans,Helvetica Neue,"system-ui"; } .d { font-family: --brand; }"#
+        );
+    }
+
+    #[test]
+    fn execution_runtime_normalizes_static_font_longhand_keywords() {
+        let source = r#".a { font-weight: normal; font-stretch: normal; } .b { font-weight: bold; font-stretch: condensed; } .c { font-weight: bolder; font-stretch: 80%; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::StringQuoteNormalize,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(
+            execution.output_css,
+            r#".a { font-weight: 400; font-stretch: 100%; } .b { font-weight: 700; font-stretch: 75%; } .c { font-weight: bolder; font-stretch: 80%; }"#
         );
     }
 

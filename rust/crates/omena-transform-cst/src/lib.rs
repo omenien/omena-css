@@ -171,7 +171,7 @@ impl TransformPassKind {
             Self::UnitNormalization => "unit normalization",
             Self::ColorCompression => "color compression",
             Self::UrlQuoteStrip => "url quote strip",
-            Self::StringQuoteNormalize => "string quote normalize",
+            Self::StringQuoteNormalize => "string and font value normalize",
             Self::SelectorIsWhereCompression => "selector alias compression",
             Self::ShorthandCombining => "shorthand combining",
             Self::RuleDeduplication => "rule deduplication",
@@ -795,7 +795,7 @@ pub const fn cascade_safe_obligation(kind: TransformPassKind) -> &'static str {
             "may remove url quotes only when the unquoted token grammar remains equivalent"
         }
         TransformPassKind::StringQuoteNormalize => {
-            "may normalize string quotes only when escaped contents remain byte-equivalent after decoding"
+            "may normalize string quotes and font keyword aliases only when computed text and font values remain equivalent"
         }
         TransformPassKind::SelectorIsWhereCompression => {
             "must preserve selector specificity, keyframe timeline positions, and matching semantics under the cascade model"

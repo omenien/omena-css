@@ -125,6 +125,11 @@ const fixtures: readonly DifferentialFixture[] = [
     source: '.fonts { font-family: "Arial", "Helvetica Neue", "system-ui", sans-serif; }',
   },
   {
+    label: "font-longhand-keywords",
+    source:
+      ".fonts { font-weight: normal; font-stretch: normal; } .bold { font-weight: bold; font-stretch: condensed; }",
+  },
+  {
     label: "alpha-hex-zero-line-height-calc",
     source:
       ".alpha { color: #ffffffff; border-color: #00000000; width: calc(2px * 3); height: calc(6px / 2); line-height: 0em; }",
