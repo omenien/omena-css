@@ -4402,7 +4402,7 @@ fn strip_resolved_css_module_composes_with_lexer(
 ) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
     let mut ranges = Vec::new();
 
     for rule in &rules {
@@ -11028,7 +11028,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_resolves_css_module_composes_with_export_set() {
-        let source = r#".button { composes: base from "./base.module.css"; color: red; } .button:hover { color: blue; } .card, .panel { composes: shared; color: green; }"#;
+        let source = r#".button { composes: base from "./base.module.css"; color: red; } .button:hover { color: blue; } .card, .panel { composes: shared; color: green; } @media (min-width: 1px) { .button { composes: base; color: black; } }"#;
         let context = TransformExecutionContextV0 {
             css_module_composes_resolutions: vec![
                 TransformCssModuleComposesResolutionV0 {
@@ -11056,10 +11056,10 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 3);
         assert_eq!(
             execution.output_css,
-            r#".button {  color: red; } .button:hover { color: blue; } .card, .panel {  color: green; }"#
+            r#".button {  color: red; } .button:hover { color: blue; } .card, .panel {  color: green; } @media (min-width: 1px) { .button {  color: black; } }"#
         );
         assert_eq!(
             execution.css_module_composes_exports,
