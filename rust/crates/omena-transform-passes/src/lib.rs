@@ -3547,13 +3547,29 @@ fn collect_static_css_modules_value_import_replacements(
     collect_static_css_modules_value_import_statements(tokens)
         .into_iter()
         .filter(|statement| {
-            !statement.local_names.is_empty()
-                && statement
-                    .local_names
-                    .iter()
-                    .all(|name| resolved_definitions_by_name.contains_key(name))
+            statement
+                .local_names
+                .iter()
+                .any(|name| resolved_definitions_by_name.contains_key(name))
         })
-        .map(|statement| (statement.start, statement.end, String::new()))
+        .map(|statement| {
+            let unresolved_binding_texts = statement
+                .bindings
+                .iter()
+                .filter(|binding| !resolved_definitions_by_name.contains_key(&binding.local_name))
+                .map(|binding| binding.binding_text.as_str())
+                .collect::<Vec<_>>();
+            let replacement = if unresolved_binding_texts.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    "@value {} {};",
+                    unresolved_binding_texts.join(", "),
+                    statement.from_clause
+                )
+            };
+            (statement.start, statement.end, replacement)
+        })
         .collect()
 }
 
@@ -12017,7 +12033,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_resolves_imported_static_css_modules_values_from_context() {
-        let source = r#"@value primary as brand, gap from "./tokens.module.css"; .btn { color: brand; margin: gap; } @media (min-width: gap) { .btn { color: brand; } }"#;
+        let source = r#"@value primary as brand, gap, tone from "./tokens.module.css"; .btn { color: brand; margin: gap; border-color: tone; } @media (min-width: gap) { .btn { color: brand; } }"#;
         let context = TransformExecutionContextV0 {
             css_module_value_resolutions: vec![
                 TransformCssModuleValueResolutionV0 {
@@ -12044,7 +12060,7 @@ mod tests {
         assert_eq!(execution.mutation_count, 5);
         assert_eq!(
             execution.output_css,
-            r#" .btn { color: #fff; margin: 8px; } @media (min-width: 8px) { .btn { color: #fff; } }"#
+            r#"@value tone from "./tokens.module.css"; .btn { color: #fff; margin: 8px; border-color: tone; } @media (min-width: 8px) { .btn { color: #fff; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
