@@ -3411,6 +3411,10 @@ fn resolve_static_css_modules_values_with_lexer(
         .iter()
         .map(|(definition, resolved_value)| (definition.name.clone(), resolved_value.clone()))
         .collect::<BTreeMap<_, _>>();
+    replacements.extend(collect_static_css_modules_value_media_prelude_replacements(
+        tokens,
+        &resolved_definitions_by_name,
+    ));
     let mut index = 0;
     while index < tokens.len() {
         if tokens[index].kind == SyntaxKind::LeftBrace
@@ -3430,7 +3434,7 @@ fn resolve_static_css_modules_values_with_lexer(
                     format!("{}: {resolved_value};", declaration.property),
                 ));
             }
-            index = close_index + 1;
+            index += 1;
             continue;
         }
         index += 1;
@@ -3456,6 +3460,77 @@ fn resolve_static_css_modules_values_with_lexer(
     }
 
     (output, mutation_count)
+}
+
+fn collect_static_css_modules_value_media_prelude_replacements(
+    tokens: &[omena_parser::LexedToken],
+    resolved_definitions_by_name: &BTreeMap<String, String>,
+) -> Vec<(usize, usize, String)> {
+    let mut replacements = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::AtKeyword
+            && tokens[index].text.eq_ignore_ascii_case("@media")
+        {
+            let prelude_start = index + 1;
+            let Some(prelude_end) = at_rule_prelude_end_index(tokens, prelude_start) else {
+                index += 1;
+                continue;
+            };
+            for candidate_index in prelude_start..prelude_end {
+                let token = &tokens[candidate_index];
+                if token.kind != SyntaxKind::Ident
+                    || !media_prelude_ident_is_feature_value(tokens, candidate_index, prelude_start)
+                {
+                    continue;
+                }
+                let Some(resolved) = resolved_definitions_by_name.get(&token.text) else {
+                    continue;
+                };
+                replacements.push((token_start(token), token_end(token), resolved.clone()));
+            }
+            index = prelude_end;
+            continue;
+        }
+        index += 1;
+    }
+
+    replacements
+}
+
+fn at_rule_prelude_end_index(tokens: &[omena_parser::LexedToken], start: usize) -> Option<usize> {
+    (start..tokens.len()).find(|index| {
+        matches!(
+            tokens[*index].kind,
+            SyntaxKind::LeftBrace | SyntaxKind::RightBrace | SyntaxKind::Semicolon
+        )
+    })
+}
+
+fn media_prelude_ident_is_feature_value(
+    tokens: &[omena_parser::LexedToken],
+    candidate_index: usize,
+    prelude_start: usize,
+) -> bool {
+    previous_significant_token_kind(tokens, candidate_index, prelude_start).is_some_and(|kind| {
+        matches!(
+            kind,
+            SyntaxKind::Colon | SyntaxKind::GreaterThan | SyntaxKind::LessThan | SyntaxKind::Equals
+        )
+    })
+}
+
+fn previous_significant_token_kind(
+    tokens: &[omena_parser::LexedToken],
+    index: usize,
+    lower_bound: usize,
+) -> Option<SyntaxKind> {
+    tokens[lower_bound..index]
+        .iter()
+        .rev()
+        .find(|token| token.kind != SyntaxKind::Whitespace && !is_comment_token(token.kind))
+        .map(|token| token.kind)
 }
 
 fn resolve_static_css_modules_value_definition(
@@ -11349,7 +11424,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_resolves_static_local_css_modules_values() {
-        let source = r#"@value primary: #fff; @value spacing: 8px; @value alias: primary; @value shadow: 0 0 4px primary; @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: primary; margin: spacing spacing; background: alias; box-shadow: shadow; border-color: dup; }"#;
+        let source = r#"@value primary: #fff; @value spacing: 8px; @value alias: primary; @value shadow: 0 0 4px primary; @value bp: 40rem; @value wide: 80rem; @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: primary; margin: spacing spacing; background: alias; box-shadow: shadow; border-color: dup; } @media screen and (min-width: bp) and (width >= wide) { .btn { color: primary; } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -11358,10 +11433,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 8);
+        assert_eq!(execution.mutation_count, 13);
         assert_eq!(
             execution.output_css,
-            r#"    @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: #fff; margin: 8px 8px; background: #fff; box-shadow: 0 0 4px #fff; border-color: dup; }"#
+            r#"      @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: #fff; margin: 8px 8px; background: #fff; box-shadow: 0 0 4px #fff; border-color: dup; } @media screen and (min-width: 40rem) and (width >= 80rem) { .btn { color: #fff; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
