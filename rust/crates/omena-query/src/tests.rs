@@ -952,6 +952,57 @@ fn consumer_build_requires_explicit_reachability_for_tree_shaking() {
 }
 
 #[test]
+fn consumer_build_extends_reachability_through_css_modules_composes() {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "Button.module.css".to_string(),
+        style_source: r#".button { composes: base utility; color: red; } .base { color: blue; } .utility { animation: spin 1s; color: var(--brand); } .dead { color: black; } @keyframes spin { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } } :root { --brand: red; --dead: blue; }"#
+            .to_string(),
+    }];
+    let context = OmenaQueryTransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec!["button".to_string()],
+        ..OmenaQueryTransformExecutionContextV0::default()
+    };
+    let summary_result = execute_omena_query_consumer_build_style_sources_with_context(
+        "Button.module.css",
+        &sources,
+        &[
+            "tree-shake-class".to_string(),
+            "tree-shake-keyframes".to_string(),
+            "tree-shake-custom-property".to_string(),
+        ],
+        &context,
+        &[],
+    );
+    assert!(summary_result.is_ok());
+    let Ok(summary) = summary_result else {
+        return;
+    };
+
+    assert!(summary.execution.output_css.contains(".button"));
+    assert!(summary.execution.output_css.contains(".base"));
+    assert!(summary.execution.output_css.contains(".utility"));
+    assert!(summary.execution.output_css.contains("@keyframes spin"));
+    assert!(summary.execution.output_css.contains("--brand: red"));
+    assert!(!summary.execution.output_css.contains(".dead"));
+    assert!(!summary.execution.output_css.contains("@keyframes ghost"));
+    assert!(!summary.execution.output_css.contains("--dead: blue"));
+    assert_eq!(
+        summary
+            .execution
+            .semantic_removals
+            .iter()
+            .map(|removal| (removal.pass_id, removal.name.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("tree-shake-class", "dead"),
+            ("tree-shake-keyframes", "ghost"),
+            ("tree-shake-custom-property", "--dead"),
+        ]
+    );
+}
+
+#[test]
 fn consumer_build_scopes_semantic_tree_shaking_to_reachable_class_rules() {
     let sources = vec![OmenaQueryStyleSourceInputV0 {
         style_path: "Button.module.css".to_string(),

@@ -634,7 +634,48 @@ fn merge_transform_context(
         merged.design_token_routes = context.design_token_routes.clone();
     }
 
+    expand_reachable_class_names_through_composes(&mut merged);
     merged
+}
+
+fn expand_reachable_class_names_through_composes(context: &mut TransformExecutionContextV0) {
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for resolution in &context.css_module_composes_resolutions {
+            if !class_name_is_reachable(
+                &resolution.local_class_name,
+                &context.reachable_class_names,
+            ) {
+                continue;
+            }
+            for exported_class_name in &resolution.exported_class_names {
+                if !class_name_is_reachable(exported_class_name, &context.reachable_class_names) {
+                    context
+                        .reachable_class_names
+                        .push(exported_class_name.clone());
+                    changed = true;
+                }
+            }
+        }
+    }
+    context.reachable_class_names.sort();
+    context.reachable_class_names.dedup();
+}
+
+fn class_name_is_reachable(class_name: &str, reachable_class_names: &[String]) -> bool {
+    let Some(normalized_class_name) = normalize_reachable_class_name(class_name) else {
+        return false;
+    };
+    reachable_class_names
+        .iter()
+        .filter_map(|name| normalize_reachable_class_name(name))
+        .any(|name| name == normalized_class_name)
+}
+
+fn normalize_reachable_class_name(name: &str) -> Option<&str> {
+    let name = name.trim().strip_prefix('.').unwrap_or(name.trim());
+    (!name.is_empty()).then_some(name)
 }
 
 fn merge_target_options_transform_context(

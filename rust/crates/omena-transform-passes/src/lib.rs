@@ -387,6 +387,10 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
     let pass_plan = plan_transform_passes(requested);
     let requested_pass_ids = requested.iter().map(|pass| pass.id()).collect::<Vec<_>>();
     let ordered_pass_ids = pass_plan.ordered_pass_ids.clone();
+    let reachable_class_names = reachable_class_names_with_composes_exports(
+        &context.reachable_class_names,
+        &context.css_module_composes_resolutions,
+    );
     let mut output_css = source.to_string();
     let mut outcomes = Vec::new();
     let mut css_module_evaluation = None;
@@ -1080,7 +1084,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 let (next_css, removals) = tree_shake_css_class_rules_with_removals(
                     &output_css,
                     dialect,
-                    &context.reachable_class_names,
+                    &reachable_class_names,
                 );
                 let mutation_count = removals.len();
                 let status = if mutation_count == 0 {
@@ -1118,7 +1122,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     &output_css,
                     dialect,
                     &context.reachable_keyframe_names,
-                    &context.reachable_class_names,
+                    &reachable_class_names,
                 );
                 let mutation_count = removals.len();
                 let status = if mutation_count == 0 {
@@ -1156,7 +1160,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     &output_css,
                     dialect,
                     &context.reachable_value_names,
-                    &context.reachable_class_names,
+                    &reachable_class_names,
                 );
                 let mutation_count = removals.len();
                 let status = if mutation_count == 0 {
@@ -1194,7 +1198,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     &output_css,
                     dialect,
                     &context.reachable_custom_property_names,
-                    &context.reachable_class_names,
+                    &reachable_class_names,
                 );
                 let mutation_count = removals.len();
                 let status = if mutation_count == 0 {
@@ -2124,6 +2128,33 @@ fn tree_shake_css_class_rules_with_removals(
     reachable_class_names: &[String],
 ) -> (String, Vec<TransformSemanticRemovalCandidate>) {
     tree_shake_css_class_rules_with_lexer(source, dialect, reachable_class_names)
+}
+
+fn reachable_class_names_with_composes_exports(
+    reachable_class_names: &[String],
+    resolutions: &[TransformCssModuleComposesResolutionV0],
+) -> Vec<String> {
+    let mut expanded = reachable_class_names.to_vec();
+    let mut changed = true;
+
+    while changed {
+        changed = false;
+        for resolution in resolutions {
+            if !class_name_is_reachable(&resolution.local_class_name, &expanded) {
+                continue;
+            }
+            for exported_class_name in &resolution.exported_class_names {
+                if !class_name_is_reachable(exported_class_name, &expanded) {
+                    expanded.push(exported_class_name.clone());
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    expanded.sort();
+    expanded.dedup();
+    expanded
 }
 
 fn tree_shake_css_keyframes_with_removals(
@@ -11273,6 +11304,50 @@ mod tests {
                     .derivation_steps
                     .contains(&"symbolNotMarkedReachable")
         }));
+    }
+
+    #[test]
+    fn execution_runtime_keeps_composed_classes_reachable_during_tree_shaking() {
+        let source = r#".button { composes: base; color: red; } .base { color: blue; } .utility { animation: spin 1s; color: var(--brand); } .dead { color: black; } @keyframes spin { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } } :root { --brand: red; --dead: blue; }"#;
+        let context = TransformExecutionContextV0 {
+            closed_style_world: true,
+            reachable_class_names: vec!["button".to_string()],
+            css_module_composes_resolutions: vec![TransformCssModuleComposesResolutionV0 {
+                local_class_name: "button".to_string(),
+                exported_class_names: vec![
+                    "button".to_string(),
+                    "base".to_string(),
+                    "utility".to_string(),
+                ],
+            }],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::TreeShakeClass,
+                TransformPassKind::TreeShakeKeyframes,
+                TransformPassKind::TreeShakeCustomProperty,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert!(execution.output_css.contains(".button"));
+        assert!(execution.output_css.contains(".base"));
+        assert!(execution.output_css.contains(".utility"));
+        assert!(execution.output_css.contains("@keyframes spin"));
+        assert!(execution.output_css.contains("--brand: red"));
+        assert!(!execution.output_css.contains(".dead"));
+        assert!(!execution.output_css.contains("@keyframes ghost"));
+        assert!(!execution.output_css.contains("--dead: blue"));
+        assert!(
+            execution
+                .semantic_removals
+                .iter()
+                .any(|removal| removal.pass_id == "tree-shake-class" && removal.name == "dead")
+        );
     }
 
     #[test]

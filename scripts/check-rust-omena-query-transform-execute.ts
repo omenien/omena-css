@@ -46,6 +46,29 @@ interface TransformExecuteSummaryV0 {
   readonly readySurfaces: readonly string[];
 }
 
+interface ConsumerBuildSummaryV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly stylePath: string;
+  readonly requestedPassIds: readonly string[];
+  readonly unknownPassIds: readonly string[];
+  readonly semanticRemovalCount: number;
+  readonly execution: {
+    readonly outputCss: string;
+    readonly executedPassIds: readonly string[];
+    readonly semanticRemovals: readonly {
+      readonly passId: string;
+      readonly symbolKind: string;
+      readonly name: string;
+    }[];
+    readonly passPlan: {
+      readonly violatedDagEdgeCount: number;
+      readonly allRequestedRegistered: boolean;
+    };
+  };
+  readonly readySurfaces: readonly string[];
+}
+
 const styleSource =
   '.dupe { display: block; } .dupe { display: block; } .merge { color: red; } .merge { background: blue; } .sel-a { border: 0; } .sel-b { border: 0; } .empty { } .a:is(.ready) { margin-top: 0px; margin-right: 0px; margin-bottom: 0px; margin-left: 0px; color: #FFFFFF; user-select: none; opacity: 1.0; background: url("img.svg"); font-family: \'Demo\'; /* remove */ content: "/* keep */"; }';
 
@@ -293,6 +316,84 @@ assertIncludesAll(
   "transform context execute ready surfaces",
 );
 
+const semanticReachabilityResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "Button.module.css",
+      styles: [
+        {
+          stylePath: "Button.module.css",
+          styleSource:
+            ".button { composes: base utility; color: red; } .base { color: blue; } .utility { animation: spin 1s; color: var(--brand); } .dead { color: black; } @keyframes spin { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } } :root { --brand: red; --dead: blue; }",
+        },
+      ],
+      requestedPassIds: ["tree-shake-class", "tree-shake-keyframes", "tree-shake-custom-property"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["button"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(semanticReachabilityResult.status, 0, semanticReachabilityResult.stderr);
+assert.equal(semanticReachabilityResult.error, undefined);
+
+const semanticReachabilitySummary = JSON.parse(
+  semanticReachabilityResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.equal(semanticReachabilitySummary.schemaVersion, "0");
+assert.equal(semanticReachabilitySummary.product, "omena-query.consumer-build-style-source");
+assert.equal(semanticReachabilitySummary.stylePath, "Button.module.css");
+assert.deepEqual(semanticReachabilitySummary.unknownPassIds, []);
+assert.equal(semanticReachabilitySummary.execution.passPlan.violatedDagEdgeCount, 0);
+assert.equal(semanticReachabilitySummary.execution.passPlan.allRequestedRegistered, true);
+assertIncludesAll(
+  semanticReachabilitySummary.execution.executedPassIds,
+  ["tree-shake-class", "tree-shake-keyframes", "tree-shake-custom-property"],
+  "semantic reachability executed passes",
+);
+assert.ok(semanticReachabilitySummary.execution.outputCss.includes(".button"));
+assert.ok(semanticReachabilitySummary.execution.outputCss.includes(".base"));
+assert.ok(semanticReachabilitySummary.execution.outputCss.includes(".utility"));
+assert.ok(semanticReachabilitySummary.execution.outputCss.includes("@keyframes spin"));
+assert.ok(semanticReachabilitySummary.execution.outputCss.includes("--brand: red"));
+assert.ok(!semanticReachabilitySummary.execution.outputCss.includes(".dead"));
+assert.ok(!semanticReachabilitySummary.execution.outputCss.includes("@keyframes ghost"));
+assert.ok(!semanticReachabilitySummary.execution.outputCss.includes("--dead: blue"));
+assert.deepEqual(
+  semanticReachabilitySummary.execution.semanticRemovals.map((removal) => [
+    removal.passId,
+    removal.name,
+  ]),
+  [
+    ["tree-shake-class", "dead"],
+    ["tree-shake-keyframes", "ghost"],
+    ["tree-shake-custom-property", "--dead"],
+  ],
+);
+assert.equal(semanticReachabilitySummary.semanticRemovalCount, 3);
+assertIncludesAll(
+  semanticReachabilitySummary.readySurfaces,
+  ["consumerBuildFacade", "multiSourceTransformContextProducer"],
+  "semantic reachability build ready surfaces",
+);
+
 process.stdout.write(
   [
     "validated omena-query transform-execute runtime:",
@@ -301,6 +402,7 @@ process.stdout.write(
     `unknown=${summary.unknownPassIds.length}`,
     `contextExecuted=${contextSummary.execution.executedPassIds.length}`,
     `contextMutations=${contextSummary.execution.mutationCount}`,
+    `semanticRemovals=${semanticReachabilitySummary.semanticRemovalCount}`,
   ].join(" "),
 );
 process.stdout.write("\n");
