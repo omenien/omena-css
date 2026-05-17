@@ -5383,6 +5383,7 @@ struct CustomPropertyRegistrationRule {
     name: String,
     start: usize,
     end: usize,
+    initial_value: Option<String>,
 }
 
 fn collect_custom_property_registration_rules(
@@ -5414,12 +5415,18 @@ fn parse_custom_property_registration_rule(
     let name = normalize_custom_property_name(tokens.get(name_index)?.text.as_str())?.to_string();
     let block_start_index = at_rule_block_start(tokens, name_index + 1)?;
     let close_index = matching_right_brace_index(tokens, block_start_index)?;
+    let initial_value =
+        collect_simple_declarations_in_block(tokens, block_start_index, close_index)
+            .into_iter()
+            .find(|declaration| declaration.property == "initial-value" && !declaration.important)
+            .map(|declaration| declaration.value);
 
     Some((
         CustomPropertyRegistrationRule {
             name,
             start: token_start(&tokens[at_property_index]),
             end: token_end(&tokens[close_index]),
+            initial_value,
         },
         close_index + 1,
     ))
@@ -5766,6 +5773,7 @@ fn collect_static_root_custom_property_env(
 ) -> CustomPropertyEnv {
     let mut env = CustomPropertyEnv::new();
     let mut blocked_names = Vec::new();
+    let registrations = collect_custom_property_registration_rules(tokens);
 
     for rule in rules {
         if rule.selector == ":root" {
@@ -5822,6 +5830,29 @@ fn collect_static_root_custom_property_env(
             };
             env.insert(declaration.property, value);
         }
+    }
+
+    let mut registration_names = Vec::new();
+    for registration in registrations {
+        if blocked_names.contains(&registration.name) {
+            continue;
+        }
+        if registration_names.contains(&registration.name) {
+            env.remove(&registration.name);
+            blocked_names.push(registration.name);
+            continue;
+        }
+        registration_names.push(registration.name.clone());
+        if env.contains_key(&registration.name) {
+            continue;
+        }
+        let Some(initial_value) = registration.initial_value else {
+            continue;
+        };
+        let Some(value) = parse_static_custom_property_env_value(&initial_value) else {
+            continue;
+        };
+        env.insert(registration.name, value);
     }
 
     env
@@ -11795,6 +11826,24 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#":root { --brand: red; --gap: 2rem; --tone: red; --tone: blue !important; } .card { --brand: blue; color: var(--brand); margin: 2rem; border-color: var(--tone); } .other { color: var(--brand); }"#
+        );
+    }
+
+    #[test]
+    fn execution_runtime_resolves_unique_property_initial_values() {
+        let source = r#"@property --brand { syntax: "<color>"; inherits: false; initial-value: red; } @property --shadowed { syntax: "<color>"; inherits: false; initial-value: green; } @property --dup { syntax: "<color>"; inherits: false; initial-value: blue; } @property --dup { syntax: "<color>"; inherits: false; initial-value: purple; } .card { --shadowed: orange; color: var(--brand); background: var(--shadowed); border-color: var(--dup); }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::StaticVarSubstitution,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#"@property --brand { syntax: "<color>"; inherits: false; initial-value: red; } @property --shadowed { syntax: "<color>"; inherits: false; initial-value: green; } @property --dup { syntax: "<color>"; inherits: false; initial-value: blue; } @property --dup { syntax: "<color>"; inherits: false; initial-value: purple; } .card { --shadowed: orange; color: red; background: var(--shadowed); border-color: var(--dup); }"#
         );
     }
 

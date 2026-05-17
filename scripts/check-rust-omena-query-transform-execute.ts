@@ -678,7 +678,7 @@ const staticVarShadowResult = spawnSync(
     input: JSON.stringify({
       stylePath: "shadowed-custom-properties.css",
       styleSource:
-        ":root { --brand: red; --gap: 2rem; --tone: red; --tone: blue !important; } .card { --brand: blue; color: var(--brand); margin: var(--gap); border-color: var(--tone); } .other { color: var(--brand); }",
+        '@property --registered { syntax: "<color>"; inherits: false; initial-value: red; } :root { --brand: red; --gap: 2rem; --tone: red; --tone: blue !important; } .card { --brand: blue; color: var(--brand); margin: var(--gap); border-color: var(--tone); outline-color: var(--registered); } .other { color: var(--brand); }',
       requestedPassIds: ["custom-property-static-resolve", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
@@ -695,13 +695,13 @@ const staticVarShadowSummary = JSON.parse(
 assert.equal(staticVarShadowSummary.product, "omena-query.transform-execute");
 assert.equal(
   staticVarShadowSummary.execution.outputCss,
-  ":root { --brand: red; --gap: 2rem; --tone: red; --tone: blue !important; } .card { --brand: blue; color: var(--brand); margin: 2rem; border-color: var(--tone); } .other { color: var(--brand); }",
+  '@property --registered { syntax: "<color>"; inherits: false; initial-value: red; } :root { --brand: red; --gap: 2rem; --tone: red; --tone: blue !important; } .card { --brand: blue; color: var(--brand); margin: 2rem; border-color: var(--tone); outline-color: red; } .other { color: var(--brand); }',
 );
 assert.deepEqual(staticVarShadowSummary.execution.executedPassIds, [
   "custom-property-static-resolve",
   "print-css",
 ]);
-assert.equal(staticVarShadowSummary.execution.mutationCount, 1);
+assert.equal(staticVarShadowSummary.execution.mutationCount, 2);
 
 const semanticReachabilityResult = spawnSync(
   "cargo",
