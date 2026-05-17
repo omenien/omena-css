@@ -151,7 +151,11 @@ fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
                 .to_string(),
         ),
     );
-    refresh_source_type_fact_candidates_for_document(state, uri);
+    if is_style_document_uri(uri) {
+        refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
+    } else {
+        refresh_source_type_fact_candidates_for_document(state, uri);
+    }
 }
 
 fn did_change_text_document(state: &mut LspShellState, params: Option<&Value>) {
@@ -185,7 +189,11 @@ fn did_change_text_document(state: &mut LspShellState, params: Option<&Value>) {
         refresh_document_reusable_indexes(existing);
     }
     if text_changed {
-        refresh_source_type_fact_candidates_for_document(state, uri);
+        if is_style_document_uri(uri) {
+            refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
+        } else {
+            refresh_source_type_fact_candidates_for_document(state, uri);
+        }
     }
 }
 
@@ -224,9 +232,13 @@ fn did_close_text_document(state: &mut LspShellState, params: Option<&Value>) {
     };
     state.open_document_uris.remove(uri);
     if is_style_document_uri(uri) && reload_indexed_style_document_from_disk(state, uri) {
+        refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
         return;
     }
     state.documents.remove(uri);
+    if is_style_document_uri(uri) {
+        refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
+    }
 }
 
 fn did_change_workspace_folders(state: &mut LspShellState, params: Option<&Value>) {
@@ -290,10 +302,20 @@ fn apply_watched_file_change_to_index(state: &mut LspShellState, uri: &str, chan
     }
     if change_type == 3 {
         state.documents.remove(uri);
+        refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
         return;
     }
 
-    reload_indexed_style_document_from_disk(state, uri);
+    if reload_indexed_style_document_from_disk(state, uri) {
+        refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
+    }
+}
+
+pub(crate) fn ensure_style_document_loaded_from_disk(state: &mut LspShellState, uri: &str) -> bool {
+    if state.documents.contains_key(uri) {
+        return true;
+    }
+    reload_indexed_style_document_from_disk(state, uri)
 }
 
 fn reload_indexed_style_document_from_disk(state: &mut LspShellState, uri: &str) -> bool {
@@ -317,6 +339,35 @@ fn reload_indexed_style_document_from_disk(state: &mut LspShellState, uri: &str)
         ),
     );
     true
+}
+
+fn refresh_source_type_fact_candidates_for_referencing_documents(
+    state: &mut LspShellState,
+    style_uri: &str,
+) {
+    let source_uris = state
+        .documents
+        .values()
+        .filter(|document| !is_style_document_uri(document.uri.as_str()))
+        .filter(|document| document_references_style_uri(document, style_uri))
+        .map(|document| document.uri.clone())
+        .collect::<Vec<_>>();
+    for source_uri in source_uris {
+        refresh_source_type_fact_candidates_for_document(state, source_uri.as_str());
+    }
+}
+
+fn document_references_style_uri(document: &LspTextDocumentState, style_uri: &str) -> bool {
+    document
+        .source_syntax_index
+        .selector_references
+        .iter()
+        .any(|reference| reference.target_style_uri.as_deref() == Some(style_uri))
+        || document
+            .source_syntax_index
+            .type_fact_targets
+            .iter()
+            .any(|target| target.target_style_uri.as_deref() == Some(style_uri))
 }
 
 fn insert_workspace_folder(state: &mut LspShellState, folder: &Value) {

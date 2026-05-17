@@ -8,6 +8,11 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 pub const TSGO_TYPE_FLAGS_UNION: u64 = 134_217_728;
+pub const TSGO_TYPE_FLAGS_ANY: u64 = 1;
+pub const TSGO_TYPE_FLAGS_UNDEFINED: u64 = 4;
+pub const TSGO_TYPE_FLAGS_NULL: u64 = 8;
+pub const TSGO_TYPE_FLAGS_NULLISH: u64 =
+    TSGO_TYPE_FLAGS_ANY | TSGO_TYPE_FLAGS_UNDEFINED | TSGO_TYPE_FLAGS_NULL;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -349,9 +354,12 @@ pub fn reduce_tsgo_type_response(
 
     let mut values = Vec::new();
     for member in union_members {
+        if is_pure_nullish_tsgo_type_response(member) {
+            continue;
+        }
         let resolved_member = reduce_tsgo_type_response(member, &[]);
         if resolved_member.kind != "union" || resolved_member.values.len() != 1 {
-            return unresolvable_tsgo_type();
+            continue;
         }
         values.extend(resolved_member.values);
     }
@@ -570,18 +578,18 @@ pub fn read_tsgo_json_rpc_message(
     reader: &mut impl Read,
     buffer: &mut Vec<u8>,
 ) -> Result<Option<serde_json::Value>, TsgoJsonRpcIoErrorV0> {
-    if let Some(message) = drain_tsgo_json_rpc_frames(buffer)?.into_iter().next() {
-        return Ok(Some(message));
-    }
+    loop {
+        if let Some(message) = drain_tsgo_json_rpc_frames(buffer)?.into_iter().next() {
+            return Ok(Some(message));
+        }
 
-    let mut chunk = [0; 8192];
-    let read = reader.read(&mut chunk)?;
-    if read == 0 {
-        return Ok(None);
+        let mut chunk = [0; 8192];
+        let read = reader.read(&mut chunk)?;
+        if read == 0 {
+            return Ok(None);
+        }
+        buffer.extend_from_slice(&chunk[..read]);
     }
-    buffer.extend_from_slice(&chunk[..read]);
-
-    Ok(drain_tsgo_json_rpc_frames(buffer)?.into_iter().next())
 }
 
 pub fn build_tsgo_api_args(workspace_root: &str, checkers: Option<usize>) -> Vec<String> {
@@ -1025,9 +1033,12 @@ where
 
         let mut values = Vec::new();
         for member in members {
+            if is_pure_nullish_tsgo_type_response(member) {
+                continue;
+            }
             let resolved = self.resolve_type_response(workspace_root, snapshot, member)?;
             if resolved.kind != "union" || resolved.values.len() != 1 {
-                return Ok(unresolvable_tsgo_type());
+                continue;
             }
             values.extend(resolved.values);
         }
@@ -1104,6 +1115,14 @@ fn literal_type_response_value(type_response: &serde_json::Value) -> Option<Stri
         return Some(format!("{value:.0}"));
     }
     None
+}
+
+fn is_pure_nullish_tsgo_type_response(type_response: &serde_json::Value) -> bool {
+    let flags = type_response
+        .get("flags")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or_default();
+    flags != 0 && flags & TSGO_TYPE_FLAGS_NULLISH != 0 && flags & !TSGO_TYPE_FLAGS_NULLISH == 0
 }
 
 fn content_length_from_header(header: &str) -> Result<usize, TsgoJsonRpcFrameErrorV0> {
@@ -1212,15 +1231,15 @@ impl ManagedTsgoWorkspaceProcessV0 {
 #[cfg(test)]
 mod tests {
     use super::{
-        TSGO_TYPE_FLAGS_UNION, TsgoJsonRpcIoErrorV0, TsgoJsonRpcOutboundRequestV0,
-        TsgoJsonRpcProviderTransportV0, TsgoJsonRpcTypeFactProviderV0, TsgoProcessCommandV0,
-        TsgoProviderRetryPolicyV0, TsgoTypeFactRequestV0, TsgoTypeFactRpcClientV0,
-        TsgoTypeFactTargetV0, TsgoWorkspaceProcessConfigV0, TsgoWorkspaceProcessPoolV0,
-        build_tsgo_api_args, build_tsgo_process_command, drain_tsgo_json_rpc_frames,
-        encode_tsgo_json_rpc_message, encode_tsgo_json_rpc_request, plan_tsgo_type_fact_collection,
-        read_tsgo_json_rpc_message, reduce_tsgo_type_response,
-        summarize_omena_tsgo_client_boundary, summarize_tsgo_json_rpc_transport,
-        write_tsgo_json_rpc_request,
+        TSGO_TYPE_FLAGS_UNDEFINED, TSGO_TYPE_FLAGS_UNION, TsgoJsonRpcIoErrorV0,
+        TsgoJsonRpcOutboundRequestV0, TsgoJsonRpcProviderTransportV0,
+        TsgoJsonRpcTypeFactProviderV0, TsgoProcessCommandV0, TsgoProviderRetryPolicyV0,
+        TsgoTypeFactRequestV0, TsgoTypeFactRpcClientV0, TsgoTypeFactTargetV0,
+        TsgoWorkspaceProcessConfigV0, TsgoWorkspaceProcessPoolV0, build_tsgo_api_args,
+        build_tsgo_process_command, drain_tsgo_json_rpc_frames, encode_tsgo_json_rpc_message,
+        encode_tsgo_json_rpc_request, plan_tsgo_type_fact_collection, read_tsgo_json_rpc_message,
+        reduce_tsgo_type_response, summarize_omena_tsgo_client_boundary,
+        summarize_tsgo_json_rpc_transport, write_tsgo_json_rpc_request,
     };
     use serde_json::json;
     use std::{collections::VecDeque, io};
@@ -1394,6 +1413,25 @@ mod tests {
     }
 
     #[test]
+    fn reads_tsgo_json_rpc_message_across_multiple_io_chunks()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let response = encode_tsgo_json_rpc_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": { "payload": "x".repeat(12_000) }
+        }))?;
+        let mut reader = std::io::Cursor::new(response);
+        let mut buffer = Vec::new();
+        let message = read_tsgo_json_rpc_message(&mut reader, &mut buffer)?;
+
+        assert_eq!(
+            message.and_then(|value| value.pointer("/result/payload").cloned()),
+            Some(json!("x".repeat(12_000)))
+        );
+        Ok(())
+    }
+
+    #[test]
     fn type_fact_rpc_client_emits_node_compatible_requests()
     -> Result<(), Box<dyn std::error::Error>> {
         let target = TsgoTypeFactTargetV0 {
@@ -1497,6 +1535,36 @@ mod tests {
     }
 
     #[test]
+    fn skips_nullish_and_non_literal_union_members_when_literals_remain() {
+        let resolved = reduce_tsgo_type_response(
+            &json!({ "id": "type-1", "flags": TSGO_TYPE_FLAGS_UNION }),
+            &[
+                json!({ "id": "undefined", "flags": TSGO_TYPE_FLAGS_UNDEFINED }),
+                json!({ "id": "non-literal" }),
+                json!({ "value": 10 }),
+                json!({ "value": 12 }),
+            ],
+        );
+
+        assert_eq!(resolved.kind, "union");
+        assert_eq!(resolved.values, vec!["10", "12"]);
+    }
+
+    #[test]
+    fn keeps_union_unresolvable_when_only_nullish_or_non_literal_members_remain() {
+        let resolved = reduce_tsgo_type_response(
+            &json!({ "id": "type-1", "flags": TSGO_TYPE_FLAGS_UNION }),
+            &[
+                json!({ "id": "undefined", "flags": TSGO_TYPE_FLAGS_UNDEFINED }),
+                json!({ "id": "non-literal" }),
+            ],
+        );
+
+        assert_eq!(resolved.kind, "unresolvable");
+        assert!(resolved.values.is_empty());
+    }
+
+    #[test]
     fn json_rpc_type_fact_provider_collects_literal_and_union_facts()
     -> Result<(), Box<dyn std::error::Error>> {
         let request = TsgoTypeFactRequestV0 {
@@ -1549,6 +1617,40 @@ mod tests {
             entries[1].resolved_type.values,
             vec!["primary", "secondary"]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn json_rpc_type_fact_provider_soft_skips_nullish_union_members()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let request = TsgoTypeFactRequestV0 {
+            workspace_root: "/repo".to_string(),
+            config_path: "/repo/tsconfig.json".to_string(),
+            targets: vec![TsgoTypeFactTargetV0 {
+                file_path: "/repo/src/App.tsx".to_string(),
+                expression_id: "expr-1".to_string(),
+                position: 12,
+            }],
+        };
+        let transport = FakeTsgoTransport::new(vec![
+            json!(null),
+            json!({ "snapshot": "snapshot-1" }),
+            json!({ "id": "project-1" }),
+            json!({ "id": "type-1", "flags": TSGO_TYPE_FLAGS_UNION }),
+            json!([
+                { "id": "undefined", "flags": TSGO_TYPE_FLAGS_UNDEFINED },
+                { "value": 10 },
+                { "value": 12 },
+            ]),
+            json!(null),
+        ]);
+        let mut provider = TsgoJsonRpcTypeFactProviderV0::new(transport);
+
+        let entries = provider.collect_type_facts(&request)?;
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].resolved_type.kind, "union");
+        assert_eq!(entries[0].resolved_type.values, vec!["10", "12"]);
         Ok(())
     }
 

@@ -1,7 +1,7 @@
 use crate::protocol::{file_uri_to_path, is_css_identifier_continue};
 use crate::{
-    LspShellState, LspTextDocumentState, parser_range_for_byte_span,
-    source_selector_candidates_from_index,
+    LspShellState, LspTextDocumentState, ensure_style_document_loaded_from_disk,
+    parser_range_for_byte_span, source_selector_candidates_from_index,
 };
 use omena_query::{
     OmenaQueryEngineInputV2,
@@ -78,7 +78,8 @@ fn tsgo_type_fact_request_for_document(
     let targets = type_fact_targets
         .iter()
         .filter_map(|target| {
-            let position = u32::try_from(target.byte_span.start).ok()?;
+            let position =
+                utf16_position_for_byte_offset(document.text.as_str(), target.byte_span.start)?;
             Some(TsgoTypeFactTargetV0 {
                 file_path: file_path.clone(),
                 expression_id: target.expression_id.clone(),
@@ -101,13 +102,14 @@ pub(crate) fn apply_source_type_fact_results_to_document(
     uri: &str,
     entries: &[TsgoTypeFactResultEntryV0],
 ) {
-    let Some(document) = state.document(uri) else {
+    let Some(document) = state.document(uri).cloned() else {
         return;
     };
     let mut references = document.source_syntax_index.selector_references.clone();
     let targets = document.source_syntax_index.type_fact_targets.clone();
+    ensure_referenced_style_documents_loaded_for_type_facts(state, targets.as_slice());
     for (target, selector_name) in
-        project_source_type_fact_targets_with_query(state, document, targets.as_slice(), entries)
+        project_source_type_fact_targets_with_query(state, &document, targets.as_slice(), entries)
     {
         push_selector_reference(
             target.byte_span,
@@ -291,6 +293,27 @@ fn project_tsgo_type_fact_target(
     names.sort();
     names.dedup();
     names
+}
+
+fn ensure_referenced_style_documents_loaded_for_type_facts(
+    state: &mut LspShellState,
+    targets: &[SourceTypeFactTarget],
+) {
+    let mut referenced_style_uris = targets
+        .iter()
+        .filter_map(|target| target.target_style_uri.clone())
+        .collect::<Vec<_>>();
+    referenced_style_uris.sort();
+    referenced_style_uris.dedup();
+    for style_uri in referenced_style_uris {
+        ensure_style_document_loaded_from_disk(state, style_uri.as_str());
+    }
+}
+
+fn utf16_position_for_byte_offset(source: &str, byte_offset: usize) -> Option<u32> {
+    let prefix = source.get(..byte_offset)?;
+    let position = prefix.chars().map(char::len_utf16).sum::<usize>();
+    u32::try_from(position).ok()
 }
 
 fn push_selector_reference(

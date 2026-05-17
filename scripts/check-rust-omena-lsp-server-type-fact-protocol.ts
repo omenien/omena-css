@@ -27,7 +27,8 @@ mkdirSync(srcDir, { recursive: true });
 const sourceText = `import bind from "classnames/bind";
 import styles from "./App.module.scss";
 const cx = bind.bind(styles);
-interface Props { size: "medium" | "small"; fontSize?: 10 | 12; }
+// 기준 size와 font-size가 다르게 선언된 경우에도 tsgo positions must stay aligned.
+interface Props { size: "medium" | "small"; fontSize?: 10 | 12; weight?: "bold" | "medium"; }
 export function Badge({ size, fontSize }: Props) {
   return <span className={cx(size, \`font-size-\${fontSize}\`)} />;
 }
@@ -36,6 +37,17 @@ const styleText = `.medium { color: red; }
 .small { color: blue; }
 .font-size-10 { font-size: 10px; }
 .font-size-12 { font-size: 12px; }
+`;
+const lateSourceText = `import bind from "classnames/bind";
+import styles from "./Late.module.scss";
+const cx = bind.bind(styles);
+interface Props { tone: "info" | "warn"; }
+export function LateBadge({ tone }: Props) {
+  return <span className={cx(tone)} />;
+}
+`;
+const lateStyleText = `.info { color: blue; }
+.warn { color: orange; }
 `;
 
 async function main(): Promise<void> {
@@ -79,12 +91,20 @@ function writeFixtureProject(): void {
   );
   writeFileSync(path.join(srcDir, "App.tsx"), sourceText);
   writeFileSync(path.join(srcDir, "App.module.scss"), styleText);
+  writeFileSync(path.join(srcDir, "Late.tsx"), lateSourceText);
+  for (let index = 0; index < 140; index += 1) {
+    writeFileSync(
+      path.join(srcDir, `Synthetic${index}.tsx`),
+      `export const synthetic${index} = ${index};\n`,
+    );
+  }
 }
 
 async function runTypeFactProtocolSmoke(): Promise<void> {
   const sourceUri = fileUri(path.join(srcDir, "App.tsx"));
   const styleUri = fileUri(path.join(srcDir, "App.module.scss"));
   const sizePosition = positionForOffset(sourceText, sourceText.indexOf("cx(size") + "cx(".length);
+  const fontSizePosition = positionForOffset(sourceText, sourceText.lastIndexOf("fontSize"));
   const client = new JsonRpcClient(serverPath, repoRoot);
 
   try {
@@ -103,18 +123,14 @@ async function runTypeFactProtocolSmoke(): Promise<void> {
         text: sourceText,
       },
     });
-    client.notify("textDocument/didOpen", {
-      textDocument: {
-        uri: styleUri,
-        languageId: "scss",
-        version: 1,
-        text: styleText,
-      },
-    });
 
     const hover = await client.request("textDocument/hover", {
       textDocument: { uri: sourceUri },
       position: sizePosition,
+    });
+    const fontSizeHover = await client.request("textDocument/hover", {
+      textDocument: { uri: sourceUri },
+      position: fontSizePosition,
     });
     const definition = await client.request("textDocument/definition", {
       textDocument: { uri: sourceUri },
@@ -127,12 +143,18 @@ async function runTypeFactProtocolSmoke(): Promise<void> {
     });
 
     const hoverText = readString(hover, ["contents", "value"]);
+    const fontSizeHoverText = readString(fontSizeHover, ["contents", "value"]);
     const definitionUris = readArray(definition).map((location) => readString(location, ["uri"]));
     const referenceUris = readArray(references).map((location) => readString(location, ["uri"]));
 
     assert(
       hoverText.includes("`.medium`") && hoverText.includes("`.small`"),
       `hover did not include projected selector facts: ${hoverText}`,
+    );
+    assert(
+      fontSizeHoverText.includes("`.font-size-10`") &&
+        fontSizeHoverText.includes("`.font-size-12`"),
+      `fontSize hover did not include optional union selector facts: ${fontSizeHoverText}`,
     );
     assert(
       definitionUris.filter((uri) => uri === styleUri).length === 2,
@@ -148,13 +170,55 @@ async function runTypeFactProtocolSmoke(): Promise<void> {
         "validated rust omena-lsp-server type-fact protocol:",
         `definitions=${definitionUris.length}`,
         `references=${referenceUris.length}`,
+        "diskFallback=unopened-style",
+        "unicodePosition=utf16",
+        "union=nullish-soft-skip",
         "projection=omena-query",
       ].join(" "),
     );
     process.stdout.write("\n");
+    await runStyleOpenRetriggerSmoke(client);
   } finally {
     await client.shutdown();
   }
+}
+
+async function runStyleOpenRetriggerSmoke(client: JsonRpcClient): Promise<void> {
+  const lateSourceUri = fileUri(path.join(srcDir, "Late.tsx"));
+  const lateStylePath = path.join(srcDir, "Late.module.scss");
+  const lateStyleUri = fileUri(lateStylePath);
+  const tonePosition = positionForOffset(
+    lateSourceText,
+    lateSourceText.indexOf("cx(tone") + "cx(".length,
+  );
+
+  client.notify("textDocument/didOpen", {
+    textDocument: {
+      uri: lateSourceUri,
+      languageId: "typescriptreact",
+      version: 1,
+      text: lateSourceText,
+    },
+  });
+  writeFileSync(lateStylePath, lateStyleText);
+  client.notify("textDocument/didOpen", {
+    textDocument: {
+      uri: lateStyleUri,
+      languageId: "scss",
+      version: 1,
+      text: lateStyleText,
+    },
+  });
+
+  const hover = await client.request("textDocument/hover", {
+    textDocument: { uri: lateSourceUri },
+    position: tonePosition,
+  });
+  const hoverText = readString(hover, ["contents", "value"]);
+  assert(
+    hoverText.includes("`.info`") && hoverText.includes("`.warn`"),
+    `late style didOpen did not retrigger source projection: ${hoverText}`,
+  );
 }
 
 class JsonRpcClient {
