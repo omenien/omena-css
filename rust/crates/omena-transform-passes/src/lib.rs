@@ -5511,7 +5511,11 @@ fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) -> (String, u
             for declaration in declarations {
                 let Some(replacement_value) = substitute_static_css_function_references_in_value(
                     &declaration.value,
-                    &[("calc", parse_reducible_calc_value)],
+                    &[
+                        ("calc", parse_reducible_calc_value),
+                        ("min", parse_reducible_min_value),
+                        ("max", parse_reducible_max_value),
+                    ],
                 ) else {
                     continue;
                 };
@@ -5611,6 +5615,36 @@ fn parse_reducible_calc_value(value: &str) -> Option<String> {
     }
 
     None
+}
+
+fn parse_reducible_min_value(value: &str) -> Option<String> {
+    parse_reducible_extreme_value(value, "min", f64::min)
+}
+
+fn parse_reducible_max_value(value: &str) -> Option<String> {
+    parse_reducible_extreme_value(value, "max", f64::max)
+}
+
+fn parse_reducible_extreme_value(
+    value: &str,
+    function_name: &str,
+    reduce: fn(f64, f64) -> f64,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let first = arguments.first()?;
+    let first = parse_numeric_value_with_unit(first.trim())?;
+    let mut selected = first.value;
+    let unit = first.unit;
+
+    for argument in arguments.iter().skip(1) {
+        let candidate = parse_numeric_value_with_unit(argument.trim())?;
+        if candidate.unit != unit {
+            return None;
+        }
+        selected = reduce(selected, candidate.value);
+    }
+
+    Some(format!("{}{}", format_css_number(selected), unit))
 }
 
 fn parse_reducible_calc_additive_chain(inner: &str) -> Option<String> {
@@ -11271,7 +11305,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_reduces_simple_same_unit_calc_values() {
-        let source = r#".card { width: calc(1px + 2px); height: calc(10rem - 2rem); margin: calc(1px + 2rem); padding: calc(2px + 3px + 4px); margin-block-start: calc(10px - 3px - 2px); color: calc(1 + 2); gap: calc(.5rem+.25rem); inset: calc(1px - -2px); letter-spacing: calc(2px * 1); border-width: calc(1 * 3px); z-index: calc(4 / 1); scale: calc(3 * 0); box-shadow: 0 0 calc(1px + 2px) red; transform: translate(calc(10px - 2px), calc(1rem + 1rem)); }"#;
+        let source = r#".card { width: calc(1px + 2px); height: calc(10rem - 2rem); margin: calc(1px + 2rem); padding: calc(2px + 3px + 4px); margin-block-start: calc(10px - 3px - 2px); color: calc(1 + 2); gap: calc(.5rem+.25rem); inset: calc(1px - -2px); letter-spacing: calc(2px * 1); border-width: calc(1 * 3px); z-index: calc(4 / 1); scale: calc(3 * 0); box-shadow: 0 0 calc(1px + 2px) red; transform: translate(calc(10px - 2px), calc(1rem + 1rem)); min-width: min(10px, 4px); max-width: max(1rem, 2rem); block-size: min(2em, 1rem); opacity: max(.2, .5); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -11280,10 +11314,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 13);
+        assert_eq!(execution.mutation_count, 16);
         assert_eq!(
             execution.output_css,
-            r#".card { width: 3px; height: 8rem; margin: calc(1px + 2rem); padding: 9px; margin-block-start: 5px; color: 3; gap: 0.75rem; inset: 3px; letter-spacing: 2px; border-width: 3px; z-index: 4; scale: 0; box-shadow: 0 0 3px red; transform: translate(8px, 2rem); }"#
+            r#".card { width: 3px; height: 8rem; margin: calc(1px + 2rem); padding: 9px; margin-block-start: 5px; color: 3; gap: 0.75rem; inset: 3px; letter-spacing: 2px; border-width: 3px; z-index: 4; scale: 0; box-shadow: 0 0 3px red; transform: translate(8px, 2rem); min-width: 4px; max-width: 2rem; block-size: min(2em, 1rem); opacity: 0.5; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,

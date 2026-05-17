@@ -573,6 +573,49 @@ assert.deepEqual(colorMixPercentageSummary.execution.executedPassIds, [
 ]);
 assert.equal(colorMixPercentageSummary.execution.mutationCount, 2);
 
+const mathFunctionReductionResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "math-functions.css",
+      styleSource:
+        ".card { width: min(10px, 4px); height: max(1rem, 2rem); margin: min(1px, 1rem); opacity: max(.2, .5); }",
+      requestedPassIds: ["calc-reduction", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(mathFunctionReductionResult.status, 0, mathFunctionReductionResult.stderr);
+assert.equal(mathFunctionReductionResult.error, undefined);
+
+const mathFunctionReductionSummary = JSON.parse(
+  mathFunctionReductionResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(mathFunctionReductionSummary.product, "omena-query.transform-execute");
+assert.equal(
+  mathFunctionReductionSummary.execution.outputCss,
+  ".card { width: 4px; height: 2rem; margin: min(1px, 1rem); opacity: 0.5; }",
+);
+assert.deepEqual(mathFunctionReductionSummary.execution.executedPassIds, [
+  "calc-reduction",
+  "print-css",
+]);
+assert.equal(mathFunctionReductionSummary.execution.mutationCount, 3);
+
 const semanticReachabilityResult = spawnSync(
   "cargo",
   [
@@ -665,6 +708,7 @@ process.stdout.write(
     `compositeValueMutations=${compositeValueSummary.execution.mutationCount}`,
     `alphaColorCompressionMutations=${alphaColorCompressionSummary.execution.mutationCount}`,
     `colorMixPercentageMutations=${colorMixPercentageSummary.execution.mutationCount}`,
+    `mathFunctionMutations=${mathFunctionReductionSummary.execution.mutationCount}`,
     `semanticRemovals=${semanticReachabilitySummary.semanticRemovalCount}`,
   ].join(" "),
 );
