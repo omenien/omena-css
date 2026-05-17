@@ -37,6 +37,7 @@ const passIds = [
   "rule-merging",
   "selector-merging",
   "empty-rule-removal",
+  "media-static-eval",
   "calc-reduction",
   "print-css",
 ] as const;
@@ -81,6 +82,10 @@ const fixtures: readonly DifferentialFixture[] = [
   {
     label: "keyframes-empty-frame",
     source: "@keyframes fade { 0% {} to { opacity: 1 } } .empty{}",
+  },
+  {
+    label: "media-range-normalization",
+    source: "@media screen and (min-width: 1px) and (max-width: 10px) { .a { color: red; } }",
   },
   {
     label: "calc-same-unit-nested",

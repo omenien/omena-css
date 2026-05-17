@@ -826,7 +826,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "evaluated literal @media all/not all branches",
+                    detail: "evaluated literal @media all/not all branches and normalized simple min/max media ranges",
                 }
             }
             Some(TransformPassKind::DeadMediaBranchRemoval) => {
@@ -3177,6 +3177,20 @@ fn evaluate_static_media_rules_once_with_lexer(
                     }
                     StaticMediaEvalVerdict::AlwaysFalse => String::new(),
                     StaticMediaEvalVerdict::Unknown => {
+                        let original_condition = source
+                            [token_end(&tokens[index])..token_start(&tokens[block_start_index])]
+                            .trim();
+                        if let Some(normalized_condition) =
+                            normalize_simple_media_range_features(original_condition)
+                        {
+                            replacements.push((
+                                token_end(&tokens[index]),
+                                token_start(&tokens[block_start_index]),
+                                format!(" {normalized_condition} "),
+                            ));
+                            index = block_end_index + 1;
+                            continue;
+                        }
                         index += 1;
                         continue;
                     }
@@ -3212,6 +3226,62 @@ fn evaluate_static_media_rules_once_with_lexer(
     }
 
     (output, replacements.len())
+}
+
+fn normalize_simple_media_range_features(condition: &str) -> Option<String> {
+    let mut output = String::with_capacity(condition.len());
+    let mut cursor = 0usize;
+    let mut changed = false;
+
+    while let Some(open_offset) = condition[cursor..].find('(') {
+        let open_index = cursor + open_offset;
+        let Some(close_offset) = condition[open_index + 1..].find(')') else {
+            break;
+        };
+        let close_index = open_index + 1 + close_offset;
+        let feature = &condition[open_index + 1..close_index];
+
+        output.push_str(&condition[cursor..open_index]);
+        if let Some(normalized_feature) = normalize_simple_media_range_feature(feature) {
+            output.push('(');
+            output.push_str(&normalized_feature);
+            output.push(')');
+            changed = true;
+        } else {
+            output.push_str(&condition[open_index..=close_index]);
+        }
+        cursor = close_index + 1;
+    }
+
+    output.push_str(&condition[cursor..]);
+    changed.then_some(output)
+}
+
+fn normalize_simple_media_range_feature(feature: &str) -> Option<String> {
+    let (name, value) = feature.split_once(':')?;
+    let name = name.trim().to_ascii_lowercase();
+    let value = value.trim();
+    if !is_simple_media_range_value(value) {
+        return None;
+    }
+
+    let (dimension, operator) = match name.as_str() {
+        "min-width" => ("width", ">="),
+        "max-width" => ("width", "<="),
+        "min-height" => ("height", ">="),
+        "max-height" => ("height", "<="),
+        _ => return None,
+    };
+
+    Some(format!("{dimension}{operator}{value}"))
+}
+
+fn is_simple_media_range_value(value: &str) -> bool {
+    !value.is_empty()
+        && value.bytes().any(|byte| byte.is_ascii_digit())
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'+' | b'-' | b'%'))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -10685,6 +10755,28 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".a { color: red; }   @media screen { .c { color: green; } } @supports (display: grid) { .d { color: black; } }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["media-static-eval", "print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_normalizes_simple_media_range_features() {
+        let source = r#"@media screen and (min-width: 1px) and (max-width: 10px) { .a { color: red; } } @media (min-height: 2rem) { .b { color: blue; } } @media (min-width: calc(1px + 1px)) { .c { color: green; } }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::MediaStaticEval,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#"@media screen and (width>=1px) and (width<=10px) { .a { color: red; } } @media (height>=2rem) { .b { color: blue; } } @media (min-width: calc(1px + 1px)) { .c { color: green; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
