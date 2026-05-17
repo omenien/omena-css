@@ -364,6 +364,48 @@ assert.deepEqual(groupedComposesSummary.execution.executedPassIds, [
 ]);
 assert.equal(groupedComposesSummary.execution.mutationCount, 1);
 
+const alphaColorFunctionResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "colors.css",
+      styleSource: ".card { accent-color: color(srgb 1 0 0 / 50%); color: color(srgb 0 0 1 / 1); }",
+      requestedPassIds: ["color-function-lowering", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(alphaColorFunctionResult.status, 0, alphaColorFunctionResult.stderr);
+assert.equal(alphaColorFunctionResult.error, undefined);
+
+const alphaColorFunctionSummary = JSON.parse(
+  alphaColorFunctionResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(alphaColorFunctionSummary.product, "omena-query.transform-execute");
+assert.equal(
+  alphaColorFunctionSummary.execution.outputCss,
+  ".card { accent-color: rgb(255 0 0 / .5); color: rgb(0 0 255); }",
+);
+assert.deepEqual(alphaColorFunctionSummary.execution.executedPassIds, [
+  "color-function-lowering",
+  "print-css",
+]);
+assert.equal(alphaColorFunctionSummary.execution.mutationCount, 2);
+
 const semanticReachabilityResult = spawnSync(
   "cargo",
   [
@@ -451,6 +493,7 @@ process.stdout.write(
     `contextExecuted=${contextSummary.execution.executedPassIds.length}`,
     `contextMutations=${contextSummary.execution.mutationCount}`,
     `groupedComposesMutations=${groupedComposesSummary.execution.mutationCount}`,
+    `alphaColorMutations=${alphaColorFunctionSummary.execution.mutationCount}`,
     `semanticRemovals=${semanticReachabilitySummary.semanticRemovalCount}`,
   ].join(" "),
 );

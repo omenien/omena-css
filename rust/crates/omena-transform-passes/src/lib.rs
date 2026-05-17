@@ -5671,7 +5671,8 @@ fn rule_block_token_indexes(
 fn is_light_dark_lowerable_property(property: &str) -> bool {
     matches!(
         property,
-        "background"
+        "accent-color"
+            | "background"
             | "background-color"
             | "border-color"
             | "caret-color"
@@ -6056,6 +6057,19 @@ impl SrgbColor {
     fn to_css_rgb(self) -> String {
         format!("rgb({} {} {})", self.red, self.green, self.blue)
     }
+
+    fn to_css_rgb_with_alpha(self, alpha: Option<f64>) -> String {
+        match alpha {
+            Some(alpha) => format!(
+                "rgb({} {} {} / {})",
+                self.red,
+                self.green,
+                self.blue,
+                format_css_alpha(alpha)
+            ),
+            None => self.to_css_rgb(),
+        }
+    }
 }
 
 fn mix_srgb_colors(
@@ -6212,10 +6226,12 @@ fn parse_color_function_value(value: &str) -> Option<String> {
         return None;
     }
     let parts = inner.split_whitespace().collect::<Vec<_>>();
-    let (space, red, green, blue) = match parts.as_slice() {
-        [space, red, green, blue] => (*space, *red, *green, *blue),
-        [space, red, green, blue, "/", alpha] if parse_opaque_alpha(alpha)? => {
-            (*space, *red, *green, *blue)
+    let (space, red, green, blue, alpha) = match parts.as_slice() {
+        [space, red, green, blue] => (*space, *red, *green, *blue, None),
+        [space, red, green, blue, "/", alpha] => {
+            let alpha = parse_alpha_value(alpha)?;
+            let alpha = ((alpha - 1.0).abs() > f64::EPSILON).then_some(alpha);
+            (*space, *red, *green, *blue, alpha)
         }
         _ => return None,
     };
@@ -6234,16 +6250,20 @@ fn parse_color_function_value(value: &str) -> Option<String> {
     } else {
         return None;
     };
-    Some(color.to_css_rgb())
+    Some(color.to_css_rgb_with_alpha(alpha))
 }
 
 fn parse_opaque_alpha(text: &str) -> Option<bool> {
-    let value = if let Some(percent) = text.strip_suffix('%') {
-        parse_plain_f64(percent)? / 100.0
-    } else {
-        parse_plain_f64(text)?
-    };
+    let value = parse_alpha_value(text)?;
     Some((value - 1.0).abs() <= f64::EPSILON)
+}
+
+fn parse_alpha_value(text: &str) -> Option<f64> {
+    parse_unit_interval_component(text)
+}
+
+fn format_css_alpha(value: f64) -> String {
+    compress_number_prefix(&format_css_number(value))
 }
 
 fn parse_oklab_value(value: &str) -> Option<SrgbColor> {
@@ -10836,10 +10856,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 5);
+        assert_eq!(execution.mutation_count, 6);
         assert_eq!(
             execution.output_css,
-            r#".card { color: rgb(255 0 0); background-color: rgb(128 64 0); outline-color: rgb(0 0 255); fill: rgb(128 128 128); background: linear-gradient(rgb(255 0 0), white); accent-color: color(srgb 1 0 0 / .5); border-color: color(display-p3 1 0 0); }"#
+            r#".card { color: rgb(255 0 0); background-color: rgb(128 64 0); outline-color: rgb(0 0 255); fill: rgb(128 128 128); background: linear-gradient(rgb(255 0 0), white); accent-color: rgb(255 0 0 / .5); border-color: color(display-p3 1 0 0); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
