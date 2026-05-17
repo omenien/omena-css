@@ -5207,15 +5207,23 @@ fn collect_reachable_css_modules_value_names(
             }
         }
     }
-    collect_css_modules_value_references_in_at_rule_preludes(tokens, value_names, &mut root_names);
+    collect_css_modules_value_references_in_at_rule_preludes(
+        source,
+        tokens,
+        value_names,
+        &mut root_names,
+        reachable_class_names,
+    );
 
     close_css_modules_value_dependency_graph(root_names, &dependencies_by_name)
 }
 
 fn collect_css_modules_value_references_in_at_rule_preludes(
+    source: &str,
     tokens: &[omena_parser::LexedToken],
     definition_names: &[String],
     root_names: &mut Vec<String>,
+    reachable_class_names: &[String],
 ) {
     let mut index = 0;
     while index < tokens.len() {
@@ -5227,6 +5235,8 @@ fn collect_css_modules_value_references_in_at_rule_preludes(
         }
 
         let mut prelude_index = index + 1;
+        let mut prelude_names = Vec::new();
+        let mut terminator_index = None;
         while prelude_index < tokens.len() {
             match tokens[prelude_index].kind {
                 SyntaxKind::Ident
@@ -5234,12 +5244,35 @@ fn collect_css_modules_value_references_in_at_rule_preludes(
                         .iter()
                         .any(|name| name == &tokens[prelude_index].text) =>
                 {
-                    push_unique_string(root_names, tokens[prelude_index].text.clone());
+                    push_unique_string(&mut prelude_names, tokens[prelude_index].text.clone());
                 }
-                SyntaxKind::LeftBrace | SyntaxKind::Semicolon | SyntaxKind::RightBrace => break,
+                SyntaxKind::LeftBrace | SyntaxKind::Semicolon | SyntaxKind::RightBrace => {
+                    terminator_index = Some(prelude_index);
+                    break;
+                }
                 _ => {}
             }
             prelude_index += 1;
+        }
+        let prelude_can_keep_roots = match terminator_index {
+            Some(terminator_index) if tokens[terminator_index].kind == SyntaxKind::LeftBrace => {
+                matching_right_brace_index(tokens, terminator_index).is_some_and(|close_index| {
+                    at_rule_block_has_reachable_ordinary_rule(
+                        source,
+                        tokens,
+                        terminator_index,
+                        close_index,
+                        reachable_class_names,
+                    )
+                })
+            }
+            Some(terminator_index) => tokens[terminator_index].kind == SyntaxKind::Semicolon,
+            None => true,
+        };
+        if prelude_can_keep_roots {
+            for name in prelude_names {
+                push_unique_string(root_names, name);
+            }
         }
         index = prelude_index.saturating_add(1);
     }
@@ -5250,6 +5283,25 @@ fn at_rule_prelude_can_reference_css_modules_values(text: &str) -> bool {
         text.to_ascii_lowercase().as_str(),
         "@media" | "@supports" | "@container" | "@custom-media" | "@scope"
     )
+}
+
+fn at_rule_block_has_reachable_ordinary_rule(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+    block_start_index: usize,
+    block_end_index: usize,
+    reachable_class_names: &[String],
+) -> bool {
+    let context_start = token_start(&tokens[block_start_index]);
+    let context_end = token_end(&tokens[block_end_index]);
+
+    collect_declaration_ordinary_rule_slices(source, tokens)
+        .iter()
+        .any(|rule| {
+            rule.context_start >= context_start
+                && rule.context_end <= context_end
+                && rule_matches_reachable_class_context(&rule.selector, reachable_class_names)
+        })
 }
 
 fn close_css_modules_value_dependency_graph(
@@ -12225,7 +12277,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_tree_shakes_local_values_with_closed_world_context() {
-        let source = r#"@value used: red; @value dead: blue; @value alias: used; @value shadow: 0 0 4px used; @value bp: 40rem; @value deadAlias: dead; @value deadShadow: 0 0 4px dead; @value deadBp: 50rem; @value deadFromRule: orange; .btn { color: used; background: alias; box-shadow: shadow; } .dead { color: deadFromRule; } @media (min-width: bp) { .btn { color: red; } }"#;
+        let source = r#"@value used: red; @value dead: blue; @value alias: used; @value shadow: 0 0 4px used; @value bp: 40rem; @value deadAlias: dead; @value deadShadow: 0 0 4px dead; @value deadBp: 50rem; @value deadFromRule: orange; .btn { color: used; background: alias; box-shadow: shadow; } .dead { color: deadFromRule; } @media (min-width: bp) { .btn { color: red; } } @media (min-width: deadBp) { .dead { color: dead; } }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             reachable_class_names: vec!["btn".to_string()],
