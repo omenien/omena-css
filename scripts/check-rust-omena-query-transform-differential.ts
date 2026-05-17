@@ -74,6 +74,11 @@ const fixtures: readonly DifferentialFixture[] = [
     source: "/* head */ .calc { width: calc(1px + 2px); } .empty { } /* tail */",
   },
   {
+    label: "nested-comment-empty-rules",
+    source:
+      ".empty { } @supports (display: grid) { .nested { } .filled { color: red; } } .outer { .inner { } } .with-comment { /* remove after comment strip */ } .filled { color: red; }",
+  },
+  {
     label: "calc-same-unit-nested",
     source: ".a { margin: calc(2rem + 3rem); padding: calc(10px - 4px); }",
   },

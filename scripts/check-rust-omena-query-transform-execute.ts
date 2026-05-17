@@ -167,10 +167,10 @@ assert.deepEqual(summary.execution.executedPassIds, [
   "rule-deduplication",
   "rule-merging",
   "selector-merging",
-  "empty-rule-removal",
   "calc-reduction",
   "whitespace-strip",
   "comment-strip",
+  "empty-rule-removal",
   "number-compression",
   "unit-normalization",
   "color-compression",
@@ -179,7 +179,7 @@ assert.deepEqual(summary.execution.executedPassIds, [
   "print-css",
 ]);
 assert.deepEqual(summary.execution.plannedOnlyPassIds, []);
-assert.equal(summary.execution.mutationCount, 62);
+assert.equal(summary.execution.mutationCount, 65);
 assert.equal(summary.execution.provenancePreserved, true);
 assert.equal(summary.execution.passPlan.product, "omena-transform-passes.plan");
 assert.equal(summary.execution.passPlan.violatedDagEdgeCount, 0);

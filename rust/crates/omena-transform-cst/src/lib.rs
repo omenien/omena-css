@@ -1076,6 +1076,11 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
             reason: "custom-property reachability must settle before rule deduplication",
         },
         TransformDagEdgeV0 {
+            from: "comment-strip",
+            to: "empty-rule-removal",
+            reason: "comment-only rules become removable empty rules after comment stripping",
+        },
+        TransformDagEdgeV0 {
             from: "light-dark-lowering",
             to: "vendor-prefixing",
             reason: "prefixing runs after target lowering produces final declarations",

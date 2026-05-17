@@ -9660,6 +9660,21 @@ mod tests {
     }
 
     #[test]
+    fn planner_respects_comment_strip_before_empty_rule_removal_edge() {
+        let plan = plan_transform_passes(&[
+            TransformPassKind::EmptyRuleRemoval,
+            TransformPassKind::CommentStrip,
+            TransformPassKind::PrintCss,
+        ]);
+
+        assert_eq!(plan.violated_dag_edge_count, 0);
+        assert_eq!(
+            plan.ordered_pass_ids,
+            vec!["comment-strip", "empty-rule-removal", "print-css"]
+        );
+    }
+
+    #[test]
     fn execution_runtime_inlines_imports_from_explicit_replacements() {
         let source = r#"@import "./tokens.css"; @import url(./theme.css); @import "./conditional.css" layer(theme) supports(display: grid) screen and (min-width: 40rem); .button { color: var(--brand); }"#;
         let context = TransformExecutionContextV0 {
@@ -10212,6 +10227,33 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["empty-rule-removal", "print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_removes_comment_only_rules_after_comment_strip() {
+        let source = r#".empty { } @media (min-width: 1px) { .nested { } .filled { color: red; } } .outer { .inner { } } .with-comment { /* remove after comment strip */ } .filled { color: red; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::EmptyRuleRemoval,
+                TransformPassKind::CommentStrip,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(
+            execution.ordered_pass_ids,
+            vec!["comment-strip", "empty-rule-removal", "print-css"]
+        );
+        assert_eq!(execution.mutation_count, 6);
+        assert_eq!(
+            execution.output_css,
+            r#" @media (min-width: 1px) {  .filled { color: red; } }   .filled { color: red; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["comment-strip", "empty-rule-removal", "print-css"]
         );
     }
 
