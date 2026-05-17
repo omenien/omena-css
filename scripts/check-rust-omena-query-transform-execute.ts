@@ -505,7 +505,7 @@ const alphaColorCompressionResult = spawnSync(
     input: JSON.stringify({
       stylePath: "alpha-colors.css",
       styleSource:
-        ".card { color: rgba(255, 0, 0, .5); box-shadow: 0 0 hsla(240, 100%, 50%, 50%); border-color: hwb(0 0% 0% / 50%); }",
+        ".card { color: rgba(255, 0, 0, .5); box-shadow: 0 0 hsla(240, 100%, 50%, 50%); border-color: hwb(0 0% 0% / 50%); outline-color: transparent; text-shadow: 0 0 transparent; }",
       requestedPassIds: ["color-compression", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
@@ -522,13 +522,13 @@ const alphaColorCompressionSummary = JSON.parse(
 assert.equal(alphaColorCompressionSummary.product, "omena-query.transform-execute");
 assert.equal(
   alphaColorCompressionSummary.execution.outputCss,
-  ".card { color: #ff000080; box-shadow: 0 0 #0000ff80; border-color: #ff000080; }",
+  ".card { color: #ff000080; box-shadow: 0 0 #0000ff80; border-color: #ff000080; outline-color: #0000; text-shadow: 0 0 #0000; }",
 );
 assert.deepEqual(alphaColorCompressionSummary.execution.executedPassIds, [
   "color-compression",
   "print-css",
 ]);
-assert.equal(alphaColorCompressionSummary.execution.mutationCount, 3);
+assert.equal(alphaColorCompressionSummary.execution.mutationCount, 5);
 
 const colorMixPercentageResult = spawnSync(
   "cargo",

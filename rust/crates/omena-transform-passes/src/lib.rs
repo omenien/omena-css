@@ -6191,10 +6191,9 @@ fn parse_static_srgb_color(text: &str) -> Option<SrgbColor> {
 }
 
 fn parse_static_srgb_color_with_alpha(text: &str) -> Option<StaticSrgbColorWithAlpha> {
-    Some(StaticSrgbColorWithAlpha {
-        color: parse_static_srgb_color(text)?,
-        alpha: None,
-    })
+    parse_static_hex_color(text)
+        .map(|color| StaticSrgbColorWithAlpha { color, alpha: None })
+        .or_else(|| parse_basic_named_static_color_with_alpha(text))
 }
 
 fn parse_static_hex_color(text: &str) -> Option<SrgbColor> {
@@ -6311,6 +6310,24 @@ fn parse_basic_named_srgb_color(text: &str) -> Option<SrgbColor> {
         }),
         _ => None,
     }
+}
+
+fn parse_basic_named_static_color_with_alpha(text: &str) -> Option<StaticSrgbColorWithAlpha> {
+    if text.eq_ignore_ascii_case("transparent") {
+        return Some(StaticSrgbColorWithAlpha {
+            color: SrgbColor {
+                red: 0,
+                green: 0,
+                blue: 0,
+            },
+            alpha: Some(0.0),
+        });
+    }
+
+    Some(StaticSrgbColorWithAlpha {
+        color: parse_basic_named_srgb_color(text)?,
+        alpha: None,
+    })
 }
 
 fn normalize_ascii_whitespace(text: &str) -> String {
@@ -8923,10 +8940,10 @@ fn compress_static_named_srgb_color_references_in_value(value: &str) -> Option<S
                     index = close_index + ')'.len_utf8();
                     continue;
                 }
-                let Some(color) = parse_basic_named_srgb_color(ident) else {
+                let Some(color) = parse_basic_named_static_color_with_alpha(ident) else {
                     continue;
                 };
-                let replacement = shortest_static_srgb_color_text(color);
+                let replacement = shortest_static_srgb_color_with_alpha_text(color);
                 if replacement == ident {
                     continue;
                 }
@@ -10619,7 +10636,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_compresses_static_declaration_colors_only() {
-        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC, 0 0 blue; border: 1px solid black; font-family: blue; background: url(blue.svg); background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-emphasis-color: rgb(128 0 128); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); flood-color: white; lighting-color: black; stop-color: blue; scrollbar-color: hsl(.5TURN 100% 50%); border-block-color: hwb(200GRAD 0% 0%); border-left-color: rgb(255 0 0 / 100%); border-right-color: hsl(120 100% 25% / 1); border-top-color: hwb(240 0% 0% / 100%); background: linear-gradient(rgb(255 0 0), hsl(240 100% 50%)); filter: drop-shadow(0 0 1px hwb(0 100% 0%)); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } .alpha { color: #FFFFFFFF; background-color: #ffff; border-color: #00000000; outline-color: rgba(255, 0, 0, 1); text-decoration-color: hsla(240, 100%, 50%, 100%); accent-color: rgba(255, 0, 0, .5); text-shadow: 0 0 hsla(240, 100%, 50%, 50%); column-rule-color: hwb(0 0% 0% / 50%); } #FFFFFF { color: red; }"#;
+        let source = r#".a { color: #FFFFFF; box-shadow: 0 0 #AABBCC, 0 0 blue; border: 1px solid black; font-family: blue; background: url(blue.svg); background-color: rgb(255 0 0); border-color: rgb(0, 128, 0); outline-color: rgb(50% 50% 50%); text-emphasis-color: rgb(128 0 128); text-decoration-color: hsl(240 100% 50%); caret-color: hsl(0, 0%, 0%); fill: hwb(0 0% 0%); stroke: hwb(120 0% 50%); column-rule-color: hwb(0 100% 0%); flood-color: white; lighting-color: black; stop-color: blue; scrollbar-color: hsl(.5TURN 100% 50%); border-block-color: hwb(200GRAD 0% 0%); border-left-color: rgb(255 0 0 / 100%); border-right-color: hsl(120 100% 25% / 1); border-top-color: hwb(240 0% 0% / 100%); background: linear-gradient(rgb(255 0 0), hsl(240 100% 50%)); filter: drop-shadow(0 0 1px hwb(0 100% 0%)); border-bottom-color: rgb(255 0 0 / .5); accent-color: hsl(0 0% 0% / 50%); --brand: rgb(255 0 0); } .alpha { color: #FFFFFFFF; background-color: #ffff; border-color: #00000000; outline-color: rgba(255, 0, 0, 1); text-decoration-color: hsla(240, 100%, 50%, 100%); accent-color: rgba(255, 0, 0, .5); text-shadow: 0 0 hsla(240, 100%, 50%, 50%); column-rule-color: hwb(0 0% 0% / 50%); fill: transparent; box-shadow: 0 0 transparent; } #FFFFFF { color: red; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -10628,10 +10645,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 33);
+        assert_eq!(execution.mutation_count, 35);
         assert_eq!(
             execution.output_css,
-            r#".a { color: #fff; box-shadow: 0 0 #abc, 0 0 #00f; border: 1px solid #000; font-family: blue; background: url(blue.svg); background-color: red; border-color: green; outline-color: gray; text-emphasis-color: purple; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: #00f; scrollbar-color: #0ff; border-block-color: #0ff; border-left-color: red; border-right-color: green; border-top-color: #00f; background: linear-gradient(red, #00f); filter: drop-shadow(0 0 1px #fff); border-bottom-color: #ff000080; accent-color: #00000080; --brand: rgb(255 0 0); } .alpha { color: #fff; background-color: #fff; border-color: #0000; outline-color: red; text-decoration-color: #00f; accent-color: #ff000080; text-shadow: 0 0 #0000ff80; column-rule-color: #ff000080; } #FFFFFF { color: red; }"#
+            r#".a { color: #fff; box-shadow: 0 0 #abc, 0 0 #00f; border: 1px solid #000; font-family: blue; background: url(blue.svg); background-color: red; border-color: green; outline-color: gray; text-emphasis-color: purple; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: #00f; scrollbar-color: #0ff; border-block-color: #0ff; border-left-color: red; border-right-color: green; border-top-color: #00f; background: linear-gradient(red, #00f); filter: drop-shadow(0 0 1px #fff); border-bottom-color: #ff000080; accent-color: #00000080; --brand: rgb(255 0 0); } .alpha { color: #fff; background-color: #fff; border-color: #0000; outline-color: red; text-decoration-color: #00f; accent-color: #ff000080; text-shadow: 0 0 #0000ff80; column-rule-color: #ff000080; fill: #0000; box-shadow: 0 0 #0000; } #FFFFFF { color: red; }"#
         );
     }
 
