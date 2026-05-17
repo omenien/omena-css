@@ -17,6 +17,8 @@ const PRODUCT_PARSER_LANE_SCRIPTS = [
   "scripts/check-rust-parser-consumer-boundary.ts",
 ] as const;
 
+const ALLOWED_LEGACY_DEPENDENCY_CRATES = ["omena-benchmarks", "omena-diff-test"] as const;
+
 const ALLOWED_LEGACY_REFERENCE_PATTERNS = [
   /^package\.json$/,
   /^rust\/Cargo\.toml$/,
@@ -118,6 +120,13 @@ for (const scriptPath of PRODUCT_PARSER_LANE_SCRIPTS) {
   );
 }
 
+const legacyDependencyCrateNames = findLegacyDependencyCrateNames();
+assert.deepEqual(
+  legacyDependencyCrateNames,
+  ALLOWED_LEGACY_DEPENDENCY_CRATES.toSorted(),
+  "engine-style-parser direct dependencies must stay confined to oracle/benchmark crates",
+);
+
 assert.ok(
   packageJson.includes('"check:rust-omena-parser-boundary"') &&
     packageJson.includes("rust/omena-parser/cutover-readiness"),
@@ -182,7 +191,7 @@ assert.deepEqual(
 );
 
 process.stdout.write(
-  `validated omena-parser cutover readiness: productCrates=${PRODUCT_CRATE_MANIFESTS.length} parserLaneScripts=${PRODUCT_PARSER_LANE_SCRIPTS.length} cutoverGates=8 allowedLegacyRefs=${legacyReferencePaths.length}\n`,
+  `validated omena-parser cutover readiness: productCrates=${PRODUCT_CRATE_MANIFESTS.length} parserLaneScripts=${PRODUCT_PARSER_LANE_SCRIPTS.length} legacyDependencyCrates=${legacyDependencyCrateNames.join(",")} cutoverGates=8 allowedLegacyRefs=${legacyReferencePaths.length}\n`,
 );
 
 function readText(filePath: string): string {
@@ -214,6 +223,35 @@ function findLegacyReferencePaths(): string[] {
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
+    .toSorted();
+}
+
+function findLegacyDependencyCrateNames(): string[] {
+  const result = spawnSync(
+    "cargo",
+    ["metadata", "--manifest-path", "rust/Cargo.toml", "--no-deps", "--format-version", "1"],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+    },
+  );
+
+  if (result.status !== 0) {
+    throw new Error(
+      `cargo metadata failed while scanning legacy parser dependencies:\n${result.stderr}`,
+    );
+  }
+
+  const metadata = JSON.parse(result.stdout) as {
+    packages: Array<{
+      name: string;
+      dependencies: Array<{ name: string }>;
+    }>;
+  };
+
+  return metadata.packages
+    .filter((pkg) => pkg.dependencies.some((dep) => dep.name === "engine-style-parser"))
+    .map((pkg) => pkg.name)
     .toSorted();
 }
 
