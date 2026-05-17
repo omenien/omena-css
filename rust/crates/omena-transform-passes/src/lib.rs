@@ -4681,9 +4681,20 @@ fn rewrite_css_module_class_names_with_lexer(
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let rules = collect_declaration_ordinary_rule_slices(source, tokens);
+    let scope_blocks = collect_css_module_scope_blocks(source, tokens);
     let mut replacements = Vec::new();
 
+    for block in &scope_blocks {
+        replacements.push((block.start, block.body_start, String::new()));
+        replacements.push((block.body_end, block.end, String::new()));
+    }
+
     for rule in &rules {
+        if css_module_scope_kind_for_range(rule.start, rule.end, &scope_blocks)
+            == Some(CssModuleScopeBlockKind::Global)
+        {
+            continue;
+        }
         let Some(rewritten_selector) =
             rewrite_class_selectors_in_selector(&rule.selector, rewrites)
         else {
@@ -4697,6 +4708,15 @@ fn rewrite_css_module_class_names_with_lexer(
         if tokens[index].kind == SyntaxKind::LeftBrace
             && let Some(close_index) = matching_right_brace_index(tokens, index)
         {
+            if css_module_scope_kind_for_range(
+                token_start(&tokens[index]),
+                token_end(&tokens[close_index]),
+                &scope_blocks,
+            ) == Some(CssModuleScopeBlockKind::Global)
+            {
+                index = close_index + 1;
+                continue;
+            }
             for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
                 if declaration.property != "composes" {
                     continue;
@@ -4719,6 +4739,89 @@ fn rewrite_css_module_class_names_with_lexer(
     }
 
     replace_source_ranges(source, &replacements)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CssModuleScopeBlockKind {
+    Local,
+    Global,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CssModuleScopeBlock {
+    kind: CssModuleScopeBlockKind,
+    start: usize,
+    end: usize,
+    body_start: usize,
+    body_end: usize,
+}
+
+fn collect_css_module_scope_blocks(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+) -> Vec<CssModuleScopeBlock> {
+    let mut blocks = Vec::new();
+    let mut depth = 0usize;
+    let mut prelude_starts = vec![0usize];
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => {
+                let prelude_start = prelude_starts.get(depth).copied().unwrap_or(0);
+                if let Some(close_index) = matching_right_brace_index(tokens, index)
+                    && let Some(start) = first_non_trivia_token_start(tokens, prelude_start, index)
+                {
+                    let prelude = source[start..token_start(&tokens[index])].trim();
+                    if let Some(kind) = css_module_scope_block_kind(prelude) {
+                        blocks.push(CssModuleScopeBlock {
+                            kind,
+                            start,
+                            end: token_end(&tokens[close_index]),
+                            body_start: token_end(&tokens[index]),
+                            body_end: token_start(&tokens[close_index]),
+                        });
+                    }
+                }
+                depth += 1;
+                set_prelude_start(&mut prelude_starts, depth, index + 1);
+            }
+            SyntaxKind::RightBrace => {
+                depth = depth.saturating_sub(1);
+                set_prelude_start(&mut prelude_starts, depth, index + 1);
+            }
+            SyntaxKind::Semicolon => {
+                set_prelude_start(&mut prelude_starts, depth, index + 1);
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    blocks
+}
+
+fn css_module_scope_block_kind(prelude: &str) -> Option<CssModuleScopeBlockKind> {
+    let prelude = prelude.trim();
+    if prelude.eq_ignore_ascii_case(":local") {
+        return Some(CssModuleScopeBlockKind::Local);
+    }
+    if prelude.eq_ignore_ascii_case(":global") {
+        return Some(CssModuleScopeBlockKind::Global);
+    }
+    None
+}
+
+fn css_module_scope_kind_for_range(
+    start: usize,
+    end: usize,
+    blocks: &[CssModuleScopeBlock],
+) -> Option<CssModuleScopeBlockKind> {
+    blocks
+        .iter()
+        .filter(|block| start >= block.body_start && end <= block.body_end)
+        .min_by_key(|block| block.body_end.saturating_sub(block.body_start))
+        .map(|block| block.kind)
 }
 
 fn rewrite_class_selectors_in_selector(
@@ -11251,7 +11354,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_rewrites_css_module_class_names_with_identity_map() {
-        let source = r#".button { composes: base utility; color: red; } .base, .utility { color: blue; } .button:hover { color: green; } .button :global(.external) { color: purple; } :global(.root) .button { color: orange; } :global(.standalone) { color: teal; } :local(.button) { color: navy; } @media (min-width: 1px) { .button { color: black; } }"#;
+        let source = r#".button { composes: base utility; color: red; } .base, .utility { color: blue; } .button:hover { color: green; } .button :global(.external) { color: purple; } :global(.root) .button { color: orange; } :global(.standalone) { color: teal; } :global { .global-block { color: silver; } } :local(.button) { color: navy; } :local { .button { color: maroon; } } @media (min-width: 1px) { .button { color: black; } }"#;
         let context = TransformExecutionContextV0 {
             class_name_rewrites: vec![
                 TransformClassNameRewriteV0 {
@@ -11274,6 +11377,10 @@ mod tests {
                     original_name: "root".to_string(),
                     rewritten_name: "_root_global".to_string(),
                 },
+                TransformClassNameRewriteV0 {
+                    original_name: "global-block".to_string(),
+                    rewritten_name: "_global_block_should_not_apply".to_string(),
+                },
             ],
             ..TransformExecutionContextV0::default()
         };
@@ -11287,10 +11394,10 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 9);
+        assert_eq!(execution.mutation_count, 14);
         assert_eq!(
             execution.output_css,
-            r#"._button_abc123{ composes: _base_def456 _utility_ghi789; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } ._button_abc123:hover{ color: green; } ._button_abc123 .external{ color: purple; } .root ._button_abc123{ color: orange; } .standalone{ color: teal; } ._button_abc123{ color: navy; } @media (min-width: 1px) { ._button_abc123{ color: black; } }"#
+            r#"._button_abc123{ composes: _base_def456 _utility_ghi789; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } ._button_abc123:hover{ color: green; } ._button_abc123 .external{ color: purple; } .root ._button_abc123{ color: orange; } .standalone{ color: teal; }  .global-block { color: silver; }  ._button_abc123{ color: navy; }  ._button_abc123{ color: maroon; }  @media (min-width: 1px) { ._button_abc123{ color: black; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
