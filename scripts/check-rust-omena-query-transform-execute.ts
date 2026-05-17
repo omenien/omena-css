@@ -530,6 +530,49 @@ assert.deepEqual(alphaColorCompressionSummary.execution.executedPassIds, [
 ]);
 assert.equal(alphaColorCompressionSummary.execution.mutationCount, 3);
 
+const colorMixPercentageResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "color-mix-percentages.css",
+      styleSource:
+        ".card { color: color-mix(in srgb, red 25%, blue 25%); border-color: color-mix(in srgb, red 75%, blue 75%); outline-color: color-mix(in srgb, red 0%, blue 0%); }",
+      requestedPassIds: ["color-mix-lowering", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(colorMixPercentageResult.status, 0, colorMixPercentageResult.stderr);
+assert.equal(colorMixPercentageResult.error, undefined);
+
+const colorMixPercentageSummary = JSON.parse(
+  colorMixPercentageResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(colorMixPercentageSummary.product, "omena-query.transform-execute");
+assert.equal(
+  colorMixPercentageSummary.execution.outputCss,
+  ".card { color: rgb(128 0 128 / .5); border-color: rgb(128 0 128); outline-color: color-mix(in srgb, red 0%, blue 0%); }",
+);
+assert.deepEqual(colorMixPercentageSummary.execution.executedPassIds, [
+  "color-mix-lowering",
+  "print-css",
+]);
+assert.equal(colorMixPercentageSummary.execution.mutationCount, 2);
+
 const semanticReachabilityResult = spawnSync(
   "cargo",
   [
@@ -621,6 +664,7 @@ process.stdout.write(
     `alphaOkColorMutations=${alphaOkColorSummary.execution.mutationCount}`,
     `compositeValueMutations=${compositeValueSummary.execution.mutationCount}`,
     `alphaColorCompressionMutations=${alphaColorCompressionSummary.execution.mutationCount}`,
+    `colorMixPercentageMutations=${colorMixPercentageSummary.execution.mutationCount}`,
     `semanticRemovals=${semanticReachabilitySummary.semanticRemovalCount}`,
   ].join(" "),
 );

@@ -5912,15 +5912,14 @@ fn parse_color_mix_value(value: &str) -> Option<String> {
 
     let first_stop = parse_static_color_mix_stop(first)?;
     let second_stop = parse_static_color_mix_stop(second)?;
-    let (first_weight, second_weight) =
-        color_mix_weights(first_stop.percentage, second_stop.percentage)?;
+    let color_mix = color_mix_weights(first_stop.percentage, second_stop.percentage)?;
     let mixed = mix_srgb_colors(
         first_stop.color,
         second_stop.color,
-        first_weight,
-        second_weight,
+        color_mix.first_weight,
+        color_mix.second_weight,
     );
-    Some(mixed.to_css_rgb())
+    Some(mixed.to_css_rgb_with_alpha(color_mix.alpha))
 }
 
 fn parse_whole_function_value_arguments(value: &str, function_name: &str) -> Option<Vec<String>> {
@@ -6011,6 +6010,13 @@ struct StaticColorMixStop {
     percentage: Option<f64>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct StaticColorMixWeights {
+    first_weight: f64,
+    second_weight: f64,
+    alpha: Option<f64>,
+}
+
 fn parse_static_color_mix_stop(input: &str) -> Option<StaticColorMixStop> {
     let (color_text, percentage) = split_static_color_mix_stop(input)?;
     Some(StaticColorMixStop {
@@ -6099,15 +6105,34 @@ fn parse_static_color_mix_operand(text: &str) -> Option<SrgbColor> {
         .or_else(|| parse_static_hwb_function_color(text))
 }
 
-fn color_mix_weights(first: Option<f64>, second: Option<f64>) -> Option<(f64, f64)> {
+fn color_mix_weights(first: Option<f64>, second: Option<f64>) -> Option<StaticColorMixWeights> {
     match (first, second) {
-        (None, None) => Some((0.5, 0.5)),
-        (Some(first), None) => Some((first, 1.0 - first)),
-        (None, Some(second)) => Some((1.0 - second, second)),
-        (Some(first), Some(second)) if (first + second - 1.0).abs() <= 0.000_001 => {
-            Some((first, second))
+        (None, None) => Some(StaticColorMixWeights {
+            first_weight: 0.5,
+            second_weight: 0.5,
+            alpha: None,
+        }),
+        (Some(first), None) => Some(StaticColorMixWeights {
+            first_weight: first,
+            second_weight: 1.0 - first,
+            alpha: None,
+        }),
+        (None, Some(second)) => Some(StaticColorMixWeights {
+            first_weight: 1.0 - second,
+            second_weight: second,
+            alpha: None,
+        }),
+        (Some(first), Some(second)) => {
+            let sum = first + second;
+            if sum <= 0.0 {
+                return None;
+            }
+            Some(StaticColorMixWeights {
+                first_weight: first / sum,
+                second_weight: second / sum,
+                alpha: (sum < 1.0).then_some(sum),
+            })
         }
-        _ => None,
     }
 }
 
@@ -10948,7 +10973,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_static_srgb_color_mix_declarations() {
-        let source = r#".card { color: color-mix(in srgb, red 50%, blue 50%); background-color: color-mix(in srgb, #000, #fff 25%); outline-color: color-mix(in srgb, rgb(255 0 0) 25%, hsl(240 100% 50%) 75%); text-decoration-color: color-mix(in srgb, hwb(120 0% 50%) 40%, white 60%); caret-color: color-mix(in srgb, black 12.5%, white 87.5%); background: linear-gradient(color-mix(in srgb, red 25%, blue 75%), white); border-color: color-mix(in oklab, red, blue); }"#;
+        let source = r#".card { color: color-mix(in srgb, red 50%, blue 50%); background-color: color-mix(in srgb, #000, #fff 25%); outline-color: color-mix(in srgb, rgb(255 0 0) 25%, hsl(240 100% 50%) 75%); text-decoration-color: color-mix(in srgb, hwb(120 0% 50%) 40%, white 60%); caret-color: color-mix(in srgb, black 12.5%, white 87.5%); background: linear-gradient(color-mix(in srgb, red 25%, blue 75%), white); accent-color: color-mix(in srgb, red 25%, blue 25%); fill: color-mix(in srgb, red 75%, blue 75%); stroke: color-mix(in srgb, red 0%, blue 0%); border-color: color-mix(in oklab, red, blue); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -10957,10 +10982,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 6);
+        assert_eq!(execution.mutation_count, 8);
         assert_eq!(
             execution.output_css,
-            r#".card { color: rgb(128 0 128); background-color: rgb(64 64 64); outline-color: rgb(64 0 191); text-decoration-color: rgb(153 204 153); caret-color: rgb(223 223 223); background: linear-gradient(rgb(64 0 191), white); border-color: color-mix(in oklab, red, blue); }"#
+            r#".card { color: rgb(128 0 128); background-color: rgb(64 64 64); outline-color: rgb(64 0 191); text-decoration-color: rgb(153 204 153); caret-color: rgb(223 223 223); background: linear-gradient(rgb(64 0 191), white); accent-color: rgb(128 0 128 / .5); fill: rgb(128 0 128); stroke: color-mix(in srgb, red 0%, blue 0%); border-color: color-mix(in oklab, red, blue); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
