@@ -75,8 +75,18 @@ function getRuleOptions(filePath, secondaryOptions = {}) {
   };
 }
 
-function runStyleChecks(filePath, ruleOptions, includeCodes = ["unused-selector"], sourceText = "") {
-  const directFindings = readDirectStyleDiagnostics(filePath, ruleOptions, includeCodes, sourceText);
+function runStyleChecks(
+  filePath,
+  ruleOptions,
+  includeCodes = ["unused-selector"],
+  sourceText = "",
+) {
+  const directFindings = readDirectStyleDiagnostics(
+    filePath,
+    ruleOptions,
+    includeCodes,
+    sourceText,
+  );
   if (directFindings) return directFindings;
 
   const report = readStyleCheckReport(ruleOptions);
@@ -89,7 +99,9 @@ function runStyleChecks(filePath, ruleOptions, includeCodes = ["unused-selector"
 function readDirectStyleDiagnostics(filePath, ruleOptions, includeCodes, sourceText) {
   if (!canUseDirectStyleDiagnostics(includeCodes)) return null;
   const workspaceStylePaths = resolveWorkspaceStyleModulePaths(ruleOptions.workspaceRoot, filePath);
-  const workspaceSourceDocumentPaths = resolveWorkspaceSourceDocumentPaths(ruleOptions.workspaceRoot);
+  const workspaceSourceDocumentPaths = resolveWorkspaceSourceDocumentPaths(
+    ruleOptions.workspaceRoot,
+  );
 
   const cacheKey = JSON.stringify({
     filePath,
@@ -155,15 +167,11 @@ function readOmenaCliStyleDiagnostics(
     for (const sourceDocumentPath of workspaceSourceDocumentPaths) {
       args.push("--source-document", sourceDocumentPath);
     }
-    const stdout = execFileSync(
-      invocation.command,
-      args,
-      {
-        cwd: ruleOptions.workspaceRoot,
-        encoding: "utf8",
-        env: process.env,
-      },
-    );
+    const stdout = execFileSync(invocation.command, args, {
+      cwd: ruleOptions.workspaceRoot,
+      encoding: "utf8",
+      env: process.env,
+    });
     return JSON.parse(stdout);
   } catch (error) {
     if (process.env.CME_STYLELINT_QUERY_BACKEND === "omena-cli") {

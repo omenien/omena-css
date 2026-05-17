@@ -19,7 +19,10 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
     "input-expression-semantics-query-fragments",
     ["summarize_omena_query_expression_semantics_query_fragments"],
   ],
-  ["input-selector-usage-query-fragments", ["summarize_omena_query_selector_usage_query_fragments"]],
+  [
+    "input-selector-usage-query-fragments",
+    ["summarize_omena_query_selector_usage_query_fragments"],
+  ],
   [
     "input-source-resolution-canonical-producer",
     ["summarize_omena_query_source_resolution_canonical_producer_signal"],
@@ -69,7 +72,10 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
   ["style-semantic-graph-batch", ["summarize_omena_query_style_semantic_graph_batch_from_sources"]],
   ["transform-plan", ["summarize_omena_query_transform_plan_from_source_with_context"]],
   ["transform-context", ["summarize_omena_query_transform_context_from_sources"]],
-  ["transform-context-from-engine-input", ["summarize_omena_query_transform_context_from_engine_input"]],
+  [
+    "transform-context-from-engine-input",
+    ["summarize_omena_query_transform_context_from_engine_input"],
+  ],
   ["transform-execute", ["execute_omena_query_transform_passes_from_source_with_context"]],
   ["consumer-check-style-source", ["summarize_omena_query_consumer_check_style_source"]],
   [

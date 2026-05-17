@@ -105,10 +105,7 @@ const REQUIRED_STYLE_CONTEXT_INDEX_SURFACE_SNIPPETS = new Map<string, readonly s
     "omena-cli",
     ["Command::ContextIndex", "read_omena_query_style_context_index", "context_index_source"],
   ],
-  [
-    "omena-wasm",
-    ["readStyleContextIndex", "read_style_context_index_summary", "context_index"],
-  ],
+  ["omena-wasm", ["readStyleContextIndex", "read_style_context_index_summary", "context_index"]],
   [
     "omena-napi",
     ["readStyleContextIndexJson", "read_style_context_index_summary", "context_index"],
@@ -189,19 +186,11 @@ const REQUIRED_SOURCE_DIAGNOSTICS_SURFACE_SNIPPETS = new Map<string, readonly st
   ],
   [
     "omena-wasm",
-    [
-      "readSourceDiagnostics",
-      "read_source_diagnostics_summary",
-      "crossLanguageDiagnostics",
-    ],
+    ["readSourceDiagnostics", "read_source_diagnostics_summary", "crossLanguageDiagnostics"],
   ],
   [
     "omena-napi",
-    [
-      "readSourceDiagnosticsJson",
-      "read_source_diagnostics_summary",
-      "crossLanguageDiagnostics",
-    ],
+    ["readSourceDiagnosticsJson", "read_source_diagnostics_summary", "crossLanguageDiagnostics"],
   ],
 ]);
 
@@ -248,7 +237,8 @@ for (const consumer of CONSUMER_CRATES) {
       `${consumer.crateName} must expose query-owned expression-domain surface: ${snippet}`,
     );
   }
-  for (const snippet of REQUIRED_STYLE_CONTEXT_INDEX_SURFACE_SNIPPETS.get(consumer.crateName) ?? []) {
+  for (const snippet of REQUIRED_STYLE_CONTEXT_INDEX_SURFACE_SNIPPETS.get(consumer.crateName) ??
+    []) {
     assert(
       combinedSource.includes(snippet),
       `${consumer.crateName} must expose query-owned style context index surface: ${snippet}`,
@@ -266,7 +256,8 @@ for (const consumer of CONSUMER_CRATES) {
       `${consumer.crateName} must expose query-owned style read-model surface: ${snippet}`,
     );
   }
-  for (const snippet of REQUIRED_SOURCE_DIAGNOSTICS_SURFACE_SNIPPETS.get(consumer.crateName) ?? []) {
+  for (const snippet of REQUIRED_SOURCE_DIAGNOSTICS_SURFACE_SNIPPETS.get(consumer.crateName) ??
+    []) {
     assert(
       combinedSource.includes(snippet),
       `${consumer.crateName} must expose query-owned source diagnostics surface: ${snippet}`,

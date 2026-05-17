@@ -11,13 +11,13 @@ directly, so the source of truth remains `omena-query`.
   "jsPlugins": [
     {
       "name": "omena",
-      "specifier": "omena-oxlint-plugin"
-    }
+      "specifier": "omena-oxlint-plugin",
+    },
   ],
   "rules": {
     "omena/missing-static-class": "error",
-    "omena/missing-template-prefix": "error"
-  }
+    "omena/missing-template-prefix": "error",
+  },
 }
 ```
 

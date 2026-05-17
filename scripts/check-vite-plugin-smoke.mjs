@@ -17,7 +17,11 @@ try {
     cwd: process.cwd(),
   });
   const input = fs.readFileSync(stylePath, "utf8");
-  const result = plugin.transform.call({ warn: (message) => warnings.push(message) }, input, stylePath);
+  const result = plugin.transform.call(
+    { warn: (message) => warnings.push(message) },
+    input,
+    stylePath,
+  );
 
   if (!result || typeof result.code !== "string") {
     throw new Error("Expected Vite plugin to return transformed CSS.");

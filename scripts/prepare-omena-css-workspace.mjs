@@ -1282,9 +1282,7 @@ function assertFreshPublishVersion(manifestPath) {
           ? error.stderr.toString("utf8")
           : String(error.stderr ?? "")
         : "";
-    if (
-      stderr.includes("could not find")
-    ) {
+    if (stderr.includes("could not find")) {
       return;
     }
     throw error;
@@ -1306,7 +1304,10 @@ function readManifestVersion(manifestPath) {
   if (explicitVersion) {
     return explicitVersion[1];
   }
-  const workspaceManifest = readFileSync(path.join(path.dirname(manifestPath), "..", "..", "Cargo.toml"), "utf8");
+  const workspaceManifest = readFileSync(
+    path.join(path.dirname(manifestPath), "..", "..", "Cargo.toml"),
+    "utf8",
+  );
   const workspaceVersion = workspaceManifest.match(/^version = "([^"]+)"/m);
   if (!workspaceVersion) {
     throw new Error(`Could not determine package version for ${manifestPath}`);
