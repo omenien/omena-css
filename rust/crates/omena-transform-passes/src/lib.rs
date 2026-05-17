@@ -4058,7 +4058,7 @@ fn rule_matches_reachable_class_context(selector: &str, reachable_class_names: &
 
 fn selector_branch_owner_class_name(selector: &str) -> Option<String> {
     let selector = selector.trim();
-    if selector.is_empty() || find_ascii_case_insensitive(selector, ":global").is_some() {
+    if selector.is_empty() {
         return None;
     }
 
@@ -4078,6 +4078,14 @@ fn selector_branch_owner_class_name(selector: &str) -> Option<String> {
             } else if ch == quote_ch {
                 quote = None;
             }
+            continue;
+        }
+
+        if bracket_depth == 0
+            && paren_depth == 0
+            && let Some(global_end) = global_pseudo_function_end(selector, index)
+        {
+            index = global_end;
             continue;
         }
 
@@ -5696,17 +5704,6 @@ fn collect_custom_property_references_in_value(value: &str) -> Option<Vec<String
     }
 
     Some(names)
-}
-
-fn find_ascii_case_insensitive(haystack: &str, needle: &str) -> Option<usize> {
-    let needle = needle.as_bytes();
-    if needle.is_empty() || haystack.len() < needle.len() {
-        return None;
-    }
-    haystack
-        .as_bytes()
-        .windows(needle.len())
-        .position(|window| window.eq_ignore_ascii_case(needle))
 }
 
 fn normalize_custom_property_name(name: &str) -> Option<&str> {
@@ -12293,7 +12290,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
-        let source = r#".used { color: red; } .dead { color: blue; } .dead:hover { color: green; } button.other-dead { color: black; } .also-dead, .other-dead { color: black; } .used, .dead-mixed { color: cyan; } .used .child { color: purple; } :global(.external) { color: gray; } @media (min-width: 1px) { .media-dead { color: orange; } .used { color: brown; } }"#;
+        let source = r#".used { color: red; } .dead { color: blue; } .dead:hover { color: green; } button.other-dead { color: black; } .also-dead, .other-dead { color: black; } .used, .dead-mixed { color: cyan; } .used .child { color: purple; } :global(.external) { color: gray; } .dead :global(.external) { color: pink; } :global(.root) .dead-global { color: lime; } @media (min-width: 1px) { .media-dead { color: orange; } .used { color: brown; } }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             reachable_class_names: vec!["used".to_string()],
@@ -12309,7 +12306,7 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 6);
+        assert_eq!(execution.mutation_count, 8);
         assert!(execution.output_css.contains(".used { color: red; }"));
         assert!(execution.output_css.contains(".used { color: cyan; }"));
         assert!(
@@ -12329,6 +12326,8 @@ mod tests {
         );
         assert!(!execution.output_css.contains(".dead {"));
         assert!(!execution.output_css.contains(".dead:hover"));
+        assert!(!execution.output_css.contains(".dead :global"));
+        assert!(!execution.output_css.contains(".dead-global"));
         assert!(!execution.output_css.contains("button.other-dead"));
         assert!(!execution.output_css.contains(".also-dead"));
         assert!(!execution.output_css.contains(".other-dead"));
@@ -12338,7 +12337,7 @@ mod tests {
             execution.executed_pass_ids,
             vec!["tree-shake-class", "print-css"]
         );
-        assert_eq!(execution.semantic_removals.len(), 6);
+        assert_eq!(execution.semantic_removals.len(), 8);
         assert!(execution.semantic_removals.iter().any(|removal| {
             removal.symbol_kind == "class"
                 && removal.name == "also-dead,other-dead"
