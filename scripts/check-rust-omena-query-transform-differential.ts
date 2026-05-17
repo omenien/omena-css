@@ -79,6 +79,10 @@ const fixtures: readonly DifferentialFixture[] = [
       ".empty { } @supports (display: grid) { .nested { } .filled { color: red; } } .outer { .inner { } } .with-comment { /* remove after comment strip */ } .filled { color: red; }",
   },
   {
+    label: "keyframes-empty-frame",
+    source: "@keyframes fade { 0% {} to { opacity: 1 } } .empty{}",
+  },
+  {
     label: "calc-same-unit-nested",
     source: ".a { margin: calc(2rem + 3rem); padding: calc(10px - 4px); }",
   },
