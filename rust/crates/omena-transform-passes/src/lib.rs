@@ -4663,7 +4663,7 @@ fn rewrite_css_module_class_names_with_lexer(
 ) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let rules = collect_top_level_ordinary_rule_slices(source, tokens);
+    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
     let mut replacements = Vec::new();
 
     for rule in &rules {
@@ -11208,7 +11208,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_rewrites_css_module_class_names_with_identity_map() {
-        let source = r#".button { composes: base utility; color: red; } .base, .utility { color: blue; } .button:hover { color: green; } .button :global(.external) { color: purple; } :global(.root) .button { color: orange; }"#;
+        let source = r#".button { composes: base utility; color: red; } .base, .utility { color: blue; } .button:hover { color: green; } .button :global(.external) { color: purple; } :global(.root) .button { color: orange; } @media (min-width: 1px) { .button { color: black; } }"#;
         let context = TransformExecutionContextV0 {
             class_name_rewrites: vec![
                 TransformClassNameRewriteV0 {
@@ -11244,10 +11244,10 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 6);
+        assert_eq!(execution.mutation_count, 7);
         assert_eq!(
             execution.output_css,
-            r#"._button_abc123{ composes: _base_def456 _utility_ghi789; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } ._button_abc123:hover{ color: green; } ._button_abc123 :global(.external){ color: purple; } :global(.root) ._button_abc123{ color: orange; }"#
+            r#"._button_abc123{ composes: _base_def456 _utility_ghi789; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } ._button_abc123:hover{ color: green; } ._button_abc123 :global(.external){ color: purple; } :global(.root) ._button_abc123{ color: orange; } @media (min-width: 1px) { ._button_abc123{ color: black; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
