@@ -446,6 +446,47 @@ assert.deepEqual(alphaOkColorSummary.execution.executedPassIds, [
 ]);
 assert.equal(alphaOkColorSummary.execution.mutationCount, 2);
 
+const compositeValueResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "values.module.css",
+      styleSource:
+        "@value primary: #fff; @value gap: 8px; @value alias: primary; @value shadow: 0 0 4px primary; .button { color: alias; padding: gap gap; box-shadow: shadow; }",
+      requestedPassIds: ["value-resolution", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(compositeValueResult.status, 0, compositeValueResult.stderr);
+assert.equal(compositeValueResult.error, undefined);
+
+const compositeValueSummary = JSON.parse(compositeValueResult.stdout) as TransformExecuteSummaryV0;
+
+assert.equal(compositeValueSummary.product, "omena-query.transform-execute");
+assert.equal(
+  compositeValueSummary.execution.outputCss,
+  "    .button { color: #fff; padding: 8px 8px; box-shadow: 0 0 4px #fff; }",
+);
+assert.deepEqual(compositeValueSummary.execution.executedPassIds, [
+  "value-resolution",
+  "print-css",
+]);
+assert.equal(compositeValueSummary.execution.mutationCount, 7);
+
 const semanticReachabilityResult = spawnSync(
   "cargo",
   [
@@ -535,6 +576,7 @@ process.stdout.write(
     `groupedComposesMutations=${groupedComposesSummary.execution.mutationCount}`,
     `alphaColorMutations=${alphaColorFunctionSummary.execution.mutationCount}`,
     `alphaOkColorMutations=${alphaOkColorSummary.execution.mutationCount}`,
+    `compositeValueMutations=${compositeValueSummary.execution.mutationCount}`,
     `semanticRemovals=${semanticReachabilitySummary.semanticRemovalCount}`,
   ].join(" "),
 );

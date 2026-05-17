@@ -3392,6 +3392,7 @@ fn resolve_static_css_modules_values_with_lexer(
             let definition = unique_definitions_by_name.get(name)?;
             let resolved_value = resolve_static_css_modules_value_definition(
                 name,
+                dialect,
                 &unique_definitions_by_name,
                 &mut Vec::new(),
             )?;
@@ -3406,16 +3407,21 @@ fn resolve_static_css_modules_values_with_lexer(
         .iter()
         .map(|(definition, _)| (definition.start, definition.end, String::new()))
         .collect::<Vec<_>>();
+    let resolved_definitions_by_name = resolved_definitions
+        .iter()
+        .map(|(definition, resolved_value)| (definition.name.clone(), resolved_value.clone()))
+        .collect::<BTreeMap<_, _>>();
     let mut index = 0;
     while index < tokens.len() {
         if tokens[index].kind == SyntaxKind::LeftBrace
             && let Some(close_index) = matching_right_brace_index(tokens, index)
         {
             for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
-                let Some((_, resolved_value)) = resolved_definitions
-                    .iter()
-                    .find(|(definition, _)| declaration.value == definition.name)
-                else {
+                let Some(resolved_value) = substitute_resolved_css_modules_value_references(
+                    &declaration.value,
+                    dialect,
+                    &resolved_definitions_by_name,
+                ) else {
                     continue;
                 };
                 replacements.push((
@@ -3454,6 +3460,7 @@ fn resolve_static_css_modules_values_with_lexer(
 
 fn resolve_static_css_modules_value_definition(
     name: &str,
+    dialect: StyleDialect,
     definitions_by_name: &BTreeMap<String, &StaticCssModulesValueDefinition>,
     visiting: &mut Vec<String>,
 ) -> Option<String> {
@@ -3464,15 +3471,73 @@ fn resolve_static_css_modules_value_definition(
     if is_static_css_modules_value_literal(&definition.value) {
         return Some(definition.value.clone());
     }
-    let alias = definition.value.trim();
-    if !css_identifier_text_is_plain(alias) || !definitions_by_name.contains_key(alias) {
-        return None;
-    }
     visiting.push(name.to_string());
-    let resolved =
-        resolve_static_css_modules_value_definition(alias, definitions_by_name, visiting);
+    let resolved = substitute_static_css_modules_value_references(
+        &definition.value,
+        dialect,
+        definitions_by_name,
+        visiting,
+    );
     visiting.pop();
     resolved
+}
+
+fn substitute_static_css_modules_value_references(
+    value: &str,
+    dialect: StyleDialect,
+    definitions_by_name: &BTreeMap<String, &StaticCssModulesValueDefinition>,
+    visiting: &mut Vec<String>,
+) -> Option<String> {
+    let lexed = lex(value, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+
+    for token in tokens {
+        if token.kind != SyntaxKind::Ident || !definitions_by_name.contains_key(&token.text) {
+            continue;
+        }
+        let resolved = resolve_static_css_modules_value_definition(
+            &token.text,
+            dialect,
+            definitions_by_name,
+            visiting,
+        )?;
+        replacements.push((token_start(token), token_end(token), resolved));
+    }
+
+    if replacements.is_empty() {
+        return None;
+    }
+
+    let (output, mutation_count) = replace_source_ranges(value, &replacements);
+    (mutation_count > 0).then_some(output)
+}
+
+fn substitute_resolved_css_modules_value_references(
+    value: &str,
+    dialect: StyleDialect,
+    resolved_definitions_by_name: &BTreeMap<String, String>,
+) -> Option<String> {
+    let lexed = lex(value, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+
+    for token in tokens {
+        if token.kind != SyntaxKind::Ident {
+            continue;
+        }
+        let Some(resolved) = resolved_definitions_by_name.get(&token.text) else {
+            continue;
+        };
+        replacements.push((token_start(token), token_end(token), resolved.clone()));
+    }
+
+    if replacements.is_empty() {
+        return None;
+    }
+
+    let (output, mutation_count) = replace_source_ranges(value, &replacements);
+    (mutation_count > 0).then_some(output)
 }
 
 fn collect_static_local_css_modules_value_definitions(
@@ -11144,7 +11209,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_resolves_static_local_css_modules_values() {
-        let source = r#"@value primary: #fff; @value spacing: 8px; @value alias: primary; @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: primary; margin: spacing; background: alias; border-color: dup; }"#;
+        let source = r#"@value primary: #fff; @value spacing: 8px; @value alias: primary; @value shadow: 0 0 4px primary; @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: primary; margin: spacing spacing; background: alias; box-shadow: shadow; border-color: dup; }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -11153,10 +11218,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 6);
+        assert_eq!(execution.mutation_count, 8);
         assert_eq!(
             execution.output_css,
-            r#"   @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: #fff; margin: 8px; background: #fff; border-color: dup; }"#
+            r#"    @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: #fff; margin: 8px 8px; background: #fff; box-shadow: 0 0 4px #fff; border-color: dup; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
