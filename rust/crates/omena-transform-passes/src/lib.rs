@@ -4137,7 +4137,16 @@ fn selector_branch_owner_class_name(selector: &str) -> Option<String> {
 }
 
 fn simple_class_selector_name(selector: &str) -> Option<String> {
-    let name = selector.trim().strip_prefix('.')?;
+    let selector = selector.trim();
+    if let Some(local_end) = local_pseudo_function_end(selector, 0)
+        && local_end == selector.len()
+    {
+        let inner_start = ":local(".len();
+        let inner_end = local_end.saturating_sub(1);
+        return simple_class_selector_name(&selector[inner_start..inner_end]);
+    }
+
+    let name = selector.strip_prefix('.')?;
     if name.is_empty() || !css_identifier_text_is_plain(name) {
         return None;
     }
@@ -11059,7 +11068,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_resolves_css_module_composes_with_export_set() {
-        let source = r#".button { composes: base from "./base.module.css"; color: red; } .button:hover { color: blue; } .card, .panel { composes: shared; color: green; } @media (min-width: 1px) { .button { composes: base; color: black; } }"#;
+        let source = r#".button { composes: base from "./base.module.css"; color: red; } .button:hover { color: blue; } .card, .panel { composes: shared; color: green; } :local(.card) { composes: shared; color: yellow; } @media (min-width: 1px) { .button { composes: base; color: black; } }"#;
         let context = TransformExecutionContextV0 {
             css_module_composes_resolutions: vec![
                 TransformCssModuleComposesResolutionV0 {
@@ -11087,10 +11096,10 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 3);
+        assert_eq!(execution.mutation_count, 4);
         assert_eq!(
             execution.output_css,
-            r#".button {  color: red; } .button:hover { color: blue; } .card, .panel {  color: green; } @media (min-width: 1px) { .button {  color: black; } }"#
+            r#".button {  color: red; } .button:hover { color: blue; } .card, .panel {  color: green; } :local(.card) {  color: yellow; } @media (min-width: 1px) { .button {  color: black; } }"#
         );
         assert_eq!(
             execution.css_module_composes_exports,
