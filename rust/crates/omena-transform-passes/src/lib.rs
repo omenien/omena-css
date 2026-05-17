@@ -6217,7 +6217,7 @@ fn normalize_ascii_whitespace(text: &str) -> String {
 fn parse_oklab_oklch_value(value: &str) -> Option<String> {
     parse_oklab_value(value)
         .or_else(|| parse_oklch_value(value))
-        .map(SrgbColor::to_css_rgb)
+        .map(|(color, alpha)| color.to_css_rgb_with_alpha(alpha))
 }
 
 fn parse_color_function_value(value: &str) -> Option<String> {
@@ -6229,8 +6229,7 @@ fn parse_color_function_value(value: &str) -> Option<String> {
     let (space, red, green, blue, alpha) = match parts.as_slice() {
         [space, red, green, blue] => (*space, *red, *green, *blue, None),
         [space, red, green, blue, "/", alpha] => {
-            let alpha = parse_alpha_value(alpha)?;
-            let alpha = ((alpha - 1.0).abs() > f64::EPSILON).then_some(alpha);
+            let alpha = non_opaque_alpha_value(alpha)?;
             (*space, *red, *green, *blue, alpha)
         }
         _ => return None,
@@ -6262,40 +6261,57 @@ fn parse_alpha_value(text: &str) -> Option<f64> {
     parse_unit_interval_component(text)
 }
 
+fn non_opaque_alpha_value(text: &str) -> Option<Option<f64>> {
+    let alpha = parse_alpha_value(text)?;
+    Some(((alpha - 1.0).abs() > f64::EPSILON).then_some(alpha))
+}
+
 fn format_css_alpha(value: f64) -> String {
     compress_number_prefix(&format_css_number(value))
 }
 
-fn parse_oklab_value(value: &str) -> Option<SrgbColor> {
+fn parse_oklab_value(value: &str) -> Option<(SrgbColor, Option<f64>)> {
     let inner = parse_whole_function_value_inner(value, "oklab")?;
-    let parts = split_ascii_space_separated_color_args(inner)?;
+    let (parts, alpha) = split_ascii_space_separated_color_args_with_optional_alpha(inner)?;
     let [lightness, a_axis, b_axis] = parts.as_slice() else {
         return None;
     };
     let lightness = parse_ok_lightness(lightness)?;
     let a_axis = parse_plain_f64(a_axis)?;
     let b_axis = parse_plain_f64(b_axis)?;
-    oklab_to_srgb(lightness, a_axis, b_axis)
+    Some((oklab_to_srgb(lightness, a_axis, b_axis)?, alpha))
 }
 
-fn parse_oklch_value(value: &str) -> Option<SrgbColor> {
+fn parse_oklch_value(value: &str) -> Option<(SrgbColor, Option<f64>)> {
     let inner = parse_whole_function_value_inner(value, "oklch")?;
-    let parts = split_ascii_space_separated_color_args(inner)?;
+    let (parts, alpha) = split_ascii_space_separated_color_args_with_optional_alpha(inner)?;
     let [lightness, chroma, hue] = parts.as_slice() else {
         return None;
     };
     let lightness = parse_ok_lightness(lightness)?;
     let chroma = parse_plain_f64(chroma)?;
     let hue = parse_hue_degrees(hue)?.to_radians();
-    oklab_to_srgb(lightness, chroma * hue.cos(), chroma * hue.sin())
+    Some((
+        oklab_to_srgb(lightness, chroma * hue.cos(), chroma * hue.sin())?,
+        alpha,
+    ))
 }
 
-fn split_ascii_space_separated_color_args(inner: &str) -> Option<Vec<&str>> {
-    if inner.contains('/') || inner.contains(',') {
+fn split_ascii_space_separated_color_args_with_optional_alpha(
+    inner: &str,
+) -> Option<(Vec<&str>, Option<f64>)> {
+    if inner.contains(',') {
         return None;
     }
     let parts = inner.split_whitespace().collect::<Vec<_>>();
-    (!parts.is_empty()).then_some(parts)
+    match parts.as_slice() {
+        [first, second, third] => Some((vec![*first, *second, *third], None)),
+        [first, second, third, "/", alpha] => Some((
+            vec![*first, *second, *third],
+            non_opaque_alpha_value(alpha)?,
+        )),
+        _ => None,
+    }
 }
 
 fn parse_ok_lightness(text: &str) -> Option<f64> {
@@ -10825,7 +10841,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_in_gamut_oklab_oklch_declarations() {
-        let source = r#".card { color: oklab(1 0 0); background-color: oklch(0% 0 0deg); outline-color: oklch(0% 0 0.5TURN); background: linear-gradient(oklch(0% 0 0deg), white); border-color: oklch(70% 0.4 40deg); }"#;
+        let source = r#".card { color: oklab(1 0 0); background-color: oklch(0% 0 0deg); outline-color: oklch(0% 0 0.5TURN); background: linear-gradient(oklch(0% 0 0deg), white); accent-color: oklch(0% 0 0deg / .5); border-color: oklch(70% 0.4 40deg); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -10834,10 +10850,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(execution.mutation_count, 5);
         assert_eq!(
             execution.output_css,
-            r#".card { color: rgb(255 255 255); background-color: rgb(0 0 0); outline-color: rgb(0 0 0); background: linear-gradient(rgb(0 0 0), white); border-color: oklch(70% 0.4 40deg); }"#
+            r#".card { color: rgb(255 255 255); background-color: rgb(0 0 0); outline-color: rgb(0 0 0); background: linear-gradient(rgb(0 0 0), white); accent-color: rgb(0 0 0 / .5); border-color: oklch(70% 0.4 40deg); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,

@@ -406,6 +406,46 @@ assert.deepEqual(alphaColorFunctionSummary.execution.executedPassIds, [
 ]);
 assert.equal(alphaColorFunctionSummary.execution.mutationCount, 2);
 
+const alphaOkColorResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "ok-colors.css",
+      styleSource: ".card { color: oklab(1 0 0 / 100%); accent-color: oklch(0% 0 0deg / 50%); }",
+      requestedPassIds: ["oklch-oklab-lowering", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(alphaOkColorResult.status, 0, alphaOkColorResult.stderr);
+assert.equal(alphaOkColorResult.error, undefined);
+
+const alphaOkColorSummary = JSON.parse(alphaOkColorResult.stdout) as TransformExecuteSummaryV0;
+
+assert.equal(alphaOkColorSummary.product, "omena-query.transform-execute");
+assert.equal(
+  alphaOkColorSummary.execution.outputCss,
+  ".card { color: rgb(255 255 255); accent-color: rgb(0 0 0 / .5); }",
+);
+assert.deepEqual(alphaOkColorSummary.execution.executedPassIds, [
+  "oklch-oklab-lowering",
+  "print-css",
+]);
+assert.equal(alphaOkColorSummary.execution.mutationCount, 2);
+
 const semanticReachabilityResult = spawnSync(
   "cargo",
   [
@@ -494,6 +534,7 @@ process.stdout.write(
     `contextMutations=${contextSummary.execution.mutationCount}`,
     `groupedComposesMutations=${groupedComposesSummary.execution.mutationCount}`,
     `alphaColorMutations=${alphaColorFunctionSummary.execution.mutationCount}`,
+    `alphaOkColorMutations=${alphaOkColorSummary.execution.mutationCount}`,
     `semanticRemovals=${semanticReachabilitySummary.semanticRemovalCount}`,
   ].join(" "),
 );
