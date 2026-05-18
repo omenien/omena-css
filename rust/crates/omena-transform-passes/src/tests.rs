@@ -2986,6 +2986,42 @@ fn execution_runtime_tree_shakes_custom_properties_with_closed_world_context() {
 }
 
 #[test]
+fn execution_runtime_tree_shakes_custom_property_icss_exports_with_closed_world_context() {
+    let source = r#":root { --brand: red; --dead: blue; } :export { brand: var(--brand); dead: var(--dead); }"#;
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_custom_property_names: vec!["brand".to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::TreeShakeCustomProperty,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 2);
+    assert!(execution.output_css.contains("--brand: red;"));
+    assert!(execution.output_css.contains("brand: var(--brand);"));
+    assert!(!execution.output_css.contains("--dead: blue;"));
+    assert!(!execution.output_css.contains("dead: var(--dead);"));
+    assert_eq!(
+        execution
+            .semantic_removals
+            .iter()
+            .map(|removal| (removal.symbol_kind, removal.name.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("customPropertyIcssExport", "dead"),
+            ("customProperty", "--dead")
+        ]
+    );
+}
+
+#[test]
 fn execution_runtime_ignores_unreachable_custom_property_dependencies() {
     let source = r#":root { --used: var(--dep); --dep: red; --ghost: blue; } .btn { color: var(--used); } .dead { --used: var(--ghost); color: var(--ghost); }"#;
     let context = TransformExecutionContextV0 {

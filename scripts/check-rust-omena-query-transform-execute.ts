@@ -1592,6 +1592,75 @@ assert.deepEqual(
 );
 assert.equal(customPropertyRegistrationDependencySummary.execution.mutationCount, 3);
 
+const customPropertyIcssExportReachabilityResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "custom-property-icss-export.module.css",
+      styleSource:
+        ":root { --brand: red; --dead: blue; } :export { brand: var(--brand); dead: var(--dead); }",
+      requestedPassIds: ["tree-shake-custom-property", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableCustomPropertyNames: ["brand"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  customPropertyIcssExportReachabilityResult.status,
+  0,
+  customPropertyIcssExportReachabilityResult.stderr,
+);
+assert.equal(customPropertyIcssExportReachabilityResult.error, undefined);
+
+const customPropertyIcssExportReachabilitySummary = JSON.parse(
+  customPropertyIcssExportReachabilityResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.ok(
+  customPropertyIcssExportReachabilitySummary.execution.outputCss.includes(
+    "--brand: red;",
+  ),
+);
+assert.ok(
+  customPropertyIcssExportReachabilitySummary.execution.outputCss.includes(
+    "brand: var(--brand);",
+  ),
+);
+assert.ok(
+  !customPropertyIcssExportReachabilitySummary.execution.outputCss.includes(
+    "--dead: blue;",
+  ),
+);
+assert.ok(
+  !customPropertyIcssExportReachabilitySummary.execution.outputCss.includes(
+    "dead: var(--dead);",
+  ),
+);
+assert.deepEqual(
+  customPropertyIcssExportReachabilitySummary.execution.executedPassIds,
+  ["tree-shake-custom-property", "print-css"],
+);
+assert.equal(
+  customPropertyIcssExportReachabilitySummary.execution.mutationCount,
+  2,
+);
+
 const semanticReachabilityResult = spawnSync(
   "cargo",
   [

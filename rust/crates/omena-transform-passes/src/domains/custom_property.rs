@@ -304,6 +304,33 @@ pub(crate) fn tree_shake_css_custom_properties_with_lexer(
         reachable_keyframe_names,
         reachable_class_names,
     );
+    let export_rules = collect_static_custom_property_icss_export_rules(source, tokens);
+    for rule in &export_rules {
+        let unreachable_exports = rule
+            .declarations
+            .iter()
+            .filter(|declaration| {
+                !custom_property_icss_export_is_reachable(
+                    &declaration.export_name,
+                    reachable_custom_property_names,
+                )
+            })
+            .collect::<Vec<_>>();
+        if unreachable_exports.is_empty() {
+            continue;
+        }
+        removals.extend(
+            unreachable_exports
+                .iter()
+                .map(|declaration| TransformSemanticRemovalCandidate {
+                    symbol_kind: "customPropertyIcssExport",
+                    name: declaration.export_name.clone(),
+                    source_span_start: declaration.start,
+                    source_span_end: declaration.end,
+                    reason: "ICSS export declaration was absent from the closed-style-world reachable custom-property export set",
+                }),
+        );
+    }
     for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
         let rule_is_reachable = custom_property_rule_is_reachable(
             &rule,
@@ -407,6 +434,16 @@ fn collect_reachable_custom_property_names(
     ) {
         push_unique_string(&mut root_names, name);
     }
+    for rule in collect_static_custom_property_icss_export_rules(source, tokens) {
+        for declaration in rule.declarations {
+            if !custom_property_icss_export_is_reachable(&declaration.export_name, external_roots) {
+                continue;
+            }
+            for name in collect_custom_property_references_in_value(&declaration.value) {
+                push_unique_string(&mut root_names, name);
+            }
+        }
+    }
 
     for registration in collect_custom_property_registration_rules(tokens) {
         let Some(initial_value) = registration.initial_value else {
@@ -419,6 +456,9 @@ fn collect_reachable_custom_property_names(
     }
 
     for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
+        if rule.selector.trim().eq_ignore_ascii_case(":export") {
+            continue;
+        }
         if let Some(keyframe_name) = enclosing_keyframe_name_for_rule(&rule, &keyframes)
             && let Some(reachable_keyframe_names) = reachable_keyframe_names.as_ref()
             && !reachable_keyframe_names
@@ -463,6 +503,51 @@ fn collect_reachable_custom_property_names(
         root_names,
         &dependencies_by_name,
     ))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CustomPropertyIcssExportRule {
+    declarations: Vec<CustomPropertyIcssExportDeclaration>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CustomPropertyIcssExportDeclaration {
+    export_name: String,
+    value: String,
+    start: usize,
+    end: usize,
+}
+
+fn collect_static_custom_property_icss_export_rules(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+) -> Vec<CustomPropertyIcssExportRule> {
+    collect_declaration_ordinary_rule_slices(source, tokens)
+        .into_iter()
+        .filter(|rule| rule.selector.trim().eq_ignore_ascii_case(":export"))
+        .filter_map(|rule| {
+            let (block_start_index, block_end_index) =
+                rule_block_token_indexes(tokens, rule.block_start, rule.block_end)?;
+            let declarations =
+                collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+                    .into_iter()
+                    .filter(|declaration| {
+                        !collect_custom_property_references_in_value(&declaration.value).is_empty()
+                    })
+                    .map(|declaration| CustomPropertyIcssExportDeclaration {
+                        export_name: declaration.property,
+                        value: declaration.value,
+                        start: declaration.start,
+                        end: declaration.end,
+                    })
+                    .collect::<Vec<_>>();
+            (!declarations.is_empty()).then_some(CustomPropertyIcssExportRule { declarations })
+        })
+        .collect()
+}
+
+fn custom_property_icss_export_is_reachable(export_name: &str, roots: &[String]) -> bool {
+    roots.iter().any(|root| root == export_name)
 }
 
 fn collect_reachable_keyframe_names(
