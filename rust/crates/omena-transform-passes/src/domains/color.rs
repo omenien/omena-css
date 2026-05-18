@@ -843,6 +843,27 @@ pub(crate) fn shorten_hex_pairs(hex: &str) -> String {
         .collect()
 }
 
+pub(crate) fn compress_hex_color_token_text(text: &str) -> Option<String> {
+    let hex = text.strip_prefix('#')?;
+    if !matches!(hex.len(), 3 | 4 | 6 | 8) || !hex.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        return None;
+    }
+
+    let lower = hex.to_ascii_lowercase();
+    let compressed = match lower.len() {
+        4 if lower.ends_with('f') => lower[..3].to_string(),
+        6 if can_shorten_hex_pairs(&lower) => shorten_hex_pairs(&lower),
+        8 if lower.ends_with("ff") && can_shorten_hex_pairs(&lower[..6]) => {
+            shorten_hex_pairs(&lower[..6])
+        }
+        8 if lower.ends_with("ff") => lower[..6].to_string(),
+        8 if can_shorten_hex_pairs(&lower) => shorten_hex_pairs(&lower),
+        _ => lower,
+    };
+    let rewritten = format!("#{compressed}");
+    (rewritten != text).then_some(rewritten)
+}
+
 fn compressed_hex_color_for_srgb_with_alpha(color: SrgbColor, alpha: f64) -> String {
     let alpha = encode_css_rgb_component(alpha);
     let hex = format!(
