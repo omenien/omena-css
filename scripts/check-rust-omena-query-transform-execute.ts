@@ -821,7 +821,7 @@ const semanticReachabilityResult = spawnSync(
         {
           stylePath: "Button.module.css",
           styleSource:
-            '@value used from "./tokens.module.css"; @value deadValue from "./tokens.module.css"; @value deadBp from "./tokens.module.css"; @value localValue: used; @property --brand { syntax: "<color>"; inherits: false; initial-value: red; } @property --dead { syntax: "<color>"; inherits: false; initial-value: blue; } .button { composes: base utility; color: red; border-color: localValue; } .base { color: blue; } .utility { animation: spin 1s; color: var(--brand); } .dead { color: black; background: deadValue; } .dead :global(.external) { color: deadValue; } @media (min-width: deadBp) { .dead { color: deadValue; } } @keyframes spin { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } } :root { --brand: red; --dead: blue; }',
+            '@value used from "./tokens.module.css"; @value deadValue from "./tokens.module.css"; @value deadBp from "./tokens.module.css"; @value localValue: used; @property --brand { syntax: "<color>"; inherits: false; initial-value: red; } @property --dead { syntax: "<color>"; inherits: false; initial-value: blue; } .button { composes: base utility; color: red; border-color: localValue; } .base { color: blue; } .utility { animation: spin 1s; color: var(--brand); } :global { .global-reset { color: gray; } } .dead { color: black; background: deadValue; } .dead :global(.external) { color: deadValue; } @media (min-width: deadBp) { .dead { color: deadValue; } } @keyframes spin { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } } :root { --brand: red; --dead: blue; }',
         },
       ],
       requestedPassIds: [
@@ -867,6 +867,7 @@ assertIncludesAll(
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes(".button"));
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes(".base"));
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes(".utility"));
+assert.ok(semanticReachabilitySummary.execution.outputCss.includes(".global-reset"));
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes("@keyframes spin"));
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes("@value used from"));
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes("@value localValue: used;"));

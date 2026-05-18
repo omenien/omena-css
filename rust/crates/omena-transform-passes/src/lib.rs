@@ -3978,10 +3978,16 @@ fn tree_shake_css_class_rules_with_lexer(
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let rules = collect_declaration_ordinary_rule_slices(source, tokens);
+    let scope_blocks = collect_css_module_scope_blocks(source, tokens);
     let mut removals = Vec::new();
     let mut replacements = Vec::new();
 
     for rule in &rules {
+        if css_module_scope_kind_for_range(rule.start, rule.end, &scope_blocks)
+            == Some(CssModuleScopeBlockKind::Global)
+        {
+            continue;
+        }
         let Some(plan) = selector_list_class_tree_shake_plan(&rule.selector, reachable_class_names)
         else {
             continue;
@@ -4054,6 +4060,19 @@ fn rule_matches_reachable_class_context(selector: &str, reachable_class_names: &
             ..
         })
     )
+}
+
+fn rule_slice_matches_reachable_class_context(
+    rule: &SimpleRuleSlice,
+    scope_blocks: &[CssModuleScopeBlock],
+    reachable_class_names: &[String],
+) -> bool {
+    if css_module_scope_kind_for_range(rule.start, rule.end, scope_blocks)
+        == Some(CssModuleScopeBlockKind::Global)
+    {
+        return true;
+    }
+    rule_matches_reachable_class_context(&rule.selector, reachable_class_names)
 }
 
 fn selector_branch_owner_class_name(selector: &str) -> Option<String> {
@@ -5185,8 +5204,10 @@ fn collect_referenced_keyframe_names(
     reachable_class_names: &[String],
 ) -> Option<Vec<String>> {
     let mut names = Vec::new();
+    let scope_blocks = collect_css_module_scope_blocks(source, tokens);
     for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
-        if !rule_matches_reachable_class_context(&rule.selector, reachable_class_names) {
+        if !rule_slice_matches_reachable_class_context(&rule, &scope_blocks, reachable_class_names)
+        {
             continue;
         };
         let Some((block_start_index, block_end_index)) =
@@ -5429,6 +5450,7 @@ fn collect_reachable_css_modules_value_names(
 ) -> Vec<String> {
     let mut root_names = external_roots.to_vec();
     let mut dependencies_by_name = BTreeMap::<String, Vec<String>>::new();
+    let scope_blocks = collect_css_module_scope_blocks(source, tokens);
 
     for definition in definitions {
         for reference_name in
@@ -5445,7 +5467,8 @@ fn collect_reachable_css_modules_value_names(
     }
 
     for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
-        if !rule_matches_reachable_class_context(&rule.selector, reachable_class_names) {
+        if !rule_slice_matches_reachable_class_context(&rule, &scope_blocks, reachable_class_names)
+        {
             continue;
         }
         let Some((block_start_index, block_end_index)) =
@@ -5471,6 +5494,7 @@ fn collect_reachable_css_modules_value_names(
         value_names,
         &mut root_names,
         reachable_class_names,
+        &scope_blocks,
     );
 
     close_css_modules_value_dependency_graph(root_names, &dependencies_by_name)
@@ -5482,6 +5506,7 @@ fn collect_css_modules_value_references_in_at_rule_preludes(
     definition_names: &[String],
     root_names: &mut Vec<String>,
     reachable_class_names: &[String],
+    scope_blocks: &[CssModuleScopeBlock],
 ) {
     let mut index = 0;
     while index < tokens.len() {
@@ -5521,6 +5546,7 @@ fn collect_css_modules_value_references_in_at_rule_preludes(
                         terminator_index,
                         close_index,
                         reachable_class_names,
+                        scope_blocks,
                     )
                 })
             }
@@ -5549,6 +5575,7 @@ fn at_rule_block_has_reachable_ordinary_rule(
     block_start_index: usize,
     block_end_index: usize,
     reachable_class_names: &[String],
+    scope_blocks: &[CssModuleScopeBlock],
 ) -> bool {
     let context_start = token_start(&tokens[block_start_index]);
     let context_end = token_end(&tokens[block_end_index]);
@@ -5558,7 +5585,11 @@ fn at_rule_block_has_reachable_ordinary_rule(
         .any(|rule| {
             rule.context_start >= context_start
                 && rule.context_end <= context_end
-                && rule_matches_reachable_class_context(&rule.selector, reachable_class_names)
+                && rule_slice_matches_reachable_class_context(
+                    rule,
+                    scope_blocks,
+                    reachable_class_names,
+                )
         })
 }
 
@@ -5750,6 +5781,7 @@ fn collect_reachable_custom_property_names(
 ) -> Option<Vec<String>> {
     let mut root_names = Vec::new();
     let mut dependencies_by_name = BTreeMap::<String, Vec<String>>::new();
+    let scope_blocks = collect_css_module_scope_blocks(source, tokens);
 
     for name in external_roots {
         if let Some(name) = normalize_custom_property_name(name) {
@@ -5759,7 +5791,7 @@ fn collect_reachable_custom_property_names(
 
     for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
         let rule_is_reachable =
-            rule_matches_reachable_class_context(&rule.selector, reachable_class_names);
+            rule_slice_matches_reachable_class_context(&rule, &scope_blocks, reachable_class_names);
         let Some((block_start_index, block_end_index)) =
             rule_block_token_indexes(tokens, rule.block_start, rule.block_end)
         else {
@@ -12463,7 +12495,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
-        let source = r#".used { color: red; } .dead { color: blue; } .dead:hover { color: green; } button.other-dead { color: black; } .also-dead, .other-dead { color: black; } .used, .dead-mixed { color: cyan; } .used .child { color: purple; } :global(.external) { color: gray; } .dead :global(.external) { color: pink; } :global(.root) .dead-global { color: lime; } :local(.dead-local) { color: brown; } @media (min-width: 1px) { .media-dead { color: orange; } .used { color: brown; } }"#;
+        let source = r#".used { color: red; } .dead { color: blue; } .dead:hover { color: green; } button.other-dead { color: black; } .also-dead, .other-dead { color: black; } .used, .dead-mixed { color: cyan; } .used .child { color: purple; } :global(.external) { color: gray; } :global { .global-block { color: silver; } } .dead :global(.external) { color: pink; } :global(.root) .dead-global { color: lime; } :local(.dead-local) { color: brown; } @media (min-width: 1px) { .media-dead { color: orange; } .used { color: brown; } }"#;
         let context = TransformExecutionContextV0 {
             closed_style_world: true,
             reachable_class_names: vec!["used".to_string()],
@@ -12496,6 +12528,11 @@ mod tests {
             execution
                 .output_css
                 .contains(":global(.external) { color: gray; }")
+        );
+        assert!(
+            execution
+                .output_css
+                .contains(":global { .global-block { color: silver; } }")
         );
         assert!(!execution.output_css.contains(".dead {"));
         assert!(!execution.output_css.contains(".dead:hover"));
