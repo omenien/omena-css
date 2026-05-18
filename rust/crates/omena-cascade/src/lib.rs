@@ -1792,11 +1792,29 @@ fn parse_simple_supports_declaration(condition: &str) -> Option<(&str, &str)> {
     if property.is_empty()
         || value.is_empty()
         || property.contains(|ch: char| !is_supports_declaration_token_char(ch))
-        || value.contains(['{', '}', ';', '(', ')'])
+        || value.contains(['{', '}', ';'])
+        || !supports_declaration_value_has_balanced_parentheses(value)
     {
         return None;
     }
     Some((property, value))
+}
+
+fn supports_declaration_value_has_balanced_parentheses(value: &str) -> bool {
+    let mut depth = 0usize;
+    for ch in value.chars() {
+        match ch {
+            '(' => depth += 1,
+            ')' => {
+                let Some(next_depth) = depth.checked_sub(1) else {
+                    return false;
+                };
+                depth = next_depth;
+            }
+            _ => {}
+        }
+    }
+    depth == 0
 }
 
 fn parse_supports_selector_condition(condition: &str) -> Option<&str> {
@@ -3147,6 +3165,36 @@ mod tests {
             StaticSupportsEvalVerdictV0::AlwaysFalse
         );
         assert!(negated_selector.provenance_preserved);
+
+        let color_function = evaluate_static_supports_condition(
+            "(color: color(display-p3 1 0 0))",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            color_function.verdict,
+            StaticSupportsEvalVerdictV0::AlwaysTrue
+        );
+        assert!(color_function.provenance_preserved);
+
+        let gradient_function = evaluate_static_supports_condition(
+            "(background-image: linear-gradient(red, blue))",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            gradient_function.verdict,
+            StaticSupportsEvalVerdictV0::AlwaysTrue
+        );
+        assert!(gradient_function.provenance_preserved);
+
+        let malformed_function = evaluate_static_supports_condition(
+            "(color: color(display-p3 1 0 0)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            malformed_function.verdict,
+            StaticSupportsEvalVerdictV0::Unknown
+        );
+        assert!(!malformed_function.provenance_preserved);
 
         let grouped_disjunction = evaluate_static_supports_condition(
             "((display: grid) or (display: -ms-grid))",

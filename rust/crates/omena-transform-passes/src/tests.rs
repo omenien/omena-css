@@ -1784,6 +1784,28 @@ fn execution_runtime_evaluates_selector_supports_branches_with_cascade_witness()
 }
 
 #[test]
+fn execution_runtime_evaluates_function_value_supports_branches_with_cascade_witness() {
+    let source = r#"@supports (color: color(display-p3 1 0 0)) { .p3 { color: red; } } @supports not (background-image: linear-gradient(red, blue)) { .not-gradient { color: blue; } } @supports (width: min(10px, 20px)) and (display: grid) { .math { color: green; } } @supports (color: color(display-p3 1 0 0) { .malformed { color: orange; } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::SupportsStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 3);
+    assert_eq!(
+        execution.output_css,
+        r#".p3 { color: red; }  .math { color: green; } @supports (color: color(display-p3 1 0 0) { .malformed { color: orange; } }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["supports-static-eval", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_reduces_simple_same_unit_calc_values() {
     let source = r#".card { width: calc(1px + 2px); height: calc(10rem - 2rem); margin: calc(1px + 2rem); padding: calc(2px + 3px + 4px); margin-block-start: calc(10px - 3px - 2px); color: calc(1 + 2); gap: calc(.5rem+.25rem); inset: calc(1px - -2px); letter-spacing: calc(2px * 1); border-width: calc(1 * 3px); z-index: calc(4 / 1); scale: calc(3 * 0); box-shadow: 0 0 calc(1px + 2px) red; transform: translate(calc(10px - 2px), calc(1rem + 1rem)); min-width: min(10px, 4px); max-width: max(1rem, 2rem); block-size: min(2em, 1rem); opacity: max(.2, .5); outline-width: calc((2px * 3)); flex-basis: calc(2px * 3 * 4); inline-size: min(10px, max(2px, 4px)); line-height: clamp(.1, .5, .9); }"#;
     let execution = execute_transform_passes_on_source(
