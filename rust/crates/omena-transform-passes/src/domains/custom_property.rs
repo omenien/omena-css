@@ -7,6 +7,14 @@ use omena_cascade::{
 use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
+use crate::domains::{
+    css_module_global::collect_css_module_scope_blocks,
+    css_modules_values::at_rule_block_has_reachable_ordinary_rule,
+    keyframes::{
+        KeyframesRuleSlice, collect_referenced_keyframe_names, collect_top_level_keyframes_rules,
+    },
+    reachability::rule_slice_matches_reachable_class_context,
+};
 use crate::helpers::{
     blocks::{at_rule_block_start, at_rule_prelude_end_index, rule_block_token_indexes},
     collections::push_unique_string,
@@ -16,12 +24,14 @@ use crate::helpers::{
         SimpleRuleSlice, collect_declaration_ordinary_rule_slices,
         collect_top_level_ordinary_rule_slices,
     },
+    source_rewrite::remove_source_ranges,
     tokens::{matching_right_brace_index, skip_whitespace_tokens, token_end, token_start},
     values::{
         matching_function_call_end, parse_whole_function_value_arguments,
         split_top_level_value_arguments,
     },
 };
+use crate::model::TransformSemanticRemovalCandidate;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CustomPropertyRegistrationRule {
@@ -250,6 +260,184 @@ pub(crate) fn collect_custom_property_roots_from_container_style_query_preludes(
     }
 
     roots
+}
+
+pub(crate) fn tree_shake_css_custom_properties_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_custom_property_names: &[String],
+    reachable_keyframe_names: &[String],
+    reachable_class_names: &[String],
+) -> (String, Vec<TransformSemanticRemovalCandidate>) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let Some(referenced_names) = collect_reachable_custom_property_names(
+        source,
+        tokens,
+        reachable_custom_property_names,
+        reachable_keyframe_names,
+        reachable_class_names,
+    ) else {
+        return (source.to_string(), Vec::new());
+    };
+
+    let mut removals = Vec::new();
+    for registration in collect_custom_property_registration_rules(tokens) {
+        if !referenced_names
+            .iter()
+            .any(|name| name == &registration.name)
+        {
+            removals.push(TransformSemanticRemovalCandidate {
+                symbol_kind: "customPropertyRegistration",
+                name: registration.name,
+                source_span_start: registration.start,
+                source_span_end: registration.end,
+                reason: "custom-property registration was absent from the closed-style-world reachable custom-property set",
+            });
+        }
+    }
+    let mut index = 0;
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
+                if declaration.property.starts_with("--")
+                    && !referenced_names
+                        .iter()
+                        .any(|name| name == &declaration.property)
+                {
+                    removals.push(TransformSemanticRemovalCandidate {
+                        symbol_kind: "customProperty",
+                        name: declaration.property,
+                        source_span_start: declaration.start,
+                        source_span_end: declaration.end,
+                        reason: "custom property declaration was absent from transitive var() references and the closed-style-world reachable custom-property set",
+                    });
+                }
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    let ranges = removals
+        .iter()
+        .map(|removal| (removal.source_span_start, removal.source_span_end))
+        .collect::<Vec<_>>();
+    let (output, _) = remove_source_ranges(source, &ranges);
+    (output, removals)
+}
+
+fn collect_reachable_custom_property_names(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+    external_roots: &[String],
+    external_keyframe_roots: &[String],
+    reachable_class_names: &[String],
+) -> Option<Vec<String>> {
+    let mut root_names = Vec::new();
+    let mut dependencies_by_name = BTreeMap::<String, Vec<String>>::new();
+    let scope_blocks = collect_css_module_scope_blocks(source, tokens);
+    let keyframes = collect_top_level_keyframes_rules(tokens);
+    let reachable_keyframe_names = collect_reachable_keyframe_names(
+        source,
+        tokens,
+        external_keyframe_roots,
+        reachable_class_names,
+    );
+
+    for name in external_roots {
+        if let Some(name) = normalize_custom_property_name(name) {
+            push_unique_string(&mut root_names, name.to_string());
+        }
+    }
+    for name in collect_custom_property_roots_from_container_style_query_preludes(
+        source,
+        tokens,
+        |block_start_index, block_end_index| {
+            at_rule_block_has_reachable_ordinary_rule(
+                source,
+                tokens,
+                block_start_index,
+                block_end_index,
+                reachable_class_names,
+                &scope_blocks,
+            )
+        },
+    ) {
+        push_unique_string(&mut root_names, name);
+    }
+
+    for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
+        if let Some(keyframe_name) = enclosing_keyframe_name_for_rule(&rule, &keyframes)
+            && let Some(reachable_keyframe_names) = reachable_keyframe_names.as_ref()
+            && !reachable_keyframe_names
+                .iter()
+                .any(|name| name == keyframe_name)
+        {
+            continue;
+        }
+        let rule_is_reachable =
+            rule_slice_matches_reachable_class_context(&rule, &scope_blocks, reachable_class_names);
+        let Some((block_start_index, block_end_index)) =
+            rule_block_token_indexes(tokens, rule.block_start, rule.block_end)
+        else {
+            continue;
+        };
+        for declaration in
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+        {
+            if declaration.property.starts_with("--") {
+                if !rule_is_reachable {
+                    continue;
+                }
+                let referenced_names =
+                    collect_custom_property_references_in_value(&declaration.value);
+                let dependencies = dependencies_by_name
+                    .entry(declaration.property)
+                    .or_default();
+                for name in referenced_names {
+                    push_unique_string(dependencies, name);
+                }
+            } else if rule_is_reachable {
+                let referenced_names =
+                    collect_custom_property_references_in_value(&declaration.value);
+                for name in referenced_names {
+                    push_unique_string(&mut root_names, name);
+                }
+            }
+        }
+    }
+
+    Some(close_custom_property_dependency_graph(
+        root_names,
+        &dependencies_by_name,
+    ))
+}
+
+fn collect_reachable_keyframe_names(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+    external_roots: &[String],
+    reachable_class_names: &[String],
+) -> Option<Vec<String>> {
+    let mut names = collect_referenced_keyframe_names(source, tokens, reachable_class_names)?;
+    for name in external_roots {
+        push_unique_string(&mut names, name.clone());
+    }
+    Some(names)
+}
+
+fn enclosing_keyframe_name_for_rule<'a>(
+    rule: &SimpleRuleSlice,
+    keyframes: &'a [KeyframesRuleSlice],
+) -> Option<&'a str> {
+    keyframes
+        .iter()
+        .find(|keyframe| rule.start >= keyframe.start && rule.end <= keyframe.end)
+        .map(|keyframe| keyframe.name.as_str())
 }
 
 fn collect_custom_property_names_in_style_query(query: &str, names: &mut Vec<String>) {
