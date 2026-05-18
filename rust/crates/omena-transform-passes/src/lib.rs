@@ -5921,6 +5921,12 @@ fn collect_shorthand_replacements_in_block(
     while index + 3 < declarations.len() {
         if let Some((start, end, replacement)) =
             box_shorthand_replacement_for_declarations(tokens, &declarations[index..index + 4])
+                .or_else(|| {
+                    border_radius_shorthand_replacement_for_declarations(
+                        tokens,
+                        &declarations[index..index + 4],
+                    )
+                })
         {
             ranges.push((start, end, replacement));
             index += 4;
@@ -6021,6 +6027,8 @@ fn shorthand_value_replacement_for_declaration(
         compress_box_shorthand_value(&declaration.value)
     } else if declaration.property == "background-repeat" {
         compress_background_repeat_value(&declaration.value)
+    } else if declaration.property == "border-radius" {
+        compress_border_radius_value(&declaration.value)
     } else {
         None
     }?;
@@ -6049,6 +6057,82 @@ fn compress_background_repeat_value(value: &str) -> Option<String> {
 
 fn is_background_repeat_axis_keyword(value: &str) -> bool {
     matches!(value, "repeat" | "no-repeat" | "space" | "round")
+}
+
+fn border_radius_shorthand_replacement_for_declarations(
+    tokens: &[omena_parser::LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let [top_left, top_right, bottom_right, bottom_left] = declarations else {
+        return None;
+    };
+    if top_left.property != "border-top-left-radius"
+        || top_right.property != "border-top-right-radius"
+        || bottom_right.property != "border-bottom-right-radius"
+        || bottom_left.property != "border-bottom-left-radius"
+        || declarations.iter().any(|declaration| declaration.important)
+        || !declaration_ranges_are_adjacent(tokens, declarations)
+        || declarations
+            .iter()
+            .any(|declaration| !is_single_axis_border_radius_value(&declaration.value))
+    {
+        return None;
+    }
+    let values = declarations
+        .iter()
+        .map(|declaration| declaration.value.as_str())
+        .collect::<Vec<_>>();
+    let shorthand_value = compress_box_shorthand_values(&values)?;
+    Some((
+        top_left.start,
+        bottom_left.end,
+        format!("border-radius: {shorthand_value};"),
+    ))
+}
+
+fn compress_border_radius_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    if !(1..=4).contains(&components.len())
+        || components
+            .iter()
+            .any(|component| !is_single_axis_border_radius_value(component))
+    {
+        return None;
+    }
+    let values = match components.as_slice() {
+        [value] => [
+            value.as_str(),
+            value.as_str(),
+            value.as_str(),
+            value.as_str(),
+        ],
+        [top_left_bottom_right, top_right_bottom_left] => [
+            top_left_bottom_right.as_str(),
+            top_right_bottom_left.as_str(),
+            top_left_bottom_right.as_str(),
+            top_right_bottom_left.as_str(),
+        ],
+        [top_left, top_right_bottom_left, bottom_right] => [
+            top_left.as_str(),
+            top_right_bottom_left.as_str(),
+            bottom_right.as_str(),
+            top_right_bottom_left.as_str(),
+        ],
+        [top_left, top_right, bottom_right, bottom_left] => [
+            top_left.as_str(),
+            top_right.as_str(),
+            bottom_right.as_str(),
+            bottom_left.as_str(),
+        ],
+        _ => return None,
+    };
+    let compressed = compress_box_shorthand_values(&values)?;
+    (compressed != normalize_ascii_whitespace(value)).then_some(compressed)
+}
+
+fn is_single_axis_border_radius_value(value: &str) -> bool {
+    split_top_level_whitespace_value_components(value)
+        .is_some_and(|components| components.len() == 1 && components[0] != "/")
 }
 
 fn compress_box_shorthand_value(value: &str) -> Option<String> {
@@ -8903,6 +8987,24 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".a { overflow: visible; background-repeat: repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#
+        );
+    }
+
+    #[test]
+    fn execution_runtime_compresses_border_radius_shorthands() {
+        let source = r#".a { border-radius: 1px 1px 1px 1px; border-top-left-radius: 1px; border-top-right-radius: 2px; border-bottom-right-radius: 1px; border-bottom-left-radius: 2px; } .b { border-radius: 1px / 2px; border-top-left-radius: 1px 2px; border-top-right-radius: 2px; border-bottom-right-radius: 1px; border-bottom-left-radius: 2px; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::ShorthandCombining,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#".a { border-radius: 1px; border-radius: 1px 2px; } .b { border-radius: 1px / 2px; border-top-left-radius: 1px 2px; border-top-right-radius: 2px; border-bottom-right-radius: 1px; border-bottom-left-radius: 2px; }"#
         );
     }
 
