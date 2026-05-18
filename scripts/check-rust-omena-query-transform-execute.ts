@@ -335,7 +335,8 @@ const groupedComposesResult = spawnSync(
     encoding: "utf8",
     input: JSON.stringify({
       stylePath: "Button.module.css",
-      styleSource: ".button, .card { composes: base; color: red; } .base { color: blue; }",
+      styleSource:
+        ".button, .card { composes: base; color: red; } :global { .button { composes: base; color: pink; } } .base { color: blue; }",
       requestedPassIds: ["composes-resolution", "print-css"],
       transformContext: {
         cssModuleComposesResolutions: [
@@ -358,7 +359,7 @@ const groupedComposesSummary = JSON.parse(
 assert.equal(groupedComposesSummary.product, "omena-query.transform-execute");
 assert.equal(
   groupedComposesSummary.execution.outputCss,
-  ".button, .card {  color: red; } .base { color: blue; }",
+  ".button, .card {  color: red; } :global { .button { composes: base; color: pink; } } .base { color: blue; }",
 );
 assert.deepEqual(groupedComposesSummary.execution.executedPassIds, [
   "composes-resolution",

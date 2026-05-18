@@ -4439,9 +4439,15 @@ fn strip_resolved_css_module_composes_with_lexer(
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let rules = collect_declaration_ordinary_rule_slices(source, tokens);
+    let scope_blocks = collect_css_module_scope_blocks(source, tokens);
     let mut ranges = Vec::new();
 
     for rule in &rules {
+        if css_module_scope_kind_for_range(rule.start, rule.end, &scope_blocks)
+            == Some(CssModuleScopeBlockKind::Global)
+        {
+            continue;
+        }
         let Some(class_names) = simple_class_selector_names(&rule.selector) else {
             continue;
         };
@@ -11225,7 +11231,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_resolves_css_module_composes_with_export_set() {
-        let source = r#".button { composes: base from "./base.module.css"; color: red; } .button:hover { color: blue; } .card, .panel { composes: shared; color: green; } :local(.card) { composes: shared; color: yellow; } @media (min-width: 1px) { .button { composes: base; color: black; } }"#;
+        let source = r#".button { composes: base from "./base.module.css"; color: red; } .button:hover { color: blue; } .card, .panel { composes: shared; color: green; } :local(.card) { composes: shared; color: yellow; } :local { .button { composes: base; color: navy; } } :global { .button { composes: base; color: pink; } } @media (min-width: 1px) { .button { composes: base; color: black; } }"#;
         let context = TransformExecutionContextV0 {
             css_module_composes_resolutions: vec![
                 TransformCssModuleComposesResolutionV0 {
@@ -11253,10 +11259,10 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(execution.mutation_count, 5);
         assert_eq!(
             execution.output_css,
-            r#".button {  color: red; } .button:hover { color: blue; } .card, .panel {  color: green; } :local(.card) {  color: yellow; } @media (min-width: 1px) { .button {  color: black; } }"#
+            r#".button {  color: red; } .button:hover { color: blue; } .card, .panel {  color: green; } :local(.card) {  color: yellow; } :local { .button {  color: navy; } } :global { .button { composes: base; color: pink; } } @media (min-width: 1px) { .button {  color: black; } }"#
         );
         assert_eq!(
             execution.css_module_composes_exports,
