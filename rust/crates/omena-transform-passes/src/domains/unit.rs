@@ -110,6 +110,7 @@ fn is_zero_length_unit_property(property: &str) -> bool {
             | "border-right-width"
             | "border-start-end-radius"
             | "border-start-start-radius"
+            | "border-spacing"
             | "border-top"
             | "border-top-left-radius"
             | "border-top-right-radius"
@@ -191,6 +192,8 @@ fn is_zero_length_unit_property(property: &str) -> bool {
             | "gap"
             | "row-gap"
             | "column-gap"
+            | "letter-spacing"
+            | "word-spacing"
             | "line-height"
     )
 }
