@@ -9,7 +9,7 @@ use omena_abstract_value::{
     prefix_class_value,
 };
 use omena_benchmarks::{
-    measure_omena_parser_product_sample, style_corpus, summarize_legacy_parser_product_sample,
+    measure_legacy_parser_product_sample, measure_omena_parser_product_sample, style_corpus,
 };
 use omena_parser::parse as parse_omena_style;
 use omena_semantic::summarize_omena_parser_style_semantic_boundary_from_source;
@@ -52,7 +52,7 @@ fn parser_product_benchmarks(c: &mut Criterion) {
     for sample in &samples {
         legacy_group.bench_function(sample.name, |b| {
             b.iter(|| {
-                black_box(summarize_legacy_parser_product_sample(
+                black_box(measure_legacy_parser_product_sample(
                     black_box(sample.path),
                     black_box(sample.source.as_str()),
                 ));

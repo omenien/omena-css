@@ -1,7 +1,7 @@
 use std::{hint::black_box, time::Instant};
 
 use omena_benchmarks::{
-    measure_omena_parser_product_sample, style_corpus, summarize_legacy_parser_product_sample,
+    measure_legacy_parser_product_sample, measure_omena_parser_product_sample, style_corpus,
     validate_legacy_style_sample, validate_omena_style_sample,
     validate_parser_product_benchmark_boundary_symmetry,
 };
@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         warm_up(sample.path, sample.source.as_str(), sample.dialect);
 
         let legacy = measure_iterations(ITERATIONS, || {
-            black_box(summarize_legacy_parser_product_sample(
+            black_box(measure_legacy_parser_product_sample(
                 black_box(sample.path),
                 black_box(sample.source.as_str()),
             ));
@@ -70,7 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn warm_up(path: &str, source: &str, dialect: omena_parser::StyleDialect) {
     for _ in 0..4 {
-        black_box(summarize_legacy_parser_product_sample(
+        black_box(measure_legacy_parser_product_sample(
             black_box(path),
             black_box(source),
         ));

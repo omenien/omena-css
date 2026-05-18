@@ -21,7 +21,14 @@ pub struct ParserProductBenchmarkBoundaryV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaParserProductMeasurementV0 {
+    pub boundary: ParserProductBenchmarkBoundaryV0,
     pub summary: omena_parser::ParserIndexSummaryV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LegacyParserProductMeasurementV0 {
+    pub boundary: ParserProductBenchmarkBoundaryV0,
+    pub summary: engine_style_parser::ParserIndexSummaryV0,
 }
 
 pub fn style_corpus() -> Vec<StyleSample> {
@@ -66,6 +73,14 @@ pub fn parser_product_benchmark_boundaries() -> [ParserProductBenchmarkBoundaryV
             includes_product_summary: true,
         },
     ]
+}
+
+pub fn legacy_parser_product_benchmark_boundary() -> ParserProductBenchmarkBoundaryV0 {
+    parser_product_benchmark_boundaries()[0]
+}
+
+pub fn omena_parser_product_benchmark_boundary() -> ParserProductBenchmarkBoundaryV0 {
+    parser_product_benchmark_boundaries()[1]
 }
 
 pub fn validate_parser_product_benchmark_boundary_symmetry() -> Result<(), String> {
@@ -121,6 +136,17 @@ pub fn summarize_legacy_parser_product_sample(
     ))
 }
 
+pub fn measure_legacy_parser_product_sample(
+    path: &str,
+    source: &str,
+) -> Option<LegacyParserProductMeasurementV0> {
+    let summary = summarize_legacy_parser_product_sample(path, source)?;
+    Some(LegacyParserProductMeasurementV0 {
+        boundary: legacy_parser_product_benchmark_boundary(),
+        summary,
+    })
+}
+
 pub fn summarize_omena_style_sample(
     source: &str,
     dialect: StyleDialect,
@@ -140,7 +166,10 @@ pub fn measure_omena_parser_product_sample(
     dialect: StyleDialect,
 ) -> OmenaParserProductMeasurementV0 {
     let summary = summarize_omena_parser_product_sample(source, dialect);
-    OmenaParserProductMeasurementV0 { summary }
+    OmenaParserProductMeasurementV0 {
+        boundary: omena_parser_product_benchmark_boundary(),
+        summary,
+    }
 }
 
 pub fn validate_omena_style_sample(source: &str, dialect: StyleDialect) -> Result<(), String> {
@@ -247,8 +276,8 @@ fn build_scss_heavy_design_system(count: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        measure_omena_parser_product_sample, parser_product_benchmark_boundaries, style_corpus,
-        summarize_legacy_parser_product_sample, validate_legacy_style_sample,
+        measure_legacy_parser_product_sample, measure_omena_parser_product_sample,
+        parser_product_benchmark_boundaries, style_corpus, validate_legacy_style_sample,
         validate_omena_style_sample, validate_parser_product_benchmark_boundary_symmetry,
     };
 
@@ -283,11 +312,32 @@ mod tests {
             validate_legacy_style_sample(sample.path, sample.source.as_str())?;
             validate_omena_style_sample(sample.source.as_str(), sample.dialect)?;
 
-            let legacy =
-                summarize_legacy_parser_product_sample(sample.path, sample.source.as_str())
-                    .ok_or_else(|| format!("legacy parser product failed for {}", sample.name))?;
+            let legacy = measure_legacy_parser_product_sample(sample.path, sample.source.as_str())
+                .ok_or_else(|| format!("legacy parser product failed for {}", sample.name))?;
             let omena = measure_omena_parser_product_sample(sample.source.as_str(), sample.dialect);
-            let legacy = serde_json::to_value(legacy).map_err(|error| error.to_string())?;
+
+            assert_eq!(
+                legacy.boundary.input_boundary,
+                omena.boundary.input_boundary
+            );
+            assert_eq!(
+                legacy.boundary.measured_operation,
+                omena.boundary.measured_operation
+            );
+            assert_eq!(
+                legacy.boundary.includes_parse,
+                omena.boundary.includes_parse
+            );
+            assert_eq!(
+                legacy.boundary.parse_work_measured_inside_summary,
+                omena.boundary.parse_work_measured_inside_summary
+            );
+            assert_eq!(
+                legacy.boundary.includes_product_summary,
+                omena.boundary.includes_product_summary
+            );
+
+            let legacy = serde_json::to_value(legacy.summary).map_err(|error| error.to_string())?;
             let omena = serde_json::to_value(omena.summary).map_err(|error| error.to_string())?;
 
             assert_eq!(legacy["language"], omena["language"]);
