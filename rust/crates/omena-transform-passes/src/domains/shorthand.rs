@@ -264,17 +264,29 @@ fn border_radius_shorthand_replacement_for_declarations(
         || bottom_left.property != "border-bottom-left-radius"
         || declarations.iter().any(|declaration| declaration.important)
         || !declaration_ranges_are_adjacent(tokens, declarations)
-        || declarations
-            .iter()
-            .any(|declaration| !is_single_axis_border_radius_value(&declaration.value))
     {
         return None;
     }
-    let values = declarations
+
+    let corner_axes = declarations
         .iter()
-        .map(|declaration| declaration.value.as_str())
+        .map(|declaration| border_radius_corner_axes(&declaration.value))
+        .collect::<Option<Vec<_>>>()?;
+    let horizontal_values = corner_axes
+        .iter()
+        .map(|(horizontal, _)| horizontal.as_str())
         .collect::<Vec<_>>();
-    let shorthand_value = compress_box_shorthand_values(&values)?;
+    let vertical_values = corner_axes
+        .iter()
+        .map(|(_, vertical)| vertical.as_str())
+        .collect::<Vec<_>>();
+    let horizontal = compress_box_shorthand_values(&horizontal_values)?;
+    let vertical = compress_box_shorthand_values(&vertical_values)?;
+    let shorthand_value = if horizontal == vertical {
+        horizontal
+    } else {
+        format!("{horizontal}/{vertical}")
+    };
     Some((
         top_left.start,
         bottom_left.end,
@@ -720,6 +732,17 @@ pub(crate) fn compress_border_radius_value(value: &str) -> Option<String> {
 pub(crate) fn is_single_axis_border_radius_value(value: &str) -> bool {
     split_top_level_whitespace_value_components(value)
         .is_some_and(|components| components.len() == 1 && components[0] != "/")
+}
+
+fn border_radius_corner_axes(value: &str) -> Option<(String, String)> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    match components.as_slice() {
+        [axis] if axis != "/" => Some((axis.clone(), axis.clone())),
+        [horizontal, vertical] if horizontal != "/" && vertical != "/" => {
+            Some((horizontal.clone(), vertical.clone()))
+        }
+        _ => None,
+    }
 }
 
 pub(crate) fn compress_flex_value(value: &str) -> Option<String> {

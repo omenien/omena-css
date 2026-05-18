@@ -84,6 +84,11 @@ const fixtures: readonly DifferentialFixture[] = [
       ".a { border-top-left-radius: 1px; border-top-right-radius: 2px; border-bottom-right-radius: 1px; border-bottom-left-radius: 2px; }",
   },
   {
+    label: "border-radius-ellipse-longhand-compression",
+    source:
+      ".a { border-top-left-radius: 1px 2px; border-top-right-radius: 3px 4px; border-bottom-right-radius: 1px 2px; border-bottom-left-radius: 3px 4px; }",
+  },
+  {
     label: "inset-shorthand-compression",
     source: ".a { inset: 1px 2px 1px 2px; }",
   },

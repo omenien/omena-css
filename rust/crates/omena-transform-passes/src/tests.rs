@@ -1628,10 +1628,10 @@ fn execution_runtime_compresses_border_radius_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 2);
+    assert_eq!(execution.mutation_count, 3);
     assert_eq!(
         execution.output_css,
-        r#".a { border-radius: 1px; border-radius: 1px 2px; } .b { border-radius: 1px / 2px; border-top-left-radius: 1px 2px; border-top-right-radius: 2px; border-bottom-right-radius: 1px; border-bottom-left-radius: 2px; }"#
+        r#".a { border-radius: 1px; border-radius: 1px 2px; } .b { border-radius: 1px / 2px; border-radius: 1px 2px/2px 2px 1px; }"#
     );
 }
 
