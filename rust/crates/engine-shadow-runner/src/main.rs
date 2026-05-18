@@ -36,15 +36,11 @@ use omena_checker::{
     OmenaCheckerDynamicClassDomainInputV0, OmenaCheckerMTierEvaluationV0,
     evaluate_omena_checker_cascade_rules, evaluate_omena_checker_m_tier_rules,
 };
-use omena_parser::{
-    StyleDialect as OmenaParserStyleDialect, summarize_css_modules_intermediate,
-    summarize_omena_parser_lex, summarize_omena_parser_style_facts,
-};
 use omena_query::{
-    OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQuerySourceDocumentInputV0,
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
-    OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformExecutionContextV0, ParserPositionV0,
+    OmenaParserStyleDialect, OmenaQueryExpressionDomainFlowRuntimeV0,
+    OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
     default_omena_query_transform_print_options,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
@@ -58,6 +54,8 @@ use omena_query::{
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_expression_semantics_canonical_producer_signal,
     summarize_omena_query_expression_semantics_query_fragments,
+    summarize_omena_query_omena_parser_css_modules_intermediate,
+    summarize_omena_query_omena_parser_lex, summarize_omena_query_omena_parser_style_facts,
     summarize_omena_query_refs_for_workspace_class,
     summarize_omena_query_rename_plan_for_workspace_class,
     summarize_omena_query_selected_query_adapter_capabilities,
@@ -1155,19 +1153,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("omena-parser-style-facts") => {
             let input: OmenaParserStyleFactsInputV0 = serde_json::from_str(&stdin)?;
             let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
-            let summary = summarize_omena_parser_style_facts(&input.style_source, dialect);
+            let summary =
+                summarize_omena_query_omena_parser_style_facts(&input.style_source, dialect);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("omena-parser-css-modules-intermediate") => {
             let input: OmenaParserCssModulesIntermediateInputV0 = serde_json::from_str(&stdin)?;
             let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
-            let summary = summarize_css_modules_intermediate(&input.style_source, dialect);
+            let summary = summarize_omena_query_omena_parser_css_modules_intermediate(
+                &input.style_source,
+                dialect,
+            );
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("omena-parser-lex") => {
             let input: OmenaParserLexInputV0 = serde_json::from_str(&stdin)?;
             let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
-            let summary = summarize_omena_parser_lex(&input.style_source, dialect);
+            let summary = summarize_omena_query_omena_parser_lex(&input.style_source, dialect);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("style-semantic-graph") => {
@@ -1746,18 +1748,26 @@ fn run_daemon_selected_query_command(
         "omena-parser-style-facts" => {
             let input: OmenaParserStyleFactsInputV0 = serde_json::from_value(input)?;
             let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
-            Ok(serde_json::to_value(summarize_omena_parser_style_facts(
-                &input.style_source,
-                dialect,
-            ))?)
+            Ok(serde_json::to_value(
+                summarize_omena_query_omena_parser_style_facts(&input.style_source, dialect),
+            )?)
         }
         "omena-parser-css-modules-intermediate" => {
             let input: OmenaParserCssModulesIntermediateInputV0 = serde_json::from_value(input)?;
             let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
-            Ok(serde_json::to_value(summarize_css_modules_intermediate(
-                &input.style_source,
-                dialect,
-            ))?)
+            Ok(serde_json::to_value(
+                summarize_omena_query_omena_parser_css_modules_intermediate(
+                    &input.style_source,
+                    dialect,
+                ),
+            )?)
+        }
+        "omena-parser-lex" => {
+            let input: OmenaParserLexInputV0 = serde_json::from_value(input)?;
+            let dialect = parse_omena_parser_style_dialect(input.dialect.as_str())?;
+            Ok(serde_json::to_value(
+                summarize_omena_query_omena_parser_lex(&input.style_source, dialect),
+            )?)
         }
         "style-semantic-graph" => {
             let input: StyleSemanticGraphInputV0 = serde_json::from_value(input)?;

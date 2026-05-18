@@ -25,7 +25,9 @@ use super::{
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_expression_semantics_canonical_producer_signal,
     summarize_omena_query_expression_semantics_query_fragments,
-    summarize_omena_query_fragment_bundle, summarize_omena_query_omena_parser_style_facts,
+    summarize_omena_query_fragment_bundle,
+    summarize_omena_query_omena_parser_css_modules_intermediate,
+    summarize_omena_query_omena_parser_lex, summarize_omena_query_omena_parser_style_facts,
     summarize_omena_query_selected_query_adapter_capabilities,
     summarize_omena_query_selector_usage_canonical_producer_signal,
     summarize_omena_query_selector_usage_query_fragments,
@@ -323,6 +325,43 @@ fn exposes_omena_parser_style_fact_surface() {
         vec!["@use", "@value", "@value", "@value", "@keyframes"]
     );
     assert_eq!(summary.parser_error_count, 0);
+}
+
+#[test]
+fn exposes_omena_parser_css_modules_intermediate_surface() -> Result<(), serde_json::Error> {
+    let summary = summarize_omena_query_omena_parser_css_modules_intermediate(
+        "@value primary: #fff; .card { color: primary; }",
+        omena_parser::StyleDialect::Css,
+    );
+    let summary = serde_json::to_value(summary)?;
+
+    assert_eq!(summary["schemaVersion"], "0");
+    assert_eq!(summary["language"], "css");
+    assert_eq!(summary["selectors"]["names"], serde_json::json!(["card"]));
+    assert_eq!(
+        summary["values"]["declNames"],
+        serde_json::json!(["primary"])
+    );
+    assert_eq!(
+        summary["values"]["selectorsWithRefsNames"],
+        serde_json::json!(["card"])
+    );
+    Ok(())
+}
+
+#[test]
+fn exposes_omena_parser_lex_surface() {
+    let summary = summarize_omena_query_omena_parser_lex(
+        ".card { color: red; }",
+        omena_parser::StyleDialect::Css,
+    );
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-parser.lex-result");
+    assert_eq!(summary.dialect, "css");
+    assert_eq!(summary.parser_error_count, 0);
+    assert!(summary.tokens.len() >= 8);
+    assert!(summary.tokens.iter().any(|token| token.text == "card"));
 }
 
 #[test]

@@ -346,6 +346,20 @@ pub fn summarize_omena_query_omena_parser_style_facts(
     }
 }
 
+pub fn summarize_omena_query_omena_parser_css_modules_intermediate(
+    style_source: &str,
+    dialect: OmenaParserStyleDialect,
+) -> omena_parser::ParserIndexSummaryV0 {
+    omena_parser::summarize_css_modules_intermediate(style_source, dialect)
+}
+
+pub fn summarize_omena_query_omena_parser_lex(
+    style_source: &str,
+    dialect: OmenaParserStyleDialect,
+) -> omena_parser::OmenaParserLexSummaryV0 {
+    omena_parser::summarize_omena_parser_lex(style_source, dialect)
+}
+
 pub fn summarize_omena_query_style_hover_candidates(
     style_path: &str,
     style_source: &str,

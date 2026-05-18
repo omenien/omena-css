@@ -93,11 +93,12 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
     ],
   ],
   ["consumer-transform-pass-list", ["list_omena_query_transform_pass_summaries"]],
-] as const);
-
-const PARSER_OWNED_COMMANDS = new Map([
-  ["omena-parser-style-facts", "summarize_omena_parser_style_facts"],
-  ["omena-parser-lex", "summarize_omena_parser_lex"],
+  ["omena-parser-style-facts", ["summarize_omena_query_omena_parser_style_facts"]],
+  [
+    "omena-parser-css-modules-intermediate",
+    ["summarize_omena_query_omena_parser_css_modules_intermediate"],
+  ],
+  ["omena-parser-lex", ["summarize_omena_query_omena_parser_lex"]],
 ] as const);
 
 const DIRECT_PRODUCER_LANE_COMMANDS = new Map([
@@ -182,17 +183,6 @@ for (const [command, expectedCalls] of OMENA_QUERY_OWNED_COMMANDS) {
   );
 }
 
-for (const [command, expectedCall] of PARSER_OWNED_COMMANDS) {
-  const body = commandBodies.get(command);
-  assert.ok(body, `missing engine-shadow-runner parser command arm: ${command}`);
-  assert.ok(body.includes(expectedCall), `command ${command} must route through ${expectedCall}`);
-  assert.equal(
-    findDirectProducerCalls(body).length,
-    0,
-    `command ${command} must not call engine-input-producers directly`,
-  );
-}
-
 const actualDirectProducerCalls = [...commandBodies.entries()]
   .flatMap(([command, body]) =>
     findDirectProducerCalls(body).map((functionName) => [command, functionName] as const),
@@ -211,7 +201,6 @@ process.stdout.write(
   [
     "validated omena-query runner boundary:",
     `omenaOwnedCommands=${OMENA_QUERY_OWNED_COMMANDS.size}`,
-    `parserOwnedCommands=${PARSER_OWNED_COMMANDS.size}`,
     `directProducerLaneCommands=${DIRECT_PRODUCER_LANE_COMMANDS.size}`,
   ].join(" "),
 );

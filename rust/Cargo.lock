@@ -440,7 +440,6 @@ dependencies = [
  "engine-input-producers",
  "omena-abstract-value",
  "omena-checker",
- "omena-parser",
  "omena-query",
  "omena-resolver",
  "serde",
