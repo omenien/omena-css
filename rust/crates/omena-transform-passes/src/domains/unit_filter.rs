@@ -4,7 +4,7 @@ use crate::{
         unit_properties::{is_css_angle_unit, is_css_length_unit},
     },
     helpers::values::{
-        compact_adjacent_css_function_separators,
+        compact_adjacent_css_function_separators, split_top_level_whitespace_value_components,
         substitute_static_css_function_references_in_value,
     },
 };
@@ -19,6 +19,7 @@ pub(crate) fn normalize_static_filter_functions(value: &str) -> Option<String> {
             ("saturate", normalize_saturate_filter_function),
             ("blur", normalize_blur_filter_function),
             ("hue-rotate", normalize_hue_rotate_filter_function),
+            ("drop-shadow", normalize_drop_shadow_filter_function),
         ],
     )
     .unwrap_or_else(|| value.to_string());
@@ -62,6 +63,53 @@ fn normalize_hue_rotate_filter_function(value: &str) -> Option<String> {
     let inner = whole_function_inner(value)?.trim();
     is_zero_filter_numeric_unit_argument(inner, is_css_angle_unit)?;
     Some("hue-rotate()".to_string())
+}
+
+fn normalize_drop_shadow_filter_function(value: &str) -> Option<String> {
+    let inner = whole_function_inner(value)?;
+    let components = split_top_level_whitespace_value_components(inner)?;
+    let mut lengths = Vec::new();
+    let mut other_components = Vec::new();
+
+    for component in components {
+        if let Some(length) = normalize_drop_shadow_length_component(&component) {
+            lengths.push(length);
+        } else {
+            other_components.push(component.trim().to_string());
+        }
+    }
+
+    if !(2..=3).contains(&lengths.len()) {
+        return None;
+    }
+
+    let mut replacement_components = vec![lengths[0].clone(), lengths[1].clone()];
+    if lengths.len() == 3 && lengths[2] != "0" {
+        replacement_components.push(lengths[2].clone());
+    }
+    replacement_components.extend(other_components);
+
+    let replacement = format!("drop-shadow({})", replacement_components.join(" "));
+    (replacement != value).then_some(replacement)
+}
+
+fn normalize_drop_shadow_length_component(component: &str) -> Option<String> {
+    let component = component.trim();
+    let split = numeric_prefix_end(component)?;
+    let (number, unit) = component.split_at(split);
+    let parsed = number.parse::<f64>().ok()?;
+    if !parsed.is_finite() || (!unit.is_empty() && !is_css_length_unit(unit)) {
+        return None;
+    }
+    if unit.is_empty() && parsed != 0.0 {
+        return None;
+    }
+
+    if parsed == 0.0 {
+        Some("0".to_string())
+    } else {
+        Some(component.to_string())
+    }
 }
 
 fn whole_function_inner(value: &str) -> Option<&str> {

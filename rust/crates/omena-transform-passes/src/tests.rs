@@ -1070,7 +1070,7 @@ fn execution_runtime_normalizes_static_transform_tail_zeros() {
 
 #[test]
 fn execution_runtime_normalizes_static_filter_default_functions() {
-    let source = r#".a { filter: opacity(100%) brightness(1) contrast(+1) saturate(0100%) blur(0px) hue-rotate(-0deg); } .b { backdrop-filter: opacity(.5) blur(1px); } .c { -webkit-filter: opacity(1.0); }"#;
+    let source = r#".a { filter: opacity(100%) brightness(1) contrast(+1) saturate(0100%) blur(0px) hue-rotate(-0deg); } .b { backdrop-filter: opacity(.5) blur(1px); } .c { -webkit-filter: opacity(1.0); } .d { filter: drop-shadow(red 0px 0px 0px); } .e { filter: drop-shadow(1px 2px 0px #000); }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1079,10 +1079,10 @@ fn execution_runtime_normalizes_static_filter_default_functions() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 3);
+    assert_eq!(execution.mutation_count, 5);
     assert_eq!(
         execution.output_css,
-        r#".a { filter: opacity()brightness()contrast()saturate()blur()hue-rotate(); } .b { backdrop-filter: opacity(.5)blur(1px); } .c { -webkit-filter: opacity(); }"#
+        r#".a { filter: opacity()brightness()contrast()saturate()blur()hue-rotate(); } .b { backdrop-filter: opacity(.5)blur(1px); } .c { -webkit-filter: opacity(); } .d { filter: drop-shadow(0 0 red); } .e { filter: drop-shadow(1px 2px #000); }"#
     );
     assert_eq!(
         execution.executed_pass_ids,
