@@ -17,6 +17,7 @@ pub(crate) mod rule_cleanup;
 pub(crate) mod rule_merge;
 pub(crate) mod selector;
 pub(crate) mod shorthand;
+pub(crate) mod shorthand_text;
 pub(crate) mod static_eval;
 pub(crate) mod text;
 pub(crate) mod trivia;
