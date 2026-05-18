@@ -1428,6 +1428,28 @@ fn execution_runtime_compresses_place_axis_shorthands() {
 }
 
 #[test]
+fn execution_runtime_compresses_gap_axis_shorthands() {
+    let source = r#".a { row-gap: 1px; column-gap: 1px; } .b { gap: 2px 2px; } .c { column-gap: 2px; row-gap: 1px; } .important { row-gap: 1px !important; column-gap: 2px !important; } .mixed { row-gap: calc(1px + 1px); column-gap: 2px; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 5);
+    assert_eq!(
+        execution.output_css,
+        r#".a { gap: 1px; } .b { gap: 2px; } .c { gap: 1px 2px; } .important { gap: 1px 2px!important; } .mixed { gap: calc(1px + 1px) 2px; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["shorthand-combining", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_compresses_static_flex_shorthands() {
     let source = r#".a { flex: 0 1 auto; } .b { flex: 1 1 0%; } .c { flex: 2 1 0%; } .d { flex: 1 2 0%; } .e { flex: var(--flex); }"#;
     let execution = execute_transform_passes_on_source(

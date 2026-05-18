@@ -281,6 +281,11 @@ const fixtures: readonly DifferentialFixture[] = [
       ".a { align-items: stretch; justify-items: stretch; } .b { align-content: center; justify-content: center; } .c { justify-self: end; align-self: start; } .d { align-items: start !important; justify-items: end !important; }",
   },
   {
+    label: "gap-axis-shorthands",
+    source:
+      ".a { row-gap: 1px; column-gap: 1px; } .b { gap: 2px 2px; } .c { column-gap: 2px; row-gap: 1px; } .d { row-gap: 1px !important; column-gap: 2px !important; }",
+  },
+  {
     label: "alpha-hex-zero-line-height-calc",
     source:
       ".alpha { color: #ffffffff; border-color: #00000000; width: calc(2px * 3); height: calc(6px / 2); line-height: 0em; }",

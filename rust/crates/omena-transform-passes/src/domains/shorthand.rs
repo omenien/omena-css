@@ -119,6 +119,7 @@ fn collect_shorthand_replacements_in_block(
     }
     ranges.extend(collect_overflow_axis_replacements(tokens, &declarations));
     ranges.extend(collect_place_axis_replacements(tokens, &declarations));
+    ranges.extend(collect_gap_axis_replacements(tokens, &declarations));
     ranges
 }
 
@@ -182,6 +183,8 @@ fn shorthand_value_replacement_for_declaration(
         compress_border_radius_value(&declaration.value)
     } else if declaration.property == "flex" {
         compress_flex_value(&declaration.value)
+    } else if declaration.property == "gap" {
+        compress_gap_value(&declaration.value, declaration.important)
     } else if declaration.property == "inset" {
         compress_box_shorthand_value(&declaration.value)
     } else if declaration.property == "list-style" {
@@ -362,7 +365,54 @@ fn place_axis_shorthand_components<'a>(
     }
 }
 
+fn collect_gap_axis_replacements(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Vec<(usize, usize, String)> {
+    let mut ranges = Vec::new();
+    for pair in declarations.windows(2) {
+        if let Some(replacement) = gap_axis_replacement_for_declarations(tokens, pair) {
+            ranges.push(replacement);
+        }
+    }
+    ranges
+}
+
+fn gap_axis_replacement_for_declarations(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let [first, second] = declarations else {
+        return None;
+    };
+    if first.important != second.important || !declaration_ranges_are_adjacent(tokens, declarations)
+    {
+        return None;
+    }
+
+    let (row_gap, column_gap) = match (first.property.as_str(), second.property.as_str()) {
+        ("row-gap", "column-gap") => (first.value.as_str(), second.value.as_str()),
+        ("column-gap", "row-gap") => (second.value.as_str(), first.value.as_str()),
+        _ => return None,
+    };
+    let row_gap = single_component_value_without_important(row_gap, first.important)?;
+    let column_gap = single_component_value_without_important(column_gap, second.important)?;
+    let shorthand_value = compressed_two_axis_shorthand_value(&row_gap, &column_gap);
+    let important = if first.important { "!important" } else { "" };
+
+    Some((
+        first.start,
+        second.end,
+        format!("gap: {shorthand_value}{important};"),
+    ))
+}
+
 fn normalize_single_component_place_value(value: &str, important: bool) -> Option<String> {
+    let component = single_component_value_without_important(value, important)?;
+    Some(component.to_ascii_lowercase())
+}
+
+fn single_component_value_without_important(value: &str, important: bool) -> Option<String> {
     let mut components = split_top_level_whitespace_value_components(value)?;
     if important
         && components.last().is_some_and(|component| {
@@ -375,7 +425,7 @@ fn normalize_single_component_place_value(value: &str, important: bool) -> Optio
     let [component] = components.as_slice() else {
         return None;
     };
-    Some(component.to_ascii_lowercase())
+    Some(component.clone())
 }
 
 fn compressed_place_axis_value(shorthand: &str, align_value: &str, justify_value: &str) -> String {
@@ -385,6 +435,34 @@ fn compressed_place_axis_value(shorthand: &str, align_value: &str, justify_value
         align_value.to_string()
     } else {
         format!("{align_value} {justify_value}")
+    }
+}
+
+fn compress_gap_value(value: &str, important: bool) -> Option<String> {
+    let mut components = split_top_level_whitespace_value_components(value)?;
+    if important
+        && components.last().is_some_and(|component| {
+            component.eq_ignore_ascii_case("!important")
+                || component.eq_ignore_ascii_case("important")
+        })
+    {
+        components.pop();
+    }
+    let [row_gap, column_gap] = components.as_slice() else {
+        return None;
+    };
+    if row_gap != column_gap {
+        return None;
+    }
+    let replacement = row_gap.clone();
+    (replacement != normalize_ascii_whitespace(value)).then_some(replacement)
+}
+
+fn compressed_two_axis_shorthand_value(first: &str, second: &str) -> String {
+    if first == second {
+        first.to_string()
+    } else {
+        format!("{first} {second}")
     }
 }
 
