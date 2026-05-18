@@ -3,6 +3,7 @@ use omena_syntax::SyntaxKind;
 
 use super::tokens::{
     is_comment_token, matching_right_brace_index, skip_whitespace_tokens, token_end, token_start,
+    tokens_between_byte_range,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -137,4 +138,43 @@ fn build_simple_declaration_slice(
         },
         next_index,
     ))
+}
+
+pub(crate) fn format_replacement_declaration_like_source(
+    source: &str,
+    declaration: &SimpleDeclarationSlice,
+    replacement_value: &str,
+) -> String {
+    let original = source
+        .get(declaration.start..declaration.end)
+        .unwrap_or_default();
+    let after_colon = original
+        .split_once(':')
+        .map(|(_, after_colon)| after_colon)
+        .unwrap_or_default();
+    let separator = if after_colon.chars().next().is_some_and(char::is_whitespace) {
+        ": "
+    } else {
+        ":"
+    };
+    let terminator = if original.trim_end().ends_with(';') {
+        ";"
+    } else {
+        ""
+    };
+    format!(
+        "{}{separator}{replacement_value}{terminator}",
+        declaration.property
+    )
+}
+
+pub(crate) fn declaration_ranges_are_adjacent(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> bool {
+    declarations.windows(2).all(|pair| {
+        tokens_between_byte_range(tokens, pair[0].end, pair[1].start)
+            .iter()
+            .all(|token| token.kind == SyntaxKind::Whitespace)
+    })
 }
