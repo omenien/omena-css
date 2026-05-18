@@ -1,6 +1,7 @@
 pub(crate) mod ascii;
 pub(crate) mod blocks;
 pub(crate) mod css_modules_imports;
+pub(crate) mod css_modules_values;
 pub(crate) mod declarations;
 pub(crate) mod identifiers;
 pub(crate) mod rules;
