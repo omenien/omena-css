@@ -173,6 +173,8 @@ fn shorthand_value_replacement_for_declaration(
     }
     let replacement_value = if is_box_shorthand_property(&declaration.property) {
         compress_box_shorthand_value(&declaration.value)
+    } else if is_border_none_shorthand_property(&declaration.property) {
+        compress_border_none_shorthand_value(&declaration.value)
     } else if declaration.property == "background-repeat" {
         compress_background_repeat_value(&declaration.value)
     } else if declaration.property == "border-radius" {
@@ -299,6 +301,35 @@ pub(crate) fn is_box_shorthand_property(property: &str) -> bool {
         property,
         "margin" | "padding" | "border-color" | "border-style" | "border-width"
     )
+}
+
+fn is_border_none_shorthand_property(property: &str) -> bool {
+    matches!(
+        property,
+        "border" | "border-top" | "border-right" | "border-bottom" | "border-left" | "outline"
+    )
+}
+
+fn compress_border_none_shorthand_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    if components.len() != 3 {
+        return None;
+    }
+
+    let mut style = None;
+    let mut saw_default_width = false;
+    let mut saw_default_color = false;
+    for component in components {
+        let normalized = component.to_ascii_lowercase();
+        match normalized.as_str() {
+            "none" if style.is_none() => style = Some(normalized),
+            "medium" if !saw_default_width => saw_default_width = true,
+            "currentcolor" if !saw_default_color => saw_default_color = true,
+            _ => return None,
+        }
+    }
+
+    (saw_default_width && saw_default_color).then_some(style?)
 }
 
 pub(crate) fn compress_background_repeat_value(value: &str) -> Option<String> {

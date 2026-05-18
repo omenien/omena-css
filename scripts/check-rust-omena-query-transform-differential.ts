@@ -198,6 +198,11 @@ const fixtures: readonly DifferentialFixture[] = [
       ".a { border: 0px solid #000000; } .b { border-top: 0px solid #000000; } .c { outline: 0px solid #000000; } .d { text-decoration: underline 0px #000000; }",
   },
   {
+    label: "border-outline-default-none-shorthands",
+    source:
+      ".a { border: medium none currentcolor; } .b { border-top: currentcolor medium none; } .c { outline: medium none currentcolor; }",
+  },
+  {
     label: "url-zero-font-family",
     source: '.a { background: url("/icons/a.svg"); margin: 0 0 0 0%; font-family: "Inter"; }',
   },

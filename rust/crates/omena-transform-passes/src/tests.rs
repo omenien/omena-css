@@ -1345,7 +1345,7 @@ fn execution_runtime_combines_adjacent_box_longhands_with_cascade_proof() {
 
 #[test]
 fn execution_runtime_compresses_box_shorthand_values() {
-    let source = r#".a { margin: 1px 1px 1px 1px; padding: 1px 2px 3px 2px; border-color: red blue red blue; border-width: 1px 1px; border-style: solid solid solid solid; } .important { margin: 1px 1px 1px 1px !important; }"#;
+    let source = r#".a { margin: 1px 1px 1px 1px; padding: 1px 2px 3px 2px; border-color: red blue red blue; border-width: 1px 1px; border-style: solid solid solid solid; border: medium none currentColor; border-top: currentColor medium none; outline: medium none currentColor; } .important { margin: 1px 1px 1px 1px !important; border: medium none currentColor !important; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1354,10 +1354,10 @@ fn execution_runtime_compresses_box_shorthand_values() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 5);
+    assert_eq!(execution.mutation_count, 8);
     assert_eq!(
         execution.output_css,
-        r#".a { margin: 1px; padding: 1px 2px 3px; border-color: red blue; border-width: 1px; border-style: solid; } .important { margin: 1px 1px 1px 1px !important; }"#
+        r#".a { margin: 1px; padding: 1px 2px 3px; border-color: red blue; border-width: 1px; border-style: solid; border: none; border-top: none; outline: none; } .important { margin: 1px 1px 1px 1px !important; border: medium none currentColor !important; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,
