@@ -996,7 +996,7 @@ const colorMixPercentageResult = spawnSync(
     input: JSON.stringify({
       stylePath: "color-mix-percentages.css",
       styleSource:
-        ".card { color: color-mix(in srgb, red 25%, blue 25%); border-color: color-mix(in srgb, red 75%, blue 75%); outline-color: color-mix(in srgb, red 0%, blue 0%); }",
+        ".card { color: color-mix(in srgb, red 25%, blue 25%); border-color: color-mix(in srgb, red 75%, blue 75%); border: 1px solid color-mix(in srgb, red, blue); box-shadow: 0 0 1px color-mix(in srgb, red, blue); column-rule: 1px solid color-mix(in srgb, red, blue); outline-color: color-mix(in srgb, red 0%, blue 0%); }",
       requestedPassIds: ["color-mix-lowering", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
@@ -1013,13 +1013,13 @@ const colorMixPercentageSummary = JSON.parse(
 assert.equal(colorMixPercentageSummary.product, "omena-query.transform-execute");
 assert.equal(
   colorMixPercentageSummary.execution.outputCss,
-  ".card { color: rgb(128 0 128 / .5); border-color: rgb(128 0 128); outline-color: color-mix(in srgb, red 0%, blue 0%); }",
+  ".card { color: rgb(128 0 128 / .5); border-color: rgb(128 0 128); border: 1px solid rgb(128 0 128); box-shadow: 0 0 1px rgb(128 0 128); column-rule: 1px solid rgb(128 0 128); outline-color: color-mix(in srgb, red 0%, blue 0%); }",
 );
 assert.deepEqual(colorMixPercentageSummary.execution.executedPassIds, [
   "color-mix-lowering",
   "print-css",
 ]);
-assert.equal(colorMixPercentageSummary.execution.mutationCount, 2);
+assert.equal(colorMixPercentageSummary.execution.mutationCount, 5);
 
 const mathFunctionReductionResult = spawnSync(
   "cargo",

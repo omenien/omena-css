@@ -391,7 +391,7 @@ fn lower_css_light_dark_with_lexer(source: &str, dialect: StyleDialect) -> (Stri
         let declarations =
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index);
         for declaration in declarations {
-            if !is_light_dark_lowerable_property(&declaration.property) {
+            if !is_static_color_reference_property(&declaration.property) {
                 continue;
             }
             let Some((light_value, dark_value)) =
@@ -465,7 +465,7 @@ fn lower_css_color_mix_with_lexer(source: &str, dialect: StyleDialect) -> (Strin
         {
             let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
             for declaration in declarations {
-                if !is_light_dark_lowerable_property(&declaration.property) {
+                if !is_static_color_reference_property(&declaration.property) {
                     continue;
                 }
                 let Some(replacement_value) = substitute_static_css_function_references_in_value(
@@ -522,7 +522,7 @@ fn lower_css_oklab_oklch_with_lexer(source: &str, dialect: StyleDialect) -> (Str
         {
             let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
             for declaration in declarations {
-                if !is_light_dark_lowerable_property(&declaration.property) {
+                if !is_static_color_reference_property(&declaration.property) {
                     continue;
                 }
                 let Some(replacement_value) = substitute_static_css_function_references_in_value(
@@ -582,7 +582,7 @@ fn lower_css_color_function_with_lexer(source: &str, dialect: StyleDialect) -> (
         {
             let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
             for declaration in declarations {
-                if !is_light_dark_lowerable_property(&declaration.property) {
+                if !is_static_color_reference_property(&declaration.property) {
                     continue;
                 }
                 let Some(replacement_value) = substitute_static_css_function_references_in_value(
@@ -2885,22 +2885,6 @@ fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) -> (String, u
     }
 
     (output, replacements.len())
-}
-
-fn is_light_dark_lowerable_property(property: &str) -> bool {
-    matches!(
-        property,
-        "accent-color"
-            | "background"
-            | "background-color"
-            | "border-color"
-            | "caret-color"
-            | "color"
-            | "fill"
-            | "outline-color"
-            | "stroke"
-            | "text-decoration-color"
-    )
 }
 
 fn parse_light_dark_value(value: &str) -> Option<(String, String)> {
@@ -7034,7 +7018,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_whole_value_light_dark_declarations() {
-        let source = r#".card { color: light-dark(#000, #fff); background: linear-gradient(light-dark(red, blue), white); }"#;
+        let source = r#".card { color: light-dark(#000, #fff); background: linear-gradient(light-dark(red, blue), white); border: 1px solid light-dark(red, blue); box-shadow: 0 0 1px light-dark(black, white); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7043,10 +7027,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 4);
         assert_eq!(
             execution.output_css,
-            r#".card { color: #000; background: linear-gradient(red, white); } @media (prefers-color-scheme: dark) { .card { color: #fff; } } @media (prefers-color-scheme: dark) { .card { background: linear-gradient(blue, white); } }"#
+            r#".card { color: #000; background: linear-gradient(red, white); border: 1px solid red; box-shadow: 0 0 1px black; } @media (prefers-color-scheme: dark) { .card { color: #fff; } } @media (prefers-color-scheme: dark) { .card { background: linear-gradient(blue, white); } } @media (prefers-color-scheme: dark) { .card { border: 1px solid blue; } } @media (prefers-color-scheme: dark) { .card { box-shadow: 0 0 1px white; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
@@ -7056,7 +7040,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_static_srgb_color_mix_declarations() {
-        let source = r#".card { color: color-mix(in srgb, red 50%, blue 50%); background-color: color-mix(in srgb, #000, #fff 25%); outline-color: color-mix(in srgb, rgb(255 0 0) 25%, hsl(240 100% 50%) 75%); text-decoration-color: color-mix(in srgb, hwb(120 0% 50%) 40%, white 60%); caret-color: color-mix(in srgb, black 12.5%, white 87.5%); background: linear-gradient(color-mix(in srgb, red 25%, blue 75%), white); accent-color: color-mix(in srgb, red 25%, blue 25%); fill: color-mix(in srgb, red 75%, blue 75%); stroke: color-mix(in srgb, red 0%, blue 0%); border-color: color-mix(in oklab, red, blue); }"#;
+        let source = r#".card { color: color-mix(in srgb, red 50%, blue 50%); background-color: color-mix(in srgb, #000, #fff 25%); outline-color: color-mix(in srgb, rgb(255 0 0) 25%, hsl(240 100% 50%) 75%); text-decoration-color: color-mix(in srgb, hwb(120 0% 50%) 40%, white 60%); caret-color: color-mix(in srgb, black 12.5%, white 87.5%); background: linear-gradient(color-mix(in srgb, red 25%, blue 75%), white); accent-color: color-mix(in srgb, red 25%, blue 25%); fill: color-mix(in srgb, red 75%, blue 75%); stroke: color-mix(in srgb, red 0%, blue 0%); border: 1px solid color-mix(in srgb, red, blue); box-shadow: 0 0 1px color-mix(in srgb, red, blue); column-rule: 1px solid color-mix(in srgb, red, blue); border-color: color-mix(in oklab, red, blue); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7065,10 +7049,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 8);
+        assert_eq!(execution.mutation_count, 11);
         assert_eq!(
             execution.output_css,
-            r#".card { color: rgb(128 0 128); background-color: rgb(64 64 64); outline-color: rgb(64 0 191); text-decoration-color: rgb(153 204 153); caret-color: rgb(223 223 223); background: linear-gradient(rgb(64 0 191), white); accent-color: rgb(128 0 128 / .5); fill: rgb(128 0 128); stroke: color-mix(in srgb, red 0%, blue 0%); border-color: color-mix(in oklab, red, blue); }"#
+            r#".card { color: rgb(128 0 128); background-color: rgb(64 64 64); outline-color: rgb(64 0 191); text-decoration-color: rgb(153 204 153); caret-color: rgb(223 223 223); background: linear-gradient(rgb(64 0 191), white); accent-color: rgb(128 0 128 / .5); fill: rgb(128 0 128); stroke: color-mix(in srgb, red 0%, blue 0%); border: 1px solid rgb(128 0 128); box-shadow: 0 0 1px rgb(128 0 128); column-rule: 1px solid rgb(128 0 128); border-color: color-mix(in oklab, red, blue); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
@@ -7078,7 +7062,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_in_gamut_oklab_oklch_declarations() {
-        let source = r#".card { color: oklab(1 0 0); background-color: oklch(0% 0 0deg); outline-color: oklch(0% 0 0.5TURN); background: linear-gradient(oklch(0% 0 0deg), white); accent-color: oklch(0% 0 0deg / .5); border-color: oklch(70% 0.4 40deg); }"#;
+        let source = r#".card { color: oklab(1 0 0); background-color: oklch(0% 0 0deg); outline-color: oklch(0% 0 0.5TURN); background: linear-gradient(oklch(0% 0 0deg), white); accent-color: oklch(0% 0 0deg / .5); box-shadow: 0 0 1px oklch(0% 0 0deg); column-rule: 1px solid oklab(1 0 0); border-color: oklch(70% 0.4 40deg); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7087,10 +7071,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 5);
+        assert_eq!(execution.mutation_count, 7);
         assert_eq!(
             execution.output_css,
-            r#".card { color: rgb(255 255 255); background-color: rgb(0 0 0); outline-color: rgb(0 0 0); background: linear-gradient(rgb(0 0 0), white); accent-color: rgb(0 0 0 / .5); border-color: oklch(70% 0.4 40deg); }"#
+            r#".card { color: rgb(255 255 255); background-color: rgb(0 0 0); outline-color: rgb(0 0 0); background: linear-gradient(rgb(0 0 0), white); accent-color: rgb(0 0 0 / .5); box-shadow: 0 0 1px rgb(0 0 0); column-rule: 1px solid rgb(255 255 255); border-color: oklch(70% 0.4 40deg); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
@@ -7100,7 +7084,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_lowers_static_srgb_color_function_declarations() {
-        let source = r#".card { color: color(srgb 1 0 0); background-color: color(srgb 50% 25% 0% / 100%); outline-color: color(srgb 0 0 1 / 1); fill: color(display-p3 0.5 0.5 0.5 / 100%); background: linear-gradient(color(srgb 1 0 0), white); accent-color: color(srgb 1 0 0 / .5); border-color: color(display-p3 1 0 0); }"#;
+        let source = r#".card { color: color(srgb 1 0 0); background-color: color(srgb 50% 25% 0% / 100%); outline-color: color(srgb 0 0 1 / 1); fill: color(display-p3 0.5 0.5 0.5 / 100%); background: linear-gradient(color(srgb 1 0 0), white); accent-color: color(srgb 1 0 0 / .5); box-shadow: 0 0 1px color(srgb 0 0 1); column-rule: 1px solid color(srgb 1 0 0); border-color: color(display-p3 1 0 0); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7109,10 +7093,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 6);
+        assert_eq!(execution.mutation_count, 8);
         assert_eq!(
             execution.output_css,
-            r#".card { color: rgb(255 0 0); background-color: rgb(128 64 0); outline-color: rgb(0 0 255); fill: rgb(128 128 128); background: linear-gradient(rgb(255 0 0), white); accent-color: rgb(255 0 0 / .5); border-color: color(display-p3 1 0 0); }"#
+            r#".card { color: rgb(255 0 0); background-color: rgb(128 64 0); outline-color: rgb(0 0 255); fill: rgb(128 128 128); background: linear-gradient(rgb(255 0 0), white); accent-color: rgb(255 0 0 / .5); box-shadow: 0 0 1px rgb(0 0 255); column-rule: 1px solid rgb(255 0 0); border-color: color(display-p3 1 0 0); }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
