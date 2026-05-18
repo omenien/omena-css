@@ -718,6 +718,35 @@ fn effective_path(path: &str) -> &str {
 mod tests {
     use super::*;
 
+    #[cfg(target_arch = "wasm32")]
+    #[test]
+    fn accepts_absent_js_values_for_optional_browser_inputs() {
+        assert!(parse_pass_ids_value(JsValue::NULL).unwrap().is_empty());
+        assert_eq!(
+            parse_target_options_value(JsValue::NULL).unwrap(),
+            conservative_omena_query_target_options()
+        );
+        assert_eq!(
+            parse_context_value(JsValue::NULL).unwrap(),
+            OmenaWasmTransformExecutionContextV0::default()
+        );
+        assert!(
+            parse_source_documents_value(JsValue::NULL)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            parse_package_manifests_value(JsValue::NULL)
+                .unwrap()
+                .is_empty()
+        );
+        let empty_input = parse_optional_engine_input_value(JsValue::NULL).unwrap();
+        assert_eq!(empty_input.version, "2");
+        assert!(empty_input.sources.is_empty());
+        assert!(empty_input.styles.is_empty());
+        assert!(empty_input.type_facts.is_empty());
+    }
+
     #[test]
     fn reports_parser_facts_for_browser_source() {
         let summary = check_style_source_summary(
