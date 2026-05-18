@@ -101,6 +101,19 @@ const fixtures: readonly DifferentialFixture[] = [
       ".a { width: calc(2px + 3px + 4px); height: calc(.5rem + .25rem + .25rem); margin: calc(10px - 3px - 2px); }",
   },
   {
+    label: "calc-parenthesized-multiplicative-chain",
+    source:
+      ".a { width: calc((1px + 2px)); height: calc(2px * 3 * 4); margin: calc(24px / 2 / 3); }",
+  },
+  {
+    label: "nested-min-max-functions",
+    source: ".a { width: min(10px, max(2px, 4px)); height: max(1px, min(4px, 2px)); }",
+  },
+  {
+    label: "clamp-static-value",
+    source: ".a { opacity: clamp(.1, .5, .9); }",
+  },
+  {
     label: "is-where-multi",
     source: ":is(.a) { color: #ffffff; } :where(.b) { color: #0000ff; }",
   },

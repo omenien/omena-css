@@ -6388,14 +6388,17 @@ fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) -> (String, u
         {
             let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
             for declaration in declarations {
-                let Some(replacement_value) = substitute_static_css_function_references_in_value(
-                    &declaration.value,
-                    &[
-                        ("calc", parse_reducible_calc_value),
-                        ("min", parse_reducible_min_value),
-                        ("max", parse_reducible_max_value),
-                    ],
-                ) else {
+                let Some(replacement_value) =
+                    substitute_static_css_function_references_in_value_until_stable(
+                        &declaration.value,
+                        &[
+                            ("calc", parse_reducible_calc_value),
+                            ("min", parse_reducible_min_value),
+                            ("max", parse_reducible_max_value),
+                            ("clamp", parse_reducible_clamp_value),
+                        ],
+                    )
+                else {
                     continue;
                 };
                 replacements.push((
@@ -6436,64 +6439,8 @@ fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) -> (String, u
 
 fn parse_reducible_calc_value(value: &str) -> Option<String> {
     let inner = parse_whole_function_value_inner(value, "calc")?;
-
-    if let Some(reduced) = parse_reducible_calc_additive_chain(inner) {
-        return Some(reduced);
-    }
-
-    for (operator_index, operator) in top_level_calc_binary_operators(inner) {
-        let Some(left) = parse_numeric_value_with_unit(inner[..operator_index].trim()) else {
-            continue;
-        };
-        let Some(right) =
-            parse_numeric_value_with_unit(inner[operator_index + operator.len_utf8()..].trim())
-        else {
-            continue;
-        };
-        match operator {
-            '+' | '-' if left.unit == right.unit => {
-                let value = if operator == '+' {
-                    left.value + right.value
-                } else {
-                    left.value - right.value
-                };
-                return Some(format!("{}{}", format_css_number(value), left.unit));
-            }
-            '*' if right.unit.is_empty() && right.value == 1.0 => {
-                return Some(format!("{}{}", format_css_number(left.value), left.unit));
-            }
-            '*' if left.unit.is_empty() && left.value == 1.0 => {
-                return Some(format!("{}{}", format_css_number(right.value), right.unit));
-            }
-            '*' if right.unit.is_empty() => {
-                return Some(format!(
-                    "{}{}",
-                    format_css_number(left.value * right.value),
-                    left.unit
-                ));
-            }
-            '*' if left.unit.is_empty() => {
-                return Some(format!(
-                    "{}{}",
-                    format_css_number(left.value * right.value),
-                    right.unit
-                ));
-            }
-            '/' if right.unit.is_empty() && right.value == 1.0 => {
-                return Some(format!("{}{}", format_css_number(left.value), left.unit));
-            }
-            '/' if right.unit.is_empty() && right.value != 0.0 => {
-                return Some(format!(
-                    "{}{}",
-                    format_css_number(left.value / right.value),
-                    left.unit
-                ));
-            }
-            _ => {}
-        }
-    }
-
-    None
+    let reduced = parse_reducible_numeric_expression(inner)?;
+    Some(format_numeric_value_with_unit(reduced))
 }
 
 fn parse_reducible_min_value(value: &str) -> Option<String> {
@@ -6502,6 +6449,21 @@ fn parse_reducible_min_value(value: &str) -> Option<String> {
 
 fn parse_reducible_max_value(value: &str) -> Option<String> {
     parse_reducible_extreme_value(value, "max", f64::max)
+}
+
+fn parse_reducible_clamp_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "clamp")?;
+    let [minimum, preferred, maximum] = arguments.as_slice() else {
+        return None;
+    };
+    let minimum = parse_numeric_value_with_unit(minimum.trim())?;
+    let preferred = parse_numeric_value_with_unit(preferred.trim())?;
+    let maximum = parse_numeric_value_with_unit(maximum.trim())?;
+    if preferred.unit != minimum.unit || maximum.unit != minimum.unit {
+        return None;
+    }
+    let selected = preferred.value.min(maximum.value).max(minimum.value);
+    Some(format!("{}{}", format_css_number(selected), minimum.unit))
 }
 
 fn parse_reducible_extreme_value(
@@ -6526,86 +6488,6 @@ fn parse_reducible_extreme_value(
     Some(format!("{}{}", format_css_number(selected), unit))
 }
 
-fn parse_reducible_calc_additive_chain(inner: &str) -> Option<String> {
-    let operators = top_level_calc_binary_operators(inner);
-    if operators.is_empty()
-        || operators
-            .iter()
-            .any(|(_, operator)| !matches!(operator, '+' | '-'))
-    {
-        return None;
-    }
-
-    let first_operator_index = operators.first()?.0;
-    let first = parse_numeric_value_with_unit(inner[..first_operator_index].trim())?;
-    let mut value = first.value;
-    let unit = first.unit;
-
-    for (index, (operator_index, operator)) in operators.iter().enumerate() {
-        let term_start = operator_index + operator.len_utf8();
-        let term_end = operators
-            .get(index + 1)
-            .map(|(next_operator_index, _)| *next_operator_index)
-            .unwrap_or(inner.len());
-        let term = parse_numeric_value_with_unit(inner[term_start..term_end].trim())?;
-        if term.unit != unit {
-            return None;
-        }
-        if *operator == '+' {
-            value += term.value;
-        } else {
-            value -= term.value;
-        }
-    }
-
-    Some(format!("{}{}", format_css_number(value), unit))
-}
-
-fn top_level_calc_binary_operators(inner: &str) -> Vec<(usize, char)> {
-    let mut operators = Vec::new();
-    let mut depth = 0usize;
-    let mut bracket_depth = 0usize;
-    let mut quote: Option<char> = None;
-    let mut escaped = false;
-
-    for (index, ch) in inner.char_indices() {
-        if let Some(active_quote) = quote {
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == active_quote {
-                quote = None;
-            }
-            continue;
-        }
-
-        match ch {
-            '"' | '\'' => quote = Some(ch),
-            '(' => depth += 1,
-            ')' => depth = depth.saturating_sub(1),
-            '[' => bracket_depth += 1,
-            ']' => bracket_depth = bracket_depth.saturating_sub(1),
-            '+' | '-' | '*' | '/' if depth == 0 && bracket_depth == 0 => {
-                let left = inner[..index].trim_end();
-                let right = inner[index + ch.len_utf8()..].trim_start();
-                let previous = left.chars().rev().find(|ch| !ch.is_whitespace());
-                if left.is_empty()
-                    || right.is_empty()
-                    || left.ends_with(['e', 'E'])
-                    || previous.is_some_and(|ch| matches!(ch, '+' | '-' | '*' | '/'))
-                {
-                    continue;
-                }
-                operators.push((index, ch));
-            }
-            _ => {}
-        }
-    }
-
-    operators
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct NumericValueWithUnit<'a> {
     value: f64,
@@ -6613,12 +6495,170 @@ struct NumericValueWithUnit<'a> {
 }
 
 fn parse_numeric_value_with_unit(text: &str) -> Option<NumericValueWithUnit<'_>> {
-    let split = numeric_prefix_end(text)?;
-    let (number, unit) = text.split_at(split);
-    let value = number.parse::<f64>().ok()?;
-    value
-        .is_finite()
-        .then_some(NumericValueWithUnit { value, unit })
+    let text = text.trim();
+    let mut parser = NumericExpressionParser::new(text);
+    let parsed = parser.parse_number()?;
+    parser.skip_whitespace();
+    (parser.is_eof()).then_some(parsed)
+}
+
+fn parse_reducible_numeric_expression(inner: &str) -> Option<NumericValueWithUnit<'_>> {
+    let mut parser = NumericExpressionParser::new(inner);
+    let parsed = parser.parse_expression()?;
+    parser.skip_whitespace();
+    parser.is_eof().then_some(parsed)
+}
+
+struct NumericExpressionParser<'a> {
+    text: &'a str,
+    index: usize,
+}
+
+impl<'a> NumericExpressionParser<'a> {
+    fn new(text: &'a str) -> Self {
+        Self { text, index: 0 }
+    }
+
+    fn parse_expression(&mut self) -> Option<NumericValueWithUnit<'a>> {
+        let mut left = self.parse_term()?;
+        loop {
+            self.skip_whitespace();
+            let Some(operator) = self.peek_char().filter(|ch| matches!(ch, '+' | '-')) else {
+                break;
+            };
+            self.index += operator.len_utf8();
+            let right = self.parse_term()?;
+            left = combine_numeric_additive(left, right, operator)?;
+        }
+        Some(left)
+    }
+
+    fn parse_term(&mut self) -> Option<NumericValueWithUnit<'a>> {
+        let mut left = self.parse_factor()?;
+        loop {
+            self.skip_whitespace();
+            let Some(operator) = self.peek_char().filter(|ch| matches!(ch, '*' | '/')) else {
+                break;
+            };
+            self.index += operator.len_utf8();
+            let right = self.parse_factor()?;
+            left = combine_numeric_multiplicative(left, right, operator)?;
+        }
+        Some(left)
+    }
+
+    fn parse_factor(&mut self) -> Option<NumericValueWithUnit<'a>> {
+        self.skip_whitespace();
+        if self.consume_char('(') {
+            let parsed = self.parse_expression()?;
+            self.skip_whitespace();
+            self.consume_char(')').then_some(parsed)
+        } else {
+            self.parse_number()
+        }
+    }
+
+    fn parse_number(&mut self) -> Option<NumericValueWithUnit<'a>> {
+        self.skip_whitespace();
+        let start = self.index;
+        let split = numeric_prefix_end(&self.text[start..])?;
+        let number_end = start + split;
+        let unit_start = number_end;
+        self.index = number_end;
+        if self.peek_char() == Some('%') {
+            self.index += '%'.len_utf8();
+        } else {
+            while self.peek_char().is_some_and(is_css_numeric_unit_continue) {
+                let ch = self.peek_char()?;
+                self.index += ch.len_utf8();
+            }
+        }
+        let number = &self.text[start..number_end];
+        let unit = &self.text[unit_start..self.index];
+        let value = number.parse::<f64>().ok()?;
+        value
+            .is_finite()
+            .then_some(NumericValueWithUnit { value, unit })
+    }
+
+    fn skip_whitespace(&mut self) {
+        while let Some(ch) = self.peek_char() {
+            if !ch.is_whitespace() {
+                break;
+            }
+            self.index += ch.len_utf8();
+        }
+    }
+
+    fn consume_char(&mut self, expected: char) -> bool {
+        if self.peek_char() == Some(expected) {
+            self.index += expected.len_utf8();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn peek_char(&self) -> Option<char> {
+        self.text[self.index..].chars().next()
+    }
+
+    fn is_eof(&self) -> bool {
+        self.index == self.text.len()
+    }
+}
+
+fn combine_numeric_additive<'a>(
+    left: NumericValueWithUnit<'a>,
+    right: NumericValueWithUnit<'a>,
+    operator: char,
+) -> Option<NumericValueWithUnit<'a>> {
+    if left.unit != right.unit {
+        return None;
+    }
+    let value = if operator == '+' {
+        left.value + right.value
+    } else {
+        left.value - right.value
+    };
+    Some(NumericValueWithUnit {
+        value,
+        unit: left.unit,
+    })
+}
+
+fn combine_numeric_multiplicative<'a>(
+    left: NumericValueWithUnit<'a>,
+    right: NumericValueWithUnit<'a>,
+    operator: char,
+) -> Option<NumericValueWithUnit<'a>> {
+    match operator {
+        '*' if left.unit.is_empty() && right.unit.is_empty() => Some(NumericValueWithUnit {
+            value: left.value * right.value,
+            unit: "",
+        }),
+        '*' if left.unit.is_empty() => Some(NumericValueWithUnit {
+            value: left.value * right.value,
+            unit: right.unit,
+        }),
+        '*' if right.unit.is_empty() => Some(NumericValueWithUnit {
+            value: left.value * right.value,
+            unit: left.unit,
+        }),
+        '/' if right.unit.is_empty() && right.value != 0.0 => Some(NumericValueWithUnit {
+            value: left.value / right.value,
+            unit: left.unit,
+        }),
+        _ => None,
+    }
+}
+
+fn format_numeric_value_with_unit(value: NumericValueWithUnit<'_>) -> String {
+    format!("{}{}", format_css_number(value.value), value.unit)
+}
+
+fn is_css_numeric_unit_continue(ch: char) -> bool {
+    ch.is_ascii_alphabetic()
 }
 
 fn format_css_number(value: f64) -> String {
@@ -6799,6 +6839,28 @@ fn substitute_static_css_function_references_in_value(
     }
     output.push_str(&value[cursor..]);
     Some(output)
+}
+
+fn substitute_static_css_function_references_in_value_until_stable(
+    value: &str,
+    functions: &[StaticCssFunctionSpec<'_>],
+) -> Option<String> {
+    let mut current = value.to_string();
+    let mut changed = false;
+
+    for _ in 0..8 {
+        let Some(next) = substitute_static_css_function_references_in_value(&current, functions)
+        else {
+            break;
+        };
+        if next == current {
+            break;
+        }
+        current = next;
+        changed = true;
+    }
+
+    changed.then_some(current)
 }
 
 fn static_css_function_at<'a>(
@@ -12225,7 +12287,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_reduces_simple_same_unit_calc_values() {
-        let source = r#".card { width: calc(1px + 2px); height: calc(10rem - 2rem); margin: calc(1px + 2rem); padding: calc(2px + 3px + 4px); margin-block-start: calc(10px - 3px - 2px); color: calc(1 + 2); gap: calc(.5rem+.25rem); inset: calc(1px - -2px); letter-spacing: calc(2px * 1); border-width: calc(1 * 3px); z-index: calc(4 / 1); scale: calc(3 * 0); box-shadow: 0 0 calc(1px + 2px) red; transform: translate(calc(10px - 2px), calc(1rem + 1rem)); min-width: min(10px, 4px); max-width: max(1rem, 2rem); block-size: min(2em, 1rem); opacity: max(.2, .5); }"#;
+        let source = r#".card { width: calc(1px + 2px); height: calc(10rem - 2rem); margin: calc(1px + 2rem); padding: calc(2px + 3px + 4px); margin-block-start: calc(10px - 3px - 2px); color: calc(1 + 2); gap: calc(.5rem+.25rem); inset: calc(1px - -2px); letter-spacing: calc(2px * 1); border-width: calc(1 * 3px); z-index: calc(4 / 1); scale: calc(3 * 0); box-shadow: 0 0 calc(1px + 2px) red; transform: translate(calc(10px - 2px), calc(1rem + 1rem)); min-width: min(10px, 4px); max-width: max(1rem, 2rem); block-size: min(2em, 1rem); opacity: max(.2, .5); outline-width: calc((2px * 3)); flex-basis: calc(2px * 3 * 4); inline-size: min(10px, max(2px, 4px)); line-height: clamp(.1, .5, .9); }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -12234,10 +12296,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 16);
+        assert_eq!(execution.mutation_count, 20);
         assert_eq!(
             execution.output_css,
-            r#".card { width: 3px; height: 8rem; margin: calc(1px + 2rem); padding: 9px; margin-block-start: 5px; color: 3; gap: 0.75rem; inset: 3px; letter-spacing: 2px; border-width: 3px; z-index: 4; scale: 0; box-shadow: 0 0 3px red; transform: translate(8px, 2rem); min-width: 4px; max-width: 2rem; block-size: min(2em, 1rem); opacity: 0.5; }"#
+            r#".card { width: 3px; height: 8rem; margin: calc(1px + 2rem); padding: 9px; margin-block-start: 5px; color: 3; gap: 0.75rem; inset: 3px; letter-spacing: 2px; border-width: 3px; z-index: 4; scale: 0; box-shadow: 0 0 3px red; transform: translate(8px, 2rem); min-width: 4px; max-width: 2rem; block-size: min(2em, 1rem); opacity: 0.5; outline-width: 6px; flex-basis: 24px; inline-size: 4px; line-height: 0.5; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
