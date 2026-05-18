@@ -63,7 +63,7 @@ fn split_static_color_mix_stop(input: &str) -> Option<(String, Option<f64>)> {
     let mut quote: Option<char> = None;
     let mut escaped = false;
     let mut in_top_level_whitespace = false;
-    let mut last_top_level_whitespace_start = None;
+    let mut top_level_whitespace_runs = Vec::new();
 
     for (index, ch) in input.char_indices() {
         if let Some(active_quote) = quote {
@@ -99,8 +99,11 @@ fn split_static_color_mix_stop(input: &str) -> Option<(String, Option<f64>)> {
                 in_top_level_whitespace = false;
             }
             ch if ch.is_ascii_whitespace() && depth == 0 && bracket_depth == 0 => {
+                let whitespace_end = index + ch.len_utf8();
                 if !in_top_level_whitespace {
-                    last_top_level_whitespace_start = Some(index);
+                    top_level_whitespace_runs.push((index, whitespace_end));
+                } else if let Some((_, end)) = top_level_whitespace_runs.last_mut() {
+                    *end = whitespace_end;
                 }
                 in_top_level_whitespace = true;
             }
@@ -112,9 +115,19 @@ fn split_static_color_mix_stop(input: &str) -> Option<(String, Option<f64>)> {
         return None;
     }
 
-    if let Some(separator_start) = last_top_level_whitespace_start {
-        let color = input[..separator_start].trim();
-        let percentage = input[separator_start..].trim();
+    if let Some((separator_start, separator_end)) = top_level_whitespace_runs.first() {
+        let percentage = input[..*separator_start].trim();
+        let color = input[*separator_end..].trim();
+        if !color.is_empty()
+            && let Some(percentage) = parse_bounded_percentage(percentage)
+        {
+            return Some((color.to_string(), Some(percentage)));
+        }
+    }
+
+    if let Some((separator_start, separator_end)) = top_level_whitespace_runs.last() {
+        let color = input[..*separator_start].trim();
+        let percentage = input[*separator_end..].trim();
         if !color.is_empty()
             && let Some(percentage) = parse_bounded_percentage(percentage)
         {

@@ -1168,7 +1168,7 @@ const colorMixAlphaResult = spawnSync(
     input: JSON.stringify({
       stylePath: "color-mix-alpha.css",
       styleSource:
-        ".card { color: color-mix(in srgb, red 50%, transparent 50%); background-color: color-mix(in srgb, rgb(100% 0% 0% / .7) 25%, rgb(0% 100% 0% / .2)); outline-color: color-mix(in srgb, rgb(100% 0% 0% / .7) 20%, rgb(0% 100% 0% / .2) 60%); border-color: color-mix(in srgb, #ff000080 50%, blue 50%); }",
+        ".card { color: color-mix(in srgb, 50% red, transparent 50%); background-color: color-mix(in srgb, 25% rgb(100% 0% 0% / .7), rgb(0% 100% 0% / .2)); outline-color: color-mix(in srgb, rgb(100% 0% 0% / .7) 20%, 60% rgb(0% 100% 0% / .2)); border-color: color-mix(in srgb, 50% #ff000080, 50% blue); }",
       requestedPassIds: ["color-mix-lowering", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
