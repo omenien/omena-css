@@ -1365,11 +1365,15 @@ assert.ok(customPropertyReachabilitySummary.execution.outputCss.includes("--dep:
 assert.ok(customPropertyReachabilitySummary.execution.outputCss.includes("outline: var(--broken;"));
 assert.ok(customPropertyReachabilitySummary.execution.outputCss.includes("color: var(--broken;"));
 assert.ok(!customPropertyReachabilitySummary.execution.outputCss.includes("--ghost: blue;"));
+assert.ok(
+  !customPropertyReachabilitySummary.execution.outputCss.includes("--used: var(--ghost);"),
+);
+assert.ok(customPropertyReachabilitySummary.execution.outputCss.includes("color: var(--ghost);"));
 assert.deepEqual(customPropertyReachabilitySummary.execution.executedPassIds, [
   "tree-shake-custom-property",
   "print-css",
 ]);
-assert.equal(customPropertyReachabilitySummary.execution.mutationCount, 1);
+assert.equal(customPropertyReachabilitySummary.execution.mutationCount, 2);
 
 const customPropertyKeyframeReachabilityResult = spawnSync(
   "cargo",

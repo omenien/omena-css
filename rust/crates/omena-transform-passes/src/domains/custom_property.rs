@@ -8,7 +8,7 @@ use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
 use crate::domains::{
-    css_module_global::collect_css_module_scope_blocks,
+    css_module_global::{CssModuleScopeBlock, collect_css_module_scope_blocks},
     css_modules_values::at_rule_block_has_reachable_ordinary_rule,
     keyframes::{
         KeyframesRuleSlice, collect_referenced_keyframe_names, collect_top_level_keyframes_rules,
@@ -296,30 +296,50 @@ pub(crate) fn tree_shake_css_custom_properties_with_lexer(
             });
         }
     }
-    let mut index = 0;
-    while index < tokens.len() {
-        if tokens[index].kind == SyntaxKind::LeftBrace
-            && let Some(close_index) = matching_right_brace_index(tokens, index)
-        {
-            for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
-                if declaration.property.starts_with("--")
-                    && !referenced_names
-                        .iter()
-                        .any(|name| name == &declaration.property)
-                {
-                    removals.push(TransformSemanticRemovalCandidate {
-                        symbol_kind: "customProperty",
-                        name: declaration.property,
-                        source_span_start: declaration.start,
-                        source_span_end: declaration.end,
-                        reason: "custom property declaration was absent from transitive var() references and the closed-style-world reachable custom-property set",
-                    });
-                }
-            }
-            index = close_index + 1;
+    let scope_blocks = collect_css_module_scope_blocks(source, tokens);
+    let keyframes = collect_top_level_keyframes_rules(tokens);
+    let reachable_keyframe_names = collect_reachable_keyframe_names(
+        source,
+        tokens,
+        reachable_keyframe_names,
+        reachable_class_names,
+    );
+    for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
+        let rule_is_reachable = custom_property_rule_is_reachable(
+            &rule,
+            &scope_blocks,
+            &keyframes,
+            reachable_keyframe_names.as_deref(),
+            reachable_class_names,
+        );
+        let Some((block_start_index, block_end_index)) =
+            rule_block_token_indexes(tokens, rule.block_start, rule.block_end)
+        else {
             continue;
+        };
+        for declaration in
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+        {
+            if !declaration.property.starts_with("--") {
+                continue;
+            }
+            let name_is_referenced = referenced_names
+                .iter()
+                .any(|name| name == &declaration.property);
+            if !rule_is_reachable || !name_is_referenced {
+                removals.push(TransformSemanticRemovalCandidate {
+                    symbol_kind: "customProperty",
+                    name: declaration.property,
+                    source_span_start: declaration.start,
+                    source_span_end: declaration.end,
+                    reason: if rule_is_reachable {
+                        "custom property declaration was absent from transitive var() references and the closed-style-world reachable custom-property set"
+                    } else {
+                        "custom property declaration belonged to an unreachable closed-style-world rule"
+                    },
+                });
+            }
         }
-        index += 1;
     }
 
     let ranges = removals
@@ -328,6 +348,24 @@ pub(crate) fn tree_shake_css_custom_properties_with_lexer(
         .collect::<Vec<_>>();
     let (output, _) = remove_source_ranges(source, &ranges);
     (output, removals)
+}
+
+fn custom_property_rule_is_reachable(
+    rule: &SimpleRuleSlice,
+    scope_blocks: &[CssModuleScopeBlock],
+    keyframes: &[KeyframesRuleSlice],
+    reachable_keyframe_names: Option<&[String]>,
+    reachable_class_names: &[String],
+) -> bool {
+    if let Some(keyframe_name) = enclosing_keyframe_name_for_rule(rule, keyframes)
+        && let Some(reachable_keyframe_names) = reachable_keyframe_names
+    {
+        return reachable_keyframe_names
+            .iter()
+            .any(|name| name == keyframe_name);
+    }
+
+    rule_slice_matches_reachable_class_context(rule, scope_blocks, reachable_class_names)
 }
 
 fn collect_reachable_custom_property_names(

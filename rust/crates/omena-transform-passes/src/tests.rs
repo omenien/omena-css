@@ -2728,17 +2728,19 @@ fn execution_runtime_ignores_unreachable_custom_property_dependencies() {
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.mutation_count, 2);
     assert!(execution.output_css.contains("--used: var(--dep);"));
     assert!(execution.output_css.contains("--dep: red;"));
     assert!(!execution.output_css.contains("--ghost: blue;"));
+    assert!(!execution.output_css.contains("--used: var(--ghost);"));
+    assert!(execution.output_css.contains("color: var(--ghost);"));
     assert_eq!(
         execution
             .semantic_removals
             .iter()
             .map(|removal| (removal.symbol_kind, removal.name.as_str()))
             .collect::<Vec<_>>(),
-        vec![("customProperty", "--ghost")]
+        vec![("customProperty", "--ghost"), ("customProperty", "--used")]
     );
 }
 
