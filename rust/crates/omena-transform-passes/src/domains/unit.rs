@@ -12,6 +12,7 @@ use crate::{
             is_comment_token, is_declaration_boundary_end, is_declaration_boundary_start,
             matching_right_brace_index,
         },
+        values::split_top_level_value_arguments,
         values::split_top_level_whitespace_value_components,
     },
 };
@@ -141,6 +142,7 @@ fn is_zero_length_unit_property(property: &str) -> bool {
             | "height"
             | "min-height"
             | "max-height"
+            | "box-shadow"
             | "block-size"
             | "min-block-size"
             | "max-block-size"
@@ -170,6 +172,7 @@ fn is_zero_length_unit_property(property: &str) -> bool {
             | "scroll-padding-left"
             | "scroll-padding-right"
             | "scroll-padding-top"
+            | "text-shadow"
             | "gap"
             | "row-gap"
             | "column-gap"
@@ -282,6 +285,8 @@ fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Optio
         "background-size" | "mask-size" | "-webkit-mask-size" => {
             normalize_repeated_pair_value(value, "auto")
         }
+        "box-shadow" => normalize_shadow_value(value, true),
+        "text-shadow" => normalize_shadow_value(value, false),
         _ => None,
     }
 }
@@ -332,6 +337,91 @@ fn normalize_repeated_pair_value(value: &str, repeated: &str) -> Option<String> 
         }
         _ => None,
     }
+}
+
+fn normalize_shadow_value(value: &str, allow_inset: bool) -> Option<String> {
+    let shadows = split_top_level_value_arguments(value)?;
+    let mut changed = false;
+    let mut normalized_shadows = Vec::with_capacity(shadows.len());
+
+    for shadow in shadows {
+        let normalized =
+            normalize_shadow_component(&shadow, allow_inset).unwrap_or_else(|| shadow.clone());
+        changed |= normalized != shadow;
+        normalized_shadows.push(normalized);
+    }
+
+    let replacement = normalized_shadows.join(",");
+    (changed && replacement.len() < value.len()).then_some(replacement)
+}
+
+fn normalize_shadow_component(component: &str, allow_inset: bool) -> Option<String> {
+    let mut components = split_top_level_whitespace_value_components(component)?;
+    let length_start = if allow_inset
+        && components
+            .first()
+            .is_some_and(|component| component.eq_ignore_ascii_case("inset"))
+    {
+        1
+    } else {
+        0
+    };
+    if components.len() <= length_start + 2 {
+        return None;
+    }
+
+    let blur_index = length_start + 2;
+    if !components
+        .get(blur_index)
+        .is_some_and(|component| is_zero_shadow_length_component(component))
+    {
+        return None;
+    }
+
+    if allow_inset {
+        let spread_index = blur_index + 1;
+        if components
+            .get(spread_index)
+            .is_some_and(|component| is_shadow_length_component(component))
+        {
+            if !components
+                .get(spread_index)
+                .is_some_and(|component| is_zero_shadow_length_component(component))
+            {
+                return None;
+            }
+            components.remove(spread_index);
+        }
+    }
+
+    components.remove(blur_index);
+    Some(components.join(" "))
+}
+
+fn is_shadow_length_component(component: &str) -> bool {
+    if component == "0" {
+        return true;
+    }
+
+    let split = numeric_prefix_end(component).unwrap_or(0);
+    if split == 0 || split == component.len() {
+        return false;
+    }
+    let (_, unit) = component.split_at(split);
+    is_css_length_unit(unit)
+}
+
+fn is_zero_shadow_length_component(component: &str) -> bool {
+    if component == "0" {
+        return true;
+    }
+
+    if !is_shadow_length_component(component) {
+        return false;
+    }
+    let split = numeric_prefix_end(component).unwrap_or(0);
+    let (number, unit) = component.split_at(split);
+    is_zero_number_prefix(number) && is_css_length_unit(unit)
 }
 
 fn normalize_css_time_unit_token(number: &str, unit: &str) -> Option<String> {

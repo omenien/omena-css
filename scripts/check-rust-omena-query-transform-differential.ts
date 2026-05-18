@@ -187,6 +187,11 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { aspect-ratio: 16 / 9; } .b { aspect-ratio: auto 4 / 3; }",
   },
   {
+    label: "shadow-zero-length-normalization",
+    source:
+      ".a { box-shadow: 0px 0px 0px #000; } .b { box-shadow: inset 1px 2px 0px 0px #000; } .c { text-shadow: 1px 2px 0px #000; }",
+  },
+  {
     label: "time-unit-shortening",
     source: ".a { transition-duration: 100ms; transition-delay: .05s; animation-delay: 0ms; }",
   },
