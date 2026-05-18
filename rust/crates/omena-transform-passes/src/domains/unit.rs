@@ -286,7 +286,7 @@ fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Optio
         | "mask-position"
         | "-webkit-mask-position"
         | "perspective-origin"
-        | "transform-origin" => normalize_center_position_value(value),
+        | "transform-origin" => normalize_static_position_keyword_value(value),
         "background-size" | "mask-size" | "-webkit-mask-size" => {
             normalize_repeated_pair_value(value, "auto")
         }
@@ -296,14 +296,75 @@ fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Optio
     }
 }
 
-fn normalize_center_position_value(value: &str) -> Option<String> {
+fn normalize_static_position_keyword_value(value: &str) -> Option<String> {
     let components = split_top_level_whitespace_value_components(value)?;
-    let is_center = |component: &String| component.eq_ignore_ascii_case("center");
-    match components.as_slice() {
-        [center] if is_center(center) => Some("50%".to_string()),
-        [first, second] if is_center(first) && is_center(second) => Some("50%".to_string()),
+    let replacement = match components.as_slice() {
+        [component] => normalize_single_position_keyword(component)?,
+        [first, second] => normalize_position_keyword_pair(first, second)?,
+        _ => return None,
+    };
+    (replacement.len() < normalize_ascii_position_value(value).len()).then_some(replacement)
+}
+
+fn normalize_single_position_keyword(component: &str) -> Option<String> {
+    match component.to_ascii_lowercase().as_str() {
+        "left" => Some("0".to_string()),
+        "right" => Some("100%".to_string()),
+        "center" => Some("50%".to_string()),
+        "top" | "bottom" => Some(component.to_ascii_lowercase()),
         _ => None,
     }
+}
+
+fn normalize_position_keyword_pair(first: &str, second: &str) -> Option<String> {
+    let first = position_keyword_axis(first)?;
+    let second = position_keyword_axis(second)?;
+    let (horizontal, vertical) = match (first, second) {
+        (PositionKeywordAxis::Center, PositionKeywordAxis::Center) => ("50%", "50%"),
+        (PositionKeywordAxis::Horizontal(horizontal), PositionKeywordAxis::Center)
+        | (PositionKeywordAxis::Center, PositionKeywordAxis::Horizontal(horizontal)) => {
+            (horizontal, "50%")
+        }
+        (PositionKeywordAxis::Vertical(vertical), PositionKeywordAxis::Center)
+        | (PositionKeywordAxis::Center, PositionKeywordAxis::Vertical(vertical)) => {
+            ("50%", vertical)
+        }
+        (PositionKeywordAxis::Horizontal(horizontal), PositionKeywordAxis::Vertical(vertical))
+        | (PositionKeywordAxis::Vertical(vertical), PositionKeywordAxis::Horizontal(horizontal)) => {
+            (horizontal, vertical)
+        }
+        _ => return None,
+    };
+    match (horizontal, vertical) {
+        ("50%", "50%") => Some("50%".to_string()),
+        ("50%", "0") => Some("top".to_string()),
+        ("50%", "100%") => Some("bottom".to_string()),
+        (_, "50%") => Some(horizontal.to_string()),
+        _ => Some(format!("{horizontal} {vertical}")),
+    }
+}
+
+enum PositionKeywordAxis {
+    Horizontal(&'static str),
+    Vertical(&'static str),
+    Center,
+}
+
+fn position_keyword_axis(component: &str) -> Option<PositionKeywordAxis> {
+    match component.to_ascii_lowercase().as_str() {
+        "left" => Some(PositionKeywordAxis::Horizontal("0")),
+        "right" => Some(PositionKeywordAxis::Horizontal("100%")),
+        "top" => Some(PositionKeywordAxis::Vertical("0")),
+        "bottom" => Some(PositionKeywordAxis::Vertical("100%")),
+        "center" => Some(PositionKeywordAxis::Center),
+        _ => None,
+    }
+}
+
+fn normalize_ascii_position_value(value: &str) -> String {
+    split_top_level_whitespace_value_components(value)
+        .map(|components| components.join(" "))
+        .unwrap_or_else(|| value.to_string())
 }
 
 fn normalize_aspect_ratio_value(value: &str) -> Option<String> {

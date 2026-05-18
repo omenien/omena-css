@@ -905,7 +905,7 @@ fn execution_runtime_normalizes_static_aspect_ratio_spacing() {
 
 #[test]
 fn execution_runtime_normalizes_static_center_position_values() {
-    let source = r#".a { background-position: center center; transform-origin: center; mask-position: CENTER CENTER; object-position: center center; }"#;
+    let source = r#".a { background-position: center center; transform-origin: center; mask-position: CENTER CENTER; object-position: center center; } .b { background-position: left center; transform-origin: center top; mask-position: bottom right; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -914,10 +914,10 @@ fn execution_runtime_normalizes_static_center_position_values() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 3);
+    assert_eq!(execution.mutation_count, 6);
     assert_eq!(
         execution.output_css,
-        r#".a { background-position: 50%; transform-origin: 50%; mask-position: 50%; object-position: center center; }"#
+        r#".a { background-position: 50%; transform-origin: 50%; mask-position: 50%; object-position: center center; } .b { background-position: 0; transform-origin: top; mask-position: 100% 100%; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,
