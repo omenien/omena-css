@@ -6,6 +6,7 @@ pub(crate) mod css_module_global;
 pub(crate) mod css_modules_classes;
 pub(crate) mod css_modules_values;
 pub(crate) mod custom_property;
+pub(crate) mod custom_property_icss;
 pub(crate) mod design_token;
 pub(crate) mod import_inline;
 pub(crate) mod keyframes;

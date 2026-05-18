@@ -10,6 +10,9 @@ use omena_syntax::SyntaxKind;
 use crate::domains::{
     css_module_global::{CssModuleScopeBlock, collect_css_module_scope_blocks},
     css_modules_values::at_rule_block_has_reachable_ordinary_rule,
+    custom_property_icss::{
+        collect_static_custom_property_icss_export_rules, custom_property_icss_export_is_reachable,
+    },
     keyframes::{
         KeyframesRuleSlice, collect_referenced_keyframe_names, collect_top_level_keyframes_rules,
     },
@@ -503,51 +506,6 @@ fn collect_reachable_custom_property_names(
         root_names,
         &dependencies_by_name,
     ))
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct CustomPropertyIcssExportRule {
-    declarations: Vec<CustomPropertyIcssExportDeclaration>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct CustomPropertyIcssExportDeclaration {
-    export_name: String,
-    value: String,
-    start: usize,
-    end: usize,
-}
-
-fn collect_static_custom_property_icss_export_rules(
-    source: &str,
-    tokens: &[omena_parser::LexedToken],
-) -> Vec<CustomPropertyIcssExportRule> {
-    collect_declaration_ordinary_rule_slices(source, tokens)
-        .into_iter()
-        .filter(|rule| rule.selector.trim().eq_ignore_ascii_case(":export"))
-        .filter_map(|rule| {
-            let (block_start_index, block_end_index) =
-                rule_block_token_indexes(tokens, rule.block_start, rule.block_end)?;
-            let declarations =
-                collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
-                    .into_iter()
-                    .filter(|declaration| {
-                        !collect_custom_property_references_in_value(&declaration.value).is_empty()
-                    })
-                    .map(|declaration| CustomPropertyIcssExportDeclaration {
-                        export_name: declaration.property,
-                        value: declaration.value,
-                        start: declaration.start,
-                        end: declaration.end,
-                    })
-                    .collect::<Vec<_>>();
-            (!declarations.is_empty()).then_some(CustomPropertyIcssExportRule { declarations })
-        })
-        .collect()
-}
-
-fn custom_property_icss_export_is_reachable(export_name: &str, roots: &[String]) -> bool {
-    roots.iter().any(|root| root == export_name)
 }
 
 fn collect_reachable_keyframe_names(
