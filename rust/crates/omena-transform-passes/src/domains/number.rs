@@ -66,6 +66,26 @@ pub(crate) fn parse_reducible_rem_value(value: &str) -> Option<String> {
     parse_reducible_positive_remainder_value(value, "rem")
 }
 
+pub(crate) fn parse_reducible_hypot_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "hypot")?;
+    let first_argument = arguments.first()?;
+    let first = parse_reducible_numeric_expression(first_argument.trim())?;
+    let mut sum_of_squares = first.value * first.value;
+
+    for argument in arguments.iter().skip(1) {
+        let parsed = parse_reducible_numeric_expression(argument.trim())?;
+        if parsed.unit != first.unit {
+            return None;
+        }
+        sum_of_squares += parsed.value * parsed.value;
+    }
+
+    Some(format_numeric_value_with_unit(NumericValueWithUnit {
+        value: sum_of_squares.sqrt(),
+        unit: first.unit,
+    }))
+}
+
 pub(crate) fn parse_reducible_min_value(value: &str) -> Option<String> {
     parse_reducible_extreme_value(value, "min", f64::min)
 }

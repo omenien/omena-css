@@ -9,9 +9,9 @@ use omena_syntax::SyntaxKind;
 use crate::{
     domains::number::{
         parse_numeric_value_with_unit, parse_reducible_abs_value, parse_reducible_calc_value,
-        parse_reducible_clamp_value, parse_reducible_max_value, parse_reducible_min_value,
-        parse_reducible_mod_value, parse_reducible_rem_value, parse_reducible_round_value,
-        parse_reducible_sign_value,
+        parse_reducible_clamp_value, parse_reducible_hypot_value, parse_reducible_max_value,
+        parse_reducible_min_value, parse_reducible_mod_value, parse_reducible_rem_value,
+        parse_reducible_round_value, parse_reducible_sign_value,
     },
     helpers::{
         ascii::normalize_ascii_whitespace,
@@ -377,6 +377,7 @@ fn normalize_static_media_range_value(value: &str) -> Cow<'_, str> {
             ("round", parse_reducible_round_value),
             ("mod", parse_reducible_mod_value),
             ("rem", parse_reducible_rem_value),
+            ("hypot", parse_reducible_hypot_value),
         ],
     )
     .map(Cow::Owned)

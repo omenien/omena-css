@@ -1255,7 +1255,7 @@ const mathFunctionReductionResult = spawnSync(
     input: JSON.stringify({
       stylePath: "math-functions.css",
       styleSource:
-        ".card { width: min(10px, 4px); height: max(1rem, 2rem); margin: min(1px, 1rem); opacity: max(.2, .5); outline-width: calc((2px * 3)); flex-basis: calc(2px * 3 * 4); inline-size: min(10px, max(2px, 4px)); line-height: clamp(.1, .5, .9); stroke-width: abs(-2px); order: sign(-10px); top: round(nearest, 10px, 3px); right: round(up, 10px, 3px); bottom: round(down, 10px, 3px); left: round(to-zero, 10px, 3px); rotate: round(nearest, 5px, 2px); margin-left: mod(10px, 3px); margin-right: rem(10px, 4px); perspective: mod(-10px, 3px); }",
+        ".card { width: min(10px, 4px); height: max(1rem, 2rem); margin: min(1px, 1rem); opacity: max(.2, .5); outline-width: calc((2px * 3)); flex-basis: calc(2px * 3 * 4); inline-size: min(10px, max(2px, 4px)); line-height: clamp(.1, .5, .9); stroke-width: abs(-2px); order: sign(-10px); top: round(nearest, 10px, 3px); right: round(up, 10px, 3px); bottom: round(down, 10px, 3px); left: round(to-zero, 10px, 3px); rotate: round(nearest, 5px, 2px); margin-left: mod(10px, 3px); margin-right: rem(10px, 4px); perspective: mod(-10px, 3px); border-spacing: hypot(3px, 4px); flex-grow: hypot(3, 4); margin-bottom: hypot(3px, 4rem); }",
       requestedPassIds: ["calc-reduction", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
@@ -1272,13 +1272,13 @@ const mathFunctionReductionSummary = JSON.parse(
 assert.equal(mathFunctionReductionSummary.product, "omena-query.transform-execute");
 assert.equal(
   mathFunctionReductionSummary.execution.outputCss,
-  ".card { width: 4px; height: 2rem; margin: min(1px, 1rem); opacity: 0.5; outline-width: 6px; flex-basis: 24px; inline-size: 4px; line-height: 0.5; stroke-width: 2px; order: -1; top: 9px; right: 12px; bottom: 9px; left: 9px; rotate: round(nearest, 5px, 2px); margin-left: 1px; margin-right: 2px; perspective: mod(-10px, 3px); }",
+  ".card { width: 4px; height: 2rem; margin: min(1px, 1rem); opacity: 0.5; outline-width: 6px; flex-basis: 24px; inline-size: 4px; line-height: 0.5; stroke-width: 2px; order: -1; top: 9px; right: 12px; bottom: 9px; left: 9px; rotate: round(nearest, 5px, 2px); margin-left: 1px; margin-right: 2px; perspective: mod(-10px, 3px); border-spacing: 5px; flex-grow: 5; margin-bottom: hypot(3px, 4rem); }",
 );
 assert.deepEqual(mathFunctionReductionSummary.execution.executedPassIds, [
   "calc-reduction",
   "print-css",
 ]);
-assert.equal(mathFunctionReductionSummary.execution.mutationCount, 15);
+assert.equal(mathFunctionReductionSummary.execution.mutationCount, 17);
 
 const staticVarShadowResult = spawnSync(
   "cargo",
