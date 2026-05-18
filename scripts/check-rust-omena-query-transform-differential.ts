@@ -92,7 +92,8 @@ const fixtures: readonly DifferentialFixture[] = [
   },
   {
     label: "list-style-shorthand-compression",
-    source: ".a { list-style: disc outside none; }",
+    source:
+      ".a { list-style: disc outside none; } .b { list-style: none outside none; } .c { list-style: url(icon.svg) outside none; }",
   },
   {
     label: "list-style-longhand-compression",

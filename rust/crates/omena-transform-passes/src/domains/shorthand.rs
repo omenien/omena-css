@@ -631,22 +631,32 @@ pub(crate) fn is_single_axis_border_radius_value(value: &str) -> bool {
 
 pub(crate) fn compress_list_style_value(value: &str) -> Option<String> {
     let components = split_top_level_whitespace_value_components(value)?;
-    let mut style_type = "disc".to_string();
+    let mut style_type = None;
     let mut position = "outside".to_string();
-    let mut image = "none".to_string();
+    let mut image = None;
 
     for component in &components {
         if is_list_style_position(component) {
             position = component.clone();
-        } else if is_list_style_image(component) {
-            image = component.clone();
-        } else if is_list_style_type(component) {
-            style_type = component.clone();
+        } else if component == "none" {
+            if style_type.is_none() {
+                style_type = Some(component.clone());
+            } else if image.is_none() {
+                image = Some(component.clone());
+            } else {
+                return None;
+            }
+        } else if is_list_style_image(component) && image.is_none() {
+            image = Some(component.clone());
+        } else if is_list_style_type(component) && style_type.is_none() {
+            style_type = Some(component.clone());
         } else {
             return None;
         }
     }
 
+    let style_type = style_type.unwrap_or_else(|| "disc".to_string());
+    let image = image.unwrap_or_else(|| "none".to_string());
     let compressed = compressed_list_style_components(&style_type, &position, &image)?;
     (compressed != normalize_ascii_whitespace(value)).then_some(compressed)
 }
@@ -718,6 +728,13 @@ pub(crate) fn compressed_list_style_components(
             "none".to_string()
         } else {
             format!("{position} none")
+        });
+    }
+    if style_type == "none" {
+        return Some(if position == "outside" {
+            format!("{image} none")
+        } else {
+            format!("{position} {image} none")
         });
     }
 
