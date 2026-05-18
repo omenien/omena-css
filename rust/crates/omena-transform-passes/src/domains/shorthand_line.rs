@@ -9,43 +9,90 @@ pub(crate) fn line_shorthand_replacement_for_declarations(
     tokens: &[LexedToken],
     declarations: &[SimpleDeclarationSlice],
 ) -> Option<(usize, usize, String)> {
-    let [width, style, color] = declarations else {
+    let [first, _, last] = declarations else {
         return None;
     };
-    let shorthand = line_shorthand_property_for_width_longhand(&width.property)?;
-    if style.property != format!("{shorthand}-style")
-        || color.property != format!("{shorthand}-color")
-        || width.important != style.important
-        || width.important != color.important
-        || !declaration_ranges_are_adjacent(tokens, declarations)
-    {
+    if !declaration_ranges_are_adjacent(tokens, declarations) {
         return None;
     }
 
-    let width_value = single_component_value_without_important(&width.value, width.important)?;
-    let style_value = single_component_value_without_important(&style.value, style.important)?;
-    let color_value = single_component_value_without_important(&color.value, color.important)?;
+    let important = first.important;
+    let mut shorthand = None;
+    let mut width_value = None;
+    let mut style_value = None;
+    let mut color_value = None;
+
+    for declaration in declarations {
+        if declaration.important != important {
+            return None;
+        }
+        let (declaration_shorthand, component) =
+            line_shorthand_component_for_property(&declaration.property)?;
+        if shorthand.is_some_and(|current_shorthand| current_shorthand != declaration_shorthand) {
+            return None;
+        }
+        shorthand = Some(declaration_shorthand);
+
+        let value = single_component_value_without_important(&declaration.value, important)?;
+        let slot = match component {
+            LineShorthandComponent::Width => &mut width_value,
+            LineShorthandComponent::Style => &mut style_value,
+            LineShorthandComponent::Color => &mut color_value,
+        };
+        if slot.replace(value).is_some() {
+            return None;
+        }
+    }
+
+    let shorthand = shorthand?;
+    let width_value = width_value?;
+    let style_value = style_value?;
+    let color_value = color_value?;
     let shorthand_value =
         compressed_line_shorthand_value(&width_value, &style_value, &color_value)?;
-    let important = if width.important { "!important" } else { "" };
+    let important = if important { "!important" } else { "" };
 
     Some((
-        width.start,
-        color.end,
+        first.start,
+        last.end,
         format!("{shorthand}: {shorthand_value}{important};"),
     ))
 }
 
-fn line_shorthand_property_for_width_longhand(property: &str) -> Option<&'static str> {
+enum LineShorthandComponent {
+    Width,
+    Style,
+    Color,
+}
+
+fn line_shorthand_component_for_property(
+    property: &str,
+) -> Option<(&'static str, LineShorthandComponent)> {
     match property {
-        "border-width" => Some("border"),
-        "border-top-width" => Some("border-top"),
-        "border-right-width" => Some("border-right"),
-        "border-bottom-width" => Some("border-bottom"),
-        "border-left-width" => Some("border-left"),
-        "border-block-width" => Some("border-block"),
-        "border-inline-width" => Some("border-inline"),
-        "outline-width" => Some("outline"),
+        "border-width" => Some(("border", LineShorthandComponent::Width)),
+        "border-style" => Some(("border", LineShorthandComponent::Style)),
+        "border-color" => Some(("border", LineShorthandComponent::Color)),
+        "border-top-width" => Some(("border-top", LineShorthandComponent::Width)),
+        "border-top-style" => Some(("border-top", LineShorthandComponent::Style)),
+        "border-top-color" => Some(("border-top", LineShorthandComponent::Color)),
+        "border-right-width" => Some(("border-right", LineShorthandComponent::Width)),
+        "border-right-style" => Some(("border-right", LineShorthandComponent::Style)),
+        "border-right-color" => Some(("border-right", LineShorthandComponent::Color)),
+        "border-bottom-width" => Some(("border-bottom", LineShorthandComponent::Width)),
+        "border-bottom-style" => Some(("border-bottom", LineShorthandComponent::Style)),
+        "border-bottom-color" => Some(("border-bottom", LineShorthandComponent::Color)),
+        "border-left-width" => Some(("border-left", LineShorthandComponent::Width)),
+        "border-left-style" => Some(("border-left", LineShorthandComponent::Style)),
+        "border-left-color" => Some(("border-left", LineShorthandComponent::Color)),
+        "border-block-width" => Some(("border-block", LineShorthandComponent::Width)),
+        "border-block-style" => Some(("border-block", LineShorthandComponent::Style)),
+        "border-block-color" => Some(("border-block", LineShorthandComponent::Color)),
+        "border-inline-width" => Some(("border-inline", LineShorthandComponent::Width)),
+        "border-inline-style" => Some(("border-inline", LineShorthandComponent::Style)),
+        "border-inline-color" => Some(("border-inline", LineShorthandComponent::Color)),
+        "outline-width" => Some(("outline", LineShorthandComponent::Width)),
+        "outline-style" => Some(("outline", LineShorthandComponent::Style)),
+        "outline-color" => Some(("outline", LineShorthandComponent::Color)),
         _ => None,
     }
 }
