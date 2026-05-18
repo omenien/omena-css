@@ -190,6 +190,8 @@ fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Optio
         "box-shadow" => normalize_shadow_value(value, true),
         "text-shadow" => normalize_shadow_value(value, false),
         "transform" => normalize_static_transform_functions(value),
+        "translate" => normalize_individual_translate_value(value),
+        "scale" => normalize_individual_scale_value(value),
         _ => None,
     }
 }
@@ -304,6 +306,96 @@ fn normalize_static_transform_functions(value: &str) -> Option<String> {
         ],
     )?;
     Some(compact_transform_function_separators(&normalized))
+}
+
+fn normalize_individual_translate_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let replacement = match components.as_slice() {
+        [x] => normalize_translate_component(x)?,
+        [x, y] => {
+            let x = normalize_translate_component(x)?;
+            let y = normalize_translate_component(y)?;
+            match (
+                is_zero_translate_component(&x),
+                is_zero_translate_component(&y),
+            ) {
+                (true, true) => "0".to_string(),
+                (_, true) => x,
+                _ => format!("{x} {y}"),
+            }
+        }
+        [x, y, z] => {
+            let x = normalize_translate_component(x)?;
+            let y = normalize_translate_component(y)?;
+            let z = normalize_translate_component(z)?;
+            match (
+                is_zero_translate_component(&x),
+                is_zero_translate_component(&y),
+                is_zero_translate_component(&z),
+            ) {
+                (true, true, true) => "0".to_string(),
+                (_, true, true) => x,
+                (_, _, true) => format!("{x} {y}"),
+                _ => format!("{x} {y} {z}"),
+            }
+        }
+        _ => return None,
+    };
+
+    (replacement.len() < value.len()).then_some(replacement)
+}
+
+fn normalize_translate_component(component: &str) -> Option<String> {
+    let component = component.trim();
+    if is_zero_transform_numeric_unit_argument(component, is_css_transform_length_percentage_unit)
+        .is_some()
+    {
+        return Some("0".to_string());
+    }
+
+    Some(component.to_string())
+}
+
+fn is_zero_translate_component(component: &str) -> bool {
+    component == "0"
+}
+
+fn normalize_individual_scale_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let replacement = match components.as_slice() {
+        [x] => normalize_individual_scale_component(x)?,
+        [x, y] => {
+            let x = normalize_individual_scale_component(x)?;
+            let y = normalize_individual_scale_component(y)?;
+            if x == y { x } else { format!("{x} {y}") }
+        }
+        [x, y, z] => {
+            let x = normalize_individual_scale_component(x)?;
+            let y = normalize_individual_scale_component(y)?;
+            let z = normalize_individual_scale_component(z)?;
+            if z == "1" {
+                if x == y { x } else { format!("{x} {y}") }
+            } else {
+                format!("{x} {y} {z}")
+            }
+        }
+        _ => return None,
+    };
+
+    (replacement.len() < value.len()).then_some(replacement)
+}
+
+fn normalize_individual_scale_component(component: &str) -> Option<String> {
+    let component = component.trim();
+    if let Some(number) = component.strip_suffix('%') {
+        let value = number.parse::<f64>().ok()?;
+        if !value.is_finite() {
+            return None;
+        }
+        return Some(compress_number_prefix(&format_css_number(value / 100.0)));
+    }
+
+    normalize_transform_number(component)
 }
 
 fn normalize_zero_angle_transform_function(value: &str) -> Option<String> {

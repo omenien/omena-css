@@ -125,6 +125,7 @@ pub(crate) fn is_zero_length_unit_property(property: &str) -> bool {
             | "grid-template-rows"
             | "grid-auto-columns"
             | "grid-auto-rows"
+            | "translate"
     )
 }
 
@@ -136,6 +137,7 @@ pub(crate) fn is_zero_percentage_unit_property(property: &str) -> bool {
             | "-webkit-mask-position"
             | "perspective-origin"
             | "transform-origin"
+            | "translate"
     )
 }
 

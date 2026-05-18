@@ -1069,6 +1069,28 @@ fn execution_runtime_normalizes_static_transform_tail_zeros() {
 }
 
 #[test]
+fn execution_runtime_normalizes_individual_transform_properties() {
+    let source = r#".t0 { translate: 0px 0% 0px; } .t1 { translate: 1px 0px; } .t2 { translate: 0px 1px; } .t3 { translate: 1px 2px 0px; } .t4 { translate: 0px 0px 1px; } .s0 { scale: 1 1; } .s1 { scale: 2 2; } .s2 { scale: 1 2; } .s3 { scale: 2 3 1; } .s4 { scale: 1 1 2; } .s5 { scale: 1 1 1; } .s6 { scale: 50% 50%; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::UnitNormalization,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 16);
+    assert_eq!(
+        execution.output_css,
+        r#".t0 { translate: 0; } .t1 { translate: 1px; } .t2 { translate: 0 1px; } .t3 { translate: 1px 2px; } .t4 { translate: 0 0 1px; } .s0 { scale: 1; } .s1 { scale: 2; } .s2 { scale: 1 2; } .s3 { scale: 2 3; } .s4 { scale: 1 1 2; } .s5 { scale: 1; } .s6 { scale: .5; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["unit-normalization", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_normalizes_static_shadow_zero_lengths() {
     let source = r#".a { box-shadow: 0px 0px 0px #000; } .b { box-shadow: inset 1px 2px 0px 0px #000; } .c { text-shadow: 1px 2px 0px #000; } .d { box-shadow: 1px 2px 0px 5px #000; }"#;
     let execution = execute_transform_passes_on_source(
