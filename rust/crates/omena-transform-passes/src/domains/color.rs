@@ -1,3 +1,6 @@
+#[path = "color_names.rs"]
+mod color_names;
+
 use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
@@ -857,94 +860,7 @@ fn parse_repeated_hex_digit(ch: char) -> Option<u8> {
 }
 
 fn parse_basic_named_srgb_color(text: &str) -> Option<SrgbColor> {
-    match text.to_ascii_lowercase().as_str() {
-        "aqua" | "cyan" => Some(SrgbColor {
-            red: 0,
-            green: 255,
-            blue: 255,
-        }),
-        "black" => Some(SrgbColor {
-            red: 0,
-            green: 0,
-            blue: 0,
-        }),
-        "blue" => Some(SrgbColor {
-            red: 0,
-            green: 0,
-            blue: 255,
-        }),
-        "fuchsia" | "magenta" => Some(SrgbColor {
-            red: 255,
-            green: 0,
-            blue: 255,
-        }),
-        "gray" | "grey" => Some(SrgbColor {
-            red: 128,
-            green: 128,
-            blue: 128,
-        }),
-        "green" => Some(SrgbColor {
-            red: 0,
-            green: 128,
-            blue: 0,
-        }),
-        "lime" => Some(SrgbColor {
-            red: 0,
-            green: 255,
-            blue: 0,
-        }),
-        "maroon" => Some(SrgbColor {
-            red: 128,
-            green: 0,
-            blue: 0,
-        }),
-        "navy" => Some(SrgbColor {
-            red: 0,
-            green: 0,
-            blue: 128,
-        }),
-        "olive" => Some(SrgbColor {
-            red: 128,
-            green: 128,
-            blue: 0,
-        }),
-        "orange" => Some(SrgbColor {
-            red: 255,
-            green: 165,
-            blue: 0,
-        }),
-        "purple" => Some(SrgbColor {
-            red: 128,
-            green: 0,
-            blue: 128,
-        }),
-        "red" => Some(SrgbColor {
-            red: 255,
-            green: 0,
-            blue: 0,
-        }),
-        "silver" => Some(SrgbColor {
-            red: 192,
-            green: 192,
-            blue: 192,
-        }),
-        "teal" => Some(SrgbColor {
-            red: 0,
-            green: 128,
-            blue: 128,
-        }),
-        "white" => Some(SrgbColor {
-            red: 255,
-            green: 255,
-            blue: 255,
-        }),
-        "yellow" => Some(SrgbColor {
-            red: 255,
-            green: 255,
-            blue: 0,
-        }),
-        _ => None,
-    }
+    color_names::parse_basic_named_srgb_color(text)
 }
 
 pub(crate) fn parse_basic_named_static_color_with_alpha(
@@ -1405,19 +1321,7 @@ pub(crate) fn shortest_static_srgb_color_with_alpha_text(
 }
 
 fn shortest_named_srgb_color(color: SrgbColor) -> Option<&'static str> {
-    match (color.red, color.green, color.blue) {
-        (0, 0, 128) => Some("navy"),
-        (0, 128, 128) => Some("teal"),
-        (0, 128, 0) => Some("green"),
-        (128, 0, 0) => Some("maroon"),
-        (128, 0, 128) => Some("purple"),
-        (128, 128, 0) => Some("olive"),
-        (128, 128, 128) => Some("gray"),
-        (192, 192, 192) => Some("silver"),
-        (255, 0, 0) => Some("red"),
-        (255, 165, 0) => Some("orange"),
-        _ => None,
-    }
+    color_names::shortest_named_srgb_color(color)
 }
 
 fn compressed_hex_color_for_srgb(color: SrgbColor) -> String {

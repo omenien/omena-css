@@ -184,6 +184,11 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { border: 1px solid black; }",
   },
   {
+    label: "extended-named-color-coverage",
+    source:
+      ".a { color: rebeccapurple; accent-color: #d2b48c; background: aliceblue; border-color: darkgray; outline-color: LightGoldenRodYellow; }",
+  },
+  {
     label: "border-outline-zero-shorthand-lengths",
     source:
       ".a { border: 0px solid #000000; } .b { border-top: 0px solid #000000; } .c { outline: 0px solid #000000; } .d { text-decoration: underline 0px #000000; }",
