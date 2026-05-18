@@ -1069,6 +1069,28 @@ fn execution_runtime_normalizes_static_transform_tail_zeros() {
 }
 
 #[test]
+fn execution_runtime_normalizes_static_filter_default_functions() {
+    let source = r#".a { filter: opacity(100%) brightness(1) contrast(+1) saturate(0100%) blur(0px) hue-rotate(-0deg); } .b { backdrop-filter: opacity(.5) blur(1px); } .c { -webkit-filter: opacity(1.0); }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::UnitNormalization,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 3);
+    assert_eq!(
+        execution.output_css,
+        r#".a { filter: opacity()brightness()contrast()saturate()blur()hue-rotate(); } .b { backdrop-filter: opacity(.5)blur(1px); } .c { -webkit-filter: opacity(); }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["unit-normalization", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_normalizes_individual_transform_properties() {
     let source = r#".t0 { translate: 0px 0% 0px; } .t1 { translate: 1px 0px; } .t2 { translate: 0px 1px; } .t3 { translate: 1px 2px 0px; } .t4 { translate: 0px 0px 1px; } .s0 { scale: 1 1; } .s1 { scale: 2 2; } .s2 { scale: 1 2; } .s3 { scale: 2 3 1; } .s4 { scale: 1 1 2; } .s5 { scale: 1 1 1; } .s6 { scale: 50% 50%; } .r0 { rotate: z 0deg; } .r1 { rotate: 0 0 1 10deg; } .r2 { rotate: 1 0 0 .500turn; } .r3 { rotate: 0 1 0 10.0deg; } .r4 { rotate: 0rad; }"#;
     let execution = execute_transform_passes_on_source(

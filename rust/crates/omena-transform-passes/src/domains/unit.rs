@@ -4,6 +4,7 @@ use omena_syntax::SyntaxKind;
 use crate::{
     domains::{
         number::{compress_number_prefix, format_css_number, numeric_prefix_end},
+        unit_filter::normalize_static_filter_functions,
         unit_properties::{
             is_css_length_unit, is_known_css_unit, is_zero_length_unit_property,
             is_zero_percentage_unit_property,
@@ -190,6 +191,9 @@ fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Optio
             normalize_repeated_pair_value(value, "auto")
         }
         "box-shadow" => normalize_shadow_value(value, true),
+        "filter" | "-webkit-filter" | "backdrop-filter" | "-webkit-backdrop-filter" => {
+            normalize_static_filter_functions(value)
+        }
         "text-shadow" => normalize_shadow_value(value, false),
         "transform" => normalize_static_transform_functions(value),
         "rotate" => normalize_individual_rotate_value(value),

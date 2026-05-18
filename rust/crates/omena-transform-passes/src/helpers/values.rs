@@ -324,6 +324,68 @@ pub(crate) fn substitute_static_css_function_references_in_value_until_stable(
     changed.then_some(current)
 }
 
+pub(crate) fn compact_adjacent_css_function_separators(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    let mut index = 0usize;
+    let mut depth = 0usize;
+
+    while index < value.len() {
+        let Some(ch) = value[index..].chars().next() else {
+            break;
+        };
+        if ch.is_ascii_whitespace()
+            && depth == 0
+            && output.ends_with(')')
+            && next_css_function_component_starts(value, index)
+        {
+            while index < value.len() {
+                let Some(whitespace) = value[index..].chars().next() else {
+                    break;
+                };
+                if !whitespace.is_ascii_whitespace() {
+                    break;
+                }
+                index += whitespace.len_utf8();
+            }
+            continue;
+        }
+
+        match ch {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        output.push(ch);
+        index += ch.len_utf8();
+    }
+
+    output
+}
+
+fn next_css_function_component_starts(value: &str, index: usize) -> bool {
+    let mut cursor = index;
+    while cursor < value.len() {
+        let Some(ch) = value[cursor..].chars().next() else {
+            return false;
+        };
+        if !ch.is_ascii_whitespace() {
+            break;
+        }
+        cursor += ch.len_utf8();
+    }
+    let name_start = cursor;
+    while cursor < value.len() {
+        let Some(ch) = value[cursor..].chars().next() else {
+            return false;
+        };
+        if !(ch.is_ascii_alphabetic() || ch == '-') {
+            break;
+        }
+        cursor += ch.len_utf8();
+    }
+    cursor > name_start && value[cursor..].starts_with('(')
+}
+
 fn static_css_function_at<'a>(
     value: &str,
     index: usize,
