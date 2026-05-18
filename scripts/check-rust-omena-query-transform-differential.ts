@@ -72,7 +72,7 @@ const fixtures: readonly DifferentialFixture[] = [
   {
     label: "flex-shorthand-compression",
     source:
-      ".a { flex: 0 1 auto; } .b { flex: 1 1 0%; } .c { flex: 1 2 0%; } .d { flex: 0 0 auto; }",
+      ".a { flex: 0 1 auto; } .b { flex: 1 1 0%; } .c { flex: 1 2 0%; } .d { flex: 0 0 auto; } .e { flex-direction: row; flex-wrap: nowrap; } .f { flex-flow: row nowrap; } .g { flex-flow: column wrap; }",
   },
   {
     label: "border-radius-shorthand-compression",

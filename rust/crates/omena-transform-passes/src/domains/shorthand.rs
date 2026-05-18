@@ -140,6 +140,7 @@ fn collect_shorthand_replacements_in_block(
     ranges.extend(collect_overflow_axis_replacements(tokens, &declarations));
     ranges.extend(collect_place_axis_replacements(tokens, &declarations));
     ranges.extend(collect_gap_axis_replacements(tokens, &declarations));
+    ranges.extend(collect_flex_flow_replacements(tokens, &declarations));
     ranges.extend(collect_logical_axis_replacements(tokens, &declarations));
     ranges
 }
@@ -208,6 +209,8 @@ fn shorthand_value_replacement_for_declaration(
         compress_border_radius_value(&declaration.value)
     } else if declaration.property == "flex" {
         compress_flex_value(&declaration.value)
+    } else if declaration.property == "flex-flow" {
+        compress_flex_flow_value(&declaration.value)
     } else if declaration.property == "gap" {
         compress_gap_value(&declaration.value, declaration.important)
     } else if declaration.property == "inset" {
@@ -411,6 +414,48 @@ fn gap_axis_replacement_for_declarations(
         first.start,
         second.end,
         format!("gap: {shorthand_value}{important};"),
+    ))
+}
+
+fn collect_flex_flow_replacements(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Vec<(usize, usize, String)> {
+    let mut ranges = Vec::new();
+    for pair in declarations.windows(2) {
+        if let Some(replacement) = flex_flow_replacement_for_declarations(tokens, pair) {
+            ranges.push(replacement);
+        }
+    }
+    ranges
+}
+
+fn flex_flow_replacement_for_declarations(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let [first, second] = declarations else {
+        return None;
+    };
+    if first.important != second.important || !declaration_ranges_are_adjacent(tokens, declarations)
+    {
+        return None;
+    }
+
+    let (direction, wrap) = match (first.property.as_str(), second.property.as_str()) {
+        ("flex-direction", "flex-wrap") => (first.value.as_str(), second.value.as_str()),
+        ("flex-wrap", "flex-direction") => (second.value.as_str(), first.value.as_str()),
+        _ => return None,
+    };
+    let direction = single_component_value_without_important(direction, first.important)?;
+    let wrap = single_component_value_without_important(wrap, second.important)?;
+    let shorthand_value = compressed_flex_flow_components(&direction, &wrap)?;
+    let important = if first.important { "!important" } else { "" };
+
+    Some((
+        first.start,
+        second.end,
+        format!("flex-flow: {shorthand_value}{important};"),
     ))
 }
 
@@ -643,6 +688,52 @@ pub(crate) fn compress_flex_value(value: &str) -> Option<String> {
     };
 
     (compressed.len() < normalize_ascii_whitespace(value).len()).then_some(compressed)
+}
+
+fn compress_flex_flow_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let [first, second] = components.as_slice() else {
+        return None;
+    };
+    let shorthand_value = compressed_flex_flow_unordered_components(first, second)?;
+    (shorthand_value.len() < normalize_ascii_whitespace(value).len()).then_some(shorthand_value)
+}
+
+fn compressed_flex_flow_unordered_components(first: &str, second: &str) -> Option<String> {
+    let first = first.to_ascii_lowercase();
+    let second = second.to_ascii_lowercase();
+    if is_flex_direction_keyword(&first) && is_flex_wrap_keyword(&second) {
+        return compressed_flex_flow_components(&first, &second);
+    }
+    if is_flex_wrap_keyword(&first) && is_flex_direction_keyword(&second) {
+        return compressed_flex_flow_components(&second, &first);
+    }
+    None
+}
+
+fn compressed_flex_flow_components(direction: &str, wrap: &str) -> Option<String> {
+    let direction = direction.to_ascii_lowercase();
+    let wrap = wrap.to_ascii_lowercase();
+    if !is_flex_direction_keyword(&direction) || !is_flex_wrap_keyword(&wrap) {
+        return None;
+    }
+    if direction == "row" && wrap == "nowrap" {
+        Some("row".to_string())
+    } else if direction == "row" {
+        Some(wrap)
+    } else if wrap == "nowrap" {
+        Some(direction)
+    } else {
+        Some(format!("{direction} {wrap}"))
+    }
+}
+
+fn is_flex_direction_keyword(value: &str) -> bool {
+    matches!(value, "row" | "row-reverse" | "column" | "column-reverse")
+}
+
+fn is_flex_wrap_keyword(value: &str) -> bool {
+    matches!(value, "nowrap" | "wrap" | "wrap-reverse")
 }
 
 fn normalize_flex_number(value: &str) -> Option<String> {
