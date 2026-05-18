@@ -1,0 +1,255 @@
+use omena_parser::{StyleDialect, lex};
+use omena_syntax::SyntaxKind;
+
+use crate::{
+    domains::{
+        number::parse_numeric_value_with_unit,
+        reachability::rule_slice_matches_reachable_class_context,
+    },
+    helpers::{
+        blocks::rule_block_token_indexes,
+        collections::push_unique_string,
+        declarations::collect_simple_declarations_in_block,
+        rules::collect_declaration_ordinary_rule_slices,
+        source_rewrite::remove_source_ranges,
+        tokens::{matching_right_brace_index, skip_whitespace_tokens, token_end, token_start},
+        values::{
+            split_top_level_value_arguments, split_top_level_whitespace_value_components,
+            static_css_string_value,
+        },
+    },
+    model::TransformSemanticRemovalCandidate,
+};
+
+use super::css_module_global::collect_css_module_scope_blocks;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct KeyframesRuleSlice {
+    pub(crate) name: String,
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+}
+
+pub(crate) fn tree_shake_css_keyframes_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_keyframe_names: &[String],
+    reachable_class_names: &[String],
+) -> (String, Vec<TransformSemanticRemovalCandidate>) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let keyframes = collect_top_level_keyframes_rules(tokens);
+    if keyframes.is_empty() {
+        return (source.to_string(), Vec::new());
+    }
+
+    let Some(mut referenced_names) =
+        collect_referenced_keyframe_names(source, tokens, reachable_class_names)
+    else {
+        return (source.to_string(), Vec::new());
+    };
+    for name in reachable_keyframe_names {
+        push_unique_string(&mut referenced_names, name.clone());
+    }
+
+    let removals = keyframes
+        .iter()
+        .filter(|keyframe| !referenced_names.iter().any(|name| name == &keyframe.name))
+        .map(|keyframe| TransformSemanticRemovalCandidate {
+            symbol_kind: "keyframes",
+            name: keyframe.name.clone(),
+            source_span_start: keyframe.start,
+            source_span_end: keyframe.end,
+            reason: "keyframes name was absent from animation references and the closed-style-world reachable keyframe set",
+        })
+        .collect::<Vec<_>>();
+    let ranges = removals
+        .iter()
+        .map(|removal| (removal.source_span_start, removal.source_span_end))
+        .collect::<Vec<_>>();
+    let (output, _) = remove_source_ranges(source, &ranges);
+    (output, removals)
+}
+
+pub(crate) fn collect_top_level_keyframes_rules(
+    tokens: &[omena_parser::LexedToken],
+) -> Vec<KeyframesRuleSlice> {
+    let mut rules = Vec::new();
+    let mut depth = 0usize;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::AtKeyword if depth == 0 && is_keyframes_at_keyword(&tokens[index].text) => {
+                if let Some((rule, next_index)) = parse_top_level_keyframes_rule(tokens, index) {
+                    rules.push(rule);
+                    index = next_index;
+                    continue;
+                }
+            }
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+
+    rules
+}
+
+pub(crate) fn is_keyframes_at_keyword(text: &str) -> bool {
+    matches!(
+        text.to_ascii_lowercase().as_str(),
+        "@keyframes" | "@-webkit-keyframes"
+    )
+}
+
+fn parse_top_level_keyframes_rule(
+    tokens: &[omena_parser::LexedToken],
+    at_keyframes_index: usize,
+) -> Option<(KeyframesRuleSlice, usize)> {
+    let name_index = skip_whitespace_tokens(tokens, at_keyframes_index + 1, tokens.len());
+    let name_token = tokens.get(name_index)?;
+    let name = static_keyframe_name_from_rule_name_token(name_token)?;
+    let mut index = name_index + 1;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::Semicolon => return None,
+            SyntaxKind::LeftBrace => {
+                let close_index = matching_right_brace_index(tokens, index)?;
+                return Some((
+                    KeyframesRuleSlice {
+                        name,
+                        start: token_start(&tokens[at_keyframes_index]),
+                        end: token_end(&tokens[close_index]),
+                    },
+                    close_index + 1,
+                ));
+            }
+            _ => index += 1,
+        }
+    }
+
+    None
+}
+
+fn static_keyframe_name_from_rule_name_token(token: &omena_parser::LexedToken) -> Option<String> {
+    match token.kind {
+        SyntaxKind::Ident => Some(token.text.clone()),
+        SyntaxKind::String => static_css_string_value(&token.text),
+        _ => None,
+    }
+}
+
+pub(crate) fn collect_referenced_keyframe_names(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+    reachable_class_names: &[String],
+) -> Option<Vec<String>> {
+    let mut names = Vec::new();
+    let scope_blocks = collect_css_module_scope_blocks(source, tokens);
+    for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
+        if !rule_slice_matches_reachable_class_context(&rule, &scope_blocks, reachable_class_names)
+        {
+            continue;
+        };
+        let Some((block_start_index, block_end_index)) =
+            rule_block_token_indexes(tokens, rule.block_start, rule.block_end)
+        else {
+            continue;
+        };
+        for declaration in
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+        {
+            match declaration.property.as_str() {
+                "animation-name" => {
+                    if declaration.value.contains("var(") {
+                        return None;
+                    }
+                    for name in split_top_level_value_arguments(&declaration.value)? {
+                        if let Some(candidate) = static_animation_name_candidate(&name)
+                            && (candidate.quoted || !candidate.name.eq_ignore_ascii_case("none"))
+                        {
+                            push_unique_string(&mut names, candidate.name);
+                        }
+                    }
+                }
+                "animation" => {
+                    if declaration.value.contains("var(") {
+                        return None;
+                    }
+                    for name in extract_animation_shorthand_name_candidates(&declaration.value)? {
+                        push_unique_string(&mut names, name);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    Some(names)
+}
+
+fn extract_animation_shorthand_name_candidates(value: &str) -> Option<Vec<String>> {
+    let mut candidates = Vec::new();
+    for branch in split_top_level_value_arguments(value)? {
+        for part in split_top_level_whitespace_value_components(&branch)? {
+            let candidate = part.trim();
+            if let Some(candidate) = static_animation_name_candidate(candidate)
+                && (candidate.quoted || !is_known_animation_shorthand_keyword(&candidate.name))
+            {
+                push_unique_string(&mut candidates, candidate.name);
+            }
+        }
+    }
+    Some(candidates)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticAnimationNameCandidate {
+    name: String,
+    quoted: bool,
+}
+
+fn static_animation_name_candidate(value: &str) -> Option<StaticAnimationNameCandidate> {
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    if let Some(name) = static_css_string_value(value) {
+        return Some(StaticAnimationNameCandidate { name, quoted: true });
+    }
+    if value.contains(['(', ')', '"', '\'', '/', '\\'])
+        || parse_numeric_value_with_unit(value).is_some()
+    {
+        return None;
+    }
+    Some(StaticAnimationNameCandidate {
+        name: value.to_string(),
+        quoted: false,
+    })
+}
+
+fn is_known_animation_shorthand_keyword(value: &str) -> bool {
+    matches!(
+        value.to_ascii_lowercase().as_str(),
+        "alternate"
+            | "alternate-reverse"
+            | "backwards"
+            | "both"
+            | "ease"
+            | "ease-in"
+            | "ease-in-out"
+            | "ease-out"
+            | "forwards"
+            | "infinite"
+            | "linear"
+            | "none"
+            | "normal"
+            | "paused"
+            | "reverse"
+            | "running"
+            | "step-end"
+            | "step-start"
+    )
+}
