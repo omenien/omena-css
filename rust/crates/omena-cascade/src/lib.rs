@@ -354,6 +354,7 @@ pub struct CascadeBoundarySummary {
     pub product: &'static str,
     pub ordering_model: &'static str,
     pub substitution_model: &'static str,
+    pub least_fixed_point_proof_model: &'static str,
     pub ready_surfaces: Vec<&'static str>,
     pub not_ready_surfaces: Vec<&'static str>,
 }
@@ -436,8 +437,22 @@ pub struct CustomPropertyLeastFixedPointSummaryV0 {
     pub resolved_count: usize,
     pub guaranteed_invalid_count: usize,
     pub iteration_count: usize,
+    pub iteration_bound: usize,
+    pub reached_fixed_point: bool,
+    pub proof: CustomPropertyLeastFixedPointProofV0,
     pub entries: Vec<CustomPropertyLeastFixedPointEntryV0>,
     pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomPropertyLeastFixedPointProofV0 {
+    pub finite_domain: &'static str,
+    pub transfer_function: &'static str,
+    pub monotone_witness: &'static str,
+    pub iteration_bound_formula: &'static str,
+    pub cycle_policy: &'static str,
+    pub proof_obligations: Vec<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -563,6 +578,7 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
         product: "omena-cascade.boundary",
         ordering_model: "lexicographicCascadeKey",
         substitution_model: "finiteCustomPropertyLeastFixedPoint",
+        least_fixed_point_proof_model: "finite-env monotone custom-property substitution with cycle-to-guaranteed-invalid bottoming and env-size iteration bound",
         ready_surfaces: vec![
             "cascadeKeyOrdering",
             "specificityOrdering",
@@ -575,6 +591,7 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
             "cascadeConformanceSeedCorpus",
             "customPropertySubstitution",
             "customPropertyLeastFixedPoint",
+            "customPropertyLeastFixedPointProof",
             "cycleToGuaranteedInvalid",
             "computedValueResolutionSeed",
             "inheritanceInitialValueSeed",
@@ -2217,17 +2234,18 @@ pub fn substitute_custom_properties(value: &CascadeValue, env: &CustomPropertyEn
 }
 
 pub fn resolve_custom_property_env_least_fixed_point(env: &CustomPropertyEnv) -> CustomPropertyEnv {
-    compute_custom_property_env_least_fixed_point(env).0
+    compute_custom_property_env_least_fixed_point(env).resolved_env
 }
 
 pub fn summarize_custom_property_least_fixed_point(
     env: &CustomPropertyEnv,
 ) -> CustomPropertyLeastFixedPointSummaryV0 {
-    let (resolved_env, iteration_count) = compute_custom_property_env_least_fixed_point(env);
+    let computation = compute_custom_property_env_least_fixed_point(env);
     let entries = env
         .iter()
         .map(|(name, input)| {
-            let resolved = resolved_env
+            let resolved = computation
+                .resolved_env
                 .get(name)
                 .cloned()
                 .unwrap_or(CascadeValue::GuaranteedInvalid);
@@ -2255,19 +2273,31 @@ pub fn summarize_custom_property_least_fixed_point(
         input_count: env.len(),
         resolved_count,
         guaranteed_invalid_count,
-        iteration_count,
+        iteration_count: computation.iteration_count,
+        iteration_bound: computation.iteration_bound,
+        reached_fixed_point: computation.reached_fixed_point,
+        proof: custom_property_least_fixed_point_proof(),
         entries,
         ready_surfaces: vec![
             "customPropertySubstitution",
             "customPropertyLeastFixedPoint",
+            "customPropertyLeastFixedPointProof",
             "cycleToGuaranteedInvalid",
         ],
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CustomPropertyLeastFixedPointComputation {
+    resolved_env: CustomPropertyEnv,
+    iteration_count: usize,
+    iteration_bound: usize,
+    reached_fixed_point: bool,
+}
+
 fn compute_custom_property_env_least_fixed_point(
     env: &CustomPropertyEnv,
-) -> (CustomPropertyEnv, usize) {
+) -> CustomPropertyLeastFixedPointComputation {
     let mut current = env.clone();
     let max_iterations = env.len().saturating_add(1).max(1);
 
@@ -2277,12 +2307,39 @@ fn compute_custom_property_env_least_fixed_point(
             .map(|(name, value)| (name.clone(), substitute_custom_properties(value, &current)))
             .collect::<CustomPropertyEnv>();
         if next == current {
-            return (next, iteration);
+            return CustomPropertyLeastFixedPointComputation {
+                resolved_env: next,
+                iteration_count: iteration,
+                iteration_bound: max_iterations,
+                reached_fixed_point: true,
+            };
         }
         current = next;
     }
 
-    (current, max_iterations)
+    CustomPropertyLeastFixedPointComputation {
+        resolved_env: current,
+        iteration_count: max_iterations,
+        iteration_bound: max_iterations,
+        reached_fixed_point: false,
+    }
+}
+
+fn custom_property_least_fixed_point_proof() -> CustomPropertyLeastFixedPointProofV0 {
+    CustomPropertyLeastFixedPointProofV0 {
+        finite_domain: "custom-property environment keys are fixed during iteration",
+        transfer_function: "each step substitutes every original binding against the previous environment approximation",
+        monotone_witness: "resolved literals/composites remain stable while cycles and missing references move toward guaranteed-invalid",
+        iteration_bound_formula: "max(1, env.len() + 1)",
+        cycle_policy: "recursive var() cycles are detected by the visiting set and collapsed to guaranteed-invalid or fallback",
+        proof_obligations: vec![
+            "fixed-key environment",
+            "deterministic simultaneous transfer",
+            "cycle-to-guaranteed-invalid bottoming",
+            "finite iteration bound",
+            "explicit fixed-point equality check",
+        ],
+    }
 }
 
 fn substitute_custom_properties_inner(
@@ -3202,10 +3259,27 @@ mod tests {
         assert_eq!(summary.resolved_count, 3);
         assert_eq!(summary.guaranteed_invalid_count, 2);
         assert!(summary.iteration_count >= 2);
+        assert_eq!(summary.iteration_bound, 6);
+        assert!(summary.reached_fixed_point);
+        assert_eq!(
+            summary.proof.iteration_bound_formula,
+            "max(1, env.len() + 1)"
+        );
+        assert!(
+            summary
+                .proof
+                .proof_obligations
+                .contains(&"explicit fixed-point equality check")
+        );
         assert!(
             summary
                 .ready_surfaces
                 .contains(&"customPropertyLeastFixedPoint")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"customPropertyLeastFixedPointProof")
         );
         assert!(summary.entries.iter().any(|entry| {
             entry.name == "--alias" && entry.resolved == CascadeValue::Literal("red".to_string())
@@ -3244,11 +3318,20 @@ mod tests {
 
         assert_eq!(summary.product, "omena-cascade.boundary");
         assert_eq!(summary.ordering_model, "lexicographicCascadeKey");
+        assert_eq!(
+            summary.least_fixed_point_proof_model,
+            "finite-env monotone custom-property substitution with cycle-to-guaranteed-invalid bottoming and env-size iteration bound"
+        );
         assert!(summary.ready_surfaces.contains(&"cascadeKeyOrdering"));
         assert!(
             summary
                 .ready_surfaces
                 .contains(&"customPropertyLeastFixedPoint")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"customPropertyLeastFixedPointProof")
         );
         assert!(summary.ready_surfaces.contains(&"genericCascadeWinner"));
         assert!(
