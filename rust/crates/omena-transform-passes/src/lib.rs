@@ -42,6 +42,10 @@ use domains::number::{
 use helpers::ascii::{
     ascii_css_identifier_end, starts_with_ascii_case_insensitive, strip_ascii_prefix_ignore_case,
 };
+use helpers::blocks::{
+    at_rule_block_start, at_rule_prelude_end_index, previous_significant_token_kind,
+    rule_block_token_indexes,
+};
 use helpers::source_rewrite::{remove_source_ranges, replace_source_ranges, rewrite_lexer_tokens};
 use helpers::tokens::{
     is_comment_token, matching_right_brace_index, matching_right_paren_index,
@@ -3655,15 +3659,6 @@ fn css_modules_value_query_prelude_at_rule(text: &str) -> bool {
     text.eq_ignore_ascii_case("@media") || text.eq_ignore_ascii_case("@container")
 }
 
-fn at_rule_prelude_end_index(tokens: &[omena_parser::LexedToken], start: usize) -> Option<usize> {
-    (start..tokens.len()).find(|index| {
-        matches!(
-            tokens[*index].kind,
-            SyntaxKind::LeftBrace | SyntaxKind::RightBrace | SyntaxKind::Semicolon
-        )
-    })
-}
-
 fn query_prelude_ident_is_feature_value(
     tokens: &[omena_parser::LexedToken],
     candidate_index: usize,
@@ -3675,18 +3670,6 @@ fn query_prelude_ident_is_feature_value(
             SyntaxKind::Colon | SyntaxKind::GreaterThan | SyntaxKind::LessThan | SyntaxKind::Equals
         )
     })
-}
-
-fn previous_significant_token_kind(
-    tokens: &[omena_parser::LexedToken],
-    index: usize,
-    lower_bound: usize,
-) -> Option<SyntaxKind> {
-    tokens[lower_bound..index]
-        .iter()
-        .rev()
-        .find(|token| token.kind != SyntaxKind::Whitespace && !is_comment_token(token.kind))
-        .map(|token| token.kind)
 }
 
 fn resolve_static_css_modules_value_definition(
@@ -6347,20 +6330,6 @@ fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) -> (String, u
     (output, replacements.len())
 }
 
-fn rule_block_token_indexes(
-    tokens: &[omena_parser::LexedToken],
-    block_start: usize,
-    block_end: usize,
-) -> Option<(usize, usize)> {
-    let start_index = tokens
-        .iter()
-        .position(|token| token_start(token) == block_start)?;
-    let end_index = tokens
-        .iter()
-        .position(|token| token_start(token) == block_end)?;
-    Some((start_index, end_index))
-}
-
 fn is_light_dark_lowerable_property(property: &str) -> bool {
     matches!(
         property,
@@ -7583,18 +7552,6 @@ fn keyframes_name_after(
     let name_token = tokens.get(name_index)?;
     matches!(name_token.kind, SyntaxKind::Ident | SyntaxKind::String)
         .then_some(name_token.text.as_str())
-}
-
-fn at_rule_block_start(tokens: &[omena_parser::LexedToken], start_index: usize) -> Option<usize> {
-    let mut index = start_index;
-    while index < tokens.len() {
-        match tokens[index].kind {
-            SyntaxKind::LeftBrace => return Some(index),
-            SyntaxKind::RightBrace | SyntaxKind::Semicolon => return None,
-            _ => index += 1,
-        }
-    }
-    None
 }
 
 fn prefixed_properties_for(property: &str) -> &'static [&'static str] {
