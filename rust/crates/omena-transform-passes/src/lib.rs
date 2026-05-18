@@ -7137,7 +7137,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_evaluates_literal_media_branches() {
-        let source = r#"@media all { .a { color: red; } } @media not all { .b { color: blue; } } @media (max-width: 0px) { .zero { color: red; } } @media screen { .c { color: green; } } @supports (display: grid) { @media all { @media all { .d { color: black; } } } }"#;
+        let source = r#"@media all { .a { color: red; } } @media not all { .b { color: blue; } } @media (max-width: 0px) { .zero { color: red; } } @media all and (max-width: 0px) { .dead-and { color: red; } } @media not all, (max-width: 0px) { .dead-list { color: blue; } } @media all, screen { .list-true { color: purple; } } @media screen, (max-width: 0px) { .unknown-list { color: orange; } } @media screen { .c { color: green; } } @supports (display: grid) { @media all { @media all { .d { color: black; } } } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7146,10 +7146,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 5);
+        assert_eq!(execution.mutation_count, 9);
         assert_eq!(
             execution.output_css,
-            r#".a { color: red; }   @media screen { .c { color: green; } } @supports (display: grid) { .d { color: black; } }"#
+            r#".a { color: red; }     .list-true { color: purple; } @media screen, (width<=0px) { .unknown-list { color: orange; } } @media screen { .c { color: green; } } @supports (display: grid) { .d { color: black; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,

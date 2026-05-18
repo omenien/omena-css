@@ -296,19 +296,133 @@ fn evaluate_static_media_condition(
     condition: &str,
     options: StaticMediaEvaluationOptions,
 ) -> StaticMediaEvalVerdict {
+    if let Some(parts) = parse_static_media_query_list(condition) {
+        let verdicts = parts
+            .iter()
+            .map(|part| evaluate_static_media_condition(part, options))
+            .collect::<Vec<_>>();
+        if verdicts.contains(&StaticMediaEvalVerdict::AlwaysTrue) {
+            return StaticMediaEvalVerdict::AlwaysTrue;
+        }
+        if verdicts
+            .iter()
+            .all(|verdict| *verdict == StaticMediaEvalVerdict::AlwaysFalse)
+        {
+            return StaticMediaEvalVerdict::AlwaysFalse;
+        }
+        return StaticMediaEvalVerdict::Unknown;
+    }
+
+    if let Some(parts) = parse_static_media_conjunction(condition) {
+        let verdicts = parts
+            .iter()
+            .map(|part| evaluate_static_media_condition(part, options))
+            .collect::<Vec<_>>();
+        if verdicts.contains(&StaticMediaEvalVerdict::AlwaysFalse) {
+            return StaticMediaEvalVerdict::AlwaysFalse;
+        }
+        if verdicts
+            .iter()
+            .all(|verdict| *verdict == StaticMediaEvalVerdict::AlwaysTrue)
+        {
+            return StaticMediaEvalVerdict::AlwaysTrue;
+        }
+        return StaticMediaEvalVerdict::Unknown;
+    }
+
     match condition {
         "all" => StaticMediaEvalVerdict::AlwaysTrue,
         "not all" => StaticMediaEvalVerdict::AlwaysFalse,
-        "(max-width: 0px)" | "screen and (max-width: 0px)" | "all and (max-width: 0px)" => {
+        "(max-width: 0px)" | "(max-height: 0px)" | "(width<=0px)" | "(height<=0px)" => {
             StaticMediaEvalVerdict::AlwaysFalse
         }
-        "(prefers-color-scheme: dark)"
-        | "screen and (prefers-color-scheme: dark)"
-        | "all and (prefers-color-scheme: dark)"
-            if options.drop_dark_mode_media_queries =>
-        {
+        "(prefers-color-scheme: dark)" if options.drop_dark_mode_media_queries => {
             StaticMediaEvalVerdict::AlwaysFalse
         }
         _ => StaticMediaEvalVerdict::Unknown,
     }
+}
+
+fn parse_static_media_query_list(condition: &str) -> Option<Vec<&str>> {
+    parse_static_media_top_level_parts(condition, ",")
+}
+
+fn parse_static_media_conjunction(condition: &str) -> Option<Vec<&str>> {
+    parse_static_media_top_level_parts(condition, "and")
+}
+
+fn parse_static_media_top_level_parts<'a>(
+    condition: &'a str,
+    separator: &str,
+) -> Option<Vec<&'a str>> {
+    let mut parts = Vec::new();
+    let mut depth = 0usize;
+    let mut last_start = 0usize;
+    let mut index = 0usize;
+    let mut found_separator = false;
+
+    while index < condition.len() {
+        let ch = condition[index..].chars().next()?;
+        match ch {
+            '(' => {
+                depth += 1;
+                index += ch.len_utf8();
+            }
+            ')' => {
+                depth = depth.saturating_sub(1);
+                index += ch.len_utf8();
+            }
+            ',' if separator == "," && depth == 0 => {
+                let part = condition[last_start..index].trim();
+                if part.is_empty() {
+                    return None;
+                }
+                parts.push(part);
+                index += ch.len_utf8();
+                last_start = index;
+                found_separator = true;
+            }
+            _ if separator == "and" && depth == 0 && media_keyword_at(condition, index, "and") => {
+                let part = condition[last_start..index].trim();
+                if part.is_empty() {
+                    return None;
+                }
+                parts.push(part);
+                index += "and".len();
+                last_start = index;
+                found_separator = true;
+            }
+            _ => {
+                index += ch.len_utf8();
+            }
+        }
+    }
+
+    if !found_separator {
+        return None;
+    }
+    let part = condition[last_start..].trim();
+    if part.is_empty() {
+        return None;
+    }
+    parts.push(part);
+    Some(parts)
+}
+
+fn media_keyword_at(text: &str, index: usize, keyword: &str) -> bool {
+    text[index..]
+        .get(..keyword.len())
+        .is_some_and(|candidate| candidate == keyword)
+        && text[..index]
+            .chars()
+            .next_back()
+            .is_none_or(|ch| !is_media_ident_char(ch))
+        && text[index + keyword.len()..]
+            .chars()
+            .next()
+            .is_none_or(|ch| !is_media_ident_char(ch))
+}
+
+fn is_media_ident_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '-'
 }
