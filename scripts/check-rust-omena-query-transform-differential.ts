@@ -183,6 +183,10 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { opacity: 50%; } .b { opacity: 100%; }",
   },
   {
+    label: "aspect-ratio-spacing-normalization",
+    source: ".a { aspect-ratio: 16 / 9; } .b { aspect-ratio: auto 4 / 3; }",
+  },
+  {
     label: "time-unit-shortening",
     source: ".a { transition-duration: 100ms; transition-delay: .05s; animation-delay: 0ms; }",
   },

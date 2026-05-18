@@ -278,11 +278,48 @@ fn normalize_static_unit_declaration_values_with_lexer(
 
 fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Option<String> {
     match property {
+        "aspect-ratio" => normalize_aspect_ratio_value(value),
         "background-size" | "mask-size" | "-webkit-mask-size" => {
             normalize_repeated_pair_value(value, "auto")
         }
         _ => None,
     }
+}
+
+fn normalize_aspect_ratio_value(value: &str) -> Option<String> {
+    let (left, right) = value.split_once('/')?;
+    if right.contains('/') {
+        return None;
+    }
+
+    let left_components = split_top_level_whitespace_value_components(left.trim())?;
+    let (prefix, numerator) = match left_components.as_slice() {
+        [numerator] => ("", numerator.as_str()),
+        [auto, numerator] if auto.eq_ignore_ascii_case("auto") => ("auto ", numerator.as_str()),
+        _ => return None,
+    };
+    let right_components = split_top_level_whitespace_value_components(right.trim())?;
+    let [denominator] = right_components.as_slice() else {
+        return None;
+    };
+
+    let numerator = normalize_ratio_number(numerator)?;
+    let denominator = normalize_ratio_number(denominator)?;
+    let replacement = format!("{prefix}{numerator}/{denominator}");
+    (replacement.len() < value.len()).then_some(replacement)
+}
+
+fn normalize_ratio_number(text: &str) -> Option<String> {
+    let split = numeric_prefix_end(text)?;
+    if split != text.len() {
+        return None;
+    }
+    let value = text.parse::<f64>().ok()?;
+    if !value.is_finite() || value <= 0.0 {
+        return None;
+    }
+
+    Some(compress_number_prefix(&format_css_number(value)))
 }
 
 fn normalize_repeated_pair_value(value: &str, repeated: &str) -> Option<String> {
