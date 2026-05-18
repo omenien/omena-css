@@ -3019,6 +3019,23 @@ fn execution_runtime_tree_shakes_custom_property_icss_exports_with_closed_world_
             ("customProperty", "--dead")
         ]
     );
+
+    let all_unreachable = execute_transform_passes_on_source_with_dialect_and_context(
+        r#":root { --dead: blue; } :export { dead: var(--dead); }"#,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::TreeShakeCustomProperty,
+            TransformPassKind::PrintCss,
+        ],
+        &TransformExecutionContextV0 {
+            closed_style_world: true,
+            ..TransformExecutionContextV0::default()
+        },
+    );
+
+    assert_eq!(all_unreachable.mutation_count, 2);
+    assert!(!all_unreachable.output_css.contains(":export"));
+    assert!(!all_unreachable.output_css.contains("--dead: blue;"));
 }
 
 #[test]

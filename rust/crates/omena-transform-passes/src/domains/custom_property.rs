@@ -285,6 +285,7 @@ pub(crate) fn tree_shake_css_custom_properties_with_lexer(
     };
 
     let mut removals = Vec::new();
+    let mut export_removal_ranges = Vec::new();
     for registration in collect_custom_property_registration_rules(tokens) {
         if !referenced_names
             .iter()
@@ -321,6 +322,15 @@ pub(crate) fn tree_shake_css_custom_properties_with_lexer(
             .collect::<Vec<_>>();
         if unreachable_exports.is_empty() {
             continue;
+        }
+        if unreachable_exports.len() == rule.declarations.len() {
+            export_removal_ranges.push((rule.start, rule.end));
+        } else {
+            export_removal_ranges.extend(
+                unreachable_exports
+                    .iter()
+                    .map(|declaration| (declaration.start, declaration.end)),
+            );
         }
         removals.extend(
             unreachable_exports
@@ -372,10 +382,12 @@ pub(crate) fn tree_shake_css_custom_properties_with_lexer(
         }
     }
 
-    let ranges = removals
+    let mut ranges = removals
         .iter()
+        .filter(|removal| removal.symbol_kind != "customPropertyIcssExport")
         .map(|removal| (removal.source_span_start, removal.source_span_end))
         .collect::<Vec<_>>();
+    ranges.extend(export_removal_ranges);
     let (output, _) = remove_source_ranges(source, &ranges);
     (output, removals)
 }

@@ -10,6 +10,8 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CustomPropertyIcssExportRule {
+    pub(crate) start: usize,
+    pub(crate) end: usize,
     pub(crate) declarations: Vec<CustomPropertyIcssExportDeclaration>,
 }
 
@@ -44,7 +46,11 @@ pub(crate) fn collect_static_custom_property_icss_export_rules(
                         end: declaration.end,
                     })
                     .collect::<Vec<_>>();
-            (!declarations.is_empty()).then_some(CustomPropertyIcssExportRule { declarations })
+            (!declarations.is_empty()).then_some(CustomPropertyIcssExportRule {
+                start: rule.start,
+                end: rule.end,
+                declarations,
+            })
         })
         .collect()
 }
