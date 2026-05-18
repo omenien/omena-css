@@ -1,0 +1,248 @@
+use omena_parser::{StyleDialect, lex};
+use omena_syntax::SyntaxKind;
+
+use crate::{
+    TransformImportInlineV0,
+    helpers::{
+        ascii::strip_ascii_prefix_ignore_case,
+        source_rewrite::replace_source_ranges,
+        tokens::{token_end, token_start},
+    },
+};
+
+pub(crate) fn inline_css_imports_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+    inlines: &[TransformImportInlineV0],
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut depth = 0usize;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@import") =>
+            {
+                let Some(end_index) = find_import_rule_semicolon(tokens, index) else {
+                    index += 1;
+                    continue;
+                };
+                let start = token_start(&tokens[index]);
+                let end = token_end(&tokens[end_index]);
+                let rule_text = &source[start..end];
+                let Some(import_rule) = parse_css_import_rule(rule_text) else {
+                    index = end_index + 1;
+                    continue;
+                };
+                if let Some(replacement_css) =
+                    inline_replacement_for_import_source(&import_rule.source, inlines)
+                {
+                    replacements.push((
+                        start,
+                        end,
+                        wrap_import_replacement(&import_rule, replacement_css),
+                    ));
+                }
+                index = end_index + 1;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    replace_source_ranges(source, &replacements)
+}
+
+fn find_import_rule_semicolon(
+    tokens: &[omena_parser::LexedToken],
+    at_import_index: usize,
+) -> Option<usize> {
+    let mut index = at_import_index + 1;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::Semicolon => return Some(index),
+            SyntaxKind::LeftBrace | SyntaxKind::RightBrace => return None,
+            _ => index += 1,
+        }
+    }
+    None
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CssImportRule {
+    source: String,
+    layer_name: Option<String>,
+    supports_condition: Option<String>,
+    media_query: Option<String>,
+}
+
+fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
+    let rest = strip_ascii_prefix_ignore_case(rule_text.trim(), "@import")?;
+    let rest = rest.trim().trim_end_matches(';').trim();
+    if rest.is_empty() {
+        return None;
+    }
+    let (source, rest) = parse_css_import_source_prefix(rest)?;
+    let mut rest = rest.trim();
+    let mut layer_name = None;
+    let mut supports_condition = None;
+
+    loop {
+        if let Some((layer, next_rest)) = parse_layer_import_option(rest) {
+            layer_name = Some(layer);
+            rest = next_rest.trim();
+            continue;
+        }
+        if let Some((supports, next_rest)) = parse_function_prefix(rest, "supports") {
+            supports_condition = Some(format!("({})", supports.trim()));
+            rest = next_rest.trim();
+            continue;
+        }
+        break;
+    }
+
+    Some(CssImportRule {
+        source,
+        layer_name,
+        supports_condition,
+        media_query: (!rest.is_empty()).then(|| rest.to_string()),
+    })
+}
+
+fn parse_css_import_source_prefix(text: &str) -> Option<(String, &str)> {
+    parse_quoted_css_string_prefix(text).or_else(|| parse_url_import_source_prefix(text))
+}
+
+fn parse_quoted_css_string_prefix(text: &str) -> Option<(String, &str)> {
+    let mut chars = text.char_indices();
+    let (_, quote) = chars.next()?;
+    if !matches!(quote, '"' | '\'') {
+        return None;
+    }
+    let mut escaped = false;
+    let mut output = String::new();
+    for (index, ch) in chars {
+        if escaped {
+            output.push(ch);
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        if ch == quote {
+            let end = index + ch.len_utf8();
+            return Some((output, &text[end..]));
+        }
+        output.push(ch);
+    }
+    None
+}
+
+fn parse_url_import_source_prefix(text: &str) -> Option<(String, &str)> {
+    let rest = strip_ascii_prefix_ignore_case(text, "url(")?;
+    let close_index = matching_function_close_index(rest)?;
+    let inner = rest[..close_index].trim();
+    if let Some((source, trailing)) = parse_quoted_css_string_prefix(inner)
+        && trailing.trim().is_empty()
+    {
+        return Some((source, &rest[close_index + 1..]));
+    }
+    if inner.is_empty()
+        || inner
+            .chars()
+            .any(|ch| ch.is_ascii_whitespace() || matches!(ch, '"' | '\'' | '(' | ')'))
+    {
+        return None;
+    }
+    Some((inner.to_string(), &rest[close_index + 1..]))
+}
+
+fn parse_layer_import_option(text: &str) -> Option<(String, &str)> {
+    if let Some((layer, rest)) = parse_function_prefix(text, "layer") {
+        return Some((layer.trim().to_string(), rest));
+    }
+    let rest = strip_ascii_prefix_ignore_case(text, "layer")?;
+    if !rest.is_empty() && !rest.starts_with(char::is_whitespace) {
+        return None;
+    }
+    Some((String::new(), rest))
+}
+
+fn parse_function_prefix<'a>(text: &'a str, name: &str) -> Option<(String, &'a str)> {
+    let rest = strip_ascii_prefix_ignore_case(text.trim_start(), name)?;
+    let rest = rest.strip_prefix('(')?;
+    let close_index = matching_function_close_index(rest)?;
+    Some((rest[..close_index].to_string(), &rest[close_index + 1..]))
+}
+
+fn matching_function_close_index(text: &str) -> Option<usize> {
+    let mut depth = 1usize;
+    let mut quote = None::<char>;
+    let mut escaped = false;
+
+    for (index, ch) in text.char_indices() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '(' => depth += 1,
+            ')' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn wrap_import_replacement(import_rule: &CssImportRule, replacement_css: &str) -> String {
+    let mut output = replacement_css.to_string();
+    if let Some(layer_name) = &import_rule.layer_name {
+        output = if layer_name.is_empty() {
+            format!("@layer {{ {output} }}")
+        } else {
+            format!("@layer {layer_name} {{ {output} }}")
+        };
+    }
+    if let Some(supports_condition) = &import_rule.supports_condition {
+        output = format!("@supports {supports_condition} {{ {output} }}");
+    }
+    if let Some(media_query) = &import_rule.media_query {
+        output = format!("@media {media_query} {{ {output} }}");
+    }
+    output
+}
+
+fn inline_replacement_for_import_source<'a>(
+    import_source: &str,
+    inlines: &'a [TransformImportInlineV0],
+) -> Option<&'a str> {
+    inlines
+        .iter()
+        .find(|inline| inline.import_source == import_source)
+        .map(|inline| inline.replacement_css.as_str())
+}
