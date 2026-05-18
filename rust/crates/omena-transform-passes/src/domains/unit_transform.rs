@@ -77,6 +77,71 @@ pub(crate) fn normalize_individual_translate_value(value: &str) -> Option<String
     (replacement.len() < value.len()).then_some(replacement)
 }
 
+pub(crate) fn normalize_individual_rotate_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let replacement = match components.as_slice() {
+        [angle] => normalize_individual_rotate_angle(angle)?,
+        [axis, angle] => {
+            let axis = normalize_individual_rotate_axis(axis)?;
+            let angle = normalize_individual_rotate_angle(angle)?;
+            if axis == "z" {
+                angle
+            } else {
+                format!("{axis} {angle}")
+            }
+        }
+        [x, y, z, angle] => {
+            let x = normalize_transform_number(x)?;
+            let y = normalize_transform_number(y)?;
+            let z = normalize_transform_number(z)?;
+            let angle = normalize_individual_rotate_angle(angle)?;
+            match (x.as_str(), y.as_str(), z.as_str()) {
+                ("1", "0", "0") => format!("x {angle}"),
+                ("0", "1", "0") => format!("y {angle}"),
+                ("0", "0", "1") => angle,
+                _ => return None,
+            }
+        }
+        _ => return None,
+    };
+
+    let trimmed = value.trim();
+    (replacement != trimmed && replacement.len() <= trimmed.len()).then_some(replacement)
+}
+
+fn normalize_individual_rotate_axis(axis: &str) -> Option<&'static str> {
+    match axis.to_ascii_lowercase().as_str() {
+        "x" => Some("x"),
+        "y" => Some("y"),
+        "z" => Some("z"),
+        _ => None,
+    }
+}
+
+fn normalize_individual_rotate_angle(angle: &str) -> Option<String> {
+    let angle = angle.trim();
+    let split = numeric_prefix_end(angle)?;
+    let (number, unit) = angle.split_at(split);
+    if !is_css_angle_unit(unit) {
+        return None;
+    }
+    let unit = unit.to_ascii_lowercase();
+
+    let parsed = number.parse::<f64>().ok()?;
+    if !parsed.is_finite() {
+        return None;
+    }
+    if parsed == 0.0 && matches!(unit.as_str(), "deg" | "rad") {
+        return Some("0deg".to_string());
+    }
+
+    Some(format!(
+        "{}{}",
+        compress_number_prefix(&format_css_number(parsed)),
+        unit
+    ))
+}
+
 fn normalize_translate_component(component: &str) -> Option<String> {
     let component = component.trim();
     if is_zero_transform_numeric_unit_argument(component, is_css_transform_length_percentage_unit)

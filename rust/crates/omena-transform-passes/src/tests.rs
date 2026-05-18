@@ -1070,7 +1070,7 @@ fn execution_runtime_normalizes_static_transform_tail_zeros() {
 
 #[test]
 fn execution_runtime_normalizes_individual_transform_properties() {
-    let source = r#".t0 { translate: 0px 0% 0px; } .t1 { translate: 1px 0px; } .t2 { translate: 0px 1px; } .t3 { translate: 1px 2px 0px; } .t4 { translate: 0px 0px 1px; } .s0 { scale: 1 1; } .s1 { scale: 2 2; } .s2 { scale: 1 2; } .s3 { scale: 2 3 1; } .s4 { scale: 1 1 2; } .s5 { scale: 1 1 1; } .s6 { scale: 50% 50%; }"#;
+    let source = r#".t0 { translate: 0px 0% 0px; } .t1 { translate: 1px 0px; } .t2 { translate: 0px 1px; } .t3 { translate: 1px 2px 0px; } .t4 { translate: 0px 0px 1px; } .s0 { scale: 1 1; } .s1 { scale: 2 2; } .s2 { scale: 1 2; } .s3 { scale: 2 3 1; } .s4 { scale: 1 1 2; } .s5 { scale: 1 1 1; } .s6 { scale: 50% 50%; } .r0 { rotate: z 0deg; } .r1 { rotate: 0 0 1 10deg; } .r2 { rotate: 1 0 0 .500turn; } .r3 { rotate: 0 1 0 10.0deg; } .r4 { rotate: 0rad; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1079,10 +1079,10 @@ fn execution_runtime_normalizes_individual_transform_properties() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 16);
+    assert_eq!(execution.mutation_count, 21);
     assert_eq!(
         execution.output_css,
-        r#".t0 { translate: 0; } .t1 { translate: 1px; } .t2 { translate: 0 1px; } .t3 { translate: 1px 2px; } .t4 { translate: 0 0 1px; } .s0 { scale: 1; } .s1 { scale: 2; } .s2 { scale: 1 2; } .s3 { scale: 2 3; } .s4 { scale: 1 1 2; } .s5 { scale: 1; } .s6 { scale: .5; }"#
+        r#".t0 { translate: 0; } .t1 { translate: 1px; } .t2 { translate: 0 1px; } .t3 { translate: 1px 2px; } .t4 { translate: 0 0 1px; } .s0 { scale: 1; } .s1 { scale: 2; } .s2 { scale: 1 2; } .s3 { scale: 2 3; } .s4 { scale: 1 1 2; } .s5 { scale: 1; } .s6 { scale: .5; } .r0 { rotate: 0deg; } .r1 { rotate: 10deg; } .r2 { rotate: x .5turn; } .r3 { rotate: y 10deg; } .r4 { rotate: 0deg; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

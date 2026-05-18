@@ -9,8 +9,8 @@ use crate::{
             is_zero_percentage_unit_property,
         },
         unit_transform::{
-            normalize_individual_scale_value, normalize_individual_translate_value,
-            normalize_static_transform_functions,
+            normalize_individual_rotate_value, normalize_individual_scale_value,
+            normalize_individual_translate_value, normalize_static_transform_functions,
         },
     },
     helpers::{
@@ -192,6 +192,7 @@ fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Optio
         "box-shadow" => normalize_shadow_value(value, true),
         "text-shadow" => normalize_shadow_value(value, false),
         "transform" => normalize_static_transform_functions(value),
+        "rotate" => normalize_individual_rotate_value(value),
         "translate" => normalize_individual_translate_value(value),
         "scale" => normalize_individual_scale_value(value),
         _ => None,
