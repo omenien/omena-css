@@ -5927,6 +5927,12 @@ fn collect_shorthand_replacements_in_block(
                         &declarations[index..index + 4],
                     )
                 })
+                .or_else(|| {
+                    inset_shorthand_replacement_for_declarations(
+                        tokens,
+                        &declarations[index..index + 4],
+                    )
+                })
         {
             ranges.push((start, end, replacement));
             index += 4;
@@ -6029,6 +6035,8 @@ fn shorthand_value_replacement_for_declaration(
         compress_background_repeat_value(&declaration.value)
     } else if declaration.property == "border-radius" {
         compress_border_radius_value(&declaration.value)
+    } else if declaration.property == "inset" {
+        compress_box_shorthand_value(&declaration.value)
     } else {
         None
     }?;
@@ -6133,6 +6141,30 @@ fn compress_border_radius_value(value: &str) -> Option<String> {
 fn is_single_axis_border_radius_value(value: &str) -> bool {
     split_top_level_whitespace_value_components(value)
         .is_some_and(|components| components.len() == 1 && components[0] != "/")
+}
+
+fn inset_shorthand_replacement_for_declarations(
+    tokens: &[omena_parser::LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let [top, right, bottom, left] = declarations else {
+        return None;
+    };
+    if top.property != "top"
+        || right.property != "right"
+        || bottom.property != "bottom"
+        || left.property != "left"
+        || declarations.iter().any(|declaration| declaration.important)
+        || !declaration_ranges_are_adjacent(tokens, declarations)
+    {
+        return None;
+    }
+    let values = declarations
+        .iter()
+        .map(|declaration| declaration.value.as_str())
+        .collect::<Vec<_>>();
+    let shorthand_value = compress_box_shorthand_values(&values)?;
+    Some((top.start, left.end, format!("inset: {shorthand_value};")))
 }
 
 fn compress_box_shorthand_value(value: &str) -> Option<String> {
@@ -9005,6 +9037,24 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".a { border-radius: 1px; border-radius: 1px 2px; } .b { border-radius: 1px / 2px; border-top-left-radius: 1px 2px; border-top-right-radius: 2px; border-bottom-right-radius: 1px; border-bottom-left-radius: 2px; }"#
+        );
+    }
+
+    #[test]
+    fn execution_runtime_compresses_inset_shorthands() {
+        let source = r#".a { inset: 1px 2px 1px 2px; top: 1px; right: 2px; bottom: 1px; left: 2px; } .b { top: 1px; color: red; right: 2px; bottom: 1px; left: 2px; } .important { top: 1px !important; right: 2px !important; bottom: 1px !important; left: 2px !important; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::ShorthandCombining,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#".a { inset: 1px 2px; inset: 1px 2px; } .b { top: 1px; color: red; right: 2px; bottom: 1px; left: 2px; } .important { top: 1px !important; right: 2px !important; bottom: 1px !important; left: 2px !important; }"#
         );
     }
 
