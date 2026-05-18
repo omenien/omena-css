@@ -8,7 +8,9 @@ use omena_abstract_value::{
     analyze_one_cfa_call_site_flows, finite_set_class_value, intersect_abstract_class_values,
     prefix_class_value,
 };
-use omena_benchmarks::{style_corpus, summarize_legacy_style_sample, summarize_omena_style_sample};
+use omena_benchmarks::{
+    style_corpus, summarize_legacy_parser_product_sample, summarize_omena_parser_product_sample,
+};
 use omena_parser::parse as parse_omena_style;
 use omena_semantic::summarize_omena_parser_style_semantic_boundary_from_source;
 
@@ -50,7 +52,7 @@ fn parser_product_benchmarks(c: &mut Criterion) {
     for sample in &samples {
         legacy_group.bench_function(sample.name, |b| {
             b.iter(|| {
-                black_box(summarize_legacy_style_sample(
+                black_box(summarize_legacy_parser_product_sample(
                     black_box(sample.path),
                     black_box(sample.source.as_str()),
                 ));
@@ -63,7 +65,7 @@ fn parser_product_benchmarks(c: &mut Criterion) {
     for sample in &samples {
         omena_group.bench_function(sample.name, |b| {
             b.iter(|| {
-                black_box(summarize_omena_style_sample(
+                black_box(summarize_omena_parser_product_sample(
                     black_box(&sample.source),
                     black_box(sample.dialect),
                 ))

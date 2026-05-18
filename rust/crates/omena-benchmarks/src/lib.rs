@@ -43,6 +43,13 @@ pub fn summarize_legacy_style_sample(
     path: &str,
     source: &str,
 ) -> Option<engine_style_parser::ParserIndexSummaryV0> {
+    summarize_legacy_parser_product_sample(path, source)
+}
+
+pub fn summarize_legacy_parser_product_sample(
+    path: &str,
+    source: &str,
+) -> Option<engine_style_parser::ParserIndexSummaryV0> {
     let sheet = parse_legacy_style_sample(path, source)?;
     Some(engine_style_parser::summarize_css_modules_intermediate(
         &sheet,
@@ -50,6 +57,13 @@ pub fn summarize_legacy_style_sample(
 }
 
 pub fn summarize_omena_style_sample(
+    source: &str,
+    dialect: StyleDialect,
+) -> omena_parser::ParserIndexSummaryV0 {
+    summarize_omena_parser_product_sample(source, dialect)
+}
+
+pub fn summarize_omena_parser_product_sample(
     source: &str,
     dialect: StyleDialect,
 ) -> omena_parser::ParserIndexSummaryV0 {
@@ -155,4 +169,36 @@ fn build_scss_heavy_design_system(count: usize) -> String {
     }
     source.push_str("}\n");
     source
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        style_corpus, summarize_legacy_parser_product_sample,
+        summarize_omena_parser_product_sample, validate_legacy_style_sample,
+        validate_omena_style_sample,
+    };
+
+    #[test]
+    fn parser_product_samples_use_symmetric_parse_plus_summary_boundaries() -> Result<(), String> {
+        for sample in style_corpus() {
+            validate_legacy_style_sample(sample.path, sample.source.as_str())?;
+            validate_omena_style_sample(sample.source.as_str(), sample.dialect)?;
+
+            let legacy =
+                summarize_legacy_parser_product_sample(sample.path, sample.source.as_str())
+                    .ok_or_else(|| format!("legacy parser product failed for {}", sample.name))?;
+            let omena =
+                summarize_omena_parser_product_sample(sample.source.as_str(), sample.dialect);
+            let legacy = serde_json::to_value(legacy).map_err(|error| error.to_string())?;
+            let omena = serde_json::to_value(omena).map_err(|error| error.to_string())?;
+
+            assert_eq!(legacy["language"], omena["language"]);
+            assert!(legacy["selectors"]["names"].as_array().is_some());
+            assert!(omena["selectors"]["names"].as_array().is_some());
+            assert!(legacy["wrappers"].as_object().is_some());
+            assert!(omena["wrappers"].as_object().is_some());
+        }
+        Ok(())
+    }
 }

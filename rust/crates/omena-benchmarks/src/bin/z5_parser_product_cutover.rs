@@ -1,7 +1,7 @@
 use std::{hint::black_box, time::Instant};
 
 use omena_benchmarks::{
-    style_corpus, summarize_legacy_style_sample, summarize_omena_style_sample,
+    style_corpus, summarize_legacy_parser_product_sample, summarize_omena_parser_product_sample,
     validate_legacy_style_sample, validate_omena_style_sample,
 };
 
@@ -21,13 +21,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         warm_up(sample.path, sample.source.as_str(), sample.dialect);
 
         let legacy = measure_iterations(ITERATIONS, || {
-            black_box(summarize_legacy_style_sample(
+            black_box(summarize_legacy_parser_product_sample(
                 black_box(sample.path),
                 black_box(sample.source.as_str()),
             ));
         });
         let omena = measure_iterations(ITERATIONS, || {
-            black_box(summarize_omena_style_sample(
+            black_box(summarize_omena_parser_product_sample(
                 black_box(&sample.source),
                 black_box(sample.dialect),
             ));
@@ -68,11 +68,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn warm_up(path: &str, source: &str, dialect: omena_parser::StyleDialect) {
     for _ in 0..4 {
-        black_box(summarize_legacy_style_sample(
+        black_box(summarize_legacy_parser_product_sample(
             black_box(path),
             black_box(source),
         ));
-        black_box(summarize_omena_style_sample(
+        black_box(summarize_omena_parser_product_sample(
             black_box(source),
             black_box(dialect),
         ));
