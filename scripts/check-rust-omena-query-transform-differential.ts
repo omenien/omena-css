@@ -101,6 +101,11 @@ const fixtures: readonly DifferentialFixture[] = [
       "@media (min-width: calc(1px + 1px)) and (max-height: clamp(1rem, 2rem, 3rem)) { .a { color: red; } }",
   },
   {
+    label: "supports-group-color-compression",
+    source:
+      "@supports not (display: grid) { .a { color: red; } } @supports (display: grid) or (unknown: value) { .b { color: blue; } }",
+  },
+  {
     label: "calc-same-unit-nested",
     source: ".a { margin: calc(2rem + 3rem); padding: calc(10px - 4px); }",
   },

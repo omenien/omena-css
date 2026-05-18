@@ -2366,7 +2366,7 @@ fn lower_css_color_mix_with_lexer(source: &str, dialect: StyleDialect) -> (Strin
                     ),
                 ));
             }
-            index = close_index + 1;
+            index += 1;
             continue;
         }
         index += 1;
@@ -2426,7 +2426,7 @@ fn lower_css_oklab_oklch_with_lexer(source: &str, dialect: StyleDialect) -> (Str
                     ),
                 ));
             }
-            index = close_index + 1;
+            index += 1;
             continue;
         }
         index += 1;
@@ -6427,7 +6427,7 @@ fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) -> (String, u
                     ),
                 ));
             }
-            index = close_index + 1;
+            index += 1;
             continue;
         }
         index += 1;
@@ -8438,7 +8438,7 @@ fn collect_box_shorthand_replacement_ranges(
                 index,
                 close_index,
             ));
-            index = close_index + 1;
+            index += 1;
             continue;
         }
         index += 1;
@@ -9555,7 +9555,7 @@ fn normalize_css_font_declarations_with_lexer(
                     ),
                 ));
             }
-            index = close_index + 1;
+            index += 1;
             continue;
         }
         index += 1;
@@ -9856,7 +9856,7 @@ fn compress_static_color_function_declaration_values_with_lexer(
                     ),
                 ));
             }
-            index = close_index + 1;
+            index += 1;
             continue;
         }
         index += 1;
@@ -11958,6 +11958,35 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["shorthand-combining", "print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_rewrites_declaration_values_inside_group_rules() {
+        let source = r#"@media (min-width: 1px) { .a { width: calc(1px + 1px); margin: 1px 1px 1px 1px; color: blue; } } @supports (display: grid) { .b { color: blue; } }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::ShorthandCombining,
+                TransformPassKind::CalcReduction,
+                TransformPassKind::ColorCompression,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(
+            execution.output_css,
+            r#"@media (min-width: 1px) { .a { width: 2px; margin: 1px; color: #00f; } } @supports (display: grid) { .b { color: #00f; } }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec![
+                "shorthand-combining",
+                "calc-reduction",
+                "color-compression",
+                "print-css"
+            ]
         );
     }
 
