@@ -122,6 +122,8 @@ pub fn summarize_omena_parser_product_sample(
     source: &str,
     dialect: StyleDialect,
 ) -> omena_parser::ParserIndexSummaryV0 {
+    let parsed = omena_parser::parse(source, dialect);
+    let _ = std::hint::black_box(parsed.token_count());
     omena_parser::summarize_css_modules_intermediate(source, dialect)
 }
 
