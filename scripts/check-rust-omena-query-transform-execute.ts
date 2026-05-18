@@ -478,6 +478,49 @@ assert.deepEqual(logicalCornerSummary.execution.executedPassIds, [
 ]);
 assert.equal(logicalCornerSummary.execution.mutationCount, 8);
 
+const nestAtRuleResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "nest-at-rule.css",
+      styleSource:
+        ".card { color: red; @nest .theme & { color: blue; & .title { color: green; } } @nest &:is(:hover, :focus) { color: purple; } }",
+      requestedPassIds: ["nesting-unwrap", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(nestAtRuleResult.status, 0, nestAtRuleResult.stderr);
+assert.equal(nestAtRuleResult.error, undefined);
+
+const nestAtRuleSummary = JSON.parse(
+  nestAtRuleResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(nestAtRuleSummary.product, "omena-query.transform-execute");
+assert.equal(
+  nestAtRuleSummary.execution.outputCss,
+  ".card { color: red; } .theme .card { color: blue; } .theme .card .title { color: green; } .card:is(:hover, :focus) { color: purple; }",
+);
+assert.deepEqual(nestAtRuleSummary.execution.executedPassIds, [
+  "nesting-unwrap",
+  "print-css",
+]);
+assert.equal(nestAtRuleSummary.execution.mutationCount, 1);
+
 const contextStyleSource =
   '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; } .button :global(.external) { color: var(--brand); } :global { .reset { color: var(--brand); } } :local(.button) { composes: base; color: var(--brand); } :local { .button { color: var(--brand); } } @media (min-width: 1px) { .button { composes: base; color: var(--brand); } }';
 

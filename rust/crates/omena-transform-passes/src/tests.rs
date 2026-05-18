@@ -1538,6 +1538,24 @@ fn execution_runtime_unwraps_nested_rule_descendants() {
 }
 
 #[test]
+fn execution_runtime_unwraps_explicit_nest_at_rules() {
+    let source = r#".card { color: red; @nest .theme & { color: blue; & .title { color: green; } } @nest &:is(:hover, :focus) { color: purple; } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::NestingUnwrap,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(
+        execution.output_css,
+        r#".card { color: red; } .theme .card { color: blue; } .theme .card .title { color: green; } .card:is(:hover, :focus) { color: purple; }"#
+    );
+}
+
+#[test]
 fn execution_runtime_bubbles_nested_conditional_group_rules() {
     let source = r#".card { color: red; @media (min-width: 40rem) { color: blue; &:hover { color: green; } } @supports (display: grid) { & .title { display: grid; } } }"#;
     let execution = execute_transform_passes_on_source(
