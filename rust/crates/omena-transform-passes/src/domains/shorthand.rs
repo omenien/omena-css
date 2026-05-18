@@ -10,6 +10,7 @@ use crate::{
             compress_list_style_value, list_style_shorthand_replacement_for_declarations,
         },
         shorthand_logical::collect_logical_axis_replacements,
+        shorthand_motion::{compress_animation_value, compress_transition_value},
         shorthand_text::{
             compress_text_decoration_value, text_decoration_shorthand_replacement_for_declarations,
         },
@@ -213,6 +214,10 @@ fn shorthand_value_replacement_for_declaration(
         compress_box_shorthand_value(&declaration.value)
     } else if declaration.property == "list-style" {
         compress_list_style_value(&declaration.value)
+    } else if declaration.property == "transition" {
+        compress_transition_value(&declaration.value)
+    } else if declaration.property == "animation" {
+        compress_animation_value(&declaration.value)
     } else if declaration.property == "text-decoration" {
         compress_text_decoration_value(&declaration.value, declaration.important)
     } else {

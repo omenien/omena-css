@@ -241,6 +241,11 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { transition-duration: 100ms; transition-delay: .05s; animation-delay: 0ms; }",
   },
   {
+    label: "motion-shorthand-defaults",
+    source:
+      ".a { transition: all 0s ease 0s; } .b { transition: opacity 0s linear .1s; } .c { transition: opacity 0s ease 0s, color .2s ease 0s; } .d { animation: none 0s ease 0s 1 normal none running; } .e { animation: 0s ease 0s 1 normal none running fade; }",
+  },
+  {
     label: "transform-zero-unit-normalization",
     source: ".a { transform: rotate(0deg) translate(0px); }",
   },
