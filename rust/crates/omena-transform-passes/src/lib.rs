@@ -8400,10 +8400,11 @@ struct SimpleDeclarationSlice {
 fn combine_css_box_shorthands_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let ranges = collect_box_shorthand_replacement_ranges(tokens);
+    let mut ranges = collect_box_shorthand_replacement_ranges(source, tokens);
     if ranges.is_empty() {
         return (source.to_string(), 0);
     }
+    ranges.sort_by_key(|(start, _, _)| *start);
 
     let mut output = String::with_capacity(source.len());
     let mut cursor = 0;
@@ -8422,6 +8423,7 @@ fn combine_css_box_shorthands_with_lexer(source: &str, dialect: StyleDialect) ->
 }
 
 fn collect_box_shorthand_replacement_ranges(
+    source: &str,
     tokens: &[omena_parser::LexedToken],
 ) -> Vec<(usize, usize, String)> {
     let mut ranges = Vec::new();
@@ -8431,6 +8433,7 @@ fn collect_box_shorthand_replacement_ranges(
             && let Some(close_index) = matching_right_brace_index(tokens, index)
         {
             ranges.extend(collect_box_shorthand_replacements_in_block(
+                source,
                 tokens,
                 index,
                 close_index,
@@ -8444,6 +8447,7 @@ fn collect_box_shorthand_replacement_ranges(
 }
 
 fn collect_box_shorthand_replacements_in_block(
+    source: &str,
     tokens: &[omena_parser::LexedToken],
     block_start: usize,
     block_end: usize,
@@ -8459,6 +8463,13 @@ fn collect_box_shorthand_replacements_in_block(
             index += 4;
         } else {
             index += 1;
+        }
+    }
+    for declaration in declarations {
+        if let Some((start, end, replacement)) =
+            box_shorthand_value_replacement_for_declaration(source, &declaration)
+        {
+            ranges.push((start, end, replacement));
         }
     }
     ranges
@@ -8657,6 +8668,40 @@ fn box_shorthand_replacement_for_declarations(
         declarations.last()?.end,
         replacement,
     ))
+}
+
+fn box_shorthand_value_replacement_for_declaration(
+    source: &str,
+    declaration: &SimpleDeclarationSlice,
+) -> Option<(usize, usize, String)> {
+    if declaration.important || !is_box_shorthand_property(&declaration.property) {
+        return None;
+    }
+    let replacement_value = compress_box_shorthand_value(&declaration.value)?;
+    let replacement =
+        format_replacement_declaration_like_source(source, declaration, &replacement_value);
+    Some((declaration.start, declaration.end, replacement))
+}
+
+fn is_box_shorthand_property(property: &str) -> bool {
+    matches!(
+        property,
+        "margin" | "padding" | "border-color" | "border-style" | "border-width"
+    )
+}
+
+fn compress_box_shorthand_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let [top, right, bottom, left] = match components.as_slice() {
+        [value] => [value, value, value, value],
+        [block, inline] => [block, inline, block, inline],
+        [top, inline, bottom] => [top, inline, bottom, inline],
+        [top, right, bottom, left] => [top, right, bottom, left],
+        _ => return None,
+    };
+    let values = [top.as_str(), right.as_str(), bottom.as_str(), left.as_str()];
+    let compressed = compress_box_shorthand_values(&values)?;
+    (compressed != normalize_ascii_whitespace(value)).then_some(compressed)
 }
 
 fn declaration_ranges_are_adjacent(
@@ -11887,6 +11932,28 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".a { margin: 1px 2px; border-color: red blue; border-width: 1px 2px 3px; padding-top: 1px; color: red; padding-right: 2px; padding-bottom: 3px; padding-left: 4px; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["shorthand-combining", "print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_compresses_box_shorthand_values() {
+        let source = r#".a { margin: 1px 1px 1px 1px; padding: 1px 2px 3px 2px; border-color: red blue red blue; border-width: 1px 1px; border-style: solid solid solid solid; } .important { margin: 1px 1px 1px 1px !important; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::ShorthandCombining,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 5);
+        assert_eq!(
+            execution.output_css,
+            r#".a { margin: 1px; padding: 1px 2px 3px; border-color: red blue; border-width: 1px; border-style: solid; } .important { margin: 1px 1px 1px 1px !important; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
