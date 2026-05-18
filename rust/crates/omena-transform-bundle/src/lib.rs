@@ -235,7 +235,15 @@ fn required_passes_for_source(
 }
 
 fn is_css_module_path(source_path: &str) -> bool {
-    source_path.contains(".module.")
+    let file_name = source_path
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(source_path)
+        .to_ascii_lowercase();
+    let Some((stem, extension)) = file_name.rsplit_once('.') else {
+        return false;
+    };
+    matches!(extension, "css" | "scss" | "sass" | "less") && stem.ends_with(".module")
 }
 
 fn dialect_label(dialect: StyleDialect) -> &'static str {
@@ -304,6 +312,50 @@ mod tests {
         assert!(summary.module_evaluation_required);
         assert!(summary.import_inline_required);
         assert!(summary.required_pass_ids.contains(&"less-module-evaluate"));
+        assert!(
+            summary
+                .required_pass_ids
+                .contains(&"css-modules-class-hashing")
+        );
+    }
+
+    #[test]
+    fn rejects_module_substring_false_positive_paths() {
+        let source = ".button { color: red; }";
+        let backup_summary = summarize_omena_transform_bundle_from_source(
+            "Button.module.backup.scss",
+            source,
+            StyleDialect::Scss,
+        );
+        let unrelated_summary = summarize_omena_transform_bundle_from_source(
+            "module/Button.scss",
+            source,
+            StyleDialect::Scss,
+        );
+
+        assert!(!backup_summary.class_hashing_required);
+        assert!(!unrelated_summary.class_hashing_required);
+        assert!(
+            !backup_summary
+                .required_pass_ids
+                .contains(&"css-modules-class-hashing")
+        );
+        assert!(
+            !unrelated_summary
+                .required_pass_ids
+                .contains(&"css-modules-class-hashing")
+        );
+    }
+
+    #[test]
+    fn recognizes_css_module_path_by_final_stem_and_supported_extension() {
+        let summary = summarize_omena_transform_bundle_from_source(
+            "components\\Button.MODULE.SCSS",
+            ".button { color: red; }",
+            StyleDialect::Scss,
+        );
+
+        assert!(summary.class_hashing_required);
         assert!(
             summary
                 .required_pass_ids
