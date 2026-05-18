@@ -996,7 +996,7 @@ const importedValueResult = spawnSync(
     input: JSON.stringify({
       stylePath: "imported-values.module.css",
       styleSource:
-        '@value primary as brand, gap, tone from "./tokens.module.css"; .button { color: brand; margin: gap; border-color: tone; } @media (min-width: gap) { .button { color: brand; } } @supports (width: gap) { .button { color: brand; } }',
+        '@value primary as brand, gap, tone from "./tokens.module.css"; @custom-media --gap (min-width: gap); .button { color: brand; margin: gap; border-color: tone; } @media (min-width: gap) { .button { color: brand; } } @supports (width: gap) { .button { color: brand; } }',
       requestedPassIds: ["value-resolution", "print-css"],
       transformContext: {
         cssModuleValueResolutions: [
@@ -1017,10 +1017,10 @@ const importedValueSummary = JSON.parse(importedValueResult.stdout) as Transform
 assert.equal(importedValueSummary.product, "omena-query.transform-execute");
 assert.equal(
   importedValueSummary.execution.outputCss,
-  '@value tone from "./tokens.module.css"; .button { color: #fff; margin: 8px; border-color: tone; } @media (min-width: 8px) { .button { color: #fff; } } @supports (width: 8px) { .button { color: #fff; } }',
+  '@value tone from "./tokens.module.css"; @custom-media --gap (min-width: 8px); .button { color: #fff; margin: 8px; border-color: tone; } @media (min-width: 8px) { .button { color: #fff; } } @supports (width: 8px) { .button { color: #fff; } }',
 );
 assert.deepEqual(importedValueSummary.execution.executedPassIds, ["value-resolution", "print-css"]);
-assert.equal(importedValueSummary.execution.mutationCount, 7);
+assert.equal(importedValueSummary.execution.mutationCount, 8);
 
 const alphaColorCompressionResult = spawnSync(
   "cargo",

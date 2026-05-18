@@ -240,7 +240,7 @@ fn collect_static_css_modules_value_query_prelude_replacements(
 fn css_modules_value_query_prelude_at_rule(text: &str) -> bool {
     matches!(
         text.to_ascii_lowercase().as_str(),
-        "@media" | "@supports" | "@container"
+        "@media" | "@supports" | "@container" | "@custom-media"
     )
 }
 
