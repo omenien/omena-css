@@ -4425,7 +4425,9 @@ fn parse_static_composite_custom_property_env_value(value: &str) -> Option<Casca
     let mut found_var = false;
 
     while index < value.len() {
-        let ch = value[index..].chars().next()?;
+        let Some(ch) = value[index..].chars().next() else {
+            break;
+        };
         if let Some(quote_ch) = quote {
             index += ch.len_utf8();
             if ch == '\\' {
@@ -4448,10 +4450,20 @@ fn parse_static_composite_custom_property_env_value(value: &str) -> Option<Casca
                 .is_some_and(|text| text.eq_ignore_ascii_case("var(")) =>
             {
                 let left_paren_index = index + "var".len();
-                let close_index = matching_function_call_end(value, left_paren_index)?;
-                let arguments =
-                    split_top_level_value_arguments(&value[left_paren_index + 1..close_index])?;
-                let var_value = parse_static_var_arguments(&arguments)?;
+                let Some(close_index) = matching_function_call_end(value, left_paren_index) else {
+                    index += ch.len_utf8();
+                    continue;
+                };
+                let Some(arguments) =
+                    split_top_level_value_arguments(&value[left_paren_index + 1..close_index])
+                else {
+                    index = close_index + ')'.len_utf8();
+                    continue;
+                };
+                let Some(var_value) = parse_static_var_arguments(&arguments) else {
+                    index += ch.len_utf8();
+                    continue;
+                };
                 if cursor < index {
                     parts.push(CascadeValue::Literal(value[cursor..index].to_string()));
                 }
@@ -9011,6 +9023,24 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#":root { --brand: red; --gap: 2rem; } .card { border: 1px solid red var(--broken; box-shadow: 0 0 2rem var(--also-broken; }"#
+        );
+    }
+
+    #[test]
+    fn execution_runtime_recovers_static_custom_property_env_after_malformed_var() {
+        let source = r#":root { --gap: 2rem; --shadow: 0 0 var(--gap) var(--broken; } .card { box-shadow: var(--shadow); }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::StaticVarSubstitution,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert_eq!(
+            execution.output_css,
+            r#":root { --gap: 2rem; --shadow: 0 0 var(--gap) var(--broken; } .card { box-shadow: 0 0 2rem var(--broken; }"#
         );
     }
 

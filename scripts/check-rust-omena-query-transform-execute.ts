@@ -778,7 +778,7 @@ const staticVarShadowResult = spawnSync(
     input: JSON.stringify({
       stylePath: "shadowed-custom-properties.css",
       styleSource:
-        '@property --registered { syntax: "<color>"; inherits: false; initial-value: red; } @property --dynamic { syntax: "<color>"; inherits: false; initial-value: teal; } :root { --brand: red; --gap: 2rem; --tone: red; --tone: blue !important; --dynamic: env(theme-color); } .card { --brand: blue; color: var(--brand); margin: var(--gap); border-color: var(--tone); outline-color: var(--registered); box-shadow: 0 0 var(--gap) var(--broken; text-decoration-color: var(--dynamic); } .other { color: var(--brand); }',
+        '@property --registered { syntax: "<color>"; inherits: false; initial-value: red; } @property --dynamic { syntax: "<color>"; inherits: false; initial-value: teal; } :root { --brand: red; --gap: 2rem; --shadow: 0 0 var(--gap) var(--also-broken; --tone: red; --tone: blue !important; --dynamic: env(theme-color); } .card { --brand: blue; color: var(--brand); margin: var(--gap); border-color: var(--tone); outline-color: var(--registered); box-shadow: 0 0 var(--gap) var(--broken; text-decoration-color: var(--dynamic); } .other { color: var(--brand); box-shadow: var(--shadow); }',
       requestedPassIds: ["custom-property-static-resolve", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
@@ -795,13 +795,13 @@ const staticVarShadowSummary = JSON.parse(
 assert.equal(staticVarShadowSummary.product, "omena-query.transform-execute");
 assert.equal(
   staticVarShadowSummary.execution.outputCss,
-  '@property --registered { syntax: "<color>"; inherits: false; initial-value: red; } @property --dynamic { syntax: "<color>"; inherits: false; initial-value: teal; } :root { --brand: red; --gap: 2rem; --tone: red; --tone: blue !important; --dynamic: env(theme-color); } .card { --brand: blue; color: var(--brand); margin: 2rem; border-color: var(--tone); outline-color: red; box-shadow: 0 0 2rem var(--broken; text-decoration-color: var(--dynamic); } .other { color: var(--brand); }',
+  '@property --registered { syntax: "<color>"; inherits: false; initial-value: red; } @property --dynamic { syntax: "<color>"; inherits: false; initial-value: teal; } :root { --brand: red; --gap: 2rem; --shadow: 0 0 var(--gap) var(--also-broken; --tone: red; --tone: blue !important; --dynamic: env(theme-color); } .card { --brand: blue; color: var(--brand); margin: 2rem; border-color: var(--tone); outline-color: red; box-shadow: 0 0 2rem var(--broken; text-decoration-color: var(--dynamic); } .other { color: var(--brand); box-shadow: 0 0 2rem var(--also-broken; }',
 );
 assert.deepEqual(staticVarShadowSummary.execution.executedPassIds, [
   "custom-property-static-resolve",
   "print-css",
 ]);
-assert.equal(staticVarShadowSummary.execution.mutationCount, 3);
+assert.equal(staticVarShadowSummary.execution.mutationCount, 4);
 
 const customPropertyReachabilityResult = spawnSync(
   "cargo",
