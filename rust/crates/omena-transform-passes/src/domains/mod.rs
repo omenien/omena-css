@@ -21,6 +21,7 @@ pub(crate) mod shorthand_line;
 pub(crate) mod shorthand_list;
 pub(crate) mod shorthand_logical;
 pub(crate) mod shorthand_motion;
+pub(crate) mod shorthand_position;
 pub(crate) mod shorthand_text;
 pub(crate) mod static_eval;
 pub(crate) mod text;

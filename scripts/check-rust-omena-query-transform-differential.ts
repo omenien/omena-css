@@ -300,6 +300,11 @@ const fixtures: readonly DifferentialFixture[] = [
       ".a { background-repeat: repeat repeat; overflow-x: visible; overflow-y: visible; }",
   },
   {
+    label: "background-position-axis-shorthand",
+    source:
+      ".a { background-position-x: left; background-position-y: top; } .b { background-position-x: center; background-position-y: center; } .c { background-position-y: top; background-position-x: center; } .d { background-position-x: left !important; background-position-y: top !important; }",
+  },
+  {
     label: "case-insensitive-shorthand-keywords",
     source: ".a { background-repeat: Repeat Repeat; list-style: NONE OUTSIDE NONE; }",
   },
