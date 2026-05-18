@@ -4066,7 +4066,7 @@ fn collect_reachable_custom_property_names(
                     continue;
                 }
                 let referenced_names =
-                    collect_custom_property_references_in_value(&declaration.value)?;
+                    collect_custom_property_references_in_value(&declaration.value);
                 let dependencies = dependencies_by_name
                     .entry(declaration.property)
                     .or_default();
@@ -4075,7 +4075,7 @@ fn collect_reachable_custom_property_names(
                 }
             } else if rule_is_reachable {
                 let referenced_names =
-                    collect_custom_property_references_in_value(&declaration.value)?;
+                    collect_custom_property_references_in_value(&declaration.value);
                 for name in referenced_names {
                     push_unique_string(&mut root_names, name);
                 }
@@ -9543,6 +9543,39 @@ mod tests {
                 .map(|removal| (removal.symbol_kind, removal.name.as_str()))
                 .collect::<Vec<_>>(),
             vec![("customProperty", "--dead"), ("customProperty", "--other")]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_recovers_custom_property_tree_shaking_after_reachable_malformed_var() {
+        let source = r#":root { --used: red; --dead: blue; } .btn { color: var(--used); outline: var(--broken; }"#;
+        let context = TransformExecutionContextV0 {
+            closed_style_world: true,
+            reachable_class_names: vec!["btn".to_string()],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::TreeShakeCustomProperty,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert!(execution.output_css.contains("--used: red;"));
+        assert!(execution.output_css.contains("color: var(--used);"));
+        assert!(execution.output_css.contains("outline: var(--broken;"));
+        assert!(!execution.output_css.contains("--dead: blue;"));
+        assert_eq!(
+            execution
+                .semantic_removals
+                .iter()
+                .map(|removal| (removal.symbol_kind, removal.name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("customProperty", "--dead")]
         );
     }
 

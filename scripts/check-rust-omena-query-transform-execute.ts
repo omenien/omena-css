@@ -773,7 +773,7 @@ const customPropertyReachabilityResult = spawnSync(
     input: JSON.stringify({
       stylePath: "custom-property-reachability.css",
       styleSource:
-        ":root { --used: var(--dep); --dep: red; --ghost: blue; } .btn { color: var(--used); } .dead { --used: var(--ghost); color: var(--ghost); } .broken { color: var(--broken; }",
+        ":root { --used: var(--dep); --dep: red; --ghost: blue; } .btn { color: var(--used); outline: var(--broken; } .dead { --used: var(--ghost); color: var(--ghost); } .broken { color: var(--broken; }",
       requestedPassIds: ["tree-shake-custom-property", "print-css"],
       transformContext: {
         closedStyleWorld: true,
@@ -794,6 +794,7 @@ const customPropertyReachabilitySummary = JSON.parse(
 assert.equal(customPropertyReachabilitySummary.product, "omena-query.transform-execute");
 assert.ok(customPropertyReachabilitySummary.execution.outputCss.includes("--used: var(--dep);"));
 assert.ok(customPropertyReachabilitySummary.execution.outputCss.includes("--dep: red;"));
+assert.ok(customPropertyReachabilitySummary.execution.outputCss.includes("outline: var(--broken;"));
 assert.ok(customPropertyReachabilitySummary.execution.outputCss.includes("color: var(--broken;"));
 assert.ok(!customPropertyReachabilitySummary.execution.outputCss.includes("--ghost: blue;"));
 assert.deepEqual(customPropertyReachabilitySummary.execution.executedPassIds, [

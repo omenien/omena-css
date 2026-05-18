@@ -88,19 +88,22 @@ pub(crate) fn close_custom_property_dependency_graph(
     reachable
 }
 
-pub(crate) fn collect_custom_property_references_in_value(value: &str) -> Option<Vec<String>> {
+pub(crate) fn collect_custom_property_references_in_value(value: &str) -> Vec<String> {
     let mut names = Vec::new();
     let mut index = 0usize;
     let mut quote: Option<char> = None;
 
     while index < value.len() {
-        let ch = value[index..].chars().next()?;
+        let Some(ch) = value[index..].chars().next() else {
+            break;
+        };
 
         if let Some(quote_ch) = quote {
             index += ch.len_utf8();
             if ch == '\\' {
-                let escaped = value[index..].chars().next()?;
-                index += escaped.len_utf8();
+                if let Some(escaped) = value[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
             } else if ch == quote_ch {
                 quote = None;
             }
@@ -117,19 +120,26 @@ pub(crate) fn collect_custom_property_references_in_value(value: &str) -> Option
                 .is_some_and(|text| text.eq_ignore_ascii_case("var(")) =>
             {
                 let left_paren_index = index + "var".len();
-                let close_index = matching_function_call_end(value, left_paren_index)?;
-                let arguments =
-                    split_top_level_value_arguments(&value[left_paren_index + 1..close_index])?;
-                let [name, fallback @ ..] = arguments.as_slice() else {
-                    return None;
+                let Some(close_index) = matching_function_call_end(value, left_paren_index) else {
+                    index += ch.len_utf8();
+                    continue;
                 };
-                let name = normalize_custom_property_name(name)?;
-                push_unique_string(&mut names, name.to_string());
-                for fallback_value in fallback {
-                    for fallback_name in
-                        collect_custom_property_references_in_value(fallback_value)?
-                    {
-                        push_unique_string(&mut names, fallback_name);
+                let Some(arguments) =
+                    split_top_level_value_arguments(&value[left_paren_index + 1..close_index])
+                else {
+                    index = close_index + ')'.len_utf8();
+                    continue;
+                };
+                if let [name, fallback @ ..] = arguments.as_slice()
+                    && let Some(name) = normalize_custom_property_name(name)
+                {
+                    push_unique_string(&mut names, name.to_string());
+                    for fallback_value in fallback {
+                        for fallback_name in
+                            collect_custom_property_references_in_value(fallback_value)
+                        {
+                            push_unique_string(&mut names, fallback_name);
+                        }
                     }
                 }
                 index = close_index + ')'.len_utf8();
@@ -140,5 +150,5 @@ pub(crate) fn collect_custom_property_references_in_value(value: &str) -> Option
         }
     }
 
-    Some(names)
+    names
 }
