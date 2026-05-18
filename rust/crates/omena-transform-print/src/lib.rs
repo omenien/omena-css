@@ -30,12 +30,25 @@ pub struct TransformPrintOptionsV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TransformSourceMapPointV0 {
+    pub byte_offset: usize,
+    pub line: usize,
+    pub utf8_column: usize,
+    pub utf16_column: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransformSourceMapSegmentV0 {
     pub source_path: String,
     pub original_start: usize,
     pub original_end: usize,
     pub generated_start: usize,
     pub generated_end: usize,
+    pub original_start_point: TransformSourceMapPointV0,
+    pub original_end_point: TransformSourceMapPointV0,
+    pub generated_start_point: TransformSourceMapPointV0,
+    pub generated_end_point: TransformSourceMapPointV0,
     pub pass_id: &'static str,
 }
 
@@ -73,7 +86,7 @@ pub fn summarize_omena_transform_print_boundary() -> TransformPrintBoundarySumma
             TransformPrintMode::Pretty,
             TransformPrintMode::Minified,
         ],
-        source_map_contract: "stable-IR provenance-anchor identity segments with lexical identity fallback plus mutation-span segments",
+        source_map_contract: "stable-IR provenance-anchor identity segments with byte offsets, UTF-8/UTF-16 line-column points, lexical identity fallback, and mutation-span segments",
         planner_surface: "omena-transform-passes.plan",
     }
 }
@@ -153,6 +166,25 @@ pub fn print_transform_execution_artifact(
     )
 }
 
+pub fn print_transform_execution_artifact_with_source(
+    source_path: impl Into<String>,
+    original_source: &str,
+    semantic_signature: impl Into<String>,
+    upstream_passes: &[TransformPassKind],
+    options: TransformPrintOptionsV0,
+    execution: &TransformExecutionSummaryV0,
+) -> TransformPrintArtifactV0 {
+    print_transform_execution_artifact_with_dialect_and_source(
+        source_path,
+        original_source,
+        StyleDialect::Css,
+        semantic_signature,
+        upstream_passes,
+        options,
+        execution,
+    )
+}
+
 pub fn print_transform_execution_artifact_with_dialect(
     source_path: impl Into<String>,
     dialect: StyleDialect,
@@ -172,8 +204,44 @@ pub fn print_transform_execution_artifact_with_dialect(
     );
 
     if options.include_source_map {
-        artifact.source_map_segments =
-            compose_source_map_segments_from_execution(&source_path, execution);
+        artifact.source_map_segments = compose_source_map_segments_from_execution(
+            &source_path,
+            &execution.output_css,
+            &execution.output_css,
+            execution,
+        );
+    }
+
+    artifact.provenance_preserved = artifact.provenance_preserved && execution.provenance_preserved;
+    artifact
+}
+
+pub fn print_transform_execution_artifact_with_dialect_and_source(
+    source_path: impl Into<String>,
+    original_source: &str,
+    dialect: StyleDialect,
+    semantic_signature: impl Into<String>,
+    upstream_passes: &[TransformPassKind],
+    options: TransformPrintOptionsV0,
+    execution: &TransformExecutionSummaryV0,
+) -> TransformPrintArtifactV0 {
+    let source_path = source_path.into();
+    let mut artifact = print_transform_cst_source_with_dialect(
+        source_path.clone(),
+        &execution.output_css,
+        dialect,
+        semantic_signature,
+        upstream_passes,
+        options,
+    );
+
+    if options.include_source_map {
+        artifact.source_map_segments = compose_source_map_segments_from_execution(
+            &source_path,
+            original_source,
+            &execution.output_css,
+            execution,
+        );
     }
 
     artifact.provenance_preserved = artifact.provenance_preserved && execution.provenance_preserved;
@@ -189,6 +257,8 @@ pub const fn default_print_options() -> TransformPrintOptionsV0 {
 
 fn compose_source_map_segments_from_execution(
     source_path: &str,
+    original_source: &str,
+    generated_source: &str,
     execution: &TransformExecutionSummaryV0,
 ) -> Vec<TransformSourceMapSegmentV0> {
     execution
@@ -219,14 +289,20 @@ fn compose_source_map_segments_from_execution(
 
             spans.into_iter().map(
                 |(original_start, original_end, generated_start, generated_end)| {
-                    TransformSourceMapSegmentV0 {
-                        source_path: source_path.to_string(),
-                        original_start,
-                        original_end,
-                        generated_start,
-                        generated_end,
-                        pass_id: node.pass_id,
-                    }
+                    source_map_segment(
+                        source_path,
+                        SourceMapSources {
+                            original: original_source,
+                            generated: generated_source,
+                        },
+                        SourceMapSpanOffsets {
+                            original_start,
+                            original_end,
+                            generated_start,
+                            generated_end,
+                        },
+                        node.pass_id,
+                    )
                 },
             )
         })
@@ -245,13 +321,21 @@ fn compose_identity_source_map_segments(
         .provenance_anchors
         .iter()
         .filter(|anchor| anchor.source_span_start <= anchor.source_span_end)
-        .map(|anchor| TransformSourceMapSegmentV0 {
-            source_path: source_path.to_string(),
-            original_start: anchor.source_span_start,
-            original_end: anchor.source_span_end,
-            generated_start: anchor.source_span_start.min(generated.len()),
-            generated_end: anchor.source_span_end.min(generated.len()),
-            pass_id,
+        .map(|anchor| {
+            source_map_segment(
+                source_path,
+                SourceMapSources {
+                    original: source,
+                    generated,
+                },
+                SourceMapSpanOffsets {
+                    original_start: anchor.source_span_start,
+                    original_end: anchor.source_span_end,
+                    generated_start: anchor.source_span_start.min(generated.len()),
+                    generated_end: anchor.source_span_end.min(generated.len()),
+                },
+                pass_id,
+            )
         })
         .collect::<Vec<_>>();
     if !anchor_segments.is_empty() {
@@ -259,14 +343,20 @@ fn compose_identity_source_map_segments(
     }
 
     if source.is_empty() {
-        return vec![TransformSourceMapSegmentV0 {
-            source_path: source_path.to_string(),
-            original_start: 0,
-            original_end: 0,
-            generated_start: 0,
-            generated_end: 0,
+        return vec![source_map_segment(
+            source_path,
+            SourceMapSources {
+                original: source,
+                generated,
+            },
+            SourceMapSpanOffsets {
+                original_start: 0,
+                original_end: 0,
+                generated_start: 0,
+                generated_end: 0,
+            },
             pass_id,
-        }];
+        )];
     }
 
     let mut segments = Vec::new();
@@ -274,14 +364,20 @@ fn compose_identity_source_map_segments(
     for (index, byte) in source.bytes().enumerate() {
         if byte.is_ascii_whitespace() {
             if let Some(start) = segment_start.take() {
-                segments.push(TransformSourceMapSegmentV0 {
-                    source_path: source_path.to_string(),
-                    original_start: start,
-                    original_end: index,
-                    generated_start: start.min(generated.len()),
-                    generated_end: index.min(generated.len()),
+                segments.push(source_map_segment(
+                    source_path,
+                    SourceMapSources {
+                        original: source,
+                        generated,
+                    },
+                    SourceMapSpanOffsets {
+                        original_start: start,
+                        original_end: index,
+                        generated_start: start.min(generated.len()),
+                        generated_end: index.min(generated.len()),
+                    },
                     pass_id,
-                });
+                ));
             }
         } else if segment_start.is_none() {
             segment_start = Some(index);
@@ -289,17 +385,84 @@ fn compose_identity_source_map_segments(
     }
 
     if let Some(start) = segment_start {
-        segments.push(TransformSourceMapSegmentV0 {
-            source_path: source_path.to_string(),
-            original_start: start,
-            original_end: source.len(),
-            generated_start: start.min(generated.len()),
-            generated_end: generated.len(),
+        segments.push(source_map_segment(
+            source_path,
+            SourceMapSources {
+                original: source,
+                generated,
+            },
+            SourceMapSpanOffsets {
+                original_start: start,
+                original_end: source.len(),
+                generated_start: start.min(generated.len()),
+                generated_end: generated.len(),
+            },
             pass_id,
-        });
+        ));
     }
 
     segments
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SourceMapSources<'a> {
+    original: &'a str,
+    generated: &'a str,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SourceMapSpanOffsets {
+    original_start: usize,
+    original_end: usize,
+    generated_start: usize,
+    generated_end: usize,
+}
+
+fn source_map_segment(
+    source_path: &str,
+    sources: SourceMapSources<'_>,
+    offsets: SourceMapSpanOffsets,
+    pass_id: &'static str,
+) -> TransformSourceMapSegmentV0 {
+    TransformSourceMapSegmentV0 {
+        source_path: source_path.to_string(),
+        original_start: offsets.original_start,
+        original_end: offsets.original_end,
+        generated_start: offsets.generated_start,
+        generated_end: offsets.generated_end,
+        original_start_point: source_map_point(sources.original, offsets.original_start),
+        original_end_point: source_map_point(sources.original, offsets.original_end),
+        generated_start_point: source_map_point(sources.generated, offsets.generated_start),
+        generated_end_point: source_map_point(sources.generated, offsets.generated_end),
+        pass_id,
+    }
+}
+
+fn source_map_point(source: &str, byte_offset: usize) -> TransformSourceMapPointV0 {
+    let byte_offset = byte_offset.min(source.len());
+    let mut line = 0;
+    let mut line_start_byte = 0;
+    let mut utf16_column = 0;
+
+    for (index, character) in source.char_indices() {
+        if index >= byte_offset {
+            break;
+        }
+        if character == '\n' {
+            line += 1;
+            line_start_byte = index + character.len_utf8();
+            utf16_column = 0;
+        } else {
+            utf16_column += character.len_utf16();
+        }
+    }
+
+    TransformSourceMapPointV0 {
+        byte_offset,
+        line,
+        utf8_column: byte_offset.saturating_sub(line_start_byte),
+        utf16_column,
+    }
 }
 
 fn render_identity_preserving_css(source: &str, _mode: TransformPrintMode) -> String {
@@ -310,6 +473,7 @@ fn render_identity_preserving_css(source: &str, _mode: TransformPrintMode) -> St
 mod tests {
     use super::{
         default_print_options, print_transform_cst_source, print_transform_execution_artifact,
+        print_transform_execution_artifact_with_source, source_map_point,
         summarize_omena_transform_print_boundary,
     };
     use omena_transform_cst::TransformPassKind;
@@ -376,6 +540,43 @@ mod tests {
             artifact.pass_plan.ordered_pass_ids,
             vec!["calc-reduction", "print-css"]
         );
+    }
+
+    #[test]
+    fn source_map_points_include_column_precision_for_unicode_and_newlines() {
+        let source = ".초기 { color: red; }\n.button { color: blue; }";
+        let artifact = print_transform_cst_source(
+            "Button.module.css",
+            source,
+            "semantic:unicode:button",
+            &[TransformPassKind::PrintCss],
+            default_print_options(),
+        );
+        let unicode_start = source.find("초기").unwrap_or(source.len());
+        assert!(unicode_start < source.len());
+        let unicode_end = unicode_start + "초기".len();
+        let unicode_start_point = source_map_point(source, unicode_start);
+        let unicode_end_point = source_map_point(source, unicode_end);
+        let button_segment = artifact
+            .source_map_segments
+            .iter()
+            .find(|segment| &source[segment.original_start..segment.original_end] == "button");
+        assert!(button_segment.is_some());
+
+        assert_eq!(unicode_start_point.line, 0);
+        assert_eq!(unicode_start_point.utf8_column, 1);
+        assert_eq!(unicode_start_point.utf16_column, 1);
+        assert_eq!(unicode_end_point.utf8_column, 7);
+        assert_eq!(unicode_end_point.utf16_column, 3);
+        if let Some(button_segment) = button_segment {
+            assert_eq!(button_segment.original_start_point.line, 1);
+            assert_eq!(button_segment.original_start_point.utf8_column, 1);
+            assert_eq!(button_segment.original_start_point.utf16_column, 1);
+            assert_eq!(
+                button_segment.generated_start_point,
+                button_segment.original_start_point
+            );
+        }
     }
 
     #[test]
@@ -459,8 +660,9 @@ mod tests {
             assert_eq!(comment_node.mutation_spans.len(), 2);
         }
 
-        let artifact = print_transform_execution_artifact(
+        let artifact = print_transform_execution_artifact_with_source(
             "Multi.module.css",
+            source,
             "semantic:multi",
             &[TransformPassKind::CommentStrip, TransformPassKind::PrintCss],
             default_print_options(),
@@ -474,5 +676,6 @@ mod tests {
 
         assert_eq!(comment_segments.len(), 2);
         assert!(comment_segments[0].original_start < comment_segments[1].original_start);
+        assert_eq!(comment_segments[1].original_start_point.line, 1);
     }
 }

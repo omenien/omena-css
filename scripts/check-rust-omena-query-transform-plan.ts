@@ -51,6 +51,10 @@ interface TransformPlanSummaryV0 {
       readonly originalEnd: number;
       readonly generatedStart: number;
       readonly generatedEnd: number;
+      readonly originalStartPoint: SourceMapPointV0;
+      readonly originalEndPoint: SourceMapPointV0;
+      readonly generatedStartPoint: SourceMapPointV0;
+      readonly generatedEndPoint: SourceMapPointV0;
       readonly passId: string;
     }[];
     readonly provenancePreserved: boolean;
@@ -119,8 +123,15 @@ interface TransformPlanSummaryV0 {
   readonly readySurfaces: readonly string[];
 }
 
+interface SourceMapPointV0 {
+  readonly byteOffset: number;
+  readonly line: number;
+  readonly utf8Column: number;
+  readonly utf16Column: number;
+}
+
 const styleSource =
-  '@use "./tokens" as tokens; @value primary from "./colors.module.css"; .button { composes: reset from "./reset.module.css"; --brand: tokens.$brand; color: var(--brand); }';
+  '@use "./tokens" as tokens;\n@value primary from "./colors.module.css";\n.button { composes: reset from "./reset.module.css"; --brand: tokens.$brand; color: var(--brand); }';
 
 const result = spawnSync(
   "cargo",
@@ -228,6 +239,15 @@ assert.equal(
   summary.execution.provenanceDerivationForest.nodeCount,
 );
 assert.equal(summary.print.sourceMapSegments[0]?.sourcePath, "Button.module.scss");
+const firstSourceMapSegment = summary.print.sourceMapSegments[0];
+assert.ok(firstSourceMapSegment, "transform-plan source map must include segments");
+assert.equal(firstSourceMapSegment.originalStartPoint.byteOffset, firstSourceMapSegment.originalStart);
+assert.equal(firstSourceMapSegment.generatedStartPoint.byteOffset, firstSourceMapSegment.generatedStart);
+const finalLine = styleSource.split("\n").at(-1) ?? "";
+assert.equal(firstSourceMapSegment.originalEndPoint.byteOffset, firstSourceMapSegment.originalEnd);
+assert.equal(firstSourceMapSegment.originalEndPoint.line, 2);
+assert.equal(firstSourceMapSegment.originalEndPoint.utf8Column, finalLine.length);
+assert.equal(firstSourceMapSegment.originalEndPoint.utf16Column, finalLine.length);
 assert.equal(summary.print.cstArtifact.product, "omena-transform-cst.artifact");
 assert.equal(summary.print.cstArtifact.stableIr.product, "omena-transform-cst.stable-ir");
 assert.equal(summary.print.cstArtifact.stableIr.dialect, "scss");
