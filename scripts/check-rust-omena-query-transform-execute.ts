@@ -283,7 +283,7 @@ const mediaListResult = spawnSync(
     input: JSON.stringify({
       stylePath: "media-list.css",
       styleSource:
-        "@media all and (max-width: 0px) { .dead-and { color: red; } } @media not all, (height<=0px) { .dead-list { color: blue; } } @media all, screen { .live { color: green; } } @media screen, (max-width: 0px) { .unknown { color: orange; } }",
+        "@media all and (max-width: 0px) { .dead-and { color: red; } } @media not (max-width: 0px) { .not-zero { color: lime; } } @media not all, (height<=0px) { .dead-list { color: blue; } } @media all, screen { .live { color: green; } } @media screen, (max-width: 0px) { .unknown { color: orange; } }",
       requestedPassIds: ["media-static-eval", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
@@ -300,13 +300,13 @@ const mediaListSummary = JSON.parse(
 assert.equal(mediaListSummary.product, "omena-query.transform-execute");
 assert.equal(
   mediaListSummary.execution.outputCss,
-  "  .live { color: green; } @media screen, (width<=0px) { .unknown { color: orange; } }",
+  " .not-zero { color: lime; }  .live { color: green; } @media screen, (width<=0px) { .unknown { color: orange; } }",
 );
 assert.deepEqual(mediaListSummary.execution.executedPassIds, [
   "media-static-eval",
   "print-css",
 ]);
-assert.equal(mediaListSummary.execution.mutationCount, 4);
+assert.equal(mediaListSummary.execution.mutationCount, 5);
 
 const contextStyleSource =
   '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; } .button :global(.external) { color: var(--brand); } :global { .reset { color: var(--brand); } } :local(.button) { composes: base; color: var(--brand); } :local { .button { color: var(--brand); } } @media (min-width: 1px) { .button { composes: base; color: var(--brand); } }';
@@ -1243,6 +1243,7 @@ process.stdout.write(
     `alphaColorMutations=${alphaColorFunctionSummary.execution.mutationCount}`,
     `alphaOkColorMutations=${alphaOkColorSummary.execution.mutationCount}`,
     `compositeValueMutations=${compositeValueSummary.execution.mutationCount}`,
+    `mediaListMutations=${mediaListSummary.execution.mutationCount}`,
     `alphaColorCompressionMutations=${alphaColorCompressionSummary.execution.mutationCount}`,
     `colorMixPercentageMutations=${colorMixPercentageSummary.execution.mutationCount}`,
     `mathFunctionMutations=${mathFunctionReductionSummary.execution.mutationCount}`,

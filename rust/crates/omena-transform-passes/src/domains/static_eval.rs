@@ -330,6 +330,22 @@ fn evaluate_static_media_condition(
         return StaticMediaEvalVerdict::Unknown;
     }
 
+    if let Some(negated_condition) = parse_static_media_negation(condition) {
+        let direct_verdict = evaluate_static_media_condition(negated_condition, options);
+        if direct_verdict != StaticMediaEvalVerdict::Unknown {
+            return invert_static_media_verdict(direct_verdict);
+        }
+        if let Some(unwrapped_condition) =
+            strip_wrapping_media_condition_parentheses(negated_condition)
+        {
+            return invert_static_media_verdict(evaluate_static_media_condition(
+                unwrapped_condition,
+                options,
+            ));
+        }
+        return StaticMediaEvalVerdict::Unknown;
+    }
+
     match condition {
         "all" => StaticMediaEvalVerdict::AlwaysTrue,
         "not all" => StaticMediaEvalVerdict::AlwaysFalse,
@@ -341,6 +357,30 @@ fn evaluate_static_media_condition(
         }
         _ => StaticMediaEvalVerdict::Unknown,
     }
+}
+
+fn parse_static_media_negation(condition: &str) -> Option<&str> {
+    media_keyword_at(condition, 0, "not")
+        .then(|| condition["not".len()..].trim())
+        .filter(|condition| !condition.is_empty())
+}
+
+fn invert_static_media_verdict(verdict: StaticMediaEvalVerdict) -> StaticMediaEvalVerdict {
+    match verdict {
+        StaticMediaEvalVerdict::AlwaysTrue => StaticMediaEvalVerdict::AlwaysFalse,
+        StaticMediaEvalVerdict::AlwaysFalse => StaticMediaEvalVerdict::AlwaysTrue,
+        StaticMediaEvalVerdict::Unknown => StaticMediaEvalVerdict::Unknown,
+    }
+}
+
+fn strip_wrapping_media_condition_parentheses(condition: &str) -> Option<&str> {
+    let condition = condition.trim();
+    if !condition.starts_with('(') || !condition.ends_with(')') {
+        return None;
+    }
+    (matching_function_call_end(condition, 0)? == condition.len() - 1)
+        .then(|| condition[1..condition.len() - 1].trim())
+        .filter(|condition| !condition.is_empty())
 }
 
 fn parse_static_media_query_list(condition: &str) -> Option<Vec<&str>> {
