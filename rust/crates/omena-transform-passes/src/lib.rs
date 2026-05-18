@@ -51,8 +51,11 @@ use domains::{
     nesting::unwrap_css_nesting_with_lexer,
     number::{compress_number_prefix, numeric_prefix_end},
     reachability::class_name_is_reachable,
-    rule_merge::merge_adjacent_same_conditional_at_rule_blocks_with_lexer,
-    selector::{compress_css_is_where_selectors_with_lexer, dedupe_selector_arguments},
+    rule_merge::{
+        merge_adjacent_same_block_css_selectors_with_lexer,
+        merge_adjacent_same_selector_css_rules_with_lexer,
+    },
+    selector::compress_css_is_where_selectors_with_lexer,
     shorthand::{
         compress_background_repeat_value, compress_border_radius_value,
         compress_box_shorthand_value, compress_box_shorthand_values, compress_list_style_value,
@@ -78,7 +81,7 @@ use helpers::identifiers::{is_css_ident_continue, is_css_ident_start};
 use helpers::rules::{
     SimpleRuleSlice, collect_declaration_ordinary_rule_slices,
     collect_top_level_ordinary_rule_slices, first_non_trivia_token_start, is_ordinary_rule_prelude,
-    rule_gap_is_whitespace_only, set_prelude_start,
+    set_prelude_start,
 };
 use helpers::source_rewrite::{remove_source_ranges, rewrite_lexer_tokens};
 use helpers::tokens::{
@@ -361,168 +364,6 @@ fn reduce_css_calc(source: &str, dialect: StyleDialect) -> (String, usize) {
 
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
-}
-
-fn merge_adjacent_same_block_css_selectors_with_lexer(
-    source: &str,
-    dialect: StyleDialect,
-) -> (String, usize) {
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
-    let mut replacements = Vec::new();
-    let mut index = 0;
-
-    while index < rules.len() {
-        let current = &rules[index];
-        let mut selectors = vec![current.selector.clone()];
-        let mut run_end = index + 1;
-
-        while run_end < rules.len() {
-            let previous = &rules[run_end - 1];
-            let next = &rules[run_end];
-            if current.block != next.block
-                || !rule_gap_is_whitespace_only(tokens, previous.end, next.start)
-            {
-                break;
-            }
-            selectors.push(next.selector.clone());
-            run_end += 1;
-        }
-
-        let deduped_selectors = dedupe_selector_arguments(&selectors);
-        if deduped_selectors.len() > 1 {
-            let last = &rules[run_end - 1];
-            replacements.push((
-                current.start,
-                last.end,
-                format!(
-                    "{}, {} {{ {} }}",
-                    deduped_selectors[0],
-                    deduped_selectors[1..].join(", "),
-                    current.block
-                ),
-            ));
-        } else {
-            index += 1;
-            continue;
-        }
-
-        index = run_end;
-    }
-
-    if replacements.is_empty() {
-        return (source.to_string(), 0);
-    }
-
-    let mut output = String::with_capacity(source.len());
-    let mut cursor = 0;
-    for (start, end, replacement) in &replacements {
-        if *start > cursor {
-            output.push_str(&source[cursor..*start]);
-        }
-        output.push_str(replacement);
-        cursor = *end;
-    }
-    if cursor < source.len() {
-        output.push_str(&source[cursor..]);
-    }
-
-    (output, replacements.len())
-}
-
-fn merge_adjacent_same_selector_css_rules_with_lexer(
-    source: &str,
-    dialect: StyleDialect,
-) -> (String, usize) {
-    let (output, ordinary_mutation_count) =
-        merge_adjacent_same_selector_ordinary_css_rules_with_lexer(source, dialect);
-    let (output, at_rule_mutation_count) =
-        merge_adjacent_same_conditional_at_rule_blocks_with_lexer(&output, dialect);
-    (output, ordinary_mutation_count + at_rule_mutation_count)
-}
-
-fn merge_adjacent_same_selector_ordinary_css_rules_with_lexer(
-    source: &str,
-    dialect: StyleDialect,
-) -> (String, usize) {
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
-    let mut replacements = Vec::new();
-    let mut index = 0;
-
-    while index < rules.len() {
-        let current = &rules[index];
-        let mut blocks = vec![current.block.clone()];
-        let mut run_end = index + 1;
-
-        while run_end < rules.len() {
-            let previous = &rules[run_end - 1];
-            let next = &rules[run_end];
-            if current.selector != next.selector
-                || !rule_gap_is_whitespace_only(tokens, previous.end, next.start)
-            {
-                break;
-            }
-            blocks.push(next.block.clone());
-            run_end += 1;
-        }
-
-        if blocks.len() > 1 && blocks.iter().any(|block| block != &blocks[0]) {
-            let last = &rules[run_end - 1];
-            replacements.push((
-                current.start,
-                last.end,
-                format!(
-                    "{} {{ {} }}",
-                    current.selector,
-                    join_rule_blocks_for_merge(&blocks)
-                ),
-            ));
-        } else {
-            index += 1;
-            continue;
-        }
-
-        index = run_end;
-    }
-
-    if replacements.is_empty() {
-        return (source.to_string(), 0);
-    }
-
-    let mut output = String::with_capacity(source.len());
-    let mut cursor = 0;
-    for (start, end, replacement) in &replacements {
-        if *start > cursor {
-            output.push_str(&source[cursor..*start]);
-        }
-        output.push_str(replacement);
-        cursor = *end;
-    }
-    if cursor < source.len() {
-        output.push_str(&source[cursor..]);
-    }
-
-    (output, replacements.len())
-}
-
-fn join_rule_blocks_for_merge(blocks: &[String]) -> String {
-    blocks
-        .iter()
-        .filter_map(|block| {
-            let trimmed = block.trim();
-            if trimmed.is_empty() {
-                None
-            } else if trimmed.ends_with(';') {
-                Some(trimmed.to_string())
-            } else {
-                Some(format!("{trimmed};"))
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
 }
 
 fn dedupe_exact_css_rules_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
