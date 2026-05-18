@@ -8,17 +8,18 @@ use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 
 use super::{
+    outcome::{mutation_outcome, no_change_outcome, planned_only_outcome},
     planner::{plan_transform_passes, transform_pass_kind_from_id},
     provenance::{derive_transform_mutation_spans, provenance_derivation_forest_from_outcomes},
 };
 use crate::{
-    TransformExecutionContextV0, TransformExecutionSummaryV0, TransformPassExecutionOutcomeV0,
-    TransformPassRuntimeStatus, add_css_vendor_prefixes, combine_css_shorthands,
-    compress_css_colors, compress_css_is_where_selectors, compress_css_numbers,
-    dedupe_exact_css_rules, evaluate_dead_media_branch_rules, evaluate_static_media_rules,
-    evaluate_static_supports_rules, flatten_css_layers, flatten_css_scopes, inline_css_imports,
-    lower_css_color_function, lower_css_color_mix, lower_css_light_dark,
-    lower_css_logical_to_physical, lower_css_oklab_oklch, merge_adjacent_same_block_css_selectors,
+    TransformExecutionContextV0, TransformExecutionSummaryV0, TransformPassRuntimeStatus,
+    add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
+    compress_css_is_where_selectors, compress_css_numbers, dedupe_exact_css_rules,
+    evaluate_dead_media_branch_rules, evaluate_static_media_rules, evaluate_static_supports_rules,
+    flatten_css_layers, flatten_css_scopes, inline_css_imports, lower_css_color_function,
+    lower_css_color_mix, lower_css_light_dark, lower_css_logical_to_physical,
+    lower_css_oklab_oklch, merge_adjacent_same_block_css_selectors,
     merge_adjacent_same_selector_css_rules, normalize_css_string_quotes, normalize_css_units,
     normalize_css_whitespace, reachable_class_names_with_composes_exports, reduce_css_calc,
     remove_empty_css_rules, resolve_css_module_composes, resolve_static_css_modules_values,
@@ -669,65 +670,5 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
         provenance_derivation_forest,
         outcomes,
         pass_plan,
-    }
-}
-
-fn mutation_outcome(
-    pass_id: &'static str,
-    input_byte_len: usize,
-    output_byte_len: usize,
-    mutation_count: usize,
-    detail: &'static str,
-) -> TransformPassExecutionOutcomeV0 {
-    TransformPassExecutionOutcomeV0 {
-        pass_id,
-        status: mutation_status(mutation_count),
-        input_byte_len,
-        output_byte_len,
-        mutation_count,
-        provenance_preserved: true,
-        detail,
-    }
-}
-
-fn no_change_outcome(
-    pass_id: &'static str,
-    input_byte_len: usize,
-    output_byte_len: usize,
-    detail: &'static str,
-) -> TransformPassExecutionOutcomeV0 {
-    TransformPassExecutionOutcomeV0 {
-        pass_id,
-        status: TransformPassRuntimeStatus::NoChange,
-        input_byte_len,
-        output_byte_len,
-        mutation_count: 0,
-        provenance_preserved: true,
-        detail,
-    }
-}
-
-fn planned_only_outcome(
-    pass_id: &'static str,
-    input_byte_len: usize,
-    output_byte_len: usize,
-    detail: &'static str,
-) -> TransformPassExecutionOutcomeV0 {
-    TransformPassExecutionOutcomeV0 {
-        pass_id,
-        status: TransformPassRuntimeStatus::PlannedOnly,
-        input_byte_len,
-        output_byte_len,
-        mutation_count: 0,
-        provenance_preserved: true,
-        detail,
-    }
-}
-
-fn mutation_status(mutation_count: usize) -> TransformPassRuntimeStatus {
-    if mutation_count == 0 {
-        TransformPassRuntimeStatus::NoChange
-    } else {
-        TransformPassRuntimeStatus::Applied
     }
 }
