@@ -52,7 +52,7 @@ pnpm cme-check run rust/z5-parser-product-cutover
 
 Criterion currently measures:
 
-- `z5/parser`: `engine-style-parser::parse_style_module`
+- `z5/parser`: legacy `engine-style-parser::parse_style_module` baseline kept for oracle comparison only
 - `z5/omena-parser`: `omena-parser::parse` for the green-field parser track
 - `z5/parser-product-legacy`: legacy CSS Modules intermediate producer
 - `z5/parser-product-omena`: `omena-parser` CSS Modules intermediate producer
@@ -109,8 +109,10 @@ track has a refreshed comparative snapshot.
 ## Parser-Product Cut-Over Snapshot
 
 The parser-product cut-over gate compares the actual CSS Modules intermediate
-producer path, not full CST construction alone. The following numbers were
-captured on 2026-05-12 with:
+producer path from raw style source to product summary, not full CST
+construction alone. The legacy parser is retained here as a benchmark/oracle
+baseline, not as a product parser lane dependency. The following numbers were
+captured on 2026-05-19 with:
 
 - Command: `pnpm cme-check run rust/z5-parser-product-cutover`
 - Iterations: 40 per sample
@@ -118,9 +120,9 @@ captured on 2026-05-12 with:
 
 | Workload                   | omena-parser product | legacy product | Ratio |
 | -------------------------- | -------------------: | -------------: | ----: |
-| `nextjs14-dashboard-scss`  |             1.571 ms |       4.917 ms | 0.319 |
-| `vite-component-css`       |             1.395 ms |       2.729 ms | 0.511 |
-| `scss-heavy-design-system` |             0.960 ms |       1.827 ms | 0.525 |
+| `nextjs14-dashboard-scss`  |             1.582 ms |       4.907 ms | 0.322 |
+| `vite-component-css`       |             1.422 ms |       2.744 ms | 0.518 |
+| `scss-heavy-design-system` |             0.955 ms |       1.820 ms | 0.525 |
 
 The LSP macro-benchmark snapshot used:
 
