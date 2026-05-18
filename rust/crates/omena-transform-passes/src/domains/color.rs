@@ -49,6 +49,7 @@ pub(crate) fn is_static_color_reference_property(property: &str) -> bool {
         "accent-color"
             | "background"
             | "background-color"
+            | "background-image"
             | "border"
             | "border-block"
             | "border-block-color"
@@ -59,6 +60,8 @@ pub(crate) fn is_static_color_reference_property(property: &str) -> bool {
             | "border-bottom"
             | "border-bottom-color"
             | "border-color"
+            | "border-image"
+            | "border-image-source"
             | "border-inline"
             | "border-inline-color"
             | "border-inline-end"
@@ -80,6 +83,9 @@ pub(crate) fn is_static_color_reference_property(property: &str) -> bool {
             | "filter"
             | "flood-color"
             | "lighting-color"
+            | "list-style-image"
+            | "mask"
+            | "mask-image"
             | "outline"
             | "outline-color"
             | "scrollbar-color"
@@ -88,6 +94,8 @@ pub(crate) fn is_static_color_reference_property(property: &str) -> bool {
             | "text-decoration-color"
             | "text-emphasis-color"
             | "text-shadow"
+            | "-webkit-mask"
+            | "-webkit-mask-image"
     )
 }
 
@@ -302,8 +310,58 @@ fn compress_static_color_references_in_declaration_value(
         current = replacement;
         changed = true;
     }
+    if let Some(replacement) = compress_static_linear_gradient_references_in_value(&current) {
+        current = replacement;
+        changed = true;
+    }
 
     changed.then_some(current)
+}
+
+fn compress_static_linear_gradient_references_in_value(value: &str) -> Option<String> {
+    substitute_static_css_function_references_in_value(
+        value,
+        &[
+            (
+                "linear-gradient",
+                compress_static_default_linear_gradient_direction,
+            ),
+            (
+                "repeating-linear-gradient",
+                compress_static_default_repeating_linear_gradient_direction,
+            ),
+        ],
+    )
+}
+
+fn compress_static_default_linear_gradient_direction(value: &str) -> Option<String> {
+    compress_static_default_gradient_direction(value, "linear-gradient")
+}
+
+fn compress_static_default_repeating_linear_gradient_direction(value: &str) -> Option<String> {
+    compress_static_default_gradient_direction(value, "repeating-linear-gradient")
+}
+
+fn compress_static_default_gradient_direction(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [direction, stops @ ..] = arguments.as_slice() else {
+        return None;
+    };
+    if stops.len() < 2 || !is_default_linear_gradient_direction(direction) {
+        return None;
+    }
+
+    let replacement = format!("{function_name}({})", stops.join(","));
+    (replacement.len() < value.len()).then_some(replacement)
+}
+
+fn is_default_linear_gradient_direction(value: &str) -> bool {
+    matches!(
+        normalize_ascii_whitespace(value)
+            .to_ascii_lowercase()
+            .as_str(),
+        "to bottom" | "180deg" | ".5turn" | "0.5turn" | "200grad"
+    )
 }
 
 fn compress_static_named_srgb_color_references_in_value(value: &str) -> Option<String> {

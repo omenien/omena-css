@@ -140,6 +140,11 @@ const fixtures: readonly DifferentialFixture[] = [
       "@supports not (display: grid) { .a { color: red; } } @supports (display: grid) or (unknown: value) { .b { color: blue; } }",
   },
   {
+    label: "linear-gradient-default-direction",
+    source:
+      ".a { background: linear-gradient(to bottom, red, blue); } .b { background-image: repeating-linear-gradient(180deg, white, black); } .c { list-style-image: linear-gradient(0.5turn, red, blue); } .d { mask-image: linear-gradient(200grad, red, blue); }",
+  },
+  {
     label: "calc-same-unit-nested",
     source: ".a { margin: calc(2rem + 3rem); padding: calc(10px - 4px); }",
   },

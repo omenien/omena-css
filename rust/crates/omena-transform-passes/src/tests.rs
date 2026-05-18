@@ -1076,6 +1076,28 @@ fn execution_runtime_compresses_static_declaration_colors_only() {
 }
 
 #[test]
+fn execution_runtime_compresses_default_linear_gradient_directions() {
+    let source = r#".a { background: linear-gradient(to bottom, red, blue); background-image: repeating-linear-gradient(180deg, white, black); list-style-image: linear-gradient(0.5turn, red, blue); mask-image: linear-gradient(200grad, red, blue); border-image-source: linear-gradient(to top, red, blue); }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ColorCompression,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 5);
+    assert_eq!(
+        execution.output_css,
+        r#".a { background: linear-gradient(red,#00f); background-image: repeating-linear-gradient(#fff,#000); list-style-image: linear-gradient(red,#00f); mask-image: linear-gradient(red,#00f); border-image-source: linear-gradient(to top, red, #00f); }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["color-compression", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_compresses_hex_colors_to_shorter_named_colors() {
     let source = r#".card { color: #ff0000; outline-color: #808080; background: #0000ff; border-color: #FFFFFF; }"#;
     let execution = execute_transform_passes_on_source(
