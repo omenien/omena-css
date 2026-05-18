@@ -313,6 +313,22 @@ fn evaluate_static_media_condition(
         return StaticMediaEvalVerdict::Unknown;
     }
 
+    if let Some(negated_condition) = parse_static_media_negation(condition) {
+        let direct_verdict = evaluate_static_media_condition(negated_condition, options);
+        if direct_verdict != StaticMediaEvalVerdict::Unknown {
+            return invert_static_media_verdict(direct_verdict);
+        }
+        if let Some(unwrapped_condition) =
+            strip_wrapping_media_condition_parentheses(negated_condition)
+        {
+            return invert_static_media_verdict(evaluate_static_media_condition(
+                unwrapped_condition,
+                options,
+            ));
+        }
+        return StaticMediaEvalVerdict::Unknown;
+    }
+
     if let Some(parts) = parse_static_media_conjunction(condition) {
         let verdicts = parts
             .iter()
@@ -329,22 +345,6 @@ fn evaluate_static_media_condition(
         }
         if static_media_conjunction_is_impossible(&parts) {
             return StaticMediaEvalVerdict::AlwaysFalse;
-        }
-        return StaticMediaEvalVerdict::Unknown;
-    }
-
-    if let Some(negated_condition) = parse_static_media_negation(condition) {
-        let direct_verdict = evaluate_static_media_condition(negated_condition, options);
-        if direct_verdict != StaticMediaEvalVerdict::Unknown {
-            return invert_static_media_verdict(direct_verdict);
-        }
-        if let Some(unwrapped_condition) =
-            strip_wrapping_media_condition_parentheses(negated_condition)
-        {
-            return invert_static_media_verdict(evaluate_static_media_condition(
-                unwrapped_condition,
-                options,
-            ));
         }
         return StaticMediaEvalVerdict::Unknown;
     }
