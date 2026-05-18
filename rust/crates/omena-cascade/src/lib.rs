@@ -439,7 +439,9 @@ pub struct CustomPropertyLeastFixedPointSummaryV0 {
     pub iteration_count: usize,
     pub iteration_bound: usize,
     pub reached_fixed_point: bool,
+    pub monotone_witness_valid: bool,
     pub proof: CustomPropertyLeastFixedPointProofV0,
+    pub iteration_trace: Vec<CustomPropertyLeastFixedPointIterationV0>,
     pub entries: Vec<CustomPropertyLeastFixedPointEntryV0>,
     pub ready_surfaces: Vec<&'static str>,
 }
@@ -453,6 +455,15 @@ pub struct CustomPropertyLeastFixedPointProofV0 {
     pub iteration_bound_formula: &'static str,
     pub cycle_policy: &'static str,
     pub proof_obligations: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomPropertyLeastFixedPointIterationV0 {
+    pub iteration: usize,
+    pub changed_count: usize,
+    pub settled_count: usize,
+    pub guaranteed_invalid_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -592,6 +603,7 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
             "customPropertySubstitution",
             "customPropertyLeastFixedPoint",
             "customPropertyLeastFixedPointProof",
+            "customPropertyLeastFixedPointTrace",
             "cycleToGuaranteedInvalid",
             "computedValueResolutionSeed",
             "inheritanceInitialValueSeed",
@@ -2276,12 +2288,17 @@ pub fn summarize_custom_property_least_fixed_point(
         iteration_count: computation.iteration_count,
         iteration_bound: computation.iteration_bound,
         reached_fixed_point: computation.reached_fixed_point,
+        monotone_witness_valid: custom_property_iteration_trace_is_monotone(
+            &computation.iteration_trace,
+        ),
         proof: custom_property_least_fixed_point_proof(),
+        iteration_trace: computation.iteration_trace,
         entries,
         ready_surfaces: vec![
             "customPropertySubstitution",
             "customPropertyLeastFixedPoint",
             "customPropertyLeastFixedPointProof",
+            "customPropertyLeastFixedPointTrace",
             "cycleToGuaranteedInvalid",
         ],
     }
@@ -2293,6 +2310,7 @@ struct CustomPropertyLeastFixedPointComputation {
     iteration_count: usize,
     iteration_bound: usize,
     reached_fixed_point: bool,
+    iteration_trace: Vec<CustomPropertyLeastFixedPointIterationV0>,
 }
 
 fn compute_custom_property_env_least_fixed_point(
@@ -2300,18 +2318,23 @@ fn compute_custom_property_env_least_fixed_point(
 ) -> CustomPropertyLeastFixedPointComputation {
     let mut current = env.clone();
     let max_iterations = env.len().saturating_add(1).max(1);
+    let mut iteration_trace = Vec::new();
 
     for iteration in 1..=max_iterations {
         let next = env
             .iter()
             .map(|(name, value)| (name.clone(), substitute_custom_properties(value, &current)))
             .collect::<CustomPropertyEnv>();
+        iteration_trace.push(custom_property_least_fixed_point_iteration_witness(
+            iteration, env, &next,
+        ));
         if next == current {
             return CustomPropertyLeastFixedPointComputation {
                 resolved_env: next,
                 iteration_count: iteration,
                 iteration_bound: max_iterations,
                 reached_fixed_point: true,
+                iteration_trace,
             };
         }
         current = next;
@@ -2322,6 +2345,57 @@ fn compute_custom_property_env_least_fixed_point(
         iteration_count: max_iterations,
         iteration_bound: max_iterations,
         reached_fixed_point: false,
+        iteration_trace,
+    }
+}
+
+fn custom_property_least_fixed_point_iteration_witness(
+    iteration: usize,
+    input_env: &CustomPropertyEnv,
+    resolved_env: &CustomPropertyEnv,
+) -> CustomPropertyLeastFixedPointIterationV0 {
+    let changed_count = input_env
+        .iter()
+        .filter(|(name, input)| {
+            resolved_env
+                .get(*name)
+                .is_some_and(|resolved| resolved != *input)
+        })
+        .count();
+    let settled_count = resolved_env
+        .values()
+        .filter(|value| !cascade_value_contains_var_reference(value))
+        .count();
+    let guaranteed_invalid_count = resolved_env
+        .values()
+        .filter(|value| **value == CascadeValue::GuaranteedInvalid)
+        .count();
+
+    CustomPropertyLeastFixedPointIterationV0 {
+        iteration,
+        changed_count,
+        settled_count,
+        guaranteed_invalid_count,
+    }
+}
+
+fn custom_property_iteration_trace_is_monotone(
+    trace: &[CustomPropertyLeastFixedPointIterationV0],
+) -> bool {
+    trace
+        .windows(2)
+        .all(|pair| pair[0].settled_count <= pair[1].settled_count)
+}
+
+fn cascade_value_contains_var_reference(value: &CascadeValue) -> bool {
+    match value {
+        CascadeValue::Var { .. } => true,
+        CascadeValue::Composite(values) => values.iter().any(cascade_value_contains_var_reference),
+        CascadeValue::Literal(_)
+        | CascadeValue::Initial
+        | CascadeValue::Inherit
+        | CascadeValue::GuaranteedInvalid
+        | CascadeValue::Unset => false,
     }
 }
 
@@ -2329,12 +2403,13 @@ fn custom_property_least_fixed_point_proof() -> CustomPropertyLeastFixedPointPro
     CustomPropertyLeastFixedPointProofV0 {
         finite_domain: "custom-property environment keys are fixed during iteration",
         transfer_function: "each step substitutes every original binding against the previous environment approximation",
-        monotone_witness: "resolved literals/composites remain stable while cycles and missing references move toward guaranteed-invalid",
+        monotone_witness: "iteration trace records a nondecreasing settled-value count across the fixed-key environment",
         iteration_bound_formula: "max(1, env.len() + 1)",
         cycle_policy: "recursive var() cycles are detected by the visiting set and collapsed to guaranteed-invalid or fallback",
         proof_obligations: vec![
             "fixed-key environment",
             "deterministic simultaneous transfer",
+            "nondecreasing settled-value trace",
             "cycle-to-guaranteed-invalid bottoming",
             "finite iteration bound",
             "explicit fixed-point equality check",
@@ -3261,6 +3336,14 @@ mod tests {
         assert!(summary.iteration_count >= 2);
         assert_eq!(summary.iteration_bound, 6);
         assert!(summary.reached_fixed_point);
+        assert!(summary.monotone_witness_valid);
+        assert_eq!(summary.iteration_trace.len(), summary.iteration_count);
+        assert!(
+            summary
+                .iteration_trace
+                .windows(2)
+                .all(|pair| pair[0].settled_count <= pair[1].settled_count)
+        );
         assert_eq!(
             summary.proof.iteration_bound_formula,
             "max(1, env.len() + 1)"
@@ -3273,6 +3356,12 @@ mod tests {
         );
         assert!(
             summary
+                .proof
+                .proof_obligations
+                .contains(&"nondecreasing settled-value trace")
+        );
+        assert!(
+            summary
                 .ready_surfaces
                 .contains(&"customPropertyLeastFixedPoint")
         );
@@ -3280,6 +3369,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"customPropertyLeastFixedPointProof")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"customPropertyLeastFixedPointTrace")
         );
         assert!(summary.entries.iter().any(|entry| {
             entry.name == "--alias" && entry.resolved == CascadeValue::Literal("red".to_string())
