@@ -339,6 +339,11 @@ const fixtures: readonly DifferentialFixture[] = [
       ".a { border-top-width: 1px; border-top-style: solid; border-top-color: red; } .b { border-width: medium; border-style: none; border-color: currentcolor; } .c { outline-width: medium; outline-style: solid; outline-color: currentcolor; } .d { outline-width: 1px; outline-style: none; outline-color: red; } .e { border-inline-width: medium !important; border-inline-style: none !important; border-inline-color: currentcolor !important; } .f { border-color: red; border-style: solid; border-width: 1px; }",
   },
   {
+    label: "border-side-shorthand-compression",
+    source:
+      ".a { border-top: 1px solid red; border-right: 1px solid red; border-bottom: 1px solid red; border-left: 1px solid red; } .b { border-top: 1px solid red !important; border-right: 1px solid red !important; border-bottom: 1px solid red !important; border-left: 1px solid red !important; }",
+  },
+  {
     label: "repeated-axis-shorthand-values",
     source:
       ".a { mask-repeat: repeat repeat; background-repeat: space round; -webkit-mask-repeat: no-repeat no-repeat; } .b { border-spacing: 1px 1px; } .c { scroll-margin-block: 1px 2px; scroll-padding-inline: 1px 1px; } .d { margin-block: 1px 2px; padding-inline: 2px 2px; } .e { border-block-color: red red; border-inline-width: 1px 1px; }",

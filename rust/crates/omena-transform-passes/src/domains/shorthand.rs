@@ -5,6 +5,7 @@ use omena_syntax::SyntaxKind;
 use crate::{
     domains::{
         number::{compress_number_prefix, format_css_number, numeric_prefix_end},
+        shorthand_line::border_side_shorthand_replacement_for_declarations,
         shorthand_line::line_shorthand_replacement_for_declarations,
         shorthand_list::{
             compress_list_style_value, list_style_shorthand_replacement_for_declarations,
@@ -89,27 +90,28 @@ fn collect_shorthand_replacements_in_block(
     let mut ranges = Vec::new();
     let mut index = 0;
     while index + 3 < declarations.len() {
-        if let Some((start, end, replacement)) =
+        if let Some((start, end, replacement)) = border_side_shorthand_replacement_for_declarations(
+            tokens,
+            &declarations[index..index + 4],
+        )
+        .or_else(|| {
             box_shorthand_replacement_for_declarations(tokens, &declarations[index..index + 4])
-                .or_else(|| {
-                    border_radius_shorthand_replacement_for_declarations(
-                        tokens,
-                        &declarations[index..index + 4],
-                    )
-                })
-                .or_else(|| {
-                    inset_shorthand_replacement_for_declarations(
-                        tokens,
-                        &declarations[index..index + 4],
-                    )
-                })
-                .or_else(|| {
-                    text_decoration_shorthand_replacement_for_declarations(
-                        tokens,
-                        &declarations[index..index + 4],
-                    )
-                })
-        {
+        })
+        .or_else(|| {
+            border_radius_shorthand_replacement_for_declarations(
+                tokens,
+                &declarations[index..index + 4],
+            )
+        })
+        .or_else(|| {
+            inset_shorthand_replacement_for_declarations(tokens, &declarations[index..index + 4])
+        })
+        .or_else(|| {
+            text_decoration_shorthand_replacement_for_declarations(
+                tokens,
+                &declarations[index..index + 4],
+            )
+        }) {
             ranges.push((start, end, replacement));
             index += 4;
         } else {
@@ -134,6 +136,7 @@ fn collect_shorthand_replacements_in_block(
     for declaration in &declarations {
         if let Some((start, end, replacement)) =
             shorthand_value_replacement_for_declaration(source, declaration)
+            && !replacement_range_overlaps_existing(&ranges, start, end)
         {
             ranges.push((start, end, replacement));
         }
@@ -148,6 +151,16 @@ fn collect_shorthand_replacements_in_block(
     ranges.extend(collect_flex_flow_replacements(tokens, &declarations));
     ranges.extend(collect_logical_axis_replacements(tokens, &declarations));
     ranges
+}
+
+fn replacement_range_overlaps_existing(
+    ranges: &[(usize, usize, String)],
+    start: usize,
+    end: usize,
+) -> bool {
+    ranges
+        .iter()
+        .any(|(existing_start, existing_end, _)| start < *existing_end && *existing_start < end)
 }
 
 fn box_shorthand_replacement_for_declarations(

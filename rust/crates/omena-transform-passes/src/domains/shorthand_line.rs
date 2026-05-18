@@ -1,9 +1,51 @@
 use omena_parser::LexedToken;
 
 use crate::helpers::{
+    ascii::normalize_ascii_whitespace,
     declarations::{SimpleDeclarationSlice, declaration_ranges_are_adjacent},
     values::split_top_level_whitespace_value_components,
 };
+
+pub(crate) fn border_side_shorthand_replacement_for_declarations(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let [top, right, bottom, left] = declarations else {
+        return None;
+    };
+    if top.property != "border-top"
+        || right.property != "border-right"
+        || bottom.property != "border-bottom"
+        || left.property != "border-left"
+        || !declaration_ranges_are_adjacent(tokens, declarations)
+    {
+        return None;
+    }
+
+    let important = top.important;
+    let values = declarations
+        .iter()
+        .map(|declaration| {
+            if declaration.important != important {
+                return None;
+            }
+            normalized_declaration_value_without_important(declaration)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let [top_value, right_value, bottom_value, left_value] = values.as_slice() else {
+        return None;
+    };
+    if top_value != right_value || top_value != bottom_value || top_value != left_value {
+        return None;
+    }
+
+    let important = if important { "!important" } else { "" };
+    Some((
+        top.start,
+        left.end,
+        format!("border: {top_value}{important};"),
+    ))
+}
 
 pub(crate) fn line_shorthand_replacement_for_declarations(
     tokens: &[LexedToken],
@@ -111,6 +153,24 @@ fn single_component_value_without_important(value: &str, important: bool) -> Opt
         return None;
     };
     Some(component.clone())
+}
+
+fn normalized_declaration_value_without_important(
+    declaration: &SimpleDeclarationSlice,
+) -> Option<String> {
+    let mut components = split_top_level_whitespace_value_components(&declaration.value)?;
+    if declaration.important
+        && components.last().is_some_and(|component| {
+            component.eq_ignore_ascii_case("!important")
+                || component.eq_ignore_ascii_case("important")
+        })
+    {
+        components.pop();
+    }
+    if components.is_empty() {
+        return None;
+    }
+    Some(normalize_ascii_whitespace(&components.join(" ")))
 }
 
 fn compressed_line_shorthand_value(width: &str, style: &str, color: &str) -> Option<String> {
