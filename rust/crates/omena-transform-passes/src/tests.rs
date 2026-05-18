@@ -1619,7 +1619,7 @@ fn execution_runtime_compresses_static_motion_shorthands() {
 
 #[test]
 fn execution_runtime_compresses_border_radius_shorthands() {
-    let source = r#".a { border-radius: 1px 1px 1px 1px; border-top-left-radius: 1px; border-top-right-radius: 2px; border-bottom-right-radius: 1px; border-bottom-left-radius: 2px; } .b { border-radius: 1px / 2px; border-top-left-radius: 1px 2px; border-top-right-radius: 2px; border-bottom-right-radius: 1px; border-bottom-left-radius: 2px; }"#;
+    let source = r#".a { border-radius: 1px 1px 1px 1px; border-top-left-radius: 1px; border-top-right-radius: 2px; border-bottom-right-radius: 1px; border-bottom-left-radius: 2px; } .b { border-radius: 1px / 2px; border-top-left-radius: 1px 2px; border-top-right-radius: 2px; border-bottom-right-radius: 1px; border-bottom-left-radius: 2px; } .c { border-radius: 1px 1px 1px 1px / 2px 2px 2px 2px; } .d { border-radius: 1px 2px 1px 2px / 3px 4px 3px 4px; } .e { border-radius: 1px / 1px; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1628,10 +1628,10 @@ fn execution_runtime_compresses_border_radius_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 3);
+    assert_eq!(execution.mutation_count, 7);
     assert_eq!(
         execution.output_css,
-        r#".a { border-radius: 1px; border-radius: 1px 2px; } .b { border-radius: 1px / 2px; border-radius: 1px 2px/2px 2px 1px; }"#
+        r#".a { border-radius: 1px; border-radius: 1px 2px; } .b { border-radius: 1px/2px; border-radius: 1px 2px/2px 2px 1px; } .c { border-radius: 1px/2px; } .d { border-radius: 1px 2px/3px 4px; } .e { border-radius: 1px; }"#
     );
 }
 

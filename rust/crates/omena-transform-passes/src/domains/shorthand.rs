@@ -691,6 +691,30 @@ fn compress_repeated_two_axis_value(value: &str) -> Option<String> {
 
 pub(crate) fn compress_border_radius_value(value: &str) -> Option<String> {
     let components = split_top_level_whitespace_value_components(value)?;
+    let compressed =
+        if let Some(slash_index) = components.iter().position(|component| component == "/") {
+            if components[slash_index + 1..]
+                .iter()
+                .any(|component| component == "/")
+                || slash_index == 0
+                || slash_index + 1 == components.len()
+            {
+                return None;
+            }
+            let horizontal = compress_border_radius_axis_values(&components[..slash_index])?;
+            let vertical = compress_border_radius_axis_values(&components[slash_index + 1..])?;
+            if horizontal == vertical {
+                horizontal
+            } else {
+                format!("{horizontal}/{vertical}")
+            }
+        } else {
+            compress_border_radius_axis_values(&components)?
+        };
+    (compressed != normalize_ascii_whitespace(value)).then_some(compressed)
+}
+
+fn compress_border_radius_axis_values(components: &[String]) -> Option<String> {
     if !(1..=4).contains(&components.len())
         || components
             .iter()
@@ -698,7 +722,7 @@ pub(crate) fn compress_border_radius_value(value: &str) -> Option<String> {
     {
         return None;
     }
-    let values = match components.as_slice() {
+    let values = match components {
         [value] => [
             value.as_str(),
             value.as_str(),
@@ -725,8 +749,7 @@ pub(crate) fn compress_border_radius_value(value: &str) -> Option<String> {
         ],
         _ => return None,
     };
-    let compressed = compress_box_shorthand_values(&values)?;
-    (compressed != normalize_ascii_whitespace(value)).then_some(compressed)
+    compress_box_shorthand_values(&values)
 }
 
 pub(crate) fn is_single_axis_border_radius_value(value: &str) -> bool {
