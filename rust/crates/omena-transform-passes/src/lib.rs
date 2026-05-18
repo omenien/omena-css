@@ -54,6 +54,10 @@ use helpers::rules::{
     first_non_trivia_token_start, is_ordinary_rule_prelude, is_ordinary_top_level_rule_prelude,
     rule_gap_is_whitespace_only, set_prelude_start,
 };
+use helpers::selectors::{
+    global_pseudo_function_end, local_pseudo_function_end, selector_branch_owner_class_name,
+    simple_class_selector_names, split_css_selector_list,
+};
 use helpers::source_rewrite::{remove_source_ranges, replace_source_ranges, rewrite_lexer_tokens};
 use helpers::tokens::{
     is_comment_token, matching_right_brace_index, matching_right_paren_index,
@@ -2858,60 +2862,6 @@ fn expand_nested_selector(parent_selector: &str, nested_selector: &str) -> Optio
     }
 }
 
-fn split_css_selector_list(selector: &str) -> Option<Vec<String>> {
-    let mut selectors = Vec::new();
-    let mut segment_start = 0usize;
-    let mut paren_depth = 0usize;
-    let mut bracket_depth = 0usize;
-    let mut quote = None::<char>;
-    let mut escaped = false;
-
-    for (index, character) in selector.char_indices() {
-        if let Some(active_quote) = quote {
-            if escaped {
-                escaped = false;
-                continue;
-            }
-            if character == '\\' {
-                escaped = true;
-                continue;
-            }
-            if character == active_quote {
-                quote = None;
-            }
-            continue;
-        }
-
-        match character {
-            '\'' | '"' => quote = Some(character),
-            '(' => paren_depth += 1,
-            ')' => paren_depth = paren_depth.checked_sub(1)?,
-            '[' => bracket_depth += 1,
-            ']' => bracket_depth = bracket_depth.checked_sub(1)?,
-            ',' if paren_depth == 0 && bracket_depth == 0 => {
-                let selector = selector[segment_start..index].trim();
-                if selector.is_empty() {
-                    return None;
-                }
-                selectors.push(selector.to_string());
-                segment_start = index + character.len_utf8();
-            }
-            _ => {}
-        }
-    }
-
-    if quote.is_some() || paren_depth != 0 || bracket_depth != 0 {
-        return None;
-    }
-
-    let selector = selector[segment_start..].trim();
-    if selector.is_empty() {
-        return None;
-    }
-    selectors.push(selector.to_string());
-    Some(selectors)
-}
-
 fn flatten_css_scopes_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
@@ -4107,103 +4057,6 @@ fn rule_slice_matches_reachable_class_context(
     rule_matches_reachable_class_context(&rule.selector, reachable_class_names)
 }
 
-fn selector_branch_owner_class_name(selector: &str) -> Option<String> {
-    let selector = selector.trim();
-    if selector.is_empty() {
-        return None;
-    }
-
-    let mut index = 0usize;
-    let mut quote: Option<char> = None;
-    let mut bracket_depth = 0usize;
-    let mut paren_depth = 0usize;
-
-    while index < selector.len() {
-        let ch = selector[index..].chars().next()?;
-
-        if let Some(quote_ch) = quote {
-            index += ch.len_utf8();
-            if ch == '\\' {
-                let escaped = selector[index..].chars().next()?;
-                index += escaped.len_utf8();
-            } else if ch == quote_ch {
-                quote = None;
-            }
-            continue;
-        }
-
-        if bracket_depth == 0
-            && paren_depth == 0
-            && let Some(global_end) = global_pseudo_function_end(selector, index)
-        {
-            index = global_end;
-            continue;
-        }
-        if bracket_depth == 0
-            && paren_depth == 0
-            && let Some(local_end) = local_pseudo_function_end(selector, index)
-        {
-            let inner_start = index + ":local(".len();
-            let inner_end = local_end.saturating_sub(1);
-            return selector_branch_owner_class_name(&selector[inner_start..inner_end]);
-        }
-
-        match ch {
-            '"' | '\'' => {
-                quote = Some(ch);
-                index += ch.len_utf8();
-            }
-            '[' => {
-                bracket_depth += 1;
-                index += ch.len_utf8();
-            }
-            ']' => {
-                bracket_depth = bracket_depth.saturating_sub(1);
-                index += ch.len_utf8();
-            }
-            '(' => {
-                paren_depth += 1;
-                index += ch.len_utf8();
-            }
-            ')' => {
-                paren_depth = paren_depth.saturating_sub(1);
-                index += ch.len_utf8();
-            }
-            '\\' => return None,
-            '.' if bracket_depth == 0 && paren_depth == 0 => {
-                let name_start = index + ch.len_utf8();
-                let name_end = ascii_css_identifier_end(selector, name_start);
-                if name_end == name_start {
-                    return None;
-                }
-                return Some(selector[name_start..name_end].to_string());
-            }
-            _ => {
-                index += ch.len_utf8();
-            }
-        }
-    }
-
-    None
-}
-
-fn simple_class_selector_name(selector: &str) -> Option<String> {
-    let selector = selector.trim();
-    if let Some(local_end) = local_pseudo_function_end(selector, 0)
-        && local_end == selector.len()
-    {
-        let inner_start = ":local(".len();
-        let inner_end = local_end.saturating_sub(1);
-        return simple_class_selector_name(&selector[inner_start..inner_end]);
-    }
-
-    let name = selector.strip_prefix('.')?;
-    if name.is_empty() || !css_identifier_text_is_plain(name) {
-        return None;
-    }
-    Some(name.to_string())
-}
-
 fn class_name_is_reachable(class_name: &str, reachable_class_names: &[String]) -> bool {
     reachable_class_names
         .iter()
@@ -4501,26 +4354,6 @@ fn strip_resolved_css_module_composes_with_lexer(
     }
 
     remove_source_ranges(source, &ranges)
-}
-
-fn simple_class_selector_names(selector: &str) -> Option<Vec<String>> {
-    let selector = selector.trim();
-    if let Some(local_end) = local_pseudo_function_end(selector, 0)
-        && local_end == selector.len()
-    {
-        let inner_start = ":local(".len();
-        let inner_end = local_end.saturating_sub(1);
-        return simple_class_selector_names(&selector[inner_start..inner_end]);
-    }
-
-    let branches = split_top_level_value_arguments(selector)?;
-    if branches.is_empty() {
-        return None;
-    }
-    branches
-        .iter()
-        .map(|branch| simple_class_selector_name(branch))
-        .collect()
 }
 
 fn css_module_composes_resolution_exists(
@@ -4932,22 +4765,6 @@ fn rewrite_class_selectors_in_selector(
     }
 
     changed.then_some(output)
-}
-
-fn global_pseudo_function_end(selector: &str, index: usize) -> Option<usize> {
-    const GLOBAL_PREFIX: &str = ":global(";
-    if !starts_with_ascii_case_insensitive(&selector[index..], GLOBAL_PREFIX) {
-        return None;
-    }
-    matching_function_end(selector, index + GLOBAL_PREFIX.len() - 1)
-}
-
-fn local_pseudo_function_end(selector: &str, index: usize) -> Option<usize> {
-    const LOCAL_PREFIX: &str = ":local(";
-    if !starts_with_ascii_case_insensitive(&selector[index..], LOCAL_PREFIX) {
-        return None;
-    }
-    matching_function_end(selector, index + LOCAL_PREFIX.len() - 1)
 }
 
 fn rewrite_local_composes_value(
