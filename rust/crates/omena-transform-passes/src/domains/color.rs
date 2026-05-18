@@ -103,7 +103,11 @@ pub(crate) fn is_static_color_reference_property(property: &str) -> bool {
 }
 
 fn is_static_color_compression_property(property: &str) -> bool {
-    is_static_color_reference_property(property) && property != "column-rule"
+    is_static_color_reference_property(property)
+}
+
+fn preserves_currentcolor_keyword_case(property: &str) -> bool {
+    matches!(property, "column-rule" | "column-rule-color")
 }
 
 pub(crate) fn compress_css_colors_with_lexer(
@@ -313,7 +317,10 @@ fn compress_static_color_references_in_declaration_value(
         current = replacement;
         changed = true;
     }
-    if let Some(replacement) = compress_static_named_srgb_color_references_in_value(&current) {
+    if let Some(replacement) = compress_static_named_srgb_color_references_in_value(
+        &current,
+        preserves_currentcolor_keyword_case(property),
+    ) {
         current = replacement;
         changed = true;
     }
@@ -452,7 +459,10 @@ fn is_default_conic_gradient_angle(value: &str) -> bool {
     )
 }
 
-fn compress_static_named_srgb_color_references_in_value(value: &str) -> Option<String> {
+fn compress_static_named_srgb_color_references_in_value(
+    value: &str,
+    preserve_currentcolor_keyword_case: bool,
+) -> Option<String> {
     let mut output = String::with_capacity(value.len());
     let mut cursor = 0usize;
     let mut index = 0usize;
@@ -500,6 +510,9 @@ fn compress_static_named_srgb_color_references_in_value(value: &str) -> Option<S
                     continue;
                 }
                 if ident.eq_ignore_ascii_case("currentcolor") {
+                    if preserve_currentcolor_keyword_case {
+                        continue;
+                    }
                     let replacement = "currentColor";
                     if replacement == ident {
                         continue;

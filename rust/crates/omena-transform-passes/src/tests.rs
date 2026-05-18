@@ -1108,16 +1108,16 @@ fn execution_runtime_compresses_hex_colors_to_shorter_named_colors() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 10);
+    assert_eq!(execution.mutation_count, 9);
     assert_eq!(
         execution.output_css,
-        r#".card { color: red; outline-color: gray; background: #00f; border-color: #fff; box-shadow: 0 0 1px #639; text-shadow: 0 0 1px #f0f8ff; caret-color: #a9a9a9; accent-color: tan; fill: #fafad2; column-rule-color: currentColor; }"#
+        r#".card { color: red; outline-color: gray; background: #00f; border-color: #fff; box-shadow: 0 0 1px #639; text-shadow: 0 0 1px #f0f8ff; caret-color: #a9a9a9; accent-color: tan; fill: #fafad2; column-rule-color: currentcolor; }"#
     );
 }
 
 #[test]
-fn execution_runtime_keeps_column_rule_shorthand_color_case() {
-    let source = r#".a { column-rule: medium none currentcolor; color: currentcolor; }"#;
+fn execution_runtime_keeps_column_rule_color_case() {
+    let source = r#".a { column-rule: medium none currentcolor; column-rule-color: currentcolor; color: currentcolor; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1129,7 +1129,7 @@ fn execution_runtime_keeps_column_rule_shorthand_color_case() {
     assert_eq!(execution.mutation_count, 1);
     assert_eq!(
         execution.output_css,
-        r#".a { column-rule: medium none currentcolor; color: currentColor; }"#
+        r#".a { column-rule: medium none currentcolor; column-rule-color: currentcolor; color: currentColor; }"#
     );
 }
 
