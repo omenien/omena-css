@@ -203,14 +203,27 @@ fn normalize_percentage_unit_token(text: &str, property: &str) -> Option<String>
     }
 
     let number = text.strip_suffix('%')?;
+    if property == "opacity" {
+        return normalize_opacity_percentage_token(text, number);
+    }
     if !is_zero_number_prefix(number) {
         return None;
     }
-    if is_zero_percentage_unit_property(property) || property == "opacity" {
+    if is_zero_percentage_unit_property(property) {
         Some("0".to_string())
     } else {
         None
     }
+}
+
+fn normalize_opacity_percentage_token(text: &str, number: &str) -> Option<String> {
+    let value = number.parse::<f64>().ok()?;
+    if !value.is_finite() || !(0.0..=100.0).contains(&value) {
+        return None;
+    }
+
+    let replacement = compress_number_prefix(&format_css_number(value / 100.0));
+    (replacement.len() < text.len()).then_some(replacement)
 }
 
 fn is_zero_percentage_unit_property(property: &str) -> bool {

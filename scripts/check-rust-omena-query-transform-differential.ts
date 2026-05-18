@@ -179,6 +179,10 @@ const fixtures: readonly DifferentialFixture[] = [
       ".a { perspective-origin: 0% 0%; transform-origin: 0% 0%; opacity: 0%; background-position: 0% 0%; background-size: auto auto; mask-position: 0% 0%; }",
   },
   {
+    label: "opacity-percentage-normalization",
+    source: ".a { opacity: 50%; } .b { opacity: 100%; }",
+  },
+  {
     label: "time-unit-shortening",
     source: ".a { transition-duration: 100ms; transition-delay: .05s; animation-delay: 0ms; }",
   },
