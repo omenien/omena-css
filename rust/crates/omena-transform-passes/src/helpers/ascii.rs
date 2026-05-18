@@ -27,3 +27,7 @@ pub(crate) fn ascii_css_identifier_end(text: &str, start: usize) -> usize {
 fn css_identifier_byte_is_plain(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-')
 }
+
+pub(crate) fn normalize_ascii_whitespace(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
