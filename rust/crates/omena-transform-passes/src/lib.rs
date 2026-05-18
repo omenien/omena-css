@@ -6981,8 +6981,13 @@ fn compress_css_colors_with_lexer(source: &str, dialect: StyleDialect) -> (Strin
     let (source, hex_mutation_count) = compress_css_hex_color_tokens_with_lexer(source, dialect);
     let (source, function_mutation_count) =
         compress_static_color_function_declaration_values_with_lexer(&source, dialect);
+    let (source, duplicate_mutation_count) =
+        remove_adjacent_duplicate_static_color_declarations_with_lexer(&source, dialect);
 
-    (source, hex_mutation_count + function_mutation_count)
+    (
+        source,
+        hex_mutation_count + function_mutation_count + duplicate_mutation_count,
+    )
 }
 
 fn compress_css_hex_color_tokens_with_lexer(
@@ -7094,6 +7099,45 @@ fn compress_static_color_function_declaration_values_with_lexer(
     }
 
     (output, replacements.len())
+}
+
+fn remove_adjacent_duplicate_static_color_declarations_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut ranges = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
+            for pair in declarations.windows(2) {
+                let [left, right] = pair else {
+                    continue;
+                };
+                if !declaration_ranges_are_adjacent(tokens, pair)
+                    || left.important
+                    || right.important
+                    || left.property != right.property
+                    || left.value != right.value
+                    || !is_static_color_reference_property(&left.property)
+                {
+                    continue;
+                }
+                ranges.push((right.start, right.end));
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    let (output, removed_count) = remove_source_ranges(source, &ranges);
+    (output, removed_count)
 }
 
 fn compress_static_color_value(value: &str) -> Option<String> {
@@ -8591,6 +8635,24 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".a { color: #fff; box-shadow: 0 0 #abc, 0 0 #00f; border: 1px solid #000; font-family: blue; background: url(blue.svg); background-color: red; border-color: green; outline-color: gray; text-emphasis-color: purple; text-decoration-color: #00f; caret-color: #000; fill: red; stroke: green; column-rule-color: #fff; flood-color: #fff; lighting-color: #000; stop-color: #00f; scrollbar-color: #0ff; border-block-color: #0ff; border-left-color: red; border-right-color: green; border-top-color: #00f; background: linear-gradient(red, #00f); filter: drop-shadow(0 0 1px #fff); border-bottom-color: #ff000080; accent-color: #00000080; --brand: rgb(255 0 0); } .alpha { color: #fff; background-color: #fff; border-color: #0000; outline-color: red; text-decoration-color: #00f; accent-color: #ff000080; text-shadow: 0 0 #0000ff80; column-rule-color: #ff000080; fill: #0000; box-shadow: 0 0 #0000; } #FFFFFF { color: red; }"#
+        );
+    }
+
+    #[test]
+    fn execution_runtime_removes_adjacent_duplicate_color_declarations_after_compression() {
+        let source = r#".a { color: rgb(255 0 0); color: rgb(255 0 0 / 100%); background: blue; background: #0000FF; } .b { color: red; margin: 1px; color: red; } .important { color: red !important; color: red !important; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::ColorCompression,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 6);
+        assert_eq!(
+            execution.output_css,
+            r#".a { color: red;  background: #00f;  } .b { color: red; margin: 1px; color: red; } .important { color: red !important; color: red !important; }"#
         );
     }
 
