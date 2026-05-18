@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { strict as assert } from "node:assert";
+import { spawnSync } from "node:child_process";
 
 const RUNNER_PATH = path.join(process.cwd(), "rust/crates/engine-shadow-runner/src/main.rs");
 const RUNNER_CARGO_PATH = path.join(process.cwd(), "rust/crates/engine-shadow-runner/Cargo.toml");
@@ -12,25 +13,46 @@ const packageJsonSource = readFileSync(PACKAGE_JSON_PATH, "utf8");
 const commandBodies = extractCommandBodies(runnerSource);
 
 const checkerMTierBody = commandBodies.get("omena-checker-m-tier-evaluations");
+const checkerCascadeBody = commandBodies.get("omena-checker-cascade-evaluations");
 assert.ok(
   checkerMTierBody,
   "missing engine-shadow-runner command arm: omena-checker-m-tier-evaluations",
+);
+assert.ok(
+  checkerCascadeBody,
+  "missing engine-shadow-runner command arm: omena-checker-cascade-evaluations",
 );
 assert.ok(
   checkerMTierBody.includes("OmenaCheckerMTierEvaluationInputV0"),
   "omena-checker-m-tier-evaluations must deserialize the checker M-tier input product",
 );
 assert.ok(
+  checkerCascadeBody.includes("OmenaCheckerCascadeInputV0"),
+  "omena-checker-cascade-evaluations must deserialize the checker cascade input product",
+);
+assert.ok(
   checkerMTierBody.includes("summarize_omena_checker_m_tier_evaluations"),
   "omena-checker-m-tier-evaluations must route through the runner-owned checker summary wrapper",
+);
+assert.ok(
+  checkerCascadeBody.includes("summarize_omena_checker_cascade_evaluations"),
+  "omena-checker-cascade-evaluations must route through the runner-owned checker cascade summary wrapper",
 );
 assert.ok(
   runnerSource.includes("evaluate_omena_checker_m_tier_rules"),
   "engine-shadow-runner must call omena-checker's M-tier evaluator",
 );
 assert.ok(
+  runnerSource.includes("evaluate_omena_checker_cascade_rules"),
+  "engine-shadow-runner must call omena-checker's cascade-aware evaluator",
+);
+assert.ok(
   runnerSource.includes('"omena-checker-m-tier-evaluations" =>'),
   "engine-shadow-runner daemon must support omena-checker-m-tier-evaluations",
+);
+assert.ok(
+  runnerSource.includes('"omena-checker-cascade-evaluations" =>'),
+  "engine-shadow-runner daemon must support omena-checker-cascade-evaluations",
 );
 assert.ok(
   /^\s*omena-checker\s*=/m.test(runnerCargoToml),
@@ -49,10 +71,28 @@ assert.ok(
   "rust/omena-checker/boundary must include the checker runner boundary gate",
 );
 
+const cascadeSummary = runCascadeEvaluationFixture();
+assert.equal(cascadeSummary.product, "omena-checker.cascade-evaluations");
+assert.equal(cascadeSummary.declarationCount, 5);
+assert.equal(cascadeSummary.customPropertyCount, 3);
+for (const code of [
+  "unreachable-declaration",
+  "dead-cascade-layer",
+  "iacvt-prone",
+  "circular-var",
+  "unspecified-cascade-tie",
+]) {
+  assert.ok(
+    cascadeSummary.ruleCodeNames.includes(code),
+    `cascade runner output must include ${code}`,
+  );
+}
+
 process.stdout.write(
   [
     "validated omena-checker runner boundary:",
     "mTierCommand=omena-checker-m-tier-evaluations",
+    "cascadeCommand=omena-checker-cascade-evaluations",
     "runtime=engine-shadow-runner",
     "owner=omena-checker",
   ].join(" "),
@@ -83,4 +123,79 @@ function readBraceBody(source: string, bodyStart: number): string {
     index += 1;
   }
   return source.slice(bodyStart, index - 1);
+}
+
+interface CascadeEvaluationSummary {
+  readonly product: string;
+  readonly declarationCount: number;
+  readonly customPropertyCount: number;
+  readonly ruleCodeNames: readonly string[];
+}
+
+function runCascadeEvaluationFixture(): CascadeEvaluationSummary {
+  const input = {
+    declarations: [
+      cascadeDeclaration("base-color", ".btn", "color", "red", 1, "base", 0, false, []),
+      cascadeDeclaration("override-color", ".btn", "color", "blue", 2, "overrides", 1, false, []),
+      cascadeDeclaration("gap-use", ".card", "margin", "var(--gap)", 3, "components", 1, false, [
+        "--gap",
+      ]),
+      cascadeDeclaration("tie-a", ".tie", "color", "red", 4, "utilities", 2, false, []),
+      cascadeDeclaration("tie-b", ".tie", "color", "green", 5, "utilities", 2, false, []),
+    ],
+    customProperties: [
+      { name: "--gap", dependencies: [], guaranteedInvalid: true },
+      { name: "--a", dependencies: ["--b"], guaranteedInvalid: false },
+      { name: "--b", dependencies: ["--a"], guaranteedInvalid: false },
+    ],
+  };
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      "omena-checker-cascade-evaluations",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: JSON.stringify(input),
+      maxBuffer: 1024 * 1024 * 10,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `engine-shadow-runner cascade command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return JSON.parse(result.stdout) as CascadeEvaluationSummary;
+}
+
+function cascadeDeclaration(
+  declarationId: string,
+  selector: string,
+  property: string,
+  value: string,
+  sourceOrder: number,
+  layerName: string,
+  layerOrder: number,
+  important: boolean,
+  varReferences: readonly string[],
+) {
+  return {
+    declarationId,
+    selector,
+    property,
+    value,
+    sourceOrder,
+    layerName,
+    layerOrder,
+    important,
+    varReferences,
+  };
 }

@@ -4,7 +4,7 @@ use omena_abstract_value::{
     AbstractClassValueV0, SelectorProjectionCertaintyV0, enumerate_finite_class_values,
     project_abstract_value_selectors,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -264,14 +264,14 @@ pub struct OmenaCheckerMTierEvaluationV0 {
     pub message: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaCheckerCascadeInputV0 {
     pub declarations: Vec<OmenaCheckerCascadeDeclarationInputV0>,
     pub custom_properties: Vec<OmenaCheckerCustomPropertyInputV0>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaCheckerCascadeDeclarationInputV0 {
     pub declaration_id: String,
@@ -287,7 +287,7 @@ pub struct OmenaCheckerCascadeDeclarationInputV0 {
     pub var_references: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaCheckerCustomPropertyInputV0 {
     pub name: String,
