@@ -293,7 +293,7 @@ fn normalize_chained_static_media_range_comparison(feature: &str) -> Option<Stri
 }
 
 fn normalize_static_media_range_comparison(feature: &str) -> Option<String> {
-    for operator in ["<=", ">=", "<", ">"] {
+    for operator in ["<=", ">=", "<", ">", "="] {
         let Some((left, right)) = feature.split_once(operator) else {
             continue;
         };
@@ -332,7 +332,7 @@ fn find_static_media_range_operator(text: &str, start: usize) -> Option<(usize, 
 }
 
 fn static_media_range_operator_at(text: &str, index: usize) -> Option<&'static str> {
-    for operator in ["<=", ">=", "<", ">"] {
+    for operator in ["<=", ">=", "<", ">", "="] {
         if text[index..].starts_with(operator) {
             return Some(operator);
         }
@@ -354,6 +354,7 @@ fn reverse_static_media_range_operator(operator: &str) -> &'static str {
         ">=" => "<=",
         "<" => ">",
         ">" => "<",
+        "=" => "=",
         _ => "",
     }
 }
@@ -527,6 +528,20 @@ fn static_media_conjunction_is_impossible(parts: &[&str]) -> bool {
     let mut height = StaticMediaRangeConstraint::default();
 
     for part in parts {
+        if let Some((dimension, bound)) = parse_static_media_range_equality(part) {
+            let constraint = match dimension {
+                "width" => &mut width,
+                "height" => &mut height,
+                _ => continue,
+            };
+            constraint.apply(StaticMediaRangeBoundKind::Lower, bound.clone());
+            constraint.apply(StaticMediaRangeBoundKind::Upper, bound);
+            if constraint.is_impossible() {
+                return true;
+            }
+            continue;
+        }
+
         let Some((dimension, kind, bound)) = parse_static_media_range_bound(part) else {
             continue;
         };
@@ -555,14 +570,22 @@ impl StaticMediaRangeConstraint {
         match kind {
             StaticMediaRangeBoundKind::Lower => {
                 if self.lower.as_ref().is_none_or(|existing| {
-                    existing.unit == bound.unit && existing.value < bound.value
+                    existing.unit == bound.unit
+                        && (existing.value < bound.value
+                            || (existing.value == bound.value
+                                && existing.inclusive
+                                && !bound.inclusive))
                 }) {
                     self.lower = Some(bound);
                 }
             }
             StaticMediaRangeBoundKind::Upper => {
                 if self.upper.as_ref().is_none_or(|existing| {
-                    existing.unit == bound.unit && existing.value > bound.value
+                    existing.unit == bound.unit
+                        && (existing.value > bound.value
+                            || (existing.value == bound.value
+                                && existing.inclusive
+                                && !bound.inclusive))
                 }) {
                     self.upper = Some(bound);
                 }
@@ -626,6 +649,32 @@ fn parse_static_media_range_bound(
         }
     }
 
+    None
+}
+
+fn parse_static_media_range_equality(
+    condition: &str,
+) -> Option<(&'static str, StaticMediaRangeBound)> {
+    let condition = strip_wrapping_media_condition_parentheses(condition).unwrap_or(condition);
+    if condition.contains("<=")
+        || condition.contains(">=")
+        || condition.contains('<')
+        || condition.contains('>')
+    {
+        return None;
+    }
+    let (left, right) = condition.split_once('=')?;
+    if right.contains('=') {
+        return None;
+    }
+    if let Some(dimension) = static_media_dimension_name(left) {
+        return parse_static_media_range_bound_value(right.trim(), true)
+            .map(|bound| (dimension, bound));
+    }
+    if let Some(dimension) = static_media_dimension_name(right) {
+        return parse_static_media_range_bound_value(left.trim(), true)
+            .map(|bound| (dimension, bound));
+    }
     None
 }
 

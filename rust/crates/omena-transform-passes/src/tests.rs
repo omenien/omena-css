@@ -1696,6 +1696,28 @@ fn execution_runtime_evaluates_chained_media_range_comparisons() {
 }
 
 #[test]
+fn execution_runtime_evaluates_media_range_equality_comparisons() {
+    let source = r#"@media (width = 10px) { .point { color: red; } } @media (10px = height) { .reverse-point { color: blue; } } @media (width = 10px) and (width > 10px) { .dead-high { color: green; } } @media (height = 20px) and (height < 20px) { .dead-low { color: orange; } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::MediaStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 4);
+    assert_eq!(
+        execution.output_css,
+        r#"@media (width=10px) { .point { color: red; } } @media (height=10px) { .reverse-point { color: blue; } }  "#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["media-static-eval", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_normalizes_simple_media_range_features() {
     let source = r#"@media screen and (min-width: 1px) and (max-width: 10px) { .a { color: red; } } @media (min-height: 2rem) { .b { color: blue; } } @media (min-width: calc(1px + 1px)) { .c { color: green; } } @media (max-height: clamp(1rem, 2rem, 3rem)) { .d { color: orange; } }"#;
     let execution = execute_transform_passes_on_source(
