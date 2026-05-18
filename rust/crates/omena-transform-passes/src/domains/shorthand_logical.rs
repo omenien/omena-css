@@ -10,12 +10,59 @@ pub(crate) fn collect_logical_axis_replacements(
     declarations: &[SimpleDeclarationSlice],
 ) -> Vec<(usize, usize, String)> {
     let mut ranges = Vec::new();
+    for quartet in declarations.windows(4) {
+        if let Some(replacement) = logical_four_side_replacement_for_declarations(tokens, quartet) {
+            ranges.push(replacement);
+        }
+    }
     for pair in declarations.windows(2) {
-        if let Some(replacement) = logical_axis_replacement_for_declarations(tokens, pair) {
+        if let Some(replacement) = logical_axis_replacement_for_declarations(tokens, pair)
+            && !replacement_range_overlaps_existing(&ranges, replacement.0, replacement.1)
+        {
             ranges.push(replacement);
         }
     }
     ranges
+}
+
+fn logical_four_side_replacement_for_declarations(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let [first, _, _, fourth] = declarations else {
+        return None;
+    };
+    if declarations
+        .iter()
+        .any(|declaration| declaration.important != first.important)
+        || !declaration_ranges_are_adjacent(tokens, declarations)
+    {
+        return None;
+    }
+
+    let family = logical_four_side_family(declarations)?;
+    let important = first.important;
+    let block_start = logical_family_value(declarations, family.block_start, important)?;
+    let block_end = logical_family_value(declarations, family.block_end, important)?;
+    let inline_start = logical_family_value(declarations, family.inline_start, important)?;
+    let inline_end = logical_family_value(declarations, family.inline_end, important)?;
+    let block_value = compressed_two_axis_shorthand_value(&block_start, &block_end);
+    let inline_value = compressed_two_axis_shorthand_value(&inline_start, &inline_end);
+    let important_suffix = if important { "!important" } else { "" };
+
+    Some((
+        first.start,
+        fourth.end,
+        format!(
+            "{}: {}{}; {}: {}{};",
+            family.block_shorthand,
+            block_value,
+            important_suffix,
+            family.inline_shorthand,
+            inline_value,
+            important_suffix
+        ),
+    ))
 }
 
 fn logical_axis_replacement_for_declarations(
@@ -41,6 +88,115 @@ fn logical_axis_replacement_for_declarations(
         second.end,
         format!("{shorthand}: {shorthand_value}{important};"),
     ))
+}
+
+#[derive(Clone, Copy)]
+struct LogicalFourSideFamily {
+    block_shorthand: &'static str,
+    inline_shorthand: &'static str,
+    block_start: &'static str,
+    block_end: &'static str,
+    inline_start: &'static str,
+    inline_end: &'static str,
+}
+
+const LOGICAL_FOUR_SIDE_FAMILIES: &[LogicalFourSideFamily] = &[
+    LogicalFourSideFamily {
+        block_shorthand: "margin-block",
+        inline_shorthand: "margin-inline",
+        block_start: "margin-block-start",
+        block_end: "margin-block-end",
+        inline_start: "margin-inline-start",
+        inline_end: "margin-inline-end",
+    },
+    LogicalFourSideFamily {
+        block_shorthand: "padding-block",
+        inline_shorthand: "padding-inline",
+        block_start: "padding-block-start",
+        block_end: "padding-block-end",
+        inline_start: "padding-inline-start",
+        inline_end: "padding-inline-end",
+    },
+    LogicalFourSideFamily {
+        block_shorthand: "inset-block",
+        inline_shorthand: "inset-inline",
+        block_start: "inset-block-start",
+        block_end: "inset-block-end",
+        inline_start: "inset-inline-start",
+        inline_end: "inset-inline-end",
+    },
+    LogicalFourSideFamily {
+        block_shorthand: "scroll-margin-block",
+        inline_shorthand: "scroll-margin-inline",
+        block_start: "scroll-margin-block-start",
+        block_end: "scroll-margin-block-end",
+        inline_start: "scroll-margin-inline-start",
+        inline_end: "scroll-margin-inline-end",
+    },
+    LogicalFourSideFamily {
+        block_shorthand: "scroll-padding-block",
+        inline_shorthand: "scroll-padding-inline",
+        block_start: "scroll-padding-block-start",
+        block_end: "scroll-padding-block-end",
+        inline_start: "scroll-padding-inline-start",
+        inline_end: "scroll-padding-inline-end",
+    },
+    LogicalFourSideFamily {
+        block_shorthand: "border-block-color",
+        inline_shorthand: "border-inline-color",
+        block_start: "border-block-start-color",
+        block_end: "border-block-end-color",
+        inline_start: "border-inline-start-color",
+        inline_end: "border-inline-end-color",
+    },
+    LogicalFourSideFamily {
+        block_shorthand: "border-block-style",
+        inline_shorthand: "border-inline-style",
+        block_start: "border-block-start-style",
+        block_end: "border-block-end-style",
+        inline_start: "border-inline-start-style",
+        inline_end: "border-inline-end-style",
+    },
+    LogicalFourSideFamily {
+        block_shorthand: "border-block-width",
+        inline_shorthand: "border-inline-width",
+        block_start: "border-block-start-width",
+        block_end: "border-block-end-width",
+        inline_start: "border-inline-start-width",
+        inline_end: "border-inline-end-width",
+    },
+];
+
+fn logical_four_side_family(
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<LogicalFourSideFamily> {
+    LOGICAL_FOUR_SIDE_FAMILIES.iter().copied().find(|family| {
+        [
+            family.block_start,
+            family.block_end,
+            family.inline_start,
+            family.inline_end,
+        ]
+        .iter()
+        .all(|property| {
+            declarations
+                .iter()
+                .filter(|declaration| declaration.property == *property)
+                .count()
+                == 1
+        })
+    })
+}
+
+fn logical_family_value(
+    declarations: &[SimpleDeclarationSlice],
+    property: &str,
+    important: bool,
+) -> Option<String> {
+    let declaration = declarations
+        .iter()
+        .find(|declaration| declaration.property == property)?;
+    single_component_value_without_important(&declaration.value, important)
 }
 
 fn logical_axis_shorthand_components<'a>(
@@ -214,4 +370,14 @@ fn compressed_two_axis_shorthand_value(first: &str, second: &str) -> String {
     } else {
         format!("{first} {second}")
     }
+}
+
+fn replacement_range_overlaps_existing(
+    ranges: &[(usize, usize, String)],
+    start: usize,
+    end: usize,
+) -> bool {
+    ranges
+        .iter()
+        .any(|(existing_start, existing_end, _)| start < *existing_end && *existing_start < end)
 }
