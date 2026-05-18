@@ -846,6 +846,49 @@ assert.deepEqual(alphaColorCompressionSummary.execution.executedPassIds, [
 ]);
 assert.equal(alphaColorCompressionSummary.execution.mutationCount, 5);
 
+const namedHexColorCompressionResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "named-hex-colors.css",
+      styleSource:
+        ".card { color: #ff0000; outline-color: #808080; background: #0000ff; border-color: #FFFFFF; }",
+      requestedPassIds: ["color-compression", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(namedHexColorCompressionResult.status, 0, namedHexColorCompressionResult.stderr);
+assert.equal(namedHexColorCompressionResult.error, undefined);
+
+const namedHexColorCompressionSummary = JSON.parse(
+  namedHexColorCompressionResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(namedHexColorCompressionSummary.product, "omena-query.transform-execute");
+assert.equal(
+  namedHexColorCompressionSummary.execution.outputCss,
+  ".card { color: red; outline-color: gray; background: #00f; border-color: #fff; }",
+);
+assert.deepEqual(namedHexColorCompressionSummary.execution.executedPassIds, [
+  "color-compression",
+  "print-css",
+]);
+assert.equal(namedHexColorCompressionSummary.execution.mutationCount, 4);
+
 const colorMixPercentageResult = spawnSync(
   "cargo",
   [
@@ -1333,6 +1376,7 @@ process.stdout.write(
     `conditionalWrapperMergeMutations=${conditionalWrapperMergeSummary.execution.mutationCount}`,
     `logicalCornerMutations=${logicalCornerSummary.execution.mutationCount}`,
     `alphaColorCompressionMutations=${alphaColorCompressionSummary.execution.mutationCount}`,
+    `namedHexColorMutations=${namedHexColorCompressionSummary.execution.mutationCount}`,
     `colorMixPercentageMutations=${colorMixPercentageSummary.execution.mutationCount}`,
     `mathFunctionMutations=${mathFunctionReductionSummary.execution.mutationCount}`,
     `staticVarShadowMutations=${staticVarShadowSummary.execution.mutationCount}`,

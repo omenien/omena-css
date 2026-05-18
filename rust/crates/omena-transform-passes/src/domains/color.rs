@@ -858,9 +858,15 @@ pub(crate) fn compress_hex_color_token_text(text: &str) -> Option<String> {
         }
         8 if lower.ends_with("ff") => lower[..6].to_string(),
         8 if can_shorten_hex_pairs(&lower) => shorten_hex_pairs(&lower),
-        _ => lower,
+        _ => lower.clone(),
     };
-    let rewritten = format!("#{compressed}");
+    let rewritten = if matches!(lower.len(), 3 | 6) {
+        parse_static_hex_color(&format!("#{lower}"))
+            .map(shortest_static_srgb_color_text)
+            .unwrap_or_else(|| format!("#{compressed}"))
+    } else {
+        format!("#{compressed}")
+    };
     (rewritten != text).then_some(rewritten)
 }
 

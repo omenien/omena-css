@@ -6494,6 +6494,24 @@ mod tests {
     }
 
     #[test]
+    fn execution_runtime_compresses_hex_colors_to_shorter_named_colors() {
+        let source = r#".card { color: #ff0000; outline-color: #808080; background: #0000ff; border-color: #FFFFFF; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::ColorCompression,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(
+            execution.output_css,
+            r#".card { color: red; outline-color: gray; background: #00f; border-color: #fff; }"#
+        );
+    }
+
+    #[test]
     fn execution_runtime_removes_adjacent_duplicate_color_declarations_after_compression() {
         let source = r#".a { color: rgb(255 0 0); color: rgb(255 0 0 / 100%); background: blue; background: #0000FF; } .b { color: red; margin: 1px; color: red; } .important { color: red !important; color: red !important; }"#;
         let execution = execute_transform_passes_on_source(
