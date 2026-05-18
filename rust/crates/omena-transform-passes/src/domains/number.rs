@@ -1,6 +1,33 @@
+use omena_parser::StyleDialect;
+use omena_syntax::SyntaxKind;
+
+use crate::helpers::source_rewrite::rewrite_lexer_tokens;
 use crate::helpers::values::{
     parse_whole_function_value_arguments, parse_whole_function_value_inner,
 };
+
+pub(crate) fn compress_css_numbers_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    rewrite_lexer_tokens(source, dialect, |kind, text| {
+        if matches!(
+            kind,
+            SyntaxKind::Number | SyntaxKind::Percentage | SyntaxKind::Dimension
+        ) {
+            return compress_numeric_token_text(text);
+        }
+        None
+    })
+}
+
+fn compress_numeric_token_text(text: &str) -> Option<String> {
+    let split = numeric_prefix_end(text)?;
+    let (number, suffix) = text.split_at(split);
+    let compressed = compress_number_prefix(number);
+    let rewritten = format!("{compressed}{suffix}");
+    (rewritten != text).then_some(rewritten)
+}
 
 pub(crate) fn parse_reducible_calc_value(value: &str) -> Option<String> {
     let inner = parse_whole_function_value_inner(value, "calc")?;
