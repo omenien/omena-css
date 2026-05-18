@@ -1,3 +1,4 @@
+pub(crate) mod executor;
 pub(crate) mod fuzz;
 pub(crate) mod incremental;
 pub(crate) mod planner;
