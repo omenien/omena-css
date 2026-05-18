@@ -495,6 +495,17 @@ fn compress_static_named_srgb_color_references_in_value(value: &str) -> Option<S
                     index = close_index + ')'.len_utf8();
                     continue;
                 }
+                if ident.eq_ignore_ascii_case("currentcolor") {
+                    let replacement = "currentColor";
+                    if replacement == ident {
+                        continue;
+                    }
+                    output.push_str(&value[cursor..start]);
+                    output.push_str(replacement);
+                    cursor = index;
+                    changed = true;
+                    continue;
+                }
                 let Some(color) = parse_basic_named_static_color_with_alpha(ident) else {
                     continue;
                 };
