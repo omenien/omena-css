@@ -370,6 +370,16 @@ fn collect_reachable_custom_property_names(
         push_unique_string(&mut root_names, name);
     }
 
+    for registration in collect_custom_property_registration_rules(tokens) {
+        let Some(initial_value) = registration.initial_value else {
+            continue;
+        };
+        let dependencies = dependencies_by_name.entry(registration.name).or_default();
+        for name in collect_custom_property_references_in_value(&initial_value) {
+            push_unique_string(dependencies, name);
+        }
+    }
+
     for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
         if let Some(keyframe_name) = enclosing_keyframe_name_for_rule(&rule, &keyframes)
             && let Some(reachable_keyframe_names) = reachable_keyframe_names.as_ref()

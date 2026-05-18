@@ -1508,6 +1508,81 @@ assert.deepEqual(
 );
 assert.equal(customPropertyContainerStyleReachabilitySummary.execution.mutationCount, 2);
 
+const customPropertyRegistrationDependencyResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "custom-property-registration-dependency.css",
+      styleSource:
+        '@property --used { syntax: "<color>"; inherits: false; initial-value: var(--registered-dep); } @property --dead { syntax: "<color>"; inherits: false; initial-value: var(--dead-dep); } :root { --registered-dep: red; --dead-dep: blue; --ghost: orange; } .btn { color: var(--used); }',
+      requestedPassIds: ["tree-shake-custom-property", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["btn"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  customPropertyRegistrationDependencyResult.status,
+  0,
+  customPropertyRegistrationDependencyResult.stderr,
+);
+assert.equal(customPropertyRegistrationDependencyResult.error, undefined);
+
+const customPropertyRegistrationDependencySummary = JSON.parse(
+  customPropertyRegistrationDependencyResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(
+  customPropertyRegistrationDependencySummary.product,
+  "omena-query.transform-execute",
+);
+assert.ok(
+  customPropertyRegistrationDependencySummary.execution.outputCss.includes(
+    "@property --used",
+  ),
+);
+assert.ok(
+  customPropertyRegistrationDependencySummary.execution.outputCss.includes(
+    "--registered-dep: red;",
+  ),
+);
+assert.ok(
+  !customPropertyRegistrationDependencySummary.execution.outputCss.includes(
+    "@property --dead",
+  ),
+);
+assert.ok(
+  !customPropertyRegistrationDependencySummary.execution.outputCss.includes(
+    "--dead-dep: blue;",
+  ),
+);
+assert.ok(
+  !customPropertyRegistrationDependencySummary.execution.outputCss.includes(
+    "--ghost: orange;",
+  ),
+);
+assert.deepEqual(
+  customPropertyRegistrationDependencySummary.execution.executedPassIds,
+  ["tree-shake-custom-property", "print-css"],
+);
+assert.equal(customPropertyRegistrationDependencySummary.execution.mutationCount, 3);
+
 const semanticReachabilityResult = spawnSync(
   "cargo",
   [
@@ -1693,6 +1768,7 @@ process.stdout.write(
     `staticVarShadowMutations=${staticVarShadowSummary.execution.mutationCount}`,
     `customPropertyReachabilityMutations=${customPropertyReachabilitySummary.execution.mutationCount}`,
     `customPropertyContainerStyleMutations=${customPropertyContainerStyleReachabilitySummary.execution.mutationCount}`,
+    `customPropertyRegistrationDependencyMutations=${customPropertyRegistrationDependencySummary.execution.mutationCount}`,
     `icssExportReachabilityRemovals=${icssExportReachabilitySummary.semanticRemovalCount}`,
     `semanticRemovals=${semanticReachabilitySummary.semanticRemovalCount}`,
   ].join(" "),

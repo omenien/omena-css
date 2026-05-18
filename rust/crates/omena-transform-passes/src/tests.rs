@@ -2682,6 +2682,45 @@ fn execution_runtime_tree_shakes_custom_property_registrations_with_closed_world
 }
 
 #[test]
+fn execution_runtime_keeps_registration_initial_value_custom_property_dependencies() {
+    let source = r#"@property --used { syntax: "<color>"; inherits: false; initial-value: var(--registered-dep); } @property --dead { syntax: "<color>"; inherits: false; initial-value: var(--dead-dep); } :root { --registered-dep: red; --dead-dep: blue; --ghost: orange; } .btn { color: var(--used); }"#;
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec!["btn".to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::TreeShakeCustomProperty,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 3);
+    assert!(execution.output_css.contains("@property --used"));
+    assert!(execution.output_css.contains("--registered-dep: red;"));
+    assert!(execution.output_css.contains("color: var(--used);"));
+    assert!(!execution.output_css.contains("@property --dead"));
+    assert!(!execution.output_css.contains("--dead-dep: blue"));
+    assert!(!execution.output_css.contains("--ghost: orange"));
+    assert_eq!(
+        execution
+            .semantic_removals
+            .iter()
+            .map(|removal| (removal.symbol_kind, removal.name.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("customPropertyRegistration", "--dead"),
+            ("customProperty", "--dead-dep"),
+            ("customProperty", "--ghost")
+        ]
+    );
+}
+
+#[test]
 fn execution_runtime_keeps_container_style_query_custom_property_roots() {
     let source = r#"@property --theme { syntax: "<custom-ident>"; inherits: true; initial-value: light; } @property --dead { syntax: "<custom-ident>"; inherits: true; initial-value: off; } :root { --theme: dark; --dead: off; } @container card style(--theme: dark) { .btn { color: white; } } @container card style(--dead: off) { .dead { color: black; } }"#;
     let context = TransformExecutionContextV0 {
