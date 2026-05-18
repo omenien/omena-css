@@ -223,6 +223,11 @@ const fixtures: readonly DifferentialFixture[] = [
       ".a { transform: translateX(0px) translateY(0px) translateZ(0px) translate(0px, 0px) perspective(0px); }",
   },
   {
+    label: "transform-skew-translate-tail-zero",
+    source:
+      ".a { transform: translate(1px, 0px) skew(0deg, 0deg) skewX(0deg) skewY(0turn); }",
+  },
+  {
     label: "font-family-list",
     source: '.fonts { font-family: "Arial", "Helvetica Neue", "system-ui", sans-serif; }',
   },

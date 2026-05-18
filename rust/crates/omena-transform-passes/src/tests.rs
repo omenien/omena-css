@@ -992,6 +992,28 @@ fn execution_runtime_normalizes_zero_transform_axis_lengths() {
 }
 
 #[test]
+fn execution_runtime_normalizes_static_transform_tail_zeros() {
+    let source = r#".a { transform: translate(1px, 0px) skew(0deg, 0deg) skewX(0deg) skewY(-0turn); } .b { transform: translate(1px, 2px) skew(1deg, 2deg); }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::UnitNormalization,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(
+        execution.output_css,
+        r#".a { transform: translate(1px)skew(0deg)skew(0)skewY(0); } .b { transform: translate(1px, 2px) skew(1deg, 2deg); }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["unit-normalization", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_normalizes_static_shadow_zero_lengths() {
     let source = r#".a { box-shadow: 0px 0px 0px #000; } .b { box-shadow: inset 1px 2px 0px 0px #000; } .c { text-shadow: 1px 2px 0px #000; } .d { box-shadow: 1px 2px 0px 5px #000; }"#;
     let execution = execute_transform_passes_on_source(

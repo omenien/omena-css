@@ -392,6 +392,9 @@ fn normalize_static_transform_functions(value: &str) -> Option<String> {
             ("rotateY", normalize_zero_angle_transform_function),
             ("rotateZ", normalize_zero_angle_transform_function),
             ("scale", normalize_repeated_scale_transform_function),
+            ("skew", normalize_skew_transform_function),
+            ("skewX", normalize_skew_x_zero_transform_function),
+            ("skewY", normalize_zero_angle_transform_function),
             ("translate", normalize_translate_transform_function),
             ("translateX", normalize_translate_x_zero_transform_function),
             (
@@ -430,6 +433,9 @@ fn normalize_translate_transform_function(value: &str) -> Option<String> {
         {
             "translate(0)"
         }
+        [x, y] if is_zero_transform_length_percentage_argument(y) => {
+            return Some(format!("translate({x})"));
+        }
         _ => return None,
     }
     .to_string();
@@ -440,6 +446,25 @@ fn normalize_translate_transform_function(value: &str) -> Option<String> {
 fn normalize_translate_x_zero_transform_function(value: &str) -> Option<String> {
     zero_unary_transform_function_name(value, is_css_transform_length_percentage_unit)?;
     let replacement = "translate(0)".to_string();
+    (replacement != value).then_some(replacement)
+}
+
+fn normalize_skew_transform_function(value: &str) -> Option<String> {
+    let arguments = transform_function_arguments(value)?;
+    let [x, y] = arguments.as_slice() else {
+        return None;
+    };
+    if !is_zero_transform_angle_argument(y) {
+        return None;
+    }
+
+    let replacement = format!("skew({x})");
+    (replacement.len() < value.len()).then_some(replacement)
+}
+
+fn normalize_skew_x_zero_transform_function(value: &str) -> Option<String> {
+    zero_unary_transform_function_name(value, is_css_angle_unit)?;
+    let replacement = "skew(0)".to_string();
     (replacement != value).then_some(replacement)
 }
 
@@ -512,6 +537,10 @@ fn transform_function_arguments(value: &str) -> Option<Vec<String>> {
 fn is_zero_transform_length_percentage_argument(value: &str) -> bool {
     is_zero_transform_numeric_unit_argument(value.trim(), is_css_transform_length_percentage_unit)
         .is_some()
+}
+
+fn is_zero_transform_angle_argument(value: &str) -> bool {
+    is_zero_transform_numeric_unit_argument(value.trim(), is_css_angle_unit).is_some()
 }
 
 fn is_zero_transform_numeric_unit_argument(value: &str, is_unit: fn(&str) -> bool) -> Option<()> {
