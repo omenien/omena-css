@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!(
-        "validated parser-product cutover readiness: samples={} iterations={} boundary=parse-plus-product-summary input=raw-style-source maxRatio={:.3} worstRatio={:.3}",
+        "validated parser-product cutover readiness: samples={} iterations={} boundary=source-to-product-summary input=raw-style-source maxRatio={:.3} worstRatio={:.3}",
         style_corpus().len(),
         ITERATIONS,
         max_ratio,

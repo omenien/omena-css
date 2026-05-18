@@ -15,13 +15,12 @@ pub struct ParserProductBenchmarkBoundaryV0 {
     pub input_boundary: &'static str,
     pub measured_operation: &'static str,
     pub includes_parse: bool,
-    pub parse_witness_consumed: bool,
+    pub parse_work_measured_inside_summary: bool,
     pub includes_product_summary: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OmenaParserProductMeasurementV0 {
-    pub parsed_token_count: usize,
     pub summary: omena_parser::ParserIndexSummaryV0,
 }
 
@@ -53,17 +52,17 @@ pub fn parser_product_benchmark_boundaries() -> [ParserProductBenchmarkBoundaryV
         ParserProductBenchmarkBoundaryV0 {
             lane: "legacy",
             input_boundary: "raw-style-source",
-            measured_operation: "parse-plus-product-summary",
+            measured_operation: "source-to-product-summary",
             includes_parse: true,
-            parse_witness_consumed: true,
+            parse_work_measured_inside_summary: true,
             includes_product_summary: true,
         },
         ParserProductBenchmarkBoundaryV0 {
             lane: "omena",
             input_boundary: "raw-style-source",
-            measured_operation: "parse-plus-product-summary",
+            measured_operation: "source-to-product-summary",
             includes_parse: true,
-            parse_witness_consumed: true,
+            parse_work_measured_inside_summary: true,
             includes_product_summary: true,
         },
     ]
@@ -85,13 +84,13 @@ pub fn validate_parser_product_benchmark_boundary_symmetry() -> Result<(), Strin
     }
     if !(legacy.includes_parse
         && omena.includes_parse
-        && legacy.parse_witness_consumed
-        && omena.parse_witness_consumed
+        && legacy.parse_work_measured_inside_summary
+        && omena.parse_work_measured_inside_summary
         && legacy.includes_product_summary
         && omena.includes_product_summary)
     {
         return Err(
-            "parser product benchmark must include parse, parse witness consumption, and product summary for both lanes"
+            "parser product benchmark must measure parse work inside product summary for both lanes"
                 .to_string(),
         );
     }
@@ -140,13 +139,8 @@ pub fn measure_omena_parser_product_sample(
     source: &str,
     dialect: StyleDialect,
 ) -> OmenaParserProductMeasurementV0 {
-    let parsed = omena_parser::parse(source, dialect);
-    let parsed_token_count = std::hint::black_box(parsed.token_count());
     let summary = summarize_omena_parser_product_sample(source, dialect);
-    OmenaParserProductMeasurementV0 {
-        parsed_token_count,
-        summary,
-    }
+    OmenaParserProductMeasurementV0 { summary }
 }
 
 pub fn validate_omena_style_sample(source: &str, dialect: StyleDialect) -> Result<(), String> {
@@ -268,7 +262,7 @@ mod tests {
         assert!(
             boundaries
                 .iter()
-                .all(|boundary| boundary.parse_witness_consumed)
+                .all(|boundary| boundary.parse_work_measured_inside_summary)
         );
         assert!(
             boundaries
@@ -284,7 +278,7 @@ mod tests {
     }
 
     #[test]
-    fn parser_product_samples_use_symmetric_parse_plus_summary_boundaries() -> Result<(), String> {
+    fn parser_product_samples_use_symmetric_source_to_summary_boundaries() -> Result<(), String> {
         for sample in style_corpus() {
             validate_legacy_style_sample(sample.path, sample.source.as_str())?;
             validate_omena_style_sample(sample.source.as_str(), sample.dialect)?;
@@ -293,7 +287,6 @@ mod tests {
                 summarize_legacy_parser_product_sample(sample.path, sample.source.as_str())
                     .ok_or_else(|| format!("legacy parser product failed for {}", sample.name))?;
             let omena = measure_omena_parser_product_sample(sample.source.as_str(), sample.dialect);
-            assert!(omena.parsed_token_count > 0);
             let legacy = serde_json::to_value(legacy).map_err(|error| error.to_string())?;
             let omena = serde_json::to_value(omena.summary).map_err(|error| error.to_string())?;
 
