@@ -3,12 +3,14 @@ use std::{hint::black_box, time::Instant};
 use omena_benchmarks::{
     style_corpus, summarize_legacy_parser_product_sample, summarize_omena_parser_product_sample,
     validate_legacy_style_sample, validate_omena_style_sample,
+    validate_parser_product_benchmark_boundary_symmetry,
 };
 
 const DEFAULT_MAX_RATIO: f64 = 1.10;
 const ITERATIONS: usize = 40;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    validate_parser_product_benchmark_boundary_symmetry()?;
     let max_ratio = std::env::var("CME_Z5_PARSER_PRODUCT_MAX_RATIO")
         .ok()
         .and_then(|value| value.parse::<f64>().ok())
@@ -28,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
         let omena = measure_iterations(ITERATIONS, || {
             black_box(summarize_omena_parser_product_sample(
-                black_box(&sample.source),
+                black_box(sample.source.as_str()),
                 black_box(sample.dialect),
             ));
         });
@@ -57,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!(
-        "validated parser-product cutover readiness: samples={} iterations={} maxRatio={:.3} worstRatio={:.3}",
+        "validated parser-product cutover readiness: samples={} iterations={} boundary=parse-plus-product-summary input=raw-style-source maxRatio={:.3} worstRatio={:.3}",
         style_corpus().len(),
         ITERATIONS,
         max_ratio,

@@ -66,7 +66,7 @@ fn parser_product_benchmarks(c: &mut Criterion) {
         omena_group.bench_function(sample.name, |b| {
             b.iter(|| {
                 black_box(summarize_omena_parser_product_sample(
-                    black_box(&sample.source),
+                    black_box(sample.source.as_str()),
                     black_box(sample.dialect),
                 ))
             });

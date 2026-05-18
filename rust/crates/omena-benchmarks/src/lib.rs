@@ -9,6 +9,15 @@ pub struct StyleSample {
     pub source: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParserProductBenchmarkBoundaryV0 {
+    pub lane: &'static str,
+    pub input_boundary: &'static str,
+    pub measured_operation: &'static str,
+    pub includes_parse: bool,
+    pub includes_product_summary: bool,
+}
+
 pub fn style_corpus() -> Vec<StyleSample> {
     vec![
         StyleSample {
@@ -30,6 +39,52 @@ pub fn style_corpus() -> Vec<StyleSample> {
             source: build_scss_heavy_design_system(72),
         },
     ]
+}
+
+pub fn parser_product_benchmark_boundaries() -> [ParserProductBenchmarkBoundaryV0; 2] {
+    [
+        ParserProductBenchmarkBoundaryV0 {
+            lane: "legacy",
+            input_boundary: "raw-style-source",
+            measured_operation: "parse-plus-product-summary",
+            includes_parse: true,
+            includes_product_summary: true,
+        },
+        ParserProductBenchmarkBoundaryV0 {
+            lane: "omena",
+            input_boundary: "raw-style-source",
+            measured_operation: "parse-plus-product-summary",
+            includes_parse: true,
+            includes_product_summary: true,
+        },
+    ]
+}
+
+pub fn validate_parser_product_benchmark_boundary_symmetry() -> Result<(), String> {
+    let [legacy, omena] = parser_product_benchmark_boundaries();
+    if legacy.input_boundary != omena.input_boundary {
+        return Err(format!(
+            "parser product benchmark input boundary mismatch: legacy={} omena={}",
+            legacy.input_boundary, omena.input_boundary,
+        ));
+    }
+    if legacy.measured_operation != omena.measured_operation {
+        return Err(format!(
+            "parser product benchmark operation mismatch: legacy={} omena={}",
+            legacy.measured_operation, omena.measured_operation,
+        ));
+    }
+    if !(legacy.includes_parse
+        && omena.includes_parse
+        && legacy.includes_product_summary
+        && omena.includes_product_summary)
+    {
+        return Err(
+            "parser product benchmark must include parse and product summary for both lanes"
+                .to_string(),
+        );
+    }
+    Ok(())
 }
 
 pub fn parse_legacy_style_sample(
@@ -174,10 +229,30 @@ fn build_scss_heavy_design_system(count: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        style_corpus, summarize_legacy_parser_product_sample,
+        parser_product_benchmark_boundaries, style_corpus, summarize_legacy_parser_product_sample,
         summarize_omena_parser_product_sample, validate_legacy_style_sample,
-        validate_omena_style_sample,
+        validate_omena_style_sample, validate_parser_product_benchmark_boundary_symmetry,
     };
+
+    #[test]
+    fn parser_product_benchmarks_declare_symmetric_measurement_boundary() -> Result<(), String> {
+        validate_parser_product_benchmark_boundary_symmetry()?;
+        let boundaries = parser_product_benchmark_boundaries();
+
+        assert_eq!(boundaries.len(), 2);
+        assert!(boundaries.iter().all(|boundary| boundary.includes_parse));
+        assert!(
+            boundaries
+                .iter()
+                .all(|boundary| boundary.includes_product_summary)
+        );
+        assert!(
+            boundaries
+                .iter()
+                .all(|boundary| boundary.input_boundary == "raw-style-source")
+        );
+        Ok(())
+    }
 
     #[test]
     fn parser_product_samples_use_symmetric_parse_plus_summary_boundaries() -> Result<(), String> {
