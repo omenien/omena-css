@@ -951,7 +951,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "reduced whole-value calc() expressions with simple same-unit arithmetic and identity operations",
+                    detail: "reduced whole-value CSS math functions with static same-unit arithmetic and identity operations",
                 }
             }
             Some(TransformPassKind::EmptyRuleRemoval) => {

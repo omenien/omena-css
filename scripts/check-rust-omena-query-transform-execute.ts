@@ -1255,7 +1255,7 @@ const mathFunctionReductionResult = spawnSync(
     input: JSON.stringify({
       stylePath: "math-functions.css",
       styleSource:
-        ".card { width: min(10px, 4px); height: max(1rem, 2rem); margin: min(1px, 1rem); opacity: max(.2, .5); outline-width: calc((2px * 3)); flex-basis: calc(2px * 3 * 4); inline-size: min(10px, max(2px, 4px)); line-height: clamp(.1, .5, .9); }",
+        ".card { width: min(10px, 4px); height: max(1rem, 2rem); margin: min(1px, 1rem); opacity: max(.2, .5); outline-width: calc((2px * 3)); flex-basis: calc(2px * 3 * 4); inline-size: min(10px, max(2px, 4px)); line-height: clamp(.1, .5, .9); stroke-width: abs(-2px); order: sign(-10px); }",
       requestedPassIds: ["calc-reduction", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
@@ -1272,13 +1272,13 @@ const mathFunctionReductionSummary = JSON.parse(
 assert.equal(mathFunctionReductionSummary.product, "omena-query.transform-execute");
 assert.equal(
   mathFunctionReductionSummary.execution.outputCss,
-  ".card { width: 4px; height: 2rem; margin: min(1px, 1rem); opacity: 0.5; outline-width: 6px; flex-basis: 24px; inline-size: 4px; line-height: 0.5; }",
+  ".card { width: 4px; height: 2rem; margin: min(1px, 1rem); opacity: 0.5; outline-width: 6px; flex-basis: 24px; inline-size: 4px; line-height: 0.5; stroke-width: 2px; order: -1; }",
 );
 assert.deepEqual(mathFunctionReductionSummary.execution.executedPassIds, [
   "calc-reduction",
   "print-css",
 ]);
-assert.equal(mathFunctionReductionSummary.execution.mutationCount, 7);
+assert.equal(mathFunctionReductionSummary.execution.mutationCount, 9);
 
 const staticVarShadowResult = spawnSync(
   "cargo",

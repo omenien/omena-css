@@ -8,6 +8,28 @@ pub(crate) fn parse_reducible_calc_value(value: &str) -> Option<String> {
     Some(format_numeric_value_with_unit(reduced))
 }
 
+pub(crate) fn parse_reducible_abs_value(value: &str) -> Option<String> {
+    let inner = parse_whole_function_value_inner(value, "abs")?;
+    let parsed = parse_reducible_numeric_expression(inner)?;
+    Some(format_numeric_value_with_unit(NumericValueWithUnit {
+        value: parsed.value.abs(),
+        unit: parsed.unit,
+    }))
+}
+
+pub(crate) fn parse_reducible_sign_value(value: &str) -> Option<String> {
+    let inner = parse_whole_function_value_inner(value, "sign")?;
+    let parsed = parse_reducible_numeric_expression(inner)?;
+    let value = if parsed.value > 0.0 {
+        1.0
+    } else if parsed.value < 0.0 {
+        -1.0
+    } else {
+        0.0
+    };
+    Some(format_css_number(value))
+}
+
 pub(crate) fn parse_reducible_min_value(value: &str) -> Option<String> {
     parse_reducible_extreme_value(value, "min", f64::min)
 }
