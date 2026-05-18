@@ -275,8 +275,7 @@ pub(crate) fn parse_static_srgb_color(text: &str) -> Option<SrgbColor> {
 }
 
 pub(crate) fn parse_static_srgb_color_with_alpha(text: &str) -> Option<StaticSrgbColorWithAlpha> {
-    parse_static_hex_color(text)
-        .map(|color| StaticSrgbColorWithAlpha { color, alpha: None })
+    parse_static_hex_color_with_alpha(text)
         .or_else(|| parse_basic_named_static_color_with_alpha(text))
 }
 
@@ -296,6 +295,42 @@ fn parse_static_hex_color(text: &str) -> Option<SrgbColor> {
             green: u8::from_str_radix(hex.get(2..4)?, 16).ok()?,
             blue: u8::from_str_radix(hex.get(4..6)?, 16).ok()?,
         }),
+        _ => None,
+    }
+}
+
+fn parse_static_hex_color_with_alpha(text: &str) -> Option<StaticSrgbColorWithAlpha> {
+    let hex = text.strip_prefix('#')?;
+    match hex.len() {
+        3 | 6 => Some(StaticSrgbColorWithAlpha {
+            color: parse_static_hex_color(text)?,
+            alpha: None,
+        }),
+        4 => {
+            let mut chars = hex.chars();
+            Some(StaticSrgbColorWithAlpha {
+                color: SrgbColor {
+                    red: parse_repeated_hex_digit(chars.next()?)?,
+                    green: parse_repeated_hex_digit(chars.next()?)?,
+                    blue: parse_repeated_hex_digit(chars.next()?)?,
+                },
+                alpha: non_opaque_alpha(
+                    f64::from(parse_repeated_hex_digit(chars.next()?)?) / 255.0,
+                ),
+            })
+        }
+        8 => {
+            let color = SrgbColor {
+                red: u8::from_str_radix(hex.get(0..2)?, 16).ok()?,
+                green: u8::from_str_radix(hex.get(2..4)?, 16).ok()?,
+                blue: u8::from_str_radix(hex.get(4..6)?, 16).ok()?,
+            };
+            let alpha = u8::from_str_radix(hex.get(6..8)?, 16).ok()?;
+            Some(StaticSrgbColorWithAlpha {
+                color,
+                alpha: non_opaque_alpha(f64::from(alpha) / 255.0),
+            })
+        }
         _ => None,
     }
 }

@@ -1168,7 +1168,7 @@ const colorMixAlphaResult = spawnSync(
     input: JSON.stringify({
       stylePath: "color-mix-alpha.css",
       styleSource:
-        ".card { color: color-mix(in srgb, red 50%, transparent 50%); background-color: color-mix(in srgb, rgb(100% 0% 0% / .7) 25%, rgb(0% 100% 0% / .2)); outline-color: color-mix(in srgb, rgb(100% 0% 0% / .7) 20%, rgb(0% 100% 0% / .2) 60%); }",
+        ".card { color: color-mix(in srgb, red 50%, transparent 50%); background-color: color-mix(in srgb, rgb(100% 0% 0% / .7) 25%, rgb(0% 100% 0% / .2)); outline-color: color-mix(in srgb, rgb(100% 0% 0% / .7) 20%, rgb(0% 100% 0% / .2) 60%); border-color: color-mix(in srgb, #ff000080 50%, blue 50%); }",
       requestedPassIds: ["color-mix-lowering", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
@@ -1185,13 +1185,13 @@ const colorMixAlphaSummary = JSON.parse(
 assert.equal(colorMixAlphaSummary.product, "omena-query.transform-execute");
 assert.equal(
   colorMixAlphaSummary.execution.outputCss,
-  ".card { color: rgb(255 0 0 / .5); background-color: rgb(137 118 0 / .325); outline-color: rgb(137 118 0 / .26); }",
+  ".card { color: rgb(255 0 0 / .5); background-color: rgb(137 118 0 / .325); outline-color: rgb(137 118 0 / .26); border-color: rgb(85 0 170 / .75098); }",
 );
 assert.deepEqual(colorMixAlphaSummary.execution.executedPassIds, [
   "color-mix-lowering",
   "print-css",
 ]);
-assert.equal(colorMixAlphaSummary.execution.mutationCount, 3);
+assert.equal(colorMixAlphaSummary.execution.mutationCount, 4);
 
 const mathFunctionReductionResult = spawnSync(
   "cargo",
