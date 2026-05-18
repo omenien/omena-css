@@ -579,6 +579,54 @@ assert.deepEqual(designTokenRecoverySummary.execution.executedPassIds, [
 ]);
 assert.equal(designTokenRecoverySummary.execution.mutationCount, 2);
 
+const designTokenAliasResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "DesignTokenAliases.module.css",
+      styleSource:
+        ":root { --pkg-brand: var(--pkg-brand, black); --alias: var(--pkg-brand); --bridge: var(--pkg-border); } .button { color: var(--alias); }",
+      requestedPassIds: ["design-token-routing", "print-css"],
+      transformContext: {
+        designTokenRoutes: [
+          { tokenName: "--pkg-brand", routedValue: "var(--theme-brand)" },
+          { tokenName: "--pkg-border", routedValue: "#123456" },
+        ],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(designTokenAliasResult.status, 0, designTokenAliasResult.stderr);
+assert.equal(designTokenAliasResult.error, undefined);
+
+const designTokenAliasSummary = JSON.parse(
+  designTokenAliasResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(
+  designTokenAliasSummary.execution.outputCss,
+  ":root { --pkg-brand: var(--pkg-brand, black); --alias: var(--theme-brand); --bridge: #123456; } .button { color: var(--alias); }",
+);
+assert.deepEqual(designTokenAliasSummary.execution.executedPassIds, [
+  "design-token-routing",
+  "print-css",
+]);
+assert.equal(designTokenAliasSummary.execution.mutationCount, 2);
+
 const groupedComposesResult = spawnSync(
   "cargo",
   [
@@ -1408,6 +1456,7 @@ process.stdout.write(
     `unknown=${summary.unknownPassIds.length}`,
     `contextExecuted=${contextSummary.execution.executedPassIds.length}`,
     `contextMutations=${contextSummary.execution.mutationCount}`,
+    `designTokenAliasMutations=${designTokenAliasSummary.execution.mutationCount}`,
     `groupedComposesMutations=${groupedComposesSummary.execution.mutationCount}`,
     `globalComposesHashMutations=${globalComposesHashSummary.execution.mutationCount}`,
     `alphaColorMutations=${alphaColorFunctionSummary.execution.mutationCount}`,

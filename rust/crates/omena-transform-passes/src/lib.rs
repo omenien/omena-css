@@ -1610,12 +1610,19 @@ fn route_design_token_values_with_lexer(
         for declaration in
             collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
         {
-            if declaration.property.starts_with("--") || declaration.important {
+            if declaration.important {
                 continue;
             }
-            let Some(routed_value) =
-                route_design_token_references_in_value(&declaration.value, routes)
-            else {
+            let blocked_token_name = declaration
+                .property
+                .starts_with("--")
+                .then(|| normalize_design_token_name(&declaration.property))
+                .flatten();
+            let Some(routed_value) = route_design_token_references_in_value(
+                &declaration.value,
+                routes,
+                blocked_token_name,
+            ) else {
                 continue;
             };
             replacements.push((
@@ -1632,6 +1639,7 @@ fn route_design_token_values_with_lexer(
 fn route_design_token_references_in_value(
     value: &str,
     routes: &[TransformDesignTokenRouteV0],
+    blocked_token_name: Option<&str>,
 ) -> Option<String> {
     let mut output = String::with_capacity(value.len());
     let mut cursor = 0usize;
@@ -1676,9 +1684,11 @@ fn route_design_token_references_in_value(
                     index = close_index + ')'.len_utf8();
                     continue;
                 };
-                if let Some(routed_value) =
-                    routed_design_token_value_for_var_arguments(&arguments, routes)
-                {
+                if let Some(routed_value) = routed_design_token_value_for_var_arguments(
+                    &arguments,
+                    routes,
+                    blocked_token_name,
+                ) {
                     output.push_str(&value[cursor..index]);
                     output.push_str(&routed_value);
                     index = close_index + ')'.len_utf8();
@@ -1704,11 +1714,15 @@ fn route_design_token_references_in_value(
 fn routed_design_token_value_for_var_arguments(
     arguments: &[String],
     routes: &[TransformDesignTokenRouteV0],
+    blocked_token_name: Option<&str>,
 ) -> Option<String> {
     let ([token_name] | [token_name, _]) = arguments else {
         return None;
     };
     let token_name = normalize_design_token_name(token_name)?;
+    if blocked_token_name.is_some_and(|blocked| blocked == token_name) {
+        return None;
+    }
     let routed_value = design_token_routed_value(token_name, routes)?;
     if let [_, fallback] = arguments
         && let Some(routed_token_name) = parse_single_custom_property_var_reference(routed_value)
@@ -6158,15 +6172,48 @@ mod tests {
             &context,
         );
 
-        assert_eq!(execution.mutation_count, 4);
+        assert_eq!(execution.mutation_count, 5);
         assert_eq!(
             execution.output_css,
-            r#".button { color: var(--theme-brand); background: var(--theme-brand, blue); border: 1px solid #123456; box-shadow: 0 0 1px var(--unsafe); --local: var(--pkg-brand); } @media screen { .button { outline-color: var(--theme-brand); } }"#
+            r#".button { color: var(--theme-brand); background: var(--theme-brand, blue); border: 1px solid #123456; box-shadow: 0 0 1px var(--unsafe); --local: var(--theme-brand); } @media screen { .button { outline-color: var(--theme-brand); } }"#
         );
         assert_eq!(execution.design_token_routes, context.design_token_routes);
         assert_eq!(
             execution.executed_pass_ids,
             vec!["design-token-routing", "print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_routes_design_tokens_inside_custom_property_aliases() {
+        let source = r#":root { --pkg-brand: var(--pkg-brand, black); --alias: var(--pkg-brand); --bridge: var(--pkg-border); } .button { color: var(--alias); }"#;
+        let context = TransformExecutionContextV0 {
+            design_token_routes: vec![
+                TransformDesignTokenRouteV0 {
+                    token_name: "--pkg-brand".to_string(),
+                    routed_value: "var(--theme-brand)".to_string(),
+                },
+                TransformDesignTokenRouteV0 {
+                    token_name: "--pkg-border".to_string(),
+                    routed_value: "#123456".to_string(),
+                },
+            ],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::DesignTokenRouting,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#":root { --pkg-brand: var(--pkg-brand, black); --alias: var(--theme-brand); --bridge: #123456; } .button { color: var(--alias); }"#
         );
     }
 
