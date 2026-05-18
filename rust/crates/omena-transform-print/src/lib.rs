@@ -73,7 +73,7 @@ pub fn summarize_omena_transform_print_boundary() -> TransformPrintBoundarySumma
             TransformPrintMode::Pretty,
             TransformPrintMode::Minified,
         ],
-        source_map_contract: "line-level identity segments plus provenance mutation-span segments",
+        source_map_contract: "stable-IR provenance-anchor identity segments with lexical identity fallback plus mutation-span segments",
         planner_surface: "omena-transform-passes.plan",
     }
 }
@@ -117,6 +117,7 @@ pub fn print_transform_cst_source_with_dialect(
             &source_path,
             source,
             &css,
+            &cst_artifact,
             TransformPassKind::PrintCss.id(),
         )
     } else {
@@ -236,8 +237,27 @@ fn compose_identity_source_map_segments(
     source_path: &str,
     source: &str,
     generated: &str,
+    cst_artifact: &TransformCstArtifactV0,
     pass_id: &'static str,
 ) -> Vec<TransformSourceMapSegmentV0> {
+    let anchor_segments = cst_artifact
+        .stable_ir
+        .provenance_anchors
+        .iter()
+        .filter(|anchor| anchor.source_span_start <= anchor.source_span_end)
+        .map(|anchor| TransformSourceMapSegmentV0 {
+            source_path: source_path.to_string(),
+            original_start: anchor.source_span_start,
+            original_end: anchor.source_span_end,
+            generated_start: anchor.source_span_start.min(generated.len()),
+            generated_end: anchor.source_span_end.min(generated.len()),
+            pass_id,
+        })
+        .collect::<Vec<_>>();
+    if !anchor_segments.is_empty() {
+        return anchor_segments;
+    }
+
     if source.is_empty() {
         return vec![TransformSourceMapSegmentV0 {
             source_path: source_path.to_string(),
@@ -250,28 +270,30 @@ fn compose_identity_source_map_segments(
     }
 
     let mut segments = Vec::new();
-    let mut start = 0usize;
+    let mut segment_start = None;
     for (index, byte) in source.bytes().enumerate() {
-        if byte == b'\n' {
-            let end = index + 1;
-            segments.push(TransformSourceMapSegmentV0 {
-                source_path: source_path.to_string(),
-                original_start: start,
-                original_end: end,
-                generated_start: start,
-                generated_end: end.min(generated.len()),
-                pass_id,
-            });
-            start = end;
+        if byte.is_ascii_whitespace() {
+            if let Some(start) = segment_start.take() {
+                segments.push(TransformSourceMapSegmentV0 {
+                    source_path: source_path.to_string(),
+                    original_start: start,
+                    original_end: index,
+                    generated_start: start.min(generated.len()),
+                    generated_end: index.min(generated.len()),
+                    pass_id,
+                });
+            }
+        } else if segment_start.is_none() {
+            segment_start = Some(index);
         }
     }
 
-    if start < source.len() {
+    if let Some(start) = segment_start {
         segments.push(TransformSourceMapSegmentV0 {
             source_path: source_path.to_string(),
             original_start: start,
             original_end: source.len(),
-            generated_start: start,
+            generated_start: start.min(generated.len()),
             generated_end: generated.len(),
             pass_id,
         });
@@ -303,8 +325,8 @@ mod tests {
     }
 
     #[test]
-    fn prints_identity_css_with_line_level_source_map_segments() {
-        let source = ".button {\n  color: var(--brand);\n}";
+    fn prints_identity_css_with_stable_ir_source_map_segments() {
+        let source = ".button { color: var(--brand); background: red; }";
         let artifact = print_transform_cst_source(
             "Button.module.css",
             source,
@@ -316,15 +338,39 @@ mod tests {
         assert_eq!(artifact.product, "omena-transform-print.artifact");
         assert_eq!(artifact.css, source);
         assert!(artifact.provenance_preserved);
-        assert_eq!(artifact.source_map_segments.len(), 3);
-        assert_eq!(artifact.source_map_segments[0].original_start, 0);
-        assert_eq!(artifact.source_map_segments[0].original_end, 10);
+        assert!(artifact.source_map_segments.len() > 1);
+        if artifact
+            .cst_artifact
+            .stable_ir
+            .provenance_anchors
+            .is_empty()
+        {
+            assert!(artifact.source_map_segments.len() > 1);
+        } else {
+            assert_eq!(
+                artifact.source_map_segments.len(),
+                artifact.cst_artifact.stable_ir.provenance_anchors.len()
+            );
+        }
+        assert!(
+            artifact
+                .source_map_segments
+                .iter()
+                .any(|segment| &source[segment.original_start..segment.original_end] == "button")
+        );
+        let expected_last_original_end = artifact
+            .cst_artifact
+            .stable_ir
+            .provenance_anchors
+            .last()
+            .map(|anchor| anchor.source_span_end)
+            .unwrap_or(source.len());
         assert_eq!(
             artifact
                 .source_map_segments
                 .last()
                 .map(|segment| segment.original_end),
-            Some(source.len())
+            Some(expected_last_original_end)
         );
         assert_eq!(
             artifact.pass_plan.ordered_pass_ids,
