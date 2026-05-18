@@ -70,6 +70,10 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { margin: 1px 1px 1px 1px; padding: 1px 2px 3px 2px; }",
   },
   {
+    label: "flex-shorthand-compression",
+    source: ".a { flex: 0 1 auto; } .b { flex: 1 1 0%; } .c { flex: 1 2 0%; }",
+  },
+  {
     label: "border-radius-shorthand-compression",
     source: ".a { border-radius: 1px 1px 1px 1px; }",
   },

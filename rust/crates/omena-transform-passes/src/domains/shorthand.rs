@@ -2,14 +2,17 @@ use omena_cascade::{BoxLonghandInputV0, prove_box_shorthand_combination};
 use omena_parser::{LexedToken, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
-use crate::helpers::{
-    ascii::normalize_ascii_whitespace,
-    declarations::{
-        SimpleDeclarationSlice, collect_simple_declarations_in_block,
-        declaration_ranges_are_adjacent, format_replacement_declaration_like_source,
+use crate::{
+    domains::number::{compress_number_prefix, format_css_number, numeric_prefix_end},
+    helpers::{
+        ascii::normalize_ascii_whitespace,
+        declarations::{
+            SimpleDeclarationSlice, collect_simple_declarations_in_block,
+            declaration_ranges_are_adjacent, format_replacement_declaration_like_source,
+        },
+        tokens::matching_right_brace_index,
+        values::split_top_level_whitespace_value_components,
     },
-    tokens::matching_right_brace_index,
-    values::split_top_level_whitespace_value_components,
 };
 
 pub(crate) fn combine_css_shorthands_with_lexer(
@@ -174,6 +177,8 @@ fn shorthand_value_replacement_for_declaration(
         compress_background_repeat_value(&declaration.value)
     } else if declaration.property == "border-radius" {
         compress_border_radius_value(&declaration.value)
+    } else if declaration.property == "flex" {
+        compress_flex_value(&declaration.value)
     } else if declaration.property == "inset" {
         compress_box_shorthand_value(&declaration.value)
     } else if declaration.property == "list-style" {
@@ -376,6 +381,57 @@ pub(crate) fn compress_list_style_value(value: &str) -> Option<String> {
 
     let compressed = compressed_list_style_components(&style_type, &position, &image)?;
     (compressed != normalize_ascii_whitespace(value)).then_some(compressed)
+}
+
+pub(crate) fn compress_flex_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let [grow, shrink, basis] = components.as_slice() else {
+        return None;
+    };
+    let grow = normalize_flex_number(grow)?;
+    let shrink = normalize_flex_number(shrink)?;
+    let basis_lower = basis.to_ascii_lowercase();
+
+    let compressed = if basis_lower == "auto" && shrink == "1" {
+        if grow == "1" {
+            "auto".to_string()
+        } else {
+            format!("{grow} auto")
+        }
+    } else if is_zero_flex_basis(&basis_lower) {
+        if shrink == "1" {
+            grow
+        } else {
+            format!("{grow} {shrink}")
+        }
+    } else {
+        return None;
+    };
+
+    (compressed.len() < normalize_ascii_whitespace(value).len()).then_some(compressed)
+}
+
+fn normalize_flex_number(value: &str) -> Option<String> {
+    let split = numeric_prefix_end(value)?;
+    if split != value.len() {
+        return None;
+    }
+    let parsed = value.parse::<f64>().ok()?;
+    if !parsed.is_finite() || parsed < 0.0 {
+        return None;
+    }
+
+    Some(compress_number_prefix(&format_css_number(parsed)))
+}
+
+fn is_zero_flex_basis(value: &str) -> bool {
+    if value == "0" {
+        return true;
+    }
+    let Some(number) = value.strip_suffix('%') else {
+        return false;
+    };
+    number.parse::<f64>().is_ok_and(|parsed| parsed == 0.0)
 }
 
 pub(crate) fn compressed_list_style_components(
