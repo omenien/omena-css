@@ -282,11 +282,26 @@ fn normalize_static_unit_declaration_values_with_lexer(
 fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Option<String> {
     match property {
         "aspect-ratio" => normalize_aspect_ratio_value(value),
+        "background-position"
+        | "mask-position"
+        | "-webkit-mask-position"
+        | "perspective-origin"
+        | "transform-origin" => normalize_center_position_value(value),
         "background-size" | "mask-size" | "-webkit-mask-size" => {
             normalize_repeated_pair_value(value, "auto")
         }
         "box-shadow" => normalize_shadow_value(value, true),
         "text-shadow" => normalize_shadow_value(value, false),
+        _ => None,
+    }
+}
+
+fn normalize_center_position_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let is_center = |component: &String| component.eq_ignore_ascii_case("center");
+    match components.as_slice() {
+        [center] if is_center(center) => Some("50%".to_string()),
+        [first, second] if is_center(first) && is_center(second) => Some("50%".to_string()),
         _ => None,
     }
 }

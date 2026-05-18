@@ -904,6 +904,28 @@ fn execution_runtime_normalizes_static_aspect_ratio_spacing() {
 }
 
 #[test]
+fn execution_runtime_normalizes_static_center_position_values() {
+    let source = r#".a { background-position: center center; transform-origin: center; mask-position: CENTER CENTER; object-position: center center; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::UnitNormalization,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 3);
+    assert_eq!(
+        execution.output_css,
+        r#".a { background-position: 50%; transform-origin: 50%; mask-position: 50%; object-position: center center; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["unit-normalization", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_normalizes_static_shadow_zero_lengths() {
     let source = r#".a { box-shadow: 0px 0px 0px #000; } .b { box-shadow: inset 1px 2px 0px 0px #000; } .c { text-shadow: 1px 2px 0px #000; } .d { box-shadow: 1px 2px 0px 5px #000; }"#;
     let execution = execute_transform_passes_on_source(
