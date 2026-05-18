@@ -1473,7 +1473,7 @@ fn execution_runtime_lowers_in_gamut_oklab_oklch_declarations() {
 
 #[test]
 fn execution_runtime_lowers_static_srgb_color_function_declarations() {
-    let source = r#".card { color: color(srgb 1 0 0); background-color: color(srgb 50% 25% 0% / 100%); outline-color: color(srgb 0 0 1 / 1); fill: color(display-p3 0.5 0.5 0.5 / 100%); background: linear-gradient(color(srgb 1 0 0), white); accent-color: color(srgb 1 0 0 / .5); box-shadow: 0 0 1px color(srgb 0 0 1); column-rule: 1px solid color(srgb 1 0 0); border-color: color(display-p3 1 0 0); }"#;
+    let source = r#".card { color: color(srgb 1 0 0); background-color: color(srgb 50% 25% 0% / 100%); outline-color: color(srgb 0 0 1 / 1); fill: color(display-p3 0.5 0.5 0.5 / 100%); background: linear-gradient(color(srgb 1 0 0), white); accent-color: color(srgb 1 0 0 / .5); box-shadow: 0 0 1px color(srgb 0 0 1); column-rule: 1px solid color(srgb 1 0 0); text-shadow: 0 0 1px color(srgb-linear 0.5 0 0.5); scrollbar-color: color(srgb-linear 1 0 0 / 50%) white; border-color: color(display-p3 1 0 0); }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1482,10 +1482,10 @@ fn execution_runtime_lowers_static_srgb_color_function_declarations() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 8);
+    assert_eq!(execution.mutation_count, 10);
     assert_eq!(
         execution.output_css,
-        r#".card { color: rgb(255 0 0); background-color: rgb(128 64 0); outline-color: rgb(0 0 255); fill: rgb(128 128 128); background: linear-gradient(rgb(255 0 0), white); accent-color: rgb(255 0 0 / .5); box-shadow: 0 0 1px rgb(0 0 255); column-rule: 1px solid rgb(255 0 0); border-color: color(display-p3 1 0 0); }"#
+        r#".card { color: rgb(255 0 0); background-color: rgb(128 64 0); outline-color: rgb(0 0 255); fill: rgb(128 128 128); background: linear-gradient(rgb(255 0 0), white); accent-color: rgb(255 0 0 / .5); box-shadow: 0 0 1px rgb(0 0 255); column-rule: 1px solid rgb(255 0 0); text-shadow: 0 0 1px rgb(188 0 188); scrollbar-color: rgb(255 0 0 / .5) white; border-color: color(display-p3 1 0 0); }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

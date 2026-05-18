@@ -556,6 +556,12 @@ pub(crate) fn parse_color_function_value(value: &str) -> Option<String> {
             green: parse_srgb_component(green)?,
             blue: parse_srgb_component(blue)?,
         }
+    } else if space.eq_ignore_ascii_case("srgb-linear") {
+        SrgbColor {
+            red: encode_srgb_channel(parse_unit_interval_component(red)?),
+            green: encode_srgb_channel(parse_unit_interval_component(green)?),
+            blue: encode_srgb_channel(parse_unit_interval_component(blue)?),
+        }
     } else if space.eq_ignore_ascii_case("display-p3") {
         display_p3_to_srgb(
             parse_unit_interval_component(red)?,

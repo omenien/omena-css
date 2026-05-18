@@ -871,7 +871,8 @@ const alphaColorFunctionResult = spawnSync(
     encoding: "utf8",
     input: JSON.stringify({
       stylePath: "colors.css",
-      styleSource: ".card { accent-color: color(srgb 1 0 0 / 50%); color: color(srgb 0 0 1 / 1); }",
+      styleSource:
+        ".card { accent-color: color(srgb 1 0 0 / 50%); color: color(srgb 0 0 1 / 1); text-shadow: 0 0 1px color(srgb-linear 0.5 0 0.5); }",
       requestedPassIds: ["color-function-lowering", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
@@ -888,13 +889,13 @@ const alphaColorFunctionSummary = JSON.parse(
 assert.equal(alphaColorFunctionSummary.product, "omena-query.transform-execute");
 assert.equal(
   alphaColorFunctionSummary.execution.outputCss,
-  ".card { accent-color: rgb(255 0 0 / .5); color: rgb(0 0 255); }",
+  ".card { accent-color: rgb(255 0 0 / .5); color: rgb(0 0 255); text-shadow: 0 0 1px rgb(188 0 188); }",
 );
 assert.deepEqual(alphaColorFunctionSummary.execution.executedPassIds, [
   "color-function-lowering",
   "print-css",
 ]);
-assert.equal(alphaColorFunctionSummary.execution.mutationCount, 2);
+assert.equal(alphaColorFunctionSummary.execution.mutationCount, 3);
 
 const alphaOkColorResult = spawnSync(
   "cargo",
