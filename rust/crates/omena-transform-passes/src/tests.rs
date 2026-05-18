@@ -961,7 +961,29 @@ fn execution_runtime_normalizes_repeated_transform_scale_values() {
     assert_eq!(execution.mutation_count, 1);
     assert_eq!(
         execution.output_css,
-        r#".a { transform: scale(1)scale(2)scale(.5)scale(1, 2); } .b { transform: scale(var(--x), var(--x)); }"#
+        r#".a { transform: scale(1)scale(2)scale(.5)scaleY(2); } .b { transform: scale(var(--x), var(--x)); }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["unit-normalization", "print-css"]
+    );
+}
+
+#[test]
+fn execution_runtime_normalizes_static_3d_transform_axes() {
+    let source = r#".a { transform: scale(2, 1) scale3d(1, 1, 1) scale3d(2, 3, 1) scale3d(1, 1, 2) rotate3d(1, 0, 0, 0deg) rotate3d(0, 1, 0, 1turn) rotate3d(0, 0, 1, 10deg) translate3d(0px, 0px, 0px) translate3d(1px, 0px, 0px) translate3d(0px, 1px, 0px) translate3d(0px, 0px, 1px) translate3d(1px, 2px, 0px); }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::UnitNormalization,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(
+        execution.output_css,
+        r#".a { transform: scaleX(2)scale(1)scale(2,3)scaleZ(2)rotateX(0)rotateY(1turn)rotate(10deg)translate(0,0)translate(1px)translateY(1px)translateZ(1px)translate(1px,2px); }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

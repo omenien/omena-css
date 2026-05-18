@@ -228,6 +228,11 @@ const fixtures: readonly DifferentialFixture[] = [
       ".a { transform: translate(1px, 0px) skew(0deg, 0deg) skewX(0deg) skewY(0turn); }",
   },
   {
+    label: "transform-3d-axis-normalization",
+    source:
+      ".a { transform: scale(2, 1) scale3d(1, 1, 1) scale3d(2, 3, 1) scale3d(1, 1, 2) rotate3d(1, 0, 0, 0deg) rotate3d(0, 1, 0, 1turn) rotate3d(0, 0, 1, 10deg) translate3d(0px, 0px, 0px) translate3d(1px, 0px, 0px) translate3d(0px, 1px, 0px) translate3d(0px, 0px, 1px) translate3d(1px, 2px, 0px); }",
+  },
+  {
     label: "font-family-list",
     source: '.fonts { font-family: "Arial", "Helvetica Neue", "system-ui", sans-serif; }',
   },

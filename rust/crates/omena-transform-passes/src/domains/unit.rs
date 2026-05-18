@@ -391,11 +391,14 @@ fn normalize_static_transform_functions(value: &str) -> Option<String> {
             ("rotateX", normalize_zero_angle_transform_function),
             ("rotateY", normalize_zero_angle_transform_function),
             ("rotateZ", normalize_zero_angle_transform_function),
-            ("scale", normalize_repeated_scale_transform_function),
+            ("rotate3d", normalize_rotate3d_transform_function),
+            ("scale", normalize_scale_transform_function),
+            ("scale3d", normalize_scale3d_transform_function),
             ("skew", normalize_skew_transform_function),
             ("skewX", normalize_skew_x_zero_transform_function),
             ("skewY", normalize_zero_angle_transform_function),
             ("translate", normalize_translate_transform_function),
+            ("translate3d", normalize_translate3d_transform_function),
             ("translateX", normalize_translate_x_zero_transform_function),
             (
                 "translateY",
@@ -449,6 +452,30 @@ fn normalize_translate_x_zero_transform_function(value: &str) -> Option<String> 
     (replacement != value).then_some(replacement)
 }
 
+fn normalize_translate3d_transform_function(value: &str) -> Option<String> {
+    let arguments = transform_function_arguments(value)?;
+    let [x, y, z] = arguments.as_slice() else {
+        return None;
+    };
+    let x_zero = is_zero_transform_length_percentage_argument(x);
+    let y_zero = is_zero_transform_length_percentage_argument(y);
+    let z_zero = is_zero_transform_numeric_unit_argument(z.trim(), is_css_length_unit).is_some();
+    let normalized_x = if x_zero { "0" } else { x.as_str() };
+    let normalized_y = if y_zero { "0" } else { y.as_str() };
+    let normalized_z = if z_zero { "0" } else { z.as_str() };
+
+    let replacement = match (x_zero, y_zero, z_zero) {
+        (true, true, true) => "translate(0,0)".to_string(),
+        (false, true, true) => format!("translate({normalized_x})"),
+        (true, false, true) => format!("translateY({normalized_y})"),
+        (false, false, true) => format!("translate({normalized_x},{normalized_y})"),
+        (true, true, false) => format!("translateZ({normalized_z})"),
+        _ => format!("translate3d({normalized_x},{normalized_y},{normalized_z})"),
+    };
+
+    (replacement != value && replacement.len() <= value.len()).then_some(replacement)
+}
+
 fn normalize_skew_transform_function(value: &str) -> Option<String> {
     let arguments = transform_function_arguments(value)?;
     let [x, y] = arguments.as_slice() else {
@@ -468,19 +495,75 @@ fn normalize_skew_x_zero_transform_function(value: &str) -> Option<String> {
     (replacement != value).then_some(replacement)
 }
 
-fn normalize_repeated_scale_transform_function(value: &str) -> Option<String> {
+fn normalize_scale_transform_function(value: &str) -> Option<String> {
     let arguments = transform_function_arguments(value)?;
     let [first, second] = arguments.as_slice() else {
         return None;
     };
     let first = normalize_transform_number(first)?;
     let second = normalize_transform_number(second)?;
-    if first != second {
+    let replacement = if first == second {
+        format!("scale({first})")
+    } else if first == "1" {
+        format!("scaleY({second})")
+    } else if second == "1" {
+        format!("scaleX({first})")
+    } else {
         return None;
-    }
-
-    let replacement = format!("scale({first})");
+    };
     (replacement.len() < value.len()).then_some(replacement)
+}
+
+fn normalize_scale3d_transform_function(value: &str) -> Option<String> {
+    let arguments = transform_function_arguments(value)?;
+    let [x, y, z] = arguments.as_slice() else {
+        return None;
+    };
+    let x = normalize_transform_number(x)?;
+    let y = normalize_transform_number(y)?;
+    let z = normalize_transform_number(z)?;
+
+    let replacement = if z == "1" {
+        if x == y {
+            format!("scale({x})")
+        } else {
+            format!("scale({x},{y})")
+        }
+    } else if x == "1" && y == "1" {
+        format!("scaleZ({z})")
+    } else {
+        return None;
+    };
+
+    (replacement.len() < value.len()).then_some(replacement)
+}
+
+fn normalize_rotate3d_transform_function(value: &str) -> Option<String> {
+    let arguments = transform_function_arguments(value)?;
+    let [x, y, z, angle] = arguments.as_slice() else {
+        return None;
+    };
+    let x = normalize_transform_number(x)?;
+    let y = normalize_transform_number(y)?;
+    let z = normalize_transform_number(z)?;
+    let angle = normalize_zero_transform_angle_argument_text(angle);
+
+    let replacement = match (x.as_str(), y.as_str(), z.as_str()) {
+        ("1", "0", "0") => format!("rotateX({angle})"),
+        ("0", "1", "0") => format!("rotateY({angle})"),
+        ("0", "0", "1") => format!("rotate({angle})"),
+        _ => return None,
+    };
+
+    (replacement.len() < value.len()).then_some(replacement)
+}
+
+fn normalize_zero_transform_angle_argument_text(value: &str) -> String {
+    if is_zero_transform_angle_argument(value) {
+        "0".to_string()
+    } else {
+        value.trim().to_string()
+    }
 }
 
 fn normalize_transform_number(value: &str) -> Option<String> {
