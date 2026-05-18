@@ -22,11 +22,14 @@ pub use domains::css_modules_values::resolve_static_css_modules_local_value_reso
 use domains::{
     cascade_flatten::{flatten_css_layers_with_lexer, flatten_css_scopes_with_lexer},
     color::{
-        compress_hex_color_token_text, parse_basic_named_static_color_with_alpha,
-        parse_color_function_value, parse_color_mix_value, parse_oklab_oklch_value,
-        parse_static_hsl_function_color_with_alpha, parse_static_hwb_function_color_with_alpha,
-        parse_static_rgb_function_color_with_alpha, parse_static_srgb_color_with_alpha,
-        shortest_static_srgb_color_with_alpha_text,
+        compress_hex_color_token_text, is_static_color_reference_property,
+        parse_basic_named_static_color_with_alpha, parse_static_hsl_function_color_with_alpha,
+        parse_static_hwb_function_color_with_alpha, parse_static_rgb_function_color_with_alpha,
+        parse_static_srgb_color_with_alpha, shortest_static_srgb_color_with_alpha_text,
+    },
+    color_lowering::{
+        lower_css_color_function_with_lexer, lower_css_color_mix_with_lexer,
+        lower_css_light_dark_with_lexer, lower_css_oklab_oklch_with_lexer,
     },
     css_modules_classes::{
         rewrite_css_module_class_names_with_lexer, strip_resolved_css_module_composes_with_lexer,
@@ -67,7 +70,7 @@ use domains::{
         strip_css_url_quotes_with_lexer,
     },
 };
-use helpers::blocks::{at_rule_block_start, rule_block_token_indexes};
+use helpers::blocks::at_rule_block_start;
 use helpers::declarations::{
     SimpleDeclarationSlice, collect_simple_declarations_in_block, declaration_ranges_are_adjacent,
     format_replacement_declaration_like_source,
@@ -84,8 +87,9 @@ use helpers::tokens::{
     previous_non_comment_token_kind, skip_whitespace_tokens, token_end, token_start,
 };
 use helpers::values::{
-    matching_function_call_end, parse_whole_function_value_arguments,
-    split_top_level_whitespace_value_components,
+    matching_function_call_end, split_top_level_whitespace_value_components,
+    substitute_static_css_function_references_in_value,
+    substitute_static_css_function_references_in_value_until_stable,
 };
 use model::TransformSemanticRemovalCandidate;
 pub use model::*;
@@ -361,258 +365,6 @@ fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usi
     normalize_css_whitespace_with_lexer(source, dialect)
 }
 
-fn lower_css_light_dark_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
-    let mut replacements = Vec::new();
-    let mut insertions = Vec::new();
-
-    for rule in &rules {
-        let Some((block_start_index, block_end_index)) =
-            rule_block_token_indexes(tokens, rule.block_start, rule.block_end)
-        else {
-            continue;
-        };
-        let declarations =
-            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index);
-        for declaration in declarations {
-            if !is_static_color_reference_property(&declaration.property) {
-                continue;
-            }
-            let Some((light_value, dark_value)) =
-                substitute_light_dark_references_in_value(&declaration.value)
-            else {
-                continue;
-            };
-            replacements.push((
-                declaration.start,
-                declaration.end,
-                format!("{}: {light_value};", declaration.property),
-            ));
-            insertions.push((
-                rule.end,
-                format!(
-                    " @media (prefers-color-scheme: dark) {{ {} {{ {}: {dark_value}; }} }}",
-                    rule.selector, declaration.property
-                ),
-            ));
-        }
-    }
-
-    if replacements.is_empty() && insertions.is_empty() {
-        return (source.to_string(), 0);
-    }
-
-    let mut output = String::with_capacity(source.len());
-    let mut cursor = 0;
-    let mut insertion_index = 0;
-    for (start, end, replacement) in &replacements {
-        while insertion_index < insertions.len() && insertions[insertion_index].0 <= *start {
-            let (position, insertion) = &insertions[insertion_index];
-            if *position > cursor {
-                output.push_str(&source[cursor..*position]);
-                cursor = *position;
-            }
-            output.push_str(insertion);
-            insertion_index += 1;
-        }
-        if *start > cursor {
-            output.push_str(&source[cursor..*start]);
-        }
-        output.push_str(replacement);
-        cursor = *end;
-    }
-    while insertion_index < insertions.len() {
-        let (position, insertion) = &insertions[insertion_index];
-        if *position > cursor {
-            output.push_str(&source[cursor..*position]);
-            cursor = *position;
-        }
-        output.push_str(insertion);
-        insertion_index += 1;
-    }
-    if cursor < source.len() {
-        output.push_str(&source[cursor..]);
-    }
-
-    (output, replacements.len())
-}
-
-fn lower_css_color_mix_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let mut replacements = Vec::new();
-    let mut index = 0;
-
-    while index < tokens.len() {
-        if tokens[index].kind == SyntaxKind::LeftBrace
-            && let Some(close_index) = matching_right_brace_index(tokens, index)
-        {
-            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
-            for declaration in declarations {
-                if !is_static_color_reference_property(&declaration.property) {
-                    continue;
-                }
-                let Some(replacement_value) = substitute_static_css_function_references_in_value(
-                    &declaration.value,
-                    &[("color-mix", parse_color_mix_value)],
-                ) else {
-                    continue;
-                };
-                replacements.push((
-                    declaration.start,
-                    declaration.end,
-                    format_replacement_declaration_like_source(
-                        source,
-                        &declaration,
-                        &replacement_value,
-                    ),
-                ));
-            }
-            index += 1;
-            continue;
-        }
-        index += 1;
-    }
-
-    if replacements.is_empty() {
-        return (source.to_string(), 0);
-    }
-
-    let mut output = String::with_capacity(source.len());
-    let mut cursor = 0;
-    for (start, end, replacement) in &replacements {
-        if *start > cursor {
-            output.push_str(&source[cursor..*start]);
-        }
-        output.push_str(replacement);
-        cursor = *end;
-    }
-    if cursor < source.len() {
-        output.push_str(&source[cursor..]);
-    }
-
-    (output, replacements.len())
-}
-
-fn lower_css_oklab_oklch_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let mut replacements = Vec::new();
-    let mut index = 0;
-
-    while index < tokens.len() {
-        if tokens[index].kind == SyntaxKind::LeftBrace
-            && let Some(close_index) = matching_right_brace_index(tokens, index)
-        {
-            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
-            for declaration in declarations {
-                if !is_static_color_reference_property(&declaration.property) {
-                    continue;
-                }
-                let Some(replacement_value) = substitute_static_css_function_references_in_value(
-                    &declaration.value,
-                    &[
-                        ("oklab", parse_oklab_oklch_value),
-                        ("oklch", parse_oklab_oklch_value),
-                    ],
-                ) else {
-                    continue;
-                };
-                replacements.push((
-                    declaration.start,
-                    declaration.end,
-                    format_replacement_declaration_like_source(
-                        source,
-                        &declaration,
-                        &replacement_value,
-                    ),
-                ));
-            }
-            index += 1;
-            continue;
-        }
-        index += 1;
-    }
-
-    if replacements.is_empty() {
-        return (source.to_string(), 0);
-    }
-
-    let mut output = String::with_capacity(source.len());
-    let mut cursor = 0;
-    for (start, end, replacement) in &replacements {
-        if *start > cursor {
-            output.push_str(&source[cursor..*start]);
-        }
-        output.push_str(replacement);
-        cursor = *end;
-    }
-    if cursor < source.len() {
-        output.push_str(&source[cursor..]);
-    }
-
-    (output, replacements.len())
-}
-
-fn lower_css_color_function_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let mut replacements = Vec::new();
-    let mut index = 0;
-
-    while index < tokens.len() {
-        if tokens[index].kind == SyntaxKind::LeftBrace
-            && let Some(close_index) = matching_right_brace_index(tokens, index)
-        {
-            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
-            for declaration in declarations {
-                if !is_static_color_reference_property(&declaration.property) {
-                    continue;
-                }
-                let Some(replacement_value) = substitute_static_css_function_references_in_value(
-                    &declaration.value,
-                    &[("color", parse_color_function_value)],
-                ) else {
-                    continue;
-                };
-                replacements.push((
-                    declaration.start,
-                    declaration.end,
-                    format_replacement_declaration_like_source(
-                        source,
-                        &declaration,
-                        &replacement_value,
-                    ),
-                ));
-            }
-            index = close_index + 1;
-            continue;
-        }
-        index += 1;
-    }
-
-    if replacements.is_empty() {
-        return (source.to_string(), 0);
-    }
-
-    let mut output = String::with_capacity(source.len());
-    let mut cursor = 0;
-    for (start, end, replacement) in &replacements {
-        if *start > cursor {
-            output.push_str(&source[cursor..*start]);
-        }
-        output.push_str(replacement);
-        cursor = *end;
-    }
-    if cursor < source.len() {
-        output.push_str(&source[cursor..]);
-    }
-
-    (output, replacements.len())
-}
-
 fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
@@ -672,180 +424,6 @@ fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) -> (String, u
     }
 
     (output, replacements.len())
-}
-
-fn parse_light_dark_value(value: &str) -> Option<(String, String)> {
-    let arguments = parse_whole_function_value_arguments(value, "light-dark")?;
-    let [light, dark] = arguments.as_slice() else {
-        return None;
-    };
-    if light.is_empty() || dark.is_empty() {
-        return None;
-    }
-    Some((light.clone(), dark.clone()))
-}
-
-fn substitute_light_dark_references_in_value(value: &str) -> Option<(String, String)> {
-    let mut light_output = String::with_capacity(value.len());
-    let mut dark_output = String::with_capacity(value.len());
-    let mut cursor = 0usize;
-    let mut index = 0usize;
-    let mut quote: Option<char> = None;
-    let mut changed = false;
-
-    while index < value.len() {
-        let ch = value[index..].chars().next()?;
-
-        if let Some(quote_ch) = quote {
-            index += ch.len_utf8();
-            if ch == '\\' {
-                let escaped = value[index..].chars().next()?;
-                index += escaped.len_utf8();
-            } else if ch == quote_ch {
-                quote = None;
-            }
-            continue;
-        }
-
-        match ch {
-            '"' | '\'' => {
-                quote = Some(ch);
-                index += ch.len_utf8();
-            }
-            _ if value[index..]
-                .get(.."light-dark(".len())
-                .is_some_and(|text| text.eq_ignore_ascii_case("light-dark(")) =>
-            {
-                let left_paren_index = index + "light-dark".len();
-                let Some(close_index) = matching_function_call_end(value, left_paren_index) else {
-                    index += ch.len_utf8();
-                    continue;
-                };
-                let function_value = &value[index..close_index + ')'.len_utf8()];
-                let Some((light_value, dark_value)) = parse_light_dark_value(function_value) else {
-                    index += ch.len_utf8();
-                    continue;
-                };
-                light_output.push_str(&value[cursor..index]);
-                dark_output.push_str(&value[cursor..index]);
-                light_output.push_str(&light_value);
-                dark_output.push_str(&dark_value);
-                index = close_index + ')'.len_utf8();
-                cursor = index;
-                changed = true;
-            }
-            _ => {
-                index += ch.len_utf8();
-            }
-        }
-    }
-
-    if !changed {
-        return None;
-    }
-    light_output.push_str(&value[cursor..]);
-    dark_output.push_str(&value[cursor..]);
-    Some((light_output, dark_output))
-}
-
-type StaticCssFunctionParser = fn(&str) -> Option<String>;
-type StaticCssFunctionSpec<'a> = (&'a str, StaticCssFunctionParser);
-
-fn substitute_static_css_function_references_in_value(
-    value: &str,
-    functions: &[StaticCssFunctionSpec<'_>],
-) -> Option<String> {
-    let mut output = String::with_capacity(value.len());
-    let mut cursor = 0usize;
-    let mut index = 0usize;
-    let mut quote: Option<char> = None;
-    let mut changed = false;
-
-    while index < value.len() {
-        let ch = value[index..].chars().next()?;
-
-        if let Some(quote_ch) = quote {
-            index += ch.len_utf8();
-            if ch == '\\' {
-                let escaped = value[index..].chars().next()?;
-                index += escaped.len_utf8();
-            } else if ch == quote_ch {
-                quote = None;
-            }
-            continue;
-        }
-
-        match ch {
-            '"' | '\'' => {
-                quote = Some(ch);
-                index += ch.len_utf8();
-            }
-            _ => {
-                let Some((function_name, parse_function_value)) =
-                    static_css_function_at(value, index, functions)
-                else {
-                    index += ch.len_utf8();
-                    continue;
-                };
-                let left_paren_index = index + function_name.len();
-                let Some(close_index) = matching_function_call_end(value, left_paren_index) else {
-                    index += ch.len_utf8();
-                    continue;
-                };
-                let function_value = &value[index..close_index + ')'.len_utf8()];
-                let Some(replacement_value) = parse_function_value(function_value) else {
-                    index += ch.len_utf8();
-                    continue;
-                };
-                output.push_str(&value[cursor..index]);
-                output.push_str(&replacement_value);
-                index = close_index + ')'.len_utf8();
-                cursor = index;
-                changed = true;
-            }
-        }
-    }
-
-    if !changed {
-        return None;
-    }
-    output.push_str(&value[cursor..]);
-    Some(output)
-}
-
-fn substitute_static_css_function_references_in_value_until_stable(
-    value: &str,
-    functions: &[StaticCssFunctionSpec<'_>],
-) -> Option<String> {
-    let mut current = value.to_string();
-    let mut changed = false;
-
-    for _ in 0..8 {
-        let Some(next) = substitute_static_css_function_references_in_value(&current, functions)
-        else {
-            break;
-        };
-        if next == current {
-            break;
-        }
-        current = next;
-        changed = true;
-    }
-
-    changed.then_some(current)
-}
-
-fn static_css_function_at<'a>(
-    value: &str,
-    index: usize,
-    functions: &'a [StaticCssFunctionSpec<'a>],
-) -> Option<StaticCssFunctionSpec<'a>> {
-    functions.iter().find_map(|(function_name, parser)| {
-        let name = value.get(index..index + function_name.len())?;
-        let open_paren = value[index + function_name.len()..].chars().next()?;
-        (name.eq_ignore_ascii_case(function_name) && open_paren == '(')
-            .then_some((*function_name, *parser))
-    })
 }
 
 fn add_css_vendor_prefixes_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -1876,54 +1454,6 @@ fn compress_static_named_srgb_color_references_in_value(value: &str) -> Option<S
     }
     output.push_str(&value[cursor..]);
     Some(output)
-}
-
-fn is_static_color_reference_property(property: &str) -> bool {
-    matches!(
-        property,
-        "accent-color"
-            | "background"
-            | "background-color"
-            | "border"
-            | "border-block"
-            | "border-block-color"
-            | "border-block-end"
-            | "border-block-end-color"
-            | "border-block-start"
-            | "border-block-start-color"
-            | "border-bottom"
-            | "border-bottom-color"
-            | "border-color"
-            | "border-inline"
-            | "border-inline-color"
-            | "border-inline-end"
-            | "border-inline-end-color"
-            | "border-inline-start"
-            | "border-inline-start-color"
-            | "border-left"
-            | "border-left-color"
-            | "border-right"
-            | "border-right-color"
-            | "border-top"
-            | "border-top-color"
-            | "box-shadow"
-            | "caret-color"
-            | "color"
-            | "column-rule"
-            | "column-rule-color"
-            | "fill"
-            | "filter"
-            | "flood-color"
-            | "lighting-color"
-            | "outline"
-            | "outline-color"
-            | "scrollbar-color"
-            | "stop-color"
-            | "stroke"
-            | "text-decoration-color"
-            | "text-emphasis-color"
-            | "text-shadow"
-    )
 }
 
 fn normalize_css_units_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {

@@ -1,5 +1,6 @@
 pub(crate) mod cascade_flatten;
 pub(crate) mod color;
+pub(crate) mod color_lowering;
 pub(crate) mod css_module_global;
 pub(crate) mod css_modules_classes;
 pub(crate) mod css_modules_values;

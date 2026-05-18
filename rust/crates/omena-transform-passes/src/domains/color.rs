@@ -30,6 +30,54 @@ pub(crate) fn parse_color_mix_value(value: &str) -> Option<String> {
     Some(mixed.color.to_css_rgb_with_alpha(mixed.alpha))
 }
 
+pub(crate) fn is_static_color_reference_property(property: &str) -> bool {
+    matches!(
+        property,
+        "accent-color"
+            | "background"
+            | "background-color"
+            | "border"
+            | "border-block"
+            | "border-block-color"
+            | "border-block-end"
+            | "border-block-end-color"
+            | "border-block-start"
+            | "border-block-start-color"
+            | "border-bottom"
+            | "border-bottom-color"
+            | "border-color"
+            | "border-inline"
+            | "border-inline-color"
+            | "border-inline-end"
+            | "border-inline-end-color"
+            | "border-inline-start"
+            | "border-inline-start-color"
+            | "border-left"
+            | "border-left-color"
+            | "border-right"
+            | "border-right-color"
+            | "border-top"
+            | "border-top-color"
+            | "box-shadow"
+            | "caret-color"
+            | "color"
+            | "column-rule"
+            | "column-rule-color"
+            | "fill"
+            | "filter"
+            | "flood-color"
+            | "lighting-color"
+            | "outline"
+            | "outline-color"
+            | "scrollbar-color"
+            | "stop-color"
+            | "stroke"
+            | "text-decoration-color"
+            | "text-emphasis-color"
+            | "text-shadow"
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum StaticColorMixSpace {
     Srgb,

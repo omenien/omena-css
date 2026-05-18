@@ -15,8 +15,11 @@ use crate::{
         ascii::normalize_ascii_whitespace,
         blocks::at_rule_block_indexes,
         tokens::{token_end, token_start},
+        values::{
+            matching_function_call_end,
+            substitute_static_css_function_references_in_value_until_stable,
+        },
     },
-    matching_function_call_end, substitute_static_css_function_references_in_value_until_stable,
 };
 
 pub(crate) fn evaluate_static_supports_rules_with_lexer(

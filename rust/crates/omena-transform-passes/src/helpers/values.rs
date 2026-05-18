@@ -237,6 +237,106 @@ pub(crate) fn split_top_level_whitespace_value_components(value: &str) -> Option
     (!components.is_empty()).then_some(components)
 }
 
+pub(crate) type StaticCssFunctionParser = fn(&str) -> Option<String>;
+pub(crate) type StaticCssFunctionSpec<'a> = (&'a str, StaticCssFunctionParser);
+
+pub(crate) fn substitute_static_css_function_references_in_value(
+    value: &str,
+    functions: &[StaticCssFunctionSpec<'_>],
+) -> Option<String> {
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+    let mut changed = false;
+
+    while index < value.len() {
+        let ch = value[index..].chars().next()?;
+
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                let escaped = value[index..].chars().next()?;
+                index += escaped.len_utf8();
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            _ => {
+                let Some((function_name, parse_function_value)) =
+                    static_css_function_at(value, index, functions)
+                else {
+                    index += ch.len_utf8();
+                    continue;
+                };
+                let left_paren_index = index + function_name.len();
+                let Some(close_index) = matching_function_call_end(value, left_paren_index) else {
+                    index += ch.len_utf8();
+                    continue;
+                };
+                let function_value = &value[index..close_index + ')'.len_utf8()];
+                let Some(replacement_value) = parse_function_value(function_value) else {
+                    index += ch.len_utf8();
+                    continue;
+                };
+                output.push_str(&value[cursor..index]);
+                output.push_str(&replacement_value);
+                index = close_index + ')'.len_utf8();
+                cursor = index;
+                changed = true;
+            }
+        }
+    }
+
+    if !changed {
+        return None;
+    }
+    output.push_str(&value[cursor..]);
+    Some(output)
+}
+
+pub(crate) fn substitute_static_css_function_references_in_value_until_stable(
+    value: &str,
+    functions: &[StaticCssFunctionSpec<'_>],
+) -> Option<String> {
+    let mut current = value.to_string();
+    let mut changed = false;
+
+    for _ in 0..8 {
+        let Some(next) = substitute_static_css_function_references_in_value(&current, functions)
+        else {
+            break;
+        };
+        if next == current {
+            break;
+        }
+        current = next;
+        changed = true;
+    }
+
+    changed.then_some(current)
+}
+
+fn static_css_function_at<'a>(
+    value: &str,
+    index: usize,
+    functions: &'a [StaticCssFunctionSpec<'a>],
+) -> Option<StaticCssFunctionSpec<'a>> {
+    functions.iter().find_map(|(function_name, parser)| {
+        let name = value.get(index..index + function_name.len())?;
+        let open_paren = value[index + function_name.len()..].chars().next()?;
+        (name.eq_ignore_ascii_case(function_name) && open_paren == '(')
+            .then_some((*function_name, *parser))
+    })
+}
+
 pub(crate) fn static_css_string_value(value: &str) -> Option<String> {
     let value = value.trim();
     if value.len() < 2 {
