@@ -46,6 +46,7 @@ use helpers::blocks::{
     at_rule_block_start, at_rule_prelude_end_index, previous_significant_token_kind,
     rule_block_token_indexes,
 };
+use helpers::identifiers::{css_identifier_text_is_plain, normalize_custom_property_name};
 use helpers::source_rewrite::{remove_source_ranges, replace_source_ranges, rewrite_lexer_tokens};
 use helpers::tokens::{
     is_comment_token, matching_right_brace_index, matching_right_paren_index,
@@ -5864,19 +5865,6 @@ fn collect_custom_property_references_in_value(value: &str) -> Option<Vec<String
     }
 
     Some(names)
-}
-
-fn normalize_custom_property_name(name: &str) -> Option<&str> {
-    let name = name.trim();
-    if name.starts_with("--") && name.len() > 2 {
-        return Some(name);
-    }
-    None
-}
-
-fn css_identifier_text_is_plain(text: &str) -> bool {
-    text.chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
 }
 
 fn substitute_static_css_custom_properties_with_lexer(
