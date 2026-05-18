@@ -174,6 +174,11 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { border: 1px solid black; }",
   },
   {
+    label: "border-outline-zero-shorthand-lengths",
+    source:
+      ".a { border: 0px solid #000000; } .b { border-top: 0px solid #000000; } .c { outline: 0px solid #000000; } .d { text-decoration: underline 0px #000000; }",
+  },
+  {
     label: "url-zero-font-family",
     source: '.a { background: url("/icons/a.svg"); margin: 0 0 0 0%; font-family: "Inter"; }',
   },
