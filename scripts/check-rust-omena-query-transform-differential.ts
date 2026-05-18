@@ -87,6 +87,15 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { top: 1px; right: 2px; bottom: 1px; left: 2px; }",
   },
   {
+    label: "list-style-shorthand-compression",
+    source: ".a { list-style: disc outside none; }",
+  },
+  {
+    label: "list-style-longhand-compression",
+    source:
+      ".a { list-style-type: none; list-style-position: outside; list-style-image: none; }",
+  },
+  {
     label: "structural-rule-merge",
     source:
       ".dupe { display: block; } .dupe { display: block; } .sel-a { border: 0; } .sel-b { border: 0; } .merge { color: red; } .merge { background: #0000FF; }",

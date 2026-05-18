@@ -5940,6 +5940,18 @@ fn collect_shorthand_replacements_in_block(
             index += 1;
         }
     }
+    let mut index = 0;
+    while index + 2 < declarations.len() {
+        if let Some((start, end, replacement)) = list_style_shorthand_replacement_for_declarations(
+            tokens,
+            &declarations[index..index + 3],
+        ) {
+            ranges.push((start, end, replacement));
+            index += 3;
+        } else {
+            index += 1;
+        }
+    }
     for declaration in &declarations {
         if let Some((start, end, replacement)) =
             shorthand_value_replacement_for_declaration(source, declaration)
@@ -6037,6 +6049,8 @@ fn shorthand_value_replacement_for_declaration(
         compress_border_radius_value(&declaration.value)
     } else if declaration.property == "inset" {
         compress_box_shorthand_value(&declaration.value)
+    } else if declaration.property == "list-style" {
+        compress_list_style_value(&declaration.value)
     } else {
         None
     }?;
@@ -6165,6 +6179,114 @@ fn inset_shorthand_replacement_for_declarations(
         .collect::<Vec<_>>();
     let shorthand_value = compress_box_shorthand_values(&values)?;
     Some((top.start, left.end, format!("inset: {shorthand_value};")))
+}
+
+fn list_style_shorthand_replacement_for_declarations(
+    tokens: &[omena_parser::LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let [style_type, position, image] = declarations else {
+        return None;
+    };
+    if style_type.property != "list-style-type"
+        || position.property != "list-style-position"
+        || image.property != "list-style-image"
+        || declarations.iter().any(|declaration| declaration.important)
+        || !declaration_ranges_are_adjacent(tokens, declarations)
+    {
+        return None;
+    }
+    let shorthand_value =
+        compressed_list_style_components(&style_type.value, &position.value, &image.value)?;
+    Some((
+        style_type.start,
+        image.end,
+        format!("list-style: {shorthand_value};"),
+    ))
+}
+
+fn compress_list_style_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let mut style_type = "disc".to_string();
+    let mut position = "outside".to_string();
+    let mut image = "none".to_string();
+
+    for component in &components {
+        if is_list_style_position(component) {
+            position = component.clone();
+        } else if is_list_style_image(component) {
+            image = component.clone();
+        } else if is_list_style_type(component) {
+            style_type = component.clone();
+        } else {
+            return None;
+        }
+    }
+
+    let compressed = compressed_list_style_components(&style_type, &position, &image)?;
+    (compressed != normalize_ascii_whitespace(value)).then_some(compressed)
+}
+
+fn compressed_list_style_components(
+    style_type: &str,
+    position: &str,
+    image: &str,
+) -> Option<String> {
+    if !is_list_style_type(style_type)
+        || !is_list_style_position(position)
+        || !is_list_style_image(image)
+    {
+        return None;
+    }
+    if style_type == "none" && image == "none" {
+        return Some(if position == "outside" {
+            "none".to_string()
+        } else {
+            format!("{position} none")
+        });
+    }
+
+    let mut components = Vec::new();
+    if position != "outside" || (style_type == "disc" && image == "none") {
+        components.push(position.to_string());
+    }
+    if style_type != "disc" && !(style_type == "none" && image == "none") {
+        components.push(style_type.to_string());
+    }
+    if image != "none" {
+        components.push(image.to_string());
+    }
+    if components.is_empty() {
+        components.push("outside".to_string());
+    }
+    Some(components.join(" "))
+}
+
+fn is_list_style_position(value: &str) -> bool {
+    matches!(value, "inside" | "outside")
+}
+
+fn is_list_style_type(value: &str) -> bool {
+    matches!(
+        value,
+        "disc"
+            | "circle"
+            | "square"
+            | "decimal"
+            | "decimal-leading-zero"
+            | "lower-roman"
+            | "upper-roman"
+            | "lower-alpha"
+            | "upper-alpha"
+            | "none"
+    )
+}
+
+fn is_list_style_image(value: &str) -> bool {
+    value == "none"
+        || value
+            .get(.."url(".len())
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("url("))
 }
 
 fn compress_box_shorthand_value(value: &str) -> Option<String> {
@@ -9055,6 +9177,24 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".a { inset: 1px 2px; inset: 1px 2px; } .b { top: 1px; color: red; right: 2px; bottom: 1px; left: 2px; } .important { top: 1px !important; right: 2px !important; bottom: 1px !important; left: 2px !important; }"#
+        );
+    }
+
+    #[test]
+    fn execution_runtime_compresses_list_style_shorthands() {
+        let source = r#".a { list-style: disc outside none; list-style-type: none; list-style-position: outside; list-style-image: none; } .b { list-style-type: decimal; list-style-position: inside; list-style-image: none; } .c { list-style-type: disc; color: red; list-style-position: outside; list-style-image: none; } .important { list-style-type: none !important; list-style-position: outside !important; list-style-image: none !important; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::ShorthandCombining,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 3);
+        assert_eq!(
+            execution.output_css,
+            r#".a { list-style: outside; list-style: none; } .b { list-style: inside decimal; } .c { list-style-type: disc; color: red; list-style-position: outside; list-style-image: none; } .important { list-style-type: none !important; list-style-position: outside !important; list-style-image: none !important; }"#
         );
     }
 
