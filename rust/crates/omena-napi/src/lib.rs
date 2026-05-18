@@ -21,7 +21,7 @@ use omena_query::{
     OmenaQueryTransformContextFromEngineInputSummaryV0 as OmenaNapiTransformContextFromEngineInputSummaryV0,
     OmenaQueryTransformExecutionContextV0 as OmenaNapiTransformExecutionContextV0,
     OmenaQueryTransformPassSummaryV0 as OmenaNapiPassSummaryV0, ParserPositionV0,
-    execute_omena_query_consumer_build_style_source,
+    conservative_omena_query_target_options, execute_omena_query_consumer_build_style_source,
     execute_omena_query_consumer_build_style_source_for_target_query,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_for_target_query_with_options,
@@ -597,12 +597,18 @@ pub fn read_workspace_source_diagnostics_summary(
 fn parse_target_options_json(
     target_options_json: &str,
 ) -> napi::Result<OmenaNapiTargetTransformOptionsV0> {
+    if json_argument_is_absent(target_options_json) {
+        return Ok(conservative_omena_query_target_options());
+    }
     serde_json::from_str(target_options_json).map_err(|error| {
         napi::Error::from_reason(format!("failed to parse target options JSON: {error}"))
     })
 }
 
 fn parse_context_json(context_json: &str) -> napi::Result<OmenaNapiTransformExecutionContextV0> {
+    if json_argument_is_absent(context_json) {
+        return Ok(OmenaNapiTransformExecutionContextV0::default());
+    }
     serde_json::from_str(context_json).map_err(|error| {
         napi::Error::from_reason(format!("failed to parse transform context JSON: {error}"))
     })
@@ -617,7 +623,7 @@ fn parse_style_sources_json(sources_json: &str) -> napi::Result<Vec<OmenaNapiSty
 fn parse_source_documents_json(
     source_documents_json: &str,
 ) -> napi::Result<Vec<OmenaNapiSourceDocumentInputV0>> {
-    if source_documents_json.trim().is_empty() {
+    if json_argument_is_absent(source_documents_json) {
         return Ok(Vec::new());
     }
     serde_json::from_str(source_documents_json).map_err(|error| {
@@ -628,7 +634,7 @@ fn parse_source_documents_json(
 fn parse_package_manifests_json(
     package_manifests_json: &str,
 ) -> napi::Result<Vec<OmenaNapiStylePackageManifestV0>> {
-    if package_manifests_json.trim().is_empty() {
+    if json_argument_is_absent(package_manifests_json) {
         return Ok(Vec::new());
     }
     serde_json::from_str(package_manifests_json).map_err(|error| {
@@ -653,10 +659,17 @@ fn parse_source_diagnostic_candidates_json(
 }
 
 fn parse_optional_engine_input_json(input_json: &str) -> napi::Result<OmenaNapiEngineInputV2> {
-    if input_json.trim().is_empty() {
+    if json_argument_is_absent(input_json) {
         return Ok(empty_engine_input());
     }
     parse_engine_input_json(input_json)
+}
+
+fn json_argument_is_absent(input_json: &str) -> bool {
+    let trimmed = input_json.trim();
+    trimmed.is_empty()
+        || trimmed.eq_ignore_ascii_case("null")
+        || trimmed.eq_ignore_ascii_case("undefined")
 }
 
 fn empty_engine_input() -> OmenaNapiEngineInputV2 {
@@ -685,6 +698,27 @@ fn effective_path(path: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn accepts_absent_json_sentinels_for_optional_node_inputs() -> napi::Result<()> {
+        assert_eq!(
+            parse_target_options_json("null")?,
+            conservative_omena_query_target_options()
+        );
+        assert_eq!(
+            parse_context_json("undefined")?,
+            OmenaNapiTransformExecutionContextV0::default()
+        );
+        assert!(parse_source_documents_json("null")?.is_empty());
+        assert!(parse_package_manifests_json("undefined")?.is_empty());
+        let empty_input = parse_optional_engine_input_json("null")?;
+        assert_eq!(empty_input.version, "2");
+        assert!(empty_input.sources.is_empty());
+        assert!(empty_input.styles.is_empty());
+        assert!(empty_input.type_facts.is_empty());
+        assert!(json_argument_is_absent("  null  "));
+        Ok(())
+    }
 
     #[test]
     fn reports_parser_facts_for_node_source() {
