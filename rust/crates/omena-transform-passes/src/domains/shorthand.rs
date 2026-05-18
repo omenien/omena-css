@@ -196,8 +196,10 @@ fn shorthand_value_replacement_for_declaration(
         compress_box_shorthand_value(&declaration.value)
     } else if is_border_none_shorthand_property(&declaration.property) {
         compress_border_none_shorthand_value(&declaration.value)
-    } else if declaration.property == "background-repeat" {
+    } else if is_repeat_shorthand_property(&declaration.property) {
         compress_background_repeat_value(&declaration.value)
+    } else if is_repeated_two_axis_shorthand_property(&declaration.property) {
+        compress_repeated_two_axis_value(&declaration.value)
     } else if declaration.property == "border-radius" {
         compress_border_radius_value(&declaration.value)
     } else if declaration.property == "flex" {
@@ -540,8 +542,46 @@ pub(crate) fn compress_background_repeat_value(value: &str) -> Option<String> {
     Some(x.clone())
 }
 
+fn is_repeat_shorthand_property(property: &str) -> bool {
+    matches!(
+        property,
+        "background-repeat" | "mask-repeat" | "-webkit-mask-repeat"
+    )
+}
+
 fn is_background_repeat_axis_keyword(value: &str) -> bool {
     matches!(value, "repeat" | "no-repeat" | "space" | "round")
+}
+
+fn is_repeated_two_axis_shorthand_property(property: &str) -> bool {
+    matches!(
+        property,
+        "border-block-color"
+            | "border-block-style"
+            | "border-block-width"
+            | "border-inline-color"
+            | "border-inline-style"
+            | "border-inline-width"
+            | "border-spacing"
+            | "inset-block"
+            | "inset-inline"
+            | "margin-block"
+            | "margin-inline"
+            | "padding-block"
+            | "padding-inline"
+            | "scroll-margin-block"
+            | "scroll-margin-inline"
+            | "scroll-padding-block"
+            | "scroll-padding-inline"
+    )
+}
+
+fn compress_repeated_two_axis_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let [first, second] = components.as_slice() else {
+        return None;
+    };
+    (first == second).then(|| first.clone())
 }
 
 pub(crate) fn compress_border_radius_value(value: &str) -> Option<String> {
