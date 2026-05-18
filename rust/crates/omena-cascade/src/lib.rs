@@ -2024,6 +2024,18 @@ fn box_shorthand_longhands(shorthand_property: &str) -> Option<[&'static str; 4]
             "border-bottom-width",
             "border-left-width",
         ]),
+        "scroll-margin" => Some([
+            "scroll-margin-top",
+            "scroll-margin-right",
+            "scroll-margin-bottom",
+            "scroll-margin-left",
+        ]),
+        "scroll-padding" => Some([
+            "scroll-padding-top",
+            "scroll-padding-right",
+            "scroll-padding-bottom",
+            "scroll-padding-left",
+        ]),
         _ => None,
     }
 }
@@ -3141,6 +3153,38 @@ mod tests {
         );
         assert!(border_proof.accepted);
         assert!(border_proof.provenance_preserved);
+
+        let scroll_proof = prove_box_shorthand_combination(
+            "scroll-margin",
+            &[
+                BoxLonghandInputV0 {
+                    property: "scroll-margin-top".to_string(),
+                    value: "1px".to_string(),
+                    important: false,
+                    source_order: 1,
+                },
+                BoxLonghandInputV0 {
+                    property: "scroll-margin-right".to_string(),
+                    value: "2px".to_string(),
+                    important: false,
+                    source_order: 2,
+                },
+                BoxLonghandInputV0 {
+                    property: "scroll-margin-bottom".to_string(),
+                    value: "1px".to_string(),
+                    important: false,
+                    source_order: 3,
+                },
+                BoxLonghandInputV0 {
+                    property: "scroll-margin-left".to_string(),
+                    value: "2px".to_string(),
+                    important: false,
+                    source_order: 4,
+                },
+            ],
+        );
+        assert!(scroll_proof.accepted);
+        assert!(scroll_proof.provenance_preserved);
     }
 
     #[test]

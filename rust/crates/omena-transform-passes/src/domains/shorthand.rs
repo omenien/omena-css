@@ -133,6 +133,8 @@ fn box_shorthand_replacement_for_declarations(
         "border-top-color" => "border-color",
         "border-top-style" => "border-style",
         "border-top-width" => "border-width",
+        "scroll-margin-top" => "scroll-margin",
+        "scroll-padding-top" => "scroll-padding",
         _ => return None,
     };
     if !declaration_ranges_are_adjacent(tokens, declarations) {
@@ -469,7 +471,13 @@ fn compressed_two_axis_shorthand_value(first: &str, second: &str) -> String {
 pub(crate) fn is_box_shorthand_property(property: &str) -> bool {
     matches!(
         property,
-        "margin" | "padding" | "border-color" | "border-style" | "border-width"
+        "margin"
+            | "padding"
+            | "border-color"
+            | "border-style"
+            | "border-width"
+            | "scroll-margin"
+            | "scroll-padding"
     )
 }
 
