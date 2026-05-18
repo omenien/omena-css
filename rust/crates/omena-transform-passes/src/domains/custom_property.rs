@@ -8,7 +8,7 @@ use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
 use crate::helpers::{
-    blocks::{at_rule_block_start, rule_block_token_indexes},
+    blocks::{at_rule_block_start, at_rule_prelude_end_index, rule_block_token_indexes},
     collections::push_unique_string,
     declarations::collect_simple_declarations_in_block,
     identifiers::{is_css_ident_continue, normalize_custom_property_name},
@@ -163,6 +163,148 @@ pub(crate) fn collect_custom_property_references_in_value(value: &str) -> Vec<St
     }
 
     names
+}
+
+pub(crate) fn collect_custom_property_references_in_container_style_query_prelude(
+    prelude: &str,
+) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+
+    while index < prelude.len() {
+        let Some(ch) = prelude[index..].chars().next() else {
+            break;
+        };
+
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = prelude[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            _ if css_function_name_starts_at(prelude, index, "style") => {
+                let left_paren_index = index + "style".len();
+                let Some(close_index) = matching_function_call_end(prelude, left_paren_index)
+                else {
+                    index += ch.len_utf8();
+                    continue;
+                };
+                collect_custom_property_names_in_style_query(
+                    &prelude[left_paren_index + 1..close_index],
+                    &mut names,
+                );
+                index = close_index + ')'.len_utf8();
+            }
+            _ => {
+                index += ch.len_utf8();
+            }
+        }
+    }
+
+    names
+}
+
+pub(crate) fn collect_custom_property_roots_from_container_style_query_preludes(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+    mut block_is_reachable: impl FnMut(usize, usize) -> bool,
+) -> Vec<String> {
+    let mut roots = Vec::new();
+    let mut index = 0usize;
+
+    while index < tokens.len() {
+        if tokens[index].kind != SyntaxKind::AtKeyword
+            || !tokens[index].text.eq_ignore_ascii_case("@container")
+        {
+            index += 1;
+            continue;
+        }
+        let Some(prelude_end_index) = at_rule_prelude_end_index(tokens, index + 1) else {
+            break;
+        };
+        let block_is_reachable = tokens[prelude_end_index].kind == SyntaxKind::LeftBrace
+            && matching_right_brace_index(tokens, prelude_end_index)
+                .is_some_and(|close_index| block_is_reachable(prelude_end_index, close_index));
+        if block_is_reachable {
+            let prelude_start = token_end(&tokens[index]);
+            let prelude_end = token_start(&tokens[prelude_end_index]);
+            for name in collect_custom_property_references_in_container_style_query_prelude(
+                &source[prelude_start..prelude_end],
+            ) {
+                push_unique_string(&mut roots, name);
+            }
+        }
+        index = prelude_end_index.saturating_add(1);
+    }
+
+    roots
+}
+
+fn collect_custom_property_names_in_style_query(query: &str, names: &mut Vec<String>) {
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+
+    while index < query.len() {
+        let Some(ch) = query[index..].chars().next() else {
+            break;
+        };
+
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = query[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            '-' if query[index..].starts_with("--") => {
+                let name_end = custom_property_name_end(query, index + "--".len());
+                if name_end > index + "--".len()
+                    && let Some(name) = normalize_custom_property_name(&query[index..name_end])
+                {
+                    push_unique_string(names, name.to_string());
+                }
+                index = name_end;
+            }
+            _ => {
+                index += ch.len_utf8();
+            }
+        }
+    }
+}
+
+fn custom_property_name_end(value: &str, mut index: usize) -> usize {
+    while index < value.len() {
+        let Some(ch) = value[index..].chars().next() else {
+            break;
+        };
+        if !is_css_ident_continue(ch) {
+            break;
+        }
+        index += ch.len_utf8();
+    }
+    index
 }
 
 pub(crate) fn substitute_static_css_custom_properties_with_lexer(

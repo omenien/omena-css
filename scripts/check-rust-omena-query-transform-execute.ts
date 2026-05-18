@@ -999,6 +999,81 @@ assert.deepEqual(customPropertyKeyframeReachabilitySummary.execution.executedPas
 ]);
 assert.equal(customPropertyKeyframeReachabilitySummary.execution.mutationCount, 1);
 
+const customPropertyContainerStyleReachabilityResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "custom-property-container-style-reachability.css",
+      styleSource:
+        '@property --theme { syntax: "<custom-ident>"; inherits: true; initial-value: light; } @property --dead { syntax: "<custom-ident>"; inherits: true; initial-value: off; } :root { --theme: dark; --dead: off; } @container card style(--theme: dark) { .btn { color: white; } } @container card style(--dead: off) { .dead { color: black; } }',
+      requestedPassIds: ["tree-shake-custom-property", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["btn"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  customPropertyContainerStyleReachabilityResult.status,
+  0,
+  customPropertyContainerStyleReachabilityResult.stderr,
+);
+assert.equal(customPropertyContainerStyleReachabilityResult.error, undefined);
+
+const customPropertyContainerStyleReachabilitySummary = JSON.parse(
+  customPropertyContainerStyleReachabilityResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(
+  customPropertyContainerStyleReachabilitySummary.product,
+  "omena-query.transform-execute",
+);
+assert.ok(
+  customPropertyContainerStyleReachabilitySummary.execution.outputCss.includes(
+    "@property --theme",
+  ),
+);
+assert.ok(
+  customPropertyContainerStyleReachabilitySummary.execution.outputCss.includes(
+    "--theme: dark;",
+  ),
+);
+assert.ok(
+  customPropertyContainerStyleReachabilitySummary.execution.outputCss.includes(
+    "@container card style(--theme: dark)",
+  ),
+);
+assert.ok(
+  !customPropertyContainerStyleReachabilitySummary.execution.outputCss.includes(
+    "@property --dead",
+  ),
+);
+assert.ok(
+  !customPropertyContainerStyleReachabilitySummary.execution.outputCss.includes(
+    ":root { --theme: dark; --dead: off;",
+  ),
+);
+assert.deepEqual(
+  customPropertyContainerStyleReachabilitySummary.execution.executedPassIds,
+  ["tree-shake-custom-property", "print-css"],
+);
+assert.equal(customPropertyContainerStyleReachabilitySummary.execution.mutationCount, 2);
+
 const semanticReachabilityResult = spawnSync(
   "cargo",
   [
@@ -1173,6 +1248,7 @@ process.stdout.write(
     `mathFunctionMutations=${mathFunctionReductionSummary.execution.mutationCount}`,
     `staticVarShadowMutations=${staticVarShadowSummary.execution.mutationCount}`,
     `customPropertyReachabilityMutations=${customPropertyReachabilitySummary.execution.mutationCount}`,
+    `customPropertyContainerStyleMutations=${customPropertyContainerStyleReachabilitySummary.execution.mutationCount}`,
     `icssExportReachabilityRemovals=${icssExportReachabilitySummary.semanticRemovalCount}`,
     `semanticRemovals=${semanticReachabilitySummary.semanticRemovalCount}`,
   ].join(" "),

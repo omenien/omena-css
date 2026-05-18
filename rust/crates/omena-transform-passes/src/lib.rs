@@ -35,8 +35,10 @@ use domains::{
     },
     custom_property::{
         close_custom_property_dependency_graph, collect_custom_property_references_in_value,
-        collect_custom_property_registration_rules, collect_static_root_custom_property_env,
-        parse_static_custom_property_env_value, substitute_static_css_custom_properties_with_lexer,
+        collect_custom_property_registration_rules,
+        collect_custom_property_roots_from_container_style_query_preludes,
+        collect_static_root_custom_property_env, parse_static_custom_property_env_value,
+        substitute_static_css_custom_properties_with_lexer,
     },
     import_inline::inline_css_imports_with_lexer,
     number::{
@@ -2721,6 +2723,22 @@ fn collect_reachable_custom_property_names(
         if let Some(name) = normalize_custom_property_name(name) {
             push_unique_string(&mut root_names, name.to_string());
         }
+    }
+    for name in collect_custom_property_roots_from_container_style_query_preludes(
+        source,
+        tokens,
+        |block_start_index, block_end_index| {
+            at_rule_block_has_reachable_ordinary_rule(
+                source,
+                tokens,
+                block_start_index,
+                block_end_index,
+                reachable_class_names,
+                &scope_blocks,
+            )
+        },
+    ) {
+        push_unique_string(&mut root_names, name);
     }
 
     for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
@@ -7968,6 +7986,51 @@ mod tests {
         assert!(execution.output_css.contains("color: var(--used);"));
         assert!(!execution.output_css.contains("@property --dead"));
         assert!(!execution.output_css.contains("--dead: blue"));
+        assert_eq!(
+            execution
+                .semantic_removals
+                .iter()
+                .map(|removal| (removal.symbol_kind, removal.name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("customPropertyRegistration", "--dead"),
+                ("customProperty", "--dead")
+            ]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_keeps_container_style_query_custom_property_roots() {
+        let source = r#"@property --theme { syntax: "<custom-ident>"; inherits: true; initial-value: light; } @property --dead { syntax: "<custom-ident>"; inherits: true; initial-value: off; } :root { --theme: dark; --dead: off; } @container card style(--theme: dark) { .btn { color: white; } } @container card style(--dead: off) { .dead { color: black; } }"#;
+        let context = TransformExecutionContextV0 {
+            closed_style_world: true,
+            reachable_class_names: vec!["btn".to_string()],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::TreeShakeCustomProperty,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert!(execution.output_css.contains("@property --theme"));
+        assert!(execution.output_css.contains("--theme: dark;"));
+        assert!(
+            execution
+                .output_css
+                .contains("@container card style(--theme: dark)")
+        );
+        assert!(!execution.output_css.contains("@property --dead"));
+        assert!(
+            !execution
+                .output_css
+                .contains(":root { --theme: dark; --dead: off;")
+        );
         assert_eq!(
             execution
                 .semantic_removals
