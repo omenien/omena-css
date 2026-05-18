@@ -17,4 +17,5 @@ pub(crate) mod selector;
 pub(crate) mod shorthand;
 pub(crate) mod static_eval;
 pub(crate) mod text;
+pub(crate) mod unit;
 pub(crate) mod vendor_prefix;

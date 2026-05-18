@@ -101,6 +101,14 @@ pub(crate) fn is_comment_token(kind: SyntaxKind) -> bool {
     )
 }
 
+pub(crate) fn is_declaration_boundary_start(kind: SyntaxKind) -> bool {
+    matches!(kind, SyntaxKind::LeftBrace | SyntaxKind::Semicolon)
+}
+
+pub(crate) fn is_declaration_boundary_end(kind: SyntaxKind) -> bool {
+    matches!(kind, SyntaxKind::RightBrace | SyntaxKind::Semicolon)
+}
+
 pub(crate) fn is_trivia_token(kind: SyntaxKind) -> bool {
     is_comment_token(kind)
         || matches!(
