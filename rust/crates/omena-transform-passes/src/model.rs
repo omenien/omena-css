@@ -1,0 +1,279 @@
+use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
+use omena_transform_cst::{TransformDagEdgeV0, TransformPassContractV0};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformPassExecutionStatus {
+    RegistryAndPlannerReady,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformPassRegistryEntryV0 {
+    pub contract: TransformPassContractV0,
+    pub module_family: &'static str,
+    pub query_family: &'static str,
+    pub execution_status: TransformPassExecutionStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformPassesBoundarySummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub registry_entries: Vec<TransformPassRegistryEntryV0>,
+    pub dag_edges: Vec<TransformDagEdgeV0>,
+    pub pass_count: usize,
+    pub full_catalog_registered: bool,
+    pub semantic_aware_pass_count: usize,
+    pub cascade_aware_pass_count: usize,
+    pub planner_enforces_dag_edges: bool,
+    pub execution_runtime_ready: bool,
+    pub incremental_execution_runtime_ready: bool,
+    pub implemented_mutation_pass_ids: Vec<&'static str>,
+    pub next_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformPassPlanV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub requested_pass_ids: Vec<&'static str>,
+    pub ordered_pass_ids: Vec<&'static str>,
+    pub satisfied_dag_edge_count: usize,
+    pub violated_dag_edge_count: usize,
+    pub all_requested_registered: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TransformPassRuntimeStatus {
+    Applied,
+    NoChange,
+    PlannedOnly,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformPassExecutionOutcomeV0 {
+    pub pass_id: &'static str,
+    pub status: TransformPassRuntimeStatus,
+    pub input_byte_len: usize,
+    pub output_byte_len: usize,
+    pub mutation_count: usize,
+    pub provenance_preserved: bool,
+    pub detail: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformProvenanceDerivationForestV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub root_count: usize,
+    pub node_count: usize,
+    pub nodes: Vec<TransformProvenanceDerivationNodeV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformProvenanceDerivationNodeV0 {
+    pub node_index: usize,
+    pub parent_index: Option<usize>,
+    pub pass_id: &'static str,
+    pub status: TransformPassRuntimeStatus,
+    pub input_byte_len: usize,
+    pub output_byte_len: usize,
+    pub source_span_start: usize,
+    pub source_span_end: usize,
+    pub generated_span_start: usize,
+    pub generated_span_end: usize,
+    pub mutation_spans: Vec<TransformProvenanceMutationSpanV0>,
+    pub mutation_count: usize,
+    pub provenance_preserved: bool,
+    pub detail: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformProvenanceMutationSpanV0 {
+    pub source_span_start: usize,
+    pub source_span_end: usize,
+    pub generated_span_start: usize,
+    pub generated_span_end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformExecutionSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_byte_len: usize,
+    pub output_byte_len: usize,
+    pub requested_pass_ids: Vec<&'static str>,
+    pub ordered_pass_ids: Vec<&'static str>,
+    pub executed_pass_ids: Vec<&'static str>,
+    pub planned_only_pass_ids: Vec<&'static str>,
+    pub mutation_count: usize,
+    pub provenance_preserved: bool,
+    pub output_css: String,
+    pub css_module_evaluation: Option<TransformModuleEvaluationV0>,
+    pub css_import_inlines: Vec<TransformImportInlineV0>,
+    pub css_module_composes_exports: Vec<TransformCssModuleComposesResolutionV0>,
+    pub design_token_routes: Vec<TransformDesignTokenRouteV0>,
+    pub semantic_removals: Vec<TransformSemanticRemovalV0>,
+    pub provenance_derivation_forest: TransformProvenanceDerivationForestV0,
+    pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
+    pub pass_plan: TransformPassPlanV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformSemanticRemovalV0 {
+    pub pass_id: &'static str,
+    pub symbol_kind: &'static str,
+    pub name: String,
+    pub source_span_start: usize,
+    pub source_span_end: usize,
+    pub reason: &'static str,
+    pub certainty: &'static str,
+    pub derivation_steps: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TransformSemanticRemovalCandidate {
+    pub(crate) symbol_kind: &'static str,
+    pub(crate) name: String,
+    pub(crate) source_span_start: usize,
+    pub(crate) source_span_end: usize,
+    pub(crate) reason: &'static str,
+}
+
+impl TransformSemanticRemovalCandidate {
+    pub(crate) fn into_public(self, pass_id: &'static str) -> TransformSemanticRemovalV0 {
+        TransformSemanticRemovalV0 {
+            pass_id,
+            symbol_kind: self.symbol_kind,
+            name: self.name,
+            source_span_start: self.source_span_start,
+            source_span_end: self.source_span_end,
+            reason: self.reason,
+            certainty: "high",
+            derivation_steps: vec![
+                "closedStyleWorld",
+                "reachableRootSetComputed",
+                "symbolNotMarkedReachable",
+                "sourceRangeRemoved",
+            ],
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformIncrementalExecutionSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub incremental_engine: &'static str,
+    pub query_model: &'static str,
+    pub reuse_policy: &'static str,
+    pub reused_previous_execution: bool,
+    pub incremental_plan: IncrementalComputationPlanV0,
+    pub next_snapshot: IncrementalSnapshotV0,
+    pub execution: TransformExecutionSummaryV0,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformCascadeSafetyFuzzCaseV0 {
+    pub seed: u64,
+    pub pass_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformCascadeSafetyFuzzResultV0 {
+    pub seed: u64,
+    pub pass_count: usize,
+    pub requested_pass_ids: Vec<&'static str>,
+    pub executed_pass_ids: Vec<&'static str>,
+    pub output_byte_len: usize,
+    pub output_token_count: usize,
+    pub output_error_count: usize,
+    pub provenance_node_count: usize,
+    pub passed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformFuzzSeedReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub case_count: usize,
+    pub passed_count: usize,
+    pub failed_count: usize,
+    pub results: Vec<TransformCascadeSafetyFuzzResultV0>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct TransformExecutionContextV0 {
+    pub closed_style_world: bool,
+    pub drop_dark_mode_media_queries: bool,
+    pub reachable_class_names: Vec<String>,
+    pub reachable_keyframe_names: Vec<String>,
+    pub reachable_value_names: Vec<String>,
+    pub reachable_custom_property_names: Vec<String>,
+    pub scss_module_evaluation: Option<TransformModuleEvaluationV0>,
+    pub less_module_evaluation: Option<TransformModuleEvaluationV0>,
+    pub import_inlines: Vec<TransformImportInlineV0>,
+    pub class_name_rewrites: Vec<TransformClassNameRewriteV0>,
+    pub css_module_composes_resolutions: Vec<TransformCssModuleComposesResolutionV0>,
+    pub css_module_value_resolutions: Vec<TransformCssModuleValueResolutionV0>,
+    pub design_token_routes: Vec<TransformDesignTokenRouteV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformModuleEvaluationV0 {
+    pub evaluator: String,
+    pub evaluated_css: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformImportInlineV0 {
+    pub import_source: String,
+    pub replacement_css: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformClassNameRewriteV0 {
+    pub original_name: String,
+    pub rewritten_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformCssModuleComposesResolutionV0 {
+    pub local_class_name: String,
+    pub exported_class_names: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformCssModuleValueResolutionV0 {
+    pub local_name: String,
+    pub resolved_value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformDesignTokenRouteV0 {
+    pub token_name: String,
+    pub routed_value: String,
+}
