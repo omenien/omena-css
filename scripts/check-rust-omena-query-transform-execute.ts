@@ -960,6 +960,66 @@ assertIncludesAll(
   "semantic reachability build ready surfaces",
 );
 
+const icssExportReachabilityResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "Tokens.module.css",
+      styles: [
+        {
+          stylePath: "Tokens.module.css",
+          styleSource:
+            '@value primary: red; @value shadow: 0 0 primary; @value dead: blue; :export { public-color: shadow; dead-public: dead; } .button { color: red; }',
+        },
+      ],
+      requestedPassIds: ["tree-shake-value", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["button"],
+        reachableValueNames: ["public-color"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(icssExportReachabilityResult.status, 0, icssExportReachabilityResult.stderr);
+assert.equal(icssExportReachabilityResult.error, undefined);
+
+const icssExportReachabilitySummary = JSON.parse(
+  icssExportReachabilityResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.equal(icssExportReachabilitySummary.product, "omena-query.consumer-build-style-source");
+assert.deepEqual(icssExportReachabilitySummary.unknownPassIds, []);
+assert.equal(icssExportReachabilitySummary.execution.passPlan.violatedDagEdgeCount, 0);
+assert.equal(icssExportReachabilitySummary.execution.passPlan.allRequestedRegistered, true);
+assert.ok(icssExportReachabilitySummary.execution.outputCss.includes("@value primary: red;"));
+assert.ok(icssExportReachabilitySummary.execution.outputCss.includes("@value shadow: 0 0 primary;"));
+assert.ok(icssExportReachabilitySummary.execution.outputCss.includes(":export { public-color: shadow;"));
+assert.ok(!icssExportReachabilitySummary.execution.outputCss.includes("@value dead:"));
+assert.ok(!icssExportReachabilitySummary.execution.outputCss.includes("dead-public: dead"));
+assertIncludesAll(
+  icssExportReachabilitySummary.execution.semanticRemovals.map(
+    (removal) => `${removal.symbolKind}:${removal.name}`,
+  ),
+  ["cssModuleValue:dead", "cssModuleIcssExport:dead-public"],
+  "ICSS export reachability removals",
+);
+assert.equal(icssExportReachabilitySummary.semanticRemovalCount, 2);
+
 process.stdout.write(
   [
     "validated omena-query transform-execute runtime:",
@@ -978,6 +1038,7 @@ process.stdout.write(
     `mathFunctionMutations=${mathFunctionReductionSummary.execution.mutationCount}`,
     `staticVarShadowMutations=${staticVarShadowSummary.execution.mutationCount}`,
     `customPropertyReachabilityMutations=${customPropertyReachabilitySummary.execution.mutationCount}`,
+    `icssExportReachabilityRemovals=${icssExportReachabilitySummary.semanticRemovalCount}`,
     `semanticRemovals=${semanticReachabilitySummary.semanticRemovalCount}`,
   ].join(" "),
 );

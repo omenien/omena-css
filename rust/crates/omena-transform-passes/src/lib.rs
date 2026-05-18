@@ -4199,7 +4199,8 @@ fn tree_shake_css_modules_values_with_lexer(
     let tokens = lexed.tokens();
     let definitions = collect_static_local_css_modules_value_definitions(tokens);
     let import_statements = collect_static_css_modules_value_import_statements(tokens);
-    if definitions.is_empty() && import_statements.is_empty() {
+    let export_rules = collect_static_css_modules_icss_export_rules(source, tokens);
+    if definitions.is_empty() && import_statements.is_empty() && export_rules.is_empty() {
         return (source.to_string(), Vec::new());
     }
     let mut value_names = definitions
@@ -4212,15 +4213,17 @@ fn tree_shake_css_modules_values_with_lexer(
         }
     }
 
-    let referenced_names = collect_reachable_css_modules_value_names(
-        source,
-        tokens,
-        dialect,
-        &definitions,
-        &value_names,
-        reachable_value_names,
-        reachable_class_names,
-    );
+    let referenced_names =
+        collect_reachable_css_modules_value_names(CssModulesValueReachabilityInput {
+            source,
+            tokens,
+            dialect,
+            definitions: &definitions,
+            value_names: &value_names,
+            external_roots: reachable_value_names,
+            reachable_class_names,
+            export_rules: &export_rules,
+        });
 
     let mut removals = definitions
         .iter()
@@ -4291,27 +4294,112 @@ fn tree_shake_css_modules_values_with_lexer(
         };
         replacements.push((statement.start, statement.end, replacement));
     }
+    for rule in &export_rules {
+        let unreachable_exports = rule
+            .declarations
+            .iter()
+            .filter(|declaration| {
+                !reachable_value_names
+                    .iter()
+                    .any(|reachable| reachable == &declaration.export_name)
+            })
+            .collect::<Vec<_>>();
+        if unreachable_exports.is_empty() {
+            continue;
+        }
+        removals.extend(
+            unreachable_exports
+                .iter()
+                .map(|declaration| TransformSemanticRemovalCandidate {
+                    symbol_kind: "cssModuleIcssExport",
+                    name: declaration.export_name.clone(),
+                    source_span_start: declaration.start,
+                    source_span_end: declaration.end,
+                    reason: "ICSS export declaration was absent from the closed-style-world reachable value export set",
+                }),
+        );
+        if unreachable_exports.len() == rule.declarations.len() {
+            replacements.push((rule.start, rule.end, String::new()));
+        } else {
+            replacements.extend(
+                unreachable_exports
+                    .iter()
+                    .map(|declaration| (declaration.start, declaration.end, String::new())),
+            );
+        }
+    }
     let (output, _) = replace_source_ranges(source, &replacements);
     (output, removals)
 }
 
-fn collect_reachable_css_modules_value_names(
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CssModulesIcssExportRule {
+    start: usize,
+    end: usize,
+    declarations: Vec<CssModulesIcssExportDeclaration>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CssModulesIcssExportDeclaration {
+    export_name: String,
+    value: String,
+    start: usize,
+    end: usize,
+}
+
+fn collect_static_css_modules_icss_export_rules(
     source: &str,
     tokens: &[omena_parser::LexedToken],
-    dialect: StyleDialect,
-    definitions: &[StaticCssModulesValueDefinition],
-    value_names: &[String],
-    external_roots: &[String],
-    reachable_class_names: &[String],
-) -> Vec<String> {
-    let mut root_names = external_roots.to_vec();
-    let mut dependencies_by_name = BTreeMap::<String, Vec<String>>::new();
-    let scope_blocks = collect_css_module_scope_blocks(source, tokens);
+) -> Vec<CssModulesIcssExportRule> {
+    collect_declaration_ordinary_rule_slices(source, tokens)
+        .into_iter()
+        .filter(|rule| rule.selector.trim().eq_ignore_ascii_case(":export"))
+        .filter_map(|rule| {
+            let (block_start_index, block_end_index) =
+                rule_block_token_indexes(tokens, rule.block_start, rule.block_end)?;
+            let declarations =
+                collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+                    .into_iter()
+                    .map(|declaration| CssModulesIcssExportDeclaration {
+                        export_name: declaration.property,
+                        value: declaration.value,
+                        start: declaration.start,
+                        end: declaration.end,
+                    })
+                    .collect::<Vec<_>>();
+            (!declarations.is_empty()).then_some(CssModulesIcssExportRule {
+                start: rule.start,
+                end: rule.end,
+                declarations,
+            })
+        })
+        .collect()
+}
 
-    for definition in definitions {
-        for reference_name in
-            collect_css_modules_value_references_in_value(&definition.value, dialect, value_names)
-        {
+struct CssModulesValueReachabilityInput<'a> {
+    source: &'a str,
+    tokens: &'a [omena_parser::LexedToken],
+    dialect: StyleDialect,
+    definitions: &'a [StaticCssModulesValueDefinition],
+    value_names: &'a [String],
+    external_roots: &'a [String],
+    reachable_class_names: &'a [String],
+    export_rules: &'a [CssModulesIcssExportRule],
+}
+
+fn collect_reachable_css_modules_value_names(
+    input: CssModulesValueReachabilityInput<'_>,
+) -> Vec<String> {
+    let mut root_names = input.external_roots.to_vec();
+    let mut dependencies_by_name = BTreeMap::<String, Vec<String>>::new();
+    let scope_blocks = collect_css_module_scope_blocks(input.source, input.tokens);
+
+    for definition in input.definitions {
+        for reference_name in collect_css_modules_value_references_in_value(
+            &definition.value,
+            input.dialect,
+            input.value_names,
+        ) {
             if reference_name == definition.name {
                 continue;
             }
@@ -4321,35 +4409,59 @@ fn collect_reachable_css_modules_value_names(
             push_unique_string(dependencies, reference_name);
         }
     }
+    for rule in input.export_rules {
+        for declaration in &rule.declarations {
+            if !input
+                .external_roots
+                .iter()
+                .any(|root| root == &declaration.export_name)
+            {
+                continue;
+            }
+            for reference_name in collect_css_modules_value_references_in_value(
+                &declaration.value,
+                input.dialect,
+                input.value_names,
+            ) {
+                push_unique_string(&mut root_names, reference_name);
+            }
+        }
+    }
 
-    for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
-        if !rule_slice_matches_reachable_class_context(&rule, &scope_blocks, reachable_class_names)
-        {
+    for rule in collect_declaration_ordinary_rule_slices(input.source, input.tokens) {
+        if rule.selector.trim().eq_ignore_ascii_case(":export") {
+            continue;
+        }
+        if !rule_slice_matches_reachable_class_context(
+            &rule,
+            &scope_blocks,
+            input.reachable_class_names,
+        ) {
             continue;
         }
         let Some((block_start_index, block_end_index)) =
-            rule_block_token_indexes(tokens, rule.block_start, rule.block_end)
+            rule_block_token_indexes(input.tokens, rule.block_start, rule.block_end)
         else {
             continue;
         };
         for declaration in
-            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+            collect_simple_declarations_in_block(input.tokens, block_start_index, block_end_index)
         {
             for reference_name in collect_css_modules_value_references_in_value(
                 &declaration.value,
-                dialect,
-                value_names,
+                input.dialect,
+                input.value_names,
             ) {
                 push_unique_string(&mut root_names, reference_name);
             }
         }
     }
     collect_css_modules_value_references_in_at_rule_preludes(
-        source,
-        tokens,
-        value_names,
+        input.source,
+        input.tokens,
+        input.value_names,
         &mut root_names,
-        reachable_class_names,
+        input.reachable_class_names,
         &scope_blocks,
     );
 
@@ -9939,6 +10051,48 @@ mod tests {
                 .map(|removal| removal.name.as_str())
                 .collect::<Vec<_>>(),
             vec!["dead", "ghost"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_tree_shakes_icss_exports_with_closed_world_context() {
+        let source = r#"@value primary: red; @value shadow: 0 0 primary; @value dead: blue; :export { public-color: shadow; dead-public: dead; } .btn { color: red; }"#;
+        let context = TransformExecutionContextV0 {
+            closed_style_world: true,
+            reachable_class_names: vec!["btn".to_string()],
+            reachable_value_names: vec!["public-color".to_string()],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::TreeShakeValue,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert!(execution.output_css.contains("@value primary: red;"));
+        assert!(execution.output_css.contains("@value shadow: 0 0 primary;"));
+        assert!(
+            execution
+                .output_css
+                .contains(":export { public-color: shadow;")
+        );
+        assert!(!execution.output_css.contains("@value dead:"));
+        assert!(!execution.output_css.contains("dead-public: dead"));
+        assert_eq!(
+            execution
+                .semantic_removals
+                .iter()
+                .map(|removal| (removal.symbol_kind, removal.name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("cssModuleValue", "dead"),
+                ("cssModuleIcssExport", "dead-public")
+            ]
         );
     }
 
