@@ -192,6 +192,7 @@ pub fn summarize_omena_incremental_boundary() -> OmenaIncrementalBoundarySummary
             "salsaTrackedNodeSnapshotQuery",
             "salsaFieldGranularReuse",
             "salsaPlanAndSnapshotUpdate",
+            "dependencyFixedPointEarlyExit",
         ],
     }
 }
@@ -487,6 +488,9 @@ fn transitive_dependents(input: &IncrementalGraphInputV0, changed_id: &str) -> B
                 changed = dirty_ids.insert(node.id.clone()) || changed;
             }
         }
+        if !changed {
+            break;
+        }
     }
     dirty_ids
 }
@@ -667,6 +671,11 @@ mod tests {
             summary
                 .ready_surfaces
                 .contains(&"salsaTrackedNodeSnapshotQuery")
+        );
+        assert!(
+            summary
+                .ready_surfaces
+                .contains(&"dependencyFixedPointEarlyExit")
         );
     }
 
