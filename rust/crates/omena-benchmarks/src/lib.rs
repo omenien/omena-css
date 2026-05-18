@@ -15,7 +15,14 @@ pub struct ParserProductBenchmarkBoundaryV0 {
     pub input_boundary: &'static str,
     pub measured_operation: &'static str,
     pub includes_parse: bool,
+    pub parse_witness_consumed: bool,
     pub includes_product_summary: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OmenaParserProductMeasurementV0 {
+    pub parsed_token_count: usize,
+    pub summary: omena_parser::ParserIndexSummaryV0,
 }
 
 pub fn style_corpus() -> Vec<StyleSample> {
@@ -48,6 +55,7 @@ pub fn parser_product_benchmark_boundaries() -> [ParserProductBenchmarkBoundaryV
             input_boundary: "raw-style-source",
             measured_operation: "parse-plus-product-summary",
             includes_parse: true,
+            parse_witness_consumed: true,
             includes_product_summary: true,
         },
         ParserProductBenchmarkBoundaryV0 {
@@ -55,6 +63,7 @@ pub fn parser_product_benchmark_boundaries() -> [ParserProductBenchmarkBoundaryV
             input_boundary: "raw-style-source",
             measured_operation: "parse-plus-product-summary",
             includes_parse: true,
+            parse_witness_consumed: true,
             includes_product_summary: true,
         },
     ]
@@ -76,11 +85,13 @@ pub fn validate_parser_product_benchmark_boundary_symmetry() -> Result<(), Strin
     }
     if !(legacy.includes_parse
         && omena.includes_parse
+        && legacy.parse_witness_consumed
+        && omena.parse_witness_consumed
         && legacy.includes_product_summary
         && omena.includes_product_summary)
     {
         return Err(
-            "parser product benchmark must include parse and product summary for both lanes"
+            "parser product benchmark must include parse, parse witness consumption, and product summary for both lanes"
                 .to_string(),
         );
     }
@@ -122,9 +133,20 @@ pub fn summarize_omena_parser_product_sample(
     source: &str,
     dialect: StyleDialect,
 ) -> omena_parser::ParserIndexSummaryV0 {
-    let parsed = omena_parser::parse(source, dialect);
-    let _ = std::hint::black_box(parsed.token_count());
     omena_parser::summarize_css_modules_intermediate(source, dialect)
+}
+
+pub fn measure_omena_parser_product_sample(
+    source: &str,
+    dialect: StyleDialect,
+) -> OmenaParserProductMeasurementV0 {
+    let parsed = omena_parser::parse(source, dialect);
+    let parsed_token_count = std::hint::black_box(parsed.token_count());
+    let summary = summarize_omena_parser_product_sample(source, dialect);
+    OmenaParserProductMeasurementV0 {
+        parsed_token_count,
+        summary,
+    }
 }
 
 pub fn validate_omena_style_sample(source: &str, dialect: StyleDialect) -> Result<(), String> {
@@ -231,8 +253,8 @@ fn build_scss_heavy_design_system(count: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        parser_product_benchmark_boundaries, style_corpus, summarize_legacy_parser_product_sample,
-        summarize_omena_parser_product_sample, validate_legacy_style_sample,
+        measure_omena_parser_product_sample, parser_product_benchmark_boundaries, style_corpus,
+        summarize_legacy_parser_product_sample, validate_legacy_style_sample,
         validate_omena_style_sample, validate_parser_product_benchmark_boundary_symmetry,
     };
 
@@ -243,6 +265,11 @@ mod tests {
 
         assert_eq!(boundaries.len(), 2);
         assert!(boundaries.iter().all(|boundary| boundary.includes_parse));
+        assert!(
+            boundaries
+                .iter()
+                .all(|boundary| boundary.parse_witness_consumed)
+        );
         assert!(
             boundaries
                 .iter()
@@ -265,10 +292,10 @@ mod tests {
             let legacy =
                 summarize_legacy_parser_product_sample(sample.path, sample.source.as_str())
                     .ok_or_else(|| format!("legacy parser product failed for {}", sample.name))?;
-            let omena =
-                summarize_omena_parser_product_sample(sample.source.as_str(), sample.dialect);
+            let omena = measure_omena_parser_product_sample(sample.source.as_str(), sample.dialect);
+            assert!(omena.parsed_token_count > 0);
             let legacy = serde_json::to_value(legacy).map_err(|error| error.to_string())?;
-            let omena = serde_json::to_value(omena).map_err(|error| error.to_string())?;
+            let omena = serde_json::to_value(omena.summary).map_err(|error| error.to_string())?;
 
             assert_eq!(legacy["language"], omena["language"]);
             assert!(legacy["selectors"]["names"].as_array().is_some());
