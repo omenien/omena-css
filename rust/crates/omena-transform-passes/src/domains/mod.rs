@@ -5,3 +5,4 @@ pub(crate) mod import_inline;
 pub(crate) mod number;
 pub(crate) mod reachability;
 pub(crate) mod shorthand;
+pub(crate) mod static_eval;

@@ -1,7 +1,7 @@
 use omena_parser::LexedToken;
 use omena_syntax::SyntaxKind;
 
-use super::tokens::{is_comment_token, token_start};
+use super::tokens::{is_comment_token, matching_right_brace_index, token_start};
 
 pub(crate) fn at_rule_block_start(tokens: &[LexedToken], start_index: usize) -> Option<usize> {
     let mut index = start_index;
@@ -9,6 +9,23 @@ pub(crate) fn at_rule_block_start(tokens: &[LexedToken], start_index: usize) -> 
         match tokens[index].kind {
             SyntaxKind::LeftBrace => return Some(index),
             SyntaxKind::RightBrace | SyntaxKind::Semicolon => return None,
+            _ => index += 1,
+        }
+    }
+    None
+}
+
+pub(crate) fn at_rule_block_indexes(
+    tokens: &[LexedToken],
+    at_keyword_index: usize,
+) -> Option<(usize, usize)> {
+    let mut index = at_keyword_index + 1;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::Semicolon => return None,
+            SyntaxKind::LeftBrace => {
+                return matching_right_brace_index(tokens, index).map(|end| (index, end));
+            }
             _ => index += 1,
         }
     }
