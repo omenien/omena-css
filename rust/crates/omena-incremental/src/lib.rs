@@ -26,6 +26,8 @@ pub struct OmenaIncrementalBoundarySummaryV0 {
     pub engine_name: &'static str,
     pub invalidation_model: &'static str,
     pub query_model: &'static str,
+    pub dependency_propagation_policy: &'static str,
+    pub maximum_dependency_propagation_iterations: &'static str,
     pub node_identity: Vec<&'static str>,
     pub dirty_reasons: Vec<&'static str>,
     pub ready_surfaces: Vec<&'static str>,
@@ -172,6 +174,8 @@ pub fn summarize_omena_incremental_boundary() -> OmenaIncrementalBoundarySummary
         engine_name: "omena-incremental",
         invalidation_model: "stableNodeId+inputDigest+dependencyPropagation",
         query_model: "salsaInput+trackedQueryFieldGranularReuse",
+        dependency_propagation_policy: "boundedFixedPointOverNormalizedNodeSet",
+        maximum_dependency_propagation_iterations: "nodeCount+1",
         node_identity: vec!["id", "digest", "dependencyIds"],
         dirty_reasons: vec![
             "newNode",
@@ -645,6 +649,14 @@ mod tests {
             summary.query_model,
             "salsaInput+trackedQueryFieldGranularReuse"
         );
+        assert_eq!(
+            summary.dependency_propagation_policy,
+            "boundedFixedPointOverNormalizedNodeSet"
+        );
+        assert_eq!(
+            summary.maximum_dependency_propagation_iterations,
+            "nodeCount+1"
+        );
         assert!(summary.dirty_reasons.contains(&"dependencyDirty"));
         assert!(
             summary
@@ -704,6 +716,10 @@ mod tests {
         assert_eq!(plan.dirty_node_count, 2);
         assert_eq!(node_reasons(&plan, "a"), vec!["inputDigestChanged"]);
         assert_eq!(node_reasons(&plan, "b"), vec!["dependencyDirty"]);
+        assert_eq!(
+            super::dependency_propagation_iteration_limit(input.nodes.len()),
+            input.nodes.len() + 1
+        );
     }
 
     #[test]
