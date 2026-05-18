@@ -37,8 +37,8 @@ Current scope:
 - Pratt value parser core coverage is explicit: unary `+`/`-`, additive and
   multiplicative precedence, parenthesized expressions, function argument
   lists, specialized CSS value function families, and value-level recovery are
-  ready. The full CSS property-value grammar registry remains a separate
-  product-cutover target.
+  ready. The product cutover gate is ready, while the full CSS property-value
+  grammar registry remains a separate conformance-depth target.
 - Functional pseudo-classes that carry selector lists (`:is`, `:where`,
   `:has`, `:not`, `:local`, `:global`) now surface nested selector-list CST
   nodes and isolate malformed selector-list items as Bogus selectors.
@@ -55,3 +55,6 @@ Current scope:
 - Panic-free tokenizer for CSS-family source slices using char-boundary-safe cursor movement.
 - Initial dialect classification for CSS, SCSS, Sass, and Less tokens.
 - `TokenSet` recovery scaffolding and parser boundary summary.
+- Product consumers default to `omena-parser` through the parser cutover gate;
+  the legacy parser is confined to oracle, benchmark, and split compatibility
+  paths.

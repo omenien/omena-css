@@ -83,6 +83,16 @@ assert.ok(
   "packaged extension runtimes must default to omena-parser with a typescript-current opt-out",
 );
 
+const omenaParserLib = readText("rust/crates/omena-parser/src/lib.rs");
+assert.ok(
+  omenaParserLib.includes('"productCutoverGate"'),
+  "omena-parser boundary summary must expose productCutoverGate as a ready surface",
+);
+assert.ok(
+  !parserBoundaryNotReadySurfaceBlock(omenaParserLib).includes('"productCutover"'),
+  "omena-parser boundary summary must not keep productCutover in not_ready_surfaces once the cutover gate is enforced",
+);
+
 const scssIndex = readText("server/engine-core-ts/src/core/scss/scss-index.ts");
 assert.ok(
   scssIndex.includes("export type StyleDocumentBuilder") &&
@@ -196,6 +206,15 @@ process.stdout.write(
 
 function readText(filePath: string): string {
   return readFileSync(filePath, "utf8");
+}
+
+function parserBoundaryNotReadySurfaceBlock(source: string): string {
+  const start = source.indexOf("not_ready_surfaces: vec![");
+  assert.notEqual(start, -1, "omena-parser boundary must keep an explicit not_ready_surfaces block");
+  const rest = source.slice(start);
+  const end = rest.indexOf("],");
+  assert.notEqual(end, -1, "omena-parser boundary not_ready_surfaces block must be closed");
+  return rest.slice(0, end);
 }
 
 function findLegacyReferencePaths(): string[] {

@@ -2539,11 +2539,11 @@ pub fn summarize_parser_boundary() -> ParserBoundarySummary {
             "recoveryBogusSkeleton",
             "styleFactExtractionSurface",
             "parserSemanticNameConsumption",
+            "productCutoverGate",
         ],
         not_ready_surfaces: vec![
             "completeExternalSpecMirror",
             "fullPropertyValueGrammarRegistry",
-            "productCutover",
         ],
     }
 }
@@ -15443,7 +15443,8 @@ mod tests {
                 .not_ready_surfaces
                 .contains(&"completeExternalSpecMirror")
         );
-        assert!(summary.not_ready_surfaces.contains(&"productCutover"));
+        assert!(summary.ready_surfaces.contains(&"productCutoverGate"));
+        assert!(!summary.not_ready_surfaces.contains(&"productCutover"));
     }
 
     #[test]
