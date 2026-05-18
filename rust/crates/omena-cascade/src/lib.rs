@@ -1662,15 +1662,15 @@ fn evaluate_modern_static_supports_condition(
         );
     }
 
-    if let Some((property, value)) = parse_not_simple_supports_declaration(condition) {
-        return match evaluate_modern_simple_supports_declaration(property, value) {
+    if let Some(inner) = parse_static_supports_not_condition(condition) {
+        return match evaluate_modern_static_supports_condition(inner).0 {
             StaticSupportsEvalVerdictV0::AlwaysTrue => (
                 StaticSupportsEvalVerdictV0::AlwaysFalse,
-                "modern-browser assumption rejects negated supported declaration queries",
+                "modern-browser assumption rejects negated supported condition queries",
             ),
             StaticSupportsEvalVerdictV0::AlwaysFalse => (
                 StaticSupportsEvalVerdictV0::AlwaysTrue,
-                "modern-browser assumption accepts negated unsupported declaration queries",
+                "modern-browser assumption accepts negated unsupported condition queries",
             ),
             StaticSupportsEvalVerdictV0::Unknown => (
                 StaticSupportsEvalVerdictV0::Unknown,
@@ -1762,9 +1762,9 @@ pub fn prove_layer_flatten_candidate(input: LayerFlattenInputV0) -> LayerFlatten
     }
 }
 
-fn parse_not_simple_supports_declaration(condition: &str) -> Option<(&str, &str)> {
-    let inner = condition.strip_prefix("not ")?;
-    parse_simple_supports_declaration(inner)
+fn parse_static_supports_not_condition(condition: &str) -> Option<&str> {
+    let inner = condition.strip_prefix("not ")?.trim();
+    (!inner.is_empty()).then_some(inner)
 }
 
 fn parse_simple_supports_declaration(condition: &str) -> Option<(&str, &str)> {
@@ -3133,6 +3133,26 @@ mod tests {
             StaticSupportsEvalVerdictV0::AlwaysTrue
         );
         assert!(negated_obsolete.provenance_preserved);
+
+        let negated_grouped_obsolete = evaluate_static_supports_condition(
+            "not ((display: -ms-grid) or (-ms-ime-align: auto))",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            negated_grouped_obsolete.verdict,
+            StaticSupportsEvalVerdictV0::AlwaysTrue
+        );
+        assert!(negated_grouped_obsolete.provenance_preserved);
+
+        let negated_grouped_supported = evaluate_static_supports_condition(
+            "not ((display: grid) or (display: -ms-grid))",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            negated_grouped_supported.verdict,
+            StaticSupportsEvalVerdictV0::AlwaysFalse
+        );
+        assert!(negated_grouped_supported.provenance_preserved);
     }
 
     #[test]

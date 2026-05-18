@@ -240,7 +240,7 @@ const groupedSupportsResult = spawnSync(
     input: JSON.stringify({
       stylePath: "supports-grouped.css",
       styleSource:
-        "@supports ((display: grid) or (display: -ms-grid)) and (color: red) { .grid { color: red; } } @supports ((display: -ms-grid) or (-ms-ime-align: auto)) { .dead { color: blue; } }",
+        "@supports ((display: grid) or (display: -ms-grid)) and (color: red) { .grid { color: red; } } @supports ((display: -ms-grid) or (-ms-ime-align: auto)) { .dead { color: blue; } } @supports not ((display: -ms-grid) or (-ms-ime-align: auto)) { .not-grouped { color: green; } } @supports not ((display: grid) or (display: -ms-grid)) { .not-dead { color: red; } }",
       requestedPassIds: ["supports-static-eval", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
@@ -255,12 +255,15 @@ const groupedSupportsSummary = JSON.parse(
 ) as TransformExecuteSummaryV0;
 
 assert.equal(groupedSupportsSummary.product, "omena-query.transform-execute");
-assert.equal(groupedSupportsSummary.execution.outputCss, ".grid { color: red; } ");
+assert.equal(
+  groupedSupportsSummary.execution.outputCss,
+  ".grid { color: red; }  .not-grouped { color: green; } ",
+);
 assert.deepEqual(groupedSupportsSummary.execution.executedPassIds, [
   "supports-static-eval",
   "print-css",
 ]);
-assert.equal(groupedSupportsSummary.execution.mutationCount, 2);
+assert.equal(groupedSupportsSummary.execution.mutationCount, 4);
 
 const contextStyleSource =
   '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; } .button :global(.external) { color: var(--brand); } :global { .reset { color: var(--brand); } } :local(.button) { composes: base; color: var(--brand); } :local { .button { color: var(--brand); } } @media (min-width: 1px) { .button { composes: base; color: var(--brand); } }';

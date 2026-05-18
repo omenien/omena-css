@@ -7203,7 +7203,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_evaluates_simple_supports_branches_with_cascade_witness() {
-        let source = r#"@supports (display: grid) { .a { display: grid; } } @supports not (display: grid) { .b { display: block; } } @supports (display: grid) and (color: red) { .c { color: red; } } @supports (display: grid) or (selector(:has(*))) { .or { display: grid; } } @supports ((display: grid) or (display: -ms-grid)) and (color: red) { .grouped { display: grid; } } @media all { @supports (display: grid) { @supports (display: grid) { .d { display: grid; } } } }"#;
+        let source = r#"@supports (display: grid) { .a { display: grid; } } @supports not (display: grid) { .b { display: block; } } @supports (display: grid) and (color: red) { .c { color: red; } } @supports (display: grid) or (selector(:has(*))) { .or { display: grid; } } @supports ((display: grid) or (display: -ms-grid)) and (color: red) { .grouped { display: grid; } } @supports not ((display: -ms-grid) or (-ms-ime-align: auto)) { .not-grouped { display: grid; } } @supports not ((display: grid) or (display: -ms-grid)) { .not-dead { display: grid; } } @media all { @supports (display: grid) { @supports (display: grid) { .d { display: grid; } } } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -7212,10 +7212,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 7);
+        assert_eq!(execution.mutation_count, 9);
         assert_eq!(
             execution.output_css,
-            r#".a { display: grid; }  .c { color: red; } .or { display: grid; } .grouped { display: grid; } @media all { .d { display: grid; } }"#
+            r#".a { display: grid; }  .c { color: red; } .or { display: grid; } .grouped { display: grid; } .not-grouped { display: grid; }  @media all { .d { display: grid; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
