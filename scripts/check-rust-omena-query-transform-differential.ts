@@ -386,7 +386,7 @@ const fixtures: readonly DifferentialFixture[] = [
   {
     label: "spacing-zero-units",
     source:
-      ".a { border-spacing: 0px 0px; letter-spacing: 0px; word-spacing: 0px; outline-offset: 0px; }",
+      ".a { border-spacing: 0px 0px; letter-spacing: 0px; word-spacing: 0px; outline-offset: 0px; stroke-width: 0px; stroke-dasharray: 0px; stroke-dashoffset: 0px; }",
   },
   {
     label: "alpha-hex-zero-line-height-calc",

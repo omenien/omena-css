@@ -195,6 +195,9 @@ fn is_zero_length_unit_property(property: &str) -> bool {
             | "letter-spacing"
             | "word-spacing"
             | "line-height"
+            | "stroke-dasharray"
+            | "stroke-dashoffset"
+            | "stroke-width"
     )
 }
 
