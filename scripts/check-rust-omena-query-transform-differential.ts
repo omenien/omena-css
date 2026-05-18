@@ -199,6 +199,10 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { column-rule: medium none currentcolor; }",
   },
   {
+    label: "columns-auto-and-column-rule",
+    source: ".a { columns: auto auto; } .b { column-rule: medium none currentcolor; }",
+  },
+  {
     label: "border-outline-zero-shorthand-lengths",
     source:
       ".a { border: 0px solid #000000; } .b { border-top: 0px solid #000000; } .c { outline: 0px solid #000000; } .d { text-decoration: underline 0px #000000; }",
@@ -226,6 +230,10 @@ const fixtures: readonly DifferentialFixture[] = [
     label: "center-position-normalization",
     source:
       ".bg { background-position: center center; } .left { background-position: left center; } .origin { transform-origin: center top; } .mask { mask-position: bottom right; }",
+  },
+  {
+    label: "background-size-position-normalization",
+    source: ".a { background-position: center center; background-size: auto auto; }",
   },
   {
     label: "opacity-percentage-normalization",
