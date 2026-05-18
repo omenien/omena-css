@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use omena_abstract_value::{
     AbstractClassValueV0, SelectorProjectionCertaintyV0, enumerate_finite_class_values,
@@ -25,6 +25,11 @@ pub enum OmenaCheckerRuleCodeV0 {
     MissingKeyframes,
     MissingCustomProperty,
     MissingSassSymbol,
+    UnreachableDeclaration,
+    DeadCascadeLayer,
+    IacvtProne,
+    CircularVar,
+    UnspecifiedCascadeTie,
 }
 
 impl OmenaCheckerRuleCodeV0 {
@@ -46,6 +51,11 @@ impl OmenaCheckerRuleCodeV0 {
             Self::MissingKeyframes => "missing-keyframes",
             Self::MissingCustomProperty => "missing-custom-property",
             Self::MissingSassSymbol => "missing-sass-symbol",
+            Self::UnreachableDeclaration => "unreachable-declaration",
+            Self::DeadCascadeLayer => "dead-cascade-layer",
+            Self::IacvtProne => "iacvt-prone",
+            Self::CircularVar => "circular-var",
+            Self::UnspecifiedCascadeTie => "unspecified-cascade-tie",
         }
     }
 }
@@ -141,6 +151,7 @@ pub enum OmenaCheckerCodeBundleNameV0 {
     SourceMissing,
     StyleRecovery,
     StyleUnused,
+    CascadeAware,
 }
 
 impl OmenaCheckerCodeBundleNameV0 {
@@ -150,6 +161,7 @@ impl OmenaCheckerCodeBundleNameV0 {
             Self::SourceMissing => "source-missing",
             Self::StyleRecovery => "style-recovery",
             Self::StyleUnused => "style-unused",
+            Self::CascadeAware => "cascade-aware",
         }
     }
 }
@@ -252,13 +264,59 @@ pub struct OmenaCheckerMTierEvaluationV0 {
     pub message: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerCascadeInputV0 {
+    pub declarations: Vec<OmenaCheckerCascadeDeclarationInputV0>,
+    pub custom_properties: Vec<OmenaCheckerCustomPropertyInputV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerCascadeDeclarationInputV0 {
+    pub declaration_id: String,
+    pub selector: String,
+    pub property: String,
+    pub value: String,
+    pub source_order: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub layer_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub layer_order: Option<i32>,
+    pub important: bool,
+    pub var_references: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerCustomPropertyInputV0 {
+    pub name: String,
+    pub dependencies: Vec<String>,
+    pub guaranteed_invalid: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerCascadeEvaluationV0 {
+    pub rule_code: OmenaCheckerRuleCodeV0,
+    pub rule_code_name: &'static str,
+    pub severity: OmenaCheckerSeverityV0,
+    pub severity_name: &'static str,
+    pub declaration_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub layer_name: Option<String>,
+    pub custom_property_names: Vec<String>,
+    pub message: String,
+}
+
 pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0> {
     use OmenaCheckerFindingCategoryV0::{Source, Style};
     use OmenaCheckerRuleCodeV0::{
-        MissingComposedModule, MissingComposedSelector, MissingCustomProperty,
-        MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
-        MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
-        MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
+        CircularVar, DeadCascadeLayer, IacvtProne, MissingComposedModule, MissingComposedSelector,
+        MissingCustomProperty, MissingImportedValue, MissingKeyframes, MissingModule,
+        MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
+        MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
+        NoImpreciseValue, NoUnknownDynamicClass, UnreachableDeclaration, UnspecifiedCascadeTie,
         UnusedSelector,
     };
     use OmenaCheckerRuleFixabilityV0::{CodeAction, None};
@@ -394,6 +452,46 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
             &[Recommended],
             "Report unresolved Sass/Less variable, mixin, and function references.",
         ),
+        rule(
+            UnreachableDeclaration,
+            Style,
+            Hint,
+            None,
+            &[Strict],
+            "Report declarations that are always outranked by another declaration with the same selector and property.",
+        ),
+        rule(
+            DeadCascadeLayer,
+            Style,
+            Hint,
+            None,
+            &[Strict],
+            "Report cascade layers whose declarations are all outranked by declarations from other layers.",
+        ),
+        rule(
+            IacvtProne,
+            Style,
+            Warning,
+            None,
+            &[Recommended],
+            "Report declarations whose var() references may produce an invalid-at-computed-value-time result.",
+        ),
+        rule(
+            CircularVar,
+            Style,
+            Warning,
+            None,
+            &[Recommended],
+            "Report custom property dependency cycles that make participating variables guaranteed-invalid.",
+        ),
+        rule(
+            UnspecifiedCascadeTie,
+            Style,
+            Hint,
+            None,
+            &[Strict],
+            "Report same-selector same-property declaration pairs that rely on source order as the final cascade tie-breaker.",
+        ),
     ]
 }
 
@@ -450,9 +548,9 @@ pub fn list_omena_checker_s_tier_rule_code_names() -> Vec<&'static str> {
 
 pub fn list_omena_checker_t_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
     use OmenaCheckerRuleCodeV0::{
-        MissingComposedModule, MissingComposedSelector, MissingCustomProperty,
-        MissingImportedValue, MissingKeyframes, MissingSassSymbol, MissingValueModule,
-        UnusedSelector,
+        CircularVar, DeadCascadeLayer, IacvtProne, MissingComposedModule, MissingComposedSelector,
+        MissingCustomProperty, MissingImportedValue, MissingKeyframes, MissingSassSymbol,
+        MissingValueModule, UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
     };
 
     vec![
@@ -464,6 +562,11 @@ pub fn list_omena_checker_t_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
         MissingKeyframes,
         MissingCustomProperty,
         MissingSassSymbol,
+        UnreachableDeclaration,
+        DeadCascadeLayer,
+        IacvtProne,
+        CircularVar,
+        UnspecifiedCascadeTie,
     ]
 }
 
@@ -489,12 +592,15 @@ pub fn get_omena_checker_rule_descriptor(
 }
 
 pub fn list_omena_checker_code_bundles() -> Vec<OmenaCheckerCodeBundleV0> {
-    use OmenaCheckerCodeBundleNameV0::{CiDefault, SourceMissing, StyleRecovery, StyleUnused};
+    use OmenaCheckerCodeBundleNameV0::{
+        CascadeAware, CiDefault, SourceMissing, StyleRecovery, StyleUnused,
+    };
     use OmenaCheckerRuleCodeV0::{
-        MissingComposedModule, MissingComposedSelector, MissingImportedValue, MissingKeyframes,
-        MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
-        MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
-        NoImpreciseValue, NoUnknownDynamicClass, UnusedSelector,
+        CircularVar, DeadCascadeLayer, IacvtProne, MissingComposedModule, MissingComposedSelector,
+        MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
+        MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
+        MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
+        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
     };
 
     vec![
@@ -540,6 +646,16 @@ pub fn list_omena_checker_code_bundles() -> Vec<OmenaCheckerCodeBundleV0> {
             ],
         ),
         bundle(StyleUnused, &[UnusedSelector]),
+        bundle(
+            CascadeAware,
+            &[
+                UnreachableDeclaration,
+                DeadCascadeLayer,
+                IacvtProne,
+                CircularVar,
+                UnspecifiedCascadeTie,
+            ],
+        ),
     ]
 }
 
@@ -710,6 +826,127 @@ pub fn evaluate_omena_checker_m_tier_rules(
     evaluations
 }
 
+pub fn evaluate_omena_checker_cascade_rules(
+    input: OmenaCheckerCascadeInputV0,
+) -> Vec<OmenaCheckerCascadeEvaluationV0> {
+    let declarations = input.declarations;
+    let custom_properties = input.custom_properties;
+    let invalid_custom_properties = custom_properties
+        .iter()
+        .filter(|property| property.guaranteed_invalid)
+        .map(|property| property.name.clone())
+        .collect::<BTreeSet<_>>();
+    let cyclic_custom_properties = cyclic_custom_property_names(&custom_properties);
+    let known_custom_properties = custom_properties
+        .iter()
+        .map(|property| property.name.clone())
+        .collect::<BTreeSet<_>>();
+    let mut evaluations = Vec::new();
+
+    for declaration in &declarations {
+        if let Some(outranking) = declarations.iter().find(|candidate| {
+            candidate.declaration_id != declaration.declaration_id
+                && declaration_outranks(candidate, declaration)
+        }) {
+            evaluations.push(cascade_evaluation(
+                OmenaCheckerRuleCodeV0::UnreachableDeclaration,
+                OmenaCheckerSeverityV0::Hint,
+                vec![
+                    declaration.declaration_id.clone(),
+                    outranking.declaration_id.clone(),
+                ],
+                declaration.layer_name.clone(),
+                Vec::new(),
+                "Declaration is always outranked by another declaration with the same selector and property.",
+            ));
+        }
+    }
+
+    for layer_name in declarations
+        .iter()
+        .filter_map(|declaration| declaration.layer_name.clone())
+        .collect::<BTreeSet<_>>()
+    {
+        let layer_declarations = declarations
+            .iter()
+            .filter(|declaration| declaration.layer_name.as_deref() == Some(layer_name.as_str()))
+            .collect::<Vec<_>>();
+        if !layer_declarations.is_empty()
+            && layer_declarations.iter().all(|declaration| {
+                declarations.iter().any(|candidate| {
+                    candidate.layer_name.as_deref() != Some(layer_name.as_str())
+                        && declaration_outranks_by_layer(candidate, declaration)
+                })
+            })
+        {
+            evaluations.push(cascade_evaluation(
+                OmenaCheckerRuleCodeV0::DeadCascadeLayer,
+                OmenaCheckerSeverityV0::Hint,
+                layer_declarations
+                    .iter()
+                    .map(|declaration| declaration.declaration_id.clone())
+                    .collect(),
+                Some(layer_name),
+                Vec::new(),
+                "Every declaration in this cascade layer is outranked by another layer.",
+            ));
+        }
+    }
+
+    for declaration in &declarations {
+        let risky_refs = declaration
+            .var_references
+            .iter()
+            .filter(|name| {
+                !known_custom_properties.contains(*name)
+                    || invalid_custom_properties.contains(*name)
+                    || cyclic_custom_properties.contains(*name)
+            })
+            .cloned()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        if !risky_refs.is_empty() {
+            evaluations.push(cascade_evaluation(
+                OmenaCheckerRuleCodeV0::IacvtProne,
+                OmenaCheckerSeverityV0::Warning,
+                vec![declaration.declaration_id.clone()],
+                declaration.layer_name.clone(),
+                risky_refs,
+                "Declaration references custom properties that may become invalid at computed-value time.",
+            ));
+        }
+    }
+
+    if !cyclic_custom_properties.is_empty() {
+        evaluations.push(cascade_evaluation(
+            OmenaCheckerRuleCodeV0::CircularVar,
+            OmenaCheckerSeverityV0::Warning,
+            Vec::new(),
+            None,
+            cyclic_custom_properties.into_iter().collect(),
+            "Custom property dependency graph contains a cycle.",
+        ));
+    }
+
+    for (left_index, left) in declarations.iter().enumerate() {
+        for right in declarations.iter().skip(left_index + 1) {
+            if declarations_rely_on_source_order_tie(left, right) {
+                evaluations.push(cascade_evaluation(
+                    OmenaCheckerRuleCodeV0::UnspecifiedCascadeTie,
+                    OmenaCheckerSeverityV0::Hint,
+                    vec![left.declaration_id.clone(), right.declaration_id.clone()],
+                    left.layer_name.clone(),
+                    Vec::new(),
+                    "Declarations have equal cascade priority except source order; make the intended override explicit.",
+                ));
+            }
+        }
+    }
+
+    evaluations
+}
+
 fn dynamic_class_domain_evaluation(
     outcome: OmenaCheckerDynamicClassDomainOutcomeV0,
     rule_code: Option<OmenaCheckerRuleCodeV0>,
@@ -752,6 +989,131 @@ fn m_tier_evaluation(
     }
 }
 
+fn cascade_evaluation(
+    rule_code: OmenaCheckerRuleCodeV0,
+    severity: OmenaCheckerSeverityV0,
+    declaration_ids: Vec<String>,
+    layer_name: Option<String>,
+    custom_property_names: Vec<String>,
+    message: &'static str,
+) -> OmenaCheckerCascadeEvaluationV0 {
+    OmenaCheckerCascadeEvaluationV0 {
+        rule_code,
+        rule_code_name: rule_code.as_str(),
+        severity,
+        severity_name: severity.as_str(),
+        declaration_ids,
+        layer_name,
+        custom_property_names,
+        message: message.to_string(),
+    }
+}
+
+fn declaration_outranks(
+    candidate: &OmenaCheckerCascadeDeclarationInputV0,
+    declaration: &OmenaCheckerCascadeDeclarationInputV0,
+) -> bool {
+    if candidate.selector != declaration.selector || candidate.property != declaration.property {
+        return false;
+    }
+    if candidate.important != declaration.important {
+        return candidate.important;
+    }
+    if declaration_outranks_by_layer(candidate, declaration) {
+        return true;
+    }
+    candidate.layer_order == declaration.layer_order
+        && candidate.source_order > declaration.source_order
+}
+
+fn declaration_outranks_by_layer(
+    candidate: &OmenaCheckerCascadeDeclarationInputV0,
+    declaration: &OmenaCheckerCascadeDeclarationInputV0,
+) -> bool {
+    if candidate.selector != declaration.selector
+        || candidate.property != declaration.property
+        || candidate.important != declaration.important
+    {
+        return false;
+    }
+    match (
+        candidate.layer_order,
+        declaration.layer_order,
+        declaration.important,
+    ) {
+        (Some(candidate_layer), Some(declaration_layer), false) => {
+            candidate_layer > declaration_layer
+        }
+        (Some(candidate_layer), Some(declaration_layer), true) => {
+            candidate_layer < declaration_layer
+        }
+        _ => false,
+    }
+}
+
+fn declarations_rely_on_source_order_tie(
+    left: &OmenaCheckerCascadeDeclarationInputV0,
+    right: &OmenaCheckerCascadeDeclarationInputV0,
+) -> bool {
+    left.selector == right.selector
+        && left.property == right.property
+        && left.value != right.value
+        && left.important == right.important
+        && left.layer_order == right.layer_order
+        && left.layer_name == right.layer_name
+        && left.source_order != right.source_order
+}
+
+fn cyclic_custom_property_names(
+    custom_properties: &[OmenaCheckerCustomPropertyInputV0],
+) -> BTreeSet<String> {
+    let graph = custom_properties
+        .iter()
+        .map(|property| {
+            (
+                property.name.clone(),
+                property
+                    .dependencies
+                    .iter()
+                    .filter(|dependency| {
+                        custom_properties
+                            .iter()
+                            .any(|property| property.name == **dependency)
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    graph
+        .keys()
+        .filter(|name| custom_property_reaches_name(name, name, &graph, &mut BTreeSet::new()))
+        .cloned()
+        .collect()
+}
+
+fn custom_property_reaches_name(
+    start: &str,
+    current: &str,
+    graph: &BTreeMap<String, Vec<String>>,
+    visited: &mut BTreeSet<String>,
+) -> bool {
+    let Some(dependencies) = graph.get(current) else {
+        return false;
+    };
+    for dependency in dependencies {
+        if dependency == start {
+            return true;
+        }
+        if visited.insert(dependency.clone())
+            && custom_property_reaches_name(start, dependency, graph, visited)
+        {
+            return true;
+        }
+    }
+    false
+}
+
 fn rule(
     code: OmenaCheckerRuleCodeV0,
     category: OmenaCheckerFindingCategoryV0,
@@ -780,10 +1142,11 @@ fn rule(
 
 fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRuleTierV0 {
     use OmenaCheckerRuleCodeV0::{
-        MissingComposedModule, MissingComposedSelector, MissingCustomProperty,
-        MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
-        MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
-        MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
+        CircularVar, DeadCascadeLayer, IacvtProne, MissingComposedModule, MissingComposedSelector,
+        MissingCustomProperty, MissingImportedValue, MissingKeyframes, MissingModule,
+        MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
+        MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
+        NoImpreciseValue, NoUnknownDynamicClass, UnreachableDeclaration, UnspecifiedCascadeTie,
         UnusedSelector,
     };
 
@@ -803,7 +1166,12 @@ fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRuleTierV0 {
         | MissingImportedValue
         | MissingKeyframes
         | MissingCustomProperty
-        | MissingSassSymbol => OmenaCheckerRuleTierV0::T,
+        | MissingSassSymbol
+        | UnreachableDeclaration
+        | DeadCascadeLayer
+        | IacvtProne
+        | CircularVar
+        | UnspecifiedCascadeTie => OmenaCheckerRuleTierV0::T,
     }
 }
 
@@ -861,6 +1229,11 @@ mod tests {
                 "missing-keyframes",
                 "missing-custom-property",
                 "missing-sass-symbol",
+                "unreachable-declaration",
+                "dead-cascade-layer",
+                "iacvt-prone",
+                "circular-var",
+                "unspecified-cascade-tie",
             ],
         );
     }
@@ -918,13 +1291,13 @@ mod tests {
             summary.bundle_registry_product,
             "omena-checker.code-bundles"
         );
-        assert_eq!(summary.rule_count, 16);
+        assert_eq!(summary.rule_count, 21);
         assert_eq!(summary.source_rule_count, 8);
-        assert_eq!(summary.style_rule_count, 8);
+        assert_eq!(summary.style_rule_count, 13);
         assert_eq!(summary.m_tier_rule_count, 3);
         assert_eq!(summary.s_tier_rule_count, 5);
-        assert_eq!(summary.t_tier_rule_count, 8);
-        assert_eq!(summary.bundle_count, 4);
+        assert_eq!(summary.t_tier_rule_count, 13);
+        assert_eq!(summary.bundle_count, 5);
         assert!(
             summary
                 .bridge_policy
@@ -1018,6 +1391,11 @@ mod tests {
                 "missing-keyframes",
                 "missing-custom-property",
                 "missing-sass-symbol",
+                "unreachable-declaration",
+                "dead-cascade-layer",
+                "iacvt-prone",
+                "circular-var",
+                "unspecified-cascade-tie",
             ]
         );
     }
@@ -1063,5 +1441,134 @@ mod tests {
             OmenaCheckerRuleCodeV0::NoImpreciseValue
         );
         assert_eq!(evaluations[0].severity, OmenaCheckerSeverityV0::Hint);
+    }
+
+    #[test]
+    fn evaluates_cascade_aware_rule_family() {
+        let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "base-color",
+                    selector: ".btn",
+                    property: "color",
+                    value: "red",
+                    source_order: 1,
+                    layer_name: Some("base"),
+                    layer_order: Some(0),
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "override-color",
+                    selector: ".btn",
+                    property: "color",
+                    value: "blue",
+                    source_order: 2,
+                    layer_name: Some("overrides"),
+                    layer_order: Some(1),
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "gap-use",
+                    selector: ".card",
+                    property: "margin",
+                    value: "var(--gap)",
+                    source_order: 3,
+                    layer_name: Some("components"),
+                    layer_order: Some(1),
+                    important: false,
+                    var_references: &["--gap"],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "tie-a",
+                    selector: ".tie",
+                    property: "color",
+                    value: "red",
+                    source_order: 4,
+                    layer_name: Some("utilities"),
+                    layer_order: Some(2),
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "tie-b",
+                    selector: ".tie",
+                    property: "color",
+                    value: "green",
+                    source_order: 5,
+                    layer_name: Some("utilities"),
+                    layer_order: Some(2),
+                    important: false,
+                    var_references: &[],
+                }),
+            ],
+            custom_properties: vec![
+                OmenaCheckerCustomPropertyInputV0 {
+                    name: "--gap".to_string(),
+                    dependencies: Vec::new(),
+                    guaranteed_invalid: true,
+                },
+                OmenaCheckerCustomPropertyInputV0 {
+                    name: "--a".to_string(),
+                    dependencies: vec!["--b".to_string()],
+                    guaranteed_invalid: false,
+                },
+                OmenaCheckerCustomPropertyInputV0 {
+                    name: "--b".to_string(),
+                    dependencies: vec!["--a".to_string()],
+                    guaranteed_invalid: false,
+                },
+            ],
+        });
+        let rule_names = evaluations
+            .iter()
+            .map(|evaluation| evaluation.rule_code_name)
+            .collect::<BTreeSet<_>>();
+
+        assert!(rule_names.contains("unreachable-declaration"));
+        assert!(rule_names.contains("dead-cascade-layer"));
+        assert!(rule_names.contains("iacvt-prone"));
+        assert!(rule_names.contains("circular-var"));
+        assert!(rule_names.contains("unspecified-cascade-tie"));
+        assert!(evaluations.iter().any(|evaluation| evaluation.rule_code
+            == OmenaCheckerRuleCodeV0::IacvtProne
+            && evaluation.declaration_ids == vec!["gap-use"]
+            && evaluation.custom_property_names == vec!["--gap"]));
+        assert!(evaluations.iter().any(|evaluation| evaluation.rule_code
+            == OmenaCheckerRuleCodeV0::CircularVar
+            && evaluation.custom_property_names == vec!["--a", "--b"]));
+    }
+
+    struct CascadeDeclarationFixture<'a> {
+        declaration_id: &'a str,
+        selector: &'a str,
+        property: &'a str,
+        value: &'a str,
+        source_order: u32,
+        layer_name: Option<&'a str>,
+        layer_order: Option<i32>,
+        important: bool,
+        var_references: &'a [&'a str],
+    }
+
+    fn cascade_declaration(
+        fixture: CascadeDeclarationFixture<'_>,
+    ) -> OmenaCheckerCascadeDeclarationInputV0 {
+        OmenaCheckerCascadeDeclarationInputV0 {
+            declaration_id: fixture.declaration_id.to_string(),
+            selector: fixture.selector.to_string(),
+            property: fixture.property.to_string(),
+            value: fixture.value.to_string(),
+            source_order: fixture.source_order,
+            layer_name: fixture.layer_name.map(str::to_string),
+            layer_order: fixture.layer_order,
+            important: fixture.important,
+            var_references: fixture
+                .var_references
+                .iter()
+                .map(|value| value.to_string())
+                .collect(),
+        }
     }
 }
