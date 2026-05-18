@@ -2039,7 +2039,7 @@ fn execution_runtime_resolves_static_local_css_modules_values() {
 
 #[test]
 fn execution_runtime_resolves_imported_static_css_modules_values_from_context() {
-    let source = r#"@value primary as brand, gap, tone from "./tokens.module.css"; .btn { color: brand; margin: gap; border-color: tone; } @media (min-width: gap) { .btn { color: brand; } }"#;
+    let source = r#"@value primary as brand, gap, tone from "./tokens.module.css"; .btn { color: brand; margin: gap; border-color: tone; } @media (min-width: gap) { .btn { color: brand; } } @supports (width: gap) { .btn { color: brand; } }"#;
     let context = TransformExecutionContextV0 {
         css_module_value_resolutions: vec![
             TransformCssModuleValueResolutionV0 {
@@ -2063,10 +2063,10 @@ fn execution_runtime_resolves_imported_static_css_modules_values_from_context() 
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 5);
+    assert_eq!(execution.mutation_count, 7);
     assert_eq!(
         execution.output_css,
-        r#"@value tone from "./tokens.module.css"; .btn { color: #fff; margin: 8px; border-color: tone; } @media (min-width: 8px) { .btn { color: #fff; } }"#
+        r#"@value tone from "./tokens.module.css"; .btn { color: #fff; margin: 8px; border-color: tone; } @media (min-width: 8px) { .btn { color: #fff; } } @supports (width: 8px) { .btn { color: #fff; } }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

@@ -238,7 +238,10 @@ fn collect_static_css_modules_value_query_prelude_replacements(
 }
 
 fn css_modules_value_query_prelude_at_rule(text: &str) -> bool {
-    text.eq_ignore_ascii_case("@media") || text.eq_ignore_ascii_case("@container")
+    matches!(
+        text.to_ascii_lowercase().as_str(),
+        "@media" | "@supports" | "@container"
+    )
 }
 
 fn query_prelude_ident_is_feature_value(
