@@ -52,6 +52,24 @@ assert.ok(
   "source syntax references must dedupe generic and target-aware bridge candidates",
 );
 
+const sourceEvidence = read("rust/crates/omena-bridge/src/source_evidence.rs");
+const promotionEvidence = read("rust/crates/omena-bridge/src/promotion_evidence.rs");
+assert.ok(
+  sourceEvidence.includes("pub use omena_semantic::") &&
+    sourceEvidence.includes("omena_semantic::summarize_source_input_evidence(input)") &&
+    !sourceEvidence.includes("pub struct SourceInputPromotionEvidenceSummaryV0"),
+  "bridge source evidence must delegate to omena-semantic instead of duplicating evidence DTOs",
+);
+assert.ok(
+  promotionEvidence.includes("pub use omena_semantic::") &&
+    promotionEvidence.includes("omena_semantic::summarize_semantic_promotion_evidence(") &&
+    promotionEvidence.includes(
+      "omena_semantic::summarize_semantic_promotion_evidence_with_source_input(",
+    ) &&
+    !promotionEvidence.includes("pub struct SemanticPromotionEvidenceSummaryV0"),
+  "bridge promotion evidence must delegate to omena-semantic instead of duplicating promotion DTOs",
+);
+
 const semanticLib = read("rust/crates/omena-semantic/src/lib.rs");
 assert.ok(
   semanticLib.includes("let facts = collect_style_facts(style_source, dialect);"),
@@ -71,7 +89,7 @@ assert.ok(
 );
 
 process.stdout.write(
-  "validated omena-bridge parser consumer: parserSpans=true parserBackedStyleGraph=true targetAwareSourceJoin=true\n",
+  "validated omena-bridge parser consumer: parserSpans=true parserBackedStyleGraph=true targetAwareSourceJoin=true semanticEvidenceDelegated=true\n",
 );
 
 function read(filePath: string): string {
