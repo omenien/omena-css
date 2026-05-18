@@ -46,6 +46,7 @@ use helpers::blocks::{
     at_rule_block_start, at_rule_prelude_end_index, previous_significant_token_kind,
     rule_block_token_indexes,
 };
+use helpers::declarations::{SimpleDeclarationSlice, collect_simple_declarations_in_block};
 use helpers::identifiers::{css_identifier_text_is_plain, normalize_custom_property_name};
 use helpers::source_rewrite::{remove_source_ranges, replace_source_ranges, rewrite_lexer_tokens};
 use helpers::tokens::{
@@ -7909,16 +7910,6 @@ fn rule_gap_is_whitespace_only(
         .all(|token| token.kind == SyntaxKind::Whitespace)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct SimpleDeclarationSlice {
-    property: String,
-    value: String,
-    important: bool,
-    start: usize,
-    end: usize,
-    source_order: u32,
-}
-
 fn combine_css_box_shorthands_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
@@ -7995,130 +7986,6 @@ fn collect_box_shorthand_replacements_in_block(
         }
     }
     ranges
-}
-
-fn collect_simple_declarations_in_block(
-    tokens: &[omena_parser::LexedToken],
-    block_start: usize,
-    block_end: usize,
-) -> Vec<SimpleDeclarationSlice> {
-    let mut declarations = Vec::new();
-    let mut index = block_start + 1;
-    let mut source_order = 0u32;
-
-    while index < block_end {
-        index = skip_whitespace_tokens(tokens, index, block_end);
-        if index >= block_end {
-            break;
-        }
-
-        if tokens[index].kind == SyntaxKind::LeftBrace
-            && let Some(close_index) = matching_right_brace_index(tokens, index)
-        {
-            index = close_index + 1;
-            continue;
-        }
-
-        if let Some((declaration, next_index)) =
-            parse_simple_declaration_slice(tokens, index, block_end, source_order)
-        {
-            declarations.push(declaration);
-            source_order += 1;
-            index = next_index;
-        } else {
-            index += 1;
-        }
-    }
-
-    declarations
-}
-
-fn parse_simple_declaration_slice(
-    tokens: &[omena_parser::LexedToken],
-    start_index: usize,
-    block_end: usize,
-    source_order: u32,
-) -> Option<(SimpleDeclarationSlice, usize)> {
-    let property_token = tokens.get(start_index)?;
-    let property = match property_token.kind {
-        SyntaxKind::Ident => property_token.text.to_ascii_lowercase(),
-        SyntaxKind::CustomPropertyName => property_token.text.clone(),
-        _ => return None,
-    };
-
-    let colon_index = skip_whitespace_tokens(tokens, start_index + 1, block_end);
-    if tokens.get(colon_index)?.kind != SyntaxKind::Colon {
-        return None;
-    }
-
-    let mut value_tokens: Vec<&omena_parser::LexedToken> = Vec::new();
-    let mut index = colon_index + 1;
-    while index < block_end {
-        match tokens[index].kind {
-            SyntaxKind::Semicolon => {
-                return build_simple_declaration_slice(
-                    property,
-                    property_token,
-                    &value_tokens,
-                    token_end(&tokens[index]),
-                    source_order,
-                    index + 1,
-                );
-            }
-            SyntaxKind::LeftBrace | SyntaxKind::RightBrace => return None,
-            _ => value_tokens.push(&tokens[index]),
-        }
-        index += 1;
-    }
-
-    let last_value_token = value_tokens.last()?;
-    build_simple_declaration_slice(
-        property,
-        property_token,
-        &value_tokens,
-        token_end(last_value_token),
-        source_order,
-        index,
-    )
-}
-
-fn build_simple_declaration_slice(
-    property: String,
-    property_token: &omena_parser::LexedToken,
-    value_tokens: &[&omena_parser::LexedToken],
-    end: usize,
-    source_order: u32,
-    next_index: usize,
-) -> Option<(SimpleDeclarationSlice, usize)> {
-    if value_tokens
-        .iter()
-        .any(|token| is_comment_token(token.kind))
-    {
-        return None;
-    }
-    let value = value_tokens
-        .iter()
-        .map(|token| token.text.as_str())
-        .collect::<String>()
-        .trim()
-        .to_string();
-    if value.is_empty() {
-        return None;
-    }
-    let important = value_tokens
-        .iter()
-        .any(|token| token.kind == SyntaxKind::Important);
-    Some((
-        SimpleDeclarationSlice {
-            property,
-            value,
-            important,
-            start: token_start(property_token),
-            end,
-            source_order,
-        },
-        next_index,
-    ))
 }
 
 fn format_replacement_declaration_like_source(
