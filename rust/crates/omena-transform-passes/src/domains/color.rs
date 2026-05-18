@@ -26,13 +26,14 @@ pub(crate) fn parse_color_mix_value(value: &str) -> Option<String> {
         second_stop.color,
         color_mix.first_weight,
         color_mix.second_weight,
+        color_mix.alpha_multiplier,
     );
-    Some(mixed.to_css_rgb_with_alpha(color_mix.alpha))
+    Some(mixed.color.to_css_rgb_with_alpha(mixed.alpha))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct StaticColorMixStop {
-    color: SrgbColor,
+    color: StaticSrgbColorWithAlpha,
     percentage: Option<f64>,
 }
 
@@ -40,7 +41,7 @@ struct StaticColorMixStop {
 struct StaticColorMixWeights {
     first_weight: f64,
     second_weight: f64,
-    alpha: Option<f64>,
+    alpha_multiplier: Option<f64>,
 }
 
 fn parse_static_color_mix_stop(input: &str) -> Option<StaticColorMixStop> {
@@ -124,11 +125,11 @@ fn split_static_color_mix_stop(input: &str) -> Option<(String, Option<f64>)> {
     Some((input.to_string(), None))
 }
 
-fn parse_static_color_mix_operand(text: &str) -> Option<SrgbColor> {
-    parse_static_srgb_color(text)
-        .or_else(|| parse_static_rgb_function_color(text))
-        .or_else(|| parse_static_hsl_function_color(text))
-        .or_else(|| parse_static_hwb_function_color(text))
+fn parse_static_color_mix_operand(text: &str) -> Option<StaticSrgbColorWithAlpha> {
+    parse_static_srgb_color_with_alpha(text)
+        .or_else(|| parse_static_rgb_function_color_with_alpha(text))
+        .or_else(|| parse_static_hsl_function_color_with_alpha(text))
+        .or_else(|| parse_static_hwb_function_color_with_alpha(text))
 }
 
 fn color_mix_weights(first: Option<f64>, second: Option<f64>) -> Option<StaticColorMixWeights> {
@@ -136,17 +137,17 @@ fn color_mix_weights(first: Option<f64>, second: Option<f64>) -> Option<StaticCo
         (None, None) => Some(StaticColorMixWeights {
             first_weight: 0.5,
             second_weight: 0.5,
-            alpha: None,
+            alpha_multiplier: None,
         }),
         (Some(first), None) => Some(StaticColorMixWeights {
             first_weight: first,
             second_weight: 1.0 - first,
-            alpha: None,
+            alpha_multiplier: None,
         }),
         (None, Some(second)) => Some(StaticColorMixWeights {
             first_weight: 1.0 - second,
             second_weight: second,
-            alpha: None,
+            alpha_multiplier: None,
         }),
         (Some(first), Some(second)) => {
             let sum = first + second;
@@ -156,7 +157,7 @@ fn color_mix_weights(first: Option<f64>, second: Option<f64>) -> Option<StaticCo
             Some(StaticColorMixWeights {
                 first_weight: first / sum,
                 second_weight: second / sum,
-                alpha: (sum < 1.0).then_some(sum),
+                alpha_multiplier: (sum < 1.0).then_some(sum),
             })
         }
     }
@@ -195,21 +196,78 @@ impl SrgbColor {
 }
 
 fn mix_srgb_colors(
-    first: SrgbColor,
-    second: SrgbColor,
+    first: StaticSrgbColorWithAlpha,
+    second: StaticSrgbColorWithAlpha,
     first_weight: f64,
     second_weight: f64,
-) -> SrgbColor {
-    SrgbColor {
-        red: mix_srgb_channel(first.red, second.red, first_weight, second_weight),
-        green: mix_srgb_channel(first.green, second.green, first_weight, second_weight),
-        blue: mix_srgb_channel(first.blue, second.blue, first_weight, second_weight),
+    alpha_multiplier: Option<f64>,
+) -> StaticSrgbColorWithAlpha {
+    let first_alpha = first.alpha.unwrap_or(1.0);
+    let second_alpha = second.alpha.unwrap_or(1.0);
+    let interpolated_alpha = first_alpha * first_weight + second_alpha * second_weight;
+    if interpolated_alpha <= f64::EPSILON {
+        return StaticSrgbColorWithAlpha {
+            color: SrgbColor {
+                red: 0,
+                green: 0,
+                blue: 0,
+            },
+            alpha: Some(0.0),
+        };
+    }
+
+    let final_alpha = (interpolated_alpha * alpha_multiplier.unwrap_or(1.0)).clamp(0.0, 1.0);
+    StaticSrgbColorWithAlpha {
+        color: SrgbColor {
+            red: mix_premultiplied_srgb_channel(
+                first.color.red,
+                first_alpha,
+                second.color.red,
+                second_alpha,
+                first_weight,
+                second_weight,
+                interpolated_alpha,
+            ),
+            green: mix_premultiplied_srgb_channel(
+                first.color.green,
+                first_alpha,
+                second.color.green,
+                second_alpha,
+                first_weight,
+                second_weight,
+                interpolated_alpha,
+            ),
+            blue: mix_premultiplied_srgb_channel(
+                first.color.blue,
+                first_alpha,
+                second.color.blue,
+                second_alpha,
+                first_weight,
+                second_weight,
+                interpolated_alpha,
+            ),
+        },
+        alpha: non_opaque_alpha(final_alpha),
     }
 }
 
-fn mix_srgb_channel(first: u8, second: u8, first_weight: f64, second_weight: f64) -> u8 {
-    let value = f64::from(first) * first_weight + f64::from(second) * second_weight;
+fn mix_premultiplied_srgb_channel(
+    first: u8,
+    first_alpha: f64,
+    second: u8,
+    second_alpha: f64,
+    first_weight: f64,
+    second_weight: f64,
+    interpolated_alpha: f64,
+) -> u8 {
+    let value = (f64::from(first) * first_alpha * first_weight
+        + f64::from(second) * second_alpha * second_weight)
+        / interpolated_alpha;
     value.round().clamp(0.0, 255.0) as u8
+}
+
+fn non_opaque_alpha(alpha: f64) -> Option<f64> {
+    ((alpha - 1.0).abs() > f64::EPSILON).then_some(alpha)
 }
 
 pub(crate) fn parse_static_srgb_color(text: &str) -> Option<SrgbColor> {
@@ -587,11 +645,6 @@ fn encode_srgb_channel(value: f64) -> u8 {
     (encoded * 255.0).round().clamp(0.0, 255.0) as u8
 }
 
-fn parse_static_rgb_function_color(text: &str) -> Option<SrgbColor> {
-    let parsed = parse_static_rgb_function_color_with_alpha(text)?;
-    parsed.alpha.is_none().then_some(parsed.color)
-}
-
 pub(crate) fn parse_static_rgb_function_color_with_alpha(
     value: &str,
 ) -> Option<StaticSrgbColorWithAlpha> {
@@ -612,11 +665,6 @@ pub(crate) fn parse_static_rgb_function_color_with_alpha(
     })
 }
 
-fn parse_static_hsl_function_color(value: &str) -> Option<SrgbColor> {
-    let parsed = parse_static_hsl_function_color_with_alpha(value)?;
-    parsed.alpha.is_none().then_some(parsed.color)
-}
-
 pub(crate) fn parse_static_hsl_function_color_with_alpha(
     value: &str,
 ) -> Option<StaticSrgbColorWithAlpha> {
@@ -635,11 +683,6 @@ pub(crate) fn parse_static_hsl_function_color_with_alpha(
         )?,
         alpha,
     })
-}
-
-fn parse_static_hwb_function_color(value: &str) -> Option<SrgbColor> {
-    let parsed = parse_static_hwb_function_color_with_alpha(value)?;
-    parsed.alpha.is_none().then_some(parsed.color)
 }
 
 pub(crate) fn parse_static_hwb_function_color_with_alpha(

@@ -1150,6 +1150,49 @@ assert.deepEqual(colorMixPercentageSummary.execution.executedPassIds, [
 ]);
 assert.equal(colorMixPercentageSummary.execution.mutationCount, 5);
 
+const colorMixAlphaResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "color-mix-alpha.css",
+      styleSource:
+        ".card { color: color-mix(in srgb, red 50%, transparent 50%); background-color: color-mix(in srgb, rgb(100% 0% 0% / .7) 25%, rgb(0% 100% 0% / .2)); outline-color: color-mix(in srgb, rgb(100% 0% 0% / .7) 20%, rgb(0% 100% 0% / .2) 60%); }",
+      requestedPassIds: ["color-mix-lowering", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(colorMixAlphaResult.status, 0, colorMixAlphaResult.stderr);
+assert.equal(colorMixAlphaResult.error, undefined);
+
+const colorMixAlphaSummary = JSON.parse(
+  colorMixAlphaResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(colorMixAlphaSummary.product, "omena-query.transform-execute");
+assert.equal(
+  colorMixAlphaSummary.execution.outputCss,
+  ".card { color: rgb(255 0 0 / .5); background-color: rgb(137 118 0 / .325); outline-color: rgb(137 118 0 / .26); }",
+);
+assert.deepEqual(colorMixAlphaSummary.execution.executedPassIds, [
+  "color-mix-lowering",
+  "print-css",
+]);
+assert.equal(colorMixAlphaSummary.execution.mutationCount, 3);
+
 const mathFunctionReductionResult = spawnSync(
   "cargo",
   [
@@ -1600,6 +1643,7 @@ process.stdout.write(
     `alphaColorCompressionMutations=${alphaColorCompressionSummary.execution.mutationCount}`,
     `namedHexColorMutations=${namedHexColorCompressionSummary.execution.mutationCount}`,
     `colorMixPercentageMutations=${colorMixPercentageSummary.execution.mutationCount}`,
+    `colorMixAlphaMutations=${colorMixAlphaSummary.execution.mutationCount}`,
     `mathFunctionMutations=${mathFunctionReductionSummary.execution.mutationCount}`,
     `staticVarShadowMutations=${staticVarShadowSummary.execution.mutationCount}`,
     `customPropertyReachabilityMutations=${customPropertyReachabilitySummary.execution.mutationCount}`,
