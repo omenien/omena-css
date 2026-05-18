@@ -318,6 +318,54 @@ assertIncludesAll(
   "transform context execute ready surfaces",
 );
 
+const designTokenRecoveryResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "DesignTokens.module.css",
+      styleSource:
+        ".button { color: var(--pkg-brand); box-shadow: 0 0 var(--pkg-border) var(--broken; }",
+      requestedPassIds: ["design-token-routing", "print-css"],
+      transformContext: {
+        designTokenRoutes: [
+          { tokenName: "--pkg-brand", routedValue: "var(--theme-brand)" },
+          { tokenName: "--pkg-border", routedValue: "#123456" },
+        ],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(designTokenRecoveryResult.status, 0, designTokenRecoveryResult.stderr);
+assert.equal(designTokenRecoveryResult.error, undefined);
+
+const designTokenRecoverySummary = JSON.parse(
+  designTokenRecoveryResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(
+  designTokenRecoverySummary.execution.outputCss,
+  ".button { color: var(--theme-brand); box-shadow: 0 0 #123456 var(--broken; }",
+);
+assert.deepEqual(designTokenRecoverySummary.execution.executedPassIds, [
+  "design-token-routing",
+  "print-css",
+]);
+assert.equal(designTokenRecoverySummary.execution.mutationCount, 2);
+
 const groupedComposesResult = spawnSync(
   "cargo",
   [
@@ -730,7 +778,7 @@ const staticVarShadowResult = spawnSync(
     input: JSON.stringify({
       stylePath: "shadowed-custom-properties.css",
       styleSource:
-        '@property --registered { syntax: "<color>"; inherits: false; initial-value: red; } @property --dynamic { syntax: "<color>"; inherits: false; initial-value: teal; } :root { --brand: red; --gap: 2rem; --tone: red; --tone: blue !important; --dynamic: env(theme-color); } .card { --brand: blue; color: var(--brand); margin: var(--gap); border-color: var(--tone); outline-color: var(--registered); text-decoration-color: var(--dynamic); } .other { color: var(--brand); }',
+        '@property --registered { syntax: "<color>"; inherits: false; initial-value: red; } @property --dynamic { syntax: "<color>"; inherits: false; initial-value: teal; } :root { --brand: red; --gap: 2rem; --tone: red; --tone: blue !important; --dynamic: env(theme-color); } .card { --brand: blue; color: var(--brand); margin: var(--gap); border-color: var(--tone); outline-color: var(--registered); box-shadow: 0 0 var(--gap) var(--broken; text-decoration-color: var(--dynamic); } .other { color: var(--brand); }',
       requestedPassIds: ["custom-property-static-resolve", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
@@ -747,13 +795,13 @@ const staticVarShadowSummary = JSON.parse(
 assert.equal(staticVarShadowSummary.product, "omena-query.transform-execute");
 assert.equal(
   staticVarShadowSummary.execution.outputCss,
-  '@property --registered { syntax: "<color>"; inherits: false; initial-value: red; } @property --dynamic { syntax: "<color>"; inherits: false; initial-value: teal; } :root { --brand: red; --gap: 2rem; --tone: red; --tone: blue !important; --dynamic: env(theme-color); } .card { --brand: blue; color: var(--brand); margin: 2rem; border-color: var(--tone); outline-color: red; text-decoration-color: var(--dynamic); } .other { color: var(--brand); }',
+  '@property --registered { syntax: "<color>"; inherits: false; initial-value: red; } @property --dynamic { syntax: "<color>"; inherits: false; initial-value: teal; } :root { --brand: red; --gap: 2rem; --tone: red; --tone: blue !important; --dynamic: env(theme-color); } .card { --brand: blue; color: var(--brand); margin: 2rem; border-color: var(--tone); outline-color: red; box-shadow: 0 0 2rem var(--broken; text-decoration-color: var(--dynamic); } .other { color: var(--brand); }',
 );
 assert.deepEqual(staticVarShadowSummary.execution.executedPassIds, [
   "custom-property-static-resolve",
   "print-css",
 ]);
-assert.equal(staticVarShadowSummary.execution.mutationCount, 2);
+assert.equal(staticVarShadowSummary.execution.mutationCount, 3);
 
 const customPropertyReachabilityResult = spawnSync(
   "cargo",

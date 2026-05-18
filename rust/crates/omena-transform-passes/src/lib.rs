@@ -2966,13 +2966,16 @@ fn route_design_token_references_in_value(
     let mut changed = false;
 
     while index < value.len() {
-        let ch = value[index..].chars().next()?;
+        let Some(ch) = value[index..].chars().next() else {
+            break;
+        };
 
         if let Some(quote_ch) = quote {
             index += ch.len_utf8();
             if ch == '\\' {
-                let escaped = value[index..].chars().next()?;
-                index += escaped.len_utf8();
+                if let Some(escaped) = value[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
             } else if ch == quote_ch {
                 quote = None;
             }
@@ -2989,9 +2992,16 @@ fn route_design_token_references_in_value(
                 .is_some_and(|text| text.eq_ignore_ascii_case("var(")) =>
             {
                 let left_paren_index = index + "var".len();
-                let close_index = matching_function_call_end(value, left_paren_index)?;
-                let arguments =
-                    split_top_level_value_arguments(&value[left_paren_index + 1..close_index])?;
+                let Some(close_index) = matching_function_call_end(value, left_paren_index) else {
+                    index += ch.len_utf8();
+                    continue;
+                };
+                let Some(arguments) =
+                    split_top_level_value_arguments(&value[left_paren_index + 1..close_index])
+                else {
+                    index = close_index + ')'.len_utf8();
+                    continue;
+                };
                 if let Some(routed_value) =
                     routed_design_token_value_for_var_arguments(&arguments, routes)
                 {
@@ -4207,7 +4217,10 @@ fn substitute_static_custom_property_references_in_value(
                 .is_some_and(|text| text.eq_ignore_ascii_case("var(")) =>
             {
                 let left_paren_index = index + "var".len();
-                let close_index = matching_function_call_end(value, left_paren_index)?;
+                let Some(close_index) = matching_function_call_end(value, left_paren_index) else {
+                    index += ch.len_utf8();
+                    continue;
+                };
                 let Some(arguments) =
                     split_top_level_value_arguments(&value[left_paren_index + 1..close_index])
                 else {
@@ -7859,6 +7872,39 @@ mod tests {
     }
 
     #[test]
+    fn execution_runtime_recovers_design_token_routing_after_malformed_var() {
+        let source = r#".button { color: var(--pkg-brand); box-shadow: 0 0 var(--pkg-border) var(--broken; }"#;
+        let context = TransformExecutionContextV0 {
+            design_token_routes: vec![
+                TransformDesignTokenRouteV0 {
+                    token_name: "--pkg-brand".to_string(),
+                    routed_value: "var(--theme-brand)".to_string(),
+                },
+                TransformDesignTokenRouteV0 {
+                    token_name: "--pkg-border".to_string(),
+                    routed_value: "#123456".to_string(),
+                },
+            ],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::DesignTokenRouting,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#".button { color: var(--theme-brand); box-shadow: 0 0 #123456 var(--broken; }"#
+        );
+    }
+
+    #[test]
     fn execution_runtime_applies_comment_strip_without_touching_strings() {
         let source = r#".a { color: red; /* remove */ content: "/* keep */"; }"#;
         let execution = execute_transform_passes_on_source(
@@ -8947,6 +8993,24 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["custom-property-static-resolve", "print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_recovers_static_custom_property_substitution_after_malformed_var() {
+        let source = r#":root { --brand: red; --gap: 2rem; } .card { border: 1px solid var(--brand) var(--broken; box-shadow: 0 0 var(--gap) var(--also-broken; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::StaticVarSubstitution,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#":root { --brand: red; --gap: 2rem; } .card { border: 1px solid red var(--broken; box-shadow: 0 0 2rem var(--also-broken; }"#
         );
     }
 
