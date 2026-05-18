@@ -821,7 +821,7 @@ const semanticReachabilityResult = spawnSync(
         {
           stylePath: "Button.module.css",
           styleSource:
-            '@value used from "./tokens.module.css"; @value deadValue from "./tokens.module.css"; @value deadBp from "./tokens.module.css"; @value localValue: used; @property --brand { syntax: "<color>"; inherits: false; initial-value: red; } @property --dead { syntax: "<color>"; inherits: false; initial-value: blue; } .button { composes: base utility; color: red; border-color: localValue; } .base { color: blue; } .utility { animation: spin 1s; color: var(--brand); } :global { .global-reset { color: gray; } } .dead { color: black; background: deadValue; } .dead :global(.external) { color: deadValue; } @media (min-width: deadBp) { .dead { color: deadValue; } } @keyframes spin { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } } :root { --brand: red; --dead: blue; }',
+            '@value used from "./tokens.module.css"; @value deadValue from "./tokens.module.css"; @value deadBp from "./tokens.module.css"; @value localValue: used; @property --brand { syntax: "<color>"; inherits: false; initial-value: red; } @property --dead { syntax: "<color>"; inherits: false; initial-value: blue; } .button { composes: base utility; color: red; border-color: localValue; } .base { color: blue; } .utility { animation: spin 1s; color: var(--brand); } :global { .global-reset { color: deadValue; } } .dead { color: black; background: deadValue; } .dead :global(.external) { color: deadValue; } @media (min-width: deadBp) { .dead { color: deadValue; } } @keyframes spin { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } } :root { --brand: red; --dead: blue; }',
         },
       ],
       requestedPassIds: [
@@ -870,13 +870,13 @@ assert.ok(semanticReachabilitySummary.execution.outputCss.includes(".utility"));
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes(".global-reset"));
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes("@keyframes spin"));
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes("@value used from"));
+assert.ok(semanticReachabilitySummary.execution.outputCss.includes("@value deadValue from"));
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes("@value localValue: used;"));
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes("@property --brand"));
 assert.ok(semanticReachabilitySummary.execution.outputCss.includes("--brand: red"));
 assert.ok(!semanticReachabilitySummary.execution.outputCss.includes(".dead"));
 assert.ok(!semanticReachabilitySummary.execution.outputCss.includes(".dead :global"));
 assert.ok(!semanticReachabilitySummary.execution.outputCss.includes("@keyframes ghost"));
-assert.ok(!semanticReachabilitySummary.execution.outputCss.includes("@value deadValue from"));
 assert.ok(!semanticReachabilitySummary.execution.outputCss.includes("@value deadBp from"));
 assert.ok(!semanticReachabilitySummary.execution.outputCss.includes("@property --dead"));
 assert.ok(!semanticReachabilitySummary.execution.outputCss.includes("--dead: blue"));
@@ -889,7 +889,6 @@ assertIncludesAll(
   [
     "tree-shake-class:dead",
     "tree-shake-keyframes:ghost",
-    "tree-shake-value:deadValue",
     "tree-shake-value:deadBp",
     "tree-shake-custom-property:--dead",
   ],
@@ -904,7 +903,7 @@ assert.ok(
   ),
   "semantic reachability removals must include the dead custom-property registration",
 );
-assert.equal(semanticReachabilitySummary.semanticRemovalCount, 8);
+assert.equal(semanticReachabilitySummary.semanticRemovalCount, 7);
 assertIncludesAll(
   semanticReachabilitySummary.readySurfaces,
   ["consumerBuildFacade", "multiSourceTransformContextProducer"],
