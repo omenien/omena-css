@@ -83,6 +83,17 @@ pub(crate) fn token_end(token: &LexedToken) -> usize {
     u32::from(token.range.end()) as usize
 }
 
+pub(crate) fn tokens_between_byte_range(
+    tokens: &[LexedToken],
+    start: usize,
+    end: usize,
+) -> Vec<&LexedToken> {
+    tokens
+        .iter()
+        .filter(|token| token_start(token) >= start && token_end(token) <= end)
+        .collect()
+}
+
 pub(crate) fn is_comment_token(kind: SyntaxKind) -> bool {
     matches!(
         kind,

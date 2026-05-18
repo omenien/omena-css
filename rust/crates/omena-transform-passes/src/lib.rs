@@ -48,11 +48,17 @@ use helpers::blocks::{
 };
 use helpers::declarations::{SimpleDeclarationSlice, collect_simple_declarations_in_block};
 use helpers::identifiers::{css_identifier_text_is_plain, normalize_custom_property_name};
+use helpers::rules::{
+    SimpleRuleSlice, collect_declaration_ordinary_rule_slices,
+    collect_ordinary_rule_selector_slices, collect_top_level_ordinary_rule_slices,
+    first_non_trivia_token_start, is_ordinary_rule_prelude, is_ordinary_top_level_rule_prelude,
+    rule_gap_is_whitespace_only, set_prelude_start,
+};
 use helpers::source_rewrite::{remove_source_ranges, replace_source_ranges, rewrite_lexer_tokens};
 use helpers::tokens::{
     is_comment_token, matching_right_brace_index, matching_right_paren_index,
     next_non_comment_token_kind, previous_non_comment_token_kind, skip_whitespace_tokens,
-    token_end, token_start,
+    token_end, token_start, tokens_between_byte_range,
 };
 use helpers::values::{
     matching_function_call_end, matching_function_end, parse_whole_function_value_arguments,
@@ -7723,18 +7729,6 @@ fn join_rule_blocks_for_merge(blocks: &[String]) -> String {
         .join(" ")
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct SimpleRuleSlice {
-    selector: String,
-    block: String,
-    start: usize,
-    end: usize,
-    block_start: usize,
-    block_end: usize,
-    context_start: usize,
-    context_end: usize,
-}
-
 fn dedupe_exact_css_rules_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
@@ -7764,150 +7758,6 @@ fn collect_duplicate_ordinary_rule_ranges(rules: &[SimpleRuleSlice]) -> Vec<(usi
     }
 
     ranges
-}
-
-fn collect_top_level_ordinary_rule_slices(
-    source: &str,
-    tokens: &[omena_parser::LexedToken],
-) -> Vec<SimpleRuleSlice> {
-    let mut rules = Vec::new();
-    let mut depth = 0usize;
-    let mut top_level_prelude_start = 0usize;
-    let mut index = 0;
-
-    while index < tokens.len() {
-        match tokens[index].kind {
-            SyntaxKind::LeftBrace => {
-                if depth == 0
-                    && let Some(close_index) = matching_right_brace_index(tokens, index)
-                    && is_ordinary_top_level_rule_prelude(tokens, top_level_prelude_start, index)
-                    && !tokens[index + 1..close_index].iter().any(|token| {
-                        matches!(token.kind, SyntaxKind::LeftBrace | SyntaxKind::RightBrace)
-                            || is_comment_token(token.kind)
-                    })
-                    && let Some(start) =
-                        first_non_trivia_token_start(tokens, top_level_prelude_start, index)
-                {
-                    let selector = source[start..token_start(&tokens[index])]
-                        .trim()
-                        .to_string();
-                    let block = source
-                        [token_end(&tokens[index])..token_start(&tokens[close_index])]
-                        .trim()
-                        .to_string();
-                    if !selector.is_empty() && !block.is_empty() {
-                        rules.push(SimpleRuleSlice {
-                            selector,
-                            block,
-                            start,
-                            end: token_end(&tokens[close_index]),
-                            block_start: token_start(&tokens[index]),
-                            block_end: token_start(&tokens[close_index]),
-                            context_start: 0,
-                            context_end: source.len(),
-                        });
-                    }
-                    index = close_index + 1;
-                    top_level_prelude_start = index;
-                    continue;
-                }
-                depth += 1;
-            }
-            SyntaxKind::RightBrace => {
-                depth = depth.saturating_sub(1);
-                if depth == 0 {
-                    top_level_prelude_start = index + 1;
-                }
-            }
-            SyntaxKind::Semicolon if depth == 0 => {
-                top_level_prelude_start = index + 1;
-            }
-            _ => {}
-        }
-        index += 1;
-    }
-
-    rules
-}
-
-fn collect_declaration_ordinary_rule_slices(
-    source: &str,
-    tokens: &[omena_parser::LexedToken],
-) -> Vec<SimpleRuleSlice> {
-    let mut rules = Vec::new();
-    let mut depth = 0usize;
-    let mut prelude_starts = vec![0usize];
-    let mut rule_contexts = vec![(0usize, source.len())];
-    let mut index = 0;
-
-    while index < tokens.len() {
-        match tokens[index].kind {
-            SyntaxKind::LeftBrace => {
-                let prelude_start = prelude_starts.get(depth).copied().unwrap_or(0);
-                let parent_context = rule_contexts
-                    .get(depth)
-                    .copied()
-                    .unwrap_or((0, source.len()));
-                if let Some(close_index) = matching_right_brace_index(tokens, index)
-                    && is_ordinary_rule_prelude(tokens, prelude_start, index)
-                    && !tokens[index + 1..close_index].iter().any(|token| {
-                        matches!(token.kind, SyntaxKind::LeftBrace | SyntaxKind::RightBrace)
-                            || is_comment_token(token.kind)
-                    })
-                    && let Some(start) = first_non_trivia_token_start(tokens, prelude_start, index)
-                {
-                    let selector = source[start..token_start(&tokens[index])]
-                        .trim()
-                        .to_string();
-                    let block = source
-                        [token_end(&tokens[index])..token_start(&tokens[close_index])]
-                        .trim()
-                        .to_string();
-                    if !selector.is_empty() && !block.is_empty() {
-                        rules.push(SimpleRuleSlice {
-                            selector,
-                            block,
-                            start,
-                            end: token_end(&tokens[close_index]),
-                            block_start: token_start(&tokens[index]),
-                            block_end: token_start(&tokens[close_index]),
-                            context_start: parent_context.0,
-                            context_end: parent_context.1,
-                        });
-                    }
-                }
-                let child_context = matching_right_brace_index(tokens, index)
-                    .map(|close_index| {
-                        (token_start(&tokens[index]), token_end(&tokens[close_index]))
-                    })
-                    .unwrap_or((token_start(&tokens[index]), token_end(&tokens[index])));
-                depth += 1;
-                set_prelude_start(&mut prelude_starts, depth, index + 1);
-                set_rule_context(&mut rule_contexts, depth, child_context);
-            }
-            SyntaxKind::RightBrace => {
-                depth = depth.saturating_sub(1);
-                set_prelude_start(&mut prelude_starts, depth, index + 1);
-            }
-            SyntaxKind::Semicolon => {
-                set_prelude_start(&mut prelude_starts, depth, index + 1);
-            }
-            _ => {}
-        }
-        index += 1;
-    }
-
-    rules
-}
-
-fn rule_gap_is_whitespace_only(
-    tokens: &[omena_parser::LexedToken],
-    start: usize,
-    end: usize,
-) -> bool {
-    tokens_between_byte_range(tokens, start, end)
-        .iter()
-        .all(|token| token.kind == SyntaxKind::Whitespace)
 }
 
 fn combine_css_box_shorthands_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -8104,17 +7954,6 @@ fn declaration_ranges_are_adjacent(
     })
 }
 
-fn tokens_between_byte_range(
-    tokens: &[omena_parser::LexedToken],
-    start: usize,
-    end: usize,
-) -> Vec<&omena_parser::LexedToken> {
-    tokens
-        .iter()
-        .filter(|token| token_start(token) >= start && token_end(token) <= end)
-        .collect()
-}
-
 fn compress_box_shorthand_values(values: &[&str]) -> Option<String> {
     let [top, right, bottom, left] = values else {
         return None;
@@ -8195,29 +8034,11 @@ fn collect_empty_rule_ranges(tokens: &[omena_parser::LexedToken]) -> Vec<(usize,
     ranges
 }
 
-fn set_prelude_start(prelude_starts: &mut Vec<usize>, depth: usize, start: usize) {
-    if prelude_starts.len() <= depth {
-        prelude_starts.resize(depth + 1, start);
-    }
-    prelude_starts[depth] = start;
-}
-
 fn set_bool_context(contexts: &mut Vec<bool>, depth: usize, value: bool) {
     if contexts.len() <= depth {
         contexts.resize(depth + 1, false);
     }
     contexts[depth] = value;
-}
-
-fn set_rule_context(
-    rule_contexts: &mut Vec<(usize, usize)>,
-    depth: usize,
-    context: (usize, usize),
-) {
-    if rule_contexts.len() <= depth {
-        rule_contexts.resize(depth + 1, context);
-    }
-    rule_contexts[depth] = context;
 }
 
 fn is_empty_rule_block(
@@ -8231,20 +8052,6 @@ fn is_empty_rule_block(
             SyntaxKind::Whitespace | SyntaxKind::SassIndentedNewline
         )
     })
-}
-
-fn is_ordinary_rule_prelude(
-    tokens: &[omena_parser::LexedToken],
-    start: usize,
-    end_exclusive: usize,
-) -> bool {
-    let prelude = &tokens[start..end_exclusive];
-    prelude
-        .iter()
-        .any(|token| !is_comment_token(token.kind) && token.kind != SyntaxKind::Whitespace)
-        && prelude
-            .iter()
-            .all(|token| token.kind != SyntaxKind::AtKeyword && !is_comment_token(token.kind))
 }
 
 fn is_empty_group_rule_prelude(
@@ -8282,25 +8089,6 @@ fn is_empty_removable_group_at_keyword(text: &str) -> bool {
         text.to_ascii_lowercase().as_str(),
         "@container" | "@layer" | "@media" | "@scope" | "@supports"
     )
-}
-
-fn is_ordinary_top_level_rule_prelude(
-    tokens: &[omena_parser::LexedToken],
-    start: usize,
-    end_exclusive: usize,
-) -> bool {
-    is_ordinary_rule_prelude(tokens, start, end_exclusive)
-}
-
-fn first_non_trivia_token_start(
-    tokens: &[omena_parser::LexedToken],
-    start: usize,
-    end_exclusive: usize,
-) -> Option<usize> {
-    tokens[start..end_exclusive]
-        .iter()
-        .find(|token| !is_comment_token(token.kind) && token.kind != SyntaxKind::Whitespace)
-        .map(token_start)
 }
 
 fn compress_css_is_where_selectors_with_lexer(
@@ -8627,60 +8415,6 @@ fn is_simple_class_selector(selector: &str) -> bool {
         && class_name
             .chars()
             .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
-}
-
-fn collect_ordinary_rule_selector_slices(
-    source: &str,
-    tokens: &[omena_parser::LexedToken],
-) -> Vec<SimpleRuleSlice> {
-    let mut rules = Vec::new();
-    let mut depth = 0usize;
-    let mut prelude_starts = vec![0usize];
-    let mut index = 0;
-
-    while index < tokens.len() {
-        match tokens[index].kind {
-            SyntaxKind::LeftBrace => {
-                let prelude_start = prelude_starts.get(depth).copied().unwrap_or(0);
-                if let Some(close_index) = matching_right_brace_index(tokens, index)
-                    && is_ordinary_rule_prelude(tokens, prelude_start, index)
-                    && let Some(start) = first_non_trivia_token_start(tokens, prelude_start, index)
-                {
-                    let selector = source[start..token_start(&tokens[index])]
-                        .trim()
-                        .to_string();
-                    if !selector.is_empty() {
-                        rules.push(SimpleRuleSlice {
-                            selector,
-                            block: source
-                                [token_end(&tokens[index])..token_start(&tokens[close_index])]
-                                .trim()
-                                .to_string(),
-                            start,
-                            end: token_end(&tokens[close_index]),
-                            block_start: token_start(&tokens[index]),
-                            block_end: token_start(&tokens[close_index]),
-                            context_start: 0,
-                            context_end: source.len(),
-                        });
-                    }
-                }
-                depth += 1;
-                set_prelude_start(&mut prelude_starts, depth, index + 1);
-            }
-            SyntaxKind::RightBrace => {
-                depth = depth.saturating_sub(1);
-                set_prelude_start(&mut prelude_starts, depth, index + 1);
-            }
-            SyntaxKind::Semicolon => {
-                set_prelude_start(&mut prelude_starts, depth, index + 1);
-            }
-            _ => {}
-        }
-        index += 1;
-    }
-
-    rules
 }
 
 fn rewrite_is_where_selector_function(
