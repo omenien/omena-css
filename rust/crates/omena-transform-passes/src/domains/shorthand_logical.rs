@@ -76,6 +76,46 @@ fn logical_axis_shorthand_components<'a>(
             second.value.as_str(),
             first.value.as_str(),
         )),
+        ("scroll-margin-block-start", "scroll-margin-block-end") => Some((
+            "scroll-margin-block",
+            first.value.as_str(),
+            second.value.as_str(),
+        )),
+        ("scroll-margin-block-end", "scroll-margin-block-start") => Some((
+            "scroll-margin-block",
+            second.value.as_str(),
+            first.value.as_str(),
+        )),
+        ("scroll-margin-inline-start", "scroll-margin-inline-end") => Some((
+            "scroll-margin-inline",
+            first.value.as_str(),
+            second.value.as_str(),
+        )),
+        ("scroll-margin-inline-end", "scroll-margin-inline-start") => Some((
+            "scroll-margin-inline",
+            second.value.as_str(),
+            first.value.as_str(),
+        )),
+        ("scroll-padding-block-start", "scroll-padding-block-end") => Some((
+            "scroll-padding-block",
+            first.value.as_str(),
+            second.value.as_str(),
+        )),
+        ("scroll-padding-block-end", "scroll-padding-block-start") => Some((
+            "scroll-padding-block",
+            second.value.as_str(),
+            first.value.as_str(),
+        )),
+        ("scroll-padding-inline-start", "scroll-padding-inline-end") => Some((
+            "scroll-padding-inline",
+            first.value.as_str(),
+            second.value.as_str(),
+        )),
+        ("scroll-padding-inline-end", "scroll-padding-inline-start") => Some((
+            "scroll-padding-inline",
+            second.value.as_str(),
+            first.value.as_str(),
+        )),
         ("inset-block-start", "inset-block-end") => {
             Some(("inset-block", first.value.as_str(), second.value.as_str()))
         }
