@@ -1606,7 +1606,11 @@ pub fn evaluate_static_supports_condition(
 fn evaluate_modern_static_supports_condition(
     condition: &str,
 ) -> (StaticSupportsEvalVerdictV0, &'static str) {
-    if let Some(parts) = parse_static_supports_or_parts(condition) {
+    if let Some(inner) = strip_supports_grouping_parens(condition) {
+        return evaluate_modern_static_supports_condition(inner);
+    }
+
+    if let Some(parts) = parse_static_supports_logical_parts(condition, "or") {
         let verdicts = parts
             .iter()
             .map(|part| evaluate_modern_static_supports_condition(part).0)
@@ -1632,7 +1636,7 @@ fn evaluate_modern_static_supports_condition(
         );
     }
 
-    if let Some(parts) = parse_static_supports_and_parts(condition) {
+    if let Some(parts) = parse_static_supports_logical_parts(condition, "and") {
         let verdicts = parts
             .iter()
             .map(|part| evaluate_modern_static_supports_condition(part).0)
@@ -1778,14 +1782,73 @@ fn parse_simple_supports_declaration(condition: &str) -> Option<(&str, &str)> {
     Some((property, value))
 }
 
-fn parse_static_supports_and_parts(condition: &str) -> Option<Vec<&str>> {
-    let parts = condition.split(" and ").map(str::trim).collect::<Vec<_>>();
-    (parts.len() > 1 && parts.iter().all(|part| !part.is_empty())).then_some(parts)
+fn strip_supports_grouping_parens(condition: &str) -> Option<&str> {
+    let inner = condition.strip_prefix('(')?.strip_suffix(')')?.trim();
+    if parse_simple_supports_declaration(condition).is_some()
+        || !supports_outer_parens_wrap_entire_condition(condition)
+        || inner.is_empty()
+    {
+        return None;
+    }
+    Some(inner)
 }
 
-fn parse_static_supports_or_parts(condition: &str) -> Option<Vec<&str>> {
-    let parts = condition.split(" or ").map(str::trim).collect::<Vec<_>>();
-    (parts.len() > 1 && parts.iter().all(|part| !part.is_empty())).then_some(parts)
+fn supports_outer_parens_wrap_entire_condition(condition: &str) -> bool {
+    let mut depth = 0usize;
+    for (index, ch) in condition.char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 && index + ch.len_utf8() < condition.len() {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    depth == 0
+}
+
+fn parse_static_supports_logical_parts<'a>(
+    condition: &'a str,
+    operator: &str,
+) -> Option<Vec<&'a str>> {
+    let delimiter = match operator {
+        "and" => " and ",
+        "or" => " or ",
+        _ => return None,
+    };
+    let mut parts = Vec::new();
+    let mut depth = 0usize;
+    let mut part_start = 0usize;
+    let mut index = 0usize;
+
+    while index < condition.len() {
+        let ch = condition[index..].chars().next()?;
+        match ch {
+            '(' => {
+                depth += 1;
+                index += ch.len_utf8();
+            }
+            ')' => {
+                depth = depth.saturating_sub(1);
+                index += ch.len_utf8();
+            }
+            _ if depth == 0 && condition[index..].starts_with(delimiter) => {
+                parts.push(condition[part_start..index].trim());
+                index += delimiter.len();
+                part_start = index;
+            }
+            _ => index += ch.len_utf8(),
+        }
+    }
+
+    if parts.is_empty() {
+        return None;
+    }
+    parts.push(condition[part_start..].trim());
+    parts.iter().all(|part| !part.is_empty()).then_some(parts)
 }
 
 fn evaluate_modern_simple_supports_declaration(
@@ -3023,6 +3086,26 @@ mod tests {
         );
         assert_eq!(disjunction.verdict, StaticSupportsEvalVerdictV0::AlwaysTrue);
         assert!(disjunction.provenance_preserved);
+
+        let grouped_disjunction = evaluate_static_supports_condition(
+            "((display: grid) or (display: -ms-grid))",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            grouped_disjunction.verdict,
+            StaticSupportsEvalVerdictV0::AlwaysTrue
+        );
+        assert!(grouped_disjunction.provenance_preserved);
+
+        let grouped_conjunction = evaluate_static_supports_condition(
+            "((display: grid) or (display: -ms-grid)) and (color: red)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            grouped_conjunction.verdict,
+            StaticSupportsEvalVerdictV0::AlwaysTrue
+        );
+        assert!(grouped_conjunction.provenance_preserved);
 
         let obsolete_disjunction = evaluate_static_supports_condition(
             "(display: -ms-grid) or (-ms-ime-align: auto)",
