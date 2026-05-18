@@ -617,7 +617,9 @@ pub(crate) fn compress_flex_value(value: &str) -> Option<String> {
     let shrink = normalize_flex_number(shrink)?;
     let basis_lower = basis.to_ascii_lowercase();
 
-    let compressed = if basis_lower == "auto" && shrink == "1" {
+    let compressed = if basis_lower == "auto" && grow == "0" && shrink == "0" {
+        "none".to_string()
+    } else if basis_lower == "auto" && shrink == "1" {
         if grow == "1" {
             "auto".to_string()
         } else {

@@ -1561,7 +1561,7 @@ fn execution_runtime_compresses_repeated_axis_shorthand_values() {
 
 #[test]
 fn execution_runtime_compresses_static_flex_shorthands() {
-    let source = r#".a { flex: 0 1 auto; } .b { flex: 1 1 0%; } .c { flex: 2 1 0%; } .d { flex: 1 2 0%; } .e { flex: var(--flex); }"#;
+    let source = r#".a { flex: 0 1 auto; } .b { flex: 1 1 0%; } .c { flex: 2 1 0%; } .d { flex: 1 2 0%; } .e { flex: var(--flex); } .f { flex: 0 0 auto; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1570,10 +1570,10 @@ fn execution_runtime_compresses_static_flex_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 4);
+    assert_eq!(execution.mutation_count, 5);
     assert_eq!(
         execution.output_css,
-        r#".a { flex: 0 auto; } .b { flex: 1; } .c { flex: 2; } .d { flex: 1 2; } .e { flex: var(--flex); }"#
+        r#".a { flex: 0 auto; } .b { flex: 1; } .c { flex: 2; } .d { flex: 1 2; } .e { flex: var(--flex); } .f { flex: none; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,
