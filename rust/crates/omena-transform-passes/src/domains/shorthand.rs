@@ -6,6 +6,9 @@ use crate::{
     domains::{
         number::{compress_number_prefix, format_css_number, numeric_prefix_end},
         shorthand_line::line_shorthand_replacement_for_declarations,
+        shorthand_list::{
+            compress_list_style_value, list_style_shorthand_replacement_for_declarations,
+        },
         shorthand_logical::collect_logical_axis_replacements,
         shorthand_text::{
             compress_text_decoration_value, text_decoration_shorthand_replacement_for_declarations,
@@ -273,30 +276,6 @@ fn inset_shorthand_replacement_for_declarations(
         .collect::<Vec<_>>();
     let shorthand_value = compress_box_shorthand_values(&values)?;
     Some((top.start, left.end, format!("inset: {shorthand_value};")))
-}
-
-fn list_style_shorthand_replacement_for_declarations(
-    tokens: &[LexedToken],
-    declarations: &[SimpleDeclarationSlice],
-) -> Option<(usize, usize, String)> {
-    let [style_type, position, image] = declarations else {
-        return None;
-    };
-    if style_type.property != "list-style-type"
-        || position.property != "list-style-position"
-        || image.property != "list-style-image"
-        || declarations.iter().any(|declaration| declaration.important)
-        || !declaration_ranges_are_adjacent(tokens, declarations)
-    {
-        return None;
-    }
-    let shorthand_value =
-        compressed_list_style_components(&style_type.value, &position.value, &image.value)?;
-    Some((
-        style_type.start,
-        image.end,
-        format!("list-style: {shorthand_value};"),
-    ))
 }
 
 fn collect_overflow_axis_replacements(
@@ -629,38 +608,6 @@ pub(crate) fn is_single_axis_border_radius_value(value: &str) -> bool {
         .is_some_and(|components| components.len() == 1 && components[0] != "/")
 }
 
-pub(crate) fn compress_list_style_value(value: &str) -> Option<String> {
-    let components = split_top_level_whitespace_value_components(value)?;
-    let mut style_type = None;
-    let mut position = "outside".to_string();
-    let mut image = None;
-
-    for component in &components {
-        if is_list_style_position(component) {
-            position = component.clone();
-        } else if component == "none" {
-            if style_type.is_none() {
-                style_type = Some(component.clone());
-            } else if image.is_none() {
-                image = Some(component.clone());
-            } else {
-                return None;
-            }
-        } else if is_list_style_image(component) && image.is_none() {
-            image = Some(component.clone());
-        } else if is_list_style_type(component) && style_type.is_none() {
-            style_type = Some(component.clone());
-        } else {
-            return None;
-        }
-    }
-
-    let style_type = style_type.unwrap_or_else(|| "disc".to_string());
-    let image = image.unwrap_or_else(|| "none".to_string());
-    let compressed = compressed_list_style_components(&style_type, &position, &image)?;
-    (compressed != normalize_ascii_whitespace(value)).then_some(compressed)
-}
-
 pub(crate) fn compress_flex_value(value: &str) -> Option<String> {
     let components = split_top_level_whitespace_value_components(value)?;
     let [grow, shrink, basis] = components.as_slice() else {
@@ -710,75 +657,6 @@ fn is_zero_flex_basis(value: &str) -> bool {
         return false;
     };
     number.parse::<f64>().is_ok_and(|parsed| parsed == 0.0)
-}
-
-pub(crate) fn compressed_list_style_components(
-    style_type: &str,
-    position: &str,
-    image: &str,
-) -> Option<String> {
-    if !is_list_style_type(style_type)
-        || !is_list_style_position(position)
-        || !is_list_style_image(image)
-    {
-        return None;
-    }
-    if style_type == "none" && image == "none" {
-        return Some(if position == "outside" {
-            "none".to_string()
-        } else {
-            format!("{position} none")
-        });
-    }
-    if style_type == "none" {
-        return Some(if position == "outside" {
-            format!("{image} none")
-        } else {
-            format!("{position} {image} none")
-        });
-    }
-
-    let mut components = Vec::new();
-    if position != "outside" || (style_type == "disc" && image == "none") {
-        components.push(position.to_string());
-    }
-    if style_type != "disc" && !(style_type == "none" && image == "none") {
-        components.push(style_type.to_string());
-    }
-    if image != "none" {
-        components.push(image.to_string());
-    }
-    if components.is_empty() {
-        components.push("outside".to_string());
-    }
-    Some(components.join(" "))
-}
-
-fn is_list_style_position(value: &str) -> bool {
-    matches!(value, "inside" | "outside")
-}
-
-fn is_list_style_type(value: &str) -> bool {
-    matches!(
-        value,
-        "disc"
-            | "circle"
-            | "square"
-            | "decimal"
-            | "decimal-leading-zero"
-            | "lower-roman"
-            | "upper-roman"
-            | "lower-alpha"
-            | "upper-alpha"
-            | "none"
-    )
-}
-
-fn is_list_style_image(value: &str) -> bool {
-    value == "none"
-        || value
-            .get(.."url(".len())
-            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("url("))
 }
 
 pub(crate) fn compress_box_shorthand_value(value: &str) -> Option<String> {
