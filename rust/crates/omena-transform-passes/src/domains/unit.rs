@@ -378,7 +378,17 @@ fn normalize_static_transform_functions(value: &str) -> Option<String> {
             ("rotateY", normalize_zero_angle_transform_function),
             ("rotateZ", normalize_zero_angle_transform_function),
             ("scale", normalize_repeated_scale_transform_function),
-            ("translate", normalize_unary_zero_length_transform_function),
+            ("translate", normalize_translate_transform_function),
+            ("translateX", normalize_translate_x_zero_transform_function),
+            (
+                "translateY",
+                normalize_unary_zero_length_percentage_transform_function,
+            ),
+            ("translateZ", normalize_unary_zero_length_transform_function),
+            (
+                "perspective",
+                normalize_unary_zero_length_transform_function,
+            ),
         ],
     )?;
     Some(compact_transform_function_separators(&normalized))
@@ -392,10 +402,35 @@ fn normalize_unary_zero_length_transform_function(value: &str) -> Option<String>
     normalize_unary_zero_transform_function(value, is_css_length_unit)
 }
 
+fn normalize_unary_zero_length_percentage_transform_function(value: &str) -> Option<String> {
+    normalize_unary_zero_transform_function(value, is_css_transform_length_percentage_unit)
+}
+
+fn normalize_translate_transform_function(value: &str) -> Option<String> {
+    let arguments = transform_function_arguments(value)?;
+    let replacement = match arguments.as_slice() {
+        [x] if is_zero_transform_length_percentage_argument(x) => "translate(0)",
+        [x, y]
+            if is_zero_transform_length_percentage_argument(x)
+                && is_zero_transform_length_percentage_argument(y) =>
+        {
+            "translate(0)"
+        }
+        _ => return None,
+    }
+    .to_string();
+
+    (replacement != value).then_some(replacement)
+}
+
+fn normalize_translate_x_zero_transform_function(value: &str) -> Option<String> {
+    zero_unary_transform_function_name(value, is_css_transform_length_percentage_unit)?;
+    let replacement = "translate(0)".to_string();
+    (replacement != value).then_some(replacement)
+}
+
 fn normalize_repeated_scale_transform_function(value: &str) -> Option<String> {
-    let open_index = value.find('(')?;
-    let arguments =
-        split_top_level_value_arguments(value.get(open_index + 1..value.len().checked_sub(1)?)?)?;
+    let arguments = transform_function_arguments(value)?;
     let [first, second] = arguments.as_slice() else {
         return None;
     };
@@ -425,6 +460,12 @@ fn normalize_unary_zero_transform_function(
     value: &str,
     is_unit: fn(&str) -> bool,
 ) -> Option<String> {
+    let function_name = zero_unary_transform_function_name(value, is_unit)?;
+    let replacement = format!("{function_name}(0)");
+    (replacement != value).then_some(replacement)
+}
+
+fn zero_unary_transform_function_name(value: &str, is_unit: fn(&str) -> bool) -> Option<&str> {
     let open_index = value.find('(')?;
     let function_name = value.get(..open_index)?;
     let inner = value
@@ -433,16 +474,9 @@ fn normalize_unary_zero_transform_function(
     if inner.contains(',') {
         return None;
     }
-    let split = numeric_prefix_end(inner)?;
-    if split == 0 || split == inner.len() {
-        return None;
-    }
-    let (number, unit) = inner.split_at(split);
-    if !is_zero_number_prefix(number) || !is_unit(unit) {
-        return None;
-    }
+    is_zero_transform_numeric_unit_argument(inner, is_unit)?;
 
-    Some(format!("{function_name}(0)"))
+    Some(function_name)
 }
 
 fn is_css_angle_unit(unit: &str) -> bool {
@@ -450,6 +484,26 @@ fn is_css_angle_unit(unit: &str) -> bool {
         unit.to_ascii_lowercase().as_str(),
         "deg" | "grad" | "rad" | "turn"
     )
+}
+
+fn is_css_transform_length_percentage_unit(unit: &str) -> bool {
+    unit == "%" || is_css_length_unit(unit)
+}
+
+fn transform_function_arguments(value: &str) -> Option<Vec<String>> {
+    let open_index = value.find('(')?;
+    split_top_level_value_arguments(value.get(open_index + 1..value.len().checked_sub(1)?)?)
+}
+
+fn is_zero_transform_length_percentage_argument(value: &str) -> bool {
+    is_zero_transform_numeric_unit_argument(value.trim(), is_css_transform_length_percentage_unit)
+        .is_some()
+}
+
+fn is_zero_transform_numeric_unit_argument(value: &str, is_unit: fn(&str) -> bool) -> Option<()> {
+    let split = numeric_prefix_end(value)?;
+    let (number, unit) = value.split_at(split);
+    (is_zero_number_prefix(number) && (unit.is_empty() || is_unit(unit))).then_some(())
 }
 
 fn compact_transform_function_separators(value: &str) -> String {
