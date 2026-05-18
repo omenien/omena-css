@@ -37,8 +37,7 @@ pub use omena_bridge::{
 };
 use omena_incremental::OmenaIncrementalDatabaseV0;
 use omena_parser::{
-    ParsedAnimationFactKind, ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind,
-    ParsedIcssFactKind, ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind,
+    ParsedAnimationFactKind, ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind,
     ParsedSelectorFactKind, ParsedVariableFactKind, collect_style_facts, parse,
 };
 pub use omena_parser::{
