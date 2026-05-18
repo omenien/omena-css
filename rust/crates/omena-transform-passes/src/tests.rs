@@ -522,6 +522,39 @@ fn execution_runtime_routes_design_tokens_from_bridge_context() {
 }
 
 #[test]
+fn execution_runtime_routes_design_tokens_in_supported_at_rule_preludes() {
+    let source = r#"@container card style(--theme: var(--pkg-theme)) { .button { color: var(--pkg-brand); } } @supports (color: var(--pkg-brand)) { .button { border-color: currentColor; } } @media (color: var(--pkg-brand)) { .button { color: red; } }"#;
+    let context = TransformExecutionContextV0 {
+        design_token_routes: vec![
+            TransformDesignTokenRouteV0 {
+                token_name: "--pkg-theme".to_string(),
+                routed_value: "var(--theme-mode)".to_string(),
+            },
+            TransformDesignTokenRouteV0 {
+                token_name: "--pkg-brand".to_string(),
+                routed_value: "#123456".to_string(),
+            },
+        ],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::DesignTokenRouting,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 3);
+    assert_eq!(
+        execution.output_css,
+        r#"@container card style(--theme: var(--theme-mode)) { .button { color: #123456; } } @supports (color: #123456) { .button { border-color: currentColor; } } @media (color: var(--pkg-brand)) { .button { color: red; } }"#
+    );
+}
+
+#[test]
 fn execution_runtime_routes_design_tokens_inside_custom_property_aliases() {
     let source = r#":root { --pkg-brand: var(--pkg-brand, black); --alias: var(--pkg-brand); --bridge: var(--pkg-border); } .button { color: var(--alias); }"#;
     let context = TransformExecutionContextV0 {

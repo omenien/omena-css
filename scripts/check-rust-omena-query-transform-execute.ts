@@ -708,6 +708,54 @@ assert.deepEqual(designTokenRecoverySummary.execution.executedPassIds, [
 ]);
 assert.equal(designTokenRecoverySummary.execution.mutationCount, 4);
 
+const designTokenAtRulePreludeResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "DesignTokenAtRules.module.css",
+      styleSource:
+        "@container card style(--theme: var(--pkg-theme)) { .button { color: var(--pkg-brand); } } @supports (color: var(--pkg-brand)) { .button { border-color: currentColor; } } @media (color: var(--pkg-brand)) { .button { color: red; } }",
+      requestedPassIds: ["design-token-routing", "print-css"],
+      transformContext: {
+        designTokenRoutes: [
+          { tokenName: "--pkg-theme", routedValue: "var(--theme-mode)" },
+          { tokenName: "--pkg-brand", routedValue: "#123456" },
+        ],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(designTokenAtRulePreludeResult.status, 0, designTokenAtRulePreludeResult.stderr);
+assert.equal(designTokenAtRulePreludeResult.error, undefined);
+
+const designTokenAtRulePreludeSummary = JSON.parse(
+  designTokenAtRulePreludeResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(
+  designTokenAtRulePreludeSummary.execution.outputCss,
+  "@container card style(--theme: var(--theme-mode)) { .button { color: #123456; } } @supports (color: #123456) { .button { border-color: currentColor; } } @media (color: var(--pkg-brand)) { .button { color: red; } }",
+);
+assert.deepEqual(designTokenAtRulePreludeSummary.execution.executedPassIds, [
+  "design-token-routing",
+  "print-css",
+]);
+assert.equal(designTokenAtRulePreludeSummary.execution.mutationCount, 3);
+
 const designTokenAliasResult = spawnSync(
   "cargo",
   [

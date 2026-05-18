@@ -2,9 +2,10 @@ use omena_parser::{StyleDialect, lex};
 
 use crate::{
     helpers::{
+        blocks::at_rule_prelude_end_index,
         declarations::collect_simple_declarations_in_block,
         source_rewrite::replace_source_ranges,
-        tokens::matching_right_brace_index,
+        tokens::{matching_right_brace_index, token_end, token_start},
         values::{
             matching_function_call_end, parse_whole_function_value_arguments,
             split_top_level_value_arguments,
@@ -24,6 +25,21 @@ pub(crate) fn route_design_token_values_with_lexer(
 
     let mut index = 0;
     while index < tokens.len() {
+        if tokens[index].kind == omena_syntax::SyntaxKind::AtKeyword
+            && at_rule_prelude_can_route_design_tokens(&tokens[index].text)
+            && let Some(prelude_end_index) = at_rule_prelude_end_index(tokens, index + 1)
+        {
+            let prelude_start = token_end(&tokens[index]);
+            let prelude_end = token_start(&tokens[prelude_end_index]);
+            if let Some(routed_prelude) = route_design_token_references_in_value(
+                &source[prelude_start..prelude_end],
+                routes,
+                None,
+            ) {
+                replacements.push((prelude_start, prelude_end, routed_prelude));
+            }
+        }
+
         let Some(block_end_index) = (tokens[index].kind == omena_syntax::SyntaxKind::LeftBrace)
             .then(|| matching_right_brace_index(tokens, index))
             .flatten()
@@ -57,6 +73,13 @@ pub(crate) fn route_design_token_values_with_lexer(
     }
 
     replace_source_ranges(source, &replacements)
+}
+
+fn at_rule_prelude_can_route_design_tokens(text: &str) -> bool {
+    matches!(
+        text.to_ascii_lowercase().as_str(),
+        "@container" | "@supports"
+    )
 }
 
 fn route_design_token_references_in_value(
