@@ -570,7 +570,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                 }
             }
             Some(TransformPassKind::ShorthandCombining) => {
-                let (next_css, mutation_count) = combine_css_box_shorthands(&output_css, dialect);
+                let (next_css, mutation_count) = combine_css_shorthands(&output_css, dialect);
                 let status = if mutation_count == 0 {
                     TransformPassRuntimeStatus::NoChange
                 } else {
@@ -584,7 +584,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     output_byte_len: output_css.len(),
                     mutation_count,
                     provenance_preserved: true,
-                    detail: "combined adjacent margin/padding longhands only with cascade shorthand proof",
+                    detail: "combined safe shorthand declarations and adjacent longhands only with cascade-preserving proofs",
                 }
             }
             Some(TransformPassKind::RuleDeduplication) => {
@@ -1431,8 +1431,8 @@ fn remove_empty_css_rules(source: &str, dialect: StyleDialect) -> (String, usize
     remove_empty_css_rules_with_lexer(source, dialect)
 }
 
-fn combine_css_box_shorthands(source: &str, dialect: StyleDialect) -> (String, usize) {
-    combine_css_box_shorthands_with_lexer(source, dialect)
+fn combine_css_shorthands(source: &str, dialect: StyleDialect) -> (String, usize) {
+    combine_css_shorthands_with_lexer(source, dialect)
 }
 
 fn dedupe_exact_css_rules(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -5860,10 +5860,10 @@ fn collect_duplicate_ordinary_rule_ranges(rules: &[SimpleRuleSlice]) -> Vec<(usi
     ranges
 }
 
-fn combine_css_box_shorthands_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
+fn combine_css_shorthands_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let mut ranges = collect_box_shorthand_replacement_ranges(source, tokens);
+    let mut ranges = collect_shorthand_replacement_ranges(source, tokens);
     if ranges.is_empty() {
         return (source.to_string(), 0);
     }
@@ -5885,7 +5885,7 @@ fn combine_css_box_shorthands_with_lexer(source: &str, dialect: StyleDialect) ->
     (output, ranges.len())
 }
 
-fn collect_box_shorthand_replacement_ranges(
+fn collect_shorthand_replacement_ranges(
     source: &str,
     tokens: &[omena_parser::LexedToken],
 ) -> Vec<(usize, usize, String)> {
@@ -5895,7 +5895,7 @@ fn collect_box_shorthand_replacement_ranges(
         if tokens[index].kind == SyntaxKind::LeftBrace
             && let Some(close_index) = matching_right_brace_index(tokens, index)
         {
-            ranges.extend(collect_box_shorthand_replacements_in_block(
+            ranges.extend(collect_shorthand_replacements_in_block(
                 source,
                 tokens,
                 index,
@@ -5909,7 +5909,7 @@ fn collect_box_shorthand_replacement_ranges(
     ranges
 }
 
-fn collect_box_shorthand_replacements_in_block(
+fn collect_shorthand_replacements_in_block(
     source: &str,
     tokens: &[omena_parser::LexedToken],
     block_start: usize,
@@ -5928,13 +5928,14 @@ fn collect_box_shorthand_replacements_in_block(
             index += 1;
         }
     }
-    for declaration in declarations {
+    for declaration in &declarations {
         if let Some((start, end, replacement)) =
-            box_shorthand_value_replacement_for_declaration(source, &declaration)
+            shorthand_value_replacement_for_declaration(source, declaration)
         {
             ranges.push((start, end, replacement));
         }
     }
+    ranges.extend(collect_overflow_axis_replacements(tokens, &declarations));
     ranges
 }
 
@@ -6009,14 +6010,20 @@ fn box_shorthand_replacement_for_declarations(
     ))
 }
 
-fn box_shorthand_value_replacement_for_declaration(
+fn shorthand_value_replacement_for_declaration(
     source: &str,
     declaration: &SimpleDeclarationSlice,
 ) -> Option<(usize, usize, String)> {
-    if declaration.important || !is_box_shorthand_property(&declaration.property) {
+    if declaration.important {
         return None;
     }
-    let replacement_value = compress_box_shorthand_value(&declaration.value)?;
+    let replacement_value = if is_box_shorthand_property(&declaration.property) {
+        compress_box_shorthand_value(&declaration.value)
+    } else if declaration.property == "background-repeat" {
+        compress_background_repeat_value(&declaration.value)
+    } else {
+        None
+    }?;
     let replacement =
         format_replacement_declaration_like_source(source, declaration, &replacement_value);
     Some((declaration.start, declaration.end, replacement))
@@ -6027,6 +6034,21 @@ fn is_box_shorthand_property(property: &str) -> bool {
         property,
         "margin" | "padding" | "border-color" | "border-style" | "border-width"
     )
+}
+
+fn compress_background_repeat_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let [x, y] = components.as_slice() else {
+        return None;
+    };
+    if x != y || !is_background_repeat_axis_keyword(x) {
+        return None;
+    }
+    Some(x.clone())
+}
+
+fn is_background_repeat_axis_keyword(value: &str) -> bool {
+    matches!(value, "repeat" | "no-repeat" | "space" | "round")
 }
 
 fn compress_box_shorthand_value(value: &str) -> Option<String> {
@@ -6069,6 +6091,34 @@ fn compress_box_shorthand_values(values: &[&str]) -> Option<String> {
         vec![*top, *right, *bottom, *left]
     };
     Some(parts.join(" "))
+}
+
+fn collect_overflow_axis_replacements(
+    tokens: &[omena_parser::LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Vec<(usize, usize, String)> {
+    let mut ranges = Vec::new();
+    for pair in declarations.windows(2) {
+        let [x, y] = pair else {
+            continue;
+        };
+        if x.property != "overflow-x"
+            || y.property != "overflow-y"
+            || x.important
+            || y.important
+            || x.value != y.value
+            || !is_overflow_axis_keyword(&x.value)
+            || !declaration_ranges_are_adjacent(tokens, pair)
+        {
+            continue;
+        }
+        ranges.push((x.start, y.end, format!("overflow: {};", x.value)));
+    }
+    ranges
+}
+
+fn is_overflow_axis_keyword(value: &str) -> bool {
+    matches!(value, "visible" | "hidden" | "clip" | "scroll" | "auto")
 }
 
 fn remove_empty_css_rules_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -8773,6 +8823,24 @@ mod tests {
         assert_eq!(
             execution.executed_pass_ids,
             vec!["shorthand-combining", "print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_compresses_overflow_and_background_repeat_shorthands() {
+        let source = r#".a { overflow-x: visible; overflow-y: visible; background-repeat: repeat repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::ShorthandCombining,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(
+            execution.output_css,
+            r#".a { overflow: visible; background-repeat: repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#
         );
     }
 

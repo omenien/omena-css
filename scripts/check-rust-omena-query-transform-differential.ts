@@ -162,6 +162,11 @@ const fixtures: readonly DifferentialFixture[] = [
       ".fonts { font-weight: normal; font-stretch: normal; } .bold { font-weight: bold; font-stretch: condensed; }",
   },
   {
+    label: "overflow-background-repeat-shorthand",
+    source:
+      ".a { background-repeat: repeat repeat; overflow-x: visible; overflow-y: visible; }",
+  },
+  {
     label: "alpha-hex-zero-line-height-calc",
     source:
       ".alpha { color: #ffffffff; border-color: #00000000; width: calc(2px * 3); height: calc(6px / 2); line-height: 0em; }",
