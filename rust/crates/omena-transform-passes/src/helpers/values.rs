@@ -175,3 +175,80 @@ pub(crate) fn split_top_level_value_arguments(inner: &str) -> Option<Vec<String>
     arguments.push(argument);
     Some(arguments)
 }
+
+pub(crate) fn split_top_level_whitespace_value_components(value: &str) -> Option<Vec<String>> {
+    let mut components = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0usize;
+    let mut bracket_depth = 0usize;
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+
+    for ch in value.chars() {
+        if let Some(active_quote) = quote {
+            current.push(ch);
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                current.push(ch);
+            }
+            '(' => {
+                depth += 1;
+                current.push(ch);
+            }
+            ')' => {
+                depth = depth.checked_sub(1)?;
+                current.push(ch);
+            }
+            '[' => {
+                bracket_depth += 1;
+                current.push(ch);
+            }
+            ']' => {
+                bracket_depth = bracket_depth.checked_sub(1)?;
+                current.push(ch);
+            }
+            ch if ch.is_ascii_whitespace() && depth == 0 && bracket_depth == 0 => {
+                if !current.trim().is_empty() {
+                    components.push(current.trim().to_string());
+                    current.clear();
+                }
+            }
+            _ => current.push(ch),
+        }
+    }
+
+    if quote.is_some() || depth != 0 || bracket_depth != 0 {
+        return None;
+    }
+    if !current.trim().is_empty() {
+        components.push(current.trim().to_string());
+    }
+    (!components.is_empty()).then_some(components)
+}
+
+pub(crate) fn static_css_string_value(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.len() < 2 {
+        return None;
+    }
+    let quote = value.as_bytes()[0];
+    if !matches!(quote, b'"' | b'\'') || value.as_bytes().last().copied() != Some(quote) {
+        return None;
+    }
+    let inner = &value[1..value.len() - 1];
+    if inner.is_empty() || inner.contains(['\\', '\n', '\r', '\x0c']) {
+        return None;
+    }
+    Some(inner.to_string())
+}

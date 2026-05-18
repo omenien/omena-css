@@ -51,6 +51,7 @@ use helpers::blocks::{
     at_rule_block_start, at_rule_prelude_end_index, previous_significant_token_kind,
     rule_block_token_indexes,
 };
+use helpers::collections::push_unique_string;
 use helpers::css_modules_imports::collect_static_css_modules_value_import_statements;
 use helpers::css_modules_values::{
     StaticCssModulesValueDefinition, collect_static_local_css_modules_value_definitions,
@@ -75,7 +76,8 @@ use helpers::tokens::{
 };
 use helpers::values::{
     matching_function_call_end, matching_function_end, parse_whole_function_value_arguments,
-    split_top_level_value_arguments,
+    split_top_level_value_arguments, split_top_level_whitespace_value_components,
+    static_css_string_value,
 };
 pub use runtime::fuzz::{run_transform_cascade_safe_fuzz_case, run_transform_fuzz_seed_corpus};
 pub use runtime::incremental::{
@@ -4143,22 +4145,6 @@ fn static_animation_name_candidate(value: &str) -> Option<StaticAnimationNameCan
     })
 }
 
-fn static_css_string_value(value: &str) -> Option<String> {
-    let value = value.trim();
-    if value.len() < 2 {
-        return None;
-    }
-    let quote = value.as_bytes()[0];
-    if !matches!(quote, b'"' | b'\'') || value.as_bytes().last().copied() != Some(quote) {
-        return None;
-    }
-    let inner = &value[1..value.len() - 1];
-    if inner.is_empty() || inner.contains(['\\', '\n', '\r', '\x0c']) {
-        return None;
-    }
-    Some(inner.to_string())
-}
-
 fn is_known_animation_shorthand_keyword(value: &str) -> bool {
     matches!(
         value.to_ascii_lowercase().as_str(),
@@ -4181,12 +4167,6 @@ fn is_known_animation_shorthand_keyword(value: &str) -> bool {
             | "step-end"
             | "step-start"
     )
-}
-
-fn push_unique_string(values: &mut Vec<String>, value: String) {
-    if !values.iter().any(|existing| existing == &value) {
-        values.push(value);
-    }
 }
 
 fn tree_shake_css_modules_values_with_lexer(
@@ -5780,67 +5760,6 @@ fn logical_pair_values(value: &str) -> Option<(String, String)> {
         [start, end] => Some((start.clone(), end.clone())),
         _ => None,
     }
-}
-
-fn split_top_level_whitespace_value_components(value: &str) -> Option<Vec<String>> {
-    let mut components = Vec::new();
-    let mut current = String::new();
-    let mut depth = 0usize;
-    let mut bracket_depth = 0usize;
-    let mut quote: Option<char> = None;
-    let mut escaped = false;
-
-    for ch in value.chars() {
-        if let Some(active_quote) = quote {
-            current.push(ch);
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == active_quote {
-                quote = None;
-            }
-            continue;
-        }
-
-        match ch {
-            '"' | '\'' => {
-                quote = Some(ch);
-                current.push(ch);
-            }
-            '(' => {
-                depth += 1;
-                current.push(ch);
-            }
-            ')' => {
-                depth = depth.checked_sub(1)?;
-                current.push(ch);
-            }
-            '[' => {
-                bracket_depth += 1;
-                current.push(ch);
-            }
-            ']' => {
-                bracket_depth = bracket_depth.checked_sub(1)?;
-                current.push(ch);
-            }
-            ch if ch.is_ascii_whitespace() && depth == 0 && bracket_depth == 0 => {
-                if !current.trim().is_empty() {
-                    components.push(current.trim().to_string());
-                    current.clear();
-                }
-            }
-            _ => current.push(ch),
-        }
-    }
-
-    if quote.is_some() || depth != 0 || bracket_depth != 0 {
-        return None;
-    }
-    if !current.trim().is_empty() {
-        components.push(current.trim().to_string());
-    }
-    (!components.is_empty()).then_some(components)
 }
 
 fn inline_start_end_properties(
