@@ -976,6 +976,7 @@ dependencies = [
  "omena-abstract-value",
  "omena-bridge",
  "omena-cascade",
+ "omena-checker",
  "omena-incremental",
  "omena-parser",
  "omena-resolver",

@@ -14,7 +14,10 @@ use std::path::{Component, PathBuf};
 
 mod transform;
 
+use cascade_checker::summarize_query_cascade_checker_diagnostics;
 pub use transform::*;
+
+mod cascade_checker;
 
 pub fn summarize_omena_query_style_semantic_graph_from_source(
     style_path: &str,
@@ -492,25 +495,32 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics(
     }
 
     let dialect = omena_parser_dialect_for_style_path(style_uri);
-    summarize_static_css_custom_property_fixed_point_from_source(source, dialect)
-        .entries
-        .into_iter()
-        .filter(|entry| entry.guaranteed_invalid)
-        .filter_map(|entry| {
-            declarations_by_name
-                .get(entry.name.as_str())
-                .copied()
-                .map(|range| OmenaQueryStyleDiagnosticV0 {
-                    code: "guaranteedInvalidCustomProperty",
-                    range,
-                    message: format!(
-                        "CSS custom property '{}' resolves to the guaranteed-invalid value.",
-                        entry.name
-                    ),
-                    create_custom_property: None,
-                })
-        })
-        .collect()
+    let mut diagnostics =
+        summarize_static_css_custom_property_fixed_point_from_source(source, dialect)
+            .entries
+            .into_iter()
+            .filter(|entry| entry.guaranteed_invalid)
+            .filter_map(|entry| {
+                declarations_by_name
+                    .get(entry.name.as_str())
+                    .copied()
+                    .map(|range| OmenaQueryStyleDiagnosticV0 {
+                        code: "guaranteedInvalidCustomProperty",
+                        range,
+                        message: format!(
+                            "CSS custom property '{}' resolves to the guaranteed-invalid value.",
+                            entry.name
+                        ),
+                        create_custom_property: None,
+                    })
+            })
+            .collect::<Vec<_>>();
+
+    diagnostics.extend(summarize_query_cascade_checker_diagnostics(
+        style_uri, source,
+    ));
+
+    diagnostics
 }
 
 pub fn summarize_omena_query_missing_keyframes_diagnostics(

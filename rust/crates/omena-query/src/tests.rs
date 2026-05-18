@@ -2984,7 +2984,23 @@ fn missing_custom_property_diagnostics_are_query_owned() {
 
 #[test]
 fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'static str> {
-    let source = ":root { --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); }";
+    let source = r#"
+@layer base {
+  .btn { color: red; }
+  .dead { border-color: red; }
+}
+@layer overrides {
+  .btn { color: blue; }
+  .dead { border-color: blue; }
+}
+:root {
+  --cycle-a: var(--cycle-b);
+  --cycle-b: var(--cycle-a);
+  --bad: var(--missing);
+}
+.card { color: var(--bad); }
+.tie { color: red; color: green; }
+"#;
     let candidates =
         super::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
             .ok_or("style candidates")?;
@@ -3007,8 +3023,18 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
             .iter()
             .filter(|diagnostic| diagnostic.code == "guaranteedInvalidCustomProperty")
             .count(),
-        2
+        3
     );
+    let diagnostic_codes = diagnostics
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.code)
+        .collect::<std::collections::BTreeSet<_>>();
+    assert!(diagnostic_codes.contains("unreachableDeclaration"));
+    assert!(diagnostic_codes.contains("deadCascadeLayer"));
+    assert!(diagnostic_codes.contains("iacvtProne"));
+    assert!(diagnostic_codes.contains("circularVar"));
+    assert!(diagnostic_codes.contains("unspecifiedCascadeTie"));
     Ok(())
 }
 

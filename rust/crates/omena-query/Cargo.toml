@@ -16,6 +16,7 @@ engine-input-producers = { path = "../engine-input-producers" }
 omena-abstract-value = { path = "../omena-abstract-value" }
 omena-bridge = { path = "../omena-bridge" }
 omena-cascade = { path = "../omena-cascade" }
+omena-checker = { path = "../omena-checker" }
 omena-incremental = { path = "../omena-incremental" }
 omena-parser = { path = "../omena-parser" }
 omena-resolver = { path = "../omena-resolver" }
