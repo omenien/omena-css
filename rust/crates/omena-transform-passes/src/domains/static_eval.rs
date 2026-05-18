@@ -8,8 +8,8 @@ use omena_syntax::SyntaxKind;
 
 use crate::{
     domains::number::{
-        parse_reducible_calc_value, parse_reducible_clamp_value, parse_reducible_max_value,
-        parse_reducible_min_value,
+        parse_numeric_value_with_unit, parse_reducible_calc_value, parse_reducible_clamp_value,
+        parse_reducible_max_value, parse_reducible_min_value,
     },
     helpers::{
         ascii::normalize_ascii_whitespace,
@@ -327,6 +327,9 @@ fn evaluate_static_media_condition(
         {
             return StaticMediaEvalVerdict::AlwaysTrue;
         }
+        if static_media_conjunction_is_impossible(&parts) {
+            return StaticMediaEvalVerdict::AlwaysFalse;
+        }
         return StaticMediaEvalVerdict::Unknown;
     }
 
@@ -389,6 +392,125 @@ fn parse_static_media_query_list(condition: &str) -> Option<Vec<&str>> {
 
 fn parse_static_media_conjunction(condition: &str) -> Option<Vec<&str>> {
     parse_static_media_top_level_parts(condition, "and")
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct StaticMediaRangeBound {
+    value: f64,
+    unit: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticMediaRangeBoundKind {
+    Lower,
+    Upper,
+}
+
+fn static_media_conjunction_is_impossible(parts: &[&str]) -> bool {
+    let mut width = StaticMediaRangeConstraint::default();
+    let mut height = StaticMediaRangeConstraint::default();
+
+    for part in parts {
+        let Some((dimension, kind, bound)) = parse_static_media_range_bound(part) else {
+            continue;
+        };
+        let constraint = match dimension {
+            "width" => &mut width,
+            "height" => &mut height,
+            _ => continue,
+        };
+        constraint.apply(kind, bound);
+        if constraint.is_impossible() {
+            return true;
+        }
+    }
+
+    false
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
+struct StaticMediaRangeConstraint {
+    lower: Option<StaticMediaRangeBound>,
+    upper: Option<StaticMediaRangeBound>,
+}
+
+impl StaticMediaRangeConstraint {
+    fn apply(&mut self, kind: StaticMediaRangeBoundKind, bound: StaticMediaRangeBound) {
+        match kind {
+            StaticMediaRangeBoundKind::Lower => {
+                if self.lower.as_ref().is_none_or(|existing| {
+                    existing.unit == bound.unit && existing.value < bound.value
+                }) {
+                    self.lower = Some(bound);
+                }
+            }
+            StaticMediaRangeBoundKind::Upper => {
+                if self.upper.as_ref().is_none_or(|existing| {
+                    existing.unit == bound.unit && existing.value > bound.value
+                }) {
+                    self.upper = Some(bound);
+                }
+            }
+        }
+    }
+
+    fn is_impossible(&self) -> bool {
+        let Some(lower) = &self.lower else {
+            return false;
+        };
+        let Some(upper) = &self.upper else {
+            return false;
+        };
+        lower.unit == upper.unit && lower.value > upper.value
+    }
+}
+
+fn parse_static_media_range_bound(
+    condition: &str,
+) -> Option<(
+    &'static str,
+    StaticMediaRangeBoundKind,
+    StaticMediaRangeBound,
+)> {
+    let condition = strip_wrapping_media_condition_parentheses(condition).unwrap_or(condition);
+    if let Some((name, value)) = condition.split_once(':') {
+        let (dimension, kind) = match name.trim().to_ascii_lowercase().as_str() {
+            "min-width" => ("width", StaticMediaRangeBoundKind::Lower),
+            "max-width" => ("width", StaticMediaRangeBoundKind::Upper),
+            "min-height" => ("height", StaticMediaRangeBoundKind::Lower),
+            "max-height" => ("height", StaticMediaRangeBoundKind::Upper),
+            _ => return None,
+        };
+        return parse_static_media_range_bound_value(value.trim())
+            .map(|bound| (dimension, kind, bound));
+    }
+
+    for (operator, kind) in [
+        (">=", StaticMediaRangeBoundKind::Lower),
+        ("<=", StaticMediaRangeBoundKind::Upper),
+    ] {
+        let Some((dimension, value)) = condition.split_once(operator) else {
+            continue;
+        };
+        let dimension = match dimension.trim().to_ascii_lowercase().as_str() {
+            "width" => "width",
+            "height" => "height",
+            _ => continue,
+        };
+        return parse_static_media_range_bound_value(value.trim())
+            .map(|bound| (dimension, kind, bound));
+    }
+
+    None
+}
+
+fn parse_static_media_range_bound_value(value: &str) -> Option<StaticMediaRangeBound> {
+    let value = normalize_static_media_range_value(value);
+    let parsed = parse_numeric_value_with_unit(value.as_ref())?;
+    Some(StaticMediaRangeBound {
+        value: parsed.value,
+        unit: parsed.unit.to_string(),
+    })
 }
 
 fn parse_static_media_top_level_parts<'a>(
