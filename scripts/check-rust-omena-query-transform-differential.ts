@@ -244,7 +244,7 @@ const fixtures: readonly DifferentialFixture[] = [
   {
     label: "center-position-normalization",
     source:
-      ".bg { background-position: center center; } .left { background-position: left center; } .origin { transform-origin: center top; } .mask { mask-position: bottom right; }",
+      ".bg { background-position: center center; } .left { background-position: left center; } .origin { transform-origin: center top; } .mask { mask-position: bottom right; } .mask-axis { mask-position-x: center; mask-position-y: center; }",
   },
   {
     label: "background-size-position-normalization",

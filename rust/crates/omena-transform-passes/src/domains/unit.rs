@@ -305,6 +305,7 @@ fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Optio
         | "-webkit-mask-position"
         | "perspective-origin"
         | "transform-origin" => normalize_static_position_keyword_value(value),
+        "mask-position-x" | "mask-position-y" => normalize_mask_position_axis_keyword_value(value),
         "background-size" | "mask-size" | "-webkit-mask-size" => {
             normalize_repeated_pair_value(value, "auto")
         }
@@ -323,6 +324,16 @@ fn normalize_static_position_keyword_value(value: &str) -> Option<String> {
         _ => return None,
     };
     (replacement.len() < normalize_ascii_position_value(value).len()).then_some(replacement)
+}
+
+fn normalize_mask_position_axis_keyword_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let [component] = components.as_slice() else {
+        return None;
+    };
+    component
+        .eq_ignore_ascii_case("center")
+        .then(|| "50%".to_string())
 }
 
 fn normalize_single_position_keyword(component: &str) -> Option<String> {
