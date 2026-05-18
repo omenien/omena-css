@@ -1,8 +1,8 @@
 use std::{hint::black_box, time::Instant};
 
 use omena_benchmarks::{
-    style_corpus, summarize_legacy_style_sample, summarize_omena_style_sample_with_parse,
-    validate_legacy_style_sample,
+    style_corpus, summarize_legacy_style_sample, summarize_omena_style_sample,
+    validate_legacy_style_sample, validate_omena_style_sample,
 };
 
 const DEFAULT_MAX_RATIO: f64 = 1.10;
@@ -17,6 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut worst_ratio = 0.0_f64;
     for sample in style_corpus() {
         validate_legacy_style_sample(sample.path, sample.source.as_str())?;
+        validate_omena_style_sample(sample.source.as_str(), sample.dialect)?;
         warm_up(sample.path, sample.source.as_str(), sample.dialect);
 
         let legacy = measure_iterations(ITERATIONS, || {
@@ -26,7 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ));
         });
         let omena = measure_iterations(ITERATIONS, || {
-            black_box(summarize_omena_style_sample_with_parse(
+            black_box(summarize_omena_style_sample(
                 black_box(&sample.source),
                 black_box(sample.dialect),
             ));
@@ -71,7 +72,7 @@ fn warm_up(path: &str, source: &str, dialect: omena_parser::StyleDialect) {
             black_box(path),
             black_box(source),
         ));
-        black_box(summarize_omena_style_sample_with_parse(
+        black_box(summarize_omena_style_sample(
             black_box(source),
             black_box(dialect),
         ));

@@ -49,13 +49,22 @@ pub fn summarize_legacy_style_sample(
     ))
 }
 
-pub fn summarize_omena_style_sample_with_parse(
+pub fn summarize_omena_style_sample(
     source: &str,
     dialect: StyleDialect,
 ) -> omena_parser::ParserIndexSummaryV0 {
-    let parsed = omena_parser::parse(source, dialect);
-    std::hint::black_box(parsed);
     omena_parser::summarize_css_modules_intermediate(source, dialect)
+}
+
+pub fn validate_omena_style_sample(source: &str, dialect: StyleDialect) -> Result<(), String> {
+    let parsed = omena_parser::parse(source, dialect);
+    if parsed.token_count() > 0 {
+        Ok(())
+    } else {
+        Err(format!(
+            "benchmark style sample should produce omena parser tokens: {dialect:?}",
+        ))
+    }
 }
 
 pub fn validate_legacy_style_sample(path: &str, source: &str) -> Result<(), String> {
