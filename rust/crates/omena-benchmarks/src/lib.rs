@@ -39,6 +39,25 @@ pub fn parse_legacy_style_sample(
     engine_style_parser::parse_style_module(path, source)
 }
 
+pub fn summarize_legacy_style_sample(
+    path: &str,
+    source: &str,
+) -> Option<engine_style_parser::ParserIndexSummaryV0> {
+    let sheet = parse_legacy_style_sample(path, source)?;
+    Some(engine_style_parser::summarize_css_modules_intermediate(
+        &sheet,
+    ))
+}
+
+pub fn summarize_omena_style_sample_with_parse(
+    source: &str,
+    dialect: StyleDialect,
+) -> omena_parser::ParserIndexSummaryV0 {
+    let parsed = omena_parser::parse(source, dialect);
+    std::hint::black_box(parsed);
+    omena_parser::summarize_css_modules_intermediate(source, dialect)
+}
+
 pub fn validate_legacy_style_sample(path: &str, source: &str) -> Result<(), String> {
     if parse_legacy_style_sample(path, source).is_some() {
         Ok(())

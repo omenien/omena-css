@@ -1,19 +1,17 @@
 use std::hint::black_box;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use engine_style_parser::{
-    parse_style_module, summarize_css_modules_intermediate as summarize_legacy_intermediate,
-};
+use engine_style_parser::parse_style_module;
 use omena_abstract_value::{
     ClassValueFlowGraphV0, ClassValueFlowNodeV0, ClassValueFlowTransferV0,
     ExternalStringTypeFactsV0, OneCfaCallSiteFlowInputV0, analyze_class_value_flow,
     analyze_one_cfa_call_site_flows, finite_set_class_value, intersect_abstract_class_values,
     prefix_class_value,
 };
-use omena_benchmarks::{parse_legacy_style_sample, style_corpus};
-use omena_parser::{
-    parse as parse_omena_style, summarize_css_modules_intermediate as summarize_omena_intermediate,
+use omena_benchmarks::{
+    style_corpus, summarize_legacy_style_sample, summarize_omena_style_sample_with_parse,
 };
+use omena_parser::parse as parse_omena_style;
 use omena_semantic::summarize_omena_parser_style_semantic_boundary_from_source;
 
 fn parser_benchmarks(c: &mut Criterion) {
@@ -54,12 +52,10 @@ fn parser_product_benchmarks(c: &mut Criterion) {
     for sample in &samples {
         legacy_group.bench_function(sample.name, |b| {
             b.iter(|| {
-                if let Some(sheet) = parse_legacy_style_sample(
+                black_box(summarize_legacy_style_sample(
                     black_box(sample.path),
                     black_box(sample.source.as_str()),
-                ) {
-                    black_box(summarize_legacy_intermediate(black_box(&sheet)));
-                }
+                ));
             });
         });
     }
@@ -69,7 +65,7 @@ fn parser_product_benchmarks(c: &mut Criterion) {
     for sample in &samples {
         omena_group.bench_function(sample.name, |b| {
             b.iter(|| {
-                black_box(summarize_omena_intermediate(
+                black_box(summarize_omena_style_sample_with_parse(
                     black_box(&sample.source),
                     black_box(sample.dialect),
                 ))

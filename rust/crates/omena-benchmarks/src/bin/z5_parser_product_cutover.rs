@@ -1,8 +1,9 @@
 use std::{hint::black_box, time::Instant};
 
-use engine_style_parser::summarize_css_modules_intermediate as summarize_legacy_intermediate;
-use omena_benchmarks::{parse_legacy_style_sample, style_corpus, validate_legacy_style_sample};
-use omena_parser::summarize_css_modules_intermediate as summarize_omena_intermediate;
+use omena_benchmarks::{
+    style_corpus, summarize_legacy_style_sample, summarize_omena_style_sample_with_parse,
+    validate_legacy_style_sample,
+};
 
 const DEFAULT_MAX_RATIO: f64 = 1.10;
 const ITERATIONS: usize = 40;
@@ -19,14 +20,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         warm_up(sample.path, sample.source.as_str(), sample.dialect);
 
         let legacy = measure_iterations(ITERATIONS, || {
-            if let Some(sheet) =
-                parse_legacy_style_sample(black_box(sample.path), black_box(sample.source.as_str()))
-            {
-                black_box(summarize_legacy_intermediate(black_box(&sheet)));
-            }
+            black_box(summarize_legacy_style_sample(
+                black_box(sample.path),
+                black_box(sample.source.as_str()),
+            ));
         });
         let omena = measure_iterations(ITERATIONS, || {
-            black_box(summarize_omena_intermediate(
+            black_box(summarize_omena_style_sample_with_parse(
                 black_box(&sample.source),
                 black_box(sample.dialect),
             ));
@@ -67,10 +67,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn warm_up(path: &str, source: &str, dialect: omena_parser::StyleDialect) {
     for _ in 0..4 {
-        if let Some(sheet) = parse_legacy_style_sample(black_box(path), black_box(source)) {
-            black_box(summarize_legacy_intermediate(black_box(&sheet)));
-        }
-        black_box(summarize_omena_intermediate(
+        black_box(summarize_legacy_style_sample(
+            black_box(path),
+            black_box(source),
+        ));
+        black_box(summarize_omena_style_sample_with_parse(
             black_box(source),
             black_box(dialect),
         ));
