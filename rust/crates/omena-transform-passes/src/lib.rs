@@ -43,11 +43,12 @@ use domains::{
     },
     design_token::route_design_token_values_with_lexer,
     import_inline::inline_css_imports_with_lexer,
-    keyframes::{is_keyframes_at_keyword, tree_shake_css_keyframes_with_lexer},
+    keyframes::tree_shake_css_keyframes_with_lexer,
     logical::lower_css_logical_to_physical_with_lexer,
     nesting::unwrap_css_nesting_with_lexer,
     number::{compress_number_prefix, numeric_prefix_end},
     reachability::class_name_is_reachable,
+    rule_cleanup::{dedupe_exact_css_rules_with_lexer, remove_empty_css_rules_with_lexer},
     rule_merge::{
         merge_adjacent_same_block_css_selectors_with_lexer,
         merge_adjacent_same_selector_css_rules_with_lexer,
@@ -62,6 +63,7 @@ use domains::{
         normalize_css_font_declarations_with_lexer, normalize_css_string_quotes_with_lexer,
         strip_css_url_quotes_with_lexer,
     },
+    trivia::{normalize_css_whitespace_with_lexer, strip_css_comments_with_lexer},
     unit::normalize_css_units_with_lexer,
     vendor_prefix::add_css_vendor_prefixes_with_lexer,
 };
@@ -70,16 +72,11 @@ use helpers::declarations::{
     format_replacement_declaration_like_source,
 };
 use helpers::identifiers::{is_css_ident_continue, is_css_ident_start};
-use helpers::rules::{
-    SimpleRuleSlice, collect_declaration_ordinary_rule_slices,
-    collect_top_level_ordinary_rule_slices, first_non_trivia_token_start, is_ordinary_rule_prelude,
-    set_prelude_start,
-};
+use helpers::rules::collect_top_level_ordinary_rule_slices;
 use helpers::source_rewrite::{remove_source_ranges, rewrite_lexer_tokens};
 use helpers::tokens::{
     is_comment_token, is_declaration_boundary_end, is_declaration_boundary_start,
-    matching_right_brace_index, next_non_comment_token_kind, previous_non_comment_token_kind,
-    token_end,
+    matching_right_brace_index,
 };
 use helpers::values::{
     matching_function_call_end, substitute_static_css_function_references_in_value,
@@ -356,157 +353,6 @@ fn reduce_css_calc(source: &str, dialect: StyleDialect) -> (String, usize) {
 
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
-}
-
-fn dedupe_exact_css_rules_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
-    let ranges = collect_duplicate_ordinary_rule_ranges(&rules);
-
-    if ranges.is_empty() {
-        return (source.to_string(), 0);
-    }
-
-    remove_source_ranges(source, &ranges)
-}
-
-fn collect_duplicate_ordinary_rule_ranges(rules: &[SimpleRuleSlice]) -> Vec<(usize, usize)> {
-    let mut ranges = Vec::new();
-
-    for (index, rule) in rules.iter().enumerate() {
-        let has_later_duplicate = rules[index + 1..].iter().any(|candidate| {
-            rule.selector == candidate.selector
-                && rule.block == candidate.block
-                && rule.context_start == candidate.context_start
-                && rule.context_end == candidate.context_end
-        });
-        if has_later_duplicate {
-            ranges.push((rule.start, rule.end));
-        }
-    }
-
-    ranges
-}
-
-fn remove_empty_css_rules_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
-    let mut output = source.to_string();
-    let mut mutation_count = 0;
-
-    loop {
-        let lexed = lex(&output, dialect);
-        let tokens = lexed.tokens();
-        let ranges = collect_empty_rule_ranges(tokens);
-        let (next_output, removed_count) = remove_source_ranges(&output, &ranges);
-        if removed_count == 0 {
-            return (output, mutation_count);
-        }
-        output = next_output;
-        mutation_count += removed_count;
-    }
-}
-
-fn collect_empty_rule_ranges(tokens: &[omena_parser::LexedToken]) -> Vec<(usize, usize)> {
-    let mut ranges = Vec::new();
-    let mut depth = 0usize;
-    let mut prelude_starts = vec![0usize];
-    let mut keyframes_contexts = vec![false];
-    let mut index = 0;
-
-    while index < tokens.len() {
-        match tokens[index].kind {
-            SyntaxKind::LeftBrace => {
-                let prelude_start = prelude_starts.get(depth).copied().unwrap_or(0);
-                let inside_keyframes = keyframes_contexts.get(depth).copied().unwrap_or(false);
-                if let Some(close_index) = matching_right_brace_index(tokens, index)
-                    && is_empty_rule_block(tokens, index + 1, close_index)
-                    && ((!inside_keyframes
-                        && is_ordinary_rule_prelude(tokens, prelude_start, index))
-                        || is_empty_group_rule_prelude(tokens, prelude_start, index))
-                    && let Some(start) = first_non_trivia_token_start(tokens, prelude_start, index)
-                {
-                    let end = token_end(&tokens[close_index]);
-                    ranges.push((start, end));
-                    index = close_index + 1;
-                    set_prelude_start(&mut prelude_starts, depth, index);
-                    continue;
-                }
-                let child_inside_keyframes = inside_keyframes
-                    || is_keyframes_group_rule_prelude(tokens, prelude_start, index);
-                depth += 1;
-                set_prelude_start(&mut prelude_starts, depth, index + 1);
-                set_bool_context(&mut keyframes_contexts, depth, child_inside_keyframes);
-            }
-            SyntaxKind::RightBrace => {
-                depth = depth.saturating_sub(1);
-                set_prelude_start(&mut prelude_starts, depth, index + 1);
-            }
-            SyntaxKind::Semicolon => {
-                set_prelude_start(&mut prelude_starts, depth, index + 1);
-            }
-            _ => {}
-        }
-        index += 1;
-    }
-
-    ranges
-}
-
-fn set_bool_context(contexts: &mut Vec<bool>, depth: usize, value: bool) {
-    if contexts.len() <= depth {
-        contexts.resize(depth + 1, false);
-    }
-    contexts[depth] = value;
-}
-
-fn is_empty_rule_block(
-    tokens: &[omena_parser::LexedToken],
-    start: usize,
-    end_exclusive: usize,
-) -> bool {
-    tokens[start..end_exclusive].iter().all(|token| {
-        matches!(
-            token.kind,
-            SyntaxKind::Whitespace | SyntaxKind::SassIndentedNewline
-        )
-    })
-}
-
-fn is_empty_group_rule_prelude(
-    tokens: &[omena_parser::LexedToken],
-    start: usize,
-    end_exclusive: usize,
-) -> bool {
-    let prelude = &tokens[start..end_exclusive];
-    let mut significant_tokens = prelude
-        .iter()
-        .filter(|token| !is_comment_token(token.kind) && token.kind != SyntaxKind::Whitespace);
-    let Some(first) = significant_tokens.next() else {
-        return false;
-    };
-    first.kind == SyntaxKind::AtKeyword && is_empty_removable_group_at_keyword(&first.text)
-}
-
-fn is_keyframes_group_rule_prelude(
-    tokens: &[omena_parser::LexedToken],
-    start: usize,
-    end_exclusive: usize,
-) -> bool {
-    let prelude = &tokens[start..end_exclusive];
-    let mut significant_tokens = prelude
-        .iter()
-        .filter(|token| !is_comment_token(token.kind) && token.kind != SyntaxKind::Whitespace);
-    let Some(first) = significant_tokens.next() else {
-        return false;
-    };
-    first.kind == SyntaxKind::AtKeyword && is_keyframes_at_keyword(&first.text)
-}
-
-fn is_empty_removable_group_at_keyword(text: &str) -> bool {
-    matches!(
-        text.to_ascii_lowercase().as_str(),
-        "@container" | "@layer" | "@media" | "@scope" | "@supports"
-    )
 }
 
 fn compress_css_colors_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -807,109 +653,6 @@ fn compress_numeric_token_text(text: &str) -> Option<String> {
     let compressed = compress_number_prefix(number);
     let rewritten = format!("{compressed}{suffix}");
     (rewritten != text).then_some(rewritten)
-}
-
-fn normalize_css_whitespace_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let mut output = String::with_capacity(source.len());
-    let mut mutation_count = 0;
-
-    for (index, token) in tokens.iter().enumerate() {
-        if token.kind == SyntaxKind::Semicolon
-            && matches!(
-                next_non_comment_token_kind(tokens, index),
-                Some(SyntaxKind::RightBrace)
-            )
-        {
-            mutation_count += 1;
-            continue;
-        }
-
-        if token.kind != SyntaxKind::Whitespace && token.kind != SyntaxKind::SassIndentedNewline {
-            output.push_str(&token.text);
-            continue;
-        }
-
-        let replacement = whitespace_replacement_for_tokens(
-            previous_non_comment_token_kind(tokens, index),
-            next_non_comment_token_kind(tokens, index),
-        );
-        if replacement != token.text {
-            mutation_count += 1;
-        }
-        output.push_str(replacement);
-    }
-
-    (output, mutation_count)
-}
-
-fn whitespace_replacement_for_tokens(
-    previous: Option<SyntaxKind>,
-    next: Option<SyntaxKind>,
-) -> &'static str {
-    match (previous, next) {
-        (None, _) | (_, None) => "",
-        (Some(previous), Some(next))
-            if can_remove_whitespace_after(previous) || can_remove_whitespace_before(next) =>
-        {
-            ""
-        }
-        _ => " ",
-    }
-}
-
-fn can_remove_whitespace_after(kind: SyntaxKind) -> bool {
-    matches!(
-        kind,
-        SyntaxKind::LeftBrace
-            | SyntaxKind::RightBrace
-            | SyntaxKind::LeftParen
-            | SyntaxKind::LeftBracket
-            | SyntaxKind::Comma
-            | SyntaxKind::Colon
-            | SyntaxKind::Semicolon
-    )
-}
-
-fn can_remove_whitespace_before(kind: SyntaxKind) -> bool {
-    matches!(
-        kind,
-        SyntaxKind::LeftBrace
-            | SyntaxKind::RightBrace
-            | SyntaxKind::RightParen
-            | SyntaxKind::RightBracket
-            | SyntaxKind::Comma
-            | SyntaxKind::Colon
-            | SyntaxKind::Semicolon
-    )
-}
-
-fn strip_css_comments_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
-    let lexed = lex(source, dialect);
-    let mut output = String::with_capacity(source.len());
-    let mut cursor = 0;
-    let mut removed_comment_count = 0;
-
-    for token in lexed.tokens() {
-        let start = u32::from(token.range.start()) as usize;
-        let end = u32::from(token.range.end()) as usize;
-        if start > cursor {
-            output.push_str(&source[cursor..start]);
-        }
-        if is_comment_token(token.kind) {
-            removed_comment_count += 1;
-        } else {
-            output.push_str(&source[start..end]);
-        }
-        cursor = end;
-    }
-
-    if cursor < source.len() {
-        output.push_str(&source[cursor..]);
-    }
-
-    (output, removed_comment_count)
 }
 
 #[cfg(test)]
