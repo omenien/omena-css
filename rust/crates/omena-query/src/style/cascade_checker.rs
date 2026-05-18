@@ -454,27 +454,119 @@ fn query_layer_name_from_prelude(prelude: &str) -> Option<String> {
 fn collect_query_var_references_in_value(value: &str) -> Vec<String> {
     let mut refs = BTreeSet::new();
     let mut index = 0usize;
+    let mut quote: Option<char> = None;
     while index < value.len() {
-        let Some(relative_start) = value[index..].find("var(") else {
+        let Some(ch) = value[index..].chars().next() else {
             break;
         };
-        let var_start = index + relative_start;
-        let open_index = var_start + "var".len();
-        let Some(close_index) = matching_query_paren_end(value, open_index, value.len()) else {
-            index = open_index + 1;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = value[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
             continue;
-        };
-        let first_argument = value[open_index + 1..close_index]
-            .split(',')
-            .next()
-            .unwrap_or_default()
-            .trim();
-        if first_argument.starts_with("--") {
-            refs.insert(first_argument.to_string());
         }
-        index = close_index + 1;
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            _ if query_function_name_starts_at(value, index, "var") => {
+                let open_index = index + "var".len();
+                let Some(close_index) = matching_query_paren_end(value, open_index, value.len())
+                else {
+                    index += ch.len_utf8();
+                    continue;
+                };
+                collect_query_var_references_from_arguments(
+                    &value[open_index + 1..close_index],
+                    &mut refs,
+                );
+                index = close_index + 1;
+            }
+            _ => {
+                index += ch.len_utf8();
+            }
+        }
     }
     refs.into_iter().collect()
+}
+
+fn collect_query_var_references_from_arguments(arguments: &str, refs: &mut BTreeSet<String>) {
+    let parts = split_query_top_level_arguments(arguments);
+    let Some(first_argument) = parts.first().map(|part| part.trim()) else {
+        return;
+    };
+    if first_argument.starts_with("--") {
+        refs.insert(first_argument.to_string());
+    }
+    for fallback in parts.iter().skip(1) {
+        for reference in collect_query_var_references_in_value(fallback) {
+            refs.insert(reference);
+        }
+    }
+}
+
+fn split_query_top_level_arguments(arguments: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut start = 0usize;
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+    let mut paren_depth = 0usize;
+
+    while index < arguments.len() {
+        let Some(ch) = arguments[index..].chars().next() else {
+            break;
+        };
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = arguments[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                index += ch.len_utf8();
+            }
+            '(' => {
+                paren_depth += 1;
+                index += ch.len_utf8();
+            }
+            ')' => {
+                paren_depth = paren_depth.saturating_sub(1);
+                index += ch.len_utf8();
+            }
+            ',' if paren_depth == 0 => {
+                parts.push(&arguments[start..index]);
+                index += ch.len_utf8();
+                start = index;
+            }
+            _ => {
+                index += ch.len_utf8();
+            }
+        }
+    }
+    parts.push(&arguments[start..]);
+    parts
+}
+
+fn query_function_name_starts_at(value: &str, index: usize, function_name: &str) -> bool {
+    value
+        .get(index..index + function_name.len())
+        .is_some_and(|name| name.eq_ignore_ascii_case(function_name))
+        && value[index + function_name.len()..].starts_with('(')
 }
 
 fn find_query_top_level_byte(source: &str, start: usize, end: usize, needle: u8) -> Option<usize> {

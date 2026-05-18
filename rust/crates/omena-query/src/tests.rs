@@ -3078,6 +3078,41 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
 }
 
 #[test]
+fn style_diagnostics_collect_uppercase_and_fallback_var_references() -> Result<(), &'static str> {
+    let source = r#"
+:root {
+  --cycle-a: VAR(--missing, var(--cycle-b));
+  --cycle-b: var(--cycle-a);
+}
+.card { color: var(--cycle-a); }
+"#;
+    let candidates =
+        super::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+
+    let diagnostics = super::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+    let diagnostic_codes = diagnostics
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.code)
+        .collect::<std::collections::BTreeSet<_>>();
+
+    assert!(diagnostic_codes.contains("circularVar"));
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "circularVar"
+                && diagnostic.message == "Custom property dependency graph contains a cycle.")
+    );
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_for_file_include_keyframes_resolution_lints() -> Result<(), &'static str> {
     let source = ".button { animation: fade 1s ease; }\n@keyframes spin { to { opacity: 1; } }";
     let candidates =
