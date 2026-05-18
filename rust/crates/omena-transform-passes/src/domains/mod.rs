@@ -9,6 +9,7 @@ pub(crate) mod keyframes;
 pub(crate) mod number;
 pub(crate) mod reachability;
 pub(crate) mod rule_merge;
+pub(crate) mod selector;
 pub(crate) mod shorthand;
 pub(crate) mod static_eval;
 pub(crate) mod text;
