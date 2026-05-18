@@ -801,6 +801,68 @@ assert.deepEqual(customPropertyReachabilitySummary.execution.executedPassIds, [
 ]);
 assert.equal(customPropertyReachabilitySummary.execution.mutationCount, 1);
 
+const customPropertyKeyframeReachabilityResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "custom-property-keyframe-reachability.css",
+      styleSource:
+        ":root { --used: red; --ghost: blue; } .btn { animation: live 1s; } @keyframes live { to { color: var(--used); } } @keyframes ghost { to { color: var(--ghost); } }",
+      requestedPassIds: ["tree-shake-custom-property", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["btn"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  customPropertyKeyframeReachabilityResult.status,
+  0,
+  customPropertyKeyframeReachabilityResult.stderr,
+);
+assert.equal(customPropertyKeyframeReachabilityResult.error, undefined);
+
+const customPropertyKeyframeReachabilitySummary = JSON.parse(
+  customPropertyKeyframeReachabilityResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(
+  customPropertyKeyframeReachabilitySummary.product,
+  "omena-query.transform-execute",
+);
+assert.ok(
+  customPropertyKeyframeReachabilitySummary.execution.outputCss.includes("--used: red;"),
+);
+assert.ok(
+  customPropertyKeyframeReachabilitySummary.execution.outputCss.includes("@keyframes ghost"),
+);
+assert.ok(
+  customPropertyKeyframeReachabilitySummary.execution.outputCss.includes("color: var(--ghost);"),
+);
+assert.ok(
+  !customPropertyKeyframeReachabilitySummary.execution.outputCss.includes("--ghost: blue;"),
+);
+assert.deepEqual(customPropertyKeyframeReachabilitySummary.execution.executedPassIds, [
+  "tree-shake-custom-property",
+  "print-css",
+]);
+assert.equal(customPropertyKeyframeReachabilitySummary.execution.mutationCount, 1);
+
 const semanticReachabilityResult = spawnSync(
   "cargo",
   [

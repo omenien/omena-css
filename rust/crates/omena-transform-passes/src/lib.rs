@@ -1231,6 +1231,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     &output_css,
                     dialect,
                     &context.reachable_custom_property_names,
+                    &context.reachable_keyframe_names,
                     &reachable_class_names,
                 );
                 let mutation_count = removals.len();
@@ -2229,12 +2230,14 @@ fn tree_shake_css_custom_properties_with_removals(
     source: &str,
     dialect: StyleDialect,
     reachable_custom_property_names: &[String],
+    reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> (String, Vec<TransformSemanticRemovalCandidate>) {
     tree_shake_css_custom_properties_with_lexer(
         source,
         dialect,
         reachable_custom_property_names,
+        reachable_keyframe_names,
         reachable_class_names,
     )
 }
@@ -5590,6 +5593,7 @@ fn tree_shake_css_custom_properties_with_lexer(
     source: &str,
     dialect: StyleDialect,
     reachable_custom_property_names: &[String],
+    reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> (String, Vec<TransformSemanticRemovalCandidate>) {
     let lexed = lex(source, dialect);
@@ -5598,6 +5602,7 @@ fn tree_shake_css_custom_properties_with_lexer(
         source,
         tokens,
         reachable_custom_property_names,
+        reachable_keyframe_names,
         reachable_class_names,
     ) else {
         return (source.to_string(), Vec::new());
@@ -5710,11 +5715,19 @@ fn collect_reachable_custom_property_names(
     source: &str,
     tokens: &[omena_parser::LexedToken],
     external_roots: &[String],
+    external_keyframe_roots: &[String],
     reachable_class_names: &[String],
 ) -> Option<Vec<String>> {
     let mut root_names = Vec::new();
     let mut dependencies_by_name = BTreeMap::<String, Vec<String>>::new();
     let scope_blocks = collect_css_module_scope_blocks(source, tokens);
+    let keyframes = collect_top_level_keyframes_rules(tokens);
+    let reachable_keyframe_names = collect_reachable_keyframe_names(
+        source,
+        tokens,
+        external_keyframe_roots,
+        reachable_class_names,
+    );
 
     for name in external_roots {
         if let Some(name) = normalize_custom_property_name(name) {
@@ -5723,6 +5736,14 @@ fn collect_reachable_custom_property_names(
     }
 
     for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
+        if let Some(keyframe_name) = enclosing_keyframe_name_for_rule(&rule, &keyframes)
+            && let Some(reachable_keyframe_names) = reachable_keyframe_names.as_ref()
+            && !reachable_keyframe_names
+                .iter()
+                .any(|name| name == keyframe_name)
+        {
+            continue;
+        }
         let rule_is_reachable =
             rule_slice_matches_reachable_class_context(&rule, &scope_blocks, reachable_class_names);
         let Some((block_start_index, block_end_index)) =
@@ -5756,6 +5777,29 @@ fn collect_reachable_custom_property_names(
         root_names,
         &dependencies_by_name,
     ))
+}
+
+fn collect_reachable_keyframe_names(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+    external_roots: &[String],
+    reachable_class_names: &[String],
+) -> Option<Vec<String>> {
+    let mut names = collect_referenced_keyframe_names(source, tokens, reachable_class_names)?;
+    for name in external_roots {
+        push_unique_string(&mut names, name.clone());
+    }
+    Some(names)
+}
+
+fn enclosing_keyframe_name_for_rule<'a>(
+    rule: &SimpleRuleSlice,
+    keyframes: &'a [KeyframesRuleSlice],
+) -> Option<&'a str> {
+    keyframes
+        .iter()
+        .find(|keyframe| rule.start >= keyframe.start && rule.end <= keyframe.end)
+        .map(|keyframe| keyframe.name.as_str())
 }
 
 fn close_custom_property_dependency_graph(
@@ -12335,6 +12379,40 @@ mod tests {
         assert_eq!(execution.mutation_count, 1);
         assert!(execution.output_css.contains("--used: var(--dep);"));
         assert!(execution.output_css.contains("--dep: red;"));
+        assert!(!execution.output_css.contains("--ghost: blue;"));
+        assert_eq!(
+            execution
+                .semantic_removals
+                .iter()
+                .map(|removal| (removal.symbol_kind, removal.name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("customProperty", "--ghost")]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_ignores_dead_keyframe_custom_property_dependencies() {
+        let source = r#":root { --used: red; --ghost: blue; } .btn { animation: live 1s; } @keyframes live { to { color: var(--used); } } @keyframes ghost { to { color: var(--ghost); } }"#;
+        let context = TransformExecutionContextV0 {
+            closed_style_world: true,
+            reachable_class_names: vec!["btn".to_string()],
+            ..TransformExecutionContextV0::default()
+        };
+        let execution = execute_transform_passes_on_source_with_dialect_and_context(
+            source,
+            StyleDialect::Css,
+            &[
+                TransformPassKind::TreeShakeCustomProperty,
+                TransformPassKind::PrintCss,
+            ],
+            &context,
+        );
+
+        assert_eq!(execution.mutation_count, 1);
+        assert!(execution.output_css.contains("--used: red;"));
+        assert!(execution.output_css.contains("color: var(--used);"));
+        assert!(execution.output_css.contains("@keyframes ghost"));
+        assert!(execution.output_css.contains("color: var(--ghost);"));
         assert!(!execution.output_css.contains("--ghost: blue;"));
         assert_eq!(
             execution
