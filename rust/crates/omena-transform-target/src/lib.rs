@@ -13,6 +13,129 @@ use omena_transform_cst::TransformPassKind;
 use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct StaticBrowserFeatureThreshold {
+    browser_name: &'static str,
+    min_major: u16,
+    min_minor: u16,
+}
+
+const LIGHT_DARK_SUPPORT_THRESHOLDS: &[StaticBrowserFeatureThreshold] = &[
+    StaticBrowserFeatureThreshold {
+        browser_name: "chrome",
+        min_major: 123,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "edge",
+        min_major: 123,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "firefox",
+        min_major: 120,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "safari",
+        min_major: 17,
+        min_minor: 5,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "ios_saf",
+        min_major: 17,
+        min_minor: 5,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "opera",
+        min_major: 109,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "op_mob",
+        min_major: 109,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "and_chr",
+        min_major: 123,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "and_ff",
+        min_major: 120,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "samsung",
+        min_major: 27,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "android",
+        min_major: 148,
+        min_minor: 0,
+    },
+];
+
+const COLOR_MIX_SUPPORT_THRESHOLDS: &[StaticBrowserFeatureThreshold] = &[
+    StaticBrowserFeatureThreshold {
+        browser_name: "chrome",
+        min_major: 111,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "edge",
+        min_major: 111,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "firefox",
+        min_major: 113,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "safari",
+        min_major: 16,
+        min_minor: 2,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "ios_saf",
+        min_major: 16,
+        min_minor: 2,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "opera",
+        min_major: 97,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "op_mob",
+        min_major: 80,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "and_chr",
+        min_major: 111,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "and_ff",
+        min_major: 113,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "samsung",
+        min_major: 22,
+        min_minor: 0,
+    },
+    StaticBrowserFeatureThreshold {
+        browser_name: "android",
+        min_major: 148,
+        min_minor: 0,
+    },
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TargetFeatureSupportV0 {
@@ -329,8 +452,14 @@ fn feature_support_for_resolved_targets(distribs: &[Distrib]) -> TargetFeatureSu
 
     TargetFeatureSupportV0 {
         vendor_prefix_required: !(flexbox_fully_supported && sticky_fully_supported),
-        supports_light_dark: false,
-        supports_color_mix: false,
+        supports_light_dark: target_set_is_subset_of_static_browser_feature(
+            distribs,
+            LIGHT_DARK_SUPPORT_THRESHOLDS,
+        ),
+        supports_color_mix: target_set_is_subset_of_static_browser_feature(
+            distribs,
+            COLOR_MIX_SUPPORT_THRESHOLDS,
+        ),
         supports_oklch_oklab: target_set_is_subset_of_fully_supported_feature(
             distribs,
             "css-lch-lab",
@@ -356,6 +485,46 @@ fn feature_support_for_resolved_targets(distribs: &[Distrib]) -> TargetFeatureSu
             "css-cascade-layers",
         ),
     }
+}
+
+fn target_set_is_subset_of_static_browser_feature(
+    distribs: &[Distrib],
+    thresholds: &[StaticBrowserFeatureThreshold],
+) -> bool {
+    !distribs.is_empty()
+        && distribs
+            .iter()
+            .all(|distrib| distrib_matches_static_browser_feature(distrib, thresholds))
+}
+
+fn distrib_matches_static_browser_feature(
+    distrib: &Distrib,
+    thresholds: &[StaticBrowserFeatureThreshold],
+) -> bool {
+    thresholds
+        .iter()
+        .find(|threshold| threshold.browser_name == distrib.name())
+        .is_some_and(|threshold| {
+            browser_version_at_least(distrib.version(), threshold.min_major, threshold.min_minor)
+        })
+}
+
+fn browser_version_at_least(version: &str, min_major: u16, min_minor: u16) -> bool {
+    if version.eq_ignore_ascii_case("tp") {
+        return true;
+    }
+
+    let version = version.split('-').next().unwrap_or(version);
+    let mut parts = version.split('.');
+    let Some(major) = parts.next().and_then(|part| part.parse::<u16>().ok()) else {
+        return false;
+    };
+    let minor = parts
+        .next()
+        .and_then(|part| part.parse::<u16>().ok())
+        .unwrap_or(0);
+
+    major > min_major || (major == min_major && minor >= min_minor)
 }
 
 fn target_set_is_subset_of_fully_supported_feature(distribs: &[Distrib], feature: &str) -> bool {
@@ -581,6 +750,54 @@ mod tests {
                 .required_pass_ids
                 .contains(&"logical-to-physical")
         );
+    }
+
+    #[test]
+    fn resolves_light_dark_and_color_mix_from_static_compatibility_matrix() {
+        let chrome_122 =
+            plan_target_transforms_from_query("chrome 122", conservative_target_options());
+        assert_eq!(chrome_122.profile_id, "browserslist-resolved");
+        assert!(!chrome_122.support.supports_light_dark);
+        assert!(chrome_122.support.supports_color_mix);
+        assert!(
+            chrome_122
+                .transform_plan
+                .required_pass_ids
+                .contains(&"light-dark-lowering")
+        );
+        assert!(
+            !chrome_122
+                .transform_plan
+                .required_pass_ids
+                .contains(&"color-mix-lowering")
+        );
+
+        let chrome_123 =
+            plan_target_transforms_from_query("chrome 123", conservative_target_options());
+        assert!(chrome_123.support.supports_light_dark);
+        assert!(chrome_123.support.supports_color_mix);
+        assert!(
+            !chrome_123
+                .transform_plan
+                .required_pass_ids
+                .contains(&"light-dark-lowering")
+        );
+        assert!(
+            !chrome_123
+                .transform_plan
+                .required_pass_ids
+                .contains(&"color-mix-lowering")
+        );
+
+        let safari_16_2 =
+            plan_target_transforms_from_query("safari 16.2", conservative_target_options());
+        assert!(!safari_16_2.support.supports_light_dark);
+        assert!(safari_16_2.support.supports_color_mix);
+
+        let safari_17_5 =
+            plan_target_transforms_from_query("safari 17.5", conservative_target_options());
+        assert!(safari_17_5.support.supports_light_dark);
+        assert!(safari_17_5.support.supports_color_mix);
     }
 
     #[test]
