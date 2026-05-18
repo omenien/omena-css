@@ -10339,12 +10339,14 @@ fn normalize_css_units_with_lexer(source: &str, dialect: StyleDialect) -> (Strin
             }
         }
 
-        let replacement = if token.kind == SyntaxKind::Dimension {
-            active_property
+        let replacement = match token.kind {
+            SyntaxKind::Dimension => active_property
                 .as_deref()
-                .and_then(|property| normalize_dimension_unit_token(&token.text, property))
-        } else {
-            None
+                .and_then(|property| normalize_dimension_unit_token(&token.text, property)),
+            SyntaxKind::Percentage => active_property
+                .as_deref()
+                .and_then(|property| normalize_percentage_unit_token(&token.text, property)),
+            _ => None,
         };
 
         if let Some(replacement) = replacement {
@@ -10357,7 +10359,9 @@ fn normalize_css_units_with_lexer(source: &str, dialect: StyleDialect) -> (Strin
         }
     }
 
-    (output, mutation_count)
+    let (output, declaration_value_mutation_count) =
+        normalize_static_unit_declaration_values_with_lexer(&output, dialect);
+    (output, mutation_count + declaration_value_mutation_count)
 }
 
 fn is_declaration_boundary_start(kind: SyntaxKind) -> bool {
@@ -10484,6 +10488,93 @@ fn normalize_dimension_unit_token(text: &str, property: &str) -> Option<String> 
     }
 
     normalize_known_css_unit_case(number, unit)
+}
+
+fn normalize_percentage_unit_token(text: &str, property: &str) -> Option<String> {
+    if property.starts_with("--") {
+        return None;
+    }
+
+    let number = text.strip_suffix('%')?;
+    if !is_zero_number_prefix(number) {
+        return None;
+    }
+    if is_zero_percentage_unit_property(property) || property == "opacity" {
+        Some("0".to_string())
+    } else {
+        None
+    }
+}
+
+fn is_zero_percentage_unit_property(property: &str) -> bool {
+    matches!(
+        property,
+        "background-position"
+            | "mask-position"
+            | "-webkit-mask-position"
+            | "perspective-origin"
+            | "transform-origin"
+    )
+}
+
+fn normalize_static_unit_declaration_values_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
+                let Some(replacement_value) = normalize_static_unit_declaration_value(
+                    &declaration.property,
+                    &declaration.value,
+                ) else {
+                    continue;
+                };
+                replacements.push((
+                    declaration.start,
+                    declaration.end,
+                    format_replacement_declaration_like_source(
+                        source,
+                        &declaration,
+                        &replacement_value,
+                    ),
+                ));
+            }
+            index += 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    replace_source_ranges(source, &replacements)
+}
+
+fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Option<String> {
+    match property {
+        "background-size" | "mask-size" | "-webkit-mask-size" => {
+            normalize_repeated_pair_value(value, "auto")
+        }
+        _ => None,
+    }
+}
+
+fn normalize_repeated_pair_value(value: &str, repeated: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    match components.as_slice() {
+        [first, second]
+            if first.eq_ignore_ascii_case(repeated) && second.eq_ignore_ascii_case(repeated) =>
+        {
+            Some(repeated.to_string())
+        }
+        _ => None,
+    }
 }
 
 fn normalize_css_time_unit_token(number: &str, unit: &str) -> Option<String> {
@@ -11704,6 +11795,28 @@ mod tests {
         assert_eq!(
             execution.output_css,
             r#".a { margin: 0 0 0; border-top-width: 0; border-radius: 0; scroll-margin-inline: 0; outline-width: 0; line-height: 0; rotate: 1turn; animation-delay: .2s; transition-duration: 50ms; transition-delay: 0s; grid-template-columns: 1fr 2fr; --x: 0PX; width: 10px; }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["unit-normalization", "print-css"]
+        );
+    }
+
+    #[test]
+    fn execution_runtime_normalizes_safe_zero_percent_position_values() {
+        let source = r#".a { background-position: 0% 0%; background-size: auto auto; mask-position: 0% 0%; perspective-origin: 0% 0%; transform-origin: 0% 0%; object-position: 0% 0%; width: 0%; opacity: 0%; }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::UnitNormalization,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 10);
+        assert_eq!(
+            execution.output_css,
+            r#".a { background-position: 0 0; background-size: auto; mask-position: 0 0; perspective-origin: 0 0; transform-origin: 0 0; object-position: 0% 0%; width: 0%; opacity: 0; }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
