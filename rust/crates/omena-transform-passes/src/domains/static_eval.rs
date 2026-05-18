@@ -263,7 +263,33 @@ fn normalize_simple_media_range_feature(feature: &str) -> Option<String> {
         return Some(format!("{dimension}{operator}{value}"));
     }
 
+    if let Some(normalized) = normalize_chained_static_media_range_comparison(feature) {
+        return Some(normalized);
+    }
+
     normalize_static_media_range_comparison(feature)
+}
+
+fn normalize_chained_static_media_range_comparison(feature: &str) -> Option<String> {
+    let (first_operator_index, first_operator) = find_static_media_range_operator(feature, 0)?;
+    let first_right_index = first_operator_index + first_operator.len();
+    let (second_operator_index, second_operator) =
+        find_static_media_range_operator(feature, first_right_index)?;
+
+    let left = feature[..first_operator_index].trim();
+    let middle = feature[first_right_index..second_operator_index].trim();
+    let right = feature[second_operator_index + second_operator.len()..].trim();
+    let dimension = static_media_dimension_name(middle)?;
+    let left_value = normalize_static_media_range_value(left);
+    let right_value = normalize_static_media_range_value(right);
+    if !is_simple_media_range_value(&left_value) || !is_simple_media_range_value(&right_value) {
+        return None;
+    }
+
+    Some(format!(
+        "{dimension}{}{left_value}) and ({dimension}{second_operator}{right_value}",
+        reverse_static_media_range_operator(first_operator)
+    ))
 }
 
 fn normalize_static_media_range_comparison(feature: &str) -> Option<String> {
@@ -292,6 +318,25 @@ fn normalize_static_media_range_comparison(feature: &str) -> Option<String> {
         }
     }
 
+    None
+}
+
+fn find_static_media_range_operator(text: &str, start: usize) -> Option<(usize, &'static str)> {
+    for (offset, _) in text.get(start..)?.char_indices() {
+        let index = start + offset;
+        if let Some(operator) = static_media_range_operator_at(text, index) {
+            return Some((index, operator));
+        }
+    }
+    None
+}
+
+fn static_media_range_operator_at(text: &str, index: usize) -> Option<&'static str> {
+    for operator in ["<=", ">=", "<", ">"] {
+        if text[index..].starts_with(operator) {
+            return Some(operator);
+        }
+    }
     None
 }
 
