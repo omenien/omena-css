@@ -145,6 +145,11 @@ const fixtures: readonly DifferentialFixture[] = [
       ".a { background: linear-gradient(to bottom, red, blue); } .b { background-image: repeating-linear-gradient(180deg, white, black); } .c { list-style-image: linear-gradient(0.5turn, red, blue); } .d { mask-image: linear-gradient(200grad, red, blue); }",
   },
   {
+    label: "radial-conic-gradient-defaults",
+    source:
+      ".a { background: radial-gradient(circle at center, red, blue); } .b { background: radial-gradient(ellipse at center, red, blue); } .c { background: conic-gradient(from 0deg, red, blue); } .d { background: repeating-conic-gradient(from 0turn, red, blue); }",
+  },
+  {
     label: "calc-same-unit-nested",
     source: ".a { margin: calc(2rem + 3rem); padding: calc(10px - 4px); }",
   },

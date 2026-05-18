@@ -1077,7 +1077,7 @@ fn execution_runtime_compresses_static_declaration_colors_only() {
 
 #[test]
 fn execution_runtime_compresses_default_linear_gradient_directions() {
-    let source = r#".a { background: linear-gradient(to bottom, red, blue); background-image: repeating-linear-gradient(180deg, white, black); list-style-image: linear-gradient(0.5turn, red, blue); mask-image: linear-gradient(200grad, red, blue); border-image-source: linear-gradient(to top, red, blue); }"#;
+    let source = r#".a { background: linear-gradient(to bottom, red, blue); background-image: repeating-linear-gradient(180deg, white, black); list-style-image: linear-gradient(0.5turn, red, blue); mask-image: linear-gradient(200grad, red, blue); border-image-source: linear-gradient(to top, red, blue); } .b { background: radial-gradient(circle at center, red, blue); } .c { background: radial-gradient(ellipse at center, red, blue); } .d { background: conic-gradient(from 0deg, red, blue); } .e { background: repeating-conic-gradient(from 0turn, red, blue); }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1086,10 +1086,10 @@ fn execution_runtime_compresses_default_linear_gradient_directions() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 5);
+    assert_eq!(execution.mutation_count, 9);
     assert_eq!(
         execution.output_css,
-        r#".a { background: linear-gradient(red,#00f); background-image: repeating-linear-gradient(#fff,#000); list-style-image: linear-gradient(red,#00f); mask-image: linear-gradient(red,#00f); border-image-source: linear-gradient(to top, red, #00f); }"#
+        r#".a { background: linear-gradient(red,#00f); background-image: repeating-linear-gradient(#fff,#000); list-style-image: linear-gradient(red,#00f); mask-image: linear-gradient(red,#00f); border-image-source: linear-gradient(to top, red, #00f); } .b { background: radial-gradient(circle,red,#00f); } .c { background: radial-gradient(red,#00f); } .d { background: conic-gradient(red,#00f); } .e { background: repeating-conic-gradient(red,#00f); }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

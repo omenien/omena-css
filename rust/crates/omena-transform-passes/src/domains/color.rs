@@ -330,6 +330,22 @@ fn compress_static_linear_gradient_references_in_value(value: &str) -> Option<St
                 "repeating-linear-gradient",
                 compress_static_default_repeating_linear_gradient_direction,
             ),
+            (
+                "radial-gradient",
+                compress_static_default_radial_gradient_shape,
+            ),
+            (
+                "repeating-radial-gradient",
+                compress_static_default_repeating_radial_gradient_shape,
+            ),
+            (
+                "conic-gradient",
+                compress_static_default_conic_gradient_angle,
+            ),
+            (
+                "repeating-conic-gradient",
+                compress_static_default_repeating_conic_gradient_angle,
+            ),
         ],
     )
 }
@@ -361,6 +377,71 @@ fn is_default_linear_gradient_direction(value: &str) -> bool {
             .to_ascii_lowercase()
             .as_str(),
         "to bottom" | "180deg" | ".5turn" | "0.5turn" | "200grad"
+    )
+}
+
+fn compress_static_default_radial_gradient_shape(value: &str) -> Option<String> {
+    compress_static_default_radial_gradient_descriptor(value, "radial-gradient")
+}
+
+fn compress_static_default_repeating_radial_gradient_shape(value: &str) -> Option<String> {
+    compress_static_default_radial_gradient_descriptor(value, "repeating-radial-gradient")
+}
+
+fn compress_static_default_radial_gradient_descriptor(
+    value: &str,
+    function_name: &str,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [descriptor, stops @ ..] = arguments.as_slice() else {
+        return None;
+    };
+    if stops.len() < 2 {
+        return None;
+    }
+    let normalized = normalize_ascii_whitespace(descriptor).to_ascii_lowercase();
+    let replacement = match normalized.as_str() {
+        "circle at center" | "circle farthest-corner at center" => {
+            format!("{function_name}(circle,{})", stops.join(","))
+        }
+        "at center" | "ellipse at center" | "farthest-corner at center" => {
+            format!("{function_name}({})", stops.join(","))
+        }
+        _ => return None,
+    };
+    (replacement.len() < value.len()).then_some(replacement)
+}
+
+fn compress_static_default_conic_gradient_angle(value: &str) -> Option<String> {
+    compress_static_default_conic_gradient_descriptor(value, "conic-gradient")
+}
+
+fn compress_static_default_repeating_conic_gradient_angle(value: &str) -> Option<String> {
+    compress_static_default_conic_gradient_descriptor(value, "repeating-conic-gradient")
+}
+
+fn compress_static_default_conic_gradient_descriptor(
+    value: &str,
+    function_name: &str,
+) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [descriptor, stops @ ..] = arguments.as_slice() else {
+        return None;
+    };
+    if stops.len() < 2 || !is_default_conic_gradient_angle(descriptor) {
+        return None;
+    }
+
+    let replacement = format!("{function_name}({})", stops.join(","));
+    (replacement.len() < value.len()).then_some(replacement)
+}
+
+fn is_default_conic_gradient_angle(value: &str) -> bool {
+    matches!(
+        normalize_ascii_whitespace(value)
+            .to_ascii_lowercase()
+            .as_str(),
+        "from 0deg" | "from -0deg" | "from 0turn" | "from 0"
     )
 }
 
