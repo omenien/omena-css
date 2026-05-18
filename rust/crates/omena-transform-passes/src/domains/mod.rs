@@ -1,5 +1,6 @@
 pub(crate) mod color;
 pub(crate) mod css_module_global;
+pub(crate) mod css_modules_classes;
 pub(crate) mod css_modules_values;
 pub(crate) mod custom_property;
 pub(crate) mod design_token;
