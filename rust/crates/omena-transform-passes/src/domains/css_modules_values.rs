@@ -1,3 +1,8 @@
+//! CSS Modules `@value` resolution and reachability transform helpers.
+//!
+//! This domain owns static local value substitution, imported value resolution,
+//! and closed-world value tree-shaking for the transform runtime.
+
 use std::collections::{BTreeMap, VecDeque};
 
 use omena_parser::{StyleDialect, lex};

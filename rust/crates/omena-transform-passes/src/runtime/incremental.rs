@@ -1,3 +1,9 @@
+//! Incremental transform execution backed by `omena-incremental` graph inputs.
+//!
+//! This module derives stable dependency keys from source, dialect, pass plan,
+//! and transform context, then reuses a previous execution summary only when
+//! the incremental plan is clean.
+
 use omena_incremental::{
     IncrementalGraphInputV0, IncrementalNodeInputV0, IncrementalRevisionV0,
     OmenaIncrementalDatabaseV0,

@@ -1,3 +1,9 @@
+//! Transform pass execution over source text and explicit workspace context.
+//!
+//! The executor is the mutation boundary for ordered transform plans. It applies
+//! registered pass kinds, records provenance outcomes, and preserves semantic
+//! removal evidence for downstream query and consumer surfaces.
+
 use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 

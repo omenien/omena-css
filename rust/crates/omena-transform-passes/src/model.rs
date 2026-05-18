@@ -1,3 +1,11 @@
+//! Public transform planning, execution, provenance, and context contracts.
+//!
+//! These data models are the stable JSON-facing boundary for Omena CSS transform
+//! passes. Runtime modules own mutation execution, while this module keeps the
+//! pass registry, execution summaries, semantic-removal witnesses, fuzz reports,
+//! and cross-file transform context shapes serializable for `omena-query`,
+//! bindings, CLI runners, and release gates.
+
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
 use omena_transform_cst::{TransformDagEdgeV0, TransformPassContractV0};
 use serde::{Deserialize, Serialize};

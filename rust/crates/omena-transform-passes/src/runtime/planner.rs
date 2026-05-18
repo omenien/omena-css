@@ -1,3 +1,9 @@
+//! Transform pass registry, DAG planner, and public boundary summary.
+//!
+//! Planner code maps `omena-transform-cst` pass contracts into executable
+//! registry entries, enforces default DAG ordering, and reports the mutation
+//! passes that are implemented by the runtime executor.
+
 use omena_transform_cst::{
     TRANSFORM_PASS_CATALOG_LEN, TransformDagEdgeV0, TransformLayer, TransformPassContractV0,
     TransformPassKind, all_transform_pass_kinds, default_transform_dag_edges,

@@ -1,3 +1,9 @@
+//! Deterministic transform fuzz cases for cascade-safe runtime invariants.
+//!
+//! The fuzz runner synthesizes bounded CSS inputs, pass selections, and context
+//! data so release gates can validate parser safety, provenance preservation,
+//! and DAG-respecting execution without relying on external corpora.
+
 use omena_parser::{StyleDialect, lex};
 use omena_transform_cst::{
     TRANSFORM_PASS_CATALOG_LEN, TransformPassKind, all_transform_pass_kinds,
