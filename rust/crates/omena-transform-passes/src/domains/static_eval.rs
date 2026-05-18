@@ -233,7 +233,7 @@ fn normalize_simple_media_range_features(condition: &str) -> Option<String> {
             output.push('(');
             output.push_str(&normalized_feature);
             output.push(')');
-            changed = true;
+            changed |= normalized_feature != feature;
         } else {
             output.push_str(&condition[open_index..=close_index]);
         }
@@ -245,22 +245,72 @@ fn normalize_simple_media_range_features(condition: &str) -> Option<String> {
 }
 
 fn normalize_simple_media_range_feature(feature: &str) -> Option<String> {
-    let (name, value) = feature.split_once(':')?;
-    let name = name.trim().to_ascii_lowercase();
-    let value = normalize_static_media_range_value(value.trim());
-    if !is_simple_media_range_value(&value) {
-        return None;
+    if let Some((name, value)) = feature.split_once(':') {
+        let name = name.trim().to_ascii_lowercase();
+        let value = normalize_static_media_range_value(value.trim());
+        if !is_simple_media_range_value(&value) {
+            return None;
+        }
+
+        let (dimension, operator) = match name.as_str() {
+            "min-width" => ("width", ">="),
+            "max-width" => ("width", "<="),
+            "min-height" => ("height", ">="),
+            "max-height" => ("height", "<="),
+            _ => return None,
+        };
+
+        return Some(format!("{dimension}{operator}{value}"));
     }
 
-    let (dimension, operator) = match name.as_str() {
-        "min-width" => ("width", ">="),
-        "max-width" => ("width", "<="),
-        "min-height" => ("height", ">="),
-        "max-height" => ("height", "<="),
-        _ => return None,
-    };
+    normalize_static_media_range_comparison(feature)
+}
 
-    Some(format!("{dimension}{operator}{value}"))
+fn normalize_static_media_range_comparison(feature: &str) -> Option<String> {
+    for operator in ["<=", ">=", "<", ">"] {
+        let Some((left, right)) = feature.split_once(operator) else {
+            continue;
+        };
+        let left = left.trim();
+        let right = right.trim();
+        if let Some(dimension) = static_media_dimension_name(left) {
+            let value = normalize_static_media_range_value(right);
+            if is_simple_media_range_value(&value) {
+                return Some(format!("{dimension}{operator}{value}"));
+            }
+            return None;
+        }
+        if let Some(dimension) = static_media_dimension_name(right) {
+            let value = normalize_static_media_range_value(left);
+            if is_simple_media_range_value(&value) {
+                return Some(format!(
+                    "{dimension}{}{value}",
+                    reverse_static_media_range_operator(operator)
+                ));
+            }
+            return None;
+        }
+    }
+
+    None
+}
+
+fn static_media_dimension_name(text: &str) -> Option<&'static str> {
+    match text.trim().to_ascii_lowercase().as_str() {
+        "width" => Some("width"),
+        "height" => Some("height"),
+        _ => None,
+    }
+}
+
+fn reverse_static_media_range_operator(operator: &str) -> &'static str {
+    match operator {
+        "<=" => ">=",
+        ">=" => "<=",
+        "<" => ">",
+        ">" => "<",
+        _ => "",
+    }
 }
 
 fn normalize_static_media_range_value(value: &str) -> Cow<'_, str> {
@@ -369,9 +419,8 @@ fn evaluate_static_media_condition(
     match condition {
         "all" => StaticMediaEvalVerdict::AlwaysTrue,
         "not all" => StaticMediaEvalVerdict::AlwaysFalse,
-        "(max-width: 0px)" | "(max-height: 0px)" | "(width<=0px)" | "(height<=0px)" => {
-            StaticMediaEvalVerdict::AlwaysFalse
-        }
+        "(max-width: 0px)" | "(max-height: 0px)" | "(width<=0px)" | "(height<=0px)"
+        | "(width<0px)" | "(height<0px)" => StaticMediaEvalVerdict::AlwaysFalse,
         "(prefers-color-scheme: dark)" if options.drop_dark_mode_media_queries => {
             StaticMediaEvalVerdict::AlwaysFalse
         }
@@ -419,6 +468,7 @@ fn parse_static_media_conjunction(condition: &str) -> Option<Vec<&str>> {
 struct StaticMediaRangeBound {
     value: f64,
     unit: String,
+    inclusive: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -482,7 +532,9 @@ impl StaticMediaRangeConstraint {
         let Some(upper) = &self.upper else {
             return false;
         };
-        lower.unit == upper.unit && lower.value > upper.value
+        lower.unit == upper.unit
+            && (lower.value > upper.value
+                || (lower.value == upper.value && (!lower.inclusive || !upper.inclusive)))
     }
 }
 
@@ -502,35 +554,46 @@ fn parse_static_media_range_bound(
             "max-height" => ("height", StaticMediaRangeBoundKind::Upper),
             _ => return None,
         };
-        return parse_static_media_range_bound_value(value.trim())
+        return parse_static_media_range_bound_value(value.trim(), true)
             .map(|bound| (dimension, kind, bound));
     }
 
-    for (operator, kind) in [
-        (">=", StaticMediaRangeBoundKind::Lower),
-        ("<=", StaticMediaRangeBoundKind::Upper),
+    for (operator, kind, inclusive) in [
+        (">=", StaticMediaRangeBoundKind::Lower, true),
+        ("<=", StaticMediaRangeBoundKind::Upper, true),
+        (">", StaticMediaRangeBoundKind::Lower, false),
+        ("<", StaticMediaRangeBoundKind::Upper, false),
     ] {
-        let Some((dimension, value)) = condition.split_once(operator) else {
+        let Some((left, right)) = condition.split_once(operator) else {
             continue;
         };
-        let dimension = match dimension.trim().to_ascii_lowercase().as_str() {
-            "width" => "width",
-            "height" => "height",
-            _ => continue,
-        };
-        return parse_static_media_range_bound_value(value.trim())
-            .map(|bound| (dimension, kind, bound));
+        if let Some(dimension) = static_media_dimension_name(left) {
+            return parse_static_media_range_bound_value(right.trim(), inclusive)
+                .map(|bound| (dimension, kind, bound));
+        }
+        if let Some(dimension) = static_media_dimension_name(right) {
+            let reverse_kind = match kind {
+                StaticMediaRangeBoundKind::Lower => StaticMediaRangeBoundKind::Upper,
+                StaticMediaRangeBoundKind::Upper => StaticMediaRangeBoundKind::Lower,
+            };
+            return parse_static_media_range_bound_value(left.trim(), inclusive)
+                .map(|bound| (dimension, reverse_kind, bound));
+        }
     }
 
     None
 }
 
-fn parse_static_media_range_bound_value(value: &str) -> Option<StaticMediaRangeBound> {
+fn parse_static_media_range_bound_value(
+    value: &str,
+    inclusive: bool,
+) -> Option<StaticMediaRangeBound> {
     let value = normalize_static_media_range_value(value);
     let parsed = parse_numeric_value_with_unit(value.as_ref())?;
     Some(StaticMediaRangeBound {
         value: parsed.value,
         unit: parsed.unit.to_string(),
+        inclusive,
     })
 }
 

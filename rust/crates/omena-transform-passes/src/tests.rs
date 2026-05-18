@@ -1652,6 +1652,28 @@ fn execution_runtime_evaluates_media_or_disjunctions() {
 }
 
 #[test]
+fn execution_runtime_evaluates_strict_media_range_comparisons() {
+    let source = r#"@media (width > 10px) and (width < 5px) { .dead { color: red; } } @media (width > 10px) and (width < 10px) { .dead-strict { color: blue; } } @media (10px <= width) and (width <= 10px) { .maybe-point { color: green; } } @media (height < 0px) { .negative { color: orange; } } @media (0px < width) { .live { color: purple; } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::MediaStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 6);
+    assert_eq!(
+        execution.output_css,
+        r#"  @media (width>=10px) and (width<=10px) { .maybe-point { color: green; } }  @media (width>0px) { .live { color: purple; } }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["media-static-eval", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_normalizes_simple_media_range_features() {
     let source = r#"@media screen and (min-width: 1px) and (max-width: 10px) { .a { color: red; } } @media (min-height: 2rem) { .b { color: blue; } } @media (min-width: calc(1px + 1px)) { .c { color: green; } } @media (max-height: clamp(1rem, 2rem, 3rem)) { .d { color: orange; } }"#;
     let execution = execute_transform_passes_on_source(
