@@ -242,6 +242,31 @@ fn planner_respects_composes_before_hash_before_selector_merge_edges() {
 }
 
 #[test]
+fn planner_respects_block_canonicalization_before_selector_merge_edges() {
+    let plan = plan_transform_passes(&[
+        TransformPassKind::SelectorMerging,
+        TransformPassKind::ColorCompression,
+        TransformPassKind::UnitNormalization,
+        TransformPassKind::CalcReduction,
+        TransformPassKind::WhitespaceStrip,
+        TransformPassKind::PrintCss,
+    ]);
+
+    assert_eq!(plan.violated_dag_edge_count, 0);
+    assert_eq!(
+        plan.ordered_pass_ids,
+        vec![
+            "calc-reduction",
+            "unit-normalization",
+            "color-compression",
+            "selector-merging",
+            "whitespace-strip",
+            "print-css"
+        ]
+    );
+}
+
+#[test]
 fn planner_respects_nesting_before_hash_edges() {
     let plan = plan_transform_passes(&[
         TransformPassKind::HashCssModuleClassNames,

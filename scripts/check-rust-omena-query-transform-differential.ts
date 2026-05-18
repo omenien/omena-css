@@ -61,6 +61,11 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { color: rgb(255 0 0); color: rgb(255 0 0 / 100%); background: blue; }",
   },
   {
+    label: "post-color-selector-merge",
+    source:
+      ".a { color: rgb(255 0 0 / 0%); } .b { color: rgb(255 0 0 / 50%); } .c { color: rgb(255, 0, 0, 0.5); }",
+  },
+  {
     label: "is-where-and-shorthand",
     source:
       ".a:is(.ready) { color: #FFFFFF; margin-top: 0px; margin-right: 0px; margin-bottom: 0px; margin-left: 0px; }",

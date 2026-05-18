@@ -1051,6 +1051,46 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
             reason: "selector merging must see post-hash selector identities",
         },
         TransformDagEdgeV0 {
+            from: "number-compression",
+            to: "selector-merging",
+            reason: "selector merging must see canonical declaration numeric values",
+        },
+        TransformDagEdgeV0 {
+            from: "unit-normalization",
+            to: "selector-merging",
+            reason: "selector merging must see canonical declaration unit values",
+        },
+        TransformDagEdgeV0 {
+            from: "color-compression",
+            to: "selector-merging",
+            reason: "selector merging must see canonical declaration color values",
+        },
+        TransformDagEdgeV0 {
+            from: "url-quote-strip",
+            to: "selector-merging",
+            reason: "selector merging must see canonical url() values",
+        },
+        TransformDagEdgeV0 {
+            from: "string-quote-normalize",
+            to: "selector-merging",
+            reason: "selector merging must see canonical string values",
+        },
+        TransformDagEdgeV0 {
+            from: "shorthand-combining",
+            to: "selector-merging",
+            reason: "selector merging must see canonical shorthand declaration blocks",
+        },
+        TransformDagEdgeV0 {
+            from: "calc-reduction",
+            to: "selector-merging",
+            reason: "selector merging must see reduced calc() declaration values",
+        },
+        TransformDagEdgeV0 {
+            from: "selector-merging",
+            to: "whitespace-strip",
+            reason: "whitespace stripping must run after selector merging emits final selector lists",
+        },
+        TransformDagEdgeV0 {
             from: "custom-property-static-resolve",
             to: "calc-reduction",
             reason: "var() inside calc may resolve to numeric literals that enable reduction",
