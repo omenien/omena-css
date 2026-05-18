@@ -1923,7 +1923,7 @@ fn execution_runtime_reduces_simple_same_unit_calc_values() {
 
 #[test]
 fn execution_runtime_resolves_unique_static_root_custom_properties() {
-    let source = r#":root { --brand: red; --gap: 2rem; --shadow: 0 0 var(--gap); --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: var(--brand); margin: var(--gap); border-color: var(--missing, blue); background: var(--dup); outline-color: var(--dynamic); text-decoration-color: var(--fallback); caret-color: var(--cycle-a, green); box-shadow: var(--shadow); filter: drop-shadow(var(--missing, blue) 0 0); } @media screen { .card { color: var(--dynamic); } }"#;
+    let source = r#":root { --brand: red; --gap: 2rem; --shadow: 0 0 var(--gap); --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } @property --registered { syntax: "<color>"; inherits: false; initial-value: var(--brand); } @keyframes pulse { to { color: var(--brand); } } .card { color: var(--brand); margin: var(--gap); border-color: var(--missing, blue); background: var(--dup); outline-color: var(--dynamic); text-decoration-color: var(--fallback); caret-color: var(--cycle-a, green); box-shadow: var(--shadow); filter: drop-shadow(var(--missing, blue) 0 0); } @media screen { .card { color: var(--dynamic); } }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1932,10 +1932,10 @@ fn execution_runtime_resolves_unique_static_root_custom_properties() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 9);
+    assert_eq!(execution.mutation_count, 11);
     assert_eq!(
         execution.output_css,
-        r#":root { --brand: red; --gap: 2rem; --shadow: 0 0 var(--gap); --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } .card { color: red; margin: 2rem; border-color: blue; background: var(--dup); outline-color: red; text-decoration-color: blue; caret-color: green; box-shadow: 0 0 2rem; filter: drop-shadow(blue 0 0); } @media screen { .card { color: red; } }"#
+        r#":root { --brand: red; --gap: 2rem; --shadow: 0 0 var(--gap); --alias: var(--brand); --dynamic: var(--alias); --fallback: var(--missing, blue); --dup: red; --dup: blue; --cycle-a: var(--cycle-b); --cycle-b: var(--cycle-a); } @property --registered { syntax: "<color>"; inherits: false; initial-value: red; } @keyframes pulse { to { color: red; } } .card { color: red; margin: 2rem; border-color: blue; background: var(--dup); outline-color: red; text-decoration-color: blue; caret-color: green; box-shadow: 0 0 2rem; filter: drop-shadow(blue 0 0); } @media screen { .card { color: red; } }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

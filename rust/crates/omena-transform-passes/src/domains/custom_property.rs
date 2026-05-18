@@ -24,7 +24,7 @@ use crate::helpers::{
         SimpleRuleSlice, collect_declaration_ordinary_rule_slices,
         collect_top_level_ordinary_rule_slices,
     },
-    source_rewrite::remove_source_ranges,
+    source_rewrite::{remove_source_ranges, replace_source_ranges},
     tokens::{matching_right_brace_index, skip_whitespace_tokens, token_end, token_start},
     values::{
         matching_function_call_end, parse_whole_function_value_arguments,
@@ -502,7 +502,6 @@ pub(crate) fn substitute_static_css_custom_properties_with_lexer(
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let env_rules = collect_top_level_ordinary_rule_slices(source, tokens);
-    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
     let env = resolve_custom_property_env_least_fixed_point(
         &collect_static_root_custom_property_env(tokens, &env_rules),
     );
@@ -511,15 +510,16 @@ pub(crate) fn substitute_static_css_custom_properties_with_lexer(
     }
 
     let mut replacements = Vec::new();
-    for rule in &rules {
-        let Some((block_start_index, block_end_index)) =
-            rule_block_token_indexes(tokens, rule.block_start, rule.block_end)
+    let mut index = 0;
+    while index < tokens.len() {
+        let Some(close_index) = (tokens[index].kind == SyntaxKind::LeftBrace)
+            .then(|| matching_right_brace_index(tokens, index))
+            .flatten()
         else {
+            index += 1;
             continue;
         };
-        for declaration in
-            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
-        {
+        for declaration in collect_simple_declarations_in_block(tokens, index, close_index) {
             if declaration.property.starts_with("--") {
                 continue;
             }
@@ -534,26 +534,10 @@ pub(crate) fn substitute_static_css_custom_properties_with_lexer(
                 format!("{}: {resolved_value};", declaration.property),
             ));
         }
+        index += 1;
     }
 
-    if replacements.is_empty() {
-        return (source.to_string(), 0);
-    }
-
-    let mut output = String::with_capacity(source.len());
-    let mut cursor = 0;
-    for (start, end, replacement) in &replacements {
-        if *start > cursor {
-            output.push_str(&source[cursor..*start]);
-        }
-        output.push_str(replacement);
-        cursor = *end;
-    }
-    if cursor < source.len() {
-        output.push_str(&source[cursor..]);
-    }
-
-    (output, replacements.len())
+    replace_source_ranges(source, &replacements)
 }
 
 fn substitute_static_custom_property_references_in_value(
