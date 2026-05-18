@@ -222,6 +222,46 @@ assertIncludesAll(
   "transform execute ready surfaces",
 );
 
+const groupedSupportsResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "supports-grouped.css",
+      styleSource:
+        "@supports ((display: grid) or (display: -ms-grid)) and (color: red) { .grid { color: red; } } @supports ((display: -ms-grid) or (-ms-ime-align: auto)) { .dead { color: blue; } }",
+      requestedPassIds: ["supports-static-eval", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(groupedSupportsResult.status, 0, groupedSupportsResult.stderr);
+assert.equal(groupedSupportsResult.error, undefined);
+
+const groupedSupportsSummary = JSON.parse(
+  groupedSupportsResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(groupedSupportsSummary.product, "omena-query.transform-execute");
+assert.equal(groupedSupportsSummary.execution.outputCss, ".grid { color: red; } ");
+assert.deepEqual(groupedSupportsSummary.execution.executedPassIds, [
+  "supports-static-eval",
+  "print-css",
+]);
+assert.equal(groupedSupportsSummary.execution.mutationCount, 2);
+
 const contextStyleSource =
   '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; } .button :global(.external) { color: var(--brand); } :global { .reset { color: var(--brand); } } :local(.button) { composes: base; color: var(--brand); } :local { .button { color: var(--brand); } } @media (min-width: 1px) { .button { composes: base; color: var(--brand); } }';
 
