@@ -1696,6 +1696,23 @@ fn evaluate_modern_static_supports_condition(
         };
     }
 
+    if let Some((function_name, argument)) = parse_supports_font_condition(condition) {
+        return match evaluate_modern_supports_font_condition(function_name, argument) {
+            StaticSupportsEvalVerdictV0::AlwaysTrue => (
+                StaticSupportsEvalVerdictV0::AlwaysTrue,
+                "modern-browser assumption accepts known font feature queries",
+            ),
+            StaticSupportsEvalVerdictV0::AlwaysFalse => (
+                StaticSupportsEvalVerdictV0::AlwaysFalse,
+                "modern-browser assumption rejects known obsolete font feature queries",
+            ),
+            StaticSupportsEvalVerdictV0::Unknown => (
+                StaticSupportsEvalVerdictV0::Unknown,
+                "unsupported font feature query",
+            ),
+        };
+    }
+
     if let Some((property, value)) = parse_simple_supports_declaration(condition) {
         return match evaluate_modern_simple_supports_declaration(property, value) {
             StaticSupportsEvalVerdictV0::AlwaysTrue => (
@@ -1818,7 +1835,22 @@ fn supports_declaration_value_has_balanced_parentheses(value: &str) -> bool {
 }
 
 fn parse_supports_selector_condition(condition: &str) -> Option<&str> {
-    let arguments = condition.strip_prefix("selector")?.trim_start();
+    parse_supports_function_argument(condition, "selector")
+}
+
+fn parse_supports_font_condition(condition: &str) -> Option<(&'static str, &str)> {
+    if let Some(argument) = parse_supports_function_argument(condition, "font-tech") {
+        return Some(("font-tech", argument));
+    }
+    parse_supports_function_argument(condition, "font-format")
+        .map(|argument| ("font-format", argument))
+}
+
+fn parse_supports_function_argument<'a>(
+    condition: &'a str,
+    function_name: &str,
+) -> Option<&'a str> {
+    let arguments = condition.strip_prefix(function_name)?.trim_start();
     let inner = arguments.strip_prefix('(')?.strip_suffix(')')?.trim();
     (!inner.is_empty()
         && supports_outer_parens_wrap_entire_condition(arguments)
@@ -1912,6 +1944,49 @@ fn evaluate_modern_supports_selector_condition(selector: &str) -> StaticSupports
     } else {
         StaticSupportsEvalVerdictV0::AlwaysTrue
     }
+}
+
+fn evaluate_modern_supports_font_condition(
+    function_name: &str,
+    argument: &str,
+) -> StaticSupportsEvalVerdictV0 {
+    let Some(argument) = normalize_supports_font_feature_argument(argument) else {
+        return StaticSupportsEvalVerdictV0::Unknown;
+    };
+
+    match (function_name, argument.as_str()) {
+        (
+            "font-tech",
+            "color-cbdt" | "color-colrv0" | "color-colrv1" | "color-sbix" | "color-svg"
+            | "features-aat" | "features-graphite" | "features-opentype" | "palettes"
+            | "variations",
+        ) => StaticSupportsEvalVerdictV0::AlwaysTrue,
+        ("font-format", "collection" | "opentype" | "truetype" | "woff" | "woff2") => {
+            StaticSupportsEvalVerdictV0::AlwaysTrue
+        }
+        ("font-format", "embedded-opentype" | "svg") => StaticSupportsEvalVerdictV0::AlwaysFalse,
+        (_, argument) if argument.starts_with("-ms-") => StaticSupportsEvalVerdictV0::AlwaysFalse,
+        _ => StaticSupportsEvalVerdictV0::Unknown,
+    }
+}
+
+fn normalize_supports_font_feature_argument(argument: &str) -> Option<String> {
+    let normalized = normalize_ascii_whitespace(argument).to_ascii_lowercase();
+    let unquoted = normalized
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .or_else(|| {
+            normalized
+                .strip_prefix('\'')
+                .and_then(|value| value.strip_suffix('\''))
+        })
+        .unwrap_or(&normalized);
+
+    (!unquoted.is_empty()
+        && !unquoted.contains(|ch: char| {
+            ch.is_ascii_whitespace() || matches!(ch, '(' | ')' | '{' | '}' | ';' | ',')
+        }))
+    .then(|| unquoted.to_string())
 }
 
 fn is_supports_declaration_token_char(ch: char) -> bool {
@@ -3165,6 +3240,40 @@ mod tests {
             StaticSupportsEvalVerdictV0::AlwaysFalse
         );
         assert!(negated_selector.provenance_preserved);
+
+        let font_tech = evaluate_static_supports_condition(
+            "font-tech(color-COLRv1)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(font_tech.verdict, StaticSupportsEvalVerdictV0::AlwaysTrue);
+        assert!(font_tech.provenance_preserved);
+
+        let font_format = evaluate_static_supports_condition(
+            "font-format(woff2)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(font_format.verdict, StaticSupportsEvalVerdictV0::AlwaysTrue);
+        assert!(font_format.provenance_preserved);
+
+        let obsolete_font_format = evaluate_static_supports_condition(
+            "font-format(embedded-opentype)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            obsolete_font_format.verdict,
+            StaticSupportsEvalVerdictV0::AlwaysFalse
+        );
+        assert!(obsolete_font_format.provenance_preserved);
+
+        let unknown_font_tech = evaluate_static_supports_condition(
+            "font-tech(unknown-thing)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            unknown_font_tech.verdict,
+            StaticSupportsEvalVerdictV0::Unknown
+        );
+        assert!(!unknown_font_tech.provenance_preserved);
 
         let color_function = evaluate_static_supports_condition(
             "(color: color(display-p3 1 0 0))",
