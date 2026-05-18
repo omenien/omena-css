@@ -29,4 +29,5 @@ pub(crate) mod static_eval;
 pub(crate) mod text;
 pub(crate) mod trivia;
 pub(crate) mod unit;
+pub(crate) mod unit_properties;
 pub(crate) mod vendor_prefix;

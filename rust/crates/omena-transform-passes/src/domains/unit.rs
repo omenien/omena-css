@@ -2,7 +2,13 @@ use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
 use crate::{
-    domains::number::{compress_number_prefix, format_css_number, numeric_prefix_end},
+    domains::{
+        number::{compress_number_prefix, format_css_number, numeric_prefix_end},
+        unit_properties::{
+            is_css_angle_unit, is_css_length_unit, is_known_css_unit, is_zero_length_unit_property,
+            is_zero_percentage_unit_property,
+        },
+    },
     helpers::{
         declarations::{
             collect_simple_declarations_in_block, format_replacement_declaration_like_source,
@@ -81,126 +87,6 @@ pub(crate) fn normalize_css_units_with_lexer(
     (output, mutation_count + declaration_value_mutation_count)
 }
 
-fn is_zero_length_unit_property(property: &str) -> bool {
-    matches!(
-        property,
-        "border"
-            | "border-block"
-            | "border-block-end"
-            | "border-block-end-width"
-            | "border-block-start"
-            | "border-block-start-width"
-            | "border-block-width"
-            | "border-bottom"
-            | "border-bottom-left-radius"
-            | "border-bottom-right-radius"
-            | "border-bottom-width"
-            | "border-inline"
-            | "border-inline-end"
-            | "border-end-end-radius"
-            | "border-end-start-radius"
-            | "border-inline-end-width"
-            | "border-inline-start"
-            | "border-inline-start-width"
-            | "border-inline-width"
-            | "border-left"
-            | "border-left-width"
-            | "border-radius"
-            | "border-right"
-            | "border-right-width"
-            | "border-start-end-radius"
-            | "border-start-start-radius"
-            | "border-spacing"
-            | "border-top"
-            | "border-top-left-radius"
-            | "border-top-right-radius"
-            | "border-top-width"
-            | "border-width"
-            | "margin"
-            | "margin-block"
-            | "margin-block-end"
-            | "margin-block-start"
-            | "margin-bottom"
-            | "margin-inline"
-            | "margin-inline-end"
-            | "margin-inline-start"
-            | "margin-left"
-            | "margin-right"
-            | "margin-top"
-            | "padding"
-            | "padding-block"
-            | "padding-block-end"
-            | "padding-block-start"
-            | "padding-bottom"
-            | "padding-inline"
-            | "padding-inline-end"
-            | "padding-inline-start"
-            | "padding-left"
-            | "padding-right"
-            | "padding-top"
-            | "inset"
-            | "inset-block"
-            | "inset-block-end"
-            | "inset-block-start"
-            | "inset-inline"
-            | "inset-inline-end"
-            | "inset-inline-start"
-            | "top"
-            | "right"
-            | "bottom"
-            | "left"
-            | "width"
-            | "min-width"
-            | "max-width"
-            | "height"
-            | "min-height"
-            | "max-height"
-            | "box-shadow"
-            | "block-size"
-            | "min-block-size"
-            | "max-block-size"
-            | "inline-size"
-            | "min-inline-size"
-            | "max-inline-size"
-            | "outline"
-            | "outline-width"
-            | "scroll-margin"
-            | "scroll-margin-block"
-            | "scroll-margin-block-end"
-            | "scroll-margin-block-start"
-            | "scroll-margin-bottom"
-            | "scroll-margin-inline"
-            | "scroll-margin-inline-end"
-            | "scroll-margin-inline-start"
-            | "scroll-margin-left"
-            | "scroll-margin-right"
-            | "scroll-margin-top"
-            | "scroll-padding"
-            | "scroll-padding-block"
-            | "scroll-padding-block-end"
-            | "scroll-padding-block-start"
-            | "scroll-padding-bottom"
-            | "scroll-padding-inline"
-            | "scroll-padding-inline-end"
-            | "scroll-padding-inline-start"
-            | "scroll-padding-left"
-            | "scroll-padding-right"
-            | "scroll-padding-top"
-            | "text-shadow"
-            | "text-decoration"
-            | "text-decoration-thickness"
-            | "gap"
-            | "row-gap"
-            | "column-gap"
-            | "letter-spacing"
-            | "word-spacing"
-            | "line-height"
-            | "stroke-dasharray"
-            | "stroke-dashoffset"
-            | "stroke-width"
-    )
-}
-
 fn normalize_dimension_unit_token(text: &str, property: &str) -> Option<String> {
     if property.starts_with("--") {
         return None;
@@ -248,17 +134,6 @@ fn normalize_opacity_percentage_token(text: &str, number: &str) -> Option<String
 
     let replacement = compress_number_prefix(&format_css_number(value / 100.0));
     (replacement.len() < text.len()).then_some(replacement)
-}
-
-fn is_zero_percentage_unit_property(property: &str) -> bool {
-    matches!(
-        property,
-        "background-position"
-            | "mask-position"
-            | "-webkit-mask-position"
-            | "perspective-origin"
-            | "transform-origin"
-    )
 }
 
 fn normalize_static_unit_declaration_values_with_lexer(
@@ -618,13 +493,6 @@ fn zero_unary_transform_function_name(value: &str, is_unit: fn(&str) -> bool) ->
     Some(function_name)
 }
 
-fn is_css_angle_unit(unit: &str) -> bool {
-    matches!(
-        unit.to_ascii_lowercase().as_str(),
-        "deg" | "grad" | "rad" | "turn"
-    )
-}
-
 fn is_css_transform_length_percentage_unit(unit: &str) -> bool {
     unit == "%" || is_css_length_unit(unit)
 }
@@ -881,33 +749,6 @@ fn is_zero_number_prefix(number: &str) -> bool {
     number.parse::<f64>().is_ok_and(|value| value == 0.0)
 }
 
-fn is_css_length_unit(unit: &str) -> bool {
-    matches!(
-        unit.to_ascii_lowercase().as_str(),
-        "cap"
-            | "ch"
-            | "cm"
-            | "em"
-            | "ex"
-            | "ic"
-            | "in"
-            | "lh"
-            | "mm"
-            | "pc"
-            | "pt"
-            | "px"
-            | "q"
-            | "rem"
-            | "rlh"
-            | "vb"
-            | "vh"
-            | "vi"
-            | "vmax"
-            | "vmin"
-            | "vw"
-    )
-}
-
 fn normalize_known_css_unit_case(number: &str, unit: &str) -> Option<String> {
     let normalized_unit = unit.to_ascii_lowercase();
     if normalized_unit == unit || !is_known_css_unit(&normalized_unit) {
@@ -915,24 +756,4 @@ fn normalize_known_css_unit_case(number: &str, unit: &str) -> Option<String> {
     }
 
     Some(format!("{number}{normalized_unit}"))
-}
-
-fn is_known_css_unit(unit: &str) -> bool {
-    is_css_length_unit(unit)
-        || matches!(
-            unit,
-            "deg"
-                | "grad"
-                | "rad"
-                | "turn"
-                | "ms"
-                | "s"
-                | "hz"
-                | "khz"
-                | "dpi"
-                | "dpcm"
-                | "dppx"
-                | "x"
-                | "fr"
-        )
 }

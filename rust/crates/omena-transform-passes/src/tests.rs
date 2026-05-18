@@ -850,7 +850,7 @@ fn execution_runtime_compresses_numeric_tokens_only() {
 
 #[test]
 fn execution_runtime_normalizes_zero_length_units_with_property_context() {
-    let source = r#".a { margin: 0px 0.0rem -0em; border: 0px solid #000; border-top: 0px solid #000; border-top-width: 0PX; border-radius: -0em; border-spacing: 0px 0px; letter-spacing: 0px; word-spacing: 0px; scroll-margin-inline: 0rem; outline: 0px solid #000; outline-width: 0pt; outline-offset: 0px; text-decoration: underline 0px #000; line-height: 0em; stroke-width: 0px; stroke-dasharray: 0px; stroke-dashoffset: 0px; rotate: 1TURN; animation-delay: 200MS; transition-duration: .05s; transition-delay: 0ms; grid-template-columns: 1FR 2fr; --x: 0PX; width: 10PX; }"#;
+    let source = r#".a { margin: 0px 0.0rem -0em; border: 0px solid #000; border-top: 0px solid #000; border-top-width: 0PX; border-radius: -0em; border-spacing: 0px 0px; letter-spacing: 0px; word-spacing: 0px; scroll-margin-inline: 0rem; outline: 0px solid #000; outline-width: 0pt; outline-offset: 0px; text-decoration: underline 0px #000; line-height: 0em; stroke-width: 0px; stroke-dasharray: 0px; stroke-dashoffset: 0px; tab-size: 0px; vertical-align: 0px; perspective: 0px; border-image-width: 0px; flex-basis: 0px; grid-template-columns: 0px 1FR; grid-auto-rows: 0px; font-size: 0px; rotate: 1TURN; animation-delay: 200MS; transition-duration: .05s; transition-delay: 0ms; --x: 0PX; width: 10PX; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -859,10 +859,10 @@ fn execution_runtime_normalizes_zero_length_units_with_property_context() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 25);
+    assert_eq!(execution.mutation_count, 33);
     assert_eq!(
         execution.output_css,
-        r#".a { margin: 0 0 0; border: 0 solid #000; border-top: 0 solid #000; border-top-width: 0; border-radius: 0; border-spacing: 0 0; letter-spacing: 0; word-spacing: 0; scroll-margin-inline: 0; outline: 0 solid #000; outline-width: 0; outline-offset: 0px; text-decoration: underline 0 #000; line-height: 0; stroke-width: 0; stroke-dasharray: 0; stroke-dashoffset: 0; rotate: 1turn; animation-delay: .2s; transition-duration: 50ms; transition-delay: 0s; grid-template-columns: 1fr 2fr; --x: 0PX; width: 10px; }"#
+        r#".a { margin: 0 0 0; border: 0 solid #000; border-top: 0 solid #000; border-top-width: 0; border-radius: 0; border-spacing: 0 0; letter-spacing: 0; word-spacing: 0; scroll-margin-inline: 0; outline: 0 solid #000; outline-width: 0; outline-offset: 0px; text-decoration: underline 0 #000; line-height: 0; stroke-width: 0; stroke-dasharray: 0; stroke-dashoffset: 0; tab-size: 0; vertical-align: 0; perspective: 0; border-image-width: 0; flex-basis: 0; grid-template-columns: 0 1fr; grid-auto-rows: 0; font-size: 0; rotate: 1turn; animation-delay: .2s; transition-duration: 50ms; transition-delay: 0s; --x: 0PX; width: 10px; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,
