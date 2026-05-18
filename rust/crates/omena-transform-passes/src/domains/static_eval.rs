@@ -329,6 +329,23 @@ fn evaluate_static_media_condition(
         return StaticMediaEvalVerdict::Unknown;
     }
 
+    if let Some(parts) = parse_static_media_disjunction(condition) {
+        let verdicts = parts
+            .iter()
+            .map(|part| evaluate_static_media_condition(part, options))
+            .collect::<Vec<_>>();
+        if verdicts.contains(&StaticMediaEvalVerdict::AlwaysTrue) {
+            return StaticMediaEvalVerdict::AlwaysTrue;
+        }
+        if verdicts
+            .iter()
+            .all(|verdict| *verdict == StaticMediaEvalVerdict::AlwaysFalse)
+        {
+            return StaticMediaEvalVerdict::AlwaysFalse;
+        }
+        return StaticMediaEvalVerdict::Unknown;
+    }
+
     if let Some(parts) = parse_static_media_conjunction(condition) {
         let verdicts = parts
             .iter()
@@ -388,6 +405,10 @@ fn strip_wrapping_media_condition_parentheses(condition: &str) -> Option<&str> {
 
 fn parse_static_media_query_list(condition: &str) -> Option<Vec<&str>> {
     parse_static_media_top_level_parts(condition, ",")
+}
+
+fn parse_static_media_disjunction(condition: &str) -> Option<Vec<&str>> {
+    parse_static_media_top_level_parts(condition, "or")
 }
 
 fn parse_static_media_conjunction(condition: &str) -> Option<Vec<&str>> {
@@ -544,13 +565,16 @@ fn parse_static_media_top_level_parts<'a>(
                 last_start = index;
                 found_separator = true;
             }
-            _ if separator == "and" && depth == 0 && media_keyword_at(condition, index, "and") => {
+            _ if matches!(separator, "and" | "or")
+                && depth == 0
+                && media_keyword_at(condition, index, separator) =>
+            {
                 let part = condition[last_start..index].trim();
                 if part.is_empty() {
                     return None;
                 }
                 parts.push(part);
-                index += "and".len();
+                index += separator.len();
                 last_start = index;
                 found_separator = true;
             }

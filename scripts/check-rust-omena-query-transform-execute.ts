@@ -308,6 +308,47 @@ assert.deepEqual(mediaListSummary.execution.executedPassIds, [
 ]);
 assert.equal(mediaListSummary.execution.mutationCount, 8);
 
+const mediaOrResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "media-or.css",
+      styleSource:
+        "@media (max-width: 0px) or all { .live { color: red; } } @media (max-width: 0px) or (height<=0px) { .dead { color: blue; } } @media screen or (max-width: 0px) { .unknown { color: green; } }",
+      requestedPassIds: ["media-static-eval", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(mediaOrResult.status, 0, mediaOrResult.stderr);
+assert.equal(mediaOrResult.error, undefined);
+
+const mediaOrSummary = JSON.parse(mediaOrResult.stdout) as TransformExecuteSummaryV0;
+
+assert.equal(mediaOrSummary.product, "omena-query.transform-execute");
+assert.equal(
+  mediaOrSummary.execution.outputCss,
+  ".live { color: red; }  @media screen or (width<=0px) { .unknown { color: green; } }",
+);
+assert.deepEqual(mediaOrSummary.execution.executedPassIds, [
+  "media-static-eval",
+  "print-css",
+]);
+assert.equal(mediaOrSummary.execution.mutationCount, 3);
+
 const conditionalWrapperMergeResult = spawnSync(
   "cargo",
   [
@@ -1373,6 +1414,7 @@ process.stdout.write(
     `alphaOkColorMutations=${alphaOkColorSummary.execution.mutationCount}`,
     `compositeValueMutations=${compositeValueSummary.execution.mutationCount}`,
     `mediaListMutations=${mediaListSummary.execution.mutationCount}`,
+    `mediaOrMutations=${mediaOrSummary.execution.mutationCount}`,
     `conditionalWrapperMergeMutations=${conditionalWrapperMergeSummary.execution.mutationCount}`,
     `logicalCornerMutations=${logicalCornerSummary.execution.mutationCount}`,
     `alphaColorCompressionMutations=${alphaColorCompressionSummary.execution.mutationCount}`,

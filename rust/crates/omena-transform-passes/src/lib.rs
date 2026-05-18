@@ -7245,6 +7245,28 @@ mod tests {
     }
 
     #[test]
+    fn execution_runtime_evaluates_media_or_disjunctions() {
+        let source = r#"@media (max-width: 0px) or all { .live { color: red; } } @media (max-width: 0px) or (height<=0px) { .dead { color: blue; } } @media screen or (max-width: 0px) { .unknown { color: green; } }"#;
+        let execution = execute_transform_passes_on_source(
+            source,
+            &[
+                TransformPassKind::MediaStaticEval,
+                TransformPassKind::PrintCss,
+            ],
+        );
+
+        assert_eq!(execution.mutation_count, 3);
+        assert_eq!(
+            execution.output_css,
+            r#".live { color: red; }  @media screen or (width<=0px) { .unknown { color: green; } }"#
+        );
+        assert_eq!(
+            execution.executed_pass_ids,
+            vec!["media-static-eval", "print-css"]
+        );
+    }
+
+    #[test]
     fn execution_runtime_normalizes_simple_media_range_features() {
         let source = r#"@media screen and (min-width: 1px) and (max-width: 10px) { .a { color: red; } } @media (min-height: 2rem) { .b { color: blue; } } @media (min-width: calc(1px + 1px)) { .c { color: green; } } @media (max-height: clamp(1rem, 2rem, 3rem)) { .d { color: orange; } }"#;
         let execution = execute_transform_passes_on_source(
