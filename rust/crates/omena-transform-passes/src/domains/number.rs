@@ -58,6 +58,14 @@ pub(crate) fn parse_reducible_round_value(value: &str) -> Option<String> {
     }))
 }
 
+pub(crate) fn parse_reducible_mod_value(value: &str) -> Option<String> {
+    parse_reducible_positive_remainder_value(value, "mod")
+}
+
+pub(crate) fn parse_reducible_rem_value(value: &str) -> Option<String> {
+    parse_reducible_positive_remainder_value(value, "rem")
+}
+
 pub(crate) fn parse_reducible_min_value(value: &str) -> Option<String> {
     parse_reducible_extreme_value(value, "min", f64::min)
 }
@@ -101,6 +109,22 @@ fn parse_reducible_extreme_value(
     }
 
     Some(format!("{}{}", format_css_number(selected), unit))
+}
+
+fn parse_reducible_positive_remainder_value(value: &str, function_name: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, function_name)?;
+    let [dividend, divisor] = arguments.as_slice() else {
+        return None;
+    };
+    let dividend = parse_reducible_numeric_expression(dividend.trim())?;
+    let divisor = parse_reducible_numeric_expression(divisor.trim())?;
+    if dividend.unit != divisor.unit || dividend.value < 0.0 || divisor.value <= 0.0 {
+        return None;
+    }
+    Some(format_numeric_value_with_unit(NumericValueWithUnit {
+        value: dividend.value % divisor.value,
+        unit: dividend.unit,
+    }))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
