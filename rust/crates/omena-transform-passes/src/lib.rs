@@ -31,6 +31,21 @@ use omena_transform_cst::{
 };
 use serde::{Deserialize, Serialize};
 
+mod helpers;
+
+use helpers::ascii::{
+    ascii_css_identifier_end, starts_with_ascii_case_insensitive, strip_ascii_prefix_ignore_case,
+};
+use helpers::tokens::{
+    is_comment_token, matching_right_brace_index, matching_right_paren_index,
+    next_non_comment_token_kind, previous_non_comment_token_kind, skip_whitespace_tokens,
+    token_end, token_start,
+};
+use helpers::values::{
+    matching_function_call_end, matching_function_end, parse_whole_function_value_arguments,
+    parse_whole_function_value_inner, split_top_level_value_arguments,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum TransformPassExecutionStatus {
@@ -4431,12 +4446,6 @@ fn wrap_import_replacement(import_rule: &CssImportRule, replacement_css: &str) -
     output
 }
 
-fn strip_ascii_prefix_ignore_case<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
-    text.get(..prefix.len())?
-        .eq_ignore_ascii_case(prefix)
-        .then(|| &text[prefix.len()..])
-}
-
 fn inline_replacement_for_import_source<'a>(
     import_source: &str,
     inlines: &'a [TransformImportInlineV0],
@@ -4651,54 +4660,6 @@ fn parse_single_custom_property_var_reference(value: &str) -> Option<String> {
         return None;
     };
     Some(normalize_design_token_name(name)?.to_string())
-}
-
-fn matching_function_call_end(value: &str, left_paren_index: usize) -> Option<usize> {
-    if value[left_paren_index..].chars().next()? != '(' {
-        return None;
-    }
-
-    let mut depth = 0usize;
-    let mut index = left_paren_index;
-    let mut quote: Option<char> = None;
-
-    while index < value.len() {
-        let ch = value[index..].chars().next()?;
-
-        if let Some(quote_ch) = quote {
-            index += ch.len_utf8();
-            if ch == '\\' {
-                let escaped = value[index..].chars().next()?;
-                index += escaped.len_utf8();
-            } else if ch == quote_ch {
-                quote = None;
-            }
-            continue;
-        }
-
-        match ch {
-            '"' | '\'' => {
-                quote = Some(ch);
-                index += ch.len_utf8();
-            }
-            '(' => {
-                depth += 1;
-                index += ch.len_utf8();
-            }
-            ')' => {
-                depth = depth.checked_sub(1)?;
-                if depth == 0 {
-                    return Some(index);
-                }
-                index += ch.len_utf8();
-            }
-            _ => {
-                index += ch.len_utf8();
-            }
-        }
-    }
-
-    None
 }
 
 fn design_token_routed_value<'a>(
@@ -4986,72 +4947,6 @@ fn local_pseudo_function_end(selector: &str, index: usize) -> Option<usize> {
         return None;
     }
     matching_function_end(selector, index + LOCAL_PREFIX.len() - 1)
-}
-
-fn starts_with_ascii_case_insensitive(text: &str, prefix: &str) -> bool {
-    let text_bytes = text.as_bytes();
-    let prefix_bytes = prefix.as_bytes();
-    text_bytes.len() >= prefix_bytes.len()
-        && text_bytes
-            .iter()
-            .take(prefix_bytes.len())
-            .zip(prefix_bytes)
-            .all(|(left, right)| left.eq_ignore_ascii_case(right))
-}
-
-fn matching_function_end(text: &str, open_paren_index: usize) -> Option<usize> {
-    let mut index = open_paren_index;
-    let mut depth = 0usize;
-    let mut quote: Option<char> = None;
-
-    while index < text.len() {
-        let ch = text[index..].chars().next()?;
-        if let Some(quote_ch) = quote {
-            index += ch.len_utf8();
-            if ch == '\\' {
-                if let Some(escaped) = text[index..].chars().next() {
-                    index += escaped.len_utf8();
-                }
-            } else if ch == quote_ch {
-                quote = None;
-            }
-            continue;
-        }
-
-        match ch {
-            '"' | '\'' => {
-                quote = Some(ch);
-                index += ch.len_utf8();
-            }
-            '(' => {
-                depth += 1;
-                index += ch.len_utf8();
-            }
-            ')' => {
-                depth = depth.checked_sub(1)?;
-                index += ch.len_utf8();
-                if depth == 0 {
-                    return Some(index);
-                }
-            }
-            _ => index += ch.len_utf8(),
-        }
-    }
-
-    None
-}
-
-fn ascii_css_identifier_end(text: &str, start: usize) -> usize {
-    let bytes = text.as_bytes();
-    let mut end = start;
-    while end < bytes.len() && css_identifier_byte_is_plain(bytes[end]) {
-        end += 1;
-    }
-    end
-}
-
-fn css_identifier_byte_is_plain(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-')
 }
 
 fn rewrite_local_composes_value(
@@ -6913,88 +6808,6 @@ fn parse_color_mix_value(value: &str) -> Option<String> {
     Some(mixed.to_css_rgb_with_alpha(color_mix.alpha))
 }
 
-fn parse_whole_function_value_arguments(value: &str, function_name: &str) -> Option<Vec<String>> {
-    split_top_level_value_arguments(parse_whole_function_value_inner(value, function_name)?)
-}
-
-fn parse_whole_function_value_inner<'a>(value: &'a str, function_name: &str) -> Option<&'a str> {
-    let value = value.trim();
-    let name = value.get(..function_name.len())?;
-    if !name.eq_ignore_ascii_case(function_name) {
-        return None;
-    }
-    value
-        .get(function_name.len()..)?
-        .strip_prefix('(')?
-        .strip_suffix(')')
-}
-
-fn split_top_level_value_arguments(inner: &str) -> Option<Vec<String>> {
-    let mut arguments = Vec::new();
-    let mut current = String::new();
-    let mut depth = 0usize;
-    let mut bracket_depth = 0usize;
-    let mut quote: Option<char> = None;
-    let mut escaped = false;
-
-    for ch in inner.chars() {
-        if let Some(active_quote) = quote {
-            current.push(ch);
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == active_quote {
-                quote = None;
-            }
-            continue;
-        }
-
-        match ch {
-            '"' | '\'' => {
-                quote = Some(ch);
-                current.push(ch);
-            }
-            '(' => {
-                depth += 1;
-                current.push(ch);
-            }
-            ')' => {
-                depth = depth.checked_sub(1)?;
-                current.push(ch);
-            }
-            '[' => {
-                bracket_depth += 1;
-                current.push(ch);
-            }
-            ']' => {
-                bracket_depth = bracket_depth.checked_sub(1)?;
-                current.push(ch);
-            }
-            ',' if depth == 0 && bracket_depth == 0 => {
-                let argument = current.trim().to_string();
-                if argument.is_empty() {
-                    return None;
-                }
-                arguments.push(argument);
-                current.clear();
-            }
-            _ => current.push(ch),
-        }
-    }
-
-    if quote.is_some() || depth != 0 || bracket_depth != 0 {
-        return None;
-    }
-
-    let argument = current.trim().to_string();
-    if argument.is_empty() {
-        return None;
-    }
-    arguments.push(argument);
-    Some(arguments)
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct StaticColorMixStop {
     color: SrgbColor,
@@ -8743,17 +8556,6 @@ fn compress_box_shorthand_values(values: &[&str]) -> Option<String> {
     Some(parts.join(" "))
 }
 
-fn skip_whitespace_tokens(
-    tokens: &[omena_parser::LexedToken],
-    mut index: usize,
-    end_exclusive: usize,
-) -> usize {
-    while index < end_exclusive && tokens[index].kind == SyntaxKind::Whitespace {
-        index += 1;
-    }
-    index
-}
-
 fn remove_empty_css_rules_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
     let mut output = source.to_string();
     let mut mutation_count = 0;
@@ -8842,26 +8644,6 @@ fn set_rule_context(
     rule_contexts[depth] = context;
 }
 
-fn matching_right_brace_index(
-    tokens: &[omena_parser::LexedToken],
-    left_brace_index: usize,
-) -> Option<usize> {
-    let mut depth = 0usize;
-    for (index, token) in tokens.iter().enumerate().skip(left_brace_index) {
-        match token.kind {
-            SyntaxKind::LeftBrace => depth += 1,
-            SyntaxKind::RightBrace => {
-                depth = depth.checked_sub(1)?;
-                if depth == 0 {
-                    return Some(index);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
 fn is_empty_rule_block(
     tokens: &[omena_parser::LexedToken],
     start: usize,
@@ -8943,14 +8725,6 @@ fn first_non_trivia_token_start(
         .iter()
         .find(|token| !is_comment_token(token.kind) && token.kind != SyntaxKind::Whitespace)
         .map(token_start)
-}
-
-fn token_start(token: &omena_parser::LexedToken) -> usize {
-    u32::from(token.range.start()) as usize
-}
-
-fn token_end(token: &omena_parser::LexedToken) -> usize {
-    u32::from(token.range.end()) as usize
 }
 
 fn compress_css_is_where_selectors_with_lexer(
@@ -9439,26 +9213,6 @@ fn parse_exact_selector_function_argument(
     }
 
     split_top_level_selector_arguments(&tokens[3..close_index]).map(Some)
-}
-
-fn matching_right_paren_index(
-    tokens: &[omena_parser::LexedToken],
-    left_paren_index: usize,
-) -> Option<usize> {
-    let mut depth = 0usize;
-    for (index, token) in tokens.iter().enumerate().skip(left_paren_index) {
-        match token.kind {
-            SyntaxKind::LeftParen => depth += 1,
-            SyntaxKind::RightParen => {
-                depth = depth.checked_sub(1)?;
-                if depth == 0 {
-                    return Some(index);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
 }
 
 fn split_top_level_selector_arguments(tokens: &[omena_parser::LexedToken]) -> Option<Vec<String>> {
@@ -10936,29 +10690,6 @@ fn whitespace_replacement_for_tokens(
     }
 }
 
-fn previous_non_comment_token_kind(
-    tokens: &[omena_parser::LexedToken],
-    index: usize,
-) -> Option<SyntaxKind> {
-    tokens[..index]
-        .iter()
-        .rev()
-        .find(|token| !is_trivia_token(token.kind))
-        .map(|token| token.kind)
-}
-
-fn next_non_comment_token_kind(
-    tokens: &[omena_parser::LexedToken],
-    index: usize,
-) -> Option<SyntaxKind> {
-    tokens
-        .get(index + 1..)
-        .unwrap_or_default()
-        .iter()
-        .find(|token| !is_trivia_token(token.kind))
-        .map(|token| token.kind)
-}
-
 fn can_remove_whitespace_after(kind: SyntaxKind) -> bool {
     matches!(
         kind,
@@ -11010,21 +10741,6 @@ fn strip_css_comments_with_lexer(source: &str, dialect: StyleDialect) -> (String
     }
 
     (output, removed_comment_count)
-}
-
-fn is_comment_token(kind: SyntaxKind) -> bool {
-    matches!(
-        kind,
-        SyntaxKind::LineComment | SyntaxKind::BlockComment | SyntaxKind::ScssSilentComment
-    )
-}
-
-fn is_trivia_token(kind: SyntaxKind) -> bool {
-    is_comment_token(kind)
-        || matches!(
-            kind,
-            SyntaxKind::Whitespace | SyntaxKind::SassIndentedNewline
-        )
 }
 
 #[cfg(test)]
