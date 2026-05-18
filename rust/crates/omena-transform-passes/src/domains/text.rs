@@ -7,7 +7,10 @@ use crate::helpers::{
     },
     source_rewrite::{replace_source_ranges, rewrite_lexer_tokens},
     tokens::matching_right_brace_index,
-    values::{split_top_level_value_arguments, static_css_string_value},
+    values::{
+        split_top_level_value_arguments, split_top_level_whitespace_value_components,
+        static_css_string_value,
+    },
 };
 
 pub(crate) fn normalize_css_string_quotes_with_lexer(
@@ -64,9 +67,43 @@ pub(crate) fn normalize_css_font_declarations_with_lexer(
 
 fn normalize_static_font_declaration_value(property: &str, value: &str) -> Option<String> {
     match property {
+        "display" => normalize_static_display_value(value),
         "font-family" => normalize_static_font_family_value(value),
         "font-weight" => normalize_static_font_weight_value(value),
         "font-stretch" => normalize_static_font_stretch_value(value),
+        _ => None,
+    }
+}
+
+fn normalize_static_display_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let lowered_components = components
+        .iter()
+        .map(|component| component.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    let replacement = match lowered_components
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        [outer, inner] => normalize_two_keyword_display_value(outer, inner)?,
+        ["list-item", "block", "flow"] => "list-item".to_string(),
+        _ => return None,
+    };
+    (replacement != components.join(" ")).then_some(replacement)
+}
+
+fn normalize_two_keyword_display_value(outer: &str, inner: &str) -> Option<String> {
+    match (outer, inner) {
+        ("block", "flow") => Some("block".to_string()),
+        ("inline", "flow") => Some("inline".to_string()),
+        ("block", "flow-root") => Some("flow-root".to_string()),
+        ("inline", "flow-root") => Some("inline-block".to_string()),
+        ("block", "flex") => Some("flex".to_string()),
+        ("inline", "flex") => Some("inline-flex".to_string()),
+        ("block", "grid") => Some("grid".to_string()),
+        ("inline", "grid") => Some("inline-grid".to_string()),
         _ => None,
     }
 }

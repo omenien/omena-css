@@ -1207,6 +1207,28 @@ fn execution_runtime_normalizes_static_font_longhand_keywords() {
 }
 
 #[test]
+fn execution_runtime_normalizes_static_display_multi_keywords() {
+    let source = r#".a { display: block flow; } .b { display: inline flow; } .c { display: block flow-root; } .d { display: inline flow-root; } .e { display: inline flex; } .f { display: block grid; } .g { display: list-item block flow; } .h { display: block ruby; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::StringQuoteNormalize,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 7);
+    assert_eq!(
+        execution.output_css,
+        r#".a { display: block; } .b { display: inline; } .c { display: flow-root; } .d { display: inline-block; } .e { display: inline-flex; } .f { display: grid; } .g { display: list-item; } .h { display: block ruby; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["string-quote-normalize", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_compresses_specificity_safe_is_where_selectors() {
     let source = r#".a:is(.ready) { color: red; } .b:where(.x, .x) { color: blue; } .c:where(.y) { color: green; } .d:is(:is(.u, .v), .u) { color: orange; } .g:is(.p, .q):hover { color: lime; } .e, .e, .f { color: purple; } .w:where(:where(.one, .two), .one) { color: teal; } @media (min-width: 1px) { .m, .m, .n { color: black; } } @supports (display: grid) { .s, .s { display: grid; } }"#;
     let execution = execute_transform_passes_on_source(
