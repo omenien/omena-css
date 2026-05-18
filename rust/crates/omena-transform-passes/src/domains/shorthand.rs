@@ -520,10 +520,12 @@ pub(crate) fn compress_background_repeat_value(value: &str) -> Option<String> {
     let [x, y] = components.as_slice() else {
         return None;
     };
-    if x != y || !is_background_repeat_axis_keyword(x) {
+    let x = x.to_ascii_lowercase();
+    let y = y.to_ascii_lowercase();
+    if x != y || !is_background_repeat_axis_keyword(&x) {
         return None;
     }
-    Some(x.clone())
+    Some(x)
 }
 
 fn is_repeat_shorthand_property(property: &str) -> bool {

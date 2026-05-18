@@ -1389,7 +1389,7 @@ fn execution_runtime_compresses_box_shorthand_values() {
 
 #[test]
 fn execution_runtime_compresses_overflow_and_background_repeat_shorthands() {
-    let source = r#".a { overflow-x: visible; overflow-y: visible; background-repeat: repeat repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#;
+    let source = r#".a { overflow-x: visible; overflow-y: visible; background-repeat: repeat repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .c { background-repeat: Repeat Repeat; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1398,10 +1398,10 @@ fn execution_runtime_compresses_overflow_and_background_repeat_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 2);
+    assert_eq!(execution.mutation_count, 3);
     assert_eq!(
         execution.output_css,
-        r#".a { overflow: visible; background-repeat: repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#
+        r#".a { overflow: visible; background-repeat: repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .c { background-repeat: repeat; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#
     );
 }
 
@@ -1637,7 +1637,7 @@ fn execution_runtime_compresses_inset_shorthands() {
 
 #[test]
 fn execution_runtime_compresses_list_style_shorthands() {
-    let source = r#".a { list-style: disc outside none; list-style-type: none; list-style-position: outside; list-style-image: none; } .b { list-style-type: decimal; list-style-position: inside; list-style-image: none; } .c { list-style-type: disc; color: red; list-style-position: outside; list-style-image: none; } .d { list-style: none outside none; } .e { list-style: url(icon.svg) outside none; } .important { list-style-type: none !important; list-style-position: outside !important; list-style-image: none !important; }"#;
+    let source = r#".a { list-style: disc outside none; list-style-type: none; list-style-position: outside; list-style-image: none; } .b { list-style-type: decimal; list-style-position: inside; list-style-image: none; } .c { list-style-type: disc; color: red; list-style-position: outside; list-style-image: none; } .d { list-style: none outside none; } .e { list-style: url(icon.svg) outside none; } .f { list-style: NONE OUTSIDE NONE; } .important { list-style-type: none !important; list-style-position: outside !important; list-style-image: none !important; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1646,10 +1646,10 @@ fn execution_runtime_compresses_list_style_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 5);
+    assert_eq!(execution.mutation_count, 6);
     assert_eq!(
         execution.output_css,
-        r#".a { list-style: outside; list-style: none; } .b { list-style: inside decimal; } .c { list-style-type: disc; color: red; list-style-position: outside; list-style-image: none; } .d { list-style: none; } .e { list-style: url(icon.svg) none; } .important { list-style-type: none !important; list-style-position: outside !important; list-style-image: none !important; }"#
+        r#".a { list-style: outside; list-style: none; } .b { list-style: inside decimal; } .c { list-style-type: disc; color: red; list-style-position: outside; list-style-image: none; } .d { list-style: none; } .e { list-style: url(icon.svg) none; } .f { list-style: none; } .important { list-style-type: none !important; list-style-position: outside !important; list-style-image: none !important; }"#
     );
 }
 

@@ -37,20 +37,21 @@ pub(crate) fn compress_list_style_value(value: &str) -> Option<String> {
     let mut image = None;
 
     for component in &components {
-        if is_list_style_position(component) {
-            position = component.clone();
-        } else if component == "none" {
+        let lower_component = component.to_ascii_lowercase();
+        if is_list_style_position(&lower_component) {
+            position = lower_component;
+        } else if lower_component == "none" {
             if style_type.is_none() {
-                style_type = Some(component.clone());
+                style_type = Some(lower_component);
             } else if image.is_none() {
-                image = Some(component.clone());
+                image = Some(lower_component);
             } else {
                 return None;
             }
         } else if is_list_style_image(component) && image.is_none() {
             image = Some(component.clone());
-        } else if is_list_style_type(component) && style_type.is_none() {
-            style_type = Some(component.clone());
+        } else if is_list_style_type(&lower_component) && style_type.is_none() {
+            style_type = Some(lower_component);
         } else {
             return None;
         }
@@ -67,12 +68,10 @@ fn compressed_list_style_components(
     position: &str,
     image: &str,
 ) -> Option<String> {
-    if !is_list_style_type(style_type)
-        || !is_list_style_position(position)
-        || !is_list_style_image(image)
-    {
-        return None;
-    }
+    let style_type = normalize_list_style_type(style_type)?;
+    let position = normalize_list_style_position(position)?;
+    let image = normalize_list_style_image(image)?;
+
     if style_type == "none" && image == "none" {
         return Some(if position == "outside" {
             "none".to_string()
@@ -90,13 +89,13 @@ fn compressed_list_style_components(
 
     let mut components = Vec::new();
     if position != "outside" || (style_type == "disc" && image == "none") {
-        components.push(position.to_string());
+        components.push(position);
     }
     if style_type != "disc" && !(style_type == "none" && image == "none") {
-        components.push(style_type.to_string());
+        components.push(style_type);
     }
     if image != "none" {
-        components.push(image.to_string());
+        components.push(image);
     }
     if components.is_empty() {
         components.push("outside".to_string());
@@ -106,6 +105,11 @@ fn compressed_list_style_components(
 
 fn is_list_style_position(value: &str) -> bool {
     matches!(value, "inside" | "outside")
+}
+
+fn normalize_list_style_position(value: &str) -> Option<String> {
+    let lower = value.to_ascii_lowercase();
+    is_list_style_position(&lower).then_some(lower)
 }
 
 fn is_list_style_type(value: &str) -> bool {
@@ -124,9 +128,21 @@ fn is_list_style_type(value: &str) -> bool {
     )
 }
 
+fn normalize_list_style_type(value: &str) -> Option<String> {
+    let lower = value.to_ascii_lowercase();
+    is_list_style_type(&lower).then_some(lower)
+}
+
 fn is_list_style_image(value: &str) -> bool {
     value == "none"
         || value
             .get(.."url(".len())
             .is_some_and(|prefix| prefix.eq_ignore_ascii_case("url("))
+}
+
+fn normalize_list_style_image(value: &str) -> Option<String> {
+    if value.eq_ignore_ascii_case("none") {
+        return Some("none".to_string());
+    }
+    is_list_style_image(value).then(|| value.to_string())
 }
