@@ -265,6 +265,49 @@ assert.deepEqual(groupedSupportsSummary.execution.executedPassIds, [
 ]);
 assert.equal(groupedSupportsSummary.execution.mutationCount, 4);
 
+const fontSupportsResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "supports-font.css",
+      styleSource:
+        "@supports font-tech(color-COLRv1) { .color-font { color: red; } } @supports not font-format(woff2) { .not-woff2 { color: blue; } } @supports font-format(embedded-opentype) { .eot { color: green; } } @supports not font-tech(-ms-color) { .not-ms { color: purple; } } @supports font-tech(unknown-thing) { .unknown { color: orange; } }",
+      requestedPassIds: ["supports-static-eval", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(fontSupportsResult.status, 0, fontSupportsResult.stderr);
+assert.equal(fontSupportsResult.error, undefined);
+
+const fontSupportsSummary = JSON.parse(
+  fontSupportsResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(fontSupportsSummary.product, "omena-query.transform-execute");
+assert.equal(
+  fontSupportsSummary.execution.outputCss,
+  ".color-font { color: red; }   .not-ms { color: purple; } @supports font-tech(unknown-thing) { .unknown { color: orange; } }",
+);
+assert.deepEqual(fontSupportsSummary.execution.executedPassIds, [
+  "supports-static-eval",
+  "print-css",
+]);
+assert.equal(fontSupportsSummary.execution.mutationCount, 4);
+
 const mediaListResult = spawnSync(
   "cargo",
   [
