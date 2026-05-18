@@ -5,6 +5,7 @@ use omena_syntax::SyntaxKind;
 use crate::{
     domains::{
         number::{compress_number_prefix, format_css_number, numeric_prefix_end},
+        shorthand_logical::collect_logical_axis_replacements,
         shorthand_text::{
             compress_text_decoration_value, text_decoration_shorthand_replacement_for_declarations,
         },
@@ -131,6 +132,7 @@ fn collect_shorthand_replacements_in_block(
     ranges.extend(collect_overflow_axis_replacements(tokens, &declarations));
     ranges.extend(collect_place_axis_replacements(tokens, &declarations));
     ranges.extend(collect_gap_axis_replacements(tokens, &declarations));
+    ranges.extend(collect_logical_axis_replacements(tokens, &declarations));
     ranges
 }
 

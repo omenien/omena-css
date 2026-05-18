@@ -1494,6 +1494,28 @@ fn execution_runtime_compresses_text_decoration_shorthands() {
 }
 
 #[test]
+fn execution_runtime_compresses_logical_axis_shorthands() {
+    let source = r#".a { padding-block-start: 1px; padding-block-end: 1px; } .b { margin-inline-start: 1px; margin-inline-end: 2px; } .c { inset-block-end: 2px; inset-block-start: 1px; } .d { border-block-start-color: red; border-block-end-color: red; } .e { border-inline-start-width: 1px; border-inline-end-width: 2px; } .important { padding-block-start: 1px !important; padding-block-end: 2px !important; } .mixed { padding-block-start: calc(1px + 1px); padding-block-end: 2px; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 7);
+    assert_eq!(
+        execution.output_css,
+        r#".a { padding-block: 1px; } .b { margin-inline: 1px 2px; } .c { inset-block: 1px 2px; } .d { border-block-color: red; } .e { border-inline-width: 1px 2px; } .important { padding-block: 1px 2px!important; } .mixed { padding-block: calc(1px + 1px) 2px; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["shorthand-combining", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_compresses_static_flex_shorthands() {
     let source = r#".a { flex: 0 1 auto; } .b { flex: 1 1 0%; } .c { flex: 2 1 0%; } .d { flex: 1 2 0%; } .e { flex: var(--flex); }"#;
     let execution = execute_transform_passes_on_source(
