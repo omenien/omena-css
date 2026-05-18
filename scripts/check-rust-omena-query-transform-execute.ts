@@ -678,7 +678,7 @@ const designTokenRecoveryResult = spawnSync(
     input: JSON.stringify({
       stylePath: "DesignTokens.module.css",
       styleSource:
-        ".button { color: var(--pkg-brand); box-shadow: 0 0 var(--pkg-border) var(--broken; }",
+        '@property --registered { syntax: "<color>"; inherits: false; initial-value: var(--pkg-brand); } @keyframes pulse { to { color: var(--pkg-border); } } .button { color: var(--pkg-brand); box-shadow: 0 0 var(--pkg-border) var(--broken; }',
       requestedPassIds: ["design-token-routing", "print-css"],
       transformContext: {
         designTokenRoutes: [
@@ -700,13 +700,13 @@ const designTokenRecoverySummary = JSON.parse(
 
 assert.equal(
   designTokenRecoverySummary.execution.outputCss,
-  ".button { color: var(--theme-brand); box-shadow: 0 0 #123456 var(--broken; }",
+  '@property --registered { syntax: "<color>"; inherits: false; initial-value: var(--theme-brand); } @keyframes pulse { to { color: #123456; } } .button { color: var(--theme-brand); box-shadow: 0 0 #123456 var(--broken; }',
 );
 assert.deepEqual(designTokenRecoverySummary.execution.executedPassIds, [
   "design-token-routing",
   "print-css",
 ]);
-assert.equal(designTokenRecoverySummary.execution.mutationCount, 2);
+assert.equal(designTokenRecoverySummary.execution.mutationCount, 4);
 
 const designTokenAliasResult = spawnSync(
   "cargo",

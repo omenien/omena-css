@@ -2,10 +2,9 @@ use omena_parser::{StyleDialect, lex};
 
 use crate::{
     helpers::{
-        blocks::rule_block_token_indexes,
         declarations::collect_simple_declarations_in_block,
-        rules::collect_declaration_ordinary_rule_slices,
         source_rewrite::replace_source_ranges,
+        tokens::matching_right_brace_index,
         values::{
             matching_function_call_end, parse_whole_function_value_arguments,
             split_top_level_value_arguments,
@@ -21,18 +20,18 @@ pub(crate) fn route_design_token_values_with_lexer(
 ) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
     let mut replacements = Vec::new();
 
-    for rule in &rules {
-        let Some((block_start_index, block_end_index)) =
-            rule_block_token_indexes(tokens, rule.block_start, rule.block_end)
+    let mut index = 0;
+    while index < tokens.len() {
+        let Some(block_end_index) = (tokens[index].kind == omena_syntax::SyntaxKind::LeftBrace)
+            .then(|| matching_right_brace_index(tokens, index))
+            .flatten()
         else {
+            index += 1;
             continue;
         };
-        for declaration in
-            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
-        {
+        for declaration in collect_simple_declarations_in_block(tokens, index, block_end_index) {
             if declaration.important {
                 continue;
             }
@@ -54,6 +53,7 @@ pub(crate) fn route_design_token_values_with_lexer(
                 format!("{}: {routed_value};", declaration.property),
             ));
         }
+        index += 1;
     }
 
     replace_source_ranges(source, &replacements)

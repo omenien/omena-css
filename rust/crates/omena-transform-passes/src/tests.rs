@@ -481,7 +481,7 @@ fn execution_runtime_resolves_css_module_composes_with_export_set() {
 
 #[test]
 fn execution_runtime_routes_design_tokens_from_bridge_context() {
-    let source = r#".button { color: var(--pkg-brand); background: var(--pkg-brand, blue); border: 1px solid var(--pkg-border); box-shadow: 0 0 1px var(--unsafe); --local: var(--pkg-brand); } @media screen { .button { outline-color: var(--pkg-brand); } }"#;
+    let source = r#"@property --registered { syntax: "<color>"; inherits: false; initial-value: var(--pkg-brand); } @keyframes pulse { to { color: var(--pkg-border); } } .button { color: var(--pkg-brand); background: var(--pkg-brand, blue); border: 1px solid var(--pkg-border); box-shadow: 0 0 1px var(--unsafe); --local: var(--pkg-brand); } @media screen { .button { outline-color: var(--pkg-brand); } }"#;
     let context = TransformExecutionContextV0 {
         design_token_routes: vec![
             TransformDesignTokenRouteV0 {
@@ -509,10 +509,10 @@ fn execution_runtime_routes_design_tokens_from_bridge_context() {
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 5);
+    assert_eq!(execution.mutation_count, 7);
     assert_eq!(
         execution.output_css,
-        r#".button { color: var(--theme-brand); background: var(--theme-brand, blue); border: 1px solid #123456; box-shadow: 0 0 1px var(--unsafe); --local: var(--theme-brand); } @media screen { .button { outline-color: var(--theme-brand); } }"#
+        r#"@property --registered { syntax: "<color>"; inherits: false; initial-value: var(--theme-brand); } @keyframes pulse { to { color: #123456; } } .button { color: var(--theme-brand); background: var(--theme-brand, blue); border: 1px solid #123456; box-shadow: 0 0 1px var(--unsafe); --local: var(--theme-brand); } @media screen { .button { outline-color: var(--theme-brand); } }"#
     );
     assert_eq!(execution.design_token_routes, context.design_token_routes);
     assert_eq!(
