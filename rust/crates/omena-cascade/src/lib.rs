@@ -1606,6 +1606,32 @@ pub fn evaluate_static_supports_condition(
 fn evaluate_modern_static_supports_condition(
     condition: &str,
 ) -> (StaticSupportsEvalVerdictV0, &'static str) {
+    if let Some(parts) = parse_static_supports_or_parts(condition) {
+        let verdicts = parts
+            .iter()
+            .map(|part| evaluate_modern_static_supports_condition(part).0)
+            .collect::<Vec<_>>();
+        if verdicts.contains(&StaticSupportsEvalVerdictV0::AlwaysTrue) {
+            return (
+                StaticSupportsEvalVerdictV0::AlwaysTrue,
+                "modern-browser assumption accepts a true simple declaration inside disjunction",
+            );
+        }
+        if verdicts
+            .iter()
+            .all(|verdict| *verdict == StaticSupportsEvalVerdictV0::AlwaysFalse)
+        {
+            return (
+                StaticSupportsEvalVerdictV0::AlwaysFalse,
+                "modern-browser assumption rejects all simple declarations inside disjunction",
+            );
+        }
+        return (
+            StaticSupportsEvalVerdictV0::Unknown,
+            "unsupported supports disjunction member",
+        );
+    }
+
     if let Some(parts) = parse_static_supports_and_parts(condition) {
         let verdicts = parts
             .iter()
@@ -1754,6 +1780,11 @@ fn parse_simple_supports_declaration(condition: &str) -> Option<(&str, &str)> {
 
 fn parse_static_supports_and_parts(condition: &str) -> Option<Vec<&str>> {
     let parts = condition.split(" and ").map(str::trim).collect::<Vec<_>>();
+    (parts.len() > 1 && parts.iter().all(|part| !part.is_empty())).then_some(parts)
+}
+
+fn parse_static_supports_or_parts(condition: &str) -> Option<Vec<&str>> {
+    let parts = condition.split(" or ").map(str::trim).collect::<Vec<_>>();
     (parts.len() > 1 && parts.iter().all(|part| !part.is_empty())).then_some(parts)
 }
 
@@ -2985,6 +3016,23 @@ mod tests {
         );
         assert_eq!(conjunction.verdict, StaticSupportsEvalVerdictV0::AlwaysTrue);
         assert!(conjunction.provenance_preserved);
+
+        let disjunction = evaluate_static_supports_condition(
+            "(display: grid) or (selector(:has(*)))",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(disjunction.verdict, StaticSupportsEvalVerdictV0::AlwaysTrue);
+        assert!(disjunction.provenance_preserved);
+
+        let obsolete_disjunction = evaluate_static_supports_condition(
+            "(display: -ms-grid) or (-ms-ime-align: auto)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            obsolete_disjunction.verdict,
+            StaticSupportsEvalVerdictV0::AlwaysFalse
+        );
+        assert!(obsolete_disjunction.provenance_preserved);
 
         let obsolete = evaluate_static_supports_condition(
             "(display: -ms-grid)",
