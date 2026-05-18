@@ -2812,7 +2812,7 @@ fn execution_runtime_recovers_custom_property_tree_shaking_after_reachable_malfo
 
 #[test]
 fn execution_runtime_ignores_dead_keyframe_custom_property_dependencies() {
-    let source = r#":root { --used: red; --ghost: blue; } .btn { animation: live 1s; } @keyframes live { to { color: var(--used); } } @keyframes ghost { to { color: var(--ghost); } }"#;
+    let source = r#":root { --used: red; --ghost: blue; } .btn { animation: live 1s; } @keyframes live { to { color: var(--used); } } @keyframes ghost { to { --used: var(--ghost); color: var(--ghost); } }"#;
     let context = TransformExecutionContextV0 {
         closed_style_world: true,
         reachable_class_names: vec!["btn".to_string()],
@@ -2828,19 +2828,20 @@ fn execution_runtime_ignores_dead_keyframe_custom_property_dependencies() {
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.mutation_count, 2);
     assert!(execution.output_css.contains("--used: red;"));
     assert!(execution.output_css.contains("color: var(--used);"));
     assert!(execution.output_css.contains("@keyframes ghost"));
     assert!(execution.output_css.contains("color: var(--ghost);"));
     assert!(!execution.output_css.contains("--ghost: blue;"));
+    assert!(!execution.output_css.contains("--used: var(--ghost);"));
     assert_eq!(
         execution
             .semantic_removals
             .iter()
             .map(|removal| (removal.symbol_kind, removal.name.as_str()))
             .collect::<Vec<_>>(),
-        vec![("customProperty", "--ghost")]
+        vec![("customProperty", "--ghost"), ("customProperty", "--used")]
     );
 }
 

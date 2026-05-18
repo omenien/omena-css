@@ -1393,7 +1393,7 @@ const customPropertyKeyframeReachabilityResult = spawnSync(
     input: JSON.stringify({
       stylePath: "custom-property-keyframe-reachability.css",
       styleSource:
-        ":root { --used: red; --ghost: blue; } .btn { animation: live 1s; } @keyframes live { to { color: var(--used); } } @keyframes ghost { to { color: var(--ghost); } }",
+        ":root { --used: red; --ghost: blue; } .btn { animation: live 1s; } @keyframes live { to { color: var(--used); } } @keyframes ghost { to { --used: var(--ghost); color: var(--ghost); } }",
       requestedPassIds: ["tree-shake-custom-property", "print-css"],
       transformContext: {
         closedStyleWorld: true,
@@ -1431,11 +1431,16 @@ assert.ok(
 assert.ok(
   !customPropertyKeyframeReachabilitySummary.execution.outputCss.includes("--ghost: blue;"),
 );
+assert.ok(
+  !customPropertyKeyframeReachabilitySummary.execution.outputCss.includes(
+    "--used: var(--ghost);",
+  ),
+);
 assert.deepEqual(customPropertyKeyframeReachabilitySummary.execution.executedPassIds, [
   "tree-shake-custom-property",
   "print-css",
 ]);
-assert.equal(customPropertyKeyframeReachabilitySummary.execution.mutationCount, 1);
+assert.equal(customPropertyKeyframeReachabilitySummary.execution.mutationCount, 2);
 
 const customPropertyContainerStyleReachabilityResult = spawnSync(
   "cargo",
