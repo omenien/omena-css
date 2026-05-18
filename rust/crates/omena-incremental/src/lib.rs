@@ -405,7 +405,8 @@ fn propagate_dependency_dirty(
     nodes: &mut [IncrementalComputationNodeV0],
     dirty_ids: &mut BTreeSet<String>,
 ) {
-    loop {
+    let max_iterations = dependency_propagation_iteration_limit(nodes.len());
+    for _ in 0..max_iterations {
         let mut changed = false;
         for node in nodes.iter_mut() {
             if node.dirty {
@@ -467,9 +468,9 @@ fn generated_incremental_fuzz_graph(
 
 fn transitive_dependents(input: &IncrementalGraphInputV0, changed_id: &str) -> BTreeSet<String> {
     let mut dirty_ids = BTreeSet::from([changed_id.to_string()]);
-    let mut changed = true;
-    while changed {
-        changed = false;
+    let max_iterations = dependency_propagation_iteration_limit(input.nodes.len());
+    for _ in 0..max_iterations {
+        let mut changed = false;
         for node in &input.nodes {
             if dirty_ids.contains(&node.id) {
                 continue;
@@ -484,6 +485,10 @@ fn transitive_dependents(input: &IncrementalGraphInputV0, changed_id: &str) -> B
         }
     }
     dirty_ids
+}
+
+fn dependency_propagation_iteration_limit(node_count: usize) -> usize {
+    node_count.saturating_add(1)
 }
 
 fn fuzz_node_id(index: usize) -> String {
@@ -689,6 +694,19 @@ mod tests {
     }
 
     #[test]
+    fn cyclic_dependency_graph_uses_bounded_dirty_propagation() {
+        let input = cyclic_input("a:v1", "b:v1", 1);
+        let snapshot = snapshot_from_graph_input(&input);
+        let next_input = cyclic_input("a:v2", "b:v1", 2);
+        let plan = plan_incremental_computation(&next_input, Some(&snapshot));
+
+        assert_eq!(plan.changed_input_count, 1);
+        assert_eq!(plan.dirty_node_count, 2);
+        assert_eq!(node_reasons(&plan, "a"), vec!["inputDigestChanged"]);
+        assert_eq!(node_reasons(&plan, "b"), vec!["dependencyDirty"]);
+    }
+
+    #[test]
     fn fuzz_seed_corpus_preserves_incremental_dirty_set_invariants() {
         let report = super::run_incremental_fuzz_seed_corpus();
 
@@ -825,6 +843,24 @@ mod tests {
                     id: "a".to_string(),
                     digest: a_digest.to_string(),
                     dependency_ids: Vec::new(),
+                },
+            ],
+        }
+    }
+
+    fn cyclic_input(a_digest: &str, b_digest: &str, revision: u64) -> IncrementalGraphInputV0 {
+        IncrementalGraphInputV0 {
+            revision: IncrementalRevisionV0 { value: revision },
+            nodes: vec![
+                IncrementalNodeInputV0 {
+                    id: "a".to_string(),
+                    digest: a_digest.to_string(),
+                    dependency_ids: vec!["b".to_string()],
+                },
+                IncrementalNodeInputV0 {
+                    id: "b".to_string(),
+                    digest: b_digest.to_string(),
+                    dependency_ids: vec!["a".to_string()],
                 },
             ],
         }
