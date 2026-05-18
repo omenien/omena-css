@@ -14,14 +14,13 @@ pub(crate) fn parse_color_mix_value(value: &str) -> Option<String> {
     let [space, first, second] = arguments.as_slice() else {
         return None;
     };
-    if normalize_ascii_whitespace(space) != "in srgb" {
-        return None;
-    }
+    let interpolation_space = parse_static_color_mix_space(space)?;
 
     let first_stop = parse_static_color_mix_stop(first)?;
     let second_stop = parse_static_color_mix_stop(second)?;
     let color_mix = color_mix_weights(first_stop.percentage, second_stop.percentage)?;
     let mixed = mix_srgb_colors(
+        interpolation_space,
         first_stop.color,
         second_stop.color,
         color_mix.first_weight,
@@ -29,6 +28,20 @@ pub(crate) fn parse_color_mix_value(value: &str) -> Option<String> {
         color_mix.alpha_multiplier,
     );
     Some(mixed.color.to_css_rgb_with_alpha(mixed.alpha))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticColorMixSpace {
+    Srgb,
+    SrgbLinear,
+}
+
+fn parse_static_color_mix_space(space: &str) -> Option<StaticColorMixSpace> {
+    match normalize_ascii_whitespace(space).as_str() {
+        "in srgb" => Some(StaticColorMixSpace::Srgb),
+        "in srgb-linear" => Some(StaticColorMixSpace::SrgbLinear),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -209,6 +222,7 @@ impl SrgbColor {
 }
 
 fn mix_srgb_colors(
+    interpolation_space: StaticColorMixSpace,
     first: StaticSrgbColorWithAlpha,
     second: StaticSrgbColorWithAlpha,
     first_weight: f64,
@@ -230,53 +244,57 @@ fn mix_srgb_colors(
     }
 
     let final_alpha = (interpolated_alpha * alpha_multiplier.unwrap_or(1.0)).clamp(0.0, 1.0);
+    let channel_mix = StaticColorMixChannelContext {
+        interpolation_space,
+        first_alpha,
+        second_alpha,
+        first_weight,
+        second_weight,
+        interpolated_alpha,
+    };
     StaticSrgbColorWithAlpha {
         color: SrgbColor {
-            red: mix_premultiplied_srgb_channel(
-                first.color.red,
-                first_alpha,
-                second.color.red,
-                second_alpha,
-                first_weight,
-                second_weight,
-                interpolated_alpha,
-            ),
+            red: mix_premultiplied_srgb_channel(first.color.red, second.color.red, channel_mix),
             green: mix_premultiplied_srgb_channel(
                 first.color.green,
-                first_alpha,
                 second.color.green,
-                second_alpha,
-                first_weight,
-                second_weight,
-                interpolated_alpha,
+                channel_mix,
             ),
-            blue: mix_premultiplied_srgb_channel(
-                first.color.blue,
-                first_alpha,
-                second.color.blue,
-                second_alpha,
-                first_weight,
-                second_weight,
-                interpolated_alpha,
-            ),
+            blue: mix_premultiplied_srgb_channel(first.color.blue, second.color.blue, channel_mix),
         },
         alpha: non_opaque_alpha(final_alpha),
     }
 }
 
-fn mix_premultiplied_srgb_channel(
-    first: u8,
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct StaticColorMixChannelContext {
+    interpolation_space: StaticColorMixSpace,
     first_alpha: f64,
-    second: u8,
     second_alpha: f64,
     first_weight: f64,
     second_weight: f64,
     interpolated_alpha: f64,
+}
+
+fn mix_premultiplied_srgb_channel(
+    first: u8,
+    second: u8,
+    context: StaticColorMixChannelContext,
 ) -> u8 {
-    let value = (f64::from(first) * first_alpha * first_weight
-        + f64::from(second) * second_alpha * second_weight)
-        / interpolated_alpha;
-    value.round().clamp(0.0, 255.0) as u8
+    let value = (f64::from(first) * context.first_alpha * context.first_weight
+        + f64::from(second) * context.second_alpha * context.second_weight)
+        / context.interpolated_alpha;
+    match context.interpolation_space {
+        StaticColorMixSpace::Srgb => value.round().clamp(0.0, 255.0) as u8,
+        StaticColorMixSpace::SrgbLinear => {
+            let first_linear = decode_srgb_channel(f64::from(first) / 255.0);
+            let second_linear = decode_srgb_channel(f64::from(second) / 255.0);
+            let value = (first_linear * context.first_alpha * context.first_weight
+                + second_linear * context.second_alpha * context.second_weight)
+                / context.interpolated_alpha;
+            encode_srgb_channel(value)
+        }
+    }
 }
 
 fn non_opaque_alpha(alpha: f64) -> Option<f64> {

@@ -1193,6 +1193,49 @@ assert.deepEqual(colorMixAlphaSummary.execution.executedPassIds, [
 ]);
 assert.equal(colorMixAlphaSummary.execution.mutationCount, 4);
 
+const colorMixLinearResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "color-mix-linear.css",
+      styleSource:
+        ".card { color: color-mix(in srgb-linear, red 50%, blue 50%); background-color: color-mix(in srgb-linear, 50% red, transparent 50%); outline-color: color-mix(in srgb-linear, 25% rgb(100% 0% 0% / .7), rgb(0% 100% 0% / .2)); border-color: color-mix(in srgb-linear, 50% #ff000080, 50% blue); }",
+      requestedPassIds: ["color-mix-lowering", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(colorMixLinearResult.status, 0, colorMixLinearResult.stderr);
+assert.equal(colorMixLinearResult.error, undefined);
+
+const colorMixLinearSummary = JSON.parse(
+  colorMixLinearResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(colorMixLinearSummary.product, "omena-query.transform-execute");
+assert.equal(
+  colorMixLinearSummary.execution.outputCss,
+  ".card { color: rgb(188 0 188); background-color: rgb(255 0 0 / .5); outline-color: rgb(194 181 0 / .325); border-color: rgb(156 0 213 / .75098); }",
+);
+assert.deepEqual(colorMixLinearSummary.execution.executedPassIds, [
+  "color-mix-lowering",
+  "print-css",
+]);
+assert.equal(colorMixLinearSummary.execution.mutationCount, 4);
+
 const mathFunctionReductionResult = spawnSync(
   "cargo",
   [
@@ -1644,6 +1687,7 @@ process.stdout.write(
     `namedHexColorMutations=${namedHexColorCompressionSummary.execution.mutationCount}`,
     `colorMixPercentageMutations=${colorMixPercentageSummary.execution.mutationCount}`,
     `colorMixAlphaMutations=${colorMixAlphaSummary.execution.mutationCount}`,
+    `colorMixLinearMutations=${colorMixLinearSummary.execution.mutationCount}`,
     `mathFunctionMutations=${mathFunctionReductionSummary.execution.mutationCount}`,
     `staticVarShadowMutations=${staticVarShadowSummary.execution.mutationCount}`,
     `customPropertyReachabilityMutations=${customPropertyReachabilitySummary.execution.mutationCount}`,

@@ -1432,6 +1432,24 @@ fn execution_runtime_lowers_alpha_aware_srgb_color_mix_declarations() {
 }
 
 #[test]
+fn execution_runtime_lowers_linear_srgb_color_mix_declarations() {
+    let source = r#".card { color: color-mix(in srgb-linear, red 50%, blue 50%); background-color: color-mix(in srgb-linear, 50% red, transparent 50%); outline-color: color-mix(in srgb-linear, 25% rgb(100% 0% 0% / .7), rgb(0% 100% 0% / .2)); border-color: color-mix(in srgb-linear, 50% #ff000080, 50% blue); }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ColorMixLowering,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 4);
+    assert_eq!(
+        execution.output_css,
+        r#".card { color: rgb(188 0 188); background-color: rgb(255 0 0 / .5); outline-color: rgb(194 181 0 / .325); border-color: rgb(156 0 213 / .75098); }"#
+    );
+}
+
+#[test]
 fn execution_runtime_lowers_in_gamut_oklab_oklch_declarations() {
     let source = r#".card { color: oklab(1 0 0); background-color: oklch(0% 0 0deg); outline-color: oklch(0% 0 0.5TURN); background: linear-gradient(oklch(0% 0 0deg), white); accent-color: oklch(0% 0 0deg / .5); box-shadow: 0 0 1px oklch(0% 0 0deg); column-rule: 1px solid oklab(1 0 0); border-color: oklch(70% 0.4 40deg); }"#;
     let execution = execute_transform_passes_on_source(
