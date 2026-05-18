@@ -5,7 +5,10 @@
 //! combinations, conservative lowerings, and emission boundaries as a
 //! DAG-respecting execution plan for downstream transform crates.
 
-use std::collections::{BTreeMap, VecDeque};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, VecDeque},
+};
 
 pub use omena_cascade::CustomPropertyLeastFixedPointSummaryV0;
 use omena_cascade::{
@@ -3281,10 +3284,9 @@ fn normalize_simple_media_range_features(condition: &str) -> Option<String> {
 
     while let Some(open_offset) = condition[cursor..].find('(') {
         let open_index = cursor + open_offset;
-        let Some(close_offset) = condition[open_index + 1..].find(')') else {
+        let Some(close_index) = matching_function_call_end(condition, open_index) else {
             break;
         };
-        let close_index = open_index + 1 + close_offset;
         let feature = &condition[open_index + 1..close_index];
 
         output.push_str(&condition[cursor..open_index]);
@@ -3306,8 +3308,8 @@ fn normalize_simple_media_range_features(condition: &str) -> Option<String> {
 fn normalize_simple_media_range_feature(feature: &str) -> Option<String> {
     let (name, value) = feature.split_once(':')?;
     let name = name.trim().to_ascii_lowercase();
-    let value = value.trim();
-    if !is_simple_media_range_value(value) {
+    let value = normalize_static_media_range_value(value.trim());
+    if !is_simple_media_range_value(&value) {
         return None;
     }
 
@@ -3320,6 +3322,20 @@ fn normalize_simple_media_range_feature(feature: &str) -> Option<String> {
     };
 
     Some(format!("{dimension}{operator}{value}"))
+}
+
+fn normalize_static_media_range_value(value: &str) -> Cow<'_, str> {
+    substitute_static_css_function_references_in_value_until_stable(
+        value,
+        &[
+            ("calc", parse_reducible_calc_value),
+            ("min", parse_reducible_min_value),
+            ("max", parse_reducible_max_value),
+            ("clamp", parse_reducible_clamp_value),
+        ],
+    )
+    .map(Cow::Owned)
+    .unwrap_or(Cow::Borrowed(value))
 }
 
 fn is_simple_media_range_value(value: &str) -> bool {
@@ -12243,7 +12259,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_normalizes_simple_media_range_features() {
-        let source = r#"@media screen and (min-width: 1px) and (max-width: 10px) { .a { color: red; } } @media (min-height: 2rem) { .b { color: blue; } } @media (min-width: calc(1px + 1px)) { .c { color: green; } }"#;
+        let source = r#"@media screen and (min-width: 1px) and (max-width: 10px) { .a { color: red; } } @media (min-height: 2rem) { .b { color: blue; } } @media (min-width: calc(1px + 1px)) { .c { color: green; } } @media (max-height: clamp(1rem, 2rem, 3rem)) { .d { color: orange; } }"#;
         let execution = execute_transform_passes_on_source(
             source,
             &[
@@ -12252,10 +12268,10 @@ mod tests {
             ],
         );
 
-        assert_eq!(execution.mutation_count, 2);
+        assert_eq!(execution.mutation_count, 4);
         assert_eq!(
             execution.output_css,
-            r#"@media screen and (width>=1px) and (width<=10px) { .a { color: red; } } @media (height>=2rem) { .b { color: blue; } } @media (min-width: calc(1px + 1px)) { .c { color: green; } }"#
+            r#"@media screen and (width>=1px) and (width<=10px) { .a { color: red; } } @media (height>=2rem) { .b { color: blue; } } @media (width>=2px) { .c { color: green; } } @media (height<=2rem) { .d { color: orange; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,

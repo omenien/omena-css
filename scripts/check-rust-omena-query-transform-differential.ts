@@ -92,6 +92,11 @@ const fixtures: readonly DifferentialFixture[] = [
     source: "@media screen and (min-width: 1px) and (max-width: 10px) { .a { color: red; } }",
   },
   {
+    label: "media-range-calc-reduction",
+    source:
+      "@media (min-width: calc(1px + 1px)) and (max-height: clamp(1rem, 2rem, 3rem)) { .a { color: red; } }",
+  },
+  {
     label: "calc-same-unit-nested",
     source: ".a { margin: calc(2rem + 3rem); padding: calc(10px - 4px); }",
   },
