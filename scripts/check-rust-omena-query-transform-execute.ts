@@ -351,6 +351,49 @@ assert.deepEqual(conditionalWrapperMergeSummary.execution.executedPassIds, [
 ]);
 assert.equal(conditionalWrapperMergeSummary.execution.mutationCount, 2);
 
+const logicalCornerResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "logical-corners.css",
+      styleSource:
+        ".ltr { direction: ltr; border-start-start-radius: 1px; border-start-end-radius: 2px; border-end-start-radius: 3px; border-end-end-radius: 4px; } .rtl { direction: rtl; border-start-start-radius: 5px; border-start-end-radius: 6px; border-end-start-radius: 7px; border-end-end-radius: 8px; } .unknown { border-start-start-radius: 9px; }",
+      requestedPassIds: ["logical-to-physical", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(logicalCornerResult.status, 0, logicalCornerResult.stderr);
+assert.equal(logicalCornerResult.error, undefined);
+
+const logicalCornerSummary = JSON.parse(
+  logicalCornerResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(logicalCornerSummary.product, "omena-query.transform-execute");
+assert.equal(
+  logicalCornerSummary.execution.outputCss,
+  ".ltr { direction: ltr; border-top-left-radius: 1px; border-top-right-radius: 2px; border-bottom-left-radius: 3px; border-bottom-right-radius: 4px; } .rtl { direction: rtl; border-top-right-radius: 5px; border-top-left-radius: 6px; border-bottom-right-radius: 7px; border-bottom-left-radius: 8px; } .unknown { border-start-start-radius: 9px; }",
+);
+assert.deepEqual(logicalCornerSummary.execution.executedPassIds, [
+  "logical-to-physical",
+  "print-css",
+]);
+assert.equal(logicalCornerSummary.execution.mutationCount, 8);
+
 const contextStyleSource =
   '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; } .button :global(.external) { color: var(--brand); } :global { .reset { color: var(--brand); } } :local(.button) { composes: base; color: var(--brand); } :local { .button { color: var(--brand); } } @media (min-width: 1px) { .button { composes: base; color: var(--brand); } }';
 
@@ -1288,6 +1331,7 @@ process.stdout.write(
     `compositeValueMutations=${compositeValueSummary.execution.mutationCount}`,
     `mediaListMutations=${mediaListSummary.execution.mutationCount}`,
     `conditionalWrapperMergeMutations=${conditionalWrapperMergeSummary.execution.mutationCount}`,
+    `logicalCornerMutations=${logicalCornerSummary.execution.mutationCount}`,
     `alphaColorCompressionMutations=${alphaColorCompressionSummary.execution.mutationCount}`,
     `colorMixPercentageMutations=${colorMixPercentageSummary.execution.mutationCount}`,
     `mathFunctionMutations=${mathFunctionReductionSummary.execution.mutationCount}`,
