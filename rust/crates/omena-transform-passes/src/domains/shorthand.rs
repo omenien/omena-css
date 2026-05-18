@@ -5,6 +5,7 @@ use omena_syntax::SyntaxKind;
 use crate::{
     domains::{
         number::{compress_number_prefix, format_css_number, numeric_prefix_end},
+        shorthand_font::font_shorthand_replacement_for_declarations,
         shorthand_line::border_side_shorthand_replacement_for_declarations,
         shorthand_line::line_shorthand_replacement_for_declarations,
         shorthand_list::{
@@ -91,6 +92,17 @@ fn collect_shorthand_replacements_in_block(
 ) -> Vec<(usize, usize, String)> {
     let declarations = collect_simple_declarations_in_block(tokens, block_start, block_end);
     let mut ranges = Vec::new();
+    let mut index = 0;
+    while index + 6 < declarations.len() {
+        if let Some((start, end, replacement)) =
+            font_shorthand_replacement_for_declarations(tokens, &declarations[index..index + 7])
+        {
+            ranges.push((start, end, replacement));
+            index += 7;
+        } else {
+            index += 1;
+        }
+    }
     let mut index = 0;
     while index + 3 < declarations.len() {
         if let Some((start, end, replacement)) = border_side_shorthand_replacement_for_declarations(

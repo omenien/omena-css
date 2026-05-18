@@ -17,6 +17,7 @@ pub(crate) mod rule_cleanup;
 pub(crate) mod rule_merge;
 pub(crate) mod selector;
 pub(crate) mod shorthand;
+pub(crate) mod shorthand_font;
 pub(crate) mod shorthand_line;
 pub(crate) mod shorthand_list;
 pub(crate) mod shorthand_logical;
