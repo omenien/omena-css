@@ -39,7 +39,8 @@ pub(crate) fn merge_adjacent_same_block_css_selectors_with_lexer(
         while run_end < rules.len() {
             let previous = &rules[run_end - 1];
             let next = &rules[run_end];
-            if current.block != next.block
+            if normalized_same_block_merge_value(&current.block)
+                != normalized_same_block_merge_value(&next.block)
                 || !rule_gap_is_whitespace_only(tokens, previous.end, next.start)
             {
                 break;
@@ -70,6 +71,59 @@ pub(crate) fn merge_adjacent_same_block_css_selectors_with_lexer(
     }
 
     replace_source_ranges(source, &replacements)
+}
+
+fn normalized_same_block_merge_value(block: &str) -> String {
+    let block = block.trim().trim_end_matches(';').trim_end();
+    let mut output = String::with_capacity(block.len());
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+
+    while index < block.len() {
+        let Some(ch) = block[index..].chars().next() else {
+            break;
+        };
+        if let Some(quote_ch) = quote {
+            output.push(ch);
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = block[index..].chars().next() {
+                    output.push(escaped);
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                output.push(ch);
+                index += ch.len_utf8();
+            }
+            ':' | ';' => {
+                while output.chars().next_back().is_some_and(char::is_whitespace) {
+                    output.pop();
+                }
+                output.push(ch);
+                index += ch.len_utf8();
+                while let Some(next) = block[index..].chars().next() {
+                    if !next.is_whitespace() {
+                        break;
+                    }
+                    index += next.len_utf8();
+                }
+            }
+            _ => {
+                output.push(ch);
+                index += ch.len_utf8();
+            }
+        }
+    }
+
+    output
 }
 
 pub(crate) fn merge_adjacent_same_selector_css_rules_with_lexer(

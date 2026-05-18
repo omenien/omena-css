@@ -1781,7 +1781,7 @@ fn execution_runtime_merges_adjacent_same_conditional_wrappers() {
 
 #[test]
 fn execution_runtime_merges_adjacent_same_block_selectors_only() {
-    let source = r#".a { color: red; } .b { color: red; } .c { color: red; } .d { color: blue; } .e { color: red; } @media (min-width: 1px) { .m { color: black; } .n { color: black; } }"#;
+    let source = r#".a { color: red; } .b { color: red; } .c { color: red; } .d { color: blue; } .e { color: red; } .x{color:red;}.y{color:red} @media (min-width: 1px) { .m { color: black; } .n { color: black; } }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1790,10 +1790,10 @@ fn execution_runtime_merges_adjacent_same_block_selectors_only() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 2);
+    assert_eq!(execution.mutation_count, 3);
     assert_eq!(
         execution.output_css,
-        r#".a, .b, .c { color: red; } .d { color: blue; } .e { color: red; } @media (min-width: 1px) { .m, .n { color: black; } }"#
+        r#".a, .b, .c { color: red; } .d { color: blue; } .e, .x, .y { color: red; } @media (min-width: 1px) { .m, .n { color: black; } }"#
     );
     assert_eq!(
         execution.executed_pass_ids,
