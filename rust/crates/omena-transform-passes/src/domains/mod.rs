@@ -1,3 +1,4 @@
+pub(crate) mod calc;
 pub(crate) mod cascade_flatten;
 pub(crate) mod color;
 pub(crate) mod color_lowering;

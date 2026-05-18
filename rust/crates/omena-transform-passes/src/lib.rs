@@ -20,6 +20,7 @@ mod runtime;
 
 pub use domains::css_modules_values::resolve_static_css_modules_local_value_resolutions_from_source;
 use domains::{
+    calc::reduce_css_calc_with_lexer,
     cascade_flatten::{flatten_css_layers_with_lexer, flatten_css_scopes_with_lexer},
     color::{
         compress_hex_color_token_text, is_static_color_reference_property,
@@ -48,10 +49,7 @@ use domains::{
     keyframes::{is_keyframes_at_keyword, tree_shake_css_keyframes_with_lexer},
     logical::lower_css_logical_to_physical_with_lexer,
     nesting::unwrap_css_nesting_with_lexer,
-    number::{
-        compress_number_prefix, numeric_prefix_end, parse_reducible_calc_value,
-        parse_reducible_clamp_value, parse_reducible_max_value, parse_reducible_min_value,
-    },
+    number::{compress_number_prefix, numeric_prefix_end},
     reachability::class_name_is_reachable,
     rule_merge::merge_adjacent_same_conditional_at_rule_blocks_with_lexer,
     selector::{compress_css_is_where_selectors_with_lexer, dedupe_selector_arguments},
@@ -90,7 +88,6 @@ use helpers::tokens::{
 };
 use helpers::values::{
     matching_function_call_end, substitute_static_css_function_references_in_value,
-    substitute_static_css_function_references_in_value_until_stable,
 };
 use model::TransformSemanticRemovalCandidate;
 pub use model::*;
@@ -364,67 +361,6 @@ fn reduce_css_calc(source: &str, dialect: StyleDialect) -> (String, usize) {
 
 fn normalize_css_whitespace(source: &str, dialect: StyleDialect) -> (String, usize) {
     normalize_css_whitespace_with_lexer(source, dialect)
-}
-
-fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) -> (String, usize) {
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let mut replacements = Vec::new();
-    let mut index = 0;
-
-    while index < tokens.len() {
-        if tokens[index].kind == SyntaxKind::LeftBrace
-            && let Some(close_index) = matching_right_brace_index(tokens, index)
-        {
-            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
-            for declaration in declarations {
-                let Some(replacement_value) =
-                    substitute_static_css_function_references_in_value_until_stable(
-                        &declaration.value,
-                        &[
-                            ("calc", parse_reducible_calc_value),
-                            ("min", parse_reducible_min_value),
-                            ("max", parse_reducible_max_value),
-                            ("clamp", parse_reducible_clamp_value),
-                        ],
-                    )
-                else {
-                    continue;
-                };
-                replacements.push((
-                    declaration.start,
-                    declaration.end,
-                    format_replacement_declaration_like_source(
-                        source,
-                        &declaration,
-                        &replacement_value,
-                    ),
-                ));
-            }
-            index += 1;
-            continue;
-        }
-        index += 1;
-    }
-
-    if replacements.is_empty() {
-        return (source.to_string(), 0);
-    }
-
-    let mut output = String::with_capacity(source.len());
-    let mut cursor = 0;
-    for (start, end, replacement) in &replacements {
-        if *start > cursor {
-            output.push_str(&source[cursor..*start]);
-        }
-        output.push_str(replacement);
-        cursor = *end;
-    }
-    if cursor < source.len() {
-        output.push_str(&source[cursor..]);
-    }
-
-    (output, replacements.len())
 }
 
 fn merge_adjacent_same_block_css_selectors_with_lexer(
