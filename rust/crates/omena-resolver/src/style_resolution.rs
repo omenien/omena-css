@@ -563,5 +563,43 @@ fn normalize_style_path(path: PathBuf) -> String {
             Component::RootDir | Component::Prefix(_) => normalized.push(component.as_os_str()),
         }
     }
-    normalized.to_string_lossy().replace('\\', "/")
+    percent_decode_style_path(&normalized.to_string_lossy().replace('\\', "/"))
+}
+
+fn percent_decode_style_path(path: &str) -> String {
+    let bytes = path.as_bytes();
+    let mut output = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    let mut changed = false;
+
+    while index < bytes.len() {
+        if bytes[index] == b'%'
+            && index + 2 < bytes.len()
+            && let (Some(high), Some(low)) = (
+                decode_hex_byte(bytes[index + 1]),
+                decode_hex_byte(bytes[index + 2]),
+            )
+        {
+            output.push((high << 4) | low);
+            index += 3;
+            changed = true;
+            continue;
+        }
+        output.push(bytes[index]);
+        index += 1;
+    }
+
+    if !changed {
+        return path.to_string();
+    }
+    String::from_utf8(output).unwrap_or_else(|_| path.to_string())
+}
+
+fn decode_hex_byte(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
 }

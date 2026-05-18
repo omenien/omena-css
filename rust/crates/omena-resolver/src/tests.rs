@@ -258,6 +258,51 @@ fn resolves_tsconfig_path_mapped_sass_partials() {
 }
 
 #[test]
+fn resolves_percent_encoded_style_path_segments() {
+    let available_style_paths = BTreeSet::from(["/fake/workspace/src/styles/My Theme.module.scss"]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/components/App.tsx",
+        "../styles/My%20Theme",
+        &available_style_paths,
+        &[],
+    );
+
+    assert_eq!(resolution.resolution_kind, "relativeStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/src/styles/My Theme.module.scss")
+    );
+    assert!(
+        resolution
+            .candidates
+            .contains(&"/fake/workspace/src/styles/My Theme.module.scss".to_string())
+    );
+}
+
+#[test]
+fn resolves_percent_encoded_tsconfig_targets() {
+    let available_style_paths =
+        BTreeSet::from(["/fake/workspace/src/styles/Brand Tokens.module.scss"]);
+    let resolution = summarize_omena_resolver_style_module_resolution_with_tsconfig_paths(
+        "/fake/workspace/src/components/App.tsx",
+        "@styles/Brand%20Tokens",
+        &available_style_paths,
+        &[],
+        &[OmenaResolverTsconfigPathMappingV0 {
+            base_path: "/fake/workspace".to_string(),
+            pattern: "@styles/*".to_string(),
+            target_patterns: vec!["src/styles/*".to_string()],
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "tsconfigPathStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/src/styles/Brand Tokens.module.scss")
+    );
+}
+
+#[test]
 fn ignores_external_style_module_sources() {
     let available_style_paths = BTreeSet::new();
     let resolution = summarize_omena_resolver_style_module_resolution(
