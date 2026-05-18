@@ -478,6 +478,49 @@ assert.deepEqual(logicalCornerSummary.execution.executedPassIds, [
 ]);
 assert.equal(logicalCornerSummary.execution.mutationCount, 8);
 
+const verticalLogicalResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "vertical-logical.css",
+      styleSource:
+        ".vrl { writing-mode: vertical-rl; direction: ltr; margin-block-start: 1px; margin-block-end: 2px; margin-inline-start: 3px; margin-inline-end: 4px; block-size: 10px; inline-size: 20px; border-start-start-radius: 1px; border-end-end-radius: 2px; inset-block: 5px 6px; padding-inline: 7px 8px; } .vlr-rtl { writing-mode: vertical-lr; direction: rtl; inset-inline-start: 9px; border-start-end-radius: 3px; } .sideways { writing-mode: sideways-rl; direction: ltr; margin-inline-start: 1px; }",
+      requestedPassIds: ["logical-to-physical", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(verticalLogicalResult.status, 0, verticalLogicalResult.stderr);
+assert.equal(verticalLogicalResult.error, undefined);
+
+const verticalLogicalSummary = JSON.parse(
+  verticalLogicalResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(verticalLogicalSummary.product, "omena-query.transform-execute");
+assert.equal(
+  verticalLogicalSummary.execution.outputCss,
+  ".vrl { writing-mode: vertical-rl; direction: ltr; margin-right: 1px; margin-left: 2px; margin-top: 3px; margin-bottom: 4px; width: 10px; height: 20px; border-top-right-radius: 1px; border-bottom-left-radius: 2px; right: 5px; left: 6px; padding-top: 7px; padding-bottom: 8px; } .vlr-rtl { writing-mode: vertical-lr; direction: rtl; bottom: 9px; border-top-left-radius: 3px; } .sideways { writing-mode: sideways-rl; direction: ltr; margin-inline-start: 1px; }",
+);
+assert.deepEqual(verticalLogicalSummary.execution.executedPassIds, [
+  "logical-to-physical",
+  "print-css",
+]);
+assert.equal(verticalLogicalSummary.execution.mutationCount, 12);
+
 const nestAtRuleResult = spawnSync(
   "cargo",
   [
@@ -1552,6 +1595,8 @@ process.stdout.write(
     `mediaOrMutations=${mediaOrSummary.execution.mutationCount}`,
     `conditionalWrapperMergeMutations=${conditionalWrapperMergeSummary.execution.mutationCount}`,
     `logicalCornerMutations=${logicalCornerSummary.execution.mutationCount}`,
+    `verticalLogicalMutations=${verticalLogicalSummary.execution.mutationCount}`,
+    `nestAtRuleMutations=${nestAtRuleSummary.execution.mutationCount}`,
     `alphaColorCompressionMutations=${alphaColorCompressionSummary.execution.mutationCount}`,
     `namedHexColorMutations=${namedHexColorCompressionSummary.execution.mutationCount}`,
     `colorMixPercentageMutations=${colorMixPercentageSummary.execution.mutationCount}`,
