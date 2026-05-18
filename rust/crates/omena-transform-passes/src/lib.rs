@@ -37,6 +37,14 @@ use domains::{
         parse_static_srgb_color_with_alpha, shorten_hex_pairs,
         shortest_static_srgb_color_with_alpha_text,
     },
+    css_module_global::{
+        CssModuleScopeBlock, CssModuleScopeBlockKind, collect_css_module_scope_blocks,
+        css_module_scope_kind_for_range,
+    },
+    custom_property::{
+        close_custom_property_dependency_graph, collect_custom_property_references_in_value,
+        collect_custom_property_registration_rules,
+    },
     number::{
         compress_number_prefix, format_css_number, numeric_prefix_end,
         parse_numeric_value_with_unit, parse_reducible_calc_value, parse_reducible_clamp_value,
@@ -3700,89 +3708,6 @@ fn rewrite_css_module_class_names_with_lexer(
     replace_source_ranges(source, &replacements)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CssModuleScopeBlockKind {
-    Local,
-    Global,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct CssModuleScopeBlock {
-    kind: CssModuleScopeBlockKind,
-    start: usize,
-    end: usize,
-    body_start: usize,
-    body_end: usize,
-}
-
-fn collect_css_module_scope_blocks(
-    source: &str,
-    tokens: &[omena_parser::LexedToken],
-) -> Vec<CssModuleScopeBlock> {
-    let mut blocks = Vec::new();
-    let mut depth = 0usize;
-    let mut prelude_starts = vec![0usize];
-    let mut index = 0;
-
-    while index < tokens.len() {
-        match tokens[index].kind {
-            SyntaxKind::LeftBrace => {
-                let prelude_start = prelude_starts.get(depth).copied().unwrap_or(0);
-                if let Some(close_index) = matching_right_brace_index(tokens, index)
-                    && let Some(start) = first_non_trivia_token_start(tokens, prelude_start, index)
-                {
-                    let prelude = source[start..token_start(&tokens[index])].trim();
-                    if let Some(kind) = css_module_scope_block_kind(prelude) {
-                        blocks.push(CssModuleScopeBlock {
-                            kind,
-                            start,
-                            end: token_end(&tokens[close_index]),
-                            body_start: token_end(&tokens[index]),
-                            body_end: token_start(&tokens[close_index]),
-                        });
-                    }
-                }
-                depth += 1;
-                set_prelude_start(&mut prelude_starts, depth, index + 1);
-            }
-            SyntaxKind::RightBrace => {
-                depth = depth.saturating_sub(1);
-                set_prelude_start(&mut prelude_starts, depth, index + 1);
-            }
-            SyntaxKind::Semicolon => {
-                set_prelude_start(&mut prelude_starts, depth, index + 1);
-            }
-            _ => {}
-        }
-        index += 1;
-    }
-
-    blocks
-}
-
-fn css_module_scope_block_kind(prelude: &str) -> Option<CssModuleScopeBlockKind> {
-    let prelude = prelude.trim();
-    if prelude.eq_ignore_ascii_case(":local") {
-        return Some(CssModuleScopeBlockKind::Local);
-    }
-    if prelude.eq_ignore_ascii_case(":global") {
-        return Some(CssModuleScopeBlockKind::Global);
-    }
-    None
-}
-
-fn css_module_scope_kind_for_range(
-    start: usize,
-    end: usize,
-    blocks: &[CssModuleScopeBlock],
-) -> Option<CssModuleScopeBlockKind> {
-    blocks
-        .iter()
-        .filter(|block| start >= block.body_start && end <= block.body_end)
-        .min_by_key(|block| block.body_end.saturating_sub(block.body_start))
-        .map(|block| block.kind)
-}
-
 fn rewrite_class_selectors_in_selector(
     selector: &str,
     rewrites: &[TransformClassNameRewriteV0],
@@ -4669,60 +4594,6 @@ fn tree_shake_css_custom_properties_with_lexer(
     (output, removals)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct CustomPropertyRegistrationRule {
-    name: String,
-    start: usize,
-    end: usize,
-    initial_value: Option<String>,
-}
-
-fn collect_custom_property_registration_rules(
-    tokens: &[omena_parser::LexedToken],
-) -> Vec<CustomPropertyRegistrationRule> {
-    let mut rules = Vec::new();
-    let mut index = 0;
-
-    while index < tokens.len() {
-        if tokens[index].kind == SyntaxKind::AtKeyword
-            && tokens[index].text.eq_ignore_ascii_case("@property")
-            && let Some((rule, next_index)) = parse_custom_property_registration_rule(tokens, index)
-        {
-            rules.push(rule);
-            index = next_index;
-            continue;
-        }
-        index += 1;
-    }
-
-    rules
-}
-
-fn parse_custom_property_registration_rule(
-    tokens: &[omena_parser::LexedToken],
-    at_property_index: usize,
-) -> Option<(CustomPropertyRegistrationRule, usize)> {
-    let name_index = skip_whitespace_tokens(tokens, at_property_index + 1, tokens.len());
-    let name = normalize_custom_property_name(tokens.get(name_index)?.text.as_str())?.to_string();
-    let block_start_index = at_rule_block_start(tokens, name_index + 1)?;
-    let close_index = matching_right_brace_index(tokens, block_start_index)?;
-    let initial_value =
-        collect_simple_declarations_in_block(tokens, block_start_index, close_index)
-            .into_iter()
-            .find(|declaration| declaration.property == "initial-value" && !declaration.important)
-            .map(|declaration| declaration.value);
-
-    Some((
-        CustomPropertyRegistrationRule {
-            name,
-            start: token_start(&tokens[at_property_index]),
-            end: token_end(&tokens[close_index]),
-            initial_value,
-        },
-        close_index + 1,
-    ))
-}
-
 fn collect_reachable_custom_property_names(
     source: &str,
     tokens: &[omena_parser::LexedToken],
@@ -4815,84 +4686,6 @@ fn enclosing_keyframe_name_for_rule<'a>(
         .iter()
         .find(|keyframe| rule.start >= keyframe.start && rule.end <= keyframe.end)
         .map(|keyframe| keyframe.name.as_str())
-}
-
-fn close_custom_property_dependency_graph(
-    roots: Vec<String>,
-    dependencies_by_name: &BTreeMap<String, Vec<String>>,
-) -> Vec<String> {
-    let mut reachable = Vec::new();
-    let mut queue = roots.into_iter().collect::<VecDeque<_>>();
-
-    while let Some(name) = queue.pop_front() {
-        if reachable.iter().any(|existing| existing == &name) {
-            continue;
-        }
-        reachable.push(name.clone());
-        if let Some(dependencies) = dependencies_by_name.get(&name) {
-            for dependency in dependencies {
-                queue.push_back(dependency.clone());
-            }
-        }
-    }
-
-    reachable.sort();
-    reachable
-}
-
-fn collect_custom_property_references_in_value(value: &str) -> Option<Vec<String>> {
-    let mut names = Vec::new();
-    let mut index = 0usize;
-    let mut quote: Option<char> = None;
-
-    while index < value.len() {
-        let ch = value[index..].chars().next()?;
-
-        if let Some(quote_ch) = quote {
-            index += ch.len_utf8();
-            if ch == '\\' {
-                let escaped = value[index..].chars().next()?;
-                index += escaped.len_utf8();
-            } else if ch == quote_ch {
-                quote = None;
-            }
-            continue;
-        }
-
-        match ch {
-            '"' | '\'' => {
-                quote = Some(ch);
-                index += ch.len_utf8();
-            }
-            _ if value[index..]
-                .get(.."var(".len())
-                .is_some_and(|text| text.eq_ignore_ascii_case("var(")) =>
-            {
-                let left_paren_index = index + "var".len();
-                let close_index = matching_function_call_end(value, left_paren_index)?;
-                let arguments =
-                    split_top_level_value_arguments(&value[left_paren_index + 1..close_index])?;
-                let [name, fallback @ ..] = arguments.as_slice() else {
-                    return None;
-                };
-                let name = normalize_custom_property_name(name)?;
-                push_unique_string(&mut names, name.to_string());
-                for fallback_value in fallback {
-                    for fallback_name in
-                        collect_custom_property_references_in_value(fallback_value)?
-                    {
-                        push_unique_string(&mut names, fallback_name);
-                    }
-                }
-                index = close_index + ')'.len_utf8();
-            }
-            _ => {
-                index += ch.len_utf8();
-            }
-        }
-    }
-
-    Some(names)
 }
 
 fn substitute_static_css_custom_properties_with_lexer(
