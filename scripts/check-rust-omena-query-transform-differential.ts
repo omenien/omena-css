@@ -276,6 +276,11 @@ const fixtures: readonly DifferentialFixture[] = [
       ".a { background-repeat: repeat repeat; overflow-x: visible; overflow-y: visible; }",
   },
   {
+    label: "place-axis-shorthands",
+    source:
+      ".a { align-items: stretch; justify-items: stretch; } .b { align-content: center; justify-content: center; } .c { justify-self: end; align-self: start; } .d { align-items: start !important; justify-items: end !important; }",
+  },
+  {
     label: "alpha-hex-zero-line-height-calc",
     source:
       ".alpha { color: #ffffffff; border-color: #00000000; width: calc(2px * 3); height: calc(6px / 2); line-height: 0em; }",

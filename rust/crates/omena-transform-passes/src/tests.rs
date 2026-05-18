@@ -1406,6 +1406,28 @@ fn execution_runtime_compresses_overflow_and_background_repeat_shorthands() {
 }
 
 #[test]
+fn execution_runtime_compresses_place_axis_shorthands() {
+    let source = r#".items { align-items: stretch; justify-items: stretch; } .content { align-content: center; justify-content: center; } .self { justify-self: end; align-self: start; } .important { align-items: start !important; justify-items: end !important; } .mixed { align-items: first baseline; justify-items: center; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 4);
+    assert_eq!(
+        execution.output_css,
+        r#".items { place-items: stretch stretch; } .content { place-content: center; } .self { place-self: start end; } .important { place-items: start end!important; } .mixed { align-items: first baseline; justify-items: center; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["shorthand-combining", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_compresses_static_flex_shorthands() {
     let source = r#".a { flex: 0 1 auto; } .b { flex: 1 1 0%; } .c { flex: 2 1 0%; } .d { flex: 1 2 0%; } .e { flex: var(--flex); }"#;
     let execution = execute_transform_passes_on_source(

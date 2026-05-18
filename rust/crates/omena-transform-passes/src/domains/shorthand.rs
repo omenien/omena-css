@@ -118,6 +118,7 @@ fn collect_shorthand_replacements_in_block(
         }
     }
     ranges.extend(collect_overflow_axis_replacements(tokens, &declarations));
+    ranges.extend(collect_place_axis_replacements(tokens, &declarations));
     ranges
 }
 
@@ -294,6 +295,97 @@ fn collect_overflow_axis_replacements(
         ranges.push((x.start, y.end, format!("overflow: {};", x.value)));
     }
     ranges
+}
+
+fn collect_place_axis_replacements(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Vec<(usize, usize, String)> {
+    let mut ranges = Vec::new();
+    for pair in declarations.windows(2) {
+        if let Some(replacement) = place_axis_replacement_for_declarations(tokens, pair) {
+            ranges.push(replacement);
+        }
+    }
+    ranges
+}
+
+fn place_axis_replacement_for_declarations(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let [first, second] = declarations else {
+        return None;
+    };
+    if first.important != second.important || !declaration_ranges_are_adjacent(tokens, declarations)
+    {
+        return None;
+    }
+
+    let (shorthand, align_value, justify_value) = place_axis_shorthand_components(first, second)?;
+    let align_value = normalize_single_component_place_value(align_value, first.important)?;
+    let justify_value = normalize_single_component_place_value(justify_value, second.important)?;
+    let shorthand_value = compressed_place_axis_value(shorthand, &align_value, &justify_value);
+    let important = if first.important { "!important" } else { "" };
+
+    Some((
+        first.start,
+        second.end,
+        format!("{shorthand}: {shorthand_value}{important};"),
+    ))
+}
+
+fn place_axis_shorthand_components<'a>(
+    first: &'a SimpleDeclarationSlice,
+    second: &'a SimpleDeclarationSlice,
+) -> Option<(&'static str, &'a str, &'a str)> {
+    match (first.property.as_str(), second.property.as_str()) {
+        ("align-items", "justify-items") => {
+            Some(("place-items", first.value.as_str(), second.value.as_str()))
+        }
+        ("justify-items", "align-items") => {
+            Some(("place-items", second.value.as_str(), first.value.as_str()))
+        }
+        ("align-content", "justify-content") => {
+            Some(("place-content", first.value.as_str(), second.value.as_str()))
+        }
+        ("justify-content", "align-content") => {
+            Some(("place-content", second.value.as_str(), first.value.as_str()))
+        }
+        ("align-self", "justify-self") => {
+            Some(("place-self", first.value.as_str(), second.value.as_str()))
+        }
+        ("justify-self", "align-self") => {
+            Some(("place-self", second.value.as_str(), first.value.as_str()))
+        }
+        _ => None,
+    }
+}
+
+fn normalize_single_component_place_value(value: &str, important: bool) -> Option<String> {
+    let mut components = split_top_level_whitespace_value_components(value)?;
+    if important
+        && components.last().is_some_and(|component| {
+            component.eq_ignore_ascii_case("!important")
+                || component.eq_ignore_ascii_case("important")
+        })
+    {
+        components.pop();
+    }
+    let [component] = components.as_slice() else {
+        return None;
+    };
+    Some(component.to_ascii_lowercase())
+}
+
+fn compressed_place_axis_value(shorthand: &str, align_value: &str, justify_value: &str) -> String {
+    if align_value == justify_value
+        && !(matches!(shorthand, "place-items" | "place-self") && align_value == "stretch")
+    {
+        align_value.to_string()
+    } else {
+        format!("{align_value} {justify_value}")
+    }
 }
 
 pub(crate) fn is_box_shorthand_property(property: &str) -> bool {
