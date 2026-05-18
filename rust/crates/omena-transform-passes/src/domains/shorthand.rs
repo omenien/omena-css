@@ -11,7 +11,10 @@ use crate::{
             compress_list_style_value, list_style_shorthand_replacement_for_declarations,
         },
         shorthand_logical::collect_logical_axis_replacements,
-        shorthand_motion::{compress_animation_value, compress_transition_value},
+        shorthand_motion::{
+            compress_animation_value, compress_transition_value,
+            transition_shorthand_replacement_for_declarations,
+        },
         shorthand_position::collect_background_position_axis_replacements,
         shorthand_text::{
             compress_text_decoration_value, text_decoration_shorthand_replacement_for_declarations,
@@ -108,6 +111,12 @@ fn collect_shorthand_replacements_in_block(
         })
         .or_else(|| {
             text_decoration_shorthand_replacement_for_declarations(
+                tokens,
+                &declarations[index..index + 4],
+            )
+        })
+        .or_else(|| {
+            transition_shorthand_replacement_for_declarations(
                 tokens,
                 &declarations[index..index + 4],
             )

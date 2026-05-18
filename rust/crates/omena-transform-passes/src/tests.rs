@@ -1601,7 +1601,7 @@ fn execution_runtime_compresses_static_flex_shorthands() {
 
 #[test]
 fn execution_runtime_compresses_static_motion_shorthands() {
-    let source = r#".a { transition: all 0s ease 0s; } .b { transition: opacity 0s linear .1s; } .c { transition: opacity 0s ease 0s, color .2s ease 0s; } .d { animation: none 0s ease 0s 1 normal none running; } .e { animation: 0s ease 0s 1 normal none running fade; } .f { animation: fade .2s ease 0s 1 normal none running; }"#;
+    let source = r#".a { transition: all 0s ease 0s; } .b { transition: opacity 0s linear .1s; } .c { transition: opacity 0s ease 0s, color .2s ease 0s; } .d { animation: none 0s ease 0s 1 normal none running; } .e { animation: 0s ease 0s 1 normal none running fade; } .f { animation: fade .2s ease 0s 1 normal none running; } .g { transition-property: all; transition-duration: 0s; transition-timing-function: ease; transition-delay: 0s; } .h { transition-property: opacity; transition-duration: .2s; transition-timing-function: ease; transition-delay: 0s; } .i { transition-property: all !important; transition-duration: 0s !important; transition-timing-function: ease !important; transition-delay: 0s !important; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1610,10 +1610,10 @@ fn execution_runtime_compresses_static_motion_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 4);
+    assert_eq!(execution.mutation_count, 7);
     assert_eq!(
         execution.output_css,
-        r#".a { transition: all; } .b { transition: opacity 0s linear .1s; } .c { transition: opacity,color .2s; } .d { animation: none; } .e { animation: fade; } .f { animation: fade .2s ease 0s 1 normal none running; }"#
+        r#".a { transition: all; } .b { transition: opacity 0s linear .1s; } .c { transition: opacity,color .2s; } .d { animation: none; } .e { animation: fade; } .f { animation: fade .2s ease 0s 1 normal none running; } .g { transition: all; } .h { transition: opacity .2s; } .i { transition: all!important; }"#
     );
 }
 

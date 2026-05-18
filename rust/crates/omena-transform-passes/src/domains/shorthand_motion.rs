@@ -1,10 +1,53 @@
+use omena_parser::LexedToken;
+
 use crate::{
     domains::number::numeric_prefix_end,
     helpers::{
         ascii::normalize_ascii_whitespace,
+        declarations::{SimpleDeclarationSlice, declaration_ranges_are_adjacent},
         values::{split_top_level_value_arguments, split_top_level_whitespace_value_components},
     },
 };
+
+pub(crate) fn transition_shorthand_replacement_for_declarations(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let [property, duration, timing, delay] = declarations else {
+        return None;
+    };
+    if property.property != "transition-property"
+        || duration.property != "transition-duration"
+        || timing.property != "transition-timing-function"
+        || delay.property != "transition-delay"
+        || !declaration_ranges_are_adjacent(tokens, declarations)
+    {
+        return None;
+    }
+
+    let important = property.important;
+    let components = declarations
+        .iter()
+        .map(|declaration| {
+            if declaration.important != important {
+                return None;
+            }
+            single_transition_longhand_value_without_important(declaration)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let [property, duration, timing, delay] = components.as_slice() else {
+        return None;
+    };
+    let shorthand = compress_single_transition_value(
+        format!("{property} {duration} {timing} {delay}").as_str(),
+    )?;
+    let important = if important { "!important" } else { "" };
+    Some((
+        declarations.first()?.start,
+        declarations.last()?.end,
+        format!("transition: {shorthand}{important};"),
+    ))
+}
 
 pub(crate) fn compress_transition_value(value: &str) -> Option<String> {
     let transitions = split_top_level_value_arguments(value)?;
@@ -53,6 +96,24 @@ fn normalize_transition_property(property: &str) -> String {
     } else {
         property.to_string()
     }
+}
+
+fn single_transition_longhand_value_without_important(
+    declaration: &SimpleDeclarationSlice,
+) -> Option<String> {
+    let mut components = split_top_level_whitespace_value_components(&declaration.value)?;
+    if declaration.important
+        && components.last().is_some_and(|component| {
+            component.eq_ignore_ascii_case("!important")
+                || component.eq_ignore_ascii_case("important")
+        })
+    {
+        components.pop();
+    }
+    let [component] = components.as_slice() else {
+        return None;
+    };
+    Some(component.clone())
 }
 
 pub(crate) fn compress_animation_value(value: &str) -> Option<String> {
