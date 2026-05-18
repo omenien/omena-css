@@ -12,8 +12,10 @@ use super::{
     planner::{plan_transform_passes, transform_pass_kind_from_id},
     provenance::{derive_transform_mutation_spans, provenance_derivation_forest_from_outcomes},
 };
-use crate::{
+use crate::model::{
     TransformExecutionContextV0, TransformExecutionSummaryV0, TransformPassRuntimeStatus,
+};
+use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
     compress_css_is_where_selectors, compress_css_numbers, dedupe_exact_css_rules,
     evaluate_dead_media_branch_rules, evaluate_static_media_rules, evaluate_static_supports_rules,
