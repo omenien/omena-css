@@ -1679,6 +1679,23 @@ fn evaluate_modern_static_supports_condition(
         };
     }
 
+    if let Some(selector) = parse_supports_selector_condition(condition) {
+        return match evaluate_modern_supports_selector_condition(selector) {
+            StaticSupportsEvalVerdictV0::AlwaysTrue => (
+                StaticSupportsEvalVerdictV0::AlwaysTrue,
+                "modern-browser assumption accepts selector() feature queries",
+            ),
+            StaticSupportsEvalVerdictV0::AlwaysFalse => (
+                StaticSupportsEvalVerdictV0::AlwaysFalse,
+                "modern-browser assumption rejects known obsolete selector() feature queries",
+            ),
+            StaticSupportsEvalVerdictV0::Unknown => (
+                StaticSupportsEvalVerdictV0::Unknown,
+                "unsupported selector() feature query",
+            ),
+        };
+    }
+
     if let Some((property, value)) = parse_simple_supports_declaration(condition) {
         return match evaluate_modern_simple_supports_declaration(property, value) {
             StaticSupportsEvalVerdictV0::AlwaysTrue => (
@@ -1782,6 +1799,15 @@ fn parse_simple_supports_declaration(condition: &str) -> Option<(&str, &str)> {
     Some((property, value))
 }
 
+fn parse_supports_selector_condition(condition: &str) -> Option<&str> {
+    let arguments = condition.strip_prefix("selector")?.trim_start();
+    let inner = arguments.strip_prefix('(')?.strip_suffix(')')?.trim();
+    (!inner.is_empty()
+        && supports_outer_parens_wrap_entire_condition(arguments)
+        && !inner.contains(['{', '}', ';']))
+    .then_some(inner)
+}
+
 fn strip_supports_grouping_parens(condition: &str) -> Option<&str> {
     let inner = condition.strip_prefix('(')?.strip_suffix(')')?.trim();
     if parse_simple_supports_declaration(condition).is_some()
@@ -1856,6 +1882,14 @@ fn evaluate_modern_simple_supports_declaration(
     value: &str,
 ) -> StaticSupportsEvalVerdictV0 {
     if property.starts_with("-ms-") || value.starts_with("-ms-") {
+        StaticSupportsEvalVerdictV0::AlwaysFalse
+    } else {
+        StaticSupportsEvalVerdictV0::AlwaysTrue
+    }
+}
+
+fn evaluate_modern_supports_selector_condition(selector: &str) -> StaticSupportsEvalVerdictV0 {
+    if selector.contains("-ms-") {
         StaticSupportsEvalVerdictV0::AlwaysFalse
     } else {
         StaticSupportsEvalVerdictV0::AlwaysTrue
@@ -3086,6 +3120,33 @@ mod tests {
         );
         assert_eq!(disjunction.verdict, StaticSupportsEvalVerdictV0::AlwaysTrue);
         assert!(disjunction.provenance_preserved);
+
+        let selector = evaluate_static_supports_condition(
+            "selector(:has(*))",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(selector.verdict, StaticSupportsEvalVerdictV0::AlwaysTrue);
+        assert!(selector.provenance_preserved);
+
+        let obsolete_selector = evaluate_static_supports_condition(
+            "selector(:-ms-input-placeholder)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            obsolete_selector.verdict,
+            StaticSupportsEvalVerdictV0::AlwaysFalse
+        );
+        assert!(obsolete_selector.provenance_preserved);
+
+        let negated_selector = evaluate_static_supports_condition(
+            "not selector(:has(*))",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            negated_selector.verdict,
+            StaticSupportsEvalVerdictV0::AlwaysFalse
+        );
+        assert!(negated_selector.provenance_preserved);
 
         let grouped_disjunction = evaluate_static_supports_condition(
             "((display: grid) or (display: -ms-grid))",
