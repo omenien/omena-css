@@ -293,7 +293,7 @@ fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Optio
         }
         "box-shadow" => normalize_shadow_value(value, true),
         "text-shadow" => normalize_shadow_value(value, false),
-        "transform" => normalize_transform_zero_unit_functions(value),
+        "transform" => normalize_static_transform_functions(value),
         _ => None,
     }
 }
@@ -369,7 +369,7 @@ fn normalize_ascii_position_value(value: &str) -> String {
         .unwrap_or_else(|| value.to_string())
 }
 
-fn normalize_transform_zero_unit_functions(value: &str) -> Option<String> {
+fn normalize_static_transform_functions(value: &str) -> Option<String> {
     let normalized = substitute_static_css_function_references_in_value(
         value,
         &[
@@ -377,6 +377,7 @@ fn normalize_transform_zero_unit_functions(value: &str) -> Option<String> {
             ("rotateX", normalize_zero_angle_transform_function),
             ("rotateY", normalize_zero_angle_transform_function),
             ("rotateZ", normalize_zero_angle_transform_function),
+            ("scale", normalize_repeated_scale_transform_function),
             ("translate", normalize_unary_zero_length_transform_function),
         ],
     )?;
@@ -389,6 +390,35 @@ fn normalize_zero_angle_transform_function(value: &str) -> Option<String> {
 
 fn normalize_unary_zero_length_transform_function(value: &str) -> Option<String> {
     normalize_unary_zero_transform_function(value, is_css_length_unit)
+}
+
+fn normalize_repeated_scale_transform_function(value: &str) -> Option<String> {
+    let open_index = value.find('(')?;
+    let arguments =
+        split_top_level_value_arguments(value.get(open_index + 1..value.len().checked_sub(1)?)?)?;
+    let [first, second] = arguments.as_slice() else {
+        return None;
+    };
+    let first = normalize_transform_number(first)?;
+    let second = normalize_transform_number(second)?;
+    if first != second {
+        return None;
+    }
+
+    let replacement = format!("scale({first})");
+    (replacement.len() < value.len()).then_some(replacement)
+}
+
+fn normalize_transform_number(value: &str) -> Option<String> {
+    let value = value.trim();
+    let split = numeric_prefix_end(value)?;
+    if split != value.len() {
+        return None;
+    }
+    let parsed = value.parse::<f64>().ok()?;
+    parsed
+        .is_finite()
+        .then(|| compress_number_prefix(&format_css_number(parsed)))
 }
 
 fn normalize_unary_zero_transform_function(

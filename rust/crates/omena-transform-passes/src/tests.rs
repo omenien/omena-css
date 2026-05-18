@@ -948,6 +948,28 @@ fn execution_runtime_normalizes_zero_transform_function_units() {
 }
 
 #[test]
+fn execution_runtime_normalizes_repeated_transform_scale_values() {
+    let source = r#".a { transform: scale(1, 1) scale(2, 2) scale(.5, .5) scale(1, 2); } .b { transform: scale(var(--x), var(--x)); }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::UnitNormalization,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(
+        execution.output_css,
+        r#".a { transform: scale(1)scale(2)scale(.5)scale(1, 2); } .b { transform: scale(var(--x), var(--x)); }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["unit-normalization", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_normalizes_static_shadow_zero_lengths() {
     let source = r#".a { box-shadow: 0px 0px 0px #000; } .b { box-shadow: inset 1px 2px 0px 0px #000; } .c { text-shadow: 1px 2px 0px #000; } .d { box-shadow: 1px 2px 0px 5px #000; }"#;
     let execution = execute_transform_passes_on_source(
