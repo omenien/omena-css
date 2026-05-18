@@ -56,6 +56,12 @@ interface ConsumerBuildSummaryV0 {
   readonly execution: {
     readonly outputCss: string;
     readonly executedPassIds: readonly string[];
+    readonly plannedOnlyPassIds: readonly string[];
+    readonly mutationCount: number;
+    readonly cssModuleEvaluation?: {
+      readonly evaluator: string;
+      readonly evaluatedCss: string;
+    } | null;
     readonly semanticRemovals: readonly {
       readonly passId: string;
       readonly symbolKind: string;
@@ -1862,6 +1868,122 @@ assertIncludesAll(
   ),
   ["cssModuleValue:dead", "cssModuleIcssExport:dead-public"],
   "ICSS export reachability removals",
+);
+
+const staticScssEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-source",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "Button.module.scss",
+      styleSource: "$brand: red; .button { color: $brand; }",
+      requestedPassIds: [
+        "scss-module-evaluate",
+        "css-modules-class-hashing",
+        "print-css",
+      ],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(staticScssEvaluationResult.status, 0, staticScssEvaluationResult.stderr);
+assert.equal(staticScssEvaluationResult.error, undefined);
+
+const staticScssEvaluationSummary = JSON.parse(
+  staticScssEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.equal(
+  staticScssEvaluationSummary.product,
+  "omena-query.consumer-build-style-source",
+);
+assert.deepEqual(staticScssEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert.deepEqual(staticScssEvaluationSummary.execution.executedPassIds, [
+  "scss-module-evaluate",
+  "css-modules-class-hashing",
+  "print-css",
+]);
+assert.equal(
+  staticScssEvaluationSummary.execution.cssModuleEvaluation?.evaluator,
+  "omena-query-static-scss-variable-evaluator",
+);
+assert.equal(
+  staticScssEvaluationSummary.execution.cssModuleEvaluation?.evaluatedCss,
+  " .button { color: red; }",
+);
+assert.equal(
+  staticScssEvaluationSummary.execution.outputCss,
+  " ._button_0{ color: red; }",
+);
+
+const staticLessEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-source",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "Button.module.less",
+      styleSource: "@brand: red; .button { color: @brand; }",
+      requestedPassIds: [
+        "less-module-evaluate",
+        "css-modules-class-hashing",
+        "print-css",
+      ],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(staticLessEvaluationResult.status, 0, staticLessEvaluationResult.stderr);
+assert.equal(staticLessEvaluationResult.error, undefined);
+
+const staticLessEvaluationSummary = JSON.parse(
+  staticLessEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.equal(
+  staticLessEvaluationSummary.product,
+  "omena-query.consumer-build-style-source",
+);
+assert.deepEqual(staticLessEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert.deepEqual(staticLessEvaluationSummary.execution.executedPassIds, [
+  "less-module-evaluate",
+  "css-modules-class-hashing",
+  "print-css",
+]);
+assert.equal(
+  staticLessEvaluationSummary.execution.cssModuleEvaluation?.evaluator,
+  "omena-query-static-less-variable-evaluator",
+);
+assert.equal(
+  staticLessEvaluationSummary.execution.cssModuleEvaluation?.evaluatedCss,
+  " .button { color: red; }",
+);
+assert.equal(
+  staticLessEvaluationSummary.execution.outputCss,
+  " ._button_0{ color: red; }",
 );
 assert.equal(icssExportReachabilitySummary.semanticRemovalCount, 2);
 

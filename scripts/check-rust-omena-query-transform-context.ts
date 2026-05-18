@@ -21,6 +21,14 @@ interface TransformContextSummaryV0 {
     readonly reachableKeyframeNames: readonly string[];
     readonly reachableValueNames: readonly string[];
     readonly reachableCustomPropertyNames: readonly string[];
+    readonly scssModuleEvaluation?: {
+      readonly evaluator: string;
+      readonly evaluatedCss: string;
+    } | null;
+    readonly lessModuleEvaluation?: {
+      readonly evaluator: string;
+      readonly evaluatedCss: string;
+    } | null;
     readonly importInlines: readonly {
       readonly importSource: string;
       readonly replacementCss: string;
@@ -204,6 +212,69 @@ assertIncludesAll(
   "value transform context ready surfaces",
 );
 
+const stylesheetEvaluationContextResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-context",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "src/Button.module.scss",
+      styles: [
+        {
+          stylePath: "src/Button.module.scss",
+          styleSource: "$brand: red; .button { color: $brand; }",
+        },
+        {
+          stylePath: "src/Button.module.less",
+          styleSource: "@brand: blue; .button { color: @brand; }",
+        },
+      ],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  stylesheetEvaluationContextResult.status,
+  0,
+  stylesheetEvaluationContextResult.stderr,
+);
+assert.equal(stylesheetEvaluationContextResult.error, undefined);
+
+const stylesheetEvaluationContextSummary = JSON.parse(
+  stylesheetEvaluationContextResult.stdout,
+) as TransformContextSummaryV0;
+
+assert.equal(stylesheetEvaluationContextSummary.product, "omena-query.transform-context");
+assert.equal(stylesheetEvaluationContextSummary.targetStylePath, "src/Button.module.scss");
+assert.equal(
+  stylesheetEvaluationContextSummary.context.scssModuleEvaluation?.evaluator,
+  "omena-query-static-scss-variable-evaluator",
+);
+assert.equal(
+  stylesheetEvaluationContextSummary.context.scssModuleEvaluation?.evaluatedCss,
+  " .button { color: red; }",
+);
+assert.equal(
+  stylesheetEvaluationContextSummary.context.lessModuleEvaluation,
+  null,
+);
+assertIncludesAll(
+  stylesheetEvaluationContextSummary.readySurfaces,
+  ["stylesheetModuleEvaluationProducer"],
+  "stylesheet evaluation transform context ready surfaces",
+);
+
 process.stdout.write(
   [
     "validated omena-query transform-context runtime:",
@@ -212,6 +283,7 @@ process.stdout.write(
     `rewrites=${summary.classNameRewriteCount}`,
     `composes=${summary.cssModuleComposesResolutionCount}`,
     `values=${valueContextSummary.cssModuleValueResolutionCount}`,
+    `stylesheetEval=${stylesheetEvaluationContextSummary.context.scssModuleEvaluation ? 1 : 0}`,
     `reachableClasses=${summary.reachableClassNameCount}`,
   ].join(" "),
 );

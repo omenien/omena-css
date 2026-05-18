@@ -5,6 +5,8 @@ use omena_transform_passes::{
     resolve_static_css_modules_local_value_resolutions_from_source,
 };
 
+use super::stylesheet_evaluation::derive_static_stylesheet_module_evaluation;
+
 pub fn summarize_omena_query_transform_plan_from_source(
     style_path: &str,
     style_source: &str,
@@ -786,6 +788,21 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
     let mut context = TransformExecutionContextV0::default();
 
     if let Some(entry) = target_entry {
+        match omena_parser_dialect_for_style_path(entry.style_path.as_str()) {
+            OmenaParserStyleDialect::Scss | OmenaParserStyleDialect::Sass => {
+                context.scss_module_evaluation = derive_static_stylesheet_module_evaluation(
+                    entry.style_source.as_str(),
+                    omena_parser_dialect_for_style_path(entry.style_path.as_str()),
+                );
+            }
+            OmenaParserStyleDialect::Less => {
+                context.less_module_evaluation = derive_static_stylesheet_module_evaluation(
+                    entry.style_source.as_str(),
+                    OmenaParserStyleDialect::Less,
+                );
+            }
+            OmenaParserStyleDialect::Css => {}
+        }
         context.import_inlines = derive_import_inlines_for_transform_context(
             entry,
             &available_style_paths,
@@ -832,6 +849,7 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
         context,
         ready_surfaces: vec![
             "transformContextProducer",
+            "stylesheetModuleEvaluationProducer",
             "cssModuleClassRewriteProducer",
             "cssModuleComposesResolutionProducer",
             "cssModuleValueResolutionProducer",

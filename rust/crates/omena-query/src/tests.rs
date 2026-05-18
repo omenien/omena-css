@@ -876,6 +876,78 @@ fn consumer_build_accepts_explicit_scss_evaluator_context() {
 }
 
 #[test]
+fn consumer_build_derives_static_scss_evaluator_context() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        "$brand: red; .button { color: $brand; }",
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(summary.execution.output_css.contains("._button_0"));
+    assert_eq!(
+        summary
+            .execution
+            .css_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.evaluator.as_str()),
+        Some("omena-query-static-scss-variable-evaluator")
+    );
+}
+
+#[test]
+fn consumer_build_derives_static_less_evaluator_context() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@brand: red; .button { color: @brand; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(summary.execution.output_css.contains("._button_0"));
+    assert_eq!(
+        summary
+            .execution
+            .css_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.evaluator.as_str()),
+        Some("omena-query-static-less-variable-evaluator")
+    );
+}
+
+#[test]
 fn consumer_build_derives_workspace_context_for_import_inline_and_composes() {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {
@@ -1448,6 +1520,70 @@ fn derives_transform_context_from_workspace_sources() {
         vec!["base", "button"]
     );
     assert!(summary.ready_surfaces.contains(&"transformContextProducer"));
+}
+
+#[test]
+fn derives_transform_context_with_static_stylesheet_module_evaluation() {
+    let scss_summary = summarize_omena_query_transform_context_from_sources(
+        "Button.module.scss",
+        [(
+            "Button.module.scss",
+            "$brand: red; .button { color: $brand; }",
+        )],
+        &[],
+    );
+    let less_summary = summarize_omena_query_transform_context_from_sources(
+        "Button.module.less",
+        [(
+            "Button.module.less",
+            "@brand: red; .button { color: @brand; }",
+        )],
+        &[],
+    );
+
+    assert_eq!(
+        scss_summary
+            .context
+            .scss_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.evaluated_css.as_str()),
+        Some(" .button { color: red; }")
+    );
+    assert_eq!(
+        less_summary
+            .context
+            .less_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.evaluated_css.as_str()),
+        Some(" .button { color: red; }")
+    );
+    assert!(
+        scss_summary
+            .ready_surfaces
+            .contains(&"stylesheetModuleEvaluationProducer")
+    );
+    assert!(
+        less_summary
+            .ready_surfaces
+            .contains(&"stylesheetModuleEvaluationProducer")
+    );
+
+    let declaration_only_summary = summarize_omena_query_transform_context_from_sources(
+        "Tokens.module.scss",
+        [(
+            "Tokens.module.scss",
+            "$unused: 1px; .button { color: red; }",
+        )],
+        &[],
+    );
+    assert_eq!(
+        declaration_only_summary
+            .context
+            .scss_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.evaluated_css.as_str()),
+        Some(" .button { color: red; }")
+    );
 }
 
 #[test]

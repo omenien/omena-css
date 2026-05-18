@@ -6,6 +6,7 @@ mod completion;
 mod diagnostics;
 mod parser_facade;
 mod source_refs;
+mod stylesheet_evaluation;
 mod transform;
 
 pub use cascade_position::*;
