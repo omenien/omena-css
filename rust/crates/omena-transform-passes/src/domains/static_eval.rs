@@ -10,7 +10,7 @@ use crate::{
     domains::number::{
         parse_numeric_value_with_unit, parse_reducible_abs_value, parse_reducible_calc_value,
         parse_reducible_clamp_value, parse_reducible_max_value, parse_reducible_min_value,
-        parse_reducible_sign_value,
+        parse_reducible_round_value, parse_reducible_sign_value,
     },
     helpers::{
         ascii::normalize_ascii_whitespace,
@@ -373,6 +373,7 @@ fn normalize_static_media_range_value(value: &str) -> Cow<'_, str> {
             ("clamp", parse_reducible_clamp_value),
             ("abs", parse_reducible_abs_value),
             ("sign", parse_reducible_sign_value),
+            ("round", parse_reducible_round_value),
         ],
     )
     .map(Cow::Owned)

@@ -30,6 +30,34 @@ pub(crate) fn parse_reducible_sign_value(value: &str) -> Option<String> {
     Some(format_css_number(value))
 }
 
+pub(crate) fn parse_reducible_round_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "round")?;
+    let (strategy, value, interval) = match arguments.as_slice() {
+        [value, interval] => (
+            StaticRoundStrategy::Nearest,
+            value.as_str(),
+            interval.as_str(),
+        ),
+        [strategy, value, interval] => (
+            StaticRoundStrategy::parse(strategy.trim())?,
+            value.as_str(),
+            interval.as_str(),
+        ),
+        _ => return None,
+    };
+    let value = parse_reducible_numeric_expression(value.trim())?;
+    let interval = parse_reducible_numeric_expression(interval.trim())?;
+    if value.unit != interval.unit || interval.value <= 0.0 {
+        return None;
+    }
+    let quotient = value.value / interval.value;
+    let rounded = strategy.apply(quotient)?;
+    Some(format_numeric_value_with_unit(NumericValueWithUnit {
+        value: rounded * interval.value,
+        unit: value.unit,
+    }))
+}
+
 pub(crate) fn parse_reducible_min_value(value: &str) -> Option<String> {
     parse_reducible_extreme_value(value, "min", f64::min)
 }
@@ -79,6 +107,40 @@ fn parse_reducible_extreme_value(
 pub(crate) struct NumericValueWithUnit<'a> {
     pub(crate) value: f64,
     pub(crate) unit: &'a str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticRoundStrategy {
+    Nearest,
+    Up,
+    Down,
+    ToZero,
+}
+
+impl StaticRoundStrategy {
+    fn parse(text: &str) -> Option<Self> {
+        match text.to_ascii_lowercase().as_str() {
+            "nearest" => Some(Self::Nearest),
+            "up" => Some(Self::Up),
+            "down" => Some(Self::Down),
+            "to-zero" => Some(Self::ToZero),
+            _ => None,
+        }
+    }
+
+    fn apply(self, value: f64) -> Option<f64> {
+        match self {
+            Self::Nearest if quotient_is_halfway_between_integers(value) => None,
+            Self::Nearest => Some(value.round()),
+            Self::Up => Some(value.ceil()),
+            Self::Down => Some(value.floor()),
+            Self::ToZero => Some(value.trunc()),
+        }
+    }
+}
+
+fn quotient_is_halfway_between_integers(value: f64) -> bool {
+    (value.abs().fract() - 0.5).abs() < f64::EPSILON
 }
 
 pub(crate) fn parse_numeric_value_with_unit(text: &str) -> Option<NumericValueWithUnit<'_>> {

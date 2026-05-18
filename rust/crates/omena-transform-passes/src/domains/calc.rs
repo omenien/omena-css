@@ -4,7 +4,8 @@ use omena_syntax::SyntaxKind;
 use crate::{
     domains::number::{
         parse_reducible_abs_value, parse_reducible_calc_value, parse_reducible_clamp_value,
-        parse_reducible_max_value, parse_reducible_min_value, parse_reducible_sign_value,
+        parse_reducible_max_value, parse_reducible_min_value, parse_reducible_round_value,
+        parse_reducible_sign_value,
     },
     helpers::{
         declarations::{
@@ -38,6 +39,7 @@ pub(crate) fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) ->
                             ("clamp", parse_reducible_clamp_value),
                             ("abs", parse_reducible_abs_value),
                             ("sign", parse_reducible_sign_value),
+                            ("round", parse_reducible_round_value),
                         ],
                     )
                 else {
