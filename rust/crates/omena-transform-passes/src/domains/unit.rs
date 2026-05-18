@@ -14,6 +14,7 @@ use crate::{
         },
         values::split_top_level_value_arguments,
         values::split_top_level_whitespace_value_components,
+        values::substitute_static_css_function_references_in_value,
     },
 };
 
@@ -292,6 +293,7 @@ fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Optio
         }
         "box-shadow" => normalize_shadow_value(value, true),
         "text-shadow" => normalize_shadow_value(value, false),
+        "transform" => normalize_transform_zero_unit_functions(value),
         _ => None,
     }
 }
@@ -365,6 +367,121 @@ fn normalize_ascii_position_value(value: &str) -> String {
     split_top_level_whitespace_value_components(value)
         .map(|components| components.join(" "))
         .unwrap_or_else(|| value.to_string())
+}
+
+fn normalize_transform_zero_unit_functions(value: &str) -> Option<String> {
+    let normalized = substitute_static_css_function_references_in_value(
+        value,
+        &[
+            ("rotate", normalize_zero_angle_transform_function),
+            ("rotateX", normalize_zero_angle_transform_function),
+            ("rotateY", normalize_zero_angle_transform_function),
+            ("rotateZ", normalize_zero_angle_transform_function),
+            ("translate", normalize_unary_zero_length_transform_function),
+        ],
+    )?;
+    Some(compact_transform_function_separators(&normalized))
+}
+
+fn normalize_zero_angle_transform_function(value: &str) -> Option<String> {
+    normalize_unary_zero_transform_function(value, is_css_angle_unit)
+}
+
+fn normalize_unary_zero_length_transform_function(value: &str) -> Option<String> {
+    normalize_unary_zero_transform_function(value, is_css_length_unit)
+}
+
+fn normalize_unary_zero_transform_function(
+    value: &str,
+    is_unit: fn(&str) -> bool,
+) -> Option<String> {
+    let open_index = value.find('(')?;
+    let function_name = value.get(..open_index)?;
+    let inner = value
+        .get(open_index + 1..value.len().checked_sub(1)?)?
+        .trim();
+    if inner.contains(',') {
+        return None;
+    }
+    let split = numeric_prefix_end(inner)?;
+    if split == 0 || split == inner.len() {
+        return None;
+    }
+    let (number, unit) = inner.split_at(split);
+    if !is_zero_number_prefix(number) || !is_unit(unit) {
+        return None;
+    }
+
+    Some(format!("{function_name}(0)"))
+}
+
+fn is_css_angle_unit(unit: &str) -> bool {
+    matches!(
+        unit.to_ascii_lowercase().as_str(),
+        "deg" | "grad" | "rad" | "turn"
+    )
+}
+
+fn compact_transform_function_separators(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    let mut index = 0usize;
+    let mut depth = 0usize;
+
+    while index < value.len() {
+        let Some(ch) = value[index..].chars().next() else {
+            break;
+        };
+        if ch.is_ascii_whitespace()
+            && depth == 0
+            && output.ends_with(')')
+            && next_transform_component_starts(value, index)
+        {
+            while index < value.len() {
+                let Some(whitespace) = value[index..].chars().next() else {
+                    break;
+                };
+                if !whitespace.is_ascii_whitespace() {
+                    break;
+                }
+                index += whitespace.len_utf8();
+            }
+            continue;
+        }
+
+        match ch {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        output.push(ch);
+        index += ch.len_utf8();
+    }
+
+    output
+}
+
+fn next_transform_component_starts(value: &str, index: usize) -> bool {
+    let mut cursor = index;
+    while cursor < value.len() {
+        let Some(ch) = value[cursor..].chars().next() else {
+            return false;
+        };
+        if !ch.is_ascii_whitespace() {
+            break;
+        }
+        cursor += ch.len_utf8();
+    }
+    let name_start = cursor;
+    while cursor < value.len() {
+        let Some(ch) = value[cursor..].chars().next() else {
+            return false;
+        };
+        if !(ch.is_ascii_alphabetic() || ch == '-') {
+            break;
+        }
+        cursor += ch.len_utf8();
+    }
+    cursor > name_start && value[cursor..].starts_with('(')
 }
 
 fn normalize_aspect_ratio_value(value: &str) -> Option<String> {

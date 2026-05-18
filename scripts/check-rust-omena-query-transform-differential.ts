@@ -205,6 +205,10 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { transition-duration: 100ms; transition-delay: .05s; animation-delay: 0ms; }",
   },
   {
+    label: "transform-zero-unit-normalization",
+    source: ".a { transform: rotate(0deg) translate(0px); }",
+  },
+  {
     label: "font-family-list",
     source: '.fonts { font-family: "Arial", "Helvetica Neue", "system-ui", sans-serif; }',
   },
