@@ -211,6 +211,8 @@ fn shorthand_value_replacement_for_declaration(
         compress_flex_value(&declaration.value)
     } else if declaration.property == "flex-flow" {
         compress_flex_flow_value(&declaration.value)
+    } else if is_place_axis_shorthand_property(&declaration.property) {
+        compress_place_axis_shorthand_value(&declaration.property, &declaration.value)
     } else if declaration.property == "gap" {
         compress_gap_value(&declaration.value, declaration.important)
     } else if declaration.property == "inset" {
@@ -488,6 +490,48 @@ fn compressed_place_axis_value(shorthand: &str, align_value: &str, justify_value
     } else {
         format!("{align_value} {justify_value}")
     }
+}
+
+fn is_place_axis_shorthand_property(property: &str) -> bool {
+    matches!(property, "place-content" | "place-items" | "place-self")
+}
+
+fn compress_place_axis_shorthand_value(property: &str, value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let [align_value, justify_value] = components.as_slice() else {
+        return None;
+    };
+    let align_value = align_value.to_ascii_lowercase();
+    let justify_value = justify_value.to_ascii_lowercase();
+    if !is_place_single_component_keyword(&align_value)
+        || !is_place_single_component_keyword(&justify_value)
+    {
+        return None;
+    }
+    let replacement = compressed_place_axis_value(property, &align_value, &justify_value);
+    (replacement != normalize_ascii_whitespace(value)).then_some(replacement)
+}
+
+fn is_place_single_component_keyword(value: &str) -> bool {
+    matches!(
+        value,
+        "auto"
+            | "normal"
+            | "stretch"
+            | "center"
+            | "start"
+            | "end"
+            | "flex-start"
+            | "flex-end"
+            | "self-start"
+            | "self-end"
+            | "left"
+            | "right"
+            | "baseline"
+            | "space-between"
+            | "space-around"
+            | "space-evenly"
+    )
 }
 
 fn compress_gap_value(value: &str, important: bool) -> Option<String> {
