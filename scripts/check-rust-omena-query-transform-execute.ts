@@ -366,6 +366,55 @@ assert.deepEqual(groupedComposesSummary.execution.executedPassIds, [
 ]);
 assert.equal(groupedComposesSummary.execution.mutationCount, 1);
 
+const globalComposesHashResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "Button.module.css",
+      styleSource: ".button { composes: base global(reset); color: red; } .base { color: blue; }",
+      requestedPassIds: ["css-modules-class-hashing", "print-css"],
+      transformContext: {
+        classNameRewrites: [
+          { originalName: "button", rewrittenName: "_button_x" },
+          { originalName: "base", rewrittenName: "_base_y" },
+          { originalName: "reset", rewrittenName: "_reset_should_not_apply" },
+        ],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(globalComposesHashResult.status, 0, globalComposesHashResult.stderr);
+assert.equal(globalComposesHashResult.error, undefined);
+
+const globalComposesHashSummary = JSON.parse(
+  globalComposesHashResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(globalComposesHashSummary.product, "omena-query.transform-execute");
+assert.equal(
+  globalComposesHashSummary.execution.outputCss,
+  "._button_x{ composes: _base_y reset; color: red; } ._base_y{ color: blue; }",
+);
+assert.deepEqual(globalComposesHashSummary.execution.executedPassIds, [
+  "css-modules-class-hashing",
+  "print-css",
+]);
+assert.equal(globalComposesHashSummary.execution.mutationCount, 3);
+
 const alphaColorFunctionResult = spawnSync(
   "cargo",
   [
@@ -870,6 +919,7 @@ process.stdout.write(
     `contextExecuted=${contextSummary.execution.executedPassIds.length}`,
     `contextMutations=${contextSummary.execution.mutationCount}`,
     `groupedComposesMutations=${groupedComposesSummary.execution.mutationCount}`,
+    `globalComposesHashMutations=${globalComposesHashSummary.execution.mutationCount}`,
     `alphaColorMutations=${alphaColorFunctionSummary.execution.mutationCount}`,
     `alphaOkColorMutations=${alphaOkColorSummary.execution.mutationCount}`,
     `compositeValueMutations=${compositeValueSummary.execution.mutationCount}`,

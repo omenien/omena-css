@@ -5018,6 +5018,11 @@ fn rewrite_local_composes_value(
     let mut changed = false;
     let mut parts = Vec::new();
     for part in value.split_whitespace() {
+        if let Some(global_name) = parse_global_composes_part(part) {
+            changed = true;
+            parts.push(global_name.to_string());
+            continue;
+        }
         if !css_identifier_text_is_plain(part) {
             return None;
         }
@@ -5029,6 +5034,20 @@ fn rewrite_local_composes_value(
         }
     }
     changed.then(|| parts.join(" "))
+}
+
+fn parse_global_composes_part(part: &str) -> Option<&str> {
+    const GLOBAL_PREFIX: &str = "global(";
+    if !starts_with_ascii_case_insensitive(part, GLOBAL_PREFIX) {
+        return None;
+    }
+    let end = matching_function_end(part, GLOBAL_PREFIX.len() - 1)?;
+    if end != part.len() {
+        return None;
+    }
+    let inner = part[GLOBAL_PREFIX.len()..end.saturating_sub(1)].trim();
+    let class_name = normalize_reachable_class_name(inner)?;
+    css_identifier_text_is_plain(class_name).then_some(class_name)
 }
 
 fn rewritten_class_name_for<'a>(
@@ -11354,7 +11373,7 @@ mod tests {
 
     #[test]
     fn execution_runtime_rewrites_css_module_class_names_with_identity_map() {
-        let source = r#".button { composes: base utility; color: red; } .base, .utility { color: blue; } .button:hover { color: green; } .button :global(.external) { color: purple; } :global(.root) .button { color: orange; } :global(.standalone) { color: teal; } :global { .global-block { color: silver; } } :local(.button) { color: navy; } :local { .button { color: maroon; } } @media (min-width: 1px) { .button { color: black; } }"#;
+        let source = r#".button { composes: base utility global(reset); color: red; } .base, .utility { color: blue; } .button:hover { color: green; } .button :global(.external) { color: purple; } :global(.root) .button { color: orange; } :global(.standalone) { color: teal; } :global { .global-block { color: silver; } } :local(.button) { color: navy; } :local { .button { color: maroon; } } @media (min-width: 1px) { .button { color: black; } }"#;
         let context = TransformExecutionContextV0 {
             class_name_rewrites: vec![
                 TransformClassNameRewriteV0 {
@@ -11381,6 +11400,10 @@ mod tests {
                     original_name: "global-block".to_string(),
                     rewritten_name: "_global_block_should_not_apply".to_string(),
                 },
+                TransformClassNameRewriteV0 {
+                    original_name: "reset".to_string(),
+                    rewritten_name: "_reset_should_not_apply".to_string(),
+                },
             ],
             ..TransformExecutionContextV0::default()
         };
@@ -11397,7 +11420,7 @@ mod tests {
         assert_eq!(execution.mutation_count, 14);
         assert_eq!(
             execution.output_css,
-            r#"._button_abc123{ composes: _base_def456 _utility_ghi789; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } ._button_abc123:hover{ color: green; } ._button_abc123 .external{ color: purple; } .root ._button_abc123{ color: orange; } .standalone{ color: teal; }  .global-block { color: silver; }  ._button_abc123{ color: navy; }  ._button_abc123{ color: maroon; }  @media (min-width: 1px) { ._button_abc123{ color: black; } }"#
+            r#"._button_abc123{ composes: _base_def456 _utility_ghi789 reset; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } ._button_abc123:hover{ color: green; } ._button_abc123 .external{ color: purple; } .root ._button_abc123{ color: orange; } .standalone{ color: teal; }  .global-block { color: silver; }  ._button_abc123{ color: navy; }  ._button_abc123{ color: maroon; }  @media (min-width: 1px) { ._button_abc123{ color: black; } }"#
         );
         assert_eq!(
             execution.executed_pass_ids,
