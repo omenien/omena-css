@@ -46,6 +46,42 @@ pub(crate) fn text_decoration_shorthand_replacement_for_declarations(
     ))
 }
 
+pub(crate) fn text_emphasis_shorthand_replacement_for_declarations(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let [style, color] = declarations else {
+        return None;
+    };
+    if style.property != "text-emphasis-style"
+        || color.property != "text-emphasis-color"
+        || style.important != color.important
+        || !declaration_ranges_are_adjacent(tokens, declarations)
+    {
+        return None;
+    }
+    let style_value = text_emphasis_style_without_important(&style.value, style.important)?;
+    let color_value = single_component_value_without_important(&color.value, color.important)?;
+    let shorthand_value = compressed_text_emphasis_components(&style_value, &color_value)?;
+    let important = if style.important { "!important" } else { "" };
+
+    Some((
+        style.start,
+        color.end,
+        format!("text-emphasis: {shorthand_value}{important};"),
+    ))
+}
+
+pub(crate) fn collect_text_emphasis_replacements(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Vec<(usize, usize, String)> {
+    declarations
+        .windows(2)
+        .filter_map(|pair| text_emphasis_shorthand_replacement_for_declarations(tokens, pair))
+        .collect()
+}
+
 pub(crate) fn compress_text_decoration_value(value: &str, important: bool) -> Option<String> {
     let mut components = split_top_level_whitespace_value_components(value)?;
     if important
@@ -85,6 +121,22 @@ pub(crate) fn compress_text_decoration_value(value: &str, important: bool) -> Op
     (replacement != normalize_ascii_whitespace(value)).then_some(replacement)
 }
 
+fn text_emphasis_style_without_important(value: &str, important: bool) -> Option<String> {
+    let mut components = split_top_level_whitespace_value_components(value)?;
+    if important
+        && components.last().is_some_and(|component| {
+            component.eq_ignore_ascii_case("!important")
+                || component.eq_ignore_ascii_case("important")
+        })
+    {
+        components.pop();
+    }
+    if components.is_empty() || components.len() > 2 {
+        return None;
+    }
+    Some(components.join(" "))
+}
+
 fn single_component_value_without_important(value: &str, important: bool) -> Option<String> {
     let mut components = split_top_level_whitespace_value_components(value)?;
     if important
@@ -99,6 +151,46 @@ fn single_component_value_without_important(value: &str, important: bool) -> Opt
         return None;
     };
     Some(component.clone())
+}
+
+fn compressed_text_emphasis_components(style: &str, color: &str) -> Option<String> {
+    let style = compressed_text_emphasis_style(style)?;
+    let color = color.to_ascii_lowercase();
+    if !is_text_decoration_color_component(&color) {
+        return None;
+    }
+    if color == "currentcolor" {
+        Some(style)
+    } else {
+        Some(format!("{style} {color}"))
+    }
+}
+
+fn compressed_text_emphasis_style(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let components = components
+        .into_iter()
+        .map(|component| component.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    match components
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        ["none"] => Some("none".to_string()),
+        [mark] if is_text_emphasis_mark(mark) => Some(mark.to_string()),
+        ["filled", mark] if is_text_emphasis_mark(mark) => Some(mark.to_string()),
+        ["open", mark] if is_text_emphasis_mark(mark) => Some(format!("open {mark}")),
+        _ => None,
+    }
+}
+
+fn is_text_emphasis_mark(value: &str) -> bool {
+    matches!(
+        value,
+        "dot" | "circle" | "double-circle" | "triangle" | "sesame"
+    )
 }
 
 fn compressed_text_decoration_components(

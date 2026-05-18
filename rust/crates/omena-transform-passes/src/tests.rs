@@ -1510,7 +1510,7 @@ fn execution_runtime_compresses_scroll_box_shorthands() {
 
 #[test]
 fn execution_runtime_compresses_text_decoration_shorthands() {
-    let source = r#".a { text-decoration-line: underline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; } .b { text-decoration: underline solid red auto; } .c { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: red; text-decoration-thickness: 1px; } .important { text-decoration-line: underline !important; text-decoration-style: solid !important; text-decoration-color: currentcolor !important; text-decoration-thickness: auto !important; } .mixed { text-decoration-line: underline overline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; }"#;
+    let source = r#".a { text-decoration-line: underline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; } .b { text-decoration: underline solid red auto; } .c { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: red; text-decoration-thickness: 1px; } .important { text-decoration-line: underline !important; text-decoration-style: solid !important; text-decoration-color: currentcolor !important; text-decoration-thickness: auto !important; } .mixed { text-decoration-line: underline overline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; } .em-a { text-emphasis-style: none; text-emphasis-color: currentcolor; } .em-b { text-emphasis-style: filled dot; text-emphasis-color: red; } .em-c { text-emphasis-style: open sesame !important; text-emphasis-color: currentcolor !important; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1519,10 +1519,10 @@ fn execution_runtime_compresses_text_decoration_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 4);
+    assert_eq!(execution.mutation_count, 7);
     assert_eq!(
         execution.output_css,
-        r#".a { text-decoration: underline; } .b { text-decoration: underline red; } .c { text-decoration: underline 1px wavy red; } .important { text-decoration: underline!important; } .mixed { text-decoration-line: underline overline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; }"#
+        r#".a { text-decoration: underline; } .b { text-decoration: underline red; } .c { text-decoration: underline 1px wavy red; } .important { text-decoration: underline!important; } .mixed { text-decoration-line: underline overline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; } .em-a { text-emphasis: none; } .em-b { text-emphasis: dot red; } .em-c { text-emphasis: open sesame!important; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,
