@@ -102,6 +102,10 @@ pub(crate) fn is_static_color_reference_property(property: &str) -> bool {
     )
 }
 
+fn is_static_color_compression_property(property: &str) -> bool {
+    is_static_color_reference_property(property) && property != "column-rule"
+}
+
 pub(crate) fn compress_css_colors_with_lexer(
     source: &str,
     dialect: StyleDialect,
@@ -252,7 +256,7 @@ fn remove_adjacent_duplicate_static_color_declarations_with_lexer(
                     || right.important
                     || left.property != right.property
                     || left.value != right.value
-                    || !is_static_color_reference_property(&left.property)
+                    || !is_static_color_compression_property(&left.property)
                 {
                     continue;
                 }
@@ -298,7 +302,7 @@ fn compress_static_color_references_in_declaration_value(
     property: &str,
     value: &str,
 ) -> Option<String> {
-    if !is_static_color_reference_property(property) {
+    if !is_static_color_compression_property(property) {
         return None;
     }
 

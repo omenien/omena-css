@@ -195,6 +195,10 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { color: currentcolor; border-color: CurrentColor; }",
   },
   {
+    label: "column-rule-currentcolor-shorthand",
+    source: ".a { column-rule: medium none currentcolor; }",
+  },
+  {
     label: "border-outline-zero-shorthand-lengths",
     source:
       ".a { border: 0px solid #000000; } .b { border-top: 0px solid #000000; } .c { outline: 0px solid #000000; } .d { text-decoration: underline 0px #000000; }",

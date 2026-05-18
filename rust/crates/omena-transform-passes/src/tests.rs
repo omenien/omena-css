@@ -1116,6 +1116,24 @@ fn execution_runtime_compresses_hex_colors_to_shorter_named_colors() {
 }
 
 #[test]
+fn execution_runtime_keeps_column_rule_shorthand_color_case() {
+    let source = r#".a { column-rule: medium none currentcolor; color: currentcolor; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ColorCompression,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(
+        execution.output_css,
+        r#".a { column-rule: medium none currentcolor; color: currentColor; }"#
+    );
+}
+
+#[test]
 fn execution_runtime_removes_adjacent_duplicate_color_declarations_after_compression() {
     let source = r#".a { color: rgb(255 0 0); color: rgb(255 0 0 / 100%); background: blue; background: #0000FF; } .b { color: red; margin: 1px; color: red; } .important { color: red !important; color: red !important; }"#;
     let execution = execute_transform_passes_on_source(
