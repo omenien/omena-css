@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use omena_parser::{
     ParsedVariableFact, ParsedVariableFactKind, StyleDialect as OmenaParserStyleDialect,
@@ -29,8 +29,12 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
         if !variable_kind.matches_reference(fact.kind) {
             continue;
         }
+        let reference_start = parser_text_size_to_usize(fact.range.start().into());
+        if static_stylesheet_position_is_inside_declaration(&declarations, reference_start) {
+            continue;
+        }
         let declaration = declarations.get(fact.name.as_str())?;
-        if declaration.span_end > parser_text_size_to_usize(fact.range.start().into()) {
+        if declaration.span_end > reference_start {
             return None;
         }
     }
@@ -51,9 +55,13 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
         if !variable_kind.matches_reference(fact.kind) {
             continue;
         }
+        let reference_start = parser_text_size_to_usize(fact.range.start().into());
+        if static_stylesheet_position_is_inside_declaration(&declarations, reference_start) {
+            continue;
+        }
         let declaration = declarations.get(fact.name.as_str())?;
         edits.push(StaticStylesheetEvaluationEdit {
-            start: parser_text_size_to_usize(fact.range.start().into()),
+            start: reference_start,
             end: parser_text_size_to_usize(fact.range.end().into()),
             replacement: declaration.value.clone(),
         });
@@ -107,6 +115,13 @@ impl StaticStylesheetVariableKind {
             Self::Less => "omena-query-static-less-variable-evaluator",
         }
     }
+
+    fn reference_prefix(self) -> char {
+        match self {
+            Self::Scss => '$',
+            Self::Less => '@',
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -139,7 +154,7 @@ fn collect_static_stylesheet_variable_declarations(
             return None;
         }
         let declaration = extract_static_stylesheet_variable_declaration(source, start, end)?;
-        if !static_stylesheet_variable_value_is_safe(&declaration.value) {
+        if !static_stylesheet_variable_value_is_allowed(&declaration.value, variable_kind) {
             return None;
         }
         if declarations.contains_key(fact.name.as_str()) {
@@ -147,7 +162,7 @@ fn collect_static_stylesheet_variable_declarations(
         }
         declarations.insert(fact.name.clone(), declaration);
     }
-    Some(declarations)
+    resolve_static_stylesheet_variable_declarations(declarations, variable_kind)
 }
 
 fn extract_static_stylesheet_variable_declaration(
@@ -168,12 +183,96 @@ fn extract_static_stylesheet_variable_declaration(
     })
 }
 
-fn static_stylesheet_variable_value_is_safe(value: &str) -> bool {
+fn static_stylesheet_variable_value_is_allowed(
+    value: &str,
+    variable_kind: StaticStylesheetVariableKind,
+) -> bool {
+    static_stylesheet_literal_value_is_safe(value)
+        || parse_static_stylesheet_variable_reference_value(value, variable_kind).is_some()
+}
+
+fn static_stylesheet_literal_value_is_safe(value: &str) -> bool {
     let value = value.trim();
     !value.is_empty()
         && !value
             .chars()
             .any(|ch| matches!(ch, '{' | '}' | ';' | '$' | '@' | '!'))
+}
+
+fn resolve_static_stylesheet_variable_declarations(
+    declarations: BTreeMap<String, StaticStylesheetVariableDeclaration>,
+    variable_kind: StaticStylesheetVariableKind,
+) -> Option<BTreeMap<String, StaticStylesheetVariableDeclaration>> {
+    let mut resolved = BTreeMap::new();
+    for name in declarations.keys() {
+        let mut stack = BTreeSet::new();
+        let value = resolve_static_stylesheet_variable_value(
+            name,
+            &declarations,
+            variable_kind,
+            &mut stack,
+        )?;
+        let mut declaration = declarations.get(name.as_str())?.clone();
+        declaration.value = value;
+        resolved.insert(name.clone(), declaration);
+    }
+    Some(resolved)
+}
+
+fn resolve_static_stylesheet_variable_value(
+    name: &str,
+    declarations: &BTreeMap<String, StaticStylesheetVariableDeclaration>,
+    variable_kind: StaticStylesheetVariableKind,
+    stack: &mut BTreeSet<String>,
+) -> Option<String> {
+    if !stack.insert(name.to_string()) {
+        return None;
+    }
+    let declaration = declarations.get(name)?;
+    let value = declaration.value.trim();
+    let resolved = if static_stylesheet_literal_value_is_safe(value) {
+        Some(value.to_string())
+    } else {
+        let target_name = parse_static_stylesheet_variable_reference_value(value, variable_kind)?;
+        let target = declarations.get(target_name)?;
+        if target.span_end > declaration.span_start {
+            None
+        } else {
+            resolve_static_stylesheet_variable_value(
+                target_name,
+                declarations,
+                variable_kind,
+                stack,
+            )
+        }
+    };
+    stack.remove(name);
+    resolved
+}
+
+fn parse_static_stylesheet_variable_reference_value(
+    value: &str,
+    variable_kind: StaticStylesheetVariableKind,
+) -> Option<&str> {
+    let value = value.trim();
+    let name = value.strip_prefix(variable_kind.reference_prefix())?;
+    static_stylesheet_variable_name_is_safe(name).then_some(value)
+}
+
+fn static_stylesheet_variable_name_is_safe(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+}
+
+fn static_stylesheet_position_is_inside_declaration(
+    declarations: &BTreeMap<String, StaticStylesheetVariableDeclaration>,
+    position: usize,
+) -> bool {
+    declarations
+        .values()
+        .any(|declaration| position >= declaration.span_start && position < declaration.span_end)
 }
 
 fn source_position_is_top_level(source: &str, position: usize) -> bool {

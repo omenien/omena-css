@@ -1887,7 +1887,7 @@ const staticScssEvaluationResult = spawnSync(
     encoding: "utf8",
     input: JSON.stringify({
       stylePath: "Button.module.scss",
-      styleSource: "$brand: red; .button { color: $brand; }",
+      styleSource: "$brand: red; $accent: $brand; .button { color: $accent; }",
       requestedPassIds: [
         "scss-module-evaluate",
         "css-modules-class-hashing",
@@ -1921,11 +1921,11 @@ assert.equal(
 );
 assert.equal(
   staticScssEvaluationSummary.execution.cssModuleEvaluation?.evaluatedCss,
-  " .button { color: red; }",
+  "  .button { color: red; }",
 );
 assert.equal(
   staticScssEvaluationSummary.execution.outputCss,
-  " ._button_0{ color: red; }",
+  "  ._button_0{ color: red; }",
 );
 
 const staticLessEvaluationResult = spawnSync(
@@ -1945,7 +1945,7 @@ const staticLessEvaluationResult = spawnSync(
     encoding: "utf8",
     input: JSON.stringify({
       stylePath: "Button.module.less",
-      styleSource: "@brand: red; .button { color: @brand; }",
+      styleSource: "@brand: red; @accent: @brand; .button { color: @accent; }",
       requestedPassIds: [
         "less-module-evaluate",
         "css-modules-class-hashing",
@@ -1979,11 +1979,11 @@ assert.equal(
 );
 assert.equal(
   staticLessEvaluationSummary.execution.cssModuleEvaluation?.evaluatedCss,
-  " .button { color: red; }",
+  "  .button { color: red; }",
 );
 assert.equal(
   staticLessEvaluationSummary.execution.outputCss,
-  " ._button_0{ color: red; }",
+  "  ._button_0{ color: red; }",
 );
 assert.equal(icssExportReachabilitySummary.semanticRemovalCount, 2);
 

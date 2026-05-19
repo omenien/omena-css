@@ -1588,7 +1588,7 @@ fn derives_transform_context_with_static_stylesheet_module_evaluation() {
         "Button.module.scss",
         [(
             "Button.module.scss",
-            "$brand: red; .button { color: $brand; }",
+            "$brand: red; $accent: $brand; .button { color: $accent; }",
         )],
         &[],
     );
@@ -1596,7 +1596,7 @@ fn derives_transform_context_with_static_stylesheet_module_evaluation() {
         "Button.module.less",
         [(
             "Button.module.less",
-            "@brand: red; .button { color: @brand; }",
+            "@brand: red; @accent: @brand; .button { color: @accent; }",
         )],
         &[],
     );
@@ -1607,7 +1607,7 @@ fn derives_transform_context_with_static_stylesheet_module_evaluation() {
             .scss_module_evaluation
             .as_ref()
             .map(|evaluation| evaluation.evaluated_css.as_str()),
-        Some(" .button { color: red; }")
+        Some("  .button { color: red; }")
     );
     assert_eq!(
         less_summary
@@ -1615,7 +1615,7 @@ fn derives_transform_context_with_static_stylesheet_module_evaluation() {
             .less_module_evaluation
             .as_ref()
             .map(|evaluation| evaluation.evaluated_css.as_str()),
-        Some(" .button { color: red; }")
+        Some("  .button { color: red; }")
     );
     assert!(
         scss_summary
@@ -1643,6 +1643,21 @@ fn derives_transform_context_with_static_stylesheet_module_evaluation() {
             .as_ref()
             .map(|evaluation| evaluation.evaluated_css.as_str()),
         Some(" .button { color: red; }")
+    );
+
+    let forward_reference_summary = summarize_omena_query_transform_context_from_sources(
+        "Forward.module.scss",
+        [(
+            "Forward.module.scss",
+            "$accent: $brand; $brand: red; .button { color: $accent; }",
+        )],
+        &[],
+    );
+    assert!(
+        forward_reference_summary
+            .context
+            .scss_module_evaluation
+            .is_none()
     );
 }
 
