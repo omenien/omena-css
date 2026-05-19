@@ -358,6 +358,11 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { font: normal normal normal 16px/normal Arial; }",
   },
   {
+    label: "important-shorthand-value-compression",
+    source:
+      ".a { margin: 0px 0px 0px 0px !important; } .b { padding: 1px 1px 1px 1px !important; } .c { border-radius: 1px 1px 1px 1px !important; } .d { background-repeat: repeat repeat !important; } .e { overflow: visible visible !important; } .f { gap: 1px 1px !important; } .g { text-decoration: underline solid currentcolor auto !important; }",
+  },
+  {
     label: "overflow-background-repeat-shorthand",
     source:
       ".a { background-repeat: repeat repeat; overflow-x: visible; overflow-y: visible; } .b { background-repeat: repeat no-repeat; overflow: hidden hidden; } .c { background-repeat: no-repeat repeat; overflow: visible visible; } .d { overflow-x: auto; overflow-y: hidden; } .e { overflow-y: scroll; overflow-x: clip; } .f { overflow: AUTO HIDDEN; }",

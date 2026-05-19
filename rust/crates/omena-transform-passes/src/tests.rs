@@ -1946,10 +1946,10 @@ fn execution_runtime_compresses_box_shorthand_values() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 11);
+    assert_eq!(execution.mutation_count, 13);
     assert_eq!(
         execution.output_css,
-        r#".a { margin: 1px; padding: 1px 2px 3px; border-color: red blue; border-width: 1px; border-style: solid; border-image-slice: 100%; border-image-width: 1; border-image-outset: 0; border: none; border-top: none; outline: none; } .important { margin: 1px 1px 1px 1px !important; border: medium none currentColor !important; }"#
+        r#".a { margin: 1px; padding: 1px 2px 3px; border-color: red blue; border-width: 1px; border-style: solid; border-image-slice: 100%; border-image-width: 1; border-image-outset: 0; border: none; border-top: none; outline: none; } .important { margin: 1px!important; border: none!important; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,
@@ -1998,6 +1998,28 @@ fn execution_runtime_compresses_existing_font_shorthand_defaults() {
 }
 
 #[test]
+fn execution_runtime_compresses_important_shorthand_values() {
+    let source = r#".a { margin: 0 0 0 0 !important; padding: 1px 1px 1px 1px !important; border-radius: 1px 1px 1px 1px !important; background-repeat: repeat repeat !important; overflow: visible visible !important; gap: 1px 1px !important; text-decoration: underline solid currentcolor auto !important; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 7);
+    assert_eq!(
+        execution.output_css,
+        r#".a { margin: 0!important; padding: 1px!important; border-radius: 1px!important; background-repeat: repeat!important; overflow: visible!important; gap: 1px!important; text-decoration: underline!important; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["shorthand-combining", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_compresses_overflow_and_background_repeat_shorthands() {
     let source = r#".a { overflow-x: visible; overflow-y: visible; background-repeat: repeat repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .c { background-repeat: Repeat Repeat; } .d { overflow: hidden hidden; background-repeat: repeat no-repeat; } .e { overflow: visible visible; background-repeat: no-repeat repeat; } .f { overflow-x: auto; overflow-y: hidden; } .g { overflow-y: scroll; overflow-x: clip; } .h { overflow: AUTO HIDDEN; } .pos { background-position-x: left; background-position-y: top; } .pos-center { background-position-x: center; background-position-y: center; } .pos-reverse { background-position-y: top; background-position-x: center; } .pos-important { background-position-x: left !important; background-position-y: top !important; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#;
     let execution = execute_transform_passes_on_source(
@@ -2008,10 +2030,10 @@ fn execution_runtime_compresses_overflow_and_background_repeat_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 14);
+    assert_eq!(execution.mutation_count, 15);
     assert_eq!(
         execution.output_css,
-        r#".a { overflow: visible; background-repeat: repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .c { background-repeat: repeat; } .d { overflow: hidden; background-repeat: repeat-x; } .e { overflow: visible; background-repeat: repeat-y; } .f { overflow: auto hidden; } .g { overflow: clip scroll; } .h { overflow: auto hidden; } .pos { background-position: 0 0; } .pos-center { background-position: 50%; } .pos-reverse { background-position: top; } .pos-important { background-position: 0 0!important; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#
+        r#".a { overflow: visible; background-repeat: repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .c { background-repeat: repeat; } .d { overflow: hidden; background-repeat: repeat-x; } .e { overflow: visible; background-repeat: repeat-y; } .f { overflow: auto hidden; } .g { overflow: clip scroll; } .h { overflow: auto hidden; } .pos { background-position: 0 0; } .pos-center { background-position: 50%; } .pos-reverse { background-position: top; } .pos-important { background-position: 0 0!important; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat!important; }"#
     );
 }
 

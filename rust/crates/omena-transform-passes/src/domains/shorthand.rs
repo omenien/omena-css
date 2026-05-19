@@ -279,49 +279,64 @@ fn shorthand_value_replacement_for_declaration(
     source: &str,
     declaration: &SimpleDeclarationSlice,
 ) -> Option<(usize, usize, String)> {
-    if declaration.important {
-        return None;
-    }
-    let replacement_value = if is_box_shorthand_property(&declaration.property) {
-        compress_box_shorthand_value(&declaration.value)
+    let value = if declaration.important {
+        declaration_value_without_important(&declaration.value)?
+    } else {
+        declaration.value.as_str()
+    };
+    let mut replacement_value = if is_box_shorthand_property(&declaration.property) {
+        compress_box_shorthand_value(value)
     } else if is_border_none_shorthand_property(&declaration.property) {
-        compress_border_none_shorthand_value(&declaration.value)
+        compress_border_none_shorthand_value(value)
     } else if is_repeat_shorthand_property(&declaration.property) {
-        compress_background_repeat_value(&declaration.value)
+        compress_background_repeat_value(value)
     } else if declaration.property == "overflow" {
-        compress_overflow_shorthand_value(&declaration.value)
+        compress_overflow_shorthand_value(value)
     } else if is_repeated_two_axis_shorthand_property(&declaration.property) {
-        compress_repeated_two_axis_value(&declaration.value)
+        compress_repeated_two_axis_value(value)
     } else if declaration.property == "border-radius" {
-        compress_border_radius_value(&declaration.value)
+        compress_border_radius_value(value)
     } else if declaration.property == "flex" {
-        compress_flex_value(&declaration.value)
+        compress_flex_value(value)
     } else if declaration.property == "flex-flow" {
-        compress_flex_flow_value(&declaration.value)
+        compress_flex_flow_value(value)
     } else if is_place_axis_shorthand_property(&declaration.property) {
-        compress_place_axis_shorthand_value(&declaration.property, &declaration.value)
+        compress_place_axis_shorthand_value(&declaration.property, value)
     } else if declaration.property == "gap" {
-        compress_gap_value(&declaration.value, declaration.important)
+        compress_gap_value(value, declaration.important)
     } else if declaration.property == "inset" {
-        compress_box_shorthand_value(&declaration.value)
+        compress_box_shorthand_value(value)
     } else if declaration.property == "list-style" {
-        compress_list_style_value(&declaration.value)
+        compress_list_style_value(value)
     } else if declaration.property == "transition" {
-        compress_transition_value(&declaration.value)
+        compress_transition_value(value)
     } else if declaration.property == "animation" {
-        compress_animation_value(&declaration.value)
+        compress_animation_value(value)
     } else if declaration.property == "font" {
-        compress_existing_font_shorthand_value(&declaration.value)
+        compress_existing_font_shorthand_value(value)
     } else if declaration.property == "text-decoration" {
-        compress_text_decoration_value(&declaration.value, declaration.important)
+        compress_text_decoration_value(value, declaration.important)
     } else if declaration.property == "text-emphasis-position" {
-        compress_text_emphasis_position_value(&declaration.value, declaration.important)
+        compress_text_emphasis_position_value(value, declaration.important)
     } else {
         None
     }?;
+    if declaration.important {
+        replacement_value.push_str("!important");
+    }
     let replacement =
         format_replacement_declaration_like_source(source, declaration, &replacement_value);
     Some((declaration.start, declaration.end, replacement))
+}
+
+fn declaration_value_without_important(value: &str) -> Option<&str> {
+    let trimmed = value.trim_end();
+    let lower = trimmed.to_ascii_lowercase();
+    if !lower.ends_with("!important") {
+        return None;
+    }
+    let suffix_start = trimmed.len().saturating_sub("!important".len());
+    Some(trimmed[..suffix_start].trim_end())
 }
 
 fn border_radius_shorthand_replacement_for_declarations(
