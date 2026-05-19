@@ -121,6 +121,38 @@ pub(crate) fn compress_text_decoration_value(value: &str, important: bool) -> Op
     (replacement != normalize_ascii_whitespace(value)).then_some(replacement)
 }
 
+pub(crate) fn compress_text_emphasis_position_value(
+    value: &str,
+    important: bool,
+) -> Option<String> {
+    let mut components = split_top_level_whitespace_value_components(value)?;
+    if important
+        && components.last().is_some_and(|component| {
+            component.eq_ignore_ascii_case("!important")
+                || component.eq_ignore_ascii_case("important")
+        })
+    {
+        components.pop();
+    }
+
+    let replacement = match components.as_slice() {
+        [first, second] => {
+            let first = first.to_ascii_lowercase();
+            let second = second.to_ascii_lowercase();
+            if is_text_emphasis_over_under(&first) && is_text_emphasis_side(&second) {
+                compressed_text_emphasis_position(&first, &second)?
+            } else if is_text_emphasis_side(&first) && is_text_emphasis_over_under(&second) {
+                compressed_text_emphasis_position(&second, &first)?
+            } else {
+                return None;
+            }
+        }
+        _ => return None,
+    };
+
+    (replacement != normalize_ascii_whitespace(value)).then_some(replacement)
+}
+
 fn text_emphasis_style_without_important(value: &str, important: bool) -> Option<String> {
     let mut components = split_top_level_whitespace_value_components(value)?;
     if important
@@ -151,6 +183,24 @@ fn single_component_value_without_important(value: &str, important: bool) -> Opt
         return None;
     };
     Some(component.clone())
+}
+
+fn compressed_text_emphasis_position(vertical: &str, side: &str) -> Option<String> {
+    if side == "right" {
+        Some(vertical.to_string())
+    } else if side == "left" {
+        Some(format!("{vertical} left"))
+    } else {
+        None
+    }
+}
+
+fn is_text_emphasis_over_under(value: &str) -> bool {
+    matches!(value, "over" | "under")
+}
+
+fn is_text_emphasis_side(value: &str) -> bool {
+    matches!(value, "left" | "right")
 }
 
 fn compressed_text_emphasis_components(style: &str, color: &str) -> Option<String> {

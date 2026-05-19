@@ -19,6 +19,7 @@ use crate::{
         shorthand_position::collect_background_position_axis_replacements,
         shorthand_text::{
             collect_text_emphasis_replacements, compress_text_decoration_value,
+            compress_text_emphasis_position_value,
             text_decoration_shorthand_replacement_for_declarations,
         },
     },
@@ -273,6 +274,8 @@ fn shorthand_value_replacement_for_declaration(
         compress_animation_value(&declaration.value)
     } else if declaration.property == "text-decoration" {
         compress_text_decoration_value(&declaration.value, declaration.important)
+    } else if declaration.property == "text-emphasis-position" {
+        compress_text_emphasis_position_value(&declaration.value, declaration.important)
     } else {
         None
     }?;
@@ -657,6 +660,9 @@ pub(crate) fn is_box_shorthand_property(property: &str) -> bool {
         "margin"
             | "padding"
             | "border-color"
+            | "border-image-outset"
+            | "border-image-slice"
+            | "border-image-width"
             | "border-style"
             | "border-width"
             | "scroll-margin"

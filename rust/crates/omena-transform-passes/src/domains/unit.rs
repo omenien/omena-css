@@ -122,7 +122,7 @@ fn normalize_percentage_unit_token(text: &str, property: &str) -> Option<String>
     }
 
     let number = text.strip_suffix('%')?;
-    if property == "opacity" {
+    if is_opacity_percentage_property(property) {
         return normalize_opacity_percentage_token(text, number);
     }
     if !is_zero_number_prefix(number) {
@@ -133,6 +133,10 @@ fn normalize_percentage_unit_token(text: &str, property: &str) -> Option<String>
     } else {
         None
     }
+}
+
+fn is_opacity_percentage_property(property: &str) -> bool {
+    matches!(property, "opacity" | "fill-opacity" | "stroke-opacity")
 }
 
 fn normalize_opacity_percentage_token(text: &str, number: &str) -> Option<String> {

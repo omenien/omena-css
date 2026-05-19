@@ -1160,7 +1160,7 @@ fn execution_runtime_normalizes_safe_zero_percent_position_values() {
 
 #[test]
 fn execution_runtime_normalizes_shorter_opacity_percentages() {
-    let source = r#".a { opacity: 50%; } .b { opacity: 100%; } .c { opacity: 5%; } .d { opacity: 150%; } .e { width: 50%; }"#;
+    let source = r#".a { opacity: 50%; } .b { opacity: 100%; } .c { opacity: 5%; } .d { opacity: 150%; } .e { width: 50%; } .f { fill-opacity: 100%; stroke-opacity: 50%; flood-opacity: 0%; stop-opacity: 5%; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1169,10 +1169,10 @@ fn execution_runtime_normalizes_shorter_opacity_percentages() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 2);
+    assert_eq!(execution.mutation_count, 4);
     assert_eq!(
         execution.output_css,
-        r#".a { opacity: .5; } .b { opacity: 1; } .c { opacity: 5%; } .d { opacity: 150%; } .e { width: 50%; }"#
+        r#".a { opacity: .5; } .b { opacity: 1; } .c { opacity: 5%; } .d { opacity: 150%; } .e { width: 50%; } .f { fill-opacity: 1; stroke-opacity: .5; flood-opacity: 0%; stop-opacity: 5%; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,
@@ -1747,7 +1747,7 @@ fn execution_runtime_combines_adjacent_box_longhands_with_cascade_proof() {
 
 #[test]
 fn execution_runtime_compresses_box_shorthand_values() {
-    let source = r#".a { margin: 1px 1px 1px 1px; padding: 1px 2px 3px 2px; border-color: red blue red blue; border-width: 1px 1px; border-style: solid solid solid solid; border: medium none currentColor; border-top: currentColor medium none; outline: medium none currentColor; } .important { margin: 1px 1px 1px 1px !important; border: medium none currentColor !important; }"#;
+    let source = r#".a { margin: 1px 1px 1px 1px; padding: 1px 2px 3px 2px; border-color: red blue red blue; border-width: 1px 1px; border-style: solid solid solid solid; border-image-slice: 100% 100% 100% 100%; border-image-width: 1 1 1 1; border-image-outset: 0 0 0 0; border: medium none currentColor; border-top: currentColor medium none; outline: medium none currentColor; } .important { margin: 1px 1px 1px 1px !important; border: medium none currentColor !important; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1756,10 +1756,10 @@ fn execution_runtime_compresses_box_shorthand_values() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 8);
+    assert_eq!(execution.mutation_count, 11);
     assert_eq!(
         execution.output_css,
-        r#".a { margin: 1px; padding: 1px 2px 3px; border-color: red blue; border-width: 1px; border-style: solid; border: none; border-top: none; outline: none; } .important { margin: 1px 1px 1px 1px !important; border: medium none currentColor !important; }"#
+        r#".a { margin: 1px; padding: 1px 2px 3px; border-color: red blue; border-width: 1px; border-style: solid; border-image-slice: 100%; border-image-width: 1; border-image-outset: 0; border: none; border-top: none; outline: none; } .important { margin: 1px 1px 1px 1px !important; border: medium none currentColor !important; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,
@@ -1853,7 +1853,7 @@ fn execution_runtime_compresses_scroll_box_shorthands() {
 
 #[test]
 fn execution_runtime_compresses_text_decoration_shorthands() {
-    let source = r#".a { text-decoration-line: underline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; } .b { text-decoration: underline solid red auto; } .c { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: red; text-decoration-thickness: 1px; } .important { text-decoration-line: underline !important; text-decoration-style: solid !important; text-decoration-color: currentcolor !important; text-decoration-thickness: auto !important; } .mixed { text-decoration-line: underline overline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; } .em-a { text-emphasis-style: none; text-emphasis-color: currentcolor; } .em-b { text-emphasis-style: filled dot; text-emphasis-color: red; } .em-c { text-emphasis-style: open sesame !important; text-emphasis-color: currentcolor !important; }"#;
+    let source = r#".a { text-decoration-line: underline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; } .b { text-decoration: underline solid red auto; } .c { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: red; text-decoration-thickness: 1px; } .important { text-decoration-line: underline !important; text-decoration-style: solid !important; text-decoration-color: currentcolor !important; text-decoration-thickness: auto !important; } .mixed { text-decoration-line: underline overline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; } .em-a { text-emphasis-style: none; text-emphasis-color: currentcolor; } .em-b { text-emphasis-style: filled dot; text-emphasis-color: red; } .em-c { text-emphasis-style: open sesame !important; text-emphasis-color: currentcolor !important; } .pos-a { text-emphasis-position: over right; } .pos-b { text-emphasis-position: left under; } .pos-c { text-emphasis-position: over left; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1862,10 +1862,10 @@ fn execution_runtime_compresses_text_decoration_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 7);
+    assert_eq!(execution.mutation_count, 9);
     assert_eq!(
         execution.output_css,
-        r#".a { text-decoration: underline; } .b { text-decoration: underline red; } .c { text-decoration: underline 1px wavy red; } .important { text-decoration: underline!important; } .mixed { text-decoration-line: underline overline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; } .em-a { text-emphasis: none; } .em-b { text-emphasis: dot red; } .em-c { text-emphasis: open sesame!important; }"#
+        r#".a { text-decoration: underline; } .b { text-decoration: underline red; } .c { text-decoration: underline 1px wavy red; } .important { text-decoration: underline!important; } .mixed { text-decoration-line: underline overline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; } .em-a { text-emphasis: none; } .em-b { text-emphasis: dot red; } .em-c { text-emphasis: open sesame!important; } .pos-a { text-emphasis-position: over; } .pos-b { text-emphasis-position: under left; } .pos-c { text-emphasis-position: over left; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

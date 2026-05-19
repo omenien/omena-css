@@ -266,7 +266,8 @@ const fixtures: readonly DifferentialFixture[] = [
   },
   {
     label: "opacity-percentage-normalization",
-    source: ".a { opacity: 50%; } .b { opacity: 100%; }",
+    source:
+      ".a { opacity: 50%; } .b { opacity: 100%; } .c { fill-opacity: 100%; stroke-opacity: 50%; flood-opacity: 0%; stop-opacity: 5%; }",
   },
   {
     label: "aspect-ratio-spacing-normalization",
@@ -374,7 +375,7 @@ const fixtures: readonly DifferentialFixture[] = [
   {
     label: "text-emphasis-shorthands",
     source:
-      ".a { text-emphasis-style: none; text-emphasis-color: currentcolor; } .b { text-emphasis-style: filled dot; text-emphasis-color: red; } .c { text-emphasis-style: open sesame !important; text-emphasis-color: currentcolor !important; }",
+      ".a { text-emphasis-style: none; text-emphasis-color: currentcolor; } .b { text-emphasis-style: filled dot; text-emphasis-color: red; } .c { text-emphasis-style: open sesame !important; text-emphasis-color: currentcolor !important; } .d { text-emphasis-position: over right; } .e { text-emphasis-position: left under; } .f { text-emphasis-position: over left; }",
   },
   {
     label: "logical-axis-shorthands",
@@ -404,7 +405,7 @@ const fixtures: readonly DifferentialFixture[] = [
   {
     label: "repeated-axis-shorthand-values",
     source:
-      ".a { mask-repeat: repeat repeat; background-repeat: space round; -webkit-mask-repeat: no-repeat no-repeat; } .b { border-spacing: 1px 1px; } .c { scroll-margin-block: 1px 2px; scroll-padding-inline: 1px 1px; } .d { margin-block: 1px 2px; padding-inline: 2px 2px; } .e { border-block-color: red red; border-inline-width: 1px 1px; } .f { mask-repeat: no-repeat repeat; background-repeat: repeat no-repeat; -webkit-mask-repeat: repeat no-repeat; }",
+      ".a { mask-repeat: repeat repeat; background-repeat: space round; -webkit-mask-repeat: no-repeat no-repeat; } .b { border-spacing: 1px 1px; } .c { scroll-margin-block: 1px 2px; scroll-padding-inline: 1px 1px; } .d { margin-block: 1px 2px; padding-inline: 2px 2px; } .e { border-block-color: red red; border-inline-width: 1px 1px; border-image-slice: 100% 100% 100% 100%; border-image-width: 1 1 1 1; border-image-outset: 0 0 0 0; } .f { mask-repeat: no-repeat repeat; background-repeat: repeat no-repeat; -webkit-mask-repeat: repeat no-repeat; }",
   },
   {
     label: "spacing-zero-units",
