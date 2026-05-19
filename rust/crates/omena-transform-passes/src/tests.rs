@@ -1977,7 +1977,7 @@ fn execution_runtime_compresses_border_image_longhands() {
 
 #[test]
 fn execution_runtime_compresses_existing_font_shorthand_defaults() {
-    let source = r#".a { font: normal normal normal 16px/normal Arial; } .b { font: italic normal normal 16px/normal Arial; }"#;
+    let source = r#".a { font: normal normal normal 16px/normal Arial; } .b { font: italic normal normal 16px/normal Arial; } .c { font: normal normal 16px Arial; } .d { font: bold 16px/normal Arial; } .e { font: italic small-caps bold condensed 1rem/120% "Open Sans", serif; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1986,10 +1986,10 @@ fn execution_runtime_compresses_existing_font_shorthand_defaults() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.mutation_count, 5);
     assert_eq!(
         execution.output_css,
-        r#".a { font: 16px Arial; } .b { font: italic normal normal 16px/normal Arial; }"#
+        r#".a { font: 16px Arial; } .b { font: italic 16px Arial; } .c { font: 16px Arial; } .d { font: 700 16px Arial; } .e { font: italic small-caps 700 75% 1rem/120% Open Sans,serif; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

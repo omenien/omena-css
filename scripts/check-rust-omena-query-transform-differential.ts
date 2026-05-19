@@ -355,7 +355,8 @@ const fixtures: readonly DifferentialFixture[] = [
   },
   {
     label: "font-shorthand-default-compression",
-    source: ".a { font: normal normal normal 16px/normal Arial; }",
+    source:
+      '.a { font: normal normal normal 16px/normal Arial; } .b { font: normal normal 16px Arial; } .c { font: bold 16px/normal Arial; } .d { font: italic small-caps bold condensed 1rem/120% "Open Sans", serif; }',
   },
   {
     label: "important-shorthand-value-compression",

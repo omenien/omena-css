@@ -79,30 +79,177 @@ pub(crate) fn font_shorthand_replacement_for_declarations(
 
 pub(crate) fn compress_existing_font_shorthand_value(value: &str) -> Option<String> {
     let components = split_top_level_whitespace_value_components(value)?;
-    let size_index = components
-        .iter()
-        .position(|component| component.contains('/'))?;
-    if size_index == 0 || size_index + 1 >= components.len() {
-        return None;
+    let mut parsed = None;
+    for size_index in 0..components.len().saturating_sub(1) {
+        let Some((size, line_height)) = parse_font_size_component(&components[size_index]) else {
+            continue;
+        };
+        let Some((style, variant_caps, weight, stretch)) =
+            parse_font_prefix_components(&components[..size_index])
+        else {
+            continue;
+        };
+        parsed = Some((
+            size_index,
+            style,
+            variant_caps,
+            weight,
+            stretch,
+            size,
+            line_height,
+        ));
     }
-    if !components[..size_index]
-        .iter()
-        .all(|component| component.eq_ignore_ascii_case("normal"))
-    {
-        return None;
-    }
-
-    let (size, line_height) = components[size_index].split_once('/')?;
-    if size.is_empty() || !line_height.eq_ignore_ascii_case("normal") {
-        return None;
-    }
+    let (size_index, style, variant_caps, weight, stretch, size, line_height) = parsed?;
     let family = normalize_font_family_value(&components[size_index + 1..].join(" "));
     if family.is_empty() {
         return None;
     }
 
-    let replacement = format!("{size} {family}");
+    let replacement = compressed_font_shorthand_value(
+        &style,
+        &variant_caps,
+        &weight,
+        &stretch,
+        &size,
+        &line_height,
+        &family,
+    )?;
     (replacement.len() < normalize_ascii_whitespace(value).len()).then_some(replacement)
+}
+
+fn parse_font_size_component(component: &str) -> Option<(String, String)> {
+    if let Some((size, line_height)) = component.split_once('/') {
+        if size.is_empty() || line_height.is_empty() || !is_supported_font_size_token(size) {
+            return None;
+        }
+        return Some((size.to_string(), line_height.to_string()));
+    }
+    is_supported_font_size_token(component).then(|| (component.to_string(), "normal".to_string()))
+}
+
+fn parse_font_prefix_components(components: &[String]) -> Option<(String, String, String, String)> {
+    let mut style = "normal".to_string();
+    let mut variant_caps = "normal".to_string();
+    let mut weight = "normal".to_string();
+    let mut stretch = "normal".to_string();
+
+    for component in components {
+        if component.eq_ignore_ascii_case("normal") {
+            continue;
+        }
+        if is_supported_font_style(component) {
+            if !style.eq_ignore_ascii_case("normal") {
+                return None;
+            }
+            style = component.to_string();
+            continue;
+        }
+        if is_supported_font_variant_caps(component) {
+            if !variant_caps.eq_ignore_ascii_case("normal") {
+                return None;
+            }
+            variant_caps = component.to_string();
+            continue;
+        }
+        if is_supported_font_weight_component(component) {
+            if !weight.eq_ignore_ascii_case("normal") {
+                return None;
+            }
+            weight = component.to_string();
+            continue;
+        }
+        if is_supported_font_stretch_component(component) {
+            if !stretch.eq_ignore_ascii_case("normal") {
+                return None;
+            }
+            stretch = component.to_string();
+            continue;
+        }
+        return None;
+    }
+
+    Some((style, variant_caps, weight, stretch))
+}
+
+fn is_supported_font_size_token(value: &str) -> bool {
+    let lower = value.trim().to_ascii_lowercase();
+    if matches!(
+        lower.as_str(),
+        "xx-small"
+            | "x-small"
+            | "small"
+            | "medium"
+            | "large"
+            | "x-large"
+            | "xx-large"
+            | "xxx-large"
+            | "larger"
+            | "smaller"
+    ) {
+        return true;
+    }
+    if matches!(
+        lower.as_str(),
+        "initial" | "inherit" | "unset" | "revert" | "revert-layer"
+    ) {
+        return false;
+    }
+    lower.starts_with("calc(")
+        || lower.starts_with("clamp(")
+        || lower.starts_with("min(")
+        || lower.starts_with("max(")
+        || has_css_length_or_percentage_unit(&lower)
+}
+
+fn has_css_length_or_percentage_unit(value: &str) -> bool {
+    let units = [
+        "%", "cap", "ch", "cm", "dvb", "dvh", "dvi", "dvmax", "dvmin", "dvw", "em", "ex", "ic",
+        "in", "lh", "lvb", "lvh", "lvi", "lvmax", "lvmin", "lvw", "mm", "pc", "pt", "px", "q",
+        "rem", "rlh", "svb", "svh", "svi", "svmax", "svmin", "svw", "vb", "vh", "vi", "vmax",
+        "vmin", "vw",
+    ];
+    units.iter().any(|unit| {
+        let Some(number) = value.strip_suffix(unit) else {
+            return false;
+        };
+        !number.is_empty() && number.parse::<f64>().is_ok()
+    })
+}
+
+fn is_supported_font_weight_component(value: &str) -> bool {
+    matches!(
+        value.to_ascii_lowercase().as_str(),
+        "normal"
+            | "bold"
+            | "bolder"
+            | "lighter"
+            | "100"
+            | "200"
+            | "300"
+            | "400"
+            | "500"
+            | "600"
+            | "700"
+            | "800"
+            | "900"
+    )
+}
+
+fn is_supported_font_stretch_component(value: &str) -> bool {
+    matches!(
+        value.to_ascii_lowercase().as_str(),
+        "ultra-condensed"
+            | "extra-condensed"
+            | "condensed"
+            | "semi-condensed"
+            | "normal"
+            | "semi-expanded"
+            | "expanded"
+            | "extra-expanded"
+            | "ultra-expanded"
+    ) || value
+        .strip_suffix('%')
+        .is_some_and(|number| !number.is_empty() && number.parse::<f64>().is_ok())
 }
 
 fn compressed_font_shorthand_value(
