@@ -1337,6 +1337,72 @@ assertIncludesAll(
   "escaped class tree-shaking removals",
 );
 
+const selectorFunctionClassTreeShakeResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "SelectorFunction.module.css",
+      styleSource:
+        ":where(.used) { color: red; } :where(.dead) { color: blue; } :is(.dead-alt, .also-dead-alt) { color: gold; } :is(.used, .dead-kept-alt) { color: teal; } :not(.dead-negative) { color: black; }",
+      requestedPassIds: ["tree-shake-class", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["used"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  selectorFunctionClassTreeShakeResult.status,
+  0,
+  selectorFunctionClassTreeShakeResult.stderr,
+);
+assert.equal(selectorFunctionClassTreeShakeResult.error, undefined);
+
+const selectorFunctionClassTreeShakeSummary = JSON.parse(
+  selectorFunctionClassTreeShakeResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.ok(
+  selectorFunctionClassTreeShakeSummary.execution.outputCss.includes(
+    ":where(.used) { color: red; }",
+  ),
+);
+assert.ok(
+  selectorFunctionClassTreeShakeSummary.execution.outputCss.includes(
+    ":is(.used, .dead-kept-alt) { color: teal; }",
+  ),
+);
+assert.ok(
+  selectorFunctionClassTreeShakeSummary.execution.outputCss.includes(
+    ":not(.dead-negative) { color: black; }",
+  ),
+);
+assert.ok(!selectorFunctionClassTreeShakeSummary.execution.outputCss.includes(":where(.dead)"));
+assert.ok(!selectorFunctionClassTreeShakeSummary.execution.outputCss.includes(".dead-alt"));
+assert.ok(!selectorFunctionClassTreeShakeSummary.execution.outputCss.includes(".also-dead-alt"));
+assertIncludesAll(
+  selectorFunctionClassTreeShakeSummary.execution.semanticRemovals.map(
+    (removal) => `${removal.passId}:${removal.name}`,
+  ),
+  ["tree-shake-class:dead", "tree-shake-class:dead-alt,also-dead-alt"],
+  "selector function class tree-shaking removals",
+);
+
 const localComposesTreeShakeResult = spawnSync(
   "cargo",
   [

@@ -58,7 +58,7 @@ pub(crate) fn split_css_selector_list(selector: &str) -> Option<Vec<String>> {
     Some(selectors)
 }
 
-pub(crate) fn selector_branch_owner_class_name(selector: &str) -> Option<String> {
+pub(crate) fn selector_branch_owner_class_names(selector: &str) -> Option<Vec<String>> {
     let selector = selector.trim();
     if selector.is_empty() {
         return None;
@@ -96,7 +96,23 @@ pub(crate) fn selector_branch_owner_class_name(selector: &str) -> Option<String>
         {
             let inner_start = index + ":local(".len();
             let inner_end = local_end.saturating_sub(1);
-            return selector_branch_owner_class_name(&selector[inner_start..inner_end]);
+            return selector_list_owner_class_names(&selector[inner_start..inner_end]);
+        }
+        if bracket_depth == 0
+            && paren_depth == 0
+            && let Some(selector_function_end) = selector_owner_pseudo_function_end(selector, index)
+        {
+            let inner_start = selector[index..].find('(')? + index + '('.len_utf8();
+            let inner_end = selector_function_end.saturating_sub(1);
+            return selector_list_owner_class_names(&selector[inner_start..inner_end]);
+        }
+        if bracket_depth == 0
+            && paren_depth == 0
+            && let Some(ignored_function_end) =
+                selector_ignored_pseudo_function_end(selector, index)
+        {
+            index = ignored_function_end;
+            continue;
         }
 
         match ch {
@@ -127,7 +143,7 @@ pub(crate) fn selector_branch_owner_class_name(selector: &str) -> Option<String>
                 if name_end == name_start {
                     return None;
                 }
-                return Some(selector[name_start..name_end].to_string());
+                return Some(vec![selector[name_start..name_end].to_string()]);
             }
             _ => {
                 index += ch.len_utf8();
@@ -136,6 +152,51 @@ pub(crate) fn selector_branch_owner_class_name(selector: &str) -> Option<String>
     }
 
     None
+}
+
+fn selector_list_owner_class_names(selector_list: &str) -> Option<Vec<String>> {
+    let branches = split_css_selector_list(selector_list)?;
+    if branches.is_empty() {
+        return None;
+    }
+
+    let mut owner_class_names = Vec::new();
+    for branch in branches {
+        let branch_owner_class_names = selector_branch_owner_class_names(&branch)?;
+        for class_name in branch_owner_class_names {
+            if !owner_class_names
+                .iter()
+                .any(|existing| existing == &class_name)
+            {
+                owner_class_names.push(class_name);
+            }
+        }
+    }
+
+    (!owner_class_names.is_empty()).then_some(owner_class_names)
+}
+
+fn selector_owner_pseudo_function_end(selector: &str, index: usize) -> Option<usize> {
+    selector_named_pseudo_function_end(selector, index, "is")
+        .or_else(|| selector_named_pseudo_function_end(selector, index, "where"))
+}
+
+fn selector_ignored_pseudo_function_end(selector: &str, index: usize) -> Option<usize> {
+    selector_named_pseudo_function_end(selector, index, "not")
+        .or_else(|| selector_named_pseudo_function_end(selector, index, "has"))
+}
+
+fn selector_named_pseudo_function_end(selector: &str, index: usize, name: &str) -> Option<usize> {
+    if !selector[index..].starts_with(':') {
+        return None;
+    }
+    let name_start = index + ':'.len_utf8();
+    let name_end = name_start + name.len();
+    let candidate = selector.get(name_start..name_end)?;
+    if !candidate.eq_ignore_ascii_case(name) || !selector[name_end..].starts_with('(') {
+        return None;
+    }
+    matching_function_end(selector, name_end)
 }
 
 pub(crate) fn simple_class_selector_name(selector: &str) -> Option<String> {

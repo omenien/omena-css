@@ -3567,7 +3567,7 @@ fn execution_runtime_tree_shakes_escaped_keyframes_with_closed_world_context() {
 
 #[test]
 fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
-    let source = r#".used { color: red; } .dead { color: blue; } .dead:hover { color: green; } button.other-dead { color: black; } .also-dead, .other-dead { color: black; } .used, .dead-mixed { color: cyan; } .used .child { color: purple; } :global(.external) { color: gray; } :global { .global-block { color: silver; } } .dead :global(.external) { color: pink; } :global(.root) .dead-global { color: lime; } :local(.dead-local) { color: brown; } @media (min-width: 1px) { .media-dead { color: orange; } .used { color: brown; } }"#;
+    let source = r#".used { color: red; } .dead { color: blue; } .dead:hover { color: green; } button.other-dead { color: black; } .also-dead, .other-dead { color: black; } .used, .dead-mixed { color: cyan; } .used .child { color: purple; } :where(.used) { color: navy; } :where(.dead-pseudo) { color: gold; } :is(.dead-pseudo-alt, .also-dead-pseudo-alt) { color: tan; } :is(.used, .dead-kept-alt) { color: teal; } :global(.external) { color: gray; } :global { .global-block { color: silver; } } .dead :global(.external) { color: pink; } :global(.root) .dead-global { color: lime; } :local(.dead-local) { color: brown; } @media (min-width: 1px) { .media-dead { color: orange; } .used { color: brown; } }"#;
     let context = TransformExecutionContextV0 {
         closed_style_world: true,
         reachable_class_names: vec!["used".to_string()],
@@ -3583,13 +3583,23 @@ fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 9);
+    assert_eq!(execution.mutation_count, 11);
     assert!(execution.output_css.contains(".used { color: red; }"));
     assert!(execution.output_css.contains(".used { color: cyan; }"));
     assert!(
         execution
             .output_css
             .contains(".used .child { color: purple; }")
+    );
+    assert!(
+        execution
+            .output_css
+            .contains(":where(.used) { color: navy; }")
+    );
+    assert!(
+        execution
+            .output_css
+            .contains(":is(.used, .dead-kept-alt) { color: teal; }")
     );
     assert!(
         execution
@@ -3611,6 +3621,9 @@ fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
     assert!(!execution.output_css.contains(".dead :global"));
     assert!(!execution.output_css.contains(".dead-global"));
     assert!(!execution.output_css.contains(".dead-local"));
+    assert!(!execution.output_css.contains(".dead-pseudo"));
+    assert!(!execution.output_css.contains(".dead-pseudo-alt"));
+    assert!(!execution.output_css.contains(".also-dead-pseudo-alt"));
     assert!(!execution.output_css.contains("button.other-dead"));
     assert!(!execution.output_css.contains(".also-dead"));
     assert!(!execution.output_css.contains(".other-dead"));
@@ -3620,7 +3633,7 @@ fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
         execution.executed_pass_ids,
         vec!["tree-shake-class", "print-css"]
     );
-    assert_eq!(execution.semantic_removals.len(), 9);
+    assert_eq!(execution.semantic_removals.len(), 11);
     assert!(execution.semantic_removals.iter().any(|removal| {
         removal.symbol_kind == "class"
             && removal.name == "also-dead,other-dead"

@@ -4,7 +4,7 @@ use crate::{
     },
     helpers::{
         collections::push_unique_string, identifiers::css_identifier_names_match,
-        rules::SimpleRuleSlice, selectors::selector_branch_owner_class_name,
+        rules::SimpleRuleSlice, selectors::selector_branch_owner_class_names,
         values::split_top_level_value_arguments,
     },
 };
@@ -26,11 +26,19 @@ pub(crate) fn selector_list_class_tree_shake_plan(
     let mut owner_class_names = Vec::new();
     let mut reachable_branches = Vec::new();
     for branch in branches {
-        let class_name = selector_branch_owner_class_name(&branch)?;
-        if class_name_is_reachable(&class_name, reachable_class_names) {
+        let Some(class_names) = selector_branch_owner_class_names(&branch) else {
+            reachable_branches.push(branch);
+            continue;
+        };
+        if class_names
+            .iter()
+            .any(|class_name| class_name_is_reachable(class_name, reachable_class_names))
+        {
             reachable_branches.push(branch);
         } else {
-            push_unique_string(&mut owner_class_names, class_name);
+            for class_name in class_names {
+                push_unique_string(&mut owner_class_names, class_name);
+            }
         }
     }
     if owner_class_names.is_empty() {
