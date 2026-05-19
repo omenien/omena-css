@@ -146,7 +146,7 @@ fn normalize_opacity_percentage_token(text: &str, number: &str) -> Option<String
     }
 
     let replacement = compress_number_prefix(&format_css_number(value / 100.0));
-    (replacement.len() < text.len()).then_some(replacement)
+    (replacement.len() <= text.len()).then_some(replacement)
 }
 
 fn normalize_static_unit_declaration_values_with_lexer(

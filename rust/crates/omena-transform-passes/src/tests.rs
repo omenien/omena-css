@@ -1369,8 +1369,8 @@ fn execution_runtime_normalizes_safe_zero_percent_position_values() {
 }
 
 #[test]
-fn execution_runtime_normalizes_shorter_opacity_percentages() {
-    let source = r#".a { opacity: 50%; } .b { opacity: 100%; } .c { opacity: 5%; } .d { opacity: 150%; } .e { width: 50%; } .f { fill-opacity: 100%; stroke-opacity: 50%; flood-opacity: 0%; stop-opacity: 5%; }"#;
+fn execution_runtime_normalizes_static_opacity_percentages() {
+    let source = r#".a { opacity: 50%; } .b { opacity: 100%; } .c { opacity: 5%; } .d { opacity: 150%; } .e { width: 50%; } .f { fill-opacity: 100%; stroke-opacity: 50%; flood-opacity: 0%; stop-opacity: 5%; } .g { opacity: 25%; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1379,10 +1379,10 @@ fn execution_runtime_normalizes_shorter_opacity_percentages() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 4);
+    assert_eq!(execution.mutation_count, 5);
     assert_eq!(
         execution.output_css,
-        r#".a { opacity: .5; } .b { opacity: 1; } .c { opacity: 5%; } .d { opacity: 150%; } .e { width: 50%; } .f { fill-opacity: 1; stroke-opacity: .5; flood-opacity: 0%; stop-opacity: 5%; }"#
+        r#".a { opacity: .5; } .b { opacity: 1; } .c { opacity: 5%; } .d { opacity: 150%; } .e { width: 50%; } .f { fill-opacity: 1; stroke-opacity: .5; flood-opacity: 0%; stop-opacity: 5%; } .g { opacity: .25; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

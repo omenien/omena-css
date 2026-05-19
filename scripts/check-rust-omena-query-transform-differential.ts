@@ -282,7 +282,7 @@ const fixtures: readonly DifferentialFixture[] = [
   {
     label: "opacity-percentage-normalization",
     source:
-      ".a { opacity: 50%; } .b { opacity: 100%; } .c { fill-opacity: 100%; stroke-opacity: 50%; flood-opacity: 0%; stop-opacity: 5%; }",
+      ".a { opacity: 50%; } .b { opacity: 100%; } .c { fill-opacity: 100%; stroke-opacity: 50%; flood-opacity: 0%; stop-opacity: 5%; } .d { opacity: 25%; }",
   },
   {
     label: "aspect-ratio-spacing-normalization",
