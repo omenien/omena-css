@@ -378,6 +378,10 @@ fn compress_static_default_gradient_direction(value: &str, function_name: &str) 
     let [direction, stops @ ..] = arguments.as_slice() else {
         return None;
     };
+    if let Some(shorter_direction) = shorter_static_linear_gradient_direction(direction) {
+        let replacement = format!("{function_name}({shorter_direction},{})", stops.join(","));
+        return (replacement.len() < value.len()).then_some(replacement);
+    }
     if stops.len() < 2 || !is_default_linear_gradient_direction(direction) {
         if !is_reverse_default_linear_gradient_direction(direction) {
             return None;
@@ -395,6 +399,17 @@ fn compress_static_default_gradient_direction(value: &str, function_name: &str) 
 
     let replacement = format!("{function_name}({})", stops.join(","));
     (replacement.len() < value.len()).then_some(replacement)
+}
+
+fn shorter_static_linear_gradient_direction(value: &str) -> Option<&'static str> {
+    match normalize_ascii_whitespace(value)
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "to right" => Some("90deg"),
+        "to left" => Some("270deg"),
+        _ => None,
+    }
 }
 
 fn is_default_linear_gradient_direction(value: &str) -> bool {

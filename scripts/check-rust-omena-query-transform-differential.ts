@@ -163,7 +163,7 @@ const fixtures: readonly DifferentialFixture[] = [
   {
     label: "linear-gradient-default-direction",
     source:
-      ".a { background: linear-gradient(to bottom, red, blue); } .b { background-image: repeating-linear-gradient(180deg, white, black); } .c { list-style-image: linear-gradient(0.5turn, red, blue); } .d { mask-image: linear-gradient(200grad, red, blue); } .e { background: linear-gradient(0deg, red 10%, blue 90%); } .f { background-image: repeating-linear-gradient(to top, white, black); }",
+      ".a { background: linear-gradient(to bottom, red, blue); } .b { background-image: repeating-linear-gradient(180deg, white, black); } .c { list-style-image: linear-gradient(0.5turn, red, blue); } .d { mask-image: linear-gradient(200grad, red, blue); } .e { background: linear-gradient(0deg, red 10%, blue 90%); } .f { background-image: repeating-linear-gradient(to top, white, black); } .g { background: linear-gradient(to right, red, blue); } .h { background-image: repeating-linear-gradient(to left, white, black); }",
   },
   {
     label: "radial-conic-gradient-defaults",

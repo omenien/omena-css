@@ -1453,7 +1453,7 @@ fn execution_runtime_compresses_static_declaration_colors_only() {
 
 #[test]
 fn execution_runtime_compresses_default_linear_gradient_directions() {
-    let source = r#".a { background: linear-gradient(to bottom, red, blue); background-image: repeating-linear-gradient(180deg, white, black); list-style-image: linear-gradient(0.5turn, red, blue); mask-image: linear-gradient(200grad, red, blue); border-image-source: linear-gradient(to top, red, blue); } .b { background: radial-gradient(circle at center, red, blue); } .c { background: radial-gradient(ellipse at center, red, blue); } .d { background: conic-gradient(from 0deg, red, blue); } .e { background: repeating-conic-gradient(from 0turn, red, blue); } .f { background: linear-gradient(0deg, red 10%, blue 90%); background-image: repeating-linear-gradient(0turn, white, black); }"#;
+    let source = r#".a { background: linear-gradient(to bottom, red, blue); background-image: repeating-linear-gradient(180deg, white, black); list-style-image: linear-gradient(0.5turn, red, blue); mask-image: linear-gradient(200grad, red, blue); border-image-source: linear-gradient(to top, red, blue); } .b { background: radial-gradient(circle at center, red, blue); } .c { background: radial-gradient(ellipse at center, red, blue); } .d { background: conic-gradient(from 0deg, red, blue); } .e { background: repeating-conic-gradient(from 0turn, red, blue); } .f { background: linear-gradient(0deg, red 10%, blue 90%); background-image: repeating-linear-gradient(0turn, white, black); } .g { background: linear-gradient(to right, red, blue); background-image: repeating-linear-gradient(to left, white, black); }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1462,10 +1462,10 @@ fn execution_runtime_compresses_default_linear_gradient_directions() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 11);
+    assert_eq!(execution.mutation_count, 13);
     assert_eq!(
         execution.output_css,
-        r#".a { background: linear-gradient(red,#00f); background-image: repeating-linear-gradient(#fff,#000); list-style-image: linear-gradient(red,#00f); mask-image: linear-gradient(red,#00f); border-image-source: linear-gradient(#00f,red); } .b { background: radial-gradient(circle,red,#00f); } .c { background: radial-gradient(red,#00f); } .d { background: conic-gradient(red,#00f); } .e { background: repeating-conic-gradient(red,#00f); } .f { background: linear-gradient(#00f 10%,red 90%); background-image: repeating-linear-gradient(#000,#fff); }"#
+        r#".a { background: linear-gradient(red,#00f); background-image: repeating-linear-gradient(#fff,#000); list-style-image: linear-gradient(red,#00f); mask-image: linear-gradient(red,#00f); border-image-source: linear-gradient(#00f,red); } .b { background: radial-gradient(circle,red,#00f); } .c { background: radial-gradient(red,#00f); } .d { background: conic-gradient(red,#00f); } .e { background: repeating-conic-gradient(red,#00f); } .f { background: linear-gradient(#00f 10%,red 90%); background-image: repeating-linear-gradient(#000,#fff); } .g { background: linear-gradient(90deg,red,#00f); background-image: repeating-linear-gradient(270deg,#fff,#000); }"#
     );
     assert_eq!(
         execution.executed_pass_ids,
