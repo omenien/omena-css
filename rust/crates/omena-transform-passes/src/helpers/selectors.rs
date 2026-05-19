@@ -123,7 +123,7 @@ pub(crate) fn selector_branch_owner_class_name(selector: &str) -> Option<String>
             '\\' => return None,
             '.' if bracket_depth == 0 && paren_depth == 0 => {
                 let name_start = index + ch.len_utf8();
-                let name_end = ascii_css_identifier_end(selector, name_start);
+                let name_end = css_class_selector_name_end(selector, name_start);
                 if name_end == name_start {
                     return None;
                 }
@@ -149,7 +149,14 @@ pub(crate) fn simple_class_selector_name(selector: &str) -> Option<String> {
     }
 
     let name = selector.strip_prefix('.')?;
-    if name.is_empty() || !css_identifier_text_is_plain(name) {
+    if name.is_empty() {
+        return None;
+    }
+    let name_end = css_class_selector_name_end(selector, '.'.len_utf8());
+    if name_end != selector.len() {
+        return None;
+    }
+    if !name.contains('\\') && !css_identifier_text_is_plain(name) {
         return None;
     }
     Some(name.to_string())
@@ -188,4 +195,27 @@ pub(crate) fn local_pseudo_function_end(selector: &str, index: usize) -> Option<
         return None;
     }
     matching_function_end(selector, index + LOCAL_PREFIX.len() - 1)
+}
+
+pub(crate) fn css_class_selector_name_end(selector: &str, start: usize) -> usize {
+    let mut end = start;
+    while end < selector.len() {
+        let Some(ch) = selector[end..].chars().next() else {
+            break;
+        };
+        if ch == '\\' {
+            let escaped_start = end + ch.len_utf8();
+            let Some(escaped) = selector[escaped_start..].chars().next() else {
+                break;
+            };
+            end = escaped_start + escaped.len_utf8();
+            continue;
+        }
+        let next = ascii_css_identifier_end(selector, end);
+        if next == end {
+            break;
+        }
+        end = next;
+    }
+    end
 }

@@ -3079,6 +3079,54 @@ fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
 }
 
 #[test]
+fn execution_runtime_tree_shakes_escaped_class_owned_rules_with_closed_world_context() {
+    let source = r#".foo\:bar { color: red; } .dead { color: blue; } .foo\:bar:hover { color: green; } .dead, .foo\:bar { color: cyan; }"#;
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec![r#"foo\:bar"#.to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::TreeShakeClass,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert!(
+        execution
+            .output_css
+            .contains(r#".foo\:bar { color: red; }"#)
+    );
+    assert!(
+        execution
+            .output_css
+            .contains(r#".foo\:bar:hover { color: green; }"#)
+    );
+    assert!(
+        execution
+            .output_css
+            .contains(r#".foo\:bar { color: cyan; }"#)
+    );
+    assert!(!execution.output_css.contains(".dead {"));
+    assert!(!execution.output_css.contains(".dead,"));
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["tree-shake-class", "print-css"]
+    );
+    assert_eq!(execution.semantic_removals.len(), 2);
+    assert!(
+        execution
+            .semantic_removals
+            .iter()
+            .any(|removal| { removal.pass_id == "tree-shake-class" && removal.name == "dead" })
+    );
+}
+
+#[test]
 fn execution_runtime_keeps_composed_classes_reachable_during_tree_shaking() {
     let source = r#".button { composes: base; color: red; } .base { color: blue; } .utility { animation: spin 1s; color: var(--brand); } .dead { color: black; } @keyframes spin { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } } :root { --brand: red; --dead: blue; }"#;
     let context = TransformExecutionContextV0 {

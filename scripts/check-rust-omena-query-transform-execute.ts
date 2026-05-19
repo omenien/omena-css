@@ -935,6 +935,66 @@ assert.deepEqual(escapedClassHashSummary.execution.executedPassIds, [
 ]);
 assert.equal(escapedClassHashSummary.execution.mutationCount, 3);
 
+const escapedClassTreeShakeResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "Escaped.module.css",
+      styles: [
+        {
+          stylePath: "Escaped.module.css",
+          styleSource:
+            ".foo\\:bar { color: red; } .dead { color: blue; } .foo\\:bar:hover { color: green; } .dead, .foo\\:bar { color: cyan; }",
+        },
+      ],
+      requestedPassIds: ["tree-shake-class", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["foo\\:bar"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(escapedClassTreeShakeResult.status, 0, escapedClassTreeShakeResult.stderr);
+assert.equal(escapedClassTreeShakeResult.error, undefined);
+
+const escapedClassTreeShakeSummary = JSON.parse(
+  escapedClassTreeShakeResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.ok(escapedClassTreeShakeSummary.execution.outputCss.includes(".foo\\:bar { color: red; }"));
+assert.ok(
+  escapedClassTreeShakeSummary.execution.outputCss.includes(".foo\\:bar:hover { color: green; }"),
+);
+assert.ok(escapedClassTreeShakeSummary.execution.outputCss.includes(".foo\\:bar { color: cyan; }"));
+assert.ok(!escapedClassTreeShakeSummary.execution.outputCss.includes(".dead {"));
+assert.ok(!escapedClassTreeShakeSummary.execution.outputCss.includes(".dead,"));
+assert.deepEqual(escapedClassTreeShakeSummary.execution.executedPassIds, [
+  "tree-shake-class",
+  "print-css",
+]);
+assertIncludesAll(
+  escapedClassTreeShakeSummary.execution.semanticRemovals.map(
+    (removal) => `${removal.passId}:${removal.name}`,
+  ),
+  ["tree-shake-class:dead"],
+  "escaped class tree-shaking removals",
+);
+
 const alphaColorFunctionResult = spawnSync(
   "cargo",
   [
