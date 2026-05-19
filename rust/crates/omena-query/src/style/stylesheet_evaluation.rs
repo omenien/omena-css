@@ -47,11 +47,13 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
 
     let mut edits = Vec::new();
     for declaration in declarations.values() {
-        edits.push(StaticStylesheetEvaluationEdit {
-            start: declaration.span_start,
-            end: declaration.span_end,
-            replacement: String::new(),
-        });
+        for (start, end) in &declaration.removal_spans {
+            edits.push(StaticStylesheetEvaluationEdit {
+                start: *start,
+                end: *end,
+                replacement: String::new(),
+            });
+        }
     }
     for fact in variable_facts {
         if !variable_kind.matches_reference(fact.kind) {
@@ -131,6 +133,13 @@ impl StaticStylesheetVariableKind {
             Self::Less => false,
         }
     }
+
+    fn rejects_duplicate_declarations(self) -> bool {
+        match self {
+            Self::Scss => true,
+            Self::Less => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -138,6 +147,7 @@ struct StaticStylesheetVariableDeclaration {
     value: String,
     span_start: usize,
     span_end: usize,
+    removal_spans: Vec<(usize, usize)>,
 }
 
 #[derive(Debug, Clone)]
@@ -167,7 +177,17 @@ fn collect_static_stylesheet_variable_declarations(
             return None;
         }
         if declarations.contains_key(fact.name.as_str()) {
-            return None;
+            if variable_kind.rejects_duplicate_declarations() {
+                return None;
+            }
+            let previous = declarations.get_mut(fact.name.as_str())?;
+            previous
+                .removal_spans
+                .push((declaration.span_start, declaration.span_end));
+            previous.value = declaration.value;
+            previous.span_start = declaration.span_start;
+            previous.span_end = declaration.span_end;
+            continue;
         }
         declarations.insert(fact.name.clone(), declaration);
     }
@@ -189,6 +209,7 @@ fn extract_static_stylesheet_variable_declaration(
         value,
         span_start: variable_start,
         span_end,
+        removal_spans: vec![(variable_start, span_end)],
     })
 }
 
@@ -281,9 +302,12 @@ fn static_stylesheet_position_is_inside_declaration(
     declarations: &BTreeMap<String, StaticStylesheetVariableDeclaration>,
     position: usize,
 ) -> bool {
-    declarations
-        .values()
-        .any(|declaration| position >= declaration.span_start && position < declaration.span_end)
+    declarations.values().any(|declaration| {
+        declaration
+            .removal_spans
+            .iter()
+            .any(|(start, end)| position >= *start && position < *end)
+    })
 }
 
 fn source_position_is_top_level(source: &str, position: usize) -> bool {

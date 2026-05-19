@@ -2036,6 +2036,55 @@ assert.equal(
   staticLessForwardEvaluationSummary.execution.outputCss.trim(),
   "._button_0{ color: red; }",
 );
+
+const staticLessLastWinsEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-source",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "LastWinsLess.module.less",
+      styleSource: "@brand: red; .button { color: @brand; } @brand: blue;",
+      requestedPassIds: ["less-module-evaluate", "css-modules-class-hashing", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  staticLessLastWinsEvaluationResult.status,
+  0,
+  staticLessLastWinsEvaluationResult.stderr,
+);
+assert.equal(staticLessLastWinsEvaluationResult.error, undefined);
+
+const staticLessLastWinsEvaluationSummary = JSON.parse(
+  staticLessLastWinsEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.equal(
+  staticLessLastWinsEvaluationSummary.product,
+  "omena-query.consumer-build-style-source",
+);
+assert.deepEqual(staticLessLastWinsEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert.equal(
+  staticLessLastWinsEvaluationSummary.execution.cssModuleEvaluation?.evaluatedCss.trim(),
+  ".button { color: blue; }",
+);
+assert.equal(
+  staticLessLastWinsEvaluationSummary.execution.outputCss.trim(),
+  "._button_0{ color: blue; }",
+);
 assert.equal(icssExportReachabilitySummary.semanticRemovalCount, 3);
 
 process.stdout.write(
