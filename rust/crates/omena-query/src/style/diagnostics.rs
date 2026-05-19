@@ -5,6 +5,7 @@ use omena_parser::{
 };
 
 use super::cascade_checker::summarize_query_cascade_checker_diagnostics;
+use super::parser_facade::collect_omena_query_omena_parser_style_facts_raw;
 use super::*;
 
 const LSP_DIAGNOSTIC_TAG_UNNECESSARY: u8 = 1;
@@ -97,7 +98,7 @@ pub fn summarize_omena_query_missing_keyframes_diagnostics(
     source: &str,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let dialect = omena_parser_dialect_for_style_path(style_uri);
-    let facts = collect_style_facts(source, dialect);
+    let facts = collect_omena_query_omena_parser_style_facts_raw(source, dialect);
     let declared_keyframes = facts
         .animations
         .iter()
@@ -138,7 +139,7 @@ pub fn summarize_omena_query_missing_sass_symbol_diagnostics(
     source: &str,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let dialect = omena_parser_dialect_for_style_path(style_uri);
-    let facts = collect_style_facts(source, dialect);
+    let facts = collect_omena_query_omena_parser_style_facts_raw(source, dialect);
     let mut declarations = BTreeSet::<(&'static str, Option<String>, String)>::new();
     let mut emitted = BTreeSet::new();
     let mut diagnostics = Vec::new();
@@ -288,7 +289,7 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
         .map(|entry| (entry.style_path.as_str(), entry.facts.clone()))
         .collect::<BTreeMap<_, _>>();
     let dialect = omena_parser_dialect_for_style_path(target_style_path);
-    let target_facts = collect_style_facts(target_source, dialect);
+    let target_facts = collect_omena_query_omena_parser_style_facts_raw(target_source, dialect);
     let mut diagnostics = Vec::new();
 
     for edge in target_facts.css_module_composes_edges {
@@ -466,7 +467,7 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics(
     propagate_omena_query_composes_usage(&composes_graph, &mut used_selectors);
 
     let dialect = omena_parser_dialect_for_style_path(target_style_path);
-    let target_facts = collect_style_facts(target_source, dialect);
+    let target_facts = collect_omena_query_omena_parser_style_facts_raw(target_source, dialect);
     let used_in_target = used_selectors
         .get(target_style_path)
         .cloned()

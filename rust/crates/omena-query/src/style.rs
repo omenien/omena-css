@@ -13,8 +13,8 @@ pub use cascade_position::*;
 pub use completion::*;
 pub use diagnostics::*;
 use parser_facade::{
-    omena_parser_dialect_for_style_path, omena_parser_style_dialect_label,
-    omena_query_sass_symbol_fact_kind_is_declaration,
+    collect_omena_query_omena_parser_style_facts_raw, omena_parser_dialect_for_style_path,
+    omena_parser_style_dialect_label, omena_query_sass_symbol_fact_kind_is_declaration,
     omena_query_sass_symbol_fact_kind_is_reference,
 };
 pub use parser_facade::{
@@ -57,7 +57,7 @@ pub fn summarize_omena_query_style_hover_candidates(
     style_source: &str,
 ) -> Option<OmenaQueryStyleHoverCandidatesV0> {
     let dialect = omena_parser_dialect_for_style_path(style_path);
-    let facts = collect_style_facts(style_source, dialect);
+    let facts = collect_omena_query_omena_parser_style_facts_raw(style_source, dialect);
     let mut seen = BTreeSet::new();
     let mut candidates = Vec::new();
     collect_style_selector_hover_candidates_from_omena_parser_facts(
@@ -267,7 +267,7 @@ pub fn summarize_omena_query_sass_module_sources(
     style_path: &str,
     style_source: &str,
 ) -> Option<OmenaQuerySassModuleSourcesV0> {
-    let facts = collect_style_facts(
+    let facts = collect_omena_query_omena_parser_style_facts_raw(
         style_source,
         omena_parser_dialect_for_style_path(style_path),
     );

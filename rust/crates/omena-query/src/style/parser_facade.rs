@@ -1,19 +1,41 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_parser::{
-    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedCssModuleComposesFactKind,
-    ParsedCssModuleValueFactKind, ParsedIcssFactKind, ParsedSassModuleEdgeFactKind,
-    ParsedSassSymbolFactKind, ParsedSelectorFactKind, ParsedVariableFactKind, collect_style_facts,
+    LexResult, ParseResult, ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind,
+    ParsedCssModuleComposesFactKind, ParsedCssModuleValueFactKind, ParsedIcssFactKind,
+    ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedSelectorFactKind,
+    ParsedStyleFacts, ParsedVariableFactKind, collect_style_facts, lex, parse,
 };
 
 use crate::*;
+
+pub(super) fn collect_omena_query_omena_parser_style_facts_raw(
+    style_source: &str,
+    dialect: OmenaParserStyleDialect,
+) -> ParsedStyleFacts {
+    collect_style_facts(style_source, dialect)
+}
+
+pub(super) fn parse_omena_query_omena_parser_style_source(
+    style_source: &str,
+    dialect: OmenaParserStyleDialect,
+) -> ParseResult {
+    parse(style_source, dialect)
+}
+
+pub(super) fn lex_omena_query_omena_parser_style_source(
+    style_source: &str,
+    dialect: OmenaParserStyleDialect,
+) -> LexResult {
+    lex(style_source, dialect)
+}
 
 pub fn summarize_omena_query_style_document(
     style_path: &str,
     style_source: &str,
 ) -> Option<OmenaQueryStyleDocumentSummaryV0> {
     let dialect = omena_parser_dialect_for_style_path(style_path);
-    let facts = collect_style_facts(style_source, dialect);
+    let facts = collect_omena_query_omena_parser_style_facts_raw(style_source, dialect);
     let mut selector_names = Vec::new();
     let mut custom_property_decl_names = Vec::new();
     let mut custom_property_ref_names = Vec::new();
@@ -69,7 +91,7 @@ pub fn summarize_omena_query_omena_parser_style_facts(
     style_source: &str,
     dialect: OmenaParserStyleDialect,
 ) -> OmenaQueryOmenaParserStyleFactsV0 {
-    let facts = collect_style_facts(style_source, dialect);
+    let facts = collect_omena_query_omena_parser_style_facts_raw(style_source, dialect);
     let sass_symbol_resolution =
         summarize_omena_query_sass_symbol_resolution(facts.sass_symbols.as_slice());
     let mut class_selector_names = Vec::new();

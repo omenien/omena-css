@@ -65,10 +65,11 @@ assert.ok(
 );
 
 const queryStyle = read("rust/crates/omena-query/src/style.rs");
+const queryParserFacade = read("rust/crates/omena-query/src/style/parser_facade.rs");
 assert.ok(
-  queryStyle.includes("let facts = collect_style_facts(style_source, dialect);") &&
-    queryStyle.includes('product: "omena-query.omena-parser-style-facts"'),
-  "omena-query style facts must be collected from omena-parser",
+  queryParserFacade.includes("collect_style_facts(style_source, dialect)") &&
+    queryParserFacade.includes('product: "omena-query.omena-parser-style-facts"'),
+  "omena-query parser facade must collect style facts from omena-parser",
 );
 assert.ok(
   queryStyle.includes('product: "omena-query.style-hover-candidates"') &&
@@ -76,6 +77,22 @@ assert.ok(
     queryStyle.includes("collect_custom_property_hover_candidates_from_omena_parser_facts"),
   "omena-query hover candidates must be derived from omena-parser facts",
 );
+for (const querySourcePath of [
+  "rust/crates/omena-query/src/style.rs",
+  "rust/crates/omena-query/src/style/diagnostics.rs",
+  "rust/crates/omena-query/src/style/stylesheet_evaluation.rs",
+  "rust/crates/omena-query/src/style/transform.rs",
+] as const) {
+  const querySource = read(querySourcePath);
+  assert.ok(
+    !querySource.includes("collect_style_facts("),
+    `${querySourcePath} must collect parser facts through the query parser facade`,
+  );
+  assert.ok(
+    !/\b(?:lex|parse)\(/.test(querySource),
+    `${querySourcePath} must lex/parse through the query parser facade`,
+  );
+}
 
 const lspStyleProviderParity = read("scripts/check-rust-omena-lsp-server-style-provider-parity.ts");
 assert.ok(

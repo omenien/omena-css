@@ -1,5 +1,4 @@
 use super::*;
-use omena_parser::lex;
 use omena_syntax::SyntaxKind;
 use omena_transform_passes::{
     TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
@@ -11,6 +10,9 @@ use omena_transform_passes::{
 };
 use std::borrow::Cow;
 
+use super::parser_facade::{
+    lex_omena_query_omena_parser_style_source, parse_omena_query_omena_parser_style_source,
+};
 use super::stylesheet_evaluation::{
     derive_static_scss_stylesheet_module_configurable_variable_names,
     derive_static_scss_stylesheet_module_variable_exports,
@@ -209,7 +211,7 @@ pub fn summarize_omena_query_consumer_check_style_source(
     style_source: &str,
 ) -> OmenaQueryConsumerCheckSummaryV0 {
     let dialect = omena_parser_dialect_for_style_path(style_path);
-    let parse_result = parse(style_source, dialect);
+    let parse_result = parse_omena_query_omena_parser_style_source(style_source, dialect);
     let style_facts = summarize_omena_query_omena_parser_style_facts(style_source, dialect);
 
     OmenaQueryConsumerCheckSummaryV0 {
@@ -1464,7 +1466,7 @@ fn inline_static_scss_use_rules(
     dialect: OmenaParserStyleDialect,
     scss_module_uses: &[StaticScssModuleUseEvaluation],
 ) -> (String, usize) {
-    let lexed = lex(source, dialect);
+    let lexed = lex_omena_query_omena_parser_style_source(source, dialect);
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
     let mut emitted_style_paths = BTreeSet::<String>::new();
@@ -1513,7 +1515,7 @@ fn inline_static_scss_forward_rules(
     dialect: OmenaParserStyleDialect,
     forward_evaluations: &[StaticScssModuleForwardEvaluation],
 ) -> (String, usize) {
-    let lexed = lex(source, dialect);
+    let lexed = lex_omena_query_omena_parser_style_source(source, dialect);
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
     let mut emitted_style_paths = BTreeSet::<String>::new();
@@ -1588,7 +1590,8 @@ fn derive_static_scss_module_rule_variable_overrides(
     at_keyword: &str,
     use_source: &str,
 ) -> BTreeMap<String, String> {
-    let lexed = lex(style_source, OmenaParserStyleDialect::Scss);
+    let lexed =
+        lex_omena_query_omena_parser_style_source(style_source, OmenaParserStyleDialect::Scss);
     let tokens = lexed.tokens();
     let mut depth = 0usize;
     let mut index = 0usize;
@@ -1629,7 +1632,8 @@ fn derive_static_scss_forward_export_prefix(
     style_source: &str,
     forward_source: &str,
 ) -> Option<String> {
-    let lexed = lex(style_source, OmenaParserStyleDialect::Scss);
+    let lexed =
+        lex_omena_query_omena_parser_style_source(style_source, OmenaParserStyleDialect::Scss);
     let tokens = lexed.tokens();
     let mut depth = 0usize;
     let mut index = 0usize;
@@ -1708,7 +1712,8 @@ fn static_scss_forward_export_prefix_is_safe(prefix: &str) -> bool {
 fn parse_static_scss_use_variable_overrides_from_rule(
     rule_source: &str,
 ) -> BTreeMap<String, String> {
-    let lexed = lex(rule_source, OmenaParserStyleDialect::Scss);
+    let lexed =
+        lex_omena_query_omena_parser_style_source(rule_source, OmenaParserStyleDialect::Scss);
     let tokens = lexed.tokens();
     let Some(with_index) = tokens
         .iter()
@@ -2286,7 +2291,7 @@ fn substitute_css_module_value_resolution_references(
     dialect: OmenaParserStyleDialect,
     resolutions_by_name: &BTreeMap<String, String>,
 ) -> Option<String> {
-    let lexed = lex(value, dialect);
+    let lexed = lex_omena_query_omena_parser_style_source(value, dialect);
     let mut replacements = Vec::new();
     for token in lexed.tokens() {
         if token.kind != SyntaxKind::Ident {

@@ -1,18 +1,21 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_parser::{
-    LexedToken, ParsedVariableFact, ParsedVariableFactKind,
-    StyleDialect as OmenaParserStyleDialect, collect_style_facts, lex,
+    LexedToken, ParsedVariableFact, ParsedVariableFactKind, StyleDialect as OmenaParserStyleDialect,
 };
 use omena_syntax::SyntaxKind;
 use omena_transform_passes::{TransformModuleEvaluationV0, reduce_static_numeric_expression};
+
+use super::parser_facade::{
+    collect_omena_query_omena_parser_style_facts_raw, lex_omena_query_omena_parser_style_source,
+};
 
 pub(super) fn derive_static_stylesheet_module_evaluation(
     style_source: &str,
     dialect: OmenaParserStyleDialect,
 ) -> Option<TransformModuleEvaluationV0> {
     let variable_kind = StaticStylesheetVariableKind::for_dialect(dialect)?;
-    let facts = collect_style_facts(style_source, dialect);
+    let facts = collect_omena_query_omena_parser_style_facts_raw(style_source, dialect);
     let variable_facts = facts.variables.as_slice();
     if variable_kind == StaticStylesheetVariableKind::Less {
         return derive_static_less_stylesheet_module_evaluation(style_source, variable_facts);
@@ -23,7 +26,10 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
 pub(super) fn derive_static_scss_stylesheet_module_variable_exports(
     style_source: &str,
 ) -> BTreeMap<String, String> {
-    let facts = collect_style_facts(style_source, OmenaParserStyleDialect::Scss);
+    let facts = collect_omena_query_omena_parser_style_facts_raw(
+        style_source,
+        OmenaParserStyleDialect::Scss,
+    );
     let scopes = match collect_static_stylesheet_scopes(style_source) {
         Some(scopes) => scopes,
         None => return BTreeMap::new(),
@@ -61,7 +67,10 @@ pub(super) fn derive_static_scss_stylesheet_module_variable_exports(
 pub(super) fn derive_static_scss_stylesheet_module_configurable_variable_names(
     style_source: &str,
 ) -> BTreeSet<String> {
-    let facts = collect_style_facts(style_source, OmenaParserStyleDialect::Scss);
+    let facts = collect_omena_query_omena_parser_style_facts_raw(
+        style_source,
+        OmenaParserStyleDialect::Scss,
+    );
     let scopes = match collect_static_stylesheet_scopes(style_source) {
         Some(scopes) => scopes,
         None => return BTreeSet::new(),
@@ -247,7 +256,7 @@ fn collect_static_scss_variable_declarations(
 }
 
 fn collect_static_scss_module_rule_ranges(source: &str) -> Vec<(usize, usize)> {
-    let lexed = lex(source, OmenaParserStyleDialect::Scss);
+    let lexed = lex_omena_query_omena_parser_style_source(source, OmenaParserStyleDialect::Scss);
     let tokens = lexed.tokens();
     let mut ranges = Vec::new();
     let mut depth = 0usize;
@@ -310,7 +319,8 @@ fn derive_static_less_stylesheet_module_evaluation(
     variable_facts: &[ParsedVariableFact],
 ) -> Option<TransformModuleEvaluationV0> {
     let scopes = collect_static_stylesheet_scopes(style_source)?;
-    let lexed = lex(style_source, OmenaParserStyleDialect::Less);
+    let lexed =
+        lex_omena_query_omena_parser_style_source(style_source, OmenaParserStyleDialect::Less);
     let tokens = lexed.tokens();
     let declarations =
         collect_static_less_variable_declarations(style_source, variable_facts, &scopes)?;
