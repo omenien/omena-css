@@ -59,5 +59,13 @@ pub(crate) fn custom_property_icss_export_is_reachable(
     export_name: &str,
     roots: &[String],
 ) -> bool {
-    roots.iter().any(|root| root == export_name)
+    roots.iter().any(|root| {
+        root == export_name
+            || custom_property_icss_export_alias(root)
+                == custom_property_icss_export_alias(export_name)
+    })
+}
+
+fn custom_property_icss_export_alias(name: &str) -> &str {
+    name.trim().strip_prefix("--").unwrap_or(name.trim())
 }

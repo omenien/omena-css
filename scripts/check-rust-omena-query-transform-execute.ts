@@ -1770,7 +1770,7 @@ const customPropertyIcssExportReachabilityResult = spawnSync(
       requestedPassIds: ["tree-shake-custom-property", "print-css"],
       transformContext: {
         closedStyleWorld: true,
-        reachableCustomPropertyNames: ["brand"],
+        reachableCustomPropertyNames: ["--brand"],
       },
     }),
     maxBuffer: 8 * 1024 * 1024,

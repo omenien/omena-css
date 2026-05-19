@@ -3561,6 +3561,26 @@ fn execution_runtime_tree_shakes_custom_property_icss_exports_with_closed_world_
     assert_eq!(all_unreachable.mutation_count, 2);
     assert!(!all_unreachable.output_css.contains(":export"));
     assert!(!all_unreachable.output_css.contains("--dead: blue;"));
+
+    let css_name_root = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::TreeShakeCustomProperty,
+            TransformPassKind::PrintCss,
+        ],
+        &TransformExecutionContextV0 {
+            closed_style_world: true,
+            reachable_custom_property_names: vec!["--brand".to_string()],
+            ..TransformExecutionContextV0::default()
+        },
+    );
+
+    assert_eq!(css_name_root.mutation_count, 2);
+    assert!(css_name_root.output_css.contains("--brand: red;"));
+    assert!(css_name_root.output_css.contains("brand: var(--brand);"));
+    assert!(!css_name_root.output_css.contains("--dead: blue;"));
+    assert!(!css_name_root.output_css.contains("dead: var(--dead);"));
 }
 
 #[test]
