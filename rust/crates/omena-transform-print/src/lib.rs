@@ -81,12 +81,8 @@ pub fn summarize_omena_transform_print_boundary() -> TransformPrintBoundarySumma
         schema_version: "0",
         product: "omena-transform-print.boundary",
         emission_pass_id: TransformPassKind::PrintCss.id(),
-        supported_modes: vec![
-            TransformPrintMode::Identity,
-            TransformPrintMode::Pretty,
-            TransformPrintMode::Minified,
-        ],
-        source_map_contract: "stable-IR provenance-anchor identity segments with byte offsets, UTF-8/UTF-16 line-column points, lexical identity fallback, and mutation-span segments",
+        supported_modes: vec![TransformPrintMode::Identity],
+        source_map_contract: "stable-IR provenance-anchor identity emission segments with byte offsets, UTF-8/UTF-16 line-column points, lexical identity fallback, and mutation-span segments",
         planner_surface: "omena-transform-passes.plan",
     }
 }
@@ -472,9 +468,9 @@ fn render_identity_preserving_css(source: &str, _mode: TransformPrintMode) -> St
 #[cfg(test)]
 mod tests {
     use super::{
-        default_print_options, print_transform_cst_source, print_transform_execution_artifact,
-        print_transform_execution_artifact_with_source, source_map_point,
-        summarize_omena_transform_print_boundary,
+        TransformPrintMode, default_print_options, print_transform_cst_source,
+        print_transform_execution_artifact, print_transform_execution_artifact_with_source,
+        source_map_point, summarize_omena_transform_print_boundary,
     };
     use omena_transform_cst::TransformPassKind;
     use omena_transform_passes::execute_transform_passes_on_source;
@@ -485,7 +481,7 @@ mod tests {
 
         assert_eq!(boundary.product, "omena-transform-print.boundary");
         assert_eq!(boundary.emission_pass_id, "print-css");
-        assert_eq!(boundary.supported_modes.len(), 3);
+        assert_eq!(boundary.supported_modes, vec![TransformPrintMode::Identity]);
     }
 
     #[test]
