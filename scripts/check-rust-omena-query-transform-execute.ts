@@ -2085,6 +2085,51 @@ assert.equal(
   staticLessLastWinsEvaluationSummary.execution.outputCss.trim(),
   "._button_0{ color: blue; }",
 );
+
+const staticStylesheetCompositeEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-source",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "CompositeScss.module.scss",
+      styleSource: "$brand: red; $border: 1px solid $brand; .button { border: $border; }",
+      requestedPassIds: ["scss-module-evaluate", "css-modules-class-hashing", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  staticStylesheetCompositeEvaluationResult.status,
+  0,
+  staticStylesheetCompositeEvaluationResult.stderr,
+);
+assert.equal(staticStylesheetCompositeEvaluationResult.error, undefined);
+
+const staticStylesheetCompositeEvaluationSummary = JSON.parse(
+  staticStylesheetCompositeEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.deepEqual(staticStylesheetCompositeEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert.equal(
+  staticStylesheetCompositeEvaluationSummary.execution.cssModuleEvaluation?.evaluatedCss.trim(),
+  ".button { border: 1px solid red; }",
+);
+assert.equal(
+  staticStylesheetCompositeEvaluationSummary.execution.outputCss.trim(),
+  "._button_0{ border: 1px solid red; }",
+);
 assert.equal(icssExportReachabilitySummary.semanticRemovalCount, 3);
 
 process.stdout.write(

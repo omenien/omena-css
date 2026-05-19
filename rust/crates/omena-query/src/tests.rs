@@ -1015,6 +1015,65 @@ fn consumer_build_derives_static_less_evaluator_context_with_last_declaration_wi
 }
 
 #[test]
+fn consumer_build_derives_static_stylesheet_evaluator_context_for_composite_values() {
+    let scss_summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        "$brand: red; $border: 1px solid $brand; .button { border: $border; }",
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+    let less_summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@brand: red; @border: 1px solid @brand; .button { border: @border; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        scss_summary
+            .execution
+            .output_css
+            .contains("border: 1px solid red")
+    );
+    assert!(
+        less_summary
+            .execution
+            .output_css
+            .contains("border: 1px solid red")
+    );
+    assert!(!scss_summary.execution.output_css.contains("$border:"));
+    assert!(!less_summary.execution.output_css.contains("@border:"));
+}
+
+#[test]
+fn consumer_build_keeps_static_scss_evaluator_planned_for_forward_composite_values() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        "$border: 1px solid $brand; $brand: red; .button { border: $border; }",
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("$border:"));
+    assert!(summary.execution.output_css.contains("$brand:"));
+}
+
+#[test]
 fn consumer_build_keeps_static_scss_evaluator_planned_for_duplicate_declarations() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",

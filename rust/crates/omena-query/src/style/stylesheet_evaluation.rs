@@ -173,9 +173,6 @@ fn collect_static_stylesheet_variable_declarations(
             return None;
         }
         let declaration = extract_static_stylesheet_variable_declaration(source, start, end)?;
-        if !static_stylesheet_variable_value_is_allowed(&declaration.value, variable_kind) {
-            return None;
-        }
         if declarations.contains_key(fact.name.as_str()) {
             if variable_kind.rejects_duplicate_declarations() {
                 return None;
@@ -211,14 +208,6 @@ fn extract_static_stylesheet_variable_declaration(
         span_end,
         removal_spans: vec![(variable_start, span_end)],
     })
-}
-
-fn static_stylesheet_variable_value_is_allowed(
-    value: &str,
-    variable_kind: StaticStylesheetVariableKind,
-) -> bool {
-    static_stylesheet_literal_value_is_safe(value)
-        || parse_static_stylesheet_variable_reference_value(value, variable_kind).is_some()
 }
 
 fn static_stylesheet_literal_value_is_safe(value: &str) -> bool {
@@ -259,36 +248,53 @@ fn resolve_static_stylesheet_variable_value(
         return None;
     }
     let declaration = declarations.get(name)?;
-    let value = declaration.value.trim();
-    let resolved = if static_stylesheet_literal_value_is_safe(value) {
-        Some(value.to_string())
-    } else {
-        let target_name = parse_static_stylesheet_variable_reference_value(value, variable_kind)?;
-        let target = declarations.get(target_name)?;
-        if variable_kind.requires_reference_after_declaration()
-            && target.span_end > declaration.span_start
-        {
-            None
-        } else {
-            resolve_static_stylesheet_variable_value(
-                target_name,
-                declarations,
-                variable_kind,
-                stack,
-            )
-        }
-    };
+    let resolved = resolve_static_stylesheet_variable_value_text(
+        declaration.value.trim(),
+        declarations,
+        declaration.span_start,
+        variable_kind,
+        stack,
+    );
     stack.remove(name);
     resolved
 }
 
-fn parse_static_stylesheet_variable_reference_value(
+fn resolve_static_stylesheet_variable_value_text(
     value: &str,
+    declarations: &BTreeMap<String, StaticStylesheetVariableDeclaration>,
+    reference_position: usize,
     variable_kind: StaticStylesheetVariableKind,
-) -> Option<&str> {
-    let value = value.trim();
-    let name = value.strip_prefix(variable_kind.reference_prefix())?;
-    static_stylesheet_variable_name_is_safe(name).then_some(value)
+    stack: &mut BTreeSet<String>,
+) -> Option<String> {
+    let references = collect_static_stylesheet_variable_references(value, variable_kind)?;
+    if references.is_empty() {
+        return static_stylesheet_literal_value_is_safe(value).then(|| value.to_string());
+    }
+    if !static_stylesheet_composite_value_is_safe(value) {
+        return None;
+    }
+
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    for reference in references {
+        let target = declarations.get(reference.name.as_str())?;
+        if variable_kind.requires_reference_after_declaration()
+            && target.span_end > reference_position
+        {
+            return None;
+        }
+        let resolved = resolve_static_stylesheet_variable_value(
+            reference.name.as_str(),
+            declarations,
+            variable_kind,
+            stack,
+        )?;
+        output.push_str(&value[cursor..reference.start]);
+        output.push_str(&resolved);
+        cursor = reference.end;
+    }
+    output.push_str(&value[cursor..]);
+    Some(output)
 }
 
 fn static_stylesheet_variable_name_is_safe(name: &str) -> bool {
@@ -296,6 +302,91 @@ fn static_stylesheet_variable_name_is_safe(name: &str) -> bool {
         && name
             .chars()
             .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+}
+
+fn static_stylesheet_composite_value_is_safe(value: &str) -> bool {
+    let value = value.trim();
+    !value.is_empty() && !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | '!'))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticStylesheetVariableReference {
+    name: String,
+    start: usize,
+    end: usize,
+}
+
+fn collect_static_stylesheet_variable_references(
+    value: &str,
+    variable_kind: StaticStylesheetVariableKind,
+) -> Option<Vec<StaticStylesheetVariableReference>> {
+    let prefix = variable_kind.reference_prefix();
+    let other_prefix = match variable_kind {
+        StaticStylesheetVariableKind::Scss => '@',
+        StaticStylesheetVariableKind::Less => '$',
+    };
+    let mut references = Vec::new();
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+
+    while index < value.len() {
+        let ch = value[index..].chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = value[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        if ch == other_prefix {
+            return None;
+        }
+        if ch != prefix {
+            index += ch.len_utf8();
+            continue;
+        }
+
+        let name_start = index + ch.len_utf8();
+        let name_end = static_stylesheet_variable_name_end(value, name_start);
+        if name_end == name_start {
+            return None;
+        }
+        let bare_name = &value[name_start..name_end];
+        if !static_stylesheet_variable_name_is_safe(bare_name) {
+            return None;
+        }
+        references.push(StaticStylesheetVariableReference {
+            name: value[index..name_end].to_string(),
+            start: index,
+            end: name_end,
+        });
+        index = name_end;
+    }
+
+    Some(references)
+}
+
+fn static_stylesheet_variable_name_end(value: &str, mut index: usize) -> usize {
+    while index < value.len() {
+        let Some(ch) = value[index..].chars().next() else {
+            break;
+        };
+        if !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '-') {
+            break;
+        }
+        index += ch.len_utf8();
+    }
+    index
 }
 
 fn static_stylesheet_position_is_inside_declaration(

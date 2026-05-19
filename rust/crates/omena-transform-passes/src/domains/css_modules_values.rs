@@ -676,11 +676,14 @@ fn collect_css_modules_value_references_in_at_rule_preludes(
                 SyntaxKind::Ident
                     if definition_names
                         .iter()
-                        .any(|name| name == &tokens[prelude_index].text) =>
+                        .any(|name| name == &tokens[prelude_index].text)
+                        && query_prelude_ident_is_feature_value(
+                            tokens,
+                            prelude_index,
+                            index + 1,
+                        ) =>
                 {
-                    if query_prelude_ident_is_feature_value(tokens, prelude_index, index + 1) {
-                        push_unique_string(&mut prelude_names, tokens[prelude_index].text.clone());
-                    }
+                    push_unique_string(&mut prelude_names, tokens[prelude_index].text.clone());
                 }
                 SyntaxKind::LeftBrace | SyntaxKind::Semicolon | SyntaxKind::RightBrace => {
                     terminator_index = Some(prelude_index);
