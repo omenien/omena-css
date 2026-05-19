@@ -158,6 +158,7 @@ fn route_design_token_references_in_value(
                     &arguments,
                     routes,
                     blocked_token_name,
+                    &mut Vec::new(),
                 ) {
                     output.push_str(&value[cursor..index]);
                     output.push_str(&routed_value);
@@ -185,6 +186,7 @@ fn routed_design_token_value_for_var_arguments(
     arguments: &[String],
     routes: &[TransformDesignTokenRouteV0],
     blocked_token_name: Option<&str>,
+    visiting: &mut Vec<String>,
 ) -> Option<String> {
     let (token_name, fallback_arguments) = arguments.split_first()?;
     let token_name = normalize_design_token_name(token_name)?;
@@ -201,7 +203,41 @@ fn routed_design_token_value_for_var_arguments(
                 .unwrap_or(fallback);
         return Some(format!("var({routed_token_name}, {routed_fallback})"));
     }
-    Some(routed_value.to_string())
+    resolve_nested_design_token_route_value(routed_value, routes, blocked_token_name, visiting)
+        .or_else(|| Some(routed_value.to_string()))
+}
+
+fn resolve_nested_design_token_route_value(
+    value: &str,
+    routes: &[TransformDesignTokenRouteV0],
+    blocked_token_name: Option<&str>,
+    visiting: &mut Vec<String>,
+) -> Option<String> {
+    let Some(routed_token_name) = parse_single_custom_property_var_reference(value) else {
+        return route_design_token_references_in_value(value, routes, blocked_token_name);
+    };
+    if visiting.iter().any(|name| name == &routed_token_name) {
+        return None;
+    }
+    visiting.push(routed_token_name.clone());
+    let resolved =
+        resolve_design_token_route_name(&routed_token_name, routes, blocked_token_name, visiting);
+    visiting.pop();
+    resolved
+}
+
+fn resolve_design_token_route_name(
+    token_name: &str,
+    routes: &[TransformDesignTokenRouteV0],
+    blocked_token_name: Option<&str>,
+    visiting: &mut Vec<String>,
+) -> Option<String> {
+    if blocked_token_name.is_some_and(|blocked| blocked == token_name) {
+        return None;
+    }
+    let routed_value = design_token_routed_value(token_name, routes)?;
+    resolve_nested_design_token_route_value(routed_value, routes, blocked_token_name, visiting)
+        .or_else(|| Some(routed_value.to_string()))
 }
 
 fn parse_single_custom_property_var_reference(value: &str) -> Option<String> {

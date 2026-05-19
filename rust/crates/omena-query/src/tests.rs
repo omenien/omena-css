@@ -2042,6 +2042,35 @@ fn derives_transform_context_from_workspace_sources() {
 }
 
 #[test]
+fn derives_transform_context_with_transitive_design_token_routes() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "Button.module.css",
+        [
+            (
+                "Button.module.css",
+                r#"@import "./tokens.css"; .button { color: var(--alias); }"#,
+            ),
+            (
+                "tokens.css",
+                r#":root { --alias: var(--brand); --brand: red; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    assert_eq!(summary.design_token_route_count, 2);
+    assert_eq!(
+        summary
+            .context
+            .design_token_routes
+            .iter()
+            .map(|route| (route.token_name.as_str(), route.routed_value.as_str()))
+            .collect::<Vec<_>>(),
+        vec![("--alias", "var(--brand)"), ("--brand", "red")]
+    );
+}
+
+#[test]
 fn derives_transform_context_with_transitive_import_inlines() {
     let summary = summarize_omena_query_transform_context_from_sources(
         "/tmp/App.css",
@@ -2183,6 +2212,57 @@ fn explicit_context_extends_query_derived_transform_context()
     );
     assert!(summary.execution.output_css.contains("color: red"));
     assert!(summary.execution.output_css.contains("background: blue"));
+    Ok(())
+}
+
+#[test]
+fn consumer_build_style_sources_routes_transitive_design_token_aliases()
+-> Result<(), Box<dyn std::error::Error>> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "Button.module.css".to_string(),
+            style_source: r#"@import "./tokens.css"; .button { color: var(--alias); }"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "tokens.css".to_string(),
+            style_source: ":root { --alias: var(--brand); --brand: red; }".to_string(),
+        },
+    ];
+    let summary = execute_omena_query_consumer_build_style_sources(
+        "Button.module.css",
+        &sources,
+        &[
+            "import-inline".to_string(),
+            "design-token-routing".to_string(),
+            "print-css".to_string(),
+        ],
+        &[],
+    )?;
+
+    assert_eq!(summary.product, "omena-query.consumer-build-style-source");
+    assert_eq!(summary.execution.design_token_routes.len(), 2);
+    assert!(
+        summary
+            .execution
+            .design_token_routes
+            .iter()
+            .any(|route| route.token_name == "--alias" && route.routed_value == "var(--brand)")
+    );
+    assert!(
+        summary
+            .execution
+            .design_token_routes
+            .iter()
+            .any(|route| route.token_name == "--brand" && route.routed_value == "red")
+    );
+    assert!(!summary.execution.output_css.contains("@import"));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(":root { --alias: red; --brand: red; }")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
     Ok(())
 }
 

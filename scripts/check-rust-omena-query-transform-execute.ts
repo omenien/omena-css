@@ -58,6 +58,14 @@ interface ConsumerBuildSummaryV0 {
     readonly executedPassIds: readonly string[];
     readonly plannedOnlyPassIds: readonly string[];
     readonly mutationCount: number;
+    readonly cssImportInlines: readonly {
+      readonly importSource: string;
+      readonly replacementCss: string;
+    }[];
+    readonly designTokenRoutes: readonly {
+      readonly tokenName: string;
+      readonly routedValue: string;
+    }[];
     readonly cssModuleEvaluation?: {
       readonly evaluator: string;
       readonly evaluatedCss: string;
@@ -917,6 +925,61 @@ assert.equal(
   transitiveImportInlineSummary.execution.cssImportInlines[0]?.replacementCss,
   ".base { color: red; } .token { color: blue; }",
 );
+
+const transitiveDesignTokenResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "Button.module.css",
+      styles: [
+        {
+          stylePath: "Button.module.css",
+          styleSource: '@import "./tokens.css"; .button { color: var(--alias); }',
+        },
+        {
+          stylePath: "tokens.css",
+          styleSource: ":root { --alias: var(--brand); --brand: red; }",
+        },
+      ],
+      requestedPassIds: ["import-inline", "design-token-routing", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(transitiveDesignTokenResult.status, 0, transitiveDesignTokenResult.stderr);
+assert.equal(transitiveDesignTokenResult.error, undefined);
+
+const transitiveDesignTokenSummary = JSON.parse(
+  transitiveDesignTokenResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.equal(transitiveDesignTokenSummary.product, "omena-query.consumer-build-style-source");
+assert.equal(
+  transitiveDesignTokenSummary.execution.outputCss,
+  ":root { --alias: red; --brand: red; } .button { color: red; }",
+);
+assert.deepEqual(transitiveDesignTokenSummary.execution.executedPassIds, [
+  "import-inline",
+  "design-token-routing",
+  "print-css",
+]);
+assert.deepEqual(transitiveDesignTokenSummary.execution.designTokenRoutes, [
+  { tokenName: "--alias", routedValue: "var(--brand)" },
+  { tokenName: "--brand", routedValue: "red" },
+]);
 
 const designTokenRecoveryResult = spawnSync(
   "cargo",

@@ -867,6 +867,85 @@ fn execution_runtime_routes_design_tokens_inside_custom_property_aliases() {
 }
 
 #[test]
+fn execution_runtime_routes_transitive_design_token_aliases_without_fallbacks() {
+    let source =
+        r#".button { color: var(--alias); border-color: var(--tone); box-shadow: var(--shadow); }"#;
+    let context = TransformExecutionContextV0 {
+        design_token_routes: vec![
+            TransformDesignTokenRouteV0 {
+                token_name: "--alias".to_string(),
+                routed_value: "var(--brand)".to_string(),
+            },
+            TransformDesignTokenRouteV0 {
+                token_name: "--brand".to_string(),
+                routed_value: "red".to_string(),
+            },
+            TransformDesignTokenRouteV0 {
+                token_name: "--tone".to_string(),
+                routed_value: "color-mix(in srgb, var(--brand), white)".to_string(),
+            },
+            TransformDesignTokenRouteV0 {
+                token_name: "--shadow".to_string(),
+                routed_value: "0 0 var(--gap)".to_string(),
+            },
+            TransformDesignTokenRouteV0 {
+                token_name: "--gap".to_string(),
+                routed_value: "2rem".to_string(),
+            },
+        ],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::DesignTokenRouting,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 3);
+    assert_eq!(
+        execution.output_css,
+        r#".button { color: red; border-color: color-mix(in srgb, red, white); box-shadow: 0 0 2rem; }"#
+    );
+}
+
+#[test]
+fn execution_runtime_preserves_design_token_fallback_aliases() {
+    let source = r#".button { color: var(--alias, blue); }"#;
+    let context = TransformExecutionContextV0 {
+        design_token_routes: vec![
+            TransformDesignTokenRouteV0 {
+                token_name: "--alias".to_string(),
+                routed_value: "var(--brand)".to_string(),
+            },
+            TransformDesignTokenRouteV0 {
+                token_name: "--brand".to_string(),
+                routed_value: "red".to_string(),
+            },
+        ],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::DesignTokenRouting,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(
+        execution.output_css,
+        r#".button { color: var(--brand, blue); }"#
+    );
+}
+
+#[test]
 fn execution_runtime_routes_design_token_fallback_expressions_after_alias_routes() {
     let source = r#".button { color: var(--pkg-brand, var(--pkg-border)); background: var(--unknown, var(--pkg-border)); outline-color: var(--pkg-brand, color-mix(in srgb, var(--pkg-border), black)); }"#;
     let context = TransformExecutionContextV0 {
