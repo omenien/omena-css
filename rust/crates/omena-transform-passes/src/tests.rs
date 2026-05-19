@@ -1768,6 +1768,24 @@ fn execution_runtime_compresses_box_shorthand_values() {
 }
 
 #[test]
+fn execution_runtime_compresses_border_image_longhands() {
+    let source = r#".a { border-image-source: url(a.png); border-image-slice: 10; border-image-width: 1; border-image-outset: 0; border-image-repeat: stretch; } .b { border-image-source: linear-gradient(red,#00f); border-image-slice: 10 20; border-image-width: auto; border-image-outset: 1; border-image-repeat: round; } .c { border-image-source: none; border-image-slice: 10; border-image-width: 1; border-image-outset: 0; border-image-repeat: stretch; } .d { border-image-source: url(a.png); border-image-slice: 10 fill; border-image-width: 2; border-image-outset: 0; border-image-repeat: round space; } .invalid { border-image-source: url(a.png); border-image-slice: 10; border-image-width: fill; border-image-outset: 0; border-image-repeat: stretch; } .default { border-image-source: none; border-image-slice: 100%; border-image-width: 1; border-image-outset: 0; border-image-repeat: stretch; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 4);
+    assert_eq!(
+        execution.output_css,
+        r#".a { border-image: url(a.png) 10; } .b { border-image: linear-gradient(red,#00f) 10 20/auto/1 round; } .c { border-image: 10; } .d { border-image: url(a.png) 10 fill/2 round space; } .invalid { border-image-source: url(a.png); border-image-slice: 10; border-image-width: fill; border-image-outset: 0; border-image-repeat: stretch; } .default { border-image-source: none; border-image-slice: 100%; border-image-width: 1; border-image-outset: 0; border-image-repeat: stretch; }"#
+    );
+}
+
+#[test]
 fn execution_runtime_compresses_overflow_and_background_repeat_shorthands() {
     let source = r#".a { overflow-x: visible; overflow-y: visible; background-repeat: repeat repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .c { background-repeat: Repeat Repeat; } .d { overflow: hidden hidden; background-repeat: repeat no-repeat; } .e { overflow: visible visible; background-repeat: no-repeat repeat; } .f { overflow-x: auto; overflow-y: hidden; } .g { overflow-y: scroll; overflow-x: clip; } .h { overflow: AUTO HIDDEN; } .pos { background-position-x: left; background-position-y: top; } .pos-center { background-position-x: center; background-position-y: center; } .pos-reverse { background-position-y: top; background-position-x: center; } .pos-important { background-position-x: left !important; background-position-y: top !important; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#;
     let execution = execute_transform_passes_on_source(

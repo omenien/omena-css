@@ -106,6 +106,18 @@ fn collect_shorthand_replacements_in_block(
         }
     }
     let mut index = 0;
+    while index + 4 < declarations.len() {
+        if let Some((start, end, replacement)) = border_image_shorthand_replacement_for_declarations(
+            tokens,
+            &declarations[index..index + 5],
+        ) {
+            ranges.push((start, end, replacement));
+            index += 5;
+        } else {
+            index += 1;
+        }
+    }
+    let mut index = 0;
     while index + 3 < declarations.len() {
         if let Some((start, end, replacement)) = border_side_shorthand_replacement_for_declarations(
             tokens,
@@ -324,6 +336,47 @@ fn border_radius_shorthand_replacement_for_declarations(
         top_left.start,
         bottom_left.end,
         format!("border-radius: {shorthand_value};"),
+    ))
+}
+
+fn border_image_shorthand_replacement_for_declarations(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let [source, slice, width, outset, repeat] = declarations else {
+        return None;
+    };
+    if source.property != "border-image-source"
+        || slice.property != "border-image-slice"
+        || width.property != "border-image-width"
+        || outset.property != "border-image-outset"
+        || repeat.property != "border-image-repeat"
+        || declarations
+            .iter()
+            .any(|declaration| declaration.important != source.important)
+        || !declaration_ranges_are_adjacent(tokens, declarations)
+    {
+        return None;
+    }
+
+    let source_value = normalize_border_image_source_value(&source.value)?;
+    let slice_value = normalize_border_image_axis_value(&slice.value, true)?;
+    let width_value = normalize_border_image_axis_value(&width.value, false)?;
+    let outset_value = normalize_border_image_axis_value(&outset.value, false)?;
+    let repeat_value = normalize_border_image_repeat_value(&repeat.value)?;
+    let shorthand_value = compressed_border_image_value(
+        &source_value,
+        &slice_value,
+        &width_value,
+        &outset_value,
+        &repeat_value,
+    )?;
+    let important = if source.important { "!important" } else { "" };
+
+    Some((
+        source.start,
+        repeat.end,
+        format!("border-image: {shorthand_value}{important};"),
     ))
 }
 
@@ -1095,6 +1148,109 @@ pub(crate) fn compress_box_shorthand_values(values: &[&str]) -> Option<String> {
         vec![*top, *right, *bottom, *left]
     };
     Some(parts.join(" "))
+}
+
+fn normalize_border_image_source_value(value: &str) -> Option<String> {
+    let value = normalize_ascii_whitespace(value);
+    (!value.is_empty()).then_some(value)
+}
+
+fn normalize_border_image_axis_value(value: &str, allow_fill: bool) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    if components.is_empty() {
+        return None;
+    }
+    if !allow_fill
+        && components
+            .iter()
+            .any(|component| component.eq_ignore_ascii_case("fill"))
+    {
+        return None;
+    }
+    let components = components
+        .into_iter()
+        .map(|component| {
+            if component.eq_ignore_ascii_case("fill") {
+                "fill".to_string()
+            } else {
+                component
+            }
+        })
+        .collect::<Vec<_>>();
+    if components.iter().any(|component| component == "fill") {
+        return Some(components.join(" "));
+    }
+    if !(1..=4).contains(&components.len()) {
+        return None;
+    }
+    let normalized = components.join(" ");
+    Some(compress_box_shorthand_value(&normalized).unwrap_or(normalized))
+}
+
+fn normalize_border_image_repeat_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    if components.is_empty() || components.len() > 2 {
+        return None;
+    }
+    let components = components
+        .into_iter()
+        .map(|component| component.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    if components
+        .iter()
+        .any(|component| !is_border_image_repeat_keyword(component))
+    {
+        return None;
+    }
+    Some(compressed_two_axis_shorthand_value(
+        components.first()?,
+        components.get(1).unwrap_or(components.first()?),
+    ))
+}
+
+fn compressed_border_image_value(
+    source: &str,
+    slice: &str,
+    width: &str,
+    outset: &str,
+    repeat: &str,
+) -> Option<String> {
+    let source_is_default = source.eq_ignore_ascii_case("none");
+    let slice_is_default = slice.eq_ignore_ascii_case("100%");
+    let width_is_default = width.eq_ignore_ascii_case("1");
+    let outset_is_default = outset.eq_ignore_ascii_case("0");
+    let repeat_is_default = repeat.eq_ignore_ascii_case("stretch");
+    let mut components = Vec::new();
+
+    if !source_is_default {
+        components.push(source.to_string());
+    }
+    if !width_is_default || !outset_is_default {
+        let slice_component = if slice_is_default {
+            "100%".to_string()
+        } else {
+            slice.to_string()
+        };
+        let slash_component = if !width_is_default && !outset_is_default {
+            format!("{slice_component}/{width}/{outset}")
+        } else if !width_is_default {
+            format!("{slice_component}/{width}")
+        } else {
+            format!("{slice_component}//{outset}")
+        };
+        components.push(slash_component);
+    } else if !slice_is_default {
+        components.push(slice.to_string());
+    }
+    if !repeat_is_default {
+        components.push(repeat.to_string());
+    }
+
+    (!components.is_empty()).then(|| components.join(" "))
+}
+
+fn is_border_image_repeat_keyword(value: &str) -> bool {
+    matches!(value, "stretch" | "repeat" | "round" | "space")
 }
 
 pub(crate) fn is_overflow_axis_keyword(value: &str) -> bool {

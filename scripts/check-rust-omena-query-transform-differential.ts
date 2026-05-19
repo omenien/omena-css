@@ -408,6 +408,11 @@ const fixtures: readonly DifferentialFixture[] = [
       ".a { border-top: 1px solid red; border-right: 1px solid red; border-bottom: 1px solid red; border-left: 1px solid red; } .b { border-top: 1px solid red !important; border-right: 1px solid red !important; border-bottom: 1px solid red !important; border-left: 1px solid red !important; }",
   },
   {
+    label: "border-image-longhand-compression",
+    source:
+      ".a { border-image-source: url(a.png); border-image-slice: 10; border-image-width: 1; border-image-outset: 0; border-image-repeat: stretch; } .b { border-image-source: linear-gradient(red, blue); border-image-slice: 10 20; border-image-width: auto; border-image-outset: 1; border-image-repeat: round; } .c { border-image-source: url(a.png); border-image-slice: 10 fill; border-image-width: 2; border-image-outset: 0; border-image-repeat: round space; }",
+  },
+  {
     label: "repeated-axis-shorthand-values",
     source:
       ".a { mask-repeat: repeat repeat; background-repeat: space round; -webkit-mask-repeat: no-repeat no-repeat; } .b { border-spacing: 1px 1px; } .c { scroll-margin-block: 1px 2px; scroll-padding-inline: 1px 1px; } .d { margin-block: 1px 2px; padding-inline: 2px 2px; } .e { border-block-color: red red; border-inline-width: 1px 1px; border-image-slice: 100% 100% 100% 100%; border-image-width: 1 1 1 1; border-image-outset: 0 0 0 0; } .f { mask-repeat: no-repeat repeat; background-repeat: repeat no-repeat; -webkit-mask-repeat: repeat no-repeat; }",
