@@ -713,6 +713,48 @@ fn execution_runtime_resolves_css_module_composes_with_export_set() {
 }
 
 #[test]
+fn execution_runtime_resolves_local_css_module_composes_without_explicit_export_set() {
+    let source = r#".button { composes: base global(reset); color: red; } .base { composes: utility; color: blue; } .utility { color: green; }"#;
+    let execution = execute_transform_passes_on_source_with_dialect(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::ResolveCssModulesComposes,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 2);
+    assert_eq!(
+        execution.output_css,
+        r#".button {  color: red; } .base {  color: blue; } .utility { color: green; }"#
+    );
+    assert_eq!(
+        execution.css_module_composes_exports,
+        vec![
+            TransformCssModuleComposesResolutionV0 {
+                local_class_name: "base".to_string(),
+                exported_class_names: vec!["base".to_string(), "utility".to_string()],
+            },
+            TransformCssModuleComposesResolutionV0 {
+                local_class_name: "button".to_string(),
+                exported_class_names: vec![
+                    "button".to_string(),
+                    "base".to_string(),
+                    "reset".to_string(),
+                    "utility".to_string(),
+                ],
+            },
+        ]
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["composes-resolution", "print-css"]
+    );
+    assert!(execution.planned_only_pass_ids.is_empty());
+}
+
+#[test]
 fn execution_runtime_routes_design_tokens_from_bridge_context() {
     let source = r#"@property --registered { syntax: "<color>"; inherits: false; initial-value: var(--pkg-brand); } @keyframes pulse { to { color: var(--pkg-border); } } .button { color: var(--pkg-brand); background: var(--pkg-brand, blue); border: 1px solid var(--pkg-border); box-shadow: 0 0 1px var(--unsafe); --local: var(--pkg-brand); } @media screen { .button { outline-color: var(--pkg-brand); } }"#;
     let context = TransformExecutionContextV0 {

@@ -13,6 +13,7 @@ use crate::domains::{
         lower_css_light_dark_with_lexer, lower_css_oklab_oklch_with_lexer,
     },
     css_modules_classes::{
+        local_css_module_composes_resolutions_with_lexer,
         reachable_class_names_with_local_composes, rewrite_css_module_class_names_with_lexer,
         strip_resolved_css_module_composes_with_lexer, tree_shake_css_class_rules_with_lexer,
     },
@@ -229,6 +230,36 @@ pub(crate) fn resolve_css_module_composes(
     resolutions: &[TransformCssModuleComposesResolutionV0],
 ) -> (String, usize) {
     strip_resolved_css_module_composes_with_lexer(source, dialect, resolutions)
+}
+
+pub(crate) fn css_module_composes_resolutions_for_source(
+    source: &str,
+    dialect: StyleDialect,
+    resolutions: &[TransformCssModuleComposesResolutionV0],
+) -> Vec<TransformCssModuleComposesResolutionV0> {
+    let mut merged = local_css_module_composes_resolutions_with_lexer(source, dialect);
+    for resolution in resolutions {
+        let Some(existing) = merged
+            .iter_mut()
+            .find(|existing| existing.local_class_name == resolution.local_class_name)
+        else {
+            merged.push(resolution.clone());
+            continue;
+        };
+        for exported_class_name in &resolution.exported_class_names {
+            if !existing
+                .exported_class_names
+                .iter()
+                .any(|existing| existing == exported_class_name)
+            {
+                existing
+                    .exported_class_names
+                    .push(exported_class_name.clone());
+            }
+        }
+    }
+    merged.sort_by(|left, right| left.local_class_name.cmp(&right.local_class_name));
+    merged
 }
 
 pub(crate) fn route_design_token_values(

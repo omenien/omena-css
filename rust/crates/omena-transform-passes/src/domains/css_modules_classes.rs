@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+
 use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
@@ -29,6 +31,13 @@ use crate::model::{
     TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
     TransformSemanticRemovalCandidate,
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LocalCssModuleComposesEdge {
+    owner_class_name: String,
+    local_target_class_names: Vec<String>,
+    exported_class_names: Vec<String>,
+}
 
 pub(crate) fn tree_shake_css_class_rules_with_lexer(
     source: &str,
@@ -220,54 +229,17 @@ pub(crate) fn reachable_class_names_with_local_composes(
     dialect: StyleDialect,
     reachable_class_names: &[String],
 ) -> Vec<String> {
-    let lexed = lex(source, dialect);
-    let tokens = lexed.tokens();
-    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
-    let scope_blocks = collect_css_module_scope_blocks(source, tokens);
-    let mut edges = Vec::<(String, Vec<String>)>::new();
-
-    for rule in &rules {
-        if css_module_scope_kind_for_range(rule.start, rule.end, &scope_blocks)
-            == Some(CssModuleScopeBlockKind::Global)
-        {
-            continue;
-        }
-        let Some(owner_class_names) = simple_class_selector_names(&rule.selector) else {
-            continue;
-        };
-        let Some(block_start_index) = tokens.iter().position(|token| {
-            token.kind == SyntaxKind::LeftBrace && token_start(token) == rule.block_start
-        }) else {
-            continue;
-        };
-        let Some(block_end_index) = matching_right_brace_index(tokens, block_start_index) else {
-            continue;
-        };
-        for declaration in
-            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
-        {
-            if declaration.property != "composes" {
-                continue;
-            }
-            let target_class_names = local_composes_target_names(&declaration.value);
-            if target_class_names.is_empty() {
-                continue;
-            }
-            for owner_class_name in &owner_class_names {
-                edges.push((owner_class_name.clone(), target_class_names.clone()));
-            }
-        }
-    }
+    let edges = collect_local_css_module_composes_edges(source, dialect);
 
     let mut expanded = reachable_class_names.to_vec();
     let mut changed = true;
     while changed {
         changed = false;
-        for (owner_class_name, target_class_names) in &edges {
-            if !class_name_is_reachable(owner_class_name, &expanded) {
+        for edge in &edges {
+            if !class_name_is_reachable(&edge.owner_class_name, &expanded) {
                 continue;
             }
-            for target_class_name in target_class_names {
+            for target_class_name in &edge.local_target_class_names {
                 if !class_name_is_reachable(target_class_name, &expanded) {
                     expanded.push(target_class_name.clone());
                     changed = true;
@@ -279,6 +251,48 @@ pub(crate) fn reachable_class_names_with_local_composes(
     expanded.sort();
     expanded.dedup();
     expanded
+}
+
+pub(crate) fn local_css_module_composes_resolutions_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<TransformCssModuleComposesResolutionV0> {
+    let edges = collect_local_css_module_composes_edges(source, dialect);
+    let graph = edges
+        .iter()
+        .map(|edge| (edge.owner_class_name.clone(), edge.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let mut resolutions = Vec::new();
+
+    for owner_class_name in graph.keys() {
+        let mut exported_class_names = Vec::<String>::new();
+        let mut visited_class_names = BTreeSet::<String>::new();
+        let mut queue = VecDeque::from([owner_class_name.clone()]);
+        while let Some(class_name) = queue.pop_front() {
+            if !visited_class_names.insert(class_name.clone()) {
+                continue;
+            }
+            push_unique_string(&mut exported_class_names, class_name.clone());
+            let Some(edge) = graph.get(&class_name) else {
+                continue;
+            };
+            for exported_class_name in &edge.exported_class_names {
+                push_unique_string(&mut exported_class_names, exported_class_name.clone());
+            }
+            for target_class_name in &edge.local_target_class_names {
+                queue.push_back(target_class_name.clone());
+            }
+        }
+        if exported_class_names.len() <= 1 {
+            continue;
+        }
+        resolutions.push(TransformCssModuleComposesResolutionV0 {
+            local_class_name: owner_class_name.clone(),
+            exported_class_names,
+        });
+    }
+
+    resolutions
 }
 
 fn css_module_composes_resolution_exists(
@@ -516,6 +530,14 @@ fn parse_global_composes_part(part: &str) -> Option<&str> {
 }
 
 fn local_composes_target_names(value: &str) -> Vec<String> {
+    local_composes_names(value, false)
+}
+
+fn local_composes_export_names(value: &str) -> Vec<String> {
+    local_composes_names(value, true)
+}
+
+fn local_composes_names(value: &str, include_global_function_names: bool) -> Vec<String> {
     if value.contains(',') {
         return Vec::new();
     }
@@ -529,7 +551,10 @@ fn local_composes_target_names(value: &str) -> Vec<String> {
 
     let mut names = Vec::new();
     for part in parts {
-        if parse_global_composes_part(part).is_some() {
+        if let Some(global_name) = parse_global_composes_part(part) {
+            if include_global_function_names {
+                push_unique_string(&mut names, global_name.to_string());
+            }
             continue;
         }
         if !css_identifier_text_is_plain(part) && !part.contains('\\') {
@@ -538,6 +563,61 @@ fn local_composes_target_names(value: &str) -> Vec<String> {
         push_unique_string(&mut names, part.to_string());
     }
     names
+}
+
+fn collect_local_css_module_composes_edges(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<LocalCssModuleComposesEdge> {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
+    let scope_blocks = collect_css_module_scope_blocks(source, tokens);
+    let mut edges = Vec::new();
+
+    for rule in &rules {
+        if css_module_scope_kind_for_range(rule.start, rule.end, &scope_blocks)
+            == Some(CssModuleScopeBlockKind::Global)
+        {
+            continue;
+        }
+        let Some(owner_class_names) = simple_class_selector_names(&rule.selector) else {
+            continue;
+        };
+        let Some(block_start_index) = tokens.iter().position(|token| {
+            token.kind == SyntaxKind::LeftBrace && token_start(token) == rule.block_start
+        }) else {
+            continue;
+        };
+        let Some(block_end_index) = matching_right_brace_index(tokens, block_start_index) else {
+            continue;
+        };
+        for declaration in
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+        {
+            if declaration.property != "composes" {
+                continue;
+            }
+            let local_target_class_names = local_composes_target_names(&declaration.value);
+            let exported_target_class_names = local_composes_export_names(&declaration.value);
+            if local_target_class_names.is_empty() && exported_target_class_names.is_empty() {
+                continue;
+            }
+            for owner_class_name in &owner_class_names {
+                let mut exported_class_names = vec![owner_class_name.clone()];
+                for target_class_name in &exported_target_class_names {
+                    push_unique_string(&mut exported_class_names, target_class_name.clone());
+                }
+                edges.push(LocalCssModuleComposesEdge {
+                    owner_class_name: owner_class_name.clone(),
+                    local_target_class_names: local_target_class_names.clone(),
+                    exported_class_names,
+                });
+            }
+        }
+    }
+
+    edges
 }
 
 fn rewritten_class_name_for<'a>(

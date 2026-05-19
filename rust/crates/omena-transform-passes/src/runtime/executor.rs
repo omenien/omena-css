@@ -17,7 +17,8 @@ use crate::model::{
 };
 use crate::registry::{
     add_css_vendor_prefixes, combine_css_shorthands, compress_css_colors,
-    compress_css_is_where_selectors, compress_css_numbers, dedupe_exact_css_rules,
+    compress_css_is_where_selectors, compress_css_numbers,
+    css_module_composes_resolutions_for_source, dedupe_exact_css_rules,
     evaluate_dead_media_branch_rules, evaluate_static_media_rules, evaluate_static_supports_rules,
     flatten_css_layers, flatten_css_scopes, inline_css_imports, lower_css_color_function,
     lower_css_color_mix, lower_css_light_dark, lower_css_logical_to_physical,
@@ -390,31 +391,32 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     "requires explicit resolved import replacements before mutation"
                 )
             }
-            Some(TransformPassKind::ResolveCssModulesComposes)
-                if !context.css_module_composes_resolutions.is_empty() =>
-            {
-                let (next_css, mutation_count) = resolve_css_module_composes(
+            Some(TransformPassKind::ResolveCssModulesComposes) => {
+                let resolutions = css_module_composes_resolutions_for_source(
                     &output_css,
                     dialect,
                     &context.css_module_composes_resolutions,
                 );
-                let outcome = mutation_outcome(
-                    pass_id,
-                    input_byte_len,
-                    next_css.len(),
-                    mutation_count,
-                    "removed resolved CSS Modules composes declarations using an explicit export set",
-                );
-                output_css = next_css;
-                css_module_composes_exports = context.css_module_composes_resolutions.clone();
-                outcome
-            }
-            Some(TransformPassKind::ResolveCssModulesComposes) => {
-                planned_only_pass!(
-                    pass_id,
-                    input_byte_len,
-                    "requires an explicit CSS Modules composes export set before mutation"
-                )
+                if resolutions.is_empty() {
+                    planned_only_pass!(
+                        pass_id,
+                        input_byte_len,
+                        "requires CSS Modules composes declarations or an explicit export set before mutation"
+                    )
+                } else {
+                    let (next_css, mutation_count) =
+                        resolve_css_module_composes(&output_css, dialect, &resolutions);
+                    let outcome = mutation_outcome(
+                        pass_id,
+                        input_byte_len,
+                        next_css.len(),
+                        mutation_count,
+                        "removed resolved CSS Modules composes declarations using an explicit export set",
+                    );
+                    output_css = next_css;
+                    css_module_composes_exports = resolutions;
+                    outcome
+                }
             }
             Some(TransformPassKind::DesignTokenRouting)
                 if !context.design_token_routes.is_empty() =>

@@ -858,6 +858,53 @@ assert.deepEqual(designTokenAliasSummary.execution.executedPassIds, [
 ]);
 assert.equal(designTokenAliasSummary.execution.mutationCount, 3);
 
+const localComposesResolutionResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "Button.module.css",
+      styleSource:
+        ".button { composes: base global(reset); color: red; } .base { composes: utility; color: blue; } .utility { color: green; }",
+      requestedPassIds: ["composes-resolution", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(localComposesResolutionResult.status, 0, localComposesResolutionResult.stderr);
+assert.equal(localComposesResolutionResult.error, undefined);
+
+const localComposesResolutionSummary = JSON.parse(
+  localComposesResolutionResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(
+  localComposesResolutionSummary.execution.outputCss,
+  ".button {  color: red; } .base {  color: blue; } .utility { color: green; }",
+);
+assert.deepEqual(localComposesResolutionSummary.execution.executedPassIds, [
+  "composes-resolution",
+  "print-css",
+]);
+assert.deepEqual(localComposesResolutionSummary.execution.plannedOnlyPassIds, []);
+assert.equal(localComposesResolutionSummary.execution.mutationCount, 2);
+assert.deepEqual(localComposesResolutionSummary.execution.cssModuleComposesExports, [
+  { localClassName: "base", exportedClassNames: ["base", "utility"] },
+  { localClassName: "button", exportedClassNames: ["button", "base", "reset", "utility"] },
+]);
+
 const groupedComposesResult = spawnSync(
   "cargo",
   [
