@@ -2308,6 +2308,62 @@ assert(!configuredScssForwardEvaluationSummary.execution.outputCss.includes("@fo
 assert(!configuredScssForwardEvaluationSummary.execution.outputCss.includes("theme.$"));
 assert(!configuredScssForwardEvaluationSummary.execution.outputCss.includes("red);"));
 
+const prefixedScssForwardEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "/tmp/App.module.scss",
+      styles: [
+        {
+          stylePath: "/tmp/tokens.scss",
+          styleSource: "$brand: red; $gap: 8px; .base { color: $brand; }",
+        },
+        {
+          stylePath: "/tmp/theme.scss",
+          styleSource: '@forward "./tokens" as token-* show $brand;',
+        },
+        {
+          stylePath: "/tmp/App.module.scss",
+          styleSource: '@use "./theme" as theme; .button { color: theme.$token-brand; }',
+        },
+      ],
+      requestedPassIds: ["scss-module-evaluate", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  prefixedScssForwardEvaluationResult.status,
+  0,
+  prefixedScssForwardEvaluationResult.stderr,
+);
+assert.equal(prefixedScssForwardEvaluationResult.error, undefined);
+
+const prefixedScssForwardEvaluationSummary = JSON.parse(
+  prefixedScssForwardEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.deepEqual(prefixedScssForwardEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert(prefixedScssForwardEvaluationSummary.execution.outputCss.includes(".base { color: red; }"));
+assert(
+  prefixedScssForwardEvaluationSummary.execution.outputCss.includes(".button { color: red; }"),
+);
+assert(!prefixedScssForwardEvaluationSummary.execution.outputCss.includes("@forward"));
+assert(!prefixedScssForwardEvaluationSummary.execution.outputCss.includes("theme.$"));
+
 const staticScssDefaultEvaluationResult = spawnSync(
   "cargo",
   [

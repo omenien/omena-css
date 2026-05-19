@@ -1138,6 +1138,8 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
                 "@forward",
                 edge.source.as_str(),
             );
+            let export_prefix =
+                derive_static_scss_forward_export_prefix(style_source, edge.source.as_str());
             let module_context = derive_static_scss_module_context_for_transform_context(
                 resolved.as_str(),
                 source,
@@ -1150,10 +1152,13 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
             Some(StaticScssModuleForwardEvaluation {
                 source: edge.source.clone(),
                 evaluated_css: module_context.evaluated_css,
-                variable_exports: filter_static_scss_forward_exports(
-                    module_context.variable_exports,
-                    edge.visibility_filter_kind,
-                    &edge.visibility_filter_names,
+                variable_exports: prefix_static_scss_forward_exports(
+                    filter_static_scss_forward_exports(
+                        module_context.variable_exports,
+                        edge.visibility_filter_kind,
+                        &edge.visibility_filter_names,
+                    ),
+                    export_prefix.as_deref(),
                 ),
             })
         })
@@ -1176,6 +1181,19 @@ fn filter_static_scss_forward_exports(
             .collect(),
         _ => exports,
     }
+}
+
+fn prefix_static_scss_forward_exports(
+    exports: BTreeMap<String, String>,
+    prefix: Option<&str>,
+) -> BTreeMap<String, String> {
+    let Some(prefix) = prefix else {
+        return exports;
+    };
+    exports
+        .into_iter()
+        .map(|(name, value)| (prefix.replace('*', name.as_str()), value))
+        .collect()
 }
 
 fn apply_static_scss_module_variable_overrides<'a>(
@@ -1489,6 +1507,86 @@ fn derive_static_scss_module_rule_variable_overrides(
     }
 
     BTreeMap::new()
+}
+
+fn derive_static_scss_forward_export_prefix(
+    style_source: &str,
+    forward_source: &str,
+) -> Option<String> {
+    let lexed = lex(style_source, OmenaParserStyleDialect::Scss);
+    let tokens = lexed.tokens();
+    let mut depth = 0usize;
+    let mut index = 0usize;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@forward") =>
+            {
+                let Some(end_index) = static_scss_use_rule_semicolon(tokens, index) else {
+                    index += 1;
+                    continue;
+                };
+                if static_scss_module_rule_source_name(tokens, index + 1, end_index)
+                    .is_some_and(|source_name| source_name == forward_source)
+                {
+                    return parse_static_scss_forward_export_prefix(tokens, index + 1, end_index)
+                        .and_then(|(start, end)| style_source.get(start..end))
+                        .map(str::trim)
+                        .filter(|prefix| static_scss_forward_export_prefix_is_safe(prefix))
+                        .map(str::to_string);
+                }
+                index = end_index + 1;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    None
+}
+
+fn parse_static_scss_forward_export_prefix(
+    tokens: &[omena_parser::LexedToken],
+    start_index: usize,
+    end_index: usize,
+) -> Option<(usize, usize)> {
+    let source_index = tokens[start_index..end_index]
+        .iter()
+        .position(|token| matches!(token.kind, SyntaxKind::String | SyntaxKind::Url))
+        .map(|offset| start_index + offset)?;
+    let as_index = tokens[source_index + 1..end_index]
+        .iter()
+        .position(|token| token.text.eq_ignore_ascii_case("as"))
+        .map(|offset| source_index + 1 + offset)?;
+    let prefix_start_index = tokens[as_index + 1..end_index]
+        .iter()
+        .position(|token| token.kind != SyntaxKind::Whitespace)
+        .map(|offset| as_index + 1 + offset)?;
+    let prefix_end_index = tokens[prefix_start_index..end_index]
+        .iter()
+        .position(|token| {
+            matches!(
+                token.text.to_ascii_lowercase().as_str(),
+                "show" | "hide" | "with"
+            )
+        })
+        .map(|offset| prefix_start_index + offset)
+        .unwrap_or(end_index);
+    Some((
+        transform_token_start(&tokens[prefix_start_index]),
+        transform_token_start(&tokens[prefix_end_index]),
+    ))
+}
+
+fn static_scss_forward_export_prefix_is_safe(prefix: &str) -> bool {
+    prefix.contains('*')
+        && prefix
+            .chars()
+            .all(|ch| static_scss_identifier_char(ch) || ch == '*')
 }
 
 fn parse_static_scss_use_variable_overrides_from_rule(
