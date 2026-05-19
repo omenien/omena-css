@@ -77,7 +77,8 @@ use omena_transform_passes::{
 };
 use omena_transform_print::print_transform_execution_artifact_with_dialect_and_source;
 pub use omena_transform_print::{
-    TransformPrintArtifactV0, TransformPrintOptionsV0 as OmenaQueryTransformPrintOptionsV0,
+    TransformPrintArtifactV0, TransformPrintMode as OmenaQueryTransformPrintMode,
+    TransformPrintOptionsV0 as OmenaQueryTransformPrintOptionsV0,
     default_print_options as default_omena_query_transform_print_options,
 };
 pub use omena_transform_target::{

@@ -49,6 +49,7 @@ use crate::{
     OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0,
     OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
     OmenaQueryTransformExecutionContextV0, OmenaQueryTransformModuleEvaluationV0,
+    OmenaQueryTransformPrintMode, OmenaQueryTransformPrintOptionsV0,
     default_omena_query_transform_print_options, modern_omena_query_target_feature_support,
 };
 
@@ -446,6 +447,35 @@ fn exposes_transform_plan_facade_from_source() {
             .contains(&"css-modules-class-hashing")
     );
     assert_eq!(summary.execution.pass_plan.violated_dag_edge_count, 0);
+}
+
+#[test]
+fn exposes_transform_plan_minified_print_mode() {
+    let source = "/* remove */ .button { color: red; margin: 0px; }";
+    let summary = summarize_omena_query_transform_plan_from_source(
+        "Button.module.css",
+        source,
+        "modern",
+        modern_omena_query_target_feature_support(),
+        OmenaQueryTargetTransformOptionsV0::default(),
+        OmenaQueryTransformPrintOptionsV0 {
+            mode: OmenaQueryTransformPrintMode::Minified,
+            include_source_map: true,
+        },
+    );
+
+    assert_eq!(summary.product, "omena-query.transform-plan");
+    assert_eq!(summary.execution.output_css, source);
+    assert_eq!(summary.print.css, ".button{color:red;margin:0px}");
+    assert!(summary.print.provenance_preserved);
+    assert!(!summary.print.source_map_segments.is_empty());
+    assert!(
+        summary
+            .print
+            .source_map_segments
+            .iter()
+            .all(|segment| segment.generated_end <= summary.print.css.len())
+    );
 }
 
 #[test]

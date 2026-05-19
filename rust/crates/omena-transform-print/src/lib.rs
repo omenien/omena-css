@@ -9,7 +9,8 @@ use omena_transform_cst::{
     build_transform_cst_artifact_with_dialect,
 };
 use omena_transform_passes::{
-    TransformExecutionSummaryV0, TransformPassPlanV0, plan_transform_passes,
+    TransformExecutionSummaryV0, TransformPassPlanV0,
+    execute_transform_passes_on_source_with_dialect, plan_transform_passes,
 };
 use serde::Serialize;
 
@@ -81,8 +82,8 @@ pub fn summarize_omena_transform_print_boundary() -> TransformPrintBoundarySumma
         schema_version: "0",
         product: "omena-transform-print.boundary",
         emission_pass_id: TransformPassKind::PrintCss.id(),
-        supported_modes: vec![TransformPrintMode::Identity],
-        source_map_contract: "stable-IR provenance-anchor identity emission segments with byte offsets, UTF-8/UTF-16 line-column points, lexical identity fallback, and mutation-span segments",
+        supported_modes: vec![TransformPrintMode::Identity, TransformPrintMode::Minified],
+        source_map_contract: "stable-IR provenance-anchor emission segments with byte offsets, UTF-8/UTF-16 line-column points, lexical identity fallback, minified deletion projection, and mutation-span segments",
         planner_surface: "omena-transform-passes.plan",
     }
 }
@@ -120,7 +121,8 @@ pub fn print_transform_cst_source_with_dialect(
     let pass_plan = plan_transform_passes(&passes);
     let cst_artifact =
         build_transform_cst_artifact_with_dialect(source, dialect, semantic_signature, &passes);
-    let css = render_identity_preserving_css(source, options.mode);
+    let rendered = render_css_for_print_mode(source, dialect, options.mode);
+    let css = rendered.css;
     let source_map_segments = if options.include_source_map {
         compose_identity_source_map_segments(
             &source_path,
@@ -128,6 +130,7 @@ pub fn print_transform_cst_source_with_dialect(
             &css,
             &cst_artifact,
             TransformPassKind::PrintCss.id(),
+            rendered.generated_offset_lookup.as_deref(),
         )
     } else {
         Vec::new()
@@ -203,8 +206,9 @@ pub fn print_transform_execution_artifact_with_dialect(
         artifact.source_map_segments = compose_source_map_segments_from_execution(
             &source_path,
             &execution.output_css,
-            &execution.output_css,
+            &artifact.css,
             execution,
+            generated_offset_lookup_for_print_mode(&execution.output_css, &artifact.css),
         );
     }
 
@@ -235,8 +239,9 @@ pub fn print_transform_execution_artifact_with_dialect_and_source(
         artifact.source_map_segments = compose_source_map_segments_from_execution(
             &source_path,
             original_source,
-            &execution.output_css,
+            &artifact.css,
             execution,
+            generated_offset_lookup_for_print_mode(&execution.output_css, &artifact.css),
         );
     }
 
@@ -256,7 +261,9 @@ fn compose_source_map_segments_from_execution(
     original_source: &str,
     generated_source: &str,
     execution: &TransformExecutionSummaryV0,
+    generated_offset_lookup: Option<Vec<usize>>,
 ) -> Vec<TransformSourceMapSegmentV0> {
+    let generated_offset_lookup = generated_offset_lookup.as_deref();
     execution
         .provenance_derivation_forest
         .nodes
@@ -285,6 +292,21 @@ fn compose_source_map_segments_from_execution(
 
             spans.into_iter().map(
                 |(original_start, original_end, generated_start, generated_end)| {
+                    let generated_start =
+                        generated_offset_lookup.map_or(generated_start, |lookup| {
+                            project_generated_offset(
+                                generated_start,
+                                generated_source.len(),
+                                Some(lookup),
+                            )
+                        });
+                    let generated_end = generated_offset_lookup.map_or(generated_end, |lookup| {
+                        project_generated_offset(
+                            generated_end,
+                            generated_source.len(),
+                            Some(lookup),
+                        )
+                    });
                     source_map_segment(
                         source_path,
                         SourceMapSources {
@@ -311,6 +333,7 @@ fn compose_identity_source_map_segments(
     generated: &str,
     cst_artifact: &TransformCstArtifactV0,
     pass_id: &'static str,
+    generated_offset_lookup: Option<&[usize]>,
 ) -> Vec<TransformSourceMapSegmentV0> {
     let anchor_segments = cst_artifact
         .stable_ir
@@ -327,8 +350,16 @@ fn compose_identity_source_map_segments(
                 SourceMapSpanOffsets {
                     original_start: anchor.source_span_start,
                     original_end: anchor.source_span_end,
-                    generated_start: anchor.source_span_start.min(generated.len()),
-                    generated_end: anchor.source_span_end.min(generated.len()),
+                    generated_start: project_generated_offset(
+                        anchor.source_span_start,
+                        generated.len(),
+                        generated_offset_lookup,
+                    ),
+                    generated_end: project_generated_offset(
+                        anchor.source_span_end,
+                        generated.len(),
+                        generated_offset_lookup,
+                    ),
                 },
                 pass_id,
             )
@@ -348,8 +379,16 @@ fn compose_identity_source_map_segments(
             SourceMapSpanOffsets {
                 original_start: 0,
                 original_end: 0,
-                generated_start: 0,
-                generated_end: 0,
+                generated_start: project_generated_offset(
+                    0,
+                    generated.len(),
+                    generated_offset_lookup,
+                ),
+                generated_end: project_generated_offset(
+                    0,
+                    generated.len(),
+                    generated_offset_lookup,
+                ),
             },
             pass_id,
         )];
@@ -369,8 +408,16 @@ fn compose_identity_source_map_segments(
                     SourceMapSpanOffsets {
                         original_start: start,
                         original_end: index,
-                        generated_start: start.min(generated.len()),
-                        generated_end: index.min(generated.len()),
+                        generated_start: project_generated_offset(
+                            start,
+                            generated.len(),
+                            generated_offset_lookup,
+                        ),
+                        generated_end: project_generated_offset(
+                            index,
+                            generated.len(),
+                            generated_offset_lookup,
+                        ),
                     },
                     pass_id,
                 ));
@@ -390,8 +437,16 @@ fn compose_identity_source_map_segments(
             SourceMapSpanOffsets {
                 original_start: start,
                 original_end: source.len(),
-                generated_start: start.min(generated.len()),
-                generated_end: generated.len(),
+                generated_start: project_generated_offset(
+                    start,
+                    generated.len(),
+                    generated_offset_lookup,
+                ),
+                generated_end: project_generated_offset(
+                    source.len(),
+                    generated.len(),
+                    generated_offset_lookup,
+                ),
             },
             pass_id,
         ));
@@ -461,16 +516,83 @@ fn source_map_point(source: &str, byte_offset: usize) -> TransformSourceMapPoint
     }
 }
 
-fn render_identity_preserving_css(source: &str, _mode: TransformPrintMode) -> String {
-    source.to_string()
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RenderedPrintCss {
+    css: String,
+    generated_offset_lookup: Option<Vec<usize>>,
+}
+
+fn render_css_for_print_mode(
+    source: &str,
+    dialect: StyleDialect,
+    mode: TransformPrintMode,
+) -> RenderedPrintCss {
+    match mode {
+        TransformPrintMode::Minified => {
+            let execution = execute_transform_passes_on_source_with_dialect(
+                source,
+                dialect,
+                &[
+                    TransformPassKind::CommentStrip,
+                    TransformPassKind::WhitespaceStrip,
+                    TransformPassKind::PrintCss,
+                ],
+            );
+            let generated_offset_lookup =
+                generated_offset_lookup_for_deleted_subsequence(source, &execution.output_css);
+            RenderedPrintCss {
+                css: execution.output_css,
+                generated_offset_lookup: Some(generated_offset_lookup),
+            }
+        }
+        TransformPrintMode::Identity | TransformPrintMode::Pretty => RenderedPrintCss {
+            css: source.to_string(),
+            generated_offset_lookup: None,
+        },
+    }
+}
+
+fn generated_offset_lookup_for_print_mode(source: &str, generated: &str) -> Option<Vec<usize>> {
+    (source != generated)
+        .then(|| generated_offset_lookup_for_deleted_subsequence(source, generated))
+}
+
+fn generated_offset_lookup_for_deleted_subsequence(source: &str, generated: &str) -> Vec<usize> {
+    let source_bytes = source.as_bytes();
+    let generated_bytes = generated.as_bytes();
+    let mut lookup = vec![0; source_bytes.len() + 1];
+    let mut generated_index = 0usize;
+
+    for index in 0..source_bytes.len() {
+        lookup[index] = generated_index;
+        if generated_index < generated_bytes.len()
+            && source_bytes[index] == generated_bytes[generated_index]
+        {
+            generated_index += 1;
+        }
+    }
+    lookup[source_bytes.len()] = generated_bytes.len();
+    lookup
+}
+
+fn project_generated_offset(
+    source_offset: usize,
+    generated_len: usize,
+    generated_offset_lookup: Option<&[usize]>,
+) -> usize {
+    generated_offset_lookup
+        .and_then(|lookup| lookup.get(source_offset).copied())
+        .unwrap_or(source_offset)
+        .min(generated_len)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        TransformPrintMode, default_print_options, print_transform_cst_source,
-        print_transform_execution_artifact, print_transform_execution_artifact_with_source,
-        source_map_point, summarize_omena_transform_print_boundary,
+        TransformPrintMode, TransformPrintOptionsV0, default_print_options,
+        print_transform_cst_source, print_transform_execution_artifact,
+        print_transform_execution_artifact_with_source, source_map_point,
+        summarize_omena_transform_print_boundary,
     };
     use omena_transform_cst::TransformPassKind;
     use omena_transform_passes::execute_transform_passes_on_source;
@@ -481,7 +603,10 @@ mod tests {
 
         assert_eq!(boundary.product, "omena-transform-print.boundary");
         assert_eq!(boundary.emission_pass_id, "print-css");
-        assert_eq!(boundary.supported_modes, vec![TransformPrintMode::Identity]);
+        assert_eq!(
+            boundary.supported_modes,
+            vec![TransformPrintMode::Identity, TransformPrintMode::Minified]
+        );
     }
 
     #[test]
@@ -535,6 +660,37 @@ mod tests {
         assert_eq!(
             artifact.pass_plan.ordered_pass_ids,
             vec!["calc-reduction", "print-css"]
+        );
+    }
+
+    #[test]
+    fn prints_minified_css_with_projected_source_map_offsets() {
+        let source = "/* remove */ .button { color: red; margin: 0px; }";
+        let artifact = print_transform_cst_source(
+            "Button.module.css",
+            source,
+            "semantic:button",
+            &[TransformPassKind::PrintCss],
+            TransformPrintOptionsV0 {
+                mode: TransformPrintMode::Minified,
+                include_source_map: true,
+            },
+        );
+
+        assert_eq!(artifact.css, ".button{color:red;margin:0px}");
+        assert!(artifact.provenance_preserved);
+        assert!(!artifact.source_map_segments.is_empty());
+        assert!(
+            artifact
+                .source_map_segments
+                .iter()
+                .all(|segment| segment.generated_end <= artifact.css.len())
+        );
+        assert!(
+            artifact
+                .source_map_segments
+                .iter()
+                .any(|segment| segment.generated_start < segment.original_start)
         );
     }
 
@@ -636,6 +792,34 @@ mod tests {
                 .last()
                 .map(|segment| segment.generated_end),
             Some(execution.output_byte_len)
+        );
+    }
+
+    #[test]
+    fn minified_execution_artifact_projects_upstream_segments_to_final_css() {
+        let source = ".button { color: red; }\n.card { color: blue; }";
+        let execution = execute_transform_passes_on_source(source, &[TransformPassKind::PrintCss]);
+        let artifact = print_transform_execution_artifact_with_source(
+            "Button.module.css",
+            source,
+            "semantic:button-card",
+            &[TransformPassKind::PrintCss],
+            TransformPrintOptionsV0 {
+                mode: TransformPrintMode::Minified,
+                include_source_map: true,
+            },
+            &execution,
+        );
+
+        assert_eq!(artifact.css, ".button{color:red}.card{color:blue}");
+        assert!(artifact.provenance_preserved);
+        assert_eq!(artifact.source_map_segments[0].generated_start, 0);
+        assert_eq!(
+            artifact
+                .source_map_segments
+                .last()
+                .map(|segment| segment.generated_end),
+            Some(artifact.css.len())
         );
     }
 
