@@ -106,6 +106,7 @@ pub(crate) fn is_zero_length_unit_property(property: &str) -> bool {
             | "text-shadow"
             | "text-decoration"
             | "text-decoration-thickness"
+            | "text-indent"
             | "gap"
             | "row-gap"
             | "column-gap"
