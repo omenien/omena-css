@@ -2489,6 +2489,42 @@ fn derives_transform_context_with_cross_file_value_resolutions() {
 }
 
 #[test]
+fn derives_transform_context_with_transitive_cross_file_value_resolutions() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.css",
+        [
+            ("/tmp/base.module.css", "@value primary: #fff;"),
+            (
+                "/tmp/tokens.module.css",
+                r#"@value primary from "./base.module.css"; @value alias: primary;"#,
+            ),
+            (
+                "/tmp/App.module.css",
+                r#"@value alias as brand from "./tokens.module.css"; .btn { color: brand; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    assert_eq!(summary.product, "omena-query.transform-context");
+    assert_eq!(summary.css_module_value_resolution_count, 1);
+    assert_eq!(
+        summary
+            .context
+            .css_module_value_resolutions
+            .iter()
+            .map(|resolution| {
+                (
+                    resolution.local_name.as_str(),
+                    resolution.resolved_value.as_str(),
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![("brand", "#fff")]
+    );
+}
+
+#[test]
 fn consumer_build_resolves_cross_file_css_modules_values_through_query_context()
 -> Result<(), Box<dyn std::error::Error>> {
     let summary = execute_omena_query_consumer_build_style_sources(
@@ -2513,6 +2549,43 @@ fn consumer_build_resolves_cross_file_css_modules_values_through_query_context()
         r#" .btn { color: #fff; margin: 8px; } @media (min-width: 8px) { .btn { color: #fff; } }"#
     );
     assert_eq!(summary.execution.mutation_count, 5);
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"multiSourceTransformContextProducer")
+    );
+    Ok(())
+}
+
+#[test]
+fn consumer_build_resolves_transitive_cross_file_css_modules_values_through_query_context()
+-> Result<(), Box<dyn std::error::Error>> {
+    let summary = execute_omena_query_consumer_build_style_sources(
+        "/tmp/App.module.css",
+        &[
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/base.module.css".to_string(),
+                style_source: "@value primary: #fff;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/tokens.module.css".to_string(),
+                style_source: r#"@value primary from "./base.module.css"; @value alias: primary;"#
+                    .to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/App.module.css".to_string(),
+                style_source:
+                    r#"@value alias as brand from "./tokens.module.css"; .btn { color: brand; }"#
+                        .to_string(),
+            },
+        ],
+        &["value-resolution".to_string(), "print-css".to_string()],
+        &[],
+    )?;
+
+    assert_eq!(summary.product, "omena-query.consumer-build-style-source");
+    assert_eq!(summary.execution.output_css, r#" .btn { color: #fff; }"#);
+    assert_eq!(summary.execution.mutation_count, 2);
     assert!(
         summary
             .ready_surfaces

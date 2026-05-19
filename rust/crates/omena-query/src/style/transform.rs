@@ -2016,11 +2016,15 @@ fn derive_css_module_composes_resolutions_for_transform_context(
 
 fn derive_css_module_value_resolutions_for_transform_context(
     entry: &OmenaQueryStyleFactEntry,
-    _entries: &[OmenaQueryStyleFactEntry],
+    entries: &[OmenaQueryStyleFactEntry],
     available_style_paths: &BTreeSet<&str>,
     source_by_path: &BTreeMap<String, String>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Vec<TransformCssModuleValueResolutionV0> {
+    let facts_by_path = entries
+        .iter()
+        .map(|entry| (entry.style_path.as_str(), entry.facts.clone()))
+        .collect::<BTreeMap<_, _>>();
     let mut resolutions_by_name = BTreeMap::<String, String>::new();
     let mut blocked_names = Vec::<String>::new();
 
@@ -2039,28 +2043,29 @@ fn derive_css_module_value_resolutions_for_transform_context(
         let Some(source) = source_by_path.get(resolved_style_path.as_str()) else {
             continue;
         };
-        let target_resolutions = resolve_static_css_modules_local_value_resolutions_from_source(
-            source,
-            omena_parser_dialect_for_style_path(resolved_style_path.as_str()),
-        );
-        let Some(target_resolution) = target_resolutions
-            .iter()
-            .find(|resolution| resolution.local_name == edge.remote_name)
-        else {
+        if source.is_empty() {
+            continue;
+        }
+        let Some(resolved_value) = resolve_css_module_value_for_transform_context(
+            resolved_style_path.as_str(),
+            edge.remote_name.as_str(),
+            &facts_by_path,
+            available_style_paths,
+            source_by_path,
+            package_manifests,
+            &mut BTreeSet::new(),
+        ) else {
             continue;
         };
 
         if let Some(existing) = resolutions_by_name.get(&edge.local_name) {
-            if existing != &target_resolution.resolved_value {
+            if existing != &resolved_value {
                 resolutions_by_name.remove(&edge.local_name);
                 blocked_names.push(edge.local_name.clone());
             }
             continue;
         }
-        resolutions_by_name.insert(
-            edge.local_name.clone(),
-            target_resolution.resolved_value.clone(),
-        );
+        resolutions_by_name.insert(edge.local_name.clone(), resolved_value);
     }
 
     resolutions_by_name
@@ -2072,6 +2077,148 @@ fn derive_css_module_value_resolutions_for_transform_context(
             },
         )
         .collect()
+}
+
+fn resolve_css_module_value_for_transform_context(
+    style_path: &str,
+    value_name: &str,
+    facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
+    available_style_paths: &BTreeSet<&str>,
+    source_by_path: &BTreeMap<String, String>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    visiting: &mut BTreeSet<(String, String)>,
+) -> Option<String> {
+    let visit_key = (style_path.to_string(), value_name.to_string());
+    if !visiting.insert(visit_key.clone()) {
+        return None;
+    }
+
+    let resolved = resolve_css_module_value_for_transform_context_inner(
+        style_path,
+        value_name,
+        facts_by_path,
+        available_style_paths,
+        source_by_path,
+        package_manifests,
+        visiting,
+    );
+    visiting.remove(&visit_key);
+    resolved
+}
+
+fn resolve_css_module_value_for_transform_context_inner(
+    style_path: &str,
+    value_name: &str,
+    facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
+    available_style_paths: &BTreeSet<&str>,
+    source_by_path: &BTreeMap<String, String>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    visiting: &mut BTreeSet<(String, String)>,
+) -> Option<String> {
+    let facts = facts_by_path.get(style_path)?;
+    let source = source_by_path.get(style_path)?;
+    let dialect = omena_parser_dialect_for_style_path(style_path);
+    let local_resolutions =
+        resolve_static_css_modules_local_value_resolutions_from_source(source.as_str(), dialect)
+            .into_iter()
+            .map(|resolution| (resolution.local_name, resolution.resolved_value))
+            .collect::<BTreeMap<_, _>>();
+
+    let imported_resolutions = resolve_css_module_imported_values_for_transform_context(
+        style_path,
+        facts,
+        facts_by_path,
+        available_style_paths,
+        source_by_path,
+        package_manifests,
+        visiting,
+    );
+    if let Some(imported_value) = imported_resolutions.get(value_name) {
+        return Some(imported_value.clone());
+    }
+
+    let local_value = local_resolutions.get(value_name)?;
+    Some(
+        substitute_css_module_value_resolution_references(
+            local_value.as_str(),
+            dialect,
+            &imported_resolutions,
+        )
+        .unwrap_or_else(|| local_value.clone()),
+    )
+}
+
+fn resolve_css_module_imported_values_for_transform_context(
+    style_path: &str,
+    facts: &OmenaQueryOmenaParserStyleFactsV0,
+    facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
+    available_style_paths: &BTreeSet<&str>,
+    source_by_path: &BTreeMap<String, String>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    visiting: &mut BTreeSet<(String, String)>,
+) -> BTreeMap<String, String> {
+    let mut resolutions = BTreeMap::<String, String>::new();
+    let mut blocked_names = BTreeSet::<String>::new();
+    for edge in &facts.css_module_value_import_edges {
+        if blocked_names.contains(&edge.local_name) {
+            continue;
+        }
+        let Some(target_style_path) = resolve_style_module_source(
+            style_path,
+            edge.import_source.as_str(),
+            available_style_paths,
+            package_manifests,
+        ) else {
+            continue;
+        };
+        let Some(resolved_value) = resolve_css_module_value_for_transform_context(
+            target_style_path.as_str(),
+            edge.remote_name.as_str(),
+            facts_by_path,
+            available_style_paths,
+            source_by_path,
+            package_manifests,
+            visiting,
+        ) else {
+            continue;
+        };
+        if let Some(existing) = resolutions.get(&edge.local_name) {
+            if existing != &resolved_value {
+                resolutions.remove(&edge.local_name);
+                blocked_names.insert(edge.local_name.clone());
+            }
+            continue;
+        }
+        resolutions.insert(edge.local_name.clone(), resolved_value);
+    }
+    resolutions
+}
+
+fn substitute_css_module_value_resolution_references(
+    value: &str,
+    dialect: OmenaParserStyleDialect,
+    resolutions_by_name: &BTreeMap<String, String>,
+) -> Option<String> {
+    let lexed = lex(value, dialect);
+    let mut replacements = Vec::new();
+    for token in lexed.tokens() {
+        if token.kind != SyntaxKind::Ident {
+            continue;
+        }
+        let Some(resolved_value) = resolutions_by_name.get(&token.text) else {
+            continue;
+        };
+        replacements.push((
+            transform_token_start(token),
+            transform_token_end(token),
+            resolved_value.clone(),
+        ));
+    }
+    if replacements.is_empty() {
+        return None;
+    }
+    let (output, mutation_count) = apply_transform_source_replacements(value, replacements);
+    (mutation_count > 0).then_some(output)
 }
 
 fn derive_design_token_routes_for_transform_context(

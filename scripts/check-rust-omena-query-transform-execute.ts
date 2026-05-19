@@ -1387,6 +1387,58 @@ assert.equal(
 assert.deepEqual(importedValueSummary.execution.executedPassIds, ["value-resolution", "print-css"]);
 assert.equal(importedValueSummary.execution.mutationCount, 8);
 
+const transitiveImportedValueResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "/tmp/App.module.css",
+      styles: [
+        {
+          stylePath: "/tmp/base.module.css",
+          styleSource: "@value primary: #fff;",
+        },
+        {
+          stylePath: "/tmp/tokens.module.css",
+          styleSource: '@value primary from "./base.module.css"; @value alias: primary;',
+        },
+        {
+          stylePath: "/tmp/App.module.css",
+          styleSource: '@value alias as brand from "./tokens.module.css"; .btn { color: brand; }',
+        },
+      ],
+      requestedPassIds: ["value-resolution", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(transitiveImportedValueResult.status, 0, transitiveImportedValueResult.stderr);
+assert.equal(transitiveImportedValueResult.error, undefined);
+
+const transitiveImportedValueSummary = JSON.parse(
+  transitiveImportedValueResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.equal(transitiveImportedValueSummary.product, "omena-query.consumer-build-style-source");
+assert.equal(transitiveImportedValueSummary.execution.outputCss, " .btn { color: #fff; }");
+assert.deepEqual(transitiveImportedValueSummary.execution.executedPassIds, [
+  "value-resolution",
+  "print-css",
+]);
+assert.equal(transitiveImportedValueSummary.execution.mutationCount, 2);
+
 const alphaColorCompressionResult = spawnSync(
   "cargo",
   [
@@ -4038,6 +4090,7 @@ process.stdout.write(
     `alphaColorMutations=${alphaColorFunctionSummary.execution.mutationCount}`,
     `alphaOkColorMutations=${alphaOkColorSummary.execution.mutationCount}`,
     `compositeValueMutations=${compositeValueSummary.execution.mutationCount}`,
+    `transitiveImportedValueMutations=${transitiveImportedValueSummary.execution.mutationCount}`,
     `mediaListMutations=${mediaListSummary.execution.mutationCount}`,
     `mediaOrMutations=${mediaOrSummary.execution.mutationCount}`,
     `conditionalWrapperMergeMutations=${conditionalWrapperMergeSummary.execution.mutationCount}`,
