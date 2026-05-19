@@ -4,9 +4,10 @@ use omena_syntax::SyntaxKind;
 use crate::{
     domains::number::{
         parse_reducible_abs_value, parse_reducible_calc_value, parse_reducible_clamp_value,
-        parse_reducible_hypot_value, parse_reducible_max_value, parse_reducible_min_value,
-        parse_reducible_mod_value, parse_reducible_rem_value, parse_reducible_round_value,
-        parse_reducible_sign_value,
+        parse_reducible_exp_value, parse_reducible_hypot_value, parse_reducible_log_value,
+        parse_reducible_max_value, parse_reducible_min_value, parse_reducible_mod_value,
+        parse_reducible_pow_value, parse_reducible_rem_value, parse_reducible_round_value,
+        parse_reducible_sign_value, parse_reducible_sqrt_value,
     },
     helpers::{
         declarations::{
@@ -44,6 +45,10 @@ pub(crate) fn reduce_css_calc_with_lexer(source: &str, dialect: StyleDialect) ->
                             ("mod", parse_reducible_mod_value),
                             ("rem", parse_reducible_rem_value),
                             ("hypot", parse_reducible_hypot_value),
+                            ("sqrt", parse_reducible_sqrt_value),
+                            ("pow", parse_reducible_pow_value),
+                            ("exp", parse_reducible_exp_value),
+                            ("log", parse_reducible_log_value),
                         ],
                     )
                 else {

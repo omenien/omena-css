@@ -10,9 +10,10 @@ use crate::{
     domains::number::{
         compress_number_prefix, format_css_number, parse_numeric_value_with_unit,
         parse_reducible_abs_value, parse_reducible_calc_value, parse_reducible_clamp_value,
-        parse_reducible_hypot_value, parse_reducible_max_value, parse_reducible_min_value,
-        parse_reducible_mod_value, parse_reducible_rem_value, parse_reducible_round_value,
-        parse_reducible_sign_value,
+        parse_reducible_exp_value, parse_reducible_hypot_value, parse_reducible_log_value,
+        parse_reducible_max_value, parse_reducible_min_value, parse_reducible_mod_value,
+        parse_reducible_pow_value, parse_reducible_rem_value, parse_reducible_round_value,
+        parse_reducible_sign_value, parse_reducible_sqrt_value,
     },
     helpers::{
         ascii::normalize_ascii_whitespace,
@@ -379,6 +380,10 @@ fn normalize_static_media_range_value(value: &str) -> Cow<'_, str> {
             ("mod", parse_reducible_mod_value),
             ("rem", parse_reducible_rem_value),
             ("hypot", parse_reducible_hypot_value),
+            ("sqrt", parse_reducible_sqrt_value),
+            ("pow", parse_reducible_pow_value),
+            ("exp", parse_reducible_exp_value),
+            ("log", parse_reducible_log_value),
         ],
     )
     .map(Cow::Owned)

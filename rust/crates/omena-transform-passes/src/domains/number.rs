@@ -119,6 +119,64 @@ pub(crate) fn parse_reducible_hypot_value(value: &str) -> Option<String> {
     }))
 }
 
+pub(crate) fn parse_reducible_sqrt_value(value: &str) -> Option<String> {
+    let inner = parse_whole_function_value_inner(value, "sqrt")?;
+    let parsed = parse_reducible_numeric_expression(inner)?;
+    if !parsed.unit.is_empty() || parsed.value < 0.0 {
+        return None;
+    }
+    Some(format_css_number(parsed.value.sqrt()))
+}
+
+pub(crate) fn parse_reducible_pow_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "pow")?;
+    let [base, exponent] = arguments.as_slice() else {
+        return None;
+    };
+    let base = parse_reducible_numeric_expression(base.trim())?;
+    let exponent = parse_reducible_numeric_expression(exponent.trim())?;
+    if !base.unit.is_empty() || !exponent.unit.is_empty() {
+        return None;
+    }
+    let value = base.value.powf(exponent.value);
+    value.is_finite().then(|| format_css_number(value))
+}
+
+pub(crate) fn parse_reducible_exp_value(value: &str) -> Option<String> {
+    let inner = parse_whole_function_value_inner(value, "exp")?;
+    let parsed = parse_reducible_numeric_expression(inner)?;
+    if !parsed.unit.is_empty() {
+        return None;
+    }
+    let value = parsed.value.exp();
+    value.is_finite().then(|| format_css_number(value))
+}
+
+pub(crate) fn parse_reducible_log_value(value: &str) -> Option<String> {
+    let arguments = parse_whole_function_value_arguments(value, "log")?;
+    let value = match arguments.as_slice() {
+        [value] | [value, _] => value,
+        _ => return None,
+    };
+    let value = parse_reducible_numeric_expression(value.trim())?;
+    if !value.unit.is_empty() || value.value <= 0.0 {
+        return None;
+    };
+    let base = match arguments.as_slice() {
+        [_] => std::f64::consts::E,
+        [_, base] => {
+            let base = parse_reducible_numeric_expression(base.trim())?;
+            if !base.unit.is_empty() || base.value <= 0.0 || base.value == 1.0 {
+                return None;
+            }
+            base.value
+        }
+        _ => return None,
+    };
+    let result = value.value.log(base);
+    result.is_finite().then(|| format_css_number(result))
+}
+
 pub(crate) fn parse_reducible_min_value(value: &str) -> Option<String> {
     parse_reducible_extreme_value(value, "min", f64::min)
 }
