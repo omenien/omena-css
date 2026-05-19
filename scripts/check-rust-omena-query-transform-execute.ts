@@ -557,6 +557,48 @@ assert.equal(
 assert.deepEqual(nestAtRuleSummary.execution.executedPassIds, ["nesting-unwrap", "print-css"]);
 assert.equal(nestAtRuleSummary.execution.mutationCount, 1);
 
+const conditionalGroupNestingResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "conditional-group-nesting.css",
+      styleSource:
+        "@media (min-width: 40rem) { .card { color: red; & .title { color: blue; } } } @supports (display: grid) { .grid, .panel { &__item { display: grid; } } }",
+      requestedPassIds: ["nesting-unwrap", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(conditionalGroupNestingResult.status, 0, conditionalGroupNestingResult.stderr);
+assert.equal(conditionalGroupNestingResult.error, undefined);
+
+const conditionalGroupNestingSummary = JSON.parse(
+  conditionalGroupNestingResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(
+  conditionalGroupNestingSummary.execution.outputCss,
+  "@media (min-width: 40rem) { .card { color: red; } .card .title { color: blue; } } @supports (display: grid) { .grid__item, .panel__item { display: grid; } }",
+);
+assert.deepEqual(conditionalGroupNestingSummary.execution.executedPassIds, [
+  "nesting-unwrap",
+  "print-css",
+]);
+assert.equal(conditionalGroupNestingSummary.execution.mutationCount, 2);
+
 const contextStyleSource =
   '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; } .button :global(.external) { color: var(--brand); } :global { .reset { color: var(--brand); } } :local(.button) { composes: base; color: var(--brand); } :local { .button { color: var(--brand); } } @media (min-width: 1px) { .button { composes: base; color: var(--brand); } }';
 

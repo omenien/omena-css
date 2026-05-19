@@ -2811,6 +2811,24 @@ fn execution_runtime_bubbles_nested_conditional_group_rules() {
 }
 
 #[test]
+fn execution_runtime_unwraps_style_nesting_inside_conditional_groups() {
+    let source = r#"@media (min-width: 40rem) { .card { color: red; & .title { color: blue; } } } @supports (display: grid) { .grid, .panel { &__item { display: grid; } } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::NestingUnwrap,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 2);
+    assert_eq!(
+        execution.output_css,
+        r#"@media (min-width: 40rem) { .card { color: red; } .card .title { color: blue; } } @supports (display: grid) { .grid__item, .panel__item { display: grid; } }"#
+    );
+}
+
+#[test]
 fn execution_runtime_flattens_only_root_scope_proof_candidates() {
     let source =
         r#"@scope (:root) { .card { color: red; } } @scope (.theme) { .title { color: blue; } }"#;

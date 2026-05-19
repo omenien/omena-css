@@ -3,7 +3,7 @@ use omena_syntax::SyntaxKind;
 
 use crate::helpers::{
     declarations::collect_simple_declarations_in_block,
-    rules::{first_non_trivia_token_start, is_ordinary_top_level_rule_prelude},
+    rules::{first_non_trivia_token_start, is_ordinary_rule_prelude, set_prelude_start},
     selectors::split_css_selector_list,
     tokens::{is_comment_token, matching_right_brace_index, token_end, token_start},
 };
@@ -16,35 +16,33 @@ pub(crate) fn unwrap_css_nesting_with_lexer(
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
     let mut depth = 0usize;
-    let mut top_level_prelude_start = 0usize;
+    let mut prelude_starts = vec![0usize];
     let mut index = 0;
 
     while index < tokens.len() {
         match tokens[index].kind {
             SyntaxKind::LeftBrace => {
-                if depth == 0
-                    && let Some(close_index) = matching_right_brace_index(tokens, index)
-                    && is_ordinary_top_level_rule_prelude(tokens, top_level_prelude_start, index)
-                    && let Some(start) =
-                        first_non_trivia_token_start(tokens, top_level_prelude_start, index)
+                let prelude_start = prelude_starts.get(depth).copied().unwrap_or(0);
+                if let Some(close_index) = matching_right_brace_index(tokens, index)
+                    && is_ordinary_rule_prelude(tokens, prelude_start, index)
+                    && let Some(start) = first_non_trivia_token_start(tokens, prelude_start, index)
                     && let Some(replacement) =
                         unwrap_simple_nested_rule(source, tokens, start, index, close_index)
                 {
                     replacements.push((start, token_end(&tokens[close_index]), replacement));
                     index = close_index + 1;
-                    top_level_prelude_start = index;
+                    set_prelude_start(&mut prelude_starts, depth, index);
                     continue;
                 }
                 depth += 1;
+                set_prelude_start(&mut prelude_starts, depth, index + 1);
             }
             SyntaxKind::RightBrace => {
                 depth = depth.saturating_sub(1);
-                if depth == 0 {
-                    top_level_prelude_start = index + 1;
-                }
+                set_prelude_start(&mut prelude_starts, depth, index + 1);
             }
-            SyntaxKind::Semicolon if depth == 0 => {
-                top_level_prelude_start = index + 1;
+            SyntaxKind::Semicolon => {
+                set_prelude_start(&mut prelude_starts, depth, index + 1);
             }
             _ => {}
         }
