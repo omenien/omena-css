@@ -653,6 +653,66 @@ assertIncludesAll(
   "transform context execute ready surfaces",
 );
 
+const transitiveImportInlineResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "/tmp/App.css",
+      styles: [
+        {
+          stylePath: "/tmp/base.css",
+          styleSource: ".base { color: red; }",
+        },
+        {
+          stylePath: "/tmp/tokens.css",
+          styleSource: '@import "./base.css"; .token { color: blue; }',
+        },
+        {
+          stylePath: "/tmp/App.css",
+          styleSource: '@import "./tokens.css"; .app { color: green; }',
+        },
+      ],
+      requestedPassIds: ["import-inline", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(transitiveImportInlineResult.status, 0, transitiveImportInlineResult.stderr);
+assert.equal(transitiveImportInlineResult.error, undefined);
+
+const transitiveImportInlineSummary = JSON.parse(
+  transitiveImportInlineResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.equal(transitiveImportInlineSummary.product, "omena-query.consumer-build-style-source");
+assert.equal(
+  transitiveImportInlineSummary.execution.outputCss,
+  ".base { color: red; } .token { color: blue; } .app { color: green; }",
+);
+assert.deepEqual(transitiveImportInlineSummary.execution.executedPassIds, [
+  "import-inline",
+  "print-css",
+]);
+assert.equal(transitiveImportInlineSummary.execution.mutationCount, 1);
+assert.equal(transitiveImportInlineSummary.execution.cssImportInlines.length, 1);
+assert.equal(
+  transitiveImportInlineSummary.execution.cssImportInlines[0]?.replacementCss,
+  ".base { color: red; } .token { color: blue; }",
+);
+
 const designTokenRecoveryResult = spawnSync(
   "cargo",
   [
@@ -4084,6 +4144,7 @@ process.stdout.write(
     `unknown=${summary.unknownPassIds.length}`,
     `contextExecuted=${contextSummary.execution.executedPassIds.length}`,
     `contextMutations=${contextSummary.execution.mutationCount}`,
+    `transitiveImportInlineMutations=${transitiveImportInlineSummary.execution.mutationCount}`,
     `designTokenAliasMutations=${designTokenAliasSummary.execution.mutationCount}`,
     `groupedComposesMutations=${groupedComposesSummary.execution.mutationCount}`,
     `globalComposesHashMutations=${globalComposesHashSummary.execution.mutationCount}`,

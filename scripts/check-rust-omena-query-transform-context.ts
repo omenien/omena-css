@@ -154,7 +154,7 @@ assertIncludesAll(
     "cssModuleClassRewriteProducer",
     "cssModuleComposesResolutionProducer",
     "designTokenRouteProducer",
-    "directImportInlineProducer",
+    "transitiveImportInlineProducer",
   ],
   "transform context ready surfaces",
 );

@@ -1404,6 +1404,43 @@ fn consumer_build_derives_workspace_context_for_import_inline_and_composes() {
 }
 
 #[test]
+fn consumer_build_inlines_transitive_workspace_imports() -> Result<(), Box<dyn std::error::Error>> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/base.css".to_string(),
+            style_source: ".base { color: red; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/tokens.css".to_string(),
+            style_source: r#"@import "./base.css"; .token { color: blue; }"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.css".to_string(),
+            style_source: r#"@import "./tokens.css"; .app { color: green; }"#.to_string(),
+        },
+    ];
+    let summary = execute_omena_query_consumer_build_style_sources(
+        "/tmp/App.css",
+        &sources,
+        &["import-inline".to_string(), "print-css".to_string()],
+        &[],
+    )?;
+
+    assert_eq!(summary.product, "omena-query.consumer-build-style-source");
+    assert_eq!(
+        summary.execution.output_css,
+        ".base { color: red; } .token { color: blue; } .app { color: green; }"
+    );
+    assert!(!summary.execution.output_css.contains("@import"));
+    assert_eq!(summary.execution.mutation_count, 1);
+    assert_eq!(
+        summary.execution.css_import_inlines[0].replacement_css,
+        ".base { color: red; } .token { color: blue; }"
+    );
+    Ok(())
+}
+
+#[test]
 fn consumer_build_requires_explicit_reachability_for_tree_shaking() {
     let sources = vec![OmenaQueryStyleSourceInputV0 {
         style_path: "Button.module.css".to_string(),
@@ -1952,6 +1989,35 @@ fn derives_transform_context_from_workspace_sources() {
         vec!["base", "button"]
     );
     assert!(summary.ready_surfaces.contains(&"transformContextProducer"));
+}
+
+#[test]
+fn derives_transform_context_with_transitive_import_inlines() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.css",
+        [
+            ("/tmp/base.css", ".base { color: red; }"),
+            (
+                "/tmp/tokens.css",
+                r#"@import "./base.css"; .token { color: blue; }"#,
+            ),
+            (
+                "/tmp/App.css",
+                r#"@import "./tokens.css"; .app { color: green; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    assert_eq!(summary.import_inline_count, 1);
+    assert_eq!(
+        summary.context.import_inlines[0].import_source,
+        "./tokens.css"
+    );
+    assert_eq!(
+        summary.context.import_inlines[0].replacement_css,
+        ".base { color: red; } .token { color: blue; }"
+    );
 }
 
 #[test]
