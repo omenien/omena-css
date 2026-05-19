@@ -39,7 +39,7 @@ pub(crate) fn tree_shake_css_keyframes_with_lexer(
 ) -> (String, Vec<TransformSemanticRemovalCandidate>) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
-    let keyframes = collect_top_level_keyframes_rules(tokens);
+    let keyframes = collect_keyframes_rules(tokens);
     if keyframes.is_empty() {
         return (source.to_string(), Vec::new());
     }
@@ -72,25 +72,20 @@ pub(crate) fn tree_shake_css_keyframes_with_lexer(
     (output, removals)
 }
 
-pub(crate) fn collect_top_level_keyframes_rules(
+pub(crate) fn collect_keyframes_rules(
     tokens: &[omena_parser::LexedToken],
 ) -> Vec<KeyframesRuleSlice> {
     let mut rules = Vec::new();
-    let mut depth = 0usize;
     let mut index = 0;
 
     while index < tokens.len() {
-        match tokens[index].kind {
-            SyntaxKind::AtKeyword if depth == 0 && is_keyframes_at_keyword(&tokens[index].text) => {
-                if let Some((rule, next_index)) = parse_top_level_keyframes_rule(tokens, index) {
-                    rules.push(rule);
-                    index = next_index;
-                    continue;
-                }
-            }
-            SyntaxKind::LeftBrace => depth += 1,
-            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
-            _ => {}
+        if tokens[index].kind == SyntaxKind::AtKeyword
+            && is_keyframes_at_keyword(&tokens[index].text)
+            && let Some((rule, next_index)) = parse_keyframes_rule(tokens, index)
+        {
+            rules.push(rule);
+            index = next_index;
+            continue;
         }
         index += 1;
     }
@@ -105,7 +100,7 @@ pub(crate) fn is_keyframes_at_keyword(text: &str) -> bool {
     )
 }
 
-fn parse_top_level_keyframes_rule(
+fn parse_keyframes_rule(
     tokens: &[omena_parser::LexedToken],
     at_keyframes_index: usize,
 ) -> Option<(KeyframesRuleSlice, usize)> {

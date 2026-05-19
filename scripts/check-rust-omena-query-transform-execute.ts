@@ -1720,6 +1720,58 @@ assertIncludesAll(
   "escaped keyframe tree-shaking removals",
 );
 
+const nestedKeyframeTreeShakeResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "nested-keyframes.css",
+      styleSource:
+        "@media screen { @keyframes spin { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } } } @supports (display: grid) { @-webkit-keyframes dead { to { opacity: .5; } } } .btn { animation: spin 1s; }",
+      requestedPassIds: ["tree-shake-keyframes", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["btn"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(nestedKeyframeTreeShakeResult.status, 0, nestedKeyframeTreeShakeResult.stderr);
+assert.equal(nestedKeyframeTreeShakeResult.error, undefined);
+
+const nestedKeyframeTreeShakeSummary = JSON.parse(
+  nestedKeyframeTreeShakeResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.ok(nestedKeyframeTreeShakeSummary.execution.outputCss.includes("@keyframes spin"));
+assert.ok(!nestedKeyframeTreeShakeSummary.execution.outputCss.includes("@keyframes ghost"));
+assert.ok(!nestedKeyframeTreeShakeSummary.execution.outputCss.includes("@-webkit-keyframes dead"));
+assert.equal(nestedKeyframeTreeShakeSummary.execution.mutationCount, 2);
+assert.deepEqual(nestedKeyframeTreeShakeSummary.execution.executedPassIds, [
+  "tree-shake-keyframes",
+  "print-css",
+]);
+assertIncludesAll(
+  nestedKeyframeTreeShakeSummary.execution.semanticRemovals.map(
+    (removal) => `${removal.passId}:${removal.name}`,
+  ),
+  ["tree-shake-keyframes:ghost", "tree-shake-keyframes:dead"],
+  "nested keyframe tree-shaking removals",
+);
+
 const atRulePreludeCustomPropertyTreeShakeResult = spawnSync(
   "cargo",
   [

@@ -14,7 +14,7 @@ use crate::domains::{
         collect_static_custom_property_icss_export_rules, custom_property_icss_export_is_reachable,
     },
     keyframes::{
-        KeyframesRuleSlice, collect_referenced_keyframe_names, collect_top_level_keyframes_rules,
+        KeyframesRuleSlice, collect_keyframes_rules, collect_referenced_keyframe_names,
         keyframe_name_is_reachable,
     },
     reachability::rule_slice_matches_reachable_class_context,
@@ -302,7 +302,7 @@ pub(crate) fn tree_shake_css_custom_properties_with_lexer(
         }
     }
     let scope_blocks = collect_css_module_scope_blocks(source, tokens);
-    let keyframes = collect_top_level_keyframes_rules(tokens);
+    let keyframes = collect_keyframes_rules(tokens);
     let reachable_keyframe_names = collect_reachable_keyframe_names(
         source,
         tokens,
@@ -419,7 +419,7 @@ fn collect_reachable_custom_property_names(
     let mut root_names = Vec::new();
     let mut dependencies_by_name = BTreeMap::<String, Vec<String>>::new();
     let scope_blocks = collect_css_module_scope_blocks(source, tokens);
-    let keyframes = collect_top_level_keyframes_rules(tokens);
+    let keyframes = collect_keyframes_rules(tokens);
     let reachable_keyframe_names = collect_reachable_keyframe_names(
         source,
         tokens,

@@ -13,8 +13,7 @@ use crate::{
         color::parse_static_srgb_color,
         css_module_global::{CssModuleScopeBlock, collect_css_module_scope_blocks},
         keyframes::{
-            KeyframesRuleSlice, collect_referenced_keyframe_names,
-            collect_top_level_keyframes_rules,
+            KeyframesRuleSlice, collect_keyframes_rules, collect_referenced_keyframe_names,
         },
         number::parse_numeric_value_with_unit,
         reachability::rule_slice_matches_reachable_class_context,
@@ -806,7 +805,7 @@ fn collect_css_modules_value_roots_from_reachable_keyframes(
     external_keyframe_roots: &[String],
     reachable_class_names: &[String],
 ) -> Vec<String> {
-    let keyframes = collect_top_level_keyframes_rules(tokens);
+    let keyframes = collect_keyframes_rules(tokens);
     if keyframes.is_empty() {
         return Vec::new();
     }
