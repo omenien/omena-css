@@ -1753,6 +1753,64 @@ assertIncludesAll(
   "semantic reachability build ready surfaces",
 );
 
+const valueKeyframeReachabilityResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "Button.module.css",
+      styles: [
+        {
+          stylePath: "Button.module.css",
+          styleSource:
+            "@value used: red; @value dead: blue; @value ghost: green; @keyframes pulse { to { color: used; } } @keyframes ghost { to { color: ghost; } } .button { animation: pulse 1s; }",
+        },
+      ],
+      requestedPassIds: ["tree-shake-keyframes", "tree-shake-value", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["button"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(valueKeyframeReachabilityResult.status, 0, valueKeyframeReachabilityResult.stderr);
+assert.equal(valueKeyframeReachabilityResult.error, undefined);
+
+const valueKeyframeReachabilitySummary = JSON.parse(
+  valueKeyframeReachabilityResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.ok(valueKeyframeReachabilitySummary.execution.outputCss.includes("@value used: red;"));
+assert.ok(valueKeyframeReachabilitySummary.execution.outputCss.includes("color: used;"));
+assert.ok(!valueKeyframeReachabilitySummary.execution.outputCss.includes("@value dead:"));
+assert.ok(!valueKeyframeReachabilitySummary.execution.outputCss.includes("@value ghost:"));
+assert.ok(!valueKeyframeReachabilitySummary.execution.outputCss.includes("@keyframes ghost"));
+assertIncludesAll(
+  valueKeyframeReachabilitySummary.execution.semanticRemovals.map(
+    (removal) => `${removal.passId}:${removal.symbolKind}:${removal.name}`,
+  ),
+  [
+    "tree-shake-keyframes:keyframes:ghost",
+    "tree-shake-value:cssModuleValue:dead",
+    "tree-shake-value:cssModuleValue:ghost",
+  ],
+  "value keyframe reachability removals",
+);
+
 const icssExportReachabilityResult = spawnSync(
   "cargo",
   [

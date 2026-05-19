@@ -12,6 +12,10 @@ use crate::{
     domains::{
         color::parse_static_srgb_color,
         css_module_global::{CssModuleScopeBlock, collect_css_module_scope_blocks},
+        keyframes::{
+            KeyframesRuleSlice, collect_referenced_keyframe_names,
+            collect_top_level_keyframes_rules,
+        },
         number::parse_numeric_value_with_unit,
         reachability::rule_slice_matches_reachable_class_context,
     },
@@ -381,6 +385,7 @@ pub(crate) fn tree_shake_css_modules_values_with_lexer(
     source: &str,
     dialect: StyleDialect,
     reachable_value_names: &[String],
+    reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> (String, Vec<TransformSemanticRemovalCandidate>) {
     let lexed = lex(source, dialect);
@@ -409,6 +414,7 @@ pub(crate) fn tree_shake_css_modules_values_with_lexer(
             definitions: &definitions,
             value_names: &value_names,
             external_roots: reachable_value_names,
+            external_keyframe_roots: reachable_keyframe_names,
             reachable_class_names,
             export_rules: &export_rules,
         });
@@ -566,6 +572,7 @@ struct CssModulesValueReachabilityInput<'a> {
     definitions: &'a [StaticCssModulesValueDefinition],
     value_names: &'a [String],
     external_roots: &'a [String],
+    external_keyframe_roots: &'a [String],
     reachable_class_names: &'a [String],
     export_rules: &'a [CssModulesIcssExportRule],
 }
@@ -610,6 +617,16 @@ fn collect_reachable_css_modules_value_names(
             }
         }
     }
+    for name in collect_css_modules_value_roots_from_reachable_keyframes(
+        input.source,
+        input.tokens,
+        input.dialect,
+        input.value_names,
+        input.external_keyframe_roots,
+        input.reachable_class_names,
+    ) {
+        push_unique_string(&mut root_names, name);
+    }
 
     for rule in collect_declaration_ordinary_rule_slices(input.source, input.tokens) {
         if rule.selector.trim().eq_ignore_ascii_case(":export") {
@@ -649,6 +666,68 @@ fn collect_reachable_css_modules_value_names(
     );
 
     close_css_modules_value_dependency_graph(root_names, &dependencies_by_name)
+}
+
+fn collect_css_modules_value_roots_from_reachable_keyframes(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+    dialect: StyleDialect,
+    value_names: &[String],
+    external_keyframe_roots: &[String],
+    reachable_class_names: &[String],
+) -> Vec<String> {
+    let keyframes = collect_top_level_keyframes_rules(tokens);
+    if keyframes.is_empty() {
+        return Vec::new();
+    }
+
+    let referenced_keyframe_names =
+        collect_referenced_keyframe_names(source, tokens, reachable_class_names);
+    let dynamic_keyframe_reachability = referenced_keyframe_names.is_none();
+    let mut reachable_keyframe_names = referenced_keyframe_names.unwrap_or_default();
+    for name in external_keyframe_roots {
+        push_unique_string(&mut reachable_keyframe_names, name.clone());
+    }
+
+    let mut roots = Vec::new();
+    for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
+        let Some(keyframe) = enclosing_keyframe_for_value_rule(&rule, &keyframes) else {
+            continue;
+        };
+        if !dynamic_keyframe_reachability
+            && !reachable_keyframe_names
+                .iter()
+                .any(|name| name == &keyframe.name)
+        {
+            continue;
+        }
+        let Some((block_start_index, block_end_index)) =
+            rule_block_token_indexes(tokens, rule.block_start, rule.block_end)
+        else {
+            continue;
+        };
+        for declaration in
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+        {
+            for reference_name in collect_css_modules_value_references_in_value(
+                &declaration.value,
+                dialect,
+                value_names,
+            ) {
+                push_unique_string(&mut roots, reference_name);
+            }
+        }
+    }
+    roots
+}
+
+fn enclosing_keyframe_for_value_rule<'a>(
+    rule: &crate::helpers::rules::SimpleRuleSlice,
+    keyframes: &'a [KeyframesRuleSlice],
+) -> Option<&'a KeyframesRuleSlice> {
+    keyframes
+        .iter()
+        .find(|keyframe| rule.start >= keyframe.start && rule.end <= keyframe.end)
 }
 
 fn collect_css_modules_value_references_in_at_rule_preludes(

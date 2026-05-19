@@ -524,6 +524,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     &output_css,
                     dialect,
                     &context.reachable_value_names,
+                    &context.reachable_keyframe_names,
                     &reachable_class_names,
                 );
                 let mutation_count = removals.len();

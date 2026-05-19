@@ -270,12 +270,14 @@ pub(crate) fn tree_shake_css_modules_values_with_removals(
     source: &str,
     dialect: StyleDialect,
     reachable_value_names: &[String],
+    reachable_keyframe_names: &[String],
     reachable_class_names: &[String],
 ) -> (String, Vec<TransformSemanticRemovalCandidate>) {
     tree_shake_css_modules_values_with_lexer(
         source,
         dialect,
         reachable_value_names,
+        reachable_keyframe_names,
         reachable_class_names,
     )
 }

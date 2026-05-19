@@ -1325,6 +1325,52 @@ fn consumer_build_extends_reachability_through_css_modules_composes() {
 }
 
 #[test]
+fn consumer_build_keeps_css_modules_values_used_by_reachable_keyframes() {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "Button.module.css".to_string(),
+        style_source: r#"@value used: red; @value dead: blue; @value ghost: green; @keyframes pulse { to { color: used; } } @keyframes ghost { to { color: ghost; } } .button { animation: pulse 1s; }"#.to_string(),
+    }];
+    let context = OmenaQueryTransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec!["button".to_string()],
+        ..OmenaQueryTransformExecutionContextV0::default()
+    };
+    let summary_result = execute_omena_query_consumer_build_style_sources_with_context(
+        "Button.module.css",
+        &sources,
+        &[
+            "tree-shake-keyframes".to_string(),
+            "tree-shake-value".to_string(),
+        ],
+        &context,
+        &[],
+    );
+    assert!(summary_result.is_ok());
+    let Ok(summary) = summary_result else {
+        return;
+    };
+
+    assert!(summary.execution.output_css.contains("@value used: red;"));
+    assert!(summary.execution.output_css.contains("color: used;"));
+    assert!(!summary.execution.output_css.contains("@value dead:"));
+    assert!(!summary.execution.output_css.contains("@value ghost:"));
+    assert!(!summary.execution.output_css.contains("@keyframes ghost"));
+    assert_eq!(
+        summary
+            .execution
+            .semantic_removals
+            .iter()
+            .map(|removal| (removal.pass_id, removal.symbol_kind, removal.name.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("tree-shake-keyframes", "keyframes", "ghost"),
+            ("tree-shake-value", "cssModuleValue", "dead"),
+            ("tree-shake-value", "cssModuleValue", "ghost"),
+        ]
+    );
+}
+
+#[test]
 fn consumer_build_scopes_semantic_tree_shaking_to_reachable_class_rules() {
     let sources = vec![OmenaQueryStyleSourceInputV0 {
         style_path: "Button.module.css".to_string(),
