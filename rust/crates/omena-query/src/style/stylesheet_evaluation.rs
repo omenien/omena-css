@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_parser::{
-    ParsedVariableFact, ParsedVariableFactKind, StyleDialect as OmenaParserStyleDialect,
-    collect_style_facts,
+    LexedToken, ParsedVariableFact, ParsedVariableFactKind,
+    StyleDialect as OmenaParserStyleDialect, collect_style_facts, lex,
 };
+use omena_syntax::SyntaxKind;
 use omena_transform_passes::TransformModuleEvaluationV0;
 
 pub(super) fn derive_static_stylesheet_module_evaluation(
@@ -13,14 +14,14 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
     let variable_kind = StaticStylesheetVariableKind::for_dialect(dialect)?;
     let facts = collect_style_facts(style_source, dialect);
     let variable_facts = facts.variables.as_slice();
+    if variable_kind == StaticStylesheetVariableKind::Less {
+        return derive_static_less_stylesheet_module_evaluation(style_source, variable_facts);
+    }
     if !variable_facts
         .iter()
         .any(|fact| variable_kind.matches_declaration(fact.kind))
     {
         return None;
-    }
-    if variable_kind == StaticStylesheetVariableKind::Less {
-        return derive_static_less_stylesheet_module_evaluation(style_source, variable_facts);
     }
 
     let declarations = collect_static_stylesheet_variable_declarations(
@@ -154,6 +155,11 @@ struct StaticStylesheetEvaluationEdit {
     replacement: String,
 }
 
+#[derive(Debug, Clone)]
+struct StaticStylesheetPropertyDeclaration {
+    value: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StaticStylesheetScope {
     parent_id: Option<usize>,
@@ -166,11 +172,12 @@ fn derive_static_less_stylesheet_module_evaluation(
     variable_facts: &[ParsedVariableFact],
 ) -> Option<TransformModuleEvaluationV0> {
     let scopes = collect_static_stylesheet_scopes(style_source)?;
+    let lexed = lex(style_source, OmenaParserStyleDialect::Less);
+    let tokens = lexed.tokens();
     let declarations =
         collect_static_less_variable_declarations(style_source, variable_facts, &scopes)?;
-    if declarations.is_empty() {
-        return None;
-    }
+    let property_declarations =
+        collect_static_less_property_declarations(style_source, tokens, &scopes)?;
 
     let mut edits = Vec::new();
     for declaration in declarations.values() {
@@ -202,6 +209,29 @@ fn derive_static_less_stylesheet_module_evaluation(
         edits.push(StaticStylesheetEvaluationEdit {
             start: reference_start,
             end: parser_text_size_to_usize(fact.range.end().into()),
+            replacement,
+        });
+    }
+    for token in tokens {
+        if token.kind != SyntaxKind::LessPropertyVariableToken {
+            continue;
+        }
+        let reference_start = static_stylesheet_token_start(token);
+        if static_stylesheet_position_is_inside_scoped_declaration(&declarations, reference_start) {
+            continue;
+        }
+        let reference_scope_id = static_stylesheet_scope_for_position(&scopes, reference_start)?;
+        let mut stack = BTreeSet::new();
+        let replacement = resolve_static_less_property_value_in_scope(
+            token.text.as_str(),
+            reference_scope_id,
+            &scopes,
+            &property_declarations,
+            &mut stack,
+        )?;
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: reference_start,
+            end: static_stylesheet_token_end(token),
             replacement,
         });
     }
@@ -251,6 +281,56 @@ fn collect_static_less_variable_declarations(
             continue;
         }
         declarations.insert(key, declaration);
+    }
+    Some(declarations)
+}
+
+fn collect_static_less_property_declarations(
+    source: &str,
+    tokens: &[LexedToken],
+    scopes: &[StaticStylesheetScope],
+) -> Option<BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>> {
+    let mut declarations = BTreeMap::<(usize, String), StaticStylesheetPropertyDeclaration>::new();
+    let mut index = 0usize;
+    while index < tokens.len() {
+        if !matches!(
+            tokens[index].kind,
+            SyntaxKind::Ident | SyntaxKind::CustomPropertyName
+        ) || !static_stylesheet_property_name_is_safe(tokens[index].text.as_str())
+            || !static_stylesheet_previous_token_starts_declaration(tokens, index)
+        {
+            index += 1;
+            continue;
+        }
+
+        let colon_index = static_stylesheet_skip_trivia_tokens(tokens, index + 1);
+        if tokens
+            .get(colon_index)
+            .is_none_or(|token| token.kind != SyntaxKind::Colon)
+        {
+            index += 1;
+            continue;
+        }
+
+        let value_start_index = colon_index + 1;
+        let value_end_index =
+            static_stylesheet_declaration_value_end_token(tokens, value_start_index)?;
+        let value_start = static_stylesheet_token_end(&tokens[colon_index]);
+        let value_end = static_stylesheet_token_start(&tokens[value_end_index]);
+        let value = source.get(value_start..value_end)?.trim().to_string();
+        if value.is_empty() || !static_stylesheet_property_value_is_removal_safe(&value) {
+            return None;
+        }
+
+        let scope_id = static_stylesheet_scope_for_position(
+            scopes,
+            static_stylesheet_token_start(&tokens[index]),
+        )?;
+        declarations.insert(
+            (scope_id, format!("${}", tokens[index].text)),
+            StaticStylesheetPropertyDeclaration { value },
+        );
+        index = value_end_index + 1;
     }
     Some(declarations)
 }
@@ -410,8 +490,145 @@ fn resolve_static_less_variable_value_text(
     Some(output)
 }
 
+fn resolve_static_less_property_value_in_scope(
+    name: &str,
+    scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
+    stack: &mut BTreeSet<(usize, String)>,
+) -> Option<String> {
+    let stack_key = (scope_id, name.to_string());
+    if !stack.insert(stack_key.clone()) {
+        return None;
+    }
+    let declaration = find_static_less_property_declaration(name, scope_id, scopes, declarations)?;
+    let resolved = resolve_static_less_property_value_text(
+        declaration.value.trim(),
+        scope_id,
+        scopes,
+        declarations,
+        stack,
+    );
+    stack.remove(&stack_key);
+    resolved
+}
+
+fn find_static_less_property_declaration<'a>(
+    name: &str,
+    mut scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &'a BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
+) -> Option<&'a StaticStylesheetPropertyDeclaration> {
+    loop {
+        if let Some(declaration) = declarations.get(&(scope_id, name.to_string())) {
+            return Some(declaration);
+        }
+        scope_id = scopes.get(scope_id)?.parent_id?;
+    }
+}
+
+fn resolve_static_less_property_value_text(
+    value: &str,
+    scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &BTreeMap<(usize, String), StaticStylesheetPropertyDeclaration>,
+    stack: &mut BTreeSet<(usize, String)>,
+) -> Option<String> {
+    let references =
+        collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Scss)?;
+    if references.is_empty() {
+        return static_stylesheet_literal_value_is_safe(value).then(|| value.to_string());
+    }
+    if !static_stylesheet_composite_value_is_safe(value) {
+        return None;
+    }
+
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    for reference in references {
+        let resolved = resolve_static_less_property_value_in_scope(
+            reference.name.as_str(),
+            scope_id,
+            scopes,
+            declarations,
+            stack,
+        )?;
+        output.push_str(&value[cursor..reference.start]);
+        output.push_str(&resolved);
+        cursor = reference.end;
+    }
+    output.push_str(&value[cursor..]);
+    Some(output)
+}
+
 fn static_stylesheet_less_declaration_value_is_removal_safe(value: &str) -> bool {
     !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | '!'))
+}
+
+fn static_stylesheet_property_name_is_safe(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+}
+
+fn static_stylesheet_property_value_is_removal_safe(value: &str) -> bool {
+    !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | '!'))
+}
+
+fn static_stylesheet_previous_token_starts_declaration(
+    tokens: &[LexedToken],
+    index: usize,
+) -> bool {
+    tokens[..index]
+        .iter()
+        .rev()
+        .find(|token| !static_stylesheet_token_is_trivia(token.kind))
+        .is_some_and(|token| matches!(token.kind, SyntaxKind::LeftBrace | SyntaxKind::Semicolon))
+}
+
+fn static_stylesheet_declaration_value_end_token(
+    tokens: &[LexedToken],
+    mut index: usize,
+) -> Option<usize> {
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.checked_sub(1)?,
+            SyntaxKind::LeftBracket => bracket_depth += 1,
+            SyntaxKind::RightBracket => bracket_depth = bracket_depth.checked_sub(1)?,
+            SyntaxKind::Semicolon | SyntaxKind::RightBrace
+                if paren_depth == 0 && bracket_depth == 0 =>
+            {
+                return Some(index);
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
+fn static_stylesheet_skip_trivia_tokens(tokens: &[LexedToken], mut index: usize) -> usize {
+    while tokens
+        .get(index)
+        .is_some_and(|token| static_stylesheet_token_is_trivia(token.kind))
+    {
+        index += 1;
+    }
+    index
+}
+
+fn static_stylesheet_token_is_trivia(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::Whitespace
+            | SyntaxKind::LineComment
+            | SyntaxKind::BlockComment
+            | SyntaxKind::ScssSilentComment
+    )
 }
 
 fn collect_static_stylesheet_variable_declarations(
@@ -752,4 +969,12 @@ fn apply_static_stylesheet_evaluation_edits(
 
 fn parser_text_size_to_usize(value: u32) -> usize {
     value as usize
+}
+
+fn static_stylesheet_token_start(token: &LexedToken) -> usize {
+    parser_text_size_to_usize(token.range.start().into())
+}
+
+fn static_stylesheet_token_end(token: &LexedToken) -> usize {
+    parser_text_size_to_usize(token.range.end().into())
 }

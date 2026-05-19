@@ -21,6 +21,7 @@ omena-incremental = { path = "../omena-incremental" }
 omena-parser = { path = "../omena-parser" }
 omena-resolver = { path = "../omena-resolver" }
 omena-semantic = { path = "../omena-semantic" }
+omena-syntax = { path = "../omena-syntax" }
 omena-transform-bundle = { path = "../omena-transform-bundle" }
 omena-transform-cst = { path = "../omena-transform-cst" }
 omena-transform-egg = { path = "../omena-transform-egg" }

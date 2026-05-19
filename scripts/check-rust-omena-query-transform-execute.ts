@@ -2228,6 +2228,55 @@ assert(staticLessScopedEvaluationSummary.execution.outputCss.includes("color: bl
 assert(!staticLessScopedEvaluationSummary.execution.outputCss.includes("@tone:"));
 assert(!staticLessScopedEvaluationSummary.execution.outputCss.includes("@brand:"));
 
+const staticLessPropertyEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-source",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "PropertyLess.module.less",
+      styleSource:
+        ".card { color: red; background: $color; color: blue; } .other { color: green; background: $color; }",
+      requestedPassIds: ["less-module-evaluate", "css-modules-class-hashing", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  staticLessPropertyEvaluationResult.status,
+  0,
+  staticLessPropertyEvaluationResult.stderr,
+);
+assert.equal(staticLessPropertyEvaluationResult.error, undefined);
+
+const staticLessPropertyEvaluationSummary = JSON.parse(
+  staticLessPropertyEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.equal(
+  staticLessPropertyEvaluationSummary.product,
+  "omena-query.consumer-build-style-source",
+);
+assert.deepEqual(staticLessPropertyEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert.equal(
+  staticLessPropertyEvaluationSummary.execution.cssModuleEvaluation?.evaluator,
+  "omena-query-static-less-variable-evaluator",
+);
+assert(staticLessPropertyEvaluationSummary.execution.outputCss.includes("background: blue"));
+assert(staticLessPropertyEvaluationSummary.execution.outputCss.includes("background: green"));
+assert(!staticLessPropertyEvaluationSummary.execution.outputCss.includes("$color"));
+
 const staticStylesheetCompositeEvaluationResult = spawnSync(
   "cargo",
   [

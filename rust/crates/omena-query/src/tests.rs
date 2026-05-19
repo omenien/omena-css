@@ -1076,6 +1076,43 @@ fn consumer_build_derives_static_less_evaluator_context_for_lazy_scoped_values()
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_property_variables() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        ".card { color: red; background: $color; color: blue; } .other { color: green; background: $color; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("background: blue"));
+    assert!(summary.execution.output_css.contains("background: green"));
+    assert!(!summary.execution.output_css.contains("$color"));
+    assert_eq!(
+        summary
+            .execution
+            .css_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.evaluator.as_str()),
+        Some("omena-query-static-less-variable-evaluator")
+    );
+}
+
+#[test]
 fn consumer_build_derives_static_scss_evaluator_context_with_default_declarations() {
     let first_default_summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",
