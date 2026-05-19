@@ -1528,7 +1528,7 @@ fn execution_runtime_compresses_box_shorthand_values() {
 
 #[test]
 fn execution_runtime_compresses_overflow_and_background_repeat_shorthands() {
-    let source = r#".a { overflow-x: visible; overflow-y: visible; background-repeat: repeat repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .c { background-repeat: Repeat Repeat; } .pos { background-position-x: left; background-position-y: top; } .pos-center { background-position-x: center; background-position-y: center; } .pos-reverse { background-position-y: top; background-position-x: center; } .pos-important { background-position-x: left !important; background-position-y: top !important; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#;
+    let source = r#".a { overflow-x: visible; overflow-y: visible; background-repeat: repeat repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .c { background-repeat: Repeat Repeat; } .d { overflow: hidden hidden; background-repeat: repeat no-repeat; } .e { overflow: visible visible; background-repeat: no-repeat repeat; } .pos { background-position-x: left; background-position-y: top; } .pos-center { background-position-x: center; background-position-y: center; } .pos-reverse { background-position-y: top; background-position-x: center; } .pos-important { background-position-x: left !important; background-position-y: top !important; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1537,10 +1537,10 @@ fn execution_runtime_compresses_overflow_and_background_repeat_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 7);
+    assert_eq!(execution.mutation_count, 11);
     assert_eq!(
         execution.output_css,
-        r#".a { overflow: visible; background-repeat: repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .c { background-repeat: repeat; } .pos { background-position: 0 0; } .pos-center { background-position: 50%; } .pos-reverse { background-position: top; } .pos-important { background-position: 0 0!important; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#
+        r#".a { overflow: visible; background-repeat: repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .c { background-repeat: repeat; } .d { overflow: hidden; background-repeat: repeat-x; } .e { overflow: visible; background-repeat: repeat-y; } .pos { background-position: 0 0; } .pos-center { background-position: 50%; } .pos-reverse { background-position: top; } .pos-important { background-position: 0 0!important; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#
     );
 }
 
@@ -1678,7 +1678,7 @@ fn execution_runtime_compresses_line_style_shorthands() {
 
 #[test]
 fn execution_runtime_compresses_repeated_axis_shorthand_values() {
-    let source = r#".a { mask-repeat: repeat repeat; -webkit-mask-repeat: no-repeat no-repeat; background-repeat: space round; } .b { border-spacing: 1px 1px; } .c { scroll-padding-inline: 1px 1px; scroll-margin-block: 1px 2px; } .d { padding-inline: 2px 2px; margin-block: 1px 2px; } .e { border-block-color: red red; border-inline-width: 1px 1px; }"#;
+    let source = r#".a { mask-repeat: repeat repeat; -webkit-mask-repeat: no-repeat no-repeat; background-repeat: space round; } .b { border-spacing: 1px 1px; } .c { scroll-padding-inline: 1px 1px; scroll-margin-block: 1px 2px; } .d { padding-inline: 2px 2px; margin-block: 1px 2px; } .e { border-block-color: red red; border-inline-width: 1px 1px; } .f { background-repeat: repeat no-repeat; mask-repeat: no-repeat repeat; -webkit-mask-repeat: repeat no-repeat; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1687,10 +1687,10 @@ fn execution_runtime_compresses_repeated_axis_shorthand_values() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 7);
+    assert_eq!(execution.mutation_count, 10);
     assert_eq!(
         execution.output_css,
-        r#".a { mask-repeat: repeat; -webkit-mask-repeat: no-repeat; background-repeat: space round; } .b { border-spacing: 1px; } .c { scroll-padding-inline: 1px; scroll-margin-block: 1px 2px; } .d { padding-inline: 2px; margin-block: 1px 2px; } .e { border-block-color: red; border-inline-width: 1px; }"#
+        r#".a { mask-repeat: repeat; -webkit-mask-repeat: no-repeat; background-repeat: space round; } .b { border-spacing: 1px; } .c { scroll-padding-inline: 1px; scroll-margin-block: 1px 2px; } .d { padding-inline: 2px; margin-block: 1px 2px; } .e { border-block-color: red; border-inline-width: 1px; } .f { background-repeat: repeat-x; mask-repeat: repeat-y; -webkit-mask-repeat: repeat-x; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

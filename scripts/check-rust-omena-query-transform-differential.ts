@@ -334,7 +334,8 @@ const fixtures: readonly DifferentialFixture[] = [
   },
   {
     label: "overflow-background-repeat-shorthand",
-    source: ".a { background-repeat: repeat repeat; overflow-x: visible; overflow-y: visible; }",
+    source:
+      ".a { background-repeat: repeat repeat; overflow-x: visible; overflow-y: visible; } .b { background-repeat: repeat no-repeat; overflow: hidden hidden; } .c { background-repeat: no-repeat repeat; overflow: visible visible; }",
   },
   {
     label: "background-position-axis-shorthand",
@@ -398,7 +399,7 @@ const fixtures: readonly DifferentialFixture[] = [
   {
     label: "repeated-axis-shorthand-values",
     source:
-      ".a { mask-repeat: repeat repeat; background-repeat: space round; -webkit-mask-repeat: no-repeat no-repeat; } .b { border-spacing: 1px 1px; } .c { scroll-margin-block: 1px 2px; scroll-padding-inline: 1px 1px; } .d { margin-block: 1px 2px; padding-inline: 2px 2px; } .e { border-block-color: red red; border-inline-width: 1px 1px; }",
+      ".a { mask-repeat: repeat repeat; background-repeat: space round; -webkit-mask-repeat: no-repeat no-repeat; } .b { border-spacing: 1px 1px; } .c { scroll-margin-block: 1px 2px; scroll-padding-inline: 1px 1px; } .d { margin-block: 1px 2px; padding-inline: 2px 2px; } .e { border-block-color: red red; border-inline-width: 1px 1px; } .f { mask-repeat: no-repeat repeat; background-repeat: repeat no-repeat; -webkit-mask-repeat: repeat no-repeat; }",
   },
   {
     label: "spacing-zero-units",

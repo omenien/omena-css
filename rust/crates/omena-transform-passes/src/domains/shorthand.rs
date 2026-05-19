@@ -244,6 +244,8 @@ fn shorthand_value_replacement_for_declaration(
         compress_border_none_shorthand_value(&declaration.value)
     } else if is_repeat_shorthand_property(&declaration.property) {
         compress_background_repeat_value(&declaration.value)
+    } else if declaration.property == "overflow" {
+        compress_overflow_shorthand_value(&declaration.value)
     } else if is_repeated_two_axis_shorthand_property(&declaration.property) {
         compress_repeated_two_axis_value(&declaration.value)
     } else if declaration.property == "border-radius" {
@@ -664,10 +666,19 @@ pub(crate) fn compress_background_repeat_value(value: &str) -> Option<String> {
     };
     let x = x.to_ascii_lowercase();
     let y = y.to_ascii_lowercase();
-    if x != y || !is_background_repeat_axis_keyword(&x) {
+    if !is_background_repeat_axis_keyword(&x) || !is_background_repeat_axis_keyword(&y) {
         return None;
     }
-    Some(x)
+    let replacement = if x == "repeat" && y == "no-repeat" {
+        "repeat-x".to_string()
+    } else if x == "no-repeat" && y == "repeat" {
+        "repeat-y".to_string()
+    } else if x == y {
+        x
+    } else {
+        return None;
+    };
+    (replacement != normalize_ascii_whitespace(value)).then_some(replacement)
 }
 
 fn is_repeat_shorthand_property(property: &str) -> bool {
@@ -710,6 +721,19 @@ fn compress_repeated_two_axis_value(value: &str) -> Option<String> {
         return None;
     };
     (first == second).then(|| first.clone())
+}
+
+fn compress_overflow_shorthand_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let [x, y] = components.as_slice() else {
+        return None;
+    };
+    let x = x.to_ascii_lowercase();
+    let y = y.to_ascii_lowercase();
+    if x != y || !is_overflow_axis_keyword(&x) {
+        return None;
+    }
+    (x != normalize_ascii_whitespace(value)).then_some(x)
 }
 
 pub(crate) fn compress_border_radius_value(value: &str) -> Option<String> {
