@@ -326,7 +326,7 @@ Current checker policy:
 - `.github/workflows/tsgo-operational-shadow.yml` is the observational workflow for that bounded operational lane
   - it builds the repo, runs the tsgo-backed release batch, real-project corpus, LSP smoke, and full operational lane, and records repeatable shadow history for the next default-candidate judgment
 - `.github/workflows/ts7-phase-a-shadow.yml` builds the repo, then runs the Phase A readiness gate, non-release shadow path, and stability check on every `master` push and on manual dispatch
-- `pnpm check:rust-parser-scaffold` exercises the first internal Rust parser scaffold crate, `rust/crates/engine-style-parser`
+- `pnpm check:rust-parser-scaffold` exercises the current product parser scaffold crate, `rust/crates/omena-parser`
 - `pnpm check:rust-parser-git-consumer` verifies that the split parser repo can be consumed as a remote git dependency by the repo-stored standalone fixture at `rust/external-consumers/engine-style-parser-git-consumer`
 - `pnpm check:rust-parser-split-boundary` verifies the full parser split boundary: parser public-product validation inside the monorepo plus remote git-consumer validation against `omena-engine-style-parser`
 - `pnpm check:rust-input-producers-git-consumer` verifies that the split input-producers repo can be consumed as a remote git dependency by the repo-stored standalone fixture at `rust/external-consumers/engine-input-producers-git-consumer`
@@ -344,7 +344,7 @@ Current checker policy:
   - `omenien/omena-bridge`
   - `omenien/omena-query`
   - keep them pinned behind repeatable remote-consumer checks before any new rename or public packaging move
-- `pnpm check:rust-parser-parity-lite` compares the Rust parser scaffold against the current TS style parser on a bounded shared fixture set
+- `pnpm check:rust-parser-parity-lite` compares the `omena-parser` scaffold against the current TS style parser on a bounded shared fixture set
 - `pnpm check:rust-parser-css-modules-intermediate` compares the Rust parser CSS Modules intermediate facts against the current TS style HIR on a bounded shared fixture set
 - `pnpm check:rust-parser-index-producer` remains as a compatibility alias for the same intermediate producer check
 - `pnpm check:rust-parser-canonical-candidate` validates the versioned parser canonical-candidate bundle over the current parity-lite + CSS Modules intermediate artifacts
@@ -418,7 +418,7 @@ Current checker policy:
   - `expression-semantics` and `source-resolution` still carry family-level canonical-producer signals and a shared top-level source-side lane
   - `expression-domain` carries input-only canonical artifacts plus type-fact-backed evaluator-candidate coverage on the Rust shadow path
   - a top-level `semantic` lane now consolidates `source-side + expression-domain` into one canonical-candidate / evaluator-candidate / canonical-producer path
-  - `engine-style-parser` now has a canonical parser/public-product gate, a parser canonical-candidate bundle, parser evaluator-candidates, a parser canonical-producer signal, a bounded CSS Modules intermediate producer surface, and a downstream consumer-boundary check over that producer output
+  - `omena-parser` now owns the canonical parser/public-product gate, parser canonical-candidate bundle, parser evaluator-candidates, parser canonical-producer signal, bounded CSS Modules intermediate producer surface, and downstream consumer-boundary check over that producer output; legacy `engine-style-parser` is confined to oracle, benchmark, and split-compatibility paths
   - the ESLint and Stylelint plugin consumers now form a first plugin-facing batch with focused rule surfaces, aggregate configs, a clean example workspace, and release-facing consumer gates
   - the bounded checker entrance (`style-recovery` + `source-missing` + `style-unused`) is now enforced in `pnpm check:rust-release-bundle`
   - packaged VSIX runtime now defaults to `rust-selected-query` through a long-lived `engine-shadow-runner` daemon when the bundled runner is present, while source checkouts keep the unset default on `typescript-current`
@@ -438,7 +438,7 @@ Current checker policy:
   - `selector-usage` remains a shadow validation family, not a release-gating canonical candidate
   - current `EngineInputV2` does not preserve enough reference-level evidence to reproduce `selector-usage` semantics as an input-only canonical producer
   - the current internal Rust producer boundary is [`rust/crates/engine-input-producers`](./rust/crates/engine-input-producers/README.md)
-  - the current internal Rust parser/public-product scaffold starts in [`rust/crates/engine-style-parser`](./rust/crates/engine-style-parser/README.md)
+  - the current internal Rust parser/public-product scaffold starts in [`rust/crates/omena-parser`](./rust/crates/omena-parser/README.md)
 - `pnpm check:real-project-corpus` runs a clean multi-file corpus that mimics common product patterns (`variants`, `@value` + `@keyframes`, `composes`, `.module.less`)
 - semantic smoke cases are versioned in `scripts/semantic-smoke-corpus.ts` and should be updated when new semantic surfaces become release-relevant
 - `pnpm check:release-batch` is the canonical release-facing batch checker pass

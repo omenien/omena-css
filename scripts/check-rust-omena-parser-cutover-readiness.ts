@@ -40,6 +40,8 @@ const ALLOWED_LEGACY_REFERENCE_PATTERNS = [
 ] as const;
 
 const packageJson = readText("package.json");
+const readme = readText("README.md");
+const performanceDocs = readText("docs/performance.md");
 
 for (const manifestPath of PRODUCT_CRATE_MANIFESTS) {
   const manifest = readText(manifestPath);
@@ -141,6 +143,30 @@ assert.ok(
   packageJson.includes('"check:rust-omena-parser-boundary"') &&
     packageJson.includes("rust/omena-parser/cutover-readiness"),
   "rust/omena-parser/boundary must include cutover-readiness",
+);
+assert.ok(
+  readme.includes(
+    "`pnpm check:rust-parser-scaffold` exercises the current product parser scaffold crate, `rust/crates/omena-parser`",
+  ),
+  "README must document omena-parser as the current product parser scaffold",
+);
+assert.ok(
+  readme.includes(
+    "legacy `engine-style-parser` is confined to oracle, benchmark, and split-compatibility paths",
+  ),
+  "README must describe engine-style-parser as legacy-confined, not as the current product parser",
+);
+assert.ok(
+  readme.includes(
+    "the current internal Rust parser/public-product scaffold starts in [`rust/crates/omena-parser`](./rust/crates/omena-parser/README.md)",
+  ),
+  "README current parser scaffold link must point at rust/crates/omena-parser",
+);
+assert.ok(
+  performanceDocs.includes(
+    "legacy `engine-style-parser::parse_style_module` baseline kept for oracle comparison only",
+  ) && performanceDocs.includes("not as a product parser lane dependency"),
+  "performance docs may mention engine-style-parser only as an oracle/benchmark baseline",
 );
 assert.ok(
   packageJson.includes('"check:rust-parser-public-product"') &&
