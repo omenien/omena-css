@@ -239,7 +239,7 @@ const fixtures: readonly DifferentialFixture[] = [
   {
     label: "display-multi-keyword-aliases",
     source:
-      ".a { display: block flow; } .b { display: inline flow; } .c { display: block flow-root; } .d { display: inline flow-root; } .e { display: inline flex; } .f { display: block grid; } .g { display: list-item block flow; }",
+      ".a { display: block flow; } .b { display: inline flow; } .c { display: block flow-root; } .d { display: inline flow-root; } .e { display: inline flex; } .f { display: block grid; } .g { display: list-item block flow; } .h { display: BLOCK; } .i { display: INLINE RUBY; } .j { display: list-item inline flow; } .k { display: block flow list-item; } .l { display: list-item flow-root; } .m { display: INITIAL; } .n { display: INLINE BLOCK; }",
   },
   {
     label: "url-zero-font-family",

@@ -1621,7 +1621,7 @@ fn execution_runtime_combines_static_font_longhands() {
 
 #[test]
 fn execution_runtime_normalizes_static_display_multi_keywords() {
-    let source = r#".a { display: block flow; } .b { display: inline flow; } .c { display: block flow-root; } .d { display: inline flow-root; } .e { display: inline flex; } .f { display: block grid; } .g { display: list-item block flow; } .h { display: block ruby; }"#;
+    let source = r#".a { display: block flow; } .b { display: inline flow; } .c { display: block flow-root; } .d { display: inline flow-root; } .e { display: inline flex; } .f { display: block grid; } .g { display: list-item block flow; } .h { display: block ruby; } .i { display: BLOCK; } .j { display: INLINE RUBY; } .k { display: list-item inline flow; } .l { display: block flow list-item; } .m { display: list-item flow-root; } .n { display: INITIAL; } .o { display: INLINE BLOCK; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1630,10 +1630,10 @@ fn execution_runtime_normalizes_static_display_multi_keywords() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 7);
+    assert_eq!(execution.mutation_count, 12);
     assert_eq!(
         execution.output_css,
-        r#".a { display: block; } .b { display: inline; } .c { display: flow-root; } .d { display: inline-block; } .e { display: inline-flex; } .f { display: grid; } .g { display: list-item; } .h { display: block ruby; }"#
+        r#".a { display: block; } .b { display: inline; } .c { display: flow-root; } .d { display: inline-block; } .e { display: inline-flex; } .f { display: grid; } .g { display: list-item; } .h { display: block ruby; } .i { display: block; } .j { display: ruby; } .k { display: inline list-item; } .l { display: list-item; } .m { display: flow-root list-item; } .n { display: INITIAL; } .o { display: INLINE BLOCK; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

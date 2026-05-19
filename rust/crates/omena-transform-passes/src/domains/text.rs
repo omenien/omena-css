@@ -133,11 +133,42 @@ fn normalize_static_display_value(value: &str) -> Option<String> {
         .collect::<Vec<_>>()
         .as_slice()
     {
+        [single] => normalize_single_keyword_display_value(single)?,
         [outer, inner] => normalize_two_keyword_display_value(outer, inner)?,
-        ["list-item", "block", "flow"] => "list-item".to_string(),
+        [first, second, third] => normalize_three_keyword_display_value(first, second, third)?,
         _ => return None,
     };
     (replacement != components.join(" ")).then_some(replacement)
+}
+
+fn normalize_single_keyword_display_value(value: &str) -> Option<String> {
+    match value {
+        "block"
+        | "inline"
+        | "run-in"
+        | "flow-root"
+        | "none"
+        | "contents"
+        | "flex"
+        | "grid"
+        | "ruby"
+        | "list-item"
+        | "table"
+        | "inline-table"
+        | "table-row-group"
+        | "table-header-group"
+        | "table-footer-group"
+        | "table-row"
+        | "table-cell"
+        | "table-column-group"
+        | "table-column"
+        | "table-caption"
+        | "ruby-base"
+        | "ruby-text"
+        | "ruby-base-container"
+        | "ruby-text-container" => Some(value.to_string()),
+        _ => None,
+    }
 }
 
 fn normalize_two_keyword_display_value(outer: &str, inner: &str) -> Option<String> {
@@ -150,6 +181,46 @@ fn normalize_two_keyword_display_value(outer: &str, inner: &str) -> Option<Strin
         ("inline", "flex") => Some("inline-flex".to_string()),
         ("block", "grid") => Some("grid".to_string()),
         ("inline", "grid") => Some("inline-grid".to_string()),
+        ("inline", "ruby") => Some("ruby".to_string()),
+        ("block", "ruby") => Some("block ruby".to_string()),
+        ("block", "list-item")
+        | ("flow", "list-item")
+        | ("list-item", "block")
+        | ("list-item", "flow") => Some("list-item".to_string()),
+        ("inline", "list-item") | ("list-item", "inline") => Some("inline list-item".to_string()),
+        ("flow-root", "list-item") | ("list-item", "flow-root") => {
+            Some("flow-root list-item".to_string())
+        }
+        _ => None,
+    }
+}
+
+fn normalize_three_keyword_display_value(first: &str, second: &str, third: &str) -> Option<String> {
+    match (first, second, third) {
+        ("list-item", "block", "flow")
+        | ("block", "list-item", "flow")
+        | ("block", "flow", "list-item")
+        | ("flow", "block", "list-item")
+        | ("flow", "list-item", "block")
+        | ("list-item", "flow", "block") => Some("list-item".to_string()),
+        ("list-item", "inline", "flow")
+        | ("inline", "list-item", "flow")
+        | ("inline", "flow", "list-item")
+        | ("flow", "inline", "list-item")
+        | ("flow", "list-item", "inline")
+        | ("list-item", "flow", "inline") => Some("inline list-item".to_string()),
+        ("list-item", "block", "flow-root")
+        | ("block", "list-item", "flow-root")
+        | ("block", "flow-root", "list-item")
+        | ("flow-root", "block", "list-item")
+        | ("flow-root", "list-item", "block")
+        | ("list-item", "flow-root", "block") => Some("flow-root list-item".to_string()),
+        ("list-item", "inline", "flow-root")
+        | ("inline", "list-item", "flow-root")
+        | ("inline", "flow-root", "list-item")
+        | ("flow-root", "inline", "list-item")
+        | ("flow-root", "list-item", "inline")
+        | ("list-item", "flow-root", "inline") => Some("inline flow-root list-item".to_string()),
         _ => None,
     }
 }
