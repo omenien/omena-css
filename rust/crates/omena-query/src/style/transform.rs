@@ -1010,8 +1010,9 @@ fn derive_static_scss_module_use_evaluations_for_transform_context(
                 package_manifests,
             )?;
             let source = source_by_path.get(resolved.as_str())?;
-            let variable_overrides = derive_static_scss_use_variable_overrides(
+            let variable_overrides = derive_static_scss_module_rule_variable_overrides(
                 entry.style_source.as_str(),
+                "@use",
                 edge.source.as_str(),
             );
             let module_context = derive_static_scss_module_context_for_transform_context(
@@ -1132,10 +1133,15 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
                 package_manifests,
             )?;
             let source = source_by_path.get(resolved.as_str())?;
+            let variable_overrides = derive_static_scss_module_rule_variable_overrides(
+                style_source,
+                "@forward",
+                edge.source.as_str(),
+            );
             let module_context = derive_static_scss_module_context_for_transform_context(
                 resolved.as_str(),
                 source,
-                &BTreeMap::new(),
+                &variable_overrides,
                 available_style_paths,
                 source_by_path,
                 package_manifests,
@@ -1443,8 +1449,9 @@ fn static_scss_module_rule_source_name(
         .map(|token| token.text.trim_matches('"').trim_matches('\'').to_string())
 }
 
-fn derive_static_scss_use_variable_overrides(
+fn derive_static_scss_module_rule_variable_overrides(
     style_source: &str,
+    at_keyword: &str,
     use_source: &str,
 ) -> BTreeMap<String, String> {
     let lexed = lex(style_source, OmenaParserStyleDialect::Scss);
@@ -1457,7 +1464,7 @@ fn derive_static_scss_use_variable_overrides(
             SyntaxKind::LeftBrace => depth += 1,
             SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
             SyntaxKind::AtKeyword
-                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@use") =>
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case(at_keyword) =>
             {
                 let Some(end_index) = static_scss_use_rule_semicolon(tokens, index) else {
                     index += 1;

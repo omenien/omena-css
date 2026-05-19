@@ -215,12 +215,16 @@ fn collect_static_scss_variable_declarations(
     scopes: &[StaticStylesheetScope],
 ) -> Option<Vec<StaticStylesheetScopedVariableDeclaration>> {
     let mut declarations = Vec::new();
+    let module_rule_ranges = collect_static_scss_module_rule_ranges(source);
     for fact in variable_facts {
         if fact.kind != ParsedVariableFactKind::ScssDeclaration {
             continue;
         }
         let start = parser_text_size_to_usize(fact.range.start().into());
         let end = parser_text_size_to_usize(fact.range.end().into());
+        if static_stylesheet_position_is_inside_ranges(start, &module_rule_ranges) {
+            continue;
+        }
         let scope_id = static_stylesheet_scope_for_position(scopes, start)?;
         let declaration = extract_static_stylesheet_variable_declaration(
             source,
@@ -240,6 +244,65 @@ fn collect_static_scss_variable_declarations(
     }
     declarations.sort_by_key(|declaration| declaration.declaration.span_start);
     Some(declarations)
+}
+
+fn collect_static_scss_module_rule_ranges(source: &str) -> Vec<(usize, usize)> {
+    let lexed = lex(source, OmenaParserStyleDialect::Scss);
+    let tokens = lexed.tokens();
+    let mut ranges = Vec::new();
+    let mut depth = 0usize;
+    let mut index = 0usize;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            SyntaxKind::AtKeyword
+                if depth == 0
+                    && matches!(
+                        tokens[index].text.to_ascii_lowercase().as_str(),
+                        "@use" | "@forward"
+                    ) =>
+            {
+                let Some(end_index) = static_stylesheet_scss_module_rule_semicolon(tokens, index)
+                else {
+                    index += 1;
+                    continue;
+                };
+                ranges.push((
+                    static_stylesheet_token_start(&tokens[index]),
+                    static_stylesheet_token_end(&tokens[end_index]),
+                ));
+                index = end_index + 1;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    ranges
+}
+
+fn static_stylesheet_scss_module_rule_semicolon(
+    tokens: &[LexedToken],
+    at_rule_index: usize,
+) -> Option<usize> {
+    let mut index = at_rule_index + 1;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::Semicolon => return Some(index),
+            SyntaxKind::LeftBrace | SyntaxKind::RightBrace => return None,
+            _ => index += 1,
+        }
+    }
+    None
+}
+
+fn static_stylesheet_position_is_inside_ranges(position: usize, ranges: &[(usize, usize)]) -> bool {
+    ranges
+        .iter()
+        .any(|(start, end)| *start <= position && position < *end)
 }
 
 fn derive_static_less_stylesheet_module_evaluation(

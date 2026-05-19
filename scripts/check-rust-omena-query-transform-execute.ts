@@ -2249,6 +2249,65 @@ assert(!configuredScssUseEvaluationSummary.execution.outputCss.includes("@use"))
 assert(!configuredScssUseEvaluationSummary.execution.outputCss.includes("tokens.$"));
 assert(!configuredScssUseEvaluationSummary.execution.outputCss.includes("$brand:"));
 
+const configuredScssForwardEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "/tmp/App.module.scss",
+      styles: [
+        {
+          stylePath: "/tmp/tokens.scss",
+          styleSource: "$brand: blue !default; .base { color: $brand; }",
+        },
+        {
+          stylePath: "/tmp/theme.scss",
+          styleSource: '@forward "./tokens" with ($brand: red);',
+        },
+        {
+          stylePath: "/tmp/App.module.scss",
+          styleSource: '@use "./theme" as theme; .button { color: theme.$brand; }',
+        },
+      ],
+      requestedPassIds: ["scss-module-evaluate", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  configuredScssForwardEvaluationResult.status,
+  0,
+  configuredScssForwardEvaluationResult.stderr,
+);
+assert.equal(configuredScssForwardEvaluationResult.error, undefined);
+
+const configuredScssForwardEvaluationSummary = JSON.parse(
+  configuredScssForwardEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.deepEqual(configuredScssForwardEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert(
+  configuredScssForwardEvaluationSummary.execution.outputCss.includes(".base { color: red; }"),
+);
+assert(
+  configuredScssForwardEvaluationSummary.execution.outputCss.includes(".button { color: red; }"),
+);
+assert(!configuredScssForwardEvaluationSummary.execution.outputCss.includes("@forward"));
+assert(!configuredScssForwardEvaluationSummary.execution.outputCss.includes("theme.$"));
+assert(!configuredScssForwardEvaluationSummary.execution.outputCss.includes("red);"));
+
 const staticScssDefaultEvaluationResult = spawnSync(
   "cargo",
   [
