@@ -2829,6 +2829,25 @@ fn execution_runtime_unwraps_style_nesting_inside_conditional_groups() {
 }
 
 #[test]
+fn execution_runtime_bubbles_starting_style_nesting() {
+    let source =
+        r#".card { color: red; @starting-style { opacity: 0; & .title { opacity: .5; } } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::NestingUnwrap,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(
+        execution.output_css,
+        r#".card { color: red; } @starting-style { .card { opacity: 0; } .card .title { opacity: .5; } }"#
+    );
+}
+
+#[test]
 fn execution_runtime_flattens_only_root_scope_proof_candidates() {
     let source =
         r#"@scope (:root) { .card { color: red; } } @scope (.theme) { .title { color: blue; } }"#;

@@ -599,6 +599,48 @@ assert.deepEqual(conditionalGroupNestingSummary.execution.executedPassIds, [
 ]);
 assert.equal(conditionalGroupNestingSummary.execution.mutationCount, 2);
 
+const startingStyleNestingResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "starting-style-nesting.css",
+      styleSource:
+        ".card { color: red; @starting-style { opacity: 0; & .title { opacity: .5; } } }",
+      requestedPassIds: ["nesting-unwrap", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(startingStyleNestingResult.status, 0, startingStyleNestingResult.stderr);
+assert.equal(startingStyleNestingResult.error, undefined);
+
+const startingStyleNestingSummary = JSON.parse(
+  startingStyleNestingResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(
+  startingStyleNestingSummary.execution.outputCss,
+  ".card { color: red; } @starting-style { .card { opacity: 0; } .card .title { opacity: .5; } }",
+);
+assert.deepEqual(startingStyleNestingSummary.execution.executedPassIds, [
+  "nesting-unwrap",
+  "print-css",
+]);
+assert.equal(startingStyleNestingSummary.execution.mutationCount, 1);
+
 const contextStyleSource =
   '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; } .button :global(.external) { color: var(--brand); } :global { .reset { color: var(--brand); } } :local(.button) { composes: base; color: var(--brand); } :local { .button { color: var(--brand); } } @media (min-width: 1px) { .button { composes: base; color: var(--brand); } }';
 

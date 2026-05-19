@@ -265,9 +265,15 @@ fn strip_ascii_prefix_ignore_case<'a>(text: &'a str, prefix: &str) -> Option<&'a
 
 fn is_supported_nested_conditional_group_rule(selector: &str) -> bool {
     let selector = selector.trim_start().to_ascii_lowercase();
-    ["@media", "@supports", "@container", "@layer"]
-        .iter()
-        .any(|prefix| selector.starts_with(prefix))
+    [
+        "@media",
+        "@supports",
+        "@container",
+        "@layer",
+        "@starting-style",
+    ]
+    .iter()
+    .any(|prefix| selector.starts_with(prefix))
 }
 
 fn expand_nested_selector(parent_selector: &str, nested_selector: &str) -> Option<String> {
