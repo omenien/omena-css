@@ -354,6 +354,10 @@ const fixtures: readonly DifferentialFixture[] = [
       '.a { font-style: normal; font-variant-caps: normal; font-weight: normal; font-stretch: normal; font-size: 16px; line-height: normal; font-family: Arial; } .b { font-style: normal; font-variant-caps: normal; font-weight: bold; font-stretch: condensed; font-size: 16px; line-height: 1.5; font-family: Arial, sans-serif; } .c { font-style: italic; font-variant-caps: small-caps; font-weight: bold; font-stretch: condensed; font-size: 1rem; line-height: 120%; font-family: "Open Sans", serif; } .d { font-style: normal !important; font-variant-caps: normal !important; font-weight: normal !important; font-stretch: normal !important; font-size: 16px !important; line-height: normal !important; font-family: Arial !important; }',
   },
   {
+    label: "font-shorthand-default-compression",
+    source: ".a { font: normal normal normal 16px/normal Arial; }",
+  },
+  {
     label: "overflow-background-repeat-shorthand",
     source:
       ".a { background-repeat: repeat repeat; overflow-x: visible; overflow-y: visible; } .b { background-repeat: repeat no-repeat; overflow: hidden hidden; } .c { background-repeat: no-repeat repeat; overflow: visible visible; } .d { overflow-x: auto; overflow-y: hidden; } .e { overflow-y: scroll; overflow-x: clip; } .f { overflow: AUTO HIDDEN; }",

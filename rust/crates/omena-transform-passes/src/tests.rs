@@ -1976,6 +1976,28 @@ fn execution_runtime_compresses_border_image_longhands() {
 }
 
 #[test]
+fn execution_runtime_compresses_existing_font_shorthand_defaults() {
+    let source = r#".a { font: normal normal normal 16px/normal Arial; } .b { font: italic normal normal 16px/normal Arial; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(
+        execution.output_css,
+        r#".a { font: 16px Arial; } .b { font: italic normal normal 16px/normal Arial; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["shorthand-combining", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_compresses_overflow_and_background_repeat_shorthands() {
     let source = r#".a { overflow-x: visible; overflow-y: visible; background-repeat: repeat repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .c { background-repeat: Repeat Repeat; } .d { overflow: hidden hidden; background-repeat: repeat no-repeat; } .e { overflow: visible visible; background-repeat: no-repeat repeat; } .f { overflow-x: auto; overflow-y: hidden; } .g { overflow-y: scroll; overflow-x: clip; } .h { overflow: AUTO HIDDEN; } .pos { background-position-x: left; background-position-y: top; } .pos-center { background-position-x: center; background-position-y: center; } .pos-reverse { background-position-y: top; background-position-x: center; } .pos-important { background-position-x: left !important; background-position-y: top !important; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#;
     let execution = execute_transform_passes_on_source(

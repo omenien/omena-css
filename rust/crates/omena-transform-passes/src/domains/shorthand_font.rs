@@ -77,6 +77,34 @@ pub(crate) fn font_shorthand_replacement_for_declarations(
     ))
 }
 
+pub(crate) fn compress_existing_font_shorthand_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let size_index = components
+        .iter()
+        .position(|component| component.contains('/'))?;
+    if size_index == 0 || size_index + 1 >= components.len() {
+        return None;
+    }
+    if !components[..size_index]
+        .iter()
+        .all(|component| component.eq_ignore_ascii_case("normal"))
+    {
+        return None;
+    }
+
+    let (size, line_height) = components[size_index].split_once('/')?;
+    if size.is_empty() || !line_height.eq_ignore_ascii_case("normal") {
+        return None;
+    }
+    let family = normalize_font_family_value(&components[size_index + 1..].join(" "));
+    if family.is_empty() {
+        return None;
+    }
+
+    let replacement = format!("{size} {family}");
+    (replacement.len() < normalize_ascii_whitespace(value).len()).then_some(replacement)
+}
+
 fn compressed_font_shorthand_value(
     style: &str,
     variant_caps: &str,

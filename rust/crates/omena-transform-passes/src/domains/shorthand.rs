@@ -5,7 +5,9 @@ use omena_syntax::SyntaxKind;
 use crate::{
     domains::{
         number::{compress_number_prefix, format_css_number, numeric_prefix_end},
-        shorthand_font::font_shorthand_replacement_for_declarations,
+        shorthand_font::{
+            compress_existing_font_shorthand_value, font_shorthand_replacement_for_declarations,
+        },
         shorthand_line::border_side_shorthand_replacement_for_declarations,
         shorthand_line::line_shorthand_replacement_for_declarations,
         shorthand_line::logical_line_axis_shorthand_replacement_for_declarations,
@@ -308,6 +310,8 @@ fn shorthand_value_replacement_for_declaration(
         compress_transition_value(&declaration.value)
     } else if declaration.property == "animation" {
         compress_animation_value(&declaration.value)
+    } else if declaration.property == "font" {
+        compress_existing_font_shorthand_value(&declaration.value)
     } else if declaration.property == "text-decoration" {
         compress_text_decoration_value(&declaration.value, declaration.important)
     } else if declaration.property == "text-emphasis-position" {
