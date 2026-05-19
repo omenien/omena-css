@@ -360,7 +360,7 @@ const fixtures: readonly DifferentialFixture[] = [
   {
     label: "place-axis-shorthands",
     source:
-      ".a { align-items: stretch; justify-items: stretch; } .b { align-content: center; justify-content: center; } .c { justify-self: end; align-self: start; } .d { align-items: start !important; justify-items: end !important; } .e { place-content: normal normal; } .f { place-items: stretch stretch; } .g { place-self: auto auto; }",
+      ".a { align-items: stretch; justify-items: stretch; } .b { align-content: center; justify-content: center; } .c { justify-self: end; align-self: start; } .d { align-items: start !important; justify-items: end !important; } .e { place-content: normal normal; } .f { place-items: stretch stretch; } .g { place-self: auto auto; } .h { align-items: first baseline; justify-items: center; } .i { justify-items: legacy left; align-items: normal; } .j { align-self: safe center; justify-self: unsafe end; } .k { align-content: space-between; justify-content: first baseline; }",
   },
   {
     label: "gap-axis-shorthands",

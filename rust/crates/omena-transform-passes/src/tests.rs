@@ -1787,7 +1787,7 @@ fn execution_runtime_compresses_overflow_and_background_repeat_shorthands() {
 
 #[test]
 fn execution_runtime_compresses_place_axis_shorthands() {
-    let source = r#".items { align-items: stretch; justify-items: stretch; } .content { align-content: center; justify-content: center; } .self { justify-self: end; align-self: start; } .important { align-items: start !important; justify-items: end !important; } .mixed { align-items: first baseline; justify-items: center; } .content-shorthand { place-content: normal normal; } .items-stretch { place-items: stretch stretch; } .self-auto { place-self: auto auto; }"#;
+    let source = r#".items { align-items: stretch; justify-items: stretch; } .content { align-content: center; justify-content: center; } .self { justify-self: end; align-self: start; } .important { align-items: start !important; justify-items: end !important; } .mixed { align-items: first baseline; justify-items: center; } .legacy { justify-items: legacy left; align-items: normal; } .safe { align-self: safe center; justify-self: unsafe end; } .content-multi { align-content: space-between; justify-content: first baseline; } .content-shorthand { place-content: normal normal; } .items-stretch { place-items: stretch stretch; } .self-auto { place-self: auto auto; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1796,10 +1796,10 @@ fn execution_runtime_compresses_place_axis_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 6);
+    assert_eq!(execution.mutation_count, 9);
     assert_eq!(
         execution.output_css,
-        r#".items { place-items: stretch stretch; } .content { place-content: center; } .self { place-self: start end; } .important { place-items: start end!important; } .mixed { align-items: first baseline; justify-items: center; } .content-shorthand { place-content: normal; } .items-stretch { place-items: stretch stretch; } .self-auto { place-self: auto; }"#
+        r#".items { place-items: stretch stretch; } .content { place-content: center; } .self { place-self: start end; } .important { place-items: start end!important; } .mixed { place-items: baseline center; } .legacy { place-items: normal legacy left; } .safe { place-self: safe center unsafe end; } .content-multi { align-content: space-between; justify-content: first baseline; } .content-shorthand { place-content: normal; } .items-stretch { place-items: stretch stretch; } .self-auto { place-self: auto; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

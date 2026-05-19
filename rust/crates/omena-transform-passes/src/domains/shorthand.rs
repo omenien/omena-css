@@ -418,8 +418,18 @@ fn place_axis_replacement_for_declarations(
     }
 
     let (shorthand, align_value, justify_value) = place_axis_shorthand_components(first, second)?;
-    let align_value = normalize_single_component_place_value(align_value, first.important)?;
-    let justify_value = normalize_single_component_place_value(justify_value, second.important)?;
+    let align_value = normalize_place_axis_value(
+        shorthand,
+        PlaceAxisComponentKind::Align,
+        align_value,
+        first.important,
+    )?;
+    let justify_value = normalize_place_axis_value(
+        shorthand,
+        PlaceAxisComponentKind::Justify,
+        justify_value,
+        second.important,
+    )?;
     let shorthand_value = compressed_place_axis_value(shorthand, &align_value, &justify_value);
     let important = if first.important { "!important" } else { "" };
 
@@ -570,11 +580,6 @@ fn later_declaration_overrides(
     !earlier.important || later.important
 }
 
-fn normalize_single_component_place_value(value: &str, important: bool) -> Option<String> {
-    let component = single_component_value_without_important(value, important)?;
-    Some(component.to_ascii_lowercase())
-}
-
 fn single_component_value_without_important(value: &str, important: bool) -> Option<String> {
     let mut components = split_top_level_whitespace_value_components(value)?;
     if important
@@ -589,6 +594,97 @@ fn single_component_value_without_important(value: &str, important: bool) -> Opt
         return None;
     };
     Some(component.clone())
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PlaceAxisComponentKind {
+    Align,
+    Justify,
+}
+
+fn normalize_place_axis_value(
+    shorthand: &str,
+    component_kind: PlaceAxisComponentKind,
+    value: &str,
+    important: bool,
+) -> Option<String> {
+    let mut components = split_top_level_whitespace_value_components(value)?;
+    if important
+        && components.last().is_some_and(|component| {
+            component.eq_ignore_ascii_case("!important")
+                || component.eq_ignore_ascii_case("important")
+        })
+    {
+        components.pop();
+    }
+    let components = components
+        .iter()
+        .map(|component| component.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+
+    if let [component] = components.as_slice()
+        && is_place_single_component_keyword(component)
+    {
+        return Some(component.clone());
+    }
+
+    let [first, second] = components.as_slice() else {
+        return None;
+    };
+    let first = first.as_str();
+    let second = second.as_str();
+    if first == "first"
+        && second == "baseline"
+        && place_axis_allows_multi_token_alignment(shorthand)
+    {
+        return Some("baseline".to_string());
+    }
+    if first == "last" && second == "baseline" && place_axis_allows_multi_token_alignment(shorthand)
+    {
+        return Some("last baseline".to_string());
+    }
+    if place_axis_allows_multi_token_alignment(shorthand)
+        && is_overflow_position_keyword(first)
+        && is_place_self_position_keyword(second)
+    {
+        return Some(format!("{first} {second}"));
+    }
+    if first == "legacy"
+        && shorthand == "place-items"
+        && component_kind == PlaceAxisComponentKind::Justify
+        && is_legacy_justify_items_position(second)
+    {
+        return Some(format!("legacy {second}"));
+    }
+
+    None
+}
+
+fn place_axis_allows_multi_token_alignment(shorthand: &str) -> bool {
+    matches!(shorthand, "place-items" | "place-self")
+}
+
+fn is_overflow_position_keyword(value: &str) -> bool {
+    matches!(value, "safe" | "unsafe")
+}
+
+fn is_place_self_position_keyword(value: &str) -> bool {
+    matches!(
+        value,
+        "center"
+            | "start"
+            | "end"
+            | "flex-start"
+            | "flex-end"
+            | "self-start"
+            | "self-end"
+            | "left"
+            | "right"
+    )
+}
+
+fn is_legacy_justify_items_position(value: &str) -> bool {
+    matches!(value, "left" | "right" | "center")
 }
 
 fn compressed_place_axis_value(shorthand: &str, align_value: &str, justify_value: &str) -> String {
@@ -610,13 +706,14 @@ fn compress_place_axis_shorthand_value(property: &str, value: &str) -> Option<St
     let [align_value, justify_value] = components.as_slice() else {
         return None;
     };
-    let align_value = align_value.to_ascii_lowercase();
-    let justify_value = justify_value.to_ascii_lowercase();
-    if !is_place_single_component_keyword(&align_value)
-        || !is_place_single_component_keyword(&justify_value)
-    {
-        return None;
-    }
+    let align_value =
+        normalize_place_axis_value(property, PlaceAxisComponentKind::Align, align_value, false)?;
+    let justify_value = normalize_place_axis_value(
+        property,
+        PlaceAxisComponentKind::Justify,
+        justify_value,
+        false,
+    )?;
     let replacement = compressed_place_axis_value(property, &align_value, &justify_value);
     (replacement != normalize_ascii_whitespace(value)).then_some(replacement)
 }
