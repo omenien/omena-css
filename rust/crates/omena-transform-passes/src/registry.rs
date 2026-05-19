@@ -13,8 +13,8 @@ use crate::domains::{
         lower_css_light_dark_with_lexer, lower_css_oklab_oklch_with_lexer,
     },
     css_modules_classes::{
-        rewrite_css_module_class_names_with_lexer, strip_resolved_css_module_composes_with_lexer,
-        tree_shake_css_class_rules_with_lexer,
+        reachable_class_names_with_local_composes, rewrite_css_module_class_names_with_lexer,
+        strip_resolved_css_module_composes_with_lexer, tree_shake_css_class_rules_with_lexer,
     },
     css_modules_values::{
         resolve_static_css_modules_values_with_lexer, tree_shake_css_modules_values_with_lexer,
@@ -248,6 +248,8 @@ pub(crate) fn tree_shake_css_class_rules_with_removals(
 }
 
 pub(crate) fn reachable_class_names_with_composes_exports(
+    source: &str,
+    dialect: StyleDialect,
     reachable_class_names: &[String],
     resolutions: &[TransformCssModuleComposesResolutionV0],
 ) -> Vec<String> {
@@ -271,7 +273,7 @@ pub(crate) fn reachable_class_names_with_composes_exports(
 
     expanded.sort();
     expanded.dedup();
-    expanded
+    reachable_class_names_with_local_composes(source, dialect, &expanded)
 }
 
 pub(crate) fn tree_shake_css_keyframes_with_removals(

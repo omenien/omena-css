@@ -60,6 +60,8 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
     let requested_pass_ids = requested.iter().map(|pass| pass.id()).collect::<Vec<_>>();
     let ordered_pass_ids = pass_plan.ordered_pass_ids.clone();
     let reachable_class_names = reachable_class_names_with_composes_exports(
+        source,
+        dialect,
         &context.reachable_class_names,
         &context.css_module_composes_resolutions,
     );

@@ -3597,6 +3597,42 @@ fn execution_runtime_keeps_composed_classes_reachable_during_tree_shaking() {
 }
 
 #[test]
+fn execution_runtime_expands_local_composes_during_class_tree_shaking() {
+    let source = r#".button { composes: base utility global(reset); color: red; } .base { color: blue; } .utility { animation: spin 1s; color: var(--brand); } .dead { color: black; } @keyframes spin { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } } :root { --brand: red; --dead: blue; }"#;
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec!["button".to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::TreeShakeClass,
+            TransformPassKind::TreeShakeKeyframes,
+            TransformPassKind::TreeShakeCustomProperty,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert!(execution.output_css.contains(".button"));
+    assert!(execution.output_css.contains(".base"));
+    assert!(execution.output_css.contains(".utility"));
+    assert!(execution.output_css.contains("@keyframes spin"));
+    assert!(execution.output_css.contains("--brand: red"));
+    assert!(!execution.output_css.contains(".dead"));
+    assert!(!execution.output_css.contains("@keyframes ghost"));
+    assert!(!execution.output_css.contains("--dead: blue"));
+    assert!(
+        execution
+            .semantic_removals
+            .iter()
+            .any(|removal| removal.pass_id == "tree-shake-class" && removal.name == "dead")
+    );
+}
+
+#[test]
 fn execution_runtime_tree_shakes_local_values_with_closed_world_context() {
     let source = r#"@value used: red; @value dead: blue; @value alias: used; @value shadow: 0 0 4px used; @value bp: 40rem; @value deadAlias: dead; @value deadShadow: 0 0 4px dead; @value deadBp: 50rem; @value deadFromRule: orange; @value deadExpr: calc(1rem + 2px); .btn { color: used; background: alias; box-shadow: shadow; } .dead { color: deadFromRule; } @media (min-width: bp) { .btn { color: red; } } @media (min-width: deadBp) { .dead { color: dead; } }"#;
     let context = TransformExecutionContextV0 {

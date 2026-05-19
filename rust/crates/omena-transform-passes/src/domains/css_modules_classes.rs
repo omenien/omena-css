@@ -5,11 +5,15 @@ use crate::domains::{
     css_module_global::{
         CssModuleScopeBlockKind, collect_css_module_scope_blocks, css_module_scope_kind_for_range,
     },
-    reachability::{normalize_reachable_class_name, selector_list_class_tree_shake_plan},
+    reachability::{
+        class_name_is_reachable, normalize_reachable_class_name,
+        selector_list_class_tree_shake_plan,
+    },
 };
 use crate::helpers::{
     ascii::starts_with_ascii_case_insensitive,
     blocks::at_rule_prelude_end_index,
+    collections::push_unique_string,
     declarations::collect_simple_declarations_in_block,
     identifiers::{css_identifier_names_match, css_identifier_text_is_plain},
     rules::collect_declaration_ordinary_rule_slices,
@@ -209,6 +213,72 @@ pub(crate) fn rewrite_css_module_class_names_with_lexer(
     }
 
     replace_source_ranges(source, &replacements)
+}
+
+pub(crate) fn reachable_class_names_with_local_composes(
+    source: &str,
+    dialect: StyleDialect,
+    reachable_class_names: &[String],
+) -> Vec<String> {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let rules = collect_declaration_ordinary_rule_slices(source, tokens);
+    let scope_blocks = collect_css_module_scope_blocks(source, tokens);
+    let mut edges = Vec::<(String, Vec<String>)>::new();
+
+    for rule in &rules {
+        if css_module_scope_kind_for_range(rule.start, rule.end, &scope_blocks)
+            == Some(CssModuleScopeBlockKind::Global)
+        {
+            continue;
+        }
+        let Some(owner_class_names) = simple_class_selector_names(&rule.selector) else {
+            continue;
+        };
+        let Some(block_start_index) = tokens.iter().position(|token| {
+            token.kind == SyntaxKind::LeftBrace && token_start(token) == rule.block_start
+        }) else {
+            continue;
+        };
+        let Some(block_end_index) = matching_right_brace_index(tokens, block_start_index) else {
+            continue;
+        };
+        for declaration in
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+        {
+            if declaration.property != "composes" {
+                continue;
+            }
+            let target_class_names = local_composes_target_names(&declaration.value);
+            if target_class_names.is_empty() {
+                continue;
+            }
+            for owner_class_name in &owner_class_names {
+                edges.push((owner_class_name.clone(), target_class_names.clone()));
+            }
+        }
+    }
+
+    let mut expanded = reachable_class_names.to_vec();
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for (owner_class_name, target_class_names) in &edges {
+            if !class_name_is_reachable(owner_class_name, &expanded) {
+                continue;
+            }
+            for target_class_name in target_class_names {
+                if !class_name_is_reachable(target_class_name, &expanded) {
+                    expanded.push(target_class_name.clone());
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    expanded.sort();
+    expanded.dedup();
+    expanded
 }
 
 fn css_module_composes_resolution_exists(
@@ -443,6 +513,31 @@ fn parse_global_composes_part(part: &str) -> Option<&str> {
     let inner = part[GLOBAL_PREFIX.len()..end.saturating_sub(1)].trim();
     let class_name = normalize_reachable_class_name(inner)?;
     css_identifier_text_is_plain(class_name).then_some(class_name)
+}
+
+fn local_composes_target_names(value: &str) -> Vec<String> {
+    if value.contains(',') {
+        return Vec::new();
+    }
+    let parts = value.split_whitespace().collect::<Vec<_>>();
+    if parts
+        .iter()
+        .any(|part| part.eq_ignore_ascii_case("from") || part.eq_ignore_ascii_case("global"))
+    {
+        return Vec::new();
+    }
+
+    let mut names = Vec::new();
+    for part in parts {
+        if parse_global_composes_part(part).is_some() {
+            continue;
+        }
+        if !css_identifier_text_is_plain(part) && !part.contains('\\') {
+            return Vec::new();
+        }
+        push_unique_string(&mut names, part.to_string());
+    }
+    names
 }
 
 fn rewritten_class_name_for<'a>(

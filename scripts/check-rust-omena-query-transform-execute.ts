@@ -1242,6 +1242,61 @@ assertIncludesAll(
   "escaped class tree-shaking removals",
 );
 
+const localComposesTreeShakeResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "LocalComposes.module.css",
+      styleSource:
+        ".button { composes: base utility global(reset); color: red; } .base { color: blue; } .utility { animation: spin 1s; color: var(--brand); } .dead { color: black; } @keyframes spin { to { opacity: 1; } } @keyframes ghost { to { opacity: 0; } } :root { --brand: red; --dead: blue; }",
+      requestedPassIds: [
+        "tree-shake-class",
+        "tree-shake-keyframes",
+        "tree-shake-custom-property",
+        "print-css",
+      ],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["button"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(localComposesTreeShakeResult.status, 0, localComposesTreeShakeResult.stderr);
+assert.equal(localComposesTreeShakeResult.error, undefined);
+
+const localComposesTreeShakeSummary = JSON.parse(
+  localComposesTreeShakeResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.ok(localComposesTreeShakeSummary.execution.outputCss.includes(".button"));
+assert.ok(localComposesTreeShakeSummary.execution.outputCss.includes(".base"));
+assert.ok(localComposesTreeShakeSummary.execution.outputCss.includes(".utility"));
+assert.ok(localComposesTreeShakeSummary.execution.outputCss.includes("@keyframes spin"));
+assert.ok(localComposesTreeShakeSummary.execution.outputCss.includes("--brand: red"));
+assert.ok(!localComposesTreeShakeSummary.execution.outputCss.includes(".dead"));
+assert.ok(!localComposesTreeShakeSummary.execution.outputCss.includes("@keyframes ghost"));
+assert.ok(!localComposesTreeShakeSummary.execution.outputCss.includes("--dead: blue"));
+assertIncludesAll(
+  localComposesTreeShakeSummary.execution.executedPassIds,
+  ["tree-shake-class", "tree-shake-keyframes", "tree-shake-custom-property", "print-css"],
+  "local composes tree-shaking executed passes",
+);
+
 const escapedKeyframeTreeShakeResult = spawnSync(
   "cargo",
   [
