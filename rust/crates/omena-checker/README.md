@@ -22,6 +22,11 @@ Current public products:
 - `evaluate_omena_checker_m_tier_rules` - M-tier diagnostics body for
   `no-unknown-dynamic-class`, `no-imprecise-value`, and
   `no-impossible-selector` over abstract-value selector projections.
+- `evaluate_omena_checker_cascade_rules` - cascade-aware style diagnostics for
+  unreachable declarations, dead layers, IACVT-prone custom property use, var
+  cycles, and source-order ties. Declaration comparisons preserve conditional
+  at-rule context so default declarations are not compared as unconditional
+  overrides of `@media`, `@supports`, or similar conditional declarations.
 
 The TypeScript checker runtime still owns the full diagnostics pipeline today.
 This crate owns the rule/bundle registry plus the first pure rule-evaluation

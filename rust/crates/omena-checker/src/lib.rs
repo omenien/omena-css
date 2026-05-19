@@ -279,6 +279,8 @@ pub struct OmenaCheckerCascadeDeclarationInputV0 {
     pub property: String,
     pub value: String,
     pub source_order: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub condition_context: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub layer_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1013,7 +1015,7 @@ fn declaration_outranks(
     candidate: &OmenaCheckerCascadeDeclarationInputV0,
     declaration: &OmenaCheckerCascadeDeclarationInputV0,
 ) -> bool {
-    if candidate.selector != declaration.selector || candidate.property != declaration.property {
+    if !declarations_share_cascade_context(candidate, declaration) {
         return false;
     }
     if candidate.important != declaration.important {
@@ -1030,8 +1032,7 @@ fn declaration_outranks_by_layer(
     candidate: &OmenaCheckerCascadeDeclarationInputV0,
     declaration: &OmenaCheckerCascadeDeclarationInputV0,
 ) -> bool {
-    if candidate.selector != declaration.selector
-        || candidate.property != declaration.property
+    if !declarations_share_cascade_context(candidate, declaration)
         || candidate.important != declaration.important
     {
         return false;
@@ -1055,13 +1056,21 @@ fn declarations_rely_on_source_order_tie(
     left: &OmenaCheckerCascadeDeclarationInputV0,
     right: &OmenaCheckerCascadeDeclarationInputV0,
 ) -> bool {
-    left.selector == right.selector
-        && left.property == right.property
+    declarations_share_cascade_context(left, right)
         && left.value != right.value
         && left.important == right.important
         && left.layer_order == right.layer_order
         && left.layer_name == right.layer_name
         && left.source_order != right.source_order
+}
+
+fn declarations_share_cascade_context(
+    left: &OmenaCheckerCascadeDeclarationInputV0,
+    right: &OmenaCheckerCascadeDeclarationInputV0,
+) -> bool {
+    left.selector == right.selector
+        && left.property == right.property
+        && left.condition_context == right.condition_context
 }
 
 fn cyclic_custom_property_names(
@@ -1453,6 +1462,7 @@ mod tests {
                     property: "color",
                     value: "red",
                     source_order: 1,
+                    condition_context: &[],
                     layer_name: Some("base"),
                     layer_order: Some(0),
                     important: false,
@@ -1464,6 +1474,7 @@ mod tests {
                     property: "color",
                     value: "blue",
                     source_order: 2,
+                    condition_context: &[],
                     layer_name: Some("overrides"),
                     layer_order: Some(1),
                     important: false,
@@ -1475,6 +1486,7 @@ mod tests {
                     property: "margin",
                     value: "var(--gap)",
                     source_order: 3,
+                    condition_context: &[],
                     layer_name: Some("components"),
                     layer_order: Some(1),
                     important: false,
@@ -1486,6 +1498,7 @@ mod tests {
                     property: "color",
                     value: "red",
                     source_order: 4,
+                    condition_context: &[],
                     layer_name: Some("utilities"),
                     layer_order: Some(2),
                     important: false,
@@ -1497,6 +1510,7 @@ mod tests {
                     property: "color",
                     value: "green",
                     source_order: 5,
+                    condition_context: &[],
                     layer_name: Some("utilities"),
                     layer_order: Some(2),
                     important: false,
@@ -1540,12 +1554,65 @@ mod tests {
             && evaluation.custom_property_names == vec!["--a", "--b"]));
     }
 
+    #[test]
+    fn cascade_rules_do_not_compare_across_conditional_contexts() {
+        let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "base-color",
+                    selector: ".btn",
+                    property: "color",
+                    value: "red",
+                    source_order: 1,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "media-color",
+                    selector: ".btn",
+                    property: "color",
+                    value: "blue",
+                    source_order: 2,
+                    condition_context: &["@media (min-width: 40rem)"],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "supports-color",
+                    selector: ".btn",
+                    property: "color",
+                    value: "green",
+                    source_order: 3,
+                    condition_context: &["@supports (display: grid)"],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+            ],
+            custom_properties: Vec::new(),
+        });
+
+        let rule_names = evaluations
+            .iter()
+            .map(|evaluation| evaluation.rule_code_name)
+            .collect::<BTreeSet<_>>();
+        assert!(!rule_names.contains("unreachable-declaration"));
+        assert!(!rule_names.contains("unspecified-cascade-tie"));
+    }
+
     struct CascadeDeclarationFixture<'a> {
         declaration_id: &'a str,
         selector: &'a str,
         property: &'a str,
         value: &'a str,
         source_order: u32,
+        condition_context: &'a [&'a str],
         layer_name: Option<&'a str>,
         layer_order: Option<i32>,
         important: bool,
@@ -1561,6 +1628,11 @@ mod tests {
             property: fixture.property.to_string(),
             value: fixture.value.to_string(),
             source_order: fixture.source_order,
+            condition_context: fixture
+                .condition_context
+                .iter()
+                .map(|value| value.to_string())
+                .collect(),
             layer_name: fixture.layer_name.map(str::to_string),
             layer_order: fixture.layer_order,
             important: fixture.important,

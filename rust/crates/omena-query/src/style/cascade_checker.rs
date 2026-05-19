@@ -173,6 +173,7 @@ fn collect_query_checker_cascade_declarations(source: &str) -> Vec<QueryCheckerC
         source,
         0,
         source.len(),
+        Vec::new(),
         None,
         None,
         &mut layer_orders,
@@ -187,6 +188,7 @@ fn collect_query_checker_cascade_blocks(
     source: &str,
     start: usize,
     end: usize,
+    condition_context: Vec<String>,
     layer_name: Option<String>,
     layer_order: Option<i32>,
     layer_orders: &mut BTreeMap<String, i32>,
@@ -212,6 +214,7 @@ fn collect_query_checker_cascade_blocks(
                 source,
                 body_start,
                 close_index,
+                condition_context.clone(),
                 Some(layer),
                 Some(order),
                 layer_orders,
@@ -219,10 +222,13 @@ fn collect_query_checker_cascade_blocks(
                 declarations,
             );
         } else if prelude.starts_with('@') {
+            let mut nested_condition_context = condition_context.clone();
+            nested_condition_context.push(normalize_query_condition_prelude(prelude));
             collect_query_checker_cascade_blocks(
                 source,
                 body_start,
                 close_index,
+                nested_condition_context,
                 layer_name.clone(),
                 layer_order,
                 layer_orders,
@@ -235,6 +241,7 @@ fn collect_query_checker_cascade_blocks(
                 body_start,
                 close_index,
                 prelude,
+                condition_context.clone(),
                 layer_name.clone(),
                 layer_order,
                 declarations,
@@ -243,6 +250,7 @@ fn collect_query_checker_cascade_blocks(
                 source,
                 body_start,
                 close_index,
+                condition_context.clone(),
                 layer_name.clone(),
                 layer_order,
                 layer_orders,
@@ -260,6 +268,7 @@ fn collect_query_checker_direct_declarations(
     body_start: usize,
     body_end: usize,
     selector: &str,
+    condition_context: Vec<String>,
     layer_name: Option<String>,
     layer_order: Option<i32>,
     declarations: &mut Vec<QueryCheckerCascadeDeclaration>,
@@ -276,6 +285,7 @@ fn collect_query_checker_direct_declarations(
                     statement_start,
                     semicolon_index,
                     selector,
+                    condition_context.clone(),
                     layer_name.clone(),
                     layer_order,
                     declarations,
@@ -297,6 +307,7 @@ fn collect_query_checker_direct_declarations(
                 statement_start,
                 semicolon_index,
                 selector,
+                condition_context.clone(),
                 layer_name.clone(),
                 layer_order,
                 declarations,
@@ -312,6 +323,7 @@ fn collect_query_checker_direct_declarations(
         statement_start,
         body_end,
         selector,
+        condition_context,
         layer_name,
         layer_order,
         declarations,
@@ -323,6 +335,7 @@ fn push_query_checker_declaration(
     start: usize,
     end: usize,
     selector: &str,
+    condition_context: Vec<String>,
     layer_name: Option<String>,
     layer_order: Option<i32>,
     declarations: &mut Vec<QueryCheckerCascadeDeclaration>,
@@ -362,6 +375,7 @@ fn push_query_checker_declaration(
             property: property.to_string(),
             value: value.clone(),
             source_order: source_order.min(u32::MAX as usize) as u32,
+            condition_context,
             layer_name,
             layer_order,
             important,
@@ -461,6 +475,10 @@ fn query_layer_name_from_prelude(prelude: &str) -> Option<String> {
     } else {
         Some(name.to_string())
     }
+}
+
+fn normalize_query_condition_prelude(prelude: &str) -> String {
+    prelude.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn collect_query_var_references_in_value(value: &str) -> Vec<String> {
