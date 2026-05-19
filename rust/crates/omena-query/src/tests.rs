@@ -2094,6 +2094,51 @@ fn derives_transform_context_with_static_stylesheet_module_evaluation() {
 }
 
 #[test]
+fn derives_import_aware_static_stylesheet_module_evaluation() {
+    let scss_summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.scss",
+        [
+            ("/tmp/tokens.scss", "$brand: red; .base { color: blue; }"),
+            (
+                "/tmp/App.module.scss",
+                r#"@import "./tokens.scss"; .button { color: $brand; }"#,
+            ),
+        ],
+        &[],
+    );
+    let less_summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.less",
+        [
+            ("/tmp/tokens.less", "@brand: red; .base { color: blue; }"),
+            (
+                "/tmp/App.module.less",
+                r#"@import "./tokens.less"; .button { color: @brand; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    assert_eq!(scss_summary.import_inline_count, 1);
+    assert_eq!(less_summary.import_inline_count, 1);
+    assert_eq!(
+        scss_summary
+            .context
+            .scss_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.evaluated_css.as_str()),
+        Some(" .base { color: blue; } .button { color: red; }")
+    );
+    assert_eq!(
+        less_summary
+            .context
+            .less_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.evaluated_css.as_str()),
+        Some(" .base { color: blue; } .button { color: red; }")
+    );
+}
+
+#[test]
 fn derives_transform_context_with_cross_file_value_resolutions() {
     let summary = summarize_omena_query_transform_context_from_sources(
         "/tmp/App.module.css",

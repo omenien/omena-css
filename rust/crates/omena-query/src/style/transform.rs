@@ -2,8 +2,10 @@ use super::*;
 use omena_transform_passes::{
     TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
     TransformCssModuleValueResolutionV0, TransformDesignTokenRouteV0, TransformImportInlineV0,
+    TransformModuleEvaluationV0, inline_css_imports,
     resolve_static_css_modules_local_value_resolutions_from_source,
 };
+use std::borrow::Cow;
 
 use super::stylesheet_evaluation::derive_static_stylesheet_module_evaluation;
 
@@ -824,27 +826,32 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
     let mut context = TransformExecutionContextV0::default();
 
     if let Some(entry) = target_entry {
-        match omena_parser_dialect_for_style_path(entry.style_path.as_str()) {
-            OmenaParserStyleDialect::Scss | OmenaParserStyleDialect::Sass => {
-                context.scss_module_evaluation = derive_static_stylesheet_module_evaluation(
-                    entry.style_source.as_str(),
-                    omena_parser_dialect_for_style_path(entry.style_path.as_str()),
-                );
-            }
-            OmenaParserStyleDialect::Less => {
-                context.less_module_evaluation = derive_static_stylesheet_module_evaluation(
-                    entry.style_source.as_str(),
-                    OmenaParserStyleDialect::Less,
-                );
-            }
-            OmenaParserStyleDialect::Css => {}
-        }
         context.import_inlines = derive_import_inlines_for_transform_context(
             entry,
             &available_style_paths,
             &source_by_path,
             package_manifests,
         );
+        match omena_parser_dialect_for_style_path(entry.style_path.as_str()) {
+            OmenaParserStyleDialect::Scss | OmenaParserStyleDialect::Sass => {
+                let dialect = omena_parser_dialect_for_style_path(entry.style_path.as_str());
+                context.scss_module_evaluation =
+                    derive_static_stylesheet_module_evaluation_for_transform_context(
+                        entry.style_source.as_str(),
+                        dialect,
+                        &context.import_inlines,
+                    );
+            }
+            OmenaParserStyleDialect::Less => {
+                context.less_module_evaluation =
+                    derive_static_stylesheet_module_evaluation_for_transform_context(
+                        entry.style_source.as_str(),
+                        OmenaParserStyleDialect::Less,
+                        &context.import_inlines,
+                    );
+            }
+            OmenaParserStyleDialect::Css => {}
+        }
         context.class_name_rewrites = derive_class_name_rewrites_for_transform_context(entry);
         context.css_module_composes_resolutions =
             derive_css_module_composes_resolutions_for_transform_context(
@@ -892,6 +899,36 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
             "designTokenRouteProducer",
             "directImportInlineProducer",
         ],
+    }
+}
+
+fn derive_static_stylesheet_module_evaluation_for_transform_context(
+    style_source: &str,
+    dialect: OmenaParserStyleDialect,
+    import_inlines: &[TransformImportInlineV0],
+) -> Option<TransformModuleEvaluationV0> {
+    let evaluation_source = derive_import_aware_static_stylesheet_module_evaluation_source(
+        style_source,
+        dialect,
+        import_inlines,
+    );
+    derive_static_stylesheet_module_evaluation(evaluation_source.as_ref(), dialect)
+}
+
+fn derive_import_aware_static_stylesheet_module_evaluation_source<'a>(
+    style_source: &'a str,
+    dialect: OmenaParserStyleDialect,
+    import_inlines: &[TransformImportInlineV0],
+) -> Cow<'a, str> {
+    if import_inlines.is_empty() {
+        return Cow::Borrowed(style_source);
+    }
+    let (inlined_source, mutation_count) =
+        inline_css_imports(style_source, dialect, import_inlines);
+    if mutation_count == 0 {
+        Cow::Borrowed(style_source)
+    } else {
+        Cow::Owned(inlined_source)
     }
 }
 

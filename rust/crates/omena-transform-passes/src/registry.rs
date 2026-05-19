@@ -185,7 +185,7 @@ pub(crate) fn evaluate_dead_media_branch_rules(
     )
 }
 
-pub(crate) fn inline_css_imports(
+pub fn inline_css_imports(
     source: &str,
     dialect: StyleDialect,
     inlines: &[TransformImportInlineV0],
