@@ -181,11 +181,10 @@ fn normalize_static_unit_declaration_values_with_lexer(
 fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Option<String> {
     match property {
         "aspect-ratio" => normalize_aspect_ratio_value(value),
-        "background-position"
-        | "mask-position"
-        | "-webkit-mask-position"
-        | "perspective-origin"
-        | "transform-origin" => normalize_static_position_keyword_value(value),
+        "background-position" | "mask-position" | "-webkit-mask-position" => {
+            normalize_static_background_position_value(value)
+        }
+        "perspective-origin" | "transform-origin" => normalize_static_position_keyword_value(value),
         "mask-position-x" | "mask-position-y" => normalize_mask_position_axis_keyword_value(value),
         "background-size" | "mask-size" | "-webkit-mask-size" => {
             normalize_repeated_pair_value(value, "auto")
@@ -211,6 +210,39 @@ fn normalize_static_position_keyword_value(value: &str) -> Option<String> {
         _ => return None,
     };
     (replacement.len() < normalize_ascii_position_value(value).len()).then_some(replacement)
+}
+
+fn normalize_static_background_position_value(value: &str) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let replacement = match components.as_slice() {
+        [component] => normalize_single_position_keyword(component)?,
+        [first, second] => normalize_position_keyword_pair(first, second)
+            .or_else(|| normalize_background_position_numeric_pair(first, second))?,
+        _ => return None,
+    };
+    (replacement.len() < normalize_ascii_position_value(value).len()).then_some(replacement)
+}
+
+fn normalize_background_position_numeric_pair(first: &str, second: &str) -> Option<String> {
+    let horizontal = normalize_background_position_numeric_axis(first, PositionAxis::Horizontal)?;
+    let vertical = normalize_background_position_numeric_axis(second, PositionAxis::Vertical)?;
+    match (horizontal.as_str(), vertical.as_str()) {
+        (_, "50%") => Some(horizontal),
+        _ => None,
+    }
+}
+
+fn normalize_background_position_numeric_axis(
+    component: &str,
+    axis: PositionAxis,
+) -> Option<String> {
+    match (axis, component.to_ascii_lowercase().as_str()) {
+        (PositionAxis::Horizontal, "0" | "0%" | "50%" | "100%") => {
+            Some(if component == "0" { "0%" } else { component }.to_string())
+        }
+        (PositionAxis::Vertical, "50%") => Some("50%".to_string()),
+        _ => None,
+    }
 }
 
 fn normalize_mask_position_axis_keyword_value(value: &str) -> Option<String> {
@@ -265,6 +297,12 @@ enum PositionKeywordAxis {
     Horizontal(&'static str),
     Vertical(&'static str),
     Center,
+}
+
+#[derive(Clone, Copy)]
+enum PositionAxis {
+    Horizontal,
+    Vertical,
 }
 
 fn position_keyword_axis(component: &str) -> Option<PositionKeywordAxis> {

@@ -1182,7 +1182,7 @@ fn execution_runtime_normalizes_static_aspect_ratio_spacing() {
 
 #[test]
 fn execution_runtime_normalizes_static_center_position_values() {
-    let source = r#".a { background-position: center center; transform-origin: center; mask-position: CENTER CENTER; mask-position-x: center; mask-position-y: CENTER; object-position: center center; } .b { background-position: left center; transform-origin: center top; mask-position: bottom right; mask-position-x: right; }"#;
+    let source = r#".a { background-position: center center; transform-origin: center; mask-position: CENTER CENTER; mask-position-x: center; mask-position-y: CENTER; object-position: center center; } .b { background-position: left center; transform-origin: center top; mask-position: bottom right; mask-position-x: right; } .c { background-position: 0% 50%; mask-position: 100% 50%; -webkit-mask-position: 50% 50%; transform-origin: 50% 0%; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1191,10 +1191,10 @@ fn execution_runtime_normalizes_static_center_position_values() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 8);
+    assert_eq!(execution.mutation_count, 13);
     assert_eq!(
         execution.output_css,
-        r#".a { background-position: 50%; transform-origin: 50%; mask-position: 50%; mask-position-x: 50%; mask-position-y: 50%; object-position: center center; } .b { background-position: 0; transform-origin: top; mask-position: 100% 100%; mask-position-x: right; }"#
+        r#".a { background-position: 50%; transform-origin: 50%; mask-position: 50%; mask-position-x: 50%; mask-position-y: 50%; object-position: center center; } .b { background-position: 0; transform-origin: top; mask-position: 100% 100%; mask-position-x: right; } .c { background-position: 0%; mask-position: 100%; -webkit-mask-position: 50%; transform-origin: 50% 0; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

@@ -260,6 +260,11 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { background-position: center center; background-size: auto auto; }",
   },
   {
+    label: "background-position-percent-center",
+    source:
+      ".a { transform-origin: 50% 0%; mask-position: 100% 50%; background-position: 0% 50%; -webkit-mask-position: 50% 50%; }",
+  },
+  {
     label: "opacity-percentage-normalization",
     source: ".a { opacity: 50%; } .b { opacity: 100%; }",
   },
