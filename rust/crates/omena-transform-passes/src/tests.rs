@@ -1893,7 +1893,7 @@ fn execution_runtime_compresses_text_decoration_shorthands() {
 
 #[test]
 fn execution_runtime_compresses_logical_axis_shorthands() {
-    let source = r#".a { padding-block-start: 1px; padding-block-end: 1px; } .b { margin-inline-start: 1px; margin-inline-end: 2px; } .c { inset-block-end: 2px; inset-block-start: 1px; } .d { border-block-start-color: red; border-block-end-color: red; } .e { border-inline-start-width: 1px; border-inline-end-width: 2px; } .f { scroll-margin-block-start: 1px; scroll-margin-block-end: 1px; } .g { scroll-padding-inline-end: 2px; scroll-padding-inline-start: 1px; } .h { inset-block-start: 1px; inset-inline-end: 2px; inset-block-end: 1px; inset-inline-start: 2px; } .important { padding-block-start: 1px !important; padding-block-end: 2px !important; } .mixed { padding-block-start: calc(1px + 1px); padding-block-end: 2px; }"#;
+    let source = r#".a { padding-block-start: 1px; padding-block-end: 1px; } .b { margin-inline-start: 1px; margin-inline-end: 2px; } .c { inset-block-end: 2px; inset-block-start: 1px; } .d { border-block-start-color: red; border-block-end-color: red; } .e { border-inline-start-width: 1px; border-inline-end-width: 2px; } .f { scroll-margin-block-start: 1px; scroll-margin-block-end: 1px; } .g { scroll-padding-inline-end: 2px; scroll-padding-inline-start: 1px; } .h { inset-block-start: 1px; inset-inline-end: 2px; inset-block-end: 1px; inset-inline-start: 2px; } .border-all { border-block-start-width: 1px; border-block-end-width: 1px; border-inline-start-width: 1px; border-inline-end-width: 1px; } .important { padding-block-start: 1px !important; padding-block-end: 2px !important; } .mixed { padding-block-start: calc(1px + 1px); padding-block-end: 2px; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1902,10 +1902,10 @@ fn execution_runtime_compresses_logical_axis_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 10);
+    assert_eq!(execution.mutation_count, 11);
     assert_eq!(
         execution.output_css,
-        r#".a { padding-block: 1px; } .b { margin-inline: 1px 2px; } .c { inset-block: 1px 2px; } .d { border-block-color: red; } .e { border-inline-width: 1px 2px; } .f { scroll-margin-block: 1px; } .g { scroll-padding-inline: 1px 2px; } .h { inset-block: 1px; inset-inline: 2px; } .important { padding-block: 1px 2px!important; } .mixed { padding-block: calc(1px + 1px) 2px; }"#
+        r#".a { padding-block: 1px; } .b { margin-inline: 1px 2px; } .c { inset-block: 1px 2px; } .d { border-block-color: red; } .e { border-inline-width: 1px 2px; } .f { scroll-margin-block: 1px; } .g { scroll-padding-inline: 1px 2px; } .h { inset-block: 1px; inset-inline: 2px; } .border-all { border-width: 1px; } .important { padding-block: 1px 2px!important; } .mixed { padding-block: calc(1px + 1px) 2px; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

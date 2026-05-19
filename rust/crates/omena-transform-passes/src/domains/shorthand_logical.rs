@@ -50,6 +50,18 @@ fn logical_four_side_replacement_for_declarations(
     let inline_value = compressed_two_axis_shorthand_value(&inline_start, &inline_end);
     let important_suffix = if important { "!important" } else { "" };
 
+    if block_start == block_end
+        && block_start == inline_start
+        && block_start == inline_end
+        && let Some(physical_shorthand) = family.all_equal_physical_shorthand
+    {
+        return Some((
+            first.start,
+            fourth.end,
+            format!("{physical_shorthand}: {block_start}{important_suffix};"),
+        ));
+    }
+
     Some((
         first.start,
         fourth.end,
@@ -98,6 +110,7 @@ struct LogicalFourSideFamily {
     block_end: &'static str,
     inline_start: &'static str,
     inline_end: &'static str,
+    all_equal_physical_shorthand: Option<&'static str>,
 }
 
 const LOGICAL_FOUR_SIDE_FAMILIES: &[LogicalFourSideFamily] = &[
@@ -108,6 +121,7 @@ const LOGICAL_FOUR_SIDE_FAMILIES: &[LogicalFourSideFamily] = &[
         block_end: "margin-block-end",
         inline_start: "margin-inline-start",
         inline_end: "margin-inline-end",
+        all_equal_physical_shorthand: None,
     },
     LogicalFourSideFamily {
         block_shorthand: "padding-block",
@@ -116,6 +130,7 @@ const LOGICAL_FOUR_SIDE_FAMILIES: &[LogicalFourSideFamily] = &[
         block_end: "padding-block-end",
         inline_start: "padding-inline-start",
         inline_end: "padding-inline-end",
+        all_equal_physical_shorthand: None,
     },
     LogicalFourSideFamily {
         block_shorthand: "inset-block",
@@ -124,6 +139,7 @@ const LOGICAL_FOUR_SIDE_FAMILIES: &[LogicalFourSideFamily] = &[
         block_end: "inset-block-end",
         inline_start: "inset-inline-start",
         inline_end: "inset-inline-end",
+        all_equal_physical_shorthand: None,
     },
     LogicalFourSideFamily {
         block_shorthand: "scroll-margin-block",
@@ -132,6 +148,7 @@ const LOGICAL_FOUR_SIDE_FAMILIES: &[LogicalFourSideFamily] = &[
         block_end: "scroll-margin-block-end",
         inline_start: "scroll-margin-inline-start",
         inline_end: "scroll-margin-inline-end",
+        all_equal_physical_shorthand: None,
     },
     LogicalFourSideFamily {
         block_shorthand: "scroll-padding-block",
@@ -140,6 +157,7 @@ const LOGICAL_FOUR_SIDE_FAMILIES: &[LogicalFourSideFamily] = &[
         block_end: "scroll-padding-block-end",
         inline_start: "scroll-padding-inline-start",
         inline_end: "scroll-padding-inline-end",
+        all_equal_physical_shorthand: None,
     },
     LogicalFourSideFamily {
         block_shorthand: "border-block-color",
@@ -148,6 +166,7 @@ const LOGICAL_FOUR_SIDE_FAMILIES: &[LogicalFourSideFamily] = &[
         block_end: "border-block-end-color",
         inline_start: "border-inline-start-color",
         inline_end: "border-inline-end-color",
+        all_equal_physical_shorthand: Some("border-color"),
     },
     LogicalFourSideFamily {
         block_shorthand: "border-block-style",
@@ -156,6 +175,7 @@ const LOGICAL_FOUR_SIDE_FAMILIES: &[LogicalFourSideFamily] = &[
         block_end: "border-block-end-style",
         inline_start: "border-inline-start-style",
         inline_end: "border-inline-end-style",
+        all_equal_physical_shorthand: Some("border-style"),
     },
     LogicalFourSideFamily {
         block_shorthand: "border-block-width",
@@ -164,6 +184,7 @@ const LOGICAL_FOUR_SIDE_FAMILIES: &[LogicalFourSideFamily] = &[
         block_end: "border-block-end-width",
         inline_start: "border-inline-start-width",
         inline_end: "border-inline-end-width",
+        all_equal_physical_shorthand: Some("border-width"),
     },
 ];
 

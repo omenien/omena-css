@@ -390,7 +390,7 @@ const fixtures: readonly DifferentialFixture[] = [
   {
     label: "logical-four-side-axis-shorthands",
     source:
-      ".a { inset-block-start: 1px; inset-inline-end: 2px; inset-block-end: 1px; inset-inline-start: 2px; } .b { margin-block-start: 1px; margin-inline-end: 2px; margin-block-end: 3px; margin-inline-start: 4px; } .c { border-block-start-color: red; border-inline-end-color: blue; border-block-end-color: red; border-inline-start-color: blue; }",
+      ".a { inset-block-start: 1px; inset-inline-end: 2px; inset-block-end: 1px; inset-inline-start: 2px; } .b { margin-block-start: 1px; margin-inline-end: 2px; margin-block-end: 3px; margin-inline-start: 4px; } .c { border-block-start-color: red; border-inline-end-color: blue; border-block-end-color: red; border-inline-start-color: blue; } .d { border-block-start-width: 1px; border-block-end-width: 1px; border-inline-start-width: 1px; border-inline-end-width: 1px; }",
   },
   {
     label: "scroll-logical-axis-shorthands",
