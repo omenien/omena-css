@@ -3127,6 +3127,24 @@ fn execution_runtime_resolves_unique_static_root_custom_properties() {
 }
 
 #[test]
+fn execution_runtime_resolves_static_var_multi_segment_fallbacks() {
+    let source = r#":root { --brand: red; --accent: blue; } .card { background: var(--missing, linear-gradient(var(--brand), white), var(--accent)); }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::StaticVarSubstitution,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(
+        execution.output_css,
+        r#":root { --brand: red; --accent: blue; } .card { background: linear-gradient(red, white), blue; }"#
+    );
+}
+
+#[test]
 fn execution_runtime_resolves_static_custom_properties_in_at_rule_preludes() {
     let source = r#":root { --wide: 40rem; --mode: dark; --color: red; --scope-root: .card; } @custom-media --wide (min-width: var(--wide)); @container card style(--mode: var(--mode)) { .card { color: var(--color); } } @supports (color: var(--color)) { .card { border-color: currentColor; } } @media (min-width: var(--wide)) { .card { color: var(--color); } } @scope (var(--scope-root)) { .card { color: var(--color); } }"#;
     let execution = execute_transform_passes_on_source(

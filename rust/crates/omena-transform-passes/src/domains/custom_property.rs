@@ -1101,20 +1101,22 @@ fn parse_static_var_value(value: &str) -> Option<CascadeValue> {
 }
 
 fn parse_static_var_arguments(arguments: &[String]) -> Option<CascadeValue> {
-    match arguments {
-        [name] if name.starts_with("--") => Some(CascadeValue::Var {
-            name: name.clone(),
-            fallback: None,
-        }),
-        [name, fallback] if name.starts_with("--") => {
-            let fallback = parse_static_custom_property_env_value(fallback)?;
-            Some(CascadeValue::Var {
-                name: name.clone(),
-                fallback: Some(Box::new(fallback)),
-            })
-        }
-        _ => None,
+    let (name, fallback_arguments) = arguments.split_first()?;
+    if !name.starts_with("--") {
+        return None;
     }
+    if fallback_arguments.is_empty() {
+        return Some(CascadeValue::Var {
+            name: name.to_string(),
+            fallback: None,
+        });
+    }
+
+    let fallback = parse_static_custom_property_env_value(&fallback_arguments.join(", "))?;
+    Some(CascadeValue::Var {
+        name: name.to_string(),
+        fallback: Some(Box::new(fallback)),
+    })
 }
 
 fn render_static_cascade_value(value: &CascadeValue) -> Option<String> {

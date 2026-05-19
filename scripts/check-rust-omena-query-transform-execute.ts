@@ -2022,7 +2022,7 @@ const staticVarShadowResult = spawnSync(
     input: JSON.stringify({
       stylePath: "shadowed-custom-properties.css",
       styleSource:
-        '@property --registered { syntax: "<length>"; inherits: false; initial-value: var(--gap); } @property --dynamic { syntax: "<color>"; inherits: false; initial-value: teal; } @keyframes pulse { to { color: var(--gap); } } :root { --brand: red; --gap: 2rem; --shadow: 0 0 var(--gap) var(--also-broken; --tone: red; --tone: blue !important; --dynamic: env(theme-color); } .card { --brand: blue; color: var(--brand); margin: var(--gap); border-color: var(--tone); margin-left: var(--registered); box-shadow: 0 0 var(--gap) var(--broken; text-decoration-color: var(--dynamic); } .other { color: var(--brand); box-shadow: var(--shadow); }',
+        '@property --registered { syntax: "<length>"; inherits: false; initial-value: var(--gap); } @property --dynamic { syntax: "<color>"; inherits: false; initial-value: teal; } @keyframes pulse { to { color: var(--gap); } } :root { --brand: red; --gap: 2rem; --shadow: 0 0 var(--gap) var(--also-broken; --tone: red; --tone: blue !important; --dynamic: env(theme-color); } .card { --brand: blue; color: var(--brand); margin: var(--gap); border-color: var(--tone); margin-left: var(--registered); box-shadow: 0 0 var(--gap) var(--broken; text-decoration-color: var(--dynamic); } .other { color: var(--brand); box-shadow: var(--shadow); background: var(--missing, linear-gradient(var(--gap), white), var(--gap)); }',
       requestedPassIds: ["custom-property-static-resolve", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
@@ -2039,13 +2039,13 @@ const staticVarShadowSummary = JSON.parse(
 assert.equal(staticVarShadowSummary.product, "omena-query.transform-execute");
 assert.equal(
   staticVarShadowSummary.execution.outputCss,
-  '@property --registered { syntax: "<length>"; inherits: false; initial-value: 2rem; } @property --dynamic { syntax: "<color>"; inherits: false; initial-value: teal; } @keyframes pulse { to { color: 2rem; } } :root { --brand: red; --gap: 2rem; --shadow: 0 0 var(--gap) var(--also-broken; --tone: red; --tone: blue !important; --dynamic: env(theme-color); } .card { --brand: blue; color: var(--brand); margin: 2rem; border-color: var(--tone); margin-left: 2rem; box-shadow: 0 0 2rem var(--broken; text-decoration-color: var(--dynamic); } .other { color: var(--brand); box-shadow: 0 0 2rem var(--also-broken; }',
+  '@property --registered { syntax: "<length>"; inherits: false; initial-value: 2rem; } @property --dynamic { syntax: "<color>"; inherits: false; initial-value: teal; } @keyframes pulse { to { color: 2rem; } } :root { --brand: red; --gap: 2rem; --shadow: 0 0 var(--gap) var(--also-broken; --tone: red; --tone: blue !important; --dynamic: env(theme-color); } .card { --brand: blue; color: var(--brand); margin: 2rem; border-color: var(--tone); margin-left: 2rem; box-shadow: 0 0 2rem var(--broken; text-decoration-color: var(--dynamic); } .other { color: var(--brand); box-shadow: 0 0 2rem var(--also-broken; background: linear-gradient(2rem, white), 2rem; }',
 );
 assert.deepEqual(staticVarShadowSummary.execution.executedPassIds, [
   "custom-property-static-resolve",
   "print-css",
 ]);
-assert.equal(staticVarShadowSummary.execution.mutationCount, 6);
+assert.equal(staticVarShadowSummary.execution.mutationCount, 7);
 
 const staticVarPreludeResult = spawnSync(
   "cargo",
