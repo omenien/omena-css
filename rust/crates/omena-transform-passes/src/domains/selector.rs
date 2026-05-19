@@ -298,13 +298,14 @@ fn expand_specificity_safe_is_selector_lists_with_lexer(
 }
 
 fn expand_specificity_safe_is_selector(selector: &str) -> Option<Vec<String>> {
-    let start = selector.find(":is(")?;
-    if selector[start + ":is(".len()..].contains(":is(") {
+    let selector_lower = selector.to_ascii_lowercase();
+    let start = selector_lower.find(":is(")?;
+    if selector_lower[start + ":is(".len()..].contains(":is(") {
         return None;
     }
     let left_paren_index = start + ":is".len();
     let close_index = matching_function_call_end(selector, left_paren_index)?;
-    if selector[close_index + ')'.len_utf8()..].contains(":is(") {
+    if selector_lower[close_index + ')'.len_utf8()..].contains(":is(") {
         return None;
     }
 

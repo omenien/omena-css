@@ -1875,7 +1875,7 @@ fn execution_runtime_normalizes_static_display_multi_keywords() {
 
 #[test]
 fn execution_runtime_compresses_specificity_safe_is_where_selectors() {
-    let source = r#".a:is(.ready) { color: red; } .b:where(.x, .x) { color: blue; } .c:where(.y) { color: green; } .d:is(:is(.u, .v), .u) { color: orange; } .g:is(.p, .q):hover { color: lime; } .e, .e, .f { color: purple; } .w:where(:where(.one, .two), .one) { color: teal; } @media (min-width: 1px) { .m, .m, .n { color: black; } } @supports (display: grid) { .s, .s { display: grid; } }"#;
+    let source = r#".a:is(.ready) { color: red; } .b:where(.x, .x) { color: blue; } .c:where(.y) { color: green; } .d:is(:is(.u, .v), .u) { color: orange; } .g:is(.p, .q):hover { color: lime; } .upper:IS(.one, .two) { color: pink; } .e, .e, .f { color: purple; } .w:where(:where(.one, .two), .one) { color: teal; } @media (min-width: 1px) { .m, .m, .n { color: black; } } @supports (display: grid) { .s, .s { display: grid; } }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1884,10 +1884,10 @@ fn execution_runtime_compresses_specificity_safe_is_where_selectors() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 9);
+    assert_eq!(execution.mutation_count, 10);
     assert_eq!(
         execution.output_css,
-        r#".a.ready { color: red; } .b:where(.x) { color: blue; } .c:where(.y) { color: green; } .d.u, .d.v { color: orange; } .g.p:hover, .g.q:hover { color: lime; } .e, .f { color: purple; } .w:where(.one,.two) { color: teal; } @media (min-width: 1px) { .m, .n { color: black; } } @supports (display: grid) { .s { display: grid; } }"#
+        r#".a.ready { color: red; } .b:where(.x) { color: blue; } .c:where(.y) { color: green; } .d.u, .d.v { color: orange; } .g.p:hover, .g.q:hover { color: lime; } .upper.one, .upper.two { color: pink; } .e, .f { color: purple; } .w:where(.one,.two) { color: teal; } @media (min-width: 1px) { .m, .n { color: black; } } @supports (display: grid) { .s { display: grid; } }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

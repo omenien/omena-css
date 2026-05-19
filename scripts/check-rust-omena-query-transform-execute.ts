@@ -232,6 +232,48 @@ assertIncludesAll(
   "transform execute ready surfaces",
 );
 
+const selectorFunctionCaseResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "selector-function-case.css",
+      styleSource:
+        ".upper:IS(.one, .two) { color: pink; } .where:WHERE(.same, .same) { color: blue; }",
+      requestedPassIds: ["selector-is-where-compression", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(selectorFunctionCaseResult.status, 0, selectorFunctionCaseResult.stderr);
+assert.equal(selectorFunctionCaseResult.error, undefined);
+
+const selectorFunctionCaseSummary = JSON.parse(
+  selectorFunctionCaseResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(
+  selectorFunctionCaseSummary.execution.outputCss,
+  ".upper.one, .upper.two { color: pink; } .where:where(.same) { color: blue; }",
+);
+assert.deepEqual(selectorFunctionCaseSummary.execution.executedPassIds, [
+  "selector-is-where-compression",
+  "print-css",
+]);
+assert.equal(selectorFunctionCaseSummary.execution.mutationCount, 2);
+
 const groupedSupportsResult = spawnSync(
   "cargo",
   [
