@@ -2928,10 +2928,10 @@ assert.deepEqual(lessReferenceImportEvaluationSummary.execution.executedPassIds,
   "less-module-evaluate",
   "print-css",
 ]);
-assert(lessReferenceImportEvaluationSummary.execution.outputCss.includes(".base { color: blue; }"));
 assert(
   lessReferenceImportEvaluationSummary.execution.outputCss.includes(".button { color: red; }"),
 );
+assert(!lessReferenceImportEvaluationSummary.execution.outputCss.includes(".base"));
 assert(!lessReferenceImportEvaluationSummary.execution.outputCss.includes("@import"));
 assert(!lessReferenceImportEvaluationSummary.execution.outputCss.includes("@brand:"));
 

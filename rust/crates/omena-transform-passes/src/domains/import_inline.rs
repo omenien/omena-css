@@ -45,18 +45,21 @@ pub(crate) fn inline_css_imports_with_lexer(
                 if let Some(replacement_css) =
                     inline_replacement_for_import_source(&import_rule.source, inlines)
                 {
-                    let replacement_css = if dialect == StyleDialect::Less
+                    let mut replacement_css = replacement_css.to_string();
+                    if dialect == StyleDialect::Less && import_rule.reference_only {
+                        replacement_css =
+                            filter_less_reference_import_replacement(&replacement_css);
+                    }
+                    if dialect == StyleDialect::Less
                         && !import_rule.allow_duplicate
                         && !emitted_less_import_sources.insert(import_rule.source.clone())
                     {
-                        ""
-                    } else {
-                        replacement_css
-                    };
+                        replacement_css.clear();
+                    }
                     replacements.push((
                         start,
                         end,
-                        wrap_import_replacement(&import_rule, replacement_css),
+                        wrap_import_replacement(&import_rule, &replacement_css),
                     ));
                 }
                 index = end_index + 1;
@@ -92,6 +95,7 @@ struct CssImportRule {
     supports_condition: Option<String>,
     media_query: Option<String>,
     allow_duplicate: bool,
+    reference_only: bool,
 }
 
 fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
@@ -100,7 +104,7 @@ fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
     if rest.is_empty() {
         return None;
     }
-    let (rest, allow_duplicate) = strip_leading_less_import_options(rest);
+    let (rest, allow_duplicate, reference_only) = strip_leading_less_import_options(rest);
     let (source, rest) = parse_css_import_source_prefix(rest)?;
     let mut rest = rest.trim();
     let mut layer_name = None;
@@ -126,6 +130,7 @@ fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
         supports_condition,
         media_query: (!rest.is_empty()).then(|| rest.to_string()),
         allow_duplicate,
+        reference_only,
     })
 }
 
@@ -133,21 +138,23 @@ fn parse_css_import_source_prefix(text: &str) -> Option<(String, &str)> {
     parse_quoted_css_string_prefix(text).or_else(|| parse_url_import_source_prefix(text))
 }
 
-fn strip_leading_less_import_options(mut text: &str) -> (&str, bool) {
+fn strip_leading_less_import_options(mut text: &str) -> (&str, bool, bool) {
     let mut allow_duplicate = false;
+    let mut reference_only = false;
     loop {
         let rest = text.trim_start();
         let Some(after_left_paren) = rest.strip_prefix('(') else {
-            return (rest, allow_duplicate);
+            return (rest, allow_duplicate, reference_only);
         };
         let Some(close_index) = matching_function_close_index(after_left_paren) else {
-            return (rest, allow_duplicate);
+            return (rest, allow_duplicate, reference_only);
         };
         let option = after_left_paren[..close_index].trim();
         if option.is_empty() || !less_import_option_list_is_safe(option) {
-            return (rest, allow_duplicate);
+            return (rest, allow_duplicate, reference_only);
         }
         allow_duplicate |= less_import_option_list_allows_duplicate(option);
+        reference_only |= less_import_option_list_is_reference_only(option);
         text = &after_left_paren[close_index + 1..];
     }
 }
@@ -163,6 +170,97 @@ fn less_import_option_list_allows_duplicate(option: &str) -> bool {
         .split(',')
         .map(str::trim)
         .any(|entry| entry.eq_ignore_ascii_case("multiple"))
+}
+
+fn less_import_option_list_is_reference_only(option: &str) -> bool {
+    option
+        .split(',')
+        .map(str::trim)
+        .any(|entry| entry.eq_ignore_ascii_case("reference"))
+}
+
+fn filter_less_reference_import_replacement(source: &str) -> String {
+    let mut output = String::new();
+    let mut statement_start = 0usize;
+    let mut depth = 0usize;
+    let mut quote = None::<char>;
+    let mut escaped = false;
+
+    for (index, ch) in source.char_indices() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '{' | '(' | '[' => depth += 1,
+            '}' | ')' | ']' => depth = depth.saturating_sub(1),
+            ';' if depth == 0 => {
+                let statement = source[statement_start..=index].trim();
+                if less_reference_import_statement_is_static_binding(statement) {
+                    if !output.is_empty() {
+                        output.push(' ');
+                    }
+                    output.push_str(statement);
+                }
+                statement_start = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+
+    output
+}
+
+fn less_reference_import_statement_is_static_binding(statement: &str) -> bool {
+    let statement = statement.trim();
+    if statement.is_empty() || statement.contains('{') || statement.contains('}') {
+        return false;
+    }
+    let Some(first_char) = statement.chars().next() else {
+        return false;
+    };
+    matches!(first_char, '@' | '$') && top_level_colon_index(statement).is_some()
+}
+
+fn top_level_colon_index(content: &str) -> Option<usize> {
+    let mut delimiter_stack = Vec::<char>::new();
+    let mut quote = None::<char>;
+    let mut escaped = false;
+
+    for (index, ch) in content.char_indices() {
+        if let Some(active_quote) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == active_quote {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '(' | '[' => delimiter_stack.push(ch),
+            ')' if delimiter_stack.last() == Some(&'(') => {
+                delimiter_stack.pop();
+            }
+            ']' if delimiter_stack.last() == Some(&'[') => {
+                delimiter_stack.pop();
+            }
+            ':' if delimiter_stack.is_empty() => return Some(index),
+            _ => {}
+        }
+    }
+    None
 }
 
 fn parse_quoted_css_string_prefix(text: &str) -> Option<(String, &str)> {

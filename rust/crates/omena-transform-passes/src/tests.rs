@@ -382,7 +382,7 @@ fn execution_runtime_inlines_less_imports_with_options() {
     let context = TransformExecutionContextV0 {
         import_inlines: vec![TransformImportInlineV0 {
             import_source: "./tokens.less".to_string(),
-            replacement_css: r#"@brand: red;"#.to_string(),
+            replacement_css: r#"@brand: red; .base { color: @brand; }"#.to_string(),
         }],
         ..TransformExecutionContextV0::default()
     };
