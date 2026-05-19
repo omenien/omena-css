@@ -1039,21 +1039,14 @@ const supportsSelectorClassHashResult = spawnSync(
   },
 );
 
-assert.equal(
-  supportsSelectorClassHashResult.status,
-  0,
-  supportsSelectorClassHashResult.stderr,
-);
+assert.equal(supportsSelectorClassHashResult.status, 0, supportsSelectorClassHashResult.stderr);
 assert.equal(supportsSelectorClassHashResult.error, undefined);
 
 const supportsSelectorClassHashSummary = JSON.parse(
   supportsSelectorClassHashResult.stdout,
 ) as TransformExecuteSummaryV0;
 
-assert.equal(
-  supportsSelectorClassHashSummary.product,
-  "omena-query.transform-execute",
-);
+assert.equal(supportsSelectorClassHashSummary.product, "omena-query.transform-execute");
 assert.equal(
   supportsSelectorClassHashSummary.execution.outputCss,
   "@supports selector(._card_x:has(.footer, ._title_z)) { ._item_q{ color: red; } } @supports (background: paint(.card)) { ._paint_p{ color: blue; } }",
