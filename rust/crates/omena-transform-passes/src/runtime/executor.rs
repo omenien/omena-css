@@ -365,7 +365,9 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     "requires explicit Less evaluator output before mutation"
                 )
             }
-            Some(TransformPassKind::ImportInline) if !context.import_inlines.is_empty() => {
+            Some(TransformPassKind::ImportInline)
+                if dialect == StyleDialect::Less || !context.import_inlines.is_empty() =>
+            {
                 let (next_css, mutation_count) =
                     inline_css_imports(&output_css, dialect, &context.import_inlines);
                 let outcome = mutation_outcome(
@@ -373,7 +375,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
                     input_byte_len,
                     next_css.len(),
                     mutation_count,
-                    "replaced resolved @import directives using explicit inline CSS replacements",
+                    "replaced resolved @import directives and optional Less imports",
                 );
                 output_css = next_css;
                 css_import_inlines = context.import_inlines.clone();

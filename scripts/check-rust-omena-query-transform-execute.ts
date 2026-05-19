@@ -2878,6 +2878,51 @@ assert(multipleLessImportEvaluationSummary.execution.outputCss.includes(".button
 assert(!multipleLessImportEvaluationSummary.execution.outputCss.includes("@import"));
 assert(!multipleLessImportEvaluationSummary.execution.outputCss.includes("@brand:"));
 
+const optionalLessImportEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "/tmp/App.module.less",
+      styles: [
+        {
+          stylePath: "/tmp/App.module.less",
+          styleSource: '@import (optional) "./missing.less"; .button { color: red; }',
+        },
+      ],
+      requestedPassIds: ["import-inline", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  optionalLessImportEvaluationResult.status,
+  0,
+  optionalLessImportEvaluationResult.stderr,
+);
+assert.equal(optionalLessImportEvaluationResult.error, undefined);
+
+const optionalLessImportEvaluationSummary = JSON.parse(
+  optionalLessImportEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.deepEqual(optionalLessImportEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert(optionalLessImportEvaluationSummary.execution.outputCss.includes(".button { color: red; }"));
+assert(!optionalLessImportEvaluationSummary.execution.outputCss.includes("@import"));
+assert(!optionalLessImportEvaluationSummary.execution.outputCss.includes("missing.less"));
+
 const lessReferenceImportEvaluationResult = spawnSync(
   "cargo",
   [

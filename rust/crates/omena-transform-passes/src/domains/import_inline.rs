@@ -61,6 +61,8 @@ pub(crate) fn inline_css_imports_with_lexer(
                         end,
                         wrap_import_replacement(&import_rule, &replacement_css),
                     ));
+                } else if dialect == StyleDialect::Less && import_rule.optional {
+                    replacements.push((start, end, String::new()));
                 }
                 index = end_index + 1;
                 continue;
@@ -96,6 +98,7 @@ struct CssImportRule {
     media_query: Option<String>,
     allow_duplicate: bool,
     reference_only: bool,
+    optional: bool,
 }
 
 fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
@@ -104,7 +107,7 @@ fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
     if rest.is_empty() {
         return None;
     }
-    let (rest, allow_duplicate, reference_only) = strip_leading_less_import_options(rest);
+    let (rest, allow_duplicate, reference_only, optional) = strip_leading_less_import_options(rest);
     let (source, rest) = parse_css_import_source_prefix(rest)?;
     let mut rest = rest.trim();
     let mut layer_name = None;
@@ -131,6 +134,7 @@ fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
         media_query: (!rest.is_empty()).then(|| rest.to_string()),
         allow_duplicate,
         reference_only,
+        optional,
     })
 }
 
@@ -138,23 +142,25 @@ fn parse_css_import_source_prefix(text: &str) -> Option<(String, &str)> {
     parse_quoted_css_string_prefix(text).or_else(|| parse_url_import_source_prefix(text))
 }
 
-fn strip_leading_less_import_options(mut text: &str) -> (&str, bool, bool) {
+fn strip_leading_less_import_options(mut text: &str) -> (&str, bool, bool, bool) {
     let mut allow_duplicate = false;
     let mut reference_only = false;
+    let mut optional = false;
     loop {
         let rest = text.trim_start();
         let Some(after_left_paren) = rest.strip_prefix('(') else {
-            return (rest, allow_duplicate, reference_only);
+            return (rest, allow_duplicate, reference_only, optional);
         };
         let Some(close_index) = matching_function_close_index(after_left_paren) else {
-            return (rest, allow_duplicate, reference_only);
+            return (rest, allow_duplicate, reference_only, optional);
         };
         let option = after_left_paren[..close_index].trim();
         if option.is_empty() || !less_import_option_list_is_safe(option) {
-            return (rest, allow_duplicate, reference_only);
+            return (rest, allow_duplicate, reference_only, optional);
         }
         allow_duplicate |= less_import_option_list_allows_duplicate(option);
         reference_only |= less_import_option_list_is_reference_only(option);
+        optional |= less_import_option_list_is_optional(option);
         text = &after_left_paren[close_index + 1..];
     }
 }
@@ -177,6 +183,13 @@ fn less_import_option_list_is_reference_only(option: &str) -> bool {
         .split(',')
         .map(str::trim)
         .any(|entry| entry.eq_ignore_ascii_case("reference"))
+}
+
+fn less_import_option_list_is_optional(option: &str) -> bool {
+    option
+        .split(',')
+        .map(str::trim)
+        .any(|entry| entry.eq_ignore_ascii_case("optional"))
 }
 
 fn filter_less_reference_import_replacement(source: &str) -> String {

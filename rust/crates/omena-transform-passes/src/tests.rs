@@ -462,6 +462,24 @@ fn execution_runtime_honors_less_multiple_imports() {
 }
 
 #[test]
+fn execution_runtime_removes_missing_optional_less_imports() {
+    let source = r#"@import (optional) "./missing.less"; .button { color: red; }"#;
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Less,
+        &[TransformPassKind::ImportInline, TransformPassKind::PrintCss],
+        &TransformExecutionContextV0::default(),
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.output_css, r#" .button { color: red; }"#);
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["import-inline", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_applies_explicit_scss_module_evaluation() {
     let source = r#"$brand: red; .button { color: $brand; }"#;
     let context = TransformExecutionContextV0 {
