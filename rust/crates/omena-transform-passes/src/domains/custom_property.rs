@@ -959,11 +959,22 @@ pub(crate) fn collect_static_root_custom_property_env(
 }
 
 pub(crate) fn parse_static_custom_property_env_value(value: &str) -> Option<CascadeValue> {
+    if let Some(value) = parse_css_wide_custom_property_env_value(value) {
+        return Some(value);
+    }
     if contains_runtime_dependent_css_function(value) {
         return None;
     }
     parse_static_var_value(value)
         .or_else(|| parse_static_composite_custom_property_env_value(value))
+}
+
+fn parse_css_wide_custom_property_env_value(value: &str) -> Option<CascadeValue> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "initial" => Some(CascadeValue::Initial),
+        "inherit" | "unset" | "revert" | "revert-layer" => Some(CascadeValue::Inherit),
+        _ => None,
+    }
 }
 
 fn contains_runtime_dependent_css_function(value: &str) -> bool {

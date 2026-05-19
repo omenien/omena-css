@@ -186,9 +186,7 @@ fn routed_design_token_value_for_var_arguments(
     routes: &[TransformDesignTokenRouteV0],
     blocked_token_name: Option<&str>,
 ) -> Option<String> {
-    let Some((token_name, fallback_arguments)) = arguments.split_first() else {
-        return None;
-    };
+    let (token_name, fallback_arguments) = arguments.split_first()?;
     let token_name = normalize_design_token_name(token_name)?;
     if blocked_token_name.is_some_and(|blocked| blocked == token_name) {
         return None;
