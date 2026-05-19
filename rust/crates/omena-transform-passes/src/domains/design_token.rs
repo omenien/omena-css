@@ -173,7 +173,10 @@ fn routed_design_token_value_for_var_arguments(
     if let [_, fallback] = arguments
         && let Some(routed_token_name) = parse_single_custom_property_var_reference(routed_value)
     {
-        return Some(format!("var({routed_token_name}, {fallback})"));
+        let routed_fallback =
+            route_design_token_references_in_value(fallback, routes, blocked_token_name)
+                .unwrap_or_else(|| fallback.to_string());
+        return Some(format!("var({routed_token_name}, {routed_fallback})"));
     }
     Some(routed_value.to_string())
 }

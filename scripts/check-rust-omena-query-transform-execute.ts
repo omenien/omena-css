@@ -768,7 +768,7 @@ const designTokenAliasResult = spawnSync(
     input: JSON.stringify({
       stylePath: "DesignTokenAliases.module.css",
       styleSource:
-        ":root { --pkg-brand: var(--pkg-brand, black); --alias: var(--pkg-brand); --bridge: var(--pkg-border); } .button { color: var(--alias); }",
+        ":root { --pkg-brand: var(--pkg-brand, black); --alias: var(--pkg-brand); --fallback-alias: var(--pkg-brand, var(--pkg-border)); --bridge: var(--pkg-border); } .button { color: var(--alias); }",
       requestedPassIds: ["design-token-routing", "print-css"],
       transformContext: {
         designTokenRoutes: [
@@ -790,13 +790,13 @@ const designTokenAliasSummary = JSON.parse(
 
 assert.equal(
   designTokenAliasSummary.execution.outputCss,
-  ":root { --pkg-brand: var(--pkg-brand, black); --alias: var(--theme-brand); --bridge: #123456; } .button { color: var(--alias); }",
+  ":root { --pkg-brand: var(--pkg-brand, black); --alias: var(--theme-brand); --fallback-alias: var(--theme-brand, #123456); --bridge: #123456; } .button { color: var(--alias); }",
 );
 assert.deepEqual(designTokenAliasSummary.execution.executedPassIds, [
   "design-token-routing",
   "print-css",
 ]);
-assert.equal(designTokenAliasSummary.execution.mutationCount, 2);
+assert.equal(designTokenAliasSummary.execution.mutationCount, 3);
 
 const groupedComposesResult = spawnSync(
   "cargo",

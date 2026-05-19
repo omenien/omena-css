@@ -769,7 +769,7 @@ fn execution_runtime_routes_design_tokens_in_supported_at_rule_preludes() {
 
 #[test]
 fn execution_runtime_routes_design_tokens_inside_custom_property_aliases() {
-    let source = r#":root { --pkg-brand: var(--pkg-brand, black); --alias: var(--pkg-brand); --bridge: var(--pkg-border); } .button { color: var(--alias); }"#;
+    let source = r#":root { --pkg-brand: var(--pkg-brand, black); --alias: var(--pkg-brand); --fallback-alias: var(--pkg-brand, var(--pkg-border)); --bridge: var(--pkg-border); } .button { color: var(--alias); }"#;
     let context = TransformExecutionContextV0 {
         design_token_routes: vec![
             TransformDesignTokenRouteV0 {
@@ -793,10 +793,43 @@ fn execution_runtime_routes_design_tokens_inside_custom_property_aliases() {
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 2);
+    assert_eq!(execution.mutation_count, 3);
     assert_eq!(
         execution.output_css,
-        r#":root { --pkg-brand: var(--pkg-brand, black); --alias: var(--theme-brand); --bridge: #123456; } .button { color: var(--alias); }"#
+        r#":root { --pkg-brand: var(--pkg-brand, black); --alias: var(--theme-brand); --fallback-alias: var(--theme-brand, #123456); --bridge: #123456; } .button { color: var(--alias); }"#
+    );
+}
+
+#[test]
+fn execution_runtime_routes_design_token_fallback_expressions_after_alias_routes() {
+    let source = r#".button { color: var(--pkg-brand, var(--pkg-border)); background: var(--unknown, var(--pkg-border)); outline-color: var(--pkg-brand, color-mix(in srgb, var(--pkg-border), black)); }"#;
+    let context = TransformExecutionContextV0 {
+        design_token_routes: vec![
+            TransformDesignTokenRouteV0 {
+                token_name: "--pkg-brand".to_string(),
+                routed_value: "var(--theme-brand)".to_string(),
+            },
+            TransformDesignTokenRouteV0 {
+                token_name: "--pkg-border".to_string(),
+                routed_value: "#123456".to_string(),
+            },
+        ],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::DesignTokenRouting,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 3);
+    assert_eq!(
+        execution.output_css,
+        r#".button { color: var(--theme-brand, #123456); background: var(--unknown, #123456); outline-color: var(--theme-brand, color-mix(in srgb, #123456, black)); }"#
     );
 }
 
