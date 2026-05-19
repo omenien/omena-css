@@ -2811,7 +2811,7 @@ fn execution_runtime_resolves_unique_property_initial_values() {
 
 #[test]
 fn execution_runtime_resolves_static_local_css_modules_values() {
-    let source = r#"@value primary: #fff; @value spacing: 8px; @value alias: primary; @value shadow: 0 0 4px primary; @value bp: 40rem; @value wide: 80rem; @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: primary; margin: spacing spacing; background: alias; box-shadow: shadow; border-color: dup; } @media screen and (min-width: bp) and (width >= wide) { .btn { color: primary; } } @container card (inline-size >= wide) { .btn { margin: spacing; } }"#;
+    let source = r#"@value primary: #fff; @value spacing: 8px; @value alias: primary; @value shadow: 0 0 4px primary; @value bp: 40rem; @value wide: 80rem; @value width: 1px; @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: primary; margin: spacing spacing; background: alias; box-shadow: shadow; border-color: dup; } @media screen and (min-width: bp) and (width >= wide) and (bp <= width <= wide) { .btn { color: primary; } } @container card (inline-size >= wide) { .btn { margin: spacing; } }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -2820,10 +2820,10 @@ fn execution_runtime_resolves_static_local_css_modules_values() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 15);
+    assert_eq!(execution.mutation_count, 18);
     assert_eq!(
         execution.output_css,
-        r#"      @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: #fff; margin: 8px 8px; background: #fff; box-shadow: 0 0 4px #fff; border-color: dup; } @media screen and (min-width: 40rem) and (width >= 80rem) { .btn { color: #fff; } } @container card (inline-size >= 80rem) { .btn { margin: 8px; } }"#
+        r#"       @value modulePath: "./tokens.module.css"; @value dup: red; @value dup: blue; .btn { color: #fff; margin: 8px 8px; background: #fff; box-shadow: 0 0 4px #fff; border-color: dup; } @media screen and (min-width: 40rem) and (width >= 80rem) and (40rem <= width <= 80rem) { .btn { color: #fff; } } @container card (inline-size >= 80rem) { .btn { margin: 8px; } }"#
     );
     assert_eq!(
         execution.executed_pass_ids,
@@ -3382,7 +3382,7 @@ fn execution_runtime_keeps_values_used_by_explicit_reachable_keyframes() {
 
 #[test]
 fn execution_runtime_tree_shakes_at_rule_prelude_non_value_identifiers() {
-    let source = r#"@value screen: 1px; @value bp: 40rem; @value theme: dark; @media screen and (min-width: bp) { .btn { color: red; } } @container card style(--mode: theme) { .btn { color: blue; } }"#;
+    let source = r#"@value screen: 1px; @value width: 1px; @value bp: 40rem; @value wide: 80rem; @value theme: dark; @media screen and (min-width: bp) and (bp <= width <= wide) { .btn { color: red; } } @container card style(--mode: theme) { .btn { color: blue; } }"#;
     let context = TransformExecutionContextV0 {
         closed_style_world: true,
         reachable_class_names: vec!["btn".to_string()],
@@ -3398,14 +3398,16 @@ fn execution_runtime_tree_shakes_at_rule_prelude_non_value_identifiers() {
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(execution.mutation_count, 2);
     assert!(!execution.output_css.contains("@value screen:"));
+    assert!(!execution.output_css.contains("@value width:"));
     assert!(execution.output_css.contains("@value bp: 40rem;"));
+    assert!(execution.output_css.contains("@value wide: 80rem;"));
     assert!(execution.output_css.contains("@value theme: dark;"));
     assert!(
         execution
             .output_css
-            .contains("@media screen and (min-width: bp)")
+            .contains("@media screen and (min-width: bp) and (bp <= width <= wide)")
     );
     assert!(
         execution
@@ -3418,7 +3420,7 @@ fn execution_runtime_tree_shakes_at_rule_prelude_non_value_identifiers() {
             .iter()
             .map(|removal| removal.name.as_str())
             .collect::<Vec<_>>(),
-        vec!["screen"]
+        vec!["screen", "width"]
     );
 }
 

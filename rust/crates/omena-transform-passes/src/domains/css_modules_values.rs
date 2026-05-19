@@ -31,7 +31,7 @@ use crate::{
         declarations::collect_simple_declarations_in_block,
         rules::collect_declaration_ordinary_rule_slices,
         source_rewrite::replace_source_ranges,
-        tokens::{matching_right_brace_index, token_end, token_start},
+        tokens::{matching_right_brace_index, next_non_comment_token_kind, token_end, token_start},
     },
     model::{TransformCssModuleValueResolutionV0, TransformSemanticRemovalCandidate},
 };
@@ -258,12 +258,57 @@ fn query_prelude_ident_is_feature_value(
     candidate_index: usize,
     prelude_start: usize,
 ) -> bool {
-    previous_significant_token_kind(tokens, candidate_index, prelude_start).is_some_and(|kind| {
-        matches!(
-            kind,
-            SyntaxKind::Colon | SyntaxKind::GreaterThan | SyntaxKind::LessThan | SyntaxKind::Equals
-        )
-    })
+    if query_prelude_ident_is_known_feature_name(&tokens[candidate_index].text) {
+        return false;
+    }
+
+    previous_significant_token_kind(tokens, candidate_index, prelude_start)
+        .is_some_and(|kind| kind == SyntaxKind::Colon || query_prelude_token_is_comparator(kind))
+        || next_non_comment_token_kind(tokens, candidate_index)
+            .is_some_and(query_prelude_token_is_comparator)
+}
+
+fn query_prelude_token_is_comparator(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::GreaterThan | SyntaxKind::LessThan | SyntaxKind::Equals
+    )
+}
+
+fn query_prelude_ident_is_known_feature_name(text: &str) -> bool {
+    matches!(
+        text.to_ascii_lowercase().as_str(),
+        "any-hover"
+            | "any-pointer"
+            | "aspect-ratio"
+            | "block-size"
+            | "color"
+            | "color-gamut"
+            | "color-index"
+            | "display-mode"
+            | "dynamic-range"
+            | "forced-colors"
+            | "grid"
+            | "height"
+            | "hover"
+            | "inline-size"
+            | "inverted-colors"
+            | "monochrome"
+            | "orientation"
+            | "overflow-block"
+            | "overflow-inline"
+            | "pointer"
+            | "prefers-color-scheme"
+            | "prefers-contrast"
+            | "prefers-reduced-data"
+            | "prefers-reduced-motion"
+            | "prefers-reduced-transparency"
+            | "resolution"
+            | "scripting"
+            | "update"
+            | "video-dynamic-range"
+            | "width"
+    )
 }
 
 fn resolve_static_css_modules_value_definition(
