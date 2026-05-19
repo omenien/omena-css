@@ -3538,6 +3538,43 @@ fn execution_runtime_tree_shakes_at_rule_prelude_non_value_identifiers() {
 }
 
 #[test]
+fn execution_runtime_keeps_values_used_by_descriptor_at_rules() {
+    let source = r#"@value face: OmenaSans; @value weight: 700; @value dead: blue; @font-face { font-family: face; font-weight: weight; src: url(omena.woff2); } .btn { color: red; }"#;
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec!["btn".to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::TreeShakeValue,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert!(execution.output_css.contains("@value face: OmenaSans;"));
+    assert!(execution.output_css.contains("@value weight: 700;"));
+    assert!(
+        execution
+            .output_css
+            .contains("@font-face { font-family: face; font-weight: weight;")
+    );
+    assert!(!execution.output_css.contains("@value dead:"));
+    assert_eq!(
+        execution
+            .semantic_removals
+            .iter()
+            .map(|removal| (removal.symbol_kind, removal.name.as_str()))
+            .collect::<Vec<_>>(),
+        vec![("cssModuleValue", "dead")]
+    );
+}
+
+#[test]
 fn execution_runtime_tree_shakes_imported_values_with_closed_world_context() {
     let source = r#"@value used, dead, ghost from "./tokens.module.css"; @value local: used; .btn { color: local; } .dead { color: dead; }"#;
     let context = TransformExecutionContextV0 {
@@ -3950,6 +3987,46 @@ fn execution_runtime_keeps_registration_initial_value_custom_property_dependenci
             ("customProperty", "--dead-dep"),
             ("customProperty", "--ghost")
         ]
+    );
+}
+
+#[test]
+fn execution_runtime_keeps_custom_properties_used_by_descriptor_at_rules() {
+    let source = r#":root { --font-src: url(omena.woff2); --dead: blue; } @font-face { font-family: "Omena"; src: var(--font-src); } .btn { color: red; }"#;
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec!["btn".to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::TreeShakeCustomProperty,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert!(
+        execution
+            .output_css
+            .contains("--font-src: url(omena.woff2);")
+    );
+    assert!(
+        execution
+            .output_css
+            .contains(r#"@font-face { font-family: "Omena"; src: var(--font-src); }"#)
+    );
+    assert!(!execution.output_css.contains("--dead: blue;"));
+    assert_eq!(
+        execution
+            .semantic_removals
+            .iter()
+            .map(|removal| (removal.symbol_kind, removal.name.as_str()))
+            .collect::<Vec<_>>(),
+        vec![("customProperty", "--dead")]
     );
 }
 

@@ -672,6 +672,13 @@ fn collect_reachable_css_modules_value_names(
     ) {
         push_unique_string(&mut root_names, name);
     }
+    for name in collect_css_modules_value_roots_from_descriptor_at_rules(
+        input.tokens,
+        input.dialect,
+        input.value_names,
+    ) {
+        push_unique_string(&mut root_names, name);
+    }
 
     for rule in collect_declaration_ordinary_rule_slices(input.source, input.tokens) {
         if rule.selector.trim().eq_ignore_ascii_case(":export") {
@@ -764,6 +771,61 @@ fn collect_css_modules_value_roots_from_reachable_keyframes(
         }
     }
     roots
+}
+
+fn collect_css_modules_value_roots_from_descriptor_at_rules(
+    tokens: &[omena_parser::LexedToken],
+    dialect: StyleDialect,
+    value_names: &[String],
+) -> Vec<String> {
+    let mut roots = Vec::new();
+    let mut index = 0usize;
+
+    while index < tokens.len() {
+        if tokens[index].kind != SyntaxKind::AtKeyword
+            || !descriptor_at_rule_can_reference_css_modules_values(&tokens[index].text)
+        {
+            index += 1;
+            continue;
+        }
+        let Some(block_start_index) = at_rule_prelude_end_index(tokens, index + 1) else {
+            break;
+        };
+        if tokens[block_start_index].kind != SyntaxKind::LeftBrace {
+            index = block_start_index.saturating_add(1);
+            continue;
+        }
+        let Some(block_end_index) = matching_right_brace_index(tokens, block_start_index) else {
+            break;
+        };
+
+        for declaration in
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+        {
+            for name in collect_css_modules_value_references_in_value(
+                &declaration.value,
+                dialect,
+                value_names,
+            ) {
+                push_unique_string(&mut roots, name);
+            }
+        }
+        index = block_end_index + 1;
+    }
+
+    roots
+}
+
+fn descriptor_at_rule_can_reference_css_modules_values(text: &str) -> bool {
+    matches!(
+        text.to_ascii_lowercase().as_str(),
+        "@color-profile"
+            | "@counter-style"
+            | "@font-face"
+            | "@font-palette-values"
+            | "@page"
+            | "@property"
+    )
 }
 
 fn enclosing_keyframe_for_value_rule<'a>(

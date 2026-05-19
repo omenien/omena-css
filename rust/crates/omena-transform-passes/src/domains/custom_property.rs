@@ -464,6 +464,9 @@ fn collect_reachable_custom_property_names(
     ) {
         push_unique_string(&mut root_names, name);
     }
+    for name in collect_custom_property_roots_from_descriptor_at_rules(tokens) {
+        push_unique_string(&mut root_names, name);
+    }
     for rule in collect_static_custom_property_icss_export_rules(source, tokens) {
         for declaration in rule.declarations {
             if !custom_property_icss_export_is_reachable(&declaration.export_name, external_roots) {
@@ -593,6 +596,50 @@ fn collect_custom_property_roots_from_reachable_at_rule_preludes(
     }
 
     roots
+}
+
+fn collect_custom_property_roots_from_descriptor_at_rules(
+    tokens: &[omena_parser::LexedToken],
+) -> Vec<String> {
+    let mut roots = Vec::new();
+    let mut index = 0usize;
+
+    while index < tokens.len() {
+        if tokens[index].kind != SyntaxKind::AtKeyword
+            || !descriptor_at_rule_can_reference_custom_properties(&tokens[index].text)
+        {
+            index += 1;
+            continue;
+        }
+        let Some(block_start_index) = at_rule_prelude_end_index(tokens, index + 1) else {
+            break;
+        };
+        if tokens[block_start_index].kind != SyntaxKind::LeftBrace {
+            index = block_start_index.saturating_add(1);
+            continue;
+        }
+        let Some(block_end_index) = matching_right_brace_index(tokens, block_start_index) else {
+            break;
+        };
+
+        for declaration in
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index)
+        {
+            for name in collect_custom_property_references_in_value(&declaration.value) {
+                push_unique_string(&mut roots, name);
+            }
+        }
+        index = block_end_index + 1;
+    }
+
+    roots
+}
+
+fn descriptor_at_rule_can_reference_custom_properties(text: &str) -> bool {
+    matches!(
+        text.to_ascii_lowercase().as_str(),
+        "@color-profile" | "@counter-style" | "@font-face" | "@font-palette-values" | "@page"
+    )
 }
 
 fn at_rule_prelude_can_reference_custom_properties(text: &str) -> bool {

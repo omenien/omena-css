@@ -1887,6 +1887,72 @@ assert.deepEqual(customPropertyRegistrationDependencySummary.execution.executedP
 ]);
 assert.equal(customPropertyRegistrationDependencySummary.execution.mutationCount, 3);
 
+const customPropertyDescriptorReachabilityResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "custom-property-descriptor-root.css",
+      styleSource:
+        ':root { --font-src: url(omena.woff2); --dead: blue; } @font-face { font-family: "Omena"; src: var(--font-src); } .btn { color: red; }',
+      requestedPassIds: ["tree-shake-custom-property", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["btn"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  customPropertyDescriptorReachabilityResult.status,
+  0,
+  customPropertyDescriptorReachabilityResult.stderr,
+);
+assert.equal(customPropertyDescriptorReachabilityResult.error, undefined);
+
+const customPropertyDescriptorReachabilitySummary = JSON.parse(
+  customPropertyDescriptorReachabilityResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.ok(
+  customPropertyDescriptorReachabilitySummary.execution.outputCss.includes(
+    "--font-src: url(omena.woff2);",
+  ),
+);
+assert.ok(
+  customPropertyDescriptorReachabilitySummary.execution.outputCss.includes(
+    '@font-face { font-family: "Omena"; src: var(--font-src); }',
+  ),
+);
+assert.ok(
+  !customPropertyDescriptorReachabilitySummary.execution.outputCss.includes("--dead: blue;"),
+);
+assertIncludesAll(
+  customPropertyDescriptorReachabilitySummary.execution.semanticRemovals.map(
+    (removal) => `${removal.symbolKind}:${removal.name}`,
+  ),
+  ["customProperty:--dead"],
+  "descriptor at-rule custom property reachability removals",
+);
+assert.deepEqual(customPropertyDescriptorReachabilitySummary.execution.executedPassIds, [
+  "tree-shake-custom-property",
+  "print-css",
+]);
+assert.equal(customPropertyDescriptorReachabilitySummary.execution.mutationCount, 1);
+
 const customPropertyIcssExportReachabilityResult = spawnSync(
   "cargo",
   [
@@ -2235,6 +2301,66 @@ assertIncludesAll(
   "at-rule prelude value-position reachability removals",
 );
 assert.equal(valueAtRulePreludeReachabilitySummary.execution.mutationCount, 1);
+
+const descriptorValueReachabilityResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "DescriptorValues.module.css",
+      styles: [
+        {
+          stylePath: "DescriptorValues.module.css",
+          styleSource:
+            "@value face: OmenaSans; @value weight: 700; @value dead: blue; @font-face { font-family: face; font-weight: weight; src: url(omena.woff2); } .button { color: red; }",
+        },
+      ],
+      requestedPassIds: ["tree-shake-value", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["button"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(descriptorValueReachabilityResult.status, 0, descriptorValueReachabilityResult.stderr);
+assert.equal(descriptorValueReachabilityResult.error, undefined);
+
+const descriptorValueReachabilitySummary = JSON.parse(
+  descriptorValueReachabilityResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.ok(
+  descriptorValueReachabilitySummary.execution.outputCss.includes("@value face: OmenaSans;"),
+);
+assert.ok(descriptorValueReachabilitySummary.execution.outputCss.includes("@value weight: 700;"));
+assert.ok(
+  descriptorValueReachabilitySummary.execution.outputCss.includes(
+    "@font-face { font-family: face; font-weight: weight;",
+  ),
+);
+assert.ok(!descriptorValueReachabilitySummary.execution.outputCss.includes("@value dead:"));
+assertIncludesAll(
+  descriptorValueReachabilitySummary.execution.semanticRemovals.map(
+    (removal) => `${removal.symbolKind}:${removal.name}`,
+  ),
+  ["cssModuleValue:dead"],
+  "descriptor at-rule value reachability removals",
+);
+assert.equal(descriptorValueReachabilitySummary.execution.mutationCount, 1);
 
 const staticScssEvaluationResult = spawnSync(
   "cargo",
