@@ -3,28 +3,95 @@ use omena_syntax::SyntaxKind;
 
 use crate::domains::keyframes::is_keyframes_at_keyword;
 use crate::helpers::{
+    declarations::collect_simple_declarations_in_block,
     rules::{
         SimpleRuleSlice, collect_declaration_ordinary_rule_slices, first_non_trivia_token_start,
         is_ordinary_rule_prelude, set_prelude_start,
     },
     source_rewrite::remove_source_ranges,
-    tokens::{is_comment_token, matching_right_brace_index, token_end},
+    tokens::{is_comment_token, matching_right_brace_index, token_end, token_start},
 };
 
 pub(crate) fn dedupe_exact_css_rules_with_lexer(
     source: &str,
     dialect: StyleDialect,
 ) -> (String, usize) {
+    let (output, declaration_count) =
+        remove_overridden_same_property_declarations_with_lexer(source, dialect);
+    let source = output.as_str();
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let rules = collect_declaration_ordinary_rule_slices(source, tokens);
     let ranges = collect_duplicate_ordinary_rule_ranges(&rules);
 
     if ranges.is_empty() {
-        return (source.to_string(), 0);
+        return (source.to_string(), declaration_count);
+    }
+
+    let (output, rule_count) = remove_source_ranges(source, &ranges);
+    (output, declaration_count + rule_count)
+}
+
+fn remove_overridden_same_property_declarations_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut ranges = Vec::new();
+
+    for rule in collect_declaration_ordinary_rule_slices(source, tokens) {
+        let selector = rule.selector.trim();
+        if selector.eq_ignore_ascii_case(":export") || selector.starts_with(":import") {
+            continue;
+        }
+        let Some(block_start_index) = tokens
+            .iter()
+            .position(|token| token_start(token) == rule.block_start)
+        else {
+            continue;
+        };
+        let Some(block_end_index) = matching_right_brace_index(tokens, block_start_index) else {
+            continue;
+        };
+        let declarations =
+            collect_simple_declarations_in_block(tokens, block_start_index, block_end_index);
+        for (index, declaration) in declarations.iter().enumerate() {
+            if declaration.property == "composes"
+                || !same_property_override_can_dedupe(&declaration.property)
+                || declaration_value_has_compat_fallback(&declaration.value)
+            {
+                continue;
+            }
+            let has_later_same_cascade_bucket = declarations[index + 1..].iter().any(|candidate| {
+                candidate.property == declaration.property
+                    && candidate.important == declaration.important
+                    && candidate.property != "composes"
+                    && same_property_override_can_dedupe(&candidate.property)
+                    && !declaration_value_has_compat_fallback(&candidate.value)
+            });
+            if has_later_same_cascade_bucket {
+                ranges.push((declaration.start, declaration.end));
+            }
+        }
     }
 
     remove_source_ranges(source, &ranges)
+}
+
+fn declaration_value_has_compat_fallback(value: &str) -> bool {
+    value.contains("-webkit-")
+        || value.contains("-moz-")
+        || value.contains("-ms-")
+        || value.contains("-o-")
+}
+
+fn same_property_override_can_dedupe(property: &str) -> bool {
+    // Keep opacity-family duplicates: lightningcss preserves them as compatibility fallbacks.
+    !matches!(
+        property,
+        "opacity" | "fill-opacity" | "stroke-opacity" | "flood-opacity" | "stop-opacity"
+    )
 }
 
 fn collect_duplicate_ordinary_rule_ranges(rules: &[SimpleRuleSlice]) -> Vec<(usize, usize)> {

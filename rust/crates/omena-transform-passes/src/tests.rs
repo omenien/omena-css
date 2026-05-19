@@ -2397,6 +2397,28 @@ fn execution_runtime_removes_cascade_safe_duplicate_rules() {
 }
 
 #[test]
+fn execution_runtime_removes_overridden_same_property_declarations() {
+    let source = r#".a { color: red; color: blue; --tone: red; --tone: blue; display: -webkit-box; display: flex; color: green !important; color: black !important; composes: base; composes: utility; } :export { token: red; token: blue; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::RuleDeduplication,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 3);
+    assert_eq!(
+        execution.output_css,
+        r#".a {  color: blue;  --tone: blue; display: -webkit-box; display: flex;  color: black !important; composes: base; composes: utility; } :export { token: red; token: blue; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["rule-deduplication", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_merges_adjacent_same_selector_rules_only() {
     let source = r#".a { color: red; } .a { background: blue; } .a { outline: 0; } .b { color: red; } .a { border: 0; } @media (min-width: 1px) { .m { color: red; } .m { background: blue; } }"#;
     let execution = execute_transform_passes_on_source(
