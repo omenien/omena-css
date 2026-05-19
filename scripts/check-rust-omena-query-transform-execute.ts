@@ -956,6 +956,55 @@ assert.deepEqual(globalComposesHashSummary.execution.executedPassIds, [
 ]);
 assert.equal(globalComposesHashSummary.execution.mutationCount, 3);
 
+const scopedClassHashResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "Scoped.module.css",
+      styleSource: "@scope (.card) to (:global(.footer)) { .title { color: red; } }",
+      requestedPassIds: ["css-modules-class-hashing", "print-css"],
+      transformContext: {
+        classNameRewrites: [
+          { originalName: "card", rewrittenName: "_card_x" },
+          { originalName: "footer", rewrittenName: "_footer_should_not_apply" },
+          { originalName: "title", rewrittenName: "_title_z" },
+        ],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(scopedClassHashResult.status, 0, scopedClassHashResult.stderr);
+assert.equal(scopedClassHashResult.error, undefined);
+
+const scopedClassHashSummary = JSON.parse(
+  scopedClassHashResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(scopedClassHashSummary.product, "omena-query.transform-execute");
+assert.equal(
+  scopedClassHashSummary.execution.outputCss,
+  "@scope (._card_x) to (.footer) { ._title_z{ color: red; } }",
+);
+assert.deepEqual(scopedClassHashSummary.execution.executedPassIds, [
+  "css-modules-class-hashing",
+  "print-css",
+]);
+assert.equal(scopedClassHashSummary.execution.mutationCount, 2);
+
 const escapedClassHashResult = spawnSync(
   "cargo",
   [
@@ -4148,6 +4197,7 @@ process.stdout.write(
     `designTokenAliasMutations=${designTokenAliasSummary.execution.mutationCount}`,
     `groupedComposesMutations=${groupedComposesSummary.execution.mutationCount}`,
     `globalComposesHashMutations=${globalComposesHashSummary.execution.mutationCount}`,
+    `scopedClassHashMutations=${scopedClassHashSummary.execution.mutationCount}`,
     `alphaColorMutations=${alphaColorFunctionSummary.execution.mutationCount}`,
     `alphaOkColorMutations=${alphaOkColorSummary.execution.mutationCount}`,
     `compositeValueMutations=${compositeValueSummary.execution.mutationCount}`,

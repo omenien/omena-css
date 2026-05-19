@@ -1029,6 +1029,47 @@ fn execution_runtime_rewrites_css_module_class_names_with_identity_map() {
 }
 
 #[test]
+fn execution_runtime_rewrites_css_module_scope_prelude_class_names() {
+    let source = r#"@scope (.card) to (:global(.footer)) { .title { color: red; } }"#;
+    let context = TransformExecutionContextV0 {
+        class_name_rewrites: vec![
+            TransformClassNameRewriteV0 {
+                original_name: "card".to_string(),
+                rewritten_name: "_card_x".to_string(),
+            },
+            TransformClassNameRewriteV0 {
+                original_name: "footer".to_string(),
+                rewritten_name: "_footer_should_not_apply".to_string(),
+            },
+            TransformClassNameRewriteV0 {
+                original_name: "title".to_string(),
+                rewritten_name: "_title_z".to_string(),
+            },
+        ],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::HashCssModuleClassNames,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 2);
+    assert_eq!(
+        execution.output_css,
+        r#"@scope (._card_x) to (.footer) { ._title_z{ color: red; } }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["css-modules-class-hashing", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_hashes_escaped_css_module_class_selectors() {
     let source = r#".foo\:bar { color: red; } :local(.foo\:bar) { color: blue; } :global(.foo\:bar) .foo\:bar { color: green; }"#;
     let context = TransformExecutionContextV0 {

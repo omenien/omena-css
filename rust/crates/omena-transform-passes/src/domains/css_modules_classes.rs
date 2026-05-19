@@ -9,6 +9,7 @@ use crate::domains::{
 };
 use crate::helpers::{
     ascii::starts_with_ascii_case_insensitive,
+    blocks::at_rule_prelude_end_index,
     declarations::collect_simple_declarations_in_block,
     identifiers::{css_identifier_names_match, css_identifier_text_is_plain},
     rules::collect_declaration_ordinary_rule_slices,
@@ -129,6 +130,29 @@ pub(crate) fn rewrite_css_module_class_names_with_lexer(
     for block in &scope_blocks {
         replacements.push((block.start, block.body_start, String::new()));
         replacements.push((block.body_end, block.end, String::new()));
+    }
+
+    let mut index = 0;
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::AtKeyword
+            && tokens[index].text.eq_ignore_ascii_case("@scope")
+            && let Some(prelude_end_index) = at_rule_prelude_end_index(tokens, index + 1)
+        {
+            let prelude_start = token_end(&tokens[index]);
+            let prelude_end = token_start(&tokens[prelude_end_index]);
+            if css_module_scope_kind_for_range(prelude_start, prelude_end, &scope_blocks)
+                != Some(CssModuleScopeBlockKind::Global)
+                && let Some(rewritten_prelude) = rewrite_class_selectors_in_selector(
+                    &source[prelude_start..prelude_end],
+                    rewrites,
+                )
+            {
+                replacements.push((prelude_start, prelude_end, rewritten_prelude));
+            }
+            index = prelude_end_index;
+            continue;
+        }
+        index += 1;
     }
 
     for rule in &rules {
