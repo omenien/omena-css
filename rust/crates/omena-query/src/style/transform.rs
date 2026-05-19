@@ -1937,10 +1937,13 @@ fn derive_class_name_rewrites_for_transform_context(
         return Vec::new();
     }
 
-    let mut unique_class_names = Vec::new();
+    let mut unique_class_names: Vec<String> = Vec::new();
     for name in &entry.facts.class_selector_names {
-        if !unique_class_names.contains(&name) {
-            unique_class_names.push(name);
+        if !unique_class_names
+            .iter()
+            .any(|existing| css_identifier_names_match(existing, name))
+        {
+            unique_class_names.push(name.clone());
         }
     }
 
@@ -1949,7 +1952,7 @@ fn derive_class_name_rewrites_for_transform_context(
         .enumerate()
         .map(|(index, name)| TransformClassNameRewriteV0 {
             original_name: name.clone(),
-            rewritten_name: stable_transform_context_class_rewrite(name, index),
+            rewritten_name: stable_transform_context_class_rewrite(&name, index),
         })
         .collect()
 }
@@ -2141,7 +2144,9 @@ fn css_module_composes_closure_for_context(
 }
 
 fn stable_transform_context_class_rewrite(name: &str, index: usize) -> String {
-    let sanitized = name
+    let canonical_name = decode_css_identifier_escapes(name);
+    let sanitized = canonical_name
+        .as_ref()
         .chars()
         .map(|ch| {
             if ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' {

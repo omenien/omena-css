@@ -927,13 +927,54 @@ const escapedClassHashSummary = JSON.parse(escapedClassHashResult.stdout) as Con
 
 assert.equal(
   escapedClassHashSummary.execution.outputCss,
-  "._foo__bar_0{ color: red; } ._foo__bar_0{ color: blue; } .foo\\:bar ._foo__bar_0{ color: green; }",
+  "._foo_bar_0{ color: red; } ._foo_bar_0{ color: blue; } .foo\\:bar ._foo_bar_0{ color: green; }",
 );
 assert.deepEqual(escapedClassHashSummary.execution.executedPassIds, [
   "css-modules-class-hashing",
   "print-css",
 ]);
 assert.equal(escapedClassHashSummary.execution.mutationCount, 3);
+
+const hexEscapedClassHashResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-source",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "HexEscaped.module.css",
+      styleSource: ".hex\\3A bar { color: red; } :local(.hex\\:bar) { color: blue; }",
+      requestedPassIds: ["css-modules-class-hashing", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(hexEscapedClassHashResult.status, 0, hexEscapedClassHashResult.stderr);
+assert.equal(hexEscapedClassHashResult.error, undefined);
+
+const hexEscapedClassHashSummary = JSON.parse(
+  hexEscapedClassHashResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.equal(
+  hexEscapedClassHashSummary.execution.outputCss,
+  "._hex_bar_0{ color: red; } ._hex_bar_0{ color: blue; }",
+);
+assert.deepEqual(hexEscapedClassHashSummary.execution.executedPassIds, [
+  "css-modules-class-hashing",
+  "print-css",
+]);
+assert.equal(hexEscapedClassHashSummary.execution.mutationCount, 2);
 
 const escapedClassTreeShakeResult = spawnSync(
   "cargo",

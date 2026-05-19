@@ -1960,12 +1960,12 @@ fn derives_unique_class_rewrites_for_repeated_escaped_selectors() {
         "Escaped.module.css",
         [(
             "Escaped.module.css",
-            r#".foo\:bar { color: red; } :local(.foo\:bar) { color: blue; } :global(.foo\:bar) .foo\:bar { color: green; }"#,
+            r#".foo\:bar { color: red; } :local(.foo\:bar) { color: blue; } :global(.foo\:bar) .foo\:bar { color: green; } .hex\3A bar { color: purple; } .hex\:bar { color: cyan; }"#,
         )],
         &[],
     );
 
-    assert_eq!(summary.class_name_rewrite_count, 1);
+    assert_eq!(summary.class_name_rewrite_count, 2);
     assert_eq!(
         summary
             .context
@@ -1978,7 +1978,10 @@ fn derives_unique_class_rewrites_for_repeated_escaped_selectors() {
                 )
             })
             .collect::<Vec<_>>(),
-        vec![(r#"foo\:bar"#, "_foo__bar_0")]
+        vec![
+            (r#"foo\:bar"#, "_foo_bar_0"),
+            (r#"hex\3A bar"#, "_hex_bar_1")
+        ]
     );
 }
 
