@@ -19,6 +19,9 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
     {
         return None;
     }
+    if variable_kind == StaticStylesheetVariableKind::Less {
+        return derive_static_less_stylesheet_module_evaluation(style_source, variable_facts);
+    }
 
     let declarations = collect_static_stylesheet_variable_declarations(
         style_source,
@@ -149,6 +152,266 @@ struct StaticStylesheetEvaluationEdit {
     start: usize,
     end: usize,
     replacement: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticStylesheetScope {
+    parent_id: Option<usize>,
+    body_start: usize,
+    end: usize,
+}
+
+fn derive_static_less_stylesheet_module_evaluation(
+    style_source: &str,
+    variable_facts: &[ParsedVariableFact],
+) -> Option<TransformModuleEvaluationV0> {
+    let scopes = collect_static_stylesheet_scopes(style_source)?;
+    let declarations =
+        collect_static_less_variable_declarations(style_source, variable_facts, &scopes)?;
+    if declarations.is_empty() {
+        return None;
+    }
+
+    let mut edits = Vec::new();
+    for declaration in declarations.values() {
+        for (start, end) in &declaration.removal_spans {
+            edits.push(StaticStylesheetEvaluationEdit {
+                start: *start,
+                end: *end,
+                replacement: String::new(),
+            });
+        }
+    }
+    for fact in variable_facts {
+        if fact.kind != ParsedVariableFactKind::LessReference {
+            continue;
+        }
+        let reference_start = parser_text_size_to_usize(fact.range.start().into());
+        if static_stylesheet_position_is_inside_scoped_declaration(&declarations, reference_start) {
+            continue;
+        }
+        let reference_scope_id = static_stylesheet_scope_for_position(&scopes, reference_start)?;
+        let mut stack = BTreeSet::new();
+        let replacement = resolve_static_less_variable_value_in_scope(
+            fact.name.as_str(),
+            reference_scope_id,
+            &scopes,
+            &declarations,
+            &mut stack,
+        )?;
+        edits.push(StaticStylesheetEvaluationEdit {
+            start: reference_start,
+            end: parser_text_size_to_usize(fact.range.end().into()),
+            replacement,
+        });
+    }
+
+    let evaluated_css = apply_static_stylesheet_evaluation_edits(style_source, edits)?;
+    if evaluated_css == style_source {
+        return None;
+    }
+
+    Some(TransformModuleEvaluationV0 {
+        evaluator: StaticStylesheetVariableKind::Less
+            .evaluator_label()
+            .to_string(),
+        evaluated_css,
+    })
+}
+
+fn collect_static_less_variable_declarations(
+    source: &str,
+    variable_facts: &[ParsedVariableFact],
+    scopes: &[StaticStylesheetScope],
+) -> Option<BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>> {
+    let mut declarations = BTreeMap::<(usize, String), StaticStylesheetVariableDeclaration>::new();
+    for fact in variable_facts {
+        if fact.kind != ParsedVariableFactKind::LessDeclaration {
+            continue;
+        }
+        let start = parser_text_size_to_usize(fact.range.start().into());
+        let end = parser_text_size_to_usize(fact.range.end().into());
+        let scope_id = static_stylesheet_scope_for_position(scopes, start)?;
+        let declaration = extract_static_stylesheet_variable_declaration(
+            source,
+            start,
+            end,
+            StaticStylesheetVariableKind::Less,
+        )?;
+        if !static_stylesheet_less_declaration_value_is_removal_safe(&declaration.value) {
+            return None;
+        }
+        let key = (scope_id, fact.name.clone());
+        if let Some(previous) = declarations.get_mut(&key) {
+            merge_static_stylesheet_duplicate_declaration(
+                previous,
+                declaration,
+                StaticStylesheetVariableKind::Less,
+            )?;
+            continue;
+        }
+        declarations.insert(key, declaration);
+    }
+    Some(declarations)
+}
+
+fn collect_static_stylesheet_scopes(source: &str) -> Option<Vec<StaticStylesheetScope>> {
+    let mut scopes = vec![StaticStylesheetScope {
+        parent_id: None,
+        body_start: 0,
+        end: source.len(),
+    }];
+    let mut stack = vec![0usize];
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+    let bytes = source.as_bytes();
+
+    while index < source.len() {
+        let ch = source[index..].chars().next()?;
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = source[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        if matches!(ch, '"' | '\'') {
+            quote = Some(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+        if bytes.get(index..index + 2) == Some(b"/*") {
+            let end = source.get(index + 2..)?.find("*/")?;
+            index += end + 4;
+            continue;
+        }
+        if bytes.get(index..index + 2) == Some(b"//") {
+            let line_end = source
+                .get(index + 2..)?
+                .find('\n')
+                .map(|offset| index + 2 + offset)
+                .unwrap_or(source.len());
+            index = line_end;
+            continue;
+        }
+
+        match ch {
+            '{' => {
+                let parent_id = *stack.last()?;
+                let scope_id = scopes.len();
+                scopes.push(StaticStylesheetScope {
+                    parent_id: Some(parent_id),
+                    body_start: index + ch.len_utf8(),
+                    end: source.len(),
+                });
+                stack.push(scope_id);
+            }
+            '}' => {
+                let scope_id = stack.pop()?;
+                if scope_id == 0 {
+                    return None;
+                }
+                scopes.get_mut(scope_id)?.end = index;
+            }
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+
+    (stack.len() == 1).then_some(scopes)
+}
+
+fn static_stylesheet_scope_for_position(
+    scopes: &[StaticStylesheetScope],
+    position: usize,
+) -> Option<usize> {
+    scopes
+        .iter()
+        .enumerate()
+        .rev()
+        .find_map(|(scope_id, scope)| {
+            (position >= scope.body_start && position < scope.end).then_some(scope_id)
+        })
+}
+
+fn resolve_static_less_variable_value_in_scope(
+    name: &str,
+    scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    stack: &mut BTreeSet<(usize, String)>,
+) -> Option<String> {
+    let stack_key = (scope_id, name.to_string());
+    if !stack.insert(stack_key.clone()) {
+        return None;
+    }
+    let declaration = find_static_less_variable_declaration(name, scope_id, scopes, declarations)?;
+    let resolved = resolve_static_less_variable_value_text(
+        declaration.value.trim(),
+        scope_id,
+        scopes,
+        declarations,
+        stack,
+    );
+    stack.remove(&stack_key);
+    resolved
+}
+
+fn find_static_less_variable_declaration<'a>(
+    name: &str,
+    mut scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &'a BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+) -> Option<&'a StaticStylesheetVariableDeclaration> {
+    loop {
+        if let Some(declaration) = declarations.get(&(scope_id, name.to_string())) {
+            return Some(declaration);
+        }
+        scope_id = scopes.get(scope_id)?.parent_id?;
+    }
+}
+
+fn resolve_static_less_variable_value_text(
+    value: &str,
+    scope_id: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
+    stack: &mut BTreeSet<(usize, String)>,
+) -> Option<String> {
+    let references =
+        collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Less)?;
+    if references.is_empty() {
+        return static_stylesheet_literal_value_is_safe(value).then(|| value.to_string());
+    }
+    if !static_stylesheet_composite_value_is_safe(value) {
+        return None;
+    }
+
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    for reference in references {
+        let resolved = resolve_static_less_variable_value_in_scope(
+            reference.name.as_str(),
+            scope_id,
+            scopes,
+            declarations,
+            stack,
+        )?;
+        output.push_str(&value[cursor..reference.start]);
+        output.push_str(&resolved);
+        cursor = reference.end;
+    }
+    output.push_str(&value[cursor..]);
+    Some(output)
+}
+
+fn static_stylesheet_less_declaration_value_is_removal_safe(value: &str) -> bool {
+    !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | '!'))
 }
 
 fn collect_static_stylesheet_variable_declarations(
@@ -433,6 +696,18 @@ fn static_stylesheet_variable_name_end(value: &str, mut index: usize) -> usize {
 
 fn static_stylesheet_position_is_inside_declaration(
     declarations: &BTreeMap<String, StaticStylesheetVariableDeclaration>,
+    position: usize,
+) -> bool {
+    declarations.values().any(|declaration| {
+        declaration
+            .removal_spans
+            .iter()
+            .any(|(start, end)| position >= *start && position < *end)
+    })
+}
+
+fn static_stylesheet_position_is_inside_scoped_declaration(
+    declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
     position: usize,
 ) -> bool {
     declarations.values().any(|declaration| {

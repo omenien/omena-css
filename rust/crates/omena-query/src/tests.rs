@@ -1015,6 +1015,67 @@ fn consumer_build_derives_static_less_evaluator_context_with_last_declaration_wi
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_scoped_variables() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@gap: 1rem; .card { @gap: 2rem; color: @gap; } .other { color: @gap; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
+            .planned_only_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: 2rem"));
+    assert!(summary.execution.output_css.contains("color: 1rem"));
+    assert!(!summary.execution.output_css.contains("@gap:"));
+    assert_eq!(
+        summary
+            .execution
+            .css_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.evaluator.as_str()),
+        Some("omena-query-static-less-variable-evaluator")
+    );
+}
+
+#[test]
+fn consumer_build_derives_static_less_evaluator_context_for_lazy_scoped_values() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@tone: @brand; @brand: blue; .card { @brand: red; color: @tone; } .other { color: @tone; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(summary.execution.output_css.contains("color: blue"));
+    assert!(!summary.execution.output_css.contains("@tone:"));
+    assert!(!summary.execution.output_css.contains("@brand:"));
+}
+
+#[test]
 fn consumer_build_derives_static_scss_evaluator_context_with_default_declarations() {
     let first_default_summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",

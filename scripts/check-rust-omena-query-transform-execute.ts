@@ -2185,6 +2185,49 @@ assert.equal(
   "._button_0{ color: blue; }",
 );
 
+const staticLessScopedEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-source",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "ScopedLess.module.less",
+      styleSource:
+        "@tone: @brand; @brand: blue; .card { @brand: red; color: @tone; } .other { color: @tone; }",
+      requestedPassIds: ["less-module-evaluate", "css-modules-class-hashing", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(staticLessScopedEvaluationResult.status, 0, staticLessScopedEvaluationResult.stderr);
+assert.equal(staticLessScopedEvaluationResult.error, undefined);
+
+const staticLessScopedEvaluationSummary = JSON.parse(
+  staticLessScopedEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.equal(staticLessScopedEvaluationSummary.product, "omena-query.consumer-build-style-source");
+assert.deepEqual(staticLessScopedEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert.equal(
+  staticLessScopedEvaluationSummary.execution.cssModuleEvaluation?.evaluator,
+  "omena-query-static-less-variable-evaluator",
+);
+assert(staticLessScopedEvaluationSummary.execution.outputCss.includes("color: red"));
+assert(staticLessScopedEvaluationSummary.execution.outputCss.includes("color: blue"));
+assert(!staticLessScopedEvaluationSummary.execution.outputCss.includes("@tone:"));
+assert(!staticLessScopedEvaluationSummary.execution.outputCss.includes("@brand:"));
+
 const staticStylesheetCompositeEvaluationResult = spawnSync(
   "cargo",
   [
