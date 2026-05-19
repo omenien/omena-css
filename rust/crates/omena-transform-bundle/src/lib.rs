@@ -18,6 +18,8 @@ pub enum TransformBundleEdgeKind {
     SassUse,
     SassForward,
     SassImport,
+    CssImport,
+    LessImport,
     CssModuleValueImport,
     CssModuleComposesLocal,
     CssModuleComposesExternal,
@@ -63,7 +65,7 @@ pub fn summarize_omena_transform_bundle_from_source(
 ) -> TransformBundleSourceSummaryV0 {
     let source_path = source_path.into();
     let facts = collect_style_facts(source, dialect);
-    let bundle_edges = collect_bundle_edges_from_facts(&source_path, &facts);
+    let bundle_edges = collect_bundle_edges_from_facts(&source_path, dialect, &facts);
     let mut required_passes =
         required_passes_for_source(&source_path, dialect, &facts, &bundle_edges);
     required_passes.sort_by_key(|pass| pass.ordinal());
@@ -106,6 +108,7 @@ pub fn summarize_omena_transform_bundle_from_source(
 
 fn collect_bundle_edges_from_facts(
     source_path: &str,
+    dialect: StyleDialect,
     facts: &omena_parser::ParsedStyleFacts,
 ) -> Vec<TransformBundleEdgeV0> {
     let mut edges = Vec::new();
@@ -114,7 +117,7 @@ fn collect_bundle_edges_from_facts(
         let kind = match edge.kind {
             ParsedSassModuleEdgeFactKind::Use => TransformBundleEdgeKind::SassUse,
             ParsedSassModuleEdgeFactKind::Forward => TransformBundleEdgeKind::SassForward,
-            ParsedSassModuleEdgeFactKind::Import => TransformBundleEdgeKind::SassImport,
+            ParsedSassModuleEdgeFactKind::Import => import_edge_kind_for_dialect(dialect),
         };
         edges.push(TransformBundleEdgeV0 {
             kind,
@@ -182,6 +185,14 @@ fn collect_bundle_edges_from_facts(
     edges
 }
 
+fn import_edge_kind_for_dialect(dialect: StyleDialect) -> TransformBundleEdgeKind {
+    match dialect {
+        StyleDialect::Css => TransformBundleEdgeKind::CssImport,
+        StyleDialect::Less => TransformBundleEdgeKind::LessImport,
+        StyleDialect::Scss | StyleDialect::Sass => TransformBundleEdgeKind::SassImport,
+    }
+}
+
 fn required_passes_for_source(
     source_path: &str,
     dialect: StyleDialect,
@@ -194,6 +205,8 @@ fn required_passes_for_source(
         matches!(
             edge.kind,
             TransformBundleEdgeKind::SassImport
+                | TransformBundleEdgeKind::CssImport
+                | TransformBundleEdgeKind::LessImport
                 | TransformBundleEdgeKind::CssModuleValueImport
                 | TransformBundleEdgeKind::CssModuleComposesExternal
                 | TransformBundleEdgeKind::IcssImport
@@ -202,16 +215,7 @@ fn required_passes_for_source(
         passes.push(TransformPassKind::ImportInline);
     }
 
-    if matches!(dialect, StyleDialect::Scss | StyleDialect::Sass)
-        || bundle_edges.iter().any(|edge| {
-            matches!(
-                edge.kind,
-                TransformBundleEdgeKind::SassUse
-                    | TransformBundleEdgeKind::SassForward
-                    | TransformBundleEdgeKind::SassImport
-            )
-        })
-    {
+    if matches!(dialect, StyleDialect::Scss | StyleDialect::Sass) {
         passes.push(TransformPassKind::ScssModuleEvaluate);
     }
 
@@ -311,11 +315,44 @@ mod tests {
 
         assert!(summary.module_evaluation_required);
         assert!(summary.import_inline_required);
+        assert!(
+            summary
+                .bundle_edges
+                .iter()
+                .any(|edge| edge.kind == TransformBundleEdgeKind::LessImport)
+        );
         assert!(summary.required_pass_ids.contains(&"less-module-evaluate"));
+        assert!(!summary.required_pass_ids.contains(&"scss-module-evaluate"));
         assert!(
             summary
                 .required_pass_ids
                 .contains(&"css-modules-class-hashing")
+        );
+    }
+
+    #[test]
+    fn plans_plain_css_import_inline_without_scss_module_evaluation() {
+        let summary = summarize_omena_transform_bundle_from_source(
+            "App.css",
+            r#"@import "./tokens.css"; .button { color: red; }"#,
+            StyleDialect::Css,
+        );
+
+        assert!(summary.import_inline_required);
+        assert!(!summary.module_evaluation_required);
+        assert_eq!(summary.required_pass_ids, vec!["import-inline"]);
+        assert_eq!(summary.planned_pass_ids, vec!["import-inline"]);
+        assert!(
+            summary
+                .bundle_edges
+                .iter()
+                .any(|edge| edge.kind == TransformBundleEdgeKind::CssImport)
+        );
+        assert!(
+            !summary
+                .bundle_edges
+                .iter()
+                .any(|edge| edge.kind == TransformBundleEdgeKind::SassImport)
         );
     }
 

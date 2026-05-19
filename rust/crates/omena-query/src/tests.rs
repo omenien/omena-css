@@ -479,6 +479,26 @@ fn exposes_transform_plan_minified_print_mode() {
 }
 
 #[test]
+fn transform_plan_keeps_plain_css_imports_out_of_scss_evaluator() {
+    let source = r#"@import "./tokens.css"; .button { color: red; }"#;
+    let summary = summarize_omena_query_transform_plan_from_source(
+        "App.css",
+        source,
+        "modern",
+        modern_omena_query_target_feature_support(),
+        OmenaQueryTargetTransformOptionsV0::default(),
+        default_omena_query_transform_print_options(),
+    );
+
+    assert_eq!(summary.product, "omena-query.transform-plan");
+    assert!(summary.bundle.import_inline_required);
+    assert!(!summary.bundle.module_evaluation_required);
+    assert_eq!(summary.bundle.required_pass_ids, vec!["import-inline"]);
+    assert!(!summary.combined_pass_ids.contains(&"scss-module-evaluate"));
+    assert!(summary.combined_pass_ids.contains(&"import-inline"));
+}
+
+#[test]
 fn exposes_transform_plan_egg_witnesses_from_source_execution() {
     let source = ".a:is(.ready) { width: calc(7 + 0); } .b:is(.x, .x) { color: red; } .c:where(.y, .y) { color: blue; }";
     let target_support = OmenaQueryTargetFeatureSupportV0 {

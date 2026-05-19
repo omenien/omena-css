@@ -373,6 +373,58 @@ assertIncludesAll(
   "transform ready surfaces",
 );
 
+const cssImportPlanResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-plan",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "App.css",
+      styleSource: '@import "./tokens.css"; .button { color: red; }',
+      targetLabel: "modern",
+      targetSupport: {
+        vendorPrefixRequired: false,
+        supportsLightDark: true,
+        supportsColorMix: true,
+        supportsOklchOklab: true,
+        supportsColorFunction: true,
+        supportsLogicalProperties: true,
+        supportsCssNesting: true,
+        supportsCssScope: true,
+        supportsCascadeLayers: true,
+      },
+      targetOptions: {
+        allowLogicalToPhysical: false,
+        allowScopeFlatten: false,
+        allowLayerFlatten: false,
+        enableSupportsStaticEval: false,
+        enableMediaStaticEval: false,
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(cssImportPlanResult.status, 0, cssImportPlanResult.stderr);
+assert.equal(cssImportPlanResult.error, undefined);
+const cssImportPlanSummary = JSON.parse(cssImportPlanResult.stdout) as TransformPlanSummaryV0;
+assert.deepEqual(
+  cssImportPlanSummary.bundle.bundleEdges.map((edge) => edge.kind),
+  ["cssImport"],
+);
+assert.deepEqual(cssImportPlanSummary.bundle.requiredPassIds, ["import-inline"]);
+assert(!cssImportPlanSummary.combinedPassIds.includes("scss-module-evaluate"));
+
 const targetQueryResult = spawnSync(
   "cargo",
   [
