@@ -186,7 +186,7 @@ fn routed_design_token_value_for_var_arguments(
     routes: &[TransformDesignTokenRouteV0],
     blocked_token_name: Option<&str>,
 ) -> Option<String> {
-    let ([token_name] | [token_name, _]) = arguments else {
+    let Some((token_name, fallback_arguments)) = arguments.split_first() else {
         return None;
     };
     let token_name = normalize_design_token_name(token_name)?;
@@ -194,12 +194,13 @@ fn routed_design_token_value_for_var_arguments(
         return None;
     }
     let routed_value = design_token_routed_value(token_name, routes)?;
-    if let [_, fallback] = arguments
+    if !fallback_arguments.is_empty()
         && let Some(routed_token_name) = parse_single_custom_property_var_reference(routed_value)
     {
+        let fallback = fallback_arguments.join(", ");
         let routed_fallback =
-            route_design_token_references_in_value(fallback, routes, blocked_token_name)
-                .unwrap_or_else(|| fallback.to_string());
+            route_design_token_references_in_value(&fallback, routes, blocked_token_name)
+                .unwrap_or(fallback);
         return Some(format!("var({routed_token_name}, {routed_fallback})"));
     }
     Some(routed_value.to_string())

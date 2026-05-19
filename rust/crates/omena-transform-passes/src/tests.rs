@@ -900,6 +900,39 @@ fn execution_runtime_routes_design_token_fallback_expressions_after_alias_routes
 }
 
 #[test]
+fn execution_runtime_routes_design_token_multi_segment_fallbacks() {
+    let source = r#".button { background: var(--pkg-brand, linear-gradient(red, var(--pkg-border)), var(--pkg-border)); }"#;
+    let context = TransformExecutionContextV0 {
+        design_token_routes: vec![
+            TransformDesignTokenRouteV0 {
+                token_name: "--pkg-brand".to_string(),
+                routed_value: "var(--theme-brand)".to_string(),
+            },
+            TransformDesignTokenRouteV0 {
+                token_name: "--pkg-border".to_string(),
+                routed_value: "#123456".to_string(),
+            },
+        ],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::DesignTokenRouting,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(
+        execution.output_css,
+        r#".button { background: var(--theme-brand, linear-gradient(red, #123456), #123456); }"#
+    );
+}
+
+#[test]
 fn execution_runtime_recovers_design_token_routing_after_malformed_var() {
     let source =
         r#".button { color: var(--pkg-brand); box-shadow: 0 0 var(--pkg-border) var(--broken; }"#;
