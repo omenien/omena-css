@@ -1005,6 +1005,65 @@ assert.deepEqual(scopedClassHashSummary.execution.executedPassIds, [
 ]);
 assert.equal(scopedClassHashSummary.execution.mutationCount, 2);
 
+const supportsSelectorClassHashResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "Supports.module.css",
+      styleSource:
+        "@supports selector(.card:has(:global(.footer), .title)) { .item { color: red; } } @supports (background: paint(.card)) { .paint { color: blue; } }",
+      requestedPassIds: ["css-modules-class-hashing", "print-css"],
+      transformContext: {
+        classNameRewrites: [
+          { originalName: "card", rewrittenName: "_card_x" },
+          { originalName: "footer", rewrittenName: "_footer_should_not_apply" },
+          { originalName: "title", rewrittenName: "_title_z" },
+          { originalName: "item", rewrittenName: "_item_q" },
+          { originalName: "paint", rewrittenName: "_paint_p" },
+        ],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  supportsSelectorClassHashResult.status,
+  0,
+  supportsSelectorClassHashResult.stderr,
+);
+assert.equal(supportsSelectorClassHashResult.error, undefined);
+
+const supportsSelectorClassHashSummary = JSON.parse(
+  supportsSelectorClassHashResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(
+  supportsSelectorClassHashSummary.product,
+  "omena-query.transform-execute",
+);
+assert.equal(
+  supportsSelectorClassHashSummary.execution.outputCss,
+  "@supports selector(._card_x:has(.footer, ._title_z)) { ._item_q{ color: red; } } @supports (background: paint(.card)) { ._paint_p{ color: blue; } }",
+);
+assert.deepEqual(supportsSelectorClassHashSummary.execution.executedPassIds, [
+  "css-modules-class-hashing",
+  "print-css",
+]);
+assert.equal(supportsSelectorClassHashSummary.execution.mutationCount, 3);
+
 const escapedClassHashResult = spawnSync(
   "cargo",
   [
@@ -4198,6 +4257,7 @@ process.stdout.write(
     `groupedComposesMutations=${groupedComposesSummary.execution.mutationCount}`,
     `globalComposesHashMutations=${globalComposesHashSummary.execution.mutationCount}`,
     `scopedClassHashMutations=${scopedClassHashSummary.execution.mutationCount}`,
+    `supportsSelectorClassHashMutations=${supportsSelectorClassHashSummary.execution.mutationCount}`,
     `alphaColorMutations=${alphaColorFunctionSummary.execution.mutationCount}`,
     `alphaOkColorMutations=${alphaOkColorSummary.execution.mutationCount}`,
     `compositeValueMutations=${compositeValueSummary.execution.mutationCount}`,

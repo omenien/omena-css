@@ -135,17 +135,21 @@ pub(crate) fn rewrite_css_module_class_names_with_lexer(
     let mut index = 0;
     while index < tokens.len() {
         if tokens[index].kind == SyntaxKind::AtKeyword
-            && tokens[index].text.eq_ignore_ascii_case("@scope")
+            && (tokens[index].text.eq_ignore_ascii_case("@scope")
+                || tokens[index].text.eq_ignore_ascii_case("@supports"))
             && let Some(prelude_end_index) = at_rule_prelude_end_index(tokens, index + 1)
         {
             let prelude_start = token_end(&tokens[index]);
             let prelude_end = token_start(&tokens[prelude_end_index]);
+            let prelude = &source[prelude_start..prelude_end];
+            let rewritten_prelude = if tokens[index].text.eq_ignore_ascii_case("@scope") {
+                rewrite_class_selectors_in_selector(prelude, rewrites)
+            } else {
+                rewrite_supports_selector_functions(prelude, rewrites)
+            };
             if css_module_scope_kind_for_range(prelude_start, prelude_end, &scope_blocks)
                 != Some(CssModuleScopeBlockKind::Global)
-                && let Some(rewritten_prelude) = rewrite_class_selectors_in_selector(
-                    &source[prelude_start..prelude_end],
-                    rewrites,
-                )
+                && let Some(rewritten_prelude) = rewritten_prelude
             {
                 replacements.push((prelude_start, prelude_end, rewritten_prelude));
             }
@@ -318,6 +322,81 @@ fn rewrite_class_selectors_in_selector(
     }
 
     changed.then_some(output)
+}
+
+fn rewrite_supports_selector_functions(
+    prelude: &str,
+    rewrites: &[TransformClassNameRewriteV0],
+) -> Option<String> {
+    let mut output = String::with_capacity(prelude.len());
+    let mut index = 0usize;
+    let mut changed = false;
+    let mut quote: Option<char> = None;
+
+    while index < prelude.len() {
+        let ch = prelude[index..].chars().next()?;
+
+        if let Some(quote_ch) = quote {
+            output.push(ch);
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = prelude[index..].chars().next() {
+                    output.push(escaped);
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        if ch == '"' || ch == '\'' {
+            quote = Some(ch);
+            output.push(ch);
+            index += ch.len_utf8();
+            continue;
+        }
+
+        if starts_with_css_function_name(prelude, index, "selector") {
+            let open_paren_index = index + "selector".len();
+            let function_end = matching_function_end(prelude, open_paren_index)?;
+            let inner_start = open_paren_index + 1;
+            let inner_end = function_end.saturating_sub(1);
+            output.push_str(&prelude[index..inner_start]);
+            let inner = &prelude[inner_start..inner_end];
+            if let Some(rewritten_inner) = rewrite_class_selectors_in_selector(inner, rewrites) {
+                output.push_str(&rewritten_inner);
+                changed = true;
+            } else {
+                output.push_str(inner);
+            }
+            output.push(')');
+            index = function_end;
+            continue;
+        }
+
+        output.push(ch);
+        index += ch.len_utf8();
+    }
+
+    changed.then_some(output)
+}
+
+fn starts_with_css_function_name(text: &str, index: usize, name: &str) -> bool {
+    if index > 0
+        && let Some(previous) = text[..index].chars().next_back()
+        && css_function_name_codepoint(previous)
+    {
+        return false;
+    }
+    let Some(candidate) = text.get(index..index + name.len()) else {
+        return false;
+    };
+    candidate.eq_ignore_ascii_case(name) && text[index + name.len()..].starts_with('(')
+}
+
+fn css_function_name_codepoint(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
 }
 
 fn rewrite_local_composes_value(
