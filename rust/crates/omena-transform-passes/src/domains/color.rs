@@ -20,7 +20,8 @@ use crate::{
         },
         values::{
             parse_whole_function_value_arguments, parse_whole_function_value_inner,
-            split_top_level_value_arguments, substitute_static_css_function_references_in_value,
+            split_top_level_value_arguments, split_top_level_whitespace_value_components,
+            substitute_static_css_function_references_in_value,
         },
     },
 };
@@ -378,7 +379,18 @@ fn compress_static_default_gradient_direction(value: &str, function_name: &str) 
         return None;
     };
     if stops.len() < 2 || !is_default_linear_gradient_direction(direction) {
-        return None;
+        if !is_reverse_default_linear_gradient_direction(direction) {
+            return None;
+        }
+        let replacement = format!(
+            "{function_name}({})",
+            reverse_static_linear_gradient_stops_preserving_positions(
+                stops,
+                function_name != "repeating-linear-gradient",
+            )?
+            .join(",")
+        );
+        return (replacement.len() < value.len()).then_some(replacement);
     }
 
     let replacement = format!("{function_name}({})", stops.join(","));
@@ -392,6 +404,58 @@ fn is_default_linear_gradient_direction(value: &str) -> bool {
             .as_str(),
         "to bottom" | "180deg" | ".5turn" | "0.5turn" | "200grad"
     )
+}
+
+fn is_reverse_default_linear_gradient_direction(value: &str) -> bool {
+    matches!(
+        normalize_ascii_whitespace(value)
+            .to_ascii_lowercase()
+            .as_str(),
+        "to top" | "0deg" | "-0deg" | "0turn" | "0"
+    )
+}
+
+fn reverse_static_linear_gradient_stops_preserving_positions(
+    stops: &[String],
+    allow_position_suffixes: bool,
+) -> Option<Vec<String>> {
+    let parsed_stops = stops
+        .iter()
+        .map(|stop| parse_static_linear_gradient_color_stop(stop))
+        .collect::<Option<Vec<_>>>()?;
+    if !allow_position_suffixes && parsed_stops.iter().any(|stop| !stop.suffix.is_empty()) {
+        return None;
+    }
+    let reversed_colors = parsed_stops
+        .iter()
+        .rev()
+        .map(|stop| stop.color.as_str())
+        .collect::<Vec<_>>();
+    Some(
+        parsed_stops
+            .iter()
+            .zip(reversed_colors)
+            .map(|(stop, color)| format!("{color}{}", stop.suffix))
+            .collect(),
+    )
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticLinearGradientColorStop {
+    color: String,
+    suffix: String,
+}
+
+fn parse_static_linear_gradient_color_stop(stop: &str) -> Option<StaticLinearGradientColorStop> {
+    let trimmed = stop.trim();
+    let components = split_top_level_whitespace_value_components(trimmed)?;
+    let color = components.first()?.clone();
+    parse_static_srgb_color(&color)?;
+    let suffix = trimmed
+        .get(color.len()..)
+        .map(str::to_string)
+        .unwrap_or_default();
+    Some(StaticLinearGradientColorStop { color, suffix })
 }
 
 fn compress_static_default_radial_gradient_shape(value: &str) -> Option<String> {
