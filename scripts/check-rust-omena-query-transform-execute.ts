@@ -1985,6 +1985,57 @@ assert.equal(
   "  .button { color: red; }",
 );
 assert.equal(staticLessEvaluationSummary.execution.outputCss, "  ._button_0{ color: red; }");
+
+const staticLessForwardEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-source",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "ForwardLess.module.less",
+      styleSource: ".button { color: @accent; } @accent: @brand; @brand: red;",
+      requestedPassIds: ["less-module-evaluate", "css-modules-class-hashing", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(staticLessForwardEvaluationResult.status, 0, staticLessForwardEvaluationResult.stderr);
+assert.equal(staticLessForwardEvaluationResult.error, undefined);
+
+const staticLessForwardEvaluationSummary = JSON.parse(
+  staticLessForwardEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.equal(staticLessForwardEvaluationSummary.product, "omena-query.consumer-build-style-source");
+assert.deepEqual(staticLessForwardEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert.deepEqual(staticLessForwardEvaluationSummary.execution.executedPassIds, [
+  "less-module-evaluate",
+  "css-modules-class-hashing",
+  "print-css",
+]);
+assert.equal(
+  staticLessForwardEvaluationSummary.execution.cssModuleEvaluation?.evaluator,
+  "omena-query-static-less-variable-evaluator",
+);
+assert.equal(
+  staticLessForwardEvaluationSummary.execution.cssModuleEvaluation?.evaluatedCss,
+  ".button { color: red; }  ",
+);
+assert.equal(
+  staticLessForwardEvaluationSummary.execution.outputCss.trim(),
+  "._button_0{ color: red; }",
+);
 assert.equal(icssExportReachabilitySummary.semanticRemovalCount, 3);
 
 process.stdout.write(

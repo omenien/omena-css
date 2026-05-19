@@ -34,7 +34,9 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
             continue;
         }
         let declaration = declarations.get(fact.name.as_str())?;
-        if declaration.span_end > reference_start {
+        if variable_kind.requires_reference_after_declaration()
+            && declaration.span_end > reference_start
+        {
             return None;
         }
     }
@@ -120,6 +122,13 @@ impl StaticStylesheetVariableKind {
         match self {
             Self::Scss => '$',
             Self::Less => '@',
+        }
+    }
+
+    fn requires_reference_after_declaration(self) -> bool {
+        match self {
+            Self::Scss => true,
+            Self::Less => false,
         }
     }
 }
@@ -235,7 +244,9 @@ fn resolve_static_stylesheet_variable_value(
     } else {
         let target_name = parse_static_stylesheet_variable_reference_value(value, variable_kind)?;
         let target = declarations.get(target_name)?;
-        if target.span_end > declaration.span_start {
+        if variable_kind.requires_reference_after_declaration()
+            && target.span_end > declaration.span_start
+        {
             None
         } else {
             resolve_static_stylesheet_variable_value(
