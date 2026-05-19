@@ -134,7 +134,11 @@ pub(crate) fn line_shorthand_replacement_for_declarations(
         }
         shorthand = Some(declaration_shorthand);
 
-        let value = single_component_value_without_important(&declaration.value, important)?;
+        let value = line_component_value_without_important(
+            &declaration.property,
+            &declaration.value,
+            important,
+        )?;
         let slot = match component {
             LineShorthandComponent::Width => &mut width_value,
             LineShorthandComponent::Style => &mut style_value,
@@ -237,8 +241,11 @@ fn logical_line_side_shorthand_value_for_declarations(
         }
         shorthand = Some(declaration_shorthand);
 
-        let value =
-            single_component_value_without_important(&declaration.value, declaration.important)?;
+        let value = line_component_value_without_important(
+            &declaration.property,
+            &declaration.value,
+            declaration.important,
+        )?;
         let slot = match component {
             LineShorthandComponent::Width => &mut width_value,
             LineShorthandComponent::Style => &mut style_value,
@@ -258,7 +265,11 @@ fn logical_line_side_shorthand_value_for_declarations(
     Some((shorthand, shorthand_value))
 }
 
-fn single_component_value_without_important(value: &str, important: bool) -> Option<String> {
+fn line_component_value_without_important(
+    property: &str,
+    value: &str,
+    important: bool,
+) -> Option<String> {
     let mut components = split_top_level_whitespace_value_components(value)?;
     if important
         && components.last().is_some_and(|component| {
@@ -268,10 +279,31 @@ fn single_component_value_without_important(value: &str, important: bool) -> Opt
     {
         components.pop();
     }
-    let [component] = components.as_slice() else {
-        return None;
-    };
-    Some(component.clone())
+    match components.as_slice() {
+        [component] => Some(component.clone()),
+        [first, rest @ ..]
+            if line_component_property_accepts_axis_values(property)
+                && rest.iter().all(|component| component == first) =>
+        {
+            Some(first.clone())
+        }
+        _ => None,
+    }
+}
+
+fn line_component_property_accepts_axis_values(property: &str) -> bool {
+    matches!(
+        property,
+        "border-width"
+            | "border-style"
+            | "border-color"
+            | "border-block-width"
+            | "border-block-style"
+            | "border-block-color"
+            | "border-inline-width"
+            | "border-inline-style"
+            | "border-inline-color"
+    )
 }
 
 fn normalized_declaration_value_without_important(
