@@ -17,7 +17,8 @@ pub use domains::css_modules_values::resolve_static_css_modules_local_value_reso
 pub use domains::number::reduce_static_numeric_expression;
 pub use model::*;
 pub use registry::{
-    inline_css_imports, parse_static_css_cascade_value,
+    inline_css_imports, inline_css_imports_for_static_module_evaluation,
+    parse_static_css_cascade_value, restore_less_inline_literal_placeholders,
     summarize_static_css_custom_property_fixed_point_from_source,
 };
 pub use runtime::executor::{

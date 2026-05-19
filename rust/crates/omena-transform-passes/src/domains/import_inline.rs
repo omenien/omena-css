@@ -4,7 +4,7 @@ use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
 use crate::{
-    TransformImportInlineV0,
+    TransformImportInlineV0, TransformLessInlineLiteralPlaceholderV0,
     helpers::{
         ascii::strip_ascii_prefix_ignore_case,
         source_rewrite::replace_source_ranges,
@@ -16,6 +16,37 @@ pub(crate) fn inline_css_imports_with_lexer(
     source: &str,
     dialect: StyleDialect,
     inlines: &[TransformImportInlineV0],
+) -> (String, usize) {
+    inline_css_imports_with_lexer_mode(source, dialect, inlines, None)
+}
+
+pub(crate) fn inline_css_imports_for_static_module_evaluation_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+    inlines: &[TransformImportInlineV0],
+) -> (String, usize, Vec<TransformLessInlineLiteralPlaceholderV0>) {
+    let mut placeholders = Vec::new();
+    let (output, mutation_count) =
+        inline_css_imports_with_lexer_mode(source, dialect, inlines, Some(&mut placeholders));
+    (output, mutation_count, placeholders)
+}
+
+pub(crate) fn restore_less_inline_literal_placeholders(
+    source: &str,
+    placeholders: &[TransformLessInlineLiteralPlaceholderV0],
+) -> String {
+    placeholders
+        .iter()
+        .fold(source.to_string(), |output, placeholder| {
+            output.replace(&placeholder.placeholder, &placeholder.literal_css)
+        })
+}
+
+fn inline_css_imports_with_lexer_mode(
+    source: &str,
+    dialect: StyleDialect,
+    inlines: &[TransformImportInlineV0],
+    mut inline_literal_placeholders: Option<&mut Vec<TransformLessInlineLiteralPlaceholderV0>>,
 ) -> (String, usize) {
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
@@ -42,6 +73,12 @@ pub(crate) fn inline_css_imports_with_lexer(
                     index = end_index + 1;
                     continue;
                 };
+                if dialect == StyleDialect::Less && import_rule.css_passthrough {
+                    let replacement = normalize_css_passthrough_import_rule(&import_rule);
+                    replacements.push((start, end, replacement));
+                    index = end_index + 1;
+                    continue;
+                }
                 if let Some(replacement_css) =
                     inline_replacement_for_import_source(&import_rule.source, inlines)
                 {
@@ -49,6 +86,18 @@ pub(crate) fn inline_css_imports_with_lexer(
                     if dialect == StyleDialect::Less && import_rule.reference_only {
                         replacement_css =
                             filter_less_reference_import_replacement(&replacement_css);
+                    }
+                    if dialect == StyleDialect::Less
+                        && import_rule.inline_literal
+                        && let Some(placeholders) = inline_literal_placeholders.as_deref_mut()
+                    {
+                        let placeholder =
+                            format!("/*__OMENA_LESS_INLINE_LITERAL_{}__*/", placeholders.len());
+                        placeholders.push(TransformLessInlineLiteralPlaceholderV0 {
+                            placeholder: placeholder.clone(),
+                            literal_css: replacement_css,
+                        });
+                        replacement_css = placeholder;
                     }
                     if dialect == StyleDialect::Less
                         && !import_rule.allow_duplicate
@@ -99,6 +148,8 @@ struct CssImportRule {
     allow_duplicate: bool,
     reference_only: bool,
     optional: bool,
+    inline_literal: bool,
+    css_passthrough: bool,
 }
 
 fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
@@ -107,7 +158,7 @@ fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
     if rest.is_empty() {
         return None;
     }
-    let (rest, allow_duplicate, reference_only, optional) = strip_leading_less_import_options(rest);
+    let (rest, less_options) = strip_leading_less_import_options(rest);
     let (source, rest) = parse_css_import_source_prefix(rest)?;
     let mut rest = rest.trim();
     let mut layer_name = None;
@@ -132,9 +183,11 @@ fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
         layer_name,
         supports_condition,
         media_query: (!rest.is_empty()).then(|| rest.to_string()),
-        allow_duplicate,
-        reference_only,
-        optional,
+        allow_duplicate: less_options.allow_duplicate,
+        reference_only: less_options.reference_only,
+        optional: less_options.optional,
+        inline_literal: less_options.inline_literal,
+        css_passthrough: less_options.css_passthrough,
     })
 }
 
@@ -142,25 +195,34 @@ fn parse_css_import_source_prefix(text: &str) -> Option<(String, &str)> {
     parse_quoted_css_string_prefix(text).or_else(|| parse_url_import_source_prefix(text))
 }
 
-fn strip_leading_less_import_options(mut text: &str) -> (&str, bool, bool, bool) {
-    let mut allow_duplicate = false;
-    let mut reference_only = false;
-    let mut optional = false;
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct LessImportOptions {
+    allow_duplicate: bool,
+    reference_only: bool,
+    optional: bool,
+    inline_literal: bool,
+    css_passthrough: bool,
+}
+
+fn strip_leading_less_import_options(mut text: &str) -> (&str, LessImportOptions) {
+    let mut options = LessImportOptions::default();
     loop {
         let rest = text.trim_start();
         let Some(after_left_paren) = rest.strip_prefix('(') else {
-            return (rest, allow_duplicate, reference_only, optional);
+            return (rest, options);
         };
         let Some(close_index) = matching_function_close_index(after_left_paren) else {
-            return (rest, allow_duplicate, reference_only, optional);
+            return (rest, options);
         };
         let option = after_left_paren[..close_index].trim();
         if option.is_empty() || !less_import_option_list_is_safe(option) {
-            return (rest, allow_duplicate, reference_only, optional);
+            return (rest, options);
         }
-        allow_duplicate |= less_import_option_list_allows_duplicate(option);
-        reference_only |= less_import_option_list_is_reference_only(option);
-        optional |= less_import_option_list_is_optional(option);
+        options.allow_duplicate |= less_import_option_list_contains(option, "multiple");
+        options.reference_only |= less_import_option_list_contains(option, "reference");
+        options.optional |= less_import_option_list_contains(option, "optional");
+        options.inline_literal |= less_import_option_list_contains(option, "inline");
+        options.css_passthrough |= less_import_option_list_contains(option, "css");
         text = &after_left_paren[close_index + 1..];
     }
 }
@@ -171,25 +233,11 @@ fn less_import_option_list_is_safe(option: &str) -> bool {
     })
 }
 
-fn less_import_option_list_allows_duplicate(option: &str) -> bool {
+fn less_import_option_list_contains(option: &str, expected: &str) -> bool {
     option
         .split(',')
         .map(str::trim)
-        .any(|entry| entry.eq_ignore_ascii_case("multiple"))
-}
-
-fn less_import_option_list_is_reference_only(option: &str) -> bool {
-    option
-        .split(',')
-        .map(str::trim)
-        .any(|entry| entry.eq_ignore_ascii_case("reference"))
-}
-
-fn less_import_option_list_is_optional(option: &str) -> bool {
-    option
-        .split(',')
-        .map(str::trim)
-        .any(|entry| entry.eq_ignore_ascii_case("optional"))
+        .any(|entry| entry.eq_ignore_ascii_case(expected))
 }
 
 fn filter_less_reference_import_replacement(source: &str) -> String {
@@ -391,6 +439,41 @@ fn wrap_import_replacement(import_rule: &CssImportRule, replacement_css: &str) -
     if let Some(media_query) = &import_rule.media_query {
         output = format!("@media {media_query} {{ {output} }}");
     }
+    output
+}
+
+fn normalize_css_passthrough_import_rule(import_rule: &CssImportRule) -> String {
+    let mut output = format!("@import {}", quote_css_import_source(&import_rule.source));
+    if let Some(layer_name) = &import_rule.layer_name {
+        if layer_name.is_empty() {
+            output.push_str(" layer");
+        } else {
+            output.push_str(" layer(");
+            output.push_str(layer_name);
+            output.push(')');
+        }
+    }
+    if let Some(supports_condition) = &import_rule.supports_condition {
+        output.push_str(" supports");
+        output.push_str(supports_condition);
+    }
+    if let Some(media_query) = &import_rule.media_query {
+        output.push(' ');
+        output.push_str(media_query);
+    }
+    output.push(';');
+    output
+}
+
+fn quote_css_import_source(source: &str) -> String {
+    let mut output = String::from("\"");
+    for ch in source.chars() {
+        if matches!(ch, '"' | '\\') {
+            output.push('\\');
+        }
+        output.push(ch);
+    }
+    output.push('"');
     output
 }
 

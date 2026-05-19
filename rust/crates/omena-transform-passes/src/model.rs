@@ -258,6 +258,12 @@ pub struct TransformImportInlineV0 {
     pub replacement_css: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TransformLessInlineLiteralPlaceholderV0 {
+    pub placeholder: String,
+    pub literal_css: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransformClassNameRewriteV0 {

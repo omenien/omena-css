@@ -4,8 +4,10 @@ use omena_syntax::SyntaxKind;
 use omena_transform_passes::{
     TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
     TransformCssModuleValueResolutionV0, TransformDesignTokenRouteV0, TransformImportInlineV0,
-    TransformModuleEvaluationV0, inline_css_imports,
+    TransformLessInlineLiteralPlaceholderV0, TransformModuleEvaluationV0, inline_css_imports,
+    inline_css_imports_for_static_module_evaluation,
     resolve_static_css_modules_local_value_resolutions_from_source,
+    restore_less_inline_literal_placeholders,
 };
 use std::borrow::Cow;
 
@@ -922,38 +924,73 @@ fn derive_static_stylesheet_module_evaluation_for_transform_context(
     import_inlines: &[TransformImportInlineV0],
     scss_module_uses: &[StaticScssModuleUseEvaluation],
 ) -> Option<TransformModuleEvaluationV0> {
-    let evaluation_source = derive_import_aware_static_stylesheet_module_evaluation_source(
+    let import_aware_source = derive_import_aware_static_stylesheet_module_evaluation_source(
         style_source,
         dialect,
         import_inlines,
     );
     let evaluation_source = derive_scss_use_aware_static_stylesheet_module_evaluation_source(
-        evaluation_source.as_ref(),
+        import_aware_source.source.as_ref(),
         dialect,
         scss_module_uses,
     );
-    derive_static_stylesheet_module_evaluation(evaluation_source.as_ref(), dialect).or_else(|| {
-        (evaluation_source.as_ref() != style_source).then(|| TransformModuleEvaluationV0 {
-            evaluator: static_stylesheet_module_system_evaluator_label(dialect).to_string(),
-            evaluated_css: evaluation_source.into_owned(),
-        })
+    if let Some(evaluation) =
+        derive_static_stylesheet_module_evaluation(evaluation_source.as_ref(), dialect)
+    {
+        return Some(TransformModuleEvaluationV0 {
+            evaluator: evaluation.evaluator,
+            evaluated_css: restore_less_inline_literal_placeholders(
+                evaluation.evaluated_css.as_str(),
+                &import_aware_source.less_inline_literal_placeholders,
+            ),
+        });
+    }
+    (evaluation_source.as_ref() != style_source).then(|| TransformModuleEvaluationV0 {
+        evaluator: static_stylesheet_module_system_evaluator_label(dialect).to_string(),
+        evaluated_css: restore_less_inline_literal_placeholders(
+            evaluation_source.as_ref(),
+            &import_aware_source.less_inline_literal_placeholders,
+        ),
     })
+}
+
+struct StaticModuleEvaluationSource<'a> {
+    source: Cow<'a, str>,
+    less_inline_literal_placeholders: Vec<TransformLessInlineLiteralPlaceholderV0>,
 }
 
 fn derive_import_aware_static_stylesheet_module_evaluation_source<'a>(
     style_source: &'a str,
     dialect: OmenaParserStyleDialect,
     import_inlines: &[TransformImportInlineV0],
-) -> Cow<'a, str> {
+) -> StaticModuleEvaluationSource<'a> {
     if import_inlines.is_empty() {
-        return Cow::Borrowed(style_source);
+        return StaticModuleEvaluationSource {
+            source: Cow::Borrowed(style_source),
+            less_inline_literal_placeholders: Vec::new(),
+        };
     }
-    let (inlined_source, mutation_count) =
-        inline_css_imports(style_source, dialect, import_inlines);
-    if mutation_count == 0 {
-        Cow::Borrowed(style_source)
+    let (inlined_source, mutation_count, less_inline_literal_placeholders) = if dialect
+        == OmenaParserStyleDialect::Less
+    {
+        let (inlined_source, mutation_count, placeholders) =
+            inline_css_imports_for_static_module_evaluation(style_source, dialect, import_inlines);
+        (inlined_source, mutation_count, placeholders)
     } else {
-        Cow::Owned(inlined_source)
+        let (inlined_source, mutation_count) =
+            inline_css_imports(style_source, dialect, import_inlines);
+        (inlined_source, mutation_count, Vec::new())
+    };
+    if mutation_count == 0 {
+        StaticModuleEvaluationSource {
+            source: Cow::Borrowed(style_source),
+            less_inline_literal_placeholders,
+        }
+    } else {
+        StaticModuleEvaluationSource {
+            source: Cow::Owned(inlined_source),
+            less_inline_literal_placeholders,
+        }
     }
 }
 

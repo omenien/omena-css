@@ -25,7 +25,10 @@ use crate::domains::{
         tree_shake_css_custom_properties_with_lexer,
     },
     design_token::route_design_token_values_with_lexer,
-    import_inline::inline_css_imports_with_lexer,
+    import_inline::{
+        inline_css_imports_for_static_module_evaluation_with_lexer, inline_css_imports_with_lexer,
+        restore_less_inline_literal_placeholders as restore_less_inline_literal_placeholders_with_lexer,
+    },
     keyframes::tree_shake_css_keyframes_with_lexer,
     logical::lower_css_logical_to_physical_with_lexer,
     nesting::unwrap_css_nesting_with_lexer,
@@ -54,7 +57,8 @@ use crate::helpers::rules::collect_top_level_ordinary_rule_slices;
 use crate::model::{
     TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
     TransformCssModuleValueResolutionV0, TransformDesignTokenRouteV0, TransformExecutionContextV0,
-    TransformImportInlineV0, TransformSemanticRemovalCandidate,
+    TransformImportInlineV0, TransformLessInlineLiteralPlaceholderV0,
+    TransformSemanticRemovalCandidate,
 };
 
 pub(crate) fn strip_css_comments(source: &str, dialect: StyleDialect) -> (String, usize) {
@@ -191,6 +195,21 @@ pub fn inline_css_imports(
     inlines: &[TransformImportInlineV0],
 ) -> (String, usize) {
     inline_css_imports_with_lexer(source, dialect, inlines)
+}
+
+pub fn inline_css_imports_for_static_module_evaluation(
+    source: &str,
+    dialect: StyleDialect,
+    inlines: &[TransformImportInlineV0],
+) -> (String, usize, Vec<TransformLessInlineLiteralPlaceholderV0>) {
+    inline_css_imports_for_static_module_evaluation_with_lexer(source, dialect, inlines)
+}
+
+pub fn restore_less_inline_literal_placeholders(
+    source: &str,
+    placeholders: &[TransformLessInlineLiteralPlaceholderV0],
+) -> String {
+    restore_less_inline_literal_placeholders_with_lexer(source, placeholders)
 }
 
 pub(crate) fn resolve_static_css_modules_values(
