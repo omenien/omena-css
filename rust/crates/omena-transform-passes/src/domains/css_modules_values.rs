@@ -416,12 +416,7 @@ pub(crate) fn tree_shake_css_modules_values_with_lexer(
     let mut removals = definitions
         .iter()
         .filter(|definition| {
-            can_tree_shake_local_css_modules_value_definition(
-                definition,
-                dialect,
-                &definitions,
-                &value_names,
-            )
+            can_tree_shake_local_css_modules_value_definition(definition, &definitions)
                 && !referenced_names.iter().any(|name| name == &definition.name)
         })
         .map(|definition| TransformSemanticRemovalCandidate {
@@ -774,22 +769,13 @@ fn close_css_modules_value_dependency_graph(
 
 fn can_tree_shake_local_css_modules_value_definition(
     definition: &StaticCssModulesValueDefinition,
-    dialect: StyleDialect,
     definitions: &[StaticCssModulesValueDefinition],
-    value_names: &[String],
 ) -> bool {
     definitions
         .iter()
         .filter(|candidate| candidate.name == definition.name)
         .count()
         == 1
-        && (is_static_css_modules_value_literal(&definition.value)
-            || !collect_css_modules_value_references_in_value(
-                &definition.value,
-                dialect,
-                value_names,
-            )
-            .is_empty())
 }
 
 fn collect_css_modules_value_references_in_value(

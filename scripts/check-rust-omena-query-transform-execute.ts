@@ -1774,7 +1774,7 @@ const icssExportReachabilityResult = spawnSync(
         {
           stylePath: "Tokens.module.css",
           styleSource:
-            "@value primary: red; @value shadow: 0 0 primary; @value dead: blue; :export { public-color: shadow; dead-public: dead; } .button { color: red; }",
+            "@value primary: red; @value shadow: 0 0 primary; @value dead: blue; @value deadExpr: calc(1rem + 2px); :export { public-color: shadow; dead-public: dead; } .button { color: red; }",
         },
       ],
       requestedPassIds: ["tree-shake-value", "print-css"],
@@ -1807,12 +1807,13 @@ assert.ok(
   icssExportReachabilitySummary.execution.outputCss.includes(":export { public-color: shadow;"),
 );
 assert.ok(!icssExportReachabilitySummary.execution.outputCss.includes("@value dead:"));
+assert.ok(!icssExportReachabilitySummary.execution.outputCss.includes("@value deadExpr:"));
 assert.ok(!icssExportReachabilitySummary.execution.outputCss.includes("dead-public: dead"));
 assertIncludesAll(
   icssExportReachabilitySummary.execution.semanticRemovals.map(
     (removal) => `${removal.symbolKind}:${removal.name}`,
   ),
-  ["cssModuleValue:dead", "cssModuleIcssExport:dead-public"],
+  ["cssModuleValue:dead", "cssModuleValue:deadExpr", "cssModuleIcssExport:dead-public"],
   "ICSS export reachability removals",
 );
 
@@ -1911,7 +1912,7 @@ assert.equal(
   "  .button { color: red; }",
 );
 assert.equal(staticLessEvaluationSummary.execution.outputCss, "  ._button_0{ color: red; }");
-assert.equal(icssExportReachabilitySummary.semanticRemovalCount, 2);
+assert.equal(icssExportReachabilitySummary.semanticRemovalCount, 3);
 
 process.stdout.write(
   [

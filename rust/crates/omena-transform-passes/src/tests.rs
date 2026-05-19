@@ -2909,7 +2909,7 @@ fn execution_runtime_keeps_composed_classes_reachable_during_tree_shaking() {
 
 #[test]
 fn execution_runtime_tree_shakes_local_values_with_closed_world_context() {
-    let source = r#"@value used: red; @value dead: blue; @value alias: used; @value shadow: 0 0 4px used; @value bp: 40rem; @value deadAlias: dead; @value deadShadow: 0 0 4px dead; @value deadBp: 50rem; @value deadFromRule: orange; .btn { color: used; background: alias; box-shadow: shadow; } .dead { color: deadFromRule; } @media (min-width: bp) { .btn { color: red; } } @media (min-width: deadBp) { .dead { color: dead; } }"#;
+    let source = r#"@value used: red; @value dead: blue; @value alias: used; @value shadow: 0 0 4px used; @value bp: 40rem; @value deadAlias: dead; @value deadShadow: 0 0 4px dead; @value deadBp: 50rem; @value deadFromRule: orange; @value deadExpr: calc(1rem + 2px); .btn { color: used; background: alias; box-shadow: shadow; } .dead { color: deadFromRule; } @media (min-width: bp) { .btn { color: red; } } @media (min-width: deadBp) { .dead { color: dead; } }"#;
     let context = TransformExecutionContextV0 {
         closed_style_world: true,
         reachable_class_names: vec!["btn".to_string()],
@@ -2925,7 +2925,7 @@ fn execution_runtime_tree_shakes_local_values_with_closed_world_context() {
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 5);
+    assert_eq!(execution.mutation_count, 6);
     assert!(execution.output_css.contains("@value used: red;"));
     assert!(execution.output_css.contains("@value alias: used;"));
     assert!(
@@ -2941,6 +2941,7 @@ fn execution_runtime_tree_shakes_local_values_with_closed_world_context() {
     assert!(!execution.output_css.contains("@value deadShadow:"));
     assert!(!execution.output_css.contains("@value deadBp:"));
     assert!(!execution.output_css.contains("@value deadFromRule:"));
+    assert!(!execution.output_css.contains("@value deadExpr:"));
     assert_eq!(
         execution.executed_pass_ids,
         vec!["tree-shake-value", "print-css"]
@@ -2951,7 +2952,14 @@ fn execution_runtime_tree_shakes_local_values_with_closed_world_context() {
             .iter()
             .map(|removal| removal.name.as_str())
             .collect::<Vec<_>>(),
-        vec!["dead", "deadAlias", "deadShadow", "deadBp", "deadFromRule"]
+        vec![
+            "dead",
+            "deadAlias",
+            "deadShadow",
+            "deadBp",
+            "deadFromRule",
+            "deadExpr"
+        ]
     );
 }
 
