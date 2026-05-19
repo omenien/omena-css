@@ -88,6 +88,7 @@ fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
     if rest.is_empty() {
         return None;
     }
+    let rest = strip_leading_less_import_options(rest);
     let (source, rest) = parse_css_import_source_prefix(rest)?;
     let mut rest = rest.trim();
     let mut layer_name = None;
@@ -117,6 +118,29 @@ fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
 
 fn parse_css_import_source_prefix(text: &str) -> Option<(String, &str)> {
     parse_quoted_css_string_prefix(text).or_else(|| parse_url_import_source_prefix(text))
+}
+
+fn strip_leading_less_import_options(mut text: &str) -> &str {
+    loop {
+        let rest = text.trim_start();
+        let Some(after_left_paren) = rest.strip_prefix('(') else {
+            return rest;
+        };
+        let Some(close_index) = matching_function_close_index(after_left_paren) else {
+            return rest;
+        };
+        let option = after_left_paren[..close_index].trim();
+        if option.is_empty() || !less_import_option_list_is_safe(option) {
+            return rest;
+        }
+        text = &after_left_paren[close_index + 1..];
+    }
+}
+
+fn less_import_option_list_is_safe(option: &str) -> bool {
+    option.chars().all(|ch| {
+        ch.is_ascii_alphanumeric() || ch.is_ascii_whitespace() || matches!(ch, '-' | '_' | ',')
+    })
 }
 
 fn parse_quoted_css_string_prefix(text: &str) -> Option<(String, &str)> {

@@ -2368,6 +2368,63 @@ assert(importAwareLessEvaluationSummary.execution.outputCss.includes(".button { 
 assert(!importAwareLessEvaluationSummary.execution.outputCss.includes("@import"));
 assert(!importAwareLessEvaluationSummary.execution.outputCss.includes("@brand:"));
 
+const lessReferenceImportEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "/tmp/App.module.less",
+      styles: [
+        {
+          stylePath: "/tmp/tokens.less",
+          styleSource: "@brand: red; .base { color: blue; }",
+        },
+        {
+          stylePath: "/tmp/App.module.less",
+          styleSource: '@import (reference) "./tokens.less"; .button { color: @brand; }',
+        },
+      ],
+      requestedPassIds: ["import-inline", "less-module-evaluate", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  lessReferenceImportEvaluationResult.status,
+  0,
+  lessReferenceImportEvaluationResult.stderr,
+);
+assert.equal(lessReferenceImportEvaluationResult.error, undefined);
+
+const lessReferenceImportEvaluationSummary = JSON.parse(
+  lessReferenceImportEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.deepEqual(lessReferenceImportEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert.deepEqual(lessReferenceImportEvaluationSummary.execution.executedPassIds, [
+  "import-inline",
+  "less-module-evaluate",
+  "print-css",
+]);
+assert(lessReferenceImportEvaluationSummary.execution.outputCss.includes(".base { color: blue; }"));
+assert(
+  lessReferenceImportEvaluationSummary.execution.outputCss.includes(".button { color: red; }"),
+);
+assert(!lessReferenceImportEvaluationSummary.execution.outputCss.includes("@import"));
+assert(!lessReferenceImportEvaluationSummary.execution.outputCss.includes("@brand:"));
+
 const staticLessForwardEvaluationResult = spawnSync(
   "cargo",
   [
