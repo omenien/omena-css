@@ -223,6 +223,30 @@ fn planner_respects_var_before_calc_before_print_edges() {
 }
 
 #[test]
+fn planner_respects_value_and_var_resolution_before_static_branch_evaluation() {
+    let plan = plan_transform_passes(&[
+        TransformPassKind::MediaStaticEval,
+        TransformPassKind::SupportsStaticEval,
+        TransformPassKind::StaticVarSubstitution,
+        TransformPassKind::ValueResolution,
+        TransformPassKind::PrintCss,
+    ]);
+
+    assert_eq!(plan.violated_dag_edge_count, 0);
+    assert!(plan.all_requested_registered);
+    assert_eq!(
+        plan.ordered_pass_ids,
+        vec![
+            "value-resolution",
+            "custom-property-static-resolve",
+            "supports-static-eval",
+            "media-static-eval",
+            "print-css"
+        ]
+    );
+}
+
+#[test]
 fn planner_respects_composes_before_hash_before_selector_merge_edges() {
     let plan = plan_transform_passes(&[
         TransformPassKind::SelectorMerging,

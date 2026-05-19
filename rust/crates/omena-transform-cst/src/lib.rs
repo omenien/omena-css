@@ -1096,6 +1096,26 @@ pub fn default_transform_dag_edges() -> Vec<TransformDagEdgeV0> {
             reason: "var() inside calc may resolve to numeric literals that enable reduction",
         },
         TransformDagEdgeV0 {
+            from: "value-resolution",
+            to: "supports-static-eval",
+            reason: "@value references inside @supports preludes must resolve before static branch evaluation",
+        },
+        TransformDagEdgeV0 {
+            from: "value-resolution",
+            to: "media-static-eval",
+            reason: "@value references inside @media preludes must resolve before static media normalization",
+        },
+        TransformDagEdgeV0 {
+            from: "custom-property-static-resolve",
+            to: "supports-static-eval",
+            reason: "var() references inside @supports preludes must resolve before static branch evaluation",
+        },
+        TransformDagEdgeV0 {
+            from: "custom-property-static-resolve",
+            to: "media-static-eval",
+            reason: "var() references inside @media preludes must resolve before static media normalization",
+        },
+        TransformDagEdgeV0 {
             from: "tree-shake-class",
             to: "rule-deduplication",
             reason: "tree shaking must run before rule deduplication can hide dead rules",
