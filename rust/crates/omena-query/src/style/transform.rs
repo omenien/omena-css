@@ -14,9 +14,10 @@ use super::parser_facade::{
     lex_omena_query_omena_parser_style_source, parse_omena_query_omena_parser_style_source,
 };
 use super::stylesheet_evaluation::{
+    canonical_static_scss_variable_name,
     derive_static_scss_stylesheet_module_configurable_variable_names,
     derive_static_scss_stylesheet_module_variable_exports,
-    derive_static_stylesheet_module_evaluation,
+    derive_static_stylesheet_module_evaluation, static_scss_variable_names_equal,
 };
 
 pub fn summarize_omena_query_transform_plan_from_source(
@@ -1279,11 +1280,19 @@ fn filter_static_scss_forward_exports(
     match filter_kind {
         Some("show") => exports
             .into_iter()
-            .filter(|(name, _)| filter_names.iter().any(|filter| filter == name))
+            .filter(|(name, _)| {
+                filter_names
+                    .iter()
+                    .any(|filter| static_scss_variable_names_equal(filter, name))
+            })
             .collect(),
         Some("hide") => exports
             .into_iter()
-            .filter(|(name, _)| !filter_names.iter().any(|filter| filter == name))
+            .filter(|(name, _)| {
+                !filter_names
+                    .iter()
+                    .any(|filter| static_scss_variable_names_equal(filter, name))
+            })
             .collect(),
         _ => exports,
     }
@@ -1385,23 +1394,28 @@ fn replace_static_scss_namespaced_variable_reference(
     name: &str,
     value: &str,
 ) -> String {
-    let needle = format!("{namespace}.${name}");
+    let needle = format!("{namespace}.$");
     if !source.contains(needle.as_str()) {
         return source.to_string();
     }
+    let expected_name = canonical_static_scss_variable_name(name);
 
     let mut output = String::with_capacity(source.len());
     let mut cursor = 0usize;
     while let Some(offset) = source[cursor..].find(needle.as_str()) {
         let start = cursor + offset;
-        let end = start + needle.len();
-        if static_scss_reference_boundary_is_safe(source, start, end) {
+        let name_start = start + needle.len();
+        let end = static_scss_variable_reference_name_end(source, name_start);
+        if end > name_start
+            && canonical_static_scss_variable_name(&source[name_start..end]) == expected_name
+            && static_scss_reference_boundary_is_safe(source, start, end)
+        {
             output.push_str(&source[cursor..start]);
             output.push_str(value);
             cursor = end;
         } else {
-            output.push_str(&source[cursor..end]);
-            cursor = end;
+            output.push_str(&source[cursor..name_start]);
+            cursor = name_start;
         }
     }
     output.push_str(&source[cursor..]);
@@ -1425,29 +1439,51 @@ fn replace_static_scss_wildcard_variable_reference(
     name: &str,
     value: &str,
 ) -> String {
-    let needle = format!("${name}");
-    if !source.contains(needle.as_str()) {
-        return source.to_string();
-    }
+    let expected_name = canonical_static_scss_variable_name(name);
 
     let mut output = String::with_capacity(source.len());
     let mut cursor = 0usize;
-    while let Some(offset) = source[cursor..].find(needle.as_str()) {
+    while let Some(offset) = source[cursor..].find('$') {
         let start = cursor + offset;
-        let end = start + needle.len();
-        if static_scss_reference_boundary_is_safe(source, start, end)
+        let name_start = start + '$'.len_utf8();
+        let end = static_scss_variable_reference_name_end(source, name_start);
+        if end > name_start
+            && canonical_static_scss_variable_name(&source[name_start..end]) == expected_name
+            && static_scss_reference_boundary_is_safe(source, start, end)
+            && !static_scss_reference_has_namespace_prefix(source, start)
             && !static_scss_reference_is_declaration(source, end)
         {
             output.push_str(&source[cursor..start]);
             output.push_str(value);
             cursor = end;
         } else {
-            output.push_str(&source[cursor..end]);
-            cursor = end;
+            output.push_str(&source[cursor..name_start]);
+            cursor = name_start;
         }
     }
     output.push_str(&source[cursor..]);
     output
+}
+
+fn static_scss_variable_reference_name_end(source: &str, mut index: usize) -> usize {
+    while index < source.len() {
+        let Some(ch) = source[index..].chars().next() else {
+            break;
+        };
+        if !static_scss_identifier_char(ch) {
+            break;
+        }
+        index += ch.len_utf8();
+    }
+    index
+}
+
+fn static_scss_reference_has_namespace_prefix(source: &str, start: usize) -> bool {
+    source[..start]
+        .chars()
+        .rev()
+        .find(|ch| !ch.is_whitespace())
+        .is_some_and(|ch| ch == '.')
 }
 
 fn static_scss_reference_is_declaration(source: &str, end: usize) -> bool {

@@ -58,7 +58,7 @@ pub(super) fn derive_static_scss_stylesheet_module_variable_exports(
             &declarations,
             &mut stack,
         ) {
-            exports.insert(public_name.to_string(), value);
+            exports.insert(public_name, value);
         }
     }
     exports
@@ -86,7 +86,7 @@ pub(super) fn derive_static_scss_stylesheet_module_configurable_variable_names(
         .filter(|declaration| declaration.scope_id == 0)
         .filter(|declaration| declaration.declaration.is_default)
         .filter_map(|declaration| {
-            static_scss_public_module_variable_name(declaration.name.as_str()).map(str::to_string)
+            static_scss_public_module_variable_name(declaration.name.as_str())
         })
         .collect()
 }
@@ -593,7 +593,11 @@ fn resolve_static_scss_variable_value_in_scope(
     declarations: &[StaticStylesheetScopedVariableDeclaration],
     stack: &mut BTreeSet<(usize, String, usize)>,
 ) -> Option<String> {
-    let stack_key = (scope_id, name.to_string(), position);
+    let stack_key = (
+        scope_id,
+        canonical_static_scss_variable_name(name),
+        position,
+    );
     if !stack.insert(stack_key.clone()) {
         return None;
     }
@@ -640,7 +644,7 @@ fn find_static_scss_variable_declaration_in_scope<'a>(
 ) -> Option<&'a StaticStylesheetScopedVariableDeclaration> {
     let mut active = None;
     for declaration in declarations.iter().filter(|declaration| {
-        declaration.name == name
+        static_scss_variable_names_equal(&declaration.name, name)
             && declaration.scope_id == scope_id
             && declaration.declaration.span_end <= position
     }) {
@@ -1039,12 +1043,23 @@ fn static_stylesheet_variable_name_is_safe(name: &str) -> bool {
             .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
 }
 
-fn static_scss_public_module_variable_name(name: &str) -> Option<&str> {
+fn static_scss_public_module_variable_name(name: &str) -> Option<String> {
     let bare_name = name.strip_prefix('$')?;
     if bare_name.starts_with('-') || bare_name.starts_with('_') || bare_name.is_empty() {
         return None;
     }
-    Some(bare_name)
+    Some(canonical_static_scss_variable_name(bare_name))
+}
+
+pub(super) fn canonical_static_scss_variable_name(name: &str) -> String {
+    name.trim()
+        .strip_prefix('$')
+        .unwrap_or_else(|| name.trim())
+        .replace('_', "-")
+}
+
+pub(super) fn static_scss_variable_names_equal(left: &str, right: &str) -> bool {
+    canonical_static_scss_variable_name(left) == canonical_static_scss_variable_name(right)
 }
 
 fn static_stylesheet_composite_value_is_safe(value: &str) -> bool {
