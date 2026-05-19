@@ -2698,7 +2698,7 @@ fn execution_runtime_evaluates_media_range_equality_comparisons() {
 
 #[test]
 fn execution_runtime_normalizes_simple_media_range_features() {
-    let source = r#"@media screen and (min-width: 1px) and (max-width: 10px) { .a { color: red; } } @media (min-height: 2rem) { .b { color: blue; } } @media (min-width: calc(1px + 1px)) { .c { color: green; } } @media (max-height: clamp(1rem, 2rem, 3rem)) { .d { color: orange; } }"#;
+    let source = r#"@media screen and (min-width: 1px) and (max-width: 10px) { .a { color: red; } } @media (min-height: 2rem) { .b { color: blue; } } @media (min-width: calc(1px + 1px)) { .c { color: green; } } @media (max-height: clamp(1rem, 2rem, 3rem)) { .d { color: orange; } } @media (WIDTH >= 1PX) { .e { color: black; } } @media (10REM <= HEIGHT <= 20REM) { .f { color: gray; } } @media (min-width: +01PX) { .g { color: white; } }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -2707,10 +2707,10 @@ fn execution_runtime_normalizes_simple_media_range_features() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 4);
+    assert_eq!(execution.mutation_count, 7);
     assert_eq!(
         execution.output_css,
-        r#"@media screen and (width>=1px) and (width<=10px) { .a { color: red; } } @media (height>=2rem) { .b { color: blue; } } @media (width>=2px) { .c { color: green; } } @media (height<=2rem) { .d { color: orange; } }"#
+        r#"@media screen and (width>=1px) and (width<=10px) { .a { color: red; } } @media (height>=2rem) { .b { color: blue; } } @media (width>=2px) { .c { color: green; } } @media (height<=2rem) { .d { color: orange; } } @media (width>=1px) { .e { color: black; } } @media (height>=10rem) and (height<=20rem) { .f { color: gray; } } @media (width>=1px) { .g { color: white; } }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

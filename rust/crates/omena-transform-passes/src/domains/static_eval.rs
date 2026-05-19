@@ -8,10 +8,11 @@ use omena_syntax::SyntaxKind;
 
 use crate::{
     domains::number::{
-        parse_numeric_value_with_unit, parse_reducible_abs_value, parse_reducible_calc_value,
-        parse_reducible_clamp_value, parse_reducible_hypot_value, parse_reducible_max_value,
-        parse_reducible_min_value, parse_reducible_mod_value, parse_reducible_rem_value,
-        parse_reducible_round_value, parse_reducible_sign_value,
+        compress_number_prefix, format_css_number, parse_numeric_value_with_unit,
+        parse_reducible_abs_value, parse_reducible_calc_value, parse_reducible_clamp_value,
+        parse_reducible_hypot_value, parse_reducible_max_value, parse_reducible_min_value,
+        parse_reducible_mod_value, parse_reducible_rem_value, parse_reducible_round_value,
+        parse_reducible_sign_value,
     },
     helpers::{
         ascii::normalize_ascii_whitespace,
@@ -365,7 +366,7 @@ fn reverse_static_media_range_operator(operator: &str) -> &'static str {
 }
 
 fn normalize_static_media_range_value(value: &str) -> Cow<'_, str> {
-    substitute_static_css_function_references_in_value_until_stable(
+    let substituted = substitute_static_css_function_references_in_value_until_stable(
         value,
         &[
             ("calc", parse_reducible_calc_value),
@@ -381,7 +382,30 @@ fn normalize_static_media_range_value(value: &str) -> Cow<'_, str> {
         ],
     )
     .map(Cow::Owned)
-    .unwrap_or(Cow::Borrowed(value))
+    .unwrap_or(Cow::Borrowed(value));
+
+    if let Some(normalized) = normalize_static_media_numeric_value(substituted.as_ref())
+        && normalized != substituted.as_ref()
+    {
+        return Cow::Owned(normalized);
+    }
+    substituted
+}
+
+fn normalize_static_media_numeric_value(value: &str) -> Option<String> {
+    let parsed = parse_numeric_value_with_unit(value)?;
+    if parsed.unit.is_empty() {
+        return None;
+    }
+    let unit = parsed.unit.to_ascii_lowercase();
+    if unit != "%" && !unit.chars().all(|ch| ch.is_ascii_alphabetic()) {
+        return None;
+    }
+
+    Some(format!(
+        "{}{unit}",
+        compress_number_prefix(&format_css_number(parsed.value))
+    ))
 }
 
 fn is_simple_media_range_value(value: &str) -> bool {

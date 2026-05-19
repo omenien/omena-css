@@ -148,7 +148,8 @@ const fixtures: readonly DifferentialFixture[] = [
   },
   {
     label: "media-range-normalization",
-    source: "@media screen and (min-width: 1px) and (max-width: 10px) { .a { color: red; } }",
+    source:
+      "@media screen and (min-width: 1px) and (max-width: 10px) { .a { color: red; } } @media (WIDTH >= 1PX) { .b { color: blue; } } @media (min-width: +01PX) { .d { color: black; } }",
   },
   {
     label: "media-range-calc-reduction",
