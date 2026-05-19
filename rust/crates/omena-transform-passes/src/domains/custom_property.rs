@@ -448,6 +448,22 @@ fn collect_reachable_custom_property_names(
     ) {
         push_unique_string(&mut root_names, name);
     }
+    for name in collect_custom_property_roots_from_reachable_at_rule_preludes(
+        source,
+        tokens,
+        |block_start_index, block_end_index| {
+            at_rule_block_has_reachable_ordinary_rule(
+                source,
+                tokens,
+                block_start_index,
+                block_end_index,
+                reachable_class_names,
+                &scope_blocks,
+            )
+        },
+    ) {
+        push_unique_string(&mut root_names, name);
+    }
     for rule in collect_static_custom_property_icss_export_rules(source, tokens) {
         for declaration in rule.declarations {
             if !custom_property_icss_export_is_reachable(&declaration.export_name, external_roots) {
@@ -538,6 +554,52 @@ fn enclosing_keyframe_name_for_rule<'a>(
         .iter()
         .find(|keyframe| rule.start >= keyframe.start && rule.end <= keyframe.end)
         .map(|keyframe| keyframe.name.as_str())
+}
+
+fn collect_custom_property_roots_from_reachable_at_rule_preludes(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+    mut block_is_reachable: impl FnMut(usize, usize) -> bool,
+) -> Vec<String> {
+    let mut roots = Vec::new();
+    let mut index = 0usize;
+
+    while index < tokens.len() {
+        if tokens[index].kind != SyntaxKind::AtKeyword
+            || !at_rule_prelude_can_reference_custom_properties(&tokens[index].text)
+        {
+            index += 1;
+            continue;
+        }
+        let Some(prelude_end_index) = at_rule_prelude_end_index(tokens, index + 1) else {
+            break;
+        };
+        let prelude_can_keep_roots = match tokens[prelude_end_index].kind {
+            SyntaxKind::LeftBrace => matching_right_brace_index(tokens, prelude_end_index)
+                .is_some_and(|close_index| block_is_reachable(prelude_end_index, close_index)),
+            SyntaxKind::Semicolon => true,
+            _ => false,
+        };
+        if prelude_can_keep_roots {
+            let prelude_start = token_end(&tokens[index]);
+            let prelude_end = token_start(&tokens[prelude_end_index]);
+            for name in
+                collect_custom_property_references_in_value(&source[prelude_start..prelude_end])
+            {
+                push_unique_string(&mut roots, name);
+            }
+        }
+        index = prelude_end_index.saturating_add(1);
+    }
+
+    roots
+}
+
+fn at_rule_prelude_can_reference_custom_properties(text: &str) -> bool {
+    matches!(
+        text.to_ascii_lowercase().as_str(),
+        "@media" | "@supports" | "@container" | "@custom-media" | "@scope"
+    )
 }
 
 fn collect_custom_property_names_in_style_query(query: &str, names: &mut Vec<String>) {

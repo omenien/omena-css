@@ -1098,6 +1098,87 @@ assertIncludesAll(
   "escaped keyframe tree-shaking removals",
 );
 
+const atRulePreludeCustomPropertyTreeShakeResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "AtRulePrelude.module.css",
+      styles: [
+        {
+          stylePath: "AtRulePrelude.module.css",
+          styleSource:
+            ":root { --gate: grid; --wide: 40rem; --dead: blue; --unreachable-width: 80rem; } @supports (display: var(--gate)) { .btn { color: red; } } @media (min-width: var(--wide)) { .btn { color: blue; } } @supports (color: var(--dead)) { .dead { color: black; } } @media (min-width: var(--unreachable-width)) { .dead { color: black; } }",
+        },
+      ],
+      requestedPassIds: ["tree-shake-custom-property", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["btn"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  atRulePreludeCustomPropertyTreeShakeResult.status,
+  0,
+  atRulePreludeCustomPropertyTreeShakeResult.stderr,
+);
+assert.equal(atRulePreludeCustomPropertyTreeShakeResult.error, undefined);
+
+const atRulePreludeCustomPropertyTreeShakeSummary = JSON.parse(
+  atRulePreludeCustomPropertyTreeShakeResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.ok(
+  atRulePreludeCustomPropertyTreeShakeSummary.execution.outputCss.includes("--gate: grid;"),
+);
+assert.ok(
+  atRulePreludeCustomPropertyTreeShakeSummary.execution.outputCss.includes("--wide: 40rem;"),
+);
+assert.ok(
+  atRulePreludeCustomPropertyTreeShakeSummary.execution.outputCss.includes(
+    "@supports (display: var(--gate))",
+  ),
+);
+assert.ok(
+  atRulePreludeCustomPropertyTreeShakeSummary.execution.outputCss.includes(
+    "@media (min-width: var(--wide))",
+  ),
+);
+assert.ok(
+  !atRulePreludeCustomPropertyTreeShakeSummary.execution.outputCss.includes("--dead: blue;"),
+);
+assert.ok(
+  !atRulePreludeCustomPropertyTreeShakeSummary.execution.outputCss.includes(
+    "--unreachable-width: 80rem;",
+  ),
+);
+assert.deepEqual(atRulePreludeCustomPropertyTreeShakeSummary.execution.executedPassIds, [
+  "tree-shake-custom-property",
+  "print-css",
+]);
+assertIncludesAll(
+  atRulePreludeCustomPropertyTreeShakeSummary.execution.semanticRemovals.map(
+    (removal) => `${removal.passId}:${removal.name}`,
+  ),
+  ["tree-shake-custom-property:--dead", "tree-shake-custom-property:--unreachable-width"],
+  "at-rule prelude custom property tree-shaking removals",
+);
+
 const alphaColorFunctionResult = spawnSync(
   "cargo",
   [

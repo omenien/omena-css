@@ -3999,6 +3999,52 @@ fn execution_runtime_keeps_container_style_query_custom_property_roots() {
 }
 
 #[test]
+fn execution_runtime_keeps_reachable_at_rule_prelude_custom_property_roots() {
+    let source = r#":root { --gate: grid; --wide: 40rem; --dead: blue; --unreachable-width: 80rem; } @supports (display: var(--gate)) { .btn { color: red; } } @media (min-width: var(--wide)) { .btn { color: blue; } } @supports (color: var(--dead)) { .dead { color: black; } } @media (min-width: var(--unreachable-width)) { .dead { color: black; } }"#;
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec!["btn".to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::TreeShakeCustomProperty,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 2);
+    assert!(execution.output_css.contains("--gate: grid;"));
+    assert!(execution.output_css.contains("--wide: 40rem;"));
+    assert!(
+        execution
+            .output_css
+            .contains("@supports (display: var(--gate))")
+    );
+    assert!(
+        execution
+            .output_css
+            .contains("@media (min-width: var(--wide))")
+    );
+    assert!(!execution.output_css.contains("--dead: blue;"));
+    assert!(!execution.output_css.contains("--unreachable-width: 80rem;"));
+    assert_eq!(
+        execution
+            .semantic_removals
+            .iter()
+            .map(|removal| (removal.symbol_kind, removal.name.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("customProperty", "--dead"),
+            ("customProperty", "--unreachable-width")
+        ]
+    );
+}
+
+#[test]
 fn execution_runtime_uses_dialect_lexer_for_scss_silent_comments() {
     let source = ".a { // remove\n  color: red;\n  content: \"// keep\";\n}";
     let execution = execute_transform_passes_on_source_with_dialect(
