@@ -133,13 +133,6 @@ impl StaticStylesheetVariableKind {
             Self::Less => false,
         }
     }
-
-    fn rejects_duplicate_declarations(self) -> bool {
-        match self {
-            Self::Scss => true,
-            Self::Less => false,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -148,6 +141,7 @@ struct StaticStylesheetVariableDeclaration {
     span_start: usize,
     span_end: usize,
     removal_spans: Vec<(usize, usize)>,
+    is_default: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -172,18 +166,10 @@ fn collect_static_stylesheet_variable_declarations(
         if !source_position_is_top_level(source, start) {
             return None;
         }
-        let declaration = extract_static_stylesheet_variable_declaration(source, start, end)?;
-        if declarations.contains_key(fact.name.as_str()) {
-            if variable_kind.rejects_duplicate_declarations() {
-                return None;
-            }
-            let previous = declarations.get_mut(fact.name.as_str())?;
-            previous
-                .removal_spans
-                .push((declaration.span_start, declaration.span_end));
-            previous.value = declaration.value;
-            previous.span_start = declaration.span_start;
-            previous.span_end = declaration.span_end;
+        let declaration =
+            extract_static_stylesheet_variable_declaration(source, start, end, variable_kind)?;
+        if let Some(previous) = declarations.get_mut(fact.name.as_str()) {
+            merge_static_stylesheet_duplicate_declaration(previous, declaration, variable_kind)?;
             continue;
         }
         declarations.insert(fact.name.clone(), declaration);
@@ -195,19 +181,75 @@ fn extract_static_stylesheet_variable_declaration(
     source: &str,
     variable_start: usize,
     variable_end: usize,
+    variable_kind: StaticStylesheetVariableKind,
 ) -> Option<StaticStylesheetVariableDeclaration> {
     let after_name = source.get(variable_end..)?;
     let colon_offset = after_name.find(':')?;
     let value_start = variable_end + colon_offset + 1;
     let terminator_offset = source.get(value_start..)?.find(';')?;
     let span_end = value_start + terminator_offset + 1;
-    let value = source.get(value_start..span_end - 1)?.trim().to_string();
+    let (value, is_default) = parse_static_stylesheet_declaration_value(
+        source.get(value_start..span_end - 1)?,
+        variable_kind,
+    );
     Some(StaticStylesheetVariableDeclaration {
         value,
         span_start: variable_start,
         span_end,
         removal_spans: vec![(variable_start, span_end)],
+        is_default,
     })
+}
+
+fn parse_static_stylesheet_declaration_value(
+    value: &str,
+    variable_kind: StaticStylesheetVariableKind,
+) -> (String, bool) {
+    let value = value.trim();
+    if variable_kind == StaticStylesheetVariableKind::Scss
+        && let Some(before_flag) = value.strip_suffix("!default")
+        && before_flag
+            .chars()
+            .next_back()
+            .is_some_and(char::is_whitespace)
+    {
+        return (before_flag.trim_end().to_string(), true);
+    }
+    (value.to_string(), false)
+}
+
+fn merge_static_stylesheet_duplicate_declaration(
+    previous: &mut StaticStylesheetVariableDeclaration,
+    declaration: StaticStylesheetVariableDeclaration,
+    variable_kind: StaticStylesheetVariableKind,
+) -> Option<()> {
+    match variable_kind {
+        StaticStylesheetVariableKind::Less => {
+            let mut removal_spans = previous.removal_spans.clone();
+            removal_spans.extend(declaration.removal_spans.iter().copied());
+            *previous = StaticStylesheetVariableDeclaration {
+                removal_spans,
+                ..declaration
+            };
+            Some(())
+        }
+        StaticStylesheetVariableKind::Scss if declaration.is_default => {
+            previous
+                .removal_spans
+                .extend(declaration.removal_spans.iter().copied());
+            Some(())
+        }
+        StaticStylesheetVariableKind::Scss if previous.is_default => {
+            let mut removal_spans = previous.removal_spans.clone();
+            removal_spans.extend(declaration.removal_spans.iter().copied());
+            *previous = StaticStylesheetVariableDeclaration {
+                removal_spans,
+                ..declaration
+            };
+            Some(())
+        }
+        StaticStylesheetVariableKind::Scss => None,
+    }
 }
 
 fn static_stylesheet_literal_value_is_safe(value: &str) -> bool {

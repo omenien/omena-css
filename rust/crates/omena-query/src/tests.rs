@@ -1015,6 +1015,68 @@ fn consumer_build_derives_static_less_evaluator_context_with_last_declaration_wi
 }
 
 #[test]
+fn consumer_build_derives_static_scss_evaluator_context_with_default_declarations() {
+    let first_default_summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        "$brand: red !default; $accent: $brand !default; .button { color: $accent; }",
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+    let existing_value_summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        "$brand: red; $brand: blue !default; .button { color: $brand; }",
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+    let later_assignment_summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        "$brand: red !default; $brand: blue; .button { color: $brand; }",
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        first_default_summary
+            .execution
+            .output_css
+            .contains("color: red")
+    );
+    assert!(
+        !first_default_summary
+            .execution
+            .output_css
+            .contains("!default")
+    );
+    assert!(
+        existing_value_summary
+            .execution
+            .output_css
+            .contains("color: red")
+    );
+    assert!(
+        later_assignment_summary
+            .execution
+            .output_css
+            .contains("color: blue")
+    );
+    assert!(
+        !later_assignment_summary
+            .execution
+            .output_css
+            .contains("$brand:")
+    );
+}
+
+#[test]
 fn consumer_build_derives_static_stylesheet_evaluator_context_for_composite_values() {
     let scss_summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",

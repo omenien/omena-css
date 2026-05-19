@@ -1938,6 +1938,47 @@ assert.equal(
 );
 assert.equal(staticScssEvaluationSummary.execution.outputCss, "  ._button_0{ color: red; }");
 
+const staticScssDefaultEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-source",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "DefaultScss.module.scss",
+      styleSource: "$brand: red !default; $brand: blue; .button { color: $brand; }",
+      requestedPassIds: ["scss-module-evaluate", "css-modules-class-hashing", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(staticScssDefaultEvaluationResult.status, 0, staticScssDefaultEvaluationResult.stderr);
+assert.equal(staticScssDefaultEvaluationResult.error, undefined);
+
+const staticScssDefaultEvaluationSummary = JSON.parse(
+  staticScssDefaultEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.deepEqual(staticScssDefaultEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert.equal(
+  staticScssDefaultEvaluationSummary.execution.cssModuleEvaluation?.evaluatedCss.trim(),
+  ".button { color: blue; }",
+);
+assert.equal(
+  staticScssDefaultEvaluationSummary.execution.outputCss.trim(),
+  "._button_0{ color: blue; }",
+);
+
 const staticLessEvaluationResult = spawnSync(
   "cargo",
   [
