@@ -357,22 +357,39 @@ fn collect_overflow_axis_replacements(
 ) -> Vec<(usize, usize, String)> {
     let mut ranges = Vec::new();
     for pair in declarations.windows(2) {
-        let [x, y] = pair else {
-            continue;
-        };
-        if x.property != "overflow-x"
-            || y.property != "overflow-y"
-            || x.important
-            || y.important
-            || x.value != y.value
-            || !is_overflow_axis_keyword(&x.value)
-            || !declaration_ranges_are_adjacent(tokens, pair)
-        {
-            continue;
+        if let Some(replacement) = overflow_axis_replacement_for_declarations(tokens, pair) {
+            ranges.push(replacement);
         }
-        ranges.push((x.start, y.end, format!("overflow: {};", x.value)));
     }
     ranges
+}
+
+fn overflow_axis_replacement_for_declarations(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let [first, second] = declarations else {
+        return None;
+    };
+    if first.important || second.important || !declaration_ranges_are_adjacent(tokens, declarations)
+    {
+        return None;
+    }
+
+    let (x, y) = match (first.property.as_str(), second.property.as_str()) {
+        ("overflow-x", "overflow-y") => (first.value.as_str(), second.value.as_str()),
+        ("overflow-y", "overflow-x") => (second.value.as_str(), first.value.as_str()),
+        _ => return None,
+    };
+    let x = normalize_overflow_axis_keyword(x)?;
+    let y = normalize_overflow_axis_keyword(y)?;
+    let shorthand_value = compressed_two_axis_shorthand_value(&x, &y);
+
+    Some((
+        first.start,
+        second.end,
+        format!("overflow: {shorthand_value};"),
+    ))
 }
 
 fn collect_place_axis_replacements(
@@ -768,12 +785,10 @@ fn compress_overflow_shorthand_value(value: &str) -> Option<String> {
     let [x, y] = components.as_slice() else {
         return None;
     };
-    let x = x.to_ascii_lowercase();
-    let y = y.to_ascii_lowercase();
-    if x != y || !is_overflow_axis_keyword(&x) {
-        return None;
-    }
-    (x != normalize_ascii_whitespace(value)).then_some(x)
+    let x = normalize_overflow_axis_keyword(x)?;
+    let y = normalize_overflow_axis_keyword(y)?;
+    let compressed = compressed_two_axis_shorthand_value(&x, &y);
+    (compressed != normalize_ascii_whitespace(value)).then_some(compressed)
 }
 
 pub(crate) fn compress_border_radius_value(value: &str) -> Option<String> {
@@ -987,4 +1002,9 @@ pub(crate) fn compress_box_shorthand_values(values: &[&str]) -> Option<String> {
 
 pub(crate) fn is_overflow_axis_keyword(value: &str) -> bool {
     matches!(value, "visible" | "hidden" | "clip" | "scroll" | "auto")
+}
+
+fn normalize_overflow_axis_keyword(value: &str) -> Option<String> {
+    let lower = value.to_ascii_lowercase();
+    is_overflow_axis_keyword(&lower).then_some(lower)
 }

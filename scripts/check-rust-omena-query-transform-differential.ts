@@ -346,7 +346,7 @@ const fixtures: readonly DifferentialFixture[] = [
   {
     label: "overflow-background-repeat-shorthand",
     source:
-      ".a { background-repeat: repeat repeat; overflow-x: visible; overflow-y: visible; } .b { background-repeat: repeat no-repeat; overflow: hidden hidden; } .c { background-repeat: no-repeat repeat; overflow: visible visible; }",
+      ".a { background-repeat: repeat repeat; overflow-x: visible; overflow-y: visible; } .b { background-repeat: repeat no-repeat; overflow: hidden hidden; } .c { background-repeat: no-repeat repeat; overflow: visible visible; } .d { overflow-x: auto; overflow-y: hidden; } .e { overflow-y: scroll; overflow-x: clip; } .f { overflow: AUTO HIDDEN; }",
   },
   {
     label: "background-position-axis-shorthand",
