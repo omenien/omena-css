@@ -189,6 +189,7 @@ pub(crate) fn evaluate_dead_media_branch_rules(
     )
 }
 
+/// Applies resolved CSS `@import` replacements for the import-inline pass.
 pub fn inline_css_imports(
     source: &str,
     dialect: StyleDialect,
@@ -197,6 +198,7 @@ pub fn inline_css_imports(
     inline_css_imports_with_lexer(source, dialect, inlines)
 }
 
+/// Applies import inlining before static Sass/Less module evaluation.
 pub fn inline_css_imports_for_static_module_evaluation(
     source: &str,
     dialect: StyleDialect,
@@ -205,6 +207,7 @@ pub fn inline_css_imports_for_static_module_evaluation(
     inline_css_imports_for_static_module_evaluation_with_lexer(source, dialect, inlines)
 }
 
+/// Restores Less `(inline)` literal import placeholders after static evaluation.
 pub fn restore_less_inline_literal_placeholders(
     source: &str,
     placeholders: &[TransformLessInlineLiteralPlaceholderV0],
@@ -332,6 +335,7 @@ pub(crate) fn substitute_static_css_custom_properties(
     substitute_static_css_custom_properties_with_lexer(source, dialect)
 }
 
+/// Summarizes the static custom-property least fixed point for a style source.
 pub fn summarize_static_css_custom_property_fixed_point_from_source(
     source: &str,
     dialect: StyleDialect,
@@ -343,6 +347,7 @@ pub fn summarize_static_css_custom_property_fixed_point_from_source(
     summarize_custom_property_least_fixed_point(&env)
 }
 
+/// Parses a static CSS value into the cascade value model used by query consumers.
 pub fn parse_static_css_cascade_value(value: &str) -> Option<CascadeValue> {
     match value.trim() {
         "initial" => Some(CascadeValue::Initial),

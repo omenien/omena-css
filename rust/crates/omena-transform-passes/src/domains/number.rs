@@ -35,6 +35,7 @@ pub(crate) fn parse_reducible_calc_value(value: &str) -> Option<String> {
     Some(format_numeric_value_with_unit(reduced))
 }
 
+/// Reduces a standalone static numeric CSS expression into its shortest value text.
 pub fn reduce_static_numeric_expression(value: &str) -> Option<String> {
     let reduced = parse_reducible_numeric_expression(value)?;
     Some(format_numeric_value_with_unit(reduced))
