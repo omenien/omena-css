@@ -2139,6 +2139,33 @@ fn derives_import_aware_static_stylesheet_module_evaluation() {
 }
 
 #[test]
+fn derives_scss_use_aware_static_stylesheet_module_evaluation() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.scss",
+        [
+            (
+                "/tmp/tokens.scss",
+                "$brand: red; $gap: 8px; .base { color: blue; }",
+            ),
+            (
+                "/tmp/App.module.scss",
+                r#"@use "./tokens" as tokens; .button { color: tokens.$brand; margin: tokens.$gap; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    assert_eq!(
+        summary
+            .context
+            .scss_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.evaluated_css.as_str()),
+        Some("  .base { color: blue; } .button { color: red; margin: 8px; }")
+    );
+}
+
+#[test]
 fn derives_transform_context_with_cross_file_value_resolutions() {
     let summary = summarize_omena_query_transform_context_from_sources(
         "/tmp/App.module.css",

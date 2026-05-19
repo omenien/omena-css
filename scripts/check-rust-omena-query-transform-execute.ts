@@ -2047,6 +2047,60 @@ assert(importAwareScssEvaluationSummary.execution.outputCss.includes(".button { 
 assert(!importAwareScssEvaluationSummary.execution.outputCss.includes("@import"));
 assert(!importAwareScssEvaluationSummary.execution.outputCss.includes("$brand:"));
 
+const scssUseEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "/tmp/App.module.scss",
+      styles: [
+        {
+          stylePath: "/tmp/tokens.scss",
+          styleSource: "$brand: red; $gap: 8px; .base { color: blue; }",
+        },
+        {
+          stylePath: "/tmp/App.module.scss",
+          styleSource:
+            '@use "./tokens" as tokens; .button { color: tokens.$brand; margin: tokens.$gap; }',
+        },
+      ],
+      requestedPassIds: ["scss-module-evaluate", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(scssUseEvaluationResult.status, 0, scssUseEvaluationResult.stderr);
+assert.equal(scssUseEvaluationResult.error, undefined);
+
+const scssUseEvaluationSummary = JSON.parse(
+  scssUseEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.deepEqual(scssUseEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert.deepEqual(scssUseEvaluationSummary.execution.executedPassIds, [
+  "scss-module-evaluate",
+  "print-css",
+]);
+assert(scssUseEvaluationSummary.execution.outputCss.includes(".base { color: blue; }"));
+assert(
+  scssUseEvaluationSummary.execution.outputCss.includes(".button { color: red; margin: 8px; }"),
+);
+assert(!scssUseEvaluationSummary.execution.outputCss.includes("@use"));
+assert(!scssUseEvaluationSummary.execution.outputCss.includes("tokens.$"));
+assert(!scssUseEvaluationSummary.execution.outputCss.includes("$brand:"));
+
 const staticScssDefaultEvaluationResult = spawnSync(
   "cargo",
   [

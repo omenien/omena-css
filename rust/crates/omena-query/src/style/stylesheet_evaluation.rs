@@ -20,6 +20,44 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
     derive_static_scss_stylesheet_module_evaluation(style_source, variable_facts)
 }
 
+pub(super) fn derive_static_scss_stylesheet_module_variable_exports(
+    style_source: &str,
+) -> BTreeMap<String, String> {
+    let facts = collect_style_facts(style_source, OmenaParserStyleDialect::Scss);
+    let scopes = match collect_static_stylesheet_scopes(style_source) {
+        Some(scopes) => scopes,
+        None => return BTreeMap::new(),
+    };
+    let declarations =
+        match collect_static_scss_variable_declarations(style_source, &facts.variables, &scopes) {
+            Some(declarations) => declarations,
+            None => return BTreeMap::new(),
+        };
+
+    let mut exports = BTreeMap::new();
+    for declaration in declarations
+        .iter()
+        .filter(|declaration| declaration.scope_id == 0)
+    {
+        let Some(public_name) = static_scss_public_module_variable_name(declaration.name.as_str())
+        else {
+            continue;
+        };
+        let mut stack = BTreeSet::new();
+        if let Some(value) = resolve_static_scss_variable_value_in_scope(
+            declaration.name.as_str(),
+            0,
+            usize::MAX,
+            &scopes,
+            &declarations,
+            &mut stack,
+        ) {
+            exports.insert(public_name.to_string(), value);
+        }
+    }
+    exports
+}
+
 fn derive_static_scss_stylesheet_module_evaluation(
     style_source: &str,
     variable_facts: &[ParsedVariableFact],
@@ -902,6 +940,14 @@ fn static_stylesheet_variable_name_is_safe(name: &str) -> bool {
         && name
             .chars()
             .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+}
+
+fn static_scss_public_module_variable_name(name: &str) -> Option<&str> {
+    let bare_name = name.strip_prefix('$')?;
+    if bare_name.starts_with('-') || bare_name.starts_with('_') || bare_name.is_empty() {
+        return None;
+    }
+    Some(bare_name)
 }
 
 fn static_stylesheet_composite_value_is_safe(value: &str) -> bool {

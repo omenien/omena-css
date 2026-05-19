@@ -1,4 +1,6 @@
 use super::*;
+use omena_parser::lex;
+use omena_syntax::SyntaxKind;
 use omena_transform_passes::{
     TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
     TransformCssModuleValueResolutionV0, TransformDesignTokenRouteV0, TransformImportInlineV0,
@@ -7,7 +9,10 @@ use omena_transform_passes::{
 };
 use std::borrow::Cow;
 
-use super::stylesheet_evaluation::derive_static_stylesheet_module_evaluation;
+use super::stylesheet_evaluation::{
+    derive_static_scss_stylesheet_module_variable_exports,
+    derive_static_stylesheet_module_evaluation,
+};
 
 pub fn summarize_omena_query_transform_plan_from_source(
     style_path: &str,
@@ -832,6 +837,12 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
             &source_by_path,
             package_manifests,
         );
+        let scss_module_uses = derive_static_scss_module_use_evaluations_for_transform_context(
+            entry,
+            &available_style_paths,
+            &source_by_path,
+            package_manifests,
+        );
         match omena_parser_dialect_for_style_path(entry.style_path.as_str()) {
             OmenaParserStyleDialect::Scss | OmenaParserStyleDialect::Sass => {
                 let dialect = omena_parser_dialect_for_style_path(entry.style_path.as_str());
@@ -840,6 +851,7 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
                         entry.style_source.as_str(),
                         dialect,
                         &context.import_inlines,
+                        &scss_module_uses,
                     );
             }
             OmenaParserStyleDialect::Less => {
@@ -848,6 +860,7 @@ pub fn summarize_omena_query_transform_context_from_sources<'a>(
                         entry.style_source.as_str(),
                         OmenaParserStyleDialect::Less,
                         &context.import_inlines,
+                        &[],
                     );
             }
             OmenaParserStyleDialect::Css => {}
@@ -906,13 +919,24 @@ fn derive_static_stylesheet_module_evaluation_for_transform_context(
     style_source: &str,
     dialect: OmenaParserStyleDialect,
     import_inlines: &[TransformImportInlineV0],
+    scss_module_uses: &[StaticScssModuleUseEvaluation],
 ) -> Option<TransformModuleEvaluationV0> {
     let evaluation_source = derive_import_aware_static_stylesheet_module_evaluation_source(
         style_source,
         dialect,
         import_inlines,
     );
-    derive_static_stylesheet_module_evaluation(evaluation_source.as_ref(), dialect)
+    let evaluation_source = derive_scss_use_aware_static_stylesheet_module_evaluation_source(
+        evaluation_source.as_ref(),
+        dialect,
+        scss_module_uses,
+    );
+    derive_static_stylesheet_module_evaluation(evaluation_source.as_ref(), dialect).or_else(|| {
+        (evaluation_source.as_ref() != style_source).then(|| TransformModuleEvaluationV0 {
+            evaluator: static_stylesheet_module_system_evaluator_label(dialect).to_string(),
+            evaluated_css: evaluation_source.into_owned(),
+        })
+    })
 }
 
 fn derive_import_aware_static_stylesheet_module_evaluation_source<'a>(
@@ -930,6 +954,254 @@ fn derive_import_aware_static_stylesheet_module_evaluation_source<'a>(
     } else {
         Cow::Owned(inlined_source)
     }
+}
+
+fn static_stylesheet_module_system_evaluator_label(
+    dialect: OmenaParserStyleDialect,
+) -> &'static str {
+    match dialect {
+        OmenaParserStyleDialect::Scss | OmenaParserStyleDialect::Sass => {
+            "omena-query-static-scss-module-system-evaluator"
+        }
+        OmenaParserStyleDialect::Less => "omena-query-static-less-module-system-evaluator",
+        OmenaParserStyleDialect::Css => "omena-query-static-css-module-system-evaluator",
+    }
+}
+
+#[derive(Debug, Clone)]
+struct StaticScssModuleUseEvaluation {
+    source: String,
+    namespace_kind: Option<&'static str>,
+    namespace: Option<String>,
+    evaluated_css: String,
+    variable_exports: BTreeMap<String, String>,
+}
+
+fn derive_static_scss_module_use_evaluations_for_transform_context(
+    entry: &OmenaQueryStyleFactEntry,
+    available_style_paths: &BTreeSet<&str>,
+    source_by_path: &BTreeMap<String, String>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<StaticScssModuleUseEvaluation> {
+    if !matches!(
+        omena_parser_dialect_for_style_path(entry.style_path.as_str()),
+        OmenaParserStyleDialect::Scss | OmenaParserStyleDialect::Sass
+    ) {
+        return Vec::new();
+    }
+
+    entry
+        .facts
+        .sass_module_edges
+        .iter()
+        .filter(|edge| edge.kind == "sassUse")
+        .filter(|edge| matches!(edge.namespace_kind, Some("alias") | Some("default")))
+        .filter_map(|edge| {
+            let resolved = resolve_style_module_source(
+                entry.style_path.as_str(),
+                edge.source.as_str(),
+                available_style_paths,
+                package_manifests,
+            )?;
+            let source = source_by_path.get(resolved.as_str())?;
+            let evaluation =
+                derive_static_stylesheet_module_evaluation(source, OmenaParserStyleDialect::Scss);
+            Some(StaticScssModuleUseEvaluation {
+                source: edge.source.clone(),
+                namespace_kind: edge.namespace_kind,
+                namespace: edge.namespace.clone(),
+                evaluated_css: evaluation
+                    .map(|evaluation| evaluation.evaluated_css)
+                    .unwrap_or_else(|| source.clone()),
+                variable_exports: derive_static_scss_stylesheet_module_variable_exports(source),
+            })
+        })
+        .collect()
+}
+
+fn derive_scss_use_aware_static_stylesheet_module_evaluation_source<'a>(
+    style_source: &'a str,
+    dialect: OmenaParserStyleDialect,
+    scss_module_uses: &[StaticScssModuleUseEvaluation],
+) -> Cow<'a, str> {
+    if !matches!(
+        dialect,
+        OmenaParserStyleDialect::Scss | OmenaParserStyleDialect::Sass
+    ) || scss_module_uses.is_empty()
+    {
+        return Cow::Borrowed(style_source);
+    }
+    let source = replace_static_scss_namespaced_module_variables(style_source, scss_module_uses);
+    let (source, mutation_count) = inline_static_scss_use_rules(&source, dialect, scss_module_uses);
+    if mutation_count == 0 && source == style_source {
+        Cow::Borrowed(style_source)
+    } else {
+        Cow::Owned(source)
+    }
+}
+
+fn replace_static_scss_namespaced_module_variables(
+    source: &str,
+    scss_module_uses: &[StaticScssModuleUseEvaluation],
+) -> String {
+    let mut output = source.to_string();
+    for module_use in scss_module_uses {
+        if !matches!(module_use.namespace_kind, Some("alias") | Some("default")) {
+            continue;
+        }
+        let Some(namespace) = module_use.namespace.as_deref() else {
+            continue;
+        };
+        for (name, value) in &module_use.variable_exports {
+            output =
+                replace_static_scss_namespaced_variable_reference(&output, namespace, name, value);
+        }
+    }
+    output
+}
+
+fn replace_static_scss_namespaced_variable_reference(
+    source: &str,
+    namespace: &str,
+    name: &str,
+    value: &str,
+) -> String {
+    let needle = format!("{namespace}.${name}");
+    if !source.contains(needle.as_str()) {
+        return source.to_string();
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0usize;
+    while let Some(offset) = source[cursor..].find(needle.as_str()) {
+        let start = cursor + offset;
+        let end = start + needle.len();
+        if static_scss_reference_boundary_is_safe(source, start, end) {
+            output.push_str(&source[cursor..start]);
+            output.push_str(value);
+            cursor = end;
+        } else {
+            output.push_str(&source[cursor..end]);
+            cursor = end;
+        }
+    }
+    output.push_str(&source[cursor..]);
+    output
+}
+
+fn static_scss_reference_boundary_is_safe(source: &str, start: usize, end: usize) -> bool {
+    let before_safe = source[..start]
+        .chars()
+        .next_back()
+        .is_none_or(|ch| !static_scss_identifier_char(ch));
+    let after_safe = source[end..]
+        .chars()
+        .next()
+        .is_none_or(|ch| !static_scss_identifier_char(ch));
+    before_safe && after_safe
+}
+
+fn static_scss_identifier_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
+}
+
+fn inline_static_scss_use_rules(
+    source: &str,
+    dialect: OmenaParserStyleDialect,
+    scss_module_uses: &[StaticScssModuleUseEvaluation],
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut depth = 0usize;
+    let mut index = 0usize;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@use") =>
+            {
+                let Some(end_index) = static_scss_use_rule_semicolon(tokens, index) else {
+                    index += 1;
+                    continue;
+                };
+                let start = transform_token_start(&tokens[index]);
+                let end = transform_token_end(&tokens[end_index]);
+                if let Some(source_name) =
+                    static_scss_use_rule_source_name(tokens, index + 1, end_index)
+                    && let Some(module_use) = scss_module_uses
+                        .iter()
+                        .find(|module_use| module_use.source == source_name)
+                {
+                    replacements.push((start, end, module_use.evaluated_css.clone()));
+                }
+                index = end_index + 1;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    apply_transform_source_replacements(source, replacements)
+}
+
+fn static_scss_use_rule_semicolon(
+    tokens: &[omena_parser::LexedToken],
+    at_use_index: usize,
+) -> Option<usize> {
+    let mut index = at_use_index + 1;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::Semicolon => return Some(index),
+            SyntaxKind::LeftBrace | SyntaxKind::RightBrace => return None,
+            _ => index += 1,
+        }
+    }
+    None
+}
+
+fn static_scss_use_rule_source_name(
+    tokens: &[omena_parser::LexedToken],
+    start_index: usize,
+    end_index: usize,
+) -> Option<String> {
+    tokens[start_index..end_index]
+        .iter()
+        .find(|token| matches!(token.kind, SyntaxKind::String | SyntaxKind::Url))
+        .map(|token| token.text.trim_matches('"').trim_matches('\'').to_string())
+}
+
+fn apply_transform_source_replacements(
+    source: &str,
+    mut replacements: Vec<(usize, usize, String)>,
+) -> (String, usize) {
+    if replacements.is_empty() {
+        return (source.to_string(), 0);
+    }
+    replacements.sort_by_key(|replacement| replacement.0);
+    let mut output = source.to_string();
+    let mut mutation_count = 0usize;
+    for (start, end, replacement) in replacements.into_iter().rev() {
+        if start > end || end > output.len() {
+            continue;
+        }
+        output.replace_range(start..end, replacement.as_str());
+        mutation_count += 1;
+    }
+    (output, mutation_count)
+}
+
+fn transform_token_start(token: &omena_parser::LexedToken) -> usize {
+    let start: u32 = token.range.start().into();
+    start as usize
+}
+
+fn transform_token_end(token: &omena_parser::LexedToken) -> usize {
+    let end: u32 = token.range.end().into();
+    end as usize
 }
 
 fn extend_passes_from_ids(ids: &[&'static str], passes: &mut Vec<TransformPassKind>) {
