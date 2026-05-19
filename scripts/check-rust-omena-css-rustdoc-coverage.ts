@@ -21,7 +21,7 @@ const CRATES = [
 ] as const;
 
 const COVERAGE_THRESHOLD = Number.parseFloat(
-  process.env.CME_OMENA_CSS_RUSTDOC_COVERAGE_THRESHOLD ?? "80",
+  process.env.CME_OMENA_CSS_RUSTDOC_COVERAGE_THRESHOLD ?? "100",
 );
 
 interface PublicItem {
