@@ -1,4 +1,4 @@
-use omena_parser::{StyleDialect, lex};
+use omena_parser::{LexedToken, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
 use crate::helpers::tokens::{
@@ -30,10 +30,14 @@ pub(crate) fn normalize_css_whitespace_with_lexer(
             continue;
         }
 
-        let replacement = whitespace_replacement_for_tokens(
-            previous_non_comment_token_kind(tokens, index),
-            next_non_comment_token_kind(tokens, index),
-        );
+        let replacement = if whitespace_is_important_annotation_gap(tokens, index) {
+            ""
+        } else {
+            whitespace_replacement_for_tokens(
+                previous_non_comment_token_kind(tokens, index),
+                next_non_comment_token_kind(tokens, index),
+            )
+        };
         if replacement != token.text {
             mutation_count += 1;
         }
@@ -41,6 +45,50 @@ pub(crate) fn normalize_css_whitespace_with_lexer(
     }
 
     (output, mutation_count)
+}
+
+fn whitespace_is_important_annotation_gap(tokens: &[LexedToken], index: usize) -> bool {
+    let Some((previous_index, previous)) = previous_non_trivia_token(tokens, index) else {
+        return false;
+    };
+    let Some((next_index, next)) = next_non_trivia_token(tokens, index) else {
+        return false;
+    };
+
+    if next.kind == SyntaxKind::Important {
+        return true;
+    }
+
+    if previous.kind == SyntaxKind::Delim
+        && previous.text == "!"
+        && next.kind == SyntaxKind::Ident
+        && next.text.eq_ignore_ascii_case("important")
+    {
+        return true;
+    }
+
+    next.kind == SyntaxKind::Delim
+        && next.text == "!"
+        && previous_index < next_index
+        && next_non_trivia_token(tokens, next_index).is_some_and(|(_, token)| {
+            token.kind == SyntaxKind::Ident && token.text.eq_ignore_ascii_case("important")
+        })
+}
+
+fn previous_non_trivia_token(tokens: &[LexedToken], index: usize) -> Option<(usize, &LexedToken)> {
+    tokens[..index]
+        .iter()
+        .enumerate()
+        .rev()
+        .find(|(_, token)| !crate::helpers::tokens::is_trivia_token(token.kind))
+}
+
+fn next_non_trivia_token(tokens: &[LexedToken], index: usize) -> Option<(usize, &LexedToken)> {
+    tokens
+        .iter()
+        .enumerate()
+        .skip(index + 1)
+        .find(|(_, token)| !crate::helpers::tokens::is_trivia_token(token.kind))
 }
 
 fn whitespace_replacement_for_tokens(

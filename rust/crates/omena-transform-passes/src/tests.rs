@@ -1222,6 +1222,27 @@ fn execution_runtime_applies_conservative_whitespace_normalization() {
 }
 
 #[test]
+fn execution_runtime_normalizes_important_annotation_whitespace() {
+    let source = r#".a { color : red ! important ; margin : 0px !important ; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::WhitespaceStrip,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(
+        execution.output_css,
+        r#".a{color:red!important;margin:0px!important}"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["whitespace-strip", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_compresses_numeric_tokens_only() {
     let source = r#".a { width: 0.50rem; opacity: 000.50; margin: -0.25px 10.00%; scale: 1.0E+03; flex-grow: 1e+00; z-index: 001; order: +001; translate: 0e+3px; rotate: -0deg; content: "0.50 1.0E+03"; }"#;
     let execution = execute_transform_passes_on_source(

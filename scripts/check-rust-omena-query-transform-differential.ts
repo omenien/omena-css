@@ -53,6 +53,10 @@ const fixtures: readonly DifferentialFixture[] = [
     source: ".a { z-index: 001; opacity: 000.50; }",
   },
   {
+    label: "important-annotation-spacing",
+    source: ".a { color : #FFFFFF ! important ; margin : 0px !important ; }",
+  },
+  {
     label: "selector-list-and-spacing",
     source: '.a , .b { color : #FFFFFF ; opacity: 1.0; background: url("x.svg"); }',
   },
