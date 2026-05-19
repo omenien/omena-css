@@ -2922,6 +2922,24 @@ fn execution_runtime_evaluates_literal_media_branches() {
 }
 
 #[test]
+fn execution_runtime_evaluates_only_media_modifier() {
+    let source = r#"@media only all { .a { color: red; } } @media only screen and (max-width: 0px) { .dead { color: blue; } } @media only screen { .unknown { color: green; } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::MediaStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 2);
+    assert_eq!(
+        execution.output_css,
+        r#".a { color: red; }  @media only screen { .unknown { color: green; } }"#
+    );
+}
+
+#[test]
 fn execution_runtime_evaluates_media_or_disjunctions() {
     let source = r#"@media (max-width: 0px) or all { .live { color: red; } } @media (max-width: 0px) or (height<=0px) { .dead { color: blue; } } @media screen or (max-width: 0px) { .unknown { color: green; } }"#;
     let execution = execute_transform_passes_on_source(

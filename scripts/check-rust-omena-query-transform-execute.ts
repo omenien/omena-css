@@ -396,6 +396,43 @@ assert.equal(
 assert.deepEqual(mediaListSummary.execution.executedPassIds, ["media-static-eval", "print-css"]);
 assert.equal(mediaListSummary.execution.mutationCount, 8);
 
+const mediaOnlyResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "media-only.css",
+      styleSource:
+        "@media only all { .a { color: red; } } @media only screen and (max-width: 0px) { .dead { color: blue; } } @media only screen { .unknown { color: green; } }",
+      requestedPassIds: ["media-static-eval", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(mediaOnlyResult.status, 0, mediaOnlyResult.stderr);
+assert.equal(mediaOnlyResult.error, undefined);
+
+const mediaOnlySummary = JSON.parse(mediaOnlyResult.stdout) as TransformExecuteSummaryV0;
+
+assert.equal(
+  mediaOnlySummary.execution.outputCss,
+  ".a { color: red; }  @media only screen { .unknown { color: green; } }",
+);
+assert.deepEqual(mediaOnlySummary.execution.executedPassIds, ["media-static-eval", "print-css"]);
+assert.equal(mediaOnlySummary.execution.mutationCount, 2);
+
 const mediaOrResult = spawnSync(
   "cargo",
   [

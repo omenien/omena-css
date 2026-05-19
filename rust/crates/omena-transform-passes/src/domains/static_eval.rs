@@ -460,6 +460,10 @@ fn evaluate_static_media_condition(
         return StaticMediaEvalVerdict::Unknown;
     }
 
+    if let Some(only_condition) = parse_static_media_only(condition) {
+        return evaluate_static_media_condition(only_condition, options);
+    }
+
     if let Some(parts) = parse_static_media_disjunction(condition) {
         let verdicts = parts
             .iter()
@@ -512,6 +516,12 @@ fn evaluate_static_media_condition(
 fn parse_static_media_negation(condition: &str) -> Option<&str> {
     media_keyword_at(condition, 0, "not")
         .then(|| condition["not".len()..].trim())
+        .filter(|condition| !condition.is_empty())
+}
+
+fn parse_static_media_only(condition: &str) -> Option<&str> {
+    media_keyword_at(condition, 0, "only")
+        .then(|| condition["only".len()..].trim())
         .filter(|condition| !condition.is_empty())
 }
 
