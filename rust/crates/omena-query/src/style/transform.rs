@@ -1009,19 +1009,155 @@ fn derive_static_scss_module_use_evaluations_for_transform_context(
                 package_manifests,
             )?;
             let source = source_by_path.get(resolved.as_str())?;
-            let evaluation =
-                derive_static_stylesheet_module_evaluation(source, OmenaParserStyleDialect::Scss);
+            let module_context = derive_static_scss_module_context_for_transform_context(
+                resolved.as_str(),
+                source,
+                available_style_paths,
+                source_by_path,
+                package_manifests,
+                &mut BTreeSet::new(),
+            );
             Some(StaticScssModuleUseEvaluation {
                 source: edge.source.clone(),
                 namespace_kind: edge.namespace_kind,
                 namespace: edge.namespace.clone(),
-                evaluated_css: evaluation
-                    .map(|evaluation| evaluation.evaluated_css)
-                    .unwrap_or_else(|| source.clone()),
-                variable_exports: derive_static_scss_stylesheet_module_variable_exports(source),
+                evaluated_css: module_context.evaluated_css,
+                variable_exports: module_context.variable_exports,
             })
         })
         .collect()
+}
+
+#[derive(Debug, Clone)]
+struct StaticScssModuleContext {
+    evaluated_css: String,
+    variable_exports: BTreeMap<String, String>,
+}
+
+fn derive_static_scss_module_context_for_transform_context(
+    style_path: &str,
+    style_source: &str,
+    available_style_paths: &BTreeSet<&str>,
+    source_by_path: &BTreeMap<String, String>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    visited: &mut BTreeSet<String>,
+) -> StaticScssModuleContext {
+    if !visited.insert(style_path.to_string()) {
+        return StaticScssModuleContext {
+            evaluated_css: String::new(),
+            variable_exports: BTreeMap::new(),
+        };
+    }
+
+    let forward_evaluations = derive_static_scss_module_forward_evaluations_for_transform_context(
+        style_path,
+        style_source,
+        available_style_paths,
+        source_by_path,
+        package_manifests,
+        visited,
+    );
+    let mut variable_exports = derive_static_scss_stylesheet_module_variable_exports(style_source);
+    for forward in &forward_evaluations {
+        for (name, value) in &forward.variable_exports {
+            variable_exports
+                .entry(name.clone())
+                .or_insert_with(|| value.clone());
+        }
+    }
+
+    let (evaluation_source, forward_mutation_count) = inline_static_scss_forward_rules(
+        style_source,
+        OmenaParserStyleDialect::Scss,
+        &forward_evaluations,
+    );
+    let evaluated_css = derive_static_stylesheet_module_evaluation(
+        evaluation_source.as_str(),
+        OmenaParserStyleDialect::Scss,
+    )
+    .map(|evaluation| evaluation.evaluated_css)
+    .unwrap_or_else(|| {
+        if forward_mutation_count > 0 {
+            evaluation_source
+        } else {
+            style_source.to_string()
+        }
+    });
+
+    visited.remove(style_path);
+    StaticScssModuleContext {
+        evaluated_css,
+        variable_exports,
+    }
+}
+
+#[derive(Debug, Clone)]
+struct StaticScssModuleForwardEvaluation {
+    source: String,
+    evaluated_css: String,
+    variable_exports: BTreeMap<String, String>,
+}
+
+fn derive_static_scss_module_forward_evaluations_for_transform_context(
+    style_path: &str,
+    style_source: &str,
+    available_style_paths: &BTreeSet<&str>,
+    source_by_path: &BTreeMap<String, String>,
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    visited: &mut BTreeSet<String>,
+) -> Vec<StaticScssModuleForwardEvaluation> {
+    let facts =
+        summarize_omena_query_omena_parser_style_facts(style_source, OmenaParserStyleDialect::Scss);
+
+    facts
+        .sass_module_edges
+        .iter()
+        .filter(|edge| edge.kind == "sassForward")
+        .filter_map(|edge| {
+            let resolved = resolve_style_module_source(
+                style_path,
+                edge.source.as_str(),
+                available_style_paths,
+                package_manifests,
+            )?;
+            let source = source_by_path.get(resolved.as_str())?;
+            let module_context = derive_static_scss_module_context_for_transform_context(
+                resolved.as_str(),
+                source,
+                available_style_paths,
+                source_by_path,
+                package_manifests,
+                visited,
+            );
+            Some(StaticScssModuleForwardEvaluation {
+                source: edge.source.clone(),
+                evaluated_css: module_context.evaluated_css,
+                variable_exports: filter_static_scss_forward_exports(
+                    module_context.variable_exports,
+                    edge.visibility_filter_kind,
+                    &edge.visibility_filter_names,
+                ),
+            })
+        })
+        .collect()
+}
+
+fn filter_static_scss_forward_exports(
+    exports: BTreeMap<String, String>,
+    filter_kind: Option<&'static str>,
+    filter_names: &[String],
+) -> BTreeMap<String, String> {
+    match filter_kind {
+        Some("show") => exports
+            .into_iter()
+            .filter(|(name, _)| filter_names.iter().any(|filter| filter == name))
+            .collect(),
+        Some("hide") => exports
+            .into_iter()
+            .filter(|(name, _)| !filter_names.iter().any(|filter| filter == name))
+            .collect(),
+        _ => exports,
+    }
 }
 
 fn derive_scss_use_aware_static_stylesheet_module_evaluation_source<'a>(
@@ -1180,12 +1316,55 @@ fn inline_static_scss_use_rules(
                 let start = transform_token_start(&tokens[index]);
                 let end = transform_token_end(&tokens[end_index]);
                 if let Some(source_name) =
-                    static_scss_use_rule_source_name(tokens, index + 1, end_index)
+                    static_scss_module_rule_source_name(tokens, index + 1, end_index)
                     && let Some(module_use) = scss_module_uses
                         .iter()
                         .find(|module_use| module_use.source == source_name)
                 {
                     replacements.push((start, end, module_use.evaluated_css.clone()));
+                }
+                index = end_index + 1;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    apply_transform_source_replacements(source, replacements)
+}
+
+fn inline_static_scss_forward_rules(
+    source: &str,
+    dialect: OmenaParserStyleDialect,
+    forward_evaluations: &[StaticScssModuleForwardEvaluation],
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut replacements = Vec::new();
+    let mut depth = 0usize;
+    let mut index = 0usize;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@forward") =>
+            {
+                let Some(end_index) = static_scss_use_rule_semicolon(tokens, index) else {
+                    index += 1;
+                    continue;
+                };
+                let start = transform_token_start(&tokens[index]);
+                let end = transform_token_end(&tokens[end_index]);
+                if let Some(source_name) =
+                    static_scss_module_rule_source_name(tokens, index + 1, end_index)
+                    && let Some(forward) = forward_evaluations
+                        .iter()
+                        .find(|forward| forward.source == source_name)
+                {
+                    replacements.push((start, end, forward.evaluated_css.clone()));
                 }
                 index = end_index + 1;
                 continue;
@@ -1213,7 +1392,7 @@ fn static_scss_use_rule_semicolon(
     None
 }
 
-fn static_scss_use_rule_source_name(
+fn static_scss_module_rule_source_name(
     tokens: &[omena_parser::LexedToken],
     start_index: usize,
     end_index: usize,

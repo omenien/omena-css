@@ -2193,6 +2193,34 @@ fn derives_wildcard_scss_use_aware_static_stylesheet_module_evaluation() {
 }
 
 #[test]
+fn derives_forwarded_scss_use_aware_static_stylesheet_module_evaluation() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.scss",
+        [
+            (
+                "/tmp/tokens.scss",
+                "$brand: red; $gap: 8px; .base { color: blue; }",
+            ),
+            ("/tmp/theme.scss", r#"@forward "./tokens" show $brand;"#),
+            (
+                "/tmp/App.module.scss",
+                r#"@use "./theme" as theme; .button { color: theme.$brand; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    assert_eq!(
+        summary
+            .context
+            .scss_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.evaluated_css.as_str()),
+        Some("  .base { color: blue; } .button { color: red; }")
+    );
+}
+
+#[test]
 fn derives_transform_context_with_cross_file_value_resolutions() {
     let summary = summarize_omena_query_transform_context_from_sources(
         "/tmp/App.module.css",
