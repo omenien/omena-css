@@ -1,6 +1,6 @@
 use super::{
     ascii::{ascii_css_identifier_end, starts_with_ascii_case_insensitive},
-    identifiers::css_identifier_text_is_plain,
+    identifiers::{css_identifier_escape_sequence_end, css_identifier_text_is_plain},
     values::{matching_function_end, split_top_level_value_arguments},
 };
 
@@ -204,11 +204,10 @@ pub(crate) fn css_class_selector_name_end(selector: &str, start: usize) -> usize
             break;
         };
         if ch == '\\' {
-            let escaped_start = end + ch.len_utf8();
-            let Some(escaped) = selector[escaped_start..].chars().next() else {
+            let Some(escape_end) = css_identifier_escape_sequence_end(selector, end) else {
                 break;
             };
-            end = escaped_start + escaped.len_utf8();
+            end = escape_end;
             continue;
         }
         let next = ascii_css_identifier_end(selector, end);

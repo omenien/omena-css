@@ -10,7 +10,7 @@ use crate::domains::{
 use crate::helpers::{
     ascii::starts_with_ascii_case_insensitive,
     declarations::collect_simple_declarations_in_block,
-    identifiers::css_identifier_text_is_plain,
+    identifiers::{css_identifier_names_match, css_identifier_text_is_plain},
     rules::collect_declaration_ordinary_rule_slices,
     selectors::{
         css_class_selector_name_end, global_pseudo_function_end, local_pseudo_function_end,
@@ -190,7 +190,7 @@ fn css_module_composes_resolution_exists(
     resolutions.iter().any(|resolution| {
         !resolution.exported_class_names.is_empty()
             && normalize_reachable_class_name(&resolution.local_class_name)
-                .is_some_and(|resolved_name| resolved_name == class_name)
+                .is_some_and(|resolved_name| css_identifier_names_match(resolved_name, class_name))
             && resolution
                 .exported_class_names
                 .iter()
@@ -315,7 +315,7 @@ fn rewrite_local_composes_value(
             parts.push(global_name.to_string());
             continue;
         }
-        if !css_identifier_text_is_plain(part) {
+        if !css_identifier_text_is_plain(part) && !part.contains('\\') {
             return None;
         }
         if let Some(rewritten_name) = rewritten_class_name_for(part, rewrites) {
@@ -349,6 +349,6 @@ fn rewritten_class_name_for<'a>(
     rewrites.iter().find_map(|rewrite| {
         let original_name = normalize_reachable_class_name(&rewrite.original_name)?;
         let rewritten_name = normalize_reachable_class_name(&rewrite.rewritten_name)?;
-        (original_name == class_name).then_some(rewritten_name)
+        css_identifier_names_match(original_name, class_name).then_some(rewritten_name)
     })
 }

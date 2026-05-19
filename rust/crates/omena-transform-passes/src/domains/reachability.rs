@@ -3,8 +3,9 @@ use crate::{
         CssModuleScopeBlock, CssModuleScopeBlockKind, css_module_scope_kind_for_range,
     },
     helpers::{
-        collections::push_unique_string, rules::SimpleRuleSlice,
-        selectors::selector_branch_owner_class_name, values::split_top_level_value_arguments,
+        collections::push_unique_string, identifiers::css_identifier_names_match,
+        rules::SimpleRuleSlice, selectors::selector_branch_owner_class_name,
+        values::split_top_level_value_arguments,
     },
 };
 
@@ -76,7 +77,7 @@ pub(crate) fn class_name_is_reachable(class_name: &str, reachable_class_names: &
     reachable_class_names
         .iter()
         .filter_map(|name| normalize_reachable_class_name(name))
-        .any(|name| name == class_name)
+        .any(|name| css_identifier_names_match(name, class_name))
 }
 
 pub(crate) fn normalize_reachable_class_name(name: &str) -> Option<&str> {

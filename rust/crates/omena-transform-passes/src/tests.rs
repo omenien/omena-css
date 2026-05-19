@@ -972,7 +972,7 @@ fn execution_runtime_hashes_escaped_css_module_class_selectors() {
     let source = r#".foo\:bar { color: red; } :local(.foo\:bar) { color: blue; } :global(.foo\:bar) .foo\:bar { color: green; }"#;
     let context = TransformExecutionContextV0 {
         class_name_rewrites: vec![TransformClassNameRewriteV0 {
-            original_name: r#"foo\:bar"#.to_string(),
+            original_name: "foo:bar".to_string(),
             rewritten_name: "_foo_bar_0".to_string(),
         }],
         ..TransformExecutionContextV0::default()
@@ -3080,10 +3080,10 @@ fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
 
 #[test]
 fn execution_runtime_tree_shakes_escaped_class_owned_rules_with_closed_world_context() {
-    let source = r#".foo\:bar { color: red; } .dead { color: blue; } .foo\:bar:hover { color: green; } .dead, .foo\:bar { color: cyan; }"#;
+    let source = r#".foo\:bar { color: red; } .dead { color: blue; } .foo\:bar:hover { color: green; } .dead, .foo\:bar { color: cyan; } .hex\3A bar { color: purple; } .hex-dead { color: black; }"#;
     let context = TransformExecutionContextV0 {
         closed_style_world: true,
-        reachable_class_names: vec![r#"foo\:bar"#.to_string()],
+        reachable_class_names: vec!["foo:bar".to_string(), "hex:bar".to_string()],
         ..TransformExecutionContextV0::default()
     };
     let execution = execute_transform_passes_on_source_with_dialect_and_context(
@@ -3111,13 +3111,19 @@ fn execution_runtime_tree_shakes_escaped_class_owned_rules_with_closed_world_con
             .output_css
             .contains(r#".foo\:bar { color: cyan; }"#)
     );
+    assert!(
+        execution
+            .output_css
+            .contains(r#".hex\3A bar { color: purple; }"#)
+    );
     assert!(!execution.output_css.contains(".dead {"));
     assert!(!execution.output_css.contains(".dead,"));
+    assert!(!execution.output_css.contains(".hex-dead"));
     assert_eq!(
         execution.executed_pass_ids,
         vec!["tree-shake-class", "print-css"]
     );
-    assert_eq!(execution.semantic_removals.len(), 2);
+    assert_eq!(execution.semantic_removals.len(), 3);
     assert!(
         execution
             .semantic_removals

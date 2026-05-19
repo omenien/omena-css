@@ -956,13 +956,13 @@ const escapedClassTreeShakeResult = spawnSync(
         {
           stylePath: "Escaped.module.css",
           styleSource:
-            ".foo\\:bar { color: red; } .dead { color: blue; } .foo\\:bar:hover { color: green; } .dead, .foo\\:bar { color: cyan; }",
+            ".foo\\:bar { color: red; } .dead { color: blue; } .foo\\:bar:hover { color: green; } .dead, .foo\\:bar { color: cyan; } .hex\\3A bar { color: purple; } .hex-dead { color: black; }",
         },
       ],
       requestedPassIds: ["tree-shake-class", "print-css"],
       transformContext: {
         closedStyleWorld: true,
-        reachableClassNames: ["foo\\:bar"],
+        reachableClassNames: ["foo:bar", "hex:bar"],
       },
     }),
     maxBuffer: 8 * 1024 * 1024,
@@ -981,8 +981,12 @@ assert.ok(
   escapedClassTreeShakeSummary.execution.outputCss.includes(".foo\\:bar:hover { color: green; }"),
 );
 assert.ok(escapedClassTreeShakeSummary.execution.outputCss.includes(".foo\\:bar { color: cyan; }"));
+assert.ok(
+  escapedClassTreeShakeSummary.execution.outputCss.includes(".hex\\3A bar { color: purple; }"),
+);
 assert.ok(!escapedClassTreeShakeSummary.execution.outputCss.includes(".dead {"));
 assert.ok(!escapedClassTreeShakeSummary.execution.outputCss.includes(".dead,"));
+assert.ok(!escapedClassTreeShakeSummary.execution.outputCss.includes(".hex-dead"));
 assert.deepEqual(escapedClassTreeShakeSummary.execution.executedPassIds, [
   "tree-shake-class",
   "print-css",
