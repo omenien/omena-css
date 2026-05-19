@@ -3054,6 +3054,24 @@ fn execution_runtime_evaluates_simple_supports_branches_with_cascade_witness() {
 }
 
 #[test]
+fn execution_runtime_evaluates_case_insensitive_supports_conditions() {
+    let source = r#"@supports NOT (display: -MS-grid) { .ok { display: grid; } } @supports SELECTOR(:-MS-input-placeholder) { .dead { color: red; } } @supports FONT-TECH(COLOR-COLRv1) OR (display: -ms-grid) { .font { color: blue; } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::SupportsStaticEval,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 3);
+    assert_eq!(
+        execution.output_css,
+        r#".ok { display: grid; }  .font { color: blue; }"#
+    );
+}
+
+#[test]
 fn execution_runtime_evaluates_selector_supports_branches_with_cascade_witness() {
     let source = r#"@supports selector(:has(*)) { .has { color: red; } } @supports not selector(:has(*)) { .not-has { color: blue; } } @supports selector(:-ms-input-placeholder) { .ms { color: green; } } @supports not selector(:-ms-input-placeholder) { .not-ms { color: purple; } }"#;
     let execution = execute_transform_passes_on_source(

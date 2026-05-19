@@ -1797,8 +1797,9 @@ pub fn prove_layer_flatten_candidate(input: LayerFlattenInputV0) -> LayerFlatten
 }
 
 fn parse_static_supports_not_condition(condition: &str) -> Option<&str> {
-    let inner = condition.strip_prefix("not ")?.trim();
-    (!inner.is_empty()).then_some(inner)
+    supports_keyword_at(condition, 0, "not")
+        .then(|| condition["not".len()..].trim())
+        .filter(|inner| !inner.is_empty())
 }
 
 fn parse_simple_supports_declaration(condition: &str) -> Option<(&str, &str)> {
@@ -1850,7 +1851,16 @@ fn parse_supports_function_argument<'a>(
     condition: &'a str,
     function_name: &str,
 ) -> Option<&'a str> {
-    let arguments = condition.strip_prefix(function_name)?.trim_start();
+    let candidate = condition.get(..function_name.len())?;
+    if !candidate.eq_ignore_ascii_case(function_name)
+        || condition[function_name.len()..]
+            .chars()
+            .next()
+            .is_some_and(is_supports_ident_char)
+    {
+        return None;
+    }
+    let arguments = condition[function_name.len()..].trim_start();
     let inner = arguments.strip_prefix('(')?.strip_suffix(')')?.trim();
     (!inner.is_empty()
         && supports_outer_parens_wrap_entire_condition(arguments)
@@ -1890,11 +1900,10 @@ fn parse_static_supports_logical_parts<'a>(
     condition: &'a str,
     operator: &str,
 ) -> Option<Vec<&'a str>> {
-    let delimiter = match operator {
-        "and" => " and ",
-        "or" => " or ",
+    match operator {
+        "and" | "or" => {}
         _ => return None,
-    };
+    }
     let mut parts = Vec::new();
     let mut depth = 0usize;
     let mut part_start = 0usize;
@@ -1911,9 +1920,9 @@ fn parse_static_supports_logical_parts<'a>(
                 depth = depth.saturating_sub(1);
                 index += ch.len_utf8();
             }
-            _ if depth == 0 && condition[index..].starts_with(delimiter) => {
+            _ if depth == 0 && supports_keyword_at(condition, index, operator) => {
                 parts.push(condition[part_start..index].trim());
-                index += delimiter.len();
+                index += operator.len();
                 part_start = index;
             }
             _ => index += ch.len_utf8(),
@@ -1931,7 +1940,9 @@ fn evaluate_modern_simple_supports_declaration(
     property: &str,
     value: &str,
 ) -> StaticSupportsEvalVerdictV0 {
-    if property.starts_with("-ms-") || value.starts_with("-ms-") {
+    if starts_with_ascii_case_insensitive(property, "-ms-")
+        || starts_with_ascii_case_insensitive(value, "-ms-")
+    {
         StaticSupportsEvalVerdictV0::AlwaysFalse
     } else {
         StaticSupportsEvalVerdictV0::AlwaysTrue
@@ -1939,7 +1950,7 @@ fn evaluate_modern_simple_supports_declaration(
 }
 
 fn evaluate_modern_supports_selector_condition(selector: &str) -> StaticSupportsEvalVerdictV0 {
-    if selector.contains("-ms-") {
+    if selector.to_ascii_lowercase().contains("-ms-") {
         StaticSupportsEvalVerdictV0::AlwaysFalse
     } else {
         StaticSupportsEvalVerdictV0::AlwaysTrue
@@ -1991,6 +2002,29 @@ fn normalize_supports_font_feature_argument(argument: &str) -> Option<String> {
 
 fn is_supports_declaration_token_char(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_')
+}
+
+fn starts_with_ascii_case_insensitive(text: &str, prefix: &str) -> bool {
+    text.get(..prefix.len())
+        .is_some_and(|candidate| candidate.eq_ignore_ascii_case(prefix))
+}
+
+fn supports_keyword_at(text: &str, index: usize, keyword: &str) -> bool {
+    text[index..]
+        .get(..keyword.len())
+        .is_some_and(|candidate| candidate.eq_ignore_ascii_case(keyword))
+        && text[..index]
+            .chars()
+            .next_back()
+            .is_none_or(|ch| !is_supports_ident_char(ch))
+        && text[index + keyword.len()..]
+            .chars()
+            .next()
+            .is_none_or(|ch| !is_supports_ident_char(ch))
+}
+
+fn is_supports_ident_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '-'
 }
 
 fn normalize_ascii_whitespace(text: &str) -> String {
@@ -3395,6 +3429,36 @@ mod tests {
             StaticSupportsEvalVerdictV0::AlwaysTrue
         );
         assert!(negated_obsolete.provenance_preserved);
+
+        let uppercase_negated_obsolete = evaluate_static_supports_condition(
+            "NOT (display: -MS-grid)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            uppercase_negated_obsolete.verdict,
+            StaticSupportsEvalVerdictV0::AlwaysTrue
+        );
+        assert!(uppercase_negated_obsolete.provenance_preserved);
+
+        let uppercase_logical_selector = evaluate_static_supports_condition(
+            "SELECTOR(:-MS-input-placeholder) OR (display: grid)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            uppercase_logical_selector.verdict,
+            StaticSupportsEvalVerdictV0::AlwaysTrue
+        );
+        assert!(uppercase_logical_selector.provenance_preserved);
+
+        let uppercase_font_tech = evaluate_static_supports_condition(
+            "FONT-TECH(COLOR-COLRv1)",
+            StaticSupportsAssumptionV0::ModernBrowser,
+        );
+        assert_eq!(
+            uppercase_font_tech.verdict,
+            StaticSupportsEvalVerdictV0::AlwaysTrue
+        );
+        assert!(uppercase_font_tech.provenance_preserved);
 
         let negated_grouped_obsolete = evaluate_static_supports_condition(
             "not ((display: -ms-grid) or (-ms-ime-align: auto))",

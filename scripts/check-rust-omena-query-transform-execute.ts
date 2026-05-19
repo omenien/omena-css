@@ -275,6 +275,48 @@ assert.deepEqual(groupedSupportsSummary.execution.executedPassIds, [
 ]);
 assert.equal(groupedSupportsSummary.execution.mutationCount, 4);
 
+const caseInsensitiveSupportsResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "supports-case-insensitive.css",
+      styleSource:
+        "@supports NOT (display: -MS-grid) { .ok { display: grid; } } @supports SELECTOR(:-MS-input-placeholder) { .dead { color: red; } } @supports FONT-TECH(COLOR-COLRv1) OR (display: -ms-grid) { .font { color: blue; } }",
+      requestedPassIds: ["supports-static-eval", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(caseInsensitiveSupportsResult.status, 0, caseInsensitiveSupportsResult.stderr);
+assert.equal(caseInsensitiveSupportsResult.error, undefined);
+
+const caseInsensitiveSupportsSummary = JSON.parse(
+  caseInsensitiveSupportsResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(
+  caseInsensitiveSupportsSummary.execution.outputCss,
+  ".ok { display: grid; }  .font { color: blue; }",
+);
+assert.deepEqual(caseInsensitiveSupportsSummary.execution.executedPassIds, [
+  "supports-static-eval",
+  "print-css",
+]);
+assert.equal(caseInsensitiveSupportsSummary.execution.mutationCount, 3);
+
 const fontSupportsResult = spawnSync(
   "cargo",
   [
