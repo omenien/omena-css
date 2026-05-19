@@ -405,6 +405,63 @@ fn execution_runtime_inlines_less_imports_with_options() {
 }
 
 #[test]
+fn execution_runtime_inlines_less_imports_once_by_default() {
+    let source =
+        r#"@import "./tokens.less"; @import (once) "./tokens.less"; .button { color: @brand; }"#;
+    let context = TransformExecutionContextV0 {
+        import_inlines: vec![TransformImportInlineV0 {
+            import_source: "./tokens.less".to_string(),
+            replacement_css: r#"@brand: red; .base { color: @brand; }"#.to_string(),
+        }],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Less,
+        &[TransformPassKind::ImportInline, TransformPassKind::PrintCss],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 2);
+    assert_eq!(
+        execution.output_css,
+        r#"@brand: red; .base { color: @brand; }  .button { color: @brand; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["import-inline", "print-css"]
+    );
+}
+
+#[test]
+fn execution_runtime_honors_less_multiple_imports() {
+    let source = r#"@import "./tokens.less"; @import (multiple) "./tokens.less"; .button { color: @brand; }"#;
+    let context = TransformExecutionContextV0 {
+        import_inlines: vec![TransformImportInlineV0 {
+            import_source: "./tokens.less".to_string(),
+            replacement_css: r#"@brand: red; .base { color: @brand; }"#.to_string(),
+        }],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Less,
+        &[TransformPassKind::ImportInline, TransformPassKind::PrintCss],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 2);
+    assert_eq!(
+        execution.output_css,
+        r#"@brand: red; .base { color: @brand; } @brand: red; .base { color: @brand; } .button { color: @brand; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["import-inline", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_applies_explicit_scss_module_evaluation() {
     let source = r#"$brand: red; .button { color: $brand; }"#;
     let context = TransformExecutionContextV0 {

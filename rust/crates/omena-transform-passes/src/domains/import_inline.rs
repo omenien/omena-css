@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
@@ -18,6 +20,7 @@ pub(crate) fn inline_css_imports_with_lexer(
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
+    let mut emitted_less_import_sources = BTreeSet::<String>::new();
     let mut depth = 0usize;
     let mut index = 0;
 
@@ -42,6 +45,14 @@ pub(crate) fn inline_css_imports_with_lexer(
                 if let Some(replacement_css) =
                     inline_replacement_for_import_source(&import_rule.source, inlines)
                 {
+                    let replacement_css = if dialect == StyleDialect::Less
+                        && !import_rule.allow_duplicate
+                        && !emitted_less_import_sources.insert(import_rule.source.clone())
+                    {
+                        ""
+                    } else {
+                        replacement_css
+                    };
                     replacements.push((
                         start,
                         end,
@@ -80,6 +91,7 @@ struct CssImportRule {
     layer_name: Option<String>,
     supports_condition: Option<String>,
     media_query: Option<String>,
+    allow_duplicate: bool,
 }
 
 fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
@@ -88,7 +100,7 @@ fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
     if rest.is_empty() {
         return None;
     }
-    let rest = strip_leading_less_import_options(rest);
+    let (rest, allow_duplicate) = strip_leading_less_import_options(rest);
     let (source, rest) = parse_css_import_source_prefix(rest)?;
     let mut rest = rest.trim();
     let mut layer_name = None;
@@ -113,6 +125,7 @@ fn parse_css_import_rule(rule_text: &str) -> Option<CssImportRule> {
         layer_name,
         supports_condition,
         media_query: (!rest.is_empty()).then(|| rest.to_string()),
+        allow_duplicate,
     })
 }
 
@@ -120,19 +133,21 @@ fn parse_css_import_source_prefix(text: &str) -> Option<(String, &str)> {
     parse_quoted_css_string_prefix(text).or_else(|| parse_url_import_source_prefix(text))
 }
 
-fn strip_leading_less_import_options(mut text: &str) -> &str {
+fn strip_leading_less_import_options(mut text: &str) -> (&str, bool) {
+    let mut allow_duplicate = false;
     loop {
         let rest = text.trim_start();
         let Some(after_left_paren) = rest.strip_prefix('(') else {
-            return rest;
+            return (rest, allow_duplicate);
         };
         let Some(close_index) = matching_function_close_index(after_left_paren) else {
-            return rest;
+            return (rest, allow_duplicate);
         };
         let option = after_left_paren[..close_index].trim();
         if option.is_empty() || !less_import_option_list_is_safe(option) {
-            return rest;
+            return (rest, allow_duplicate);
         }
+        allow_duplicate |= less_import_option_list_allows_duplicate(option);
         text = &after_left_paren[close_index + 1..];
     }
 }
@@ -141,6 +156,13 @@ fn less_import_option_list_is_safe(option: &str) -> bool {
     option.chars().all(|ch| {
         ch.is_ascii_alphanumeric() || ch.is_ascii_whitespace() || matches!(ch, '-' | '_' | ',')
     })
+}
+
+fn less_import_option_list_allows_duplicate(option: &str) -> bool {
+    option
+        .split(',')
+        .map(str::trim)
+        .any(|entry| entry.eq_ignore_ascii_case("multiple"))
 }
 
 fn parse_quoted_css_string_prefix(text: &str) -> Option<(String, &str)> {
