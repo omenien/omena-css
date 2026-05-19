@@ -115,15 +115,33 @@ pub const PARSER_LEGACY_SEED_FIXTURES: &[ParserDifferentialFixture] = &[
         dialect: DiffDialect::Css,
     },
     ParserDifferentialFixture {
+        label: "css-selector-list-custom-properties",
+        file_path: "/selector-list.module.css",
+        source: ".card, .tile { --tone: red; color: var(--tone); }\n.card__icon { color: blue; }",
+        dialect: DiffDialect::Css,
+    },
+    ParserDifferentialFixture {
         label: "scss-nested-bem-and-sass-vars",
         file_path: "/fixture.module.scss",
         source: "@use \"./tokens\";\n@forward \"./theme\";\n$gap: 1rem;\n.card { &__icon { color: $gap; } }",
         dialect: DiffDialect::Scss,
     },
     ParserDifferentialFixture {
+        label: "scss-use-forward-import-and-mixin",
+        file_path: "/module-edges.module.scss",
+        source: "@use \"./tokens\" as tokens;\n@forward \"./theme\" show tone;\n@import \"./legacy\";\n$gap: 1rem;\n@mixin raised($depth) { box-shadow: 0 0 $depth black; }\n.card { @include raised($gap); }",
+        dialect: DiffDialect::Scss,
+    },
+    ParserDifferentialFixture {
         label: "less-variable-and-selector",
         file_path: "/fixture.module.less",
         source: "@color: red;\n.card { color: @color; }",
+        dialect: DiffDialect::Less,
+    },
+    ParserDifferentialFixture {
+        label: "less-nested-selector-and-custom-property",
+        file_path: "/nested.module.less",
+        source: "@color: red;\n.card { --tone: @color; &__icon { color: var(--tone); } }",
         dialect: DiffDialect::Less,
     },
 ];
@@ -292,7 +310,10 @@ mod tests {
     #[test]
     fn parser_legacy_seed_fixtures_match() {
         let summary = summarize_omena_diff_test_boundary();
-        assert_eq!(summary.parser_legacy_fixture_count, 3);
+        assert_eq!(
+            summary.parser_legacy_fixture_count,
+            PARSER_LEGACY_SEED_FIXTURES.len()
+        );
         assert!(summary.all_parser_legacy_fixtures_match);
         assert!(
             summary
@@ -302,8 +323,13 @@ mod tests {
     }
 
     #[test]
-    fn reports_field_level_evidence_for_scss_fixture() {
-        let report = compare_omena_parser_with_legacy(PARSER_LEGACY_SEED_FIXTURES[1]);
+    fn reports_field_level_evidence_for_scss_fixture() -> Result<(), String> {
+        let fixture = PARSER_LEGACY_SEED_FIXTURES
+            .iter()
+            .copied()
+            .find(|fixture| fixture.label == "scss-nested-bem-and-sass-vars")
+            .ok_or_else(|| "SCSS differential fixture should stay registered".to_string())?;
+        let report = compare_omena_parser_with_legacy(fixture);
         assert!(report.all_fields_match);
         assert_eq!(
             report
@@ -318,5 +344,6 @@ mod tests {
                 "sassModuleEdgeKinds"
             ]
         );
+        Ok(())
     }
 }
