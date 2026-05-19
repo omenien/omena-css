@@ -2166,6 +2166,30 @@ fn derives_scss_use_aware_static_stylesheet_module_evaluation() {
 }
 
 #[test]
+fn derives_scss_use_aware_static_stylesheet_module_evaluation_without_duplicate_css_side_effects() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.scss",
+        [
+            ("/tmp/tokens.scss", "$brand: red; .base { color: $brand; }"),
+            (
+                "/tmp/App.module.scss",
+                r#"@use "./tokens" as a; @use "./tokens" as b; .button { color: a.$brand; border-color: b.$brand; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    assert_eq!(
+        summary
+            .context
+            .scss_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.evaluated_css.as_str()),
+        Some(" .base { color: red; }  .button { color: red; border-color: red; }")
+    );
+}
+
+#[test]
 fn derives_wildcard_scss_use_aware_static_stylesheet_module_evaluation() {
     let summary = summarize_omena_query_transform_context_from_sources(
         "/tmp/App.module.scss",
@@ -2217,6 +2241,34 @@ fn derives_forwarded_scss_use_aware_static_stylesheet_module_evaluation() {
             .as_ref()
             .map(|evaluation| evaluation.evaluated_css.as_str()),
         Some("  .base { color: blue; } .button { color: red; }")
+    );
+}
+
+#[test]
+fn derives_forwarded_scss_module_evaluation_without_duplicate_css_side_effects() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.scss",
+        [
+            ("/tmp/tokens.scss", "$brand: red; .base { color: $brand; }"),
+            (
+                "/tmp/theme.scss",
+                r#"@forward "./tokens"; @forward "./tokens";"#,
+            ),
+            (
+                "/tmp/App.module.scss",
+                r#"@use "./theme" as theme; .button { color: theme.$brand; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    assert_eq!(
+        summary
+            .context
+            .scss_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.evaluated_css.as_str()),
+        Some(" .base { color: red; }  .button { color: red; }")
     );
 }
 

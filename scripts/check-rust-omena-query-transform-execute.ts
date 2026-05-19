@@ -75,6 +75,10 @@ interface ConsumerBuildSummaryV0 {
   readonly readySurfaces: readonly string[];
 }
 
+function countOccurrences(source: string, needle: string): number {
+  return source.split(needle).length - 1;
+}
+
 const styleSource =
   '.dupe { display: block; } .dupe { display: block; } .merge { color: red; } .merge { background: blue; } .sel-a { border: 0; } .sel-b { border: 0; } .empty { } .a:is(.ready) { margin-top: 0px; margin-right: 0px; margin-bottom: 0px; margin-left: 0px; color: #FFFFFF; user-select: none; opacity: 1.0; background: url("img.svg"); font-family: \'Demo\'; /* remove */ content: "/* keep */"; }';
 
@@ -2151,6 +2155,61 @@ assert(
 assert(!wildcardScssUseEvaluationSummary.execution.outputCss.includes("@use"));
 assert(!wildcardScssUseEvaluationSummary.execution.outputCss.includes("$brand:"));
 
+const duplicateScssUseEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "/tmp/App.module.scss",
+      styles: [
+        {
+          stylePath: "/tmp/tokens.scss",
+          styleSource: "$brand: red; .base { color: $brand; }",
+        },
+        {
+          stylePath: "/tmp/App.module.scss",
+          styleSource:
+            '@use "./tokens" as a; @use "./tokens" as b; .button { color: a.$brand; border-color: b.$brand; }',
+        },
+      ],
+      requestedPassIds: ["scss-module-evaluate", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(duplicateScssUseEvaluationResult.status, 0, duplicateScssUseEvaluationResult.stderr);
+assert.equal(duplicateScssUseEvaluationResult.error, undefined);
+
+const duplicateScssUseEvaluationSummary = JSON.parse(
+  duplicateScssUseEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.deepEqual(duplicateScssUseEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert.equal(
+  countOccurrences(duplicateScssUseEvaluationSummary.execution.outputCss, ".base { color: red; }"),
+  1,
+);
+assert(
+  duplicateScssUseEvaluationSummary.execution.outputCss.includes(
+    ".button { color: red; border-color: red; }",
+  ),
+);
+assert(!duplicateScssUseEvaluationSummary.execution.outputCss.includes("@use"));
+assert(!duplicateScssUseEvaluationSummary.execution.outputCss.includes("a.$"));
+assert(!duplicateScssUseEvaluationSummary.execution.outputCss.includes("b.$"));
+
 const forwardedScssUseEvaluationResult = spawnSync(
   "cargo",
   [
@@ -2200,6 +2259,68 @@ assert(forwardedScssUseEvaluationSummary.execution.outputCss.includes(".base { c
 assert(forwardedScssUseEvaluationSummary.execution.outputCss.includes(".button { color: red; }"));
 assert(!forwardedScssUseEvaluationSummary.execution.outputCss.includes("@forward"));
 assert(!forwardedScssUseEvaluationSummary.execution.outputCss.includes("theme.$"));
+
+const duplicateScssForwardEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "/tmp/App.module.scss",
+      styles: [
+        {
+          stylePath: "/tmp/tokens.scss",
+          styleSource: "$brand: red; .base { color: $brand; }",
+        },
+        {
+          stylePath: "/tmp/theme.scss",
+          styleSource: '@forward "./tokens"; @forward "./tokens";',
+        },
+        {
+          stylePath: "/tmp/App.module.scss",
+          styleSource: '@use "./theme" as theme; .button { color: theme.$brand; }',
+        },
+      ],
+      requestedPassIds: ["scss-module-evaluate", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  duplicateScssForwardEvaluationResult.status,
+  0,
+  duplicateScssForwardEvaluationResult.stderr,
+);
+assert.equal(duplicateScssForwardEvaluationResult.error, undefined);
+
+const duplicateScssForwardEvaluationSummary = JSON.parse(
+  duplicateScssForwardEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.deepEqual(duplicateScssForwardEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert.equal(
+  countOccurrences(
+    duplicateScssForwardEvaluationSummary.execution.outputCss,
+    ".base { color: red; }",
+  ),
+  1,
+);
+assert(
+  duplicateScssForwardEvaluationSummary.execution.outputCss.includes(".button { color: red; }"),
+);
+assert(!duplicateScssForwardEvaluationSummary.execution.outputCss.includes("@forward"));
+assert(!duplicateScssForwardEvaluationSummary.execution.outputCss.includes("theme.$"));
 
 const configuredScssUseEvaluationResult = spawnSync(
   "cargo",

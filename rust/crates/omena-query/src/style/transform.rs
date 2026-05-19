@@ -972,6 +972,7 @@ fn static_stylesheet_module_system_evaluator_label(
 #[derive(Debug, Clone)]
 struct StaticScssModuleUseEvaluation {
     source: String,
+    style_path: String,
     namespace_kind: Option<&'static str>,
     namespace: Option<String>,
     evaluated_css: String,
@@ -1026,6 +1027,7 @@ fn derive_static_scss_module_use_evaluations_for_transform_context(
             );
             Some(StaticScssModuleUseEvaluation {
                 source: edge.source.clone(),
+                style_path: resolved,
                 namespace_kind: edge.namespace_kind,
                 namespace: edge.namespace.clone(),
                 evaluated_css: module_context.evaluated_css,
@@ -1106,6 +1108,7 @@ fn derive_static_scss_module_context_for_transform_context(
 #[derive(Debug, Clone)]
 struct StaticScssModuleForwardEvaluation {
     source: String,
+    style_path: String,
     evaluated_css: String,
     variable_exports: BTreeMap<String, String>,
 }
@@ -1151,6 +1154,7 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
             );
             Some(StaticScssModuleForwardEvaluation {
                 source: edge.source.clone(),
+                style_path: resolved,
                 evaluated_css: module_context.evaluated_css,
                 variable_exports: filter_static_scss_forward_exports(
                     prefix_static_scss_forward_exports(
@@ -1363,6 +1367,7 @@ fn inline_static_scss_use_rules(
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
+    let mut emitted_style_paths = BTreeSet::<String>::new();
     let mut depth = 0usize;
     let mut index = 0usize;
 
@@ -1385,7 +1390,12 @@ fn inline_static_scss_use_rules(
                         .iter()
                         .find(|module_use| module_use.source == source_name)
                 {
-                    replacements.push((start, end, module_use.evaluated_css.clone()));
+                    let replacement = if emitted_style_paths.insert(module_use.style_path.clone()) {
+                        module_use.evaluated_css.clone()
+                    } else {
+                        String::new()
+                    };
+                    replacements.push((start, end, replacement));
                 }
                 index = end_index + 1;
                 continue;
@@ -1406,6 +1416,7 @@ fn inline_static_scss_forward_rules(
     let lexed = lex(source, dialect);
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
+    let mut emitted_style_paths = BTreeSet::<String>::new();
     let mut depth = 0usize;
     let mut index = 0usize;
 
@@ -1428,7 +1439,12 @@ fn inline_static_scss_forward_rules(
                         .iter()
                         .find(|forward| forward.source == source_name)
                 {
-                    replacements.push((start, end, forward.evaluated_css.clone()));
+                    let replacement = if emitted_style_paths.insert(forward.style_path.clone()) {
+                        forward.evaluated_css.clone()
+                    } else {
+                        String::new()
+                    };
+                    replacements.push((start, end, replacement));
                 }
                 index = end_index + 1;
                 continue;
