@@ -244,11 +244,7 @@ const stylesheetEvaluationContextResult = spawnSync(
   },
 );
 
-assert.equal(
-  stylesheetEvaluationContextResult.status,
-  0,
-  stylesheetEvaluationContextResult.stderr,
-);
+assert.equal(stylesheetEvaluationContextResult.status, 0, stylesheetEvaluationContextResult.stderr);
 assert.equal(stylesheetEvaluationContextResult.error, undefined);
 
 const stylesheetEvaluationContextSummary = JSON.parse(
@@ -265,10 +261,7 @@ assert.equal(
   stylesheetEvaluationContextSummary.context.scssModuleEvaluation?.evaluatedCss,
   " .button { color: red; }",
 );
-assert.equal(
-  stylesheetEvaluationContextSummary.context.lessModuleEvaluation,
-  null,
-);
+assert.equal(stylesheetEvaluationContextSummary.context.lessModuleEvaluation, null);
 assertIncludesAll(
   stylesheetEvaluationContextSummary.readySurfaces,
   ["stylesheetModuleEvaluationProducer"],

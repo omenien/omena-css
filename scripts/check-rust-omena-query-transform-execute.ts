@@ -299,9 +299,7 @@ const fontSupportsResult = spawnSync(
 assert.equal(fontSupportsResult.status, 0, fontSupportsResult.stderr);
 assert.equal(fontSupportsResult.error, undefined);
 
-const fontSupportsSummary = JSON.parse(
-  fontSupportsResult.stdout,
-) as TransformExecuteSummaryV0;
+const fontSupportsSummary = JSON.parse(fontSupportsResult.stdout) as TransformExecuteSummaryV0;
 
 assert.equal(fontSupportsSummary.product, "omena-query.transform-execute");
 assert.equal(
@@ -342,19 +340,14 @@ const mediaListResult = spawnSync(
 assert.equal(mediaListResult.status, 0, mediaListResult.stderr);
 assert.equal(mediaListResult.error, undefined);
 
-const mediaListSummary = JSON.parse(
-  mediaListResult.stdout,
-) as TransformExecuteSummaryV0;
+const mediaListSummary = JSON.parse(mediaListResult.stdout) as TransformExecuteSummaryV0;
 
 assert.equal(mediaListSummary.product, "omena-query.transform-execute");
 assert.equal(
   mediaListSummary.execution.outputCss,
   " .not-zero { color: lime; } .not-impossible { color: teal; }    .live { color: green; } @media screen, (width<=0px) { .unknown { color: orange; } }",
 );
-assert.deepEqual(mediaListSummary.execution.executedPassIds, [
-  "media-static-eval",
-  "print-css",
-]);
+assert.deepEqual(mediaListSummary.execution.executedPassIds, ["media-static-eval", "print-css"]);
 assert.equal(mediaListSummary.execution.mutationCount, 8);
 
 const mediaOrResult = spawnSync(
@@ -392,10 +385,7 @@ assert.equal(
   mediaOrSummary.execution.outputCss,
   ".live { color: red; }  @media screen or (width<=0px) { .unknown { color: green; } }",
 );
-assert.deepEqual(mediaOrSummary.execution.executedPassIds, [
-  "media-static-eval",
-  "print-css",
-]);
+assert.deepEqual(mediaOrSummary.execution.executedPassIds, ["media-static-eval", "print-css"]);
 assert.equal(mediaOrSummary.execution.mutationCount, 3);
 
 const conditionalWrapperMergeResult = spawnSync(
@@ -469,9 +459,7 @@ const logicalCornerResult = spawnSync(
 assert.equal(logicalCornerResult.status, 0, logicalCornerResult.stderr);
 assert.equal(logicalCornerResult.error, undefined);
 
-const logicalCornerSummary = JSON.parse(
-  logicalCornerResult.stdout,
-) as TransformExecuteSummaryV0;
+const logicalCornerSummary = JSON.parse(logicalCornerResult.stdout) as TransformExecuteSummaryV0;
 
 assert.equal(logicalCornerSummary.product, "omena-query.transform-execute");
 assert.equal(
@@ -555,19 +543,14 @@ const nestAtRuleResult = spawnSync(
 assert.equal(nestAtRuleResult.status, 0, nestAtRuleResult.stderr);
 assert.equal(nestAtRuleResult.error, undefined);
 
-const nestAtRuleSummary = JSON.parse(
-  nestAtRuleResult.stdout,
-) as TransformExecuteSummaryV0;
+const nestAtRuleSummary = JSON.parse(nestAtRuleResult.stdout) as TransformExecuteSummaryV0;
 
 assert.equal(nestAtRuleSummary.product, "omena-query.transform-execute");
 assert.equal(
   nestAtRuleSummary.execution.outputCss,
   ".card { color: red; } .theme .card { color: blue; } .theme .card .title { color: green; } .card:is(:hover, :focus) { color: purple; }",
 );
-assert.deepEqual(nestAtRuleSummary.execution.executedPassIds, [
-  "nesting-unwrap",
-  "print-css",
-]);
+assert.deepEqual(nestAtRuleSummary.execution.executedPassIds, ["nesting-unwrap", "print-css"]);
 assert.equal(nestAtRuleSummary.execution.mutationCount, 1);
 
 const contextStyleSource =
@@ -1233,9 +1216,7 @@ const colorMixAlphaResult = spawnSync(
 assert.equal(colorMixAlphaResult.status, 0, colorMixAlphaResult.stderr);
 assert.equal(colorMixAlphaResult.error, undefined);
 
-const colorMixAlphaSummary = JSON.parse(
-  colorMixAlphaResult.stdout,
-) as TransformExecuteSummaryV0;
+const colorMixAlphaSummary = JSON.parse(colorMixAlphaResult.stdout) as TransformExecuteSummaryV0;
 
 assert.equal(colorMixAlphaSummary.product, "omena-query.transform-execute");
 assert.equal(
@@ -1276,9 +1257,7 @@ const colorMixLinearResult = spawnSync(
 assert.equal(colorMixLinearResult.status, 0, colorMixLinearResult.stderr);
 assert.equal(colorMixLinearResult.error, undefined);
 
-const colorMixLinearSummary = JSON.parse(
-  colorMixLinearResult.stdout,
-) as TransformExecuteSummaryV0;
+const colorMixLinearSummary = JSON.parse(colorMixLinearResult.stdout) as TransformExecuteSummaryV0;
 
 assert.equal(colorMixLinearSummary.product, "omena-query.transform-execute");
 assert.equal(
@@ -1419,9 +1398,7 @@ assert.ok(customPropertyReachabilitySummary.execution.outputCss.includes("--dep:
 assert.ok(customPropertyReachabilitySummary.execution.outputCss.includes("outline: var(--broken;"));
 assert.ok(customPropertyReachabilitySummary.execution.outputCss.includes("color: var(--broken;"));
 assert.ok(!customPropertyReachabilitySummary.execution.outputCss.includes("--ghost: blue;"));
-assert.ok(
-  !customPropertyReachabilitySummary.execution.outputCss.includes("--used: var(--ghost);"),
-);
+assert.ok(!customPropertyReachabilitySummary.execution.outputCss.includes("--used: var(--ghost);"));
 assert.ok(customPropertyReachabilitySummary.execution.outputCss.includes("color: var(--ghost);"));
 assert.deepEqual(customPropertyReachabilitySummary.execution.executedPassIds, [
   "tree-shake-custom-property",
@@ -1469,13 +1446,8 @@ const customPropertyKeyframeReachabilitySummary = JSON.parse(
   customPropertyKeyframeReachabilityResult.stdout,
 ) as TransformExecuteSummaryV0;
 
-assert.equal(
-  customPropertyKeyframeReachabilitySummary.product,
-  "omena-query.transform-execute",
-);
-assert.ok(
-  customPropertyKeyframeReachabilitySummary.execution.outputCss.includes("--used: red;"),
-);
+assert.equal(customPropertyKeyframeReachabilitySummary.product, "omena-query.transform-execute");
+assert.ok(customPropertyKeyframeReachabilitySummary.execution.outputCss.includes("--used: red;"));
 assert.ok(
   customPropertyKeyframeReachabilitySummary.execution.outputCss.includes("@keyframes ghost"),
 );
@@ -1486,9 +1458,7 @@ assert.ok(
   !customPropertyKeyframeReachabilitySummary.execution.outputCss.includes("--ghost: blue;"),
 );
 assert.ok(
-  !customPropertyKeyframeReachabilitySummary.execution.outputCss.includes(
-    "--used: var(--ghost);",
-  ),
+  !customPropertyKeyframeReachabilitySummary.execution.outputCss.includes("--used: var(--ghost);"),
 );
 assert.deepEqual(customPropertyKeyframeReachabilitySummary.execution.executedPassIds, [
   "tree-shake-custom-property",
@@ -1541,14 +1511,10 @@ assert.equal(
   "omena-query.transform-execute",
 );
 assert.ok(
-  customPropertyContainerStyleReachabilitySummary.execution.outputCss.includes(
-    "@property --theme",
-  ),
+  customPropertyContainerStyleReachabilitySummary.execution.outputCss.includes("@property --theme"),
 );
 assert.ok(
-  customPropertyContainerStyleReachabilitySummary.execution.outputCss.includes(
-    "--theme: dark;",
-  ),
+  customPropertyContainerStyleReachabilitySummary.execution.outputCss.includes("--theme: dark;"),
 );
 assert.ok(
   customPropertyContainerStyleReachabilitySummary.execution.outputCss.includes(
@@ -1556,19 +1522,17 @@ assert.ok(
   ),
 );
 assert.ok(
-  !customPropertyContainerStyleReachabilitySummary.execution.outputCss.includes(
-    "@property --dead",
-  ),
+  !customPropertyContainerStyleReachabilitySummary.execution.outputCss.includes("@property --dead"),
 );
 assert.ok(
   !customPropertyContainerStyleReachabilitySummary.execution.outputCss.includes(
     ":root { --theme: dark; --dead: off;",
   ),
 );
-assert.deepEqual(
-  customPropertyContainerStyleReachabilitySummary.execution.executedPassIds,
-  ["tree-shake-custom-property", "print-css"],
-);
+assert.deepEqual(customPropertyContainerStyleReachabilitySummary.execution.executedPassIds, [
+  "tree-shake-custom-property",
+  "print-css",
+]);
 assert.equal(customPropertyContainerStyleReachabilitySummary.execution.mutationCount, 2);
 
 const customPropertyRegistrationDependencyResult = spawnSync(
@@ -1611,14 +1575,9 @@ const customPropertyRegistrationDependencySummary = JSON.parse(
   customPropertyRegistrationDependencyResult.stdout,
 ) as TransformExecuteSummaryV0;
 
-assert.equal(
-  customPropertyRegistrationDependencySummary.product,
-  "omena-query.transform-execute",
-);
+assert.equal(customPropertyRegistrationDependencySummary.product, "omena-query.transform-execute");
 assert.ok(
-  customPropertyRegistrationDependencySummary.execution.outputCss.includes(
-    "@property --used",
-  ),
+  customPropertyRegistrationDependencySummary.execution.outputCss.includes("@property --used"),
 );
 assert.ok(
   customPropertyRegistrationDependencySummary.execution.outputCss.includes(
@@ -1626,24 +1585,18 @@ assert.ok(
   ),
 );
 assert.ok(
-  !customPropertyRegistrationDependencySummary.execution.outputCss.includes(
-    "@property --dead",
-  ),
+  !customPropertyRegistrationDependencySummary.execution.outputCss.includes("@property --dead"),
 );
 assert.ok(
-  !customPropertyRegistrationDependencySummary.execution.outputCss.includes(
-    "--dead-dep: blue;",
-  ),
+  !customPropertyRegistrationDependencySummary.execution.outputCss.includes("--dead-dep: blue;"),
 );
 assert.ok(
-  !customPropertyRegistrationDependencySummary.execution.outputCss.includes(
-    "--ghost: orange;",
-  ),
+  !customPropertyRegistrationDependencySummary.execution.outputCss.includes("--ghost: orange;"),
 );
-assert.deepEqual(
-  customPropertyRegistrationDependencySummary.execution.executedPassIds,
-  ["tree-shake-custom-property", "print-css"],
-);
+assert.deepEqual(customPropertyRegistrationDependencySummary.execution.executedPassIds, [
+  "tree-shake-custom-property",
+  "print-css",
+]);
 assert.equal(customPropertyRegistrationDependencySummary.execution.mutationCount, 3);
 
 const customPropertyIcssExportReachabilityResult = spawnSync(
@@ -1687,33 +1640,22 @@ const customPropertyIcssExportReachabilitySummary = JSON.parse(
 ) as TransformExecuteSummaryV0;
 
 assert.ok(
-  customPropertyIcssExportReachabilitySummary.execution.outputCss.includes(
-    "--brand: red;",
-  ),
+  customPropertyIcssExportReachabilitySummary.execution.outputCss.includes("--brand: red;"),
 );
 assert.ok(
-  customPropertyIcssExportReachabilitySummary.execution.outputCss.includes(
-    "brand: var(--brand);",
-  ),
+  customPropertyIcssExportReachabilitySummary.execution.outputCss.includes("brand: var(--brand);"),
 );
 assert.ok(
-  !customPropertyIcssExportReachabilitySummary.execution.outputCss.includes(
-    "--dead: blue;",
-  ),
+  !customPropertyIcssExportReachabilitySummary.execution.outputCss.includes("--dead: blue;"),
 );
 assert.ok(
-  !customPropertyIcssExportReachabilitySummary.execution.outputCss.includes(
-    "dead: var(--dead);",
-  ),
+  !customPropertyIcssExportReachabilitySummary.execution.outputCss.includes("dead: var(--dead);"),
 );
-assert.deepEqual(
-  customPropertyIcssExportReachabilitySummary.execution.executedPassIds,
-  ["tree-shake-custom-property", "print-css"],
-);
-assert.equal(
-  customPropertyIcssExportReachabilitySummary.execution.mutationCount,
-  2,
-);
+assert.deepEqual(customPropertyIcssExportReachabilitySummary.execution.executedPassIds, [
+  "tree-shake-custom-property",
+  "print-css",
+]);
+assert.equal(customPropertyIcssExportReachabilitySummary.execution.mutationCount, 2);
 
 const semanticReachabilityResult = spawnSync(
   "cargo",
@@ -1832,7 +1774,7 @@ const icssExportReachabilityResult = spawnSync(
         {
           stylePath: "Tokens.module.css",
           styleSource:
-            '@value primary: red; @value shadow: 0 0 primary; @value dead: blue; :export { public-color: shadow; dead-public: dead; } .button { color: red; }',
+            "@value primary: red; @value shadow: 0 0 primary; @value dead: blue; :export { public-color: shadow; dead-public: dead; } .button { color: red; }",
         },
       ],
       requestedPassIds: ["tree-shake-value", "print-css"],
@@ -1858,8 +1800,12 @@ assert.deepEqual(icssExportReachabilitySummary.unknownPassIds, []);
 assert.equal(icssExportReachabilitySummary.execution.passPlan.violatedDagEdgeCount, 0);
 assert.equal(icssExportReachabilitySummary.execution.passPlan.allRequestedRegistered, true);
 assert.ok(icssExportReachabilitySummary.execution.outputCss.includes("@value primary: red;"));
-assert.ok(icssExportReachabilitySummary.execution.outputCss.includes("@value shadow: 0 0 primary;"));
-assert.ok(icssExportReachabilitySummary.execution.outputCss.includes(":export { public-color: shadow;"));
+assert.ok(
+  icssExportReachabilitySummary.execution.outputCss.includes("@value shadow: 0 0 primary;"),
+);
+assert.ok(
+  icssExportReachabilitySummary.execution.outputCss.includes(":export { public-color: shadow;"),
+);
 assert.ok(!icssExportReachabilitySummary.execution.outputCss.includes("@value dead:"));
 assert.ok(!icssExportReachabilitySummary.execution.outputCss.includes("dead-public: dead"));
 assertIncludesAll(
@@ -1888,11 +1834,7 @@ const staticScssEvaluationResult = spawnSync(
     input: JSON.stringify({
       stylePath: "Button.module.scss",
       styleSource: "$brand: red; $accent: $brand; .button { color: $accent; }",
-      requestedPassIds: [
-        "scss-module-evaluate",
-        "css-modules-class-hashing",
-        "print-css",
-      ],
+      requestedPassIds: ["scss-module-evaluate", "css-modules-class-hashing", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
   },
@@ -1905,10 +1847,7 @@ const staticScssEvaluationSummary = JSON.parse(
   staticScssEvaluationResult.stdout,
 ) as ConsumerBuildSummaryV0;
 
-assert.equal(
-  staticScssEvaluationSummary.product,
-  "omena-query.consumer-build-style-source",
-);
+assert.equal(staticScssEvaluationSummary.product, "omena-query.consumer-build-style-source");
 assert.deepEqual(staticScssEvaluationSummary.execution.plannedOnlyPassIds, []);
 assert.deepEqual(staticScssEvaluationSummary.execution.executedPassIds, [
   "scss-module-evaluate",
@@ -1923,10 +1862,7 @@ assert.equal(
   staticScssEvaluationSummary.execution.cssModuleEvaluation?.evaluatedCss,
   "  .button { color: red; }",
 );
-assert.equal(
-  staticScssEvaluationSummary.execution.outputCss,
-  "  ._button_0{ color: red; }",
-);
+assert.equal(staticScssEvaluationSummary.execution.outputCss, "  ._button_0{ color: red; }");
 
 const staticLessEvaluationResult = spawnSync(
   "cargo",
@@ -1946,11 +1882,7 @@ const staticLessEvaluationResult = spawnSync(
     input: JSON.stringify({
       stylePath: "Button.module.less",
       styleSource: "@brand: red; @accent: @brand; .button { color: @accent; }",
-      requestedPassIds: [
-        "less-module-evaluate",
-        "css-modules-class-hashing",
-        "print-css",
-      ],
+      requestedPassIds: ["less-module-evaluate", "css-modules-class-hashing", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
   },
@@ -1963,10 +1895,7 @@ const staticLessEvaluationSummary = JSON.parse(
   staticLessEvaluationResult.stdout,
 ) as ConsumerBuildSummaryV0;
 
-assert.equal(
-  staticLessEvaluationSummary.product,
-  "omena-query.consumer-build-style-source",
-);
+assert.equal(staticLessEvaluationSummary.product, "omena-query.consumer-build-style-source");
 assert.deepEqual(staticLessEvaluationSummary.execution.plannedOnlyPassIds, []);
 assert.deepEqual(staticLessEvaluationSummary.execution.executedPassIds, [
   "less-module-evaluate",
@@ -1981,10 +1910,7 @@ assert.equal(
   staticLessEvaluationSummary.execution.cssModuleEvaluation?.evaluatedCss,
   "  .button { color: red; }",
 );
-assert.equal(
-  staticLessEvaluationSummary.execution.outputCss,
-  "  ._button_0{ color: red; }",
-);
+assert.equal(staticLessEvaluationSummary.execution.outputCss, "  ._button_0{ color: red; }");
 assert.equal(icssExportReachabilitySummary.semanticRemovalCount, 2);
 
 process.stdout.write(

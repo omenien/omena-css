@@ -241,8 +241,14 @@ assert.equal(
 assert.equal(summary.print.sourceMapSegments[0]?.sourcePath, "Button.module.scss");
 const firstSourceMapSegment = summary.print.sourceMapSegments[0];
 assert.ok(firstSourceMapSegment, "transform-plan source map must include segments");
-assert.equal(firstSourceMapSegment.originalStartPoint.byteOffset, firstSourceMapSegment.originalStart);
-assert.equal(firstSourceMapSegment.generatedStartPoint.byteOffset, firstSourceMapSegment.generatedStart);
+assert.equal(
+  firstSourceMapSegment.originalStartPoint.byteOffset,
+  firstSourceMapSegment.originalStart,
+);
+assert.equal(
+  firstSourceMapSegment.generatedStartPoint.byteOffset,
+  firstSourceMapSegment.generatedStart,
+);
 const finalLine = styleSource.split("\n").at(-1) ?? "";
 assert.equal(firstSourceMapSegment.originalEndPoint.byteOffset, firstSourceMapSegment.originalEnd);
 assert.equal(firstSourceMapSegment.originalEndPoint.line, 2);

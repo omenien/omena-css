@@ -210,7 +210,11 @@ function readText(filePath: string): string {
 
 function parserBoundaryNotReadySurfaceBlock(source: string): string {
   const start = source.indexOf("not_ready_surfaces: vec![");
-  assert.notEqual(start, -1, "omena-parser boundary must keep an explicit not_ready_surfaces block");
+  assert.notEqual(
+    start,
+    -1,
+    "omena-parser boundary must keep an explicit not_ready_surfaces block",
+  );
   const rest = source.slice(start);
   const end = rest.indexOf("],");
   assert.notEqual(end, -1, "omena-parser boundary not_ready_surfaces block must be closed");

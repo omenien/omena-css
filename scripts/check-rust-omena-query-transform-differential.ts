@@ -118,8 +118,7 @@ const fixtures: readonly DifferentialFixture[] = [
   },
   {
     label: "list-style-longhand-compression",
-    source:
-      ".a { list-style-type: none; list-style-position: outside; list-style-image: none; }",
+    source: ".a { list-style-type: none; list-style-position: outside; list-style-image: none; }",
   },
   {
     label: "structural-rule-merge",
@@ -302,8 +301,7 @@ const fixtures: readonly DifferentialFixture[] = [
   },
   {
     label: "transform-skew-translate-tail-zero",
-    source:
-      ".a { transform: translate(1px, 0px) skew(0deg, 0deg) skewX(0deg) skewY(0turn); }",
+    source: ".a { transform: translate(1px, 0px) skew(0deg, 0deg) skewX(0deg) skewY(0turn); }",
   },
   {
     label: "transform-3d-axis-normalization",
@@ -336,8 +334,7 @@ const fixtures: readonly DifferentialFixture[] = [
   },
   {
     label: "overflow-background-repeat-shorthand",
-    source:
-      ".a { background-repeat: repeat repeat; overflow-x: visible; overflow-y: visible; }",
+    source: ".a { background-repeat: repeat repeat; overflow-x: visible; overflow-y: visible; }",
   },
   {
     label: "background-position-axis-shorthand",
