@@ -757,6 +757,7 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
     .diagnostics
     .into_iter()
     .map(|diagnostic| {
+        let tags = diagnostic.tags;
         let data = diagnostic
             .create_custom_property
             .map(|create_custom_property| {
@@ -766,13 +767,18 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
             })
             .unwrap_or_else(|| json!({}));
 
-        json!({
+        let mut lsp_diagnostic = json!({
             "range": diagnostic.range,
             "severity": state.diagnostics.severity,
+            "code": diagnostic.code,
             "source": "css-module-explainer",
             "message": diagnostic.message,
             "data": data,
-        })
+        });
+        if !tags.is_empty() {
+            lsp_diagnostic["tags"] = json!(tags);
+        }
+        lsp_diagnostic
     })
     .collect::<Vec<_>>();
 

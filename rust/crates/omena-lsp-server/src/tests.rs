@@ -2992,6 +2992,51 @@ fn resolves_style_diagnostics_and_code_actions_from_opened_style_documents() {
 }
 
 #[test]
+fn resolves_unnecessary_tags_for_cascade_style_diagnostics() -> TestResult {
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ":root { --brand: red; }\n.btn { color: red; color: blue; }",
+                },
+            },
+        }),
+    );
+
+    let diagnostics_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": STYLE_DIAGNOSTICS_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                },
+            },
+        }),
+    );
+    let diagnostics = diagnostics_response
+        .as_ref()
+        .and_then(|value| value.pointer("/result"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| std::io::Error::other("style diagnostics result"))?;
+    let unreachable = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.pointer("/code") == Some(&json!("unreachableDeclaration")))
+        .ok_or_else(|| std::io::Error::other("unreachable declaration diagnostic"))?;
+    assert_eq!(unreachable.pointer("/tags"), Some(&json!([1])));
+    Ok(())
+}
+
+#[test]
 fn tracks_workspace_folder_changes() {
     let workspace_root = std::env::temp_dir().join(format!(
         "omena-lsp-server-added-workspace-{}",

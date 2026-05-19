@@ -4047,6 +4047,35 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
     assert!(diagnostic_codes.contains("iacvtProne"));
     assert!(diagnostic_codes.contains("circularVar"));
     assert!(diagnostic_codes.contains("unspecifiedCascadeTie"));
+    assert_eq!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "unreachableDeclaration")
+            .ok_or("unreachable declaration diagnostic")?
+            .tags
+            .as_slice(),
+        &[1]
+    );
+    assert_eq!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "deadCascadeLayer")
+            .ok_or("dead cascade layer diagnostic")?
+            .tags
+            .as_slice(),
+        &[1]
+    );
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "iacvtProne")
+            .ok_or("iacvt diagnostic")?
+            .tags
+            .is_empty()
+    );
     Ok(())
 }
 

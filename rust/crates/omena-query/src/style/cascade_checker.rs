@@ -11,6 +11,8 @@ use super::{
     summarize_static_css_custom_property_fixed_point_from_source,
 };
 
+const LSP_DIAGNOSTIC_TAG_UNNECESSARY: u8 = 1;
+
 pub(super) fn summarize_query_cascade_checker_diagnostics(
     style_uri: &str,
     source: &str,
@@ -51,6 +53,7 @@ pub(super) fn summarize_query_cascade_checker_diagnostics(
             code: query_cascade_checker_code(evaluation.rule_code_name),
             range,
             message: evaluation.message,
+            tags: query_cascade_checker_diagnostic_tags(evaluation.rule_code_name),
             create_custom_property: None,
         });
     }
@@ -66,6 +69,15 @@ fn query_cascade_checker_code(code: &'static str) -> &'static str {
         "circular-var" => "circularVar",
         "unspecified-cascade-tie" => "unspecifiedCascadeTie",
         _ => "cascadeAware",
+    }
+}
+
+fn query_cascade_checker_diagnostic_tags(code: &'static str) -> Vec<u8> {
+    match code {
+        "unreachable-declaration" | "dead-cascade-layer" => {
+            vec![LSP_DIAGNOSTIC_TAG_UNNECESSARY]
+        }
+        _ => Vec::new(),
     }
 }
 

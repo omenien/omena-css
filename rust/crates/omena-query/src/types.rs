@@ -610,6 +610,8 @@ pub struct OmenaQueryStyleDiagnosticV0 {
     pub code: &'static str,
     pub range: ParserRangeV0,
     pub message: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<u8>,
     pub create_custom_property: Option<OmenaQueryCreateCustomPropertyActionV0>,
 }
 

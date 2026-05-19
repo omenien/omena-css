@@ -7,6 +7,8 @@ use omena_parser::{
 use super::cascade_checker::summarize_query_cascade_checker_diagnostics;
 use super::*;
 
+const LSP_DIAGNOSTIC_TAG_UNNECESSARY: u8 = 1;
+
 pub fn summarize_omena_query_missing_custom_property_diagnostics(
     style_uri: &str,
     source: &str,
@@ -35,6 +37,7 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
                 "CSS custom property '{}' not found in indexed style tokens.",
                 candidate.name
             ),
+            tags: Vec::new(),
             create_custom_property: Some(OmenaQueryCreateCustomPropertyActionV0 {
                 uri: style_uri.to_string(),
                 range: insertion_range,
@@ -76,6 +79,7 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics(
                             "CSS custom property '{}' resolves to the guaranteed-invalid value.",
                             entry.name
                         ),
+                        tags: Vec::new(),
                         create_custom_property: None,
                     })
             })
@@ -123,6 +127,7 @@ pub fn summarize_omena_query_missing_keyframes_diagnostics(
             code: "missingKeyframes",
             range,
             message: format!("@keyframes '{}' not found in this file.", animation.name),
+            tags: Vec::new(),
             create_custom_property: None,
         })
         .collect()
@@ -177,6 +182,7 @@ pub fn summarize_omena_query_missing_sass_symbol_diagnostics(
                 "{} not found in this file.",
                 format_query_sass_symbol_label(symbol.symbol_kind, symbol.name.as_str())
             ),
+            tags: Vec::new(),
             create_custom_property: None,
         });
     }
@@ -312,6 +318,7 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
                     code: "missingComposedModule",
                     range,
                     message: format!("Cannot resolve composed CSS Module '{}'.", source),
+                    tags: Vec::new(),
                     create_custom_property: None,
                 });
                 continue;
@@ -347,6 +354,7 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
                 code: "missingComposedSelector",
                 range,
                 message,
+                tags: Vec::new(),
                 create_custom_property: None,
             });
         }
@@ -377,6 +385,7 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
                         "Cannot resolve imported @value module '{}'.",
                         edge.import_source
                     ),
+                    tags: Vec::new(),
                     create_custom_property: None,
                 });
             }
@@ -407,6 +416,7 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
             code: "missingImportedValue",
             range,
             message,
+            tags: Vec::new(),
             create_custom_property: None,
         });
     }
@@ -484,6 +494,7 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics(
                     },
                 ),
                 message: format!("Selector '.{}' is declared but never used.", selector.name),
+                tags: vec![LSP_DIAGNOSTIC_TAG_UNNECESSARY],
                 create_custom_property: None,
             })
         })
