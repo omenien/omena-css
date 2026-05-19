@@ -203,6 +203,7 @@ fn collect_shorthand_replacements_in_block(
         &declarations,
     ));
     ranges.extend(collect_flex_flow_replacements(tokens, &declarations));
+    ranges.extend(collect_flex_longhand_replacements(tokens, &declarations));
     for (start, end, replacement) in collect_logical_line_axis_replacements(tokens, &declarations) {
         if !replacement_range_overlaps_existing(&ranges, start, end) {
             ranges.push((start, end, replacement));
@@ -637,6 +638,58 @@ fn flex_flow_replacement_for_declarations(
     ))
 }
 
+fn collect_flex_longhand_replacements(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Vec<(usize, usize, String)> {
+    let mut ranges = Vec::new();
+    for triple in declarations.windows(3) {
+        if let Some(replacement) = flex_longhand_replacement_for_declarations(tokens, triple) {
+            ranges.push(replacement);
+        }
+    }
+    ranges
+}
+
+fn flex_longhand_replacement_for_declarations(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let [first, second, third] = declarations else {
+        return None;
+    };
+    if first.important != second.important
+        || first.important != third.important
+        || !declaration_ranges_are_adjacent(tokens, declarations)
+    {
+        return None;
+    }
+
+    let mut grow = None;
+    let mut shrink = None;
+    let mut basis = None;
+    for declaration in declarations {
+        match declaration.property.as_str() {
+            "flex-grow" => grow = Some(declaration.value.as_str()),
+            "flex-shrink" => shrink = Some(declaration.value.as_str()),
+            "flex-basis" => basis = Some(declaration.value.as_str()),
+            _ => return None,
+        }
+    }
+
+    let grow = single_component_value_without_important(grow?, first.important)?;
+    let shrink = single_component_value_without_important(shrink?, first.important)?;
+    let basis = single_component_value_without_important(basis?, first.important)?;
+    let shorthand_value = compress_flex_components(&grow, &shrink, &basis)?;
+    let important = if first.important { "!important" } else { "" };
+
+    Some((
+        first.start,
+        third.end,
+        format!("flex: {shorthand_value}{important};"),
+    ))
+}
+
 fn collect_overridden_flex_longhand_replacements(
     declarations: &[SimpleDeclarationSlice],
 ) -> Vec<(usize, usize, String)> {
@@ -1058,29 +1111,86 @@ pub(crate) fn compress_flex_value(value: &str) -> Option<String> {
     let [grow, shrink, basis] = components.as_slice() else {
         return None;
     };
-    let grow = normalize_flex_number(grow)?;
-    let shrink = normalize_flex_number(shrink)?;
-    let basis_lower = basis.to_ascii_lowercase();
-
-    let compressed = if basis_lower == "auto" && grow == "0" && shrink == "0" {
-        "none".to_string()
-    } else if basis_lower == "auto" && shrink == "1" {
-        if grow == "1" {
-            "auto".to_string()
-        } else {
-            format!("{grow} auto")
-        }
-    } else if is_zero_flex_basis(&basis_lower) {
-        if shrink == "1" {
-            grow
-        } else {
-            format!("{grow} {shrink}")
-        }
-    } else {
-        return None;
-    };
+    let compressed = compress_flex_components(grow, shrink, basis)?;
 
     (compressed.len() < normalize_ascii_whitespace(value).len()).then_some(compressed)
+}
+
+fn compress_flex_components(grow: &str, shrink: &str, basis: &str) -> Option<String> {
+    let grow = normalize_flex_number(grow)?;
+    let shrink = normalize_flex_number(shrink)?;
+
+    match normalize_static_flex_basis_component(basis)? {
+        StaticFlexBasisComponent::Auto if grow == "0" && shrink == "0" => Some("none".to_string()),
+        StaticFlexBasisComponent::Auto if shrink == "1" => {
+            if grow == "1" {
+                Some("auto".to_string())
+            } else {
+                Some(format!("{grow} auto"))
+            }
+        }
+        StaticFlexBasisComponent::ZeroPercent => {
+            if shrink == "1" {
+                Some(grow)
+            } else {
+                Some(format!("{grow} {shrink}"))
+            }
+        }
+        StaticFlexBasisComponent::Basis(basis) if basis == "0" => {
+            Some(format!("{grow} {shrink} 0"))
+        }
+        StaticFlexBasisComponent::Basis(basis) if shrink == "1" => {
+            if grow == "1" {
+                Some(basis)
+            } else {
+                Some(format!("{grow} {basis}"))
+            }
+        }
+        _ => None,
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum StaticFlexBasisComponent {
+    Auto,
+    ZeroPercent,
+    Basis(String),
+}
+
+fn normalize_static_flex_basis_component(value: &str) -> Option<StaticFlexBasisComponent> {
+    let value = normalize_ascii_whitespace(value);
+    if value.eq_ignore_ascii_case("auto") {
+        return Some(StaticFlexBasisComponent::Auto);
+    }
+    if value.contains('(') {
+        return None;
+    }
+
+    let split = numeric_prefix_end(&value)?;
+    if split == 0 {
+        return None;
+    }
+    let number = &value[..split];
+    let unit = value[split..].to_ascii_lowercase();
+    let parsed = number.parse::<f64>().ok()?;
+    if !parsed.is_finite() || parsed < 0.0 {
+        return None;
+    }
+    if unit.is_empty() && parsed != 0.0 {
+        return None;
+    }
+    if !unit.is_empty() && unit != "%" && !unit.chars().all(|ch| ch.is_ascii_alphabetic()) {
+        return None;
+    }
+
+    let number = compress_number_prefix(&format_css_number(parsed));
+    if unit == "%" && parsed == 0.0 {
+        return Some(StaticFlexBasisComponent::ZeroPercent);
+    }
+    if parsed == 0.0 {
+        return Some(StaticFlexBasisComponent::Basis("0".to_string()));
+    }
+    Some(StaticFlexBasisComponent::Basis(format!("{number}{unit}")))
 }
 
 fn compress_flex_flow_value(value: &str) -> Option<String> {
@@ -1140,16 +1250,6 @@ fn normalize_flex_number(value: &str) -> Option<String> {
     }
 
     Some(compress_number_prefix(&format_css_number(parsed)))
-}
-
-fn is_zero_flex_basis(value: &str) -> bool {
-    if value == "0" {
-        return true;
-    }
-    let Some(number) = value.strip_suffix('%') else {
-        return false;
-    };
-    number.parse::<f64>().is_ok_and(|parsed| parsed == 0.0)
 }
 
 pub(crate) fn compress_box_shorthand_value(value: &str) -> Option<String> {
