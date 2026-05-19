@@ -1936,6 +1936,24 @@ fn execution_runtime_compresses_line_style_shorthands() {
 }
 
 #[test]
+fn execution_runtime_compresses_logical_border_line_shorthands() {
+    let source = r#".a { border-block-start-width: 1px; border-block-start-style: solid; border-block-start-color: red; } .b { border-block-start: 1px solid red; border-block-end: 1px solid red; } .c { border-block-start-width: 1px; border-block-start-style: solid; border-block-start-color: red; border-block-end-width: 1px; border-block-end-style: solid; border-block-end-color: red; } .d { border-inline-end: 1px solid red; border-inline-start: 1px solid red; } .e { border-inline-end-width: medium !important; border-inline-end-style: none !important; border-inline-end-color: currentcolor !important; border-inline-start-width: medium !important; border-inline-start-style: none !important; border-inline-start-color: currentcolor !important; } .different { border-block-start: 1px solid red; border-block-end: 2px solid red; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 5);
+    assert_eq!(
+        execution.output_css,
+        r#".a { border-block-start: 1px solid red; } .b { border-block: 1px solid red; } .c { border-block: 1px solid red; } .d { border-inline: 1px solid red; } .e { border-inline: none!important; } .different { border-block-start: 1px solid red; border-block-end: 2px solid red; }"#
+    );
+}
+
+#[test]
 fn execution_runtime_compresses_repeated_axis_shorthand_values() {
     let source = r#".a { mask-repeat: repeat repeat; -webkit-mask-repeat: no-repeat no-repeat; background-repeat: space round; } .b { border-spacing: 1px 1px; } .c { scroll-padding-inline: 1px 1px; scroll-margin-block: 1px 2px; } .d { padding-inline: 2px 2px; margin-block: 1px 2px; } .e { border-block-color: red red; border-inline-width: 1px 1px; } .f { background-repeat: repeat no-repeat; mask-repeat: no-repeat repeat; -webkit-mask-repeat: repeat no-repeat; }"#;
     let execution = execute_transform_passes_on_source(

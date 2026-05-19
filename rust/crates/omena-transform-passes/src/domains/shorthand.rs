@@ -8,6 +8,8 @@ use crate::{
         shorthand_font::font_shorthand_replacement_for_declarations,
         shorthand_line::border_side_shorthand_replacement_for_declarations,
         shorthand_line::line_shorthand_replacement_for_declarations,
+        shorthand_line::logical_line_axis_shorthand_replacement_for_declarations,
+        shorthand_line::logical_line_axis_shorthand_replacement_for_longhand_declarations,
         shorthand_list::{
             compress_list_style_value, list_style_shorthand_replacement_for_declarations,
         },
@@ -106,6 +108,20 @@ fn collect_shorthand_replacements_in_block(
         }
     }
     let mut index = 0;
+    while index + 5 < declarations.len() {
+        if let Some((start, end, replacement)) =
+            logical_line_axis_shorthand_replacement_for_longhand_declarations(
+                tokens,
+                &declarations[index..index + 6],
+            )
+        {
+            ranges.push((start, end, replacement));
+            index += 6;
+        } else {
+            index += 1;
+        }
+    }
+    let mut index = 0;
     while index + 4 < declarations.len() {
         if let Some((start, end, replacement)) = border_image_shorthand_replacement_for_declarations(
             tokens,
@@ -162,7 +178,9 @@ fn collect_shorthand_replacements_in_block(
         .or_else(|| {
             line_shorthand_replacement_for_declarations(tokens, &declarations[index..index + 3])
         }) {
-            ranges.push((start, end, replacement));
+            if !replacement_range_overlaps_existing(&ranges, start, end) {
+                ranges.push((start, end, replacement));
+            }
             index += 3;
         } else {
             index += 1;
@@ -185,6 +203,11 @@ fn collect_shorthand_replacements_in_block(
         &declarations,
     ));
     ranges.extend(collect_flex_flow_replacements(tokens, &declarations));
+    for (start, end, replacement) in collect_logical_line_axis_replacements(tokens, &declarations) {
+        if !replacement_range_overlaps_existing(&ranges, start, end) {
+            ranges.push((start, end, replacement));
+        }
+    }
     ranges.extend(collect_logical_axis_replacements(tokens, &declarations));
     for (start, end, replacement) in collect_overridden_flex_longhand_replacements(&declarations) {
         if !replacement_range_overlaps_existing(&ranges, start, end) {
@@ -402,6 +425,16 @@ fn inset_shorthand_replacement_for_declarations(
         .collect::<Vec<_>>();
     let shorthand_value = compress_box_shorthand_values(&values)?;
     Some((top.start, left.end, format!("inset: {shorthand_value};")))
+}
+
+fn collect_logical_line_axis_replacements(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Vec<(usize, usize, String)> {
+    declarations
+        .windows(2)
+        .filter_map(|pair| logical_line_axis_shorthand_replacement_for_declarations(tokens, pair))
+        .collect()
 }
 
 fn collect_overflow_axis_replacements(
