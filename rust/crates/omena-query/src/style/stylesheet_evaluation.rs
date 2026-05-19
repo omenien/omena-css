@@ -17,40 +17,25 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
     if variable_kind == StaticStylesheetVariableKind::Less {
         return derive_static_less_stylesheet_module_evaluation(style_source, variable_facts);
     }
+    derive_static_scss_stylesheet_module_evaluation(style_source, variable_facts)
+}
+
+fn derive_static_scss_stylesheet_module_evaluation(
+    style_source: &str,
+    variable_facts: &[ParsedVariableFact],
+) -> Option<TransformModuleEvaluationV0> {
     if !variable_facts
         .iter()
-        .any(|fact| variable_kind.matches_declaration(fact.kind))
+        .any(|fact| fact.kind == ParsedVariableFactKind::ScssDeclaration)
     {
         return None;
     }
-
-    let declarations = collect_static_stylesheet_variable_declarations(
-        style_source,
-        variable_facts,
-        variable_kind,
-    )?;
-    for fact in variable_facts {
-        if !variable_kind.matches_reference(fact.kind) {
-            continue;
-        }
-        let reference_start = parser_text_size_to_usize(fact.range.start().into());
-        if static_stylesheet_position_is_inside_declaration(&declarations, reference_start) {
-            continue;
-        }
-        let declaration = declarations.get(fact.name.as_str())?;
-        if variable_kind.requires_reference_after_declaration()
-            && declaration.span_end > reference_start
-        {
-            return None;
-        }
-    }
-
-    if declarations.is_empty() {
-        return None;
-    }
+    let scopes = collect_static_stylesheet_scopes(style_source)?;
+    let declarations =
+        collect_static_scss_variable_declarations(style_source, variable_facts, &scopes)?;
 
     let mut edits = Vec::new();
-    for declaration in declarations.values() {
+    for declaration in &declarations {
         for (start, end) in &declaration.removal_spans {
             edits.push(StaticStylesheetEvaluationEdit {
                 start: *start,
@@ -60,18 +45,25 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
         }
     }
     for fact in variable_facts {
-        if !variable_kind.matches_reference(fact.kind) {
+        if fact.kind != ParsedVariableFactKind::ScssReference {
             continue;
         }
         let reference_start = parser_text_size_to_usize(fact.range.start().into());
-        if static_stylesheet_position_is_inside_declaration(&declarations, reference_start) {
+        if static_stylesheet_position_is_inside_scss_declaration(&declarations, reference_start) {
             continue;
         }
-        let declaration = declarations.get(fact.name.as_str())?;
+        let mut stack = BTreeSet::new();
+        let replacement = resolve_static_scss_variable_value_at_position(
+            fact.name.as_str(),
+            reference_start,
+            &scopes,
+            &declarations,
+            &mut stack,
+        )?;
         edits.push(StaticStylesheetEvaluationEdit {
             start: reference_start,
             end: parser_text_size_to_usize(fact.range.end().into()),
-            replacement: declaration.value.clone(),
+            replacement,
         });
     }
 
@@ -81,7 +73,9 @@ pub(super) fn derive_static_stylesheet_module_evaluation(
     }
 
     Some(TransformModuleEvaluationV0 {
-        evaluator: variable_kind.evaluator_label().to_string(),
+        evaluator: StaticStylesheetVariableKind::Scss
+            .evaluator_label()
+            .to_string(),
         evaluated_css,
     })
 }
@@ -101,22 +95,6 @@ impl StaticStylesheetVariableKind {
         }
     }
 
-    fn matches_declaration(self, kind: ParsedVariableFactKind) -> bool {
-        matches!(
-            (self, kind),
-            (Self::Scss, ParsedVariableFactKind::ScssDeclaration)
-                | (Self::Less, ParsedVariableFactKind::LessDeclaration)
-        )
-    }
-
-    fn matches_reference(self, kind: ParsedVariableFactKind) -> bool {
-        matches!(
-            (self, kind),
-            (Self::Scss, ParsedVariableFactKind::ScssReference)
-                | (Self::Less, ParsedVariableFactKind::LessReference)
-        )
-    }
-
     fn evaluator_label(self) -> &'static str {
         match self {
             Self::Scss => "omena-query-static-scss-variable-evaluator",
@@ -130,13 +108,6 @@ impl StaticStylesheetVariableKind {
             Self::Less => '@',
         }
     }
-
-    fn requires_reference_after_declaration(self) -> bool {
-        match self {
-            Self::Scss => true,
-            Self::Less => false,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -146,6 +117,14 @@ struct StaticStylesheetVariableDeclaration {
     span_end: usize,
     removal_spans: Vec<(usize, usize)>,
     is_default: bool,
+}
+
+#[derive(Debug, Clone)]
+struct StaticStylesheetScopedVariableDeclaration {
+    name: String,
+    scope_id: usize,
+    declaration: StaticStylesheetVariableDeclaration,
+    removal_spans: Vec<(usize, usize)>,
 }
 
 #[derive(Debug, Clone)]
@@ -165,6 +144,39 @@ struct StaticStylesheetScope {
     parent_id: Option<usize>,
     body_start: usize,
     end: usize,
+}
+
+fn collect_static_scss_variable_declarations(
+    source: &str,
+    variable_facts: &[ParsedVariableFact],
+    scopes: &[StaticStylesheetScope],
+) -> Option<Vec<StaticStylesheetScopedVariableDeclaration>> {
+    let mut declarations = Vec::new();
+    for fact in variable_facts {
+        if fact.kind != ParsedVariableFactKind::ScssDeclaration {
+            continue;
+        }
+        let start = parser_text_size_to_usize(fact.range.start().into());
+        let end = parser_text_size_to_usize(fact.range.end().into());
+        let scope_id = static_stylesheet_scope_for_position(scopes, start)?;
+        let declaration = extract_static_stylesheet_variable_declaration(
+            source,
+            start,
+            end,
+            StaticStylesheetVariableKind::Scss,
+        )?;
+        if !static_stylesheet_scss_declaration_value_is_removal_safe(&declaration.value) {
+            return None;
+        }
+        declarations.push(StaticStylesheetScopedVariableDeclaration {
+            name: fact.name.clone(),
+            scope_id,
+            removal_spans: declaration.removal_spans.clone(),
+            declaration,
+        });
+    }
+    declarations.sort_by_key(|declaration| declaration.declaration.span_start);
+    Some(declarations)
 }
 
 fn derive_static_less_stylesheet_module_evaluation(
@@ -419,6 +431,142 @@ fn static_stylesheet_scope_for_position(
         })
 }
 
+fn resolve_static_scss_variable_value_at_position(
+    name: &str,
+    position: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &[StaticStylesheetScopedVariableDeclaration],
+    stack: &mut BTreeSet<(usize, String, usize)>,
+) -> Option<String> {
+    let scope_id = static_stylesheet_scope_for_position(scopes, position)?;
+    resolve_static_scss_variable_value_in_scope(
+        name,
+        scope_id,
+        position,
+        scopes,
+        declarations,
+        stack,
+    )
+}
+
+fn resolve_static_scss_variable_value_in_scope(
+    name: &str,
+    scope_id: usize,
+    position: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &[StaticStylesheetScopedVariableDeclaration],
+    stack: &mut BTreeSet<(usize, String, usize)>,
+) -> Option<String> {
+    let stack_key = (scope_id, name.to_string(), position);
+    if !stack.insert(stack_key.clone()) {
+        return None;
+    }
+    let declaration =
+        find_static_scss_variable_declaration(name, scope_id, position, scopes, declarations)?;
+    let resolved = resolve_static_scss_variable_value_text(
+        declaration.declaration.value.trim(),
+        declaration.declaration.span_start,
+        scopes,
+        declarations,
+        stack,
+    );
+    stack.remove(&stack_key);
+    resolved
+}
+
+fn find_static_scss_variable_declaration<'a>(
+    name: &str,
+    mut scope_id: usize,
+    position: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &'a [StaticStylesheetScopedVariableDeclaration],
+) -> Option<&'a StaticStylesheetScopedVariableDeclaration> {
+    loop {
+        if let Some(declaration) = find_static_scss_variable_declaration_in_scope(
+            name,
+            scope_id,
+            position,
+            scopes,
+            declarations,
+        ) {
+            return Some(declaration);
+        }
+        scope_id = scopes.get(scope_id)?.parent_id?;
+    }
+}
+
+fn find_static_scss_variable_declaration_in_scope<'a>(
+    name: &str,
+    scope_id: usize,
+    position: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &'a [StaticStylesheetScopedVariableDeclaration],
+) -> Option<&'a StaticStylesheetScopedVariableDeclaration> {
+    let mut active = None;
+    for declaration in declarations.iter().filter(|declaration| {
+        declaration.name == name
+            && declaration.scope_id == scope_id
+            && declaration.declaration.span_end <= position
+    }) {
+        if declaration.declaration.is_default {
+            let has_visible_value = active.is_some()
+                || scopes
+                    .get(scope_id)
+                    .and_then(|scope| scope.parent_id)
+                    .and_then(|parent_scope_id| {
+                        find_static_scss_variable_declaration(
+                            name,
+                            parent_scope_id,
+                            declaration.declaration.span_start,
+                            scopes,
+                            declarations,
+                        )
+                    })
+                    .is_some();
+            if !has_visible_value {
+                active = Some(declaration);
+            }
+            continue;
+        }
+        active = Some(declaration);
+    }
+    active
+}
+
+fn resolve_static_scss_variable_value_text(
+    value: &str,
+    position: usize,
+    scopes: &[StaticStylesheetScope],
+    declarations: &[StaticStylesheetScopedVariableDeclaration],
+    stack: &mut BTreeSet<(usize, String, usize)>,
+) -> Option<String> {
+    let references =
+        collect_static_stylesheet_variable_references(value, StaticStylesheetVariableKind::Scss)?;
+    if references.is_empty() {
+        return static_stylesheet_literal_value_is_safe(value).then(|| value.to_string());
+    }
+    if !static_stylesheet_composite_value_is_safe(value) {
+        return None;
+    }
+
+    let mut output = String::with_capacity(value.len());
+    let mut cursor = 0usize;
+    for reference in references {
+        let resolved = resolve_static_scss_variable_value_at_position(
+            reference.name.as_str(),
+            position,
+            scopes,
+            declarations,
+            stack,
+        )?;
+        output.push_str(&value[cursor..reference.start]);
+        output.push_str(&resolved);
+        cursor = reference.end;
+    }
+    output.push_str(&value[cursor..]);
+    Some(output)
+}
+
 fn resolve_static_less_variable_value_in_scope(
     name: &str,
     scope_id: usize,
@@ -565,6 +713,10 @@ fn static_stylesheet_less_declaration_value_is_removal_safe(value: &str) -> bool
     !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | '!'))
 }
 
+fn static_stylesheet_scss_declaration_value_is_removal_safe(value: &str) -> bool {
+    !value.chars().any(|ch| matches!(ch, '{' | '}' | ';' | '!'))
+}
+
 fn static_stylesheet_property_name_is_safe(name: &str) -> bool {
     !name.is_empty()
         && name
@@ -629,32 +781,6 @@ fn static_stylesheet_token_is_trivia(kind: SyntaxKind) -> bool {
             | SyntaxKind::BlockComment
             | SyntaxKind::ScssSilentComment
     )
-}
-
-fn collect_static_stylesheet_variable_declarations(
-    source: &str,
-    variable_facts: &[ParsedVariableFact],
-    variable_kind: StaticStylesheetVariableKind,
-) -> Option<BTreeMap<String, StaticStylesheetVariableDeclaration>> {
-    let mut declarations = BTreeMap::<String, StaticStylesheetVariableDeclaration>::new();
-    for fact in variable_facts {
-        if !variable_kind.matches_declaration(fact.kind) {
-            continue;
-        }
-        let start = parser_text_size_to_usize(fact.range.start().into());
-        let end = parser_text_size_to_usize(fact.range.end().into());
-        if !source_position_is_top_level(source, start) {
-            return None;
-        }
-        let declaration =
-            extract_static_stylesheet_variable_declaration(source, start, end, variable_kind)?;
-        if let Some(previous) = declarations.get_mut(fact.name.as_str()) {
-            merge_static_stylesheet_duplicate_declaration(previous, declaration, variable_kind)?;
-            continue;
-        }
-        declarations.insert(fact.name.clone(), declaration);
-    }
-    resolve_static_stylesheet_variable_declarations(declarations, variable_kind)
 }
 
 fn extract_static_stylesheet_variable_declaration(
@@ -738,85 +864,6 @@ fn static_stylesheet_literal_value_is_safe(value: &str) -> bool {
         && !value
             .chars()
             .any(|ch| matches!(ch, '{' | '}' | ';' | '$' | '@' | '!'))
-}
-
-fn resolve_static_stylesheet_variable_declarations(
-    declarations: BTreeMap<String, StaticStylesheetVariableDeclaration>,
-    variable_kind: StaticStylesheetVariableKind,
-) -> Option<BTreeMap<String, StaticStylesheetVariableDeclaration>> {
-    let mut resolved = BTreeMap::new();
-    for name in declarations.keys() {
-        let mut stack = BTreeSet::new();
-        let value = resolve_static_stylesheet_variable_value(
-            name,
-            &declarations,
-            variable_kind,
-            &mut stack,
-        )?;
-        let mut declaration = declarations.get(name.as_str())?.clone();
-        declaration.value = value;
-        resolved.insert(name.clone(), declaration);
-    }
-    Some(resolved)
-}
-
-fn resolve_static_stylesheet_variable_value(
-    name: &str,
-    declarations: &BTreeMap<String, StaticStylesheetVariableDeclaration>,
-    variable_kind: StaticStylesheetVariableKind,
-    stack: &mut BTreeSet<String>,
-) -> Option<String> {
-    if !stack.insert(name.to_string()) {
-        return None;
-    }
-    let declaration = declarations.get(name)?;
-    let resolved = resolve_static_stylesheet_variable_value_text(
-        declaration.value.trim(),
-        declarations,
-        declaration.span_start,
-        variable_kind,
-        stack,
-    );
-    stack.remove(name);
-    resolved
-}
-
-fn resolve_static_stylesheet_variable_value_text(
-    value: &str,
-    declarations: &BTreeMap<String, StaticStylesheetVariableDeclaration>,
-    reference_position: usize,
-    variable_kind: StaticStylesheetVariableKind,
-    stack: &mut BTreeSet<String>,
-) -> Option<String> {
-    let references = collect_static_stylesheet_variable_references(value, variable_kind)?;
-    if references.is_empty() {
-        return static_stylesheet_literal_value_is_safe(value).then(|| value.to_string());
-    }
-    if !static_stylesheet_composite_value_is_safe(value) {
-        return None;
-    }
-
-    let mut output = String::with_capacity(value.len());
-    let mut cursor = 0usize;
-    for reference in references {
-        let target = declarations.get(reference.name.as_str())?;
-        if variable_kind.requires_reference_after_declaration()
-            && target.span_end > reference_position
-        {
-            return None;
-        }
-        let resolved = resolve_static_stylesheet_variable_value(
-            reference.name.as_str(),
-            declarations,
-            variable_kind,
-            stack,
-        )?;
-        output.push_str(&value[cursor..reference.start]);
-        output.push_str(&resolved);
-        cursor = reference.end;
-    }
-    output.push_str(&value[cursor..]);
-    Some(output)
 }
 
 fn static_stylesheet_variable_name_is_safe(name: &str) -> bool {
@@ -911,18 +958,6 @@ fn static_stylesheet_variable_name_end(value: &str, mut index: usize) -> usize {
     index
 }
 
-fn static_stylesheet_position_is_inside_declaration(
-    declarations: &BTreeMap<String, StaticStylesheetVariableDeclaration>,
-    position: usize,
-) -> bool {
-    declarations.values().any(|declaration| {
-        declaration
-            .removal_spans
-            .iter()
-            .any(|(start, end)| position >= *start && position < *end)
-    })
-}
-
 fn static_stylesheet_position_is_inside_scoped_declaration(
     declarations: &BTreeMap<(usize, String), StaticStylesheetVariableDeclaration>,
     position: usize,
@@ -935,16 +970,16 @@ fn static_stylesheet_position_is_inside_scoped_declaration(
     })
 }
 
-fn source_position_is_top_level(source: &str, position: usize) -> bool {
-    let mut depth = 0usize;
-    for byte in source.as_bytes().iter().take(position) {
-        match byte {
-            b'{' => depth += 1,
-            b'}' => depth = depth.saturating_sub(1),
-            _ => {}
-        }
-    }
-    depth == 0
+fn static_stylesheet_position_is_inside_scss_declaration(
+    declarations: &[StaticStylesheetScopedVariableDeclaration],
+    position: usize,
+) -> bool {
+    declarations.iter().any(|declaration| {
+        declaration
+            .removal_spans
+            .iter()
+            .any(|(start, end)| position >= *start && position < *end)
+    })
 }
 
 fn apply_static_stylesheet_evaluation_edits(

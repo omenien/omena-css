@@ -2037,6 +2037,46 @@ assert.equal(
   "._button_0{ color: blue; }",
 );
 
+const staticScssScopedEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-source",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "ScopedScss.module.scss",
+      styleSource: "$brand: blue; .card { $brand: red; color: $brand; } .other { color: $brand; }",
+      requestedPassIds: ["scss-module-evaluate", "css-modules-class-hashing", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(staticScssScopedEvaluationResult.status, 0, staticScssScopedEvaluationResult.stderr);
+assert.equal(staticScssScopedEvaluationResult.error, undefined);
+
+const staticScssScopedEvaluationSummary = JSON.parse(
+  staticScssScopedEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.deepEqual(staticScssScopedEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert.equal(
+  staticScssScopedEvaluationSummary.execution.cssModuleEvaluation?.evaluator,
+  "omena-query-static-scss-variable-evaluator",
+);
+assert(staticScssScopedEvaluationSummary.execution.outputCss.includes("color: red"));
+assert(staticScssScopedEvaluationSummary.execution.outputCss.includes("color: blue"));
+assert(!staticScssScopedEvaluationSummary.execution.outputCss.includes("$brand:"));
+
 const staticLessEvaluationResult = spawnSync(
   "cargo",
   [

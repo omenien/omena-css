@@ -1234,10 +1234,10 @@ fn consumer_build_keeps_static_scss_evaluator_planned_for_forward_composite_valu
 }
 
 #[test]
-fn consumer_build_keeps_static_scss_evaluator_planned_for_duplicate_declarations() {
+fn consumer_build_derives_static_scss_evaluator_context_for_reassignments() {
     let summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",
-        "$brand: red; .button { color: $brand; } $brand: blue;",
+        "$brand: red; .button { color: $brand; } $brand: blue; .link { color: $brand; }",
         &[
             "scss-module-evaluate".to_string(),
             "css-modules-class-hashing".to_string(),
@@ -1248,11 +1248,41 @@ fn consumer_build_keeps_static_scss_evaluator_planned_for_duplicate_declarations
     assert!(
         summary
             .execution
+            .executed_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(
+        !summary
+            .execution
             .planned_only_pass_ids
             .contains(&"scss-module-evaluate")
     );
-    assert!(summary.execution.output_css.contains("$brand: red"));
-    assert!(summary.execution.output_css.contains("$brand: blue"));
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(summary.execution.output_css.contains("color: blue"));
+    assert!(!summary.execution.output_css.contains("$brand:"));
+}
+
+#[test]
+fn consumer_build_derives_static_scss_evaluator_context_for_local_scope() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        "$brand: blue; .card { $brand: red; color: $brand; } .other { color: $brand; }",
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(summary.execution.output_css.contains("color: blue"));
+    assert!(!summary.execution.output_css.contains("$brand:"));
 }
 
 #[test]
