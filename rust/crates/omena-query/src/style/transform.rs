@@ -1152,13 +1152,13 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
             Some(StaticScssModuleForwardEvaluation {
                 source: edge.source.clone(),
                 evaluated_css: module_context.evaluated_css,
-                variable_exports: prefix_static_scss_forward_exports(
-                    filter_static_scss_forward_exports(
+                variable_exports: filter_static_scss_forward_exports(
+                    prefix_static_scss_forward_exports(
                         module_context.variable_exports,
-                        edge.visibility_filter_kind,
-                        &edge.visibility_filter_names,
+                        export_prefix.as_deref(),
                     ),
-                    export_prefix.as_deref(),
+                    edge.visibility_filter_kind,
+                    &edge.visibility_filter_names,
                 ),
             })
         })

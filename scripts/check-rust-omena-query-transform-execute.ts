@@ -2332,7 +2332,7 @@ const prefixedScssForwardEvaluationResult = spawnSync(
         },
         {
           stylePath: "/tmp/theme.scss",
-          styleSource: '@forward "./tokens" as token-* show $brand;',
+          styleSource: '@forward "./tokens" as token-* show $token-brand;',
         },
         {
           stylePath: "/tmp/App.module.scss",
@@ -2363,6 +2363,66 @@ assert(
 );
 assert(!prefixedScssForwardEvaluationSummary.execution.outputCss.includes("@forward"));
 assert(!prefixedScssForwardEvaluationSummary.execution.outputCss.includes("theme.$"));
+
+const prefixedScssForwardHideEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "/tmp/App.module.scss",
+      styles: [
+        {
+          stylePath: "/tmp/tokens.scss",
+          styleSource: "$brand: red; $gap: 8px; .base { color: $brand; }",
+        },
+        {
+          stylePath: "/tmp/theme.scss",
+          styleSource: '@forward "./tokens" as token-* hide $token-gap;',
+        },
+        {
+          stylePath: "/tmp/App.module.scss",
+          styleSource:
+            '@use "./theme" as theme; .button { color: theme.$token-brand; margin: theme.$token-gap; }',
+        },
+      ],
+      requestedPassIds: ["scss-module-evaluate", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  prefixedScssForwardHideEvaluationResult.status,
+  0,
+  prefixedScssForwardHideEvaluationResult.stderr,
+);
+assert.equal(prefixedScssForwardHideEvaluationResult.error, undefined);
+
+const prefixedScssForwardHideEvaluationSummary = JSON.parse(
+  prefixedScssForwardHideEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.deepEqual(prefixedScssForwardHideEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert(
+  prefixedScssForwardHideEvaluationSummary.execution.outputCss.includes(".button { color: red;"),
+);
+assert(
+  prefixedScssForwardHideEvaluationSummary.execution.outputCss.includes(
+    "margin: theme.$token-gap;",
+  ),
+);
+assert(!prefixedScssForwardHideEvaluationSummary.execution.outputCss.includes("@forward"));
 
 const staticScssDefaultEvaluationResult = spawnSync(
   "cargo",

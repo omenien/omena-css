@@ -2289,7 +2289,7 @@ fn derives_prefixed_scss_forward_aware_static_stylesheet_module_evaluation() {
             ),
             (
                 "/tmp/theme.scss",
-                r#"@forward "./tokens" as token-* show $brand;"#,
+                r#"@forward "./tokens" as token-* show $token-brand;"#,
             ),
             (
                 "/tmp/App.module.scss",
@@ -2306,6 +2306,37 @@ fn derives_prefixed_scss_forward_aware_static_stylesheet_module_evaluation() {
             .as_ref()
             .map(|evaluation| evaluation.evaluated_css.as_str()),
         Some("  .base { color: red; } .button { color: red; }")
+    );
+}
+
+#[test]
+fn derives_prefixed_scss_forward_hide_filters_after_prefixing() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.scss",
+        [
+            (
+                "/tmp/tokens.scss",
+                "$brand: red; $gap: 8px; .base { color: $brand; }",
+            ),
+            (
+                "/tmp/theme.scss",
+                r#"@forward "./tokens" as token-* hide $token-gap;"#,
+            ),
+            (
+                "/tmp/App.module.scss",
+                r#"@use "./theme" as theme; .button { color: theme.$token-brand; margin: theme.$token-gap; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    assert_eq!(
+        summary
+            .context
+            .scss_module_evaluation
+            .as_ref()
+            .map(|evaluation| evaluation.evaluated_css.as_str()),
+        Some("  .base { color: red; } .button { color: red; margin: theme.$token-gap; }")
     );
 }
 
