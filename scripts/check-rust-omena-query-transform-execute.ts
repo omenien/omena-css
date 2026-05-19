@@ -895,6 +895,46 @@ assert.deepEqual(globalComposesHashSummary.execution.executedPassIds, [
 ]);
 assert.equal(globalComposesHashSummary.execution.mutationCount, 3);
 
+const escapedClassHashResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-source",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "Escaped.module.css",
+      styleSource:
+        ".foo\\:bar { color: red; } :local(.foo\\:bar) { color: blue; } :global(.foo\\:bar) .foo\\:bar { color: green; }",
+      requestedPassIds: ["css-modules-class-hashing", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(escapedClassHashResult.status, 0, escapedClassHashResult.stderr);
+assert.equal(escapedClassHashResult.error, undefined);
+
+const escapedClassHashSummary = JSON.parse(escapedClassHashResult.stdout) as ConsumerBuildSummaryV0;
+
+assert.equal(
+  escapedClassHashSummary.execution.outputCss,
+  "._foo__bar_0{ color: red; } ._foo__bar_0{ color: blue; } .foo\\:bar ._foo__bar_0{ color: green; }",
+);
+assert.deepEqual(escapedClassHashSummary.execution.executedPassIds, [
+  "css-modules-class-hashing",
+  "print-css",
+]);
+assert.equal(escapedClassHashSummary.execution.mutationCount, 3);
+
 const alphaColorFunctionResult = spawnSync(
   "cargo",
   [

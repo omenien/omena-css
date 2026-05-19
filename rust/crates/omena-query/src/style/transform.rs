@@ -1875,10 +1875,15 @@ fn derive_class_name_rewrites_for_transform_context(
         return Vec::new();
     }
 
-    entry
-        .facts
-        .class_selector_names
-        .iter()
+    let mut unique_class_names = Vec::new();
+    for name in &entry.facts.class_selector_names {
+        if !unique_class_names.contains(&name) {
+            unique_class_names.push(name);
+        }
+    }
+
+    unique_class_names
+        .into_iter()
         .enumerate()
         .map(|(index, name)| TransformClassNameRewriteV0 {
             original_name: name.clone(),

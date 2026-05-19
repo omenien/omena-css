@@ -968,6 +968,37 @@ fn execution_runtime_rewrites_css_module_class_names_with_identity_map() {
 }
 
 #[test]
+fn execution_runtime_hashes_escaped_css_module_class_selectors() {
+    let source = r#".foo\:bar { color: red; } :local(.foo\:bar) { color: blue; } :global(.foo\:bar) .foo\:bar { color: green; }"#;
+    let context = TransformExecutionContextV0 {
+        class_name_rewrites: vec![TransformClassNameRewriteV0 {
+            original_name: r#"foo\:bar"#.to_string(),
+            rewritten_name: "_foo_bar_0".to_string(),
+        }],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::HashCssModuleClassNames,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 3);
+    assert_eq!(
+        execution.output_css,
+        r#"._foo_bar_0{ color: red; } ._foo_bar_0{ color: blue; } .foo\:bar ._foo_bar_0{ color: green; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["css-modules-class-hashing", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_hashes_nested_css_module_selectors_after_unwrap() {
     let source = r#".item { color: red; &--primary { color: blue; } & .body { color: green; } }"#;
     let context = TransformExecutionContextV0 {

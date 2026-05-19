@@ -268,7 +268,7 @@ fn rewrite_class_selectors_in_selector(
             }
             '.' if bracket_depth == 0 => {
                 let name_start = index + ch.len_utf8();
-                let name_end = ascii_css_identifier_end(selector, name_start);
+                let name_end = css_module_class_selector_name_end(selector, name_start);
                 if name_end == name_start {
                     output.push(ch);
                     index += ch.len_utf8();
@@ -293,6 +293,29 @@ fn rewrite_class_selectors_in_selector(
     }
 
     changed.then_some(output)
+}
+
+fn css_module_class_selector_name_end(selector: &str, start: usize) -> usize {
+    let mut end = start;
+    while end < selector.len() {
+        let Some(ch) = selector[end..].chars().next() else {
+            break;
+        };
+        if ch == '\\' {
+            let escaped_start = end + ch.len_utf8();
+            let Some(escaped) = selector[escaped_start..].chars().next() else {
+                break;
+            };
+            end = escaped_start + escaped.len_utf8();
+            continue;
+        }
+        let next = ascii_css_identifier_end(selector, end);
+        if next == end {
+            break;
+        }
+        end = next;
+    }
+    end
 }
 
 fn rewrite_local_composes_value(

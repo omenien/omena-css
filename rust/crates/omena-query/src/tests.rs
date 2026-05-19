@@ -1955,6 +1955,34 @@ fn derives_transform_context_from_workspace_sources() {
 }
 
 #[test]
+fn derives_unique_class_rewrites_for_repeated_escaped_selectors() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "Escaped.module.css",
+        [(
+            "Escaped.module.css",
+            r#".foo\:bar { color: red; } :local(.foo\:bar) { color: blue; } :global(.foo\:bar) .foo\:bar { color: green; }"#,
+        )],
+        &[],
+    );
+
+    assert_eq!(summary.class_name_rewrite_count, 1);
+    assert_eq!(
+        summary
+            .context
+            .class_name_rewrites
+            .iter()
+            .map(|rewrite| {
+                (
+                    rewrite.original_name.as_str(),
+                    rewrite.rewritten_name.as_str(),
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![(r#"foo\:bar"#, "_foo__bar_0")]
+    );
+}
+
+#[test]
 fn explicit_context_extends_query_derived_transform_context()
 -> Result<(), Box<dyn std::error::Error>> {
     let sources = vec![
