@@ -412,6 +412,11 @@ const fixtures: readonly DifferentialFixture[] = [
       ".a { border-spacing: 0px 0px; letter-spacing: 0px; word-spacing: 0px; outline-offset: 0px; stroke-width: 0px; stroke-dasharray: 0px; stroke-dashoffset: 0px; tab-size: 0px; vertical-align: 0px; perspective: 0px; border-image-width: 0px; flex-basis: 0px; grid-template-columns: 0px 1fr; grid-auto-rows: 0px; font-size: 0px; }",
   },
   {
+    label: "overridden-flex-longhands",
+    source:
+      ".a { flex-basis: 0%; flex: 1 1 0%; } .b { flex-grow: 1; flex-shrink: 1; flex: 2 1 0%; }",
+  },
+  {
     label: "alpha-hex-zero-line-height-calc",
     source:
       ".alpha { color: #ffffffff; border-color: #00000000; width: calc(2px * 3); height: calc(6px / 2); line-height: 0em; }",

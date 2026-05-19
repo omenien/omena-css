@@ -173,6 +173,11 @@ fn collect_shorthand_replacements_in_block(
     ));
     ranges.extend(collect_flex_flow_replacements(tokens, &declarations));
     ranges.extend(collect_logical_axis_replacements(tokens, &declarations));
+    for (start, end, replacement) in collect_overridden_flex_longhand_replacements(&declarations) {
+        if !replacement_range_overlaps_existing(&ranges, start, end) {
+            ranges.push((start, end, replacement));
+        }
+    }
     ranges
 }
 
@@ -514,6 +519,35 @@ fn flex_flow_replacement_for_declarations(
         second.end,
         format!("flex-flow: {shorthand_value}{important};"),
     ))
+}
+
+fn collect_overridden_flex_longhand_replacements(
+    declarations: &[SimpleDeclarationSlice],
+) -> Vec<(usize, usize, String)> {
+    let mut ranges = Vec::new();
+    for (index, declaration) in declarations.iter().enumerate() {
+        if !flex_longhand_is_reset_by_flex_shorthand(&declaration.property) {
+            continue;
+        }
+        let later_flex = declarations[index + 1..]
+            .iter()
+            .find(|candidate| candidate.property == "flex");
+        if later_flex.is_some_and(|candidate| later_declaration_overrides(declaration, candidate)) {
+            ranges.push((declaration.start, declaration.end, String::new()));
+        }
+    }
+    ranges
+}
+
+fn flex_longhand_is_reset_by_flex_shorthand(property: &str) -> bool {
+    matches!(property, "flex-basis" | "flex-grow" | "flex-shrink")
+}
+
+fn later_declaration_overrides(
+    earlier: &SimpleDeclarationSlice,
+    later: &SimpleDeclarationSlice,
+) -> bool {
+    !earlier.important || later.important
 }
 
 fn normalize_single_component_place_value(value: &str, important: bool) -> Option<String> {

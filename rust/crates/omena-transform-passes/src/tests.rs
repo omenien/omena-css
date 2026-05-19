@@ -1919,7 +1919,7 @@ fn execution_runtime_compresses_repeated_axis_shorthand_values() {
 
 #[test]
 fn execution_runtime_compresses_static_flex_shorthands() {
-    let source = r#".a { flex: 0 1 auto; } .b { flex: 1 1 0%; } .c { flex: 2 1 0%; } .d { flex: 1 2 0%; } .e { flex: var(--flex); } .f { flex: 0 0 auto; } .g { flex-flow: row nowrap; } .h { flex-flow: row wrap; } .i { flex-flow: nowrap row; } .j { flex-direction: row; flex-wrap: nowrap; } .k { flex-wrap: wrap; flex-direction: column; } .l { flex-direction: row !important; flex-wrap: nowrap !important; }"#;
+    let source = r#".a { flex: 0 1 auto; } .b { flex: 1 1 0%; } .c { flex: 2 1 0%; } .d { flex: 1 2 0%; } .e { flex: var(--flex); } .f { flex: 0 0 auto; } .g { flex-flow: row nowrap; } .h { flex-flow: row wrap; } .i { flex-flow: nowrap row; } .j { flex-direction: row; flex-wrap: nowrap; } .k { flex-wrap: wrap; flex-direction: column; } .l { flex-direction: row !important; flex-wrap: nowrap !important; } .m { flex-basis: 0%; flex: 1 1 0%; } .n { flex-basis: 0% !important; flex: 1; } .o { flex-grow: 1; flex-shrink: 1; flex: 2 1 0%; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1928,10 +1928,10 @@ fn execution_runtime_compresses_static_flex_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 11);
+    assert_eq!(execution.mutation_count, 16);
     assert_eq!(
         execution.output_css,
-        r#".a { flex: 0 auto; } .b { flex: 1; } .c { flex: 2; } .d { flex: 1 2; } .e { flex: var(--flex); } .f { flex: none; } .g { flex-flow: row; } .h { flex-flow: wrap; } .i { flex-flow: row; } .j { flex-flow: row; } .k { flex-flow: column wrap; } .l { flex-flow: row!important; }"#
+        r#".a { flex: 0 auto; } .b { flex: 1; } .c { flex: 2; } .d { flex: 1 2; } .e { flex: var(--flex); } .f { flex: none; } .g { flex-flow: row; } .h { flex-flow: wrap; } .i { flex-flow: row; } .j { flex-flow: row; } .k { flex-flow: column wrap; } .l { flex-flow: row!important; } .m {  flex: 1; } .n { flex-basis: 0% !important; flex: 1; } .o {   flex: 2; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,
