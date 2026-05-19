@@ -1862,10 +1862,10 @@ fn execution_runtime_compresses_text_decoration_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 9);
+    assert_eq!(execution.mutation_count, 10);
     assert_eq!(
         execution.output_css,
-        r#".a { text-decoration: underline; } .b { text-decoration: underline red; } .c { text-decoration: underline 1px wavy red; } .important { text-decoration: underline!important; } .mixed { text-decoration-line: underline overline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; } .em-a { text-emphasis: none; } .em-b { text-emphasis: dot red; } .em-c { text-emphasis: open sesame!important; } .pos-a { text-emphasis-position: over; } .pos-b { text-emphasis-position: under left; } .pos-c { text-emphasis-position: over left; }"#
+        r#".a { text-decoration: underline; } .b { text-decoration: underline red; } .c { text-decoration: underline 1px wavy red; } .important { text-decoration: underline!important; } .mixed { text-decoration: underline overline; } .em-a { text-emphasis: none; } .em-b { text-emphasis: dot red; } .em-c { text-emphasis: open sesame!important; } .pos-a { text-emphasis-position: over; } .pos-b { text-emphasis-position: under left; } .pos-c { text-emphasis-position: over left; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

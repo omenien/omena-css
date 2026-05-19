@@ -375,7 +375,7 @@ const fixtures: readonly DifferentialFixture[] = [
   {
     label: "text-decoration-shorthands",
     source:
-      ".a { text-decoration-line: underline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; } .b { text-decoration: underline solid red auto; } .c { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: red; text-decoration-thickness: 1px; } .d { text-decoration-line: underline !important; text-decoration-style: solid !important; text-decoration-color: currentcolor !important; text-decoration-thickness: auto !important; }",
+      ".a { text-decoration-line: underline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; } .b { text-decoration: underline solid red auto; } .c { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: red; text-decoration-thickness: 1px; } .d { text-decoration-line: underline !important; text-decoration-style: solid !important; text-decoration-color: currentcolor !important; text-decoration-thickness: auto !important; } .e { text-decoration-line: overline underline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; } .f { text-decoration-line: none underline; text-decoration-style: solid; text-decoration-color: currentcolor; text-decoration-thickness: auto; }",
   },
   {
     label: "text-emphasis-shorthands",

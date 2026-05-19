@@ -27,7 +27,7 @@ pub(crate) fn text_decoration_shorthand_replacement_for_declarations(
     {
         return None;
     }
-    let line_value = single_component_value_without_important(&line.value, line.important)?;
+    let line_value = text_decoration_line_without_important(&line.value, line.important)?;
     let style_value = single_component_value_without_important(&style.value, style.important)?;
     let color_value = single_component_value_without_important(&color.value, color.important)?;
     let thickness_value =
@@ -93,14 +93,14 @@ pub(crate) fn compress_text_decoration_value(value: &str, important: bool) -> Op
         components.pop();
     }
 
-    let mut line = None;
+    let mut line_components = Vec::new();
     let mut style = None;
     let mut color = None;
     let mut thickness = None;
     for component in &components {
         let normalized = component.to_ascii_lowercase();
-        if is_text_decoration_line_component(&normalized) && line.is_none() {
-            line = Some(normalized);
+        if is_text_decoration_line_component(&normalized) {
+            line_components.push(normalized);
         } else if is_text_decoration_style_component(&normalized) && style.is_none() {
             style = Some(normalized);
         } else if is_text_decoration_color_component(component) && color.is_none() {
@@ -113,7 +113,7 @@ pub(crate) fn compress_text_decoration_value(value: &str, important: bool) -> Op
     }
 
     let replacement = compressed_text_decoration_components(
-        line.as_deref()?,
+        &canonical_text_decoration_line_value(line_components.as_slice())?,
         style.as_deref().unwrap_or("solid"),
         color.as_deref().unwrap_or("currentcolor"),
         thickness.as_deref().unwrap_or("auto"),
@@ -185,6 +185,41 @@ fn single_component_value_without_important(value: &str, important: bool) -> Opt
     Some(component.clone())
 }
 
+fn text_decoration_line_without_important(value: &str, important: bool) -> Option<String> {
+    let mut components = split_top_level_whitespace_value_components(value)?;
+    if important
+        && components.last().is_some_and(|component| {
+            component.eq_ignore_ascii_case("!important")
+                || component.eq_ignore_ascii_case("important")
+        })
+    {
+        components.pop();
+    }
+    let components = components
+        .into_iter()
+        .map(|component| component.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    canonical_text_decoration_line_value(components.as_slice())
+}
+
+fn canonical_text_decoration_line_value(components: &[String]) -> Option<String> {
+    if components
+        .iter()
+        .any(|component| !is_text_decoration_line_component(component))
+    {
+        return None;
+    }
+    let mut values = ["underline", "overline", "line-through"]
+        .iter()
+        .filter(|candidate| components.iter().any(|component| component == **candidate))
+        .map(|candidate| (*candidate).to_string())
+        .collect::<Vec<_>>();
+    if values.is_empty() && components.iter().any(|component| component == "none") {
+        values.push("none".to_string());
+    }
+    (!values.is_empty()).then(|| values.join(" "))
+}
+
 fn compressed_text_emphasis_position(vertical: &str, side: &str) -> Option<String> {
     if side == "right" {
         Some(vertical.to_string())
@@ -254,8 +289,12 @@ fn compressed_text_decoration_components(
     let color = color.to_ascii_lowercase();
     let thickness = thickness.to_ascii_lowercase();
 
-    if !is_text_decoration_line_component(&line)
-        || !is_text_decoration_style_component(&style)
+    let line = canonical_text_decoration_line_value(
+        split_top_level_whitespace_value_components(&line)?.as_slice(),
+    )?;
+
+    if !is_text_decoration_style_component(&style)
+        || !is_text_decoration_color_component(&color)
         || !is_text_decoration_thickness_component(&thickness)
     {
         return None;
