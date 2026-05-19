@@ -678,7 +678,9 @@ fn collect_css_modules_value_references_in_at_rule_preludes(
                         .iter()
                         .any(|name| name == &tokens[prelude_index].text) =>
                 {
-                    push_unique_string(&mut prelude_names, tokens[prelude_index].text.clone());
+                    if query_prelude_ident_is_feature_value(tokens, prelude_index, index + 1) {
+                        push_unique_string(&mut prelude_names, tokens[prelude_index].text.clone());
+                    }
                 }
                 SyntaxKind::LeftBrace | SyntaxKind::Semicolon | SyntaxKind::RightBrace => {
                     terminator_index = Some(prelude_index);

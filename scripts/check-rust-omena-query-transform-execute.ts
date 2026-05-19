@@ -1817,6 +1817,79 @@ assertIncludesAll(
   "ICSS export reachability removals",
 );
 
+const valueAtRulePreludeReachabilityResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "PreludeValues.module.css",
+      styles: [
+        {
+          stylePath: "PreludeValues.module.css",
+          styleSource:
+            "@value screen: 1px; @value bp: 40rem; @value theme: dark; @media screen and (min-width: bp) { .button { color: red; } } @container card style(--mode: theme) { .button { color: blue; } }",
+        },
+      ],
+      requestedPassIds: ["tree-shake-value", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["button"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  valueAtRulePreludeReachabilityResult.status,
+  0,
+  valueAtRulePreludeReachabilityResult.stderr,
+);
+assert.equal(valueAtRulePreludeReachabilityResult.error, undefined);
+
+const valueAtRulePreludeReachabilitySummary = JSON.parse(
+  valueAtRulePreludeReachabilityResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.equal(
+  valueAtRulePreludeReachabilitySummary.product,
+  "omena-query.consumer-build-style-source",
+);
+assert.ok(!valueAtRulePreludeReachabilitySummary.execution.outputCss.includes("@value screen:"));
+assert.ok(valueAtRulePreludeReachabilitySummary.execution.outputCss.includes("@value bp: 40rem;"));
+assert.ok(
+  valueAtRulePreludeReachabilitySummary.execution.outputCss.includes("@value theme: dark;"),
+);
+assert.ok(
+  valueAtRulePreludeReachabilitySummary.execution.outputCss.includes(
+    "@media screen and (min-width: bp)",
+  ),
+);
+assert.ok(
+  valueAtRulePreludeReachabilitySummary.execution.outputCss.includes(
+    "@container card style(--mode: theme)",
+  ),
+);
+assertIncludesAll(
+  valueAtRulePreludeReachabilitySummary.execution.semanticRemovals.map(
+    (removal) => `${removal.symbolKind}:${removal.name}`,
+  ),
+  ["cssModuleValue:screen"],
+  "at-rule prelude value-position reachability removals",
+);
+assert.equal(valueAtRulePreludeReachabilitySummary.execution.mutationCount, 1);
+
 const staticScssEvaluationResult = spawnSync(
   "cargo",
   [

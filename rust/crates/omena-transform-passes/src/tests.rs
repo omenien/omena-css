@@ -2964,6 +2964,48 @@ fn execution_runtime_tree_shakes_local_values_with_closed_world_context() {
 }
 
 #[test]
+fn execution_runtime_tree_shakes_at_rule_prelude_non_value_identifiers() {
+    let source = r#"@value screen: 1px; @value bp: 40rem; @value theme: dark; @media screen and (min-width: bp) { .btn { color: red; } } @container card style(--mode: theme) { .btn { color: blue; } }"#;
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec!["btn".to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::TreeShakeValue,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert!(!execution.output_css.contains("@value screen:"));
+    assert!(execution.output_css.contains("@value bp: 40rem;"));
+    assert!(execution.output_css.contains("@value theme: dark;"));
+    assert!(
+        execution
+            .output_css
+            .contains("@media screen and (min-width: bp)")
+    );
+    assert!(
+        execution
+            .output_css
+            .contains("@container card style(--mode: theme)")
+    );
+    assert_eq!(
+        execution
+            .semantic_removals
+            .iter()
+            .map(|removal| removal.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["screen"]
+    );
+}
+
+#[test]
 fn execution_runtime_tree_shakes_imported_values_with_closed_world_context() {
     let source = r#"@value used, dead, ghost from "./tokens.module.css"; @value local: used; .btn { color: local; } .dead { color: dead; }"#;
     let context = TransformExecutionContextV0 {
