@@ -1780,6 +1780,56 @@ assert.deepEqual(staticBranchResolutionSummary.execution.executedPassIds, [
 assert.equal(staticBranchResolutionSummary.execution.mutationCount, 10);
 assert.equal(staticBranchResolutionSummary.execution.passPlan.violatedDagEdgeCount, 0);
 
+const scopeValueResolutionResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "scope-values.module.css",
+      styleSource:
+        "@value scopeRoot: .card; @value scopeLimit: #app; @value rootScope: :root; @value tone: red; @value dead: blue; @scope (scopeRoot) to (scopeLimit) { .card { color: tone; } } @scope (rootScope) { .card { border-color: tone; } }",
+      requestedPassIds: ["value-resolution", "tree-shake-value", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["card"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(scopeValueResolutionResult.status, 0, scopeValueResolutionResult.stderr);
+assert.equal(scopeValueResolutionResult.error, undefined);
+
+const scopeValueResolutionSummary = JSON.parse(
+  scopeValueResolutionResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(scopeValueResolutionSummary.product, "omena-query.transform-execute");
+assert.equal(
+  scopeValueResolutionSummary.execution.outputCss,
+  "     @scope (.card) to (#app) { .card { color: red; } } @scope (:root) { .card { border-color: red; } }",
+);
+assert.deepEqual(scopeValueResolutionSummary.execution.executedPassIds, [
+  "value-resolution",
+  "tree-shake-value",
+  "print-css",
+]);
+assert.deepEqual(scopeValueResolutionSummary.execution.plannedOnlyPassIds, []);
+assert.equal(scopeValueResolutionSummary.execution.mutationCount, 10);
+assert.equal(scopeValueResolutionSummary.execution.passPlan.violatedDagEdgeCount, 0);
+
 const customPropertyReachabilityResult = spawnSync(
   "cargo",
   [
@@ -4003,6 +4053,7 @@ process.stdout.write(
     `staticVarShadowMutations=${staticVarShadowSummary.execution.mutationCount}`,
     `staticVarPreludeMutations=${staticVarPreludeSummary.execution.mutationCount}`,
     `staticBranchResolutionMutations=${staticBranchResolutionSummary.execution.mutationCount}`,
+    `scopeValueResolutionMutations=${scopeValueResolutionSummary.execution.mutationCount}`,
     `customPropertyReachabilityMutations=${customPropertyReachabilitySummary.execution.mutationCount}`,
     `customPropertyContainerStyleMutations=${customPropertyContainerStyleReachabilitySummary.execution.mutationCount}`,
     `customPropertyRegistrationDependencyMutations=${customPropertyRegistrationDependencySummary.execution.mutationCount}`,

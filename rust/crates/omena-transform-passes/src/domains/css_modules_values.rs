@@ -231,7 +231,12 @@ fn collect_static_css_modules_value_query_prelude_replacements(
             for candidate_index in prelude_start..prelude_end {
                 let token = &tokens[candidate_index];
                 if token.kind != SyntaxKind::Ident
-                    || !query_prelude_ident_is_feature_value(tokens, candidate_index, prelude_start)
+                    || !query_prelude_ident_is_css_modules_value_reference(
+                        tokens,
+                        candidate_index,
+                        prelude_start,
+                        &tokens[index].text,
+                    )
                 {
                     continue;
                 }
@@ -252,8 +257,23 @@ fn collect_static_css_modules_value_query_prelude_replacements(
 fn css_modules_value_query_prelude_at_rule(text: &str) -> bool {
     matches!(
         text.to_ascii_lowercase().as_str(),
-        "@media" | "@supports" | "@container" | "@custom-media"
+        "@media" | "@supports" | "@container" | "@custom-media" | "@scope"
     )
+}
+
+fn query_prelude_ident_is_css_modules_value_reference(
+    tokens: &[omena_parser::LexedToken],
+    candidate_index: usize,
+    prelude_start: usize,
+    at_rule_text: &str,
+) -> bool {
+    if at_rule_text.eq_ignore_ascii_case("@scope") {
+        return !matches!(
+            tokens[candidate_index].text.to_ascii_lowercase().as_str(),
+            "to"
+        );
+    }
+    query_prelude_ident_is_feature_value(tokens, candidate_index, prelude_start)
 }
 
 fn query_prelude_ident_is_feature_value(
@@ -420,6 +440,7 @@ fn is_static_css_modules_value_literal(value: &str, dialect: StyleDialect) -> bo
             })
             .unwrap_or(false)
         || is_static_css_modules_identifier_literal(value, dialect)
+        || is_static_css_modules_simple_selector_literal(value, dialect)
 }
 
 fn is_static_css_modules_identifier_literal(value: &str, dialect: StyleDialect) -> bool {
@@ -432,6 +453,31 @@ fn is_static_css_modules_identifier_literal(value: &str, dialect: StyleDialect) 
     significant_tokens.len() == 1
         && significant_tokens[0].kind == SyntaxKind::Ident
         && significant_tokens[0].text == value.trim()
+}
+
+fn is_static_css_modules_simple_selector_literal(value: &str, dialect: StyleDialect) -> bool {
+    let trimmed = value.trim();
+    let lexed = lex(value, dialect);
+    let significant_tokens = lexed
+        .tokens()
+        .iter()
+        .filter(|token| token.kind != SyntaxKind::Whitespace && !is_comment_token(token.kind))
+        .collect::<Vec<_>>();
+    let token_text = significant_tokens
+        .iter()
+        .map(|token| token.text.as_str())
+        .collect::<String>();
+    if token_text != trimmed {
+        return false;
+    }
+    match significant_tokens.as_slice() {
+        [token] => token.kind == SyntaxKind::Hash,
+        [prefix, ident] => {
+            ident.kind == SyntaxKind::Ident
+                && matches!(prefix.kind, SyntaxKind::Dot | SyntaxKind::Colon)
+        }
+        _ => false,
+    }
 }
 
 fn css_modules_value_unit_is_static(unit: &str) -> bool {
@@ -895,10 +941,11 @@ fn collect_css_modules_value_references_in_at_rule_preludes(
                     if definition_names
                         .iter()
                         .any(|name| name == &tokens[prelude_index].text)
-                        && query_prelude_ident_is_feature_value(
+                        && query_prelude_ident_is_css_modules_value_reference(
                             tokens,
                             prelude_index,
                             index + 1,
+                            &tokens[index].text,
                         ) =>
                 {
                     push_unique_string(&mut prelude_names, tokens[prelude_index].text.clone());

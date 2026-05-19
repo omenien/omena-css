@@ -3022,6 +3022,37 @@ fn execution_runtime_resolves_identifier_values_before_static_branch_evaluation(
 }
 
 #[test]
+fn execution_runtime_resolves_scope_prelude_css_modules_values() {
+    let source = r#"@value scopeRoot: .card; @value scopeLimit: #app; @value rootScope: :root; @value tone: red; @value dead: blue; @scope (scopeRoot) to (scopeLimit) { .card { color: tone; } } @scope (rootScope) { .card { border-color: tone; } }"#;
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec!["card".to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::ValueResolution,
+            TransformPassKind::TreeShakeValue,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 10);
+    assert_eq!(
+        execution.output_css,
+        "     @scope (.card) to (#app) { .card { color: red; } } @scope (:root) { .card { border-color: red; } }"
+    );
+    assert!(execution.semantic_removals.is_empty());
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["value-resolution", "tree-shake-value", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_resolves_imported_static_css_modules_values_from_context() {
     let source = r#"@value primary as brand, gap, tone from "./tokens.module.css"; @custom-media --gap (min-width: gap); .btn { color: brand; margin: gap; border-color: tone; } @media (min-width: gap) { .btn { color: brand; } } @supports (width: gap) { .btn { color: brand; } }"#;
     let context = TransformExecutionContextV0 {
