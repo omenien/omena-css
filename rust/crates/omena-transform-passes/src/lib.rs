@@ -14,6 +14,7 @@ mod registry;
 mod runtime;
 
 pub use domains::css_modules_values::resolve_static_css_modules_local_value_resolutions_from_source;
+pub use domains::number::reduce_static_numeric_expression;
 pub use model::*;
 pub use registry::{
     parse_static_css_cascade_value, summarize_static_css_custom_property_fixed_point_from_source,

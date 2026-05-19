@@ -2354,6 +2354,48 @@ assert(staticLessPropertyEvaluationSummary.execution.outputCss.includes("backgro
 assert(staticLessPropertyEvaluationSummary.execution.outputCss.includes("background: green"));
 assert(!staticLessPropertyEvaluationSummary.execution.outputCss.includes("$color"));
 
+const staticLessArithmeticEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-source",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "ArithmeticLess.module.less",
+      styleSource:
+        "@width: 100px; @half: (@width / 2); @sum: (@half + 10px); .card { width: @half; margin: @sum; }",
+      requestedPassIds: ["less-module-evaluate", "css-modules-class-hashing", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  staticLessArithmeticEvaluationResult.status,
+  0,
+  staticLessArithmeticEvaluationResult.stderr,
+);
+assert.equal(staticLessArithmeticEvaluationResult.error, undefined);
+
+const staticLessArithmeticEvaluationSummary = JSON.parse(
+  staticLessArithmeticEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.deepEqual(staticLessArithmeticEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert(staticLessArithmeticEvaluationSummary.execution.outputCss.includes("width: 50px"));
+assert(staticLessArithmeticEvaluationSummary.execution.outputCss.includes("margin: 60px"));
+assert(!staticLessArithmeticEvaluationSummary.execution.outputCss.includes("@half:"));
+assert(!staticLessArithmeticEvaluationSummary.execution.outputCss.includes("@sum:"));
+
 const staticStylesheetCompositeEvaluationResult = spawnSync(
   "cargo",
   [

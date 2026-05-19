@@ -1113,6 +1113,31 @@ fn consumer_build_derives_static_less_evaluator_context_for_property_variables()
 }
 
 #[test]
+fn consumer_build_derives_static_less_evaluator_context_for_parenthesized_arithmetic() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.less",
+        "@width: 100px; @half: (@width / 2); @sum: (@half + 10px); .card { width: @half; margin: @sum; }",
+        &[
+            "less-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"less-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("width: 50px"));
+    assert!(summary.execution.output_css.contains("margin: 60px"));
+    assert!(!summary.execution.output_css.contains("@width:"));
+    assert!(!summary.execution.output_css.contains("@half:"));
+    assert!(!summary.execution.output_css.contains("@sum:"));
+}
+
+#[test]
 fn consumer_build_derives_static_scss_evaluator_context_with_default_declarations() {
     let first_default_summary = execute_omena_query_consumer_build_style_source(
         "Button.module.scss",

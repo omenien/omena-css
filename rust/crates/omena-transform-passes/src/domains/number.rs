@@ -35,6 +35,11 @@ pub(crate) fn parse_reducible_calc_value(value: &str) -> Option<String> {
     Some(format_numeric_value_with_unit(reduced))
 }
 
+pub fn reduce_static_numeric_expression(value: &str) -> Option<String> {
+    let reduced = parse_reducible_numeric_expression(value)?;
+    Some(format_numeric_value_with_unit(reduced))
+}
+
 pub(crate) fn parse_reducible_abs_value(value: &str) -> Option<String> {
     let inner = parse_whole_function_value_inner(value, "abs")?;
     let parsed = parse_reducible_numeric_expression(inner)?;

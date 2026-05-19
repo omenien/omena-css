@@ -5,7 +5,7 @@ use omena_parser::{
     StyleDialect as OmenaParserStyleDialect, collect_style_facts, lex,
 };
 use omena_syntax::SyntaxKind;
-use omena_transform_passes::TransformModuleEvaluationV0;
+use omena_transform_passes::{TransformModuleEvaluationV0, reduce_static_numeric_expression};
 
 pub(super) fn derive_static_stylesheet_module_evaluation(
     style_source: &str,
@@ -588,7 +588,7 @@ fn resolve_static_less_variable_value_in_scope(
         stack,
     );
     stack.remove(&stack_key);
-    resolved
+    resolved.map(reduce_static_less_parenthesized_numeric_value)
 }
 
 fn find_static_less_variable_declaration<'a>(
@@ -708,6 +708,17 @@ fn resolve_static_less_property_value_text(
     }
     output.push_str(&value[cursor..]);
     Some(output)
+}
+
+fn reduce_static_less_parenthesized_numeric_value(value: String) -> String {
+    let trimmed = value.trim();
+    let Some(inner) = trimmed
+        .strip_prefix('(')
+        .and_then(|without_left| without_left.strip_suffix(')'))
+    else {
+        return value;
+    };
+    reduce_static_numeric_expression(inner.trim()).unwrap_or(value)
 }
 
 fn static_stylesheet_less_declaration_value_is_removal_safe(value: &str) -> bool {
