@@ -2851,6 +2851,28 @@ fn execution_runtime_resolves_unique_static_root_custom_properties() {
 }
 
 #[test]
+fn execution_runtime_resolves_static_custom_properties_in_at_rule_preludes() {
+    let source = r#":root { --wide: 40rem; --mode: dark; --color: red; --scope-root: .card; } @custom-media --wide (min-width: var(--wide)); @container card style(--mode: var(--mode)) { .card { color: var(--color); } } @supports (color: var(--color)) { .card { border-color: currentColor; } } @media (min-width: var(--wide)) { .card { color: var(--color); } } @scope (var(--scope-root)) { .card { color: var(--color); } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::StaticVarSubstitution,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 8);
+    assert_eq!(
+        execution.output_css,
+        r#":root { --wide: 40rem; --mode: dark; --color: red; --scope-root: .card; } @custom-media --wide (min-width: 40rem); @container card style(--mode: dark) { .card { color: red; } } @supports (color: red) { .card { border-color: currentColor; } } @media (min-width: 40rem) { .card { color: red; } } @scope (.card) { .card { color: red; } }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["custom-property-static-resolve", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_recovers_static_custom_property_substitution_after_malformed_var() {
     let source = r#":root { --brand: red; --gap: 2rem; } .card { border: 1px solid var(--brand) var(--broken; box-shadow: 0 0 var(--gap) var(--also-broken; }"#;
     let execution = execute_transform_passes_on_source(

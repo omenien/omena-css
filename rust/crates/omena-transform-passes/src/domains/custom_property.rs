@@ -719,6 +719,9 @@ pub(crate) fn substitute_static_css_custom_properties_with_lexer(
     }
 
     let mut replacements = Vec::new();
+    replacements.extend(collect_static_custom_property_at_rule_prelude_replacements(
+        source, tokens, &env,
+    ));
     let mut index = 0;
     while index < tokens.len() {
         let Some(close_index) = (tokens[index].kind == SyntaxKind::LeftBrace)
@@ -747,6 +750,45 @@ pub(crate) fn substitute_static_css_custom_properties_with_lexer(
     }
 
     replace_source_ranges(source, &replacements)
+}
+
+fn collect_static_custom_property_at_rule_prelude_replacements(
+    source: &str,
+    tokens: &[omena_parser::LexedToken],
+    env: &CustomPropertyEnv,
+) -> Vec<(usize, usize, String)> {
+    let mut replacements = Vec::new();
+    let mut index = 0usize;
+
+    while index < tokens.len() {
+        if tokens[index].kind != SyntaxKind::AtKeyword
+            || !at_rule_prelude_can_reference_custom_properties(&tokens[index].text)
+        {
+            index += 1;
+            continue;
+        }
+        let Some(prelude_end_index) = at_rule_prelude_end_index(tokens, index + 1) else {
+            break;
+        };
+        if !matches!(
+            tokens[prelude_end_index].kind,
+            SyntaxKind::LeftBrace | SyntaxKind::Semicolon
+        ) {
+            index = prelude_end_index.saturating_add(1);
+            continue;
+        }
+        let start = token_end(&tokens[index]);
+        let end = token_start(&tokens[prelude_end_index]);
+        if start < end
+            && let Some(resolved) =
+                substitute_static_custom_property_references_in_value(&source[start..end], env)
+        {
+            replacements.push((start, end, resolved));
+        }
+        index = prelude_end_index.saturating_add(1);
+    }
+
+    replacements
 }
 
 fn substitute_static_custom_property_references_in_value(

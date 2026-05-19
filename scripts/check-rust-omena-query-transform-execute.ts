@@ -1684,6 +1684,49 @@ assert.deepEqual(staticVarShadowSummary.execution.executedPassIds, [
 ]);
 assert.equal(staticVarShadowSummary.execution.mutationCount, 6);
 
+const staticVarPreludeResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "at-rule-prelude-custom-properties.css",
+      styleSource:
+        ":root { --wide: 40rem; --mode: dark; --color: red; --scope-root: .card; } @custom-media --wide (min-width: var(--wide)); @container card style(--mode: var(--mode)) { .card { color: var(--color); } } @supports (color: var(--color)) { .card { border-color: currentColor; } } @media (min-width: var(--wide)) { .card { color: var(--color); } } @scope (var(--scope-root)) { .card { color: var(--color); } }",
+      requestedPassIds: ["custom-property-static-resolve", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(staticVarPreludeResult.status, 0, staticVarPreludeResult.stderr);
+assert.equal(staticVarPreludeResult.error, undefined);
+
+const staticVarPreludeSummary = JSON.parse(
+  staticVarPreludeResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(staticVarPreludeSummary.product, "omena-query.transform-execute");
+assert.equal(
+  staticVarPreludeSummary.execution.outputCss,
+  ":root { --wide: 40rem; --mode: dark; --color: red; --scope-root: .card; } @custom-media --wide (min-width: 40rem); @container card style(--mode: dark) { .card { color: red; } } @supports (color: red) { .card { border-color: currentColor; } } @media (min-width: 40rem) { .card { color: red; } } @scope (.card) { .card { color: red; } }",
+);
+assert.deepEqual(staticVarPreludeSummary.execution.executedPassIds, [
+  "custom-property-static-resolve",
+  "print-css",
+]);
+assert.equal(staticVarPreludeSummary.execution.mutationCount, 8);
+
 const customPropertyReachabilityResult = spawnSync(
   "cargo",
   [
@@ -3905,6 +3948,7 @@ process.stdout.write(
     `colorMixLinearMutations=${colorMixLinearSummary.execution.mutationCount}`,
     `mathFunctionMutations=${mathFunctionReductionSummary.execution.mutationCount}`,
     `staticVarShadowMutations=${staticVarShadowSummary.execution.mutationCount}`,
+    `staticVarPreludeMutations=${staticVarPreludeSummary.execution.mutationCount}`,
     `customPropertyReachabilityMutations=${customPropertyReachabilitySummary.execution.mutationCount}`,
     `customPropertyContainerStyleMutations=${customPropertyContainerStyleReachabilitySummary.execution.mutationCount}`,
     `customPropertyRegistrationDependencyMutations=${customPropertyRegistrationDependencySummary.execution.mutationCount}`,
