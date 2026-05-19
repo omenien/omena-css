@@ -3003,6 +3003,71 @@ fn execution_runtime_keeps_values_used_by_reachable_keyframes() {
 }
 
 #[test]
+fn execution_runtime_keeps_values_used_by_dynamically_reachable_keyframes() {
+    let source = r#"@value used: red; @value dead: blue; @keyframes pulse { to { color: used; } } @keyframes ghost { to { color: dead; } } .btn { animation: var(--motion-name); }"#;
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec!["btn".to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::TreeShakeKeyframes,
+            TransformPassKind::TreeShakeValue,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 0);
+    assert!(execution.output_css.contains("@value used: red;"));
+    assert!(execution.output_css.contains("@value dead: blue;"));
+    assert!(execution.output_css.contains("@keyframes pulse"));
+    assert!(execution.output_css.contains("@keyframes ghost"));
+    assert!(execution.semantic_removals.is_empty());
+}
+
+#[test]
+fn execution_runtime_keeps_values_used_by_explicit_reachable_keyframes() {
+    let source = r#"@value ghost: green; @value dead: blue; @keyframes ghost { to { color: ghost; } } @keyframes dead { to { color: dead; } } .btn { color: red; }"#;
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec!["btn".to_string()],
+        reachable_keyframe_names: vec!["ghost".to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::TreeShakeKeyframes,
+            TransformPassKind::TreeShakeValue,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 2);
+    assert!(execution.output_css.contains("@value ghost: green;"));
+    assert!(execution.output_css.contains("@keyframes ghost"));
+    assert!(!execution.output_css.contains("@value dead:"));
+    assert!(!execution.output_css.contains("@keyframes dead"));
+    assert_eq!(
+        execution
+            .semantic_removals
+            .iter()
+            .map(|removal| (removal.pass_id, removal.symbol_kind, removal.name.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("tree-shake-keyframes", "keyframes", "dead"),
+            ("tree-shake-value", "cssModuleValue", "dead")
+        ]
+    );
+}
+
+#[test]
 fn execution_runtime_tree_shakes_at_rule_prelude_non_value_identifiers() {
     let source = r#"@value screen: 1px; @value bp: 40rem; @value theme: dark; @media screen and (min-width: bp) { .btn { color: red; } } @container card style(--mode: theme) { .btn { color: blue; } }"#;
     let context = TransformExecutionContextV0 {
