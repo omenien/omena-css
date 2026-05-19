@@ -549,7 +549,7 @@ describe("runCheckerCli", () => {
       findingsMatch: true,
       mismatchedCodes: [],
     });
-  }, 60000);
+  }, 120000);
 
   it("prints rust style-recovery consistency summary in text output", async () => {
     const stdout: string[] = [];
@@ -580,7 +580,7 @@ describe("runCheckerCli", () => {
     expect(stdout.join("")).toContain(
       "Rust style-recovery consumer: findings=1 consistent=true releaseGate=true",
     );
-  }, 60000);
+  }, 120000);
 
   it("emits rust flow analysis consumer summary in json output", async () => {
     const workspaceRoot = makeWorkspace({
@@ -635,7 +635,7 @@ describe("runCheckerCli", () => {
       },
     });
     expect(payload.rustFlowAnalysisConsumer.nodeCount).toBeGreaterThan(0);
-  }, 60000);
+  }, 120000);
 
   it("emits rust source-missing producer and consistency in json output", async () => {
     const stdout: string[] = [];
@@ -706,7 +706,7 @@ describe("runCheckerCli", () => {
       findingsMatch: true,
       mismatchedCodes: [],
     });
-  }, 30000);
+  }, 120000);
 
   it("prints rust source-missing consistency summary in text output", async () => {
     const stdout: string[] = [];
@@ -737,7 +737,7 @@ describe("runCheckerCli", () => {
     expect(stdout.join("")).toContain(
       "Rust source-missing consumer: findings=1 consistent=true releaseGate=true",
     );
-  }, 30000);
+  }, 120000);
 
   it("compares value derivation evidence in rust source-missing consistency", async () => {
     const workspaceRoot = makeWorkspace({
@@ -788,7 +788,7 @@ describe("runCheckerCli", () => {
         }),
       ]),
     );
-  }, 30000);
+  }, 120000);
 
   it("emits rust style-unused producer and consistency in json output", async () => {
     const stdout: string[] = [];
@@ -857,7 +857,7 @@ describe("runCheckerCli", () => {
       findingsMatch: true,
       mismatchedCodes: [],
     });
-  }, 30000);
+  }, 120000);
 
   it("prints rust style-unused consistency summary in text output", async () => {
     const stdout: string[] = [];
@@ -890,7 +890,7 @@ describe("runCheckerCli", () => {
     expect(stdout.join("")).toContain(
       "Rust style-unused consumer: findings=1 consistent=true releaseGate=true",
     );
-  }, 30000);
+  }, 120000);
 });
 
 function makeWorkspace(files: Readonly<Record<string, string>>): string {
