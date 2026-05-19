@@ -1727,6 +1727,59 @@ assert.deepEqual(staticVarPreludeSummary.execution.executedPassIds, [
 ]);
 assert.equal(staticVarPreludeSummary.execution.mutationCount, 8);
 
+const staticBranchResolutionResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "static-branch-resolution.module.css",
+      styleSource:
+        "@value mode: grid; @value bp: 0px; :root { --display: grid; --zero: 0px; } @supports (display: mode) { .value { color: red; } } @supports (display: var(--display)) { .var { color: blue; } } @media (max-width: bp) { .value-media { color: red; } } @media (max-width: var(--zero)) { .var-media { color: blue; } }",
+      requestedPassIds: [
+        "media-static-eval",
+        "supports-static-eval",
+        "custom-property-static-resolve",
+        "value-resolution",
+        "print-css",
+      ],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(staticBranchResolutionResult.status, 0, staticBranchResolutionResult.stderr);
+assert.equal(staticBranchResolutionResult.error, undefined);
+
+const staticBranchResolutionSummary = JSON.parse(
+  staticBranchResolutionResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(staticBranchResolutionSummary.product, "omena-query.transform-execute");
+assert.equal(
+  staticBranchResolutionSummary.execution.outputCss,
+  "  :root { --display: grid; --zero: 0px; } .value { color: red; } .var { color: blue; }  ",
+);
+assert.deepEqual(staticBranchResolutionSummary.execution.executedPassIds, [
+  "value-resolution",
+  "custom-property-static-resolve",
+  "supports-static-eval",
+  "media-static-eval",
+  "print-css",
+]);
+assert.equal(staticBranchResolutionSummary.execution.mutationCount, 10);
+assert.equal(staticBranchResolutionSummary.execution.passPlan.violatedDagEdgeCount, 0);
+
 const customPropertyReachabilityResult = spawnSync(
   "cargo",
   [
@@ -3949,6 +4002,7 @@ process.stdout.write(
     `mathFunctionMutations=${mathFunctionReductionSummary.execution.mutationCount}`,
     `staticVarShadowMutations=${staticVarShadowSummary.execution.mutationCount}`,
     `staticVarPreludeMutations=${staticVarPreludeSummary.execution.mutationCount}`,
+    `staticBranchResolutionMutations=${staticBranchResolutionSummary.execution.mutationCount}`,
     `customPropertyReachabilityMutations=${customPropertyReachabilitySummary.execution.mutationCount}`,
     `customPropertyContainerStyleMutations=${customPropertyContainerStyleReachabilitySummary.execution.mutationCount}`,
     `customPropertyRegistrationDependencyMutations=${customPropertyRegistrationDependencySummary.execution.mutationCount}`,

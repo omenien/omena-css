@@ -31,7 +31,10 @@ use crate::{
         declarations::collect_simple_declarations_in_block,
         rules::collect_declaration_ordinary_rule_slices,
         source_rewrite::replace_source_ranges,
-        tokens::{matching_right_brace_index, next_non_comment_token_kind, token_end, token_start},
+        tokens::{
+            is_comment_token, matching_right_brace_index, next_non_comment_token_kind, token_end,
+            token_start,
+        },
     },
     model::{TransformCssModuleValueResolutionV0, TransformSemanticRemovalCandidate},
 };
@@ -321,18 +324,23 @@ fn resolve_static_css_modules_value_definition(
         return None;
     }
     let definition = definitions_by_name.get(name)?;
-    if is_static_css_modules_value_literal(&definition.value) {
-        return Some(definition.value.clone());
-    }
-    visiting.push(name.to_string());
-    let resolved = substitute_static_css_modules_value_references(
+    if css_modules_value_references_known_definition(
         &definition.value,
         dialect,
         definitions_by_name,
-        visiting,
-    );
-    visiting.pop();
-    resolved
+    ) {
+        visiting.push(name.to_string());
+        let resolved = substitute_static_css_modules_value_references(
+            &definition.value,
+            dialect,
+            definitions_by_name,
+            visiting,
+        );
+        visiting.pop();
+        return resolved;
+    }
+    is_static_css_modules_value_literal(&definition.value, dialect)
+        .then(|| definition.value.clone())
 }
 
 fn substitute_static_css_modules_value_references(
@@ -393,13 +401,37 @@ fn substitute_resolved_css_modules_value_references(
     (mutation_count > 0).then_some(output)
 }
 
-fn is_static_css_modules_value_literal(value: &str) -> bool {
+fn css_modules_value_references_known_definition(
+    value: &str,
+    dialect: StyleDialect,
+    definitions_by_name: &BTreeMap<String, &StaticCssModulesValueDefinition>,
+) -> bool {
+    let lexed = lex(value, dialect);
+    lexed.tokens().iter().any(|token| {
+        token.kind == SyntaxKind::Ident && definitions_by_name.contains_key(&token.text)
+    })
+}
+
+fn is_static_css_modules_value_literal(value: &str, dialect: StyleDialect) -> bool {
     parse_static_srgb_color(value).is_some()
         || parse_numeric_value_with_unit(value)
             .map(|numeric| {
                 numeric.unit.is_empty() || css_modules_value_unit_is_static(numeric.unit)
             })
             .unwrap_or(false)
+        || is_static_css_modules_identifier_literal(value, dialect)
+}
+
+fn is_static_css_modules_identifier_literal(value: &str, dialect: StyleDialect) -> bool {
+    let lexed = lex(value, dialect);
+    let significant_tokens = lexed
+        .tokens()
+        .iter()
+        .filter(|token| token.kind != SyntaxKind::Whitespace && !is_comment_token(token.kind))
+        .collect::<Vec<_>>();
+    significant_tokens.len() == 1
+        && significant_tokens[0].kind == SyntaxKind::Ident
+        && significant_tokens[0].text == value.trim()
 }
 
 fn css_modules_value_unit_is_static(unit: &str) -> bool {

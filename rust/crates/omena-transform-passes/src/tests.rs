@@ -2991,6 +2991,37 @@ fn execution_runtime_resolves_static_local_css_modules_values() {
 }
 
 #[test]
+fn execution_runtime_resolves_identifier_values_before_static_branch_evaluation() {
+    let source = r#"@value mode: grid; @value bp: 0px; :root { --display: grid; --zero: 0px; } @supports (display: mode) { .value { color: red; } } @supports (display: var(--display)) { .var { color: blue; } } @media (max-width: bp) { .value-media { color: red; } } @media (max-width: var(--zero)) { .var-media { color: blue; } }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::MediaStaticEval,
+            TransformPassKind::SupportsStaticEval,
+            TransformPassKind::StaticVarSubstitution,
+            TransformPassKind::ValueResolution,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec![
+            "value-resolution",
+            "custom-property-static-resolve",
+            "supports-static-eval",
+            "media-static-eval",
+            "print-css"
+        ]
+    );
+    assert_eq!(execution.mutation_count, 10);
+    assert_eq!(
+        execution.output_css,
+        "  :root { --display: grid; --zero: 0px; } .value { color: red; } .var { color: blue; }  "
+    );
+}
+
+#[test]
 fn execution_runtime_resolves_imported_static_css_modules_values_from_context() {
     let source = r#"@value primary as brand, gap, tone from "./tokens.module.css"; @custom-media --gap (min-width: gap); .btn { color: brand; margin: gap; border-color: tone; } @media (min-width: gap) { .btn { color: brand; } } @supports (width: gap) { .btn { color: brand; } }"#;
     let context = TransformExecutionContextV0 {
