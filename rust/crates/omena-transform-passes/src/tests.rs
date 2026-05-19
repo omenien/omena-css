@@ -1551,7 +1551,7 @@ fn execution_runtime_normalizes_safe_strings_without_rewriting_semantic_strings(
 
 #[test]
 fn execution_runtime_normalizes_static_font_longhand_keywords() {
-    let source = r#".a { font-weight: normal; font-stretch: normal; } .b { font-weight: bold; font-stretch: condensed; } .c { font-weight: bolder; font-stretch: 80%; }"#;
+    let source = r#".a { font-weight: normal; font-stretch: normal; } .b { font-weight: bold; font-stretch: condensed; } .c { font-weight: bolder; font-stretch: 80%; } .d { font-stretch: 100%; color: red; font-stretch: 50%; font-weight: normal; font-weight: 700; } .important { font-stretch: 100% !important; font-stretch: 50%; } .bad { font-stretch: 100%; font-stretch: bad; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1560,10 +1560,10 @@ fn execution_runtime_normalizes_static_font_longhand_keywords() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 4);
+    assert_eq!(execution.mutation_count, 7);
     assert_eq!(
         execution.output_css,
-        r#".a { font-weight: 400; font-stretch: 100%; } .b { font-weight: 700; font-stretch: 75%; } .c { font-weight: bolder; font-stretch: 80%; }"#
+        r#".a { font-weight: 400; font-stretch: 100%; } .b { font-weight: 700; font-stretch: 75%; } .c { font-weight: bolder; font-stretch: 80%; } .d {  color: red; font-stretch: 50%;  font-weight: 700; } .important { font-stretch: 100% !important; font-stretch: 50%; } .bad { font-stretch: 100%; font-stretch: bad; }"#
     );
 }
 

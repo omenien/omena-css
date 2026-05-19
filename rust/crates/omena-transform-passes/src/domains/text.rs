@@ -3,9 +3,10 @@ use omena_syntax::SyntaxKind;
 
 use crate::helpers::{
     declarations::{
-        collect_simple_declarations_in_block, format_replacement_declaration_like_source,
+        SimpleDeclarationSlice, collect_simple_declarations_in_block,
+        format_replacement_declaration_like_source,
     },
-    source_rewrite::{replace_source_ranges, rewrite_lexer_tokens},
+    source_rewrite::{remove_source_ranges, replace_source_ranges, rewrite_lexer_tokens},
     tokens::matching_right_brace_index,
     values::{
         split_top_level_value_arguments, split_top_level_whitespace_value_components,
@@ -62,7 +63,9 @@ pub(crate) fn normalize_css_font_declarations_with_lexer(
         index += 1;
     }
 
-    replace_source_ranges(source, &replacements)
+    let (output, replacement_count) = replace_source_ranges(source, &replacements);
+    let (output, removal_count) = remove_overridden_static_font_longhands(&output, dialect);
+    (output, replacement_count + removal_count)
 }
 
 fn normalize_static_font_declaration_value(property: &str, value: &str) -> Option<String> {
@@ -72,6 +75,49 @@ fn normalize_static_font_declaration_value(property: &str, value: &str) -> Optio
         "font-weight" => normalize_static_font_weight_value(value),
         "font-stretch" => normalize_static_font_stretch_value(value),
         _ => None,
+    }
+}
+
+fn remove_overridden_static_font_longhands(source: &str, dialect: StyleDialect) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut ranges = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
+            for (declaration_index, declaration) in declarations.iter().enumerate() {
+                if !is_static_font_override_candidate(declaration) {
+                    continue;
+                }
+                let later_declaration = declarations[declaration_index + 1..]
+                    .iter()
+                    .find(|candidate| candidate.property == declaration.property);
+                if later_declaration.is_some_and(|candidate| {
+                    is_static_font_override_candidate(candidate)
+                        && !declaration.important
+                        && !candidate.important
+                }) {
+                    ranges.push((declaration.start, declaration.end));
+                }
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    remove_source_ranges(source, &ranges)
+}
+
+fn is_static_font_override_candidate(declaration: &SimpleDeclarationSlice) -> bool {
+    match declaration.property.as_str() {
+        "font-weight" => is_static_font_weight_value(&declaration.value),
+        "font-stretch" => is_static_font_stretch_value(&declaration.value),
+        _ => false,
     }
 }
 
@@ -137,6 +183,15 @@ fn normalize_static_font_weight_value(value: &str) -> Option<String> {
     }
 }
 
+fn is_static_font_weight_value(value: &str) -> bool {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "normal" | "bold" => true,
+        numeric => numeric
+            .parse::<f64>()
+            .is_ok_and(|value| value.is_finite() && (1.0..=1000.0).contains(&value)),
+    }
+}
+
 fn normalize_static_font_stretch_value(value: &str) -> Option<String> {
     let normalized = match value.trim().to_ascii_lowercase().as_str() {
         "ultra-condensed" => "50%",
@@ -151,6 +206,17 @@ fn normalize_static_font_stretch_value(value: &str) -> Option<String> {
         _ => return None,
     };
     Some(normalized.to_string())
+}
+
+fn is_static_font_stretch_value(value: &str) -> bool {
+    if normalize_static_font_stretch_value(value).is_some() {
+        return true;
+    }
+    value
+        .trim()
+        .strip_suffix('%')
+        .and_then(|number| number.parse::<f64>().ok())
+        .is_some_and(|value| value.is_finite() && value >= 0.0)
 }
 
 fn unquote_static_font_family_name(value: &str) -> Option<String> {

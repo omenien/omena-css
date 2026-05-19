@@ -334,6 +334,11 @@ const fixtures: readonly DifferentialFixture[] = [
       ".fonts { font-weight: normal; font-stretch: normal; } .bold { font-weight: bold; font-stretch: condensed; }",
   },
   {
+    label: "font-longhand-overrides",
+    source:
+      ".a { font-stretch: 100%; font-stretch: 75%; font-stretch: 50%; } .b { font-weight: normal; font-weight: 400; }",
+  },
+  {
     label: "font-longhand-shorthand-compression",
     source:
       '.a { font-style: normal; font-variant-caps: normal; font-weight: normal; font-stretch: normal; font-size: 16px; line-height: normal; font-family: Arial; } .b { font-style: normal; font-variant-caps: normal; font-weight: bold; font-stretch: condensed; font-size: 16px; line-height: 1.5; font-family: Arial, sans-serif; } .c { font-style: italic; font-variant-caps: small-caps; font-weight: bold; font-stretch: condensed; font-size: 1rem; line-height: 120%; font-family: "Open Sans", serif; } .d { font-style: normal !important; font-variant-caps: normal !important; font-weight: normal !important; font-stretch: normal !important; font-size: 16px !important; line-height: normal !important; font-family: Arial !important; }',
