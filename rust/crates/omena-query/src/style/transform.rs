@@ -1933,7 +1933,7 @@ fn derive_import_inlines_for_transform_context(
 fn derive_class_name_rewrites_for_transform_context(
     entry: &OmenaQueryStyleFactEntry,
 ) -> Vec<TransformClassNameRewriteV0> {
-    if !entry.style_path.contains(".module.") {
+    if !style_path_is_css_module_path(entry.style_path.as_str()) {
         return Vec::new();
     }
 
@@ -1955,6 +1955,18 @@ fn derive_class_name_rewrites_for_transform_context(
             rewritten_name: stable_transform_context_class_rewrite(&name, index),
         })
         .collect()
+}
+
+fn style_path_is_css_module_path(style_path: &str) -> bool {
+    let file_name = style_path
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(style_path)
+        .to_ascii_lowercase();
+    let Some((stem, extension)) = file_name.rsplit_once('.') else {
+        return false;
+    };
+    matches!(extension, "css" | "scss" | "sass" | "less") && stem.ends_with(".module")
 }
 
 fn derive_css_module_composes_resolutions_for_transform_context(

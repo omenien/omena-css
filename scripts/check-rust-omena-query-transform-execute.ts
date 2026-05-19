@@ -977,6 +977,46 @@ assert.deepEqual(hexEscapedClassHashSummary.execution.executedPassIds, [
 ]);
 assert.equal(hexEscapedClassHashSummary.execution.mutationCount, 2);
 
+const nonCssModuleClassHashResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-source",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "Button.module.test.css",
+      styleSource: ".button { color: red; } .base { color: blue; }",
+      requestedPassIds: ["css-modules-class-hashing", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(nonCssModuleClassHashResult.status, 0, nonCssModuleClassHashResult.stderr);
+assert.equal(nonCssModuleClassHashResult.error, undefined);
+
+const nonCssModuleClassHashSummary = JSON.parse(
+  nonCssModuleClassHashResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.equal(
+  nonCssModuleClassHashSummary.execution.outputCss,
+  ".button { color: red; } .base { color: blue; }",
+);
+assert.deepEqual(nonCssModuleClassHashSummary.execution.executedPassIds, ["print-css"]);
+assert.deepEqual(nonCssModuleClassHashSummary.execution.plannedOnlyPassIds, [
+  "css-modules-class-hashing",
+]);
+
 const escapedClassTreeShakeResult = spawnSync(
   "cargo",
   [

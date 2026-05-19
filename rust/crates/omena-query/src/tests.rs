@@ -1986,6 +1986,31 @@ fn derives_unique_class_rewrites_for_repeated_escaped_selectors() {
 }
 
 #[test]
+fn transform_context_hashes_only_final_stem_css_module_paths() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "Button.module.test.css",
+        [(
+            "Button.module.test.css",
+            ".button { color: red; } .base { color: blue; }",
+        )],
+        &[],
+    );
+    let windows_summary = summarize_omena_query_transform_context_from_sources(
+        r#"components\Card.MODULE.SCSS"#,
+        [(r#"components\Card.MODULE.SCSS"#, ".card { color: red; }")],
+        &[],
+    );
+
+    assert_eq!(summary.class_name_rewrite_count, 0);
+    assert!(summary.context.class_name_rewrites.is_empty());
+    assert_eq!(windows_summary.class_name_rewrite_count, 1);
+    assert_eq!(
+        windows_summary.context.class_name_rewrites[0].original_name,
+        "card"
+    );
+}
+
+#[test]
 fn explicit_context_extends_query_derived_transform_context()
 -> Result<(), Box<dyn std::error::Error>> {
     let sources = vec![
