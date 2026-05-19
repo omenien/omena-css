@@ -10,6 +10,7 @@ use crate::{
         blocks::rule_block_token_indexes,
         collections::push_unique_string,
         declarations::collect_simple_declarations_in_block,
+        identifiers::{css_identifier_escape_sequence_end, css_identifier_names_match},
         rules::collect_declaration_ordinary_rule_slices,
         source_rewrite::remove_source_ranges,
         tokens::{matching_right_brace_index, skip_whitespace_tokens, token_end, token_start},
@@ -54,7 +55,7 @@ pub(crate) fn tree_shake_css_keyframes_with_lexer(
 
     let removals = keyframes
         .iter()
-        .filter(|keyframe| !referenced_names.iter().any(|name| name == &keyframe.name))
+        .filter(|keyframe| !keyframe_name_is_reachable(&keyframe.name, &referenced_names))
         .map(|keyframe| TransformSemanticRemovalCandidate {
             symbol_kind: "keyframes",
             name: keyframe.name.clone(),
@@ -190,6 +191,12 @@ pub(crate) fn collect_referenced_keyframe_names(
     Some(names)
 }
 
+pub(crate) fn keyframe_name_is_reachable(name: &str, reachable_keyframe_names: &[String]) -> bool {
+    reachable_keyframe_names
+        .iter()
+        .any(|reachable| css_identifier_names_match(reachable, name))
+}
+
 fn extract_animation_shorthand_name_candidates(value: &str) -> Option<Vec<String>> {
     let mut candidates = Vec::new();
     for branch in split_top_level_value_arguments(value)? {
@@ -219,8 +226,9 @@ fn static_animation_name_candidate(value: &str) -> Option<StaticAnimationNameCan
     if let Some(name) = static_css_string_value(value) {
         return Some(StaticAnimationNameCandidate { name, quoted: true });
     }
-    if value.contains(['(', ')', '"', '\'', '/', '\\'])
+    if value.contains(['(', ')', '"', '\'', '/'])
         || parse_numeric_value_with_unit(value).is_some()
+        || !static_animation_custom_ident_value_is_safe(value)
     {
         return None;
     }
@@ -228,6 +236,27 @@ fn static_animation_name_candidate(value: &str) -> Option<StaticAnimationNameCan
         name: value.to_string(),
         quoted: false,
     })
+}
+
+fn static_animation_custom_ident_value_is_safe(value: &str) -> bool {
+    let mut index = 0usize;
+    while index < value.len() {
+        let Some(ch) = value[index..].chars().next() else {
+            return false;
+        };
+        if ch == '\\' {
+            let Some(end) = css_identifier_escape_sequence_end(value, index) else {
+                return false;
+            };
+            index = end;
+            continue;
+        }
+        if ch.is_ascii_whitespace() || matches!(ch, ',' | ';' | '{' | '}' | '[' | ']') {
+            return false;
+        }
+        index += ch.len_utf8();
+    }
+    true
 }
 
 fn is_known_animation_shorthand_keyword(value: &str) -> bool {

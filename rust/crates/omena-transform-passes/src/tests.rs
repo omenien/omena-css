@@ -3013,6 +3013,46 @@ fn execution_runtime_tree_shakes_quoted_keyframes_with_closed_world_context() {
 }
 
 #[test]
+fn execution_runtime_tree_shakes_escaped_keyframes_with_closed_world_context() {
+    let source = r#"@keyframes spin\:fast { to { opacity: 1; } } @keyframes hex\3A fast { to { opacity: .5; } } @keyframes dead { to { opacity: 0; } } .btn { animation: spin\:fast 1s ease; } .dead-ref { animation: dead 1s ease; }"#;
+    let context = TransformExecutionContextV0 {
+        closed_style_world: true,
+        reachable_class_names: vec!["btn".to_string()],
+        reachable_keyframe_names: vec!["hex:fast".to_string()],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::TreeShakeKeyframes,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert!(execution.output_css.contains("@keyframes spin\\:fast"));
+    assert!(execution.output_css.contains("@keyframes hex\\3A fast"));
+    assert!(!execution.output_css.contains("@keyframes dead"));
+    assert!(
+        execution
+            .output_css
+            .contains(".btn { animation: spin\\:fast 1s ease; }")
+    );
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["tree-shake-keyframes", "print-css"]
+    );
+    assert!(
+        execution
+            .semantic_removals
+            .iter()
+            .any(|removal| { removal.name == "dead" && removal.pass_id == "tree-shake-keyframes" })
+    );
+}
+
+#[test]
 fn execution_runtime_tree_shakes_class_owned_rules_with_closed_world_context() {
     let source = r#".used { color: red; } .dead { color: blue; } .dead:hover { color: green; } button.other-dead { color: black; } .also-dead, .other-dead { color: black; } .used, .dead-mixed { color: cyan; } .used .child { color: purple; } :global(.external) { color: gray; } :global { .global-block { color: silver; } } .dead :global(.external) { color: pink; } :global(.root) .dead-global { color: lime; } :local(.dead-local) { color: brown; } @media (min-width: 1px) { .media-dead { color: orange; } .used { color: brown; } }"#;
     let context = TransformExecutionContextV0 {

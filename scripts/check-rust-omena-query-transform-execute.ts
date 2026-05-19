@@ -1040,6 +1040,63 @@ assertIncludesAll(
   "escaped class tree-shaking removals",
 );
 
+const escapedKeyframeTreeShakeResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "EscapedKeyframes.module.css",
+      styles: [
+        {
+          stylePath: "EscapedKeyframes.module.css",
+          styleSource:
+            ".btn { animation: spin\\:fast 1s ease; } .dead-ref { animation: dead 1s ease; } @keyframes spin\\:fast { to { opacity: 1; } } @keyframes hex\\3A fast { to { opacity: .5; } } @keyframes dead { to { opacity: 0; } }",
+        },
+      ],
+      requestedPassIds: ["tree-shake-keyframes", "print-css"],
+      transformContext: {
+        closedStyleWorld: true,
+        reachableClassNames: ["btn"],
+        reachableKeyframeNames: ["hex:fast"],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(escapedKeyframeTreeShakeResult.status, 0, escapedKeyframeTreeShakeResult.stderr);
+assert.equal(escapedKeyframeTreeShakeResult.error, undefined);
+
+const escapedKeyframeTreeShakeSummary = JSON.parse(
+  escapedKeyframeTreeShakeResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.ok(escapedKeyframeTreeShakeSummary.execution.outputCss.includes("@keyframes spin\\:fast"));
+assert.ok(escapedKeyframeTreeShakeSummary.execution.outputCss.includes("@keyframes hex\\3A fast"));
+assert.ok(!escapedKeyframeTreeShakeSummary.execution.outputCss.includes("@keyframes dead"));
+assert.deepEqual(escapedKeyframeTreeShakeSummary.execution.executedPassIds, [
+  "tree-shake-keyframes",
+  "print-css",
+]);
+assertIncludesAll(
+  escapedKeyframeTreeShakeSummary.execution.semanticRemovals.map(
+    (removal) => `${removal.passId}:${removal.name}`,
+  ),
+  ["tree-shake-keyframes:dead"],
+  "escaped keyframe tree-shaking removals",
+);
+
 const alphaColorFunctionResult = spawnSync(
   "cargo",
   [

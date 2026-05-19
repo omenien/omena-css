@@ -15,6 +15,7 @@ use crate::domains::{
     },
     keyframes::{
         KeyframesRuleSlice, collect_referenced_keyframe_names, collect_top_level_keyframes_rules,
+        keyframe_name_is_reachable,
     },
     reachability::rule_slice_matches_reachable_class_context,
 };
@@ -402,9 +403,7 @@ fn custom_property_rule_is_reachable(
     if let Some(keyframe_name) = enclosing_keyframe_name_for_rule(rule, keyframes)
         && let Some(reachable_keyframe_names) = reachable_keyframe_names
     {
-        return reachable_keyframe_names
-            .iter()
-            .any(|name| name == keyframe_name);
+        return keyframe_name_is_reachable(keyframe_name, reachable_keyframe_names);
     }
 
     rule_slice_matches_reachable_class_context(rule, scope_blocks, reachable_class_names)
@@ -476,9 +475,7 @@ fn collect_reachable_custom_property_names(
         }
         if let Some(keyframe_name) = enclosing_keyframe_name_for_rule(&rule, &keyframes)
             && let Some(reachable_keyframe_names) = reachable_keyframe_names.as_ref()
-            && !reachable_keyframe_names
-                .iter()
-                .any(|name| name == keyframe_name)
+            && !keyframe_name_is_reachable(keyframe_name, reachable_keyframe_names)
         {
             continue;
         }
