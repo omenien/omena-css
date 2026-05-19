@@ -117,6 +117,7 @@ struct StaticStylesheetVariableDeclaration {
     span_end: usize,
     removal_spans: Vec<(usize, usize)>,
     is_default: bool,
+    is_global: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -170,7 +171,7 @@ fn collect_static_scss_variable_declarations(
         }
         declarations.push(StaticStylesheetScopedVariableDeclaration {
             name: fact.name.clone(),
-            scope_id,
+            scope_id: if declaration.is_global { 0 } else { scope_id },
             removal_spans: declaration.removal_spans.clone(),
             declaration,
         });
@@ -794,7 +795,7 @@ fn extract_static_stylesheet_variable_declaration(
     let value_start = variable_end + colon_offset + 1;
     let terminator_offset = source.get(value_start..)?.find(';')?;
     let span_end = value_start + terminator_offset + 1;
-    let (value, is_default) = parse_static_stylesheet_declaration_value(
+    let (value, is_default, is_global) = parse_static_stylesheet_declaration_value(
         source.get(value_start..span_end - 1)?,
         variable_kind,
     );
@@ -804,24 +805,43 @@ fn extract_static_stylesheet_variable_declaration(
         span_end,
         removal_spans: vec![(variable_start, span_end)],
         is_default,
+        is_global,
     })
 }
 
 fn parse_static_stylesheet_declaration_value(
     value: &str,
     variable_kind: StaticStylesheetVariableKind,
-) -> (String, bool) {
-    let value = value.trim();
-    if variable_kind == StaticStylesheetVariableKind::Scss
-        && let Some(before_flag) = value.strip_suffix("!default")
-        && before_flag
-            .chars()
-            .next_back()
-            .is_some_and(char::is_whitespace)
-    {
-        return (before_flag.trim_end().to_string(), true);
+) -> (String, bool, bool) {
+    let mut value = value.trim();
+    let mut is_default = false;
+    let mut is_global = false;
+    if variable_kind == StaticStylesheetVariableKind::Scss {
+        loop {
+            if let Some(before_flag) = value.strip_suffix("!default")
+                && before_flag
+                    .chars()
+                    .next_back()
+                    .is_some_and(char::is_whitespace)
+            {
+                is_default = true;
+                value = before_flag.trim_end();
+                continue;
+            }
+            if let Some(before_flag) = value.strip_suffix("!global")
+                && before_flag
+                    .chars()
+                    .next_back()
+                    .is_some_and(char::is_whitespace)
+            {
+                is_global = true;
+                value = before_flag.trim_end();
+                continue;
+            }
+            break;
+        }
     }
-    (value.to_string(), false)
+    (value.to_string(), is_default, is_global)
 }
 
 fn merge_static_stylesheet_duplicate_declaration(

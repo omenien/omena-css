@@ -1286,6 +1286,29 @@ fn consumer_build_derives_static_scss_evaluator_context_for_local_scope() {
 }
 
 #[test]
+fn consumer_build_derives_static_scss_evaluator_context_for_global_assignments() {
+    let summary = execute_omena_query_consumer_build_style_source(
+        "Button.module.scss",
+        "$brand: blue; .card { $brand: red !global; color: $brand; } .other { color: $brand; }",
+        &[
+            "scss-module-evaluate".to_string(),
+            "css-modules-class-hashing".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert!(
+        summary
+            .execution
+            .executed_pass_ids
+            .contains(&"scss-module-evaluate")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(!summary.execution.output_css.contains("color: blue"));
+    assert!(!summary.execution.output_css.contains("$brand:"));
+}
+
+#[test]
 fn consumer_build_derives_workspace_context_for_import_inline_and_composes() {
     let sources = vec![
         OmenaQueryStyleSourceInputV0 {

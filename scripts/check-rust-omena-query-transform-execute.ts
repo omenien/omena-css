@@ -2077,6 +2077,43 @@ assert(staticScssScopedEvaluationSummary.execution.outputCss.includes("color: re
 assert(staticScssScopedEvaluationSummary.execution.outputCss.includes("color: blue"));
 assert(!staticScssScopedEvaluationSummary.execution.outputCss.includes("$brand:"));
 
+const staticScssGlobalEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-source",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "GlobalScss.module.scss",
+      styleSource:
+        "$brand: blue; .card { $brand: red !global; color: $brand; } .other { color: $brand; }",
+      requestedPassIds: ["scss-module-evaluate", "css-modules-class-hashing", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(staticScssGlobalEvaluationResult.status, 0, staticScssGlobalEvaluationResult.stderr);
+assert.equal(staticScssGlobalEvaluationResult.error, undefined);
+
+const staticScssGlobalEvaluationSummary = JSON.parse(
+  staticScssGlobalEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.deepEqual(staticScssGlobalEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert(staticScssGlobalEvaluationSummary.execution.outputCss.includes("color: red"));
+assert(!staticScssGlobalEvaluationSummary.execution.outputCss.includes("color: blue"));
+assert(!staticScssGlobalEvaluationSummary.execution.outputCss.includes("$brand:"));
+
 const staticLessEvaluationResult = spawnSync(
   "cargo",
   [
