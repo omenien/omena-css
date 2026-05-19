@@ -732,7 +732,7 @@ fn execution_runtime_routes_design_tokens_from_bridge_context() {
 
 #[test]
 fn execution_runtime_routes_design_tokens_in_supported_at_rule_preludes() {
-    let source = r#"@container card style(--theme: var(--pkg-theme)) { .button { color: var(--pkg-brand); } } @supports (color: var(--pkg-brand)) { .button { border-color: currentColor; } } @media (min-width: var(--pkg-breakpoint)) { .button { color: red; } }"#;
+    let source = r#"@custom-media --wide (min-width: var(--pkg-breakpoint)); @container card style(--theme: var(--pkg-theme)) { .button { color: var(--pkg-brand); } } @supports (color: var(--pkg-brand)) { .button { border-color: currentColor; } } @media (min-width: var(--pkg-breakpoint)) { .button { color: red; } }"#;
     let context = TransformExecutionContextV0 {
         design_token_routes: vec![
             TransformDesignTokenRouteV0 {
@@ -760,10 +760,10 @@ fn execution_runtime_routes_design_tokens_in_supported_at_rule_preludes() {
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 4);
+    assert_eq!(execution.mutation_count, 5);
     assert_eq!(
         execution.output_css,
-        r#"@container card style(--theme: var(--theme-mode)) { .button { color: #123456; } } @supports (color: #123456) { .button { border-color: currentColor; } } @media (min-width: 40rem) { .button { color: red; } }"#
+        r#"@custom-media --wide (min-width: 40rem); @container card style(--theme: var(--theme-mode)) { .button { color: #123456; } } @supports (color: #123456) { .button { border-color: currentColor; } } @media (min-width: 40rem) { .button { color: red; } }"#
     );
 }
 
