@@ -1042,6 +1042,10 @@ fn declaration_outranks_by_layer(
         declaration.layer_order,
         declaration.important,
     ) {
+        (None, Some(_), false) => true,
+        (Some(_), None, false) => false,
+        (Some(_), None, true) => true,
+        (None, Some(_), true) => false,
         (Some(candidate_layer), Some(declaration_layer), false) => {
             candidate_layer > declaration_layer
         }
@@ -1604,6 +1608,76 @@ mod tests {
             .collect::<BTreeSet<_>>();
         assert!(!rule_names.contains("unreachable-declaration"));
         assert!(!rule_names.contains("unspecified-cascade-tie"));
+    }
+
+    #[test]
+    fn cascade_rules_model_unlayered_normal_and_layered_important_precedence() {
+        let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "layered-normal",
+                    selector: ".btn",
+                    property: "color",
+                    value: "red",
+                    source_order: 1,
+                    condition_context: &[],
+                    layer_name: Some("base"),
+                    layer_order: Some(0),
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "unlayered-normal",
+                    selector: ".btn",
+                    property: "color",
+                    value: "blue",
+                    source_order: 2,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "unlayered-important",
+                    selector: ".alert",
+                    property: "color",
+                    value: "red",
+                    source_order: 3,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: true,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "layered-important",
+                    selector: ".alert",
+                    property: "color",
+                    value: "blue",
+                    source_order: 4,
+                    condition_context: &[],
+                    layer_name: Some("important-base"),
+                    layer_order: Some(0),
+                    important: true,
+                    var_references: &[],
+                }),
+            ],
+            custom_properties: Vec::new(),
+        });
+
+        assert!(evaluations.iter().any(|evaluation| evaluation.rule_code
+            == OmenaCheckerRuleCodeV0::UnreachableDeclaration
+            && evaluation.declaration_ids == vec!["layered-normal", "unlayered-normal"]));
+        assert!(evaluations.iter().any(|evaluation| evaluation.rule_code
+            == OmenaCheckerRuleCodeV0::UnreachableDeclaration
+            && evaluation.declaration_ids == vec!["unlayered-important", "layered-important"]));
+        assert!(evaluations.iter().any(|evaluation| evaluation.rule_code
+            == OmenaCheckerRuleCodeV0::DeadCascadeLayer
+            && evaluation.layer_name.as_deref() == Some("base")));
+        assert!(!evaluations.iter().any(|evaluation| evaluation.rule_code
+            == OmenaCheckerRuleCodeV0::DeadCascadeLayer
+            && evaluation.layer_name.as_deref() == Some("important-base")));
     }
 
     struct CascadeDeclarationFixture<'a> {
