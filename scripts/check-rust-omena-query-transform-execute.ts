@@ -3438,6 +3438,65 @@ assert(!configuredScssUseEvaluationSummary.execution.outputCss.includes("@use"))
 assert(!configuredScssUseEvaluationSummary.execution.outputCss.includes("tokens.$"));
 assert(!configuredScssUseEvaluationSummary.execution.outputCss.includes("$brand:"));
 
+const configuredHyphenatedScssUseEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "/tmp/App.module.scss",
+      styles: [
+        {
+          stylePath: "/tmp/tokens.scss",
+          styleSource: "$brand-color: blue !default; .base { color: $brand-color; }",
+        },
+        {
+          stylePath: "/tmp/App.module.scss",
+          styleSource:
+            '@use "./tokens" as tokens with ($brand_color: red); .button { color: tokens.$brand-color; }',
+        },
+      ],
+      requestedPassIds: ["scss-module-evaluate", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(
+  configuredHyphenatedScssUseEvaluationResult.status,
+  0,
+  configuredHyphenatedScssUseEvaluationResult.stderr,
+);
+assert.equal(configuredHyphenatedScssUseEvaluationResult.error, undefined);
+
+const configuredHyphenatedScssUseEvaluationSummary = JSON.parse(
+  configuredHyphenatedScssUseEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.deepEqual(configuredHyphenatedScssUseEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert(
+  configuredHyphenatedScssUseEvaluationSummary.execution.outputCss.includes(
+    ".base { color: red; }",
+  ),
+);
+assert(
+  configuredHyphenatedScssUseEvaluationSummary.execution.outputCss.includes(
+    ".button { color: red; }",
+  ),
+);
+assert(!configuredHyphenatedScssUseEvaluationSummary.execution.outputCss.includes("blue"));
+assert(!configuredHyphenatedScssUseEvaluationSummary.execution.outputCss.includes("tokens.$"));
+
 const configuredScssForwardEvaluationResult = spawnSync(
   "cargo",
   [

@@ -1819,7 +1819,7 @@ fn parse_static_scss_use_variable_override(entry: &str) -> Option<(String, Strin
     if !static_scss_use_variable_override_value_is_safe(value) {
         return None;
     }
-    Some((name.to_string(), value.to_string()))
+    Some((canonical_static_scss_variable_name(name), value.to_string()))
 }
 
 fn split_static_scss_top_level_commas(content: &str) -> Vec<&str> {
