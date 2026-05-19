@@ -536,6 +536,31 @@ fn execution_runtime_preserves_less_css_imports_as_css_imports() {
 }
 
 #[test]
+fn execution_runtime_leaves_unknown_less_import_options_untouched() {
+    let source = r#"@import (plugin) "./tokens.less"; .button { color: blue; }"#;
+    let context = TransformExecutionContextV0 {
+        import_inlines: vec![TransformImportInlineV0 {
+            import_source: "./tokens.less".to_string(),
+            replacement_css: r#"@brand: red;"#.to_string(),
+        }],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Less,
+        &[TransformPassKind::ImportInline, TransformPassKind::PrintCss],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 0);
+    assert_eq!(execution.output_css, source);
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["import-inline", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_applies_explicit_scss_module_evaluation() {
     let source = r#"$brand: red; .button { color: $brand; }"#;
     let context = TransformExecutionContextV0 {

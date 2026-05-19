@@ -215,7 +215,10 @@ fn strip_leading_less_import_options(mut text: &str) -> (&str, LessImportOptions
             return (rest, options);
         };
         let option = after_left_paren[..close_index].trim();
-        if option.is_empty() || !less_import_option_list_is_safe(option) {
+        if option.is_empty()
+            || !less_import_option_list_is_safe(option)
+            || !less_import_option_list_is_known(option)
+        {
             return (rest, options);
         }
         options.allow_duplicate |= less_import_option_list_contains(option, "multiple");
@@ -230,6 +233,15 @@ fn strip_leading_less_import_options(mut text: &str) -> (&str, LessImportOptions
 fn less_import_option_list_is_safe(option: &str) -> bool {
     option.chars().all(|ch| {
         ch.is_ascii_alphanumeric() || ch.is_ascii_whitespace() || matches!(ch, '-' | '_' | ',')
+    })
+}
+
+fn less_import_option_list_is_known(option: &str) -> bool {
+    option.split(',').map(str::trim).all(|entry| {
+        matches!(
+            entry.to_ascii_lowercase().as_str(),
+            "css" | "inline" | "less" | "multiple" | "once" | "optional" | "reference"
+        )
     })
 }
 
