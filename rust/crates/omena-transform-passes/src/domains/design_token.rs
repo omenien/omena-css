@@ -48,25 +48,35 @@ pub(crate) fn route_design_token_values_with_lexer(
             continue;
         };
         for declaration in collect_simple_declarations_in_block(tokens, index, block_end_index) {
-            if declaration.important {
-                continue;
-            }
+            let declaration_value = if declaration.important {
+                let Some(value) = declaration_value_without_important(&declaration.value) else {
+                    continue;
+                };
+                value
+            } else {
+                declaration.value.as_str()
+            };
             let blocked_token_name = declaration
                 .property
                 .starts_with("--")
                 .then(|| normalize_design_token_name(&declaration.property))
                 .flatten();
             let Some(routed_value) = route_design_token_references_in_value(
-                &declaration.value,
+                declaration_value,
                 routes,
                 blocked_token_name,
             ) else {
                 continue;
             };
+            let important = if declaration.important {
+                "!important"
+            } else {
+                ""
+            };
             replacements.push((
                 declaration.start,
                 declaration.end,
-                format!("{}: {routed_value};", declaration.property),
+                format!("{}: {routed_value}{important};", declaration.property),
             ));
         }
         index += 1;
@@ -80,6 +90,20 @@ fn at_rule_prelude_can_route_design_tokens(text: &str) -> bool {
         text.to_ascii_lowercase().as_str(),
         "@container" | "@custom-media" | "@media" | "@supports"
     )
+}
+
+fn declaration_value_without_important(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.ends_with("!important") {
+        let suffix_start = trimmed.len().saturating_sub("!important".len());
+        return Some(trimmed[..suffix_start].trim_end());
+    }
+    if lower.ends_with("! important") {
+        let suffix_start = trimmed.rfind('!')?;
+        return Some(trimmed[..suffix_start].trim_end());
+    }
+    None
 }
 
 fn route_design_token_references_in_value(

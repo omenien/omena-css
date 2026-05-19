@@ -761,6 +761,54 @@ assert.deepEqual(designTokenRecoverySummary.execution.executedPassIds, [
 ]);
 assert.equal(designTokenRecoverySummary.execution.mutationCount, 4);
 
+const designTokenImportantResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "DesignTokenImportant.module.css",
+      styleSource:
+        ".button { color: var(--pkg-brand) !important; --local: var(--pkg-border) !important; --pkg-brand: var(--pkg-brand, black) !important; }",
+      requestedPassIds: ["design-token-routing", "print-css"],
+      transformContext: {
+        designTokenRoutes: [
+          { tokenName: "--pkg-brand", routedValue: "var(--theme-brand)" },
+          { tokenName: "--pkg-border", routedValue: "#123456" },
+        ],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(designTokenImportantResult.status, 0, designTokenImportantResult.stderr);
+assert.equal(designTokenImportantResult.error, undefined);
+
+const designTokenImportantSummary = JSON.parse(
+  designTokenImportantResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(
+  designTokenImportantSummary.execution.outputCss,
+  ".button { color: var(--theme-brand)!important; --local: #123456!important; --pkg-brand: var(--pkg-brand, black) !important; }",
+);
+assert.deepEqual(designTokenImportantSummary.execution.executedPassIds, [
+  "design-token-routing",
+  "print-css",
+]);
+assert.equal(designTokenImportantSummary.execution.mutationCount, 2);
+
 const designTokenAtRulePreludeResult = spawnSync(
   "cargo",
   [
@@ -4349,6 +4397,7 @@ process.stdout.write(
     `contextMutations=${contextSummary.execution.mutationCount}`,
     `transitiveImportInlineMutations=${transitiveImportInlineSummary.execution.mutationCount}`,
     `designTokenAliasMutations=${designTokenAliasSummary.execution.mutationCount}`,
+    `designTokenImportantMutations=${designTokenImportantSummary.execution.mutationCount}`,
     `groupedComposesMutations=${groupedComposesSummary.execution.mutationCount}`,
     `globalComposesHashMutations=${globalComposesHashSummary.execution.mutationCount}`,
     `scopedClassHashMutations=${scopedClassHashSummary.execution.mutationCount}`,
