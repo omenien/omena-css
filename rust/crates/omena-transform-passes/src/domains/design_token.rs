@@ -78,7 +78,7 @@ pub(crate) fn route_design_token_values_with_lexer(
 fn at_rule_prelude_can_route_design_tokens(text: &str) -> bool {
     matches!(
         text.to_ascii_lowercase().as_str(),
-        "@container" | "@supports"
+        "@container" | "@media" | "@supports"
     )
 }
 

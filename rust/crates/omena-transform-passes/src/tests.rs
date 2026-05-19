@@ -732,7 +732,7 @@ fn execution_runtime_routes_design_tokens_from_bridge_context() {
 
 #[test]
 fn execution_runtime_routes_design_tokens_in_supported_at_rule_preludes() {
-    let source = r#"@container card style(--theme: var(--pkg-theme)) { .button { color: var(--pkg-brand); } } @supports (color: var(--pkg-brand)) { .button { border-color: currentColor; } } @media (color: var(--pkg-brand)) { .button { color: red; } }"#;
+    let source = r#"@container card style(--theme: var(--pkg-theme)) { .button { color: var(--pkg-brand); } } @supports (color: var(--pkg-brand)) { .button { border-color: currentColor; } } @media (min-width: var(--pkg-breakpoint)) { .button { color: red; } }"#;
     let context = TransformExecutionContextV0 {
         design_token_routes: vec![
             TransformDesignTokenRouteV0 {
@@ -742,6 +742,10 @@ fn execution_runtime_routes_design_tokens_in_supported_at_rule_preludes() {
             TransformDesignTokenRouteV0 {
                 token_name: "--pkg-brand".to_string(),
                 routed_value: "#123456".to_string(),
+            },
+            TransformDesignTokenRouteV0 {
+                token_name: "--pkg-breakpoint".to_string(),
+                routed_value: "40rem".to_string(),
             },
         ],
         ..TransformExecutionContextV0::default()
@@ -756,10 +760,10 @@ fn execution_runtime_routes_design_tokens_in_supported_at_rule_preludes() {
         &context,
     );
 
-    assert_eq!(execution.mutation_count, 3);
+    assert_eq!(execution.mutation_count, 4);
     assert_eq!(
         execution.output_css,
-        r#"@container card style(--theme: var(--theme-mode)) { .button { color: #123456; } } @supports (color: #123456) { .button { border-color: currentColor; } } @media (color: var(--pkg-brand)) { .button { color: red; } }"#
+        r#"@container card style(--theme: var(--theme-mode)) { .button { color: #123456; } } @supports (color: #123456) { .button { border-color: currentColor; } } @media (min-width: 40rem) { .button { color: red; } }"#
     );
 }
 
