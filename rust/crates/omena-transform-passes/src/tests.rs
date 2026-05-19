@@ -1115,6 +1115,28 @@ fn execution_runtime_normalizes_zero_length_units_with_property_context() {
 }
 
 #[test]
+fn execution_runtime_removes_adjacent_duplicate_unit_declarations() {
+    let source = r#".a { tab-size: 0px; tab-size: 0; width: 0px; width: 0; opacity: 100%; opacity: 1; color: red; color: red; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::UnitNormalization,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 5);
+    assert_eq!(
+        execution.output_css,
+        r#".a { tab-size: 0;  width: 0;  opacity: 1; opacity: 1; color: red; color: red; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["unit-normalization", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_normalizes_safe_zero_percent_position_values() {
     let source = r#".a { background-position: 0% 0%; background-size: auto auto; mask-position: 0% 0%; perspective-origin: 0% 0%; transform-origin: 0% 0%; object-position: 0% 0%; width: 0%; opacity: 0%; }"#;
     let execution = execute_transform_passes_on_source(

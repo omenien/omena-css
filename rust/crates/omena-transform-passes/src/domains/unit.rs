@@ -16,9 +16,10 @@ use crate::{
     },
     helpers::{
         declarations::{
-            collect_simple_declarations_in_block, format_replacement_declaration_like_source,
+            collect_simple_declarations_in_block, declaration_ranges_are_adjacent,
+            format_replacement_declaration_like_source,
         },
-        source_rewrite::replace_source_ranges,
+        source_rewrite::{remove_source_ranges, replace_source_ranges},
         tokens::{
             is_comment_token, is_declaration_boundary_end, is_declaration_boundary_start,
             matching_right_brace_index,
@@ -87,7 +88,12 @@ pub(crate) fn normalize_css_units_with_lexer(
 
     let (output, declaration_value_mutation_count) =
         normalize_static_unit_declaration_values_with_lexer(&output, dialect);
-    (output, mutation_count + declaration_value_mutation_count)
+    let (output, duplicate_declaration_count) =
+        remove_adjacent_duplicate_unit_declarations_with_lexer(&output, dialect);
+    (
+        output,
+        mutation_count + declaration_value_mutation_count + duplicate_declaration_count,
+    )
 }
 
 fn normalize_dimension_unit_token(text: &str, property: &str) -> Option<String> {
@@ -176,6 +182,60 @@ fn normalize_static_unit_declaration_values_with_lexer(
     }
 
     replace_source_ranges(source, &replacements)
+}
+
+fn remove_adjacent_duplicate_unit_declarations_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> (String, usize) {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut ranges = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            let declarations = collect_simple_declarations_in_block(tokens, index, close_index);
+            for pair in declarations.windows(2) {
+                let [left, right] = pair else {
+                    continue;
+                };
+                if !declaration_ranges_are_adjacent(tokens, pair)
+                    || left.important
+                    || right.important
+                    || left.property != right.property
+                    || left.value != right.value
+                    || !unit_normalized_duplicate_property(&left.property)
+                {
+                    continue;
+                }
+                ranges.push((right.start, right.end));
+            }
+            index = close_index + 1;
+            continue;
+        }
+        index += 1;
+    }
+
+    remove_source_ranges(source, &ranges)
+}
+
+fn unit_normalized_duplicate_property(property: &str) -> bool {
+    is_zero_length_unit_property(property)
+        || is_zero_percentage_unit_property(property)
+        || matches!(
+            property,
+            "transform"
+                | "translate"
+                | "rotate"
+                | "scale"
+                | "animation-delay"
+                | "animation-duration"
+                | "transition-delay"
+                | "transition-duration"
+        )
 }
 
 fn normalize_static_unit_declaration_value(property: &str, value: &str) -> Option<String> {
