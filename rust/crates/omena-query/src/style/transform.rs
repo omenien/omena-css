@@ -627,19 +627,39 @@ fn merge_transform_context(
         merged.less_module_evaluation = context.less_module_evaluation.clone();
     }
     if !context.import_inlines.is_empty() {
-        merged.import_inlines = context.import_inlines.clone();
+        merge_context_records_by_key(
+            &mut merged.import_inlines,
+            &context.import_inlines,
+            |inline| inline.import_source.as_str(),
+        );
     }
     if !context.class_name_rewrites.is_empty() {
-        merged.class_name_rewrites = context.class_name_rewrites.clone();
+        merge_context_records_by_key(
+            &mut merged.class_name_rewrites,
+            &context.class_name_rewrites,
+            |rewrite| rewrite.original_name.as_str(),
+        );
     }
     if !context.css_module_composes_resolutions.is_empty() {
-        merged.css_module_composes_resolutions = context.css_module_composes_resolutions.clone();
+        merge_context_records_by_key(
+            &mut merged.css_module_composes_resolutions,
+            &context.css_module_composes_resolutions,
+            |resolution| resolution.local_class_name.as_str(),
+        );
     }
     if !context.css_module_value_resolutions.is_empty() {
-        merged.css_module_value_resolutions = context.css_module_value_resolutions.clone();
+        merge_context_records_by_key(
+            &mut merged.css_module_value_resolutions,
+            &context.css_module_value_resolutions,
+            |resolution| resolution.local_name.as_str(),
+        );
     }
     if !context.design_token_routes.is_empty() {
-        merged.design_token_routes = context.design_token_routes.clone();
+        merge_context_records_by_key(
+            &mut merged.design_token_routes,
+            &context.design_token_routes,
+            |route| route.token_name.as_str(),
+        );
     }
 
     expand_reachable_class_names_through_composes(&mut merged);
@@ -714,6 +734,22 @@ fn merge_context_list(target: &mut Vec<String>, additional: &[String]) {
         }
     }
     target.sort();
+}
+
+fn merge_context_records_by_key<T, F>(target: &mut Vec<T>, overrides: &[T], key: F)
+where
+    T: Clone,
+    F: Fn(&T) -> &str,
+{
+    for item in overrides {
+        let item_key = key(item);
+        if let Some(existing) = target.iter_mut().find(|existing| key(existing) == item_key) {
+            *existing = item.clone();
+        } else {
+            target.push(item.clone());
+        }
+    }
+    target.sort_by(|left, right| key(left).cmp(key(right)));
 }
 
 pub fn list_omena_query_transform_pass_summaries() -> Vec<OmenaQueryTransformPassSummaryV0> {

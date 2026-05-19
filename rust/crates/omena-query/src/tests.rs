@@ -1523,6 +1523,66 @@ fn derives_transform_context_from_workspace_sources() {
 }
 
 #[test]
+fn explicit_context_extends_query_derived_transform_context()
+-> Result<(), Box<dyn std::error::Error>> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "Button.module.css".to_string(),
+            style_source: r#"@import "./tokens.css"; .button { color: var(--brand); background: var(--external); }"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "tokens.css".to_string(),
+            style_source: ":root { --brand: red; }".to_string(),
+        },
+    ];
+    let context = OmenaQueryTransformExecutionContextV0 {
+        design_token_routes: vec![omena_transform_passes::TransformDesignTokenRouteV0 {
+            token_name: "--external".to_string(),
+            routed_value: "blue".to_string(),
+        }],
+        ..OmenaQueryTransformExecutionContextV0::default()
+    };
+    let summary = execute_omena_query_consumer_build_style_sources_with_context(
+        "Button.module.css",
+        &sources,
+        &[
+            "import-inline".to_string(),
+            "design-token-routing".to_string(),
+            "print-css".to_string(),
+        ],
+        &context,
+        &[],
+    )?;
+
+    assert_eq!(summary.product, "omena-query.consumer-build-style-source");
+    assert_eq!(summary.execution.design_token_routes.len(), 2);
+    assert!(
+        summary
+            .execution
+            .design_token_routes
+            .iter()
+            .any(|route| route.token_name == "--brand" && route.routed_value == "red")
+    );
+    assert!(
+        summary
+            .execution
+            .design_token_routes
+            .iter()
+            .any(|route| route.token_name == "--external" && route.routed_value == "blue")
+    );
+    assert!(!summary.execution.output_css.contains("@import"));
+    assert!(
+        summary
+            .execution
+            .output_css
+            .contains(":root { --brand: red; }")
+    );
+    assert!(summary.execution.output_css.contains("color: red"));
+    assert!(summary.execution.output_css.contains("background: blue"));
+    Ok(())
+}
+
+#[test]
 fn derives_transform_context_with_static_stylesheet_module_evaluation() {
     let scss_summary = summarize_omena_query_transform_context_from_sources(
         "Button.module.scss",
