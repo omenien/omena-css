@@ -126,6 +126,8 @@ pub struct ParserIndexCustomPropertyDeclFactV0 {
     pub byte_span: ParserByteSpanV0,
     pub range: ParserRangeV0,
     pub selector_contexts: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub condition_context: Vec<String>,
     pub layer_names: Vec<String>,
     pub under_media: bool,
     pub under_supports: bool,
@@ -138,6 +140,8 @@ pub struct ParserIndexCustomPropertyRefFactV0 {
     pub name: String,
     pub source_order: usize,
     pub selector_contexts: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub condition_context: Vec<String>,
     pub layer_names: Vec<String>,
     pub under_media: bool,
     pub under_supports: bool,

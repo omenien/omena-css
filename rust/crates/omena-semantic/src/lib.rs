@@ -882,8 +882,14 @@ fn summarize_omena_parser_custom_property_facts(
                     u32::from(variable.range.end()) as usize,
                 );
                 decl_names.insert(variable.name.clone());
-                let (selector_contexts, under_media, under_supports, under_layer, layer_names) =
-                    style_context_with_layers_for_byte_offset(source, byte_span.start);
+                let (
+                    selector_contexts,
+                    under_media,
+                    under_supports,
+                    under_layer,
+                    layer_names,
+                    condition_context,
+                ) = style_context_with_layers_for_byte_offset(source, byte_span.start);
                 decl_facts.push(ParserIndexCustomPropertyDeclFactV0 {
                     name: variable.name.clone(),
                     value: declaration_value_text(source, byte_span.start),
@@ -891,6 +897,7 @@ fn summarize_omena_parser_custom_property_facts(
                     byte_span,
                     range: parser_range_for_byte_span(source, byte_span),
                     selector_contexts,
+                    condition_context,
                     layer_names,
                     under_media,
                     under_supports,
@@ -899,13 +906,20 @@ fn summarize_omena_parser_custom_property_facts(
             }
             ParsedVariableFactKind::CustomPropertyReference => {
                 let byte_offset = u32::from(variable.range.start()) as usize;
-                let (selector_contexts, under_media, under_supports, under_layer, layer_names) =
-                    style_context_with_layers_for_byte_offset(source, byte_offset);
+                let (
+                    selector_contexts,
+                    under_media,
+                    under_supports,
+                    under_layer,
+                    layer_names,
+                    condition_context,
+                ) = style_context_with_layers_for_byte_offset(source, byte_offset);
                 ref_names.insert(variable.name.clone());
                 ref_facts.push(ParserIndexCustomPropertyRefFactV0 {
                     name: variable.name.clone(),
                     source_order: ref_facts.len(),
                     selector_contexts,
+                    condition_context,
                     layer_names,
                     under_media,
                     under_supports,
@@ -1311,7 +1325,7 @@ fn style_context_for_byte_offset(
     source: &str,
     byte_offset: usize,
 ) -> (Vec<String>, bool, bool, bool) {
-    let (selector_contexts, under_media, under_supports, under_layer, _) =
+    let (selector_contexts, under_media, under_supports, under_layer, _, _) =
         style_context_with_layers_for_byte_offset(source, byte_offset);
     (selector_contexts, under_media, under_supports, under_layer)
 }
@@ -1319,24 +1333,24 @@ fn style_context_for_byte_offset(
 fn style_context_with_layers_for_byte_offset(
     source: &str,
     byte_offset: usize,
-) -> (Vec<String>, bool, bool, bool, Vec<String>) {
+) -> (Vec<String>, bool, bool, bool, Vec<String>, Vec<String>) {
     let contexts = block_contexts_for_byte_offset(source, byte_offset);
     let selector_contexts = contexts
         .iter()
         .filter_map(|context| match context {
             StyleBlockContext::Selector(selector) => Some(selector.clone()),
-            StyleBlockContext::Media
-            | StyleBlockContext::Supports
+            StyleBlockContext::Media(_)
+            | StyleBlockContext::Supports(_)
             | StyleBlockContext::Layer(_)
-            | StyleBlockContext::OtherAtRule => None,
+            | StyleBlockContext::OtherAtRule(_) => None,
         })
         .collect::<Vec<_>>();
     let under_media = contexts
         .iter()
-        .any(|context| matches!(context, StyleBlockContext::Media));
+        .any(|context| matches!(context, StyleBlockContext::Media(_)));
     let under_supports = contexts
         .iter()
-        .any(|context| matches!(context, StyleBlockContext::Supports));
+        .any(|context| matches!(context, StyleBlockContext::Supports(_)));
     let under_layer = contexts
         .iter()
         .any(|context| matches!(context, StyleBlockContext::Layer(_)));
@@ -1347,6 +1361,15 @@ fn style_context_with_layers_for_byte_offset(
             _ => None,
         })
         .collect::<Vec<_>>();
+    let condition_context = contexts
+        .iter()
+        .filter_map(|context| match context {
+            StyleBlockContext::Media(header)
+            | StyleBlockContext::Supports(header)
+            | StyleBlockContext::OtherAtRule(header) => Some(header.clone()),
+            StyleBlockContext::Selector(_) | StyleBlockContext::Layer(_) => None,
+        })
+        .collect::<Vec<_>>();
 
     (
         selector_contexts,
@@ -1354,6 +1377,7 @@ fn style_context_with_layers_for_byte_offset(
         under_supports,
         under_layer,
         layer_names,
+        condition_context,
     )
 }
 
@@ -1403,10 +1427,10 @@ fn semantic_selector_name_for_byte_offset(source: &str, byte_offset: usize) -> O
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum StyleBlockContext {
     Selector(String),
-    Media,
-    Supports,
+    Media(String),
+    Supports(String),
     Layer(Option<String>),
-    OtherAtRule,
+    OtherAtRule(String),
 }
 
 fn block_contexts_for_byte_offset(source: &str, byte_offset: usize) -> Vec<StyleBlockContext> {
@@ -1454,9 +1478,9 @@ fn block_header_before_open_brace(source: &str, open_brace_index: usize) -> Stri
 fn style_block_context_for_header(header: &str) -> StyleBlockContext {
     let header = header.trim();
     if header.starts_with("@media") {
-        StyleBlockContext::Media
+        StyleBlockContext::Media(normalized_condition_header(header))
     } else if header.starts_with("@supports") {
-        StyleBlockContext::Supports
+        StyleBlockContext::Supports(normalized_condition_header(header))
     } else if header.starts_with("@layer") {
         StyleBlockContext::Layer(
             header
@@ -1464,10 +1488,14 @@ fn style_block_context_for_header(header: &str) -> StyleBlockContext {
                 .and_then(|prelude| split_layer_names(prelude).into_iter().next()),
         )
     } else if header.starts_with('@') {
-        StyleBlockContext::OtherAtRule
+        StyleBlockContext::OtherAtRule(normalized_condition_header(header))
     } else {
         StyleBlockContext::Selector(header.to_string())
     }
+}
+
+fn normalized_condition_header(header: &str) -> String {
+    header.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn selector_class_name(selector: &str) -> Option<String> {
@@ -2339,6 +2367,33 @@ $color: red;
         assert_eq!(second_ranked_reference.candidate_declaration_count, 3);
         assert!(summary.capabilities.source_order_cascade_ranking_ready);
         assert!(!summary.capabilities.cross_package_cascade_ranking_ready);
+        Ok(())
+    }
+
+    #[test]
+    fn ranks_design_tokens_with_exact_conditional_context() -> Result<(), String> {
+        let sheet = parse_style_module(
+            "Component.module.css",
+            r#":root { --surface: base; }
+@media (min-width: 40rem) {
+  :root { --surface: wide; }
+  .button { color: var(--surface); }
+}
+@media (max-width: 20rem) {
+  :root { --surface: narrow; }
+}
+"#,
+        )
+        .ok_or_else(|| "CSS module path should parse".to_string())?;
+
+        let summary = summarize_style_semantic_boundary(&sheet).design_token_semantics;
+
+        assert_eq!(summary.cascade_ranking_signal.ranked_reference_count, 1);
+        let ranked_reference = &summary.cascade_ranking_signal.ranked_references[0];
+        assert_eq!(ranked_reference.reference_name, "--surface");
+        assert_eq!(ranked_reference.winner_declaration_source_order, 1);
+        assert_eq!(ranked_reference.shadowed_declaration_source_orders, vec![0]);
+        assert_eq!(ranked_reference.candidate_declaration_count, 2);
         Ok(())
     }
 

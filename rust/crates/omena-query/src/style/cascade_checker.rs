@@ -165,6 +165,13 @@ struct QueryCheckerCascadeDeclaration {
     byte_span: ParserByteSpanV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct QueryCheckerCascadeScope {
+    condition_context: Vec<String>,
+    layer_name: Option<String>,
+    layer_order: Option<i32>,
+}
+
 fn collect_query_checker_cascade_declarations(source: &str) -> Vec<QueryCheckerCascadeDeclaration> {
     let mut declarations = Vec::new();
     let mut layer_orders = BTreeMap::new();
@@ -241,9 +248,11 @@ fn collect_query_checker_cascade_blocks(
                 body_start,
                 close_index,
                 prelude,
-                condition_context.clone(),
-                layer_name.clone(),
-                layer_order,
+                QueryCheckerCascadeScope {
+                    condition_context: condition_context.clone(),
+                    layer_name: layer_name.clone(),
+                    layer_order,
+                },
                 declarations,
             );
             collect_query_checker_cascade_blocks(
@@ -268,9 +277,7 @@ fn collect_query_checker_direct_declarations(
     body_start: usize,
     body_end: usize,
     selector: &str,
-    condition_context: Vec<String>,
-    layer_name: Option<String>,
-    layer_order: Option<i32>,
+    scope: QueryCheckerCascadeScope,
     declarations: &mut Vec<QueryCheckerCascadeDeclaration>,
 ) {
     let mut statement_start = body_start;
@@ -285,9 +292,7 @@ fn collect_query_checker_direct_declarations(
                     statement_start,
                     semicolon_index,
                     selector,
-                    condition_context.clone(),
-                    layer_name.clone(),
-                    layer_order,
+                    &scope,
                     declarations,
                 );
                 statement_start = semicolon_index + 1;
@@ -307,9 +312,7 @@ fn collect_query_checker_direct_declarations(
                 statement_start,
                 semicolon_index,
                 selector,
-                condition_context.clone(),
-                layer_name.clone(),
-                layer_order,
+                &scope,
                 declarations,
             );
             statement_start = semicolon_index + 1;
@@ -323,9 +326,7 @@ fn collect_query_checker_direct_declarations(
         statement_start,
         body_end,
         selector,
-        condition_context,
-        layer_name,
-        layer_order,
+        &scope,
         declarations,
     );
 }
@@ -335,9 +336,7 @@ fn push_query_checker_declaration(
     start: usize,
     end: usize,
     selector: &str,
-    condition_context: Vec<String>,
-    layer_name: Option<String>,
-    layer_order: Option<i32>,
+    scope: &QueryCheckerCascadeScope,
     declarations: &mut Vec<QueryCheckerCascadeDeclaration>,
 ) {
     let Some((trimmed_start, trimmed_end)) = trimmed_query_span(source, start, end) else {
@@ -375,9 +374,9 @@ fn push_query_checker_declaration(
             property: property.to_string(),
             value: value.clone(),
             source_order: source_order.min(u32::MAX as usize) as u32,
-            condition_context,
-            layer_name,
-            layer_order,
+            condition_context: scope.condition_context.clone(),
+            layer_name: scope.layer_name.clone(),
+            layer_order: scope.layer_order,
             important,
             var_references: collect_query_var_references_in_value(&value),
         },

@@ -134,6 +134,7 @@ pub struct DesignTokenWorkspaceDeclarationFactV0 {
     pub byte_span: ParserByteSpanV0,
     pub range: ParserRangeV0,
     pub selector_contexts: Vec<String>,
+    pub condition_context: Vec<String>,
     pub layer_names: Vec<String>,
     pub under_media: bool,
     pub under_supports: bool,
@@ -149,6 +150,8 @@ pub struct DesignTokenDeclarationCandidateV0 {
     pub file_path: String,
     pub range: ParserRangeV0,
     pub selector_contexts: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub condition_context: Vec<String>,
     pub layer_names: Vec<String>,
     pub under_media: bool,
     pub under_supports: bool,
@@ -363,6 +366,7 @@ fn summarize_design_token_declaration_candidates(
                     file_path: file_path.to_string(),
                     range: declaration.range,
                     selector_contexts: declaration.selector_contexts.clone(),
+                    condition_context: declaration.condition_context.clone(),
                     layer_names: declaration.layer_names.clone(),
                     under_media: declaration.under_media,
                     under_supports: declaration.under_supports,
@@ -381,6 +385,7 @@ fn summarize_design_token_declaration_candidates(
             file_path: declaration.file_path.clone(),
             range: declaration.range,
             selector_contexts: declaration.selector_contexts.clone(),
+            condition_context: declaration.condition_context.clone(),
             layer_names: declaration.layer_names.clone(),
             under_media: declaration.under_media,
             under_supports: declaration.under_supports,
@@ -423,6 +428,7 @@ pub fn collect_design_token_workspace_declarations(
             byte_span: declaration.byte_span,
             range: declaration.range,
             selector_contexts: declaration.selector_contexts.clone(),
+            condition_context: declaration.condition_context.clone(),
             layer_names: declaration.layer_names.clone(),
             under_media: declaration.under_media,
             under_supports: declaration.under_supports,
@@ -1013,6 +1019,9 @@ fn custom_property_context_matches(
     if declaration.under_supports && !reference.under_supports {
         return false;
     }
+    if !condition_context_applies(&declaration.condition_context, &reference.condition_context) {
+        return false;
+    }
     if declaration.selector_contexts.is_empty() {
         return true;
     }
@@ -1035,6 +1044,9 @@ fn custom_property_workspace_context_matches(
     if declaration.under_supports && !reference.under_supports {
         return false;
     }
+    if !condition_context_applies(&declaration.condition_context, &reference.condition_context) {
+        return false;
+    }
     if declaration.selector_contexts.is_empty() {
         return true;
     }
@@ -1042,6 +1054,12 @@ fn custom_property_workspace_context_matches(
         .selector_contexts
         .iter()
         .any(|selector| custom_property_selector_context_matches(selector, reference))
+}
+
+fn condition_context_applies(declaration_context: &[String], reference_context: &[String]) -> bool {
+    declaration_context
+        .iter()
+        .all(|condition| reference_context.iter().any(|value| value == condition))
 }
 
 fn custom_property_selector_context_matches(

@@ -24,8 +24,8 @@ Current public products:
 - `omena-semantic.design-token-semantics` — CSS custom property resolver
   readiness surface that exposes same-file and occurrence-level resolution
   counts, source-order and layer-order facts, same-file cascade ranking records,
-  selector/wrapper context signals, and the remaining cross-file/package/theme
-  gaps.
+  selector/wrapper context signals, exact conditional at-rule context for
+  cascade ranking, and the remaining cross-file/package/theme gaps.
 - `omena-semantic.style-context-index` — explicit `@layer`, `@container`, and
   `@scope` indexes plus selector membership edges for cascade-aware semantic
   consumers.
