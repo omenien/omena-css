@@ -2101,6 +2101,56 @@ assert(!scssUseEvaluationSummary.execution.outputCss.includes("@use"));
 assert(!scssUseEvaluationSummary.execution.outputCss.includes("tokens.$"));
 assert(!scssUseEvaluationSummary.execution.outputCss.includes("$brand:"));
 
+const wildcardScssUseEvaluationResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "consumer-build-style-sources",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      targetStylePath: "/tmp/App.module.scss",
+      styles: [
+        {
+          stylePath: "/tmp/tokens.scss",
+          styleSource: "$brand: red; $gap: 8px; .base { color: blue; }",
+        },
+        {
+          stylePath: "/tmp/App.module.scss",
+          styleSource: '@use "./tokens" as *; .button { color: $brand; margin: $gap; }',
+        },
+      ],
+      requestedPassIds: ["scss-module-evaluate", "print-css"],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(wildcardScssUseEvaluationResult.status, 0, wildcardScssUseEvaluationResult.stderr);
+assert.equal(wildcardScssUseEvaluationResult.error, undefined);
+
+const wildcardScssUseEvaluationSummary = JSON.parse(
+  wildcardScssUseEvaluationResult.stdout,
+) as ConsumerBuildSummaryV0;
+
+assert.deepEqual(wildcardScssUseEvaluationSummary.execution.plannedOnlyPassIds, []);
+assert(wildcardScssUseEvaluationSummary.execution.outputCss.includes(".base { color: blue; }"));
+assert(
+  wildcardScssUseEvaluationSummary.execution.outputCss.includes(
+    ".button { color: red; margin: 8px; }",
+  ),
+);
+assert(!wildcardScssUseEvaluationSummary.execution.outputCss.includes("@use"));
+assert(!wildcardScssUseEvaluationSummary.execution.outputCss.includes("$brand:"));
+
 const staticScssDefaultEvaluationResult = spawnSync(
   "cargo",
   [

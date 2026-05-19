@@ -995,7 +995,12 @@ fn derive_static_scss_module_use_evaluations_for_transform_context(
         .sass_module_edges
         .iter()
         .filter(|edge| edge.kind == "sassUse")
-        .filter(|edge| matches!(edge.namespace_kind, Some("alias") | Some("default")))
+        .filter(|edge| {
+            matches!(
+                edge.namespace_kind,
+                Some("alias") | Some("default") | Some("wildcard")
+            )
+        })
         .filter_map(|edge| {
             let resolved = resolve_style_module_source(
                 entry.style_path.as_str(),
@@ -1046,15 +1051,23 @@ fn replace_static_scss_namespaced_module_variables(
 ) -> String {
     let mut output = source.to_string();
     for module_use in scss_module_uses {
-        if !matches!(module_use.namespace_kind, Some("alias") | Some("default")) {
-            continue;
-        }
-        let Some(namespace) = module_use.namespace.as_deref() else {
-            continue;
-        };
-        for (name, value) in &module_use.variable_exports {
-            output =
-                replace_static_scss_namespaced_variable_reference(&output, namespace, name, value);
+        match module_use.namespace_kind {
+            Some("alias") | Some("default") => {
+                let Some(namespace) = module_use.namespace.as_deref() else {
+                    continue;
+                };
+                for (name, value) in &module_use.variable_exports {
+                    output = replace_static_scss_namespaced_variable_reference(
+                        &output, namespace, name, value,
+                    );
+                }
+            }
+            Some("wildcard") => {
+                for (name, value) in &module_use.variable_exports {
+                    output = replace_static_scss_wildcard_variable_reference(&output, name, value);
+                }
+            }
+            _ => {}
         }
     }
     output
@@ -1099,6 +1112,43 @@ fn static_scss_reference_boundary_is_safe(source: &str, start: usize, end: usize
         .next()
         .is_none_or(|ch| !static_scss_identifier_char(ch));
     before_safe && after_safe
+}
+
+fn replace_static_scss_wildcard_variable_reference(
+    source: &str,
+    name: &str,
+    value: &str,
+) -> String {
+    let needle = format!("${name}");
+    if !source.contains(needle.as_str()) {
+        return source.to_string();
+    }
+
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0usize;
+    while let Some(offset) = source[cursor..].find(needle.as_str()) {
+        let start = cursor + offset;
+        let end = start + needle.len();
+        if static_scss_reference_boundary_is_safe(source, start, end)
+            && !static_scss_reference_is_declaration(source, end)
+        {
+            output.push_str(&source[cursor..start]);
+            output.push_str(value);
+            cursor = end;
+        } else {
+            output.push_str(&source[cursor..end]);
+            cursor = end;
+        }
+    }
+    output.push_str(&source[cursor..]);
+    output
+}
+
+fn static_scss_reference_is_declaration(source: &str, end: usize) -> bool {
+    source[end..]
+        .chars()
+        .find(|ch| !ch.is_whitespace())
+        .is_some_and(|ch| ch == ':')
 }
 
 fn static_scss_identifier_char(ch: char) -> bool {
