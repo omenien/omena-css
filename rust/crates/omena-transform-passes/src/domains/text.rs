@@ -70,12 +70,80 @@ pub(crate) fn normalize_css_font_declarations_with_lexer(
 
 fn normalize_static_font_declaration_value(property: &str, value: &str) -> Option<String> {
     match property {
+        "cursor" => normalize_single_known_keyword_case(value, CURSOR_KEYWORDS),
         "display" => normalize_static_display_value(value),
         "font-family" => normalize_static_font_family_value(value),
         "font-weight" => normalize_static_font_weight_value(value),
         "font-stretch" => normalize_static_font_stretch_value(value),
+        "position" => normalize_single_known_keyword_case(value, POSITION_KEYWORDS),
+        "text-align" => normalize_single_known_keyword_case(value, TEXT_ALIGN_KEYWORDS),
+        "user-select" => normalize_single_known_keyword_case(value, USER_SELECT_KEYWORDS),
+        "visibility" => normalize_single_known_keyword_case(value, VISIBILITY_KEYWORDS),
         _ => None,
     }
+}
+
+const CURSOR_KEYWORDS: &[&str] = &[
+    "alias",
+    "all-scroll",
+    "auto",
+    "cell",
+    "col-resize",
+    "context-menu",
+    "copy",
+    "crosshair",
+    "default",
+    "e-resize",
+    "ew-resize",
+    "grab",
+    "grabbing",
+    "help",
+    "move",
+    "n-resize",
+    "ne-resize",
+    "nesw-resize",
+    "no-drop",
+    "none",
+    "not-allowed",
+    "ns-resize",
+    "nw-resize",
+    "nwse-resize",
+    "pointer",
+    "progress",
+    "row-resize",
+    "s-resize",
+    "se-resize",
+    "sw-resize",
+    "text",
+    "vertical-text",
+    "w-resize",
+    "wait",
+    "zoom-in",
+    "zoom-out",
+];
+const POSITION_KEYWORDS: &[&str] = &["absolute", "fixed", "relative", "static", "sticky"];
+const TEXT_ALIGN_KEYWORDS: &[&str] = &[
+    "center",
+    "end",
+    "justify",
+    "left",
+    "match-parent",
+    "right",
+    "start",
+];
+const USER_SELECT_KEYWORDS: &[&str] = &["all", "auto", "contain", "none", "text"];
+const VISIBILITY_KEYWORDS: &[&str] = &["collapse", "hidden", "visible"];
+
+fn normalize_single_known_keyword_case(value: &str, keywords: &[&str]) -> Option<String> {
+    let components = split_top_level_whitespace_value_components(value)?;
+    let [component] = components.as_slice() else {
+        return None;
+    };
+    let lowered = component.to_ascii_lowercase();
+    keywords
+        .contains(&lowered.as_str())
+        .then_some(lowered)
+        .filter(|replacement| replacement != component)
 }
 
 fn remove_overridden_static_font_longhands(source: &str, dialect: StyleDialect) -> (String, usize) {

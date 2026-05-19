@@ -1601,6 +1601,28 @@ fn execution_runtime_normalizes_static_font_longhand_keywords() {
 }
 
 #[test]
+fn execution_runtime_normalizes_static_single_keyword_case() {
+    let source = r#".a { cursor: POINTER; user-select: NONE; position: STICKY; text-align: MATCH-PARENT; visibility: HIDDEN; pointer-events: NONE; cursor: -WEBKIT-GRAB; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::StringQuoteNormalize,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 5);
+    assert_eq!(
+        execution.output_css,
+        r#".a { cursor: pointer; user-select: none; position: sticky; text-align: match-parent; visibility: hidden; pointer-events: NONE; cursor: -WEBKIT-GRAB; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["string-quote-normalize", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_combines_static_font_longhands() {
     let source = r#".a { font-style: normal; font-variant-caps: normal; font-weight: normal; font-stretch: normal; font-size: 16px; line-height: normal; font-family: Arial; } .b { font-style: normal; font-variant-caps: normal; font-weight: bold; font-stretch: condensed; font-size: 16px; line-height: 1.5; font-family: Arial, sans-serif; } .c { font-style: italic; font-variant-caps: small-caps; font-weight: bold; font-stretch: condensed; font-size: 1rem; line-height: 120%; font-family: "Open Sans", serif; } .d { font-style: normal !important; font-variant-caps: normal !important; font-weight: normal !important; font-stretch: normal !important; font-size: 16px !important; line-height: normal !important; font-family: Arial !important; }"#;
     let execution = execute_transform_passes_on_source(
