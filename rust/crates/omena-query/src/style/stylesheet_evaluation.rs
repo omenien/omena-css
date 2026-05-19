@@ -58,6 +58,30 @@ pub(super) fn derive_static_scss_stylesheet_module_variable_exports(
     exports
 }
 
+pub(super) fn derive_static_scss_stylesheet_module_configurable_variable_names(
+    style_source: &str,
+) -> BTreeSet<String> {
+    let facts = collect_style_facts(style_source, OmenaParserStyleDialect::Scss);
+    let scopes = match collect_static_stylesheet_scopes(style_source) {
+        Some(scopes) => scopes,
+        None => return BTreeSet::new(),
+    };
+    let declarations =
+        match collect_static_scss_variable_declarations(style_source, &facts.variables, &scopes) {
+            Some(declarations) => declarations,
+            None => return BTreeSet::new(),
+        };
+
+    declarations
+        .iter()
+        .filter(|declaration| declaration.scope_id == 0)
+        .filter(|declaration| declaration.declaration.is_default)
+        .filter_map(|declaration| {
+            static_scss_public_module_variable_name(declaration.name.as_str()).map(str::to_string)
+        })
+        .collect()
+}
+
 fn derive_static_scss_stylesheet_module_evaluation(
     style_source: &str,
     variable_facts: &[ParsedVariableFact],

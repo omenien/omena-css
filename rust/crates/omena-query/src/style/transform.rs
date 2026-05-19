@@ -10,6 +10,7 @@ use omena_transform_passes::{
 use std::borrow::Cow;
 
 use super::stylesheet_evaluation::{
+    derive_static_scss_stylesheet_module_configurable_variable_names,
     derive_static_scss_stylesheet_module_variable_exports,
     derive_static_stylesheet_module_evaluation,
 };
@@ -1009,9 +1010,14 @@ fn derive_static_scss_module_use_evaluations_for_transform_context(
                 package_manifests,
             )?;
             let source = source_by_path.get(resolved.as_str())?;
+            let variable_overrides = derive_static_scss_use_variable_overrides(
+                entry.style_source.as_str(),
+                edge.source.as_str(),
+            );
             let module_context = derive_static_scss_module_context_for_transform_context(
                 resolved.as_str(),
                 source,
+                &variable_overrides,
                 available_style_paths,
                 source_by_path,
                 package_manifests,
@@ -1037,6 +1043,7 @@ struct StaticScssModuleContext {
 fn derive_static_scss_module_context_for_transform_context(
     style_path: &str,
     style_source: &str,
+    variable_overrides: &BTreeMap<String, String>,
     available_style_paths: &BTreeSet<&str>,
     source_by_path: &BTreeMap<String, String>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
@@ -1048,6 +1055,10 @@ fn derive_static_scss_module_context_for_transform_context(
             variable_exports: BTreeMap::new(),
         };
     }
+
+    let style_source =
+        apply_static_scss_module_variable_overrides(style_source, variable_overrides);
+    let style_source = style_source.as_ref();
 
     let forward_evaluations = derive_static_scss_module_forward_evaluations_for_transform_context(
         style_path,
@@ -1124,6 +1135,7 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
             let module_context = derive_static_scss_module_context_for_transform_context(
                 resolved.as_str(),
                 source,
+                &BTreeMap::new(),
                 available_style_paths,
                 source_by_path,
                 package_manifests,
@@ -1158,6 +1170,34 @@ fn filter_static_scss_forward_exports(
             .collect(),
         _ => exports,
     }
+}
+
+fn apply_static_scss_module_variable_overrides<'a>(
+    style_source: &'a str,
+    variable_overrides: &BTreeMap<String, String>,
+) -> Cow<'a, str> {
+    if variable_overrides.is_empty() {
+        return Cow::Borrowed(style_source);
+    }
+    let configurable_names =
+        derive_static_scss_stylesheet_module_configurable_variable_names(style_source);
+    if !variable_overrides
+        .keys()
+        .all(|name| configurable_names.contains(name))
+    {
+        return Cow::Borrowed(style_source);
+    }
+
+    let mut source = String::new();
+    for (name, value) in variable_overrides {
+        source.push('$');
+        source.push_str(name);
+        source.push_str(": ");
+        source.push_str(value);
+        source.push_str("; ");
+    }
+    source.push_str(style_source);
+    Cow::Owned(source)
 }
 
 fn derive_scss_use_aware_static_stylesheet_module_evaluation_source<'a>(
@@ -1401,6 +1441,202 @@ fn static_scss_module_rule_source_name(
         .iter()
         .find(|token| matches!(token.kind, SyntaxKind::String | SyntaxKind::Url))
         .map(|token| token.text.trim_matches('"').trim_matches('\'').to_string())
+}
+
+fn derive_static_scss_use_variable_overrides(
+    style_source: &str,
+    use_source: &str,
+) -> BTreeMap<String, String> {
+    let lexed = lex(style_source, OmenaParserStyleDialect::Scss);
+    let tokens = lexed.tokens();
+    let mut depth = 0usize;
+    let mut index = 0usize;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@use") =>
+            {
+                let Some(end_index) = static_scss_use_rule_semicolon(tokens, index) else {
+                    index += 1;
+                    continue;
+                };
+                if static_scss_module_rule_source_name(tokens, index + 1, end_index)
+                    .is_some_and(|source_name| source_name == use_source)
+                {
+                    let start = transform_token_start(&tokens[index]);
+                    let end = transform_token_end(&tokens[end_index]);
+                    return style_source
+                        .get(start..end)
+                        .map(parse_static_scss_use_variable_overrides_from_rule)
+                        .unwrap_or_default();
+                }
+                index = end_index + 1;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    BTreeMap::new()
+}
+
+fn parse_static_scss_use_variable_overrides_from_rule(
+    rule_source: &str,
+) -> BTreeMap<String, String> {
+    let lexed = lex(rule_source, OmenaParserStyleDialect::Scss);
+    let tokens = lexed.tokens();
+    let Some(with_index) = tokens
+        .iter()
+        .position(|token| token.text.eq_ignore_ascii_case("with"))
+    else {
+        return BTreeMap::new();
+    };
+    let Some(left_paren_index) = tokens[with_index + 1..]
+        .iter()
+        .position(|token| token.kind == SyntaxKind::LeftParen)
+        .map(|offset| with_index + 1 + offset)
+    else {
+        return BTreeMap::new();
+    };
+    let Some(right_paren_index) = static_scss_matching_right_paren(tokens, left_paren_index) else {
+        return BTreeMap::new();
+    };
+    let start = transform_token_end(&tokens[left_paren_index]);
+    let end = transform_token_start(&tokens[right_paren_index]);
+    rule_source
+        .get(start..end)
+        .map(parse_static_scss_use_variable_override_list)
+        .unwrap_or_default()
+}
+
+fn static_scss_matching_right_paren(
+    tokens: &[omena_parser::LexedToken],
+    left_paren_index: usize,
+) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().skip(left_paren_index) {
+        match token.kind {
+            SyntaxKind::LeftParen => depth += 1,
+            SyntaxKind::RightParen => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn parse_static_scss_use_variable_override_list(content: &str) -> BTreeMap<String, String> {
+    let mut overrides = BTreeMap::new();
+    for entry in split_static_scss_top_level_commas(content) {
+        if entry.trim().is_empty() {
+            continue;
+        }
+        let Some((name, value)) = parse_static_scss_use_variable_override(entry.trim()) else {
+            return BTreeMap::new();
+        };
+        overrides.insert(name, value);
+    }
+    overrides
+}
+
+fn parse_static_scss_use_variable_override(entry: &str) -> Option<(String, String)> {
+    let colon_index = static_scss_top_level_colon_index(entry)?;
+    let name = entry[..colon_index].trim().strip_prefix('$')?;
+    if name.is_empty() || !name.chars().all(static_scss_identifier_char) {
+        return None;
+    }
+    let value = entry[colon_index + 1..].trim();
+    if !static_scss_use_variable_override_value_is_safe(value) {
+        return None;
+    }
+    Some((name.to_string(), value.to_string()))
+}
+
+fn split_static_scss_top_level_commas(content: &str) -> Vec<&str> {
+    let mut entries = Vec::new();
+    let mut start = 0usize;
+    let mut delimiter_stack = Vec::<char>::new();
+    let mut quote = None;
+    let mut escaped = false;
+
+    for (index, ch) in content.char_indices() {
+        if let Some(quote_ch) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '(' | '[' => delimiter_stack.push(ch),
+            ')' if delimiter_stack.last() == Some(&'(') => {
+                delimiter_stack.pop();
+            }
+            ']' if delimiter_stack.last() == Some(&'[') => {
+                delimiter_stack.pop();
+            }
+            ',' if delimiter_stack.is_empty() => {
+                entries.push(&content[start..index]);
+                start = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    entries.push(&content[start..]);
+    entries
+}
+
+fn static_scss_top_level_colon_index(content: &str) -> Option<usize> {
+    let mut delimiter_stack = Vec::<char>::new();
+    let mut quote = None;
+    let mut escaped = false;
+
+    for (index, ch) in content.char_indices() {
+        if let Some(quote_ch) = quote {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '(' | '[' => delimiter_stack.push(ch),
+            ')' if delimiter_stack.last() == Some(&'(') => {
+                delimiter_stack.pop();
+            }
+            ']' if delimiter_stack.last() == Some(&'[') => {
+                delimiter_stack.pop();
+            }
+            ':' if delimiter_stack.is_empty() => return Some(index),
+            _ => {}
+        }
+    }
+    None
+}
+
+fn static_scss_use_variable_override_value_is_safe(value: &str) -> bool {
+    !value.is_empty()
+        && !value
+            .chars()
+            .any(|ch| matches!(ch, ';' | '{' | '}' | '!' | '$' | '@'))
 }
 
 fn apply_transform_source_replacements(
