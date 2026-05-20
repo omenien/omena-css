@@ -92,6 +92,35 @@ pub struct ReducedClassValueProductV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReducedClassValueProductIterationV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_count: usize,
+    pub applied_constraint_count: usize,
+    pub iteration_count: usize,
+    pub converged: bool,
+    pub monotone_witness_valid: bool,
+    pub result_kind: &'static str,
+    pub result_value: AbstractClassValueV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub final_product: Option<ReducedClassValueProductV0>,
+    pub steps: Vec<ReducedClassValueProductIterationStepV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReducedClassValueProductIterationStepV0 {
+    pub iteration: usize,
+    pub operation: &'static str,
+    pub input_value_kind: &'static str,
+    pub result_kind: &'static str,
+    pub changed: bool,
+    pub monotone_with_previous: bool,
+    pub reason: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReducedClassValuePrefixAxisV0 {
     pub prefix: String,
 }

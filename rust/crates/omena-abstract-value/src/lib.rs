@@ -16,9 +16,10 @@ pub use property_value::*;
 pub use provenance::*;
 pub use reduced_product::{
     concatenate_reduced_class_value_products, intersect_reduced_class_value_products,
-    join_reduced_class_value_products, reduce_class_value_product,
-    reduced_class_value_product_is_subset, reduced_class_value_product_matches_string,
-    summarize_reduced_class_value_product, summarize_reduced_product_domain,
+    iterate_reduced_class_value_product_constraints, join_reduced_class_value_products,
+    reduce_class_value_product, reduced_class_value_product_is_subset,
+    reduced_class_value_product_matches_string, summarize_reduced_class_value_product,
+    summarize_reduced_product_domain,
 };
 pub use selector_projection::*;
 pub use types::*;

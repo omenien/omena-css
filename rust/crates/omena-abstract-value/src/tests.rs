@@ -14,17 +14,18 @@ use super::{
     concatenate_reduced_class_value_products, derive_selector_projection_certainty,
     exact_class_value, finite_set_class_value, finite_values_from_facts,
     intersect_abstract_class_values, intersect_reduced_class_value_products,
-    join_abstract_class_values, join_reduced_class_value_products,
-    narrow_abstract_property_value_for_pseudo_state, prefix_class_value, prefix_suffix_class_value,
-    project_abstract_value_selectors, reduce_class_value_product,
-    reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
-    reduced_class_value_product_is_subset, reduced_class_value_product_matches_string,
-    reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
-    selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
-    suffix_class_value, summarize_abstract_class_value_provenance_tree,
-    summarize_omena_abstract_value_domain, summarize_omena_abstract_value_flow_analysis,
-    summarize_reduced_class_value_product, top_class_value, value_certainty_from_facts,
-    value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
+    iterate_reduced_class_value_product_constraints, join_abstract_class_values,
+    join_reduced_class_value_products, narrow_abstract_property_value_for_pseudo_state,
+    prefix_class_value, prefix_suffix_class_value, project_abstract_value_selectors,
+    reduce_class_value_product, reduced_abstract_class_value_from_facts,
+    reduced_class_value_derivation_from_facts, reduced_class_value_product_is_subset,
+    reduced_class_value_product_matches_string, reduced_value_domain_kind_from_facts,
+    selector_certainty_from_facts, selector_certainty_shape_kind_from_facts,
+    selector_certainty_shape_label_from_facts, suffix_class_value,
+    summarize_abstract_class_value_provenance_tree, summarize_omena_abstract_value_domain,
+    summarize_omena_abstract_value_flow_analysis, summarize_reduced_class_value_product,
+    top_class_value, value_certainty_from_facts, value_certainty_shape_kind_from_facts,
+    value_certainty_shape_label_from_facts,
 };
 use omena_incremental::OmenaIncrementalDatabaseV0;
 use std::collections::BTreeMap;
@@ -623,6 +624,67 @@ fn exposes_reduced_product_domain_algebra() -> Result<(), &'static str> {
     assert_eq!(concatenated.prefix.as_deref(), Some("btn-"));
     assert_eq!(concatenated.suffix.as_deref(), Some("-active"));
     Ok(())
+}
+
+#[test]
+fn iterates_reduced_product_constraints_with_monotone_witness() {
+    let summary = iterate_reduced_class_value_product_constraints(&[
+        prefix_class_value("btn-", None),
+        suffix_class_value("-active", None),
+        char_inclusion_class_value("a", "abcde-5intv", None, false),
+    ]);
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(
+        summary.product,
+        "omena-abstract-value.reduced-product-iteration"
+    );
+    assert_eq!(summary.input_count, 3);
+    assert_eq!(summary.applied_constraint_count, 3);
+    assert_eq!(summary.iteration_count, 3);
+    assert!(summary.converged);
+    assert!(summary.monotone_witness_valid);
+    assert_eq!(summary.result_kind, "composite");
+    assert_eq!(
+        summary.result_value,
+        AbstractClassValueV0::Composite {
+            prefix: Some("btn-".to_string()),
+            suffix: Some("-active".to_string()),
+            min_length: Some("btn-active".len()),
+            must_chars: "-abceintv".to_string(),
+            may_chars: "-5abcdeintv".to_string(),
+            may_include_other_chars: false,
+            provenance: Some(AbstractClassValueProvenanceV0::CompositeJoin),
+        }
+    );
+    assert!(summary.final_product.is_some());
+    assert!(
+        summary
+            .steps
+            .iter()
+            .all(|step| step.operation == "meetReducedProductConstraint")
+    );
+    assert!(summary.steps.iter().all(|step| step.monotone_with_previous));
+}
+
+#[test]
+fn reduced_product_iteration_collapses_incompatible_axes_to_bottom() {
+    let summary = iterate_reduced_class_value_product_constraints(&[
+        prefix_class_value("btn-", None),
+        prefix_class_value("card-", None),
+    ]);
+
+    assert_eq!(summary.result_kind, "bottom");
+    assert_eq!(summary.result_value, bottom_class_value());
+    assert_eq!(summary.applied_constraint_count, 2);
+    assert_eq!(summary.iteration_count, 2);
+    assert!(summary.converged);
+    assert!(summary.monotone_witness_valid);
+    assert!(summary.final_product.is_none());
+    assert_eq!(
+        summary.steps[1].reason,
+        "incompatible reduced-product axes collapse to bottom"
+    );
 }
 
 #[test]

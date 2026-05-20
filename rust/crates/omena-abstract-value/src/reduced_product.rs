@@ -2,7 +2,8 @@ use crate::domain::{abstract_class_value_kind, composite_min_length_for_constrai
 use crate::{
     AbstractClassValueProvenanceV0, AbstractClassValueV0, CompositeClassValueInputV0,
     ReducedClassValueCharInclusionAxisV0, ReducedClassValuePrefixAxisV0,
-    ReducedClassValueProductDomainV0, ReducedClassValueProductV0, ReducedClassValueSuffixAxisV0,
+    ReducedClassValueProductDomainV0, ReducedClassValueProductIterationStepV0,
+    ReducedClassValueProductIterationV0, ReducedClassValueProductV0, ReducedClassValueSuffixAxisV0,
     bottom_class_value, char_set_for_string, char_set_is_subset, composite_class_value,
     intersect_char_sets, meaningful_longest_common_prefix, meaningful_longest_common_suffix,
     prefix_suffix_class_value, top_class_value, union_char_sets,
@@ -127,6 +128,94 @@ pub fn reduced_class_value_product_matches_string(
     product.matches_string(candidate)
 }
 
+pub fn iterate_reduced_class_value_product_constraints(
+    values: &[AbstractClassValueV0],
+) -> ReducedClassValueProductIterationV0 {
+    let mut current = reduce_class_value_product(&top_class_value())
+        .expect("top must always be representable as a reduced product");
+    let mut bottom = false;
+    let mut applied_constraint_count = 0usize;
+    let mut steps = Vec::new();
+
+    for value in values {
+        let input_value_kind = abstract_class_value_kind(value);
+        let Some(input_product) = reduce_class_value_product(value) else {
+            steps.push(ReducedClassValueProductIterationStepV0 {
+                iteration: steps.len() + 1,
+                operation: "skipNonReducedProductInput",
+                input_value_kind,
+                result_kind: abstract_class_value_kind(
+                    &current
+                        .clone()
+                        .into_abstract_value(AbstractClassValueProvenanceV0::CompositeJoin),
+                ),
+                changed: false,
+                monotone_with_previous: true,
+                reason: "exact, finite, and bottom inputs are handled by the outer value lattice",
+            });
+            continue;
+        };
+
+        applied_constraint_count += 1;
+        let previous = current.clone();
+        let Some(next) = current.intersect(&input_product) else {
+            bottom = true;
+            steps.push(ReducedClassValueProductIterationStepV0 {
+                iteration: steps.len() + 1,
+                operation: "meetReducedProductConstraint",
+                input_value_kind,
+                result_kind: "bottom",
+                changed: true,
+                monotone_with_previous: true,
+                reason: "incompatible reduced-product axes collapse to bottom",
+            });
+            break;
+        };
+
+        let monotone_with_previous = next.is_subset_of(&previous);
+        let changed = next != previous;
+        current = next;
+        let result_value = current
+            .clone()
+            .into_abstract_value(AbstractClassValueProvenanceV0::CompositeJoin);
+        steps.push(ReducedClassValueProductIterationStepV0 {
+            iteration: steps.len() + 1,
+            operation: "meetReducedProductConstraint",
+            input_value_kind,
+            result_kind: abstract_class_value_kind(&result_value),
+            changed,
+            monotone_with_previous,
+            reason: "intersection refines Pr x Su x CI axes without widening",
+        });
+    }
+
+    let result_value = if bottom {
+        bottom_class_value()
+    } else {
+        current
+            .clone()
+            .into_abstract_value(AbstractClassValueProvenanceV0::CompositeJoin)
+    };
+    let result_kind = abstract_class_value_kind(&result_value);
+    let final_product = (!bottom).then(|| current.clone().into_product_summary(result_kind));
+    let converged = bottom || reduced_product_constraints_reached_fixed_point(&current, values);
+    let monotone_witness_valid = steps.iter().all(|step| step.monotone_with_previous);
+
+    ReducedClassValueProductIterationV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.reduced-product-iteration",
+        input_count: values.len(),
+        applied_constraint_count,
+        iteration_count: steps.len(),
+        converged,
+        monotone_witness_valid,
+        result_kind,
+        result_value,
+        final_product,
+        steps,
+    }
+}
+
 pub(crate) fn intersect_reduced_product_class_values(
     left: &AbstractClassValueV0,
     right: &AbstractClassValueV0,
@@ -164,6 +253,16 @@ pub(crate) fn reduced_product_class_value_is_subset(
     let left = reduce_class_value_product(left)?;
     let right = reduce_class_value_product(right)?;
     Some(reduced_class_value_product_is_subset(&left, &right))
+}
+
+fn reduced_product_constraints_reached_fixed_point(
+    current: &ReducedClassValueProductDomainV0,
+    values: &[AbstractClassValueV0],
+) -> bool {
+    values
+        .iter()
+        .filter_map(reduce_class_value_product)
+        .all(|constraint| current.intersect(&constraint).as_ref() == Some(current))
 }
 
 impl ReducedClassValueProductDomainV0 {
