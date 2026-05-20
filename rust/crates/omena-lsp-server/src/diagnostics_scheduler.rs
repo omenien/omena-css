@@ -154,8 +154,11 @@ fn open_document_uris_for_diagnostics(state: &LspShellState) -> Vec<String> {
     state
         .open_document_uris
         .iter()
-        .filter(|uri| state.documents.contains_key(uri.as_str()))
-        .cloned()
+        .filter_map(|uri| {
+            state
+                .document(uri.as_str())
+                .map(|document| document.uri.clone())
+        })
         .collect()
 }
 

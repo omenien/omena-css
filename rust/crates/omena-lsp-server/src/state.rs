@@ -154,12 +154,72 @@ impl LspShellState {
     }
 
     pub fn document(&self, uri: &str) -> Option<&LspTextDocumentState> {
-        self.documents.get(uri).or_else(|| {
+        let storage_uri = Self::document_storage_uri(uri);
+        self.documents.get(storage_uri.as_str()).or_else(|| {
             self.documents
                 .iter()
                 .find(|(document_uri, _)| crate::protocol::file_uri_equivalent(document_uri, uri))
                 .map(|(_, document)| document)
         })
+    }
+
+    pub(crate) fn document_storage_uri(uri: &str) -> String {
+        crate::protocol::canonical_file_uri(uri).unwrap_or_else(|| uri.to_string())
+    }
+
+    pub(crate) fn insert_open_document_uri(&mut self, uri: &str) -> String {
+        let storage_uri = Self::document_storage_uri(uri);
+        self.remove_open_document_uri(uri);
+        self.open_document_uris.insert(storage_uri.clone());
+        storage_uri
+    }
+
+    pub(crate) fn remove_open_document_uri(&mut self, uri: &str) {
+        let storage_uri = Self::document_storage_uri(uri);
+        self.open_document_uris.remove(storage_uri.as_str());
+        let equivalent_uris = self
+            .open_document_uris
+            .iter()
+            .filter(|candidate| crate::protocol::file_uri_equivalent(candidate, uri))
+            .cloned()
+            .collect::<Vec<_>>();
+        for candidate in equivalent_uris {
+            self.open_document_uris.remove(candidate.as_str());
+        }
+    }
+
+    pub(crate) fn has_open_document_uri(&self, uri: &str) -> bool {
+        let storage_uri = Self::document_storage_uri(uri);
+        self.open_document_uris.contains(storage_uri.as_str())
+            || self
+                .open_document_uris
+                .iter()
+                .any(|candidate| crate::protocol::file_uri_equivalent(candidate, uri))
+    }
+
+    pub(crate) fn insert_document(&mut self, uri: &str, document: LspTextDocumentState) {
+        let storage_uri = Self::document_storage_uri(uri);
+        self.remove_document_uri(uri);
+        self.documents.insert(storage_uri, document);
+    }
+
+    pub(crate) fn remove_document_uri(&mut self, uri: &str) -> Option<LspTextDocumentState> {
+        let storage_uri = Self::document_storage_uri(uri);
+        let removed = self.documents.remove(storage_uri.as_str());
+        let equivalent_uris = self
+            .documents
+            .keys()
+            .filter(|candidate| crate::protocol::file_uri_equivalent(candidate, uri))
+            .cloned()
+            .collect::<Vec<_>>();
+        for candidate in equivalent_uris {
+            self.documents.remove(candidate.as_str());
+        }
+        removed
+    }
+
+    pub(crate) fn contains_document_uri(&self, uri: &str) -> bool {
+        self.document(uri).is_some()
     }
 
     pub fn workspace_folder(&self, uri: &str) -> Option<&LspWorkspaceFolderState> {

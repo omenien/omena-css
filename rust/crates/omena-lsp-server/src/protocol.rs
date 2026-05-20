@@ -13,6 +13,10 @@ pub(crate) fn path_to_file_uri(path: &Path) -> String {
     )
 }
 
+pub(crate) fn canonical_file_uri(uri: &str) -> Option<String> {
+    file_uri_to_path(uri).map(|path| path_to_file_uri(path.as_path()))
+}
+
 pub(crate) fn normalize_path(path: PathBuf) -> PathBuf {
     if let Some(canonical) = canonicalize_existing_path_or_parent(path.as_path()) {
         return normalize_path_lexical(canonical);

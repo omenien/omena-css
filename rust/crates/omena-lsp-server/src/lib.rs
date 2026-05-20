@@ -135,9 +135,9 @@ fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
         return;
     };
 
-    state.open_document_uris.insert(uri.to_string());
-    state.documents.insert(
-        uri.to_string(),
+    state.insert_open_document_uri(uri);
+    state.insert_document(
+        uri,
         lsp_text_document_state(
             uri.to_string(),
             resolve_workspace_folder_uri(state, uri),
@@ -233,12 +233,12 @@ fn did_close_text_document(state: &mut LspShellState, params: Option<&Value>) {
     else {
         return;
     };
-    state.open_document_uris.remove(uri);
+    state.remove_open_document_uri(uri);
     if is_style_document_uri(uri) && reload_indexed_style_document_from_disk(state, uri) {
         refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
         return;
     }
-    state.documents.remove(uri);
+    state.remove_document_uri(uri);
     if is_style_document_uri(uri) {
         refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
     }
@@ -289,9 +289,14 @@ fn remove_unowned_indexed_documents_for_removed_workspaces(
     if removed_workspace_uris.is_empty() {
         return;
     }
+    let open_document_uris = state.open_document_uris.clone();
     let workspace_runtime_registry = state.workspace_runtime_registry.clone();
     state.documents.retain(|uri, document| {
-        if state.open_document_uris.contains(uri) {
+        if open_document_uris.contains(uri)
+            || open_document_uris
+                .iter()
+                .any(|open_uri| file_uri_equivalent(open_uri, uri))
+        {
             return true;
         }
         let owned_by_removed_workspace =
@@ -334,11 +339,11 @@ fn apply_watched_file_change_to_index(state: &mut LspShellState, uri: &str, chan
     if !is_style_document_uri(uri) {
         return;
     }
-    if state.open_document_uris.contains(uri) {
+    if state.has_open_document_uri(uri) {
         return;
     }
     if change_type == 3 {
-        state.documents.remove(uri);
+        state.remove_document_uri(uri);
         refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
         return;
     }
@@ -349,7 +354,7 @@ fn apply_watched_file_change_to_index(state: &mut LspShellState, uri: &str, chan
 }
 
 pub(crate) fn ensure_style_document_loaded_from_disk(state: &mut LspShellState, uri: &str) -> bool {
-    if state.documents.contains_key(uri) {
+    if state.contains_document_uri(uri) {
         return true;
     }
     reload_indexed_style_document_from_disk(state, uri)
@@ -362,8 +367,8 @@ fn reload_indexed_style_document_from_disk(state: &mut LspShellState, uri: &str)
     let Ok(text) = fs::read_to_string(path) else {
         return false;
     };
-    state.documents.insert(
-        uri.to_string(),
+    state.insert_document(
+        uri,
         lsp_text_document_state(
             uri.to_string(),
             resolve_workspace_folder_uri(state, uri),

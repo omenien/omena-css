@@ -62,7 +62,7 @@ fn index_workspace_style_files_from_dir(
             continue;
         }
         let uri = path_to_file_uri(path.as_path());
-        if state.documents.contains_key(uri.as_str()) {
+        if state.contains_document_uri(uri.as_str()) {
             continue;
         }
         let Ok(text) = fs::read_to_string(path.as_path()) else {
@@ -72,8 +72,8 @@ fn index_workspace_style_files_from_dir(
             .workspace_runtime_registry
             .resolve_owner_uri(uri.as_str())
             .unwrap_or_else(|| workspace_folder_uri.to_string());
-        state.documents.insert(
-            uri.clone(),
+        state.insert_document(
+            uri.as_str(),
             lsp_text_document_state(
                 uri.clone(),
                 Some(workspace_owner_uri),

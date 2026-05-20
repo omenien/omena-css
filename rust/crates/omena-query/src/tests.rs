@@ -6114,6 +6114,57 @@ fn source_provider_candidate_resolution_is_query_owned() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn query_resolves_symlinked_package_style_uri_to_canonical_identity()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = std::env::temp_dir().join(format!(
+        "omena_query_symlinked_package_identity_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
+    let source = root.join("src/App.module.scss");
+    let real_package = root.join(".pnpm/@design+tokens@1.0.0/node_modules/@design/tokens");
+    let linked_scope = root.join("node_modules/@design");
+    let linked_package = linked_scope.join("tokens");
+    let style = real_package.join("src/index.scss");
+    std::fs::create_dir_all(
+        source
+            .parent()
+            .ok_or_else(|| std::io::Error::other("source"))?,
+    )?;
+    std::fs::create_dir_all(
+        style
+            .parent()
+            .ok_or_else(|| std::io::Error::other("style"))?,
+    )?;
+    std::fs::create_dir_all(linked_scope.as_path())?;
+    std::fs::write(&source, r#"@use "@design/tokens" as tokens;"#)?;
+    std::fs::write(
+        real_package.join("package.json"),
+        r#"{"sass":"src/index.scss"}"#,
+    )?;
+    std::fs::write(&style, "$brand: #fff;")?;
+    std::os::unix::fs::symlink(real_package.as_path(), linked_package.as_path())?;
+
+    let resolved_uri = super::resolve_omena_query_style_uri_for_specifier(
+        test_file_uri(source.as_path()).as_str(),
+        Some(test_file_uri(root.as_path()).as_str()),
+        "@design/tokens",
+    );
+    let expected_uri = test_file_uri(std::fs::canonicalize(style)?.as_path());
+
+    assert_eq!(resolved_uri.as_deref(), Some(expected_uri.as_str()));
+    let _ = std::fs::remove_dir_all(root);
+    Ok(())
+}
+
+fn test_file_uri(path: &std::path::Path) -> String {
+    format!("file://{}", path.to_string_lossy())
+}
+
 #[test]
 fn source_candidate_matching_normalizes_percent_encoded_file_uris() {
     let source_range = ParserRangeV0 {
