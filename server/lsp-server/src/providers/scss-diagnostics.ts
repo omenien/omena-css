@@ -289,19 +289,36 @@ function mergeQueryOwnedStyleDiagnostics(
   checkerDiagnostics: readonly Diagnostic[],
 ): Diagnostic[] {
   if (queryDiagnostics.length === 0) return [...checkerDiagnostics];
+  const checkerKeys = new Set(
+    checkerDiagnostics.map((diagnostic) => diagnosticKey(diagnostic.code, diagnostic.range)),
+  );
+  const effectiveQueryDiagnostics = queryDiagnostics.filter((diagnostic) =>
+    shouldKeepQueryOwnedStyleDiagnostic(diagnostic, checkerKeys),
+  );
+  if (effectiveQueryDiagnostics.length === 0) return [...checkerDiagnostics];
   const queryDuplicateKeys = new Set<string>();
-  for (const diagnostic of queryDiagnostics) {
+  for (const diagnostic of effectiveQueryDiagnostics) {
     const checkerCode = checkerDuplicateCodeForQueryCode(diagnostic.code);
     if (checkerCode) {
       queryDuplicateKeys.add(diagnosticKey(checkerCode, diagnostic.range));
     }
   }
   return [
-    ...queryDiagnostics,
+    ...effectiveQueryDiagnostics,
     ...checkerDiagnostics.filter(
       (diagnostic) => !queryDuplicateKeys.has(diagnosticKey(diagnostic.code, diagnostic.range)),
     ),
   ];
+}
+
+function shouldKeepQueryOwnedStyleDiagnostic(
+  diagnostic: Diagnostic,
+  checkerKeys: ReadonlySet<string>,
+): boolean {
+  if (diagnostic.code !== "missingSassSymbol") return true;
+  // omena-query currently reports Sass symbol diagnostics from same-file parser
+  // facts; keep cross-file Sass module resolution authoritative in the checker.
+  return checkerKeys.has(diagnosticKey("missing-sass-symbol", diagnostic.range));
 }
 
 function checkerDuplicateCodeForQueryCode(code: Diagnostic["code"]): string | null {
