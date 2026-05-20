@@ -42,7 +42,10 @@ assert.ok(
   "design token cascade surface must expose same-file and workspace readiness signals",
 );
 
-const queryStyle = read("rust/crates/omena-query/src/style.rs");
+const queryStyle = [
+  read("rust/crates/omena-query/src/style.rs"),
+  read("rust/crates/omena-query/src/style/cascade_position.rs"),
+].join("\n");
 assert.ok(
   queryStyle.includes("read_omena_query_cascade_at_position") &&
     queryStyle.includes('cascade_engine: "omena-cascade"'),
