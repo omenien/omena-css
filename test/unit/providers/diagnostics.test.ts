@@ -205,6 +205,16 @@ describe("computeDiagnostics", () => {
               selectorName: "unknonw",
             },
           },
+          {
+            code: "missingResolvedClassValues",
+            severity: "warning",
+            provenance: [
+              "omena-query.source-syntax-index",
+              "omena-query.style-selector-definitions",
+            ],
+            range: INDICATOR_RANGE,
+            message: "Missing class for possible value: 'indicator'.",
+          },
         ],
       };
     };
@@ -220,8 +230,11 @@ describe("computeDiagnostics", () => {
     try {
       const result = await computeDiagnostics(baseParams, deps);
       expect(commands).toEqual([SELECTED_QUERY_RUNNER_COMMANDS.sourceDiagnosticsForFile]);
-      expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
+      expect(result).toHaveLength(2);
+      const missingStaticClass = result.find(
+        (diagnostic) => diagnostic.code === "missingStaticClass",
+      );
+      expect(missingStaticClass).toMatchObject({
         code: "missingStaticClass",
         severity: DiagnosticSeverity.Warning,
         data: {
@@ -234,8 +247,19 @@ describe("computeDiagnostics", () => {
           },
         },
       });
-      expect(result[0]!.message).toContain("Class '.unknonw'");
-      expect(result[0]!.message).toContain("Did you mean 'unknown'?");
+      expect(missingStaticClass?.message).toContain("Class '.unknonw'");
+      expect(missingStaticClass?.message).toContain("Did you mean 'unknown'?");
+      expect(
+        result.find((diagnostic) => diagnostic.code === "missingResolvedClassValues"),
+      ).toMatchObject({
+        code: "missingResolvedClassValues",
+        severity: DiagnosticSeverity.Warning,
+        message: "Missing class for possible value: 'indicator'.",
+        data: {
+          querySeverity: "warning",
+          provenance: ["omena-query.source-syntax-index", "omena-query.style-selector-definitions"],
+        },
+      });
     } finally {
       if (previousBackend === undefined) {
         delete process.env.CME_SELECTED_QUERY_BACKEND;

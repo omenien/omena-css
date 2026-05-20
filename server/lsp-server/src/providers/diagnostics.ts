@@ -200,7 +200,7 @@ function mergeQueryOwnedSourceDiagnostics(
     if (!checkerCode) return [queryDiagnostic];
     const checkerKey = diagnosticKey(checkerCode, queryDiagnostic.range);
     const checkerDiagnostic = checkerByQueryDuplicateKey.get(checkerKey);
-    if (!checkerDiagnostic) return [];
+    if (!checkerDiagnostic) return [queryDiagnostic];
     consumedCheckerKeys.add(checkerKey);
     return [mergeQueryDiagnosticWithCheckerData(queryDiagnostic, checkerDiagnostic)];
   });

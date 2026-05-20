@@ -8,6 +8,7 @@ import { WorkspaceStyleDependencyGraph } from "../server/engine-core-ts/src/core
 import { NullSemanticWorkspaceReferenceIndex } from "../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import { SourceFileCache } from "../server/engine-core-ts/src/core/ts/source-file-cache";
 import type { TypeResolver } from "../server/engine-core-ts/src/core/ts/type-resolver";
+import { UNRESOLVABLE_TYPE } from "../server/engine-core-ts/src/core/ts/type-resolver";
 import { DEFAULT_SETTINGS } from "../server/engine-core-ts/src/settings";
 import { runRustSelectedQueryBackendJsonAsync } from "../server/engine-host-node/src/selected-query-backend";
 import { computeDiagnostics } from "../server/lsp-server/src/providers/diagnostics";
@@ -16,13 +17,16 @@ import type { ProviderDeps } from "../server/lsp-server/src/providers/provider-d
 const SOURCE_PATH = "/workspace/src/Button.tsx";
 const SOURCE_URI = "file:///workspace/src/Button.tsx";
 const STYLE_PATH = "/workspace/src/Button.module.scss";
-const STYLE_SOURCE = ".known {}\n";
+const STYLE_SOURCE = ".root {}\n.chip {}\n";
 const SOURCE = [
-  'import classNames from "classnames/bind";',
+  'import bind from "classnames/bind";',
   'import styles from "./Button.module.scss";',
-  "const cx = classNames.bind(styles);",
-  "export function Button() {",
-  '  return <div className={cx("missing")} />;',
+  'import missing from "./Missing.module.scss";',
+  "const cx = bind.bind(styles);",
+  'const variant = Math.random() > 0.5 ? "chip" : "ghost";',
+  'const dynamicPrefix = "lost-" + suffix;',
+  "export function Button({ suffix }) {",
+  '  return <div className={cx("ghost", variant, dynamicPrefix, `empty-${suffix}`)} data-x={styles.ghost} />;',
   "}",
   "",
 ].join("\n");
@@ -49,7 +53,10 @@ async function main(): Promise<void> {
       max: 10,
     });
     const typeResolver: TypeResolver = {
-      resolve: () => null,
+      resolve: (_filePath, variableName) =>
+        variableName === "variant"
+          ? { kind: "union", values: ["chip", "ghost"] }
+          : UNRESOLVABLE_TYPE,
       invalidate: () => {},
       clear: () => {},
     };
@@ -95,21 +102,29 @@ async function main(): Promise<void> {
       },
       deps,
     );
-    const missing = diagnostics.find((diagnostic) => diagnostic.code === "missingStaticClass");
-    assert(missing, "expected omena-query-owned missingStaticClass diagnostic");
-    assert.equal(missing.severity, DiagnosticSeverity.Warning);
-    assert.deepEqual(missing.data?.querySeverity, "warning");
-    assert.deepEqual(missing.data?.provenance, [
-      "omena-query.source-syntax-index",
-      "omena-query.style-selector-definitions",
-    ]);
-    assert.deepEqual(missing.data?.createSelector?.selectorName, "missing");
+    const byCode = new Map(diagnostics.map((diagnostic) => [diagnostic.code, diagnostic]));
+    for (const code of [
+      "missingStaticClass",
+      "missingResolvedClassValues",
+      "missingResolvedClassDomain",
+      "missingTemplatePrefix",
+    ]) {
+      const diagnostic = byCode.get(code);
+      assert(diagnostic, `expected omena-query-owned ${code} diagnostic`);
+      assert.equal(diagnostic.severity, DiagnosticSeverity.Warning);
+      assert.deepEqual(diagnostic.data?.querySeverity, "warning");
+      assert.deepEqual(diagnostic.data?.provenance, [
+        "omena-query.source-syntax-index",
+        "omena-query.style-selector-definitions",
+      ]);
+    }
+    assert.deepEqual(byCode.get("missingStaticClass")?.data?.createSelector?.selectorName, "ghost");
 
     process.stdout.write(
       [
         "validated source diagnostics query consumer:",
         "provider=LSP",
-        "rule=missingStaticClass",
+        "rules=missingStaticClass,missingResolvedClassValues,missingResolvedClassDomain,missingTemplatePrefix",
         "provenance=omena-query",
         "styleSource=open-document",
       ].join(" ") + "\n",
