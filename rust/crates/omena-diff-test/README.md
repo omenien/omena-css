@@ -7,3 +7,8 @@ kept only as a baseline.
 
 The crate is part of the parser cutover readiness path. Product consumers
 should continue to depend on `omena-query` rather than this harness.
+
+It also carries the M3 `cme-fixture-v0` seed corpus for future
+`omena-testkit` promotion. Those seeds are intentionally small: they preserve
+Sass-language, cascade-proof, provenance, and abstract-value cases without
+turning M3 into the full M4 testkit migration.
