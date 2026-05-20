@@ -243,6 +243,57 @@ void (async () => {
   assert.equal(summary.product, "omena-query.selected-query-adapter-capabilities");
   assert.equal(summary.defaultCandidateBackend, "rust-selected-query");
   assert.equal(summary.routingStatus, "runtimeBacked");
+  assert.deepEqual(summary.schemaVersionPolicy, {
+    schemaVersion: "0",
+    product: "omena-query.schema-version-policy",
+    currentVersion: "0",
+    currentVersionLabel: "V0",
+    acceptedVersions: ["0"],
+    deprecatedVersions: [],
+    rejectedVersionPolicy: "rejectUnknownVersionsBeforeExecution",
+    missingVersionPolicy: "rejectMissingSchemaVersionOnExternalInputs",
+    migrationPolicy: [
+      "new versions require additive reader before writer",
+      "old and new versions must run through the same omena-query facade during migration",
+      "schema gate must include current accepted, missing, label-only, and future-version checks",
+      "breaking payload changes require a new numeric schemaVersion and explicit migration adapter",
+    ],
+    compatibilityGate: "rust/omena-query/adapter-capabilities",
+  });
+  assert.deepEqual(
+    summary.schemaVersionChecks.map((check) => ({
+      requestedVersion: check.requestedVersion,
+      accepted: check.accepted,
+      status: check.status,
+      migrationAction: check.migrationAction,
+    })),
+    [
+      {
+        requestedVersion: "0",
+        accepted: true,
+        status: "current",
+        migrationAction: "executeCurrentFacade",
+      },
+      {
+        requestedVersion: "V0",
+        accepted: false,
+        status: "labelOnlyVersionRejected",
+        migrationAction: "sendNumericSchemaVersion",
+      },
+      {
+        requestedVersion: "1",
+        accepted: false,
+        status: "unsupportedVersion",
+        migrationAction: "rejectBeforeExecution",
+      },
+      {
+        requestedVersion: null,
+        accepted: false,
+        status: "missingVersion",
+        migrationAction: "rejectBeforeExecution",
+      },
+    ],
+  );
   assert.deepEqual([...summary.requiredInputContracts].toSorted(), [
     "CompletionAtInputV0",
     "ConsumerStyleSourceBuildInputV0",

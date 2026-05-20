@@ -24,6 +24,7 @@ pub fn rust_diagnostics_scheduler_contract() -> RustDiagnosticsSchedulerBoundary
         event_policy: vec![
             "publishOnOpenChangeClose",
             "refreshSourceDiagnosticsForStyleChanges",
+            "dedupeWatchedStyleDiagnostics",
             "refreshOpenDocumentsOnConfigurationChange",
             "refreshOpenDocumentsAfterWorkspaceIndexing",
         ],
@@ -111,11 +112,15 @@ fn diagnostics_for_text_document_event(
 
 fn diagnostics_for_watched_files(state: &LspShellState, uris: Vec<String>) -> Vec<Value> {
     let mut outputs = Vec::new();
+    let mut style_uris_to_refresh = BTreeSet::new();
     let mut source_uris_to_refresh = BTreeSet::new();
     for uri in uris
         .into_iter()
         .filter(|uri| is_style_document_uri(uri.as_str()))
     {
+        style_uris_to_refresh.insert(uri);
+    }
+    for uri in style_uris_to_refresh {
         outputs.push(publish_diagnostics_notification(
             uri.as_str(),
             resolve_document_diagnostics_for_uri(state, uri.as_str()),

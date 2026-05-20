@@ -806,10 +806,36 @@ export interface OmenaQuerySelectedQueryRunnerCommandV0 {
   readonly outputProduct: string;
 }
 
+export interface OmenaQuerySchemaVersionPolicyV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly currentVersion: string;
+  readonly currentVersionLabel: string;
+  readonly acceptedVersions: readonly string[];
+  readonly deprecatedVersions: readonly string[];
+  readonly rejectedVersionPolicy: string;
+  readonly missingVersionPolicy: string;
+  readonly migrationPolicy: readonly string[];
+  readonly compatibilityGate: string;
+}
+
+export interface OmenaQuerySchemaVersionCheckV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly requestedVersion: string | null;
+  readonly currentVersion: string;
+  readonly accepted: boolean;
+  readonly status: string;
+  readonly migrationAction: string;
+  readonly reason: string;
+}
+
 export interface OmenaQuerySelectedQueryAdapterCapabilitiesV0 {
   readonly schemaVersion: string;
   readonly product: string;
   readonly defaultCandidateBackend: string;
+  readonly schemaVersionPolicy: OmenaQuerySchemaVersionPolicyV0;
+  readonly schemaVersionChecks: readonly OmenaQuerySchemaVersionCheckV0[];
   readonly backendKinds: readonly OmenaQuerySelectedQueryBackendCapabilityV0[];
   readonly runnerCommands: readonly OmenaQuerySelectedQueryRunnerCommandV0[];
   readonly expressionSemanticsPayloadContracts: readonly string[];

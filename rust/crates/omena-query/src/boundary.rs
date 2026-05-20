@@ -7,9 +7,10 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
     let selector_usage_query_count = fragment_bundle.selector_usage.fragments.len();
 
     OmenaQueryBoundarySummaryV0 {
-        schema_version: "0",
+        schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
         product: "omena-query.boundary",
         query_engine_name: "omena-query",
+        schema_version_policy: summarize_omena_query_schema_version_policy(),
         input_version: input.version.clone(),
         abstract_value_domain: summarize_omena_abstract_value_domain(),
         selected_query_adapter_capabilities:
@@ -110,7 +111,7 @@ pub fn summarize_omena_query_evaluation_runtime(
         summarize_omena_query_expression_domain_incremental_flow_analysis(input, runtime);
 
     OmenaQueryEvaluationRuntimeSummaryV0 {
-        schema_version: "0",
+        schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
         product: "omena-query.evaluation-runtime",
         input_version: input.version.clone(),
         selected_query_adapter_capabilities,
@@ -145,9 +146,16 @@ pub fn summarize_omena_query_evaluation_runtime(
 pub fn summarize_omena_query_selected_query_adapter_capabilities()
 -> SelectedQueryAdapterCapabilitiesV0 {
     SelectedQueryAdapterCapabilitiesV0 {
-        schema_version: "0",
+        schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
         product: "omena-query.selected-query-adapter-capabilities",
         default_candidate_backend: "rust-selected-query",
+        schema_version_policy: summarize_omena_query_schema_version_policy(),
+        schema_version_checks: vec![
+            check_omena_query_schema_version(Some(OMENA_QUERY_CURRENT_SCHEMA_VERSION)),
+            check_omena_query_schema_version(Some(OMENA_QUERY_CURRENT_SCHEMA_VERSION_LABEL)),
+            check_omena_query_schema_version(Some("1")),
+            check_omena_query_schema_version(None),
+        ],
         backend_kinds: vec![
             SelectedQueryBackendCapabilityV0 {
                 backend_kind: "typescript-current",
@@ -406,5 +414,72 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "queryEvaluationRuntime",
         ],
         routing_status: "runtimeBacked",
+    }
+}
+
+pub fn summarize_omena_query_schema_version_policy() -> OmenaQuerySchemaVersionPolicyV0 {
+    OmenaQuerySchemaVersionPolicyV0 {
+        schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+        product: "omena-query.schema-version-policy",
+        current_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+        current_version_label: OMENA_QUERY_CURRENT_SCHEMA_VERSION_LABEL,
+        accepted_versions: vec![OMENA_QUERY_CURRENT_SCHEMA_VERSION],
+        deprecated_versions: Vec::new(),
+        rejected_version_policy: "rejectUnknownVersionsBeforeExecution",
+        missing_version_policy: "rejectMissingSchemaVersionOnExternalInputs",
+        migration_policy: vec![
+            "new versions require additive reader before writer",
+            "old and new versions must run through the same omena-query facade during migration",
+            "schema gate must include current accepted, missing, label-only, and future-version checks",
+            "breaking payload changes require a new numeric schemaVersion and explicit migration adapter",
+        ],
+        compatibility_gate: "rust/omena-query/adapter-capabilities",
+    }
+}
+
+pub fn check_omena_query_schema_version(
+    requested_version: Option<&str>,
+) -> OmenaQuerySchemaVersionCheckV0 {
+    match requested_version {
+        Some(OMENA_QUERY_CURRENT_SCHEMA_VERSION) => OmenaQuerySchemaVersionCheckV0 {
+            schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+            product: "omena-query.schema-version-check",
+            requested_version: Some(OMENA_QUERY_CURRENT_SCHEMA_VERSION.to_string()),
+            current_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+            accepted: true,
+            status: "current",
+            migration_action: "executeCurrentFacade",
+            reason: "requested schemaVersion is the current numeric wire version",
+        },
+        Some(OMENA_QUERY_CURRENT_SCHEMA_VERSION_LABEL) => OmenaQuerySchemaVersionCheckV0 {
+            schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+            product: "omena-query.schema-version-check",
+            requested_version: Some(OMENA_QUERY_CURRENT_SCHEMA_VERSION_LABEL.to_string()),
+            current_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+            accepted: false,
+            status: "labelOnlyVersionRejected",
+            migration_action: "sendNumericSchemaVersion",
+            reason: "V0 is a Rust type label; external payloads must use numeric schemaVersion 0",
+        },
+        Some(version) => OmenaQuerySchemaVersionCheckV0 {
+            schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+            product: "omena-query.schema-version-check",
+            requested_version: Some(version.to_string()),
+            current_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+            accepted: false,
+            status: "unsupportedVersion",
+            migration_action: "rejectBeforeExecution",
+            reason: "no migration adapter is registered for this schemaVersion",
+        },
+        None => OmenaQuerySchemaVersionCheckV0 {
+            schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+            product: "omena-query.schema-version-check",
+            requested_version: None,
+            current_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+            accepted: false,
+            status: "missingVersion",
+            migration_action: "rejectBeforeExecution",
+            reason: "external payloads must carry schemaVersion explicitly",
+        },
     }
 }

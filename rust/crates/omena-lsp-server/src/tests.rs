@@ -3493,6 +3493,87 @@ fn refreshes_open_document_diagnostics_after_initialized_indexing() {
 }
 
 #[test]
+fn dedupes_watched_style_diagnostics_notifications() {
+    let workspace_uri = "file:///workspace-dedupe";
+    let source_uri = "file:///workspace-dedupe/src/App.tsx";
+    let style_uri = "file:///workspace-dedupe/src/App.module.scss";
+    let mut state = LspShellState::default();
+
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "workspace-dedupe",
+                    },
+                ],
+            },
+        }),
+    );
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": style_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".root { color: red; }",
+                },
+            },
+        }),
+    );
+    let _ = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": source_uri,
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": "import styles from \"./App.module.scss\";\nconst view = <div className={styles.root} />;",
+                },
+            },
+        }),
+    );
+
+    let outputs = handle_lsp_message_outputs(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "workspace/didChangeWatchedFiles",
+            "params": {
+                "changes": [
+                    {
+                        "uri": style_uri,
+                        "type": 2,
+                    },
+                    {
+                        "uri": style_uri,
+                        "type": 2,
+                    },
+                ],
+            },
+        }),
+    );
+    let published_uris = outputs
+        .iter()
+        .filter_map(|value| value.pointer("/params/uri").and_then(Value::as_str))
+        .collect::<Vec<_>>();
+
+    assert_eq!(published_uris, vec![style_uri, source_uri]);
+}
+
+#[test]
 fn assigns_document_workspace_folder_by_longest_uri_prefix() {
     let mut state = LspShellState::default();
     handle_lsp_message(

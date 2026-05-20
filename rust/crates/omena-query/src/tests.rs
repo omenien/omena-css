@@ -51,7 +51,8 @@ use crate::{
     OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
     OmenaQueryTransformExecutionContextV0, OmenaQueryTransformModuleEvaluationV0,
     OmenaQueryTransformPrintMode, OmenaQueryTransformPrintOptionsV0,
-    default_omena_query_transform_print_options, modern_omena_query_target_feature_support,
+    check_omena_query_schema_version, default_omena_query_transform_print_options,
+    modern_omena_query_target_feature_support, summarize_omena_query_schema_version_policy,
 };
 
 #[test]
@@ -62,6 +63,17 @@ fn summarizes_query_boundary_over_producer_fragments() {
     assert_eq!(summary.schema_version, "0");
     assert_eq!(summary.product, "omena-query.boundary");
     assert_eq!(summary.query_engine_name, "omena-query");
+    assert_eq!(
+        summary.schema_version_policy.product,
+        "omena-query.schema-version-policy"
+    );
+    assert_eq!(summary.schema_version_policy.current_version, "0");
+    assert_eq!(summary.schema_version_policy.current_version_label, "V0");
+    assert_eq!(summary.schema_version_policy.accepted_versions, vec!["0"]);
+    assert_eq!(
+        summary.schema_version_policy.missing_version_policy,
+        "rejectMissingSchemaVersionOnExternalInputs"
+    );
     assert_eq!(summary.input_version, "2");
     assert_eq!(
         summary.abstract_value_domain.product,
@@ -2923,6 +2935,34 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
     );
     assert_eq!(summary.default_candidate_backend, "rust-selected-query");
     assert_eq!(summary.routing_status, "runtimeBacked");
+    assert_eq!(
+        summary.schema_version_policy.product,
+        "omena-query.schema-version-policy"
+    );
+    assert!(
+        summary
+            .schema_version_policy
+            .migration_policy
+            .contains(&"breaking payload changes require a new numeric schemaVersion and explicit migration adapter")
+    );
+    assert!(summary.schema_version_checks.iter().any(|check| {
+        check.requested_version.as_deref() == Some("0")
+            && check.status == "current"
+            && check.accepted
+    }));
+    assert!(summary.schema_version_checks.iter().any(|check| {
+        check.requested_version.as_deref() == Some("V0")
+            && check.status == "labelOnlyVersionRejected"
+            && !check.accepted
+    }));
+    assert!(summary.schema_version_checks.iter().any(|check| {
+        check.requested_version.as_deref() == Some("1")
+            && check.status == "unsupportedVersion"
+            && !check.accepted
+    }));
+    assert!(summary.schema_version_checks.iter().any(|check| {
+        check.requested_version.is_none() && check.status == "missingVersion" && !check.accepted
+    }));
 
     let unified = backend(&summary, "rust-selected-query");
     assert!(unified.is_some());
@@ -3064,6 +3104,42 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
             .adapter_readiness
             .contains(&"queryEvaluationRuntime")
     );
+}
+
+#[test]
+fn classifies_omena_query_schema_versions_before_execution() {
+    let policy = summarize_omena_query_schema_version_policy();
+    assert_eq!(policy.schema_version, "0");
+    assert_eq!(policy.accepted_versions, vec!["0"]);
+    assert!(policy.deprecated_versions.is_empty());
+    assert_eq!(
+        policy.rejected_version_policy,
+        "rejectUnknownVersionsBeforeExecution"
+    );
+    assert_eq!(
+        policy.compatibility_gate,
+        "rust/omena-query/adapter-capabilities"
+    );
+
+    let current = check_omena_query_schema_version(Some("0"));
+    assert!(current.accepted);
+    assert_eq!(current.status, "current");
+    assert_eq!(current.migration_action, "executeCurrentFacade");
+
+    let label = check_omena_query_schema_version(Some("V0"));
+    assert!(!label.accepted);
+    assert_eq!(label.status, "labelOnlyVersionRejected");
+    assert_eq!(label.migration_action, "sendNumericSchemaVersion");
+
+    let future = check_omena_query_schema_version(Some("1"));
+    assert!(!future.accepted);
+    assert_eq!(future.status, "unsupportedVersion");
+    assert_eq!(future.migration_action, "rejectBeforeExecution");
+
+    let missing = check_omena_query_schema_version(None);
+    assert!(!missing.accepted);
+    assert_eq!(missing.status, "missingVersion");
+    assert_eq!(missing.migration_action, "rejectBeforeExecution");
 }
 
 #[test]

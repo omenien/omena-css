@@ -1,11 +1,15 @@
 use super::*;
 
+pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION: &str = "0";
+pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION_LABEL: &str = "V0";
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryBoundarySummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub query_engine_name: &'static str,
+    pub schema_version_policy: OmenaQuerySchemaVersionPolicyV0,
     pub input_version: String,
     pub abstract_value_domain: AbstractValueDomainSummaryV0,
     pub selected_query_adapter_capabilities: SelectedQueryAdapterCapabilitiesV0,
@@ -55,12 +59,42 @@ pub struct SelectedQueryAdapterCapabilitiesV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub default_candidate_backend: &'static str,
+    pub schema_version_policy: OmenaQuerySchemaVersionPolicyV0,
+    pub schema_version_checks: Vec<OmenaQuerySchemaVersionCheckV0>,
     pub backend_kinds: Vec<SelectedQueryBackendCapabilityV0>,
     pub runner_commands: Vec<SelectedQueryRunnerCommandV0>,
     pub expression_semantics_payload_contracts: Vec<&'static str>,
     pub required_input_contracts: Vec<&'static str>,
     pub adapter_readiness: Vec<&'static str>,
     pub routing_status: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySchemaVersionPolicyV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub current_version: &'static str,
+    pub current_version_label: &'static str,
+    pub accepted_versions: Vec<&'static str>,
+    pub deprecated_versions: Vec<&'static str>,
+    pub rejected_version_policy: &'static str,
+    pub missing_version_policy: &'static str,
+    pub migration_policy: Vec<&'static str>,
+    pub compatibility_gate: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQuerySchemaVersionCheckV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub requested_version: Option<String>,
+    pub current_version: &'static str,
+    pub accepted: bool,
+    pub status: &'static str,
+    pub migration_action: &'static str,
+    pub reason: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

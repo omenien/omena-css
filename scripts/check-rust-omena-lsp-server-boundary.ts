@@ -238,6 +238,7 @@ assert.equal(rustSummary.diagnosticsScheduler.schedulingModel, "deterministicNot
 assert.ok(
   rustSummary.diagnosticsScheduler.eventPolicy.includes("refreshSourceDiagnosticsForStyleChanges"),
 );
+assert.ok(rustSummary.diagnosticsScheduler.eventPolicy.includes("dedupeWatchedStyleDiagnostics"));
 assert.ok(
   rustSummary.diagnosticsScheduler.requestPathPolicy.includes(
     "noNodeDiagnosticsSchedulerOnRustLspPath",
