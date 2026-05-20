@@ -239,6 +239,7 @@
     "explain:expression": "node --import tsx ./scripts/explain-expression.ts",
     "check:code-action-query-consumer": "node --import tsx ./scripts/check-code-action-query-consumer.ts",
     "check:completion-query-consumer": "node --import tsx ./scripts/check-completion-query-consumer.ts",
+    "check:rename-query-consumer": "node --import tsx ./scripts/check-rename-query-consumer.ts",
     "check:source-diagnostics-query-consumer": "node --import tsx ./scripts/check-source-diagnostics-query-consumer.ts",
     "check:style-diagnostics-query-consumer": "node --import tsx ./scripts/check-style-diagnostics-query-consumer.ts",
     "explain:expression-query-consumer": "node --import tsx ./scripts/check-explain-expression-query-consumer.ts",

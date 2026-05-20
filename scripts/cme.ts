@@ -25,6 +25,11 @@ function main(argv: readonly string[]): void {
     return;
   }
 
+  if (command === "rename") {
+    runScript("rename-selector.ts", argv.slice(1));
+    return;
+  }
+
   process.stderr.write(`Unknown cme command: ${command}\n`);
   process.stderr.write(buildHelpText());
   process.exitCode = 2;
@@ -55,15 +60,24 @@ function buildHelpText(): string {
     "Usage:",
     "  pnpm cme explain <file>:<line>:<column> [options]",
     "  pnpm cme explain expression <file>:<line>:<column> [options]",
+    "  pnpm cme rename selector <selector> <new-name> --dry-run [options]",
     "",
     "Commands:",
     "  explain             Explain a source class expression and its value provenance",
     "  explain expression  Alias for explain",
+    "  rename selector     Plan a CSS Module selector rename through omena-query",
     "",
     "Options for explain:",
     "  --root <path>       Workspace root (defaults to cwd)",
     "  --json              Emit JSON instead of text",
     "  --help, -h          Show command help",
+    "",
+    "Options for rename selector:",
+    "  --root <path>          Workspace root (defaults to cwd)",
+    "  --target-style <path>  Restrict edits to one CSS Module target",
+    "  --dry-run             Print the planned workspace edits without writing files",
+    "  --json                Emit JSON instead of text",
+    "  --help, -h            Show command help",
     "",
   ].join("\n");
 }
