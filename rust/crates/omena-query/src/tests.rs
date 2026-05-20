@@ -17,14 +17,15 @@ use super::{
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     execute_omena_query_transform_passes_from_source, list_omena_query_transform_pass_summaries,
-    summarize_omena_query_boundary, summarize_omena_query_consumer_check_style_source,
-    summarize_omena_query_evaluation_runtime,
+    summarize_omena_query_analyzed_graph, summarize_omena_query_boundary,
+    summarize_omena_query_consumer_check_style_source,
+    summarize_omena_query_custom_property_annotations, summarize_omena_query_evaluation_runtime,
     summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_expression_semantics_canonical_producer_signal,
-    summarize_omena_query_expression_semantics_query_fragments,
+    summarize_omena_query_expression_semantics_query_fragments, summarize_omena_query_fast_facts,
     summarize_omena_query_fragment_bundle,
     summarize_omena_query_omena_parser_css_modules_intermediate,
     summarize_omena_query_omena_parser_lex, summarize_omena_query_omena_parser_style_facts,
@@ -220,6 +221,13 @@ fn summarizes_query_boundary_over_producer_fragments() {
             .ready_surfaces
             .contains(&"omenaParserPublicContractTypes")
     );
+    assert!(summary.ready_surfaces.contains(&"fastFactsV0"));
+    assert!(summary.ready_surfaces.contains(&"analyzedGraphV0"));
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"customPropertyAnnotations")
+    );
     assert!(summary.next_decoupling_targets.is_empty());
     assert!(
         summary
@@ -326,6 +334,53 @@ fn exposes_omena_parser_style_fact_surface() {
         vec!["@use", "@value", "@value", "@value", "@keyframes"]
     );
     assert_eq!(summary.parser_error_count, 0);
+}
+
+#[test]
+fn exposes_fast_facts_analyzed_graph_and_custom_property_annotations() {
+    let source = r#"
+      @use "tokens";
+      :root { --surface: #fff; }
+      .card { color: var(--surface); }
+      .card:hover { color: var(--accent); }
+    "#;
+
+    let fast_facts = summarize_omena_query_fast_facts("Card.module.scss", source);
+    assert_eq!(fast_facts.schema_version, "0");
+    assert_eq!(fast_facts.product, "omena-query.fast-facts");
+    assert_eq!(fast_facts.tier, "fastFactsV0");
+    assert_eq!(fast_facts.language, "scss");
+    assert_eq!(fast_facts.selector_count, 2);
+    assert_eq!(fast_facts.custom_property_count, 3);
+    assert_eq!(fast_facts.module_edge_count, 1);
+
+    let graph = summarize_omena_query_analyzed_graph("Card.module.scss", source);
+    assert_eq!(graph.product, "omena-query.analyzed-graph");
+    assert_eq!(graph.tier, "analyzedGraphV0");
+    assert_eq!(graph.fast_facts.selector_count, fast_facts.selector_count);
+    assert!(graph.graph_kinds.contains(&"customPropertyFacts"));
+    assert!(graph.node_count >= fast_facts.selector_count);
+
+    let annotations = summarize_omena_query_custom_property_annotations("Card.module.scss", source);
+    assert_eq!(
+        annotations.product,
+        "omena-query.custom-property-annotations"
+    );
+    assert_eq!(annotations.annotation_count, 2);
+    assert!(annotations.annotations.iter().any(|annotation| {
+        annotation.name == "--surface"
+            && annotation.declaration_count == 1
+            && annotation.reference_count == 1
+            && annotation.annotation_kind == "declarationAndReference"
+            && annotation.participates_in_fixed_point
+    }));
+    assert!(annotations.annotations.iter().any(|annotation| {
+        annotation.name == "--accent"
+            && annotation.declaration_count == 0
+            && annotation.reference_count == 1
+            && annotation.annotation_kind == "reference"
+            && !annotation.participates_in_fixed_point
+    }));
 }
 
 #[test]

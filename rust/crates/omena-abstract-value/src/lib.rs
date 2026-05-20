@@ -2,6 +2,7 @@ mod algebra;
 mod domain;
 mod facts;
 mod flow;
+mod property_value;
 mod provenance;
 mod reduced_product;
 mod selector_projection;
@@ -11,6 +12,7 @@ pub use algebra::*;
 pub use domain::*;
 pub use facts::*;
 pub use flow::*;
+pub use property_value::*;
 pub use provenance::*;
 pub use reduced_product::{
     concatenate_reduced_class_value_products, intersect_reduced_class_value_products,

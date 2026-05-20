@@ -1,12 +1,12 @@
 use super::{
     AbstractClassValueProvenanceNodeV0, AbstractClassValueProvenanceV0, AbstractClassValueV0,
-    ClassValueControlFlowBlockV0, ClassValueControlFlowGraphV0, ClassValueFlowGraphV0,
-    ClassValueFlowNodeV0, ClassValueFlowTransferV0, CompositeClassValueInputV0,
-    ExternalStringTypeFactsV0, KLimitedCallSiteFlowInputV0, MAX_FINITE_CLASS_VALUES,
-    OneCfaCallSiteFlowInputV0, SelectorProjectionCertaintyV0, abstract_class_value_from_facts,
-    abstract_class_value_is_subset, analyze_class_value_control_flow_graph,
-    analyze_class_value_flow, analyze_class_value_flow_incremental,
-    analyze_class_value_flow_incremental_batch_with_reuse,
+    AbstractPropertyValueCandidateV0, AbstractPropertyValueV0, ClassValueControlFlowBlockV0,
+    ClassValueControlFlowGraphV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
+    ClassValueFlowTransferV0, CompositeClassValueInputV0, ExternalStringTypeFactsV0,
+    KLimitedCallSiteFlowInputV0, MAX_FINITE_CLASS_VALUES, OneCfaCallSiteFlowInputV0,
+    SelectorProjectionCertaintyV0, abstract_class_value_from_facts, abstract_class_value_is_subset,
+    analyze_class_value_control_flow_graph, analyze_class_value_flow,
+    analyze_class_value_flow_incremental, analyze_class_value_flow_incremental_batch_with_reuse,
     analyze_class_value_flow_incremental_with_database,
     analyze_class_value_flow_incremental_with_reuse, analyze_k_limited_call_site_flows,
     analyze_one_cfa_call_site_flows, bottom_class_value, char_inclusion_class_value,
@@ -14,8 +14,9 @@ use super::{
     concatenate_reduced_class_value_products, derive_selector_projection_certainty,
     exact_class_value, finite_set_class_value, finite_values_from_facts,
     intersect_abstract_class_values, intersect_reduced_class_value_products,
-    join_abstract_class_values, join_reduced_class_value_products, prefix_class_value,
-    prefix_suffix_class_value, project_abstract_value_selectors, reduce_class_value_product,
+    join_abstract_class_values, join_reduced_class_value_products,
+    narrow_abstract_property_value_for_pseudo_state, prefix_class_value, prefix_suffix_class_value,
+    project_abstract_value_selectors, reduce_class_value_product,
     reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
     reduced_class_value_product_is_subset, reduced_class_value_product_matches_string,
     reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
@@ -168,6 +169,56 @@ fn maps_constrained_external_string_facts_to_stable_shape_labels() {
     assert_eq!(
         selector_certainty_shape_label_from_facts(&edge, 1, 3),
         "constrained edge selector set (1)"
+    );
+}
+
+#[test]
+fn narrows_property_values_to_single_stylesheet_pseudo_state() {
+    let candidates = vec![
+        property_candidate("color", "black", None),
+        property_candidate("color", "white", Some("hover")),
+        property_candidate("background", "var(--surface)", Some("hover")),
+    ];
+
+    let narrowed =
+        narrow_abstract_property_value_for_pseudo_state("color", Some("hover"), &candidates);
+
+    assert_eq!(narrowed.schema_version, "0");
+    assert_eq!(
+        narrowed.product,
+        "omena-abstract-value.property-value-narrowing"
+    );
+    assert_eq!(narrowed.stylesheet_scope, "singleStylesheet");
+    assert_eq!(narrowed.candidate_count, 3);
+    assert_eq!(narrowed.matched_candidate_count, 2);
+    assert_eq!(
+        narrowed.value,
+        AbstractPropertyValueV0::FiniteSet {
+            property_name: "color".to_string(),
+            values: vec!["black".to_string(), "white".to_string()],
+            pseudo_states: vec!["hover".to_string()],
+        }
+    );
+}
+
+#[test]
+fn narrows_property_values_to_custom_property_reference_annotation_target() {
+    let candidates = vec![property_candidate(
+        "background",
+        "var(--surface)",
+        Some("focus"),
+    )];
+
+    let narrowed =
+        narrow_abstract_property_value_for_pseudo_state("background", Some("focus"), &candidates);
+
+    assert_eq!(
+        narrowed.value,
+        AbstractPropertyValueV0::CustomPropertyReference {
+            property_name: "background".to_string(),
+            custom_property_name: "--surface".to_string(),
+            pseudo_state: Some("focus".to_string()),
+        }
     );
 }
 
@@ -1689,6 +1740,18 @@ fn flow_assign_node(id: &str, facts: ExternalStringTypeFactsV0) -> ClassValueFlo
         id: id.to_string(),
         predecessors: Vec::new(),
         transfer: ClassValueFlowTransferV0::AssignFacts(facts),
+    }
+}
+
+fn property_candidate(
+    property_name: &str,
+    value: &str,
+    pseudo_state: Option<&str>,
+) -> AbstractPropertyValueCandidateV0 {
+    AbstractPropertyValueCandidateV0 {
+        property_name: property_name.to_string(),
+        value: value.to_string(),
+        pseudo_state: pseudo_state.map(str::to_string),
     }
 }
 

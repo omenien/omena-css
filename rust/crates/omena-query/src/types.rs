@@ -280,6 +280,55 @@ pub struct OmenaQueryStyleDocumentSummaryV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct FastFactsV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub tier: &'static str,
+    pub style_path: String,
+    pub language: &'static str,
+    pub selector_count: usize,
+    pub custom_property_count: usize,
+    pub sass_symbol_count: usize,
+    pub module_edge_count: usize,
+    pub parser_error_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalyzedGraphV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub tier: &'static str,
+    pub style_path: String,
+    pub fast_facts: FastFactsV0,
+    pub graph_kinds: Vec<&'static str>,
+    pub node_count: usize,
+    pub edge_count: usize,
+    pub cycle_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCustomPropertyAnnotationSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub style_path: String,
+    pub annotation_count: usize,
+    pub annotations: Vec<OmenaQueryCustomPropertyAnnotationV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCustomPropertyAnnotationV0 {
+    pub name: String,
+    pub declaration_count: usize,
+    pub reference_count: usize,
+    pub annotation_kind: &'static str,
+    pub participates_in_fixed_point: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryStyleContextIndexV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

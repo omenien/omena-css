@@ -7,6 +7,7 @@ mod diagnostics;
 mod parser_facade;
 mod source_refs;
 mod stylesheet_evaluation;
+mod substrate;
 mod transform;
 
 pub use cascade_position::*;
@@ -23,6 +24,7 @@ pub use parser_facade::{
     summarize_omena_query_style_document,
 };
 pub use source_refs::*;
+pub use substrate::*;
 pub use transform::*;
 
 mod cascade_checker;

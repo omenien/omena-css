@@ -167,6 +167,59 @@ pub enum AbstractClassValueV0 {
     Top,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum AbstractPropertyValueV0 {
+    Bottom {
+        property_name: String,
+    },
+    Exact {
+        property_name: String,
+        value: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pseudo_state: Option<String>,
+    },
+    FiniteSet {
+        property_name: String,
+        values: Vec<String>,
+        pseudo_states: Vec<String>,
+    },
+    CustomPropertyReference {
+        property_name: String,
+        custom_property_name: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pseudo_state: Option<String>,
+    },
+    Top {
+        property_name: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbstractPropertyValueCandidateV0 {
+    pub property_name: String,
+    pub value: String,
+    pub pseudo_state: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AbstractPropertyValueNarrowingV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub stylesheet_scope: &'static str,
+    pub property_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requested_pseudo_state: Option<String>,
+    pub candidate_count: usize,
+    pub matched_candidate_count: usize,
+    pub value: AbstractPropertyValueV0,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AbstractClassValueProvenanceV0 {

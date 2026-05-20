@@ -18,6 +18,7 @@ pub fn summarize_omena_abstract_value_domain() -> AbstractValueDomainSummaryV0 {
             "prefixSuffix",
             "charInclusion",
             "composite",
+            "propertyValue",
             "top",
         ],
         max_finite_class_values: MAX_FINITE_CLASS_VALUES,
