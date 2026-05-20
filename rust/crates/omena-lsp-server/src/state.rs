@@ -154,7 +154,12 @@ impl LspShellState {
     }
 
     pub fn document(&self, uri: &str) -> Option<&LspTextDocumentState> {
-        self.documents.get(uri)
+        self.documents.get(uri).or_else(|| {
+            self.documents
+                .iter()
+                .find(|(document_uri, _)| crate::protocol::file_uri_equivalent(document_uri, uri))
+                .map(|(_, document)| document)
+        })
     }
 
     pub fn workspace_folder(&self, uri: &str) -> Option<&LspWorkspaceFolderState> {

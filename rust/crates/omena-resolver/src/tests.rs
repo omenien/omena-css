@@ -4,6 +4,8 @@ use engine_input_producers::{
     TypeFactEntryV2,
 };
 use std::collections::BTreeSet;
+#[cfg(unix)]
+use std::{fs, path::PathBuf, time::SystemTime};
 
 use super::{
     OmenaResolverStylePackageManifestV0, OmenaResolverTsconfigPathMappingV0,
@@ -202,6 +204,38 @@ fn resolves_package_manifest_style_exports() {
             .candidates
             .contains(&"/fake/workspace/node_modules/@design/tokens/dist/theme.css".to_string())
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn resolves_style_modules_by_canonical_filesystem_identity()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = temp_dir("omena_resolver_style_identity")?;
+    let real_src = root.join("real/src");
+    let link_src = root.join("linked-src");
+    fs::create_dir_all(real_src.as_path())?;
+    let app = link_src.join("App.module.scss");
+    let real_tokens = real_src.join("_tokens.scss");
+    fs::write(real_tokens.as_path(), "$brand: red;")?;
+    std::os::unix::fs::symlink(real_src.as_path(), link_src.as_path())?;
+
+    let app_text = app.to_string_lossy().to_string();
+    let real_tokens_text = real_tokens.to_string_lossy().to_string();
+    let available_style_paths = BTreeSet::from([real_tokens_text.as_str()]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        app_text.as_str(),
+        "./tokens",
+        &available_style_paths,
+        &[],
+    );
+
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some(real_tokens_text.as_str())
+    );
+    assert_eq!(resolution.resolution_kind, "relativeStyleModule");
+    let _ = fs::remove_dir_all(root);
+    Ok(())
 }
 
 #[test]
@@ -571,6 +605,16 @@ fn sample_input() -> EngineInputV2 {
             },
         ],
     }
+}
+
+#[cfg(unix)]
+fn temp_dir(prefix: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let suffix = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)?
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!("{prefix}_{suffix}"));
+    fs::create_dir_all(path.as_path())?;
+    Ok(path)
 }
 
 fn range(

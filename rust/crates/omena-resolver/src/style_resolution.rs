@@ -1,4 +1,5 @@
 use super::*;
+use std::fs;
 
 pub fn resolve_omena_resolver_style_module_source(
     from_style_path: &str,
@@ -60,10 +61,8 @@ pub fn summarize_omena_resolver_style_module_resolution_with_tsconfig_paths(
         package_manifests,
         tsconfig_path_mappings,
     );
-    let resolved_style_path = candidates
-        .iter()
-        .find(|candidate| available_style_paths.contains(candidate.as_str()))
-        .cloned();
+    let resolved_style_path =
+        resolve_style_module_candidate_from_available_paths(&candidates, available_style_paths);
     let resolution_kind = if resolved_style_path.is_some() {
         if source_matches_tsconfig_path_mapping(source, tsconfig_path_mappings) {
             "tsconfigPathStyleModule"
@@ -260,6 +259,39 @@ fn substitute_tsconfig_path_pattern(target_pattern: &str, pattern_match: &str) -
 
 fn is_external_style_module_source(source: &str) -> bool {
     source.starts_with("sass:") || source.starts_with("http://") || source.starts_with("https://")
+}
+
+pub fn canonicalize_omena_resolver_style_identity_path(path: &str) -> String {
+    fs::canonicalize(path)
+        .map(normalize_style_path)
+        .unwrap_or_else(|_| normalize_style_path(PathBuf::from(path)))
+}
+
+fn resolve_style_module_candidate_from_available_paths(
+    candidates: &[String],
+    available_style_paths: &BTreeSet<&str>,
+) -> Option<String> {
+    for candidate in candidates {
+        if available_style_paths.contains(candidate.as_str()) {
+            return Some(candidate.clone());
+        }
+    }
+
+    let available_by_identity = available_style_paths
+        .iter()
+        .map(|path| {
+            (
+                canonicalize_omena_resolver_style_identity_path(path),
+                (*path).to_string(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    candidates.iter().find_map(|candidate| {
+        available_by_identity
+            .get(canonicalize_omena_resolver_style_identity_path(candidate).as_str())
+            .cloned()
+    })
 }
 
 fn push_style_module_path_candidates(

@@ -2650,6 +2650,77 @@ fn derives_configured_scss_forward_aware_static_stylesheet_module_evaluation() {
 }
 
 #[test]
+fn shares_configured_scss_module_instances_across_transitive_consumers() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.scss",
+        [
+            (
+                "/tmp/tokens.scss",
+                "$brand: blue !default; .base { color: $brand; }",
+            ),
+            (
+                "/tmp/theme-a.scss",
+                r#"@forward "./tokens" with ($brand: red);"#,
+            ),
+            (
+                "/tmp/theme-b.scss",
+                r#"@forward "./tokens" with ($brand: red);"#,
+            ),
+            (
+                "/tmp/App.module.scss",
+                r#"@use "./theme-a" as a; @use "./theme-b" as b; .button { color: a.$brand; border-color: b.$brand; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    let evaluated_css = summary
+        .context
+        .scss_module_evaluation
+        .as_ref()
+        .map(|evaluation| evaluation.evaluated_css.as_str())
+        .unwrap_or_default();
+    assert_eq!(evaluated_css.matches(".base { color: red; }").count(), 1);
+    assert!(evaluated_css.contains(".button { color: red; border-color: red; }"));
+}
+
+#[test]
+fn separates_configured_scss_module_instances_by_configuration_signature() {
+    let summary = summarize_omena_query_transform_context_from_sources(
+        "/tmp/App.module.scss",
+        [
+            (
+                "/tmp/tokens.scss",
+                "$brand: blue !default; .base { color: $brand; }",
+            ),
+            (
+                "/tmp/theme-red.scss",
+                r#"@forward "./tokens" with ($brand: red);"#,
+            ),
+            (
+                "/tmp/theme-blue.scss",
+                r#"@forward "./tokens" with ($brand: blue);"#,
+            ),
+            (
+                "/tmp/App.module.scss",
+                r#"@use "./theme-red" as redTheme; @use "./theme-blue" as blueTheme; .button { color: redTheme.$brand; border-color: blueTheme.$brand; }"#,
+            ),
+        ],
+        &[],
+    );
+
+    let evaluated_css = summary
+        .context
+        .scss_module_evaluation
+        .as_ref()
+        .map(|evaluation| evaluation.evaluated_css.as_str())
+        .unwrap_or_default();
+    assert_eq!(evaluated_css.matches(".base { color: red; }").count(), 1);
+    assert_eq!(evaluated_css.matches(".base { color: blue; }").count(), 1);
+    assert!(evaluated_css.contains(".button { color: red; border-color: blue; }"));
+}
+
+#[test]
 fn derives_prefixed_scss_forward_aware_static_stylesheet_module_evaluation() {
     let summary = summarize_omena_query_transform_context_from_sources(
         "/tmp/App.module.scss",
@@ -4689,6 +4760,119 @@ fn style_diagnostics_for_file_include_same_file_sass_symbol_lints() -> Result<()
             "Sass mixin '@mixin absent' not found in this file.",
         ]
     );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_for_file_suppresses_sass_builtins_and_hints_imports()
+-> Result<(), &'static str> {
+    let source = r#"@use "sass:color";
+@use "sass:math" as m;
+@use "sass:map" as *;
+@use "sass:meta";
+@import "./legacy";
+.button {
+  color: color.adjust(red);
+  width: m.div(10px, 2);
+  z-index: get(("a": 1), "a");
+  content: meta.inspect(red);
+  padding: $missing;
+}"#;
+    let candidates =
+        super::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+
+    let diagnostics = super::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+    let import_hints = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "deprecatedSassImport")
+        .collect::<Vec<_>>();
+    assert_eq!(import_hints.len(), 1);
+    assert_eq!(import_hints[0].severity, "information");
+
+    let missing_messages = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingSassSymbol")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        missing_messages,
+        vec!["Sass variable '$missing' not found in this file."]
+    );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_for_workspace_file_resolve_sass_module_graph_symbols()
+-> Result<(), &'static str> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: r#"@use "./tokens" as tokens;
+@import "./legacy";
+.button {
+  color: tokens.$token-brand;
+  @include tokens.token-tone;
+  margin: $legacy-gap;
+  border-color: tokens.$token-secret;
+  padding: $missing;
+}"#
+            .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_tokens.scss".to_string(),
+            style_source: r#"@forward "./palette" as token-* show $brand, tone;"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_palette.scss".to_string(),
+            style_source: r#"$brand: red; $secret: blue; @mixin tone { color: $brand; }"#
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_legacy.scss".to_string(),
+            style_source: r#"$legacy-gap: 1rem;"#.to_string(),
+        },
+    ];
+
+    let diagnostics = super::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/tmp/App.module.scss",
+        sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"graphAwareSassSymbolDiagnostics")
+    );
+    let missing_messages = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingSassSymbol")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        missing_messages,
+        vec![
+            "Sass variable '$token-secret' not found in the visible Sass module graph.",
+            "Sass variable '$missing' not found in the visible Sass module graph.",
+        ]
+    );
+    let import_hints = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "deprecatedSassImport")
+        .collect::<Vec<_>>();
+    assert_eq!(import_hints.len(), 1);
     Ok(())
 }
 

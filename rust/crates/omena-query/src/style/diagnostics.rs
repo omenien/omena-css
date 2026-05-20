@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_parser::{
-    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedSelectorFactKind,
+    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedSassModuleEdgeFactKind,
+    ParsedSelectorFactKind,
 };
 
 use super::cascade_checker::summarize_query_cascade_checker_diagnostics;
@@ -9,6 +10,7 @@ use super::parser_facade::collect_omena_query_omena_parser_style_facts_raw;
 use super::*;
 
 const LSP_DIAGNOSTIC_TAG_UNNECESSARY: u8 = 1;
+const LSP_DIAGNOSTIC_TAG_DEPRECATED: u8 = 2;
 
 pub fn summarize_omena_query_missing_custom_property_diagnostics(
     style_uri: &str,
@@ -172,6 +174,14 @@ pub fn summarize_omena_query_missing_sass_symbol_diagnostics(
         if declarations.contains(&key) {
             continue;
         }
+        if is_omena_query_sass_builtin_symbol_reference_resolved(
+            &facts.sass_module_edges,
+            symbol.symbol_kind,
+            symbol.namespace.as_deref(),
+            symbol.name.as_str(),
+        ) {
+            continue;
+        }
 
         let start: u32 = symbol.range.start().into();
         let end: u32 = symbol.range.end().into();
@@ -208,6 +218,135 @@ pub fn summarize_omena_query_missing_sass_symbol_diagnostics(
     diagnostics
 }
 
+pub fn summarize_omena_query_sass_import_deprecation_hints(
+    style_uri: &str,
+    source: &str,
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let dialect = omena_parser_dialect_for_style_path(style_uri);
+    if !matches!(
+        dialect,
+        OmenaParserStyleDialect::Scss | OmenaParserStyleDialect::Sass
+    ) {
+        return Vec::new();
+    }
+
+    let facts = collect_omena_query_omena_parser_style_facts_raw(source, dialect);
+    facts
+        .sass_module_edges
+        .into_iter()
+        .filter(|edge| edge.kind == ParsedSassModuleEdgeFactKind::Import)
+        .map(|edge| {
+            let start: u32 = edge.range.start().into();
+            let end: u32 = edge.range.end().into();
+            OmenaQueryStyleDiagnosticV0 {
+                code: "deprecatedSassImport",
+                severity: "information",
+                provenance: vec![
+                    "omena-parser.sass-module-edges",
+                    "omena-query.sass-import-deprecation-hints",
+                ],
+                range: parser_range_for_byte_span(
+                    source,
+                    ParserByteSpanV0 {
+                        start: start as usize,
+                        end: end as usize,
+                    },
+                ),
+                message: "Sass @import is deprecated; prefer @use or @forward.".to_string(),
+                tags: vec![LSP_DIAGNOSTIC_TAG_DEPRECATED],
+                create_custom_property: None,
+            }
+        })
+        .collect()
+}
+
+pub fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let Some(target) = style_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)
+    else {
+        return Vec::new();
+    };
+    let style_source_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    let facts_by_path = style_fact_entries
+        .iter()
+        .map(|entry| (entry.style_path.as_str(), &entry.facts))
+        .collect::<BTreeMap<_, _>>();
+    let resolution =
+        summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+    let visible_symbols =
+        collect_visible_sass_symbol_keys(target_style_path, &facts_by_path, &resolution);
+    let facts = collect_omena_query_omena_parser_style_facts_raw(
+        target.style_source.as_str(),
+        omena_parser_dialect_for_style_path(target_style_path),
+    );
+    let mut emitted = BTreeSet::new();
+    let mut diagnostics = Vec::new();
+
+    for symbol in facts.sass_symbols {
+        if !omena_query_sass_symbol_fact_kind_is_reference(symbol.kind) {
+            continue;
+        }
+        let key = sass_symbol_key(
+            symbol.symbol_kind,
+            symbol.namespace.clone(),
+            symbol.name.clone(),
+        );
+        if visible_symbols.contains(&key) {
+            continue;
+        }
+        if is_omena_query_sass_builtin_symbol_reference_resolved(
+            &facts.sass_module_edges,
+            symbol.symbol_kind,
+            symbol.namespace.as_deref(),
+            symbol.name.as_str(),
+        ) {
+            continue;
+        }
+
+        let start: u32 = symbol.range.start().into();
+        let end: u32 = symbol.range.end().into();
+        let byte_span = ParserByteSpanV0 {
+            start: start as usize,
+            end: end as usize,
+        };
+        if !emitted.insert((
+            symbol.symbol_kind,
+            symbol.namespace.clone(),
+            symbol.name.clone(),
+            byte_span.start,
+            byte_span.end,
+        )) {
+            continue;
+        }
+        diagnostics.push(OmenaQueryStyleDiagnosticV0 {
+            code: "missingSassSymbol",
+            severity: "warning",
+            provenance: vec![
+                "omena-parser.sass-symbol-facts",
+                "omena-query.graph-aware-sass-diagnostics",
+            ],
+            range: parser_range_for_byte_span(target.style_source.as_str(), byte_span),
+            message: format!(
+                "{} not found in the visible Sass module graph.",
+                format_query_sass_symbol_label(symbol.symbol_kind, symbol.name.as_str())
+            ),
+            tags: Vec::new(),
+            create_custom_property: None,
+        });
+    }
+
+    diagnostics
+}
+
 pub fn summarize_omena_query_style_diagnostics_for_file(
     style_uri: &str,
     source: &str,
@@ -219,6 +358,9 @@ pub fn summarize_omena_query_style_diagnostics_for_file(
         style_uri, source, candidates,
     ));
     diagnostics.extend(summarize_omena_query_missing_keyframes_diagnostics(
+        style_uri, source,
+    ));
+    diagnostics.extend(summarize_omena_query_sass_import_deprecation_hints(
         style_uri, source,
     ));
     diagnostics.extend(summarize_omena_query_missing_sass_symbol_diagnostics(
@@ -235,6 +377,7 @@ pub fn summarize_omena_query_style_diagnostics_for_file(
             "missingCustomPropertyDiagnostics",
             "cascadeAwareDiagnostics",
             "missingKeyframesDiagnostics",
+            "sassImportDeprecationHints",
             "missingSassSymbolDiagnostics",
         ],
     }
@@ -256,6 +399,16 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file(
         target_style_path,
         &target.style_source,
         candidates.candidates.as_slice(),
+    );
+    summary
+        .diagnostics
+        .retain(|diagnostic| diagnostic.code != "missingSassSymbol");
+    summary.diagnostics.extend(
+        summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace(
+            target_style_path,
+            style_sources,
+            package_manifests,
+        ),
     );
     summary.diagnostics.extend(
         summarize_omena_query_css_modules_resolution_style_diagnostics(
@@ -285,7 +438,379 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file(
         "cssModulesValueResolutionDiagnostics",
     );
     push_omena_query_ready_surface(&mut summary.ready_surfaces, "unusedSelectorDiagnostics");
+    push_omena_query_ready_surface(
+        &mut summary.ready_surfaces,
+        "graphAwareSassSymbolDiagnostics",
+    );
     Some(summary)
+}
+
+type SassSymbolKey = (&'static str, Option<String>, String);
+
+fn sass_symbol_key(
+    symbol_kind: &'static str,
+    namespace: Option<String>,
+    name: String,
+) -> SassSymbolKey {
+    (symbol_kind, namespace, name)
+}
+
+fn collect_visible_sass_symbol_keys(
+    target_style_path: &str,
+    facts_by_path: &BTreeMap<&str, &OmenaQueryOmenaParserStyleFactsV0>,
+    resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
+) -> BTreeSet<SassSymbolKey> {
+    let mut visible = BTreeSet::new();
+    if let Some(facts) = facts_by_path.get(target_style_path) {
+        visible.extend(
+            own_sass_symbol_declaration_keys(facts)
+                .into_iter()
+                .map(|(symbol_kind, name)| sass_symbol_key(symbol_kind, None, name)),
+        );
+    }
+
+    for edge in resolution
+        .edges
+        .iter()
+        .filter(|edge| edge.from_style_path == target_style_path)
+    {
+        let exported = if let Some(module_name) = sass_builtin_module_name(edge.source.as_str()) {
+            builtin_sass_symbol_exports(module_name)
+        } else if edge.status == "resolved" {
+            let mut visiting = BTreeSet::new();
+            edge.resolved_style_path
+                .as_deref()
+                .map(|path| {
+                    collect_exported_sass_symbol_keys(
+                        path,
+                        facts_by_path,
+                        resolution,
+                        &mut visiting,
+                    )
+                })
+                .unwrap_or_default()
+        } else {
+            BTreeSet::new()
+        };
+
+        match edge.edge_kind {
+            "sassUse"
+                if edge.namespace_kind == Some("default")
+                    || edge.namespace_kind == Some("alias") =>
+            {
+                if let Some(namespace) = edge.namespace.clone() {
+                    visible.extend(exported.into_iter().map(|(symbol_kind, name)| {
+                        sass_symbol_key(symbol_kind, Some(namespace.clone()), name)
+                    }));
+                }
+            }
+            "sassUse" if edge.namespace_kind == Some("wildcard") => {
+                visible.extend(
+                    exported
+                        .into_iter()
+                        .map(|(symbol_kind, name)| sass_symbol_key(symbol_kind, None, name)),
+                );
+            }
+            "sassImport" => {
+                visible.extend(
+                    exported
+                        .into_iter()
+                        .map(|(symbol_kind, name)| sass_symbol_key(symbol_kind, None, name)),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    visible
+}
+
+fn collect_exported_sass_symbol_keys(
+    style_path: &str,
+    facts_by_path: &BTreeMap<&str, &OmenaQueryOmenaParserStyleFactsV0>,
+    resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
+    visiting: &mut BTreeSet<String>,
+) -> BTreeSet<(&'static str, String)> {
+    if !visiting.insert(style_path.to_string()) {
+        return BTreeSet::new();
+    }
+
+    let mut exported = facts_by_path
+        .get(style_path)
+        .map(|facts| own_sass_symbol_declaration_keys(facts))
+        .unwrap_or_default();
+
+    for edge in resolution
+        .edges
+        .iter()
+        .filter(|edge| edge.from_style_path == style_path)
+        .filter(|edge| edge.edge_kind == "sassForward" || edge.edge_kind == "sassImport")
+    {
+        let module_exports =
+            if let Some(module_name) = sass_builtin_module_name(edge.source.as_str()) {
+                builtin_sass_symbol_exports(module_name)
+            } else if edge.status == "resolved" {
+                edge.resolved_style_path
+                    .as_deref()
+                    .map(|path| {
+                        collect_exported_sass_symbol_keys(path, facts_by_path, resolution, visiting)
+                    })
+                    .unwrap_or_default()
+            } else {
+                BTreeSet::new()
+            };
+
+        for (symbol_kind, name) in module_exports {
+            if !sass_forward_visibility_allows(edge, symbol_kind, name.as_str()) {
+                continue;
+            }
+            let exported_name = if edge.edge_kind == "sassForward" {
+                apply_sass_forward_prefix(edge.forward_prefix.as_deref(), name.as_str())
+            } else {
+                name
+            };
+            exported.insert((symbol_kind, exported_name));
+        }
+    }
+
+    visiting.remove(style_path);
+    exported
+}
+
+fn own_sass_symbol_declaration_keys(
+    facts: &OmenaQueryOmenaParserStyleFactsV0,
+) -> BTreeSet<(&'static str, String)> {
+    facts
+        .sass_symbol_facts
+        .iter()
+        .filter(|fact| is_omena_query_sass_symbol_declaration_kind(fact.kind))
+        .map(|fact| (fact.symbol_kind, fact.name.clone()))
+        .collect()
+}
+
+fn sass_forward_visibility_allows(
+    edge: &OmenaQuerySassModuleEdgeResolutionV0,
+    symbol_kind: &'static str,
+    name: &str,
+) -> bool {
+    let prefixed = apply_sass_forward_prefix(edge.forward_prefix.as_deref(), name);
+    let matches_filter = |filter_name: &String| {
+        filter_name == name
+            || filter_name == prefixed.as_str()
+            || filter_name.trim_start_matches('$') == name
+            || filter_name.trim_start_matches('$') == prefixed.as_str()
+            || (symbol_kind != "variable" && filter_name.trim_start_matches('@') == name)
+    };
+    match edge.visibility_filter_kind {
+        Some("show") => edge.visibility_filter_names.iter().any(matches_filter),
+        Some("hide") => !edge.visibility_filter_names.iter().any(matches_filter),
+        _ => true,
+    }
+}
+
+fn apply_sass_forward_prefix(prefix: Option<&str>, name: &str) -> String {
+    match prefix {
+        Some(prefix) if prefix.contains('*') => prefix.replace('*', name),
+        Some(prefix) => format!("{prefix}{name}"),
+        None => name.to_string(),
+    }
+}
+
+fn is_omena_query_sass_builtin_symbol_reference_resolved(
+    edges: &[omena_parser::ParsedSassModuleEdgeFact],
+    symbol_kind: &'static str,
+    namespace: Option<&str>,
+    name: &str,
+) -> bool {
+    edges
+        .iter()
+        .filter(|edge| edge.kind == ParsedSassModuleEdgeFactKind::Use)
+        .filter_map(|edge| {
+            sass_builtin_module_name(edge.source.as_str()).map(|module| (edge, module))
+        })
+        .any(|(edge, module)| {
+            let namespace_matches =
+                match (namespace, edge.namespace_kind, edge.namespace.as_deref()) {
+                    (Some(reference_namespace), Some("default" | "alias"), Some(use_namespace)) => {
+                        reference_namespace == use_namespace
+                    }
+                    (None, Some("wildcard"), _) => true,
+                    _ => false,
+                };
+            namespace_matches && sass_builtin_module_has_symbol(module, symbol_kind, name)
+        })
+}
+
+fn sass_builtin_module_name(source: &str) -> Option<&str> {
+    source.strip_prefix("sass:")
+}
+
+fn builtin_sass_symbol_exports(module: &str) -> BTreeSet<(&'static str, String)> {
+    let mut exports = BTreeSet::new();
+    for name in sass_builtin_module_function_names(module) {
+        exports.insert(("function", (*name).to_string()));
+    }
+    for name in sass_builtin_module_mixin_names(module) {
+        exports.insert(("mixin", (*name).to_string()));
+    }
+    for name in sass_builtin_module_variable_names(module) {
+        exports.insert(("variable", (*name).to_string()));
+    }
+    exports
+}
+
+fn sass_builtin_module_has_symbol(module: &str, symbol_kind: &'static str, name: &str) -> bool {
+    match symbol_kind {
+        "function" => sass_builtin_module_function_names(module).contains(&name),
+        "mixin" => sass_builtin_module_mixin_names(module).contains(&name),
+        "variable" => sass_builtin_module_variable_names(module).contains(&name),
+        _ => false,
+    }
+}
+
+fn sass_builtin_module_function_names(module: &str) -> &'static [&'static str] {
+    match module {
+        "color" => &[
+            "adjust",
+            "alpha",
+            "blue",
+            "channel",
+            "change",
+            "complement",
+            "desaturate",
+            "fade-in",
+            "fade-out",
+            "grayscale",
+            "green",
+            "hsl",
+            "hsla",
+            "hue",
+            "ie-hex-str",
+            "invert",
+            "is-legacy",
+            "is-missing",
+            "is-powerless",
+            "lighten",
+            "lightness",
+            "mix",
+            "opacify",
+            "opacity",
+            "red",
+            "same",
+            "saturate",
+            "saturation",
+            "scale",
+            "space",
+            "to-gamut",
+            "to-space",
+            "transparentize",
+        ],
+        "math" => &[
+            "abs",
+            "acos",
+            "asin",
+            "atan",
+            "atan2",
+            "ceil",
+            "clamp",
+            "compatible",
+            "cos",
+            "div",
+            "floor",
+            "hypot",
+            "is-unitless",
+            "log",
+            "max",
+            "min",
+            "percentage",
+            "pow",
+            "random",
+            "round",
+            "sin",
+            "sqrt",
+            "tan",
+            "unit",
+        ],
+        "list" => &[
+            "append",
+            "index",
+            "is-bracketed",
+            "join",
+            "length",
+            "separator",
+            "set-nth",
+            "slash",
+            "nth",
+            "zip",
+        ],
+        "map" => &[
+            "deep-merge",
+            "deep-remove",
+            "get",
+            "has-key",
+            "keys",
+            "merge",
+            "remove",
+            "set",
+            "values",
+        ],
+        "string" => &[
+            "index",
+            "insert",
+            "length",
+            "quote",
+            "slice",
+            "split",
+            "to-lower-case",
+            "to-upper-case",
+            "unique-id",
+            "unquote",
+        ],
+        "selector" => &[
+            "append",
+            "extend",
+            "is-superselector",
+            "nest",
+            "parse",
+            "replace",
+            "simple-selectors",
+            "unify",
+        ],
+        "meta" => &[
+            "accepts-content",
+            "calc-args",
+            "calc-name",
+            "call",
+            "content-exists",
+            "feature-exists",
+            "function-exists",
+            "get-function",
+            "global-variable-exists",
+            "inspect",
+            "keywords",
+            "mixin-exists",
+            "module-functions",
+            "module-mixins",
+            "module-variables",
+            "type-of",
+            "variable-exists",
+        ],
+        _ => &[],
+    }
+}
+
+fn sass_builtin_module_mixin_names(module: &str) -> &'static [&'static str] {
+    match module {
+        "meta" => &["load-css"],
+        _ => &[],
+    }
+}
+
+fn sass_builtin_module_variable_names(module: &str) -> &'static [&'static str] {
+    match module {
+        "math" => &["e", "epsilon", "max-safe-integer", "min-safe-integer", "pi"],
+        _ => &[],
+    }
 }
 
 pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(

@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeSet,
+    ffi::OsString,
     fs,
     path::{Component, Path, PathBuf},
 };
@@ -263,6 +264,7 @@ fn hex_value(byte: u8) -> Option<u8> {
 }
 
 fn path_to_file_uri(path: &Path) -> String {
+    let path = normalize_path(path.to_path_buf());
     format!(
         "file://{}",
         percent_encode_uri_path(path.to_string_lossy().as_ref())
@@ -299,6 +301,35 @@ fn percent_encode_uri_path(path: &str) -> String {
 }
 
 fn normalize_path(path: PathBuf) -> PathBuf {
+    if let Some(canonical) = canonicalize_existing_path_or_parent(path.as_path()) {
+        return normalize_path_lexical(canonical);
+    }
+    normalize_path_lexical(path)
+}
+
+fn canonicalize_existing_path_or_parent(path: &Path) -> Option<PathBuf> {
+    if let Ok(canonical) = fs::canonicalize(path) {
+        return Some(canonical);
+    }
+
+    let mut current = path.to_path_buf();
+    let mut suffix = Vec::<OsString>::new();
+    while let Some(parent) = current.parent() {
+        if let Some(file_name) = current.file_name() {
+            suffix.push(file_name.to_os_string());
+        }
+        if let Ok(mut canonical_parent) = fs::canonicalize(parent) {
+            for segment in suffix.iter().rev() {
+                canonical_parent.push(segment);
+            }
+            return Some(canonical_parent);
+        }
+        current = parent.to_path_buf();
+    }
+    None
+}
+
+fn normalize_path_lexical(path: PathBuf) -> PathBuf {
     let mut normalized = PathBuf::new();
     for component in path.components() {
         match component {
@@ -440,6 +471,47 @@ mod tests {
             uri.as_deref(),
             Some(path_to_file_uri(style.as_path()).as_str())
         );
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolves_symlinked_package_style_candidates_to_canonical_uri()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_style_symlinked_package")?;
+        let source = root.join("src/App.module.scss");
+        let real_package = root.join(".pnpm/@design+tokens@1.0.0/node_modules/@design/tokens");
+        let linked_scope = root.join("node_modules/@design");
+        let linked_package = linked_scope.join("tokens");
+        let style = real_package.join("src/index.scss");
+        fs::create_dir_all(
+            style
+                .parent()
+                .ok_or_else(|| std::io::Error::other("style parent"))?,
+        )?;
+        fs::create_dir_all(
+            source
+                .parent()
+                .ok_or_else(|| std::io::Error::other("source parent"))?,
+        )?;
+        fs::create_dir_all(linked_scope.as_path())?;
+        fs::write(&source, "@use \"@design/tokens\";")?;
+        fs::write(
+            real_package.join("package.json"),
+            r#"{"sass":"src/index.scss"}"#,
+        )?;
+        fs::write(&style, "$gap: 1rem;")?;
+        std::os::unix::fs::symlink(real_package.as_path(), linked_package.as_path())?;
+
+        let uri = resolve_omena_bridge_style_uri_for_specifier(
+            path_to_file_uri(source.as_path()).as_str(),
+            Some(path_to_file_uri(root.as_path()).as_str()),
+            "@design/tokens",
+        );
+        let expected_uri = path_to_file_uri(fs::canonicalize(style)?.as_path());
+
+        assert_eq!(uri.as_deref(), Some(expected_uri.as_str()));
         let _ = fs::remove_dir_all(root);
         Ok(())
     }

@@ -431,6 +431,7 @@ fn summarize_sass_module_cross_file_resolution(
                 source: edge.source.clone(),
                 namespace_kind: edge.namespace_kind,
                 namespace: edge.namespace.clone(),
+                forward_prefix: edge.forward_prefix.clone(),
                 visibility_filter_kind: edge.visibility_filter_kind,
                 visibility_filter_names: edge.visibility_filter_names.clone(),
                 resolved_style_path: resolution.resolved_style_path,
@@ -594,6 +595,7 @@ impl<'a> SassModuleGraphClosureCollector<'a> {
                         path: next_path.clone(),
                         namespace_kind: edge.namespace_kind,
                         namespace: edge.namespace.clone(),
+                        forward_prefix: edge.forward_prefix.clone(),
                         visibility_filter_kind: edge.visibility_filter_kind,
                         visibility_filter_names: edge.visibility_filter_names.clone(),
                     });

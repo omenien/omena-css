@@ -442,6 +442,7 @@ pub struct ParsedSassModuleEdgeFact {
     pub source: String,
     pub namespace_kind: Option<&'static str>,
     pub namespace: Option<String>,
+    pub forward_prefix: Option<String>,
     pub visibility_filter_kind: Option<&'static str>,
     pub visibility_filter_names: Vec<String>,
     pub range: TextRange,
@@ -8720,6 +8721,11 @@ fn collect_sass_module_edge_facts_from_tokens(
             } else {
                 (None, Vec::new())
             };
+        let forward_prefix = if kind == ParsedSassModuleEdgeFactKind::Forward {
+            sass_module_forward_prefix(tokens, source_index + 1, end)
+        } else {
+            None
+        };
         push_sass_module_edge_fact(
             &mut edges,
             &mut seen,
@@ -8728,6 +8734,7 @@ fn collect_sass_module_edge_facts_from_tokens(
                 source: source_name,
                 namespace_kind,
                 namespace,
+                forward_prefix,
                 visibility_filter_kind,
                 visibility_filter_names,
                 range: source.range,
@@ -8768,6 +8775,7 @@ fn collect_sass_import_module_edges(
                 source: css_module_value_source_name(*token),
                 namespace_kind: None,
                 namespace: None,
+                forward_prefix: None,
                 visibility_filter_kind: None,
                 visibility_filter_names: Vec::new(),
                 range: token.range,
@@ -8797,6 +8805,16 @@ fn sass_module_use_namespace(
         SyntaxKind::Ident => (Some("alias"), Some(namespace.text.to_string())),
         _ => (Some("invalid"), None),
     }
+}
+
+fn sass_module_forward_prefix(tokens: &[Token<'_>], start: usize, end: usize) -> Option<String> {
+    let as_index = top_level_token_text_index(tokens, start, end, "as")?;
+    let prefix_index = next_non_trivia_token_index_until(tokens, as_index + 1, end)?;
+    let prefix = tokens[prefix_index].text.trim();
+    if prefix.is_empty() {
+        return None;
+    }
+    Some(prefix.to_string())
 }
 
 fn sass_module_forward_visibility_filter(

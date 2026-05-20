@@ -1,9 +1,12 @@
 use crate::LspTextDocumentState;
 use omena_query::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage};
 use serde_json::Value;
+use std::ffi::OsString;
+use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 pub(crate) fn path_to_file_uri(path: &Path) -> String {
+    let path = normalize_path(path.to_path_buf());
     format!(
         "file://{}",
         percent_encode_uri_path(path.to_string_lossy().as_ref())
@@ -11,6 +14,35 @@ pub(crate) fn path_to_file_uri(path: &Path) -> String {
 }
 
 pub(crate) fn normalize_path(path: PathBuf) -> PathBuf {
+    if let Some(canonical) = canonicalize_existing_path_or_parent(path.as_path()) {
+        return normalize_path_lexical(canonical);
+    }
+    normalize_path_lexical(path)
+}
+
+fn canonicalize_existing_path_or_parent(path: &Path) -> Option<PathBuf> {
+    if let Ok(canonical) = fs::canonicalize(path) {
+        return Some(canonical);
+    }
+
+    let mut current = path.to_path_buf();
+    let mut suffix = Vec::<OsString>::new();
+    while let Some(parent) = current.parent() {
+        if let Some(file_name) = current.file_name() {
+            suffix.push(file_name.to_os_string());
+        }
+        if let Ok(mut canonical_parent) = fs::canonicalize(parent) {
+            for segment in suffix.iter().rev() {
+                canonical_parent.push(segment);
+            }
+            return Some(canonical_parent);
+        }
+        current = parent.to_path_buf();
+    }
+    None
+}
+
+fn normalize_path_lexical(path: PathBuf) -> PathBuf {
     let mut normalized = PathBuf::new();
     for component in path.components() {
         match component {

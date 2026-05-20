@@ -1075,7 +1075,7 @@ fn static_stylesheet_module_system_evaluator_label(
 #[derive(Debug, Clone)]
 struct StaticScssModuleUseEvaluation {
     source: String,
-    style_path: String,
+    module_identity_key: String,
     namespace_kind: Option<&'static str>,
     namespace: Option<String>,
     evaluated_css: String,
@@ -1095,6 +1095,7 @@ fn derive_static_scss_module_use_evaluations_for_transform_context(
         return Vec::new();
     }
 
+    let mut emitted_module_identity_keys = BTreeSet::new();
     entry
         .facts
         .sass_module_edges
@@ -1119,6 +1120,8 @@ fn derive_static_scss_module_use_evaluations_for_transform_context(
                 "@use",
                 edge.source.as_str(),
             );
+            let module_identity_key =
+                static_scss_module_instance_identity_key(resolved.as_str(), &variable_overrides);
             let module_context = derive_static_scss_module_context_for_transform_context(
                 resolved.as_str(),
                 source,
@@ -1127,13 +1130,20 @@ fn derive_static_scss_module_use_evaluations_for_transform_context(
                 source_by_path,
                 package_manifests,
                 &mut BTreeSet::new(),
+                &mut emitted_module_identity_keys,
             );
+            let evaluated_css = if emitted_module_identity_keys.insert(module_identity_key.clone())
+            {
+                module_context.evaluated_css
+            } else {
+                String::new()
+            };
             Some(StaticScssModuleUseEvaluation {
                 source: edge.source.clone(),
-                style_path: resolved,
+                module_identity_key,
                 namespace_kind: edge.namespace_kind,
                 namespace: edge.namespace.clone(),
-                evaluated_css: module_context.evaluated_css,
+                evaluated_css,
                 variable_exports: module_context.variable_exports,
             })
         })
@@ -1146,6 +1156,30 @@ struct StaticScssModuleContext {
     variable_exports: BTreeMap<String, String>,
 }
 
+fn static_scss_module_instance_identity_key(
+    style_path: &str,
+    variable_overrides: &BTreeMap<String, String>,
+) -> String {
+    let canonical_path = canonicalize_omena_resolver_style_identity_path(style_path);
+    let mut key = format!("path:{}:{canonical_path}", canonical_path.len());
+    if variable_overrides.is_empty() {
+        key.push_str("|with:none");
+        return key;
+    }
+    key.push_str("|with");
+    for (name, value) in variable_overrides {
+        key.push('|');
+        key.push_str(name.len().to_string().as_str());
+        key.push(':');
+        key.push_str(name);
+        key.push('=');
+        key.push_str(value.len().to_string().as_str());
+        key.push(':');
+        key.push_str(value);
+    }
+    key
+}
+
 fn derive_static_scss_module_context_for_transform_context(
     style_path: &str,
     style_source: &str,
@@ -1154,8 +1188,11 @@ fn derive_static_scss_module_context_for_transform_context(
     source_by_path: &BTreeMap<String, String>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     visited: &mut BTreeSet<String>,
+    emitted_module_identity_keys: &mut BTreeSet<String>,
 ) -> StaticScssModuleContext {
-    if !visited.insert(style_path.to_string()) {
+    let module_identity_key =
+        static_scss_module_instance_identity_key(style_path, variable_overrides);
+    if !visited.insert(module_identity_key.clone()) {
         return StaticScssModuleContext {
             evaluated_css: String::new(),
             variable_exports: BTreeMap::new(),
@@ -1173,6 +1210,7 @@ fn derive_static_scss_module_context_for_transform_context(
         source_by_path,
         package_manifests,
         visited,
+        emitted_module_identity_keys,
     );
     let mut variable_exports = derive_static_scss_stylesheet_module_variable_exports(style_source);
     for forward in &forward_evaluations {
@@ -1187,6 +1225,7 @@ fn derive_static_scss_module_context_for_transform_context(
         style_source,
         OmenaParserStyleDialect::Scss,
         &forward_evaluations,
+        emitted_module_identity_keys,
     );
     let evaluated_css = derive_static_stylesheet_module_evaluation(
         evaluation_source.as_str(),
@@ -1201,7 +1240,7 @@ fn derive_static_scss_module_context_for_transform_context(
         }
     });
 
-    visited.remove(style_path);
+    visited.remove(&module_identity_key);
     StaticScssModuleContext {
         evaluated_css,
         variable_exports,
@@ -1211,7 +1250,7 @@ fn derive_static_scss_module_context_for_transform_context(
 #[derive(Debug, Clone)]
 struct StaticScssModuleForwardEvaluation {
     source: String,
-    style_path: String,
+    module_identity_key: String,
     evaluated_css: String,
     variable_exports: BTreeMap<String, String>,
 }
@@ -1223,6 +1262,7 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
     source_by_path: &BTreeMap<String, String>,
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     visited: &mut BTreeSet<String>,
+    emitted_module_identity_keys: &mut BTreeSet<String>,
 ) -> Vec<StaticScssModuleForwardEvaluation> {
     let facts =
         summarize_omena_query_omena_parser_style_facts(style_source, OmenaParserStyleDialect::Scss);
@@ -1244,6 +1284,8 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
                 "@forward",
                 edge.source.as_str(),
             );
+            let module_identity_key =
+                static_scss_module_instance_identity_key(resolved.as_str(), &variable_overrides);
             let export_prefix =
                 derive_static_scss_forward_export_prefix(style_source, edge.source.as_str());
             let module_context = derive_static_scss_module_context_for_transform_context(
@@ -1254,10 +1296,11 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
                 source_by_path,
                 package_manifests,
                 visited,
+                emitted_module_identity_keys,
             );
             Some(StaticScssModuleForwardEvaluation {
                 source: edge.source.clone(),
-                style_path: resolved,
+                module_identity_key,
                 evaluated_css: module_context.evaluated_css,
                 variable_exports: filter_static_scss_forward_exports(
                     prefix_static_scss_forward_exports(
@@ -1505,7 +1548,7 @@ fn inline_static_scss_use_rules(
     let lexed = lex_omena_query_omena_parser_style_source(source, dialect);
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
-    let mut emitted_style_paths = BTreeSet::<String>::new();
+    let mut emitted_module_identity_keys = BTreeSet::<String>::new();
     let mut depth = 0usize;
     let mut index = 0usize;
 
@@ -1528,7 +1571,9 @@ fn inline_static_scss_use_rules(
                         .iter()
                         .find(|module_use| module_use.source == source_name)
                 {
-                    let replacement = if emitted_style_paths.insert(module_use.style_path.clone()) {
+                    let replacement = if emitted_module_identity_keys
+                        .insert(module_use.module_identity_key.clone())
+                    {
                         module_use.evaluated_css.clone()
                     } else {
                         String::new()
@@ -1550,11 +1595,11 @@ fn inline_static_scss_forward_rules(
     source: &str,
     dialect: OmenaParserStyleDialect,
     forward_evaluations: &[StaticScssModuleForwardEvaluation],
+    emitted_module_identity_keys: &mut BTreeSet<String>,
 ) -> (String, usize) {
     let lexed = lex_omena_query_omena_parser_style_source(source, dialect);
     let tokens = lexed.tokens();
     let mut replacements = Vec::new();
-    let mut emitted_style_paths = BTreeSet::<String>::new();
     let mut depth = 0usize;
     let mut index = 0usize;
 
@@ -1577,7 +1622,9 @@ fn inline_static_scss_forward_rules(
                         .iter()
                         .find(|forward| forward.source == source_name)
                 {
-                    let replacement = if emitted_style_paths.insert(forward.style_path.clone()) {
+                    let replacement = if emitted_module_identity_keys
+                        .insert(forward.module_identity_key.clone())
+                    {
                         forward.evaluated_css.clone()
                     } else {
                         String::new()

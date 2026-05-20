@@ -316,6 +316,7 @@ pub fn summarize_omena_query_omena_parser_style_facts(
                 source: edge.source,
                 namespace_kind: edge.namespace_kind,
                 namespace: edge.namespace,
+                forward_prefix: edge.forward_prefix,
                 visibility_filter_kind: edge.visibility_filter_kind,
                 visibility_filter_names: edge.visibility_filter_names,
             })

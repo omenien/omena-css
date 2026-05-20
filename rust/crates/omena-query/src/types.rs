@@ -258,6 +258,7 @@ pub struct OmenaQuerySassModuleEdgeResolutionV0 {
     pub source: String,
     pub namespace_kind: Option<&'static str>,
     pub namespace: Option<String>,
+    pub forward_prefix: Option<String>,
     pub visibility_filter_kind: Option<&'static str>,
     pub visibility_filter_names: Vec<String>,
     pub resolved_style_path: Option<String>,
@@ -276,6 +277,7 @@ pub struct OmenaQuerySassModuleGraphClosureEdgeV0 {
     pub path: Vec<String>,
     pub namespace_kind: Option<&'static str>,
     pub namespace: Option<String>,
+    pub forward_prefix: Option<String>,
     pub visibility_filter_kind: Option<&'static str>,
     pub visibility_filter_names: Vec<String>,
 }
@@ -614,6 +616,7 @@ pub struct OmenaQuerySassModuleEdgeFactV0 {
     pub source: String,
     pub namespace_kind: Option<&'static str>,
     pub namespace: Option<String>,
+    pub forward_prefix: Option<String>,
     pub visibility_filter_kind: Option<&'static str>,
     pub visibility_filter_names: Vec<String>,
 }
