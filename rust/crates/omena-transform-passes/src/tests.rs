@@ -2124,6 +2124,38 @@ fn execution_runtime_combines_adjacent_box_longhands_with_cascade_proof() {
         execution.executed_pass_ids,
         vec!["shorthand-combining", "print-css"]
     );
+    assert_eq!(
+        execution.cascade_proof_obligations.product,
+        "omena-transform-passes.cascade-proof-obligations"
+    );
+    assert_eq!(execution.cascade_proof_obligations.obligation_count, 4);
+    assert_eq!(execution.cascade_proof_obligations.accepted_count, 3);
+    assert!(
+        execution
+            .cascade_proof_obligations
+            .obligations
+            .iter()
+            .any(|obligation| {
+                obligation.pass_id == "shorthand-combining"
+                    && obligation.proof_product == "omena-cascade.shorthand-combination-proof"
+                    && obligation.accepted
+                    && obligation
+                        .checked_obligations
+                        .contains(&"canonicalLonghandSet")
+            })
+    );
+    assert!(
+        execution
+            .cascade_proof_obligations
+            .obligations
+            .iter()
+            .any(|obligation| {
+                obligation.pass_id == "shorthand-combining"
+                    && !obligation.accepted
+                    && obligation.blocked_reason.as_deref()
+                        == Some("longhands are not in canonical top/right/bottom/left order")
+            })
+    );
 }
 
 #[test]
@@ -3008,6 +3040,28 @@ fn execution_runtime_flattens_only_root_scope_proof_candidates() {
         accepted.executed_pass_ids,
         vec!["scope-flatten", "print-css"]
     );
+    assert_eq!(
+        accepted.cascade_proof_obligations.checked_pass_ids,
+        vec!["scope-flatten"]
+    );
+    assert_eq!(accepted.cascade_proof_obligations.obligation_count, 1);
+    assert_eq!(accepted.cascade_proof_obligations.accepted_count, 1);
+    assert_eq!(
+        accepted.cascade_proof_obligations.obligations[0].proof_product,
+        "omena-cascade.scope-flatten-proof"
+    );
+    assert!(
+        execution
+            .cascade_proof_obligations
+            .obligations
+            .iter()
+            .any(|obligation| {
+                obligation.proof_product == "omena-cascade.scope-flatten-proof"
+                    && !obligation.accepted
+                    && obligation.blocked_reason.as_deref()
+                        == Some("peer scopes may change scope-proximity cascade ordering")
+            })
+    );
 }
 
 #[test]
@@ -3035,6 +3089,20 @@ fn execution_runtime_flattens_layers_only_with_closed_bundle_context() {
     assert_eq!(
         execution.executed_pass_ids,
         vec!["layer-flatten", "print-css"]
+    );
+    assert_eq!(planned.cascade_proof_obligations.obligation_count, 1);
+    assert_eq!(planned.cascade_proof_obligations.blocked_count, 1);
+    assert_eq!(
+        planned.cascade_proof_obligations.obligations[0]
+            .blocked_reason
+            .as_deref(),
+        Some("requires an explicit closed-style-world bundle witness before mutation")
+    );
+    assert_eq!(execution.cascade_proof_obligations.obligation_count, 1);
+    assert_eq!(execution.cascade_proof_obligations.accepted_count, 1);
+    assert_eq!(
+        execution.cascade_proof_obligations.obligations[0].proof_product,
+        "omena-cascade.layer-flatten-proof"
     );
 }
 
@@ -3207,6 +3275,21 @@ fn execution_runtime_evaluates_simple_supports_branches_with_cascade_witness() {
     assert_eq!(
         execution.executed_pass_ids,
         vec!["supports-static-eval", "print-css"]
+    );
+    assert_eq!(execution.cascade_proof_obligations.obligation_count, 8);
+    assert_eq!(execution.cascade_proof_obligations.accepted_count, 8);
+    assert!(
+        execution
+            .cascade_proof_obligations
+            .obligations
+            .iter()
+            .any(|obligation| {
+                obligation.proof_product == "omena-cascade.supports-static-eval"
+                    && obligation.accepted
+                    && obligation
+                        .checked_obligations
+                        .contains(&"staticSupportsCondition")
+            })
     );
 }
 

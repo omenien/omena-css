@@ -8,6 +8,9 @@ use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 
 use super::{
+    cascade_proof::{
+        collect_cascade_proof_obligations_for_pass_input, summarize_cascade_proof_obligations,
+    },
     outcome::{mutation_outcome, no_change_outcome, planned_only_outcome},
     planner::{plan_transform_passes, transform_pass_kind_from_id},
     provenance::{derive_transform_mutation_spans, provenance_derivation_forest_from_outcomes},
@@ -74,6 +77,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
     let mut design_token_routes = Vec::new();
     let mut semantic_removals = Vec::new();
     let mut outcome_mutation_spans = Vec::new();
+    let mut cascade_proof_obligations = Vec::new();
 
     macro_rules! apply_mutation_pass {
         ($pass_id:expr, $input_byte_len:expr, $run:expr, $detail:literal) => {{
@@ -100,6 +104,13 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
         let pass = transform_pass_kind_from_id(pass_id);
         let pass_input_css = output_css.clone();
         let input_byte_len = output_css.len();
+        cascade_proof_obligations.extend(collect_cascade_proof_obligations_for_pass_input(
+            pass_id,
+            pass,
+            &pass_input_css,
+            dialect,
+            context,
+        ));
         let outcome = match pass {
             Some(TransformPassKind::WhitespaceStrip) => {
                 apply_mutation_pass!(
@@ -657,6 +668,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
     let provenance_preserved = outcomes.iter().all(|outcome| outcome.provenance_preserved);
     let provenance_derivation_forest =
         provenance_derivation_forest_from_outcomes(&outcomes, &outcome_mutation_spans);
+    let cascade_proof_obligations = summarize_cascade_proof_obligations(cascade_proof_obligations);
     let output_byte_len = output_css.len();
 
     TransformExecutionSummaryV0 {
@@ -676,6 +688,7 @@ pub fn execute_transform_passes_on_source_with_dialect_and_context(
         css_module_composes_exports,
         design_token_routes,
         semantic_removals,
+        cascade_proof_obligations,
         provenance_derivation_forest,
         outcomes,
         pass_plan,

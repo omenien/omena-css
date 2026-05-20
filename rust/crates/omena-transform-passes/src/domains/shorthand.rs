@@ -1,4 +1,6 @@
-use omena_cascade::{BoxLonghandInputV0, prove_box_shorthand_combination};
+use omena_cascade::{
+    BoxLonghandInputV0, ShorthandCombinationProofV0, prove_box_shorthand_combination,
+};
 use omena_parser::{LexedToken, StyleDialect, lex};
 use omena_syntax::SyntaxKind;
 
@@ -39,6 +41,13 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BoxShorthandProofCandidateV0 {
+    pub(crate) source_span_start: usize,
+    pub(crate) source_span_end: usize,
+    pub(crate) proof: ShorthandCombinationProofV0,
+}
+
 pub(crate) fn combine_css_shorthands_with_lexer(
     source: &str,
     dialect: StyleDialect,
@@ -65,6 +74,31 @@ pub(crate) fn combine_css_shorthands_with_lexer(
     }
 
     (output, ranges.len())
+}
+
+pub(crate) fn collect_box_shorthand_proof_candidates_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<BoxShorthandProofCandidateV0> {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut candidates = Vec::new();
+    let mut index = 0;
+    while index < tokens.len() {
+        if tokens[index].kind == SyntaxKind::LeftBrace
+            && let Some(close_index) = matching_right_brace_index(tokens, index)
+        {
+            candidates.extend(collect_box_shorthand_proof_candidates_in_block(
+                tokens,
+                index,
+                close_index,
+            ));
+            index += 1;
+            continue;
+        }
+        index += 1;
+    }
+    candidates
 }
 
 fn collect_shorthand_replacement_ranges(
@@ -293,6 +327,52 @@ fn box_shorthand_replacement_for_declarations(
         declarations.last()?.end,
         replacement,
     ))
+}
+
+fn collect_box_shorthand_proof_candidates_in_block(
+    tokens: &[LexedToken],
+    block_start: usize,
+    block_end: usize,
+) -> Vec<BoxShorthandProofCandidateV0> {
+    let declarations = collect_simple_declarations_in_block(tokens, block_start, block_end);
+    let mut candidates = Vec::new();
+
+    for window in declarations.windows(4) {
+        let Some(shorthand_property) =
+            box_shorthand_property_for_first_longhand(&window[0].property)
+        else {
+            continue;
+        };
+        let proof_inputs = window
+            .iter()
+            .map(|declaration| BoxLonghandInputV0 {
+                property: declaration.property.clone(),
+                value: declaration.value.clone(),
+                important: declaration.important,
+                source_order: declaration.source_order,
+            })
+            .collect::<Vec<_>>();
+        candidates.push(BoxShorthandProofCandidateV0 {
+            source_span_start: window.first().map_or(0, |declaration| declaration.start),
+            source_span_end: window.last().map_or(0, |declaration| declaration.end),
+            proof: prove_box_shorthand_combination(shorthand_property, &proof_inputs),
+        });
+    }
+
+    candidates
+}
+
+fn box_shorthand_property_for_first_longhand(property: &str) -> Option<&'static str> {
+    match property {
+        "margin-top" => Some("margin"),
+        "padding-top" => Some("padding"),
+        "border-top-color" => Some("border-color"),
+        "border-top-style" => Some("border-style"),
+        "border-top-width" => Some("border-width"),
+        "scroll-margin-top" => Some("scroll-margin"),
+        "scroll-padding-top" => Some("scroll-padding"),
+        _ => None,
+    }
 }
 
 fn shorthand_value_replacement_for_declaration(

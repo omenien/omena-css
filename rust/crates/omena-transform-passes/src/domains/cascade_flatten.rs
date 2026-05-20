@@ -1,6 +1,6 @@
 use omena_cascade::{
-    LayerFlattenInputV0, ScopeFlattenInputV0, prove_layer_flatten_candidate,
-    prove_scope_flatten_candidate,
+    LayerFlattenInputV0, LayerFlattenProofV0, ScopeFlattenInputV0, ScopeFlattenProofV0,
+    prove_layer_flatten_candidate, prove_scope_flatten_candidate,
 };
 use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
@@ -12,6 +12,20 @@ use crate::helpers::{
     source_rewrite::replace_source_ranges,
     tokens::{token_end, token_start},
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ScopeFlattenProofCandidateV0 {
+    pub(crate) source_span_start: usize,
+    pub(crate) source_span_end: usize,
+    pub(crate) proof: ScopeFlattenProofV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LayerFlattenProofCandidateV0 {
+    pub(crate) source_span_start: usize,
+    pub(crate) source_span_end: usize,
+    pub(crate) proof: LayerFlattenProofV0,
+}
 
 pub(crate) fn flatten_css_scopes_with_lexer(
     source: &str,
@@ -82,6 +96,68 @@ pub(crate) fn flatten_css_scopes_with_lexer(
     replace_source_ranges(source, &replacements)
 }
 
+pub(crate) fn collect_scope_flatten_proof_candidates_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<ScopeFlattenProofCandidateV0> {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let top_level_scope_count = count_top_level_at_rules(tokens, "@scope");
+    let competing_unscoped_rule_count =
+        collect_top_level_ordinary_rule_slices(source, tokens).len();
+    let mut candidates = Vec::new();
+    let mut depth = 0usize;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@scope") =>
+            {
+                let Some((block_start_index, block_end_index)) =
+                    at_rule_block_indexes(tokens, index)
+                else {
+                    index += 1;
+                    continue;
+                };
+                let prelude = source
+                    [token_end(&tokens[index])..token_start(&tokens[block_start_index])]
+                    .trim();
+                let Some((root_selector, limit_selector)) = parse_scope_flatten_prelude(prelude)
+                else {
+                    index = block_end_index + 1;
+                    continue;
+                };
+                let proof = prove_scope_flatten_candidate(ScopeFlattenInputV0 {
+                    root_selector,
+                    limit_selector,
+                    scoped_rule_count: count_direct_ordinary_rules_in_block(
+                        tokens,
+                        block_start_index,
+                        block_end_index,
+                    ),
+                    peer_scope_count: top_level_scope_count.saturating_sub(1),
+                    competing_unscoped_rule_count,
+                    inside_layer: false,
+                });
+                candidates.push(ScopeFlattenProofCandidateV0 {
+                    source_span_start: token_start(&tokens[index]),
+                    source_span_end: token_end(&tokens[block_end_index]),
+                    proof,
+                });
+                index = block_end_index + 1;
+                continue;
+            }
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+
+    candidates
+}
+
 pub(crate) fn flatten_css_layers_with_lexer(
     source: &str,
     dialect: StyleDialect,
@@ -148,6 +224,66 @@ pub(crate) fn flatten_css_layers_with_lexer(
     }
 
     replace_source_ranges(source, &replacements)
+}
+
+pub(crate) fn collect_layer_flatten_proof_candidates_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+    closed_bundle: bool,
+) -> Vec<LayerFlattenProofCandidateV0> {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let top_level_layer_count = count_top_level_at_rules(tokens, "@layer");
+    let unlayered_rule_count = collect_top_level_ordinary_rule_slices(source, tokens).len();
+    let mut candidates = Vec::new();
+    let mut depth = 0usize;
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::AtKeyword
+                if depth == 0 && tokens[index].text.eq_ignore_ascii_case("@layer") =>
+            {
+                let Some((block_start_index, block_end_index)) =
+                    at_rule_block_indexes(tokens, index)
+                else {
+                    index += 1;
+                    continue;
+                };
+                let prelude = source
+                    [token_end(&tokens[index])..token_start(&tokens[block_start_index])]
+                    .trim();
+                let proof = prove_layer_flatten_candidate(LayerFlattenInputV0 {
+                    layer_name: parse_single_layer_name(prelude),
+                    layer_rule_count: count_direct_ordinary_rules_in_block(
+                        tokens,
+                        block_start_index,
+                        block_end_index,
+                    ),
+                    peer_layer_count: top_level_layer_count.saturating_sub(1),
+                    unlayered_rule_count,
+                    important_declaration_count: tokens[block_start_index + 1..block_end_index]
+                        .iter()
+                        .filter(|token| token.kind == SyntaxKind::Important)
+                        .count(),
+                    closed_bundle,
+                });
+                candidates.push(LayerFlattenProofCandidateV0 {
+                    source_span_start: token_start(&tokens[index]),
+                    source_span_end: token_end(&tokens[block_end_index]),
+                    proof,
+                });
+                index = block_end_index + 1;
+                continue;
+            }
+            SyntaxKind::LeftBrace => depth += 1,
+            SyntaxKind::RightBrace => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        index += 1;
+    }
+
+    candidates
 }
 
 fn count_top_level_at_rules(tokens: &[omena_parser::LexedToken], at_rule: &str) -> usize {

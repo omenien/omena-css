@@ -1,7 +1,8 @@
 use std::borrow::Cow;
 
 use omena_cascade::{
-    StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, evaluate_static_supports_condition,
+    StaticSupportsAssumptionV0, StaticSupportsEvalVerdictV0, StaticSupportsEvalWitnessV0,
+    evaluate_static_supports_condition,
 };
 use omena_parser::{StyleDialect, lex};
 use omena_syntax::SyntaxKind;
@@ -26,6 +27,13 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct StaticSupportsProofCandidateV0 {
+    pub(crate) source_span_start: usize,
+    pub(crate) source_span_end: usize,
+    pub(crate) witness: StaticSupportsEvalWitnessV0,
+}
+
 pub(crate) fn evaluate_static_supports_rules_with_lexer(
     source: &str,
     dialect: StyleDialect,
@@ -42,6 +50,46 @@ pub(crate) fn evaluate_static_supports_rules_with_lexer(
         output = next_output;
         mutation_count += next_mutation_count;
     }
+}
+
+pub(crate) fn collect_static_supports_proof_candidates_with_lexer(
+    source: &str,
+    dialect: StyleDialect,
+) -> Vec<StaticSupportsProofCandidateV0> {
+    let lexed = lex(source, dialect);
+    let tokens = lexed.tokens();
+    let mut candidates = Vec::new();
+    let mut index = 0;
+
+    while index < tokens.len() {
+        match tokens[index].kind {
+            SyntaxKind::AtKeyword if tokens[index].text.eq_ignore_ascii_case("@supports") => {
+                let Some((block_start_index, block_end_index)) =
+                    at_rule_block_indexes(tokens, index)
+                else {
+                    index += 1;
+                    continue;
+                };
+                let condition = source
+                    [token_end(&tokens[index])..token_start(&tokens[block_start_index])]
+                    .trim();
+                candidates.push(StaticSupportsProofCandidateV0 {
+                    source_span_start: token_start(&tokens[index]),
+                    source_span_end: token_end(&tokens[block_end_index]),
+                    witness: evaluate_static_supports_condition(
+                        condition,
+                        StaticSupportsAssumptionV0::ModernBrowser,
+                    ),
+                });
+                index = block_end_index + 1;
+                continue;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+
+    candidates
 }
 
 fn evaluate_static_supports_rules_once_with_lexer(

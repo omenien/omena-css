@@ -510,6 +510,7 @@ fn exposes_transform_plan_facade_from_source() {
     assert_eq!(summary.combined_violated_dag_edge_count, 0);
     assert_eq!(summary.print.css, source);
     assert_eq!(summary.print.css, summary.execution.output_css);
+    assert!(summary.ready_surfaces.contains(&"cascadeProofObligations"));
     assert_eq!(
         summary.execution.product,
         "omena-transform-passes.execution"
@@ -767,6 +768,67 @@ fn exposes_transform_execution_runner_from_source() {
         summary
             .ready_surfaces
             .contains(&"transformExecutionRuntime")
+    );
+}
+
+#[test]
+fn exposes_transform_execution_cascade_proof_obligations_from_source() {
+    let source = r#".a { margin-top: 1px; margin-right: 2px; margin-bottom: 1px; margin-left: 2px; }
+@supports (display: grid) { .grid { display: grid; } }
+"#;
+    let summary = execute_omena_query_transform_passes_from_source(
+        "Button.module.css",
+        source,
+        &[
+            "shorthand-combining".to_string(),
+            "supports-static-eval".to_string(),
+            "print-css".to_string(),
+        ],
+    );
+
+    assert_eq!(
+        summary.execution.cascade_proof_obligations.product,
+        "omena-transform-passes.cascade-proof-obligations"
+    );
+    assert_eq!(
+        summary.execution.cascade_proof_obligations.obligation_count,
+        2
+    );
+    assert_eq!(
+        summary.execution.cascade_proof_obligations.accepted_count,
+        2
+    );
+    assert!(
+        summary
+            .execution
+            .cascade_proof_obligations
+            .checked_pass_ids
+            .contains(&"shorthand-combining")
+    );
+    assert!(
+        summary
+            .execution
+            .cascade_proof_obligations
+            .checked_pass_ids
+            .contains(&"supports-static-eval")
+    );
+    assert!(
+        summary
+            .execution
+            .cascade_proof_obligations
+            .obligations
+            .iter()
+            .any(|obligation| {
+                obligation.proof_product == "omena-cascade.shorthand-combination-proof"
+            })
+    );
+    assert!(
+        summary
+            .execution
+            .cascade_proof_obligations
+            .obligations
+            .iter()
+            .any(|obligation| obligation.proof_product == "omena-cascade.supports-static-eval")
     );
 }
 

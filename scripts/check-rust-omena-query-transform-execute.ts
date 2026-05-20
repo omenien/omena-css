@@ -26,6 +26,20 @@ interface TransformExecuteSummaryV0 {
       readonly tokenName: string;
       readonly routedValue: string;
     }[];
+    readonly cascadeProofObligations: {
+      readonly product: string;
+      readonly obligationCount: number;
+      readonly acceptedCount: number;
+      readonly blockedCount: number;
+      readonly checkedPassIds: readonly string[];
+      readonly obligations: readonly {
+        readonly passId: string;
+        readonly proofProduct: string;
+        readonly accepted: boolean;
+        readonly blockedReason?: string;
+        readonly checkedObligations: readonly string[];
+      }[];
+    };
     readonly provenanceDerivationForest: {
       readonly product: string;
       readonly rootCount: number;
@@ -226,6 +240,19 @@ assert.equal(summary.execution.passPlan.product, "omena-transform-passes.plan");
 assert.equal(summary.execution.passPlan.violatedDagEdgeCount, 0);
 assert.equal(summary.execution.passPlan.allRequestedRegistered, true);
 assert.equal(
+  summary.execution.cascadeProofObligations.product,
+  "omena-transform-passes.cascade-proof-obligations",
+);
+assert.equal(summary.execution.cascadeProofObligations.obligationCount, 1);
+assert.equal(summary.execution.cascadeProofObligations.acceptedCount, 1);
+assert.deepEqual(summary.execution.cascadeProofObligations.checkedPassIds, [
+  "shorthand-combining",
+]);
+assert.equal(
+  summary.execution.cascadeProofObligations.obligations[0]?.proofProduct,
+  "omena-cascade.shorthand-combination-proof",
+);
+assert.equal(
   summary.execution.provenanceDerivationForest.product,
   "omena-transform-passes.provenance-derivation-forest",
 );
@@ -367,6 +394,16 @@ assert.deepEqual(groupedSupportsSummary.execution.executedPassIds, [
   "print-css",
 ]);
 assert.equal(groupedSupportsSummary.execution.mutationCount, 4);
+assert.equal(groupedSupportsSummary.execution.cascadeProofObligations.obligationCount, 4);
+assert.equal(groupedSupportsSummary.execution.cascadeProofObligations.acceptedCount, 4);
+assert.deepEqual(groupedSupportsSummary.execution.cascadeProofObligations.checkedPassIds, [
+  "supports-static-eval",
+]);
+assert.ok(
+  groupedSupportsSummary.execution.cascadeProofObligations.obligations.every(
+    (obligation) => obligation.proofProduct === "omena-cascade.supports-static-eval",
+  ),
+);
 
 const caseInsensitiveSupportsResult = spawnSync(
   "cargo",
@@ -450,6 +487,17 @@ assert.deepEqual(fontSupportsSummary.execution.executedPassIds, [
   "print-css",
 ]);
 assert.equal(fontSupportsSummary.execution.mutationCount, 4);
+assert.equal(fontSupportsSummary.execution.cascadeProofObligations.obligationCount, 5);
+assert.equal(fontSupportsSummary.execution.cascadeProofObligations.acceptedCount, 4);
+assert.equal(fontSupportsSummary.execution.cascadeProofObligations.blockedCount, 1);
+assert.ok(
+  fontSupportsSummary.execution.cascadeProofObligations.obligations.some(
+    (obligation) =>
+      obligation.proofProduct === "omena-cascade.supports-static-eval" &&
+      !obligation.accepted &&
+      obligation.blockedReason === "unsupported font feature query",
+  ),
+);
 
 const mediaListResult = spawnSync(
   "cargo",

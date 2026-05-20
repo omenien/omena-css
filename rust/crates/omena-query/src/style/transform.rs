@@ -189,6 +189,7 @@ fn summarize_omena_query_transform_plan_from_parts(
             "customPropertyLeastFixedPoint",
             "transformPrintArtifact",
             "transformExecutionRuntime",
+            "cascadeProofObligations",
             "combinedTransformPassPlan",
         ],
     }

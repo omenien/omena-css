@@ -104,6 +104,12 @@ interface TransformPlanSummaryV0 {
       readonly tokenName: string;
       readonly routedValue: string;
     }[];
+    readonly cascadeProofObligations: {
+      readonly product: string;
+      readonly obligationCount: number;
+      readonly acceptedCount: number;
+      readonly checkedPassIds: readonly string[];
+    };
     readonly provenanceDerivationForest: {
       readonly product: string;
       readonly rootCount: number;
@@ -372,9 +378,14 @@ assertIncludesAll(
     "transformEggPlan",
     "transformPrintArtifact",
     "transformExecutionRuntime",
+    "cascadeProofObligations",
     "combinedTransformPassPlan",
   ],
   "transform ready surfaces",
+);
+assert.equal(
+  summary.execution.cascadeProofObligations.product,
+  "omena-transform-passes.cascade-proof-obligations",
 );
 
 const cssImportPlanResult = spawnSync(

@@ -9,6 +9,7 @@
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
 use omena_transform_cst::{TransformDagEdgeV0, TransformPassContractV0};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -132,9 +133,37 @@ pub struct TransformExecutionSummaryV0 {
     pub css_module_composes_exports: Vec<TransformCssModuleComposesResolutionV0>,
     pub design_token_routes: Vec<TransformDesignTokenRouteV0>,
     pub semantic_removals: Vec<TransformSemanticRemovalV0>,
+    pub cascade_proof_obligations: TransformCascadeProofObligationReportV0,
     pub provenance_derivation_forest: TransformProvenanceDerivationForestV0,
     pub outcomes: Vec<TransformPassExecutionOutcomeV0>,
     pub pass_plan: TransformPassPlanV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformCascadeProofObligationReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub obligation_count: usize,
+    pub accepted_count: usize,
+    pub blocked_count: usize,
+    pub checked_pass_ids: Vec<&'static str>,
+    pub obligations: Vec<TransformCascadeProofObligationV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransformCascadeProofObligationV0 {
+    pub pass_id: &'static str,
+    pub proof_product: &'static str,
+    pub accepted: bool,
+    pub blocked_reason: Option<String>,
+    pub provenance_preserved: bool,
+    pub cascade_safe_witness: String,
+    pub source_span_start: Option<usize>,
+    pub source_span_end: Option<usize>,
+    pub checked_obligations: Vec<&'static str>,
+    pub proof_payload: Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
