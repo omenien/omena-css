@@ -157,6 +157,60 @@ describe("computeScssUnusedDiagnostics", () => {
     expect(diagnostics[0]!.severity).toBe(DiagnosticSeverity.Hint);
   });
 
+  it("surfaces query-owned style diagnostics with severity and provenance data", async () => {
+    const styleSource = `.button { color: red; color: blue; }\n`;
+    const styleDoc = parseStyleDocument(styleSource, SCSS_PATH);
+    let forwardedInput: unknown = null;
+
+    const diagnostics = await computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      undefined,
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        styleSource,
+        runRustSelectedQueryBackendJsonAsync: async <T>(command: string, input: unknown) => {
+          expect(command).toBe("style-diagnostics-for-file");
+          forwardedInput = input;
+          return {
+            product: "omena-query.diagnostics-for-file",
+            fileKind: "style",
+            diagnostics: [
+              {
+                code: "unreachableDeclaration",
+                severity: "hint",
+                provenance: ["omena-checker.cascade-rules", "omena-query.cascade-checker"],
+                range: {
+                  start: { line: 0, character: 23 },
+                  end: { line: 0, character: 34 },
+                },
+                message: "Declaration is unreachable because a later declaration wins.",
+                tags: [DiagnosticTag.Unnecessary],
+              },
+            ],
+          } as T;
+        },
+      },
+    );
+
+    expect(forwardedInput).toMatchObject({
+      targetStylePath: SCSS_PATH,
+      styles: [{ stylePath: SCSS_PATH, styleSource }],
+    });
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      code: "unreachableDeclaration",
+      severity: DiagnosticSeverity.Hint,
+      tags: [DiagnosticTag.Unnecessary],
+      data: {
+        querySeverity: "hint",
+        provenance: ["omena-checker.cascade-rules", "omena-query.cascade-checker"],
+      },
+    });
+  });
+
   it("suppresses all diagnostics when an unresolvable variable targets the module", () => {
     const classMap = new Map([
       ["indicator", info("indicator", 1)],

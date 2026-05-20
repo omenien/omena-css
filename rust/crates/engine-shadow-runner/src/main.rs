@@ -1879,6 +1879,29 @@ fn run_daemon_selected_query_command(
                 ),
             )?)
         }
+        "style-diagnostics-for-file" => {
+            let input: StyleDiagnosticsForFileInputV0 = serde_json::from_value(input)?;
+            let Some(summary) = summarize_omena_query_style_diagnostics_for_workspace_file(
+                &input.target_style_path,
+                &input.styles,
+                &input.source_documents,
+                &input.package_manifests,
+            ) else {
+                return Err("unsupported style module path".into());
+            };
+            Ok(serde_json::to_value(summary)?)
+        }
+        "source-diagnostics-for-file" => {
+            let input: SourceDiagnosticsForFileInputV0 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_query_source_diagnostics_for_workspace_file(
+                    &input.source_path,
+                    &input.source_source,
+                    &input.styles,
+                    &input.package_manifests,
+                ),
+            )?)
+        }
         "transform-plan" => {
             let input: TransformPlanInputV0 = serde_json::from_value(input)?;
             let output = if let Some(target_query) = input.target_query.as_deref() {

@@ -15,9 +15,53 @@ import {
   resolveStyleDiagnosticFindings,
   type StyleDiagnosticsQueryOptions,
 } from "../../../engine-host-node/src/style-diagnostics-query";
-import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../../engine-host-node/src/selected-query-backend";
+import {
+  SELECTED_QUERY_RUNNER_COMMANDS,
+  resolveSelectedQueryBackendKind,
+  type RustSelectedQueryBackendJsonRunnerAsync,
+} from "../../../engine-host-node/src/selected-query-backend";
 import type { ProviderDeps } from "./provider-deps";
 import { toLspRange } from "./lsp-adapters";
+
+type RuntimeStyleDiagnosticsDeps = Partial<
+  Pick<
+    ProviderDeps,
+    | "analysisCache"
+    | "readStyleFile"
+    | "typeResolver"
+    | "workspaceRoot"
+    | "settings"
+    | "aliasResolver"
+  >
+> & {
+  readonly env?: NodeJS.ProcessEnv;
+  readonly styleSource?: string;
+  readonly styleSemanticGraphCache?: StyleDiagnosticsQueryOptions["styleSemanticGraphCache"];
+  readonly styleSemanticGraphBatchOutputCache?: StyleDiagnosticsQueryOptions["styleSemanticGraphBatchOutputCache"];
+  readonly selectorUsagePayloadCache?: StyleDiagnosticsQueryOptions["selectorUsagePayloadCache"];
+  readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
+};
+
+interface QueryStyleDiagnosticsForFileV0 {
+  readonly product: "omena-query.diagnostics-for-file";
+  readonly fileKind: "style";
+  readonly diagnostics: readonly QueryStyleDiagnosticV0[];
+}
+
+interface QueryStyleDiagnosticV0 {
+  readonly code: string;
+  readonly severity: "error" | "warning" | "information" | "hint";
+  readonly provenance: readonly string[];
+  readonly range: StyleCheckerFinding["range"];
+  readonly message: string;
+  readonly tags?: readonly number[];
+  readonly createCustomProperty?: {
+    readonly uri: string;
+    readonly range: StyleCheckerFinding["range"];
+    readonly newText: string;
+    readonly propertyName: string;
+  };
+}
 
 /**
  * Compute "unused selector" diagnostics for a single SCSS module file.
@@ -32,21 +76,7 @@ export function computeScssUnusedDiagnostics(
   semanticReferenceIndex: ProviderDeps["semanticReferenceIndex"],
   styleDependencyGraph?: ProviderDeps["styleDependencyGraph"],
   styleDocumentForPath?: (filePath: string) => StyleDocumentHIR | null,
-  runtimeDeps?: Pick<
-    ProviderDeps,
-    | "analysisCache"
-    | "readStyleFile"
-    | "typeResolver"
-    | "workspaceRoot"
-    | "settings"
-    | "aliasResolver"
-  > & {
-    readonly env?: NodeJS.ProcessEnv;
-    readonly styleSemanticGraphCache?: StyleDiagnosticsQueryOptions["styleSemanticGraphCache"];
-    readonly styleSemanticGraphBatchOutputCache?: StyleDiagnosticsQueryOptions["styleSemanticGraphBatchOutputCache"];
-    readonly selectorUsagePayloadCache?: StyleDiagnosticsQueryOptions["selectorUsagePayloadCache"];
-    readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
-  },
+  runtimeDeps?: RuntimeStyleDiagnosticsDeps,
 ): Diagnostic[] | Promise<Diagnostic[]> {
   const queryOptions =
     runtimeDeps?.env ||
@@ -74,7 +104,7 @@ export function computeScssUnusedDiagnostics(
         }
       : undefined;
   if (runtimeDeps?.runRustSelectedQueryBackendJsonAsync) {
-    return resolveStyleDiagnosticFindingsAsync(
+    const checkerDiagnostics = resolveStyleDiagnosticFindingsAsync(
       { scssPath, styleDocument },
       {
         ...(runtimeDeps?.analysisCache ? { analysisCache: runtimeDeps.analysisCache } : {}),
@@ -102,6 +132,16 @@ export function computeScssUnusedDiagnostics(
         toDiagnostic(finding, styleDocument, styleDocumentForPath, runtimeDeps?.readStyleFile),
       ),
     );
+    const queryDiagnostics = resolveQueryOwnedStyleDiagnostics(
+      { scssPath, styleDocument },
+      runtimeDeps,
+    );
+    if (queryDiagnostics) {
+      return Promise.all([queryDiagnostics, checkerDiagnostics]).then(([query, checker]) =>
+        mergeQueryOwnedStyleDiagnostics(query, checker),
+      );
+    }
+    return checkerDiagnostics;
   }
   return resolveStyleDiagnosticFindings(
     { scssPath, styleDocument },
@@ -131,6 +171,189 @@ export function computeScssUnusedDiagnostics(
   );
 }
 
+function resolveQueryOwnedStyleDiagnostics(
+  args: {
+    readonly scssPath: string;
+    readonly styleDocument: StyleDocumentHIR;
+  },
+  runtimeDeps: RuntimeStyleDiagnosticsDeps,
+): Promise<Diagnostic[]> | null {
+  if (resolveSelectedQueryBackendKind(runtimeDeps.env) !== "rust-selected-query") return null;
+  const runJson = runtimeDeps.runRustSelectedQueryBackendJsonAsync;
+  if (!runJson) return null;
+  const styleSource = runtimeDeps.styleSource ?? runtimeDeps.readStyleFile?.(args.scssPath);
+  if (!styleSource) return null;
+
+  return runJson<QueryStyleDiagnosticsForFileV0>(
+    SELECTED_QUERY_RUNNER_COMMANDS.styleDiagnosticsForFile,
+    {
+      targetStylePath: args.scssPath,
+      styles: [
+        {
+          stylePath: args.scssPath,
+          styleSource,
+        },
+      ],
+      sourceDocuments: [],
+      packageManifests: [],
+    },
+  ).then((summary) => {
+    if (summary.product !== "omena-query.diagnostics-for-file" || summary.fileKind !== "style") {
+      return [];
+    }
+    return summary.diagnostics.map((diagnostic) =>
+      toQueryOwnedStyleDiagnostic(diagnostic, args.styleDocument),
+    );
+  });
+}
+
+function toQueryOwnedStyleDiagnostic(
+  diagnostic: QueryStyleDiagnosticV0,
+  styleDocument: StyleDocumentHIR,
+): Diagnostic {
+  const data = {
+    querySeverity: diagnostic.severity,
+    provenance: diagnostic.provenance,
+    ...(diagnostic.createCustomProperty
+      ? { createCustomProperty: diagnostic.createCustomProperty }
+      : queryQuickFixData(diagnostic, styleDocument)),
+  };
+  return {
+    range: toLspRange(diagnostic.range),
+    severity: querySeverityToLspSeverity(diagnostic.severity),
+    code: diagnostic.code,
+    source: "css-module-explainer",
+    message: diagnostic.message,
+    ...(diagnostic.tags?.length
+      ? { tags: diagnostic.tags.map((tag) => tag as DiagnosticTag) }
+      : {}),
+    data,
+  };
+}
+
+function queryQuickFixData(
+  diagnostic: QueryStyleDiagnosticV0,
+  styleDocument: StyleDocumentHIR,
+):
+  | {
+      readonly createKeyframes?: ReturnType<typeof buildCreateKeyframesActionData>;
+      readonly createSassSymbol?: ReturnType<typeof buildCreateSassSymbolActionData>;
+    }
+  | Record<string, never> {
+  if (diagnostic.code === "missingKeyframes") {
+    const keyframesName = extractQuotedName(diagnostic.message);
+    if (keyframesName) {
+      return {
+        createKeyframes: buildCreateKeyframesActionData(
+          keyframesName,
+          styleDocument.filePath,
+          styleDocument,
+        ),
+      };
+    }
+  }
+  if (diagnostic.code === "missingSassSymbol") {
+    const symbol = extractSassSymbol(diagnostic.message);
+    if (symbol) {
+      return {
+        createSassSymbol: buildCreateSassSymbolActionData(
+          symbol.kind,
+          symbol.name,
+          styleDocument.filePath,
+          styleDocument,
+          symbol.syntax,
+        ),
+      };
+    }
+  }
+  return {};
+}
+
+function querySeverityToLspSeverity(
+  severity: QueryStyleDiagnosticV0["severity"],
+): DiagnosticSeverity {
+  switch (severity) {
+    case "error":
+      return DiagnosticSeverity.Error;
+    case "information":
+      return DiagnosticSeverity.Information;
+    case "hint":
+      return DiagnosticSeverity.Hint;
+    case "warning":
+      return DiagnosticSeverity.Warning;
+  }
+}
+
+function mergeQueryOwnedStyleDiagnostics(
+  queryDiagnostics: readonly Diagnostic[],
+  checkerDiagnostics: readonly Diagnostic[],
+): Diagnostic[] {
+  if (queryDiagnostics.length === 0) return [...checkerDiagnostics];
+  const queryDuplicateKeys = new Set<string>();
+  for (const diagnostic of queryDiagnostics) {
+    const checkerCode = checkerDuplicateCodeForQueryCode(diagnostic.code);
+    if (checkerCode) {
+      queryDuplicateKeys.add(diagnosticKey(checkerCode, diagnostic.range));
+    }
+  }
+  return [
+    ...queryDiagnostics,
+    ...checkerDiagnostics.filter(
+      (diagnostic) => !queryDuplicateKeys.has(diagnosticKey(diagnostic.code, diagnostic.range)),
+    ),
+  ];
+}
+
+function checkerDuplicateCodeForQueryCode(code: Diagnostic["code"]): string | null {
+  if (typeof code !== "string") return null;
+  return QUERY_TO_CHECKER_DIAGNOSTIC_CODE[code] ?? null;
+}
+
+const QUERY_TO_CHECKER_DIAGNOSTIC_CODE: Readonly<Record<string, string>> = {
+  unusedSelector: "unused-selector",
+  missingComposedModule: "missing-composed-module",
+  missingComposedSelector: "missing-composed-selector",
+  missingValueModule: "missing-value-module",
+  missingImportedValue: "missing-imported-value",
+  missingCustomProperty: "missing-custom-property",
+  missingKeyframes: "missing-keyframes",
+  missingSassSymbol: "missing-sass-symbol",
+};
+
+function diagnosticKey(code: Diagnostic["code"], range: Diagnostic["range"]): string {
+  return [
+    String(code ?? ""),
+    range.start.line,
+    range.start.character,
+    range.end.line,
+    range.end.character,
+  ].join(":");
+}
+
+function extractQuotedName(message: string): string | null {
+  return /'([^']+)'/u.exec(message)?.[1] ?? null;
+}
+
+function extractSassSymbol(message: string): {
+  readonly kind: Parameters<typeof buildCreateSassSymbolActionData>[0];
+  readonly name: string;
+  readonly syntax: Parameters<typeof buildCreateSassSymbolActionData>[4];
+} | null {
+  const variable = /Sass variable '\$([^']+)'/u.exec(message);
+  if (variable?.[1]) {
+    return { kind: "variable", name: variable[1], syntax: "sass" };
+  }
+  const mixin = /Sass mixin '@mixin ([^'()\s]+)'/u.exec(message);
+  if (mixin?.[1]) {
+    return { kind: "mixin", name: mixin[1], syntax: "sass" };
+  }
+  const fn = /Sass function '@function ([^'()\s]+)'/u.exec(message);
+  if (fn?.[1]) {
+    return { kind: "function", name: fn[1], syntax: "sass" };
+  }
+  return null;
+}
+
 function toDiagnostic(
   finding: StyleCheckerFinding,
   styleDocument: StyleDocumentHIR,
@@ -142,6 +365,7 @@ function toDiagnostic(
       return {
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Hint,
+        code: finding.code,
         source: "css-module-explainer",
         message: formatCheckerFinding(finding, ""),
         tags: [DiagnosticTag.Unnecessary],
@@ -150,6 +374,7 @@ function toDiagnostic(
       return {
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Warning,
+        code: finding.code,
         source: "css-module-explainer",
         message: formatCheckerFinding(finding, ""),
         data: {
@@ -173,6 +398,7 @@ function toDiagnostic(
       return {
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Warning,
+        code: finding.code,
         source: "css-module-explainer",
         message: formatCheckerFinding(finding, ""),
         data,
@@ -182,6 +408,7 @@ function toDiagnostic(
       return {
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Warning,
+        code: finding.code,
         source: "css-module-explainer",
         message: formatCheckerFinding(finding, ""),
         data: {
@@ -205,6 +432,7 @@ function toDiagnostic(
       return {
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Warning,
+        code: finding.code,
         source: "css-module-explainer",
         message: formatCheckerFinding(finding, ""),
         data,
@@ -213,6 +441,7 @@ function toDiagnostic(
       return {
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Warning,
+        code: finding.code,
         source: "css-module-explainer",
         message: formatCheckerFinding(finding, ""),
         data: {
@@ -227,6 +456,7 @@ function toDiagnostic(
       return {
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Warning,
+        code: finding.code,
         source: "css-module-explainer",
         message: formatCheckerFinding(finding, ""),
         data: {
@@ -241,6 +471,7 @@ function toDiagnostic(
       return {
         range: toLspRange(finding.range),
         severity: DiagnosticSeverity.Warning,
+        code: finding.code,
         source: "css-module-explainer",
         message: formatCheckerFinding(finding, ""),
         data: {

@@ -185,6 +185,7 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
         workspaceRoot: providerDeps.workspaceRoot,
         settings: providerDeps.settings,
         aliasResolver: providerDeps.aliasResolver,
+        styleSource: doc.getText(),
         ...(runtimeProviderDeps.styleSemanticGraphCache
           ? { styleSemanticGraphCache: runtimeProviderDeps.styleSemanticGraphCache }
           : {}),

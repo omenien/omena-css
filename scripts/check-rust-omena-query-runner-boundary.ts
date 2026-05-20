@@ -170,6 +170,7 @@ const DIRECT_PRODUCER_LANE_COMMANDS = new Map([
 
 const runnerSource = readFileSync(RUNNER_PATH, "utf8");
 const commandBodies = extractCommandBodies(runnerSource);
+const daemonCommandBodies = extractDaemonCommandBodies(runnerSource);
 const styleCodeActionHelperBody = extractFunctionBody(
   runnerSource,
   "run_style_code_actions_facade",
@@ -194,6 +195,17 @@ for (const [command, expectedCalls] of OMENA_QUERY_OWNED_COMMANDS) {
     0,
     `command ${command} must not call engine-input-producers directly`,
   );
+}
+
+for (const command of ["style-diagnostics-for-file", "source-diagnostics-for-file"] as const) {
+  const body = daemonCommandBodies.get(command);
+  assert.ok(body, `missing engine-shadow-runner daemon command arm: ${command}`);
+  for (const expectedCall of OMENA_QUERY_OWNED_COMMANDS.get(command) ?? []) {
+    assert.ok(
+      body.includes(expectedCall),
+      `daemon command ${command} must route through ${expectedCall}`,
+    );
+  }
 }
 
 const actualDirectProducerCalls = [...commandBodies.entries()]
@@ -228,6 +240,21 @@ function extractCommandBodies(source: string): Map<string, string> {
     const bodyStart = match.index === undefined ? -1 : match.index + match[0].length;
     if (!command || bodyStart < 0) continue;
     bodies.set(command, readBraceBody(source, bodyStart));
+  }
+
+  return bodies;
+}
+
+function extractDaemonCommandBodies(source: string): Map<string, string> {
+  const daemonBody = extractFunctionBody(source, "run_daemon_selected_query_command");
+  const commandMatches = [...daemonBody.matchAll(/"([^"]+)"\s*=>\s*\{/g)];
+  const bodies = new Map<string, string>();
+
+  for (const match of commandMatches) {
+    const command = match[1];
+    const bodyStart = match.index === undefined ? -1 : match.index + match[0].length;
+    if (!command || bodyStart < 0) continue;
+    bodies.set(command, readBraceBody(daemonBody, bodyStart));
   }
 
   return bodies;

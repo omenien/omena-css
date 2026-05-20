@@ -102,6 +102,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
       scriptName === "check:selected-query-boundary" ||
       scriptName === "check:editor-path-boundary" ||
       scriptName === "check:code-action-query-consumer" ||
+      scriptName === "check:style-diagnostics-query-consumer" ||
       scriptName === "check:provider-host-routing-boundary" ||
       scriptName.startsWith("check:lsp-server-smoke") ||
       scriptName === "cme" ||
