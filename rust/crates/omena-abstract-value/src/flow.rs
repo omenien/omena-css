@@ -17,6 +17,7 @@ pub fn summarize_omena_abstract_value_flow_analysis() -> AbstractValueFlowAnalys
             "singleContext",
             "multiContextBatch",
             "callSiteBatch",
+            "zeroCfaCallSiteBatch",
             "kLimitedCallSiteBatch",
             "controlFlowGraph",
         ],
@@ -311,8 +312,7 @@ pub fn analyze_k_limited_call_site_flows(
     inputs: &[KLimitedCallSiteFlowInputV0],
     max_context_depth: usize,
 ) -> KLimitedCallSiteFlowAnalysisV0 {
-    let max_context_depth = max_context_depth.max(1);
-    let entries = inputs
+    let mut entries = inputs
         .iter()
         .map(|input| {
             let context_key = k_limited_context_key(input, max_context_depth);
@@ -335,6 +335,24 @@ pub fn analyze_k_limited_call_site_flows(
             }
         })
         .collect::<Vec<_>>();
+    let joined_exit_values_by_context = entries.iter().fold(
+        BTreeMap::<String, AbstractClassValueV0>::new(),
+        |mut by_context, entry| {
+            by_context
+                .entry(entry.context_key.clone())
+                .and_modify(|value| {
+                    *value = join_abstract_class_values(value, &entry.exit_value);
+                })
+                .or_insert_with(|| entry.exit_value.clone());
+            by_context
+        },
+    );
+    for entry in &mut entries {
+        if let Some(joined_exit_value) = joined_exit_values_by_context.get(&entry.context_key) {
+            entry.exit_value = joined_exit_value.clone();
+            entry.exit_value_kind = abstract_class_value_kind(&entry.exit_value);
+        }
+    }
     let callee_summaries = summarize_k_limited_callees(&entries);
 
     KLimitedCallSiteFlowAnalysisV0 {

@@ -1151,6 +1151,66 @@ fn analyzes_k_cfa_limited_call_site_flows_with_context_stack_discrimination() {
 }
 
 #[test]
+fn distinguishes_zero_cfa_and_one_cfa_call_site_abstractions() {
+    let inputs = [
+        KLimitedCallSiteFlowInputV0 {
+            callee_key: "classForVariant".to_string(),
+            call_site_stack: vec![
+                "RouteA.tsx:render".to_string(),
+                "PrimaryButton.tsx:className".to_string(),
+            ],
+            graph: flow_exit_graph("btn-primary"),
+            exit_node_id: "exit".to_string(),
+        },
+        KLimitedCallSiteFlowInputV0 {
+            callee_key: "classForVariant".to_string(),
+            call_site_stack: vec![
+                "RouteB.tsx:render".to_string(),
+                "SecondaryButton.tsx:className".to_string(),
+            ],
+            graph: flow_exit_graph("btn-secondary"),
+            exit_node_id: "exit".to_string(),
+        },
+    ];
+
+    let zero_cfa = analyze_k_limited_call_site_flows(&inputs, 0);
+    let one_cfa = analyze_k_limited_call_site_flows(&inputs, 1);
+
+    assert_eq!(zero_cfa.context_sensitivity, "0-cfa");
+    assert_eq!(zero_cfa.max_context_depth, 0);
+    assert_eq!(one_cfa.context_sensitivity, "1-cfa");
+    assert_eq!(one_cfa.max_context_depth, 1);
+    assert_eq!(zero_cfa.entries[0].context_key, "classForVariant@<root>");
+    assert_eq!(zero_cfa.entries[1].context_key, "classForVariant@<root>");
+    assert_eq!(
+        zero_cfa.entries[0].exit_value,
+        AbstractClassValueV0::FiniteSet {
+            values: vec!["btn-primary".to_string(), "btn-secondary".to_string()]
+        }
+    );
+    assert_eq!(
+        zero_cfa.entries[1].exit_value,
+        zero_cfa.entries[0].exit_value
+    );
+    assert_eq!(
+        one_cfa.entries[0].context_key,
+        "classForVariant@PrimaryButton.tsx:className"
+    );
+    assert_eq!(
+        one_cfa.entries[1].context_key,
+        "classForVariant@SecondaryButton.tsx:className"
+    );
+    assert_eq!(
+        one_cfa.entries[0].exit_value,
+        exact_class_value("btn-primary")
+    );
+    assert_eq!(
+        one_cfa.entries[1].exit_value,
+        exact_class_value("btn-secondary")
+    );
+}
+
+#[test]
 fn analyzes_control_flow_graph_with_reachability_pruning() {
     let graph = ClassValueControlFlowGraphV0 {
         context_key: Some("Button.tsx:render@cfg".to_string()),
