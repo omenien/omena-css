@@ -75,6 +75,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "expressionDomainProvenanceExplanations",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.expressionDomainProvenanceExplanations,
+      inputContract: "EngineInputV2",
+      outputProduct: "engine-input-producers.expression-domain-provenance-explanations",
+    },
+  ],
+  [
     "expressionDomainReducedProductIteration",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.expressionDomainReducedProductIteration,
@@ -354,6 +362,7 @@ void (async () => {
     "expressionDomainCallSiteFlowAnalysisRunner",
     "expressionDomainControlFlowAnalysisRunner",
     "expressionDomainFlowAnalysisRunner",
+    "expressionDomainProvenanceExplanationRunner",
     "expressionDomainSalsaRuntime",
     "expressionDomainSelectorProjection",
     "expressionSemanticsDerivationPayload",

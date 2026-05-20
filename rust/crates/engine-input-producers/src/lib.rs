@@ -23,6 +23,7 @@ pub use expression_domain::summarize_expression_domain_evaluator_candidates_inpu
 pub use expression_domain::summarize_expression_domain_flow_analysis_input;
 pub use expression_domain::summarize_expression_domain_fragments_input;
 pub use expression_domain::summarize_expression_domain_plan_input;
+pub use expression_domain::summarize_expression_domain_provenance_explanations_input;
 pub use expression_domain::summarize_expression_domain_reduced_product_iteration_input;
 pub use expression_semantics::summarize_expression_semantics_candidates_input;
 pub use expression_semantics::summarize_expression_semantics_canonical_candidate_bundle_input;
@@ -319,6 +320,29 @@ pub struct ExpressionDomainCanonicalProducerSignalV0 {
     pub input_version: String,
     pub canonical_bundle: ExpressionDomainCanonicalCandidateBundleV0,
     pub evaluator_candidates: ExpressionDomainEvaluatorCandidatesV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainProvenanceExplanationsV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_version: String,
+    pub explanation_count: usize,
+    pub explanations: Vec<ExpressionDomainProvenanceExplanationV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainProvenanceExplanationV0 {
+    pub expression_id: String,
+    pub file_path: String,
+    pub input_fact_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_constraint_kind: Option<String>,
+    pub reduced_kind: &'static str,
+    pub derivation: omena_abstract_value::ReducedClassValueDerivationV0,
+    pub provenance_tree: omena_abstract_value::AbstractClassValueProvenanceTreeV0,
 }
 
 #[derive(Debug, Serialize)]

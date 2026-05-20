@@ -199,6 +199,24 @@ export interface ExpressionDomainEvaluatorCandidatesV0 {
   readonly results: readonly ExpressionDomainEvaluatorCandidateV0[];
 }
 
+export interface ExpressionDomainProvenanceExplanationsV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly inputVersion: string;
+  readonly explanationCount: number;
+  readonly explanations: readonly ExpressionDomainProvenanceExplanationV0[];
+}
+
+export interface ExpressionDomainProvenanceExplanationV0 {
+  readonly expressionId: string;
+  readonly filePath: string;
+  readonly inputFactKind: string;
+  readonly inputConstraintKind?: string;
+  readonly reducedKind: string;
+  readonly derivation: ReducedClassValueDerivationV0;
+  readonly provenanceTree: AbstractClassValueProvenanceTreeV0;
+}
+
 export interface ExpressionDomainCanonicalProducerSignalV0 {
   readonly schemaVersion: string;
   readonly inputVersion: string;
@@ -983,6 +1001,15 @@ export async function runShadowExpressionDomainCallSiteFlowAnalysisInput(
 ): Promise<ExpressionDomainCallSiteFlowAnalysisV0> {
   return runShadowJson<ExpressionDomainCallSiteFlowAnalysisV0>(
     ["input-expression-domain-call-site-flow-analysis"],
+    input,
+  );
+}
+
+export async function runShadowExpressionDomainProvenanceExplanationsInput(
+  input: EngineInputV2,
+): Promise<ExpressionDomainProvenanceExplanationsV0> {
+  return runShadowJson<ExpressionDomainProvenanceExplanationsV0>(
+    ["input-expression-domain-provenance-explanations"],
     input,
   );
 }

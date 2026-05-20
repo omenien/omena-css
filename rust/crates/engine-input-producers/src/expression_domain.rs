@@ -9,7 +9,8 @@ use crate::{
     ExpressionDomainEvaluatorCandidateV0, ExpressionDomainEvaluatorCandidatesV0,
     ExpressionDomainFlowAnalysisEntryV0, ExpressionDomainFlowAnalysisV0,
     ExpressionDomainFlowGraphEntryV0, ExpressionDomainFragmentV0, ExpressionDomainFragmentsV0,
-    ExpressionDomainPlanSummaryV0, ExpressionDomainReducedProductIterationEntryV0,
+    ExpressionDomainPlanSummaryV0, ExpressionDomainProvenanceExplanationV0,
+    ExpressionDomainProvenanceExplanationsV0, ExpressionDomainReducedProductIterationEntryV0,
     ExpressionDomainReducedProductIterationV0, StringTypeFactsV2, TypeFactEntryV2,
     abstract_value_facts, collect_constraint_detail_counts,
     map_reduced_expression_value_domain_derivation, map_reduced_expression_value_domain_kind,
@@ -215,6 +216,37 @@ pub fn summarize_expression_domain_canonical_producer_signal_input(
             input_version,
             results: rows.evaluator_candidates,
         },
+    }
+}
+
+pub fn summarize_expression_domain_provenance_explanations_input(
+    input: &EngineInputV2,
+) -> ExpressionDomainProvenanceExplanationsV0 {
+    let explanations = input
+        .type_facts
+        .iter()
+        .map(|entry| {
+            let derivation = map_reduced_expression_value_domain_derivation(&entry.facts);
+            let provenance_tree = map_reduced_expression_value_domain_provenance_tree(&entry.facts);
+
+            ExpressionDomainProvenanceExplanationV0 {
+                expression_id: entry.expression_id.clone(),
+                file_path: entry.file_path.clone(),
+                input_fact_kind: derivation.input_fact_kind.clone(),
+                input_constraint_kind: derivation.input_constraint_kind.clone(),
+                reduced_kind: derivation.reduced_kind,
+                derivation,
+                provenance_tree,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    ExpressionDomainProvenanceExplanationsV0 {
+        schema_version: "0",
+        product: "engine-input-producers.expression-domain-provenance-explanations",
+        input_version: input.version.clone(),
+        explanation_count: explanations.len(),
+        explanations,
     }
 }
 
@@ -493,6 +525,7 @@ mod tests {
         summarize_expression_domain_evaluator_candidates_input,
         summarize_expression_domain_flow_analysis_input,
         summarize_expression_domain_fragments_input, summarize_expression_domain_plan_input,
+        summarize_expression_domain_provenance_explanations_input,
         summarize_expression_domain_reduced_product_iteration_input,
     };
     use crate::{StringTypeFactsV2, TypeFactEntryV2, test_support::sample_input};
@@ -575,6 +608,38 @@ mod tests {
             Some("prefixSuffix")
         );
         assert_eq!(summary.results[1].payload.finite_value_count, 2);
+    }
+
+    #[test]
+    fn summarizes_expression_domain_provenance_explanations() {
+        let summary = summarize_expression_domain_provenance_explanations_input(&sample_input());
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(
+            summary.product,
+            "engine-input-producers.expression-domain-provenance-explanations"
+        );
+        assert_eq!(summary.input_version, "2");
+        assert_eq!(summary.explanation_count, 2);
+        assert_eq!(summary.explanations[0].expression_id, "expr-1");
+        assert_eq!(summary.explanations[0].input_fact_kind, "constrained");
+        assert_eq!(
+            summary.explanations[0].input_constraint_kind.as_deref(),
+            Some("prefixSuffix")
+        );
+        assert_eq!(summary.explanations[0].reduced_kind, "prefixSuffix");
+        assert_eq!(
+            summary.explanations[0].derivation.product,
+            "omena-abstract-value.reduced-class-value-derivation"
+        );
+        assert_eq!(
+            summary.explanations[0].provenance_tree.product,
+            "omena-abstract-value.provenance-tree"
+        );
+        assert_eq!(
+            summary.explanations[0].provenance_tree.root.operation,
+            "constraintDomain"
+        );
     }
 
     #[test]

@@ -24,6 +24,7 @@ use super::{
     summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
+    summarize_omena_query_expression_domain_provenance_explanations,
     summarize_omena_query_expression_domain_reduced_product_iteration,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_expression_semantics_canonical_producer_signal,
@@ -134,6 +135,11 @@ fn summarizes_query_boundary_over_producer_fragments() {
         summary
             .delegated_fragment_products
             .contains(&"engine-input-producers.expression-domain-call-site-flow-analysis")
+    );
+    assert!(
+        summary
+            .delegated_fragment_products
+            .contains(&"engine-input-producers.expression-domain-provenance-explanations")
     );
     assert!(
         summary
@@ -3098,6 +3104,11 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
     );
     assert!(
         summary.runner_commands.iter().any(|command| {
+            command.command == "input-expression-domain-provenance-explanations"
+        })
+    );
+    assert!(
+        summary.runner_commands.iter().any(|command| {
             command.command == "input-expression-domain-reduced-product-iteration"
         })
     );
@@ -3169,6 +3180,11 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
         summary
             .adapter_readiness
             .contains(&"expressionDomainCallSiteFlowAnalysisRunner")
+    );
+    assert!(
+        summary
+            .adapter_readiness
+            .contains(&"expressionDomainProvenanceExplanationRunner")
     );
     assert!(
         summary
@@ -3393,6 +3409,30 @@ fn owns_expression_domain_call_site_flow_analysis_wrapper_without_changing_produ
     assert_ne!(
         summary.one_cfa.entries[0].context_key,
         summary.one_cfa.entries[1].context_key
+    );
+}
+
+#[test]
+fn owns_expression_domain_provenance_explanations_wrapper_without_changing_product() {
+    let input = sample_input();
+    let summary = summarize_omena_query_expression_domain_provenance_explanations(&input);
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(
+        summary.product,
+        "engine-input-producers.expression-domain-provenance-explanations"
+    );
+    assert_eq!(summary.input_version, "2");
+    assert_eq!(summary.explanation_count, 2);
+    assert_eq!(summary.explanations[0].expression_id, "expr-1");
+    assert_eq!(summary.explanations[0].reduced_kind, "prefixSuffix");
+    assert_eq!(
+        summary.explanations[0].derivation.product,
+        "omena-abstract-value.reduced-class-value-derivation"
+    );
+    assert_eq!(
+        summary.explanations[0].provenance_tree.product,
+        "omena-abstract-value.provenance-tree"
     );
 }
 

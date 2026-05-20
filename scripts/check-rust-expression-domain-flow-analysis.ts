@@ -1,6 +1,7 @@
 import {
   runShadowExpressionDomainCallSiteFlowAnalysisInput,
   runShadowExpressionDomainFlowAnalysisInput,
+  runShadowExpressionDomainProvenanceExplanationsInput,
   runShadowExpressionDomainReducedProductIterationInput,
   type EngineInputV2,
   type StringTypeFactsV2,
@@ -62,6 +63,7 @@ void (async () => {
 
   const summary = await runShadowExpressionDomainFlowAnalysisInput(INPUT);
   const callSiteSummary = await runShadowExpressionDomainCallSiteFlowAnalysisInput(INPUT);
+  const provenanceSummary = await runShadowExpressionDomainProvenanceExplanationsInput(INPUT);
   const reducedProductSummary =
     await runShadowExpressionDomainReducedProductIterationInput(REDUCED_PRODUCT_INPUT);
   const analysis = summary.analyses[0]?.analysis;
@@ -135,9 +137,30 @@ void (async () => {
     "composite",
     "reduced product result kind",
   );
+  assertEqual(
+    provenanceSummary.product,
+    "engine-input-producers.expression-domain-provenance-explanations",
+    "provenance product",
+  );
+  assertEqual(provenanceSummary.explanationCount, 4, "provenance explanation count");
+  assertEqual(
+    provenanceSummary.explanations[0]?.derivation.product,
+    "omena-abstract-value.reduced-class-value-derivation",
+    "provenance derivation product",
+  );
+  assertEqual(
+    provenanceSummary.explanations[0]?.provenanceTree.product,
+    "omena-abstract-value.provenance-tree",
+    "provenance tree product",
+  );
+  assertEqual(
+    provenanceSummary.explanations[0]?.provenanceTree.root.operation,
+    "exactLiteral",
+    "provenance root operation",
+  );
 
   process.stdout.write(
-    `validated expression-domain flow analysis: graphs=${summary.analyses.length} nodes=${analysis?.nodes.length ?? 0} callSiteProduct=${callSiteSummary.product} reducedProduct=${reducedProductSummary.product}\n`,
+    `validated expression-domain flow analysis: graphs=${summary.analyses.length} nodes=${analysis?.nodes.length ?? 0} callSiteProduct=${callSiteSummary.product} reducedProduct=${reducedProductSummary.product} provenance=${provenanceSummary.product}\n`,
   );
 })();
 

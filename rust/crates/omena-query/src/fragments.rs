@@ -35,6 +35,12 @@ pub fn summarize_omena_query_expression_domain_call_site_flow_analysis(
     summarize_expression_domain_call_site_flow_analysis_input(input)
 }
 
+pub fn summarize_omena_query_expression_domain_provenance_explanations(
+    input: &EngineInputV2,
+) -> ExpressionDomainProvenanceExplanationsV0 {
+    summarize_expression_domain_provenance_explanations_input(input)
+}
+
 pub fn summarize_omena_query_expression_domain_reduced_product_iteration(
     input: &EngineInputV2,
 ) -> ExpressionDomainReducedProductIterationV0 {
