@@ -243,6 +243,7 @@ fn did_close_text_document(state: &mut LspShellState, params: Option<&Value>) {
 
 fn did_change_workspace_folders(state: &mut LspShellState, params: Option<&Value>) {
     let event = params.and_then(|value| value.get("event"));
+    let mut removed_workspace_uris = Vec::new();
     if let Some(removed) = event
         .and_then(|value| value.get("removed"))
         .and_then(Value::as_array)
@@ -250,26 +251,59 @@ fn did_change_workspace_folders(state: &mut LspShellState, params: Option<&Value
         for folder in removed {
             if let Some(uri) = folder.get("uri").and_then(Value::as_str) {
                 state.workspace_runtime_registry.remove(uri);
-                remove_indexed_documents_for_workspace(state, uri);
+                removed_workspace_uris.push(uri.to_string());
             }
         }
     }
+    let mut added_workspace_folder = false;
     if let Some(added) = event
         .and_then(|value| value.get("added"))
         .and_then(Value::as_array)
     {
         for folder in added {
             insert_workspace_folder(state, folder);
+            added_workspace_folder = true;
         }
+    }
+    reconcile_documents_after_workspace_folder_changes(state, removed_workspace_uris.as_slice());
+    if added_workspace_folder {
         index_workspace_style_files(state);
     }
+}
+
+fn reconcile_documents_after_workspace_folder_changes(
+    state: &mut LspShellState,
+    removed_workspace_uris: &[String],
+) {
+    remove_unowned_indexed_documents_for_removed_workspaces(state, removed_workspace_uris);
     refresh_document_workspace_owners(state);
 }
 
-fn remove_indexed_documents_for_workspace(state: &mut LspShellState, workspace_uri: &str) {
+fn remove_unowned_indexed_documents_for_removed_workspaces(
+    state: &mut LspShellState,
+    removed_workspace_uris: &[String],
+) {
+    if removed_workspace_uris.is_empty() {
+        return;
+    }
+    let workspace_runtime_registry = state.workspace_runtime_registry.clone();
     state.documents.retain(|uri, document| {
-        state.open_document_uris.contains(uri)
-            || document.workspace_folder_uri.as_deref() != Some(workspace_uri)
+        if state.open_document_uris.contains(uri) {
+            return true;
+        }
+        let owned_by_removed_workspace =
+            document
+                .workspace_folder_uri
+                .as_deref()
+                .is_some_and(|workspace_uri| {
+                    removed_workspace_uris
+                        .iter()
+                        .any(|removed_uri| removed_uri == workspace_uri)
+                });
+        !owned_by_removed_workspace
+            || workspace_runtime_registry
+                .resolve_owner_uri(uri.as_str())
+                .is_some()
     });
 }
 

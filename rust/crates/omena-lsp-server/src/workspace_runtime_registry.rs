@@ -29,6 +29,7 @@ pub fn workspace_runtime_registry_contract() -> WorkspaceRuntimeRegistryBoundary
         indexed_document_policy: vec![
             "indexStyleDocumentsPerWorkspaceRoot",
             "evictIndexedDocumentsOnWorkspaceRemoval",
+            "retargetIndexedDocumentsToRemainingOwnerOnWorkspaceRemoval",
             "openedDocumentsRemainAuthoritative",
         ],
         request_path_policy: vec![

@@ -602,6 +602,32 @@ fn indexes_style_documents_on_open_and_change() {
 }
 
 #[test]
+fn keeps_style_summary_cache_style_document_only() {
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.tsx",
+                    "languageId": "typescriptreact",
+                    "version": 1,
+                    "text": "const tone = 'red';",
+                },
+            },
+        }),
+    );
+
+    let document = state
+        .document("file:///workspace-a/src/App.tsx")
+        .expect("source document should be open");
+    assert!(document.style_summary.is_none());
+    assert!(document.style_candidates.is_empty());
+}
+
+#[test]
 fn resolves_style_hover_candidates_from_opened_style_documents() {
     let mut state = LspShellState::default();
     handle_lsp_message(
@@ -3129,6 +3155,127 @@ fn tracks_workspace_folder_changes() {
         }),
     );
     assert!(state.workspace_folder(workspace_uri.as_str()).is_none());
+    assert!(state.document(style_uri.as_str()).is_none());
+    let _ = std::fs::remove_dir_all(&workspace_root);
+}
+
+#[test]
+fn retargets_indexed_style_documents_after_nested_workspace_removal() {
+    let workspace_root = std::env::temp_dir().join(format!(
+        "omena-lsp-server-nested-workspace-retarget-{}",
+        std::process::id()
+    ));
+    let nested_root = workspace_root.join("packages").join("app");
+    let src_dir = nested_root.join("src");
+    let style_path = src_dir.join("Nested.module.scss");
+    let _ = std::fs::remove_dir_all(&workspace_root);
+    let create_dir_result = std::fs::create_dir_all(&src_dir);
+    assert!(
+        create_dir_result.is_ok(),
+        "create nested-workspace fixture directory: {:?}",
+        create_dir_result.err(),
+    );
+    let write_result = std::fs::write(&style_path, ".nested { color: red; }");
+    assert!(
+        write_result.is_ok(),
+        "write nested-workspace style fixture: {:?}",
+        write_result.err(),
+    );
+
+    let workspace_uri = format!("file://{}", workspace_root.display());
+    let nested_workspace_uri = format!("file://{}", nested_root.display());
+    let style_uri = format!("file://{}", style_path.display());
+    let mut state = LspShellState::default();
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "workspaceFolders": [
+                    {
+                        "uri": workspace_uri,
+                        "name": "workspace",
+                    },
+                    {
+                        "uri": nested_workspace_uri,
+                        "name": "app",
+                    },
+                ],
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        }),
+    );
+
+    let indexed = state.document(style_uri.as_str());
+    assert_eq!(
+        indexed.and_then(|document| document.workspace_folder_uri.as_deref()),
+        Some(nested_workspace_uri.as_str()),
+    );
+    assert_eq!(
+        indexed
+            .and_then(|document| document.style_summary.as_ref())
+            .map(|summary| summary.selector_names.clone()),
+        Some(vec!["nested".to_string()]),
+    );
+
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "workspace/didChangeWorkspaceFolders",
+            "params": {
+                "event": {
+                    "removed": [
+                        {
+                            "uri": nested_workspace_uri,
+                            "name": "app",
+                        },
+                    ],
+                    "added": [],
+                },
+            },
+        }),
+    );
+
+    let retargeted = state.document(style_uri.as_str());
+    assert_eq!(
+        retargeted.and_then(|document| document.workspace_folder_uri.as_deref()),
+        Some(workspace_uri.as_str()),
+    );
+    assert_eq!(
+        retargeted
+            .and_then(|document| document.style_summary.as_ref())
+            .map(|summary| summary.selector_names.clone()),
+        Some(vec!["nested".to_string()]),
+    );
+
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "workspace/didChangeWorkspaceFolders",
+            "params": {
+                "event": {
+                    "removed": [
+                        {
+                            "uri": workspace_uri,
+                            "name": "workspace",
+                        },
+                    ],
+                    "added": [],
+                },
+            },
+        }),
+    );
     assert!(state.document(style_uri.as_str()).is_none());
     let _ = std::fs::remove_dir_all(&workspace_root);
 }

@@ -224,6 +224,11 @@ assert.ok(
   ),
 );
 assert.ok(
+  rustSummary.workspaceRuntimeRegistry.indexedDocumentPolicy.includes(
+    "retargetIndexedDocumentsToRemainingOwnerOnWorkspaceRemoval",
+  ),
+);
+assert.ok(
   rustSummary.workspaceRuntimeRegistry.requestPathPolicy.includes(
     "noNodeWorkspaceRuntimeManagerOnRustLspPath",
   ),

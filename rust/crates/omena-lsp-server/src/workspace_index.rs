@@ -68,11 +68,15 @@ fn index_workspace_style_files_from_dir(
         let Ok(text) = fs::read_to_string(path.as_path()) else {
             continue;
         };
+        let workspace_owner_uri = state
+            .workspace_runtime_registry
+            .resolve_owner_uri(uri.as_str())
+            .unwrap_or_else(|| workspace_folder_uri.to_string());
         state.documents.insert(
             uri.clone(),
             lsp_text_document_state(
                 uri.clone(),
-                Some(workspace_folder_uri.to_string()),
+                Some(workspace_owner_uri),
                 StyleLanguage::from_module_path(uri.as_str())
                     .map(style_language_label)
                     .unwrap_or("unknown")

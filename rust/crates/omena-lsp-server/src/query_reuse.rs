@@ -1,6 +1,7 @@
 use crate::{
     LspTextDocumentState, build_source_syntax_index, collect_style_hover_candidates,
-    source_selector_candidates_from_index, summarize_style_document,
+    protocol::is_style_document_uri, source_selector_candidates_from_index,
+    summarize_style_document,
 };
 use serde::Serialize;
 
@@ -40,12 +41,17 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
 }
 
 pub(crate) fn refresh_document_reusable_indexes(document: &mut LspTextDocumentState) {
-    document.style_summary =
-        summarize_style_document(document.uri.as_str(), Some(document.text.as_str()));
-    document.style_candidates =
-        collect_style_hover_candidates(document.uri.as_str(), document.text.as_str())
-            .map(|(_, candidates)| candidates)
-            .unwrap_or_default();
+    if is_style_document_uri(document.uri.as_str()) {
+        document.style_summary =
+            summarize_style_document(document.uri.as_str(), Some(document.text.as_str()));
+        document.style_candidates =
+            collect_style_hover_candidates(document.uri.as_str(), document.text.as_str())
+                .map(|(_, candidates)| candidates)
+                .unwrap_or_default();
+    } else {
+        document.style_summary = None;
+        document.style_candidates = Vec::new();
+    }
     let source_syntax_index = build_source_syntax_index(document);
     document.source_selector_candidates =
         source_selector_candidates_from_index(document, &source_syntax_index);
