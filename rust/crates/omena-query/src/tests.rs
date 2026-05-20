@@ -4947,14 +4947,20 @@ fn style_diagnostics_for_file_suppresses_sass_builtins_and_hints_imports()
 -> Result<(), &'static str> {
     let source = r#"@use "sass:color";
 @use "sass:math" as m;
+@use "sass:list";
 @use "sass:map" as *;
 @use "sass:meta";
+@use "sass:string";
+@use "sass:selector";
 @import "./legacy";
 .button {
   color: color.adjust(red);
   width: m.div(10px, 2);
+  border-width: list.length(1px 2px 3px);
   z-index: get(("a": 1), "a");
   content: meta.inspect(red);
+  font-family: string.quote(Demo);
+  outline-color: selector.unify(".a", ".b");
   padding: $missing;
 }"#;
     let candidates =
