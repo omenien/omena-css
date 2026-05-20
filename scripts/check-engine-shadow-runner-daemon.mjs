@@ -149,6 +149,25 @@ try {
     "button",
   ]);
 
+  const firstRuntime = await sendDaemonRequest("input-omena-query-evaluation-runtime", engineInput);
+  assert.equal(firstRuntime.product, "omena-query.evaluation-runtime");
+  assert.equal(firstRuntime.expressionDomainGraphCount, 1);
+  assert.equal(firstRuntime.expressionDomainDirtyGraphCount, 1);
+  assert.equal(firstRuntime.expressionDomainReusedGraphCount, 0);
+
+  const secondRuntime = await sendDaemonRequest(
+    "input-omena-query-evaluation-runtime",
+    engineInput,
+  );
+  assert.equal(secondRuntime.product, "omena-query.evaluation-runtime");
+  assert.equal(secondRuntime.expressionDomainRevision, firstRuntime.expressionDomainRevision + 1);
+  assert.equal(secondRuntime.expressionDomainGraphCount, firstRuntime.expressionDomainGraphCount);
+  assert.equal(secondRuntime.expressionDomainDirtyGraphCount, 0);
+  assert.equal(
+    secondRuntime.expressionDomainReusedGraphCount,
+    secondRuntime.expressionDomainGraphCount,
+  );
+
   const graphBatch = await sendDaemonRequest("style-semantic-graph-batch", {
     styles: [{ stylePath, styleSource: ".button { color: red; }" }],
     engineInput,
@@ -161,7 +180,9 @@ try {
   child.stdin.end();
   await onceClosed(child);
   clearTimeout(timeout);
-  process.stdout.write("engine-shadow-runner daemon ok: requests=2 mode=selected-query\n");
+  process.stdout.write(
+    "engine-shadow-runner daemon ok: requests=4 mode=selected-query incrementalReuse=on\n",
+  );
 } catch (error) {
   clearTimeout(timeout);
   child.kill("SIGTERM");
