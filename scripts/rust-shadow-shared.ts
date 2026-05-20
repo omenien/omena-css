@@ -219,6 +219,34 @@ export interface ExpressionDomainFlowAnalysisEntryV0 {
   readonly analysis: ClassValueFlowAnalysisV0;
 }
 
+export interface ExpressionDomainCallSiteFlowAnalysisV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly inputVersion: string;
+  readonly zeroCfa: KLimitedCallSiteFlowAnalysisV0;
+  readonly oneCfa: KLimitedCallSiteFlowAnalysisV0;
+}
+
+export interface KLimitedCallSiteFlowAnalysisV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly contextSensitivity: string;
+  readonly maxContextDepth: number;
+  readonly callSiteCount: number;
+  readonly calleeCount: number;
+  readonly entries: readonly KLimitedCallSiteFlowEntryV0[];
+}
+
+export interface KLimitedCallSiteFlowEntryV0 {
+  readonly calleeKey: string;
+  readonly callSiteStack: readonly string[];
+  readonly contextKey: string;
+  readonly exitNodeId: string;
+  readonly exitValueKind: string;
+  readonly exitValue: AbstractClassValueV0;
+  readonly analysis: ClassValueFlowAnalysisV0;
+}
+
 export interface ClassValueFlowAnalysisV0 {
   readonly schemaVersion: string;
   readonly product: string;
@@ -906,6 +934,15 @@ export async function runShadowExpressionDomainFlowAnalysisInput(
 ): Promise<ExpressionDomainFlowAnalysisV0> {
   return runShadowJson<ExpressionDomainFlowAnalysisV0>(
     ["input-expression-domain-flow-analysis"],
+    input,
+  );
+}
+
+export async function runShadowExpressionDomainCallSiteFlowAnalysisInput(
+  input: EngineInputV2,
+): Promise<ExpressionDomainCallSiteFlowAnalysisV0> {
+  return runShadowJson<ExpressionDomainCallSiteFlowAnalysisV0>(
+    ["input-expression-domain-call-site-flow-analysis"],
     input,
   );
 }

@@ -67,6 +67,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "expressionDomainCallSiteFlowAnalysis",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.expressionDomainCallSiteFlowAnalysis,
+      inputContract: "EngineInputV2",
+      outputProduct: "engine-input-producers.expression-domain-call-site-flow-analysis",
+    },
+  ],
+  [
     "expressionDomainIncrementalFlowAnalysis",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.expressionDomainIncrementalFlowAnalysis,
@@ -335,6 +343,7 @@ void (async () => {
     "consumerBuildFacade",
     "consumerCheckFacade",
     "consumerTransformPassListFacade",
+    "expressionDomainCallSiteFlowAnalysisRunner",
     "expressionDomainControlFlowAnalysisRunner",
     "expressionDomainFlowAnalysisRunner",
     "expressionDomainSalsaRuntime",

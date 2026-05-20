@@ -14,6 +14,7 @@ mod test_support;
 mod type_facts;
 
 pub use expression_domain::collect_expression_domain_flow_graphs;
+pub use expression_domain::summarize_expression_domain_call_site_flow_analysis_input;
 pub use expression_domain::summarize_expression_domain_candidates_input;
 pub use expression_domain::summarize_expression_domain_canonical_candidate_bundle_input;
 pub use expression_domain::summarize_expression_domain_canonical_producer_signal_input;
@@ -358,6 +359,16 @@ pub struct ExpressionDomainControlFlowAnalysisEntryV0 {
     pub graph_id: String,
     pub file_path: String,
     pub analysis: omena_abstract_value::ClassValueControlFlowAnalysisV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainCallSiteFlowAnalysisV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_version: String,
+    pub zero_cfa: omena_abstract_value::KLimitedCallSiteFlowAnalysisV0,
+    pub one_cfa: omena_abstract_value::KLimitedCallSiteFlowAnalysisV0,
 }
 
 #[derive(Debug, Serialize)]

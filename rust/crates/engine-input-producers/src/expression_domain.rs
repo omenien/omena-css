@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    ConstraintDetailCounts, ConstraintDetailInput, EngineInputV2, ExpressionDomainCandidateV0,
+    ConstraintDetailCounts, ConstraintDetailInput, EngineInputV2,
+    ExpressionDomainCallSiteFlowAnalysisV0, ExpressionDomainCandidateV0,
     ExpressionDomainCandidatesV0, ExpressionDomainCanonicalCandidateBundleV0,
     ExpressionDomainCanonicalProducerSignalV0, ExpressionDomainControlFlowAnalysisEntryV0,
     ExpressionDomainControlFlowAnalysisV0, ExpressionDomainEvaluatorCandidatePayloadV0,
@@ -258,6 +259,20 @@ pub fn summarize_expression_domain_control_flow_analysis_input(
     }
 }
 
+pub fn summarize_expression_domain_call_site_flow_analysis_input(
+    input: &EngineInputV2,
+) -> ExpressionDomainCallSiteFlowAnalysisV0 {
+    let call_site_inputs = collect_expression_domain_call_site_flow_inputs(input);
+
+    ExpressionDomainCallSiteFlowAnalysisV0 {
+        schema_version: "0",
+        product: "engine-input-producers.expression-domain-call-site-flow-analysis",
+        input_version: input.version.clone(),
+        zero_cfa: omena_abstract_value::analyze_k_limited_call_site_flows(&call_site_inputs, 0),
+        one_cfa: omena_abstract_value::analyze_k_limited_call_site_flows(&call_site_inputs, 1),
+    }
+}
+
 pub fn collect_expression_domain_flow_graphs(
     input: &EngineInputV2,
 ) -> Vec<ExpressionDomainFlowGraphEntryV0> {
@@ -308,6 +323,37 @@ pub fn collect_expression_domain_flow_graphs(
             }
         })
         .collect()
+}
+
+fn collect_expression_domain_call_site_flow_inputs(
+    input: &EngineInputV2,
+) -> Vec<omena_abstract_value::KLimitedCallSiteFlowInputV0> {
+    collect_expression_domain_flow_graphs(input)
+        .into_iter()
+        .map(|entry| {
+            let exit_node_id = expression_domain_flow_exit_node_id(&entry.graph);
+            omena_abstract_value::KLimitedCallSiteFlowInputV0 {
+                callee_key: "expression-domain-class-value".to_string(),
+                call_site_stack: vec![entry.file_path, entry.graph_id],
+                graph: entry.graph,
+                exit_node_id,
+            }
+        })
+        .collect()
+}
+
+fn expression_domain_flow_exit_node_id(
+    graph: &omena_abstract_value::ClassValueFlowGraphV0,
+) -> String {
+    if graph.nodes.iter().any(|node| node.id == "file-merge") {
+        "file-merge".to_string()
+    } else {
+        graph
+            .nodes
+            .first()
+            .map(|node| node.id.clone())
+            .unwrap_or_else(|| "exit".to_string())
+    }
 }
 
 fn expression_domain_control_flow_graph(
@@ -369,7 +415,9 @@ fn expression_domain_control_flow_graph(
 #[cfg(test)]
 mod tests {
     use super::{
-        collect_expression_domain_flow_graphs, summarize_expression_domain_candidates_input,
+        collect_expression_domain_flow_graphs,
+        summarize_expression_domain_call_site_flow_analysis_input,
+        summarize_expression_domain_candidates_input,
         summarize_expression_domain_canonical_candidate_bundle_input,
         summarize_expression_domain_canonical_producer_signal_input,
         summarize_expression_domain_control_flow_analysis_input,
@@ -619,6 +667,61 @@ mod tests {
     }
 
     #[test]
+    fn summarizes_expression_domain_call_site_flow_analysis_for_zero_and_one_cfa() {
+        let mut input = sample_input();
+        input.type_facts = vec![
+            exact_type_fact_in_file("/tmp/App.tsx", "expr-primary", "btn-primary"),
+            exact_type_fact_in_file("/tmp/Card.tsx", "expr-secondary", "btn-secondary"),
+        ];
+
+        let summary = summarize_expression_domain_call_site_flow_analysis_input(&input);
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(
+            summary.product,
+            "engine-input-producers.expression-domain-call-site-flow-analysis"
+        );
+        assert_eq!(summary.zero_cfa.context_sensitivity, "0-cfa");
+        assert_eq!(summary.one_cfa.context_sensitivity, "1-cfa");
+        assert_eq!(summary.zero_cfa.call_site_count, 2);
+        assert_eq!(summary.one_cfa.call_site_count, 2);
+        assert_eq!(
+            summary.zero_cfa.entries[0].context_key,
+            "expression-domain-class-value@<root>"
+        );
+        assert_eq!(
+            summary.zero_cfa.entries[1].context_key,
+            "expression-domain-class-value@<root>"
+        );
+        assert_ne!(
+            summary.one_cfa.entries[0].context_key,
+            summary.one_cfa.entries[1].context_key
+        );
+        assert_eq!(
+            summary.zero_cfa.entries[0].exit_value,
+            AbstractClassValueV0::FiniteSet {
+                values: vec!["btn-primary".to_string(), "btn-secondary".to_string()]
+            }
+        );
+        assert_eq!(
+            summary.zero_cfa.entries[1].exit_value,
+            summary.zero_cfa.entries[0].exit_value
+        );
+        assert_eq!(
+            summary.one_cfa.entries[0].exit_value,
+            AbstractClassValueV0::Exact {
+                value: "btn-primary".to_string()
+            }
+        );
+        assert_eq!(
+            summary.one_cfa.entries[1].exit_value,
+            AbstractClassValueV0::Exact {
+                value: "btn-secondary".to_string()
+            }
+        );
+    }
+
+    #[test]
     fn summarizes_expression_domain_canonical_producer_signal() {
         let summary = summarize_expression_domain_canonical_producer_signal_input(&sample_input());
 
@@ -638,8 +741,16 @@ mod tests {
     }
 
     fn exact_type_fact(expression_id: &str, value: &str) -> TypeFactEntryV2 {
+        exact_type_fact_in_file("/tmp/App.tsx", expression_id, value)
+    }
+
+    fn exact_type_fact_in_file(
+        file_path: &str,
+        expression_id: &str,
+        value: &str,
+    ) -> TypeFactEntryV2 {
         TypeFactEntryV2 {
-            file_path: "/tmp/App.tsx".to_string(),
+            file_path: file_path.to_string(),
             expression_id: expression_id.to_string(),
             facts: StringTypeFactsV2 {
                 kind: "exact".to_string(),

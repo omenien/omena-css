@@ -20,6 +20,7 @@ use super::{
     summarize_omena_query_analyzed_graph, summarize_omena_query_boundary,
     summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_custom_property_annotations, summarize_omena_query_evaluation_runtime,
+    summarize_omena_query_expression_domain_call_site_flow_analysis,
     summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
@@ -3081,6 +3082,11 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
     );
     assert!(
         summary.runner_commands.iter().any(|command| {
+            command.command == "input-expression-domain-call-site-flow-analysis"
+        })
+    );
+    assert!(
+        summary.runner_commands.iter().any(|command| {
             command.command == "input-expression-domain-incremental-flow-analysis"
         })
     );
@@ -3142,6 +3148,11 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
         summary
             .adapter_readiness
             .contains(&"expressionDomainControlFlowAnalysisRunner")
+    );
+    assert!(
+        summary
+            .adapter_readiness
+            .contains(&"expressionDomainCallSiteFlowAnalysisRunner")
     );
     assert!(
         summary
@@ -3336,6 +3347,36 @@ fn owns_expression_domain_control_flow_analysis_wrapper_without_changing_product
             .analyses
             .iter()
             .all(|entry| entry.analysis.product == "omena-abstract-value.control-flow-analysis")
+    );
+}
+
+#[test]
+fn owns_expression_domain_call_site_flow_analysis_wrapper_without_changing_product() {
+    let input = sample_input();
+    let summary = summarize_omena_query_expression_domain_call_site_flow_analysis(&input);
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(
+        summary.product,
+        "engine-input-producers.expression-domain-call-site-flow-analysis"
+    );
+    assert_eq!(summary.input_version, "2");
+    assert_eq!(summary.zero_cfa.context_sensitivity, "0-cfa");
+    assert_eq!(summary.one_cfa.context_sensitivity, "1-cfa");
+    assert_eq!(summary.zero_cfa.max_context_depth, 0);
+    assert_eq!(summary.one_cfa.max_context_depth, 1);
+    assert_eq!(summary.zero_cfa.call_site_count, 2);
+    assert_eq!(summary.one_cfa.call_site_count, 2);
+    assert!(
+        summary
+            .zero_cfa
+            .entries
+            .iter()
+            .all(|entry| entry.context_key == "expression-domain-class-value@<root>")
+    );
+    assert_ne!(
+        summary.one_cfa.entries[0].context_key,
+        summary.one_cfa.entries[1].context_key
     );
 }
 

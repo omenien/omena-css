@@ -1,10 +1,12 @@
 pub use engine_input_producers::EngineInputV2 as OmenaQueryEngineInputV2;
 use engine_input_producers::{
-    EngineInputV2, ExpressionDomainControlFlowAnalysisV0, ExpressionDomainFlowAnalysisV0,
-    ExpressionSemanticsCanonicalProducerSignalV0, ExpressionSemanticsQueryFragmentsV0,
-    SelectorUsageCanonicalProducerSignalV0, SelectorUsageQueryFragmentsV0,
-    SourceResolutionCanonicalProducerSignalV0, SourceResolutionQueryFragmentsV0,
-    collect_expression_domain_flow_graphs, summarize_expression_domain_control_flow_analysis_input,
+    EngineInputV2, ExpressionDomainCallSiteFlowAnalysisV0, ExpressionDomainControlFlowAnalysisV0,
+    ExpressionDomainFlowAnalysisV0, ExpressionSemanticsCanonicalProducerSignalV0,
+    ExpressionSemanticsQueryFragmentsV0, SelectorUsageCanonicalProducerSignalV0,
+    SelectorUsageQueryFragmentsV0, SourceResolutionCanonicalProducerSignalV0,
+    SourceResolutionQueryFragmentsV0, collect_expression_domain_flow_graphs,
+    summarize_expression_domain_call_site_flow_analysis_input,
+    summarize_expression_domain_control_flow_analysis_input,
     summarize_expression_domain_flow_analysis_input,
     summarize_expression_semantics_canonical_producer_signal_input,
     summarize_expression_semantics_query_fragments_input,

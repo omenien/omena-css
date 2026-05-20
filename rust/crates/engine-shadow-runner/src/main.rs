@@ -48,6 +48,7 @@ use omena_query::{
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
     read_omena_query_style_context_index, summarize_omena_query_boundary,
     summarize_omena_query_consumer_check_style_source, summarize_omena_query_evaluation_runtime,
+    summarize_omena_query_expression_domain_call_site_flow_analysis,
     summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
@@ -1091,6 +1092,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some("input-expression-domain-control-flow-analysis") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_omena_query_expression_domain_control_flow_analysis(&input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("input-expression-domain-call-site-flow-analysis") => {
+            let input: EngineInputV2 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_query_expression_domain_call_site_flow_analysis(&input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("input-expression-domain-incremental-flow-analysis") => {
