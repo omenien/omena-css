@@ -237,6 +237,7 @@
     "check:rust-shadow-compare": "node --import tsx ./scripts/check-rust-shadow-compare.ts",
     "check:workspace": "node --import tsx ./scripts/check-workspace.ts",
     "explain:expression": "node --import tsx ./scripts/explain-expression.ts",
+    "explain:expression-query-consumer": "node --import tsx ./scripts/check-explain-expression-query-consumer.ts",
     "check:semantic-smoke": "node --import tsx ./scripts/check-semantic-smoke.ts",
     "check:lsp-server-smoke": "node --import tsx ./scripts/check-lsp-server-smoke.ts",
     "check:provider-host-routing-boundary": "node --import tsx ./scripts/check-provider-host-routing-boundary.ts",
