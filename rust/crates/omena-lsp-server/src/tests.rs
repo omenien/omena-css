@@ -57,6 +57,16 @@ fn declares_migration_blocking_work_policy() {
             .contains(&"noFullWorkspaceProgramOnRequestPath")
     );
     assert!(
+        summary
+            .blocking_work_policy
+            .contains(&"queuedRequestCancellationBeforeProviderWork")
+    );
+    assert!(
+        summary
+            .blocking_work_policy
+            .contains(&"tsgoProviderCancellationTokenBoundary")
+    );
+    assert!(
         !summary
             .next_decoupling_targets
             .contains(&"tsgoJsonRpcProviderImplementation")

@@ -131,6 +131,7 @@ const expectedMissingCustomPropertyDiagnostic = {
   range: nodeMissingCustomPropertyReference.range,
   severity: 2,
   source: "css-module-explainer",
+  code: "missingCustomProperty",
   message: "CSS custom property '--missing' not found in indexed style tokens.",
   data: {
     createCustomProperty: {

@@ -148,6 +148,14 @@ assert.ok(
   "Rust LSP boundary must explicitly reject full workspace program work on request paths",
 );
 assert.ok(
+  rustSummary.blockingWorkPolicy.includes("queuedRequestCancellationBeforeProviderWork"),
+  "Rust LSP boundary must advertise queued request cancellation before provider work",
+);
+assert.ok(
+  rustSummary.blockingWorkPolicy.includes("tsgoProviderCancellationTokenBoundary"),
+  "Rust LSP boundary must keep the tsgo provider cancellation token boundary visible",
+);
+assert.ok(
   !rustSummary.nextDecouplingTargets.includes("tsgoJsonRpcProviderImplementation"),
   "implemented tsgo JSON-RPC provider should not remain listed as a next target",
 );

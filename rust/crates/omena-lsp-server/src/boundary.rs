@@ -156,7 +156,8 @@ pub fn summarize_omena_lsp_server_boundary() -> OmenaLspServerBoundarySummaryV0 
         migration_phases: lsp_migration_phases(),
         blocking_work_policy: vec![
             "noFullWorkspaceProgramOnRequestPath",
-            "cooperativeCancellationBeforeProviderWork",
+            "queuedRequestCancellationBeforeProviderWork",
+            "tsgoProviderCancellationTokenBoundary",
             "backgroundIndexAndTypeFactWarmup",
             "staleOrUnresolvableFastReturn",
         ],
