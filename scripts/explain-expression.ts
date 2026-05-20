@@ -115,6 +115,7 @@ function formatExplainResult(
     readonly filePath: string;
     readonly line: number;
     readonly character: number;
+    readonly analysisSource: string;
     readonly expressionKind: string;
     readonly styleFilePath: string;
     readonly selectorNames: readonly string[];
@@ -185,6 +186,7 @@ function formatExplainResult(
 ): string {
   const lines = [
     `File: ${relativeOrAbsolute(result.filePath, workspaceRoot)}:${result.line + 1}:${result.character + 1}`,
+    `Analysis source: ${result.analysisSource}`,
     `Expression kind: ${result.expressionKind}`,
     `Style module: ${relativeOrAbsolute(result.styleFilePath, workspaceRoot)}`,
     `Matched selectors: ${result.selectorNames.length > 0 ? result.selectorNames.join(", ") : "(none)"}`,

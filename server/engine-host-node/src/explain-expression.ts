@@ -61,6 +61,7 @@ export interface ExplainExpressionResult {
   readonly filePath: string;
   readonly line: number;
   readonly character: number;
+  readonly analysisSource: "omena-query" | "typescript-current";
   readonly expressionKind: string;
   readonly styleFilePath: string;
   readonly selectorNames: readonly string[];
@@ -135,6 +136,7 @@ export function explainExpressionAtLocation(
         : null,
     );
     if (rustResult) return rustResult;
+    return null;
   }
 
   const resolved = resolveRefDetails(ctx, {
@@ -176,6 +178,7 @@ export function explainExpressionAtLocation(
     filePath: options.filePath,
     line: options.line,
     character: options.character,
+    analysisSource: "typescript-current",
     expressionKind: ctx.expression.kind,
     styleFilePath: ctx.expression.scssModulePath,
     selectorNames: resolved.selectors.map((selector) => selector.name),
@@ -280,6 +283,7 @@ function resolveExplainExpressionViaRustSemantics(
     filePath: options.filePath,
     line: options.line,
     character: options.character,
+    analysisSource: "omena-query",
     expressionKind: ctx.expression.kind,
     styleFilePath: payload.styleFilePath,
     selectorNames: payload.selectorNames,

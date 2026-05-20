@@ -37,6 +37,7 @@ describe("explainExpressionAtLocation", () => {
 
     expect(result).toEqual(
       expect.objectContaining({
+        analysisSource: "typescript-current",
         expressionKind: "symbolRef",
         styleFilePath: path.join(workspaceRoot, "src/Button.module.scss"),
         selectorNames: ["small"],
@@ -279,6 +280,7 @@ describe("explainExpressionAtLocation", () => {
 
     expect(result).toEqual(
       expect.objectContaining({
+        analysisSource: "omena-query",
         selectorNames: ["small"],
         analysisV2: expect.objectContaining({
           valueDomainKind: "finiteSet",
@@ -369,7 +371,7 @@ describe("explainExpressionAtLocation", () => {
     );
   });
 
-  it("falls back to TypeScript semantics when rust payload is non-informative", () => {
+  it("does not fall back to TypeScript semantics when rust payload is non-informative", () => {
     const workspaceRoot = makeWorkspace({
       "src/App.tsx": [
         "import classNames from 'classnames/bind';",
@@ -410,19 +412,7 @@ describe("explainExpressionAtLocation", () => {
       readRustExpressionDomainSelectorProjections: () => [],
     });
 
-    expect(result).toEqual(
-      expect.objectContaining({
-        selectorNames: ["small"],
-        analysisV2: expect.objectContaining({
-          valueDomainKind: "finiteSet",
-          valueCertaintyShapeKind: "boundedFinite",
-        }),
-        dynamicExplanation: expect.objectContaining({
-          subject: "size",
-          candidates: expect.arrayContaining(["small", "large"]),
-        }),
-      }),
-    );
+    expect(result).toBeNull();
   });
 });
 
