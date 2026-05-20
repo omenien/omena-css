@@ -11,6 +11,18 @@ const RANGE = {
   start: { line: 0, character: 17 },
   end: { line: 0, character: 21 },
 };
+const INLINE_STYLE_SOURCE = [
+  ".base { color: red; padding: 4px; }",
+  ".button {",
+  "  composes: base;",
+  "  background: blue;",
+  "}",
+  "",
+].join("\n");
+const INLINE_RANGE = {
+  start: { line: 2, character: 12 },
+  end: { line: 2, character: 16 },
+};
 
 const previousBackend = process.env.CME_SELECTED_QUERY_BACKEND;
 process.env.CME_SELECTED_QUERY_BACKEND = "rust-selected-query";
@@ -53,8 +65,38 @@ try {
       newText: "var(--extracted-color)",
     },
   ]);
+  const inlineActions = handleCodeAction(
+    {
+      textDocument: { uri: STYLE_URI },
+      range: INLINE_RANGE,
+      context: { diagnostics: [], triggerKind: 1 },
+    },
+    {
+      fileExists: () => true,
+      buildStyleDocument: (filePath: string, content: string) =>
+        parseStyleDocument(content, filePath),
+      readStyleFile: () => null,
+      logError: (_message: string, err: unknown) => errors.push(err),
+    } as ProviderDeps,
+    INLINE_STYLE_SOURCE,
+  ) as CodeAction[] | null;
+
+  assert.deepEqual(errors, []);
+  assert(inlineActions, "code-action provider should return inline refactor actions");
+  const inline = inlineActions.find((action) => action.kind === CodeActionKind.RefactorInline);
+  assert(inline, "expected query-owned composed-class inline refactor");
+  assert.equal(inline.title, "Inline composed class 'base'");
+  assert.deepEqual(inline.edit?.changes?.[STYLE_URI], [
+    {
+      range: {
+        start: { line: 2, character: 2 },
+        end: { line: 2, character: 17 },
+      },
+      newText: "color: red;\n  padding: 4px;",
+    },
+  ]);
   process.stdout.write(
-    `validated code-action query consumer: provider=LSP action=refactor.extract source=${STYLE_PATH}\n`,
+    `validated code-action query consumer: provider=LSP actions=refactor.extract,refactor.inline source=${STYLE_PATH}\n`,
   );
 } finally {
   if (previousBackend === undefined) {
