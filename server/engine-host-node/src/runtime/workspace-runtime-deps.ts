@@ -14,6 +14,7 @@ export interface WorkspaceRuntimeDepsArgs {
   readonly typeResolver: TypeResolver;
   readonly styleDocumentForPath: (path: string) => StyleDocumentHIR | null;
   readonly readStyleFile: (path: string) => string | null;
+  readonly readOpenDocumentText?: (path: string) => string | null;
   readonly fileExists: (path: string) => boolean;
   readonly sink: RuntimeSink;
   readonly serverName: string;
@@ -67,6 +68,7 @@ export function createWorkspaceProviderDeps(args: WorkspaceRuntimeDepsArgs): Wor
         content,
         args.settingsState.classnameTransform,
       ),
+    ...(args.readOpenDocumentText ? { readOpenDocumentText: args.readOpenDocumentText } : {}),
     readStyleFile: args.readStyleFile,
     fileExists: args.fileExists,
     pushStyleFile: (stylePath) => args.styleRuntime.pushStyleFile(stylePath),

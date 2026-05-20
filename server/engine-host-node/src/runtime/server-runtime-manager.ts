@@ -50,6 +50,7 @@ export function createServerRuntimeManager(
   const fileExists = args.options.fileExists ?? existsSync;
   const runtimeIO = createWorkspaceRuntimeIO({
     readStyleFile: args.readStyleFile,
+    readOpenDocumentText: args.readOpenDocumentText,
     ...(args.options.readStyleFileAsync
       ? { readStyleFileAsync: args.options.readStyleFileAsync }
       : {}),

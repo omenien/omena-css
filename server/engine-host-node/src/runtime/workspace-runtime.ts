@@ -19,6 +19,7 @@ import { createWorkspaceStyleRuntime } from "./workspace-style-runtime";
 
 export interface WorkspaceRuntimeIO {
   readonly readStyleFile: (path: string) => string | null;
+  readonly readOpenDocumentText?: (path: string) => string | null;
   readonly readStyleFileAsync?: (path: string) => Promise<string | null>;
   readonly fileSupplier?: () => AsyncIterable<FileTask>;
 }
@@ -62,6 +63,7 @@ export function createWorkspaceRuntime(args: WorkspaceRuntimeFactoryArgs): Works
     typeResolver: args.typeResolver,
     styleDocumentForPath: args.styleDocumentForPath,
     readStyleFile: args.io.readStyleFile,
+    ...(args.io.readOpenDocumentText ? { readOpenDocumentText: args.io.readOpenDocumentText } : {}),
     fileExists: args.fileExists,
     sink: args.sink,
     serverName: args.serverName,

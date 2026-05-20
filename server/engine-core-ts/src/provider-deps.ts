@@ -66,6 +66,12 @@ export interface ProviderDeps {
   readonly invalidateStyle: (path: string) => void;
   readonly peekStyleDocument: (path: string) => StyleDocumentHIR | null;
   readonly buildStyleDocument: (path: string, content: string) => StyleDocumentHIR;
+  /**
+   * Return unsaved open-document text for a style file when the client has it.
+   * Query-backed providers use this before disk reads so diagnostics and quick
+   * fixes reflect the user's current buffer, not only saved files.
+   */
+  readonly readOpenDocumentText?: (path: string) => string | null;
   readonly readStyleFile: (path: string) => string | null;
   /**
    * Filesystem existence check. Used by recovery/setup workflows

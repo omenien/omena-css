@@ -37,6 +37,7 @@ export interface StyleDocumentLookupArgs {
 
 export interface WorkspaceRuntimeIOOptions {
   readonly readStyleFile: (path: string) => string | null;
+  readonly readOpenDocumentText?: (path: string) => string | null;
   readonly readStyleFileAsync?: (path: string) => Promise<string | null>;
   readonly fileSupplier?: () => AsyncIterable<FileTask>;
 }
@@ -165,6 +166,7 @@ function resolveSassModuleExportedSymbolTargets(
 export function createWorkspaceRuntimeIO(options: WorkspaceRuntimeIOOptions): WorkspaceRuntimeIO {
   return {
     readStyleFile: options.readStyleFile,
+    ...(options.readOpenDocumentText ? { readOpenDocumentText: options.readOpenDocumentText } : {}),
     ...(options.readStyleFileAsync ? { readStyleFileAsync: options.readStyleFileAsync } : {}),
     ...(options.fileSupplier ? { fileSupplier: options.fileSupplier } : {}),
   };

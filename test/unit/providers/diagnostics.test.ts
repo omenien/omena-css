@@ -9,6 +9,8 @@ import { DocumentAnalysisCache } from "../../../server/engine-core-ts/src/core/i
 import type { ProviderDeps } from "../../../server/lsp-server/src/providers/cursor-dispatch";
 import { computeDiagnostics } from "../../../server/lsp-server/src/providers/diagnostics";
 import type { TypeResolver } from "../../../server/engine-core-ts/src/core/ts/type-resolver";
+import { SELECTED_QUERY_RUNNER_COMMANDS } from "../../../server/engine-host-node/src/selected-query-backend";
+import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../../server/engine-host-node/src/selected-query-backend";
 import { FakeTypeResolver } from "../../_fixtures/fake-type-resolver";
 import {
   EMPTY_ALIAS_RESOLVER,
@@ -161,6 +163,86 @@ describe("computeDiagnostics", () => {
         newText: "\n\n.unknonw {\n}\n",
       },
     });
+  });
+
+  it("uses omena-query source diagnostics while preserving checker quick-fix data", async () => {
+    const previousBackend = process.env.CME_SELECTED_QUERY_BACKEND;
+    process.env.CME_SELECTED_QUERY_BACKEND = "rust-selected-query";
+    const BUFFER_SCSS = ".indicator {}\n";
+    const DISK_SCSS = ".indicator {}\n.legacy {}\n";
+    const commands: string[] = [];
+    const runRustSelectedQueryBackendJsonAsync: RustSelectedQueryBackendJsonRunnerAsync = async (
+      command,
+      input,
+    ) => {
+      commands.push(command);
+      expect(command).toBe(SELECTED_QUERY_RUNNER_COMMANDS.sourceDiagnosticsForFile);
+      expect(input).toMatchObject({
+        sourcePath: SOURCE_PATH,
+        sourceSource: baseParams.content,
+        styles: [{ stylePath: "/fake/ws/src/Button.module.scss", styleSource: BUFFER_SCSS }],
+      });
+      return {
+        product: "omena-query.diagnostics-for-file",
+        fileKind: "source",
+        diagnostics: [
+          {
+            code: "missingStaticClass",
+            severity: "warning",
+            provenance: [
+              "omena-query.source-syntax-index",
+              "omena-query.style-selector-definitions",
+            ],
+            range: MISSING_CLASS_RANGE,
+            message: "Class '.unknonw' not found in target CSS Module.",
+            createSelector: {
+              uri: "/fake/ws/src/Button.module.scss",
+              range: {
+                start: { line: 1, character: 0 },
+                end: { line: 1, character: 0 },
+              },
+              newText: "\n\n.unknonw {\n}\n",
+              selectorName: "unknonw",
+            },
+          },
+        ],
+      };
+    };
+    const deps = {
+      ...makeDeps({
+        readOpenDocumentText: (filePath) =>
+          filePath === "/fake/ws/src/Button.module.scss" ? BUFFER_SCSS : null,
+        readStyleFile: () => DISK_SCSS,
+      }),
+      runRustSelectedQueryBackendJsonAsync,
+    };
+
+    try {
+      const result = await computeDiagnostics(baseParams, deps);
+      expect(commands).toEqual([SELECTED_QUERY_RUNNER_COMMANDS.sourceDiagnosticsForFile]);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        code: "missingStaticClass",
+        severity: DiagnosticSeverity.Warning,
+        data: {
+          suggestion: "unknown",
+          querySeverity: "warning",
+          provenance: ["omena-query.source-syntax-index", "omena-query.style-selector-definitions"],
+          createSelector: {
+            uri: "file:///fake/ws/src/Button.module.scss",
+            selectorName: "unknonw",
+          },
+        },
+      });
+      expect(result[0]!.message).toContain("Class '.unknonw'");
+      expect(result[0]!.message).toContain("Did you mean 'unknown'?");
+    } finally {
+      if (previousBackend === undefined) {
+        delete process.env.CME_SELECTED_QUERY_BACKEND;
+      } else {
+        process.env.CME_SELECTED_QUERY_BACKEND = previousBackend;
+      }
+    }
   });
 
   it("returns an empty array when the file does not import classnames/bind", () => {
