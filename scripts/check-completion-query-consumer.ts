@@ -7,7 +7,10 @@ import { parseStyleDocument } from "../server/engine-core-ts/src/core/scss/scss-
 import { WorkspaceStyleDependencyGraph } from "../server/engine-core-ts/src/core/semantic/style-dependency-graph";
 import { NullSemanticWorkspaceReferenceIndex } from "../server/engine-core-ts/src/core/semantic/workspace-reference-index";
 import { SourceFileCache } from "../server/engine-core-ts/src/core/ts/source-file-cache";
-import type { TypeResolver } from "../server/engine-core-ts/src/core/ts/type-resolver";
+import {
+  UNRESOLVABLE_TYPE,
+  type TypeResolver,
+} from "../server/engine-core-ts/src/core/ts/type-resolver";
 import { DEFAULT_SETTINGS } from "../server/engine-core-ts/src/settings";
 import { runRustSelectedQueryBackendJsonAsync } from "../server/engine-host-node/src/selected-query-backend";
 import { handleCompletion } from "../server/lsp-server/src/providers/completion";
@@ -128,7 +131,7 @@ function makeDeps(styleSource: string): ProviderDeps & {
     max: 10,
   });
   const typeResolver: TypeResolver = {
-    resolve: () => null,
+    resolve: () => UNRESOLVABLE_TYPE,
     invalidate: () => {},
     clear: () => {},
   };
