@@ -4890,6 +4890,7 @@ fn completion_at_position_is_query_owned_for_style_and_source() -> Result<(), &'
         ],
         Some("file:///workspace/src/Component.module.scss"),
         Some("ro"),
+        &[],
     );
     assert_eq!(source_completion.context_kind, "sourceCssModuleTarget");
     assert_eq!(source_completion.item_count, 1);
@@ -4904,6 +4905,90 @@ fn completion_at_position_is_query_owned_for_style_and_source() -> Result<(), &'
             .contains(&"bridgeAwareSelectorCompletion")
     );
     Ok(())
+}
+
+#[test]
+fn source_completion_ranking_prefers_value_domain_projection() {
+    let candidates = [
+        OmenaQueryCompletionCandidateV0 {
+            file_uri: "file:///workspace/src/Component.module.scss".to_string(),
+            name: "item--large".to_string(),
+            kind: "selector",
+            range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 0,
+                    character: 1,
+                },
+                end: ParserPositionV0 {
+                    line: 0,
+                    character: 12,
+                },
+            },
+            source: "omenaQueryStyleHoverCandidates",
+        },
+        OmenaQueryCompletionCandidateV0 {
+            file_uri: "file:///workspace/src/Component.module.scss".to_string(),
+            name: "item--primary".to_string(),
+            kind: "selector",
+            range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 1,
+                    character: 1,
+                },
+                end: ParserPositionV0 {
+                    line: 1,
+                    character: 14,
+                },
+            },
+            source: "omenaQueryStyleHoverCandidates",
+        },
+        OmenaQueryCompletionCandidateV0 {
+            file_uri: "file:///workspace/src/Component.module.scss".to_string(),
+            name: "item--secondary".to_string(),
+            kind: "selector",
+            range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 2,
+                    character: 1,
+                },
+                end: ParserPositionV0 {
+                    line: 2,
+                    character: 16,
+                },
+            },
+            source: "omenaQueryStyleHoverCandidates",
+        },
+    ];
+    let completion = super::summarize_omena_query_source_completion_at_position(
+        "file:///workspace/src/App.tsx",
+        ParserPositionV0 {
+            line: 0,
+            character: 42,
+        },
+        &candidates,
+        Some("file:///workspace/src/Component.module.scss"),
+        Some("item--"),
+        &["item--secondary".to_string(), "item--primary".to_string()],
+    );
+
+    assert_eq!(completion.context_kind, "sourceCssModuleValueDomainTarget");
+    assert_eq!(
+        completion
+            .items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["item--primary", "item--secondary", "item--large"]
+    );
+    assert_eq!(
+        completion.items[0].ranking_source,
+        "valueDomainSelectorProjection"
+    );
+    assert!(
+        completion
+            .ready_surfaces
+            .contains(&"valueDomainAwareSelectorCompletion")
+    );
 }
 
 #[test]

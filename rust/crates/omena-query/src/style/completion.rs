@@ -73,7 +73,12 @@ pub fn summarize_omena_query_source_completion_at_position(
     candidates: &[OmenaQueryCompletionCandidateV0],
     target_style_uri: Option<&str>,
     value_prefix: Option<&str>,
+    preferred_selector_names: &[String],
 ) -> OmenaQueryCompletionAtPositionV0 {
+    let preferred_selectors = preferred_selector_names
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
     let mut emitted_labels = BTreeSet::new();
     let mut items = candidates
         .iter()
@@ -86,8 +91,12 @@ pub fn summarize_omena_query_source_completion_at_position(
             if !emitted_labels.insert(candidate.name.clone()) {
                 return None;
             }
-            let (sort_text, ranking_source) =
-                source_completion_ranking(candidate, target_style_uri, value_prefix);
+            let (sort_text, ranking_source) = source_completion_ranking(
+                candidate,
+                target_style_uri,
+                value_prefix,
+                preferred_selectors.contains(candidate.name.as_str()),
+            );
             Some(OmenaQueryCompletionItemV0 {
                 label: candidate.name.clone(),
                 insert_text: candidate.name.clone(),
@@ -108,7 +117,11 @@ pub fn summarize_omena_query_source_completion_at_position(
         file_kind: "source",
         query_position: position,
         context_kind: if target_style_uri.is_some() {
-            "sourceCssModuleTarget"
+            if preferred_selectors.is_empty() {
+                "sourceCssModuleTarget"
+            } else {
+                "sourceCssModuleValueDomainTarget"
+            }
         } else {
             "sourceClassToken"
         },
@@ -116,7 +129,15 @@ pub fn summarize_omena_query_source_completion_at_position(
         is_incomplete: false,
         item_count: items.len(),
         items,
-        ready_surfaces: vec!["sourceCompletionAt", "bridgeAwareSelectorCompletion"],
+        ready_surfaces: if preferred_selectors.is_empty() {
+            vec!["sourceCompletionAt", "bridgeAwareSelectorCompletion"]
+        } else {
+            vec![
+                "sourceCompletionAt",
+                "bridgeAwareSelectorCompletion",
+                "valueDomainAwareSelectorCompletion",
+            ]
+        },
     }
 }
 
@@ -149,12 +170,20 @@ fn source_completion_ranking(
     candidate: &OmenaQueryCompletionCandidateV0,
     target_style_uri: Option<&str>,
     value_prefix: Option<&str>,
+    preferred_by_value_domain: bool,
 ) -> (String, &'static str) {
+    if preferred_by_value_domain {
+        return (
+            format!("00-00-{}", candidate.name),
+            "valueDomainSelectorProjection",
+        );
+    }
+
     let target_rank =
         usize::from(target_style_uri.is_none_or(|target| candidate.file_uri != target));
     let prefix_rank = usize::from(value_prefix.is_none());
     (
-        format!("{target_rank:02}-{prefix_rank:02}-{}", candidate.name),
+        format!("10-{target_rank:02}-{prefix_rank:02}-{}", candidate.name),
         if target_style_uri.is_some() || value_prefix.is_some() {
             "targetAndPrefixNarrowing"
         } else {
@@ -192,6 +221,7 @@ pub fn summarize_omena_query_source_completion_for_workspace_file(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     target_style_uri: Option<&str>,
     value_prefix: Option<&str>,
+    preferred_selector_names: &[String],
 ) -> OmenaQueryCompletionAtPositionV0 {
     let candidates = collect_omena_query_completion_candidates(style_sources);
     summarize_omena_query_source_completion_at_position(
@@ -200,6 +230,7 @@ pub fn summarize_omena_query_source_completion_for_workspace_file(
         candidates.as_slice(),
         target_style_uri,
         value_prefix,
+        preferred_selector_names,
     )
 }
 

@@ -1822,9 +1822,7 @@ fn resolve_source_lsp_completion(
     let Some(position) = lsp_position_from_params(params) else {
         return Value::Null;
     };
-    let Some((target_style_uri, value_prefix)) =
-        source_completion_context_at_position(document, position)
-    else {
+    let Some(context) = source_completion_context_at_position(document, position) else {
         return Value::Null;
     };
 
@@ -1835,12 +1833,14 @@ fn resolve_source_lsp_completion(
     )
     .into_iter()
     .filter(|(uri, _)| {
-        target_style_uri
+        context
+            .target_style_uri
             .as_deref()
             .is_none_or(|target_uri| file_uri_equivalent(target_uri, uri))
     })
     .map(|(uri, definition)| {
-        let file_uri = target_style_uri
+        let file_uri = context
+            .target_style_uri
             .as_deref()
             .filter(|target_uri| file_uri_equivalent(target_uri, uri.as_str()))
             .map(ToString::to_string)
@@ -1858,8 +1858,9 @@ fn resolve_source_lsp_completion(
         document.uri.as_str(),
         position,
         candidates.as_slice(),
-        target_style_uri.as_deref(),
-        value_prefix.as_deref(),
+        context.target_style_uri.as_deref(),
+        context.value_prefix.as_deref(),
+        context.preferred_selector_names.as_slice(),
     );
     let items: Vec<Value> = completion
         .items
@@ -1873,25 +1874,48 @@ fn resolve_source_lsp_completion(
     })
 }
 
+struct SourceCompletionContext {
+    target_style_uri: Option<String>,
+    value_prefix: Option<String>,
+    preferred_selector_names: Vec<String>,
+}
+
 fn source_completion_context_at_position(
     document: &LspTextDocumentState,
     position: ParserPositionV0,
-) -> Option<(Option<String>, Option<String>)> {
+) -> Option<SourceCompletionContext> {
     let offset = byte_offset_for_parser_position(document.text.as_str(), position)?;
+    if let Some(target) = document
+        .source_syntax_index
+        .type_fact_targets
+        .iter()
+        .find(|target| offset >= target.byte_span.start && offset <= target.byte_span.end)
+    {
+        return Some(SourceCompletionContext {
+            target_style_uri: target.target_style_uri.clone(),
+            value_prefix: (!target.prefix.is_empty()).then(|| target.prefix.clone()),
+            preferred_selector_names: source_completion_value_domain_selectors_for_target(
+                document,
+                target.byte_span,
+                target.target_style_uri.as_deref(),
+            ),
+        });
+    }
     if let Some(access) = document
         .source_syntax_index
         .style_property_accesses
         .iter()
         .find(|access| offset >= access.byte_span.start && offset <= access.byte_span.end)
     {
-        return Some((
-            access.target_style_uri.clone(),
-            source_completion_prefix_for_terminal_offset(
+        return Some(SourceCompletionContext {
+            target_style_uri: access.target_style_uri.clone(),
+            value_prefix: source_completion_prefix_for_terminal_offset(
                 document.text.as_str(),
                 access.byte_span,
                 offset,
             ),
-        ));
+            preferred_selector_names: Vec::new(),
+        });
     }
     if let Some(reference) = document
         .source_syntax_index
@@ -1899,14 +1923,15 @@ fn source_completion_context_at_position(
         .iter()
         .find(|reference| offset >= reference.byte_span.start && offset <= reference.byte_span.end)
     {
-        return Some((
-            reference.target_style_uri.clone(),
-            source_completion_prefix_for_terminal_offset(
+        return Some(SourceCompletionContext {
+            target_style_uri: reference.target_style_uri.clone(),
+            value_prefix: source_completion_prefix_for_terminal_offset(
                 document.text.as_str(),
                 reference.byte_span,
                 offset,
             ),
-        ));
+            preferred_selector_names: Vec::new(),
+        });
     }
     if document
         .source_syntax_index
@@ -1920,12 +1945,43 @@ fn source_completion_context_at_position(
             .iter()
             .find(|span| offset >= span.start && offset <= span.end)
             .copied()?;
-        return Some((
-            None,
-            source_completion_class_token_prefix_from_span(document.text.as_str(), span, offset),
-        ));
+        return Some(SourceCompletionContext {
+            target_style_uri: None,
+            value_prefix: source_completion_class_token_prefix_from_span(
+                document.text.as_str(),
+                span,
+                offset,
+            ),
+            preferred_selector_names: Vec::new(),
+        });
     }
     None
+}
+
+fn source_completion_value_domain_selectors_for_target(
+    document: &LspTextDocumentState,
+    byte_span: ParserByteSpanV0,
+    target_style_uri: Option<&str>,
+) -> Vec<String> {
+    let mut selectors = document
+        .source_syntax_index
+        .selector_references
+        .iter()
+        .filter(|reference| reference.byte_span == byte_span)
+        .filter(|reference| reference.match_kind == SourceSelectorReferenceMatchKind::Exact)
+        .filter(|reference| {
+            target_style_uri.is_none_or(|target_uri| {
+                reference
+                    .target_style_uri
+                    .as_deref()
+                    .is_some_and(|reference_uri| file_uri_equivalent(reference_uri, target_uri))
+            })
+        })
+        .filter_map(|reference| reference.selector_name.clone())
+        .collect::<Vec<_>>();
+    selectors.sort();
+    selectors.dedup();
+    selectors
 }
 
 fn source_completion_prefix_for_terminal_offset(

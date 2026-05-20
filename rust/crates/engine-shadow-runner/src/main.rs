@@ -159,6 +159,8 @@ struct CompletionAtInputV0 {
     target_style_uri: Option<String>,
     #[serde(default)]
     value_prefix: Option<String>,
+    #[serde(default)]
+    preferred_selector_names: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1245,6 +1247,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &input.styles,
                         input.target_style_uri.as_deref(),
                         input.value_prefix.as_deref(),
+                        input.preferred_selector_names.as_slice(),
                     )
                 }
             };
