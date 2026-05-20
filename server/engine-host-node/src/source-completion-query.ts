@@ -9,10 +9,24 @@ import {
   type AbstractClassValue,
 } from "../../engine-core-ts/src/core/abstract-value/class-value-domain";
 
+export interface SourceCompletionSelectorContext {
+  readonly scssModulePath: string;
+  readonly selectors: readonly SelectorDeclHIR[];
+  readonly valuePrefix?: string;
+  readonly preferredSelectorNames: readonly string[];
+}
+
 export function resolveSourceCompletionSelectors(
   params: CursorParams,
   deps: Pick<ProviderDeps, "analysisCache" | "styleDocumentForPath">,
 ): readonly SelectorDeclHIR[] {
+  return resolveSourceCompletionSelectorContext(params, deps)?.selectors ?? [];
+}
+
+export function resolveSourceCompletionSelectorContext(
+  params: CursorParams,
+  deps: Pick<ProviderDeps, "analysisCache" | "styleDocumentForPath">,
+): SourceCompletionSelectorContext | null {
   const entry = deps.analysisCache.get(
     params.documentUri,
     params.content,
@@ -23,21 +37,34 @@ export function resolveSourceCompletionSelectors(
     entry.sourceDocument.utilityBindings.length === 0 &&
     entry.sourceDocument.styleImports.length === 0
   ) {
-    return [];
+    return null;
   }
 
   const textBefore = getTextBefore(params.content, params.line, params.character);
   const ctx = readCompletionContext(entry, textBefore);
-  if (!ctx) return [];
+  if (!ctx) return null;
 
   const styleDocument = deps.styleDocumentForPath(ctx.scssModulePath);
-  if (!styleDocument || styleDocument.selectors.length === 0) return [];
+  if (!styleDocument || styleDocument.selectors.length === 0) return null;
   const textAfter = getTextAfter(params.content, params.line, params.character);
   const expectedValueDomain = readCompletionExpectedValueDomain(textBefore, textAfter);
-  if (!expectedValueDomain) return styleDocument.selectors;
-  return styleDocument.selectors.filter((selector) =>
+  if (!expectedValueDomain) {
+    return {
+      scssModulePath: ctx.scssModulePath,
+      selectors: styleDocument.selectors,
+      preferredSelectorNames: [],
+    };
+  }
+  const selectors = styleDocument.selectors.filter((selector) =>
     classValueMatchesCandidate(expectedValueDomain, selector.name),
   );
+  const valuePrefix = readCompletionPrefix(textBefore);
+  return {
+    scssModulePath: ctx.scssModulePath,
+    selectors,
+    ...(valuePrefix ? { valuePrefix } : {}),
+    preferredSelectorNames: selectors.map((selector) => selector.name),
+  };
 }
 
 function getTextBefore(content: string, line: number, character: number): string {
