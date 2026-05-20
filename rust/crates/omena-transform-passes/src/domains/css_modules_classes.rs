@@ -489,7 +489,7 @@ fn rewrite_local_composes_value(
 ) -> Option<String> {
     if value
         .split_whitespace()
-        .any(|part| matches!(part, "from" | "global"))
+        .any(|part| part.eq_ignore_ascii_case("from") || part.eq_ignore_ascii_case("global"))
         || value.contains(',')
     {
         return None;
@@ -497,9 +497,8 @@ fn rewrite_local_composes_value(
     let mut changed = false;
     let mut parts = Vec::new();
     for part in value.split_whitespace() {
-        if let Some(global_name) = parse_global_composes_part(part) {
-            changed = true;
-            parts.push(global_name.to_string());
+        if parse_global_composes_part(part).is_some() {
+            parts.push(part.to_string());
             continue;
         }
         if !css_identifier_text_is_plain(part) && !part.contains('\\') {

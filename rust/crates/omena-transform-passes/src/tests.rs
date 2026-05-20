@@ -1174,7 +1174,44 @@ fn execution_runtime_rewrites_css_module_class_names_with_identity_map() {
     assert_eq!(execution.mutation_count, 14);
     assert_eq!(
         execution.output_css,
-        r#"._button_abc123{ composes: _base_def456 _utility_ghi789 reset; color: red; } ._base_def456, ._utility_ghi789{ color: blue; } ._button_abc123:hover{ color: green; } ._button_abc123 .external{ color: purple; } .root ._button_abc123{ color: orange; } .standalone{ color: teal; }  .global-block { color: silver; }  ._button_abc123{ color: navy; }  ._button_abc123{ color: maroon; }  @media (min-width: 1px) { ._button_abc123{ color: black; } }"#
+        r#"._button_abc123{ composes: _base_def456 _utility_ghi789 global(reset); color: red; } ._base_def456, ._utility_ghi789{ color: blue; } ._button_abc123:hover{ color: green; } ._button_abc123 .external{ color: purple; } .root ._button_abc123{ color: orange; } .standalone{ color: teal; }  .global-block { color: silver; }  ._button_abc123{ color: navy; }  ._button_abc123{ color: maroon; }  @media (min-width: 1px) { ._button_abc123{ color: black; } }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["css-modules-class-hashing", "print-css"]
+    );
+}
+
+#[test]
+fn execution_runtime_preserves_global_composes_during_css_module_class_hashing() {
+    let source = r#".button { composes: global(reset); color: red; }"#;
+    let context = TransformExecutionContextV0 {
+        class_name_rewrites: vec![
+            TransformClassNameRewriteV0 {
+                original_name: "button".to_string(),
+                rewritten_name: "_button_x".to_string(),
+            },
+            TransformClassNameRewriteV0 {
+                original_name: "reset".to_string(),
+                rewritten_name: "_reset_should_not_apply".to_string(),
+            },
+        ],
+        ..TransformExecutionContextV0::default()
+    };
+    let execution = execute_transform_passes_on_source_with_dialect_and_context(
+        source,
+        StyleDialect::Css,
+        &[
+            TransformPassKind::HashCssModuleClassNames,
+            TransformPassKind::PrintCss,
+        ],
+        &context,
+    );
+
+    assert_eq!(execution.mutation_count, 1);
+    assert_eq!(
+        execution.output_css,
+        r#"._button_x{ composes: global(reset); color: red; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,

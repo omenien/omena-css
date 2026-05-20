@@ -1354,13 +1354,61 @@ const globalComposesHashSummary = JSON.parse(
 assert.equal(globalComposesHashSummary.product, "omena-query.transform-execute");
 assert.equal(
   globalComposesHashSummary.execution.outputCss,
-  "._button_x{ composes: _base_y reset; color: red; } ._base_y{ color: blue; }",
+  "._button_x{ composes: _base_y global(reset); color: red; } ._base_y{ color: blue; }",
 );
 assert.deepEqual(globalComposesHashSummary.execution.executedPassIds, [
   "css-modules-class-hashing",
   "print-css",
 ]);
 assert.equal(globalComposesHashSummary.execution.mutationCount, 3);
+
+const globalOnlyComposesHashResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "GlobalOnly.module.css",
+      styleSource: ".button { composes: global(reset); color: red; }",
+      requestedPassIds: ["css-modules-class-hashing", "print-css"],
+      transformContext: {
+        classNameRewrites: [
+          { originalName: "button", rewrittenName: "_button_x" },
+          { originalName: "reset", rewrittenName: "_reset_should_not_apply" },
+        ],
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(globalOnlyComposesHashResult.status, 0, globalOnlyComposesHashResult.stderr);
+assert.equal(globalOnlyComposesHashResult.error, undefined);
+
+const globalOnlyComposesHashSummary = JSON.parse(
+  globalOnlyComposesHashResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(globalOnlyComposesHashSummary.product, "omena-query.transform-execute");
+assert.equal(
+  globalOnlyComposesHashSummary.execution.outputCss,
+  "._button_x{ composes: global(reset); color: red; }",
+);
+assert.deepEqual(globalOnlyComposesHashSummary.execution.executedPassIds, [
+  "css-modules-class-hashing",
+  "print-css",
+]);
+assert.equal(globalOnlyComposesHashSummary.execution.mutationCount, 1);
 
 const scopedClassHashResult = spawnSync(
   "cargo",
