@@ -10,8 +10,7 @@ pub fn summarize_omena_query_style_completion_at_position(
 ) -> OmenaQueryCompletionAtPositionV0 {
     let (context_kind, prefix) =
         style_completion_context_at_position(source, position).unwrap_or(("styleDocument", None));
-    let mut emitted_labels = BTreeSet::new();
-    let mut items = candidates
+    let mut ranked_items = candidates
         .iter()
         .filter_map(|candidate| {
             let (label, detail, item_kind) = match candidate.kind {
@@ -33,19 +32,25 @@ pub fn summarize_omena_query_style_completion_at_position(
             {
                 return None;
             }
-            if !emitted_labels.insert(label.clone()) {
-                return None;
-            }
+            let (sort_text, ranking_source) =
+                style_completion_ranking(context_kind, position, candidate, label.as_str());
             Some(OmenaQueryCompletionItemV0 {
                 insert_text: label.clone(),
                 label,
+                sort_text,
                 detail,
                 item_kind,
+                ranking_source,
                 source: "omenaQueryCompletionAtPosition",
             })
         })
         .collect::<Vec<_>>();
-    items.sort_by_key(|item| item.label.clone());
+    ranked_items.sort_by_key(|item| (item.sort_text.clone(), item.label.clone()));
+    let mut emitted_labels = BTreeSet::new();
+    let items = ranked_items
+        .into_iter()
+        .filter(|item| emitted_labels.insert(item.label.clone()))
+        .collect::<Vec<_>>();
 
     OmenaQueryCompletionAtPositionV0 {
         schema_version: "0",
@@ -81,16 +86,20 @@ pub fn summarize_omena_query_source_completion_at_position(
             if !emitted_labels.insert(candidate.name.clone()) {
                 return None;
             }
+            let (sort_text, ranking_source) =
+                source_completion_ranking(candidate, target_style_uri, value_prefix);
             Some(OmenaQueryCompletionItemV0 {
                 label: candidate.name.clone(),
                 insert_text: candidate.name.clone(),
+                sort_text,
                 detail: "CSS Module selector",
                 item_kind: "cssModuleSelector",
+                ranking_source,
                 source: "omenaQueryCompletionAtPosition",
             })
         })
         .collect::<Vec<_>>();
-    items.sort_by_key(|item| item.label.clone());
+    items.sort_by_key(|item| (item.sort_text.clone(), item.label.clone()));
 
     OmenaQueryCompletionAtPositionV0 {
         schema_version: "0",
@@ -109,6 +118,56 @@ pub fn summarize_omena_query_source_completion_at_position(
         items,
         ready_surfaces: vec!["sourceCompletionAt", "bridgeAwareSelectorCompletion"],
     }
+}
+
+fn style_completion_ranking(
+    context_kind: &str,
+    position: ParserPositionV0,
+    candidate: &OmenaQueryStyleHoverCandidateV0,
+    label: &str,
+) -> (String, &'static str) {
+    if context_kind == "styleCustomPropertyReference"
+        && candidate.kind == "customPropertyDeclaration"
+    {
+        let query_key = completion_position_order_key(position);
+        let candidate_key = completion_position_order_key(candidate.range.start);
+        let (group, distance) = if candidate_key <= query_key {
+            (0usize, query_key.saturating_sub(candidate_key))
+        } else {
+            (1usize, candidate_key.saturating_sub(query_key))
+        };
+        return (
+            format!("{group:02}-{distance:012}-{label}"),
+            "sameFileSourceOrderCascade",
+        );
+    }
+
+    (format!("50-{label}"), "label")
+}
+
+fn source_completion_ranking(
+    candidate: &OmenaQueryCompletionCandidateV0,
+    target_style_uri: Option<&str>,
+    value_prefix: Option<&str>,
+) -> (String, &'static str) {
+    let target_rank =
+        usize::from(target_style_uri.is_none_or(|target| candidate.file_uri != target));
+    let prefix_rank = usize::from(value_prefix.is_none());
+    (
+        format!("{target_rank:02}-{prefix_rank:02}-{}", candidate.name),
+        if target_style_uri.is_some() || value_prefix.is_some() {
+            "targetAndPrefixNarrowing"
+        } else {
+            "label"
+        },
+    )
+}
+
+fn completion_position_order_key(position: ParserPositionV0) -> usize {
+    position
+        .line
+        .saturating_mul(1_000_000)
+        .saturating_add(position.character)
 }
 
 pub fn summarize_omena_query_style_completion_for_workspace_file(

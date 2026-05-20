@@ -688,10 +688,12 @@ fn lsp_completion_item_from_query(file_kind: &str, item: OmenaQueryCompletionIte
     json!({
         "label": item.label,
         "kind": kind,
+        "sortText": item.sort_text,
         "detail": item.detail,
         "insertText": item.insert_text,
         "data": {
             "source": item.source,
+            "rankingSource": item.ranking_source,
         },
     })
 }

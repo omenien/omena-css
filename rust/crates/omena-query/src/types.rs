@@ -727,8 +727,10 @@ pub struct OmenaQueryCompletionCandidateV0 {
 pub struct OmenaQueryCompletionItemV0 {
     pub label: String,
     pub insert_text: String,
+    pub sort_text: String,
     pub detail: &'static str,
     pub item_kind: &'static str,
+    pub ranking_source: &'static str,
     pub source: &'static str,
 }
 

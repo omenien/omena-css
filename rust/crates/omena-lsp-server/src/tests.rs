@@ -989,6 +989,12 @@ fn resolves_style_hover_candidates_from_opened_style_documents() {
     assert_eq!(
         completion_response
             .as_ref()
+            .and_then(|value| value.pointer("/result/items/0/data/rankingSource")),
+        Some(&json!("sameFileSourceOrderCascade")),
+    );
+    assert_eq!(
+        completion_response
+            .as_ref()
             .and_then(|value| value.pointer("/result/items"))
             .and_then(Value::as_array)
             .map(Vec::len),
@@ -2139,6 +2145,19 @@ fn narrows_source_completion_candidates_by_property_access_prefix() -> TestResul
         })
         .collect();
     assert_eq!(labels, vec!["root".to_string(), "row".to_string()]);
+    assert_eq!(
+        items
+            .first()
+            .and_then(|item| item.pointer("/data/rankingSource")),
+        Some(&json!("targetAndPrefixNarrowing")),
+    );
+    assert!(
+        items
+            .first()
+            .and_then(|item| item.get("sortText"))
+            .and_then(Value::as_str)
+            .is_some_and(|sort_text| sort_text.starts_with("00-00-"))
+    );
     Ok(())
 }
 

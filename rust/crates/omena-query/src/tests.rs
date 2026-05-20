@@ -4894,11 +4894,50 @@ fn completion_at_position_is_query_owned_for_style_and_source() -> Result<(), &'
     assert_eq!(source_completion.context_kind, "sourceCssModuleTarget");
     assert_eq!(source_completion.item_count, 1);
     assert_eq!(source_completion.items[0].label, "root");
+    assert_eq!(
+        source_completion.items[0].ranking_source,
+        "targetAndPrefixNarrowing"
+    );
     assert!(
         source_completion
             .ready_surfaces
             .contains(&"bridgeAwareSelectorCompletion")
     );
+    Ok(())
+}
+
+#[test]
+fn completion_ranking_uses_query_facts() -> Result<(), &'static str> {
+    let source =
+        ":root { --alpha: red; }\n.card { --zeta: blue; color: var(--); }\n.next { --omega: red; }";
+    let candidates =
+        super::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+
+    let completion = super::summarize_omena_query_style_completion_at_position(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        ParserPositionV0 {
+            line: 1,
+            character: 35,
+        },
+        candidates.candidates.as_slice(),
+    );
+
+    assert_eq!(completion.context_kind, "styleCustomPropertyReference");
+    assert_eq!(
+        completion
+            .items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["--zeta", "--alpha", "--omega"]
+    );
+    assert_eq!(
+        completion.items[0].ranking_source,
+        "sameFileSourceOrderCascade"
+    );
+    assert!(completion.items[0].sort_text.starts_with("00-"));
     Ok(())
 }
 
