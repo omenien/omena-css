@@ -159,6 +159,12 @@ describe("computeScssUnusedDiagnostics", () => {
 
   it("surfaces query-owned style diagnostics with severity and provenance data", async () => {
     const styleSource = `.button { color: red; color: blue; }\n`;
+    const sourceDocuments = [
+      {
+        sourcePath: SOURCE_PATH,
+        sourceSource: 'import styles from "./Button.module.scss";\nstyles.button;\n',
+      },
+    ];
     const styleDoc = parseStyleDocument(styleSource, SCSS_PATH);
     let forwardedInput: unknown = null;
 
@@ -171,6 +177,7 @@ describe("computeScssUnusedDiagnostics", () => {
       {
         env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
         styleSource,
+        sourceDocuments,
         runRustSelectedQueryBackendJsonAsync: async <T>(command: string, input: unknown) => {
           expect(command).toBe("style-diagnostics-for-file");
           forwardedInput = input;
@@ -198,6 +205,7 @@ describe("computeScssUnusedDiagnostics", () => {
     expect(forwardedInput).toMatchObject({
       targetStylePath: SCSS_PATH,
       styles: [{ stylePath: SCSS_PATH, styleSource }],
+      sourceDocuments,
     });
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]).toMatchObject({

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { Connection } from "vscode-languageserver/node";
 import type { TextDocument } from "vscode-languageserver-textdocument";
 import type { TextDocuments } from "vscode-languageserver/node";
@@ -204,10 +205,40 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
                 runtimeProviderDeps.runRustSelectedQueryBackendJsonAsync,
             }
           : {}),
+        sourceDocuments: this.collectReferencingSourceDocuments(providerDeps, filePath),
         env: process.env,
       },
     );
     this.safeSendDiagnostics(uri, diagnostics);
+  }
+
+  private collectReferencingSourceDocuments(
+    providerDeps: ProviderDeps,
+    stylePath: string,
+  ): readonly { readonly sourcePath: string; readonly sourceSource: string }[] {
+    const referencingUris = providerDeps.semanticReferenceIndex.findReferencingUris(stylePath);
+    return referencingUris.flatMap((uri) => {
+      const filePath = fileUrlToPath(uri);
+      const openDocument = this.deps.documents.get(uri);
+      if (openDocument) {
+        return [
+          {
+            sourcePath: filePath,
+            sourceSource: openDocument.getText(),
+          },
+        ];
+      }
+      try {
+        return [
+          {
+            sourcePath: filePath,
+            sourceSource: readFileSync(filePath, "utf8"),
+          },
+        ];
+      } catch {
+        return [];
+      }
+    });
   }
 
   private safeSendDiagnostics(uri: string, diagnostics: MaybePromise<readonly Diagnostic[]>): void {

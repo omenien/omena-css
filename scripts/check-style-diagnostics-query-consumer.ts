@@ -7,7 +7,15 @@ import { runRustSelectedQueryBackendJsonAsync } from "../server/engine-host-node
 import { computeScssUnusedDiagnostics } from "../server/lsp-server/src/providers/scss-diagnostics";
 
 const STYLE_PATH = "/workspace/src/Cascade.module.scss";
+const SOURCE_PATH = "/workspace/src/App.tsx";
+const SOURCE_SOURCE = [
+  'import styles from "./Cascade.module.scss";',
+  "export const view = <div className={styles.used} />;",
+  "",
+].join("\n");
 const STYLE_SOURCE = `
+.used { color: green; }
+.ghost { color: purple; }
 @layer base {
   .btn { color: red; }
   .dead { border-color: red; }
@@ -48,6 +56,7 @@ async function main(): Promise<void> {
       {
         env: process.env,
         styleSource: STYLE_SOURCE,
+        sourceDocuments: [{ sourcePath: SOURCE_PATH, sourceSource: SOURCE_SOURCE }],
         runRustSelectedQueryBackendJsonAsync,
       },
     );
@@ -81,11 +90,21 @@ async function main(): Promise<void> {
       "omena-query.cascade-checker",
     ]);
 
+    const unusedSelector = findDiagnostic(diagnostics, "unusedSelector", (diagnostic) =>
+      diagnostic.message.includes("'.ghost'"),
+    );
+    assert.equal(unusedSelector.severity, DiagnosticSeverity.Hint);
+    assert.deepEqual(unusedSelector.tags, [DiagnosticTag.Unnecessary]);
+    assert.deepEqual(unusedSelector.data?.provenance, [
+      "omena-parser.selector-facts",
+      "omena-query.source-selector-usage",
+    ]);
+
     process.stdout.write(
       [
         "validated style diagnostics query consumer:",
         "provider=LSP",
-        "rules=missingCustomProperty,unreachableDeclaration,deadCascadeLayer",
+        "rules=missingCustomProperty,unreachableDeclaration,deadCascadeLayer,unusedSelector",
         "provenance=omena-query",
       ].join(" ") + "\n",
     );

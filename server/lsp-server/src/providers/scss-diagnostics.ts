@@ -39,6 +39,7 @@ type RuntimeStyleDiagnosticsDeps = Partial<
   readonly styleSemanticGraphCache?: StyleDiagnosticsQueryOptions["styleSemanticGraphCache"];
   readonly styleSemanticGraphBatchOutputCache?: StyleDiagnosticsQueryOptions["styleSemanticGraphBatchOutputCache"];
   readonly selectorUsagePayloadCache?: StyleDiagnosticsQueryOptions["selectorUsagePayloadCache"];
+  readonly sourceDocuments?: readonly QuerySourceDocumentInputV0[];
   readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
 };
 
@@ -61,6 +62,11 @@ interface QueryStyleDiagnosticV0 {
     readonly newText: string;
     readonly propertyName: string;
   };
+}
+
+interface QuerySourceDocumentInputV0 {
+  readonly sourcePath: string;
+  readonly sourceSource: string;
 }
 
 /**
@@ -194,7 +200,7 @@ function resolveQueryOwnedStyleDiagnostics(
           styleSource,
         },
       ],
-      sourceDocuments: [],
+      sourceDocuments: runtimeDeps.sourceDocuments ?? [],
       packageManifests: [],
     },
   ).then((summary) => {

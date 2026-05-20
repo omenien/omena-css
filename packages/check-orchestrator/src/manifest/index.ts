@@ -130,7 +130,9 @@ function detectGateKind(
   if (isAliasScript(command, referencedScripts)) return "alias";
   if (
     referencedScripts.length > 0 &&
-    /(?:bundle|lane|readiness|decision-ready|shadow|verify|consumers|boundary)$/.test(scriptName)
+    /(?:bundle|lane|readiness|decision-ready|shadow|verify|consumers|boundary|capability)$/.test(
+      scriptName,
+    )
   ) {
     return "bundle";
   }
