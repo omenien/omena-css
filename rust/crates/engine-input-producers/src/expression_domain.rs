@@ -725,6 +725,14 @@ mod tests {
         assert_eq!(summary.analyses[0].analysis.block_count, 4);
         assert_eq!(summary.analyses[0].analysis.edge_count, 4);
         assert_eq!(
+            summary.analyses[0].analysis.branch_block_ids,
+            vec!["entry".to_string()]
+        );
+        assert_eq!(
+            summary.analyses[0].analysis.join_block_ids,
+            vec!["merge".to_string()]
+        );
+        assert_eq!(
             summary.analyses[0].analysis.flow_analysis.product,
             "omena-abstract-value.flow-analysis"
         );

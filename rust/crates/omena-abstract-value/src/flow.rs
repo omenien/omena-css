@@ -120,6 +120,19 @@ pub fn analyze_class_value_control_flow_graph(
         .filter(|block| !reachable_block_ids.contains(&block.id))
         .map(|block| block.id.clone())
         .collect::<Vec<_>>();
+    let branch_block_ids = graph
+        .blocks
+        .iter()
+        .filter(|block| block.successor_block_ids.len() > 1)
+        .map(|block| block.id.clone())
+        .collect::<Vec<_>>();
+    let predecessor_counts = control_flow_predecessor_counts(graph);
+    let join_block_ids = graph
+        .blocks
+        .iter()
+        .filter(|block| predecessor_counts.get(&block.id).copied().unwrap_or(0) > 1)
+        .map(|block| block.id.clone())
+        .collect::<Vec<_>>();
     let blocks = graph
         .blocks
         .iter()
@@ -161,6 +174,8 @@ pub fn analyze_class_value_control_flow_graph(
             .sum(),
         reachable_block_count: reachable_block_ids.len(),
         unreachable_block_ids,
+        branch_block_ids,
+        join_block_ids,
         flow_analysis,
         blocks,
     }
@@ -436,6 +451,24 @@ fn reachable_control_flow_block_ids(graph: &ClassValueControlFlowGraphV0) -> BTr
     }
 
     reachable
+}
+
+fn control_flow_predecessor_counts(
+    graph: &ClassValueControlFlowGraphV0,
+) -> BTreeMap<String, usize> {
+    let mut counts = graph
+        .blocks
+        .iter()
+        .map(|block| (block.id.clone(), 0usize))
+        .collect::<BTreeMap<_, _>>();
+
+    for block in &graph.blocks {
+        for successor_id in &block.successor_block_ids {
+            *counts.entry(successor_id.clone()).or_default() += 1;
+        }
+    }
+
+    counts
 }
 
 fn flow_analysis_node_value<'a>(

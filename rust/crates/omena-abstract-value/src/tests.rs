@@ -1316,6 +1316,8 @@ fn analyzes_control_flow_graph_with_reachability_pruning() {
     assert_eq!(analysis.edge_count, 2);
     assert_eq!(analysis.reachable_block_count, 2);
     assert_eq!(analysis.unreachable_block_ids, vec!["dead".to_string()]);
+    assert!(analysis.branch_block_ids.is_empty());
+    assert_eq!(analysis.join_block_ids, vec!["merge".to_string()]);
     assert_eq!(
         flow_value(&analysis.flow_analysis, "exit"),
         Some(&exact_class_value("btn-primary"))

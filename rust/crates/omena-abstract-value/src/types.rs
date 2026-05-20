@@ -401,6 +401,8 @@ pub struct ClassValueControlFlowAnalysisV0 {
     pub edge_count: usize,
     pub reachable_block_count: usize,
     pub unreachable_block_ids: Vec<String>,
+    pub branch_block_ids: Vec<String>,
+    pub join_block_ids: Vec<String>,
     pub flow_analysis: ClassValueFlowAnalysisV0,
     pub blocks: Vec<ClassValueControlFlowBlockResultV0>,
 }
