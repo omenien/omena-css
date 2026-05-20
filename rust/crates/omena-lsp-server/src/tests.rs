@@ -630,11 +630,16 @@ fn keeps_style_summary_cache_style_document_only() {
         }),
     );
 
-    let document = state
-        .document("file:///workspace-a/src/App.tsx")
-        .expect("source document should be open");
-    assert!(document.style_summary.is_none());
-    assert!(document.style_candidates.is_empty());
+    let source_document_cache_state =
+        state
+            .document("file:///workspace-a/src/App.tsx")
+            .map(|document| {
+                (
+                    document.style_summary.is_none(),
+                    document.style_candidates.is_empty(),
+                )
+            });
+    assert_eq!(source_document_cache_state, Some((true, true)));
 }
 
 #[test]
