@@ -2984,6 +2984,18 @@ fn resolves_style_diagnostics_and_code_actions_from_opened_style_documents() {
             },
         })),
     );
+    assert_eq!(
+        diagnostics_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/0/data/querySeverity")),
+        Some(&json!("warning")),
+    );
+    assert_eq!(
+        diagnostics_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/0/data/provenance/0")),
+        Some(&json!("omena-parser.custom-property-facts")),
+    );
 
     let diagnostic = diagnostics_response
         .as_ref()
@@ -3161,7 +3173,12 @@ fn resolves_unnecessary_tags_for_cascade_style_diagnostics() -> TestResult {
         .iter()
         .find(|diagnostic| diagnostic.pointer("/code") == Some(&json!("unreachableDeclaration")))
         .ok_or_else(|| std::io::Error::other("unreachable declaration diagnostic"))?;
+    assert_eq!(unreachable.pointer("/severity"), Some(&json!(4)));
     assert_eq!(unreachable.pointer("/tags"), Some(&json!([1])));
+    assert_eq!(
+        unreachable.pointer("/data/provenance/0"),
+        Some(&json!("omena-checker.cascade-rules")),
+    );
     Ok(())
 }
 

@@ -4412,6 +4412,14 @@ fn missing_custom_property_diagnostics_are_query_owned() {
     assert_eq!(summary.file_kind, "style");
     assert_eq!(summary.diagnostic_count, 1);
     assert_eq!(summary.diagnostics[0].code, "missingCustomProperty");
+    assert_eq!(summary.diagnostics[0].severity, "warning");
+    assert_eq!(
+        summary.diagnostics[0].provenance.as_slice(),
+        [
+            "omena-parser.custom-property-facts",
+            "omena-query.style-diagnostics"
+        ]
+    );
     assert!(
         summary
             .ready_surfaces
@@ -4481,6 +4489,15 @@ fn style_diagnostics_for_file_include_cascade_aware_lints() -> Result<(), &'stat
             .tags
             .as_slice(),
         &[1]
+    );
+    assert_eq!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "unreachableDeclaration")
+            .ok_or("unreachable declaration diagnostic")?
+            .severity,
+        "hint"
     );
     assert_eq!(
         diagnostics
@@ -4784,6 +4801,18 @@ export function App() {
     assert_eq!(
         unused,
         vec!["Selector '.ghost' is declared but never used."]
+    );
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "unusedSelector"
+                && diagnostic.severity == "hint"
+                && diagnostic.provenance.as_slice()
+                    == [
+                        "omena-parser.selector-facts",
+                        "omena-query.source-selector-usage"
+                    ])
     );
     Ok(())
 }

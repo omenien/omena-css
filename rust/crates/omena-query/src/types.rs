@@ -691,6 +691,8 @@ pub struct OmenaQueryStyleHoverRenderPartsV0 {
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryStyleDiagnosticV0 {
     pub code: &'static str,
+    pub severity: &'static str,
+    pub provenance: Vec<&'static str>,
     pub range: ParserRangeV0,
     pub message: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -847,6 +849,8 @@ pub struct OmenaQueryCreateCustomPropertyActionV0 {
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQuerySourceDiagnosticV0 {
     pub code: &'static str,
+    pub severity: &'static str,
+    pub provenance: Vec<&'static str>,
     pub range: ParserRangeV0,
     pub message: String,
     pub create_selector: Option<OmenaQueryCreateSelectorActionV0>,

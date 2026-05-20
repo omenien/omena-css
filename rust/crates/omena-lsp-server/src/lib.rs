@@ -793,22 +793,24 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
     .into_iter()
     .map(|diagnostic| {
         let tags = diagnostic.tags;
-        let data = diagnostic
-            .create_custom_property
-            .map(|create_custom_property| {
-                json!({
-                    "createCustomProperty": create_custom_property,
-                })
-            })
-            .unwrap_or_else(|| json!({}));
+        let query_severity = diagnostic.severity;
+        let mut data = serde_json::Map::new();
+        data.insert("querySeverity".to_string(), json!(query_severity));
+        data.insert("provenance".to_string(), json!(diagnostic.provenance));
+        if let Some(create_custom_property) = diagnostic.create_custom_property {
+            data.insert(
+                "createCustomProperty".to_string(),
+                json!(create_custom_property),
+            );
+        }
 
         let mut lsp_diagnostic = json!({
             "range": diagnostic.range,
-            "severity": state.diagnostics.severity,
+            "severity": lsp_diagnostic_severity(query_severity, state.diagnostics.severity),
             "code": diagnostic.code,
             "source": "css-module-explainer",
             "message": diagnostic.message,
-            "data": data,
+            "data": Value::Object(data),
         });
         if !tags.is_empty() {
             lsp_diagnostic["tags"] = json!(tags);
@@ -853,23 +855,38 @@ fn resolve_source_diagnostics_for_uri(state: &LspShellState, document_uri: &str)
     .diagnostics
     .into_iter()
     .filter_map(|diagnostic| {
-        let data = diagnostic.create_selector.map(|create_selector| {
-            json!({
-                "createSelector": create_selector,
-            })
-        })?;
+        let query_severity = diagnostic.severity;
+        let create_selector = diagnostic.create_selector?;
+        let mut data = serde_json::Map::new();
+        data.insert("querySeverity".to_string(), json!(query_severity));
+        data.insert("provenance".to_string(), json!(diagnostic.provenance));
+        data.insert("createSelector".to_string(), json!(create_selector));
 
         Some(json!({
             "range": diagnostic.range,
-            "severity": state.diagnostics.severity,
+            "severity": lsp_diagnostic_severity(query_severity, state.diagnostics.severity),
+            "code": diagnostic.code,
             "source": "css-module-explainer",
             "message": diagnostic.message,
-            "data": data,
+            "data": Value::Object(data),
         }))
     })
     .collect();
 
     json!(diagnostics)
+}
+
+fn lsp_diagnostic_severity(query_severity: &str, configured_severity: u8) -> u8 {
+    if configured_severity != 2 {
+        return configured_severity;
+    }
+    match query_severity {
+        "error" => 1,
+        "warning" => 2,
+        "information" => 3,
+        "hint" => 4,
+        _ => configured_severity,
+    }
 }
 
 fn source_selector_diagnostic_target<'a>(

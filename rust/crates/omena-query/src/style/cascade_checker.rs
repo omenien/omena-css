@@ -51,6 +51,8 @@ pub(super) fn summarize_query_cascade_checker_diagnostics(
             });
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: query_cascade_checker_code(evaluation.rule_code_name),
+            severity: query_cascade_checker_diagnostic_severity(evaluation.rule_code_name),
+            provenance: vec!["omena-checker.cascade-rules", "omena-query.cascade-checker"],
             range,
             message: evaluation.message,
             tags: query_cascade_checker_diagnostic_tags(evaluation.rule_code_name),
@@ -69,6 +71,13 @@ fn query_cascade_checker_code(code: &'static str) -> &'static str {
         "circular-var" => "circularVar",
         "unspecified-cascade-tie" => "unspecifiedCascadeTie",
         _ => "cascadeAware",
+    }
+}
+
+fn query_cascade_checker_diagnostic_severity(code: &'static str) -> &'static str {
+    match code {
+        "unreachable-declaration" | "dead-cascade-layer" => "hint",
+        _ => "warning",
     }
 }
 

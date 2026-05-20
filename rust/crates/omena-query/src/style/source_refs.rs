@@ -163,6 +163,11 @@ pub fn summarize_omena_query_missing_selector_diagnostic(
     let has_existing_style_content = !target_style_source.trim().is_empty();
     OmenaQuerySourceDiagnosticV0 {
         code: "missingSelector",
+        severity: "warning",
+        provenance: vec![
+            "omena-query.source-syntax-index",
+            "omena-query.style-selector-definitions",
+        ],
         range: source_reference_range,
         message: format!(
             "CSS Module selector '.{selector_name}' not found in indexed style tokens."
@@ -253,6 +258,11 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file(
             }
             None => diagnostics.push(OmenaQuerySourceDiagnosticV0 {
                 code: "missingModule",
+                severity: "warning",
+                provenance: vec![
+                    "omena-query.source-import-declarations",
+                    "omena-resolver.style-module-resolution",
+                ],
                 range: parser_range_for_byte_span(source_source, import.specifier_byte_span),
                 message: format!(
                     "Cannot resolve CSS Module '{}'. The file does not exist.",
@@ -549,6 +559,11 @@ fn summarize_omena_query_unresolved_source_reference_diagnostic(
 
     OmenaQuerySourceDiagnosticV0 {
         code,
+        severity: "warning",
+        provenance: vec![
+            "omena-query.source-syntax-index",
+            "omena-query.style-selector-definitions",
+        ],
         range,
         message: query_source_diagnostic_message(code, selector_name),
         create_selector,

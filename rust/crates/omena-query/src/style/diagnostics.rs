@@ -33,6 +33,11 @@ pub fn summarize_omena_query_missing_custom_property_diagnostics(
         })
         .map(|candidate| OmenaQueryStyleDiagnosticV0 {
             code: "missingCustomProperty",
+            severity: "warning",
+            provenance: vec![
+                "omena-parser.custom-property-facts",
+                "omena-query.style-diagnostics",
+            ],
             range: candidate.range,
             message: format!(
                 "CSS custom property '{}' not found in indexed style tokens.",
@@ -72,6 +77,11 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics(
                     .copied()
                     .map(|range| OmenaQueryStyleDiagnosticV0 {
                         code: "guaranteedInvalidCustomProperty",
+                        severity: "warning",
+                        provenance: vec![
+                            "omena-transform-passes.custom-property-lfp",
+                            "omena-query.cascade-aware-diagnostics",
+                        ],
                         range,
                         message: format!(
                             "CSS custom property '{}' resolves to the guaranteed-invalid value.",
@@ -123,6 +133,11 @@ pub fn summarize_omena_query_missing_keyframes_diagnostics(
         })
         .map(|(animation, range)| OmenaQueryStyleDiagnosticV0 {
             code: "missingKeyframes",
+            severity: "warning",
+            provenance: vec![
+                "omena-parser.animation-facts",
+                "omena-query.style-diagnostics",
+            ],
             range,
             message: format!("@keyframes '{}' not found in this file.", animation.name),
             tags: Vec::new(),
@@ -175,6 +190,11 @@ pub fn summarize_omena_query_missing_sass_symbol_diagnostics(
         }
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: "missingSassSymbol",
+            severity: "warning",
+            provenance: vec![
+                "omena-parser.sass-symbol-facts",
+                "omena-query.style-diagnostics",
+            ],
             range: parser_range_for_byte_span(source, byte_span),
             message: format!(
                 "{} not found in this file.",
@@ -314,6 +334,11 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
             ) else {
                 diagnostics.push(OmenaQueryStyleDiagnosticV0 {
                     code: "missingComposedModule",
+                    severity: "warning",
+                    provenance: vec![
+                        "omena-parser.css-modules-composes-facts",
+                        "omena-resolver.style-module-resolution",
+                    ],
                     range,
                     message: format!("Cannot resolve composed CSS Module '{}'.", source),
                     tags: Vec::new(),
@@ -350,6 +375,11 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
             };
             diagnostics.push(OmenaQueryStyleDiagnosticV0 {
                 code: "missingComposedSelector",
+                severity: "warning",
+                provenance: vec![
+                    "omena-parser.css-modules-composes-facts",
+                    "omena-query.css-modules-resolution-diagnostics",
+                ],
                 range,
                 message,
                 tags: Vec::new(),
@@ -378,6 +408,11 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
             if reported_missing_value_modules.insert(edge.import_source.clone()) {
                 diagnostics.push(OmenaQueryStyleDiagnosticV0 {
                     code: "missingValueModule",
+                    severity: "warning",
+                    provenance: vec![
+                        "omena-parser.css-modules-value-facts",
+                        "omena-resolver.style-module-resolution",
+                    ],
                     range,
                     message: format!(
                         "Cannot resolve imported @value module '{}'.",
@@ -412,6 +447,11 @@ pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
         };
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: "missingImportedValue",
+            severity: "warning",
+            provenance: vec![
+                "omena-parser.css-modules-value-facts",
+                "omena-query.css-modules-resolution-diagnostics",
+            ],
             range,
             message,
             tags: Vec::new(),
@@ -484,6 +524,11 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics(
             }
             Some(OmenaQueryStyleDiagnosticV0 {
                 code: "unusedSelector",
+                severity: "hint",
+                provenance: vec![
+                    "omena-parser.selector-facts",
+                    "omena-query.source-selector-usage",
+                ],
                 range: parser_range_for_byte_span(
                     target_source,
                     ParserByteSpanV0 {
