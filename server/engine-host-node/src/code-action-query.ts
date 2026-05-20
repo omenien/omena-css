@@ -15,6 +15,11 @@ import type {
   SelectorDeclHIR,
   StyleDocumentHIR,
 } from "../../engine-core-ts/src/core/hir/style-types";
+import {
+  resolveSelectedQueryBackendKind,
+  runRustSelectedQueryBackendJson,
+  SELECTED_QUERY_RUNNER_COMMANDS,
+} from "./selected-query-backend";
 
 export interface CodeActionDiagnosticInput {
   readonly range: Range;
@@ -25,7 +30,26 @@ export interface CodeActionDiagnosticInput {
 export type CodeActionPlanKind = "quickfix" | "refactor.extract" | "refactor.inline";
 
 type CodeActionDeps = Pick<ProviderDeps, "fileExists"> &
-  Partial<Pick<ProviderDeps, "buildStyleDocument" | "readStyleFile" | "styleDocumentForPath">>;
+  Partial<Pick<ProviderDeps, "buildStyleDocument" | "readStyleFile" | "styleDocumentForPath">> & {
+    readonly runRustSelectedQueryBackendJson?: typeof runRustSelectedQueryBackendJson;
+  };
+
+interface OmenaQueryCodeActionPlanJson {
+  readonly product: "omena-query.code-actions";
+  readonly fileUri: string;
+  readonly fileKind: "style";
+  readonly actionCount: number;
+  readonly actions: readonly {
+    readonly title: string;
+    readonly kind: CodeActionPlanKind;
+    readonly edits: readonly {
+      readonly uri: string;
+      readonly range: Range;
+      readonly newText: string;
+    }[];
+    readonly source: string;
+  }[];
+}
 
 export type CodeActionPlan =
   | {
@@ -175,18 +199,23 @@ export function planCodeActions(
     diagnosticIndex += 1;
   }
 
-  const inlineComposedClass = planInlineComposedClass(args, deps);
-  if (inlineComposedClass) {
-    plans.push(inlineComposedClass);
-  }
+  const queryOwnedStyleRefactors = planQueryOwnedStyleRefactors(args, deps);
+  if (queryOwnedStyleRefactors) {
+    plans.push(...queryOwnedStyleRefactors);
+  } else {
+    const inlineComposedClass = planInlineComposedClass(args, deps);
+    if (inlineComposedClass) {
+      plans.push(inlineComposedClass);
+    }
 
-  const extractCustomProperty = inlineComposedClass ? null : planExtractCustomProperty(args);
-  if (extractCustomProperty) {
-    plans.push(extractCustomProperty);
-  }
-  const extractValue = inlineComposedClass ? null : planExtractValue(args);
-  if (extractValue) {
-    plans.push(extractValue);
+    const extractCustomProperty = inlineComposedClass ? null : planExtractCustomProperty(args);
+    if (extractCustomProperty) {
+      plans.push(extractCustomProperty);
+    }
+    const extractValue = inlineComposedClass ? null : planExtractValue(args);
+    if (extractValue) {
+      plans.push(extractValue);
+    }
   }
 
   if (diagnosticCreateModuleUris.size === 0) {
@@ -270,6 +299,82 @@ interface InlineResolutionContext {
   readonly deps: CodeActionDeps;
   readonly emitted: Set<string>;
   readonly visiting: Set<string>;
+}
+
+function planQueryOwnedStyleRefactors(
+  args: {
+    readonly documentUri: string;
+    readonly documentContent?: string;
+    readonly range?: Range;
+    readonly diagnostics: readonly CodeActionDiagnosticInput[];
+  },
+  deps: CodeActionDeps,
+): readonly CodeActionPlan[] | null {
+  if (resolveSelectedQueryBackendKind() !== "rust-selected-query") return null;
+  if (args.diagnostics.length > 0) return null;
+  if (!args.documentContent || !args.range || rangeIsEmpty(args.range)) return null;
+  const filePath = fileUrlToPath(args.documentUri);
+  if (findLangForPath(filePath) === null) return null;
+
+  const runJson = deps.runRustSelectedQueryBackendJson ?? runRustSelectedQueryBackendJson;
+  const plan = runJson<OmenaQueryCodeActionPlanJson>(
+    SELECTED_QUERY_RUNNER_COMMANDS.styleCodeActions,
+    {
+      styleUri: args.documentUri,
+      styleSource: args.documentContent,
+      range: args.range,
+      styles: collectStyleSourcesForQueryOwnedRefactors(
+        filePath,
+        args.documentUri,
+        args.documentContent,
+        deps,
+      ),
+      packageManifests: [],
+    },
+  );
+  if (plan.product !== "omena-query.code-actions") return null;
+  return plan.actions.map((action) => ({
+    kind: "workspaceEdit",
+    actionKind: action.kind,
+    title: action.title,
+    edits: action.edits,
+  }));
+}
+
+function collectStyleSourcesForQueryOwnedRefactors(
+  filePath: string,
+  documentUri: string,
+  documentContent: string,
+  deps: CodeActionDeps,
+): readonly { readonly stylePath: string; readonly styleSource: string }[] {
+  const sources = new Map([[documentUri, documentContent]]);
+  const styleDocument = buildStyleDocumentForCodeAction(filePath, documentContent, deps);
+  if (!styleDocument)
+    return [...sources].map(([stylePath, styleSource]) => ({ stylePath, styleSource }));
+
+  for (const selector of styleDocument.selectors) {
+    for (const ref of selector.composes) {
+      if (ref.fromGlobal || !ref.from) continue;
+      for (const candidatePath of resolveRelativeStyleModuleCandidates(filePath, ref.from)) {
+        if (sources.has(pathToFileUrl(candidatePath))) continue;
+        const source = deps.readStyleFile?.(candidatePath);
+        if (source === undefined || source === null) continue;
+        sources.set(pathToFileUrl(candidatePath), source);
+      }
+    }
+  }
+
+  return [...sources].map(([stylePath, styleSource]) => ({ stylePath, styleSource }));
+}
+
+function resolveRelativeStyleModuleCandidates(
+  filePath: string,
+  specifier: string,
+): readonly string[] {
+  if (!specifier.startsWith(".")) return [];
+  const basePath = nodePath.resolve(nodePath.dirname(filePath), specifier);
+  if (nodePath.extname(basePath)) return [basePath];
+  return getAllStyleExtensions().map((extension) => `${basePath}${extension}`);
 }
 
 function collectInlineDeclarations(

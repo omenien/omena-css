@@ -42,6 +42,7 @@ export const SELECTED_QUERY_RUNNER_COMMANDS = {
   styleDiagnosticsForFile: "style-diagnostics-for-file",
   sourceDiagnosticsForFile: "source-diagnostics-for-file",
   completionAt: "completion-at",
+  styleCodeActions: "style-code-actions",
   refsForClass: "refs-for-class",
   renamePlan: "rename-plan",
   readStyleContextIndex: "read-style-context-index",

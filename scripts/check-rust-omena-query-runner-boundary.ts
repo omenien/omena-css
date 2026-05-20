@@ -66,6 +66,7 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
       "summarize_omena_query_source_completion_for_workspace_file",
     ],
   ],
+  ["style-code-actions", ["run_style_code_actions_facade"]],
   ["refs-for-class", ["summarize_omena_query_refs_for_workspace_class"]],
   ["rename-plan", ["summarize_omena_query_rename_plan_for_workspace_class"]],
   ["read-style-context-index", ["read_omena_query_style_context_index"]],
@@ -169,6 +170,18 @@ const DIRECT_PRODUCER_LANE_COMMANDS = new Map([
 
 const runnerSource = readFileSync(RUNNER_PATH, "utf8");
 const commandBodies = extractCommandBodies(runnerSource);
+const styleCodeActionHelperBody = extractFunctionBody(
+  runnerSource,
+  "run_style_code_actions_facade",
+);
+assert.ok(
+  styleCodeActionHelperBody.includes("summarize_omena_query_style_extract_code_actions"),
+  "style-code-actions helper must route through summarize_omena_query_style_extract_code_actions",
+);
+assert.ok(
+  styleCodeActionHelperBody.includes("summarize_omena_query_style_inline_code_actions"),
+  "style-code-actions helper must route through summarize_omena_query_style_inline_code_actions",
+);
 
 for (const [command, expectedCalls] of OMENA_QUERY_OWNED_COMMANDS) {
   const body = commandBodies.get(command);
@@ -230,6 +243,12 @@ function readBraceBody(source: string, bodyStart: number): string {
     index += 1;
   }
   return source.slice(bodyStart, index - 1);
+}
+
+function extractFunctionBody(source: string, functionName: string): string {
+  const match = new RegExp(`fn\\s+${functionName}\\s*\\([^)]*\\)[^{]*\\{`, "u").exec(source);
+  assert.ok(match?.index !== undefined, `missing function: ${functionName}`);
+  return readBraceBody(source, match.index + match[0].length);
 }
 
 function findDirectProducerCalls(body: string): string[] {

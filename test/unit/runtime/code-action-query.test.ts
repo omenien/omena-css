@@ -3,6 +3,7 @@ import {
   planCodeActions,
   type CodeActionDiagnosticInput,
 } from "../../../server/engine-host-node/src/code-action-query";
+import { SELECTED_QUERY_RUNNER_COMMANDS } from "../../../server/engine-host-node/src/selected-query-backend";
 
 function diagnostic(suggestion: string | undefined, message = "foo"): CodeActionDiagnosticInput {
   const className = /Class '\.([^']+)'/.exec(message)?.[1] ?? "generated";
@@ -198,5 +199,85 @@ describe("planCodeActions", () => {
       "Create Button.module.css",
       "Create Button.module.less",
     ]);
+  });
+
+  it("routes style refactor actions through omena-query when rust selected-query is active", () => {
+    const previousBackend = process.env.CME_SELECTED_QUERY_BACKEND;
+    process.env.CME_SELECTED_QUERY_BACKEND = "rust-selected-query";
+    const calls: unknown[] = [];
+    try {
+      const result = planCodeActions(
+        {
+          documentUri: "file:///fake/src/Button.module.scss",
+          documentContent: ".button { color: #fff; }\n",
+          range: {
+            start: { line: 0, character: 17 },
+            end: { line: 0, character: 21 },
+          },
+          diagnostics: [],
+        },
+        {
+          fileExists: () => true,
+          runRustSelectedQueryBackendJson: (command: string, input: unknown) => {
+            calls.push({ command, input });
+            return {
+              product: "omena-query.code-actions",
+              fileUri: "file:///fake/src/Button.module.scss",
+              fileKind: "style",
+              actionCount: 1,
+              actions: [
+                {
+                  title: "Extract CSS custom property '--extracted-color'",
+                  kind: "refactor.extract",
+                  source: "omenaQueryStyleExtractCodeActions",
+                  edits: [
+                    {
+                      uri: "file:///fake/src/Button.module.scss",
+                      range: {
+                        start: { line: 0, character: 0 },
+                        end: { line: 0, character: 0 },
+                      },
+                      newText: ":root {\n  --extracted-color: #fff;\n}\n\n",
+                    },
+                  ],
+                },
+              ],
+            };
+          },
+        },
+      );
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toMatchObject({
+        command: SELECTED_QUERY_RUNNER_COMMANDS.styleCodeActions,
+        input: {
+          styleUri: "file:///fake/src/Button.module.scss",
+          styleSource: ".button { color: #fff; }\n",
+        },
+      });
+      expect(result).toEqual([
+        {
+          kind: "workspaceEdit",
+          actionKind: "refactor.extract",
+          title: "Extract CSS custom property '--extracted-color'",
+          edits: [
+            {
+              uri: "file:///fake/src/Button.module.scss",
+              range: {
+                start: { line: 0, character: 0 },
+                end: { line: 0, character: 0 },
+              },
+              newText: ":root {\n  --extracted-color: #fff;\n}\n\n",
+            },
+          ],
+        },
+      ]);
+    } finally {
+      if (previousBackend === undefined) {
+        delete process.env.CME_SELECTED_QUERY_BACKEND;
+      } else {
+        process.env.CME_SELECTED_QUERY_BACKEND = previousBackend;
+      }
+    }
   });
 });

@@ -139,6 +139,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "styleCodeActions",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.styleCodeActions,
+      inputContract: "StyleCodeActionsInputV0",
+      outputProduct: "omena-query.code-actions",
+    },
+  ],
+  [
     "refsForClass",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.refsForClass,
@@ -306,6 +314,7 @@ void (async () => {
     "RefsForClassInputV0",
     "RenamePlanInputV0",
     "SourceDiagnosticsForFileInputV0",
+    "StyleCodeActionsInputV0",
     "StyleDiagnosticsForFileInputV0",
     "StyleSemanticGraphBatchInputV0",
     "StyleSemanticGraphInputV0",
@@ -343,6 +352,7 @@ void (async () => {
     "semanticReachabilityTransformContext",
     "sourceDiagnosticsForFileRunner",
     "sourceResolutionRuntimeIndex",
+    "styleCodeActionsRunner",
     "styleDiagnosticsForFileRunner",
     "styleSemanticGraphBridgeBoundary",
     "transformContextProducer",

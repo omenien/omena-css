@@ -285,6 +285,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 output_product: "omena-query.completion-at",
             },
             SelectedQueryRunnerCommandV0 {
+                surface: "styleCodeActions",
+                command: "style-code-actions",
+                input_contract: "StyleCodeActionsInputV0",
+                output_product: "omena-query.code-actions",
+            },
+            SelectedQueryRunnerCommandV0 {
                 surface: "refsForClass",
                 command: "refs-for-class",
                 input_contract: "RefsForClassInputV0",
@@ -369,6 +375,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "StyleDiagnosticsForFileInputV0",
             "SourceDiagnosticsForFileInputV0",
             "CompletionAtInputV0",
+            "StyleCodeActionsInputV0",
             "RefsForClassInputV0",
             "RenamePlanInputV0",
             "ReadStyleContextIndexInputV0",
@@ -400,6 +407,7 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
             "styleDiagnosticsForFileRunner",
             "sourceDiagnosticsForFileRunner",
             "completionAtRunner",
+            "styleCodeActionsRunner",
             "refsForClassRunner",
             "renamePlanRunner",
             "readStyleContextIndexRunner",

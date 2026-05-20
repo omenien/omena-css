@@ -37,7 +37,7 @@ use omena_checker::{
     evaluate_omena_checker_cascade_rules, evaluate_omena_checker_m_tier_rules,
 };
 use omena_query::{
-    OmenaParserStyleDialect, OmenaQueryExpressionDomainFlowRuntimeV0,
+    OmenaParserStyleDialect, OmenaQueryCodeActionPlanV0, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
     OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
@@ -68,6 +68,8 @@ use omena_query::{
     summarize_omena_query_source_resolution_runtime,
     summarize_omena_query_style_completion_for_workspace_file,
     summarize_omena_query_style_diagnostics_for_workspace_file,
+    summarize_omena_query_style_extract_code_actions,
+    summarize_omena_query_style_inline_code_actions,
     summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
     summarize_omena_query_style_semantic_graph_from_source,
     summarize_omena_query_transform_context_from_engine_input,
@@ -165,6 +167,18 @@ struct CompletionAtInputV0 {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct StyleCodeActionsInputV0 {
+    style_uri: String,
+    style_source: String,
+    range: ParserRangeInputV0,
+    #[serde(default)]
+    styles: Vec<OmenaQueryStyleSourceInputV0>,
+    #[serde(default)]
+    package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 enum CompletionFileKindV0 {
     Style,
     Source,
@@ -198,7 +212,7 @@ struct RenamePlanInputV0 {
     package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ParserPositionInputV0 {
     line: usize,
@@ -210,6 +224,22 @@ impl From<ParserPositionInputV0> for ParserPositionV0 {
         Self {
             line: position.line,
             character: position.character,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ParserRangeInputV0 {
+    start: ParserPositionInputV0,
+    end: ParserPositionInputV0,
+}
+
+impl From<ParserRangeInputV0> for omena_query::ParserRangeV0 {
+    fn from(range: ParserRangeInputV0) -> Self {
+        Self {
+            start: range.start.into(),
+            end: range.end.into(),
         }
     }
 }
@@ -977,6 +1007,30 @@ struct ShadowSummaryV0 {
     checker_total_findings: usize,
 }
 
+fn run_style_code_actions_facade(input: StyleCodeActionsInputV0) -> OmenaQueryCodeActionPlanV0 {
+    let mut styles = input.styles;
+    if !styles
+        .iter()
+        .any(|style| style.style_path == input.style_uri)
+    {
+        styles.push(OmenaQueryStyleSourceInputV0 {
+            style_path: input.style_uri.clone(),
+            style_source: input.style_source.clone(),
+        });
+    }
+    let range = input.range.into();
+    let inline = summarize_omena_query_style_inline_code_actions(
+        &input.style_uri,
+        &styles,
+        range,
+        input.package_manifests.as_slice(),
+    );
+    if inline.action_count > 0 {
+        return inline;
+    }
+    summarize_omena_query_style_extract_code_actions(&input.style_uri, &input.style_source, range)
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mode = env::args().nth(1);
     if mode.as_deref() == Some("--daemon") {
@@ -1251,6 +1305,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     )
                 }
             };
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("style-code-actions") => {
+            let input: StyleCodeActionsInputV0 = serde_json::from_str(&stdin)?;
+            let summary = run_style_code_actions_facade(input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
         Some("refs-for-class") => {
@@ -1794,6 +1853,10 @@ fn run_daemon_selected_query_command(
                 return Err("unsupported style module path".into());
             };
             Ok(serde_json::to_value(summary)?)
+        }
+        "style-code-actions" => {
+            let input: StyleCodeActionsInputV0 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(run_style_code_actions_facade(input))?)
         }
         "style-semantic-graph-batch" => {
             let input: StyleSemanticGraphBatchInputV0 = serde_json::from_value(input)?;
