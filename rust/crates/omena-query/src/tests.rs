@@ -4720,6 +4720,7 @@ fn style_diagnostics_for_workspace_file_include_css_modules_resolution_lints()
         sources.as_slice(),
         &[],
         &[],
+        None,
     )
     .ok_or("workspace style diagnostics")?;
 
@@ -4784,6 +4785,7 @@ export function App() {
         sources.as_slice(),
         source_documents.as_slice(),
         &[],
+        None,
     )
     .ok_or("workspace style diagnostics")?;
 
@@ -4815,6 +4817,60 @@ export function App() {
                     ])
     );
     Ok(())
+}
+
+#[test]
+fn style_diagnostics_unused_selector_respects_classname_transform_aliases()
+-> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/Button.module.scss".to_string(),
+        style_source: ".btn-primary { color: red; }\n.orphan { color: blue; }\n".to_string(),
+    }];
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "/workspace/src/App.tsx".to_string(),
+        source_source: r#"import styles from "./Button.module.scss";
+export function App() {
+  return <div className={styles.btnPrimary}>hi</div>;
+}"#
+        .to_string(),
+    }];
+
+    let as_is = super::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/workspace/src/Button.module.scss",
+        sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+        Some("asIs"),
+    )
+    .ok_or("as-is workspace style diagnostics")?;
+    assert!(
+        unused_selector_messages(&as_is)
+            .contains(&"Selector '.btn-primary' is declared but never used.")
+    );
+
+    let camel_case = super::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/workspace/src/Button.module.scss",
+        sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+        Some("camelCase"),
+    )
+    .ok_or("camel-case workspace style diagnostics")?;
+    assert_eq!(
+        unused_selector_messages(&camel_case),
+        vec!["Selector '.orphan' is declared but never used."]
+    );
+
+    Ok(())
+}
+
+fn unused_selector_messages(summary: &crate::OmenaQueryStyleDiagnosticsForFileV0) -> Vec<&str> {
+    summary
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "unusedSelector")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect()
 }
 
 #[test]

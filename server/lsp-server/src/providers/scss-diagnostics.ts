@@ -202,6 +202,7 @@ function resolveQueryOwnedStyleDiagnostics(
       ],
       sourceDocuments: runtimeDeps.sourceDocuments ?? [],
       packageManifests: [],
+      classnameTransform: runtimeDeps.settings?.scss.classnameTransform,
     },
   ).then((summary) => {
     if (summary.product !== "omena-query.diagnostics-for-file" || summary.fileKind !== "style") {

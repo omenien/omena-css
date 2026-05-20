@@ -245,6 +245,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target = style_sources
         .iter()
@@ -272,6 +273,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file(
             style_sources,
             source_documents,
             package_manifests,
+            classname_transform,
         ));
     summary.diagnostic_count = summary.diagnostics.len();
     push_omena_query_ready_surface(
@@ -468,6 +470,7 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     if source_documents.is_empty() {
         return Vec::new();
@@ -486,11 +489,13 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics(
         .iter()
         .map(|entry| (entry.style_path.as_str(), entry.facts.clone()))
         .collect::<BTreeMap<_, _>>();
+    let aliases_by_path = collect_classname_transform_aliases(&facts_by_path, classname_transform);
     let (mut used_selectors, unresolved_dynamic_usage) =
         collect_omena_query_source_selector_usage_by_style(
             &available_style_paths,
             source_documents,
             package_manifests,
+            &aliases_by_path,
         );
     if unresolved_dynamic_usage.contains(target_style_path) {
         return Vec::new();
@@ -548,6 +553,7 @@ fn collect_omena_query_source_selector_usage_by_style(
     available_style_paths: &BTreeSet<&str>,
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    aliases_by_path: &BTreeMap<String, BTreeMap<String, BTreeSet<String>>>,
 ) -> (BTreeMap<String, BTreeSet<String>>, BTreeSet<String>) {
     let mut used_selectors = BTreeMap::<String, BTreeSet<String>>::new();
     let mut unresolved_dynamic_usage = BTreeSet::<String>::new();
@@ -593,14 +599,84 @@ fn collect_omena_query_source_selector_usage_by_style(
                 unresolved_dynamic_usage.insert(target_style_path);
                 continue;
             };
-            used_selectors
-                .entry(target_style_path)
-                .or_default()
-                .insert(selector_name);
+            let used_for_style = used_selectors.entry(target_style_path.clone()).or_default();
+            if let Some(canonical_names) = aliases_by_path
+                .get(target_style_path.as_str())
+                .and_then(|aliases| aliases.get(selector_name.as_str()))
+            {
+                used_for_style.extend(canonical_names.iter().cloned());
+            } else {
+                used_for_style.insert(selector_name);
+            }
         }
     }
 
     (used_selectors, unresolved_dynamic_usage)
+}
+
+fn collect_classname_transform_aliases(
+    facts_by_path: &BTreeMap<&str, OmenaQueryOmenaParserStyleFactsV0>,
+    classname_transform: Option<&str>,
+) -> BTreeMap<String, BTreeMap<String, BTreeSet<String>>> {
+    let mut aliases_by_path = BTreeMap::<String, BTreeMap<String, BTreeSet<String>>>::new();
+    for (style_path, facts) in facts_by_path {
+        let aliases = aliases_by_path
+            .entry((*style_path).to_string())
+            .or_default();
+        for selector_name in &facts.class_selector_names {
+            for alias in classname_transform_aliases(selector_name.as_str(), classname_transform) {
+                aliases
+                    .entry(alias)
+                    .or_default()
+                    .insert(selector_name.clone());
+            }
+        }
+    }
+    aliases_by_path
+}
+
+fn classname_transform_aliases(name: &str, classname_transform: Option<&str>) -> Vec<String> {
+    match classname_transform.unwrap_or("asIs") {
+        "camelCase" => keep_original_plus_transformed(name, to_ascii_camel_case(name)),
+        "camelCaseOnly" => vec![to_ascii_camel_case(name)],
+        "dashes" => keep_original_plus_transformed(name, dashes_to_ascii_camel(name)),
+        "dashesOnly" => vec![dashes_to_ascii_camel(name)],
+        _ => vec![name.to_string()],
+    }
+}
+
+fn keep_original_plus_transformed(name: &str, transformed: String) -> Vec<String> {
+    if transformed == name {
+        vec![name.to_string()]
+    } else {
+        vec![name.to_string(), transformed]
+    }
+}
+
+fn dashes_to_ascii_camel(name: &str) -> String {
+    transform_ascii_separated_name(name, |byte| byte == b'-')
+}
+
+fn to_ascii_camel_case(name: &str) -> String {
+    transform_ascii_separated_name(name, |byte| byte == b'-' || byte == b'_' || byte == b' ')
+}
+
+fn transform_ascii_separated_name(name: &str, is_separator: impl Fn(u8) -> bool) -> String {
+    let mut output = String::with_capacity(name.len());
+    let mut capitalize_next = false;
+    for byte in name.bytes() {
+        if is_separator(byte) {
+            capitalize_next = true;
+            continue;
+        }
+        if capitalize_next {
+            output.push((byte as char).to_ascii_uppercase());
+            capitalize_next = false;
+            continue;
+        }
+        output.push(byte as char);
+    }
+    output
 }
 
 fn propagate_omena_query_composes_usage(

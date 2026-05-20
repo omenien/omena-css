@@ -135,6 +135,8 @@ struct StyleDiagnosticsForFileInputV0 {
     source_documents: Vec<OmenaQuerySourceDocumentInputV0>,
     #[serde(default)]
     package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+    #[serde(default)]
+    classname_transform: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1258,6 +1260,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &input.styles,
                 &input.source_documents,
                 &input.package_manifests,
+                input.classname_transform.as_deref(),
             ) else {
                 return Err("unsupported style module path".into());
             };
@@ -1886,6 +1889,7 @@ fn run_daemon_selected_query_command(
                 &input.styles,
                 &input.source_documents,
                 &input.package_manifests,
+                input.classname_transform.as_deref(),
             ) else {
                 return Err("unsupported style module path".into());
             };
