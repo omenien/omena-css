@@ -32,7 +32,7 @@ pub(crate) fn transition_shorthand_replacement_for_declarations(
             if declaration.important != important {
                 return None;
             }
-            single_transition_longhand_value_without_important(declaration)
+            single_motion_longhand_value_without_important(declaration)
         })
         .collect::<Option<Vec<_>>>()?;
     let [property, duration, timing, delay] = components.as_slice() else {
@@ -46,6 +46,72 @@ pub(crate) fn transition_shorthand_replacement_for_declarations(
         declarations.first()?.start,
         declarations.last()?.end,
         format!("transition: {shorthand}{important};"),
+    ))
+}
+
+pub(crate) fn animation_shorthand_replacement_for_declarations(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let [
+        name,
+        duration,
+        timing,
+        delay,
+        iteration_count,
+        direction,
+        fill_mode,
+        play_state,
+    ] = declarations
+    else {
+        return None;
+    };
+    if name.property != "animation-name"
+        || duration.property != "animation-duration"
+        || timing.property != "animation-timing-function"
+        || delay.property != "animation-delay"
+        || iteration_count.property != "animation-iteration-count"
+        || direction.property != "animation-direction"
+        || fill_mode.property != "animation-fill-mode"
+        || play_state.property != "animation-play-state"
+        || !declaration_ranges_are_adjacent(tokens, declarations)
+    {
+        return None;
+    }
+
+    let important = name.important;
+    let components = declarations
+        .iter()
+        .map(|declaration| {
+            if declaration.important != important {
+                return None;
+            }
+            single_motion_longhand_value_without_important(declaration)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let [
+        name,
+        duration,
+        timing,
+        delay,
+        iteration_count,
+        direction,
+        fill_mode,
+        play_state,
+    ] = components.as_slice()
+    else {
+        return None;
+    };
+    let shorthand_seed = format!(
+        "{name} {duration} {timing} {delay} {iteration_count} {direction} {fill_mode} {play_state}"
+    );
+    let shorthand = compress_single_animation_value(&shorthand_seed).unwrap_or(shorthand_seed);
+    let important = if important { "!important" } else { "" };
+
+    Some((
+        declarations.first()?.start,
+        declarations.last()?.end,
+        format!("animation: {shorthand}{important};"),
     ))
 }
 
@@ -98,7 +164,7 @@ fn normalize_transition_property(property: &str) -> String {
     }
 }
 
-fn single_transition_longhand_value_without_important(
+fn single_motion_longhand_value_without_important(
     declaration: &SimpleDeclarationSlice,
 ) -> Option<String> {
     let mut components = split_top_level_whitespace_value_components(&declaration.value)?;

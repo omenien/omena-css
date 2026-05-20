@@ -17,8 +17,8 @@ use crate::{
         },
         shorthand_logical::collect_logical_axis_replacements,
         shorthand_motion::{
-            compress_animation_value, compress_transition_value,
-            transition_shorthand_replacement_for_declarations,
+            animation_shorthand_replacement_for_declarations, compress_animation_value,
+            compress_transition_value, transition_shorthand_replacement_for_declarations,
         },
         shorthand_position::collect_background_position_axis_replacements,
         shorthand_text::{
@@ -34,6 +34,7 @@ use crate::{
             declaration_ranges_are_adjacent, format_replacement_declaration_like_source,
         },
         tokens::matching_right_brace_index,
+        values::split_top_level_value_arguments,
         values::split_top_level_whitespace_value_components,
     },
 };
@@ -98,6 +99,18 @@ fn collect_shorthand_replacements_in_block(
 ) -> Vec<(usize, usize, String)> {
     let declarations = collect_simple_declarations_in_block(tokens, block_start, block_end);
     let mut ranges = Vec::new();
+    let mut index = 0;
+    while index + 7 < declarations.len() {
+        if let Some((start, end, replacement)) = animation_shorthand_replacement_for_declarations(
+            tokens,
+            &declarations[index..index + 8],
+        ) {
+            ranges.push((start, end, replacement));
+            index += 8;
+        } else {
+            index += 1;
+        }
+    }
     let mut index = 0;
     while index + 6 < declarations.len() {
         if let Some((start, end, replacement)) =
@@ -188,14 +201,6 @@ fn collect_shorthand_replacements_in_block(
             index += 1;
         }
     }
-    for declaration in &declarations {
-        if let Some((start, end, replacement)) =
-            shorthand_value_replacement_for_declaration(source, declaration)
-            && !replacement_range_overlaps_existing(&ranges, start, end)
-        {
-            ranges.push((start, end, replacement));
-        }
-    }
     ranges.extend(collect_overflow_axis_replacements(tokens, &declarations));
     ranges.extend(collect_place_axis_replacements(tokens, &declarations));
     ranges.extend(collect_gap_axis_replacements(tokens, &declarations));
@@ -204,6 +209,21 @@ fn collect_shorthand_replacements_in_block(
         tokens,
         &declarations,
     ));
+    for (start, end, replacement) in
+        collect_background_component_replacements(tokens, &declarations)
+    {
+        if !replacement_range_overlaps_existing(&ranges, start, end) {
+            ranges.push((start, end, replacement));
+        }
+    }
+    for declaration in &declarations {
+        if let Some((start, end, replacement)) =
+            shorthand_value_replacement_for_declaration(source, declaration)
+            && !replacement_range_overlaps_existing(&ranges, start, end)
+        {
+            ranges.push((start, end, replacement));
+        }
+    }
     ranges.extend(collect_flex_flow_replacements(tokens, &declarations));
     ranges.extend(collect_flex_longhand_replacements(tokens, &declarations));
     for (start, end, replacement) in collect_logical_line_axis_replacements(tokens, &declarations) {
@@ -421,6 +441,109 @@ fn border_image_shorthand_replacement_for_declarations(
         repeat.end,
         format!("border-image: {shorthand_value}{important};"),
     ))
+}
+
+fn collect_background_component_replacements(
+    tokens: &[LexedToken],
+    declarations: &[SimpleDeclarationSlice],
+) -> Vec<(usize, usize, String)> {
+    let mut ranges = Vec::new();
+    for triple in declarations.windows(3) {
+        if let Some(replacement) = background_component_shorthand_replacement_for_declarations(
+            tokens,
+            declarations,
+            triple,
+        ) {
+            ranges.push(replacement);
+        }
+    }
+    ranges
+}
+
+fn background_component_shorthand_replacement_for_declarations(
+    tokens: &[LexedToken],
+    block_declarations: &[SimpleDeclarationSlice],
+    declarations: &[SimpleDeclarationSlice],
+) -> Option<(usize, usize, String)> {
+    let [image, repeat, color] = declarations else {
+        return None;
+    };
+    if image.property != "background-image"
+        || repeat.property != "background-repeat"
+        || color.property != "background-color"
+        || image.important != repeat.important
+        || image.important != color.important
+        || !declaration_ranges_are_adjacent(tokens, declarations)
+        || block_has_other_background_reset_sensitive_declarations(block_declarations, declarations)
+    {
+        return None;
+    }
+
+    let important = image.important;
+    let image_value = single_background_component_value(&image.value, important)?;
+    let repeat_value = single_background_component_value(&repeat.value, important)
+        .and_then(|value| normalize_background_repeat_component_value(&value))?;
+    let color_value = single_background_component_value(&color.value, important)?;
+    let important = if important { "!important" } else { "" };
+
+    Some((
+        image.start,
+        color.end,
+        format!("background: {image_value} {repeat_value} {color_value}{important};"),
+    ))
+}
+
+fn block_has_other_background_reset_sensitive_declarations(
+    block_declarations: &[SimpleDeclarationSlice],
+    replacement_declarations: &[SimpleDeclarationSlice],
+) -> bool {
+    block_declarations.iter().any(|declaration| {
+        background_reset_sensitive_property(&declaration.property)
+            && !replacement_declarations
+                .iter()
+                .any(|replacement| replacement.start == declaration.start)
+    })
+}
+
+fn background_reset_sensitive_property(property: &str) -> bool {
+    property == "background" || property.starts_with("background-")
+}
+
+fn single_background_component_value(value: &str, important: bool) -> Option<String> {
+    let value = if important {
+        declaration_value_without_important(value)?
+    } else {
+        value
+    };
+    let components = split_top_level_value_arguments(value)?;
+    let [component] = components.as_slice() else {
+        return None;
+    };
+    Some(normalize_ascii_whitespace(component))
+}
+
+fn normalize_background_repeat_component_value(value: &str) -> Option<String> {
+    if let Some(compressed) = compress_background_repeat_value(value) {
+        return Some(compressed);
+    }
+    let components = split_top_level_whitespace_value_components(value)?;
+    match components.as_slice() {
+        [single] if is_background_repeat_single_keyword(&single.to_ascii_lowercase()) => {
+            Some(single.to_ascii_lowercase())
+        }
+        [first, second] => {
+            let first = first.to_ascii_lowercase();
+            let second = second.to_ascii_lowercase();
+            (is_background_repeat_axis_keyword(&first)
+                && is_background_repeat_axis_keyword(&second))
+            .then(|| format!("{first} {second}"))
+        }
+        _ => None,
+    }
+}
+
+fn is_background_repeat_single_keyword(value: &str) -> bool {
+    is_background_repeat_axis_keyword(value) || matches!(value, "repeat-x" | "repeat-y")
 }
 
 fn inset_shorthand_replacement_for_declarations(

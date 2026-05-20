@@ -240,6 +240,53 @@ assertIncludesAll(
   "transform execute ready surfaces",
 );
 
+const commodityCooldownResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-execute",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "commodity-cooldown.css",
+      styleSource:
+        ".m0 { animation-name: fade; animation-duration: 0s; animation-timing-function: ease; animation-delay: 0s; animation-iteration-count: 1; animation-direction: normal; animation-fill-mode: none; animation-play-state: running; } .bg { background-image: url(hero.svg); background-repeat: no-repeat repeat; background-color: red; } .filter { filter: grayscale(0) sepia(0%) invert(.0); } .mask { mask-size: auto auto; mask-repeat: repeat repeat; }",
+      requestedPassIds: [
+        "shorthand-combining",
+        "unit-normalization",
+        "print-css",
+      ],
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(commodityCooldownResult.status, 0, commodityCooldownResult.stderr);
+assert.equal(commodityCooldownResult.error, undefined);
+
+const commodityCooldownSummary = JSON.parse(
+  commodityCooldownResult.stdout,
+) as TransformExecuteSummaryV0;
+
+assert.equal(
+  commodityCooldownSummary.execution.outputCss,
+  ".m0 { animation: fade; } .bg { background: url(hero.svg) repeat-y red; } .filter { filter: none; } .mask { mask-size: auto; mask-repeat: repeat; }",
+);
+assert.deepEqual(commodityCooldownSummary.execution.executedPassIds, [
+  "shorthand-combining",
+  "unit-normalization",
+  "print-css",
+]);
+assert.equal(commodityCooldownSummary.execution.mutationCount, 5);
+
 const selectorFunctionCaseResult = spawnSync(
   "cargo",
   [
@@ -4971,6 +5018,7 @@ process.stdout.write(
     `colorMixPercentageMutations=${colorMixPercentageSummary.execution.mutationCount}`,
     `colorMixAlphaMutations=${colorMixAlphaSummary.execution.mutationCount}`,
     `colorMixLinearMutations=${colorMixLinearSummary.execution.mutationCount}`,
+    `commodityCooldownMutations=${commodityCooldownSummary.execution.mutationCount}`,
     `mathFunctionMutations=${mathFunctionReductionSummary.execution.mutationCount}`,
     `staticVarShadowMutations=${staticVarShadowSummary.execution.mutationCount}`,
     `staticVarPreludeMutations=${staticVarPreludeSummary.execution.mutationCount}`,

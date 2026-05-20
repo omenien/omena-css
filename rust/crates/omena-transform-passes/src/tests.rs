@@ -1460,7 +1460,7 @@ fn execution_runtime_removes_adjacent_duplicate_unit_declarations() {
 
 #[test]
 fn execution_runtime_normalizes_safe_zero_percent_position_values() {
-    let source = r#".a { background-position: 0% 0%; background-size: auto auto; mask-position: 0% 0%; perspective-origin: 0% 0%; transform-origin: 0% 0%; object-position: 0% 0%; width: 0%; opacity: 0%; }"#;
+    let source = r#".a { background-position: 0% 0%; background-size: auto auto; mask-position: 0% 0%; mask-size: auto auto; -webkit-mask-size: auto auto; perspective-origin: 0% 0%; transform-origin: 0% 0%; object-position: 0% 0%; width: 0%; opacity: 0%; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1469,10 +1469,10 @@ fn execution_runtime_normalizes_safe_zero_percent_position_values() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 10);
+    assert_eq!(execution.mutation_count, 12);
     assert_eq!(
         execution.output_css,
-        r#".a { background-position: 0 0; background-size: auto; mask-position: 0 0; perspective-origin: 0 0; transform-origin: 0 0; object-position: 0% 0%; width: 0%; opacity: 0; }"#
+        r#".a { background-position: 0 0; background-size: auto; mask-position: 0 0; mask-size: auto; -webkit-mask-size: auto; perspective-origin: 0 0; transform-origin: 0 0; object-position: 0% 0%; width: 0%; opacity: 0; }"#
     );
     assert_eq!(
         execution.executed_pass_ids,
@@ -1658,7 +1658,7 @@ fn execution_runtime_normalizes_static_transform_tail_zeros() {
 
 #[test]
 fn execution_runtime_normalizes_static_filter_default_functions() {
-    let source = r#".a { filter: opacity(100%) brightness(1) contrast(+1) saturate(0100%) blur(0px) hue-rotate(-0deg); } .b { backdrop-filter: opacity(.5) blur(1px); } .c { -webkit-filter: opacity(1.0); } .d { filter: drop-shadow(red 0px 0px 0px); } .e { filter: drop-shadow(1px 2px 0px #000); }"#;
+    let source = r#".a { filter: opacity(100%) brightness(1) contrast(+1) saturate(0100%) blur(0px) hue-rotate(-0deg); } .b { backdrop-filter: opacity(.5) blur(1px); } .c { -webkit-filter: opacity(1.0); } .d { filter: drop-shadow(red 0px 0px 0px); } .e { filter: drop-shadow(1px 2px 0px #000); } .f { filter: grayscale(0) sepia(0%) invert(.0); } .g { filter: grayscale(1) invert(100%); }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -1667,10 +1667,10 @@ fn execution_runtime_normalizes_static_filter_default_functions() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 5);
+    assert_eq!(execution.mutation_count, 7);
     assert_eq!(
         execution.output_css,
-        r#".a { filter: opacity()brightness()contrast()saturate()blur()hue-rotate(); } .b { backdrop-filter: opacity(.5)blur(1px); } .c { -webkit-filter: opacity(); } .d { filter: drop-shadow(0 0 red); } .e { filter: drop-shadow(1px 2px #000); }"#
+        r#".a { filter: opacity()brightness()contrast()saturate()blur()hue-rotate(); } .b { backdrop-filter: opacity(.5)blur(1px); } .c { -webkit-filter: opacity(); } .d { filter: drop-shadow(0 0 red); } .e { filter: drop-shadow(1px 2px #000); } .f { filter: none; } .g { filter: grayscale(1)invert(100%); }"#
     );
     assert_eq!(
         execution.executed_pass_ids,
@@ -2175,7 +2175,7 @@ fn execution_runtime_compresses_important_shorthand_values() {
 
 #[test]
 fn execution_runtime_compresses_overflow_and_background_repeat_shorthands() {
-    let source = r#".a { overflow-x: visible; overflow-y: visible; background-repeat: repeat repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .c { background-repeat: Repeat Repeat; } .d { overflow: hidden hidden; background-repeat: repeat no-repeat; } .e { overflow: visible visible; background-repeat: no-repeat repeat; } .f { overflow-x: auto; overflow-y: hidden; } .g { overflow-y: scroll; overflow-x: clip; } .h { overflow: AUTO HIDDEN; } .pos { background-position-x: left; background-position-y: top; } .pos-center { background-position-x: center; background-position-y: center; } .pos-reverse { background-position-y: top; background-position-x: center; } .pos-important { background-position-x: left !important; background-position-y: top !important; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; }"#;
+    let source = r#".a { overflow-x: visible; overflow-y: visible; background-repeat: repeat repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .c { background-repeat: Repeat Repeat; } .d { overflow: hidden hidden; background-repeat: repeat no-repeat; } .e { overflow: visible visible; background-repeat: no-repeat repeat; } .f { overflow-x: auto; overflow-y: hidden; } .g { overflow-y: scroll; overflow-x: clip; } .h { overflow: AUTO HIDDEN; } .pos { background-position-x: left; background-position-y: top; } .pos-center { background-position-x: center; background-position-y: center; } .pos-reverse { background-position-y: top; background-position-x: center; } .pos-important { background-position-x: left !important; background-position-y: top !important; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat no-repeat !important; } .bg { background-image: url(hero.svg); background-repeat: no-repeat repeat; background-color: rgb(255 0 0); } .bg-guard { background-position: center; background-image: url(hero.svg); background-repeat: repeat; background-color: red; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -2184,10 +2184,10 @@ fn execution_runtime_compresses_overflow_and_background_repeat_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 15);
+    assert_eq!(execution.mutation_count, 16);
     assert_eq!(
         execution.output_css,
-        r#".a { overflow: visible; background-repeat: repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .c { background-repeat: repeat; } .d { overflow: hidden; background-repeat: repeat-x; } .e { overflow: visible; background-repeat: repeat-y; } .f { overflow: auto hidden; } .g { overflow: clip scroll; } .h { overflow: auto hidden; } .pos { background-position: 0 0; } .pos-center { background-position: 50%; } .pos-reverse { background-position: top; } .pos-important { background-position: 0 0!important; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat!important; }"#
+        r#".a { overflow: visible; background-repeat: repeat; } .b { overflow-x: hidden; color: red; overflow-y: hidden; background-repeat: round space; } .c { background-repeat: repeat; } .d { overflow: hidden; background-repeat: repeat-x; } .e { overflow: visible; background-repeat: repeat-y; } .f { overflow: auto hidden; } .g { overflow: clip scroll; } .h { overflow: auto hidden; } .pos { background-position: 0 0; } .pos-center { background-position: 50%; } .pos-reverse { background-position: top; } .pos-important { background-position: 0 0!important; } .important { overflow-x: auto !important; overflow-y: auto !important; background-repeat: no-repeat!important; } .bg { background: url(hero.svg) repeat-y rgb(255 0 0); } .bg-guard { background-position: center; background-image: url(hero.svg); background-repeat: repeat; background-color: red; }"#
     );
 }
 
@@ -2387,7 +2387,7 @@ fn execution_runtime_compresses_static_flex_shorthands() {
 
 #[test]
 fn execution_runtime_compresses_static_motion_shorthands() {
-    let source = r#".a { transition: all 0s ease 0s; } .b { transition: opacity 0s linear .1s; } .c { transition: opacity 0s ease 0s, color .2s ease 0s; } .d { animation: none 0s ease 0s 1 normal none running; } .e { animation: 0s ease 0s 1 normal none running fade; } .f { animation: fade .2s ease 0s 1 normal none running; } .g { transition-property: all; transition-duration: 0s; transition-timing-function: ease; transition-delay: 0s; } .h { transition-property: opacity; transition-duration: .2s; transition-timing-function: ease; transition-delay: 0s; } .i { transition-property: all !important; transition-duration: 0s !important; transition-timing-function: ease !important; transition-delay: 0s !important; }"#;
+    let source = r#".a { transition: all 0s ease 0s; } .b { transition: opacity 0s linear .1s; } .c { transition: opacity 0s ease 0s, color .2s ease 0s; } .d { animation: none 0s ease 0s 1 normal none running; } .e { animation: 0s ease 0s 1 normal none running fade; } .f { animation: fade .2s ease 0s 1 normal none running; } .g { transition-property: all; transition-duration: 0s; transition-timing-function: ease; transition-delay: 0s; } .h { transition-property: opacity; transition-duration: .2s; transition-timing-function: ease; transition-delay: 0s; } .i { transition-property: all !important; transition-duration: 0s !important; transition-timing-function: ease !important; transition-delay: 0s !important; } .j { animation-name: fade; animation-duration: 0s; animation-timing-function: ease; animation-delay: 0s; animation-iteration-count: 1; animation-direction: normal; animation-fill-mode: none; animation-play-state: running; }"#;
     let execution = execute_transform_passes_on_source(
         source,
         &[
@@ -2396,10 +2396,10 @@ fn execution_runtime_compresses_static_motion_shorthands() {
         ],
     );
 
-    assert_eq!(execution.mutation_count, 7);
+    assert_eq!(execution.mutation_count, 8);
     assert_eq!(
         execution.output_css,
-        r#".a { transition: all; } .b { transition: opacity 0s linear .1s; } .c { transition: opacity,color .2s; } .d { animation: none; } .e { animation: fade; } .f { animation: fade .2s ease 0s 1 normal none running; } .g { transition: all; } .h { transition: opacity .2s; } .i { transition: all!important; }"#
+        r#".a { transition: all; } .b { transition: opacity 0s linear .1s; } .c { transition: opacity,color .2s; } .d { animation: none; } .e { animation: fade; } .f { animation: fade .2s ease 0s 1 normal none running; } .g { transition: all; } .h { transition: opacity .2s; } .i { transition: all!important; } .j { animation: fade; }"#
     );
 }
 

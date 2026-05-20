@@ -10,6 +10,7 @@ use omena_abstract_value::{
 };
 use omena_benchmarks::{
     measure_legacy_parser_product_sample, measure_omena_parser_product_sample, style_corpus,
+    validate_parser_product_benchmark_boundary_symmetry,
 };
 use omena_parser::parse as parse_omena_style;
 use omena_semantic::summarize_omena_parser_style_semantic_boundary_from_source;
@@ -47,6 +48,12 @@ fn omena_parser_benchmarks(c: &mut Criterion) {
 }
 
 fn parser_product_benchmarks(c: &mut Criterion) {
+    if let Err(error) = validate_parser_product_benchmark_boundary_symmetry() {
+        eprintln!(
+            "G.codspeed parser product lanes must keep symmetric measurement boundaries: {error}"
+        );
+        std::process::exit(1);
+    }
     let samples = style_corpus();
     let mut legacy_group = c.benchmark_group("z5/parser-product-legacy");
     for sample in &samples {
