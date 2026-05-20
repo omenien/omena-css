@@ -95,7 +95,7 @@ pub fn handle_lsp_message(state: &mut LspShellState, message: Value) -> Option<V
         (Some("textDocument/codeAction"), Some(request_id)) => Some(json!({
             "jsonrpc": "2.0",
             "id": request_id,
-            "result": resolve_lsp_code_actions(message.get("params")),
+            "result": resolve_lsp_code_actions(state, message.get("params")),
         })),
         (Some("textDocument/codeLens"), Some(request_id)) => Some(json!({
             "jsonrpc": "2.0",

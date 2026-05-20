@@ -784,6 +784,27 @@ pub struct OmenaQueryRenamePlanV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCodeActionPlanV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub file_uri: String,
+    pub file_kind: &'static str,
+    pub action_count: usize,
+    pub actions: Vec<OmenaQueryCodeActionV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCodeActionV0 {
+    pub title: String,
+    pub kind: &'static str,
+    pub edits: Vec<OmenaQueryWorkspaceTextEditV0>,
+    pub source: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCascadeAtPositionV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

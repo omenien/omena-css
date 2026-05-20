@@ -4874,6 +4874,61 @@ fn completion_at_position_is_query_owned_for_style_and_source() -> Result<(), &'
 }
 
 #[test]
+fn style_extract_code_actions_are_query_owned() {
+    let source = ".button { color: #ff0000; margin: 1rem; }";
+    let plan = super::summarize_omena_query_style_extract_code_actions(
+        "file:///workspace/src/App.module.scss",
+        source,
+        ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 0,
+                character: 17,
+            },
+            end: ParserPositionV0 {
+                line: 0,
+                character: 24,
+            },
+        },
+    );
+
+    assert_eq!(plan.product, "omena-query.code-actions");
+    assert_eq!(plan.file_kind, "style");
+    assert_eq!(plan.action_count, 2);
+    assert_eq!(
+        plan.actions
+            .iter()
+            .map(|action| action.title.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "Extract CSS custom property '--extracted-color'",
+            "Extract @value 'extractedColor'",
+        ]
+    );
+    assert_eq!(plan.actions[0].kind, "refactor.extract");
+    assert_eq!(plan.actions[0].source, "omenaQueryStyleExtractCodeActions");
+    assert_eq!(
+        plan.actions[0]
+            .edits
+            .iter()
+            .map(|edit| edit.new_text.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            ":root {\n  --extracted-color: #ff0000;\n}\n\n",
+            "var(--extracted-color)"
+        ]
+    );
+    assert_eq!(
+        plan.actions[1]
+            .edits
+            .iter()
+            .map(|edit| edit.new_text.as_str())
+            .collect::<Vec<_>>(),
+        vec!["@value extractedColor: #ff0000;\n\n", "extractedColor"]
+    );
+    assert!(plan.ready_surfaces.contains(&"styleExtractRefactorActions"));
+}
+
+#[test]
 fn refs_for_class_is_query_owned_and_workspace_scoped() {
     let definition = OmenaQueryStyleSelectorDefinitionV0 {
         uri: "file:///workspace/src/Component.module.scss".to_string(),

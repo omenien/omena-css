@@ -39,6 +39,7 @@ use omena_query::{
     summarize_omena_query_source_import_declarations, summarize_omena_query_source_syntax_index,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_document,
+    summarize_omena_query_style_extract_code_actions,
     summarize_omena_query_style_hover_render_parts,
 };
 #[cfg(test)]
@@ -889,16 +890,15 @@ fn source_selector_diagnostic_target<'a>(
     first_style_document_for_workspace(state, workspace_folder_uri)
 }
 
-fn resolve_lsp_code_actions(params: Option<&Value>) -> Value {
-    let Some(diagnostics) = params
+fn resolve_lsp_code_actions(state: &LspShellState, params: Option<&Value>) -> Value {
+    let diagnostics = params
         .and_then(|value| value.get("context"))
         .and_then(|value| value.get("diagnostics"))
         .and_then(Value::as_array)
-    else {
-        return Value::Null;
-    };
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
 
-    let actions: Vec<Value> = diagnostics
+    let mut actions: Vec<Value> = diagnostics
         .iter()
         .enumerate()
         .filter_map(|(index, diagnostic)| {
@@ -928,7 +928,7 @@ fn resolve_lsp_code_actions(params: Option<&Value>) -> Value {
                     "changes": Value::Object(changes),
                 },
                 "data": {
-                    "source": "openedStyleDocumentIndex",
+                    "source": "omenaQueryStyleDiagnosticsForFile",
                     "diagnosticIndex": index,
                 },
             }))
@@ -967,11 +967,70 @@ fn resolve_lsp_code_actions(params: Option<&Value>) -> Value {
         }))
         .collect();
 
+    if diagnostics.is_empty() {
+        actions.extend(resolve_lsp_extract_refactor_code_actions(state, params));
+    }
+
     if actions.is_empty() {
         Value::Null
     } else {
         json!(actions)
     }
+}
+
+fn resolve_lsp_extract_refactor_code_actions(
+    state: &LspShellState,
+    params: Option<&Value>,
+) -> Vec<Value> {
+    let document_uri = document_uri_from_params(params);
+    let Some(document) = state.document(document_uri.as_str()) else {
+        return Vec::new();
+    };
+    if !is_style_document_uri(document.uri.as_str()) {
+        return Vec::new();
+    }
+    let Some(range) = params
+        .and_then(|value| value.get("range"))
+        .and_then(lsp_range_from_value)
+    else {
+        return Vec::new();
+    };
+
+    summarize_omena_query_style_extract_code_actions(
+        document.uri.as_str(),
+        document.text.as_str(),
+        range,
+    )
+    .actions
+    .into_iter()
+    .enumerate()
+    .map(|(index, action)| {
+        let mut changes_by_uri = BTreeMap::<String, Vec<Value>>::new();
+        for edit in action.edits {
+            changes_by_uri.entry(edit.uri).or_default().push(json!({
+                "range": edit.range,
+                "newText": edit.new_text,
+            }));
+        }
+
+        let changes = changes_by_uri
+            .into_iter()
+            .map(|(uri, edits)| (uri, Value::Array(edits)))
+            .collect::<serde_json::Map<_, _>>();
+
+        json!({
+            "title": action.title,
+            "kind": action.kind,
+            "edit": {
+                "changes": Value::Object(changes),
+            },
+            "data": {
+                "source": action.source,
+                "actionIndex": index,
+            },
+        })
+    })
+    .collect()
 }
 
 fn resolve_lsp_code_lens(state: &LspShellState, params: Option<&Value>) -> Value {

@@ -2,6 +2,7 @@ use super::*;
 use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact};
 
 mod cascade_position;
+mod code_actions;
 mod completion;
 mod diagnostics;
 mod parser_facade;
@@ -11,6 +12,7 @@ mod substrate;
 mod transform;
 
 pub use cascade_position::*;
+pub use code_actions::*;
 pub use completion::*;
 pub use diagnostics::*;
 use parser_facade::{
