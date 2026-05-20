@@ -807,6 +807,7 @@ fn style_diagnostics(
             workspace_sources.as_slice(),
             source_documents.as_slice(),
             package_manifests.as_slice(),
+            None,
         )
         .ok_or_else(|| format!("failed to read workspace style diagnostics for {style_path}"))?
     };

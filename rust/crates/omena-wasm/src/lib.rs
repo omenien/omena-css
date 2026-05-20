@@ -542,6 +542,7 @@ pub fn read_workspace_style_diagnostics_summary(
         sources,
         source_documents,
         package_manifests,
+        None,
     )
     .ok_or_else(|| {
         JsValue::from_str(&format!(
