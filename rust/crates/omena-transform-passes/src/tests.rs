@@ -2364,6 +2364,29 @@ fn execution_runtime_compresses_repeated_axis_shorthand_values() {
 }
 
 #[test]
+fn execution_runtime_normalizes_mask_default_values() {
+    let source = r#".mask { mask-size: auto auto; mask-repeat: repeat repeat; -webkit-mask-size: auto auto; -webkit-mask-repeat: no-repeat no-repeat; }"#;
+    let execution = execute_transform_passes_on_source(
+        source,
+        &[
+            TransformPassKind::UnitNormalization,
+            TransformPassKind::ShorthandCombining,
+            TransformPassKind::PrintCss,
+        ],
+    );
+
+    assert_eq!(execution.mutation_count, 4);
+    assert_eq!(
+        execution.output_css,
+        r#".mask { mask-size: auto; mask-repeat: repeat; -webkit-mask-size: auto; -webkit-mask-repeat: no-repeat; }"#
+    );
+    assert_eq!(
+        execution.executed_pass_ids,
+        vec!["shorthand-combining", "unit-normalization", "print-css"]
+    );
+}
+
+#[test]
 fn execution_runtime_compresses_static_flex_shorthands() {
     let source = r#".a { flex: 0 1 auto; } .b { flex: 1 1 0%; } .c { flex: 2 1 0%; } .d { flex: 1 2 0%; } .e { flex: var(--flex); } .f { flex: 0 0 auto; } .g { flex-flow: row nowrap; } .h { flex-flow: row wrap; } .i { flex-flow: nowrap row; } .j { flex-direction: row; flex-wrap: nowrap; } .k { flex-wrap: wrap; flex-direction: column; } .l { flex-direction: row !important; flex-wrap: nowrap !important; } .m { flex-basis: 0%; flex: 1 1 0%; } .n { flex-basis: 0% !important; flex: 1; } .o { flex-grow: 1; flex-shrink: 1; flex: 2 1 0%; } .p { flex-grow: 1; flex-shrink: 1; flex-basis: 0%; } .q { flex-grow: 1; flex-shrink: 1; flex-basis: 10px; } .r { flex: 1 1 0; } .s { flex: 1 1 0px; } .t { flex-grow: 1 !important; flex-shrink: 1 !important; flex-basis: 0% !important; }"#;
     let execution = execute_transform_passes_on_source(
