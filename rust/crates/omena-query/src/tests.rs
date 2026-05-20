@@ -24,6 +24,7 @@ use super::{
     summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
+    summarize_omena_query_expression_domain_reduced_product_iteration,
     summarize_omena_query_expression_domain_selector_projection,
     summarize_omena_query_expression_semantics_canonical_producer_signal,
     summarize_omena_query_expression_semantics_query_fragments, summarize_omena_query_fast_facts,
@@ -128,6 +129,16 @@ fn summarizes_query_boundary_over_producer_fragments() {
         summary
             .delegated_fragment_products
             .contains(&"engine-input-producers.expression-domain-control-flow-analysis")
+    );
+    assert!(
+        summary
+            .delegated_fragment_products
+            .contains(&"engine-input-producers.expression-domain-call-site-flow-analysis")
+    );
+    assert!(
+        summary
+            .delegated_fragment_products
+            .contains(&"engine-input-producers.expression-domain-reduced-product-iteration")
     );
     assert!(
         summary
@@ -3087,6 +3098,11 @@ fn declares_runtime_backed_selected_query_adapter_capabilities() {
     );
     assert!(
         summary.runner_commands.iter().any(|command| {
+            command.command == "input-expression-domain-reduced-product-iteration"
+        })
+    );
+    assert!(
+        summary.runner_commands.iter().any(|command| {
             command.command == "input-expression-domain-incremental-flow-analysis"
         })
     );
@@ -3378,6 +3394,26 @@ fn owns_expression_domain_call_site_flow_analysis_wrapper_without_changing_produ
         summary.one_cfa.entries[0].context_key,
         summary.one_cfa.entries[1].context_key
     );
+}
+
+#[test]
+fn owns_expression_domain_reduced_product_iteration_wrapper_without_changing_product() {
+    let input = reduced_product_iteration_input();
+    let summary = summarize_omena_query_expression_domain_reduced_product_iteration(&input);
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(
+        summary.product,
+        "engine-input-producers.expression-domain-reduced-product-iteration"
+    );
+    assert_eq!(summary.input_version, "2");
+    assert_eq!(summary.iteration_count, 1);
+    assert_eq!(summary.iterations[0].expression_id, "expr-reduced");
+    assert_eq!(summary.iterations[0].axis_constraint_count, 3);
+    assert_eq!(summary.iterations[0].iteration.input_count, 3);
+    assert_eq!(summary.iterations[0].iteration.result_kind, "composite");
+    assert!(summary.iterations[0].iteration.converged);
+    assert!(summary.iterations[0].iteration.monotone_witness_valid);
 }
 
 #[test]
@@ -6294,6 +6330,30 @@ fn sample_input() -> EngineInputV2 {
                 },
             },
         ],
+    }
+}
+
+fn reduced_product_iteration_input() -> EngineInputV2 {
+    EngineInputV2 {
+        version: "2".to_string(),
+        sources: Vec::new(),
+        styles: Vec::new(),
+        type_facts: vec![TypeFactEntryV2 {
+            file_path: "/tmp/App.tsx".to_string(),
+            expression_id: "expr-reduced".to_string(),
+            facts: StringTypeFactsV2 {
+                kind: "constrained".to_string(),
+                constraint_kind: Some("composite".to_string()),
+                values: None,
+                prefix: Some("btn-".to_string()),
+                suffix: Some("-active".to_string()),
+                min_len: None,
+                max_len: None,
+                char_must: Some("a".to_string()),
+                char_may: Some("-abceintv".to_string()),
+                may_include_other_chars: Some(false),
+            },
+        }],
     }
 }
 

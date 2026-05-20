@@ -227,6 +227,46 @@ export interface ExpressionDomainCallSiteFlowAnalysisV0 {
   readonly oneCfa: KLimitedCallSiteFlowAnalysisV0;
 }
 
+export interface ExpressionDomainReducedProductIterationV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly inputVersion: string;
+  readonly iterationCount: number;
+  readonly iterations: readonly ExpressionDomainReducedProductIterationEntryV0[];
+}
+
+export interface ExpressionDomainReducedProductIterationEntryV0 {
+  readonly expressionId: string;
+  readonly filePath: string;
+  readonly inputValueKind: string;
+  readonly axisConstraintCount: number;
+  readonly iteration: ReducedClassValueProductIterationV0;
+}
+
+export interface ReducedClassValueProductIterationV0 {
+  readonly schemaVersion: string;
+  readonly product: string;
+  readonly inputCount: number;
+  readonly appliedConstraintCount: number;
+  readonly iterationCount: number;
+  readonly converged: boolean;
+  readonly monotoneWitnessValid: boolean;
+  readonly resultKind: string;
+  readonly resultValue: AbstractClassValueV0;
+  readonly finalProduct?: unknown;
+  readonly steps: readonly ReducedClassValueProductIterationStepV0[];
+}
+
+export interface ReducedClassValueProductIterationStepV0 {
+  readonly iteration: number;
+  readonly operation: string;
+  readonly inputValueKind: string;
+  readonly resultKind: string;
+  readonly changed: boolean;
+  readonly monotoneWithPrevious: boolean;
+  readonly reason: string;
+}
+
 export interface KLimitedCallSiteFlowAnalysisV0 {
   readonly schemaVersion: string;
   readonly product: string;
@@ -943,6 +983,15 @@ export async function runShadowExpressionDomainCallSiteFlowAnalysisInput(
 ): Promise<ExpressionDomainCallSiteFlowAnalysisV0> {
   return runShadowJson<ExpressionDomainCallSiteFlowAnalysisV0>(
     ["input-expression-domain-call-site-flow-analysis"],
+    input,
+  );
+}
+
+export async function runShadowExpressionDomainReducedProductIterationInput(
+  input: EngineInputV2,
+): Promise<ExpressionDomainReducedProductIterationV0> {
+  return runShadowJson<ExpressionDomainReducedProductIterationV0>(
+    ["input-expression-domain-reduced-product-iteration"],
     input,
   );
 }

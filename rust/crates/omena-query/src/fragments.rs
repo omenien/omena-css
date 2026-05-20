@@ -35,6 +35,12 @@ pub fn summarize_omena_query_expression_domain_call_site_flow_analysis(
     summarize_expression_domain_call_site_flow_analysis_input(input)
 }
 
+pub fn summarize_omena_query_expression_domain_reduced_product_iteration(
+    input: &EngineInputV2,
+) -> ExpressionDomainReducedProductIterationV0 {
+    summarize_expression_domain_reduced_product_iteration_input(input)
+}
+
 pub fn summarize_omena_query_expression_domain_incremental_flow_analysis(
     input: &EngineInputV2,
     runtime: &mut OmenaQueryExpressionDomainFlowRuntimeV0,

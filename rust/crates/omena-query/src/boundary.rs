@@ -24,6 +24,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "engine-input-producers.expression-domain-flow-analysis",
             "engine-input-producers.expression-domain-control-flow-analysis",
             "engine-input-producers.expression-domain-call-site-flow-analysis",
+            "engine-input-producers.expression-domain-reduced-product-iteration",
             "omena-query.expression-domain-incremental-flow-analysis",
             "omena-query.expression-domain-selector-projection",
             "omena-parser.style-facts",
@@ -60,6 +61,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "expressionDomainFlowAnalysisBoundary",
             "expressionDomainControlFlowAnalysisBoundary",
             "expressionDomainCallSiteFlowAnalysisBoundary",
+            "expressionDomainReducedProductIteration",
             "expressionDomainSalsaRuntime",
             "expressionDomainSelectorProjection",
             "styleHoverRenderParts",
@@ -237,6 +239,12 @@ pub fn summarize_omena_query_selected_query_adapter_capabilities()
                 command: "input-expression-domain-call-site-flow-analysis",
                 input_contract: "EngineInputV2",
                 output_product: "engine-input-producers.expression-domain-call-site-flow-analysis",
+            },
+            SelectedQueryRunnerCommandV0 {
+                surface: "expressionDomainReducedProductIteration",
+                command: "input-expression-domain-reduced-product-iteration",
+                input_contract: "EngineInputV2",
+                output_product: "engine-input-producers.expression-domain-reduced-product-iteration",
             },
             SelectedQueryRunnerCommandV0 {
                 surface: "expressionDomainIncrementalFlowAnalysis",

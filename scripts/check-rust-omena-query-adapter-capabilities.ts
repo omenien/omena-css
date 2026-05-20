@@ -75,6 +75,14 @@ const EXPECTED_RUNNER_COMMANDS = new Map([
     },
   ],
   [
+    "expressionDomainReducedProductIteration",
+    {
+      command: SELECTED_QUERY_RUNNER_COMMANDS.expressionDomainReducedProductIteration,
+      inputContract: "EngineInputV2",
+      outputProduct: "engine-input-producers.expression-domain-reduced-product-iteration",
+    },
+  ],
+  [
     "expressionDomainIncrementalFlowAnalysis",
     {
       command: SELECTED_QUERY_RUNNER_COMMANDS.expressionDomainIncrementalFlowAnalysis,

@@ -9,9 +9,11 @@ use crate::{
     ExpressionDomainEvaluatorCandidateV0, ExpressionDomainEvaluatorCandidatesV0,
     ExpressionDomainFlowAnalysisEntryV0, ExpressionDomainFlowAnalysisV0,
     ExpressionDomainFlowGraphEntryV0, ExpressionDomainFragmentV0, ExpressionDomainFragmentsV0,
-    ExpressionDomainPlanSummaryV0, TypeFactEntryV2, abstract_value_facts,
-    collect_constraint_detail_counts, map_reduced_expression_value_domain_derivation,
-    map_reduced_expression_value_domain_kind, map_reduced_expression_value_domain_provenance_tree,
+    ExpressionDomainPlanSummaryV0, ExpressionDomainReducedProductIterationEntryV0,
+    ExpressionDomainReducedProductIterationV0, StringTypeFactsV2, TypeFactEntryV2,
+    abstract_value_facts, collect_constraint_detail_counts,
+    map_reduced_expression_value_domain_derivation, map_reduced_expression_value_domain_kind,
+    map_reduced_expression_value_domain_provenance_tree,
 };
 
 struct ExpressionDomainInputRows {
@@ -273,6 +275,39 @@ pub fn summarize_expression_domain_call_site_flow_analysis_input(
     }
 }
 
+pub fn summarize_expression_domain_reduced_product_iteration_input(
+    input: &EngineInputV2,
+) -> ExpressionDomainReducedProductIterationV0 {
+    let iterations = input
+        .type_facts
+        .iter()
+        .filter_map(|entry| {
+            let axis_constraints = reduced_product_axis_constraints_from_facts(&entry.facts);
+            (!axis_constraints.is_empty()).then(|| {
+                let iteration =
+                    omena_abstract_value::iterate_reduced_class_value_product_constraints(
+                        &axis_constraints,
+                    );
+                ExpressionDomainReducedProductIterationEntryV0 {
+                    expression_id: entry.expression_id.clone(),
+                    file_path: entry.file_path.clone(),
+                    input_value_kind: map_reduced_expression_value_domain_kind(&entry.facts),
+                    axis_constraint_count: axis_constraints.len(),
+                    iteration,
+                }
+            })
+        })
+        .collect::<Vec<_>>();
+
+    ExpressionDomainReducedProductIterationV0 {
+        schema_version: "0",
+        product: "engine-input-producers.expression-domain-reduced-product-iteration",
+        input_version: input.version.clone(),
+        iteration_count: iterations.len(),
+        iterations,
+    }
+}
+
 pub fn collect_expression_domain_flow_graphs(
     input: &EngineInputV2,
 ) -> Vec<ExpressionDomainFlowGraphEntryV0> {
@@ -340,6 +375,40 @@ fn collect_expression_domain_call_site_flow_inputs(
             }
         })
         .collect()
+}
+
+fn reduced_product_axis_constraints_from_facts(
+    facts: &StringTypeFactsV2,
+) -> Vec<omena_abstract_value::AbstractClassValueV0> {
+    let mut constraints = Vec::new();
+
+    if let Some(prefix) = &facts.prefix {
+        constraints.push(omena_abstract_value::prefix_class_value(
+            prefix.clone(),
+            None,
+        ));
+    }
+
+    if let Some(suffix) = &facts.suffix {
+        constraints.push(omena_abstract_value::suffix_class_value(
+            suffix.clone(),
+            None,
+        ));
+    }
+
+    if facts.char_must.is_some()
+        || facts.char_may.is_some()
+        || facts.may_include_other_chars.is_some()
+    {
+        constraints.push(omena_abstract_value::char_inclusion_class_value(
+            facts.char_must.clone().unwrap_or_default(),
+            facts.char_may.clone().unwrap_or_default(),
+            None,
+            facts.may_include_other_chars.unwrap_or(false),
+        ));
+    }
+
+    constraints
 }
 
 fn expression_domain_flow_exit_node_id(
@@ -424,6 +493,7 @@ mod tests {
         summarize_expression_domain_evaluator_candidates_input,
         summarize_expression_domain_flow_analysis_input,
         summarize_expression_domain_fragments_input, summarize_expression_domain_plan_input,
+        summarize_expression_domain_reduced_product_iteration_input,
     };
     use crate::{StringTypeFactsV2, TypeFactEntryV2, test_support::sample_input};
     use omena_abstract_value::AbstractClassValueV0;
@@ -719,6 +789,45 @@ mod tests {
                 value: "btn-secondary".to_string()
             }
         );
+    }
+
+    #[test]
+    fn summarizes_expression_domain_reduced_product_iteration() {
+        let mut input = sample_input();
+        input.type_facts = vec![TypeFactEntryV2 {
+            file_path: "/tmp/App.tsx".to_string(),
+            expression_id: "expr-reduced".to_string(),
+            facts: StringTypeFactsV2 {
+                kind: "constrained".to_string(),
+                constraint_kind: Some("composite".to_string()),
+                values: None,
+                prefix: Some("btn-".to_string()),
+                suffix: Some("-active".to_string()),
+                min_len: None,
+                max_len: None,
+                char_must: Some("a".to_string()),
+                char_may: Some("-abceintv".to_string()),
+                may_include_other_chars: Some(false),
+            },
+        }];
+
+        let summary = summarize_expression_domain_reduced_product_iteration_input(&input);
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(
+            summary.product,
+            "engine-input-producers.expression-domain-reduced-product-iteration"
+        );
+        assert_eq!(summary.input_version, "2");
+        assert_eq!(summary.iteration_count, 1);
+        assert_eq!(summary.iterations[0].expression_id, "expr-reduced");
+        assert_eq!(summary.iterations[0].axis_constraint_count, 3);
+        assert_eq!(summary.iterations[0].input_value_kind, "composite");
+        assert_eq!(summary.iterations[0].iteration.input_count, 3);
+        assert_eq!(summary.iterations[0].iteration.applied_constraint_count, 3);
+        assert!(summary.iterations[0].iteration.converged);
+        assert!(summary.iterations[0].iteration.monotone_witness_valid);
+        assert_eq!(summary.iterations[0].iteration.result_kind, "composite");
     }
 
     #[test]

@@ -1,6 +1,7 @@
 import {
   runShadowExpressionDomainCallSiteFlowAnalysisInput,
   runShadowExpressionDomainFlowAnalysisInput,
+  runShadowExpressionDomainReducedProductIterationInput,
   type EngineInputV2,
   type StringTypeFactsV2,
 } from "./rust-shadow-shared";
@@ -34,11 +35,35 @@ const INPUT: EngineInputV2 = {
   ],
 };
 
+const REDUCED_PRODUCT_INPUT: EngineInputV2 = {
+  version: "2",
+  workspace: {
+    root: "/tmp/cme-expression-domain-reduced-product",
+    classnameTransform: "asIs",
+    settingsKey: "synthetic-expression-domain-reduced-product",
+  },
+  sources: [],
+  styles: [],
+  typeFacts: [
+    fact("expr-reduced", {
+      kind: "constrained",
+      constraintKind: "composite",
+      prefix: "btn-",
+      suffix: "-active",
+      charMust: "a",
+      charMay: "-abceintv",
+      mayIncludeOtherChars: false,
+    }),
+  ],
+};
+
 void (async () => {
   process.stdout.write("== rust-expression-domain-flow-analysis:synthetic ==\n");
 
   const summary = await runShadowExpressionDomainFlowAnalysisInput(INPUT);
   const callSiteSummary = await runShadowExpressionDomainCallSiteFlowAnalysisInput(INPUT);
+  const reducedProductSummary =
+    await runShadowExpressionDomainReducedProductIterationInput(REDUCED_PRODUCT_INPUT);
   const analysis = summary.analyses[0]?.analysis;
   const merge = analysis?.nodes.find((node) => node.id === "file-merge");
 
@@ -84,9 +109,35 @@ void (async () => {
     "expression-domain-class-value@/tmp/Card.tsx:expression-domain-flow",
     "second one-cfa graph context key",
   );
+  assertEqual(
+    reducedProductSummary.product,
+    "engine-input-producers.expression-domain-reduced-product-iteration",
+    "reduced product iteration product",
+  );
+  assertEqual(reducedProductSummary.iterationCount, 1, "reduced product iteration count");
+  assertEqual(
+    reducedProductSummary.iterations[0]?.axisConstraintCount,
+    3,
+    "reduced product axis constraint count",
+  );
+  assertEqual(
+    reducedProductSummary.iterations[0]?.iteration.converged,
+    true,
+    "reduced product iteration convergence",
+  );
+  assertEqual(
+    reducedProductSummary.iterations[0]?.iteration.monotoneWitnessValid,
+    true,
+    "reduced product monotone witness",
+  );
+  assertEqual(
+    reducedProductSummary.iterations[0]?.iteration.resultKind,
+    "composite",
+    "reduced product result kind",
+  );
 
   process.stdout.write(
-    `validated expression-domain flow analysis: graphs=${summary.analyses.length} nodes=${analysis?.nodes.length ?? 0} callSiteProduct=${callSiteSummary.product}\n`,
+    `validated expression-domain flow analysis: graphs=${summary.analyses.length} nodes=${analysis?.nodes.length ?? 0} callSiteProduct=${callSiteSummary.product} reducedProduct=${reducedProductSummary.product}\n`,
   );
 })();
 

@@ -33,6 +33,7 @@ export const SELECTED_QUERY_RUNNER_COMMANDS = {
   expressionDomainFlowAnalysis: "input-expression-domain-flow-analysis",
   expressionDomainControlFlowAnalysis: "input-expression-domain-control-flow-analysis",
   expressionDomainCallSiteFlowAnalysis: "input-expression-domain-call-site-flow-analysis",
+  expressionDomainReducedProductIteration: "input-expression-domain-reduced-product-iteration",
   expressionDomainIncrementalFlowAnalysis: "input-expression-domain-incremental-flow-analysis",
   expressionDomainSelectorProjection: "input-expression-domain-selector-projection",
   selectorUsageCanonicalProducer: "input-selector-usage-canonical-producer",

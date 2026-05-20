@@ -23,6 +23,7 @@ pub use expression_domain::summarize_expression_domain_evaluator_candidates_inpu
 pub use expression_domain::summarize_expression_domain_flow_analysis_input;
 pub use expression_domain::summarize_expression_domain_fragments_input;
 pub use expression_domain::summarize_expression_domain_plan_input;
+pub use expression_domain::summarize_expression_domain_reduced_product_iteration_input;
 pub use expression_semantics::summarize_expression_semantics_candidates_input;
 pub use expression_semantics::summarize_expression_semantics_canonical_candidate_bundle_input;
 pub use expression_semantics::summarize_expression_semantics_canonical_producer_signal_input;
@@ -369,6 +370,26 @@ pub struct ExpressionDomainCallSiteFlowAnalysisV0 {
     pub input_version: String,
     pub zero_cfa: omena_abstract_value::KLimitedCallSiteFlowAnalysisV0,
     pub one_cfa: omena_abstract_value::KLimitedCallSiteFlowAnalysisV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainReducedProductIterationV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub input_version: String,
+    pub iteration_count: usize,
+    pub iterations: Vec<ExpressionDomainReducedProductIterationEntryV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpressionDomainReducedProductIterationEntryV0 {
+    pub expression_id: String,
+    pub file_path: String,
+    pub input_value_kind: String,
+    pub axis_constraint_count: usize,
+    pub iteration: omena_abstract_value::ReducedClassValueProductIterationV0,
 }
 
 #[derive(Debug, Serialize)]
