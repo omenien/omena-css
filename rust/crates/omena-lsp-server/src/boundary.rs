@@ -280,7 +280,7 @@ pub fn current_node_lsp_capability_contract() -> OmenaLspServerCapabilitiesV0 {
             resolve_provider: false,
         },
         code_action_provider: CodeActionProviderCapabilityV0 {
-            code_action_kinds: vec!["quickfix", "refactor.extract"],
+            code_action_kinds: vec!["quickfix", "refactor.extract", "refactor.inline"],
             resolve_provider: false,
         },
         references_provider: true,

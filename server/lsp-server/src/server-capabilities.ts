@@ -34,7 +34,7 @@ export function buildServerCapabilities(): InitializeResult["capabilities"] {
       resolveProvider: false,
     },
     codeActionProvider: {
-      codeActionKinds: ["quickfix", "refactor.extract"],
+      codeActionKinds: ["quickfix", "refactor.extract", "refactor.inline"],
       resolveProvider: false,
     },
     referencesProvider: true,

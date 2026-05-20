@@ -4958,6 +4958,55 @@ fn style_extract_code_actions_are_query_owned() {
 }
 
 #[test]
+fn style_inline_code_actions_are_query_owned() {
+    let source = ".button {\n  composes: base;\n  color: red;\n}\n.base {\n  color: blue;\n  margin: 1rem;\n}";
+    let style_uri = "file:///workspace/src/App.module.scss";
+    let plan = super::summarize_omena_query_style_inline_code_actions(
+        style_uri,
+        &[OmenaQueryStyleSourceInputV0 {
+            style_path: style_uri.to_string(),
+            style_source: source.to_string(),
+        }],
+        ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 1,
+                character: 12,
+            },
+            end: ParserPositionV0 {
+                line: 1,
+                character: 16,
+            },
+        },
+        &[],
+    );
+
+    assert_eq!(plan.product, "omena-query.code-actions");
+    assert_eq!(plan.file_kind, "style");
+    assert_eq!(plan.action_count, 1);
+    assert_eq!(plan.actions[0].title, "Inline composed class 'base'");
+    assert_eq!(plan.actions[0].kind, "refactor.inline");
+    assert_eq!(plan.actions[0].source, "omenaQueryStyleInlineCodeActions");
+    assert_eq!(
+        plan.actions[0].edits[0].range,
+        ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 1,
+                character: 2,
+            },
+            end: ParserPositionV0 {
+                line: 1,
+                character: 17,
+            },
+        }
+    );
+    assert_eq!(
+        plan.actions[0].edits[0].new_text,
+        "color: blue;\n  margin: 1rem;"
+    );
+    assert!(plan.ready_surfaces.contains(&"styleInlineRefactorActions"));
+}
+
+#[test]
 fn refs_for_class_is_query_owned_and_workspace_scoped() {
     let definition = OmenaQueryStyleSelectorDefinitionV0 {
         uri: "file:///workspace/src/Component.module.scss".to_string(),

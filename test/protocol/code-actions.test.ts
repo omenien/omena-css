@@ -55,7 +55,7 @@ describe("code-action protocol", () => {
     client = createInProcessServer();
     const result = await client.initialize();
     expect(result.capabilities.codeActionProvider).toEqual({
-      codeActionKinds: ["quickfix", "refactor.extract"],
+      codeActionKinds: ["quickfix", "refactor.extract", "refactor.inline"],
       resolveProvider: false,
     });
   });

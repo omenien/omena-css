@@ -15,13 +15,14 @@ pub use boundary::*;
 pub(crate) use message_loop::current_time_millis;
 pub use message_loop::{handle_lsp_message, handle_lsp_message_outputs};
 use omena_query::{
-    OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0, OmenaQueryEngineInputV2,
-    OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
+    OmenaQueryCodeActionV0, OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0,
+    OmenaQueryEngineInputV2, OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
-    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, ParserByteSpanV0, ParserPositionV0,
-    StyleLanguage, is_omena_query_sass_symbol_candidate_kind as is_sass_symbol_candidate_kind,
+    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStyleSourceInputV0,
+    ParserByteSpanV0, ParserPositionV0, StyleLanguage,
+    is_omena_query_sass_symbol_candidate_kind as is_sass_symbol_candidate_kind,
     is_omena_query_sass_symbol_declaration_kind as is_sass_symbol_declaration_kind,
     is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,
     omena_query_sass_symbol_kind_from_candidate_kind as sass_symbol_kind_from_candidate_kind,
@@ -41,6 +42,7 @@ use omena_query::{
     summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_document,
     summarize_omena_query_style_extract_code_actions,
     summarize_omena_query_style_hover_render_parts,
+    summarize_omena_query_style_inline_code_actions,
 };
 #[cfg(test)]
 pub(crate) use omena_tsgo_client::{TsgoResolvedTypeV0, TsgoTypeFactResultEntryV0};
@@ -985,7 +987,7 @@ fn resolve_lsp_code_actions(state: &LspShellState, params: Option<&Value>) -> Va
         .collect();
 
     if diagnostics.is_empty() {
-        actions.extend(resolve_lsp_extract_refactor_code_actions(state, params));
+        actions.extend(resolve_lsp_refactor_code_actions(state, params));
     }
 
     if actions.is_empty() {
@@ -995,10 +997,7 @@ fn resolve_lsp_code_actions(state: &LspShellState, params: Option<&Value>) -> Va
     }
 }
 
-fn resolve_lsp_extract_refactor_code_actions(
-    state: &LspShellState,
-    params: Option<&Value>,
-) -> Vec<Value> {
+fn resolve_lsp_refactor_code_actions(state: &LspShellState, params: Option<&Value>) -> Vec<Value> {
     let document_uri = document_uri_from_params(params);
     let Some(document) = state.document(document_uri.as_str()) else {
         return Vec::new();
@@ -1013,41 +1012,93 @@ fn resolve_lsp_extract_refactor_code_actions(
         return Vec::new();
     };
 
-    summarize_omena_query_style_extract_code_actions(
+    let style_sources = style_sources_from_open_documents(
+        state,
+        document.workspace_folder_uri.as_deref(),
+        Some(document.uri.as_str()),
+    );
+    let inline_actions = summarize_omena_query_style_inline_code_actions(
+        document.uri.as_str(),
+        style_sources.as_slice(),
+        range,
+        &[],
+    )
+    .actions;
+    if !inline_actions.is_empty() {
+        return render_omena_query_lsp_code_actions(inline_actions);
+    }
+
+    let extract_actions = summarize_omena_query_style_extract_code_actions(
         document.uri.as_str(),
         document.text.as_str(),
         range,
     )
-    .actions
-    .into_iter()
-    .enumerate()
-    .map(|(index, action)| {
-        let mut changes_by_uri = BTreeMap::<String, Vec<Value>>::new();
-        for edit in action.edits {
-            changes_by_uri.entry(edit.uri).or_default().push(json!({
-                "range": edit.range,
-                "newText": edit.new_text,
-            }));
-        }
+    .actions;
+    render_omena_query_lsp_code_actions(extract_actions)
+}
 
-        let changes = changes_by_uri
-            .into_iter()
-            .map(|(uri, edits)| (uri, Value::Array(edits)))
-            .collect::<serde_json::Map<_, _>>();
-
-        json!({
-            "title": action.title,
-            "kind": action.kind,
-            "edit": {
-                "changes": Value::Object(changes),
-            },
-            "data": {
-                "source": action.source,
-                "actionIndex": index,
-            },
+fn style_sources_from_open_documents(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+    required_document_uri: Option<&str>,
+) -> Vec<OmenaQueryStyleSourceInputV0> {
+    let mut sources = state
+        .documents
+        .values()
+        .filter(|document| {
+            is_style_document_uri(document.uri.as_str())
+                && workspace_folder_compatible(workspace_folder_uri, document)
         })
-    })
-    .collect()
+        .map(|document| OmenaQueryStyleSourceInputV0 {
+            style_path: document.uri.clone(),
+            style_source: document.text.clone(),
+        })
+        .collect::<Vec<_>>();
+    if let Some(required_document_uri) = required_document_uri
+        && !sources
+            .iter()
+            .any(|source| source.style_path == required_document_uri)
+        && let Some(document) = state.document(required_document_uri)
+    {
+        sources.push(OmenaQueryStyleSourceInputV0 {
+            style_path: document.uri.clone(),
+            style_source: document.text.clone(),
+        });
+    }
+    sources
+}
+
+fn render_omena_query_lsp_code_actions(actions: Vec<OmenaQueryCodeActionV0>) -> Vec<Value> {
+    actions
+        .into_iter()
+        .enumerate()
+        .map(|(index, action)| {
+            let mut changes_by_uri = BTreeMap::<String, Vec<Value>>::new();
+            for edit in action.edits {
+                changes_by_uri.entry(edit.uri).or_default().push(json!({
+                    "range": edit.range,
+                    "newText": edit.new_text,
+                }));
+            }
+
+            let changes = changes_by_uri
+                .into_iter()
+                .map(|(uri, edits)| (uri, Value::Array(edits)))
+                .collect::<serde_json::Map<_, _>>();
+
+            json!({
+                "title": action.title,
+                "kind": action.kind,
+                "edit": {
+                    "changes": Value::Object(changes),
+                },
+                "data": {
+                    "source": action.source,
+                    "actionIndex": index,
+                },
+            })
+        })
+        .collect()
 }
 
 fn resolve_lsp_code_lens(state: &LspShellState, params: Option<&Value>) -> Value {
