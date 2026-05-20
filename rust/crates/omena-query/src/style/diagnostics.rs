@@ -59,9 +59,6 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics(
         .filter(|candidate| candidate.kind == "customPropertyDeclaration")
         .map(|candidate| (candidate.name.as_str(), candidate.range))
         .collect::<BTreeMap<_, _>>();
-    if declarations_by_name.is_empty() {
-        return Vec::new();
-    }
 
     let dialect = omena_parser_dialect_for_style_path(style_uri);
     let mut diagnostics =

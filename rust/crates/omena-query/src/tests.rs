@@ -4465,6 +4465,41 @@ fn cascade_aware_lints_do_not_compare_across_conditional_contexts() -> Result<()
 }
 
 #[test]
+fn cascade_aware_lints_run_without_custom_property_declarations() -> Result<(), &'static str> {
+    let source = ".btn { color: red; color: blue; }";
+    let candidates =
+        super::summarize_omena_query_style_hover_candidates("Component.module.css", source)
+            .ok_or("style candidates")?;
+
+    let diagnostics = super::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.css",
+        source,
+        candidates.candidates.as_slice(),
+    );
+    let diagnostic_codes = diagnostics
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.code)
+        .collect::<std::collections::BTreeSet<_>>();
+
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"cascadeAwareDiagnostics")
+    );
+    assert!(diagnostic_codes.contains("unreachableDeclaration"));
+    assert!(diagnostic_codes.contains("unspecifiedCascadeTie"));
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "unreachableDeclaration"
+                && diagnostic.tags.as_slice() == [1])
+    );
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_collect_uppercase_and_fallback_var_references() -> Result<(), &'static str> {
     let source = r#"
 :root {
