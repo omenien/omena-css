@@ -215,6 +215,28 @@ describe("computeDiagnostics", () => {
             range: INDICATOR_RANGE,
             message: "Missing class for possible value: 'indicator'.",
           },
+          {
+            code: "missingStaticClass",
+            severity: "warning",
+            provenance: [
+              "omena-query.source-syntax-index",
+              "omena-query.style-selector-definitions",
+            ],
+            range: {
+              start: { line: 99, character: 0 },
+              end: { line: 99, character: 10 },
+            },
+            message: "Class '.directOnly' not found in target CSS Module.",
+            createSelector: {
+              uri: "/fake/ws/src/Button.module.scss",
+              range: {
+                start: { line: 1, character: 0 },
+                end: { line: 1, character: 0 },
+              },
+              newText: "\n\n.directOnly {\n}\n",
+              selectorName: "directOnly",
+            },
+          },
         ],
       };
     };
@@ -260,6 +282,7 @@ describe("computeDiagnostics", () => {
           provenance: ["omena-query.source-syntax-index", "omena-query.style-selector-definitions"],
         },
       });
+      expect(result.some((diagnostic) => diagnostic.message.includes("directOnly"))).toBe(false);
     } finally {
       if (previousBackend === undefined) {
         delete process.env.CME_SELECTED_QUERY_BACKEND;

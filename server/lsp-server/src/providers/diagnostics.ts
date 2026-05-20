@@ -95,6 +95,8 @@ function resolveQueryOwnedSourceDiagnostics(
   if (resolveSelectedQueryBackendKind() !== "rust-selected-query") return null;
   const styles = collectSourceDiagnosticStyleSources(params, deps);
   if (styles.length === 0) return null;
+  const diagnosticScopeRanges = collectQueryOwnedSourceDiagnosticScopeRanges(params, deps);
+  if (diagnosticScopeRanges.length === 0) return null;
 
   return runJson<QuerySourceDiagnosticsForFileV0>(
     SELECTED_QUERY_RUNNER_COMMANDS.sourceDiagnosticsForFile,
@@ -110,6 +112,7 @@ function resolveQueryOwnedSourceDiagnostics(
     }
     return summary.diagnostics
       .filter((diagnostic) => diagnostic.code !== "missingModule")
+      .filter((diagnostic) => sourceRangeMatchesAny(diagnostic.range, diagnosticScopeRanges))
       .map(toQueryOwnedSourceDiagnostic);
   });
 }
@@ -142,6 +145,45 @@ function collectSourceDiagnosticStyleSources(
     }
   }
   return styles;
+}
+
+function collectQueryOwnedSourceDiagnosticScopeRanges(
+  params: DocumentParams,
+  deps: ProviderDeps,
+): readonly SourceCheckerFinding["range"][] {
+  const entry = deps.analysisCache.get(
+    params.documentUri,
+    params.content,
+    params.filePath,
+    params.version,
+  );
+  return entry.sourceDocument.classExpressions
+    .filter((expression) => expression.origin === "cxCall")
+    .map((expression) => expression.range);
+}
+
+function sourceRangeMatchesAny(
+  range: SourceCheckerFinding["range"],
+  candidates: readonly SourceCheckerFinding["range"][],
+): boolean {
+  return candidates.some((candidate) => sourceRangeContains(candidate, range));
+}
+
+function sourceRangeContains(
+  outer: SourceCheckerFinding["range"],
+  inner: SourceCheckerFinding["range"],
+): boolean {
+  return (
+    comparePositions(outer.start, inner.start) <= 0 && comparePositions(inner.end, outer.end) <= 0
+  );
+}
+
+function comparePositions(
+  left: SourceCheckerFinding["range"]["start"],
+  right: SourceCheckerFinding["range"]["start"],
+): number {
+  if (left.line !== right.line) return left.line - right.line;
+  return left.character - right.character;
 }
 
 function toQueryOwnedSourceDiagnostic(diagnostic: QuerySourceDiagnosticV0): Diagnostic {
