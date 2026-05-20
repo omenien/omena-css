@@ -259,11 +259,7 @@ const commodityCooldownResult = spawnSync(
       stylePath: "commodity-cooldown.css",
       styleSource:
         ".m0 { animation-name: fade; animation-duration: 0s; animation-timing-function: ease; animation-delay: 0s; animation-iteration-count: 1; animation-direction: normal; animation-fill-mode: none; animation-play-state: running; } .bg { background-image: url(hero.svg); background-repeat: no-repeat repeat; background-color: red; } .filter { filter: grayscale(0) sepia(0%) invert(.0); } .mask { mask-size: auto auto; mask-repeat: repeat repeat; }",
-      requestedPassIds: [
-        "shorthand-combining",
-        "unit-normalization",
-        "print-css",
-      ],
+      requestedPassIds: ["shorthand-combining", "unit-normalization", "print-css"],
     }),
     maxBuffer: 8 * 1024 * 1024,
   },
