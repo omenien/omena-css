@@ -85,6 +85,19 @@ pub struct TsgoProviderRetryPolicyV0 {
     pub max_batch_attempts: usize,
 }
 
+pub trait TsgoCancellationTokenV0 {
+    fn is_cancelled(&self) -> bool;
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TsgoNeverCancelledTokenV0;
+
+impl TsgoCancellationTokenV0 for TsgoNeverCancelledTokenV0 {
+    fn is_cancelled(&self) -> bool {
+        false
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TsgoTypeFactRequestV0 {
@@ -212,6 +225,7 @@ pub enum TsgoJsonRpcIoErrorV0 {
 pub enum TsgoJsonRpcProviderErrorV0 {
     Io(TsgoJsonRpcIoErrorV0),
     Encode(serde_json::Error),
+    Cancelled { phase: &'static str },
     MissingResponse { method: String },
     UnexpectedResponseId { method: String },
     RpcError { method: String, message: String },
@@ -294,6 +308,7 @@ pub fn summarize_omena_tsgo_client_boundary() -> OmenaTsgoClientBoundarySummaryV
             "jsonRpcTypeFactProviderImplementation",
             "recoverableBatchRetry",
             "workspaceProcessRecovery",
+            "providerCancellationTokenBoundary",
             "typeFactRpcClient",
             "typeFactResultReducer",
             "phase3SourceProviderExitGate",
@@ -703,6 +718,12 @@ impl fmt::Display for TsgoJsonRpcProviderErrorV0 {
                     "tsgo JSON-RPC provider request encode failed: {error}"
                 )
             }
+            Self::Cancelled { phase } => {
+                write!(
+                    formatter,
+                    "tsgo JSON-RPC provider request cancelled at {phase}"
+                )
+            }
             Self::MissingResponse { method } => {
                 write!(
                     formatter,
@@ -891,11 +912,24 @@ where
         request: &TsgoTypeFactRequestV0,
         retry_policy: TsgoProviderRetryPolicyV0,
     ) -> Result<Vec<TsgoTypeFactResultEntryV0>, TsgoJsonRpcProviderErrorV0> {
+        self.collect_type_facts_with_policy_and_cancellation(
+            request,
+            retry_policy,
+            &TsgoNeverCancelledTokenV0,
+        )
+    }
+
+    pub fn collect_type_facts_with_policy_and_cancellation(
+        &mut self,
+        request: &TsgoTypeFactRequestV0,
+        retry_policy: TsgoProviderRetryPolicyV0,
+        cancellation: &dyn TsgoCancellationTokenV0,
+    ) -> Result<Vec<TsgoTypeFactResultEntryV0>, TsgoJsonRpcProviderErrorV0> {
         let max_attempts = retry_policy.max_batch_attempts.max(1);
         let mut attempt = 1;
 
         loop {
-            match self.collect_type_facts_once(request) {
+            match self.collect_type_facts_once(request, cancellation) {
                 Ok(entries) => return Ok(entries),
                 Err(error) if attempt < max_attempts && error.is_recoverable() => {
                     if !self
@@ -914,7 +948,10 @@ where
     fn collect_type_facts_once(
         &mut self,
         request: &TsgoTypeFactRequestV0,
+        cancellation: &dyn TsgoCancellationTokenV0,
     ) -> Result<Vec<TsgoTypeFactResultEntryV0>, TsgoJsonRpcProviderErrorV0> {
+        ensure_tsgo_request_not_cancelled(cancellation, "beforeBatch")?;
+
         let initialize_request = self.rpc_client.initialize()?;
         self.send_result(request.workspace_root.as_str(), &initialize_request)?;
 
@@ -929,7 +966,8 @@ where
             .ok_or(TsgoJsonRpcProviderErrorV0::MissingSnapshot)?
             .to_string();
 
-        let collection_result = self.collect_type_facts_for_snapshot(request, snapshot.as_str());
+        let collection_result =
+            self.collect_type_facts_for_snapshot(request, snapshot.as_str(), cancellation);
         let release_result =
             self.release_snapshot(request.workspace_root.as_str(), snapshot.as_str());
 
@@ -944,12 +982,16 @@ where
         &mut self,
         request: &TsgoTypeFactRequestV0,
         snapshot: &str,
+        cancellation: &dyn TsgoCancellationTokenV0,
     ) -> Result<Vec<TsgoTypeFactResultEntryV0>, TsgoJsonRpcProviderErrorV0> {
+        ensure_tsgo_request_not_cancelled(cancellation, "beforeProjectResolution")?;
         let project_by_file = self.resolve_projects_by_file(request, snapshot)?;
+        ensure_tsgo_request_not_cancelled(cancellation, "beforeGetTypeAtPositionBatch")?;
         request
             .targets
             .iter()
             .map(|target| {
+                ensure_tsgo_request_not_cancelled(cancellation, "beforeGetTypeAtPosition")?;
                 let Some(Some(project)) = project_by_file.get(target.file_path.as_str()) else {
                     return Ok(TsgoTypeFactResultEntryV0 {
                         file_path: target.file_path.clone(),
@@ -1093,6 +1135,16 @@ where
     }
 }
 
+fn ensure_tsgo_request_not_cancelled(
+    cancellation: &dyn TsgoCancellationTokenV0,
+    phase: &'static str,
+) -> Result<(), TsgoJsonRpcProviderErrorV0> {
+    if cancellation.is_cancelled() {
+        return Err(TsgoJsonRpcProviderErrorV0::Cancelled { phase });
+    }
+    Ok(())
+}
+
 fn find_header_end(buffer: &[u8]) -> Option<usize> {
     buffer.windows(4).position(|window| window == b"\r\n\r\n")
 }
@@ -1232,7 +1284,7 @@ impl ManagedTsgoWorkspaceProcessV0 {
 mod tests {
     use super::{
         TSGO_TYPE_FLAGS_UNDEFINED, TSGO_TYPE_FLAGS_UNION, TsgoJsonRpcIoErrorV0,
-        TsgoJsonRpcOutboundRequestV0, TsgoJsonRpcProviderTransportV0,
+        TsgoJsonRpcOutboundRequestV0, TsgoJsonRpcProviderErrorV0, TsgoJsonRpcProviderTransportV0,
         TsgoJsonRpcTypeFactProviderV0, TsgoProcessCommandV0, TsgoProviderRetryPolicyV0,
         TsgoTypeFactRequestV0, TsgoTypeFactRpcClientV0, TsgoTypeFactTargetV0,
         TsgoWorkspaceProcessConfigV0, TsgoWorkspaceProcessPoolV0, build_tsgo_api_args,
@@ -1242,7 +1294,7 @@ mod tests {
         summarize_tsgo_json_rpc_transport, write_tsgo_json_rpc_request,
     };
     use serde_json::json;
-    use std::{collections::VecDeque, io};
+    use std::{cell::Cell, collections::VecDeque, io};
 
     #[test]
     fn declares_long_lived_tsgo_client_boundary() {
@@ -1692,6 +1744,57 @@ mod tests {
     }
 
     #[test]
+    fn json_rpc_type_fact_provider_cancels_before_type_batch_and_releases_snapshot()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let request = TsgoTypeFactRequestV0 {
+            workspace_root: "/repo".to_string(),
+            config_path: "/repo/tsconfig.json".to_string(),
+            targets: vec![TsgoTypeFactTargetV0 {
+                file_path: "/repo/src/App.tsx".to_string(),
+                expression_id: "expr-1".to_string(),
+                position: 12,
+            }],
+        };
+        let transport = FakeTsgoTransport::new(vec![
+            json!(null),
+            json!({ "snapshot": "snapshot-1" }),
+            json!({ "id": "project-1" }),
+            json!(null),
+        ]);
+        let cancellation = CountingCancellationToken::new(3);
+        let mut provider = TsgoJsonRpcTypeFactProviderV0::new(transport);
+
+        let error = provider
+            .collect_type_facts_with_policy_and_cancellation(
+                &request,
+                TsgoProviderRetryPolicyV0 {
+                    max_batch_attempts: 2,
+                },
+                &cancellation,
+            )
+            .err();
+        let transport = provider.into_transport();
+
+        assert!(matches!(
+            error,
+            Some(TsgoJsonRpcProviderErrorV0::Cancelled {
+                phase: "beforeGetTypeAtPositionBatch"
+            })
+        ));
+        assert_eq!(transport.reset_count, 0);
+        assert_eq!(
+            transport.methods,
+            vec![
+                "initialize",
+                "updateSnapshot",
+                "getDefaultProjectForFile",
+                "release",
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
     fn json_rpc_type_fact_provider_recovers_whole_batch_after_missing_response()
     -> Result<(), Box<dyn std::error::Error>> {
         let request = TsgoTypeFactRequestV0 {
@@ -1916,6 +2019,29 @@ mod tests {
         ) -> Result<bool, TsgoJsonRpcIoErrorV0> {
             self.reset_count += 1;
             Ok(true)
+        }
+    }
+
+    #[derive(Debug)]
+    struct CountingCancellationToken {
+        calls: Cell<usize>,
+        cancel_on_call: usize,
+    }
+
+    impl CountingCancellationToken {
+        fn new(cancel_on_call: usize) -> Self {
+            Self {
+                calls: Cell::new(0),
+                cancel_on_call,
+            }
+        }
+    }
+
+    impl super::TsgoCancellationTokenV0 for CountingCancellationToken {
+        fn is_cancelled(&self) -> bool {
+            let next_call = self.calls.get() + 1;
+            self.calls.set(next_call);
+            next_call >= self.cancel_on_call
         }
     }
 }

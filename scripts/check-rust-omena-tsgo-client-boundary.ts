@@ -89,6 +89,7 @@ assert.ok(summary.readySurfaces.includes("jsonRpcProcessIo"));
 assert.ok(summary.readySurfaces.includes("jsonRpcTypeFactProviderImplementation"));
 assert.ok(summary.readySurfaces.includes("recoverableBatchRetry"));
 assert.ok(summary.readySurfaces.includes("workspaceProcessRecovery"));
+assert.ok(summary.readySurfaces.includes("providerCancellationTokenBoundary"));
 assert.ok(summary.readySurfaces.includes("typeFactRpcClient"));
 assert.ok(summary.readySurfaces.includes("typeFactResultReducer"));
 assert.ok(summary.nextDecouplingTargets.includes("sourceProviderDirectRustAdapter"));
