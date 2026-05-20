@@ -31,6 +31,10 @@ interface TransformPlanSummaryV0 {
     readonly targetDataSource: string;
     readonly resolvedTargets: readonly string[];
     readonly resolutionError: string | null;
+    readonly support: {
+      readonly supportsLightDark: boolean;
+      readonly supportsColorMix: boolean;
+    };
     readonly transformPlan: {
       readonly product: string;
       readonly requiredPassIds: readonly string[];
@@ -477,6 +481,101 @@ assertIncludesAll(
   "browserslist target-query planned passes",
 );
 
+const targetCompatStyleSource =
+  ".button { color: light-dark(#000, #fff); border-color: color-mix(in srgb, red, blue); }";
+const chrome122TargetQueryResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-plan",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "Compat.css",
+      styleSource: targetCompatStyleSource,
+      targetQuery: "chrome 122",
+      targetOptions: {
+        allowLogicalToPhysical: false,
+        allowScopeFlatten: false,
+        allowLayerFlatten: false,
+        enableSupportsStaticEval: false,
+        enableMediaStaticEval: false,
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(chrome122TargetQueryResult.status, 0, chrome122TargetQueryResult.stderr);
+assert.equal(chrome122TargetQueryResult.error, undefined);
+
+const chrome122TargetQuerySummary = JSON.parse(
+  chrome122TargetQueryResult.stdout,
+) as TransformPlanSummaryV0;
+
+assert.equal(chrome122TargetQuerySummary.targetQuery?.profileId, "browserslist-resolved");
+assert.deepEqual(chrome122TargetQuerySummary.targetQuery?.resolvedTargets, ["chrome 122"]);
+assert.equal(chrome122TargetQuerySummary.targetQuery?.support.supportsLightDark, false);
+assert.equal(chrome122TargetQuerySummary.targetQuery?.support.supportsColorMix, true);
+assert.deepEqual(chrome122TargetQuerySummary.target.plannedPassIds, ["light-dark-lowering"]);
+assert.equal(
+  chrome122TargetQuerySummary.execution.outputCss,
+  ".button { color: #000; border-color: color-mix(in srgb, red, blue); } @media (prefers-color-scheme: dark) { .button { color: #fff; } }",
+);
+
+const chrome123TargetQueryResult = spawnSync(
+  "cargo",
+  [
+    "run",
+    "--quiet",
+    "--manifest-path",
+    "rust/Cargo.toml",
+    "-p",
+    "engine-shadow-runner",
+    "--",
+    "transform-plan",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    input: JSON.stringify({
+      stylePath: "Compat.css",
+      styleSource: targetCompatStyleSource,
+      targetQuery: "chrome 123",
+      targetOptions: {
+        allowLogicalToPhysical: false,
+        allowScopeFlatten: false,
+        allowLayerFlatten: false,
+        enableSupportsStaticEval: false,
+        enableMediaStaticEval: false,
+      },
+    }),
+    maxBuffer: 8 * 1024 * 1024,
+  },
+);
+
+assert.equal(chrome123TargetQueryResult.status, 0, chrome123TargetQueryResult.stderr);
+assert.equal(chrome123TargetQueryResult.error, undefined);
+
+const chrome123TargetQuerySummary = JSON.parse(
+  chrome123TargetQueryResult.stdout,
+) as TransformPlanSummaryV0;
+
+assert.equal(chrome123TargetQuerySummary.targetQuery?.profileId, "browserslist-resolved");
+assert.deepEqual(chrome123TargetQuerySummary.targetQuery?.resolvedTargets, ["chrome 123"]);
+assert.equal(chrome123TargetQuerySummary.targetQuery?.support.supportsLightDark, true);
+assert.equal(chrome123TargetQuerySummary.targetQuery?.support.supportsColorMix, true);
+assert.deepEqual(chrome123TargetQuerySummary.target.plannedPassIds, []);
+assert.equal(chrome123TargetQuerySummary.execution.outputCss, targetCompatStyleSource);
+
 const contextStyleSource =
   '@import "./tokens.css"; .button { composes: base; color: var(--brand); } .base { color: blue; }';
 
@@ -590,6 +689,8 @@ process.stdout.write(
     `edges=${summary.bundle.bundleEdges.length}`,
     `passes=${summary.combinedPassIds.length}`,
     `violatedDagEdges=${summary.combinedViolatedDagEdgeCount}`,
+    `chrome122TargetPasses=${chrome122TargetQuerySummary.target.plannedPassIds.join(",")}`,
+    `chrome123TargetPasses=${chrome123TargetQuerySummary.target.plannedPassIds.join(",") || "none"}`,
     `contextMutations=${contextSummary.execution.mutationCount}`,
   ].join(" "),
 );
