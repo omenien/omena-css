@@ -121,9 +121,55 @@ pub struct SelectedQueryRunnerCommandV0 {
 pub struct OmenaQueryStyleSemanticGraphBatchOutputV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub cross_file_summary: OmenaQueryCrossFileSummaryV0,
     pub css_modules_resolution: OmenaQueryCssModulesCrossFileResolutionV0,
     pub sass_module_resolution: OmenaQuerySassModuleCrossFileResolutionV0,
     pub graphs: Vec<OmenaQueryStyleSemanticGraphBatchEntryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCrossFileSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub status: &'static str,
+    pub summary_scope: &'static str,
+    pub style_count: usize,
+    pub summary_edge_count: usize,
+    pub summary_hash: String,
+    pub edges: Vec<OmenaQueryCrossFileSummaryEdgeV0>,
+    pub capabilities: OmenaQueryCrossFileSummaryCapabilitiesV0,
+    pub next_priorities: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCrossFileSummaryEdgeV0 {
+    pub edge_id: String,
+    pub edge_kind: &'static str,
+    pub from_style_path: String,
+    pub target_style_path: Option<String>,
+    pub source: Option<String>,
+    pub owner_selector_name: Option<String>,
+    pub local_name: Option<String>,
+    pub remote_name: Option<String>,
+    pub target_names: Vec<String>,
+    pub status: &'static str,
+    pub provenance: Vec<&'static str>,
+    pub linear_provenance: OmenaQueryLinearProvenanceV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCrossFileSummaryCapabilitiesV0 {
+    pub css_modules_composes_edges_ready: bool,
+    pub css_modules_value_edges_ready: bool,
+    pub css_modules_icss_edges_ready: bool,
+    pub sass_module_edges_ready: bool,
+    pub style_design_token_reference_edges_ready: bool,
+    pub source_selector_reference_edges_ready: bool,
+    pub stable_summary_hash_ready: bool,
+    pub linear_provenance_ready: bool,
 }
 
 #[derive(Debug, Serialize)]

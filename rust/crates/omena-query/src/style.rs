@@ -4,6 +4,7 @@ use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact
 mod cascade_position;
 mod code_actions;
 mod completion;
+mod cross_file_summary;
 mod diagnostics;
 mod parser_facade;
 mod source_refs;
@@ -14,6 +15,7 @@ mod transform;
 pub use cascade_position::*;
 pub use code_actions::*;
 pub use completion::*;
+use cross_file_summary::summarize_omena_query_cross_file_summary;
 pub use diagnostics::*;
 use parser_facade::{
     collect_omena_query_omena_parser_style_facts_raw, omena_parser_dialect_for_style_path,
@@ -337,6 +339,11 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
         summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
     let sass_module_resolution =
         summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+    let cross_file_summary = summarize_omena_query_cross_file_summary(
+        &style_fact_entries,
+        &css_modules_resolution,
+        &sass_module_resolution,
+    );
     let graphs = style_sources
         .into_iter()
         .map(
@@ -365,6 +372,7 @@ pub fn summarize_omena_query_style_semantic_graph_batch_from_sources_with_packag
     OmenaQueryStyleSemanticGraphBatchOutputV0 {
         schema_version: "0",
         product: "omena-semantic.style-semantic-graph-batch",
+        cross_file_summary,
         css_modules_resolution,
         sass_module_resolution,
         graphs,

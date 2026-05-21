@@ -4162,6 +4162,39 @@ fn style_semantic_graph_batch_resolves_sass_module_graph_closure_and_filters() {
                     "/tmp/_palette.scss".to_string(),
                 ]
     }));
+
+    assert_eq!(
+        batch.cross_file_summary.product,
+        "omena-query.cross-file-summary"
+    );
+    assert_eq!(
+        batch.cross_file_summary.summary_edge_count,
+        resolution.module_edge_count + resolution.graph_closure_edge_count
+    );
+    assert!(
+        batch
+            .cross_file_summary
+            .capabilities
+            .sass_module_edges_ready
+    );
+    assert!(
+        batch
+            .cross_file_summary
+            .capabilities
+            .stable_summary_hash_ready
+    );
+    assert!(batch.cross_file_summary.edges.iter().any(|edge| {
+        edge.edge_kind == "sassForward"
+            && edge.from_style_path == "/tmp/_tokens.scss"
+            && edge.target_style_path.as_deref() == Some("/tmp/_palette.scss")
+            && edge.source.as_deref() == Some("./palette")
+            && edge.provenance
+                == vec![
+                    "omena-query.sass-module-cross-file-resolution",
+                    "omena-parser.sass-module-facts",
+                ]
+            && edge.linear_provenance.labels() == edge.provenance
+    }));
 }
 
 #[test]
@@ -4229,6 +4262,37 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
     assert_eq!(batch.css_modules_resolution.composes_cycle_count, 0);
     assert_eq!(batch.css_modules_resolution.value_cycle_count, 0);
     assert_eq!(batch.css_modules_resolution.icss_cycle_count, 0);
+    assert_eq!(
+        batch.cross_file_summary.product,
+        "omena-query.cross-file-summary"
+    );
+    assert_eq!(batch.cross_file_summary.status, "summaryEdgeSeed");
+    assert_eq!(batch.cross_file_summary.summary_edge_count, 15);
+    assert_eq!(batch.cross_file_summary.summary_hash.len(), 16);
+    assert!(
+        batch
+            .cross_file_summary
+            .capabilities
+            .css_modules_composes_edges_ready
+    );
+    assert!(
+        batch
+            .cross_file_summary
+            .capabilities
+            .css_modules_value_edges_ready
+    );
+    assert!(
+        batch
+            .cross_file_summary
+            .capabilities
+            .css_modules_icss_edges_ready
+    );
+    assert!(
+        batch
+            .cross_file_summary
+            .capabilities
+            .linear_provenance_ready
+    );
 
     let composes = batch
         .css_modules_resolution
@@ -4247,6 +4311,35 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
     assert_eq!(composes.imported_names, vec!["base"]);
     assert_eq!(composes.exported_names, vec!["foundation", "base"]);
     assert_eq!(composes.matched_names, vec!["base"]);
+    let composes_summary = batch
+        .cross_file_summary
+        .edges
+        .iter()
+        .find(|edge| edge.edge_kind == "cssModulesComposesImport");
+    assert!(composes_summary.is_some());
+    let Some(composes_summary) = composes_summary else {
+        return;
+    };
+    assert_eq!(
+        composes_summary.target_style_path.as_deref(),
+        Some("/tmp/base.module.scss")
+    );
+    assert_eq!(
+        composes_summary.source.as_deref(),
+        Some("./base.module.scss")
+    );
+    assert_eq!(composes_summary.target_names, vec!["base"]);
+    assert_eq!(
+        composes_summary.provenance,
+        vec![
+            "omena-query.css-modules-cross-file-resolution",
+            "omena-parser.css-module-composes-facts",
+        ]
+    );
+    assert_eq!(
+        composes_summary.linear_provenance.labels(),
+        composes_summary.provenance
+    );
     let transitive_composes = batch
         .css_modules_resolution
         .composes_closure_edges
@@ -4267,6 +4360,14 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
             "/tmp/base.module.scss#foundation"
         ]
     );
+    assert!(batch.cross_file_summary.edges.iter().any(|edge| {
+        edge.edge_kind == "cssModulesComposesClosure"
+            && edge.from_style_path == "/tmp/App.module.scss"
+            && edge.target_style_path.as_deref() == Some("/tmp/base.module.scss")
+            && edge.owner_selector_name.as_deref() == Some("btn")
+            && edge.remote_name.as_deref() == Some("foundation")
+            && edge.status == "reachable"
+    }));
 
     let transitive_value = batch
         .css_modules_resolution
@@ -4361,6 +4462,46 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
             .capabilities
             .cycle_detection_ready
     );
+}
+
+#[test]
+fn style_semantic_graph_batch_cross_file_summary_hash_tracks_edge_changes() {
+    let input = sample_input();
+    let baseline = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [
+            ("/tmp/base.module.scss", ".base { display: block; }"),
+            (
+                "/tmp/App.module.scss",
+                ".btn { composes: base from \"./base.module.scss\"; }",
+            ),
+        ],
+        &input,
+    );
+    let changed = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [
+            ("/tmp/base.module.scss", ".base { display: block; }"),
+            (
+                "/tmp/App.module.scss",
+                ".btn { composes: base from \"./missing.module.scss\"; }",
+            ),
+        ],
+        &input,
+    );
+
+    assert_ne!(
+        baseline.cross_file_summary.summary_hash,
+        changed.cross_file_summary.summary_hash
+    );
+    assert!(baseline.cross_file_summary.edges.iter().any(|edge| {
+        edge.edge_kind == "cssModulesComposesImport"
+            && edge.target_style_path.as_deref() == Some("/tmp/base.module.scss")
+            && edge.status == "resolved"
+    }));
+    assert!(changed.cross_file_summary.edges.iter().any(|edge| {
+        edge.edge_kind == "cssModulesComposesImport"
+            && edge.target_style_path.is_none()
+            && edge.status == "unresolvedSource"
+    }));
 }
 
 #[test]
