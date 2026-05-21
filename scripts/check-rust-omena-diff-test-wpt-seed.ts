@@ -81,7 +81,18 @@ interface KnownFailurePolicyV0 {
   readonly requiredMinFixtureCountForStage2: number;
   readonly requiredConsecutiveGreenRuns: number;
   readonly consecutiveGreenRuns: number;
+  readonly greenRuns: readonly GreenRunEvidenceV0[];
   readonly subtests: readonly KnownFailureSubtestV0[];
+}
+
+interface GreenRunEvidenceV0 {
+  readonly date: string;
+  readonly commit: string;
+  readonly fixtureCount: number;
+  readonly chunkSha256: string;
+  readonly outcomeOlw: number;
+  readonly criticalRegressionCount: number;
+  readonly command: string;
 }
 
 interface KnownFailureSubtestV0 {
@@ -147,6 +158,11 @@ assert.ok(
   "Stage 2 must declare a positive consecutive-green threshold",
 );
 assert.ok(policy.consecutiveGreenRuns >= 0, "consecutive green runs cannot be negative");
+assert.equal(
+  policy.consecutiveGreenRuns,
+  policy.greenRuns.length,
+  "consecutive green runs must be backed by reviewed green-run evidence",
+);
 
 const fixtures = manifest.chunks.flatMap((chunkManifest) => {
   const chunkPath = path.join(corpusRoot, chunkManifest.path);
@@ -164,6 +180,24 @@ const fixtures = manifest.chunks.flatMap((chunkManifest) => {
 
 const fixtureKeys = new Set(fixtures.map((fixture) => fixture.id));
 const subtestKeys = new Set(fixtures.map((fixture) => `${fixture.id}\n${fixture.subtest}`));
+const currentChunkSha256 = manifest.chunks[0]?.sha256;
+assert.ok(currentChunkSha256, "WPT seed corpus must declare at least one chunk");
+for (const run of policy.greenRuns) {
+  assert.ok(isIsoDate(run.date), `${run.commit} green-run date must be an ISO date`);
+  assert.ok(isCommitId(run.commit), `${run.commit} must be a commit id`);
+  assert.equal(run.fixtureCount, fixtures.length, `${run.commit} fixture count drift`);
+  assert.equal(run.chunkSha256, currentChunkSha256, `${run.commit} chunk sha drift`);
+  assert.equal(
+    run.outcomeOlw,
+    fixtures.length,
+    `${run.commit} must be all-green for current corpus`,
+  );
+  assert.equal(run.criticalRegressionCount, 0, `${run.commit} must have no critical regressions`);
+  assert.ok(
+    run.command.includes("rust/omena-diff-test-wpt-seed"),
+    `${run.commit} command must point at the WPT seed checker`,
+  );
+}
 for (const subtest of policy.subtests) {
   assert.ok(fixtureKeys.has(subtest.fixture), `orphan known failure fixture: ${subtest.fixture}`);
   assert.ok(
@@ -279,6 +313,7 @@ process.stdout.write(
       requiredMinFixtureCountForStage2: policy.requiredMinFixtureCountForStage2,
       requiredConsecutiveGreenRuns: policy.requiredConsecutiveGreenRuns,
       consecutiveGreenRuns: policy.consecutiveGreenRuns,
+      greenRunEvidenceCount: policy.greenRuns.length,
       stage2PromotionBlockers,
       staleKnownFailureCount: 0,
       criticalRegressionCount,
@@ -343,28 +378,45 @@ function runLightningTransform(fixture: WptSeedFixtureV0): string {
 function readKnownFailurePolicy(filePath: string): KnownFailurePolicyV0 {
   const source = readFileSync(filePath, "utf8");
   const topLevel = new Map<string, string | boolean | number>();
+  const greenRuns: GreenRunEvidenceV0[] = [];
   const subtests: KnownFailureSubtestV0[] = [];
+  let currentGreenRun = new Map<string, string | boolean | number>();
   let currentSubtest = new Map<string, string>();
+  let section: "top" | "green_run" | "subtest" = "top";
 
   for (const rawLine of source.split(/\r?\n/)) {
     const line = rawLine.replace(/\s+#.*$/, "").trim();
     if (line === "" || line.startsWith("#")) continue;
     if (line === "[[subtest]]") {
+      pushGreenRun(greenRuns, currentGreenRun);
+      currentGreenRun = new Map<string, string | boolean | number>();
       pushKnownFailureSubtest(subtests, currentSubtest);
       currentSubtest = new Map<string, string>();
+      section = "subtest";
+      continue;
+    }
+    if (line === "[[green_run]]") {
+      pushKnownFailureSubtest(subtests, currentSubtest);
+      currentSubtest = new Map<string, string>();
+      pushGreenRun(greenRuns, currentGreenRun);
+      currentGreenRun = new Map<string, string | boolean | number>();
+      section = "green_run";
       continue;
     }
     const match = /^([A-Za-z0-9_]+)\s*=\s*(.+)$/.exec(line);
     assert.ok(match, `unsupported TOML line: ${rawLine}`);
     const [, key, rawValue] = match;
     const value = parseTomlScalar(rawValue);
-    if (currentSubtest.size > 0 || isKnownFailureSubtestKey(key)) {
+    if (section === "subtest" || isKnownFailureSubtestKey(key)) {
       assert.equal(typeof value, "string", `${key} must be a string`);
       currentSubtest.set(key, value);
+    } else if (section === "green_run") {
+      currentGreenRun.set(key, value);
     } else {
       topLevel.set(key, value);
     }
   }
+  pushGreenRun(greenRuns, currentGreenRun);
   pushKnownFailureSubtest(subtests, currentSubtest);
 
   return {
@@ -380,6 +432,7 @@ function readKnownFailurePolicy(filePath: string): KnownFailurePolicyV0 {
     ),
     requiredConsecutiveGreenRuns: expectNumber(topLevel, "required_consecutive_green_runs"),
     consecutiveGreenRuns: expectNumber(topLevel, "consecutive_green_runs"),
+    greenRuns,
     subtests,
   };
 }
@@ -429,6 +482,22 @@ function pushKnownFailureSubtest(subtests: KnownFailureSubtestV0[], values: Map<
   });
 }
 
+function pushGreenRun(
+  greenRuns: GreenRunEvidenceV0[],
+  values: Map<string, string | boolean | number>,
+) {
+  if (values.size === 0) return;
+  greenRuns.push({
+    date: expectString(values, "date"),
+    commit: expectString(values, "commit"),
+    fixtureCount: expectNumber(values, "fixture_count"),
+    chunkSha256: expectString(values, "chunk_sha256"),
+    outcomeOlw: expectNumber(values, "outcome_olw"),
+    criticalRegressionCount: expectNumber(values, "critical_regression_count"),
+    command: expectString(values, "command"),
+  });
+}
+
 function parseTomlScalar(rawValue: string): string | boolean | number {
   if (rawValue === "true") return true;
   if (rawValue === "false") return false;
@@ -462,4 +531,8 @@ function expectNumber(values: Map<string, string | boolean | number>, key: strin
 
 function isIsoDate(value: string): boolean {
   return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value);
+}
+
+function isCommitId(value: string): boolean {
+  return /^[0-9a-f]{8,40}$/.test(value);
 }

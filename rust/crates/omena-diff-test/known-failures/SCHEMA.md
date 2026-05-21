@@ -16,7 +16,19 @@ Top-level fields:
 - `required_consecutive_green_runs`: minimum consecutive green advisory runs
   required before Stage 2 blocking promotion.
 - `consecutive_green_runs`: current reviewed consecutive green advisory run
-  count for the pinned corpus and policy.
+  count for the pinned corpus and policy. This must match the number of
+  `[[green_run]]` evidence entries.
+
+`[[green_run]]` fields:
+
+- `date`: ISO date when the advisory green run was reviewed.
+- `commit`: commit that produced the reviewed advisory run.
+- `fixture_count`: fixture count observed in the run.
+- `chunk_sha256`: generated WPT chunk hash observed in the run.
+- `outcome_olw`: count of fixtures where Omena, lightningcss, and WPT agree.
+- `critical_regression_count`: count of Omena-only failures against
+  lightningcss and WPT expectations.
+- `command`: command used to produce the reviewed run.
 
 Future `[[subtest]]` entries must include `fixture`, `name`, `status`,
 `reason`, `issue`, `since`, and `review_after`. Stale entries are rejected by

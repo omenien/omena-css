@@ -219,6 +219,8 @@ pub struct WptSeedCorpusMetadataReportV0 {
     pub required_consecutive_green_runs: usize,
     /// Current consecutive green advisory run count for this pinned corpus.
     pub consecutive_green_runs: usize,
+    /// Reviewed green-run evidence entry count.
+    pub green_run_evidence_count: usize,
     /// Maximum review interval for known-failure entries.
     pub known_failure_review_interval_days: usize,
     /// Whether Stage 2 promotion prerequisites are currently satisfied.
@@ -573,6 +575,10 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         .lines()
         .filter(|line| line.trim() == "[[subtest]]")
         .count();
+    let green_run_evidence_count = WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE
+        .lines()
+        .filter(|line| line.trim() == "[[green_run]]")
+        .count();
     let stage2_blocking = wpt_seed_policy_bool_value("stage2_blocking").unwrap_or(true);
     let required_min_fixture_count_for_stage2 =
         wpt_seed_policy_usize_value("required_min_fixture_count_for_stage2").unwrap_or(0);
@@ -586,6 +592,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         chunk.as_ref(),
         fixture_count,
         known_failure_count,
+        green_run_evidence_count,
     );
     let stage2_promotion_blockers = wpt_seed_stage2_promotion_blockers(
         all_metadata_valid,
@@ -610,6 +617,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         required_min_fixture_count_for_stage2,
         required_consecutive_green_runs,
         consecutive_green_runs,
+        green_run_evidence_count,
         known_failure_review_interval_days,
         stage2_candidate_ready,
         stage2_promotion_blockers,
@@ -629,6 +637,7 @@ fn wpt_seed_manifest_metadata_valid(
     chunk: Option<&serde_json::Value>,
     fixture_count: usize,
     known_failure_count: usize,
+    green_run_evidence_count: usize,
 ) -> bool {
     let Some(manifest) = manifest else {
         return false;
@@ -669,7 +678,7 @@ fn wpt_seed_manifest_metadata_valid(
             .is_some_and(|count| count > 0)
         && wpt_seed_policy_usize_value("required_consecutive_green_runs")
             .is_some_and(|runs| runs > 0)
-        && wpt_seed_policy_usize_value("consecutive_green_runs").is_some()
+        && wpt_seed_policy_usize_value("consecutive_green_runs") == Some(green_run_evidence_count)
         && known_failure_count == 0
 }
 
@@ -725,7 +734,10 @@ fn wpt_seed_policy_usize_value(key: &str) -> Option<usize> {
 fn wpt_seed_policy_raw_value(key: &str) -> Option<&'static str> {
     for raw_line in WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE.lines() {
         let line = raw_line.split('#').next().unwrap_or("").trim();
-        if line.is_empty() || line.starts_with("[[") {
+        if line.starts_with("[[") {
+            break;
+        }
+        if line.is_empty() {
             continue;
         }
         let Some((candidate_key, value)) = line.split_once('=') else {
@@ -908,7 +920,8 @@ mod tests {
         assert!(!report.stage2_blocking);
         assert_eq!(report.required_min_fixture_count_for_stage2, 25);
         assert_eq!(report.required_consecutive_green_runs, 5);
-        assert_eq!(report.consecutive_green_runs, 0);
+        assert_eq!(report.consecutive_green_runs, 1);
+        assert_eq!(report.green_run_evidence_count, 1);
         assert_eq!(report.known_failure_review_interval_days, 30);
         assert!(!report.stage2_candidate_ready);
         assert!(
