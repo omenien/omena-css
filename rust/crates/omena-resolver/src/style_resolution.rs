@@ -583,8 +583,11 @@ fn package_manifest_style_module_base_candidates(
         let package_root = dir.join("node_modules").join(package_source.package_name);
         let package_root_key = normalize_style_path(package_root.clone());
         if let Some(package_json_source) = manifest_by_package_dir.get(&package_root_key)
-            && let Some(entry) =
-                read_package_manifest_style_entry(package_json_source, package_source.subpath)
+            && let Some(entry) = read_package_manifest_style_entry(
+                package_json_source,
+                package_source.subpath,
+                package_source.uses_sass_node_package_importer,
+            )
         {
             push_unique_pathbuf(&mut candidates, package_root.join(entry));
         }
@@ -669,9 +672,14 @@ fn package_dir_from_package_json_path(package_json_path: &str) -> String {
 fn read_package_manifest_style_entry(
     package_json_source: &str,
     subpath: Option<&str>,
+    uses_sass_node_package_importer: bool,
 ) -> Option<PathBuf> {
     let package_json = serde_json::from_str::<serde_json::Value>(package_json_source).ok()?;
     let package_object = package_json.as_object()?;
+    if uses_sass_node_package_importer {
+        return read_sass_node_package_importer_style_entry(package_object, subpath)
+            .map(|entry| PathBuf::from(normalize_package_json_entry(&entry)));
+    }
     let entry = if let Some(subpath) = subpath {
         read_package_export_subpath_entry(package_object.get("exports"), subpath)
     } else {
@@ -681,6 +689,24 @@ fn read_package_manifest_style_entry(
             .or_else(|| read_package_json_string_field(package_object, "style"))
     }?;
     Some(PathBuf::from(normalize_package_json_entry(&entry)))
+}
+
+fn read_sass_node_package_importer_style_entry(
+    package_object: &serde_json::Map<String, serde_json::Value>,
+    subpath: Option<&str>,
+) -> Option<String> {
+    let export_entry = if let Some(subpath) = subpath {
+        read_sass_node_package_export_subpath_entry(package_object.get("exports"), subpath)
+    } else {
+        read_sass_node_package_export_entry(package_object.get("exports"))
+    };
+    export_entry.or_else(|| {
+        if subpath.is_some() {
+            return None;
+        }
+        read_package_json_string_field(package_object, "sass")
+            .or_else(|| read_package_json_string_field(package_object, "style"))
+    })
 }
 
 fn read_package_import_entry(package_json_source: &str, specifier: &str) -> Option<String> {
@@ -725,6 +751,28 @@ fn read_package_export_subpath_entry(
             continue;
         };
         let Some(entry) = read_package_export_entry(Some(export_value)) else {
+            continue;
+        };
+        return Some(substitute_package_export_pattern(&entry, &pattern_match));
+    }
+    None
+}
+
+fn read_sass_node_package_export_subpath_entry(
+    exports_value: Option<&serde_json::Value>,
+    subpath: &str,
+) -> Option<String> {
+    let exports_object = exports_value?.as_object()?;
+    for key in package_export_subpath_keys(subpath) {
+        if let Some(entry) = read_sass_node_package_export_entry(exports_object.get(&key)) {
+            return Some(entry);
+        }
+    }
+    for (key, export_value) in exports_object {
+        let Some(pattern_match) = match_package_export_subpath_pattern(key, subpath) else {
+            continue;
+        };
+        let Some(entry) = read_sass_node_package_export_entry(Some(export_value)) else {
             continue;
         };
         return Some(substitute_package_export_pattern(&entry, &pattern_match));
@@ -780,6 +828,41 @@ fn read_package_export_entry(exports_value: Option<&serde_json::Value>) -> Optio
     read_package_export_entry_with_policy(exports_value, true)
 }
 
+fn read_sass_node_package_export_entry(
+    exports_value: Option<&serde_json::Value>,
+) -> Option<String> {
+    let exports_value = exports_value?;
+    if let Some(entry) = exports_value.as_str() {
+        if is_package_style_export_entry(entry) {
+            return Some(entry.to_string());
+        }
+        return None;
+    }
+    if let Some(entries) = exports_value.as_array() {
+        for entry_value in entries {
+            if let Some(entry) = read_sass_node_package_export_entry(Some(entry_value)) {
+                return Some(entry);
+            }
+        }
+        return None;
+    }
+    let exports_object = exports_value.as_object()?;
+    if let Some(root_entry) = read_sass_node_package_export_entry(exports_object.get(".")) {
+        return Some(root_entry);
+    }
+    for (key, export_value) in exports_object {
+        let entry = if is_sass_node_package_style_export_condition(key) || key == "default" {
+            read_sass_node_package_export_entry(Some(export_value))
+        } else {
+            None
+        };
+        if let Some(entry) = entry {
+            return Some(entry);
+        }
+    }
+    None
+}
+
 fn read_package_export_entry_with_policy(
     exports_value: Option<&serde_json::Value>,
     require_style_entry: bool,
@@ -826,6 +909,10 @@ fn is_package_style_export_condition(key: &str) -> bool {
     matches!(key, "sass" | "scss" | "style")
 }
 
+fn is_sass_node_package_style_export_condition(key: &str) -> bool {
+    matches!(key, "sass" | "style")
+}
+
 fn is_package_style_export_entry(entry: &str) -> bool {
     let normalized = normalize_package_json_entry(entry);
     let extension = Path::new(&normalized)
@@ -855,9 +942,11 @@ fn normalize_package_json_entry(entry: &str) -> String {
 struct PackageStyleSource<'a> {
     package_name: &'a str,
     subpath: Option<&'a str>,
+    uses_sass_node_package_importer: bool,
 }
 
 fn parse_package_style_source(source: &str) -> Option<PackageStyleSource<'_>> {
+    let uses_sass_node_package_importer = source.starts_with("pkg:");
     let package_source = source.strip_prefix("pkg:").unwrap_or(source);
     if package_source.starts_with('.')
         || package_source.starts_with('/')
@@ -879,6 +968,7 @@ fn parse_package_style_source(source: &str) -> Option<PackageStyleSource<'_>> {
         return Some(PackageStyleSource {
             package_name,
             subpath,
+            uses_sass_node_package_importer,
         });
     }
 
@@ -891,6 +981,7 @@ fn parse_package_style_source(source: &str) -> Option<PackageStyleSource<'_>> {
     Some(PackageStyleSource {
         package_name,
         subpath,
+        uses_sass_node_package_importer,
     })
 }
 

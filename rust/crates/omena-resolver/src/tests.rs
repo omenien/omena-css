@@ -413,6 +413,106 @@ fn resolves_sass_pkg_url_package_manifest_exports() {
 }
 
 #[test]
+fn resolves_sass_pkg_url_export_conditions_in_object_order() {
+    let available_style_paths = BTreeSet::from([
+        "/fake/workspace/node_modules/@design/tokens/dist/theme.css",
+        "/fake/workspace/node_modules/@design/tokens/dist/theme.scss",
+    ]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "pkg:@design/tokens/theme",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source:
+                r#"{"exports":{"./theme":{"style":"./dist/theme.css","sass":"./dist/theme.scss"}}}"#
+                    .to_string(),
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "packageStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/node_modules/@design/tokens/dist/theme.css")
+    );
+}
+
+#[test]
+fn ignores_scss_condition_for_sass_pkg_url_exports() {
+    let available_style_paths = BTreeSet::from([
+        "/fake/workspace/node_modules/@design/tokens/dist/theme.css",
+        "/fake/workspace/node_modules/@design/tokens/dist/theme.scss",
+    ]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "pkg:@design/tokens/theme",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source:
+                r#"{"exports":{"./theme":{"scss":"./dist/theme.scss","style":"./dist/theme.css"}}}"#
+                    .to_string(),
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "packageStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/node_modules/@design/tokens/dist/theme.css")
+    );
+}
+
+#[test]
+fn resolves_sass_pkg_url_top_level_sass_before_style() {
+    let available_style_paths = BTreeSet::from([
+        "/fake/workspace/node_modules/@design/tokens/theme.css",
+        "/fake/workspace/node_modules/@design/tokens/theme.scss",
+    ]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "pkg:@design/tokens",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source: r#"{"sass":"./theme.scss","style":"./theme.css"}"#.to_string(),
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "packageStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/node_modules/@design/tokens/theme.scss")
+    );
+}
+
+#[test]
+fn ignores_top_level_scss_for_sass_pkg_url_root() {
+    let available_style_paths = BTreeSet::from([
+        "/fake/workspace/node_modules/@design/tokens/theme.css",
+        "/fake/workspace/node_modules/@design/tokens/theme.scss",
+    ]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "pkg:@design/tokens",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source: r#"{"scss":"./theme.scss","style":"./theme.css"}"#.to_string(),
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "packageStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/node_modules/@design/tokens/theme.css")
+    );
+}
+
+#[test]
 fn falls_back_to_package_root_index_when_manifest_has_no_style_entry() {
     let available_style_paths =
         BTreeSet::from(["/fake/workspace/node_modules/@design/tokens/src/index.scss"]);
