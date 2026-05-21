@@ -180,6 +180,7 @@ pub struct OmenaQueryCrossFileSummaryCapabilitiesV0 {
     pub source_selector_reference_edges_ready: bool,
     pub stable_summary_hash_ready: bool,
     pub linear_provenance_ready: bool,
+    pub linear_provenance_round_trip_ready: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -765,6 +766,26 @@ pub fn summarize_omena_query_linear_provenance(
     provenance: &[&'static str],
 ) -> OmenaQueryLinearProvenanceV0 {
     OmenaQueryLinearProvenanceV0::from_static_labels(provenance)
+}
+
+pub fn round_trip_omena_query_linear_provenance_labels(
+    linear_provenance: &OmenaQueryLinearProvenanceV0,
+) -> Vec<&'static str> {
+    linear_provenance.labels()
+}
+
+impl OmenaQueryCrossFileSummaryEdgeV0 {
+    pub fn linear_provenance_round_trips_legacy_labels(&self) -> bool {
+        round_trip_omena_query_linear_provenance_labels(&self.linear_provenance) == self.provenance
+    }
+}
+
+impl OmenaQueryCrossFileSummaryV0 {
+    pub fn linear_provenance_round_trips_legacy_labels(&self) -> bool {
+        self.edges
+            .iter()
+            .all(OmenaQueryCrossFileSummaryEdgeV0::linear_provenance_round_trips_legacy_labels)
+    }
 }
 
 impl OmenaQueryStyleDiagnosticV0 {

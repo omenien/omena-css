@@ -220,6 +220,7 @@ pub(super) fn summarize_omena_query_cross_file_summary(
             source_selector_reference_edges_ready: false,
             stable_summary_hash_ready: true,
             linear_provenance_ready: true,
+            linear_provenance_round_trip_ready: true,
         },
         next_priorities: vec![
             "sourceSelectorReferenceSummaryEdges",
@@ -442,6 +443,7 @@ pub fn summarize_omena_query_source_selector_reference_cross_file_summary(
             source_selector_reference_edges_ready: true,
             stable_summary_hash_ready: true,
             linear_provenance_ready: true,
+            linear_provenance_round_trip_ready: true,
         },
         next_priorities: vec!["sourceSelectorReferenceSummaryEquivalenceGate"],
     }
@@ -539,6 +541,12 @@ fn merge_omena_query_cross_file_summary_capabilities(
         linear_provenance_ready: summaries
             .iter()
             .all(|summary| summary.capabilities.linear_provenance_ready),
+        linear_provenance_round_trip_ready: summaries
+            .iter()
+            .all(|summary| summary.capabilities.linear_provenance_round_trip_ready)
+            && summaries
+                .iter()
+                .all(OmenaQueryCrossFileSummaryV0::linear_provenance_round_trips_legacy_labels),
     }
 }
 

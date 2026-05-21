@@ -116,6 +116,12 @@ fn workspace_cross_file_summary_merges_style_and_source_edge_sets() {
     );
     assert!(workspace_summary.capabilities.stable_summary_hash_ready);
     assert!(workspace_summary.capabilities.linear_provenance_ready);
+    assert!(
+        workspace_summary
+            .capabilities
+            .linear_provenance_round_trip_ready
+    );
+    assert!(workspace_summary.linear_provenance_round_trips_legacy_labels());
 
     let workspace_edge_ids = workspace_summary
         .edges
@@ -219,6 +225,7 @@ fn workspace_cross_file_summary_linear_provenance_covers_merged_style_and_source
                 == Some(1)
         }));
     }
+    assert!(workspace_summary.linear_provenance_round_trips_legacy_labels());
     Ok(())
 }
 
