@@ -1,5 +1,9 @@
-import { deepStrictEqual, strictEqual } from "node:assert";
-import { deriveCheckerCanonicalCandidate } from "../packages/cme-checker/src";
+import { deepStrictEqual, ok, strictEqual } from "node:assert";
+import {
+  assertCheckerCanonicalCandidateEqual,
+  deriveCheckerCanonicalCandidate,
+  diffCheckerCanonicalCandidate,
+} from "../packages/cme-checker/src";
 
 const snapshot = {
   input: {
@@ -66,6 +70,28 @@ deepStrictEqual(
 );
 strictEqual(bundle.findings[0]?.analysisReason, "fixture-source-missing");
 strictEqual(bundle.findings[0]?.valueCertaintyShapeLabel, "exact");
+const changedBundle = {
+  ...bundle,
+  findings: bundle.findings.map((finding, index) =>
+    index === 0 ? { ...finding, message: "changed fixture message" } : finding,
+  ),
+};
+const diffReport = diffCheckerCanonicalCandidate(changedBundle, bundle);
+strictEqual(diffReport.product, "cme-checker.canonical-candidate-diff");
+strictEqual(diffReport.matches, false);
+strictEqual(diffReport.diffCount, 1);
+strictEqual(diffReport.diffs[0]?.path, "findings[0].message");
+strictEqual(diffReport.diffs[0]?.expected, "CSS Module selector '.ghost' not found.");
+strictEqual(diffReport.diffs[0]?.actual, "changed fixture message");
+assertCheckerCanonicalCandidateEqual(bundle, bundle, "cme-checker-boundary self-check");
+let mismatchRaised = false;
+try {
+  assertCheckerCanonicalCandidateEqual(changedBundle, bundle, "cme-checker-boundary drift-check");
+} catch (error) {
+  mismatchRaised = true;
+  ok(String(error).includes("findings[0].message"));
+}
+strictEqual(mismatchRaised, true);
 
 process.stdout.write(
   JSON.stringify(
@@ -77,6 +103,7 @@ process.stdout.write(
         "checker-style-unused/canonical-candidate",
       ],
       package: "@css-module-explainer/cme-checker",
+      diffReport: "cme-checker.canonical-candidate-diff",
       findingCount: bundle.summary.total,
       distinctFileCount: bundle.distinctFileCount,
     },

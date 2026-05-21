@@ -1,4 +1,4 @@
-import { deepStrictEqual } from "node:assert";
+import { assertCheckerCanonicalCandidateEqual } from "../packages/cme-checker/src";
 import { buildContractParitySnapshot } from "./contract-parity-runtime";
 import {
   deriveTsCheckerStyleUnusedCanonicalCandidate,
@@ -11,7 +11,7 @@ void (async () => {
   const snapshot = await buildContractParitySnapshot(STYLE_UNUSED_ENTRY);
   const expected = deriveTsCheckerStyleUnusedCanonicalCandidate(snapshot);
   const actual = await runShadowCheckerStyleUnusedCanonicalCandidate(snapshot);
-  deepStrictEqual(
+  assertCheckerCanonicalCandidateEqual(
     actual,
     expected,
     `${STYLE_UNUSED_ENTRY.label}: checker style-unused canonical candidate mismatch`,

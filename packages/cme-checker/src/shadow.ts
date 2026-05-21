@@ -58,6 +58,27 @@ export interface CmeCheckerCanonicalCandidateBundleV0<TBundle extends string = s
   readonly findings: readonly CmeCheckerFindingProjectionV0[];
 }
 
+export interface CmeCheckerFieldDiffV0 {
+  readonly path: string;
+  readonly expected: unknown;
+  readonly actual: unknown;
+}
+
+export interface CmeCheckerCanonicalCandidateDiffReportV0<TBundle extends string = string> {
+  readonly schemaVersion: "0";
+  readonly product: "cme-checker.canonical-candidate-diff";
+  readonly bundle: TBundle;
+  readonly matches: boolean;
+  readonly expectedFindingCount: number;
+  readonly actualFindingCount: number;
+  readonly diffCount: number;
+  readonly diffs: readonly CmeCheckerFieldDiffV0[];
+}
+
+export interface CmeCheckerDiffOptionsV0 {
+  readonly maxDiffs?: number;
+}
+
 const CHECKER_BOUNDED_GATE_BY_BUNDLE = {
   "style-recovery": {
     canonicalCandidateCommand: "pnpm check:rust-checker-style-recovery-canonical-candidate",
@@ -189,6 +210,40 @@ export function compareCheckerFindings(
   );
 }
 
+export function diffCheckerCanonicalCandidate<TBundle extends string>(
+  actual: CmeCheckerCanonicalCandidateBundleV0<TBundle>,
+  expected: CmeCheckerCanonicalCandidateBundleV0<TBundle>,
+  options: CmeCheckerDiffOptionsV0 = {},
+): CmeCheckerCanonicalCandidateDiffReportV0<TBundle> {
+  const maxDiffs = options.maxDiffs ?? 50;
+  const diffs: CmeCheckerFieldDiffV0[] = [];
+  collectFieldDiffs(expected, actual, "", diffs, maxDiffs);
+
+  return {
+    schemaVersion: "0",
+    product: "cme-checker.canonical-candidate-diff",
+    bundle: actual.bundle,
+    matches: diffs.length === 0,
+    expectedFindingCount: expected.findings.length,
+    actualFindingCount: actual.findings.length,
+    diffCount: diffs.length,
+    diffs,
+  };
+}
+
+export function assertCheckerCanonicalCandidateEqual<TBundle extends string>(
+  actual: CmeCheckerCanonicalCandidateBundleV0<TBundle>,
+  expected: CmeCheckerCanonicalCandidateBundleV0<TBundle>,
+  label: string,
+): void {
+  const report = diffCheckerCanonicalCandidate(actual, expected);
+  if (!report.matches) {
+    throw new Error(
+      `${label}: checker canonical candidate mismatch\n${JSON.stringify(report, null, 2)}`,
+    );
+  }
+}
+
 function projectFinding(
   finding: CmeCheckerFindingLikeV0,
   extraFields: readonly string[],
@@ -214,4 +269,63 @@ function projectFinding(
 function stringField(finding: CmeCheckerFindingProjectionV0, field: string): string {
   const value = finding[field];
   return typeof value === "string" ? value : "";
+}
+
+function collectFieldDiffs(
+  expected: unknown,
+  actual: unknown,
+  path: string,
+  diffs: CmeCheckerFieldDiffV0[],
+  maxDiffs: number,
+): void {
+  if (diffs.length >= maxDiffs || Object.is(expected, actual)) return;
+
+  if (Array.isArray(expected) && Array.isArray(actual)) {
+    if (expected.length !== actual.length) {
+      pushFieldDiff(diffs, `${path}.length`, expected.length, actual.length, maxDiffs);
+    }
+    const length = Math.min(expected.length, actual.length);
+    for (let index = 0; index < length; index += 1) {
+      collectFieldDiffs(expected[index], actual[index], `${path}[${index}]`, diffs, maxDiffs);
+      if (diffs.length >= maxDiffs) return;
+    }
+    return;
+  }
+
+  if (isRecord(expected) && isRecord(actual)) {
+    const keys = new Set([...Object.keys(expected), ...Object.keys(actual)]);
+    for (const key of [...keys].toSorted()) {
+      const fieldPath = path ? `${path}.${key}` : key;
+      const expectedHasKey = Object.prototype.hasOwnProperty.call(expected, key);
+      const actualHasKey = Object.prototype.hasOwnProperty.call(actual, key);
+      if (!expectedHasKey || !actualHasKey) {
+        pushFieldDiff(diffs, fieldPath, expected[key], actual[key], maxDiffs);
+        continue;
+      }
+      collectFieldDiffs(expected[key], actual[key], fieldPath, diffs, maxDiffs);
+      if (diffs.length >= maxDiffs) return;
+    }
+    return;
+  }
+
+  pushFieldDiff(diffs, path, expected, actual, maxDiffs);
+}
+
+function pushFieldDiff(
+  diffs: CmeCheckerFieldDiffV0[],
+  path: string,
+  expected: unknown,
+  actual: unknown,
+  maxDiffs: number,
+): void {
+  if (diffs.length >= maxDiffs) return;
+  diffs.push({
+    path,
+    expected,
+    actual,
+  });
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

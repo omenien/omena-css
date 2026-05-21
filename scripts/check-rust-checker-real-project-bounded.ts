@@ -1,6 +1,7 @@
 import { deepStrictEqual, strict as assert } from "node:assert";
 import path from "node:path";
 import {
+  assertCheckerCanonicalCandidateEqual,
   buildCheckerBoundedGate,
   deriveCheckerCanonicalCandidate,
 } from "../packages/cme-checker/src";
@@ -106,7 +107,7 @@ void (async () => {
 
   const expectedStyleCandidate = deriveTsCheckerStyleRecoveryCanonicalCandidate(styleSnapshot);
   const actualStyleCandidate = await runShadowCheckerStyleRecoveryCanonicalCandidate(styleSnapshot);
-  deepStrictEqual(
+  assertCheckerCanonicalCandidateEqual(
     actualStyleCandidate,
     expectedStyleCandidate,
     "real-project-dashboard-card: checker style-recovery canonical candidate mismatch",
@@ -117,7 +118,7 @@ void (async () => {
   const expectedSourceCandidate = deriveTsCheckerSourceMissingCanonicalCandidate(sourceSnapshot);
   const actualSourceCandidate =
     await runShadowCheckerSourceMissingCanonicalCandidate(sourceSnapshot);
-  deepStrictEqual(
+  assertCheckerCanonicalCandidateEqual(
     actualSourceCandidate,
     expectedSourceCandidate,
     "real-project-nav-pill: checker source-missing canonical candidate mismatch",
@@ -127,7 +128,7 @@ void (async () => {
 
   const expectedUnusedCandidate = deriveTsCheckerStyleUnusedCanonicalCandidate(unusedSnapshot);
   const actualUnusedCandidate = await runShadowCheckerStyleUnusedCanonicalCandidate(unusedSnapshot);
-  deepStrictEqual(
+  assertCheckerCanonicalCandidateEqual(
     actualUnusedCandidate,
     expectedUnusedCandidate,
     "real-project-dashboard-card-unused: checker style-unused canonical candidate mismatch",

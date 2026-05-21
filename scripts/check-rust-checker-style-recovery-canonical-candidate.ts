@@ -1,6 +1,8 @@
-import { deepStrictEqual } from "node:assert";
 import path from "node:path";
-import { deriveCheckerCanonicalCandidate } from "../packages/cme-checker/src";
+import {
+  assertCheckerCanonicalCandidateEqual,
+  deriveCheckerCanonicalCandidate,
+} from "../packages/cme-checker/src";
 import type { ContractParityEntry } from "./contract-parity-corpus-v1";
 import { buildContractParitySnapshot } from "./contract-parity-runtime";
 import {
@@ -111,7 +113,7 @@ void (async () => {
     const expected = deriveTsCheckerStyleRecoveryCanonicalCandidate(snapshot);
     // oxlint-disable-next-line no-await-in-loop
     const actual = await runShadowCheckerStyleRecoveryCanonicalCandidate(snapshot);
-    deepStrictEqual(
+    assertCheckerCanonicalCandidateEqual(
       actual,
       expected,
       `${entry.label}: checker style-recovery canonical candidate mismatch`,
