@@ -10,6 +10,7 @@ import { StyleIndexCache } from "../../../engine-core-ts/src/core/scss/scss-inde
 import type { ClassnameTransformMode } from "../../../engine-core-ts/src/core/scss/classname-transform";
 import {
   AliasResolver,
+  loadWorkspaceBundlerPathAliases,
   loadWorkspaceTsconfigPathAliases,
 } from "../../../engine-core-ts/src/core/cx/alias-resolver";
 import { cssModulesClassnamesBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/binder-plugin";
@@ -152,6 +153,8 @@ export function createWorkspaceAnalysisHost(params: {
     params.workspaceRoot,
     params.pathAlias,
     loadWorkspaceTsconfigPathAliases(params.workspaceRoot),
+    undefined,
+    loadWorkspaceBundlerPathAliases(params.workspaceRoot),
   );
   const sourceFileCache = new SourceFileCache({ max: 500 });
   const semanticReferenceIndex = new WorkspaceSemanticWorkspaceReferenceIndex();

@@ -67,7 +67,11 @@ export function collectWatchedFileChangeInputs(
 function isProjectConfigPath(filePath: string): boolean {
   const base = filePath.split(/[\\/]/u).pop();
   return (
-    base !== undefined && (/^tsconfig.*\.json$/u.test(base) || /^jsconfig.*\.json$/u.test(base))
+    base !== undefined &&
+    (/^tsconfig.*\.json$/u.test(base) ||
+      /^jsconfig.*\.json$/u.test(base) ||
+      /^vite\.config\.[cm]?[jt]s$/u.test(base) ||
+      /^webpack\.config\.[cm]?[jt]s$/u.test(base))
   );
 }
 

@@ -4,6 +4,8 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import {
   AliasResolver,
+  AliasResolverHolder,
+  loadWorkspaceBundlerPathAliases,
   loadWorkspaceTsconfigPathAliases,
 } from "../../../server/engine-core-ts/src/core/cx/alias-resolver";
 
@@ -270,6 +272,126 @@ describe("AliasResolver", () => {
       loadWorkspaceTsconfigPathAliases(workspace),
     );
     expect(resolver.resolve("@styles/Button.module.scss")).toBe(
+      path.resolve(workspace, "from-settings/Button.module.scss"),
+    );
+  });
+
+  it("loads literal Vite resolve.alias entries into the workspace alias holder", () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "vite-alias-"));
+    fs.writeFileSync(
+      path.join(workspace, "vite.config.ts"),
+      `export default defineConfig({
+  resolve: {
+    alias: {
+      "@styles": "./src/styles",
+      "@components": path.resolve(__dirname, "src/components"),
+    },
+  },
+});
+`,
+    );
+
+    const aliases = loadWorkspaceBundlerPathAliases(workspace);
+    expect(aliases?.aliases).toEqual({
+      "@styles": path.resolve(workspace, "src/styles"),
+      "@components": path.resolve(workspace, "src/components"),
+    });
+    expect(aliases?.unrecognized).toEqual([]);
+
+    const holder = new AliasResolverHolder(workspace, {});
+    expect(holder.get().resolve("@styles/Button.module.scss")).toBe(
+      path.resolve(workspace, "src/styles/Button.module.scss"),
+    );
+  });
+
+  it("loads literal webpack resolve.alias entries and reports unsupported dynamic entries", () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "webpack-alias-"));
+    fs.writeFileSync(
+      path.join(workspace, "webpack.config.js"),
+      `module.exports = {
+  resolve: {
+    alias: [
+      { find: "@styles", replacement: "./src/styles" },
+      { find: /^@theme/, replacement: "./src/theme" },
+      { find: "@dynamic", replacement: makePath() },
+    ],
+  },
+};
+`,
+    );
+
+    const aliases = loadWorkspaceBundlerPathAliases(workspace);
+    expect(aliases?.aliases).toEqual({
+      "@styles": path.resolve(workspace, "src/styles"),
+    });
+    expect(aliases?.unrecognized.map((entry) => entry.reason)).toEqual([
+      "regex-alias-find",
+      "dynamic-alias-replacement",
+    ]);
+  });
+
+  it("marks dynamic bundler config containers without guessing aliases", () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "dynamic-bundler-alias-"));
+    fs.writeFileSync(
+      path.join(workspace, "vite.config.ts"),
+      `export default defineConfig(() => ({
+  resolve: { alias: { "@styles": "./src/styles" } },
+}));
+`,
+    );
+    fs.writeFileSync(
+      path.join(workspace, "webpack.config.js"),
+      `module.exports = {
+  resolve: makeResolveConfig(),
+};
+`,
+    );
+
+    const aliases = loadWorkspaceBundlerPathAliases(workspace);
+    expect(aliases?.aliases).toEqual({});
+    expect(aliases?.unrecognized.map((entry) => entry.reason)).toEqual([
+      "dynamic-alias-container",
+      "dynamic-alias-container",
+    ]);
+  });
+
+  it("prioritizes settings aliases over bundler aliases and bundler aliases over tsconfig paths", () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "alias-priority-"));
+    fs.writeFileSync(
+      path.join(workspace, "vite.config.ts"),
+      `export default { resolve: { alias: { "@styles": "./from-bundler" } } };`,
+    );
+    fs.writeFileSync(
+      path.join(workspace, "tsconfig.json"),
+      JSON.stringify(
+        {
+          compilerOptions: {
+            baseUrl: ".",
+            paths: {
+              "@styles/*": ["from-tsconfig/*"],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    const bundlerAliases = loadWorkspaceBundlerPathAliases(workspace);
+    const tsconfigPaths = loadWorkspaceTsconfigPathAliases(workspace);
+
+    const resolver = new AliasResolver(workspace, {}, tsconfigPaths, undefined, bundlerAliases);
+    expect(resolver.resolve("@styles/Button.module.scss")).toBe(
+      path.resolve(workspace, "from-bundler/Button.module.scss"),
+    );
+
+    const settingsResolver = new AliasResolver(
+      workspace,
+      { "@styles": "from-settings" },
+      tsconfigPaths,
+      undefined,
+      bundlerAliases,
+    );
+    expect(settingsResolver.resolve("@styles/Button.module.scss")).toBe(
       path.resolve(workspace, "from-settings/Button.module.scss"),
     );
   });

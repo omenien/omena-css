@@ -56,6 +56,36 @@ describe("collectWatchedFileChangeInputs", () => {
     ]);
   });
 
+  it("marks bundler config source changes as project config changes", () => {
+    const deps = makeBaseDeps({
+      workspaceRoot: "/fake/ws",
+      workspaceFolderUri: "file:///fake/ws",
+    });
+    const snapshot = createRuntimeDependencySnapshot([deps], []);
+
+    const changes = collectWatchedFileChangeInputs(
+      [
+        { uri: "file:///fake/ws/vite.config.ts", type: "changed" },
+        { uri: "file:///fake/ws/webpack.config.cjs", type: "changed" },
+      ],
+      {
+        documents: { get: () => undefined },
+        getDepsForFilePath: () => deps,
+      },
+      snapshot,
+    );
+
+    expect(
+      changes.map((change) => [
+        change.filePath,
+        change.kind === "source" ? change.projectConfigChange : null,
+      ]),
+    ).toEqual([
+      ["/fake/ws/vite.config.ts", true],
+      ["/fake/ws/webpack.config.cjs", true],
+    ]);
+  });
+
   it("marks declaration-only style changes as non-semantic", () => {
     const previous = buildStyleDocumentFromSelectorMap(
       "/fake/ws/src/Button.module.scss",

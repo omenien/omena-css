@@ -1,11 +1,16 @@
 import * as path from "node:path";
 import ts from "typescript";
+import {
+  loadWorkspaceBundlerPathAliases,
+  type BundlerPathAliases,
+} from "./bundler-alias-extractor";
 
 /**
  * Workspace-scoped path resolver for CSS Module imports.
  *
  * Merges two alias sources:
  *   - `cssModuleExplainer.pathAlias`
+ *   - literal `resolve.alias` entries from Vite/Webpack config files
  *   - `compilerOptions.paths` from the workspace tsconfig/jsconfig
  *
  * `${workspaceFolder}` in settings targets is substituted at
@@ -33,7 +38,7 @@ export interface TsconfigPathAliases {
 type AliasEntry =
   | {
       readonly kind: "prefix";
-      readonly source: "settings" | "tsconfig";
+      readonly source: "settings" | "bundler" | "tsconfig";
       readonly pattern: string;
       readonly target: string;
     }
@@ -58,9 +63,20 @@ function compareAliasEntries(a: AliasEntry, b: AliasEntry): number {
     return b.pattern.length - a.pattern.length;
   }
   if (a.source !== b.source) {
-    return a.source === "settings" ? -1 : 1;
+    return aliasSourcePriority(a.source) - aliasSourcePriority(b.source);
   }
   return a.pattern.localeCompare(b.pattern);
+}
+
+function aliasSourcePriority(source: AliasEntry["source"]): number {
+  switch (source) {
+    case "settings":
+      return 0;
+    case "bundler":
+      return 1;
+    case "tsconfig":
+      return 2;
+  }
 }
 
 function findWorkspaceConfigPath(
@@ -171,12 +187,15 @@ export class AliasResolverHolder {
       this.workspaceRoot,
       this.settingsPathAlias,
       loadWorkspaceTsconfigPathAliases(this.workspaceRoot),
+      undefined,
+      loadWorkspaceBundlerPathAliases(this.workspaceRoot),
     );
   }
 }
 
 export class AliasResolver {
   private readonly settingsEntries: readonly AliasEntry[];
+  private readonly bundlerEntries: readonly AliasEntry[];
   private readonly defaultTsconfigEntries: readonly AliasEntry[];
   private readonly tsconfigEntriesByConfigPath = new Map<string, readonly AliasEntry[]>();
 
@@ -191,6 +210,7 @@ export class AliasResolver {
       useCaseSensitiveFileNames: ts.sys.useCaseSensitiveFileNames,
       onUnRecoverableConfigFileDiagnostic: () => {},
     },
+    bundlerAliases: BundlerPathAliases | null = null,
   ) {
     this.settingsEntries = Object.entries(pathAlias)
       .map<AliasEntry>(([pattern, target]) => ({
@@ -200,6 +220,16 @@ export class AliasResolver {
         target: this.substituteWorkspace(target),
       }))
       .toSorted(compareAliasEntries);
+    this.bundlerEntries = bundlerAliases
+      ? Object.entries(bundlerAliases.aliases)
+          .map<AliasEntry>(([pattern, target]) => ({
+            kind: "prefix",
+            source: "bundler",
+            pattern,
+            target: this.resolveBundlerTarget(target),
+          }))
+          .toSorted(compareAliasEntries)
+      : [];
     this.defaultTsconfigEntries = tsconfigPaths ? this.buildTsconfigEntries(tsconfigPaths) : [];
   }
 
@@ -220,6 +250,8 @@ export class AliasResolver {
       fileExists,
     );
     if (resolvedFromSettings) return resolvedFromSettings;
+    const resolvedFromBundler = this.resolveFromEntries(this.bundlerEntries, specifier, fileExists);
+    if (resolvedFromBundler) return resolvedFromBundler;
     return this.resolveFromEntries(
       this.resolveTsconfigEntries(containingFilePath),
       specifier,
@@ -312,4 +344,11 @@ export class AliasResolver {
     const replaced = target.replace("${workspaceFolder}", this.workspaceRoot);
     return path.isAbsolute(replaced) ? replaced : path.resolve(this.workspaceRoot, replaced);
   }
+
+  private resolveBundlerTarget(target: string): string {
+    return path.isAbsolute(target) ? target : path.resolve(this.workspaceRoot, target);
+  }
 }
+
+export { loadWorkspaceBundlerPathAliases };
+export type { BundlerPathAliases };
