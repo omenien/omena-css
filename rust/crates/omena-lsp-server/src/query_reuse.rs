@@ -3,7 +3,7 @@ use crate::{
     protocol::is_style_document_uri, source_selector_candidates_from_index,
     summarize_style_document,
 };
-use omena_query::OmenaQueryStylePackageManifestV0;
+use omena_query::OmenaQueryStyleResolutionInputsV0;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -23,6 +23,7 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
         owner: "omena-lsp-server/documentQueryReuse",
         reuse_model: "documentRevisionOwnedReusableIndexes",
         cached_surfaces: vec![
+            "workspaceStyleResolutionInputs",
             "styleDocumentSummary",
             "styleHoverCandidates",
             "sourceSyntaxIndex",
@@ -36,6 +37,7 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
             "refreshOnResolutionSettingsChange",
         ],
         request_path_policy: vec![
+            "noPackageManifestOrConfigReadOnProviderRequest",
             "noRawSourceRescanOnProviderRequest",
             "noStyleSelectorRescanOnProviderRequest",
             "providerRequestsConsumeDocumentIndexes",
@@ -45,7 +47,7 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
 
 pub(crate) fn refresh_document_reusable_indexes(
     document: &mut LspTextDocumentState,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &OmenaQueryStyleResolutionInputsV0,
 ) {
     if is_style_document_uri(document.uri.as_str()) {
         document.style_summary =
@@ -58,7 +60,7 @@ pub(crate) fn refresh_document_reusable_indexes(
         document.style_summary = None;
         document.style_candidates = Vec::new();
     }
-    let source_syntax_index = build_source_syntax_index(document, package_manifests);
+    let source_syntax_index = build_source_syntax_index(document, resolution_inputs);
     document.source_selector_candidates =
         source_selector_candidates_from_index(document, &source_syntax_index);
     document.source_syntax_index = source_syntax_index;

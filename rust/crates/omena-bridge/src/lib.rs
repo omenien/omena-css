@@ -49,8 +49,11 @@ pub use source_syntax::{
     summarize_omena_bridge_source_syntax_index,
 };
 pub use style_resolution::{
-    OmenaBridgeStyleResolutionSummaryV0, resolve_omena_bridge_style_uri_for_specifier,
+    OmenaBridgeStyleResolutionInputsV0, OmenaBridgeStyleResolutionSummaryV0,
+    load_omena_bridge_workspace_style_resolution_inputs,
+    resolve_omena_bridge_style_uri_for_specifier,
     resolve_omena_bridge_style_uri_for_specifier_with_package_manifests,
+    resolve_omena_bridge_style_uri_for_specifier_with_resolution_inputs,
     summarize_omena_bridge_style_resolution_boundary,
 };
 

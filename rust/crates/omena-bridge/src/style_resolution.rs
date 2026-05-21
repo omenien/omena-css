@@ -7,11 +7,14 @@ use std::{
 
 use crate::bundler_config_alias::load_omena_bridge_workspace_bundler_path_alias_mappings;
 use omena_resolver::{
-    OmenaResolverStylePackageManifestV0, OmenaResolverTsconfigPathMappingV0,
+    OmenaResolverBundlerPathAliasMappingV0, OmenaResolverStylePackageManifestV0,
+    OmenaResolverTsconfigPathMappingV0,
     collect_omena_resolver_style_module_source_candidates_with_path_mappings,
 };
 use serde::Serialize;
 use serde_json::Value;
+
+const WORKSPACE_PACKAGE_MANIFEST_SCAN_LIMIT: usize = 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -23,6 +26,14 @@ pub struct OmenaBridgeStyleResolutionSummaryV0 {
     pub supported_specifier_kinds: Vec<&'static str>,
     pub candidate_extensions: Vec<&'static str>,
     pub request_path_policy: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaBridgeStyleResolutionInputsV0 {
+    pub package_manifests: Vec<OmenaResolverStylePackageManifestV0>,
+    pub tsconfig_path_mappings: Vec<OmenaResolverTsconfigPathMappingV0>,
+    pub bundler_path_mappings: Vec<OmenaResolverBundlerPathAliasMappingV0>,
 }
 
 pub fn summarize_omena_bridge_style_resolution_boundary() -> OmenaBridgeStyleResolutionSummaryV0 {
@@ -72,35 +83,102 @@ pub fn resolve_omena_bridge_style_uri_for_specifier_with_package_manifests(
     configured_package_manifests: &[OmenaResolverStylePackageManifestV0],
 ) -> Option<String> {
     let source_path = normalize_path(file_uri_to_path(source_uri)?);
-    let source_path_text = source_path.to_string_lossy().to_string();
     let workspace_path = workspace_folder_uri
         .and_then(file_uri_to_path)
         .map(normalize_path);
-    let tsconfig_mappings =
-        tsconfig_path_mappings_for_workspace(workspace_path.as_deref()).unwrap_or_default();
-    let bundler_path_mappings =
-        load_omena_bridge_workspace_bundler_path_alias_mappings(workspace_path.as_deref());
-    let package_manifests = merged_package_manifests_for_specifier(
-        source_path.parent(),
+    let inputs = OmenaBridgeStyleResolutionInputsV0 {
+        package_manifests: merged_package_manifests_for_specifier(
+            source_path.parent(),
+            specifier,
+            configured_package_manifests,
+        ),
+        tsconfig_path_mappings: tsconfig_path_mappings_for_workspace(workspace_path.as_deref())
+            .unwrap_or_default(),
+        bundler_path_mappings: load_omena_bridge_workspace_bundler_path_alias_mappings(
+            workspace_path.as_deref(),
+        ),
+    };
+    resolve_omena_bridge_style_uri_for_specifier_with_resolution_inputs(
+        source_uri,
+        workspace_folder_uri,
         specifier,
-        configured_package_manifests,
-    );
+        &inputs,
+    )
+}
+
+pub fn resolve_omena_bridge_style_uri_for_specifier_with_resolution_inputs(
+    source_uri: &str,
+    _workspace_folder_uri: Option<&str>,
+    specifier: &str,
+    resolution_inputs: &OmenaBridgeStyleResolutionInputsV0,
+) -> Option<String> {
+    let source_path = normalize_path(file_uri_to_path(source_uri)?);
+    let source_path_text = source_path.to_string_lossy().to_string();
     let requires_existing_candidate = package_name_from_specifier(specifier).is_some()
-        && !tsconfig_mappings
+        && !resolution_inputs
+            .tsconfig_path_mappings
             .iter()
             .any(|mapping| tsconfig_path_pattern_matches(mapping.pattern.as_str(), specifier))
-        && !bundler_path_mappings
+        && !resolution_inputs
+            .bundler_path_mappings
             .iter()
             .any(|mapping| bundler_path_alias_pattern_matches(mapping.pattern.as_str(), specifier));
     let candidates = collect_omena_resolver_style_module_source_candidates_with_path_mappings(
         source_path_text.as_str(),
         specifier,
-        package_manifests.as_slice(),
-        bundler_path_mappings.as_slice(),
-        tsconfig_mappings.as_slice(),
+        resolution_inputs.package_manifests.as_slice(),
+        resolution_inputs.bundler_path_mappings.as_slice(),
+        resolution_inputs.tsconfig_path_mappings.as_slice(),
     );
 
     style_uri_for_resolver_candidates(candidates.as_slice(), requires_existing_candidate)
+}
+
+pub fn load_omena_bridge_workspace_style_resolution_inputs(
+    workspace_folder_uri: Option<&str>,
+    configured_package_manifests: &[OmenaResolverStylePackageManifestV0],
+) -> OmenaBridgeStyleResolutionInputsV0 {
+    let workspace_path = workspace_folder_uri
+        .and_then(file_uri_to_path)
+        .map(normalize_path);
+    load_omena_bridge_workspace_style_resolution_inputs_from_path(
+        workspace_path.as_deref(),
+        configured_package_manifests,
+    )
+}
+
+fn load_omena_bridge_workspace_style_resolution_inputs_from_path(
+    workspace_path: Option<&Path>,
+    configured_package_manifests: &[OmenaResolverStylePackageManifestV0],
+) -> OmenaBridgeStyleResolutionInputsV0 {
+    OmenaBridgeStyleResolutionInputsV0 {
+        package_manifests: merge_package_manifest_lists(
+            configured_package_manifests,
+            workspace_package_manifests(workspace_path).as_slice(),
+        ),
+        tsconfig_path_mappings: tsconfig_path_mappings_for_workspace(workspace_path)
+            .unwrap_or_default(),
+        bundler_path_mappings: load_omena_bridge_workspace_bundler_path_alias_mappings(
+            workspace_path,
+        ),
+    }
+}
+
+fn merge_package_manifest_lists(
+    primary: &[OmenaResolverStylePackageManifestV0],
+    secondary: &[OmenaResolverStylePackageManifestV0],
+) -> Vec<OmenaResolverStylePackageManifestV0> {
+    let mut manifests = primary.to_vec();
+    let mut seen = manifests
+        .iter()
+        .map(|manifest| manifest.package_json_path.clone())
+        .collect::<BTreeSet<_>>();
+    for manifest in secondary {
+        if seen.insert(manifest.package_json_path.clone()) {
+            manifests.push(manifest.clone());
+        }
+    }
+    manifests
 }
 
 fn merged_package_manifests_for_specifier(
@@ -108,17 +186,12 @@ fn merged_package_manifests_for_specifier(
     specifier: &str,
     configured_package_manifests: &[OmenaResolverStylePackageManifestV0],
 ) -> Vec<OmenaResolverStylePackageManifestV0> {
-    let mut manifests = configured_package_manifests.to_vec();
-    let mut seen = manifests
-        .iter()
-        .map(|manifest| manifest.package_json_path.clone())
-        .collect::<BTreeSet<_>>();
-    for manifest in package_manifests_for_specifier(source_dir, specifier).unwrap_or_default() {
-        if seen.insert(manifest.package_json_path.clone()) {
-            manifests.push(manifest);
-        }
-    }
-    manifests
+    merge_package_manifest_lists(
+        configured_package_manifests,
+        package_manifests_for_specifier(source_dir, specifier)
+            .unwrap_or_default()
+            .as_slice(),
+    )
 }
 
 fn tsconfig_path_mappings_for_workspace(
@@ -245,6 +318,68 @@ fn package_manifests_for_specifier(
         current_dir = dir.parent();
     }
     Some(manifests)
+}
+
+fn workspace_package_manifests(
+    workspace_path: Option<&Path>,
+) -> Vec<OmenaResolverStylePackageManifestV0> {
+    let Some(workspace_path) = workspace_path else {
+        return Vec::new();
+    };
+    let node_modules = workspace_path.join("node_modules");
+    let Ok(entries) = fs::read_dir(node_modules.as_path()) else {
+        return Vec::new();
+    };
+    let mut manifests = Vec::new();
+    for entry in entries.flatten() {
+        if manifests.len() >= WORKSPACE_PACKAGE_MANIFEST_SCAN_LIMIT {
+            break;
+        }
+        let path = entry.path();
+        let Some(file_name) = path.file_name().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        if file_name.starts_with('@') {
+            push_scoped_workspace_package_manifests(path.as_path(), &mut manifests);
+        } else {
+            push_workspace_package_manifest(path.join("package.json"), &mut manifests);
+        }
+    }
+    manifests.sort_by(|left, right| left.package_json_path.cmp(&right.package_json_path));
+    manifests
+}
+
+fn push_scoped_workspace_package_manifests(
+    scope_path: &Path,
+    manifests: &mut Vec<OmenaResolverStylePackageManifestV0>,
+) {
+    let Ok(entries) = fs::read_dir(scope_path) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if manifests.len() >= WORKSPACE_PACKAGE_MANIFEST_SCAN_LIMIT {
+            return;
+        }
+        push_workspace_package_manifest(entry.path().join("package.json"), manifests);
+    }
+}
+
+fn push_workspace_package_manifest(
+    package_json_path: PathBuf,
+    manifests: &mut Vec<OmenaResolverStylePackageManifestV0>,
+) {
+    if manifests.len() >= WORKSPACE_PACKAGE_MANIFEST_SCAN_LIMIT {
+        return;
+    }
+    let Ok(package_json_source) = fs::read_to_string(package_json_path.as_path()) else {
+        return;
+    };
+    manifests.push(OmenaResolverStylePackageManifestV0 {
+        package_json_path: normalize_path(package_json_path)
+            .to_string_lossy()
+            .to_string(),
+        package_json_source,
+    });
 }
 
 fn package_name_from_specifier(specifier: &str) -> Option<&str> {

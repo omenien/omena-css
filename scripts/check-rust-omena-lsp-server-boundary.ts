@@ -271,10 +271,16 @@ assert.equal(rustSummary.queryReuse.owner, "omena-lsp-server/documentQueryReuse"
 assert.equal(rustSummary.queryReuse.reuseModel, "documentRevisionOwnedReusableIndexes");
 assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("sourceSyntaxIndex"));
 assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("styleHoverCandidates"));
+assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("workspaceStyleResolutionInputs"));
 assert.ok(rustSummary.queryReuse.invalidationPolicy.includes("refreshOnDocumentContentChange"));
 assert.ok(rustSummary.queryReuse.invalidationPolicy.includes("refreshOnResolutionConfigChange"));
 assert.ok(
   rustSummary.queryReuse.requestPathPolicy.includes("providerRequestsConsumeDocumentIndexes"),
+);
+assert.ok(
+  rustSummary.queryReuse.requestPathPolicy.includes(
+    "noPackageManifestOrConfigReadOnProviderRequest",
+  ),
 );
 assert.ok(
   !rustSummary.nextDecouplingTargets.includes("thinVsCodeClientHost"),

@@ -2,7 +2,7 @@ use crate::workspace_runtime_registry::WorkspaceRuntimeRegistry;
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
     OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStylePackageManifestV0,
-    ParserPositionV0, ParserRangeV0,
+    OmenaQueryStyleResolutionInputsV0, ParserPositionV0, ParserRangeV0,
 };
 use omena_tsgo_client::TsgoWorkspaceProcessPoolV0;
 use serde::Serialize;
@@ -91,6 +91,7 @@ pub struct LspShellStateSnapshot {
     pub workspace_folder_count: usize,
     pub configuration_change_count: usize,
     pub watched_file_event_count: usize,
+    pub cached_workspace_resolution_input_count: usize,
     pub documents: Vec<LspTextDocumentState>,
     pub workspace_folders: Vec<LspWorkspaceFolderState>,
     pub watched_file_changes: Vec<LspWatchedFileChangeState>,
@@ -136,6 +137,8 @@ pub struct LspResolutionSettings {
     pub package_manifest_paths: Vec<String>,
     #[serde(skip)]
     pub package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+    #[serde(skip)]
+    pub workspace_style_resolution_inputs: BTreeMap<String, OmenaQueryStyleResolutionInputsV0>,
 }
 
 #[derive(Debug, Default)]
@@ -263,6 +266,10 @@ impl LspShellState {
             workspace_folder_count: self.workspace_folder_count(),
             configuration_change_count: self.configuration_change_count,
             watched_file_event_count: self.watched_file_changes.len(),
+            cached_workspace_resolution_input_count: self
+                .resolution
+                .workspace_style_resolution_inputs
+                .len(),
             documents: self.documents.values().cloned().collect(),
             workspace_folders: self.workspace_runtime_registry.folder_snapshots(),
             watched_file_changes: self.watched_file_changes.clone(),

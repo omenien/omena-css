@@ -72,7 +72,12 @@ fn index_workspace_style_files_from_dir(
             .workspace_runtime_registry
             .resolve_owner_uri(uri.as_str())
             .unwrap_or_else(|| workspace_folder_uri.to_string());
-        let package_manifests = state.resolution.package_manifests.clone();
+        let resolution_inputs = state
+            .resolution
+            .workspace_style_resolution_inputs
+            .get(workspace_owner_uri.as_str())
+            .cloned()
+            .unwrap_or_default();
         state.insert_document(
             uri.as_str(),
             lsp_text_document_state(
@@ -84,7 +89,7 @@ fn index_workspace_style_files_from_dir(
                     .to_string(),
                 0,
                 text,
-                package_manifests.as_slice(),
+                &resolution_inputs,
             ),
         );
         budget.consume_style_file();

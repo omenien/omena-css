@@ -25,6 +25,7 @@ use omena_query::{
     is_omena_query_sass_symbol_candidate_kind as is_sass_symbol_candidate_kind,
     is_omena_query_sass_symbol_declaration_kind as is_sass_symbol_declaration_kind,
     is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,
+    load_omena_query_workspace_style_resolution_inputs,
     omena_query_sass_symbol_kind_from_candidate_kind as sass_symbol_kind_from_candidate_kind,
     omena_query_sass_symbol_target_matches, read_omena_query_cascade_at_position,
     read_omena_query_style_context_index, resolve_omena_query_sass_forward_sources,
@@ -33,7 +34,7 @@ use omena_query::{
     resolve_omena_query_source_candidate_selector_names,
     resolve_omena_query_source_provider_candidates,
     resolve_omena_query_style_selector_definitions_for_source_candidate,
-    resolve_omena_query_style_uri_for_specifier_with_package_manifests,
+    resolve_omena_query_style_uri_for_specifier_with_resolution_inputs,
     summarize_omena_query_refs_for_class, summarize_omena_query_rename_plan,
     summarize_omena_query_sass_module_sources, summarize_omena_query_source_completion_at_position,
     summarize_omena_query_source_diagnostics_for_file,
@@ -94,6 +95,7 @@ fn initialize_workspace_folders(state: &mut LspShellState, params: Option<&Value
         for folder in folders {
             insert_workspace_folder(state, folder);
         }
+        refresh_workspace_resolution_inputs(state);
         return;
     }
 
@@ -105,6 +107,63 @@ fn initialize_workspace_folders(state: &mut LspShellState, params: Option<&Value
             .workspace_runtime_registry
             .insert(root_uri.to_string(), root_uri.to_string());
     }
+    refresh_workspace_resolution_inputs(state);
+}
+
+fn refresh_workspace_resolution_inputs(state: &mut LspShellState) {
+    let configured_package_manifests = state.resolution.package_manifests.clone();
+    let workspace_uris = state
+        .workspace_runtime_registry
+        .folder_snapshots()
+        .into_iter()
+        .map(|folder| folder.uri)
+        .collect::<BTreeSet<_>>();
+    state
+        .resolution
+        .workspace_style_resolution_inputs
+        .retain(|workspace_uri, _| workspace_uris.contains(workspace_uri));
+    for workspace_uri in workspace_uris {
+        let inputs = load_omena_query_workspace_style_resolution_inputs(
+            Some(workspace_uri.as_str()),
+            configured_package_manifests.as_slice(),
+        );
+        state
+            .resolution
+            .workspace_style_resolution_inputs
+            .insert(workspace_uri, inputs);
+    }
+}
+
+fn refresh_workspace_resolution_inputs_for_uri(state: &mut LspShellState, uri: &str) {
+    let Some(workspace_uri) = resolve_workspace_folder_uri(state, uri) else {
+        return;
+    };
+    let inputs = load_omena_query_workspace_style_resolution_inputs(
+        Some(workspace_uri.as_str()),
+        state.resolution.package_manifests.as_slice(),
+    );
+    state
+        .resolution
+        .workspace_style_resolution_inputs
+        .insert(workspace_uri, inputs);
+}
+
+fn resolution_inputs_for_workspace_uri(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+) -> omena_query::OmenaQueryStyleResolutionInputsV0 {
+    workspace_folder_uri
+        .and_then(|workspace_uri| {
+            state
+                .resolution
+                .workspace_style_resolution_inputs
+                .get(workspace_uri)
+        })
+        .cloned()
+        .unwrap_or_else(|| omena_query::OmenaQueryStyleResolutionInputsV0 {
+            package_manifests: state.resolution.package_manifests.clone(),
+            ..Default::default()
+        })
 }
 
 fn lsp_text_document_state(
@@ -113,7 +172,7 @@ fn lsp_text_document_state(
     language_id: String,
     version: i64,
     text: String,
-    package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &omena_query::OmenaQueryStyleResolutionInputsV0,
 ) -> LspTextDocumentState {
     let mut document = LspTextDocumentState {
         uri,
@@ -126,7 +185,7 @@ fn lsp_text_document_state(
         source_syntax_index: SourceSyntaxIndex::default(),
         source_selector_candidates: Vec::new(),
     };
-    refresh_document_reusable_indexes(&mut document, package_manifests);
+    refresh_document_reusable_indexes(&mut document, resolution_inputs);
     document
 }
 
@@ -139,12 +198,14 @@ fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
     };
 
     state.insert_open_document_uri(uri);
-    let package_manifests = state.resolution.package_manifests.clone();
+    let workspace_folder_uri = resolve_workspace_folder_uri(state, uri);
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, workspace_folder_uri.as_deref());
     state.insert_document(
         uri,
         lsp_text_document_state(
             uri.to_string(),
-            resolve_workspace_folder_uri(state, uri),
+            workspace_folder_uri,
             document
                 .get("languageId")
                 .and_then(Value::as_str)
@@ -156,7 +217,7 @@ fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
                 .and_then(Value::as_str)
                 .unwrap_or_default()
                 .to_string(),
-            package_manifests.as_slice(),
+            &resolution_inputs,
         ),
     );
     if is_style_document_uri(uri) {
@@ -173,7 +234,12 @@ fn did_change_text_document(state: &mut LspShellState, params: Option<&Value>) {
     let Some(uri) = text_document.get("uri").and_then(Value::as_str) else {
         return;
     };
-    let package_manifests = state.resolution.package_manifests.clone();
+    let resolution_inputs = state
+        .document(uri)
+        .map(|document| {
+            resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref())
+        })
+        .unwrap_or_else(|| resolution_inputs_for_workspace_uri(state, None));
     let Some(existing) = state.document_mut(uri) else {
         return;
     };
@@ -195,7 +261,7 @@ fn did_change_text_document(state: &mut LspShellState, params: Option<&Value>) {
         }
     }
     if text_changed {
-        refresh_document_reusable_indexes(existing, package_manifests.as_slice());
+        refresh_document_reusable_indexes(existing, &resolution_inputs);
     }
     if text_changed {
         if is_style_document_uri(uri) {
@@ -275,6 +341,7 @@ fn did_change_workspace_folders(state: &mut LspShellState, params: Option<&Value
         }
     }
     reconcile_documents_after_workspace_folder_changes(state, removed_workspace_uris.as_slice());
+    refresh_workspace_resolution_inputs(state);
     if added_workspace_folder {
         index_workspace_style_files(state);
     }
@@ -366,6 +433,7 @@ fn refresh_source_indexes_for_resolution_config_change(
     state: &mut LspShellState,
     config_uri: &str,
 ) {
+    refresh_workspace_resolution_inputs_for_uri(state, config_uri);
     let workspace_folder_uri = resolve_workspace_folder_uri(state, config_uri);
     let source_uris = state
         .documents
@@ -378,26 +446,39 @@ fn refresh_source_indexes_for_resolution_config_change(
         })
         .map(|document| document.uri.clone())
         .collect::<Vec<_>>();
-    let package_manifests = state.resolution.package_manifests.clone();
     for source_uri in source_uris {
+        let resolution_inputs = state
+            .document(source_uri.as_str())
+            .map(|document| {
+                resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref())
+            })
+            .unwrap_or_else(|| {
+                resolution_inputs_for_workspace_uri(state, workspace_folder_uri.as_deref())
+            });
         if let Some(document) = state.document_mut(source_uri.as_str()) {
-            refresh_document_reusable_indexes(document, package_manifests.as_slice());
+            refresh_document_reusable_indexes(document, &resolution_inputs);
         }
         refresh_source_type_fact_candidates_for_document(state, source_uri.as_str());
     }
 }
 
 pub(crate) fn refresh_source_indexes_for_resolution_settings_change(state: &mut LspShellState) {
+    refresh_workspace_resolution_inputs(state);
     let source_uris = state
         .documents
         .values()
         .filter(|document| !is_style_document_uri(document.uri.as_str()))
         .map(|document| document.uri.clone())
         .collect::<Vec<_>>();
-    let package_manifests = state.resolution.package_manifests.clone();
     for source_uri in source_uris {
+        let resolution_inputs = state
+            .document(source_uri.as_str())
+            .map(|document| {
+                resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref())
+            })
+            .unwrap_or_else(|| resolution_inputs_for_workspace_uri(state, None));
         if let Some(document) = state.document_mut(source_uri.as_str()) {
-            refresh_document_reusable_indexes(document, package_manifests.as_slice());
+            refresh_document_reusable_indexes(document, &resolution_inputs);
         }
         refresh_source_type_fact_candidates_for_document(state, source_uri.as_str());
     }
@@ -444,19 +525,21 @@ fn reload_indexed_style_document_from_disk(state: &mut LspShellState, uri: &str)
     let Ok(text) = fs::read_to_string(path) else {
         return false;
     };
-    let package_manifests = state.resolution.package_manifests.clone();
+    let workspace_folder_uri = resolve_workspace_folder_uri(state, uri);
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, workspace_folder_uri.as_deref());
     state.insert_document(
         uri,
         lsp_text_document_state(
             uri.to_string(),
-            resolve_workspace_folder_uri(state, uri),
+            workspace_folder_uri,
             StyleLanguage::from_module_path(uri)
                 .map(style_language_label)
                 .unwrap_or("unknown")
                 .to_string(),
             0,
             text,
-            package_manifests.as_slice(),
+            &resolution_inputs,
         ),
     );
     true
@@ -1561,11 +1644,13 @@ fn resolve_lsp_style_uri_for_specifier(
     document: &LspTextDocumentState,
     specifier: &str,
 ) -> Option<String> {
-    resolve_omena_query_style_uri_for_specifier_with_package_manifests(
+    let resolution_inputs =
+        resolution_inputs_for_workspace_uri(state, document.workspace_folder_uri.as_deref());
+    resolve_omena_query_style_uri_for_specifier_with_resolution_inputs(
         document.uri.as_str(),
         document.workspace_folder_uri.as_deref(),
         specifier,
-        state.resolution.package_manifests.as_slice(),
+        &resolution_inputs,
     )
 }
 
@@ -2293,13 +2378,13 @@ fn source_selector_candidates_from_index(
 
 fn build_source_syntax_index(
     document: &LspTextDocumentState,
-    package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &omena_query::OmenaQueryStyleResolutionInputsV0,
 ) -> SourceSyntaxIndex {
     if is_style_document_uri(document.uri.as_str()) {
         return SourceSyntaxIndex::default();
     }
 
-    let imports = collect_source_imports(document, package_manifests);
+    let imports = collect_source_imports(document, resolution_inputs);
     summarize_omena_query_source_syntax_index(
         document.text.as_str(),
         imports.imported_style_bindings,
@@ -2315,7 +2400,7 @@ struct SourceImportIndex {
 
 fn collect_source_imports(
     document: &LspTextDocumentState,
-    package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
+    resolution_inputs: &omena_query::OmenaQueryStyleResolutionInputsV0,
 ) -> SourceImportIndex {
     let source = document.text.as_str();
     let mut imports = SourceImportIndex {
@@ -2328,11 +2413,11 @@ fn collect_source_imports(
             imports.classnames_bind_bindings.push(import.binding);
         } else if StyleLanguage::from_module_path(import.specifier.as_str()).is_some()
             && let Some(style_uri) =
-                resolve_omena_query_style_uri_for_specifier_with_package_manifests(
+                resolve_omena_query_style_uri_for_specifier_with_resolution_inputs(
                     document.uri.as_str(),
                     document.workspace_folder_uri.as_deref(),
                     import.specifier.as_str(),
-                    package_manifests,
+                    resolution_inputs,
                 )
         {
             imports.imported_style_bindings.push(ImportedStyleBinding {
