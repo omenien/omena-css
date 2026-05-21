@@ -157,6 +157,10 @@ pub(super) fn summarize_omena_query_cross_file_summary(
         ));
     }
 
+    let design_token_declarations = collect_design_token_declarations_by_name(style_fact_entries);
+    let design_token_reachability =
+        collect_design_token_reachable_style_paths_by_origin(sass_module_resolution);
+
     for entry in style_fact_entries {
         let local_declarations = entry
             .facts
@@ -165,16 +169,16 @@ pub(super) fn summarize_omena_query_cross_file_summary(
             .map(String::as_str)
             .collect::<BTreeSet<_>>();
         for name in &entry.facts.custom_property_ref_names {
-            let target_style_path = if local_declarations.contains(name.as_str()) {
-                Some(entry.style_path.clone())
-            } else {
-                None
-            };
-            let status = if target_style_path.is_some() {
-                "localResolved"
-            } else {
-                "unresolvedReference"
-            };
+            let target = resolve_design_token_reference_target(
+                entry.style_path.as_str(),
+                name.as_str(),
+                &local_declarations,
+                &design_token_declarations,
+                &design_token_reachability,
+            );
+            let provenance = target.provenance();
+            let target_style_path = target.target_style_path;
+            let status = target.status;
             edges.push(build_omena_query_cross_file_summary_edge(
                 OmenaQueryCrossFileSummaryEdgeInput {
                     edge_kind: "styleDesignTokenReference",
@@ -188,10 +192,7 @@ pub(super) fn summarize_omena_query_cross_file_summary(
                     remote_name: None,
                     target_names: vec![name.clone()],
                     status,
-                    provenance: vec![
-                        "omena-query.style-semantic-graph-batch",
-                        "omena-parser.custom-property-facts",
-                    ],
+                    provenance,
                 },
             ));
         }
@@ -223,6 +224,137 @@ pub(super) fn summarize_omena_query_cross_file_summary(
             "sourceSelectorReferenceSummaryEdges",
             "summaryEdgeEquivalenceGate",
         ],
+    }
+}
+
+#[derive(Debug, Clone)]
+struct DesignTokenReferenceTarget {
+    target_style_path: Option<String>,
+    status: &'static str,
+    resolution_provenance: Option<&'static str>,
+}
+
+impl DesignTokenReferenceTarget {
+    fn provenance(&self) -> Vec<&'static str> {
+        let mut provenance = vec![
+            "omena-query.style-semantic-graph-batch",
+            "omena-parser.custom-property-facts",
+        ];
+        if let Some(resolution_provenance) = self.resolution_provenance {
+            provenance.push(resolution_provenance);
+        }
+        provenance
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct DesignTokenReachableStylePath {
+    distance: usize,
+    target_style_path: String,
+}
+
+fn collect_design_token_declarations_by_name(
+    style_fact_entries: &[OmenaQueryStyleFactEntry],
+) -> BTreeMap<String, BTreeSet<String>> {
+    let mut declarations_by_name = BTreeMap::<String, BTreeSet<String>>::new();
+    for entry in style_fact_entries {
+        for name in &entry.facts.custom_property_decl_names {
+            declarations_by_name
+                .entry(name.clone())
+                .or_default()
+                .insert(entry.style_path.clone());
+        }
+    }
+    declarations_by_name
+}
+
+fn collect_design_token_reachable_style_paths_by_origin(
+    sass_module_resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
+) -> BTreeMap<String, Vec<DesignTokenReachableStylePath>> {
+    let mut reachable_by_origin =
+        BTreeMap::<String, BTreeSet<DesignTokenReachableStylePath>>::new();
+
+    for edge in &sass_module_resolution.edges {
+        if edge.status != "resolved" {
+            continue;
+        }
+        let Some(target_style_path) = edge.resolved_style_path.as_ref() else {
+            continue;
+        };
+        reachable_by_origin
+            .entry(edge.from_style_path.clone())
+            .or_default()
+            .insert(DesignTokenReachableStylePath {
+                distance: 1,
+                target_style_path: target_style_path.clone(),
+            });
+    }
+
+    for edge in &sass_module_resolution.graph_closure_edges {
+        reachable_by_origin
+            .entry(edge.from_style_path.clone())
+            .or_default()
+            .insert(DesignTokenReachableStylePath {
+                distance: edge.depth,
+                target_style_path: edge.target_style_path.clone(),
+            });
+    }
+
+    reachable_by_origin
+        .into_iter()
+        .map(|(origin, reachable)| (origin, reachable.into_iter().collect()))
+        .collect()
+}
+
+fn resolve_design_token_reference_target(
+    from_style_path: &str,
+    name: &str,
+    local_declarations: &BTreeSet<&str>,
+    declarations_by_name: &BTreeMap<String, BTreeSet<String>>,
+    reachable_by_origin: &BTreeMap<String, Vec<DesignTokenReachableStylePath>>,
+) -> DesignTokenReferenceTarget {
+    if local_declarations.contains(name) {
+        return DesignTokenReferenceTarget {
+            target_style_path: Some(from_style_path.to_string()),
+            status: "localResolved",
+            resolution_provenance: None,
+        };
+    }
+
+    let Some(declaration_paths) = declarations_by_name.get(name) else {
+        return DesignTokenReferenceTarget {
+            target_style_path: None,
+            status: "unresolvedReference",
+            resolution_provenance: None,
+        };
+    };
+
+    let Some(reachable_paths) = reachable_by_origin.get(from_style_path) else {
+        return DesignTokenReferenceTarget {
+            target_style_path: None,
+            status: "unresolvedReference",
+            resolution_provenance: None,
+        };
+    };
+
+    let target_style_path = reachable_paths
+        .iter()
+        .filter(|reachable| declaration_paths.contains(reachable.target_style_path.as_str()))
+        .min_by_key(|reachable| (reachable.distance, reachable.target_style_path.as_str()))
+        .map(|reachable| reachable.target_style_path.clone());
+
+    if let Some(target_style_path) = target_style_path {
+        DesignTokenReferenceTarget {
+            target_style_path: Some(target_style_path),
+            status: "importResolved",
+            resolution_provenance: Some("omena-query.sass-module-cross-file-resolution"),
+        }
+    } else {
+        DesignTokenReferenceTarget {
+            target_style_path: None,
+            status: "unresolvedReference",
+            resolution_provenance: None,
+        }
     }
 }
 
