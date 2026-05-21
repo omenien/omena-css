@@ -433,6 +433,56 @@ describe("resolveStyleCompletionItems", () => {
     expect(result[0]?.sourceFilePath).toBe(PACKAGE_VARIABLES_CSS_PATH);
   });
 
+  it("ignores non-Sass package export conditions before package-root completions", () => {
+    const scss = `@use "@design/tokens";
+
+.button {
+  color: var(--)
+}
+`;
+    const packageJson = `{"exports":{".":{"import":"./dist/index.mjs","require":"./dist/index.cjs","sass":"./src/index.scss"}}}`;
+    const tokensScss = `:root { --color-gray-700: #767678; }`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const tokensDocument = parseStyleDocument(tokensScss, PACKAGE_TOKENS_INDEX_PATH);
+
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 3,
+      character: 15,
+      styleDocument,
+      styleDocumentForPath: styleDocumentMap([styleDocument, tokensDocument]),
+      readFile: (filePath) => (filePath === PACKAGE_TOKENS_JSON_PATH ? packageJson : null),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--color-gray-700"]);
+    expect(result[0]?.sourceFilePath).toBe(PACKAGE_TOKENS_INDEX_PATH);
+  });
+
+  it("skips non-style default package export conditions before package-root completions", () => {
+    const scss = `@use "@design/tokens";
+
+.button {
+  color: var(--)
+}
+`;
+    const packageJson = `{"exports":{".":{"default":"./dist/index.js","sass":"./src/index.scss"}}}`;
+    const tokensScss = `:root { --color-gray-700: #767678; }`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const tokensDocument = parseStyleDocument(tokensScss, PACKAGE_TOKENS_INDEX_PATH);
+
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 3,
+      character: 15,
+      styleDocument,
+      styleDocumentForPath: styleDocumentMap([styleDocument, tokensDocument]),
+      readFile: (filePath) => (filePath === PACKAGE_TOKENS_JSON_PATH ? packageJson : null),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--color-gray-700"]);
+    expect(result[0]?.sourceFilePath).toBe(PACKAGE_TOKENS_INDEX_PATH);
+  });
+
   it("prefers package exports over legacy top-level package style fields", () => {
     const scss = `@use "@design/tokens";
 

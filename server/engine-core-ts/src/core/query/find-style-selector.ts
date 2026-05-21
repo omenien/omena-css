@@ -1358,10 +1358,19 @@ function substitutePackageExportPattern(entry: string, patternMatch: string): st
 }
 
 function readSassPackageExportEntry(exportsValue: unknown): string | null {
-  if (typeof exportsValue === "string") return exportsValue;
+  return readSassPackageExportEntryWithPolicy(exportsValue, true);
+}
+
+function readSassPackageExportEntryWithPolicy(
+  exportsValue: unknown,
+  requireStyleEntry: boolean,
+): string | null {
+  if (typeof exportsValue === "string") {
+    return !requireStyleEntry || isSassPackageStyleExportEntry(exportsValue) ? exportsValue : null;
+  }
   if (Array.isArray(exportsValue)) {
     for (const value of exportsValue) {
-      const entry = readSassPackageExportEntry(value);
+      const entry = readSassPackageExportEntryWithPolicy(value, requireStyleEntry);
       if (entry) return entry;
     }
     return null;
@@ -1370,20 +1379,28 @@ function readSassPackageExportEntry(exportsValue: unknown): string | null {
 
   const rootExport = exportsValue["."];
   if (rootExport !== undefined) {
-    const rootEntry = readSassPackageExportEntry(rootExport);
+    const rootEntry = readSassPackageExportEntryWithPolicy(rootExport, requireStyleEntry);
     if (rootEntry) return rootEntry;
   }
 
   for (const [key, value] of Object.entries(exportsValue)) {
-    if (!isSassPackageExportCondition(key)) continue;
-    const entry = readSassPackageExportEntry(value);
+    const entry = isSassPackageExportCondition(key)
+      ? readSassPackageExportEntryWithPolicy(value, false)
+      : key === "default"
+        ? readSassPackageExportEntryWithPolicy(value, true)
+        : null;
     if (entry) return entry;
   }
   return null;
 }
 
 function isSassPackageExportCondition(key: string): boolean {
-  return ["sass", "scss", "style", "default", "import", "require"].includes(key);
+  return ["sass", "scss", "style"].includes(key);
+}
+
+function isSassPackageStyleExportEntry(entry: string): boolean {
+  const extension = path.extname(normalizePackageJsonEntry(entry));
+  return extension === "" || [".css", ".scss", ".sass", ".less"].includes(extension);
 }
 
 function readStringField(record: Record<string, unknown>, key: string): string | null {

@@ -689,8 +689,8 @@ describe("style semantic graph query backend", () => {
     const rootPackageJsonPath = "/fake/ws/package.json";
     const rootPackageJsonSource = `{"imports":{"#theme":"@design/tokens/theme"}}`;
     const packageJsonPath = "/fake/ws/node_modules/@design/tokens/package.json";
-    const packageJsonSource = `{"exports":{"./theme":{"style":"./dist/theme.css","sass":"./dist/theme.scss"}}}`;
-    const packageStylePath = "/fake/ws/node_modules/@design/tokens/dist/theme.css";
+    const packageJsonSource = `{"exports":{"./theme":{"import":"./dist/theme.mjs","default":"./dist/theme.js","sass":"./dist/theme.scss"}}}`;
+    const packageStylePath = "/fake/ws/node_modules/@design/tokens/dist/theme.scss";
     const deps = makeBaseDeps({
       selectorMapForPath: (filePath) =>
         filePath === SCSS_PATH

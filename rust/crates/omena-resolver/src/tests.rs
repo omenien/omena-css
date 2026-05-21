@@ -233,6 +233,80 @@ fn resolves_package_manifest_export_conditions_in_object_order() {
 }
 
 #[test]
+fn ignores_non_sass_package_manifest_export_conditions() {
+    let available_style_paths =
+        BTreeSet::from(["/fake/workspace/node_modules/@design/tokens/dist/theme.scss"]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "@design/tokens/theme",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source:
+                r#"{"exports":{"./theme":{"import":"./dist/theme.mjs","require":"./dist/theme.cjs","sass":"./dist/theme.scss"}}}"#
+                    .to_string(),
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "packageStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/node_modules/@design/tokens/dist/theme.scss")
+    );
+}
+
+#[test]
+fn skips_non_style_default_package_manifest_export_conditions() {
+    let available_style_paths =
+        BTreeSet::from(["/fake/workspace/node_modules/@design/tokens/dist/theme.scss"]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "@design/tokens/theme",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source:
+                r#"{"exports":{"./theme":{"default":"./dist/theme.js","sass":"./dist/theme.scss"}}}"#
+                    .to_string(),
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "packageStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/node_modules/@design/tokens/dist/theme.scss")
+    );
+}
+
+#[test]
+fn respects_style_default_package_manifest_export_condition_order() {
+    let available_style_paths = BTreeSet::from([
+        "/fake/workspace/node_modules/@design/tokens/dist/theme.css",
+        "/fake/workspace/node_modules/@design/tokens/dist/theme.scss",
+    ]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "@design/tokens/theme",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source:
+                r#"{"exports":{"./theme":{"default":"./dist/theme.css","sass":"./dist/theme.scss"}}}"#
+                    .to_string(),
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "packageStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/node_modules/@design/tokens/dist/theme.css")
+    );
+}
+
+#[test]
 fn resolves_package_manifest_exports_before_legacy_top_level_fields() {
     let available_style_paths = BTreeSet::from([
         "/fake/workspace/node_modules/@design/tokens/legacy.scss",

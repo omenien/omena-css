@@ -1712,27 +1712,44 @@ function matchPackageExportSubpathPattern(patternKey: string, subpath: string): 
 }
 
 function readPackageExportEntry(exportsValue: unknown): string | null {
-  if (typeof exportsValue === "string") return exportsValue;
+  return readPackageExportEntryWithPolicy(exportsValue, true);
+}
+
+function readPackageExportEntryWithPolicy(
+  exportsValue: unknown,
+  requireStyleEntry: boolean,
+): string | null {
+  if (typeof exportsValue === "string") {
+    return !requireStyleEntry || isPackageStyleExportEntry(exportsValue) ? exportsValue : null;
+  }
   if (Array.isArray(exportsValue)) {
     for (const value of exportsValue) {
-      const entry = readPackageExportEntry(value);
+      const entry = readPackageExportEntryWithPolicy(value, requireStyleEntry);
       if (entry) return entry;
     }
     return null;
   }
   if (!isObjectRecord(exportsValue)) return null;
-  const rootEntry = readPackageExportEntry(exportsValue["."]);
+  const rootEntry = readPackageExportEntryWithPolicy(exportsValue["."], requireStyleEntry);
   if (rootEntry) return rootEntry;
   for (const [key, value] of Object.entries(exportsValue)) {
-    if (!isPackageStyleExportCondition(key)) continue;
-    const entry = readPackageExportEntry(value);
+    const entry = isPackageStyleExportCondition(key)
+      ? readPackageExportEntryWithPolicy(value, false)
+      : key === "default"
+        ? readPackageExportEntryWithPolicy(value, true)
+        : null;
     if (entry) return entry;
   }
   return null;
 }
 
 function isPackageStyleExportCondition(key: string): boolean {
-  return ["sass", "scss", "style", "default", "import", "require"].includes(key);
+  return ["sass", "scss", "style"].includes(key);
+}
+
+function isPackageStyleExportEntry(entry: string): boolean {
+  const extension = path.extname(normalizePackageJsonEntry(entry));
+  return extension === "" || [".css", ".scss", ".sass", ".less"].includes(extension);
 }
 
 function normalizePackageJsonEntry(entry: string): string {

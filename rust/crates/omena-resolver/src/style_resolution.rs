@@ -638,27 +638,45 @@ fn substitute_package_export_pattern(entry: &str, pattern_match: &str) -> String
 }
 
 fn read_package_export_entry(exports_value: Option<&serde_json::Value>) -> Option<String> {
+    read_package_export_entry_with_policy(exports_value, true)
+}
+
+fn read_package_export_entry_with_policy(
+    exports_value: Option<&serde_json::Value>,
+    require_style_entry: bool,
+) -> Option<String> {
     let exports_value = exports_value?;
     if let Some(entry) = exports_value.as_str() {
-        return Some(entry.to_string());
+        if !require_style_entry || is_package_style_export_entry(entry) {
+            return Some(entry.to_string());
+        }
+        return None;
     }
     if let Some(entries) = exports_value.as_array() {
         for entry_value in entries {
-            if let Some(entry) = read_package_export_entry(Some(entry_value)) {
+            if let Some(entry) =
+                read_package_export_entry_with_policy(Some(entry_value), require_style_entry)
+            {
                 return Some(entry);
             }
         }
         return None;
     }
     let exports_object = exports_value.as_object()?;
-    if let Some(root_entry) = read_package_export_entry(exports_object.get(".")) {
+    if let Some(root_entry) =
+        read_package_export_entry_with_policy(exports_object.get("."), require_style_entry)
+    {
         return Some(root_entry);
     }
     for (key, export_value) in exports_object {
-        if !is_package_style_export_condition(key) {
-            continue;
-        }
-        if let Some(entry) = read_package_export_entry(Some(export_value)) {
+        let entry = if is_package_style_export_condition(key) {
+            read_package_export_entry_with_policy(Some(export_value), false)
+        } else if key == "default" {
+            read_package_export_entry_with_policy(Some(export_value), true)
+        } else {
+            None
+        };
+        if let Some(entry) = entry {
             return Some(entry);
         }
     }
@@ -666,10 +684,15 @@ fn read_package_export_entry(exports_value: Option<&serde_json::Value>) -> Optio
 }
 
 fn is_package_style_export_condition(key: &str) -> bool {
-    matches!(
-        key,
-        "sass" | "scss" | "style" | "default" | "import" | "require"
-    )
+    matches!(key, "sass" | "scss" | "style")
+}
+
+fn is_package_style_export_entry(entry: &str) -> bool {
+    let normalized = normalize_package_json_entry(entry);
+    let extension = Path::new(&normalized)
+        .extension()
+        .and_then(|extension| extension.to_str());
+    matches!(extension, None | Some("css" | "scss" | "sass" | "less"))
 }
 
 fn read_package_json_string_field(
