@@ -131,8 +131,13 @@ pub fn reduced_class_value_product_matches_string(
 pub fn iterate_reduced_class_value_product_constraints(
     values: &[AbstractClassValueV0],
 ) -> ReducedClassValueProductIterationV0 {
-    let mut current = reduce_class_value_product(&top_class_value())
-        .expect("top must always be representable as a reduced product");
+    let mut current = ReducedClassValueProductDomainV0 {
+        prefix: None,
+        suffix: None,
+        min_length: None,
+        must_chars: String::new(),
+        allowed_chars: None,
+    };
     let mut bottom = false;
     let mut applied_constraint_count = 0usize;
     let mut steps = Vec::new();

@@ -9,6 +9,10 @@ use std::collections::BTreeSet;
 
 use engine_style_parser::{parse_style_module, summarize_css_modules_intermediate};
 use omena_parser::{StyleDialect, summarize_omena_parser_style_facts};
+pub use omena_testkit::{
+    CmeFixtureExpectationV0, CmeFixtureFileV0, CmeFixtureV0, OmenaTestkitFixtureSeedV0,
+    parse_cme_fixture_v0, summarize_omena_testkit_fixture_seed_corpus,
+};
 use serde::Serialize;
 
 /// Style dialects that can be compared against the legacy parser oracle.
@@ -139,38 +143,6 @@ pub struct M3FixtureSeedV0 {
     pub expected_products: &'static [&'static str],
     /// Promotion target for M4.
     pub promotion_target: &'static str,
-}
-
-/// Parsed reusable fixture.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CmeFixtureV0 {
-    /// Fixture grammar version.
-    pub schema_version: &'static str,
-    /// Parsed files.
-    pub files: Vec<CmeFixtureFileV0>,
-    /// Parsed expectations.
-    pub expectations: Vec<CmeFixtureExpectationV0>,
-}
-
-/// One file section in a reusable fixture.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CmeFixtureFileV0 {
-    /// Workspace-relative file path.
-    pub path: String,
-    /// File text.
-    pub source: String,
-}
-
-/// One expectation section in a reusable fixture.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CmeFixtureExpectationV0 {
-    /// Expectation key.
-    pub key: String,
-    /// Expectation text.
-    pub value: String,
 }
 
 /// Parsed M3 fixture seed evidence.
@@ -459,7 +431,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
             "parserVsLegacyOracle",
             "legacyParserQuarantinedAsOracle",
             "h1DifferentialHarnessOwnedByRustCrate",
-            "m3FixtureSeedsReadyForOmenaTestkitPromotion",
+            "m3FixtureSeedsConsumeOmenaTestkitParser",
         ],
         reports,
         m3_fixture_seed_report,
@@ -468,10 +440,26 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
 
 /// Summarize the M3 reusable fixture seed corpus.
 pub fn summarize_m3_fixture_seed_corpus() -> M3FixtureSeedCorpusReportV0 {
+    let testkit_seeds = M3_THEORETICAL_MOAT_FIXTURE_SEEDS
+        .iter()
+        .copied()
+        .map(testkit_seed_from_m3_seed)
+        .collect::<Vec<_>>();
+    let testkit_report = summarize_omena_testkit_fixture_seed_corpus(testkit_seeds.as_slice());
     let reports = M3_THEORETICAL_MOAT_FIXTURE_SEEDS
         .iter()
         .copied()
-        .map(report_m3_fixture_seed)
+        .zip(testkit_report.reports)
+        .map(|(seed, report)| M3FixtureSeedReportV0 {
+            label: seed.label,
+            lane: seed.lane,
+            parses: report.parses,
+            parse_error: report.parse_error,
+            file_count: report.file_count,
+            expectation_count: report.expectation_count,
+            expected_products: report.expected_products,
+            promotion_target: report.promotion_target,
+        })
         .collect::<Vec<_>>();
     let lane_count = reports
         .iter()
@@ -491,113 +479,25 @@ pub fn summarize_m3_fixture_seed_corpus() -> M3FixtureSeedCorpusReportV0 {
     }
 }
 
-/// Parse a reusable `cme-fixture-v0` fixture.
-pub fn parse_cme_fixture_v0(raw: &str) -> Result<CmeFixtureV0, String> {
-    enum Section {
-        File { path: String, source: String },
-        Expect { key: String, value: String },
-    }
-
-    let mut sections = Vec::new();
-    let mut current = None::<Section>;
-
-    for line in raw.lines() {
-        if let Some(path) = line.strip_prefix("--- file: ") {
-            finish_fixture_section(&mut sections, current.take())?;
-            current = Some(Section::File {
-                path: path.trim().to_string(),
-                source: String::new(),
-            });
-            continue;
-        }
-        if let Some(key) = line.strip_prefix("--- expect: ") {
-            finish_fixture_section(&mut sections, current.take())?;
-            current = Some(Section::Expect {
-                key: key.trim().to_string(),
-                value: String::new(),
-            });
-            continue;
-        }
-
-        match current.as_mut() {
-            Some(Section::File { source, .. }) => {
-                push_fixture_line(source, line);
-            }
-            Some(Section::Expect { value, .. }) => {
-                push_fixture_line(value, line);
-            }
-            None if line.trim().is_empty() => {}
-            None => {
-                return Err("fixture content must start with a file or expect marker".to_string());
-            }
-        }
-    }
-
-    finish_fixture_section(&mut sections, current)?;
-
-    let mut files = Vec::new();
-    let mut expectations = Vec::new();
-    for section in sections {
-        match section {
-            Section::File { path, source } => files.push(CmeFixtureFileV0 { path, source }),
-            Section::Expect { key, value } => expectations.push(CmeFixtureExpectationV0 {
-                key,
-                value: value.trim().to_string(),
-            }),
-        }
-    }
-
-    if files.is_empty() {
-        return Err("fixture must contain at least one file section".to_string());
-    }
-    if expectations.is_empty() {
-        return Err("fixture must contain at least one expectation section".to_string());
-    }
-
-    Ok(CmeFixtureV0 {
-        schema_version: "0",
-        files,
-        expectations,
-    })
-}
-
-fn report_m3_fixture_seed(seed: M3FixtureSeedV0) -> M3FixtureSeedReportV0 {
-    match parse_cme_fixture_v0(seed.raw) {
-        Ok(fixture) => M3FixtureSeedReportV0 {
-            label: seed.label,
-            lane: seed.lane,
-            parses: true,
-            parse_error: None,
-            file_count: fixture.files.len(),
-            expectation_count: fixture.expectations.len(),
-            expected_products: seed.expected_products.to_vec(),
-            promotion_target: seed.promotion_target,
-        },
-        Err(error) => M3FixtureSeedReportV0 {
-            label: seed.label,
-            lane: seed.lane,
-            parses: false,
-            parse_error: Some(error),
-            file_count: 0,
-            expectation_count: 0,
-            expected_products: seed.expected_products.to_vec(),
-            promotion_target: seed.promotion_target,
-        },
+fn testkit_seed_from_m3_seed(seed: M3FixtureSeedV0) -> OmenaTestkitFixtureSeedV0 {
+    OmenaTestkitFixtureSeedV0 {
+        label: seed.label,
+        lane: seed.lane.as_label(),
+        raw: seed.raw,
+        expected_products: seed.expected_products,
+        promotion_target: seed.promotion_target,
     }
 }
 
-fn finish_fixture_section<T>(sections: &mut Vec<T>, current: Option<T>) -> Result<(), String> {
-    if let Some(section) = current {
-        sections.push(section);
+impl M3FixtureLaneV0 {
+    fn as_label(self) -> &'static str {
+        match self {
+            Self::SassLanguage => "sass-language",
+            Self::CascadeProof => "cascade-proof",
+            Self::Provenance => "provenance",
+            Self::AbstractValue => "abstract-value",
+        }
     }
-    Ok(())
-}
-
-fn push_fixture_line(buffer: &mut String, line: &str) {
-    if !buffer.is_empty() {
-        buffer.push('\n');
-    }
-    buffer.push_str(line);
 }
 
 fn field_report(
@@ -653,7 +553,7 @@ mod tests {
         assert!(
             summary
                 .closed_gates
-                .contains(&"m3FixtureSeedsReadyForOmenaTestkitPromotion")
+                .contains(&"m3FixtureSeedsConsumeOmenaTestkitParser")
         );
     }
 

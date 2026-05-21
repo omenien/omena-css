@@ -207,12 +207,9 @@ fn resolve_tsconfig_extends_path(config_path: &Path, config: &Value) -> Option<P
     }
     let config_dir = config_path.parent()?;
     let raw_path = config_dir.join(extends);
-    for candidate in tsconfig_extends_candidates(raw_path) {
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-    None
+    tsconfig_extends_candidates(raw_path)
+        .into_iter()
+        .find(|candidate| candidate.exists())
 }
 
 fn tsconfig_extends_candidates(path: PathBuf) -> Vec<PathBuf> {

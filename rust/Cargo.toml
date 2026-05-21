@@ -13,6 +13,7 @@ members = [
   "crates/omena-interner",
   "crates/omena-parser",
   "crates/omena-syntax",
+  "crates/omena-testkit",
   "crates/omena-incremental",
   "crates/omena-lsp-server",
   "crates/omena-napi",

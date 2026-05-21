@@ -20,6 +20,7 @@ const omenaCssCrates = [
   "engine-input-producers",
   "omena-interner",
   "omena-syntax",
+  "omena-testkit",
   "omena-parser",
   "omena-incremental",
   "omena-cascade",
@@ -43,6 +44,7 @@ const omenaCssPublishOrder = [
   "omena-checker",
   "engine-input-producers",
   "omena-syntax",
+  "omena-testkit",
   "omena-interner",
   "omena-parser",
   "omena-cascade",
@@ -252,7 +254,7 @@ publish = true
 
 [workspace.dependencies]
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_json = { version = "1.0", features = ["preserve_order"] }
 salsa = { version = "0.26.1", default-features = false, features = ["macros", "inventory"] }
 criterion = "0.8.2"
 cstree = "0.14.0"

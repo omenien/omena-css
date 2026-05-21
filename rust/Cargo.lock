@@ -912,6 +912,7 @@ version = "0.1.0"
 dependencies = [
  "engine-style-parser",
  "omena-parser",
+ "omena-testkit",
  "serde",
  "serde_json",
 ]
@@ -1018,6 +1019,14 @@ name = "omena-syntax"
 version = "0.1.0"
 dependencies = [
  "cstree",
+]
+
+[[package]]
+name = "omena-testkit"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

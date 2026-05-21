@@ -1,10 +1,10 @@
 [package]
-name = "omena-diff-test"
+name = "omena-testkit"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Differential corpus harness for the Omena CSS parser stack"
+description = "Shared Rust fixture and scenario substrate for the Omena CSS test stack"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
@@ -12,8 +12,5 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
-engine-style-parser = { path = "../engine-style-parser" }
-omena-parser = { path = "../omena-parser" }
-omena-testkit = { path = "../omena-testkit" }
 serde.workspace = true
 serde_json.workspace = true

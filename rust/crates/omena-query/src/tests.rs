@@ -4739,13 +4739,13 @@ fn style_hover_render_parts_are_query_owned() {
 }
 
 #[test]
-fn missing_custom_property_diagnostics_are_query_owned() {
+fn missing_custom_property_diagnostics_are_query_owned() -> Result<(), serde_json::Error> {
     let source = ":root { --brand: red; }\n.alert { color: var(--missing); }";
     let candidates =
         super::summarize_omena_query_style_hover_candidates("Component.module.scss", source);
     assert!(candidates.is_some());
     let Some(candidates) = candidates else {
-        return;
+        return Ok(());
     };
 
     let diagnostics = super::summarize_omena_query_missing_custom_property_diagnostics(
@@ -4826,7 +4826,7 @@ fn missing_custom_property_diagnostics_are_query_owned() {
     );
     assert_eq!(linear_provenance.term_count, 2);
 
-    let serialized = serde_json::to_value(&summary.diagnostics[0]).expect("diagnostic JSON");
+    let serialized = serde_json::to_value(&summary.diagnostics[0])?;
     assert_eq!(
         serialized
             .pointer("/provenance/0")
@@ -4842,6 +4842,7 @@ fn missing_custom_property_diagnostics_are_query_owned() {
             .ready_surfaces
             .contains(&"missingCustomPropertyDiagnostics")
     );
+    Ok(())
 }
 
 #[test]

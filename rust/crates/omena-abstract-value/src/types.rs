@@ -312,7 +312,7 @@ impl LinearProvenanceV0<Lin01ProvenanceSemiringV0> {
             .iter()
             .map(|label| LinearProvenanceTermV0 {
                 coefficient: 1,
-                label: *label,
+                label,
             })
             .collect::<Vec<_>>();
         Self {

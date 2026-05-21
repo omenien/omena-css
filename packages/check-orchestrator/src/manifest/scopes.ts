@@ -33,6 +33,7 @@ const RUST_FAMILIES = [
   "omena-query",
   "omena-resolver",
   "omena-syntax",
+  "omena-testkit",
   "omena-tsgo-client",
   "omena-transform-bundle",
   "omena-transform-cst",

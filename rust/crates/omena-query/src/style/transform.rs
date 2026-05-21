@@ -1123,16 +1123,22 @@ fn derive_static_scss_module_use_evaluations_for_transform_context(
             );
             let module_identity_key =
                 static_scss_module_instance_identity_key(resolved.as_str(), &variable_overrides);
-            let module_context = derive_static_scss_module_context_for_transform_context(
-                resolved.as_str(),
-                source,
-                &variable_overrides,
-                available_style_paths,
-                source_by_path,
-                package_manifests,
-                &mut BTreeSet::new(),
-                &mut emitted_module_identity_keys,
-            );
+            let module_context = {
+                let mut visited = BTreeSet::new();
+                let mut derive_context = StaticScssModuleDeriveContext {
+                    available_style_paths,
+                    source_by_path,
+                    package_manifests,
+                    visited: &mut visited,
+                    emitted_module_identity_keys: &mut emitted_module_identity_keys,
+                };
+                derive_static_scss_module_context_for_transform_context(
+                    resolved.as_str(),
+                    source,
+                    &variable_overrides,
+                    &mut derive_context,
+                )
+            };
             let evaluated_css = if emitted_module_identity_keys.insert(module_identity_key.clone())
             {
                 module_context.evaluated_css
@@ -1155,6 +1161,14 @@ fn derive_static_scss_module_use_evaluations_for_transform_context(
 struct StaticScssModuleContext {
     evaluated_css: String,
     variable_exports: BTreeMap<String, String>,
+}
+
+struct StaticScssModuleDeriveContext<'a> {
+    available_style_paths: &'a BTreeSet<&'a str>,
+    source_by_path: &'a BTreeMap<String, String>,
+    package_manifests: &'a [OmenaQueryStylePackageManifestV0],
+    visited: &'a mut BTreeSet<String>,
+    emitted_module_identity_keys: &'a mut BTreeSet<String>,
 }
 
 fn static_scss_module_instance_identity_key(
@@ -1185,15 +1199,11 @@ fn derive_static_scss_module_context_for_transform_context(
     style_path: &str,
     style_source: &str,
     variable_overrides: &BTreeMap<String, String>,
-    available_style_paths: &BTreeSet<&str>,
-    source_by_path: &BTreeMap<String, String>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-    visited: &mut BTreeSet<String>,
-    emitted_module_identity_keys: &mut BTreeSet<String>,
+    context: &mut StaticScssModuleDeriveContext<'_>,
 ) -> StaticScssModuleContext {
     let module_identity_key =
         static_scss_module_instance_identity_key(style_path, variable_overrides);
-    if !visited.insert(module_identity_key.clone()) {
+    if !context.visited.insert(module_identity_key.clone()) {
         return StaticScssModuleContext {
             evaluated_css: String::new(),
             variable_exports: BTreeMap::new(),
@@ -1207,11 +1217,7 @@ fn derive_static_scss_module_context_for_transform_context(
     let forward_evaluations = derive_static_scss_module_forward_evaluations_for_transform_context(
         style_path,
         style_source,
-        available_style_paths,
-        source_by_path,
-        package_manifests,
-        visited,
-        emitted_module_identity_keys,
+        context,
     );
     let mut variable_exports = derive_static_scss_stylesheet_module_variable_exports(style_source);
     for forward in &forward_evaluations {
@@ -1226,7 +1232,7 @@ fn derive_static_scss_module_context_for_transform_context(
         style_source,
         OmenaParserStyleDialect::Scss,
         &forward_evaluations,
-        emitted_module_identity_keys,
+        context.emitted_module_identity_keys,
     );
     let evaluated_css = derive_static_stylesheet_module_evaluation(
         evaluation_source.as_str(),
@@ -1241,7 +1247,7 @@ fn derive_static_scss_module_context_for_transform_context(
         }
     });
 
-    visited.remove(&module_identity_key);
+    context.visited.remove(&module_identity_key);
     StaticScssModuleContext {
         evaluated_css,
         variable_exports,
@@ -1259,11 +1265,7 @@ struct StaticScssModuleForwardEvaluation {
 fn derive_static_scss_module_forward_evaluations_for_transform_context(
     style_path: &str,
     style_source: &str,
-    available_style_paths: &BTreeSet<&str>,
-    source_by_path: &BTreeMap<String, String>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-    visited: &mut BTreeSet<String>,
-    emitted_module_identity_keys: &mut BTreeSet<String>,
+    context: &mut StaticScssModuleDeriveContext<'_>,
 ) -> Vec<StaticScssModuleForwardEvaluation> {
     let facts =
         summarize_omena_query_omena_parser_style_facts(style_source, OmenaParserStyleDialect::Scss);
@@ -1276,10 +1278,10 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
             let resolved = resolve_style_module_source(
                 style_path,
                 edge.source.as_str(),
-                available_style_paths,
-                package_manifests,
+                context.available_style_paths,
+                context.package_manifests,
             )?;
-            let source = source_by_path.get(resolved.as_str())?;
+            let source = context.source_by_path.get(resolved.as_str())?;
             let variable_overrides = derive_static_scss_module_rule_variable_overrides(
                 style_source,
                 "@forward",
@@ -1293,11 +1295,7 @@ fn derive_static_scss_module_forward_evaluations_for_transform_context(
                 resolved.as_str(),
                 source,
                 &variable_overrides,
-                available_style_paths,
-                source_by_path,
-                package_manifests,
-                visited,
-                emitted_module_identity_keys,
+                context,
             );
             Some(StaticScssModuleForwardEvaluation {
                 source: edge.source.clone(),
