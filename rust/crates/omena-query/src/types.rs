@@ -136,10 +136,18 @@ pub struct OmenaQueryCrossFileSummaryV0 {
     pub summary_scope: &'static str,
     pub style_count: usize,
     pub summary_edge_count: usize,
+    pub edge_kind_counts: Vec<OmenaQueryCrossFileSummaryEdgeKindCountV0>,
     pub summary_hash: String,
     pub edges: Vec<OmenaQueryCrossFileSummaryEdgeV0>,
     pub capabilities: OmenaQueryCrossFileSummaryCapabilitiesV0,
     pub next_priorities: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCrossFileSummaryEdgeKindCountV0 {
+    pub edge_kind: &'static str,
+    pub count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

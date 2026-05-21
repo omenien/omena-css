@@ -329,10 +329,16 @@ export interface StyleSemanticGraphCrossFileSummaryV0 {
   readonly summaryScope: string;
   readonly styleCount: number;
   readonly summaryEdgeCount: number;
+  readonly edgeKindCounts: readonly StyleSemanticGraphCrossFileSummaryEdgeKindCountV0[];
   readonly summaryHash: string;
   readonly edges: readonly StyleSemanticGraphCrossFileSummaryEdgeV0[];
   readonly capabilities: StyleSemanticGraphCrossFileSummaryCapabilitiesV0;
   readonly nextPriorities: readonly string[];
+}
+
+export interface StyleSemanticGraphCrossFileSummaryEdgeKindCountV0 {
+  readonly edgeKind: string;
+  readonly count: number;
 }
 
 export interface StyleSemanticGraphCrossFileSummaryEdgeV0 {

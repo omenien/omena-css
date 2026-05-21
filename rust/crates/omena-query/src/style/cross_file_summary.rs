@@ -208,6 +208,7 @@ pub(super) fn summarize_omena_query_cross_file_summary(
         summary_scope: "styleSemanticGraphBatch",
         style_count: style_fact_entries.len(),
         summary_edge_count: edges.len(),
+        edge_kind_counts: summarize_omena_query_cross_file_summary_edge_kind_counts(&edges),
         summary_hash,
         edges,
         capabilities: OmenaQueryCrossFileSummaryCapabilitiesV0 {
@@ -429,6 +430,7 @@ pub fn summarize_omena_query_source_selector_reference_cross_file_summary(
         summary_scope: "sourceSelectorReferences",
         style_count: style_sources.len(),
         summary_edge_count: edges.len(),
+        edge_kind_counts: summarize_omena_query_cross_file_summary_edge_kind_counts(&edges),
         summary_hash,
         edges,
         capabilities: OmenaQueryCrossFileSummaryCapabilitiesV0 {
@@ -499,6 +501,7 @@ fn merge_omena_query_cross_file_summaries(
         summary_scope,
         style_count,
         summary_edge_count: edges.len(),
+        edge_kind_counts: summarize_omena_query_cross_file_summary_edge_kind_counts(&edges),
         summary_hash,
         edges,
         capabilities: merge_omena_query_cross_file_summary_capabilities(summaries),
@@ -614,6 +617,19 @@ fn stable_omena_query_cross_file_summary_hash(
         }
     }
     format!("{hash:016x}")
+}
+
+fn summarize_omena_query_cross_file_summary_edge_kind_counts(
+    edges: &[OmenaQueryCrossFileSummaryEdgeV0],
+) -> Vec<OmenaQueryCrossFileSummaryEdgeKindCountV0> {
+    let mut counts = BTreeMap::<&'static str, usize>::new();
+    for edge in edges {
+        *counts.entry(edge.edge_kind).or_default() += 1;
+    }
+    counts
+        .into_iter()
+        .map(|(edge_kind, count)| OmenaQueryCrossFileSummaryEdgeKindCountV0 { edge_kind, count })
+        .collect()
 }
 
 fn stable_omena_query_hash_piece(hash: &mut u64, piece: &str) {

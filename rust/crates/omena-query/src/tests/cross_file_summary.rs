@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
@@ -461,4 +461,81 @@ fn workspace_cross_file_summary_resolves_imported_design_token_references() {
             || edge.local_name.as_deref() != Some("--brand")
             || edge.status != "unresolvedReference"
     }));
+}
+
+#[test]
+fn workspace_cross_file_summary_reports_edge_kind_counts_for_m4_vocabulary() {
+    let summary = summarize_omena_query_workspace_cross_file_summary(
+        &[
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/base.module.scss".to_string(),
+                style_source: ".base { display: block; }".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/_tokens.scss".to_string(),
+                style_source: ":root { --brand: red; }".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/_palette.scss".to_string(),
+                style_source: "$tone: red;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/_legacy.scss".to_string(),
+                style_source: "$legacy: blue;".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/Button.module.scss".to_string(),
+                style_source: r#"@use "./tokens" as tokens;
+@forward "./palette";
+@import "./legacy";
+.root { composes: base from "./base.module.scss"; color: var(--brand); }"#
+                    .to_string(),
+            },
+        ],
+        &[OmenaQuerySourceDocumentInputV0 {
+            source_path: "/tmp/Button.tsx".to_string(),
+            source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
+                .to_string(),
+        }],
+        &[],
+    );
+
+    let declared_counts = summary
+        .edge_kind_counts
+        .iter()
+        .map(|entry| (entry.edge_kind, entry.count))
+        .collect::<BTreeMap<_, _>>();
+    let observed_counts =
+        summary
+            .edges
+            .iter()
+            .fold(BTreeMap::<&str, usize>::new(), |mut counts, edge| {
+                *counts.entry(edge.edge_kind).or_default() += 1;
+                counts
+            });
+
+    assert_eq!(declared_counts, observed_counts);
+    assert_eq!(
+        declared_counts.values().copied().sum::<usize>(),
+        summary.summary_edge_count
+    );
+    for required_edge_kind in [
+        "cssModulesComposesImport",
+        "cssModulesComposesClosure",
+        "sassUse",
+        "sassForward",
+        "sassImport",
+        "sassModuleGraphClosure",
+        "styleDesignTokenReference",
+        "sourceSelectorReference",
+    ] {
+        assert!(
+            declared_counts
+                .get(required_edge_kind)
+                .copied()
+                .unwrap_or(0)
+                > 0,
+            "missing M4 summary-edge vocabulary count for {required_edge_kind}"
+        );
+    }
 }
