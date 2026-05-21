@@ -116,7 +116,7 @@ fn diagnostics_for_watched_files(state: &LspShellState, uris: Vec<String>) -> Ve
     let mut outputs = Vec::new();
     let mut style_uris_to_refresh = BTreeSet::new();
     let mut config_uris_to_refresh = BTreeSet::new();
-    let mut source_uris_to_refresh = BTreeSet::new();
+    let mut document_uris_to_refresh = BTreeSet::new();
     for uri in uris {
         if is_style_document_uri(uri.as_str()) {
             style_uris_to_refresh.insert(uri);
@@ -125,24 +125,22 @@ fn diagnostics_for_watched_files(state: &LspShellState, uris: Vec<String>) -> Ve
         }
     }
     for uri in style_uris_to_refresh {
-        outputs.push(publish_diagnostics_notification(
-            uri.as_str(),
-            resolve_document_diagnostics_for_uri(state, uri.as_str()),
-        ));
+        document_uris_to_refresh.insert(uri.clone());
         for source_uri in source_uris_for_style_change_diagnostics(state, uri.as_str()) {
-            source_uris_to_refresh.insert(source_uri);
+            document_uris_to_refresh.insert(source_uri);
         }
     }
     for uri in config_uris_to_refresh {
-        for source_uri in source_uris_for_resolution_config_change_diagnostics(state, uri.as_str())
+        for document_uri in
+            document_uris_for_resolution_config_change_diagnostics(state, uri.as_str())
         {
-            source_uris_to_refresh.insert(source_uri);
+            document_uris_to_refresh.insert(document_uri);
         }
     }
-    for source_uri in source_uris_to_refresh {
+    for document_uri in document_uris_to_refresh {
         outputs.push(publish_diagnostics_notification(
-            source_uri.as_str(),
-            resolve_source_diagnostics_for_uri(state, source_uri.as_str()),
+            document_uri.as_str(),
+            resolve_document_diagnostics_for_uri(state, document_uri.as_str()),
         ));
     }
     outputs
@@ -210,7 +208,7 @@ fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &s
         .collect()
 }
 
-fn source_uris_for_resolution_config_change_diagnostics(
+fn document_uris_for_resolution_config_change_diagnostics(
     state: &LspShellState,
     config_uri: &str,
 ) -> Vec<String> {
@@ -218,7 +216,6 @@ fn source_uris_for_resolution_config_change_diagnostics(
     state
         .documents
         .values()
-        .filter(|document| !is_style_document_uri(document.uri.as_str()))
         .filter(|document| {
             workspace_folder_uri.as_deref().is_none_or(|workspace_uri| {
                 workspace_folder_compatible(Some(workspace_uri), document)
