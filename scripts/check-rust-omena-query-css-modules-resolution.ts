@@ -97,6 +97,7 @@ for (const required of [
   "workspace_cross_file_summary_linear_provenance_covers_merged_style_and_source_edges",
   "workspace_cross_file_summary_hash_tracks_source_selector_changes",
   "workspace_cross_file_summary_hash_tracks_style_edge_changes",
+  "workspace_cross_file_summary_hash_is_input_order_stable",
   "workspace_cross_file_summary_hash_tracks_package_manifest_changes",
   "workspace_cross_file_summary_reports_edge_kind_counts_for_m4_vocabulary",
   "transitive_composes",
