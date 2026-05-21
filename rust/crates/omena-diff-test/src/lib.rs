@@ -802,7 +802,7 @@ mod tests {
         );
         assert!(summary.all_m3_fixture_seeds_parse);
         assert!(summary.all_wpt_seed_metadata_valid);
-        assert!(summary.wpt_seed_fixture_count >= 10);
+        assert!(summary.wpt_seed_fixture_count >= 25);
         assert!(
             summary
                 .closed_gates
@@ -903,7 +903,7 @@ mod tests {
         assert_eq!(report.stage, "stage1-advisory");
         assert!(wpt_source_pin_is_full_sha(report.source_pin.as_str()));
         assert_eq!(report.chunk_count, 1);
-        assert!(report.fixture_count >= 10);
+        assert!(report.fixture_count >= 25);
         assert_eq!(report.known_failure_count, 0);
         assert!(!report.stage2_blocking);
         assert_eq!(report.required_min_fixture_count_for_stage2, 25);
@@ -912,7 +912,7 @@ mod tests {
         assert_eq!(report.known_failure_review_interval_days, 30);
         assert!(!report.stage2_candidate_ready);
         assert!(
-            report
+            !report
                 .stage2_promotion_blockers
                 .contains(&"seedCorpusBelowStageTwoMinimum")
         );
