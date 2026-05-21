@@ -16,7 +16,8 @@ pub(crate) use message_loop::current_time_millis;
 pub use message_loop::{handle_lsp_message, handle_lsp_message_outputs};
 use omena_query::{
     OmenaQueryCodeActionV0, OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0,
-    OmenaQueryEngineInputV2, OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
+    OmenaQueryEngineInputV2, OmenaQuerySourceDocumentInputV0,
+    OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
@@ -40,8 +41,9 @@ use omena_query::{
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_import_declarations, summarize_omena_query_source_syntax_index,
     summarize_omena_query_style_completion_at_position,
-    summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_document,
-    summarize_omena_query_style_extract_code_actions,
+    summarize_omena_query_style_diagnostics_for_file,
+    summarize_omena_query_style_diagnostics_for_workspace_file,
+    summarize_omena_query_style_document, summarize_omena_query_style_extract_code_actions,
     summarize_omena_query_style_hover_render_parts,
     summarize_omena_query_style_inline_code_actions,
 };
@@ -955,40 +957,57 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
         .iter()
         .map(query_style_hover_candidate_from_lsp)
         .collect::<Vec<_>>();
-    let diagnostics = summarize_omena_query_style_diagnostics_for_file(
+    let style_sources = style_sources_from_open_documents(
+        state,
+        document.workspace_folder_uri.as_deref(),
+        Some(document.uri.as_str()),
+    );
+    let source_documents =
+        source_documents_from_open_documents(state, document.workspace_folder_uri.as_deref());
+    let diagnostics_summary = summarize_omena_query_style_diagnostics_for_workspace_file(
         document.uri.as_str(),
-        document.text.as_str(),
-        query_candidates.as_slice(),
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        state.resolution.package_manifests.as_slice(),
+        None,
     )
-    .diagnostics
-    .into_iter()
-    .map(|diagnostic| {
-        let tags = diagnostic.tags;
-        let query_severity = diagnostic.severity;
-        let mut data = serde_json::Map::new();
-        data.insert("querySeverity".to_string(), json!(query_severity));
-        data.insert("provenance".to_string(), json!(diagnostic.provenance));
-        if let Some(create_custom_property) = diagnostic.create_custom_property {
-            data.insert(
-                "createCustomProperty".to_string(),
-                json!(create_custom_property),
-            );
-        }
+    .unwrap_or_else(|| {
+        summarize_omena_query_style_diagnostics_for_file(
+            document.uri.as_str(),
+            document.text.as_str(),
+            query_candidates.as_slice(),
+        )
+    });
+    let diagnostics = diagnostics_summary
+        .diagnostics
+        .into_iter()
+        .map(|diagnostic| {
+            let tags = diagnostic.tags;
+            let query_severity = diagnostic.severity;
+            let mut data = serde_json::Map::new();
+            data.insert("querySeverity".to_string(), json!(query_severity));
+            data.insert("provenance".to_string(), json!(diagnostic.provenance));
+            if let Some(create_custom_property) = diagnostic.create_custom_property {
+                data.insert(
+                    "createCustomProperty".to_string(),
+                    json!(create_custom_property),
+                );
+            }
 
-        let mut lsp_diagnostic = json!({
-            "range": diagnostic.range,
-            "severity": lsp_diagnostic_severity(query_severity, state.diagnostics.severity),
-            "code": diagnostic.code,
-            "source": "css-module-explainer",
-            "message": diagnostic.message,
-            "data": Value::Object(data),
-        });
-        if !tags.is_empty() {
-            lsp_diagnostic["tags"] = json!(tags);
-        }
-        lsp_diagnostic
-    })
-    .collect::<Vec<_>>();
+            let mut lsp_diagnostic = json!({
+                "range": diagnostic.range,
+                "severity": lsp_diagnostic_severity(query_severity, state.diagnostics.severity),
+                "code": diagnostic.code,
+                "source": "css-module-explainer",
+                "message": diagnostic.message,
+                "data": Value::Object(data),
+            });
+            if !tags.is_empty() {
+                lsp_diagnostic["tags"] = json!(tags);
+            }
+            lsp_diagnostic
+        })
+        .collect::<Vec<_>>();
 
     json!(diagnostics)
 }
@@ -1235,6 +1254,24 @@ fn style_sources_from_open_documents(
         });
     }
     sources
+}
+
+fn source_documents_from_open_documents(
+    state: &LspShellState,
+    workspace_folder_uri: Option<&str>,
+) -> Vec<OmenaQuerySourceDocumentInputV0> {
+    state
+        .documents
+        .values()
+        .filter(|document| {
+            !is_style_document_uri(document.uri.as_str())
+                && workspace_folder_compatible(workspace_folder_uri, document)
+        })
+        .map(|document| OmenaQuerySourceDocumentInputV0 {
+            source_path: document.uri.clone(),
+            source_source: document.text.clone(),
+        })
+        .collect()
 }
 
 fn render_omena_query_lsp_code_actions(actions: Vec<OmenaQueryCodeActionV0>) -> Vec<Value> {
