@@ -9,7 +9,10 @@ const crossFileSummarySource = readFileSync(
   "utf8",
 );
 const typeSource = readFileSync(path.join(root, "rust/crates/omena-query/src/types.rs"), "utf8");
-const testSource = readFileSync(path.join(root, "rust/crates/omena-query/src/tests.rs"), "utf8");
+const testSource = [
+  readFileSync(path.join(root, "rust/crates/omena-query/src/tests.rs"), "utf8"),
+  readFileSync(path.join(root, "rust/crates/omena-query/src/tests/cross_file_summary.rs"), "utf8"),
+].join("\n");
 const hostTypeSource = readFileSync(
   path.join(root, "server/engine-host-node/src/style-semantic-graph-query-backend.ts"),
   "utf8",
