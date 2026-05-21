@@ -874,12 +874,10 @@ fn read_sass_node_package_export_entry(
     if let Some(root_entry) = read_sass_node_package_export_entry(exports_object.get(".")) {
         return Some(root_entry);
     }
-    for (key, export_value) in exports_object {
-        let entry = if is_sass_node_package_style_export_condition(key) || key == "default" {
-            read_sass_node_package_export_entry(Some(export_value))
-        } else {
-            None
-        };
+    for condition in ["sass", "style", "default"] {
+        let entry = exports_object
+            .get(condition)
+            .and_then(|export_value| read_sass_node_package_export_entry(Some(export_value)));
         if let Some(entry) = entry {
             return Some(entry);
         }
@@ -931,10 +929,6 @@ fn read_package_export_entry_with_policy(
 
 fn is_package_style_export_condition(key: &str) -> bool {
     matches!(key, "sass" | "scss" | "style")
-}
-
-fn is_sass_node_package_style_export_condition(key: &str) -> bool {
-    matches!(key, "sass" | "style")
 }
 
 fn is_package_style_export_entry(entry: &str) -> bool {
