@@ -2,6 +2,16 @@
   "schemaVersion": "0",
   "product": "omena-spec-audit.source-pins",
   "refreshedAt": "2026-05-22",
+  "refreshPolicy": {
+    "maxAgeDays": 30,
+    "nextReviewDueAt": "2026-06-21"
+  },
+  "generatedDataReviewGate": {
+    "humanReviewRequired": true,
+    "changedGeneratedDataRequiresReview": true,
+    "autoMergeAllowed": false,
+    "reviewer": "maintainer"
+  },
   "sources": [
     {
       "name": "webref-css",
