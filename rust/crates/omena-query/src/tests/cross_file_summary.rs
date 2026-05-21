@@ -8,7 +8,7 @@ use crate::{
     summarize_omena_query_workspace_cross_file_summary,
 };
 
-use super::sample_input;
+use super::support::sample_input;
 
 #[test]
 fn source_selector_references_emit_cross_file_summary_edges() {
