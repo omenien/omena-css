@@ -134,6 +134,8 @@ const expectedMissingCustomPropertyDiagnostic = {
   code: "missingCustomProperty",
   message: "CSS custom property '--missing' not found in indexed style tokens.",
   data: {
+    querySeverity: "warning",
+    provenance: ["omena-parser.custom-property-facts", "omena-query.style-diagnostics"],
     createCustomProperty: {
       uri: styleUri,
       range: documentEndRange(styleText),
@@ -146,8 +148,11 @@ const expectedMissingSelectorDiagnostic = {
   range: sourceMissingSelectorRange,
   severity: 2,
   source: "css-module-explainer",
+  code: "missingSelector",
   message: "CSS Module selector '.missing' not found in indexed style tokens.",
   data: {
+    querySeverity: "warning",
+    provenance: ["omena-query.source-syntax-index", "omena-query.style-selector-definitions"],
     createSelector: {
       uri: styleUri,
       range: documentEndRange(styleText),
@@ -160,8 +165,11 @@ const expectedMissingImportedSelectorDiagnostic = {
   range: sourceMissingImportedSelectorRange,
   severity: 2,
   source: "css-module-explainer",
+  code: "missingSelector",
   message: "CSS Module selector '.ghost' not found in indexed style tokens.",
   data: {
+    querySeverity: "warning",
+    provenance: ["omena-query.source-syntax-index", "omena-query.style-selector-definitions"],
     createSelector: {
       uri: styleUri,
       range: documentEndRange(styleText),
@@ -856,7 +864,7 @@ assert.deepEqual(lspCodeActionResponse.result, [
       },
     },
     data: {
-      source: "openedStyleDocumentIndex",
+      source: "omenaQueryStyleDiagnosticsForFile",
       diagnosticIndex: 0,
     },
   },

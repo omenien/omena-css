@@ -75,6 +75,15 @@ pub(crate) fn query_source_selector_candidate_from_lsp(
     }
 }
 
+pub(crate) fn query_source_selector_candidate_for_matching(
+    candidate: &LspStyleHoverCandidate,
+) -> OmenaQuerySourceSelectorCandidateV0 {
+    let mut query_candidate = query_source_selector_candidate_from_lsp(candidate);
+    query_candidate.target_style_uri =
+        canonical_query_target_style_uri(query_candidate.target_style_uri);
+    query_candidate
+}
+
 pub(crate) fn lsp_source_selector_candidate_from_query(
     candidate: OmenaQuerySourceSelectorCandidateV0,
 ) -> LspStyleHoverCandidate {
@@ -99,6 +108,15 @@ pub(crate) fn query_style_selector_definition(
     }
 }
 
+pub(crate) fn query_style_selector_definition_for_matching(
+    uri: &str,
+    definition: &LspStyleHoverCandidate,
+) -> OmenaQueryStyleSelectorDefinitionV0 {
+    let mut query_definition = query_style_selector_definition(uri, definition);
+    query_definition.uri = canonical_query_uri(uri);
+    query_definition
+}
+
 pub(crate) fn query_source_selector_reference_edit_target(
     document: &LspTextDocumentState,
     candidate: &LspStyleHoverCandidate,
@@ -109,6 +127,15 @@ pub(crate) fn query_source_selector_reference_edit_target(
         range: candidate.range,
         target_style_uri: candidate.target_style_uri.clone(),
     }
+}
+
+pub(crate) fn query_source_selector_reference_edit_target_for_matching(
+    document: &LspTextDocumentState,
+    candidate: &LspStyleHoverCandidate,
+) -> OmenaQuerySourceSelectorReferenceEditTargetV0 {
+    let mut target = query_source_selector_reference_edit_target(document, candidate);
+    target.target_style_uri = canonical_query_target_style_uri(target.target_style_uri);
+    target
 }
 
 pub(crate) fn query_source_selector_reference_candidate(
@@ -125,17 +152,38 @@ pub(crate) fn query_source_selector_reference_candidate(
     }
 }
 
+pub(crate) fn query_source_selector_reference_candidate_for_matching(
+    document: &LspTextDocumentState,
+    candidate: &LspStyleHoverCandidate,
+) -> OmenaQuerySourceSelectorReferenceCandidateV0 {
+    let mut reference = query_source_selector_reference_candidate(document, candidate);
+    reference.target_style_uri = canonical_query_target_style_uri(reference.target_style_uri);
+    reference
+}
+
 pub(crate) fn query_definition_identity(
     uri: &str,
     name: &str,
     range: ParserRangeV0,
 ) -> (String, String, usize, usize, usize, usize) {
     (
-        uri.to_string(),
+        canonical_query_uri(uri),
         name.to_string(),
         range.start.line,
         range.start.character,
         range.end.line,
         range.end.character,
     )
+}
+
+pub(crate) fn query_target_style_uri_for_matching(uri: Option<&str>) -> Option<String> {
+    uri.map(canonical_query_uri)
+}
+
+fn canonical_query_target_style_uri(uri: Option<String>) -> Option<String> {
+    uri.map(|uri| canonical_query_uri(uri.as_str()))
+}
+
+fn canonical_query_uri(uri: &str) -> String {
+    crate::protocol::canonical_file_uri(uri).unwrap_or_else(|| uri.to_string())
 }

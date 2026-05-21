@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -157,11 +157,12 @@ async function runTypeFactProtocolSmoke(): Promise<void> {
       `fontSize hover did not include optional union selector facts: ${fontSizeHoverText}`,
     );
     assert(
-      definitionUris.filter((uri) => uri === styleUri).length === 2,
+      definitionUris.filter((uri) => fileUriEquivalent(uri, styleUri)).length === 2,
       `definition did not resolve both projected style selectors: ${JSON.stringify(definition)}`,
     );
     assert(
-      referenceUris.includes(styleUri) && referenceUris.includes(sourceUri),
+      referenceUris.some((uri) => fileUriEquivalent(uri, styleUri)) &&
+        referenceUris.some((uri) => fileUriEquivalent(uri, sourceUri)),
       `references did not include style and source locations: ${JSON.stringify(references)}`,
     );
 
@@ -309,6 +310,14 @@ class JsonRpcClient {
 
 function fileUri(filePath: string): string {
   return `file://${filePath}`;
+}
+
+function fileUriEquivalent(left: string, right: string): boolean {
+  return realpathSync(filePathFromUri(left)) === realpathSync(filePathFromUri(right));
+}
+
+function filePathFromUri(uri: string): string {
+  return decodeURIComponent(uri.replace(/^file:\/\//u, ""));
 }
 
 function positionForOffset(source: string, offset: number): { line: number; character: number } {

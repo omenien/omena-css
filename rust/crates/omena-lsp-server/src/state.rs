@@ -163,6 +163,19 @@ impl LspShellState {
         })
     }
 
+    pub(crate) fn document_mut(&mut self, uri: &str) -> Option<&mut LspTextDocumentState> {
+        let storage_uri = Self::document_storage_uri(uri);
+        if self.documents.contains_key(storage_uri.as_str()) {
+            return self.documents.get_mut(storage_uri.as_str());
+        }
+        let equivalent_uri = self
+            .documents
+            .keys()
+            .find(|document_uri| crate::protocol::file_uri_equivalent(document_uri, uri))
+            .cloned();
+        equivalent_uri.and_then(|document_uri| self.documents.get_mut(document_uri.as_str()))
+    }
+
     pub(crate) fn document_storage_uri(uri: &str) -> String {
         crate::protocol::canonical_file_uri(uri).unwrap_or_else(|| uri.to_string())
     }

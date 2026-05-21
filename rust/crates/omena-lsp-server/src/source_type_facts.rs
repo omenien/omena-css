@@ -120,7 +120,7 @@ pub(crate) fn apply_source_type_fact_results_to_document(
         );
     }
     canonicalize_omena_query_source_selector_references(&mut references);
-    let Some(document) = state.documents.get_mut(uri) else {
+    let Some(document) = state.document_mut(uri) else {
         return;
     };
     document.source_syntax_index.selector_references = references;

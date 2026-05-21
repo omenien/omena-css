@@ -21,7 +21,7 @@ use omena_query::{
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
     OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStyleSourceInputV0,
-    ParserByteSpanV0, ParserPositionV0, StyleLanguage,
+    ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage,
     is_omena_query_sass_symbol_candidate_kind as is_sass_symbol_candidate_kind,
     is_omena_query_sass_symbol_declaration_kind as is_sass_symbol_declaration_kind,
     is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,
@@ -168,7 +168,7 @@ fn did_change_text_document(state: &mut LspShellState, params: Option<&Value>) {
     let Some(uri) = text_document.get("uri").and_then(Value::as_str) else {
         return;
     };
-    let Some(existing) = state.documents.get_mut(uri) else {
+    let Some(existing) = state.document_mut(uri) else {
         return;
     };
 
@@ -910,7 +910,7 @@ fn source_selector_diagnostic_target<'a>(
         {
             return None;
         }
-        return Some((target_style_uri.to_string(), target_document));
+        return Some((target_document.uri.clone(), target_document));
     }
 
     first_style_document_for_workspace(state, workspace_folder_uri)
@@ -1173,8 +1173,9 @@ fn selector_reference_locations_from_open_documents(
     let definitions =
         style_selector_definitions_from_open_documents(state, "", workspace_folder_uri)
             .iter()
-            .map(|(uri, definition)| query_style_selector_definition(uri, definition))
+            .map(|(uri, definition)| query_style_selector_definition_for_matching(uri, definition))
             .collect::<Vec<_>>();
+    let query_target_style_uri = query_target_style_uri_for_matching(target_style_uri);
     let mut references = Vec::new();
     for document in state.documents.values() {
         if is_style_document_uri(document.uri.as_str()) {
@@ -1186,12 +1187,14 @@ fn selector_reference_locations_from_open_documents(
         references.extend(
             collect_source_selector_reference_candidates(state, document)
                 .iter()
-                .map(|candidate| query_source_selector_reference_candidate(document, candidate)),
+                .map(|candidate| {
+                    query_source_selector_reference_candidate_for_matching(document, candidate)
+                }),
         );
     }
     summarize_omena_query_refs_for_class(
         selector_name,
-        target_style_uri,
+        query_target_style_uri.as_deref(),
         false,
         definitions.as_slice(),
         references.as_slice(),
@@ -1251,12 +1254,13 @@ fn source_candidate_selector_names(
 ) -> Vec<String> {
     let query_definitions = definitions
         .iter()
-        .map(|(uri, definition)| query_style_selector_definition(uri, definition))
+        .map(|(uri, definition)| query_style_selector_definition_for_matching(uri, definition))
         .collect::<Vec<_>>();
+    let query_target_style_uri = query_target_style_uri_for_matching(target_style_uri);
     resolve_omena_query_source_candidate_selector_names(
-        &query_source_selector_candidate_from_lsp(candidate),
+        &query_source_selector_candidate_for_matching(candidate),
         query_definitions.as_slice(),
-        target_style_uri,
+        query_target_style_uri.as_deref(),
     )
 }
 
@@ -1827,9 +1831,16 @@ fn resolve_source_lsp_completion(
     let Some(position) = lsp_position_from_params(params) else {
         return Value::Null;
     };
-    let Some(context) = source_completion_context_at_position(document, position) else {
+    let Some(context) = source_completion_context_at_position(state, document, position) else {
         return Value::Null;
     };
+    let inferred_target_style_uri = context.target_style_uri.clone().or_else(|| {
+        source_selector_candidate_at_position(state, document, position)
+            .and_then(|candidate| candidate.target_style_uri)
+    });
+    let target_style_uri = inferred_target_style_uri
+        .as_deref()
+        .map(|uri| external_document_uri_for_query_uri(state, uri));
 
     let candidates = style_selector_definitions_from_open_documents(
         state,
@@ -1838,14 +1849,12 @@ fn resolve_source_lsp_completion(
     )
     .into_iter()
     .filter(|(uri, _)| {
-        context
-            .target_style_uri
+        target_style_uri
             .as_deref()
             .is_none_or(|target_uri| file_uri_equivalent(target_uri, uri))
     })
     .map(|(uri, definition)| {
-        let file_uri = context
-            .target_style_uri
+        let file_uri = target_style_uri
             .as_deref()
             .filter(|target_uri| file_uri_equivalent(target_uri, uri.as_str()))
             .map(ToString::to_string)
@@ -1863,7 +1872,7 @@ fn resolve_source_lsp_completion(
         document.uri.as_str(),
         position,
         candidates.as_slice(),
-        context.target_style_uri.as_deref(),
+        target_style_uri.as_deref(),
         context.value_prefix.as_deref(),
         context.preferred_selector_names.as_slice(),
     );
@@ -1886,6 +1895,7 @@ struct SourceCompletionContext {
 }
 
 fn source_completion_context_at_position(
+    state: &LspShellState,
     document: &LspTextDocumentState,
     position: ParserPositionV0,
 ) -> Option<SourceCompletionContext> {
@@ -1906,14 +1916,36 @@ fn source_completion_context_at_position(
             ),
         });
     }
+    if let Some(candidate) = source_selector_candidates_at_position(state, document, position)
+        .into_iter()
+        .find(|candidate| {
+            candidate.kind == "sourceSelectorReference"
+                || candidate.kind == "sourceSelectorPrefixReference"
+        })
+        && let Some(span) = byte_span_for_parser_range(document.text.as_str(), candidate.range)
+    {
+        return Some(SourceCompletionContext {
+            target_style_uri: candidate.target_style_uri.clone(),
+            value_prefix: source_completion_prefix_for_terminal_offset(
+                document.text.as_str(),
+                span,
+                offset,
+            ),
+            preferred_selector_names: Vec::new(),
+        });
+    }
     if let Some(access) = document
         .source_syntax_index
         .style_property_accesses
         .iter()
         .find(|access| offset >= access.byte_span.start && offset <= access.byte_span.end)
     {
+        let target_style_uri = access
+            .target_style_uri
+            .clone()
+            .or_else(|| source_completion_target_uri_for_span(document, access.byte_span));
         return Some(SourceCompletionContext {
-            target_style_uri: access.target_style_uri.clone(),
+            target_style_uri,
             value_prefix: source_completion_prefix_for_terminal_offset(
                 document.text.as_str(),
                 access.byte_span,
@@ -1928,8 +1960,12 @@ fn source_completion_context_at_position(
         .iter()
         .find(|reference| offset >= reference.byte_span.start && offset <= reference.byte_span.end)
     {
+        let target_style_uri = reference
+            .target_style_uri
+            .clone()
+            .or_else(|| source_completion_target_uri_for_span(document, reference.byte_span));
         return Some(SourceCompletionContext {
-            target_style_uri: reference.target_style_uri.clone(),
+            target_style_uri,
             value_prefix: source_completion_prefix_for_terminal_offset(
                 document.text.as_str(),
                 reference.byte_span,
@@ -1961,6 +1997,29 @@ fn source_completion_context_at_position(
         });
     }
     None
+}
+
+fn source_completion_target_uri_for_span(
+    document: &LspTextDocumentState,
+    span: ParserByteSpanV0,
+) -> Option<String> {
+    let range = parser_range_for_byte_span(document.text.as_str(), span);
+    document
+        .source_selector_candidates
+        .iter()
+        .find(|candidate| {
+            candidate.range == range
+                || parser_range_contains_position(&candidate.range, range.start)
+                || parser_range_contains_position(&candidate.range, range.end)
+        })
+        .and_then(|candidate| candidate.target_style_uri.clone())
+}
+
+fn byte_span_for_parser_range(source: &str, range: ParserRangeV0) -> Option<ParserByteSpanV0> {
+    Some(ParserByteSpanV0 {
+        start: byte_offset_for_parser_position(source, range.start)?,
+        end: byte_offset_for_parser_position(source, range.end)?,
+    })
 }
 
 fn source_completion_value_domain_selectors_for_target(
@@ -2104,12 +2163,12 @@ fn resolve_source_provider_candidates(
     }
     let query_definitions = definitions
         .iter()
-        .map(|(uri, definition)| query_style_selector_definition(uri, definition))
+        .map(|(uri, definition)| query_style_selector_definition_for_matching(uri, definition))
         .collect::<Vec<_>>();
     let resolution = resolve_omena_query_source_provider_candidates(
         source_candidates
             .iter()
-            .map(query_source_selector_candidate_from_lsp)
+            .map(query_source_selector_candidate_for_matching)
             .collect(),
         query_definitions.as_slice(),
     );
@@ -2290,10 +2349,10 @@ fn style_selector_definitions_for_source_candidate(
     }
     let query_definitions = definitions
         .iter()
-        .map(|(uri, definition)| query_style_selector_definition(uri, definition))
+        .map(|(uri, definition)| query_style_selector_definition_for_matching(uri, definition))
         .collect::<Vec<_>>();
     let matched_identities = resolve_omena_query_style_selector_definitions_for_source_candidate(
-        &query_source_selector_candidate_from_lsp(candidate),
+        &query_source_selector_candidate_for_matching(candidate),
         query_definitions.as_slice(),
     )
     .into_iter()
@@ -2393,8 +2452,9 @@ fn resolve_selector_rename(
     let query_definitions =
         style_selector_definitions_from_open_documents(state, selector_name, workspace_folder_uri)
             .iter()
-            .map(|(uri, definition)| query_style_selector_definition(uri, definition))
+            .map(|(uri, definition)| query_style_selector_definition_for_matching(uri, definition))
             .collect::<Vec<_>>();
+    let query_target_style_uri = query_target_style_uri_for_matching(target_style_uri);
     let mut query_references = Vec::new();
     for document in state.documents.values() {
         if is_style_document_uri(document.uri.as_str()) {
@@ -2406,13 +2466,15 @@ fn resolve_selector_rename(
         query_references.extend(
             collect_source_selector_reference_candidates(state, document)
                 .iter()
-                .map(|candidate| query_source_selector_reference_edit_target(document, candidate)),
+                .map(|candidate| {
+                    query_source_selector_reference_edit_target_for_matching(document, candidate)
+                }),
         );
     }
     let rename_plan = summarize_omena_query_rename_plan(
         selector_name,
         new_name,
-        target_style_uri,
+        query_target_style_uri.as_deref(),
         query_definitions.as_slice(),
         query_references.as_slice(),
     );
@@ -2422,7 +2484,8 @@ fn resolve_selector_rename(
 
     let mut changes: BTreeMap<String, Vec<Value>> = BTreeMap::new();
     for edit in rename_plan.edits {
-        changes.entry(edit.uri).or_default().push(json!({
+        let edit_uri = external_document_uri_for_query_uri(state, edit.uri.as_str());
+        changes.entry(edit_uri).or_default().push(json!({
             "range": edit.range,
             "newText": edit.new_text,
         }));
@@ -2448,6 +2511,13 @@ fn resolve_selector_rename(
     json!({
         "changes": Value::Object(response_changes),
     })
+}
+
+fn external_document_uri_for_query_uri(state: &LspShellState, uri: &str) -> String {
+    state
+        .document(uri)
+        .map(|document| document.uri.clone())
+        .unwrap_or_else(|| uri.to_string())
 }
 
 fn render_style_hover_candidate_markdown(
