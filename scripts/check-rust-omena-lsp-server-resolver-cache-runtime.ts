@@ -54,24 +54,66 @@ async function main(): Promise<void> {
   const sourcePath = path.join(srcDir, "App.module.scss");
   const targetPath = path.join(stylesDir, "_tokens.scss");
   const configPath = path.join(workspaceRoot, "vite.config.ts");
+  const tsconfigPath = path.join(workspaceRoot, "tsconfig.json");
+  const tsconfigSourcePath = path.join(srcDir, "Tsconfig.module.scss");
+  const tsconfigOldTargetPath = path.join(srcDir, "tsconfig-old", "_tokens.scss");
+  const tsconfigNewTargetPath = path.join(srcDir, "tsconfig-new", "_tokens.scss");
+  const packageSourcePath = path.join(srcDir, "Package.module.scss");
+  const packageRoot = path.join(workspaceRoot, "node_modules", "@design", "tokens");
+  const packageJsonPath = path.join(packageRoot, "package.json");
+  const packageOldTargetPath = path.join(packageRoot, "old.scss");
+  const packageNewTargetPath = path.join(packageRoot, "new.scss");
   const sourceUri = pathToFileURL(sourcePath).toString();
   const targetUri = pathToFileURL(targetPath).toString();
   const configUri = pathToFileURL(configPath).toString();
+  const tsconfigUri = pathToFileURL(tsconfigPath).toString();
+  const tsconfigSourceUri = pathToFileURL(tsconfigSourcePath).toString();
+  const tsconfigOldTargetUri = pathToFileURL(tsconfigOldTargetPath).toString();
+  const tsconfigNewTargetUri = pathToFileURL(tsconfigNewTargetPath).toString();
+  const packageSourceUri = pathToFileURL(packageSourcePath).toString();
+  const packageJsonUri = pathToFileURL(packageJsonPath).toString();
+  const packageOldTargetUri = pathToFileURL(packageOldTargetPath).toString();
+  const packageNewTargetUri = pathToFileURL(packageNewTargetPath).toString();
   const workspaceUri = pathToFileURL(workspaceRoot).toString();
   const sourceText = `@use "@styles/tokens" as tokens;
 .root { color: tokens.$brand; }
 `;
   const targetText = "$brand: #123456;\n";
+  const tsconfigSourceText = `@use "$styles/tokens" as tokens;
+.root { color: tokens.$brand; }
+`;
+  const packageSourceText = `@use "pkg:@design/tokens" as tokens;
+.root { color: tokens.$brand; }
+`;
   const definitionParams = {
     textDocument: { uri: sourceUri },
     position: positionForOffset(sourceText, sourceText.indexOf("$brand") + 1),
   };
+  const tsconfigDefinitionParams = {
+    textDocument: { uri: tsconfigSourceUri },
+    position: positionForOffset(tsconfigSourceText, tsconfigSourceText.indexOf("$brand") + 1),
+  };
+  const packageDefinitionParams = {
+    textDocument: { uri: packageSourceUri },
+    position: positionForOffset(packageSourceText, packageSourceText.indexOf("$brand") + 1),
+  };
   const invocation = resolveOmenaLspServerInvocation();
 
   mkdirSync(stylesDir, { recursive: true });
+  mkdirSync(path.dirname(tsconfigOldTargetPath), { recursive: true });
+  mkdirSync(path.dirname(tsconfigNewTargetPath), { recursive: true });
+  mkdirSync(packageRoot, { recursive: true });
   writeFileSync(sourcePath, sourceText);
   writeFileSync(targetPath, targetText);
+  writeFileSync(tsconfigSourcePath, tsconfigSourceText);
+  writeFileSync(tsconfigOldTargetPath, "$brand: old;\n");
+  writeFileSync(tsconfigNewTargetPath, "$brand: new;\n");
+  writeFileSync(packageSourcePath, packageSourceText);
+  writeFileSync(packageJsonPath, JSON.stringify({ sass: "old.scss" }));
+  writeFileSync(packageOldTargetPath, "$brand: old;\n");
+  writeFileSync(packageNewTargetPath, "$brand: new;\n");
   writeFileSync(configPath, buildViteConfig(ALIAS_COUNT));
+  writeFileSync(tsconfigPath, buildTsconfig("src/tsconfig-old/*"));
   writePackageManifests(workspaceRoot, PACKAGE_COUNT);
 
   const child = spawn(invocation.command, [...invocation.args], {
@@ -115,6 +157,27 @@ async function main(): Promise<void> {
         text: sourceText,
       },
     });
+    await Promise.all(
+      (
+        [
+          [tsconfigOldTargetUri, "$brand: old;\n"],
+          [tsconfigNewTargetUri, "$brand: new;\n"],
+          [tsconfigSourceUri, tsconfigSourceText],
+          [packageOldTargetUri, "$brand: old;\n"],
+          [packageNewTargetUri, "$brand: new;\n"],
+          [packageSourceUri, packageSourceText],
+        ] as const
+      ).map(([uri, text]) =>
+        connection.sendNotification(DidOpenTextDocumentNotification.type, {
+          textDocument: {
+            uri,
+            languageId: "scss",
+            version: 1,
+            text,
+          },
+        }),
+      ),
+    );
 
     assertDefinitionTarget(
       await requestWithTimeout(
@@ -146,6 +209,42 @@ async function main(): Promise<void> {
     const refreshSummary = summarizeSeries(refreshBaselineLatencies);
     const hotSummary = summarizeSeries(hotLatencies);
     const ratio = refreshSummary.p50Ms / Math.max(hotSummary.p50Ms, 0.01);
+    assertDefinitionTarget(
+      await requestWithTimeout(
+        connection.sendRequest("textDocument/definition", tsconfigDefinitionParams),
+        "tsconfig initial definition",
+      ),
+      tsconfigOldTargetUri,
+    );
+    writeFileSync(tsconfigPath, buildTsconfig("src/tsconfig-new/*"));
+    await connection.sendNotification("workspace/didChangeWatchedFiles", {
+      changes: [{ uri: tsconfigUri, type: 2 }],
+    });
+    assertDefinitionTarget(
+      await requestWithTimeout(
+        connection.sendRequest("textDocument/definition", tsconfigDefinitionParams),
+        "tsconfig refreshed definition",
+      ),
+      tsconfigNewTargetUri,
+    );
+    assertDefinitionTarget(
+      await requestWithTimeout(
+        connection.sendRequest("textDocument/definition", packageDefinitionParams),
+        "package initial definition",
+      ),
+      packageOldTargetUri,
+    );
+    writeFileSync(packageJsonPath, JSON.stringify({ sass: "new.scss" }));
+    await connection.sendNotification("workspace/didChangeWatchedFiles", {
+      changes: [{ uri: packageJsonUri, type: 2 }],
+    });
+    assertDefinitionTarget(
+      await requestWithTimeout(
+        connection.sendRequest("textDocument/definition", packageDefinitionParams),
+        "package refreshed definition",
+      ),
+      packageNewTargetUri,
+    );
 
     if (hotSummary.p95Ms > MAX_HOT_P95_MS) {
       throw new Error(
@@ -184,6 +283,7 @@ async function main(): Promise<void> {
         `refreshBaseline=${formatSummary(refreshSummary)}`,
         `hotDefinition=${formatSummary(hotSummary)}`,
         `p50Ratio=${ratio.toFixed(2)}`,
+        "invalidations=package.json,tsconfig.json,vite.config.ts",
       ].join(" ") + "\n",
     );
   } finally {
@@ -272,6 +372,21 @@ function buildViteConfig(aliasCount: number): string {
   }
 };
 `;
+}
+
+function buildTsconfig(stylesTarget: string): string {
+  return `${JSON.stringify(
+    {
+      compilerOptions: {
+        baseUrl: ".",
+        paths: {
+          "$styles/*": [stylesTarget],
+        },
+      },
+    },
+    null,
+    2,
+  )}\n`;
 }
 
 function writePackageManifests(workspaceRoot: string, packageCount: number): void {
