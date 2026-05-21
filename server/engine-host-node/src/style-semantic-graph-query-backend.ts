@@ -316,9 +316,68 @@ export interface StyleSemanticGraphPackageManifestInputV0 {
 export interface StyleSemanticGraphBatchRunnerOutputV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-semantic.style-semantic-graph-batch";
+  readonly crossFileSummary?: StyleSemanticGraphCrossFileSummaryV0;
   readonly cssModulesResolution?: StyleSemanticGraphCssModulesCrossFileResolutionV0;
   readonly sassModuleResolution?: StyleSemanticGraphSassModuleCrossFileResolutionV0;
   readonly graphs: readonly StyleSemanticGraphBatchEntryV0[];
+}
+
+export interface StyleSemanticGraphCrossFileSummaryV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-query.cross-file-summary";
+  readonly status: string;
+  readonly summaryScope: string;
+  readonly styleCount: number;
+  readonly summaryEdgeCount: number;
+  readonly summaryHash: string;
+  readonly edges: readonly StyleSemanticGraphCrossFileSummaryEdgeV0[];
+  readonly capabilities: StyleSemanticGraphCrossFileSummaryCapabilitiesV0;
+  readonly nextPriorities: readonly string[];
+}
+
+export interface StyleSemanticGraphCrossFileSummaryEdgeV0 {
+  readonly edgeId: string;
+  readonly edgeKind: string;
+  readonly fromKind: string;
+  readonly fromPath: string;
+  readonly targetKind?: string | null;
+  readonly targetPath?: string | null;
+  readonly source?: string | null;
+  readonly ownerSelectorName?: string | null;
+  readonly localName?: string | null;
+  readonly remoteName?: string | null;
+  readonly targetNames: readonly string[];
+  readonly status: string;
+  readonly provenance: readonly string[];
+  readonly linearProvenance: StyleSemanticGraphLinearProvenanceV0;
+}
+
+export interface StyleSemanticGraphCrossFileSummaryCapabilitiesV0 {
+  readonly cssModulesComposesEdgesReady: boolean;
+  readonly cssModulesValueEdgesReady: boolean;
+  readonly cssModulesIcssEdgesReady: boolean;
+  readonly sassModuleEdgesReady: boolean;
+  readonly styleDesignTokenReferenceEdgesReady: boolean;
+  readonly sourceSelectorReferenceEdgesReady: boolean;
+  readonly stableSummaryHashReady: boolean;
+  readonly linearProvenanceReady: boolean;
+}
+
+export interface StyleSemanticGraphLinearProvenanceV0 {
+  readonly schemaVersion: "0";
+  readonly product: "omena-abstract-value.linear-provenance";
+  readonly semiring: {
+    readonly zero: string;
+    readonly one: string;
+    readonly addition: string;
+    readonly multiplication: string;
+    readonly idempotentAddition: boolean;
+  };
+  readonly termCount: number;
+  readonly terms: readonly {
+    readonly coefficient: number;
+    readonly label: string;
+  }[];
 }
 
 export interface StyleSemanticGraphCssModulesCrossFileResolutionV0 {

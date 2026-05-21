@@ -4,6 +4,10 @@ import { strict as assert } from "node:assert";
 
 const root = process.cwd();
 const styleSource = readFileSync(path.join(root, "rust/crates/omena-query/src/style.rs"), "utf8");
+const crossFileSummarySource = readFileSync(
+  path.join(root, "rust/crates/omena-query/src/style/cross_file_summary.rs"),
+  "utf8",
+);
 const typeSource = readFileSync(path.join(root, "rust/crates/omena-query/src/types.rs"), "utf8");
 const testSource = readFileSync(path.join(root, "rust/crates/omena-query/src/tests.rs"), "utf8");
 const hostTypeSource = readFileSync(
@@ -37,10 +41,34 @@ for (const required of [
   "OmenaQueryCssModulesValueClosureEdgeV0",
   "OmenaQueryCssModulesIcssClosureEdgeV0",
   "OmenaQuerySassModuleGraphClosureEdgeV0",
+  "OmenaQueryCrossFileSummaryV0",
+  "OmenaQueryCrossFileSummaryEdgeV0",
+  "from_path",
+  "target_path",
+  "linear_provenance",
   "visibility_filter_names",
   "namespace_show_hide_filter_ready",
 ]) {
   assert.ok(typeSource.includes(required), `omena-query types must expose ${required}`);
+}
+
+for (const required of [
+  'product: "omena-query.cross-file-summary"',
+  'status: "summaryEdgeSeed"',
+  'status: "sourceSelectorSummaryEdgeSeed"',
+  "stable_omena_query_cross_file_summary_hash",
+  "cssModulesComposesClosure",
+  "cssModulesValueClosure",
+  "cssModulesIcssClosure",
+  "sassModuleGraphClosure",
+  "styleDesignTokenReference",
+  "sourceSelectorReference",
+  "source_selector_reference_edges_ready: true",
+]) {
+  assert.ok(
+    crossFileSummarySource.includes(required),
+    `omena-query cross-file summary must retain ${required}`,
+  );
 }
 
 for (const required of [
@@ -49,6 +77,8 @@ for (const required of [
   "style_semantic_graph_batch_detects_css_modules_icss_cycles",
   "style_semantic_graph_batch_resolves_sass_module_graph_closure_and_filters",
   "style_semantic_graph_batch_detects_sass_module_cycles",
+  "style_semantic_graph_batch_cross_file_summary_hash_tracks_edge_changes",
+  "source_selector_references_emit_cross_file_summary_edges",
   "transitive_composes",
   "transitive_value",
   "transitive_icss",
@@ -65,6 +95,11 @@ for (const required of [
   "namespaceShowHideFilterReady",
   "valueGraphClosureReady",
   "icssExportImportClosureReady",
+  "crossFileSummary?: StyleSemanticGraphCrossFileSummaryV0",
+  "StyleSemanticGraphCrossFileSummaryEdgeV0",
+  "fromPath",
+  "targetPath",
+  "linearProvenance",
 ]) {
   assert.ok(hostTypeSource.includes(required), `engine host type surface must expose ${required}`);
 }
@@ -81,6 +116,7 @@ process.stdout.write(
     "closure=composes,value,icss",
     "cycles=composes,value,icss,sass",
     "sassClosure=moduleGraph",
+    "summaryEdges=style,source",
     "nextPriorities=0",
   ].join(" "),
 );
