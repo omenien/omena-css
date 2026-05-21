@@ -703,6 +703,20 @@ pub struct OmenaQueryStyleDiagnosticV0 {
     pub create_custom_property: Option<OmenaQueryCreateCustomPropertyActionV0>,
 }
 
+pub type OmenaQueryLinearProvenanceV0 = LinearProvenanceV0<Lin01ProvenanceSemiringV0>;
+
+pub fn summarize_omena_query_linear_provenance(
+    provenance: &[&'static str],
+) -> OmenaQueryLinearProvenanceV0 {
+    OmenaQueryLinearProvenanceV0::from_static_labels(provenance)
+}
+
+impl OmenaQueryStyleDiagnosticV0 {
+    pub fn linear_provenance(&self) -> OmenaQueryLinearProvenanceV0 {
+        summarize_omena_query_linear_provenance(self.provenance.as_slice())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryStyleDiagnosticsForFileV0 {
@@ -859,6 +873,12 @@ pub struct OmenaQuerySourceDiagnosticV0 {
     pub range: ParserRangeV0,
     pub message: String,
     pub create_selector: Option<OmenaQueryCreateSelectorActionV0>,
+}
+
+impl OmenaQuerySourceDiagnosticV0 {
+    pub fn linear_provenance(&self) -> OmenaQueryLinearProvenanceV0 {
+        summarize_omena_query_linear_provenance(self.provenance.as_slice())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

@@ -3,8 +3,9 @@ use super::{
     AbstractPropertyValueCandidateV0, AbstractPropertyValueV0, ClassValueControlFlowBlockV0,
     ClassValueControlFlowGraphV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
     ClassValueFlowTransferV0, CompositeClassValueInputV0, ExternalStringTypeFactsV0,
-    KLimitedCallSiteFlowInputV0, MAX_FINITE_CLASS_VALUES, OneCfaCallSiteFlowInputV0,
-    SelectorProjectionCertaintyV0, abstract_class_value_from_facts, abstract_class_value_is_subset,
+    KLimitedCallSiteFlowInputV0, Lin01ProvenanceSemiringV0, LinearProvenanceV0,
+    MAX_FINITE_CLASS_VALUES, OneCfaCallSiteFlowInputV0, SelectorProjectionCertaintyV0,
+    abstract_class_value_from_facts, abstract_class_value_is_subset,
     analyze_class_value_control_flow_graph, analyze_class_value_flow,
     analyze_class_value_flow_incremental, analyze_class_value_flow_incremental_batch_with_reuse,
     analyze_class_value_flow_incremental_with_database,
@@ -1690,6 +1691,22 @@ fn summarizes_exact_value_provenance_tree() {
     assert_eq!(tree.root.result_kind, "exact");
     assert_eq!(tree.root.detail.as_deref(), Some("value=button"));
     assert!(tree.root.children.is_empty());
+}
+
+#[test]
+fn linear_provenance_round_trips_static_labels() {
+    let labels = [
+        "omena-parser.custom-property-facts",
+        "omena-query.style-diagnostics",
+    ];
+    let provenance = LinearProvenanceV0::<Lin01ProvenanceSemiringV0>::from_static_labels(&labels);
+
+    assert_eq!(provenance.schema_version, "0");
+    assert_eq!(provenance.product, "omena-abstract-value.linear-provenance");
+    assert_eq!(provenance.semiring, Lin01ProvenanceSemiringV0::new());
+    assert_eq!(provenance.term_count, 2);
+    assert_eq!(provenance.labels(), labels.to_vec());
+    assert!(provenance.terms.iter().all(|term| term.coefficient == 1));
 }
 
 #[test]

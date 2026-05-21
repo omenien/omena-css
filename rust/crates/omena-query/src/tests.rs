@@ -4670,6 +4670,28 @@ fn missing_custom_property_diagnostics_are_query_owned() {
             "omena-query.style-diagnostics"
         ]
     );
+    let linear_provenance = summary.diagnostics[0].linear_provenance();
+    assert_eq!(
+        linear_provenance.product,
+        "omena-abstract-value.linear-provenance"
+    );
+    assert_eq!(
+        linear_provenance.labels(),
+        summary.diagnostics[0].provenance
+    );
+    assert_eq!(linear_provenance.term_count, 2);
+
+    let serialized = serde_json::to_value(&summary.diagnostics[0]).expect("diagnostic JSON");
+    assert_eq!(
+        serialized
+            .pointer("/provenance/0")
+            .and_then(|value| value.as_str()),
+        Some("omena-parser.custom-property-facts")
+    );
+    assert!(
+        serialized.get("linearProvenance").is_none(),
+        "typed provenance is a strict-superset projection and must not change the current wire shape"
+    );
     assert!(
         summary
             .ready_surfaces
@@ -5929,6 +5951,14 @@ fn missing_selector_diagnostics_are_query_owned() {
                 character: 0,
             },
         })
+    );
+    let linear_provenance = diagnostic.linear_provenance();
+    assert_eq!(
+        linear_provenance.labels(),
+        vec![
+            "omena-query.source-syntax-index",
+            "omena-query.style-selector-definitions"
+        ]
     );
 }
 

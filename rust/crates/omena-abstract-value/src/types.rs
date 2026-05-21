@@ -263,6 +263,74 @@ pub enum AbstractClassValueProvenanceV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct Lin01ProvenanceSemiringV0 {
+    pub zero: &'static str,
+    pub one: &'static str,
+    pub addition: &'static str,
+    pub multiplication: &'static str,
+    pub idempotent_addition: bool,
+}
+
+impl Lin01ProvenanceSemiringV0 {
+    pub const fn new() -> Self {
+        Self {
+            zero: "0",
+            one: "1",
+            addition: "or",
+            multiplication: "andThen",
+            idempotent_addition: true,
+        }
+    }
+}
+
+impl Default for Lin01ProvenanceSemiringV0 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinearProvenanceTermV0 {
+    pub coefficient: u8,
+    pub label: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinearProvenanceV0<K> {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub semiring: K,
+    pub term_count: usize,
+    pub terms: Vec<LinearProvenanceTermV0>,
+}
+
+impl LinearProvenanceV0<Lin01ProvenanceSemiringV0> {
+    pub fn from_static_labels(labels: &[&'static str]) -> Self {
+        let terms = labels
+            .iter()
+            .map(|label| LinearProvenanceTermV0 {
+                coefficient: 1,
+                label: *label,
+            })
+            .collect::<Vec<_>>();
+        Self {
+            schema_version: "0",
+            product: "omena-abstract-value.linear-provenance",
+            semiring: Lin01ProvenanceSemiringV0::new(),
+            term_count: terms.len(),
+            terms,
+        }
+    }
+
+    pub fn labels(&self) -> Vec<&'static str> {
+        self.terms.iter().map(|term| term.label).collect()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AbstractClassValueProvenanceTreeV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
