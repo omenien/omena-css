@@ -33,6 +33,25 @@ pub fn resolve_omena_resolver_style_module_source_with_tsconfig_paths(
     .resolved_style_path
 }
 
+pub fn resolve_omena_resolver_style_module_source_with_path_mappings(
+    from_style_path: &str,
+    source: &str,
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaResolverStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) -> Option<String> {
+    summarize_omena_resolver_style_module_resolution_with_path_mappings(
+        from_style_path,
+        source,
+        available_style_paths,
+        package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+    )
+    .resolved_style_path
+}
+
 pub fn summarize_omena_resolver_style_module_resolution(
     from_style_path: &str,
     source: &str,
@@ -55,16 +74,37 @@ pub fn summarize_omena_resolver_style_module_resolution_with_tsconfig_paths(
     package_manifests: &[OmenaResolverStylePackageManifestV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> OmenaResolverStyleModuleResolutionV0 {
-    let candidates = collect_omena_resolver_style_module_source_candidates_with_tsconfig_paths(
+    summarize_omena_resolver_style_module_resolution_with_path_mappings(
+        from_style_path,
+        source,
+        available_style_paths,
+        package_manifests,
+        &[],
+        tsconfig_path_mappings,
+    )
+}
+
+pub fn summarize_omena_resolver_style_module_resolution_with_path_mappings(
+    from_style_path: &str,
+    source: &str,
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaResolverStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) -> OmenaResolverStyleModuleResolutionV0 {
+    let candidates = collect_omena_resolver_style_module_source_candidates_with_path_mappings(
         from_style_path,
         source,
         package_manifests,
+        bundler_path_mappings,
         tsconfig_path_mappings,
     );
     let resolved_style_path =
         resolve_style_module_candidate_from_available_paths(&candidates, available_style_paths);
     let resolution_kind = if resolved_style_path.is_some() {
-        if source_matches_tsconfig_path_mapping(source, tsconfig_path_mappings) {
+        if source_matches_bundler_path_mapping(source, bundler_path_mappings) {
+            "bundlerPathStyleModule"
+        } else if source_matches_tsconfig_path_mapping(source, tsconfig_path_mappings) {
             "tsconfigPathStyleModule"
         } else if is_package_import_style_source(source) {
             "packageImportStyleModule"
@@ -110,11 +150,30 @@ pub fn collect_omena_resolver_style_module_source_candidates_with_tsconfig_paths
     package_manifests: &[OmenaResolverStylePackageManifestV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> Vec<String> {
+    collect_omena_resolver_style_module_source_candidates_with_path_mappings(
+        from_style_path,
+        source,
+        package_manifests,
+        &[],
+        tsconfig_path_mappings,
+    )
+}
+
+pub fn collect_omena_resolver_style_module_source_candidates_with_path_mappings(
+    from_style_path: &str,
+    source: &str,
+    package_manifests: &[OmenaResolverStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) -> Vec<String> {
     if is_external_style_module_source(source) {
         return Vec::new();
     }
 
     let mut candidates = Vec::new();
+    for base_path in bundler_style_module_base_candidates(source, bundler_path_mappings) {
+        push_style_module_path_candidates(&mut candidates, base_path, true);
+    }
     for base_path in tsconfig_style_module_base_candidates(source, tsconfig_path_mappings) {
         push_style_module_path_candidates(&mut candidates, base_path, true);
     }
@@ -161,14 +220,33 @@ pub fn summarize_omena_resolver_specifier_resolution_runtime(
     package_manifests: &[OmenaResolverStylePackageManifestV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> OmenaResolverSpecifierResolutionRuntimeV0 {
+    summarize_omena_resolver_specifier_resolution_runtime_with_path_mappings(
+        from_style_path,
+        sources,
+        available_style_paths,
+        package_manifests,
+        &[],
+        tsconfig_path_mappings,
+    )
+}
+
+pub fn summarize_omena_resolver_specifier_resolution_runtime_with_path_mappings(
+    from_style_path: &str,
+    sources: &[String],
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaResolverStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+) -> OmenaResolverSpecifierResolutionRuntimeV0 {
     let mut entries = sources
         .iter()
         .map(|source| {
-            let resolution = summarize_omena_resolver_style_module_resolution_with_tsconfig_paths(
+            let resolution = summarize_omena_resolver_style_module_resolution_with_path_mappings(
                 from_style_path,
                 source,
                 available_style_paths,
                 package_manifests,
+                bundler_path_mappings,
                 tsconfig_path_mappings,
             );
             let status = if resolution.resolution_kind == "externalIgnored" {
@@ -213,6 +291,7 @@ pub fn summarize_omena_resolver_specifier_resolution_runtime(
         ready_surfaces: vec![
             "specifierResolutionRuntime",
             "batchStyleModuleResolution",
+            "bundlerPathAliasMapping",
             "tsconfigPathMapping",
             "packageManifestResolution",
             "externalSpecifierFiltering",
@@ -238,6 +317,66 @@ fn tsconfig_style_module_base_candidates(
         }
     }
     candidates
+}
+
+fn bundler_style_module_base_candidates(
+    source: &str,
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+) -> Vec<PathBuf> {
+    let mut matches = bundler_path_mappings
+        .iter()
+        .enumerate()
+        .filter_map(|(index, mapping)| {
+            let remaining = match_bundler_path_alias_pattern(&mapping.pattern, source)?;
+            Some((index, mapping.pattern.len(), mapping, remaining))
+        })
+        .collect::<Vec<_>>();
+    matches.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
+
+    let Some(best_pattern_len) = matches.first().map(|(_, pattern_len, _, _)| *pattern_len) else {
+        return Vec::new();
+    };
+
+    let mut candidates = Vec::new();
+    for (_, pattern_len, mapping, remaining) in matches {
+        if pattern_len != best_pattern_len {
+            break;
+        }
+        let base_path = if remaining.is_empty() {
+            PathBuf::from(&mapping.target_path)
+        } else {
+            Path::new(&mapping.target_path).join(remaining)
+        };
+        push_unique_pathbuf(&mut candidates, base_path);
+    }
+    candidates
+}
+
+fn source_matches_bundler_path_mapping(
+    source: &str,
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+) -> bool {
+    bundler_path_mappings
+        .iter()
+        .any(|mapping| match_bundler_path_alias_pattern(&mapping.pattern, source).is_some())
+}
+
+fn match_bundler_path_alias_pattern<'source>(
+    pattern: &str,
+    source: &'source str,
+) -> Option<&'source str> {
+    if pattern.is_empty() {
+        return None;
+    }
+    if source == pattern {
+        return Some("");
+    }
+    let prefix = if pattern.ends_with('/') {
+        pattern.to_string()
+    } else {
+        format!("{pattern}/")
+    };
+    source.strip_prefix(prefix.as_str())
 }
 
 fn best_tsconfig_path_mapping_matches<'mapping, 'source>(

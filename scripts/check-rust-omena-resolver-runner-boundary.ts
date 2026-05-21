@@ -75,8 +75,12 @@ assert.ok(
   "omena-resolver-style-module-resolution must map tsconfig path aliases into omena-resolver contracts",
 );
 assert.ok(
+  resolverStyleModuleResolutionBody.includes("OmenaResolverBundlerPathAliasMappingV0"),
+  "omena-resolver-style-module-resolution must map bundler path aliases into omena-resolver contracts",
+);
+assert.ok(
   resolverStyleModuleResolutionBody.includes(
-    "summarize_omena_resolver_style_module_resolution_with_tsconfig_paths",
+    "summarize_omena_resolver_style_module_resolution_with_path_mappings",
   ),
   "omena-resolver-style-module-resolution must route through omena-resolver",
 );
@@ -97,7 +101,13 @@ assert.ok(
   "omena-resolver-specifier-resolution-runtime must deserialize the resolver specifier runtime input product",
 );
 assert.ok(
-  resolverSpecifierRuntimeBody.includes("summarize_omena_resolver_specifier_resolution_runtime"),
+  resolverSpecifierRuntimeBody.includes("OmenaResolverBundlerPathAliasMappingV0"),
+  "omena-resolver-specifier-resolution-runtime must map bundler path aliases into omena-resolver contracts",
+);
+assert.ok(
+  resolverSpecifierRuntimeBody.includes(
+    "summarize_omena_resolver_specifier_resolution_runtime_with_path_mappings",
+  ),
   "omena-resolver-specifier-resolution-runtime must route through omena-resolver",
 );
 assert.ok(
@@ -127,6 +137,7 @@ process.stdout.write(
     "runtimeQueryCommand=omena-resolver-runtime-query-boundary",
     "styleModuleResolutionCommand=omena-resolver-style-module-resolution",
     "specifierResolutionRuntimeCommand=omena-resolver-specifier-resolution-runtime",
+    "bundlerPathAliasMapping=runner-input",
     "tsconfigPathMapping=runner-input",
     "queryDelegation=source-resolution",
   ].join(" "),

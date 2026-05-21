@@ -42,6 +42,7 @@ pub fn summarize_omena_resolver_boundary(input: &EngineInputV2) -> OmenaResolver
             "resolverSourceResolutionRuntimeIndex",
             "resolverStyleModuleResolution",
             "resolverSpecifierResolutionRuntime",
+            "resolverBundlerPathAliasMapping",
             "resolverTsconfigPathMapping",
             "sourceResolutionQueryFragments",
             "sourceResolutionCanonicalProducerSignal",

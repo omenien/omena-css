@@ -8,14 +8,17 @@ use std::collections::BTreeSet;
 use std::{fs, path::PathBuf, time::SystemTime};
 
 use super::{
-    OmenaResolverStylePackageManifestV0, OmenaResolverTsconfigPathMappingV0,
-    query_omena_resolver_runtime_module, query_omena_resolver_source_expression,
-    summarize_omena_resolver_boundary, summarize_omena_resolver_canonical_producer_signal,
+    OmenaResolverBundlerPathAliasMappingV0, OmenaResolverStylePackageManifestV0,
+    OmenaResolverTsconfigPathMappingV0, query_omena_resolver_runtime_module,
+    query_omena_resolver_source_expression, summarize_omena_resolver_boundary,
+    summarize_omena_resolver_canonical_producer_signal,
     summarize_omena_resolver_module_graph_index, summarize_omena_resolver_query_fragments,
     summarize_omena_resolver_runtime_query_boundary,
     summarize_omena_resolver_source_resolution_runtime,
     summarize_omena_resolver_specifier_resolution_runtime,
+    summarize_omena_resolver_specifier_resolution_runtime_with_path_mappings,
     summarize_omena_resolver_style_module_resolution,
+    summarize_omena_resolver_style_module_resolution_with_path_mappings,
     summarize_omena_resolver_style_module_resolution_with_tsconfig_paths,
 };
 
@@ -90,6 +93,11 @@ fn summarizes_resolver_boundary_over_source_resolution_products() {
         summary
             .ready_surfaces
             .contains(&"resolverSpecifierResolutionRuntime")
+    );
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"resolverBundlerPathAliasMapping")
     );
     assert!(
         summary
@@ -172,6 +180,55 @@ fn summarizes_specifier_resolution_runtime_for_style_batches() {
             .iter()
             .any(|entry| entry.source == "./Missing" && entry.status == "unresolved")
     );
+}
+
+#[test]
+fn resolves_bundler_path_mapped_style_modules_before_tsconfig_paths() {
+    let available_style_paths = BTreeSet::from([
+        "/fake/workspace/src/bundler/Button.module.scss",
+        "/fake/workspace/src/tsconfig/Button.module.scss",
+    ]);
+    let resolution = summarize_omena_resolver_style_module_resolution_with_path_mappings(
+        "/fake/workspace/src/App.module.scss",
+        "@styles/Button",
+        &available_style_paths,
+        &[],
+        &[OmenaResolverBundlerPathAliasMappingV0 {
+            pattern: "@styles".to_string(),
+            target_path: "/fake/workspace/src/bundler".to_string(),
+        }],
+        &[OmenaResolverTsconfigPathMappingV0 {
+            base_path: "/fake/workspace".to_string(),
+            pattern: "@styles/*".to_string(),
+            target_patterns: vec!["src/tsconfig/*".to_string()],
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "bundlerPathStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/src/bundler/Button.module.scss")
+    );
+}
+
+#[test]
+fn summarizes_specifier_runtime_with_bundler_path_aliases() {
+    let available_style_paths = BTreeSet::from(["/fake/workspace/src/bundler/Button.module.scss"]);
+    let runtime = summarize_omena_resolver_specifier_resolution_runtime_with_path_mappings(
+        "/fake/workspace/src/App.module.scss",
+        &["@styles/Button".to_string()],
+        &available_style_paths,
+        &[],
+        &[OmenaResolverBundlerPathAliasMappingV0 {
+            pattern: "@styles".to_string(),
+            target_path: "/fake/workspace/src/bundler".to_string(),
+        }],
+        &[],
+    );
+
+    assert!(runtime.ready_surfaces.contains(&"bundlerPathAliasMapping"));
+    assert_eq!(runtime.resolved_specifier_count, 1);
+    assert_eq!(runtime.entries[0].resolution_kind, "bundlerPathStyleModule");
 }
 
 #[test]

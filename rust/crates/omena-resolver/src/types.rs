@@ -133,6 +133,13 @@ pub struct OmenaResolverTsconfigPathMappingV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OmenaResolverBundlerPathAliasMappingV0 {
+    pub pattern: String,
+    pub target_path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaResolverStyleModuleResolutionV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

@@ -81,11 +81,12 @@ use omena_query::{
     summarize_omena_query_transform_plan_from_target_query_with_context,
 };
 use omena_resolver::{
-    OmenaResolverModuleGraphSummaryV0, OmenaResolverStylePackageManifestV0,
-    OmenaResolverTsconfigPathMappingV0, summarize_omena_resolver_boundary,
-    summarize_omena_resolver_module_graph_index, summarize_omena_resolver_runtime_query_boundary,
-    summarize_omena_resolver_specifier_resolution_runtime,
-    summarize_omena_resolver_style_module_resolution_with_tsconfig_paths,
+    OmenaResolverBundlerPathAliasMappingV0, OmenaResolverModuleGraphSummaryV0,
+    OmenaResolverStylePackageManifestV0, OmenaResolverTsconfigPathMappingV0,
+    summarize_omena_resolver_boundary, summarize_omena_resolver_module_graph_index,
+    summarize_omena_resolver_runtime_query_boundary,
+    summarize_omena_resolver_specifier_resolution_runtime_with_path_mappings,
+    summarize_omena_resolver_style_module_resolution_with_path_mappings,
 };
 use serde::{Deserialize, Serialize};
 
@@ -439,6 +440,8 @@ struct OmenaResolverStyleModuleResolutionInputV0 {
     #[serde(default)]
     package_manifests: Vec<OmenaResolverStylePackageManifestInputV0>,
     #[serde(default)]
+    bundler_path_mappings: Vec<OmenaResolverBundlerPathAliasMappingInputV0>,
+    #[serde(default)]
     tsconfig_path_mappings: Vec<OmenaResolverTsconfigPathMappingInputV0>,
 }
 
@@ -460,7 +463,16 @@ struct OmenaResolverSpecifierResolutionRuntimeInputV0 {
     #[serde(default)]
     package_manifests: Vec<OmenaResolverStylePackageManifestInputV0>,
     #[serde(default)]
+    bundler_path_mappings: Vec<OmenaResolverBundlerPathAliasMappingInputV0>,
+    #[serde(default)]
     tsconfig_path_mappings: Vec<OmenaResolverTsconfigPathMappingInputV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaResolverBundlerPathAliasMappingInputV0 {
+    pattern: String,
+    target_path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1599,6 +1611,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     package_json_source: manifest.package_json_source.clone(),
                 })
                 .collect::<Vec<_>>();
+            let bundler_path_mappings = input
+                .bundler_path_mappings
+                .iter()
+                .map(|mapping| OmenaResolverBundlerPathAliasMappingV0 {
+                    pattern: mapping.pattern.clone(),
+                    target_path: mapping.target_path.clone(),
+                })
+                .collect::<Vec<_>>();
             let tsconfig_path_mappings = input
                 .tsconfig_path_mappings
                 .iter()
@@ -1608,11 +1628,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     target_patterns: mapping.target_patterns.clone(),
                 })
                 .collect::<Vec<_>>();
-            let summary = summarize_omena_resolver_style_module_resolution_with_tsconfig_paths(
+            let summary = summarize_omena_resolver_style_module_resolution_with_path_mappings(
                 &input.from_style_path,
                 &input.source,
                 &available_style_paths,
                 &package_manifests,
+                &bundler_path_mappings,
                 &tsconfig_path_mappings,
             );
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
@@ -1633,6 +1654,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     package_json_source: manifest.package_json_source.clone(),
                 })
                 .collect::<Vec<_>>();
+            let bundler_path_mappings = input
+                .bundler_path_mappings
+                .iter()
+                .map(|mapping| OmenaResolverBundlerPathAliasMappingV0 {
+                    pattern: mapping.pattern.clone(),
+                    target_path: mapping.target_path.clone(),
+                })
+                .collect::<Vec<_>>();
             let tsconfig_path_mappings = input
                 .tsconfig_path_mappings
                 .iter()
@@ -1642,11 +1671,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     target_patterns: mapping.target_patterns.clone(),
                 })
                 .collect::<Vec<_>>();
-            let summary = summarize_omena_resolver_specifier_resolution_runtime(
+            let summary = summarize_omena_resolver_specifier_resolution_runtime_with_path_mappings(
                 &input.from_style_path,
                 &input.sources,
                 &available_style_paths,
                 &package_manifests,
+                &bundler_path_mappings,
                 &tsconfig_path_mappings,
             );
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
@@ -2007,6 +2037,14 @@ fn run_daemon_selected_query_command(
                     package_json_source: manifest.package_json_source.clone(),
                 })
                 .collect::<Vec<_>>();
+            let bundler_path_mappings = input
+                .bundler_path_mappings
+                .iter()
+                .map(|mapping| OmenaResolverBundlerPathAliasMappingV0 {
+                    pattern: mapping.pattern.clone(),
+                    target_path: mapping.target_path.clone(),
+                })
+                .collect::<Vec<_>>();
             let tsconfig_path_mappings = input
                 .tsconfig_path_mappings
                 .iter()
@@ -2017,11 +2055,12 @@ fn run_daemon_selected_query_command(
                 })
                 .collect::<Vec<_>>();
             Ok(serde_json::to_value(
-                summarize_omena_resolver_style_module_resolution_with_tsconfig_paths(
+                summarize_omena_resolver_style_module_resolution_with_path_mappings(
                     &input.from_style_path,
                     &input.source,
                     &available_style_paths,
                     &package_manifests,
+                    &bundler_path_mappings,
                     &tsconfig_path_mappings,
                 ),
             )?)
@@ -2042,6 +2081,14 @@ fn run_daemon_selected_query_command(
                     package_json_source: manifest.package_json_source.clone(),
                 })
                 .collect::<Vec<_>>();
+            let bundler_path_mappings = input
+                .bundler_path_mappings
+                .iter()
+                .map(|mapping| OmenaResolverBundlerPathAliasMappingV0 {
+                    pattern: mapping.pattern.clone(),
+                    target_path: mapping.target_path.clone(),
+                })
+                .collect::<Vec<_>>();
             let tsconfig_path_mappings = input
                 .tsconfig_path_mappings
                 .iter()
@@ -2052,11 +2099,12 @@ fn run_daemon_selected_query_command(
                 })
                 .collect::<Vec<_>>();
             Ok(serde_json::to_value(
-                summarize_omena_resolver_specifier_resolution_runtime(
+                summarize_omena_resolver_specifier_resolution_runtime_with_path_mappings(
                     &input.from_style_path,
                     &input.sources,
                     &available_style_paths,
                     &package_manifests,
+                    &bundler_path_mappings,
                     &tsconfig_path_mappings,
                 ),
             )?)
