@@ -366,9 +366,10 @@ export interface StyleSemanticGraphCrossFileSummaryCapabilitiesV0 {
 export interface StyleSemanticGraphLinearProvenanceV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-abstract-value.linear-provenance";
+  readonly semiringIdentifier: "lin01";
   readonly semiring: {
-    readonly zero: string;
-    readonly one: string;
+    readonly zero: number;
+    readonly one: number;
     readonly addition: string;
     readonly multiplication: string;
     readonly idempotentAddition: boolean;

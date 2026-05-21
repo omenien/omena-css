@@ -4271,6 +4271,11 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
     assert_eq!(batch.cross_file_summary.status, "summaryEdgeSeed");
     assert_eq!(batch.cross_file_summary.summary_edge_count, 15);
     assert_eq!(batch.cross_file_summary.summary_hash.len(), 16);
+    assert!(batch.cross_file_summary.edges.iter().all(|edge| {
+        edge.linear_provenance.semiring_identifier() == "lin01"
+            && edge.linear_provenance.semiring_identifier == "lin01"
+            && edge.linear_provenance.labels() == edge.provenance
+    }));
     assert!(
         batch
             .cross_file_summary
@@ -5834,6 +5839,8 @@ fn source_selector_references_emit_cross_file_summary_edges() {
         ]
     );
     assert_eq!(edge.linear_provenance.labels(), edge.provenance);
+    assert_eq!(edge.linear_provenance.semiring_identifier(), "lin01");
+    assert_eq!(edge.linear_provenance.semiring_identifier, "lin01");
 }
 
 #[test]

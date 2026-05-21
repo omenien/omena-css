@@ -442,6 +442,7 @@ pub struct LinearProvenanceTermV0 {
 pub struct LinearProvenanceV0<K: ProvenanceSemiringV0> {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub semiring_identifier: &'static str,
     pub semiring: K,
     pub term_count: usize,
     pub terms: Vec<LinearProvenanceTermV0>,
@@ -449,7 +450,7 @@ pub struct LinearProvenanceV0<K: ProvenanceSemiringV0> {
 
 impl<K: ProvenanceSemiringV0> LinearProvenanceV0<K> {
     pub fn semiring_identifier(&self) -> &'static str {
-        self.semiring.semiring_identifier()
+        self.semiring_identifier
     }
 
     pub fn labels(&self) -> Vec<&'static str> {
@@ -469,6 +470,7 @@ impl LinearProvenanceV0<Lin01ProvenanceSemiringV0> {
         Self {
             schema_version: "0",
             product: "omena-abstract-value.linear-provenance",
+            semiring_identifier: Lin01ProvenanceSemiringV0::IDENTIFIER,
             semiring: Lin01ProvenanceSemiringV0::new(),
             term_count: terms.len(),
             terms,
