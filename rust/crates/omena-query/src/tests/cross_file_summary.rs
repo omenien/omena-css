@@ -334,40 +334,76 @@ fn workspace_cross_file_summary_hash_tracks_style_edge_changes() {
 fn workspace_cross_file_summary_hash_is_input_order_stable() {
     let style_sources = vec![
         OmenaQueryStyleSourceInputV0 {
-            style_path: "/tmp/base.module.scss".to_string(),
-            style_source: ".base { display: block; }".to_string(),
-        },
-        OmenaQueryStyleSourceInputV0 {
-            style_path: "/tmp/_tokens.scss".to_string(),
+            style_path: "/fake/workspace/node_modules/@design/tokens/dist/theme.css".to_string(),
             style_source: ":root { --brand: red; }".to_string(),
         },
         OmenaQueryStyleSourceInputV0 {
-            style_path: "/tmp/Button.module.scss".to_string(),
+            style_path: "/fake/workspace/node_modules/@design/palette/dist/palette.css"
+                .to_string(),
+            style_source: ":root { --accent: blue; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/fake/workspace/src/base.module.scss".to_string(),
+            style_source: ".base { display: block; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/fake/workspace/src/_tokens.scss".to_string(),
+            style_source: ":root { --brand: red; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/fake/workspace/src/Button.module.scss".to_string(),
             style_source:
-                "@use \"./tokens\";\n.root { composes: base from \"./base.module.scss\"; color: var(--brand); }"
+                "@use \"@design/tokens/theme\";\n@use \"@design/palette/theme\";\n.root { composes: base from \"./base.module.scss\"; color: var(--brand); border-color: var(--accent); }"
                     .to_string(),
         },
     ];
     let reordered_style_sources = vec![
+        style_sources[4].clone(),
         style_sources[2].clone(),
         style_sources[0].clone(),
+        style_sources[3].clone(),
         style_sources[1].clone(),
     ];
-    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
-        source_path: "/tmp/Button.tsx".to_string(),
-        source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
-            .to_string(),
-    }];
+    let source_documents = vec![
+        OmenaQuerySourceDocumentInputV0 {
+            source_path: "/fake/workspace/src/Button.tsx".to_string(),
+            source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
+                .to_string(),
+        },
+        OmenaQuerySourceDocumentInputV0 {
+            source_path: "/fake/workspace/src/Card.tsx".to_string(),
+            source_source:
+                "import buttonStyles from './Button.module.scss';\nconst cls = buttonStyles.root;\n"
+                    .to_string(),
+        },
+    ];
+    let reordered_source_documents = vec![source_documents[1].clone(), source_documents[0].clone()];
+    let package_manifests = vec![
+        OmenaQueryStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source: r#"{"exports":{"./theme":{"style":"./dist/theme.css"}}}"#
+                .to_string(),
+        },
+        OmenaQueryStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/palette/package.json"
+                .to_string(),
+            package_json_source: r#"{"exports":{"./theme":{"style":"./dist/palette.css"}}}"#
+                .to_string(),
+        },
+    ];
+    let reordered_package_manifests =
+        vec![package_manifests[1].clone(), package_manifests[0].clone()];
 
     let baseline = summarize_omena_query_workspace_cross_file_summary(
         style_sources.as_slice(),
         source_documents.as_slice(),
-        &[],
+        package_manifests.as_slice(),
     );
     let reordered = summarize_omena_query_workspace_cross_file_summary(
         reordered_style_sources.as_slice(),
-        source_documents.as_slice(),
-        &[],
+        reordered_source_documents.as_slice(),
+        reordered_package_manifests.as_slice(),
     );
     let baseline_edge_ids = baseline
         .edges
@@ -383,6 +419,16 @@ fn workspace_cross_file_summary_hash_is_input_order_stable() {
     assert_eq!(baseline.summary_hash, reordered.summary_hash);
     assert_eq!(baseline_edge_ids, reordered_edge_ids);
     assert_eq!(baseline.edge_kind_counts, reordered.edge_kind_counts);
+    assert!(baseline.edges.iter().any(|edge| {
+        edge.edge_kind == "styleDesignTokenReference"
+            && edge.local_name.as_deref() == Some("--accent")
+            && edge.target_path.as_deref()
+                == Some("/fake/workspace/node_modules/@design/palette/dist/palette.css")
+    }));
+    assert!(baseline.edges.iter().any(|edge| {
+        edge.edge_kind == "sourceSelectorReference"
+            && edge.from_path == "/fake/workspace/src/Card.tsx"
+    }));
     assert!(baseline.linear_provenance_round_trips_legacy_labels());
     assert!(reordered.linear_provenance_round_trips_legacy_labels());
 }
