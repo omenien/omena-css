@@ -137,7 +137,7 @@ function validateSelections(candidate: WptSeedSelectionsV0): void {
   assert.ok(candidate.source.helperClasses.includes("test_valid_value"));
   assert.ok(candidate.knownFailurePolicy.path.endsWith("wpt-seed-policy.toml"));
   assert.equal(candidate.knownFailurePolicy.schemaVersion, "0");
-  assert.equal(candidate.knownFailurePolicy.stage2Blocking, false);
+  assert.equal(typeof candidate.knownFailurePolicy.stage2Blocking, "boolean");
 
   const ids = new Set<string>();
   for (const fixture of candidate.fixtures) {

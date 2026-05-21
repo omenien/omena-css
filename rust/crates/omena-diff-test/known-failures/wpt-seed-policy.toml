@@ -1,7 +1,7 @@
 schema_version = "0"
 corpus_manifest = "../wpt-corpus/manifest.json"
 stage = "advisory"
-stage2_blocking = false
+stage2_blocking = true
 source_pin = "web-platform-tests/wpt@37b7cece2910dfe0d7f1cf872bbb1df32c21f07f"
 review_interval_days = 30
 required_min_fixture_count_for_stage2 = 25

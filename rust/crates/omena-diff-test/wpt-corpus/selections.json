@@ -14,7 +14,7 @@
   "knownFailurePolicy": {
     "path": "../known-failures/wpt-seed-policy.toml",
     "schemaVersion": "0",
-    "stage2Blocking": false
+    "stage2Blocking": true
   },
   "fixtures": [
     {

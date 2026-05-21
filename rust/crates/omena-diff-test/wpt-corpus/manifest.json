@@ -12,7 +12,7 @@
   "knownFailurePolicy": {
     "path": "../known-failures/wpt-seed-policy.toml",
     "schemaVersion": "0",
-    "stage2Blocking": false
+    "stage2Blocking": true
   },
   "generation": {
     "tool": "scripts/generate-rust-omena-diff-test-wpt-corpus.ts",

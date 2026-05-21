@@ -593,6 +593,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         fixture_count,
         known_failure_count,
         green_run_evidence_count,
+        stage2_blocking,
     );
     let stage2_promotion_blockers = wpt_seed_stage2_promotion_blockers(
         all_metadata_valid,
@@ -638,6 +639,7 @@ fn wpt_seed_manifest_metadata_valid(
     fixture_count: usize,
     known_failure_count: usize,
     green_run_evidence_count: usize,
+    stage2_blocking: bool,
 ) -> bool {
     let Some(manifest) = manifest else {
         return false;
@@ -653,6 +655,9 @@ fn wpt_seed_manifest_metadata_valid(
         .pointer("/chunks/0/fixtureCount")
         .and_then(serde_json::Value::as_u64)
         .map(|value| value as usize);
+    let manifest_policy_stage2_blocking = manifest
+        .pointer("/knownFailurePolicy/stage2Blocking")
+        .and_then(serde_json::Value::as_bool);
     manifest
         .get("schemaVersion")
         .and_then(serde_json::Value::as_str)
@@ -671,7 +676,7 @@ fn wpt_seed_manifest_metadata_valid(
             == Some("omena-diff-test.wpt-seed-corpus.chunk")
         && wpt_seed_policy_string_value("schema_version") == Some("0")
         && wpt_seed_policy_string_value("stage") == Some("advisory")
-        && wpt_seed_policy_bool_value("stage2_blocking") == Some(false)
+        && manifest_policy_stage2_blocking == Some(stage2_blocking)
         && wpt_seed_policy_string_value("source_pin") == manifest_source_pin
         && wpt_seed_policy_usize_value("review_interval_days").is_some_and(|days| days > 0)
         && wpt_seed_policy_usize_value("required_min_fixture_count_for_stage2")
@@ -917,7 +922,7 @@ mod tests {
         assert_eq!(report.chunk_count, 1);
         assert!(report.fixture_count >= 25);
         assert_eq!(report.known_failure_count, 0);
-        assert!(!report.stage2_blocking);
+        assert!(report.stage2_blocking);
         assert_eq!(report.required_min_fixture_count_for_stage2, 25);
         assert_eq!(report.required_consecutive_green_runs, 5);
         assert_eq!(report.consecutive_green_runs, 5);
