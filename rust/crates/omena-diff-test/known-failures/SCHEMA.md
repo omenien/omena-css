@@ -11,6 +11,12 @@ Top-level fields:
   lane.
 - `source_pin`: upstream WPT source pin.
 - `review_interval_days`: maximum review interval for known-failure entries.
+- `required_min_fixture_count_for_stage2`: minimum generated fixture count
+  required before the seed corpus can be promoted to Stage 2 blocking.
+- `required_consecutive_green_runs`: minimum consecutive green advisory runs
+  required before Stage 2 blocking promotion.
+- `consecutive_green_runs`: current reviewed consecutive green advisory run
+  count for the pinned corpus and policy.
 
 Future `[[subtest]]` entries must include `fixture`, `name`, `status`,
 `reason`, `issue`, `since`, and `review_after`. Stale entries are rejected by

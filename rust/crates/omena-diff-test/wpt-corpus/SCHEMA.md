@@ -13,6 +13,11 @@ layout-free CSS fixtures with an expected minified CSS literal.
 This seed corpus is intentionally small. It proves the governance shape before a
 larger sparse WPT mirror is introduced.
 
+The known-failure policy also records Stage 2 promotion evidence. Stage 1 stays
+advisory until the generated corpus reaches the configured fixture threshold,
+known failures remain reviewed, and the configured consecutive-green run count
+is met.
+
 Refresh generated files with:
 
 ```bash

@@ -78,6 +78,9 @@ interface KnownFailurePolicyV0 {
   readonly stage2Blocking: boolean;
   readonly sourcePin: string;
   readonly reviewIntervalDays: number;
+  readonly requiredMinFixtureCountForStage2: number;
+  readonly requiredConsecutiveGreenRuns: number;
+  readonly consecutiveGreenRuns: number;
   readonly subtests: readonly KnownFailureSubtestV0[];
 }
 
@@ -135,6 +138,15 @@ assert.equal(policy.stage, "advisory");
 assert.equal(policy.stage2Blocking, manifest.knownFailurePolicy.stage2Blocking);
 assert.equal(policy.sourcePin, manifest.source.pin);
 assert.ok(policy.reviewIntervalDays > 0, "known-failure review interval must be positive");
+assert.ok(
+  policy.requiredMinFixtureCountForStage2 > 0,
+  "Stage 2 must declare a positive fixture-count threshold",
+);
+assert.ok(
+  policy.requiredConsecutiveGreenRuns > 0,
+  "Stage 2 must declare a positive consecutive-green threshold",
+);
+assert.ok(policy.consecutiveGreenRuns >= 0, "consecutive green runs cannot be negative");
 
 const fixtures = manifest.chunks.flatMap((chunkManifest) => {
   const chunkPath = path.join(corpusRoot, chunkManifest.path);
@@ -220,6 +232,20 @@ const reports = fixtures.map((fixture) => {
 
 const criticalRegressionCount = reports.filter((report) => report.outcomeCell === "oLW").length;
 assert.equal(criticalRegressionCount, 0, "WPT seed corpus has omena-only failures");
+const stage2PromotionBlockers = stage2Blockers({
+  manifestStage: manifest.stage,
+  policyStage: policy.stage,
+  fixtureCount: reports.length,
+  knownFailureCount: policy.subtests.length,
+  criticalRegressionCount,
+  requiredMinFixtureCountForStage2: policy.requiredMinFixtureCountForStage2,
+  requiredConsecutiveGreenRuns: policy.requiredConsecutiveGreenRuns,
+  consecutiveGreenRuns: policy.consecutiveGreenRuns,
+});
+const stage2CandidateReady = stage2PromotionBlockers.length === 0;
+if (manifest.knownFailurePolicy.stage2Blocking) {
+  assert.ok(stage2CandidateReady, "Stage 2 blocking cannot be enabled before readiness");
+}
 
 const outcomeCells = ["OLW", "OLw", "OlW", "Olw", "oLW", "oLw", "olW", "olw"] as const;
 const outcomeCube = Object.fromEntries(outcomeCells.map((cell) => [cell, 0])) as Record<
@@ -248,6 +274,12 @@ process.stdout.write(
       fixtureCount: reports.length,
       knownFailureCount: policy.subtests.length,
       knownFailureReviewIntervalDays: policy.reviewIntervalDays,
+      stage2Blocking: policy.stage2Blocking,
+      stage2CandidateReady,
+      requiredMinFixtureCountForStage2: policy.requiredMinFixtureCountForStage2,
+      requiredConsecutiveGreenRuns: policy.requiredConsecutiveGreenRuns,
+      consecutiveGreenRuns: policy.consecutiveGreenRuns,
+      stage2PromotionBlockers,
       staleKnownFailureCount: 0,
       criticalRegressionCount,
       outcomeCellCount: Object.keys(outcomeCube).length,
@@ -342,8 +374,46 @@ function readKnownFailurePolicy(filePath: string): KnownFailurePolicyV0 {
     stage2Blocking: expectBoolean(topLevel, "stage2_blocking"),
     sourcePin: expectString(topLevel, "source_pin"),
     reviewIntervalDays: expectNumber(topLevel, "review_interval_days"),
+    requiredMinFixtureCountForStage2: expectNumber(
+      topLevel,
+      "required_min_fixture_count_for_stage2",
+    ),
+    requiredConsecutiveGreenRuns: expectNumber(topLevel, "required_consecutive_green_runs"),
+    consecutiveGreenRuns: expectNumber(topLevel, "consecutive_green_runs"),
     subtests,
   };
+}
+
+function stage2Blockers(input: {
+  readonly manifestStage: string;
+  readonly policyStage: string;
+  readonly fixtureCount: number;
+  readonly knownFailureCount: number;
+  readonly criticalRegressionCount: number;
+  readonly requiredMinFixtureCountForStage2: number;
+  readonly requiredConsecutiveGreenRuns: number;
+  readonly consecutiveGreenRuns: number;
+}): string[] {
+  const blockers: string[] = [];
+  if (input.manifestStage !== "stage1-advisory") {
+    blockers.push("stageNotAdvisory");
+  }
+  if (input.policyStage !== "advisory") {
+    blockers.push("knownFailurePolicyNotAdvisory");
+  }
+  if (input.knownFailureCount > 0) {
+    blockers.push("knownFailuresPresent");
+  }
+  if (input.criticalRegressionCount > 0) {
+    blockers.push("criticalRegressionsPresent");
+  }
+  if (input.fixtureCount < input.requiredMinFixtureCountForStage2) {
+    blockers.push("seedCorpusBelowStageTwoMinimum");
+  }
+  if (input.consecutiveGreenRuns < input.requiredConsecutiveGreenRuns) {
+    blockers.push("insufficientConsecutiveGreenRuns");
+  }
+  return blockers;
 }
 
 function pushKnownFailureSubtest(subtests: KnownFailureSubtestV0[], values: Map<string, string>) {

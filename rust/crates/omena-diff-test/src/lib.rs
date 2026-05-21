@@ -211,6 +211,20 @@ pub struct WptSeedCorpusMetadataReportV0 {
     pub fixture_count: usize,
     /// Known-failure entry count.
     pub known_failure_count: usize,
+    /// Whether the current policy is already blocking Stage 2.
+    pub stage2_blocking: bool,
+    /// Minimum fixture count required before Stage 2 can become blocking.
+    pub required_min_fixture_count_for_stage2: usize,
+    /// Required consecutive green advisory runs before Stage 2 promotion.
+    pub required_consecutive_green_runs: usize,
+    /// Current consecutive green advisory run count for this pinned corpus.
+    pub consecutive_green_runs: usize,
+    /// Maximum review interval for known-failure entries.
+    pub known_failure_review_interval_days: usize,
+    /// Whether Stage 2 promotion prerequisites are currently satisfied.
+    pub stage2_candidate_ready: bool,
+    /// Current blockers that prevent Stage 2 promotion.
+    pub stage2_promotion_blockers: Vec<&'static str>,
     /// Whether the seed metadata is internally consistent.
     pub all_metadata_valid: bool,
     /// Named gates closed by this report.
@@ -559,12 +573,30 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         .lines()
         .filter(|line| line.trim() == "[[subtest]]")
         .count();
+    let stage2_blocking = wpt_seed_policy_bool_value("stage2_blocking").unwrap_or(true);
+    let required_min_fixture_count_for_stage2 =
+        wpt_seed_policy_usize_value("required_min_fixture_count_for_stage2").unwrap_or(0);
+    let required_consecutive_green_runs =
+        wpt_seed_policy_usize_value("required_consecutive_green_runs").unwrap_or(0);
+    let consecutive_green_runs = wpt_seed_policy_usize_value("consecutive_green_runs").unwrap_or(0);
+    let known_failure_review_interval_days =
+        wpt_seed_policy_usize_value("review_interval_days").unwrap_or(0);
     let all_metadata_valid = wpt_seed_manifest_metadata_valid(
         manifest.as_ref(),
         chunk.as_ref(),
         fixture_count,
         known_failure_count,
     );
+    let stage2_promotion_blockers = wpt_seed_stage2_promotion_blockers(
+        all_metadata_valid,
+        stage.as_str(),
+        fixture_count,
+        known_failure_count,
+        required_min_fixture_count_for_stage2,
+        required_consecutive_green_runs,
+        consecutive_green_runs,
+    );
+    let stage2_candidate_ready = stage2_promotion_blockers.is_empty();
 
     WptSeedCorpusMetadataReportV0 {
         schema_version: "0",
@@ -574,12 +606,20 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         chunk_count,
         fixture_count,
         known_failure_count,
+        stage2_blocking,
+        required_min_fixture_count_for_stage2,
+        required_consecutive_green_runs,
+        consecutive_green_runs,
+        known_failure_review_interval_days,
+        stage2_candidate_ready,
+        stage2_promotion_blockers,
         all_metadata_valid,
         closed_gates: vec![
             "wptSeedSourcePin",
             "wptSeedChunkSchema",
             "wptSeedKnownFailurePolicy",
             "wptSeedStageOneAdvisory",
+            "wptSeedStageTwoPromotionPolicy",
         ],
     }
 }
@@ -620,10 +660,82 @@ fn wpt_seed_manifest_metadata_valid(
             == Some("0")
         && chunk.get("product").and_then(serde_json::Value::as_str)
             == Some("omena-diff-test.wpt-seed-corpus.chunk")
-        && WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE.contains("schema_version = \"0\"")
-        && WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE.contains("stage = \"advisory\"")
-        && WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE.contains("stage2_blocking = false")
+        && wpt_seed_policy_string_value("schema_version") == Some("0")
+        && wpt_seed_policy_string_value("stage") == Some("advisory")
+        && wpt_seed_policy_bool_value("stage2_blocking") == Some(false)
+        && wpt_seed_policy_string_value("source_pin") == manifest_source_pin
+        && wpt_seed_policy_usize_value("review_interval_days").is_some_and(|days| days > 0)
+        && wpt_seed_policy_usize_value("required_min_fixture_count_for_stage2")
+            .is_some_and(|count| count > 0)
+        && wpt_seed_policy_usize_value("required_consecutive_green_runs")
+            .is_some_and(|runs| runs > 0)
+        && wpt_seed_policy_usize_value("consecutive_green_runs").is_some()
         && known_failure_count == 0
+}
+
+fn wpt_seed_stage2_promotion_blockers(
+    all_metadata_valid: bool,
+    stage: &str,
+    fixture_count: usize,
+    known_failure_count: usize,
+    required_min_fixture_count_for_stage2: usize,
+    required_consecutive_green_runs: usize,
+    consecutive_green_runs: usize,
+) -> Vec<&'static str> {
+    let mut blockers = Vec::new();
+    if !all_metadata_valid {
+        blockers.push("metadataInvalid");
+    }
+    if stage != "stage1-advisory" {
+        blockers.push("stageNotAdvisory");
+    }
+    if known_failure_count > 0 {
+        blockers.push("knownFailuresPresent");
+    }
+    if required_min_fixture_count_for_stage2 == 0 {
+        blockers.push("stageTwoFixtureThresholdMissing");
+    } else if fixture_count < required_min_fixture_count_for_stage2 {
+        blockers.push("seedCorpusBelowStageTwoMinimum");
+    }
+    if required_consecutive_green_runs == 0 {
+        blockers.push("stageTwoGreenRunThresholdMissing");
+    } else if consecutive_green_runs < required_consecutive_green_runs {
+        blockers.push("insufficientConsecutiveGreenRuns");
+    }
+    blockers
+}
+
+fn wpt_seed_policy_string_value(key: &str) -> Option<&'static str> {
+    let value = wpt_seed_policy_raw_value(key)?;
+    value.strip_prefix('"')?.strip_suffix('"')
+}
+
+fn wpt_seed_policy_bool_value(key: &str) -> Option<bool> {
+    match wpt_seed_policy_raw_value(key)? {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    }
+}
+
+fn wpt_seed_policy_usize_value(key: &str) -> Option<usize> {
+    wpt_seed_policy_raw_value(key)?.parse::<usize>().ok()
+}
+
+fn wpt_seed_policy_raw_value(key: &str) -> Option<&'static str> {
+    for raw_line in WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE.lines() {
+        let line = raw_line.split('#').next().unwrap_or("").trim();
+        if line.is_empty() || line.starts_with("[[") {
+            continue;
+        }
+        let Some((candidate_key, value)) = line.split_once('=') else {
+            continue;
+        };
+        if candidate_key.trim() == key {
+            return Some(value.trim());
+        }
+    }
+    None
 }
 
 fn wpt_source_pin_is_full_sha(pin: &str) -> bool {
@@ -793,8 +905,29 @@ mod tests {
         assert_eq!(report.chunk_count, 1);
         assert!(report.fixture_count >= 10);
         assert_eq!(report.known_failure_count, 0);
+        assert!(!report.stage2_blocking);
+        assert_eq!(report.required_min_fixture_count_for_stage2, 25);
+        assert_eq!(report.required_consecutive_green_runs, 5);
+        assert_eq!(report.consecutive_green_runs, 0);
+        assert_eq!(report.known_failure_review_interval_days, 30);
+        assert!(!report.stage2_candidate_ready);
+        assert!(
+            report
+                .stage2_promotion_blockers
+                .contains(&"seedCorpusBelowStageTwoMinimum")
+        );
+        assert!(
+            report
+                .stage2_promotion_blockers
+                .contains(&"insufficientConsecutiveGreenRuns")
+        );
         assert!(report.all_metadata_valid);
         assert!(report.closed_gates.contains(&"wptSeedSourcePin"));
         assert!(report.closed_gates.contains(&"wptSeedKnownFailurePolicy"));
+        assert!(
+            report
+                .closed_gates
+                .contains(&"wptSeedStageTwoPromotionPolicy")
+        );
     }
 }
