@@ -86,6 +86,7 @@ for (const required of [
   "cross_file_summary_edges_are_equivalent_to_resolution_products",
   "source_selector_references_emit_cross_file_summary_edges",
   "workspace_cross_file_summary_merges_style_and_source_edge_sets",
+  "workspace_cross_file_summary_linear_provenance_covers_merged_style_and_source_edges",
   "workspace_cross_file_summary_hash_tracks_source_selector_changes",
   "workspace_cross_file_summary_hash_tracks_style_edge_changes",
   "workspace_cross_file_summary_hash_tracks_package_manifest_changes",

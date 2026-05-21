@@ -6138,6 +6138,91 @@ fn workspace_cross_file_summary_merges_style_and_source_edge_sets() {
 }
 
 #[test]
+fn workspace_cross_file_summary_linear_provenance_covers_merged_style_and_source_edges()
+-> Result<(), serde_json::Error> {
+    let style_sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/base.module.scss".to_string(),
+            style_source: ".base { display: block; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/Button.module.scss".to_string(),
+            style_source: ".root { composes: base from \"./base.module.scss\"; }".to_string(),
+        },
+    ];
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "/tmp/Button.tsx".to_string(),
+        source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
+            .to_string(),
+    }];
+    let workspace_summary = super::summarize_omena_query_workspace_cross_file_summary(
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+    );
+    let serialized = serde_json::to_value(&workspace_summary)?;
+    let serialized_edges = serialized
+        .pointer("/edges")
+        .and_then(|value| value.as_array())
+        .expect("workspace summary edges must be serialized");
+
+    assert!(serialized_edges.iter().any(|edge| {
+        edge.pointer("/edgeKind").and_then(|value| value.as_str())
+            == Some("cssModulesComposesImport")
+    }));
+    assert!(serialized_edges.iter().any(|edge| {
+        edge.pointer("/edgeKind").and_then(|value| value.as_str())
+            == Some("sourceSelectorReference")
+    }));
+    for edge in serialized_edges {
+        let legacy_labels = edge
+            .pointer("/provenance")
+            .and_then(|value| value.as_array())
+            .expect("legacy provenance vector must stay serialized")
+            .iter()
+            .map(|value| value.as_str().expect("provenance labels are strings"))
+            .collect::<Vec<_>>();
+        let typed_terms = edge
+            .pointer("/linearProvenance/terms")
+            .and_then(|value| value.as_array())
+            .expect("typed linear provenance terms must be serialized");
+        let typed_labels = typed_terms
+            .iter()
+            .map(|value| {
+                value
+                    .pointer("/label")
+                    .and_then(|label| label.as_str())
+                    .expect("linear provenance labels are strings")
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(typed_labels, legacy_labels);
+        assert_eq!(
+            edge.pointer("/linearProvenance/product")
+                .and_then(|value| value.as_str()),
+            Some("omena-abstract-value.linear-provenance")
+        );
+        assert_eq!(
+            edge.pointer("/linearProvenance/semiringIdentifier")
+                .and_then(|value| value.as_str()),
+            Some("lin01")
+        );
+        assert_eq!(
+            edge.pointer("/linearProvenance/termCount")
+                .and_then(|value| value.as_u64()),
+            Some(legacy_labels.len() as u64)
+        );
+        assert!(typed_terms.iter().all(|value| {
+            value
+                .pointer("/coefficient")
+                .and_then(|coefficient| coefficient.as_u64())
+                == Some(1)
+        }));
+    }
+    Ok(())
+}
+
+#[test]
 fn workspace_cross_file_summary_hash_tracks_source_selector_changes() {
     let style_sources = vec![OmenaQueryStyleSourceInputV0 {
         style_path: "/tmp/Button.module.scss".to_string(),
