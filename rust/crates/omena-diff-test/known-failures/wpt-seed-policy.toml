@@ -3,5 +3,6 @@ corpus_manifest = "../wpt-corpus/manifest.json"
 stage = "advisory"
 stage2_blocking = false
 source_pin = "web-platform-tests/wpt@37b7cece2910dfe0d7f1cf872bbb1df32c21f07f"
+review_interval_days = 30
 
 # No known failures are registered for the seed corpus.

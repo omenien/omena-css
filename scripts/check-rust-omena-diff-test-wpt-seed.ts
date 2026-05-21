@@ -77,6 +77,7 @@ interface KnownFailurePolicyV0 {
   readonly stage: string;
   readonly stage2Blocking: boolean;
   readonly sourcePin: string;
+  readonly reviewIntervalDays: number;
   readonly subtests: readonly KnownFailureSubtestV0[];
 }
 
@@ -87,6 +88,7 @@ interface KnownFailureSubtestV0 {
   readonly reason: string;
   readonly issue: string;
   readonly since: string;
+  readonly reviewAfter: string;
 }
 
 const repoRoot = process.cwd();
@@ -132,6 +134,7 @@ assert.equal(policy.corpusManifest, "../wpt-corpus/manifest.json");
 assert.equal(policy.stage, "advisory");
 assert.equal(policy.stage2Blocking, manifest.knownFailurePolicy.stage2Blocking);
 assert.equal(policy.sourcePin, manifest.source.pin);
+assert.ok(policy.reviewIntervalDays > 0, "known-failure review interval must be positive");
 
 const fixtures = manifest.chunks.flatMap((chunkManifest) => {
   const chunkPath = path.join(corpusRoot, chunkManifest.path);
@@ -158,7 +161,8 @@ for (const subtest of policy.subtests) {
   assert.match(subtest.status, /^(fail|implementation-defined)$/);
   assert.ok(subtest.reason.length > 0);
   assert.ok(subtest.issue.length > 0);
-  assert.ok(subtest.since.length > 0);
+  assert.ok(isIsoDate(subtest.since), `${subtest.fixture} since must be an ISO date`);
+  assert.ok(isIsoDate(subtest.reviewAfter), `${subtest.fixture} review_after must be an ISO date`);
 }
 
 const reports = fixtures.map((fixture) => {
@@ -243,6 +247,7 @@ process.stdout.write(
       sourcePin: manifest.source.pin,
       fixtureCount: reports.length,
       knownFailureCount: policy.subtests.length,
+      knownFailureReviewIntervalDays: policy.reviewIntervalDays,
       staleKnownFailureCount: 0,
       criticalRegressionCount,
       outcomeCellCount: Object.keys(outcomeCube).length,
@@ -305,7 +310,7 @@ function runLightningTransform(fixture: WptSeedFixtureV0): string {
 
 function readKnownFailurePolicy(filePath: string): KnownFailurePolicyV0 {
   const source = readFileSync(filePath, "utf8");
-  const topLevel = new Map<string, string | boolean>();
+  const topLevel = new Map<string, string | boolean | number>();
   const subtests: KnownFailureSubtestV0[] = [];
   let currentSubtest = new Map<string, string>();
 
@@ -336,6 +341,7 @@ function readKnownFailurePolicy(filePath: string): KnownFailurePolicyV0 {
     stage: expectString(topLevel, "stage"),
     stage2Blocking: expectBoolean(topLevel, "stage2_blocking"),
     sourcePin: expectString(topLevel, "source_pin"),
+    reviewIntervalDays: expectNumber(topLevel, "review_interval_days"),
     subtests,
   };
 }
@@ -349,29 +355,41 @@ function pushKnownFailureSubtest(subtests: KnownFailureSubtestV0[], values: Map<
     reason: expectString(values, "reason"),
     issue: expectString(values, "issue"),
     since: expectString(values, "since"),
+    reviewAfter: expectString(values, "review_after"),
   });
 }
 
-function parseTomlScalar(rawValue: string): string | boolean {
+function parseTomlScalar(rawValue: string): string | boolean | number {
   if (rawValue === "true") return true;
   if (rawValue === "false") return false;
+  if (/^[0-9]+$/.test(rawValue)) return Number(rawValue);
   const stringMatch = /^"(.*)"$/.exec(rawValue);
   assert.ok(stringMatch, `unsupported TOML scalar: ${rawValue}`);
   return stringMatch[1];
 }
 
 function isKnownFailureSubtestKey(key: string): boolean {
-  return ["fixture", "name", "status", "reason", "issue", "since"].includes(key);
+  return ["fixture", "name", "status", "reason", "issue", "since", "review_after"].includes(key);
 }
 
-function expectString(values: Map<string, string | boolean>, key: string): string {
+function expectString(values: Map<string, string | boolean | number>, key: string): string {
   const value = values.get(key);
   assert.equal(typeof value, "string", `${key} must be a string`);
   return value;
 }
 
-function expectBoolean(values: Map<string, string | boolean>, key: string): boolean {
+function expectBoolean(values: Map<string, string | boolean | number>, key: string): boolean {
   const value = values.get(key);
   assert.equal(typeof value, "boolean", `${key} must be a boolean`);
   return value;
+}
+
+function expectNumber(values: Map<string, string | boolean | number>, key: string): number {
+  const value = values.get(key);
+  assert.equal(typeof value, "number", `${key} must be a number`);
+  return value;
+}
+
+function isIsoDate(value: string): boolean {
+  return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value);
 }
