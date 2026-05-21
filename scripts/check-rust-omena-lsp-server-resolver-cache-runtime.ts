@@ -59,6 +59,8 @@ async function main(): Promise<void> {
   const tsconfigOldTargetPath = path.join(srcDir, "tsconfig-old", "_tokens.scss");
   const tsconfigNewTargetPath = path.join(srcDir, "tsconfig-new", "_tokens.scss");
   const packageSourcePath = path.join(srcDir, "Package.module.scss");
+  const rootPackageImportSourcePath = path.join(srcDir, "RootPackageImport.module.scss");
+  const rootPackageJsonPath = path.join(workspaceRoot, "package.json");
   const packageRoot = path.join(workspaceRoot, "node_modules", "@design", "tokens");
   const packageJsonPath = path.join(packageRoot, "package.json");
   const packageOldTargetPath = path.join(packageRoot, "old.scss");
@@ -71,6 +73,8 @@ async function main(): Promise<void> {
   const tsconfigOldTargetUri = pathToFileURL(tsconfigOldTargetPath).toString();
   const tsconfigNewTargetUri = pathToFileURL(tsconfigNewTargetPath).toString();
   const packageSourceUri = pathToFileURL(packageSourcePath).toString();
+  const rootPackageImportSourceUri = pathToFileURL(rootPackageImportSourcePath).toString();
+  const rootPackageJsonUri = pathToFileURL(rootPackageJsonPath).toString();
   const packageJsonUri = pathToFileURL(packageJsonPath).toString();
   const packageOldTargetUri = pathToFileURL(packageOldTargetPath).toString();
   const packageNewTargetUri = pathToFileURL(packageNewTargetPath).toString();
@@ -85,6 +89,9 @@ async function main(): Promise<void> {
   const packageSourceText = `@use "pkg:@design/tokens" as tokens;
 .root { color: tokens.$brand; }
 `;
+  const rootPackageImportSourceText = `@use "#theme" as tokens;
+.root { color: tokens.$brand; }
+`;
   const definitionParams = {
     textDocument: { uri: sourceUri },
     position: positionForOffset(sourceText, sourceText.indexOf("$brand") + 1),
@@ -96,6 +103,13 @@ async function main(): Promise<void> {
   const packageDefinitionParams = {
     textDocument: { uri: packageSourceUri },
     position: positionForOffset(packageSourceText, packageSourceText.indexOf("$brand") + 1),
+  };
+  const rootPackageImportDefinitionParams = {
+    textDocument: { uri: rootPackageImportSourceUri },
+    position: positionForOffset(
+      rootPackageImportSourceText,
+      rootPackageImportSourceText.indexOf("$brand") + 1,
+    ),
   };
   const invocation = resolveOmenaLspServerInvocation();
 
@@ -109,7 +123,18 @@ async function main(): Promise<void> {
   writeFileSync(tsconfigOldTargetPath, "$brand: old;\n");
   writeFileSync(tsconfigNewTargetPath, "$brand: new;\n");
   writeFileSync(packageSourcePath, packageSourceText);
-  writeFileSync(packageJsonPath, JSON.stringify({ sass: "old.scss" }));
+  writeFileSync(rootPackageImportSourcePath, rootPackageImportSourceText);
+  writeFileSync(rootPackageJsonPath, buildRootPackageJson("@design/tokens/old"));
+  writeFileSync(
+    packageJsonPath,
+    JSON.stringify({
+      sass: "old.scss",
+      exports: {
+        "./old": { sass: "./old.scss" },
+        "./new": { sass: "./new.scss" },
+      },
+    }),
+  );
   writeFileSync(packageOldTargetPath, "$brand: old;\n");
   writeFileSync(packageNewTargetPath, "$brand: new;\n");
   writeFileSync(configPath, buildViteConfig(ALIAS_COUNT));
@@ -166,6 +191,7 @@ async function main(): Promise<void> {
           [packageOldTargetUri, "$brand: old;\n"],
           [packageNewTargetUri, "$brand: new;\n"],
           [packageSourceUri, packageSourceText],
+          [rootPackageImportSourceUri, rootPackageImportSourceText],
         ] as const
       ).map(([uri, text]) =>
         connection.sendNotification(DidOpenTextDocumentNotification.type, {
@@ -234,6 +260,13 @@ async function main(): Promise<void> {
       ),
       packageOldTargetUri,
     );
+    assertDefinitionTarget(
+      await requestWithTimeout(
+        connection.sendRequest("textDocument/definition", rootPackageImportDefinitionParams),
+        "root package imports initial definition",
+      ),
+      packageOldTargetUri,
+    );
     writeFileSync(packageJsonPath, JSON.stringify({ sass: "new.scss" }));
     await connection.sendNotification("workspace/didChangeWatchedFiles", {
       changes: [{ uri: packageJsonUri, type: 2 }],
@@ -242,6 +275,17 @@ async function main(): Promise<void> {
       await requestWithTimeout(
         connection.sendRequest("textDocument/definition", packageDefinitionParams),
         "package refreshed definition",
+      ),
+      packageNewTargetUri,
+    );
+    writeFileSync(rootPackageJsonPath, buildRootPackageJson("@design/tokens/new"));
+    await connection.sendNotification("workspace/didChangeWatchedFiles", {
+      changes: [{ uri: rootPackageJsonUri, type: 2 }],
+    });
+    assertDefinitionTarget(
+      await requestWithTimeout(
+        connection.sendRequest("textDocument/definition", rootPackageImportDefinitionParams),
+        "root package imports refreshed definition",
       ),
       packageNewTargetUri,
     );
@@ -283,7 +327,7 @@ async function main(): Promise<void> {
         `refreshBaseline=${formatSummary(refreshSummary)}`,
         `hotDefinition=${formatSummary(hotSummary)}`,
         `p50Ratio=${ratio.toFixed(2)}`,
-        "invalidations=package.json,tsconfig.json,vite.config.ts",
+        "invalidations=package.json(root+package),tsconfig.json,vite.config.ts",
       ].join(" ") + "\n",
     );
   } finally {
@@ -382,6 +426,18 @@ function buildTsconfig(stylesTarget: string): string {
         paths: {
           "$styles/*": [stylesTarget],
         },
+      },
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+function buildRootPackageJson(themeTarget: string): string {
+  return `${JSON.stringify(
+    {
+      imports: {
+        "#theme": themeTarget,
       },
     },
     null,
