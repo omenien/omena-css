@@ -1,5 +1,6 @@
 import { deepStrictEqual } from "node:assert";
 import path from "node:path";
+import { deriveCheckerCanonicalCandidate } from "../packages/cme-checker/src";
 import type { ContractParityEntry } from "./contract-parity-corpus-v1";
 import { buildContractParitySnapshot } from "./contract-parity-runtime";
 import {
@@ -124,66 +125,10 @@ void (async () => {
 function deriveTsCheckerStyleRecoveryCanonicalCandidate(
   snapshot: Awaited<ReturnType<typeof buildContractParitySnapshot>>,
 ): CheckerStyleRecoveryCanonicalCandidateBundleV0 {
-  const findings = snapshot.output.checkerReport.findings
-    .filter((finding) => finding.category === "style" && STYLE_RECOVERY_CODES.has(finding.code))
-    .map((finding) => {
-      const result: CheckerStyleRecoveryCanonicalCandidateBundleV0["findings"][number] = {
-        filePath: finding.filePath,
-        code: finding.code,
-        severity: finding.severity,
-        range: finding.range,
-        message: finding.message,
-      };
-      if (finding.analysisReason) {
-        result.analysisReason = finding.analysisReason;
-      }
-      if (finding.valueCertaintyShapeLabel) {
-        result.valueCertaintyShapeLabel = finding.valueCertaintyShapeLabel;
-      }
-      return result;
-    })
-    .toSorted(compareStyleRecoveryFinding);
-
-  const codeCounts = Object.fromEntries(
-    [...STYLE_RECOVERY_CODES]
-      .map((code) => [code, findings.filter((finding) => finding.code === code).length] as const)
-      .filter(([, count]) => count > 0),
-  );
-
-  const warningCount = findings.filter((finding) => finding.severity === "warning").length;
-  const hintCount = findings.filter((finding) => finding.severity === "hint").length;
-  const distinctFileCount = new Set(findings.map((finding) => finding.filePath)).size;
-
-  return {
-    schemaVersion: "0",
-    inputVersion: snapshot.input.version,
-    reportVersion: snapshot.output.checkerReport.version,
+  return deriveCheckerCanonicalCandidate(snapshot, {
     bundle: "style-recovery",
-    distinctFileCount,
-    codeCounts,
-    summary: {
-      warnings: warningCount,
-      hints: hintCount,
-      total: findings.length,
-    },
-    findings,
-  };
-}
-
-function compareStyleRecoveryFinding(
-  left: CheckerStyleRecoveryCanonicalCandidateBundleV0["findings"][number],
-  right: CheckerStyleRecoveryCanonicalCandidateBundleV0["findings"][number],
-): number {
-  return (
-    left.filePath.localeCompare(right.filePath) ||
-    left.code.localeCompare(right.code) ||
-    left.severity.localeCompare(right.severity) ||
-    left.range.start.line - right.range.start.line ||
-    left.range.start.character - right.range.start.character ||
-    left.range.end.line - right.range.end.line ||
-    left.range.end.character - right.range.end.character ||
-    left.message.localeCompare(right.message) ||
-    (left.analysisReason ?? "").localeCompare(right.analysisReason ?? "") ||
-    (left.valueCertaintyShapeLabel ?? "").localeCompare(right.valueCertaintyShapeLabel ?? "")
-  );
+    category: "style",
+    codes: STYLE_RECOVERY_CODES,
+    extraFields: ["analysisReason", "valueCertaintyShapeLabel"],
+  }) as CheckerStyleRecoveryCanonicalCandidateBundleV0;
 }

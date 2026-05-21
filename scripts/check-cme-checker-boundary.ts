@@ -71,7 +71,11 @@ process.stdout.write(
   JSON.stringify(
     {
       product: "cme-checker.boundary",
-      migratedArchetype: "checker-source-missing/canonical-candidate",
+      migratedArchetypes: [
+        "checker-style-recovery/canonical-candidate",
+        "checker-source-missing/canonical-candidate",
+        "checker-style-unused/canonical-candidate",
+      ],
       package: "@css-module-explainer/cme-checker",
       findingCount: bundle.summary.total,
       distinctFileCount: bundle.distinctFileCount,

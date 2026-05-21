@@ -333,10 +333,10 @@ Total gates: 266
 
 ## tooling
 
-| ID                               | Kind    | Script                         | References                                              |
-| -------------------------------- | ------- | ------------------------------ | ------------------------------------------------------- |
-| `tooling/cme-check`              | command | `cme-check`                    |                                                         |
-| `tooling/cme-checker-boundary`   | bundle  | `check:cme-checker-boundary`   | `check:rust-checker-source-missing-canonical-candidate` |
-| `tooling/orchestrator-doctor`    | gate    | `check:orchestrator-doctor`    | `cme-check`                                             |
-| `tooling/orchestrator-inventory` | gate    | `check:orchestrator-inventory` | `cme-check`                                             |
-| `tooling/update/check-inventory` | command | `update:check-inventory`       | `cme-check`                                             |
+| ID                               | Kind    | Script                         | References                         |
+| -------------------------------- | ------- | ------------------------------ | ---------------------------------- |
+| `tooling/cme-check`              | command | `cme-check`                    |                                    |
+| `tooling/cme-checker-boundary`   | bundle  | `check:cme-checker-boundary`   | `check:rust-checker-bounded-lanes` |
+| `tooling/orchestrator-doctor`    | gate    | `check:orchestrator-doctor`    | `cme-check`                        |
+| `tooling/orchestrator-inventory` | gate    | `check:orchestrator-inventory` | `cme-check`                        |
+| `tooling/update/check-inventory` | command | `update:check-inventory`       | `cme-check`                        |
