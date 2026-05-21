@@ -214,10 +214,9 @@ fn tsconfig_style_module_base_candidates(
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
-    for mapping in tsconfig_path_mappings {
-        let Some(pattern_match) = match_tsconfig_path_pattern(&mapping.pattern, source) else {
-            continue;
-        };
+    for (mapping, pattern_match) in
+        best_tsconfig_path_mapping_matches(source, tsconfig_path_mappings)
+    {
         for target_pattern in &mapping.target_patterns {
             let substituted_target =
                 substitute_tsconfig_path_pattern(target_pattern, pattern_match);
@@ -228,6 +227,64 @@ fn tsconfig_style_module_base_candidates(
         }
     }
     candidates
+}
+
+fn best_tsconfig_path_mapping_matches<'mapping, 'source>(
+    source: &'source str,
+    tsconfig_path_mappings: &'mapping [OmenaResolverTsconfigPathMappingV0],
+) -> Vec<(&'mapping OmenaResolverTsconfigPathMappingV0, &'source str)> {
+    let mut matches = tsconfig_path_mappings
+        .iter()
+        .enumerate()
+        .filter_map(|(index, mapping)| {
+            let priority = tsconfig_path_mapping_priority(&mapping.pattern, source)?;
+            let pattern_match = match_tsconfig_path_pattern(&mapping.pattern, source)?;
+            Some((index, priority, mapping, pattern_match))
+        })
+        .collect::<Vec<_>>();
+    // TypeScript resolves path mappings through the best pattern, not the
+    // first matching entry, so a less-specific alias must not shadow it.
+    matches.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
+
+    let Some(best_priority) = matches.first().map(|(_, priority, _, _)| *priority) else {
+        return Vec::new();
+    };
+    matches
+        .into_iter()
+        .take_while(|(_, priority, _, _)| *priority == best_priority)
+        .map(|(_, _, mapping, pattern_match)| (mapping, pattern_match))
+        .collect()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct TsconfigPathMappingPriority {
+    exact_rank: u8,
+    prefix_len: usize,
+    suffix_len: usize,
+    pattern_len: usize,
+}
+
+fn tsconfig_path_mapping_priority(
+    pattern: &str,
+    source: &str,
+) -> Option<TsconfigPathMappingPriority> {
+    if let Some((prefix, suffix)) = pattern.split_once('*') {
+        if suffix.contains('*') || !source.starts_with(prefix) || !source.ends_with(suffix) {
+            return None;
+        }
+        return Some(TsconfigPathMappingPriority {
+            exact_rank: 0,
+            prefix_len: prefix.len(),
+            suffix_len: suffix.len(),
+            pattern_len: pattern.len(),
+        });
+    }
+    (pattern == source).then_some(TsconfigPathMappingPriority {
+        exact_rank: 1,
+        prefix_len: pattern.len(),
+        suffix_len: 0,
+        pattern_len: pattern.len(),
+    })
 }
 
 fn source_matches_tsconfig_path_mapping(
