@@ -472,8 +472,13 @@ fn stable_omena_query_cross_file_summary_hash(
     for edge in edges {
         stable_omena_query_hash_piece(&mut hash, edge.edge_id.as_str());
         stable_omena_query_hash_piece(&mut hash, edge.status);
-        for provenance in &edge.provenance {
-            stable_omena_query_hash_piece(&mut hash, provenance);
+        stable_omena_query_hash_piece(&mut hash, edge.linear_provenance.semiring_identifier());
+        let term_count = edge.linear_provenance.term_count.to_string();
+        stable_omena_query_hash_piece(&mut hash, term_count.as_str());
+        for term in &edge.linear_provenance.terms {
+            let coefficient = term.coefficient.to_string();
+            stable_omena_query_hash_piece(&mut hash, coefficient.as_str());
+            stable_omena_query_hash_piece(&mut hash, term.label);
         }
     }
     format!("{hash:016x}")

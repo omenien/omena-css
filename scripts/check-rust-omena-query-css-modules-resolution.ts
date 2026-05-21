@@ -68,6 +68,8 @@ for (const required of [
   '"workspaceSummaryEdgeSeed"',
   '"workspaceStyleAndSource"',
   "workspaceSummaryHashInvalidationGate",
+  "edge.linear_provenance.semiring_identifier()",
+  "edge.linear_provenance.terms",
 ]) {
   assert.ok(
     crossFileSummarySource.includes(required),
