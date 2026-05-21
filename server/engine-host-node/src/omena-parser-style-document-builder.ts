@@ -299,27 +299,35 @@ export function buildStyleDocumentWithOmenaParser(
     })),
     intermediate.sass.selectorSymbolFacts
       .filter((fact) => !fact.namespace)
-      .map((fact, index) => ({
-        id: `sass-symbol:${index}:${fact.selectorName}:${fact.name}`,
-        kind: "sassSymbol",
-        selectorName: fact.selectorName,
-        ...(syntax ? { syntax } : {}),
-        symbolKind: sassSymbolKind(fact.symbolKind),
-        name: fact.name,
-        role: sassSymbolRole(fact.role),
-        resolution: sassSymbolResolution(fact.resolution),
-        range: toRange(fact.range),
-        ruleRange: toRange(fact.range),
-      })),
-    intermediate.sass.symbolDeclFacts.map((fact, index) => ({
-      id: `sass-symbol-decl:${index}:${fact.name}`,
-      kind: "sassSymbolDecl",
-      ...(syntax ? { syntax } : {}),
-      symbolKind: sassSymbolKind(fact.symbolKind),
-      name: fact.name,
-      range: toRange(fact.range),
-      ruleRange: toRange(fact.range),
-    })),
+      .map((fact, index) =>
+        withSyntax(
+          {
+            id: `sass-symbol:${index}:${fact.selectorName}:${fact.name}`,
+            kind: "sassSymbol",
+            selectorName: fact.selectorName,
+            symbolKind: sassSymbolKind(fact.symbolKind),
+            name: fact.name,
+            role: sassSymbolRole(fact.role),
+            resolution: sassSymbolResolution(fact.resolution),
+            range: toRange(fact.range),
+            ruleRange: toRange(fact.range),
+          },
+          syntax,
+        ),
+      ),
+    intermediate.sass.symbolDeclFacts.map((fact, index) =>
+      withSyntax(
+        {
+          id: `sass-symbol-decl:${index}:${fact.name}`,
+          kind: "sassSymbolDecl",
+          symbolKind: sassSymbolKind(fact.symbolKind),
+          name: fact.name,
+          range: toRange(fact.range),
+          ruleRange: toRange(fact.range),
+        },
+        syntax,
+      ),
+    ),
     intermediate.sass.moduleUseEdges.map((fact, index) => ({
       id: `sass-module-use:${index}:${fact.source}`,
       kind: "sassModuleUse",
@@ -446,6 +454,14 @@ function syntaxForDialect(
   if (dialect === "less") return "less";
   if (dialect === "scss" || dialect === "sass") return "sass";
   return undefined;
+}
+
+function withSyntax<T extends object>(
+  value: T,
+  syntax: StylePreprocessorSymbolSyntax | undefined,
+): T & { syntax?: StylePreprocessorSymbolSyntax } {
+  if (!syntax) return value;
+  return Object.assign(value, { syntax });
 }
 
 function nestedSafety(value: string): NestedSelectorSafety {
