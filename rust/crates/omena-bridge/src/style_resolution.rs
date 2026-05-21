@@ -415,6 +415,9 @@ fn bundler_path_alias_pattern_matches(pattern: &str, specifier: &str) -> bool {
     if pattern.is_empty() {
         return false;
     }
+    if let Some(exact_pattern) = pattern.strip_suffix('$') {
+        return specifier == exact_pattern;
+    }
     if pattern == specifier {
         return true;
     }
@@ -747,6 +750,44 @@ mod tests {
             uri.as_deref(),
             Some(path_to_file_uri(style.as_path()).as_str())
         );
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_webpack_exact_bundler_alias_style_candidates()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_style_bundler_exact_alias")?;
+        let source = root.join("src/App.tsx");
+        let style = root.join("src/styles/index.module.scss");
+        fs::create_dir_all(
+            style
+                .parent()
+                .ok_or_else(|| std::io::Error::other("parent"))?,
+        )?;
+        fs::write(&source, "")?;
+        fs::write(&style, ".root {}")?;
+        fs::write(
+            root.join("webpack.config.js"),
+            r#"module.exports = { resolve: { alias: [{ find: "@theme$", replacement: "./src/styles/index.module.scss" }] } };"#,
+        )?;
+
+        let exact_uri = resolve_omena_bridge_style_uri_for_specifier(
+            path_to_file_uri(source.as_path()).as_str(),
+            Some(path_to_file_uri(root.as_path()).as_str()),
+            "@theme",
+        );
+        let prefix_uri = resolve_omena_bridge_style_uri_for_specifier(
+            path_to_file_uri(source.as_path()).as_str(),
+            Some(path_to_file_uri(root.as_path()).as_str()),
+            "@theme/Button.module.scss",
+        );
+
+        assert_eq!(
+            exact_uri.as_deref(),
+            Some(path_to_file_uri(style.as_path()).as_str())
+        );
+        assert!(prefix_uri.is_none());
         let _ = fs::remove_dir_all(root);
         Ok(())
     }

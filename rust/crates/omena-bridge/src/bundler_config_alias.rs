@@ -70,13 +70,10 @@ pub fn load_omena_bridge_workspace_bundler_path_alias_mappings(
             config_source.as_str(),
         );
         for alias in summary.aliases {
-            upsert_resolver_mapping(
-                &mut mappings,
-                OmenaResolverBundlerPathAliasMappingV0 {
-                    pattern: alias.pattern,
-                    target_path: alias.target_path,
-                },
-            );
+            mappings.push(OmenaResolverBundlerPathAliasMappingV0 {
+                pattern: alias.pattern,
+                target_path: alias.target_path,
+            });
         }
     }
     mappings
@@ -536,14 +533,11 @@ fn collect_array_alias_entries(
             );
             continue;
         };
-        upsert_alias(
-            aliases,
-            OmenaBridgeBundlerPathAliasMappingV0 {
-                config_path: config_path_text.to_string(),
-                pattern,
-                target_path,
-            },
-        );
+        aliases.push(OmenaBridgeBundlerPathAliasMappingV0 {
+            config_path: config_path_text.to_string(),
+            pattern,
+            target_path,
+        });
     }
 }
 
@@ -729,19 +723,6 @@ fn upsert_alias(
     aliases.push(alias);
 }
 
-fn upsert_resolver_mapping(
-    mappings: &mut Vec<OmenaResolverBundlerPathAliasMappingV0>,
-    mapping: OmenaResolverBundlerPathAliasMappingV0,
-) {
-    if let Some(index) = mappings
-        .iter()
-        .position(|entry| entry.pattern == mapping.pattern)
-    {
-        mappings.remove(index);
-    }
-    mappings.push(mapping);
-}
-
 fn push_unrecognized(
     config_path: &str,
     reason: &'static str,
@@ -842,6 +823,40 @@ mod tests {
         assert_eq!(
             summary.aliases[0].target_path,
             root.join("src/theme").to_string_lossy()
+        );
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn preserves_webpack_array_alias_declaration_order() -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_webpack_alias_array_order")?;
+        let config_path = root.join("webpack.config.js");
+        let source = r#"
+            module.exports = {
+              resolve: {
+                alias: [
+                  { find: "@theme", replacement: "./src/first" },
+                  { find: "@theme", replacement: "./src/second" }
+                ]
+              }
+            };
+        "#;
+
+        let summary =
+            summarize_omena_bridge_bundler_path_aliases_for_config(config_path.as_path(), source);
+
+        assert_eq!(summary.unrecognized, Vec::new());
+        assert_eq!(summary.aliases.len(), 2);
+        assert_eq!(summary.aliases[0].pattern, "@theme");
+        assert_eq!(
+            summary.aliases[0].target_path,
+            root.join("src/first").to_string_lossy()
+        );
+        assert_eq!(summary.aliases[1].pattern, "@theme");
+        assert_eq!(
+            summary.aliases[1].target_path,
+            root.join("src/second").to_string_lossy()
         );
         let _ = fs::remove_dir_all(root);
         Ok(())
