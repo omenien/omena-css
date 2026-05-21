@@ -687,6 +687,29 @@ describe("resolveStyleDefinitionTargets", () => {
     });
   });
 
+  it("resolves package root Sass imports through index fallback when manifest has no style entry", () => {
+    const ws = styleWorkspace({
+      [BUTTON_PATH]: `@use "@design/tokens" as *;
+
+.button {
+  color: $g/*at:variable*/ray700;
+}
+`,
+      [PACKAGE_TOKENS_JSON_PATH]: `{"name":"@design/tokens"}`,
+      [PACKAGE_TOKENS_INDEX_PATH]: `$gray700: #767678;`,
+    });
+    const targets = resolveStyleDefinitionTargets(styleTarget(ws, "variable"), styleDeps(ws));
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({
+      targetFilePath: PACKAGE_TOKENS_INDEX_PATH,
+      targetSelectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 8 },
+      },
+    });
+  });
+
   it("resolves package Sass subpath imports through package.json exports entries", () => {
     const ws = styleWorkspace({
       [BUTTON_PATH]: `@use "@design/tokens/colors" as *;

@@ -356,6 +356,28 @@ fn resolves_sass_pkg_url_package_manifest_exports() {
 }
 
 #[test]
+fn falls_back_to_package_root_index_when_manifest_has_no_style_entry() {
+    let available_style_paths =
+        BTreeSet::from(["/fake/workspace/node_modules/@design/tokens/src/index.scss"]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "@design/tokens",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source: r#"{"name":"@design/tokens"}"#.to_string(),
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "packageStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/node_modules/@design/tokens/src/index.scss")
+    );
+}
+
+#[test]
 fn resolves_package_imports_to_relative_style_targets() {
     let available_style_paths = BTreeSet::from(["/fake/workspace/src/theme.css"]);
     let resolution = summarize_omena_resolver_style_module_resolution(

@@ -535,6 +535,31 @@ describe("resolveStyleCompletionItems", () => {
     expect(result[0]?.sourceFilePath).toBe(PACKAGE_VARIABLES_CSS_PATH);
   });
 
+  it("returns package-root completions through package index fallback when manifest has no style entry", () => {
+    const scss = `@use "@design/tokens";
+
+.button {
+  color: var(--)
+}
+`;
+    const packageJson = `{"name":"@design/tokens"}`;
+    const tokensScss = `:root { --fallback-token: #767678; }`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const tokensDocument = parseStyleDocument(tokensScss, PACKAGE_TOKENS_INDEX_PATH);
+
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 3,
+      character: 15,
+      styleDocument,
+      styleDocumentForPath: styleDocumentMap([styleDocument, tokensDocument]),
+      readFile: (filePath) => (filePath === PACKAGE_TOKENS_JSON_PATH ? packageJson : null),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--fallback-token"]);
+    expect(result[0]?.sourceFilePath).toBe(PACKAGE_TOKENS_INDEX_PATH);
+  });
+
   it("returns CSS custom property completions through package.json imports", () => {
     const scss = `@use "#theme";
 

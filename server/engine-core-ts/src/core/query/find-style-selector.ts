@@ -1171,13 +1171,34 @@ function resolveSassPackageBasePath(
     );
     if (packageEntry) return packageEntry;
 
-    const candidate = path.join(current, "node_modules", packageSpecifier);
-    if (!fileExists || fileExists(candidate)) return candidate;
+    const parsed = parsePackageSpecifier(packageSpecifier);
+    const candidate = parsed
+      ? resolveSassPackageFallbackBasePath(current, parsed, fileExists)
+      : null;
+    if (candidate) return candidate;
 
     const parent = path.dirname(current);
     if (parent === current) return null;
     current = parent;
   }
+}
+
+function resolveSassPackageFallbackBasePath(
+  currentPath: string,
+  packageSource: { readonly packageName: string; readonly subpath: string },
+  fileExists: ((candidate: string) => boolean) | undefined,
+): string | null {
+  const packageRoot = path.join(currentPath, "node_modules", packageSource.packageName);
+  const candidates =
+    packageSource.subpath.length > 0
+      ? [
+          path.join(packageRoot, packageSource.subpath),
+          path.join(packageRoot, "src", packageSource.subpath),
+        ]
+      : [packageRoot, path.join(packageRoot, "src", "index")];
+
+  if (!fileExists) return candidates[0] ?? null;
+  return candidates.find((candidate) => sassPackageJsonEntryExists(candidate, fileExists)) ?? null;
 }
 
 function resolveSassPackageImportBasePath(
