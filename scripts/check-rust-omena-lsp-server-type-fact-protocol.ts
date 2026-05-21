@@ -66,7 +66,7 @@ function writeFixtureProject(): void {
       {
         compilerOptions: {
           strict: true,
-          jsx: "react-jsx",
+          jsx: "preserve",
           module: "esnext",
           moduleResolution: "bundler",
           target: "es2022",

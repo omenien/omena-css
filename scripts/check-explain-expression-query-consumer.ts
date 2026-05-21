@@ -24,7 +24,7 @@ try {
   const style = [".small {", "  color: var(--brand);", "}", ""].join("\n");
   const tsconfig = {
     compilerOptions: {
-      jsx: "react-jsx",
+      jsx: "preserve",
       module: "esnext",
       moduleResolution: "bundler",
       strict: true,
@@ -38,6 +38,7 @@ try {
     "  const classes: Record<string, string>;",
     "  export default classes;",
     "}",
+    "declare namespace JSX { interface IntrinsicElements { div: any } }",
     "",
   ].join("\n");
   writeFileSync(sourcePath, source);
