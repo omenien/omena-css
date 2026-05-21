@@ -1019,6 +1019,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-spec-audit"
+version = "0.1.0"
+dependencies = [
+ "omena-meta-macros",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "omena-syntax"
 version = "0.1.0"
 dependencies = [

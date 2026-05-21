@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-spec-audit.single-source-manifest",
+  "stage": "stage1-advisory",
+  "entries": [
+    {
+      "id": "css-color/properties/color",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-parser",
+      "evidence": ["SyntaxKind::Declaration", "color-compression"]
+    },
+    {
+      "id": "css-values/functions/calc",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-transform-passes",
+      "evidence": ["calc-reduction", "WPT css/css-values/calc-nesting.html"]
+    },
+    {
+      "id": "css-color/properties/opacity",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-transform-passes",
+      "evidence": ["number-compression", "WPT css/css-color/parsing/opacity-valid.html"]
+    },
+    {
+      "id": "css-values/types/url",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-transform-passes",
+      "evidence": [
+        "url-quote-strip",
+        "WPT css/css-values/urls/url-request-modifiers-serialize.sub.html"
+      ]
+    },
+    {
+      "id": "css-mixins/atrules/@function",
+      "priority": "P1",
+      "status": "deferred",
+      "owner": "omena-parser",
+      "rationale": "CSS mixins are not part of the Stage 1 parser/transform gate."
+    }
+  ]
+}

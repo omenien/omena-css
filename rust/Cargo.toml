@@ -21,6 +21,7 @@ members = [
   "crates/omena-query",
   "crates/omena-resolver",
   "crates/omena-semantic",
+  "crates/omena-spec-audit",
   "crates/omena-tsgo-client",
   "crates/omena-transform-bundle",
   "crates/omena-transform-cst",

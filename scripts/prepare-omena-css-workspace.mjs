@@ -27,6 +27,7 @@ const omenaCssCrates = [
   "omena-cascade",
   "omena-resolver",
   "omena-semantic",
+  "omena-spec-audit",
   "omena-bridge",
   "omena-transform-cst",
   "omena-transform-passes",
@@ -52,6 +53,7 @@ const omenaCssPublishOrder = [
   "omena-cascade",
   "omena-resolver",
   "omena-semantic",
+  "omena-spec-audit",
   "omena-bridge",
   "omena-transform-cst",
   "omena-transform-passes",
@@ -388,6 +390,7 @@ sharing one release train.
 - Incremental substrate: \`omena-incremental\`
 - Cascade substrate: \`omena-cascade\`
 - Semantic bridge: \`omena-resolver\`, \`omena-semantic\`, \`omena-bridge\`
+- Spec audit substrate: \`omena-spec-audit\`
 - Query facade: \`omena-query\`
 - Transform substrate: \`omena-transform-cst\`, \`omena-transform-passes\`,
   \`omena-transform-bundle\`, \`omena-transform-target\`,
