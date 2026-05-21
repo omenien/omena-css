@@ -4650,6 +4650,81 @@ fn style_semantic_graph_batch_cross_file_summary_hash_tracks_edge_changes() {
 }
 
 #[test]
+fn cross_file_summary_linear_provenance_serializes_as_strict_superset()
+-> Result<(), serde_json::Error> {
+    let input = sample_input();
+    let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        [
+            ("/tmp/base.module.scss", ".base { display: block; }"),
+            (
+                "/tmp/App.module.scss",
+                ".btn { composes: base from \"./base.module.scss\"; }",
+            ),
+        ],
+        &input,
+    );
+    let edge = batch
+        .cross_file_summary
+        .edges
+        .iter()
+        .find(|edge| edge.edge_kind == "cssModulesComposesImport")
+        .expect("expected CSS Modules composes summary edge");
+    let serialized = serde_json::to_value(edge)?;
+    let legacy_labels = serialized
+        .pointer("/provenance")
+        .and_then(|value| value.as_array())
+        .expect("legacy provenance vector must stay serialized")
+        .iter()
+        .map(|value| value.as_str().expect("provenance labels are strings"))
+        .collect::<Vec<_>>();
+    let typed_labels = serialized
+        .pointer("/linearProvenance/terms")
+        .and_then(|value| value.as_array())
+        .expect("typed linear provenance terms must be serialized")
+        .iter()
+        .map(|value| {
+            value
+                .pointer("/label")
+                .and_then(|label| label.as_str())
+                .expect("linear provenance labels are strings")
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(legacy_labels, edge.provenance);
+    assert_eq!(typed_labels, legacy_labels);
+    assert_eq!(
+        serialized
+            .pointer("/linearProvenance/product")
+            .and_then(|value| value.as_str()),
+        Some("omena-abstract-value.linear-provenance")
+    );
+    assert_eq!(
+        serialized
+            .pointer("/linearProvenance/semiringIdentifier")
+            .and_then(|value| value.as_str()),
+        Some("lin01")
+    );
+    assert_eq!(
+        serialized
+            .pointer("/linearProvenance/termCount")
+            .and_then(|value| value.as_u64()),
+        Some(edge.provenance.len() as u64)
+    );
+    assert!(
+        serialized
+            .pointer("/linearProvenance/terms")
+            .and_then(|value| value.as_array())
+            .expect("typed linear provenance terms must be serialized")
+            .iter()
+            .all(|value| value
+                .pointer("/coefficient")
+                .and_then(|coefficient| coefficient.as_u64())
+                == Some(1))
+    );
+    Ok(())
+}
+
+#[test]
 fn style_semantic_graph_batch_detects_css_modules_composes_cycles() {
     let input = sample_input();
     let batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
