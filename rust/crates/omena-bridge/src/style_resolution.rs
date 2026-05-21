@@ -383,6 +383,7 @@ fn push_workspace_package_manifest(
 }
 
 fn package_name_from_specifier(specifier: &str) -> Option<&str> {
+    let specifier = specifier.strip_prefix("pkg:").unwrap_or(specifier);
     if specifier.starts_with('.')
         || specifier.starts_with('/')
         || is_external_style_specifier(specifier)
@@ -848,6 +849,44 @@ mod tests {
             path_to_file_uri(source.as_path()).as_str(),
             Some(path_to_file_uri(root.as_path()).as_str()),
             "@design/tokens",
+        );
+
+        assert_eq!(
+            uri.as_deref(),
+            Some(path_to_file_uri(style.as_path()).as_str())
+        );
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn resolves_sass_pkg_style_candidates_through_manifest_discovery()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_style_pkg_manifest")?;
+        let source = root.join("src/App.module.scss");
+        let package_root = root.join("node_modules/@design/tokens");
+        let style = package_root.join("dist/theme.scss");
+        fs::create_dir_all(
+            style
+                .parent()
+                .ok_or_else(|| std::io::Error::other("style parent"))?,
+        )?;
+        fs::create_dir_all(
+            source
+                .parent()
+                .ok_or_else(|| std::io::Error::other("source parent"))?,
+        )?;
+        fs::write(&source, "@use \"pkg:@design/tokens/theme\";")?;
+        fs::write(
+            package_root.join("package.json"),
+            r#"{"exports":{"./theme":{"sass":"./dist/theme.scss"}}}"#,
+        )?;
+        fs::write(&style, "$gap: 1rem;")?;
+
+        let uri = resolve_omena_bridge_style_uri_for_specifier(
+            path_to_file_uri(source.as_path()).as_str(),
+            Some(path_to_file_uri(root.as_path()).as_str()),
+            "pkg:@design/tokens/theme",
         );
 
         assert_eq!(
