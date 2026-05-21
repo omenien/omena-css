@@ -16,6 +16,7 @@ members = [
   "crates/omena-testkit",
   "crates/omena-incremental",
   "crates/omena-lsp-server",
+  "crates/omena-meta-macros",
   "crates/omena-napi",
   "crates/omena-query",
   "crates/omena-resolver",

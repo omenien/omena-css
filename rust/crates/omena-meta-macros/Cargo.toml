@@ -1,0 +1,17 @@
+[package]
+name = "omena-meta-macros"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Compile-time metadata attributes for Omena CSS spec and transform surfaces"
+repository = "https://github.com/yongsk0066/css-module-explainer"
+readme = "README.md"
+
+[lib]
+proc-macro = true
+
+[lints]
+workspace = true
+
+[dependencies]

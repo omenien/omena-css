@@ -20,6 +20,7 @@ const omenaCssCrates = [
   "engine-input-producers",
   "omena-interner",
   "omena-syntax",
+  "omena-meta-macros",
   "omena-testkit",
   "omena-parser",
   "omena-incremental",
@@ -44,6 +45,7 @@ const omenaCssPublishOrder = [
   "omena-checker",
   "engine-input-producers",
   "omena-syntax",
+  "omena-meta-macros",
   "omena-testkit",
   "omena-interner",
   "omena-parser",
@@ -381,6 +383,7 @@ sharing one release train.
 - Abstract value and producer inputs: \`omena-abstract-value\`,
   \`omena-engine-input-producers\`
 - Syntax and interning: \`omena-syntax\`, \`omena-interner\`
+- Metadata macros: \`omena-meta-macros\`
 - Parser surface: \`omena-parser\`
 - Incremental substrate: \`omena-incremental\`
 - Cascade substrate: \`omena-cascade\`
