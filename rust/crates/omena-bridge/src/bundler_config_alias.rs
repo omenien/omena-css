@@ -54,6 +54,11 @@ pub struct OmenaBridgeBundlerAliasUnrecognizedEntryV0 {
     pub text: String,
 }
 
+enum ExportedConfigObject<'a> {
+    Static(&'a ObjectExpression<'a>),
+    Dynamic(Span),
+}
+
 pub fn load_omena_bridge_workspace_bundler_path_alias_mappings(
     workspace_path: Option<&Path>,
 ) -> Vec<OmenaResolverBundlerPathAliasMappingV0> {
@@ -129,14 +134,28 @@ fn collect_bundler_aliases_from_program<'a>(
 ) {
     let top_level_literals = top_level_object_literals(program);
     let mut exported_objects = Vec::new();
+    let mut saw_config_export = false;
     for statement in &program.body {
-        if let Some(object) = exported_config_object_from_statement(statement, &top_level_literals)
-        {
-            exported_objects.push(object);
+        match exported_config_object_from_statement(statement, &top_level_literals) {
+            Some(ExportedConfigObject::Static(object)) => {
+                saw_config_export = true;
+                exported_objects.push(object);
+            }
+            Some(ExportedConfigObject::Dynamic(span)) => {
+                saw_config_export = true;
+                push_unrecognized(
+                    config_path_text,
+                    "dynamic-config-export",
+                    config_source,
+                    span,
+                    unrecognized,
+                );
+            }
+            None => {}
         }
     }
 
-    if exported_objects.is_empty() {
+    if exported_objects.is_empty() && !saw_config_export {
         exported_objects.extend(top_level_literals.iter().map(|(_, object)| *object));
     }
 
@@ -183,10 +202,16 @@ fn top_level_object_literals<'a>(
 fn exported_config_object_from_statement<'a>(
     statement: &'a Statement<'a>,
     top_level_literals: &[(String, &'a ObjectExpression<'a>)],
-) -> Option<&'a ObjectExpression<'a>> {
+) -> Option<ExportedConfigObject<'a>> {
     match statement {
         Statement::ExportDefaultDeclaration(declaration) => {
-            unwrap_export_default_declaration_kind(&declaration.declaration, top_level_literals)
+            match unwrap_export_default_declaration_kind(
+                &declaration.declaration,
+                top_level_literals,
+            ) {
+                Some(object) => Some(ExportedConfigObject::Static(object)),
+                None => Some(ExportedConfigObject::Dynamic(declaration.span)),
+            }
         }
         Statement::ExpressionStatement(statement) => {
             let Expression::AssignmentExpression(assignment) = &statement.expression else {
@@ -197,7 +222,10 @@ fn exported_config_object_from_statement<'a>(
             {
                 return None;
             }
-            unwrap_config_expression(&assignment.right, top_level_literals)
+            match unwrap_config_expression(&assignment.right, top_level_literals) {
+                Some(object) => Some(ExportedConfigObject::Static(object)),
+                None => Some(ExportedConfigObject::Dynamic(assignment.right.span())),
+            }
         }
         _ => None,
     }
@@ -884,6 +912,60 @@ mod tests {
                 .iter()
                 .any(|entry| entry.reason == "regex-alias-find")
         );
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn marks_dynamic_exported_config_unrecognized_without_top_level_fallback()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_vite_dynamic_export")?;
+        let config_path = root.join("vite.config.ts");
+        let source = r#"
+            const unrelated = {
+              resolve: {
+                alias: { "@wrong": "./src/wrong" }
+              }
+            };
+            export default defineConfig(({ mode }) => ({
+              resolve: {
+                alias: { "@styles": "./src/styles" }
+              }
+            }));
+        "#;
+
+        let summary =
+            summarize_omena_bridge_bundler_path_aliases_for_config(config_path.as_path(), source);
+
+        assert_eq!(summary.aliases, Vec::new());
+        assert_eq!(summary.unrecognized.len(), 1);
+        assert_eq!(summary.unrecognized[0].reason, "dynamic-config-export");
+        assert!(summary.unrecognized[0].text.contains("defineConfig"));
+        assert!(!summary.unrecognized[0].text.contains("@wrong"));
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn marks_dynamic_module_exports_config_unrecognized() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let root = temp_dir("omena_bridge_webpack_dynamic_export")?;
+        let config_path = root.join("webpack.config.cjs");
+        let source = r#"
+            module.exports = (env) => ({
+              resolve: {
+                alias: { "@theme": env.themePath }
+              }
+            });
+        "#;
+
+        let summary =
+            summarize_omena_bridge_bundler_path_aliases_for_config(config_path.as_path(), source);
+
+        assert_eq!(summary.aliases, Vec::new());
+        assert_eq!(summary.unrecognized.len(), 1);
+        assert_eq!(summary.unrecognized[0].reason, "dynamic-config-export");
+        assert!(summary.unrecognized[0].text.contains("env"));
         let _ = fs::remove_dir_all(root);
         Ok(())
     }
