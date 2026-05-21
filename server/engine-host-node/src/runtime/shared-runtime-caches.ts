@@ -13,6 +13,12 @@ import type {
 } from "../style-semantic-graph-query-backend";
 import type { SelectorUsagePayloadCache } from "../selector-usage-query-backend";
 
+export interface PackageManifestTextCache {
+  read(filePath: string, readFile: (filePath: string) => string | null): string | null;
+  invalidate(filePath: string): void;
+  clear(): void;
+}
+
 export interface SharedRuntimeCaches {
   readonly sourceFileCache: SourceFileCache;
   readonly styleIndexCache: StyleIndexCache;
@@ -21,6 +27,7 @@ export interface SharedRuntimeCaches {
   readonly styleSemanticGraphCache: StyleSemanticGraphCache;
   readonly styleSemanticGraphBatchOutputCache: StyleSemanticGraphBatchOutputCache;
   readonly selectorUsagePayloadCache: SelectorUsagePayloadCache;
+  readonly packageManifestTextCache: PackageManifestTextCache;
 }
 
 export interface BuildSharedRuntimeCachesOptions {
@@ -41,5 +48,39 @@ export function buildSharedRuntimeCaches(
     styleSemanticGraphCache: new Map(),
     styleSemanticGraphBatchOutputCache: new Map(),
     selectorUsagePayloadCache: new Map(),
+    packageManifestTextCache: new RuntimePackageManifestTextCache(),
   };
+}
+
+export function createManifestCachedStyleFileReader(
+  caches: Pick<SharedRuntimeCaches, "packageManifestTextCache">,
+  readStyleFile: (filePath: string) => string | null,
+): (filePath: string) => string | null {
+  return (filePath) =>
+    isPackageManifestPath(filePath)
+      ? caches.packageManifestTextCache.read(filePath, readStyleFile)
+      : readStyleFile(filePath);
+}
+
+export function isPackageManifestPath(filePath: string): boolean {
+  return filePath.split(/[\\/]/u).pop() === "package.json";
+}
+
+class RuntimePackageManifestTextCache implements PackageManifestTextCache {
+  private readonly entries = new Map<string, string | null>();
+
+  read(filePath: string, readFile: (filePath: string) => string | null): string | null {
+    if (this.entries.has(filePath)) return this.entries.get(filePath) ?? null;
+    const text = readFile(filePath);
+    this.entries.set(filePath, text);
+    return text;
+  }
+
+  invalidate(filePath: string): void {
+    this.entries.delete(filePath);
+  }
+
+  clear(): void {
+    this.entries.clear();
+  }
 }

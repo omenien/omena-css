@@ -21,6 +21,7 @@ export interface WorkspaceProviderDeps extends ProviderDeps {
   readonly selectorUsagePayloadCache?: SelectorUsagePayloadCache;
   readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
   clearStyleSemanticGraphCache?(): void;
+  invalidatePackageManifestCache?(filePath: string): void;
 }
 
 function isWithinRoot(rootPath: string, candidatePath: string): boolean {

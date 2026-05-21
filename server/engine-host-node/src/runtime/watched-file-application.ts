@@ -5,6 +5,7 @@ import {
 } from "./watched-file-changes";
 import { createRuntimeDependencySnapshot, snapshotOpenDocuments } from "./dependency-snapshot";
 import { planWatchedFileInvalidation, type RuntimeFileEvent } from "./invalidation-planner";
+import { isPackageManifestPath } from "./shared-runtime-caches";
 
 export interface WatchedFileApplicationDocuments extends RuntimeOpenDocumentLookup {
   all(): readonly { readonly uri: string }[];
@@ -50,6 +51,11 @@ export function applyWatchedFileChanges(
     );
 
   for (const change of changes) {
+    if (change.kind === "source" && isPackageManifestPath(change.filePath)) {
+      const deps = args.registry.getDepsForFilePath(change.filePath);
+      deps?.invalidatePackageManifestCache?.(change.filePath);
+      continue;
+    }
     if (change.kind !== "style" || !change.semanticsChanged) continue;
     const deps = args.registry.getDepsForFilePath(change.filePath);
     if (!deps) continue;

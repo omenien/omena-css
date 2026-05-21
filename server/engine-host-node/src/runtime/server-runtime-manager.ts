@@ -4,7 +4,10 @@ import type { FileTask } from "../../../engine-core-ts/src/core/indexing/indexer
 import type { StyleDocumentBuilder } from "../../../engine-core-ts/src/core/scss/scss-index";
 import type { TypeResolver } from "../../../engine-core-ts/src/core/ts/type-resolver";
 import type { WorkspaceRegistry } from "../workspace/workspace-registry";
-import { buildSharedRuntimeCaches } from "./shared-runtime-caches";
+import {
+  buildSharedRuntimeCaches,
+  createManifestCachedStyleFileReader,
+} from "./shared-runtime-caches";
 import {
   createRuntimeTypeResolver,
   createStyleDocumentLookup,
@@ -48,8 +51,9 @@ export function createServerRuntimeManager(
     ? createRuntimeTypeResolver({ typeResolver: args.options.typeResolver })
     : createRuntimeTypeResolver({});
   const fileExists = args.options.fileExists ?? existsSync;
+  const readStyleFile = createManifestCachedStyleFileReader(caches, args.readStyleFile);
   const runtimeIO = createWorkspaceRuntimeIO({
-    readStyleFile: args.readStyleFile,
+    readStyleFile,
     readOpenDocumentText: args.readOpenDocumentText,
     ...(args.options.readStyleFileAsync
       ? { readStyleFileAsync: args.options.readStyleFileAsync }
@@ -62,7 +66,7 @@ export function createServerRuntimeManager(
     styleIndexCache: caches.styleIndexCache,
     styleDependencyGraph: caches.styleDependencyGraph,
     readOpenDocumentText: args.readOpenDocumentText,
-    readStyleFile: args.readStyleFile,
+    readStyleFile,
     fileExists,
     aliasResolverForPath: (stylePath) =>
       runtimeManager?.getDepsForFilePath(stylePath)?.aliasResolver ?? null,

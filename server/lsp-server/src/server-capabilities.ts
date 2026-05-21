@@ -61,6 +61,9 @@ export function registerDynamicFileWatchers(
         { globPattern: "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts}" },
         { globPattern: "**/tsconfig*.json" },
         { globPattern: "**/jsconfig*.json" },
+        { globPattern: "**/package.json" },
+        { globPattern: "**/vite.config.{ts,mts,cts,js,mjs,cjs}" },
+        { globPattern: "**/webpack.config.{ts,mts,cts,js,mjs,cjs}" },
       ],
     })
     .catch(() => ({ dispose: () => {} }));

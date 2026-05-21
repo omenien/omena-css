@@ -8,6 +8,7 @@ import type {
   RuntimeFileEvent,
   WatchedFileChangeInput,
 } from "./invalidation-planner";
+import { isPackageManifestPath } from "./shared-runtime-caches";
 
 export interface WatchedFileDeps {
   readonly workspaceRoot: string;
@@ -70,6 +71,7 @@ function isProjectConfigPath(filePath: string): boolean {
     base !== undefined &&
     (/^tsconfig.*\.json$/u.test(base) ||
       /^jsconfig.*\.json$/u.test(base) ||
+      isPackageManifestPath(filePath) ||
       /^vite\.config\.[cm]?[jt]s$/u.test(base) ||
       /^webpack\.config\.[cm]?[jt]s$/u.test(base))
   );

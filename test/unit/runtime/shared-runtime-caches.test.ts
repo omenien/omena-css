@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { parseStyleDocument } from "../../../server/engine-core-ts/src/core/scss/scss-parser";
 import { createServerRuntimeManager } from "../../../server/engine-host-node/src/runtime/server-runtime-manager";
-import { buildSharedRuntimeCaches } from "../../../server/engine-host-node/src/runtime/shared-runtime-caches";
+import {
+  buildSharedRuntimeCaches,
+  createManifestCachedStyleFileReader,
+} from "../../../server/engine-host-node/src/runtime/shared-runtime-caches";
 import type { RuntimeSink } from "../../../server/engine-host-node/src/runtime/runtime-sink";
 
 describe("buildSharedRuntimeCaches", () => {
@@ -57,6 +60,32 @@ describe("buildSharedRuntimeCaches", () => {
     expect(document?.selectors.map((selector) => selector.name)).toEqual(["button"]);
     expect(buildCount).toBe(1);
     runtimeManager.disposeAll({ all: () => [] });
+  });
+
+  it("caches package manifest reads without caching normal style files", () => {
+    const caches = buildSharedRuntimeCaches();
+    const reads = new Map<string, number>();
+    const files = new Map([
+      ["/fake/ws/package.json", `{"style":"./index.css"}`],
+      ["/fake/ws/src/Button.module.scss", ".button { color: red; }"],
+    ]);
+    const readStyleFile = createManifestCachedStyleFileReader(caches, (filePath) => {
+      reads.set(filePath, (reads.get(filePath) ?? 0) + 1);
+      return files.get(filePath) ?? null;
+    });
+
+    expect(readStyleFile("/fake/ws/package.json")).toBe(`{"style":"./index.css"}`);
+    expect(readStyleFile("/fake/ws/package.json")).toBe(`{"style":"./index.css"}`);
+    expect(readStyleFile("/fake/ws/src/Button.module.scss")).toBe(".button { color: red; }");
+    expect(readStyleFile("/fake/ws/src/Button.module.scss")).toBe(".button { color: red; }");
+
+    expect(reads.get("/fake/ws/package.json")).toBe(1);
+    expect(reads.get("/fake/ws/src/Button.module.scss")).toBe(2);
+
+    files.set("/fake/ws/package.json", `{"sass":"./index.scss"}`);
+    caches.packageManifestTextCache.invalidate("/fake/ws/package.json");
+    expect(readStyleFile("/fake/ws/package.json")).toBe(`{"sass":"./index.scss"}`);
+    expect(reads.get("/fake/ws/package.json")).toBe(2);
   });
 });
 

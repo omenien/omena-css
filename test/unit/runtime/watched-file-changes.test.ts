@@ -86,6 +86,33 @@ describe("collectWatchedFileChangeInputs", () => {
     ]);
   });
 
+  it("marks package manifest changes as project config changes", () => {
+    const deps = makeBaseDeps({
+      workspaceRoot: "/fake/ws",
+      workspaceFolderUri: "file:///fake/ws",
+    });
+    const snapshot = createRuntimeDependencySnapshot([deps], []);
+
+    const changes = collectWatchedFileChangeInputs(
+      [{ uri: "file:///fake/ws/node_modules/@design/tokens/package.json", type: "changed" }],
+      {
+        documents: { get: () => undefined },
+        getDepsForFilePath: () => deps,
+      },
+      snapshot,
+    );
+
+    expect(changes).toEqual([
+      {
+        kind: "source",
+        workspaceRoot: "/fake/ws",
+        filePath: "/fake/ws/node_modules/@design/tokens/package.json",
+        projectConfigChange: true,
+        dependentSourceUris: [],
+      },
+    ]);
+  });
+
   it("marks declaration-only style changes as non-semantic", () => {
     const previous = buildStyleDocumentFromSelectorMap(
       "/fake/ws/src/Button.module.scss",

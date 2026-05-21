@@ -53,6 +53,8 @@ export function createWorkspaceProviderDeps(args: WorkspaceRuntimeDepsArgs): Wor
       args.caches.styleSemanticGraphBatchOutputCache.clear();
       args.caches.selectorUsagePayloadCache.clear();
     },
+    invalidatePackageManifestCache: (filePath) =>
+      args.caches.packageManifestTextCache.invalidate(filePath),
     workspaceRoot: args.folder.rootPath,
     workspaceFolderUri: args.folder.uri,
     logError: (message, err) => {

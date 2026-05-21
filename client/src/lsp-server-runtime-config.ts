@@ -36,6 +36,9 @@ export function buildRustLspFileWatcherGlobs(): readonly string[] {
     "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts}",
     "**/tsconfig*.json",
     "**/jsconfig*.json",
+    "**/package.json",
+    "**/vite.config.{ts,mts,cts,js,mjs,cjs}",
+    "**/webpack.config.{ts,mts,cts,js,mjs,cjs}",
   ];
 }
 
