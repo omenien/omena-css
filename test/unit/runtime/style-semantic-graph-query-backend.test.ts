@@ -698,7 +698,7 @@ describe("style semantic graph query backend", () => {
             : null,
       readStyleFile: (filePath) =>
         filePath === SCSS_PATH
-          ? `@use "@design/tokens/theme";\n.button { color: var(--brand); }`
+          ? `@use "pkg:@design/tokens/theme";\n.button { color: var(--brand); }`
           : filePath === CARD_SCSS_PATH
             ? CARD_SCSS_SOURCE
             : filePath === packageJsonPath
@@ -730,14 +730,14 @@ describe("style semantic graph query backend", () => {
         runRustSelectedQueryBackendJson: <T>(command: string, input: unknown): T => {
           if (command === "omena-parser-style-facts") {
             expect(input).toMatchObject({
-              styleSource: `@use "@design/tokens/theme";\n.button { color: var(--brand); }`,
+              styleSource: `@use "pkg:@design/tokens/theme";\n.button { color: var(--brand); }`,
               dialect: "scss",
             });
             return {
               schemaVersion: "0",
               product: "omena-parser.style-facts",
               dialect: "scss",
-              sassModuleUseSources: ["@design/tokens/theme"],
+              sassModuleUseSources: ["pkg:@design/tokens/theme"],
               sassModuleForwardSources: [],
               sassModuleImportSources: [],
             } as T;

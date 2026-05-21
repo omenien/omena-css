@@ -592,20 +592,23 @@ struct PackageStyleSource<'a> {
 }
 
 fn parse_package_style_source(source: &str) -> Option<PackageStyleSource<'_>> {
-    if source.starts_with('.') || source.starts_with('/') || is_external_style_module_source(source)
+    let package_source = source.strip_prefix("pkg:").unwrap_or(source);
+    if package_source.starts_with('.')
+        || package_source.starts_with('/')
+        || is_external_style_module_source(package_source)
     {
         return None;
     }
 
-    if source.starts_with('@') {
-        let mut segments = source.splitn(3, '/');
+    if package_source.starts_with('@') {
+        let mut segments = package_source.splitn(3, '/');
         let scope = segments.next()?;
         let package = segments.next()?;
         if scope.len() <= 1 || package.is_empty() {
             return None;
         }
         let package_name_end = scope.len() + 1 + package.len();
-        let package_name = &source[..package_name_end];
+        let package_name = &package_source[..package_name_end];
         let subpath = segments.next().filter(|subpath| !subpath.is_empty());
         return Some(PackageStyleSource {
             package_name,
@@ -613,7 +616,7 @@ fn parse_package_style_source(source: &str) -> Option<PackageStyleSource<'_>> {
         });
     }
 
-    let mut segments = source.splitn(2, '/');
+    let mut segments = package_source.splitn(2, '/');
     let package_name = segments.next()?;
     if package_name.is_empty() {
         return None;

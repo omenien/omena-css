@@ -1338,6 +1338,7 @@ function resolveSassLocalBareBasePath(
 }
 
 function normalizeSassPackageSpecifier(source: string): string {
+  if (source.startsWith("pkg:")) return source.slice("pkg:".length);
   if (source.startsWith("~") && !source.startsWith("~/")) return source.slice(1);
   return source;
 }

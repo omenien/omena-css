@@ -460,6 +460,31 @@ describe("resolveStyleCompletionItems", () => {
     expect(result[0]?.sourceFilePath).toBe(PACKAGE_VARIABLES_CSS_PATH);
   });
 
+  it("returns package-root CSS custom property completions through Sass pkg URLs", () => {
+    const scss = `@use "pkg:@design/tokens";
+
+.button {
+  color: var(--)
+}
+`;
+    const packageJson = `{"exports":{".":{"style":"./variables.css"}}}`;
+    const tokensCss = `:root { --color-gray-700: #767678; }`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const tokensDocument = parseStyleDocument(tokensCss, PACKAGE_VARIABLES_CSS_PATH);
+
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 3,
+      character: 15,
+      styleDocument,
+      styleDocumentForPath: styleDocumentMap([styleDocument, tokensDocument]),
+      readFile: (filePath) => (filePath === PACKAGE_TOKENS_JSON_PATH ? packageJson : null),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--color-gray-700"]);
+    expect(result[0]?.sourceFilePath).toBe(PACKAGE_VARIABLES_CSS_PATH);
+  });
+
   it("returns CSS custom property completions forwarded from a package root through a local utility module", () => {
     const scss = `@use "utils" as *;
 

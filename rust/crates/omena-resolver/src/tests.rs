@@ -258,6 +258,29 @@ fn resolves_package_manifest_exports_before_legacy_top_level_fields() {
     );
 }
 
+#[test]
+fn resolves_sass_pkg_url_package_manifest_exports() {
+    let available_style_paths =
+        BTreeSet::from(["/fake/workspace/node_modules/@design/tokens/dist/theme.css"]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "pkg:@design/tokens/theme",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source: r#"{"exports":{"./theme":{"style":"./dist/theme.css"}}}"#
+                .to_string(),
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "packageStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/node_modules/@design/tokens/dist/theme.css")
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn resolves_style_modules_by_canonical_filesystem_identity()

@@ -1656,18 +1656,19 @@ function packageJsonCandidatePaths(stylePath: string, packageName: string): read
 function parsePackageStyleSource(
   source: string,
 ): { readonly packageName: string; readonly subpath: string | null } | null {
+  const packageSource = source.startsWith("pkg:") ? source.slice("pkg:".length) : source;
   if (
-    source.startsWith(".") ||
-    source.startsWith("/") ||
-    source.startsWith("sass:") ||
-    source.startsWith("http://") ||
-    source.startsWith("https://")
+    packageSource.startsWith(".") ||
+    packageSource.startsWith("/") ||
+    packageSource.startsWith("sass:") ||
+    packageSource.startsWith("http://") ||
+    packageSource.startsWith("https://")
   ) {
     return null;
   }
 
-  if (source.startsWith("@")) {
-    const segments = source.split("/");
+  if (packageSource.startsWith("@")) {
+    const segments = packageSource.split("/");
     if (segments.length < 2 || segments[0]!.length <= 1 || segments[1]!.length === 0) {
       return null;
     }
@@ -1677,7 +1678,7 @@ function parsePackageStyleSource(
     };
   }
 
-  const [packageName, ...subpathParts] = source.split("/");
+  const [packageName, ...subpathParts] = packageSource.split("/");
   if (!packageName) return null;
   return {
     packageName,
