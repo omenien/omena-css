@@ -1,4 +1,5 @@
 import { deepStrictEqual } from "node:assert";
+import { buildCheckerBoundedGate } from "../packages/cme-checker/src";
 import { buildContractParitySnapshot } from "./contract-parity-runtime";
 import {
   deriveTsCheckerStyleUnusedCanonicalCandidate,
@@ -19,26 +20,7 @@ void (async () => {
     schemaVersion: "0",
     inputVersion: canonicalCandidate.inputVersion,
     canonicalCandidate,
-    boundedCheckerGate: {
-      canonicalCandidateCommand: "pnpm check:rust-checker-style-unused-canonical-candidate",
-      canonicalProducerCommand: "pnpm check:rust-checker-style-unused-canonical-producer",
-      consumerBoundaryCommand: "pnpm check:rust-checker-style-unused-consumer-boundary",
-      boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
-      promotionReviewCommand: "pnpm check:rust-checker-promotion-review",
-      promotionEvidenceCommand: "pnpm check:rust-checker-promotion-evidence",
-      broaderRustLaneCommand: "pnpm check:rust-lane-bundle",
-      releaseGateReadinessCommand: "pnpm check:rust-checker-release-gate-readiness",
-      releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow",
-      releaseGateShadowReviewCommand: "pnpm check:rust-checker-release-gate-shadow-review",
-      releaseBundleCommand: "pnpm check:rust-release-bundle",
-      minimumBoundedLaneCountForRustLaneBundle: 3,
-      minimumBoundedLaneCountForRustReleaseBundle: 3,
-      minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
-      checkerBundle: "style-unused",
-      releaseGateStage: "enforced",
-      includedInRustLaneBundle: true,
-      includedInRustReleaseBundle: true,
-    },
+    boundedCheckerGate: buildCheckerBoundedGate("style-unused"),
   };
 
   deepStrictEqual(actual, expected, "checker style-unused canonical producer mismatch");

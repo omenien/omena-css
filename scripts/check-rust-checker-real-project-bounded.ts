@@ -1,6 +1,9 @@
 import { deepStrictEqual, strict as assert } from "node:assert";
 import path from "node:path";
-import { deriveCheckerCanonicalCandidate } from "../packages/cme-checker/src";
+import {
+  buildCheckerBoundedGate,
+  deriveCheckerCanonicalCandidate,
+} from "../packages/cme-checker/src";
 import { runCheckerCli } from "../server/checker-cli/src";
 import type { EngineInputV2 } from "../server/engine-core-ts/src/contracts";
 import type { ContractParityEntry } from "./contract-parity-corpus-v1";
@@ -137,26 +140,7 @@ void (async () => {
     schemaVersion: "0",
     inputVersion: expectedStyleCandidate.inputVersion,
     canonicalCandidate: expectedStyleCandidate,
-    boundedCheckerGate: {
-      canonicalCandidateCommand: "pnpm check:rust-checker-style-recovery-canonical-candidate",
-      canonicalProducerCommand: "pnpm check:rust-checker-style-recovery-canonical-producer",
-      consumerBoundaryCommand: "pnpm check:rust-checker-style-recovery-consumer-boundary",
-      boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
-      promotionReviewCommand: "pnpm check:rust-checker-promotion-review",
-      promotionEvidenceCommand: "pnpm check:rust-checker-promotion-evidence",
-      broaderRustLaneCommand: "pnpm check:rust-lane-bundle",
-      releaseGateReadinessCommand: "pnpm check:rust-checker-release-gate-readiness",
-      releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow",
-      releaseGateShadowReviewCommand: "pnpm check:rust-checker-release-gate-shadow-review",
-      releaseBundleCommand: "pnpm check:rust-release-bundle",
-      minimumBoundedLaneCountForRustLaneBundle: 3,
-      minimumBoundedLaneCountForRustReleaseBundle: 3,
-      minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
-      checkerBundle: "style-recovery",
-      releaseGateStage: "enforced",
-      includedInRustLaneBundle: true,
-      includedInRustReleaseBundle: true,
-    },
+    boundedCheckerGate: buildCheckerBoundedGate("style-recovery"),
   } satisfies CheckerStyleRecoveryCanonicalProducerSignalV0);
 
   const sourceFlowSummary = await runShadowExpressionDomainFlowAnalysisInput(
@@ -168,26 +152,7 @@ void (async () => {
     inputVersion: expectedSourceCandidate.inputVersion,
     canonicalCandidate: expectedSourceCandidate,
     flowEvidence: deriveFlowEvidence(sourceFlowSummary),
-    boundedCheckerGate: {
-      canonicalCandidateCommand: "pnpm check:rust-checker-source-missing-canonical-candidate",
-      canonicalProducerCommand: "pnpm check:rust-checker-source-missing-canonical-producer",
-      consumerBoundaryCommand: "pnpm check:rust-checker-source-missing-consumer-boundary",
-      boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
-      promotionReviewCommand: "pnpm check:rust-checker-promotion-review",
-      promotionEvidenceCommand: "pnpm check:rust-checker-promotion-evidence",
-      broaderRustLaneCommand: "pnpm check:rust-lane-bundle",
-      releaseGateReadinessCommand: "pnpm check:rust-checker-release-gate-readiness",
-      releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow",
-      releaseGateShadowReviewCommand: "pnpm check:rust-checker-release-gate-shadow-review",
-      releaseBundleCommand: "pnpm check:rust-release-bundle",
-      minimumBoundedLaneCountForRustLaneBundle: 3,
-      minimumBoundedLaneCountForRustReleaseBundle: 3,
-      minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
-      checkerBundle: "source-missing",
-      releaseGateStage: "enforced",
-      includedInRustLaneBundle: true,
-      includedInRustReleaseBundle: true,
-    },
+    boundedCheckerGate: buildCheckerBoundedGate("source-missing"),
   } satisfies CheckerSourceMissingCanonicalProducerSignalV0);
 
   const actualUnusedProducer = await runShadowCheckerStyleUnusedCanonicalProducer(unusedSnapshot);
@@ -195,26 +160,7 @@ void (async () => {
     schemaVersion: "0",
     inputVersion: expectedUnusedCandidate.inputVersion,
     canonicalCandidate: expectedUnusedCandidate,
-    boundedCheckerGate: {
-      canonicalCandidateCommand: "pnpm check:rust-checker-style-unused-canonical-candidate",
-      canonicalProducerCommand: "pnpm check:rust-checker-style-unused-canonical-producer",
-      consumerBoundaryCommand: "pnpm check:rust-checker-style-unused-consumer-boundary",
-      boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
-      promotionReviewCommand: "pnpm check:rust-checker-promotion-review",
-      promotionEvidenceCommand: "pnpm check:rust-checker-promotion-evidence",
-      broaderRustLaneCommand: "pnpm check:rust-lane-bundle",
-      releaseGateReadinessCommand: "pnpm check:rust-checker-release-gate-readiness",
-      releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow",
-      releaseGateShadowReviewCommand: "pnpm check:rust-checker-release-gate-shadow-review",
-      releaseBundleCommand: "pnpm check:rust-release-bundle",
-      minimumBoundedLaneCountForRustLaneBundle: 3,
-      minimumBoundedLaneCountForRustReleaseBundle: 3,
-      minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
-      checkerBundle: "style-unused",
-      releaseGateStage: "enforced",
-      includedInRustLaneBundle: true,
-      includedInRustReleaseBundle: true,
-    },
+    boundedCheckerGate: buildCheckerBoundedGate("style-unused"),
   } satisfies CheckerStyleUnusedCanonicalProducerSignalV0);
 
   const styleConsumerPayload = await runRustConsumerCheck({

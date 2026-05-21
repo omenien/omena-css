@@ -58,11 +58,85 @@ export interface CmeCheckerCanonicalCandidateBundleV0<TBundle extends string = s
   readonly findings: readonly CmeCheckerFindingProjectionV0[];
 }
 
+const CHECKER_BOUNDED_GATE_BY_BUNDLE = {
+  "style-recovery": {
+    canonicalCandidateCommand: "pnpm check:rust-checker-style-recovery-canonical-candidate",
+    canonicalProducerCommand: "pnpm check:rust-checker-style-recovery-canonical-producer",
+    consumerBoundaryCommand: "pnpm check:rust-checker-style-recovery-consumer-boundary",
+    boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
+    promotionReviewCommand: "pnpm check:rust-checker-promotion-review",
+    promotionEvidenceCommand: "pnpm check:rust-checker-promotion-evidence",
+    broaderRustLaneCommand: "pnpm check:rust-lane-bundle",
+    releaseGateReadinessCommand: "pnpm check:rust-checker-release-gate-readiness",
+    releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow",
+    releaseGateShadowReviewCommand: "pnpm check:rust-checker-release-gate-shadow-review",
+    releaseBundleCommand: "pnpm check:rust-release-bundle",
+    minimumBoundedLaneCountForRustLaneBundle: 3,
+    minimumBoundedLaneCountForRustReleaseBundle: 3,
+    minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
+    checkerBundle: "style-recovery",
+    releaseGateStage: "enforced",
+    includedInRustLaneBundle: true,
+    includedInRustReleaseBundle: true,
+  },
+  "source-missing": {
+    canonicalCandidateCommand: "pnpm check:rust-checker-source-missing-canonical-candidate",
+    canonicalProducerCommand: "pnpm check:rust-checker-source-missing-canonical-producer",
+    consumerBoundaryCommand: "pnpm check:rust-checker-source-missing-consumer-boundary",
+    boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
+    promotionReviewCommand: "pnpm check:rust-checker-promotion-review",
+    promotionEvidenceCommand: "pnpm check:rust-checker-promotion-evidence",
+    broaderRustLaneCommand: "pnpm check:rust-lane-bundle",
+    releaseGateReadinessCommand: "pnpm check:rust-checker-release-gate-readiness",
+    releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow",
+    releaseGateShadowReviewCommand: "pnpm check:rust-checker-release-gate-shadow-review",
+    releaseBundleCommand: "pnpm check:rust-release-bundle",
+    minimumBoundedLaneCountForRustLaneBundle: 3,
+    minimumBoundedLaneCountForRustReleaseBundle: 3,
+    minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
+    checkerBundle: "source-missing",
+    releaseGateStage: "enforced",
+    includedInRustLaneBundle: true,
+    includedInRustReleaseBundle: true,
+  },
+  "style-unused": {
+    canonicalCandidateCommand: "pnpm check:rust-checker-style-unused-canonical-candidate",
+    canonicalProducerCommand: "pnpm check:rust-checker-style-unused-canonical-producer",
+    consumerBoundaryCommand: "pnpm check:rust-checker-style-unused-consumer-boundary",
+    boundedCheckerLaneCommand: "pnpm check:rust-checker-bounded-lanes",
+    promotionReviewCommand: "pnpm check:rust-checker-promotion-review",
+    promotionEvidenceCommand: "pnpm check:rust-checker-promotion-evidence",
+    broaderRustLaneCommand: "pnpm check:rust-lane-bundle",
+    releaseGateReadinessCommand: "pnpm check:rust-checker-release-gate-readiness",
+    releaseGateShadowCommand: "pnpm check:rust-checker-release-gate-shadow",
+    releaseGateShadowReviewCommand: "pnpm check:rust-checker-release-gate-shadow-review",
+    releaseBundleCommand: "pnpm check:rust-release-bundle",
+    minimumBoundedLaneCountForRustLaneBundle: 3,
+    minimumBoundedLaneCountForRustReleaseBundle: 3,
+    minimumSuccessfulShadowRunsForRustReleaseBundle: 3,
+    checkerBundle: "style-unused",
+    releaseGateStage: "enforced",
+    includedInRustLaneBundle: true,
+    includedInRustReleaseBundle: true,
+  },
+} as const;
+
+export type CmeCheckerBundleV0 = keyof typeof CHECKER_BOUNDED_GATE_BY_BUNDLE;
+
+export type CmeCheckerBoundedGateV0<TBundle extends CmeCheckerBundleV0 = CmeCheckerBundleV0> =
+  (typeof CHECKER_BOUNDED_GATE_BY_BUNDLE)[TBundle];
+
 export interface CmeCheckerDeriveOptionsV0<TBundle extends string = string> {
   readonly bundle: TBundle;
   readonly category: string;
   readonly codes: ReadonlySet<string>;
   readonly extraFields?: readonly string[];
+}
+
+export function buildCheckerBoundedGate<TBundle extends CmeCheckerBundleV0>(
+  bundle: TBundle,
+): CmeCheckerBoundedGateV0<TBundle> {
+  return CHECKER_BOUNDED_GATE_BY_BUNDLE[bundle];
 }
 
 export function deriveCheckerCanonicalCandidate<TBundle extends string>(
