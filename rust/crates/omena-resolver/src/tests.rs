@@ -366,6 +366,32 @@ fn resolves_package_manifest_subpath_export_patterns() {
 }
 
 #[test]
+fn resolves_package_manifest_subpath_export_patterns_by_specificity() {
+    let available_style_paths = BTreeSet::from([
+        "/fake/workspace/node_modules/@design/tokens/dist/broad/dark/button.css",
+        "/fake/workspace/node_modules/@design/tokens/dist/specific/button.css",
+    ]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "@design/tokens/themes/dark/button",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source:
+                r#"{"exports":{"./themes/*":{"style":"./dist/broad/*.css"},"./themes/dark/*":{"style":"./dist/specific/*.css"}}}"#
+                    .to_string(),
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "packageStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/node_modules/@design/tokens/dist/specific/button.css")
+    );
+}
+
+#[test]
 fn resolves_package_manifest_export_conditions_in_object_order() {
     let available_style_paths = BTreeSet::from([
         "/fake/workspace/node_modules/@design/tokens/dist/theme.css",
@@ -534,6 +560,32 @@ fn resolves_sass_pkg_url_package_manifest_export_patterns() {
     assert_eq!(
         resolution.resolved_style_path.as_deref(),
         Some("/fake/workspace/node_modules/@design/tokens/scss/themes/dark.scss")
+    );
+}
+
+#[test]
+fn resolves_sass_pkg_url_package_manifest_export_patterns_by_specificity() {
+    let available_style_paths = BTreeSet::from([
+        "/fake/workspace/node_modules/@design/tokens/scss/broad/dark/button.scss",
+        "/fake/workspace/node_modules/@design/tokens/scss/specific/button.scss",
+    ]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "pkg:@design/tokens/themes/dark/button",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source:
+                r#"{"exports":{"./themes/*":{"sass":"./scss/broad/*.scss"},"./themes/dark/*":{"sass":"./scss/specific/*.scss"}}}"#
+                    .to_string(),
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "packageStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/node_modules/@design/tokens/scss/specific/button.scss")
     );
 }
 
@@ -737,6 +789,45 @@ fn resolves_package_import_patterns_to_external_package_targets() {
     assert_eq!(
         resolution.resolved_style_path.as_deref(),
         Some("/fake/workspace/node_modules/@design/tokens/dist/themes/dark.css")
+    );
+}
+
+#[test]
+fn resolves_package_import_patterns_by_specificity() {
+    let available_style_paths = BTreeSet::from([
+        "/fake/workspace/node_modules/@design/broad/dist/dark/button.css",
+        "/fake/workspace/node_modules/@design/specific/dist/button.css",
+    ]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "#theme/dark/button",
+        &available_style_paths,
+        &[
+            OmenaResolverStylePackageManifestV0 {
+                package_json_path: "/fake/workspace/package.json".to_string(),
+                package_json_source:
+                    r##"{"imports":{"#theme/*":"@design/broad/*","#theme/dark/*":"@design/specific/*"}}"##
+                        .to_string(),
+            },
+            OmenaResolverStylePackageManifestV0 {
+                package_json_path: "/fake/workspace/node_modules/@design/broad/package.json"
+                    .to_string(),
+                package_json_source: r#"{"exports":{"./*":{"style":"./dist/*.css"}}}"#
+                    .to_string(),
+            },
+            OmenaResolverStylePackageManifestV0 {
+                package_json_path: "/fake/workspace/node_modules/@design/specific/package.json"
+                    .to_string(),
+                package_json_source: r#"{"exports":{"./*":{"style":"./dist/*.css"}}}"#
+                    .to_string(),
+            },
+        ],
+    );
+
+    assert_eq!(resolution.resolution_kind, "packageImportStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/node_modules/@design/specific/dist/button.css")
     );
 }
 

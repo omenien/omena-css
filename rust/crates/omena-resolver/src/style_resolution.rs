@@ -706,7 +706,7 @@ fn read_package_import_entry(package_json_source: &str, specifier: &str) -> Opti
     if let Some(entry) = read_package_export_entry(imports_object.get(specifier)) {
         return Some(entry);
     }
-    for (key, import_value) in imports_object {
+    for (key, import_value) in sorted_package_pattern_entries(imports_object) {
         let Some(pattern_match) = match_package_import_pattern(key, specifier) else {
             continue;
         };
@@ -716,6 +716,40 @@ fn read_package_import_entry(package_json_source: &str, specifier: &str) -> Opti
         return Some(substitute_package_export_pattern(&entry, &pattern_match));
     }
     None
+}
+
+fn sorted_package_pattern_entries<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+) -> Vec<(&'a str, &'a serde_json::Value)> {
+    let mut entries = object
+        .iter()
+        .enumerate()
+        .filter_map(|(index, (key, value))| {
+            package_pattern_priority(key).map(|priority| (index, priority, key.as_str(), value))
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
+    entries
+        .into_iter()
+        .map(|(_, _, key, value)| (key, value))
+        .collect()
+}
+
+fn package_pattern_priority(pattern_key: &str) -> Option<PackagePatternPriority> {
+    let star_index = pattern_key.find('*')?;
+    if pattern_key[star_index + 1..].contains('*') {
+        return None;
+    }
+    Some(PackagePatternPriority {
+        base_len: star_index,
+        key_len: pattern_key.len(),
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct PackagePatternPriority {
+    base_len: usize,
+    key_len: usize,
 }
 
 fn match_package_import_pattern(pattern_key: &str, specifier: &str) -> Option<String> {
@@ -736,7 +770,7 @@ fn read_package_export_subpath_entry(
             return Some(entry);
         }
     }
-    for (key, export_value) in exports_object {
+    for (key, export_value) in sorted_package_pattern_entries(exports_object) {
         let Some(pattern_match) = match_package_export_subpath_pattern(key, subpath) else {
             continue;
         };
@@ -758,7 +792,7 @@ fn read_sass_node_package_export_subpath_entry(
             return Some(entry);
         }
     }
-    for (key, export_value) in exports_object {
+    for (key, export_value) in sorted_package_pattern_entries(exports_object) {
         let Some(pattern_match) = match_package_export_subpath_pattern(key, subpath) else {
             continue;
         };
