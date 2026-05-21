@@ -686,6 +686,8 @@ describe("style semantic graph query backend", () => {
   });
 
   it("passes package manifests into cached multi-style graph batch reads", () => {
+    const rootPackageJsonPath = "/fake/ws/package.json";
+    const rootPackageJsonSource = `{"imports":{"#theme":"@design/tokens/theme"}}`;
     const packageJsonPath = "/fake/ws/node_modules/@design/tokens/package.json";
     const packageJsonSource = `{"exports":{"./theme":{"style":"./dist/theme.css","sass":"./dist/theme.scss"}}}`;
     const packageStylePath = "/fake/ws/node_modules/@design/tokens/dist/theme.css";
@@ -698,14 +700,16 @@ describe("style semantic graph query backend", () => {
             : null,
       readStyleFile: (filePath) =>
         filePath === SCSS_PATH
-          ? `@use "pkg:@design/tokens/theme";\n.button { color: var(--brand); }`
+          ? `@use "#theme";\n.button { color: var(--brand); }`
           : filePath === CARD_SCSS_PATH
             ? CARD_SCSS_SOURCE
-            : filePath === packageJsonPath
-              ? packageJsonSource
-              : filePath === packageStylePath
-                ? `:root { --brand: #0af; }`
-                : null,
+            : filePath === rootPackageJsonPath
+              ? rootPackageJsonSource
+              : filePath === packageJsonPath
+                ? packageJsonSource
+                : filePath === packageStylePath
+                  ? `:root { --brand: #0af; }`
+                  : null,
       workspaceRoot: "/fake/ws",
     });
     let batchInput: StyleSemanticGraphBatchRunnerInputV0 | null = null;
@@ -730,14 +734,14 @@ describe("style semantic graph query backend", () => {
         runRustSelectedQueryBackendJson: <T>(command: string, input: unknown): T => {
           if (command === "omena-parser-style-facts") {
             expect(input).toMatchObject({
-              styleSource: `@use "pkg:@design/tokens/theme";\n.button { color: var(--brand); }`,
+              styleSource: `@use "#theme";\n.button { color: var(--brand); }`,
               dialect: "scss",
             });
             return {
               schemaVersion: "0",
               product: "omena-parser.style-facts",
               dialect: "scss",
-              sassModuleUseSources: ["pkg:@design/tokens/theme"],
+              sassModuleUseSources: ["#theme"],
               sassModuleForwardSources: [],
               sassModuleImportSources: [],
             } as T;
@@ -759,6 +763,10 @@ describe("style semantic graph query backend", () => {
     );
 
     expect(batchInput?.packageManifests).toEqual([
+      {
+        packageJsonPath: rootPackageJsonPath,
+        packageJsonSource: rootPackageJsonSource,
+      },
       {
         packageJsonPath,
         packageJsonSource,

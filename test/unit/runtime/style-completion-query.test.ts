@@ -485,6 +485,32 @@ describe("resolveStyleCompletionItems", () => {
     expect(result[0]?.sourceFilePath).toBe(PACKAGE_VARIABLES_CSS_PATH);
   });
 
+  it("returns CSS custom property completions through package.json imports", () => {
+    const scss = `@use "#theme";
+
+.button {
+  color: var(--)
+}
+`;
+    const packageJson = `{"imports":{"#theme":{"style":"./src/theme.css"}}}`;
+    const themeCssPath = "/fake/src/theme.css";
+    const themeCss = `:root { --color-gray-700: #767678; }`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const themeDocument = parseStyleDocument(themeCss, themeCssPath);
+
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 3,
+      character: 15,
+      styleDocument,
+      styleDocumentForPath: styleDocumentMap([styleDocument, themeDocument]),
+      readFile: (filePath) => (filePath === "/fake/package.json" ? packageJson : null),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--color-gray-700"]);
+    expect(result[0]?.sourceFilePath).toBe(themeCssPath);
+  });
+
   it("returns CSS custom property completions forwarded from a package root through a local utility module", () => {
     const scss = `@use "utils" as *;
 

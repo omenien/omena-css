@@ -1370,6 +1370,10 @@ function collectStyleSemanticGraphPackageManifests(
   const manifests = new Map<string, StyleSemanticGraphPackageManifestInputV0>();
   for (const style of styles) {
     for (const source of collectSassModuleSources(style, queryOptions)) {
+      if (isPackageImportStyleSource(source)) {
+        collectPackageImportManifests(style.stylePath, source, readStyleFile, manifests);
+        continue;
+      }
       const packageName = parsePackageStyleSource(source)?.packageName;
       if (!packageName) continue;
       for (const packageJsonPath of packageJsonCandidatePaths(style.stylePath, packageName)) {
@@ -1382,6 +1386,37 @@ function collectStyleSemanticGraphPackageManifests(
     }
   }
   return [...manifests.values()];
+}
+
+function collectPackageImportManifests(
+  stylePath: string,
+  source: string,
+  readStyleFile: ProviderDeps["readStyleFile"],
+  manifests: Map<string, StyleSemanticGraphPackageManifestInputV0>,
+): void {
+  for (const packageJsonPath of currentPackageJsonCandidatePaths(stylePath)) {
+    const packageJsonSource = readStyleFile(packageJsonPath);
+    if (packageJsonSource === null) continue;
+    manifests.set(packageJsonPath, { packageJsonPath, packageJsonSource });
+    const entry = readPackageImportEntry(packageJsonSource, source);
+    const externalPackageName = entry ? parsePackageStyleSource(entry)?.packageName : null;
+    if (externalPackageName) {
+      for (const externalPackageJsonPath of packageJsonCandidatePaths(
+        stylePath,
+        externalPackageName,
+      )) {
+        if (manifests.has(externalPackageJsonPath)) continue;
+        const externalPackageJsonSource = readStyleFile(externalPackageJsonPath);
+        if (externalPackageJsonSource === null) continue;
+        manifests.set(externalPackageJsonPath, {
+          packageJsonPath: externalPackageJsonPath,
+          packageJsonSource: externalPackageJsonSource,
+        });
+        break;
+      }
+    }
+    break;
+  }
 }
 
 function collectSassModuleSources(
@@ -1433,6 +1468,17 @@ function styleModuleSourceCandidates(
   }
 
   const candidates: string[] = [];
+  if (isPackageImportStyleSource(source)) {
+    for (const packageImportBasePath of packageImportStyleModuleBaseCandidates(
+      fromStylePath,
+      source,
+      readStyleFile,
+    )) {
+      pushStyleModulePathCandidates(candidates, packageImportBasePath, true);
+    }
+    return candidates;
+  }
+
   const basePath = path.isAbsolute(source)
     ? source
     : path.join(path.dirname(fromStylePath), source);
@@ -1450,6 +1496,44 @@ function styleModuleSourceCandidates(
   }
 
   return candidates;
+}
+
+function packageImportStyleModuleBaseCandidates(
+  fromStylePath: string,
+  source: string,
+  readStyleFile: ProviderDeps["readStyleFile"],
+): readonly string[] {
+  const candidates: string[] = [];
+  for (const packageJsonPath of currentPackageJsonCandidatePaths(fromStylePath)) {
+    const packageJsonSource = readStyleFile(packageJsonPath);
+    if (packageJsonSource === null) continue;
+    const entry = readPackageImportEntry(packageJsonSource, source);
+    if (!entry) continue;
+    for (const candidate of packageImportEntryBaseCandidates(
+      path.dirname(packageJsonPath),
+      fromStylePath,
+      entry,
+      readStyleFile,
+    )) {
+      pushUniquePath(candidates, candidate);
+    }
+    break;
+  }
+  return candidates;
+}
+
+function packageImportEntryBaseCandidates(
+  packageDir: string,
+  fromStylePath: string,
+  entry: string,
+  readStyleFile: ProviderDeps["readStyleFile"],
+): readonly string[] {
+  if (entry.startsWith("./")) return [path.join(packageDir, normalizePackageJsonEntry(entry))];
+  if (entry.startsWith("#") || isExternalStyleModuleSource(entry)) return [];
+  return [
+    ...packageManifestStyleModuleBaseCandidates(fromStylePath, entry, readStyleFile),
+    ...packageStyleModuleBaseCandidates(fromStylePath, entry),
+  ];
 }
 
 function pushStyleModulePathCandidates(
@@ -1553,6 +1637,28 @@ function readPackageManifestStyleEntry(
   return entry ? normalizePackageJsonEntry(entry) : null;
 }
 
+function readPackageImportEntry(packageJsonSource: string, specifier: string): string | null {
+  const packageJson = safeParsePackageJson(packageJsonSource);
+  if (!packageJson || !isObjectRecord(packageJson.imports)) return null;
+  const exactEntry = readPackageExportEntry(packageJson.imports[specifier]);
+  if (exactEntry) return exactEntry;
+  for (const [key, value] of Object.entries(packageJson.imports)) {
+    const patternMatch = matchPackageImportPattern(key, specifier);
+    if (patternMatch === null) continue;
+    const entry = readPackageExportEntry(value);
+    if (!entry) continue;
+    return entry.includes("*") ? entry.replaceAll("*", patternMatch) : entry;
+  }
+  return null;
+}
+
+function matchPackageImportPattern(patternKey: string, specifier: string): string | null {
+  const [prefix, suffix, extra] = patternKey.split("*");
+  if (prefix === undefined || suffix === undefined || extra !== undefined) return null;
+  if (!specifier.startsWith(prefix) || !specifier.endsWith(suffix)) return null;
+  return specifier.slice(prefix.length, specifier.length - suffix.length);
+}
+
 function safeParsePackageJson(packageJsonSource: string): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(packageJsonSource);
@@ -1637,6 +1743,12 @@ function normalizeStylePath(stylePath: string): string {
   return path.normalize(stylePath).replaceAll("\\", "/");
 }
 
+function isExternalStyleModuleSource(source: string): boolean {
+  return (
+    source.startsWith("sass:") || source.startsWith("http://") || source.startsWith("https://")
+  );
+}
+
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -1646,6 +1758,18 @@ function packageJsonCandidatePaths(stylePath: string, packageName: string): read
   let current = path.dirname(stylePath);
   while (true) {
     candidates.push(path.join(current, "node_modules", packageName, "package.json"));
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return candidates;
+}
+
+function currentPackageJsonCandidatePaths(stylePath: string): readonly string[] {
+  const candidates: string[] = [];
+  let current = path.dirname(stylePath);
+  while (true) {
+    candidates.push(path.join(current, "package.json"));
     const parent = path.dirname(current);
     if (parent === current) break;
     current = parent;
@@ -1684,4 +1808,8 @@ function parsePackageStyleSource(
     packageName,
     subpath: subpathParts.join("/") || null,
   };
+}
+
+function isPackageImportStyleSource(source: string): boolean {
+  return source.startsWith("#");
 }

@@ -66,6 +66,8 @@ pub fn summarize_omena_resolver_style_module_resolution_with_tsconfig_paths(
     let resolution_kind = if resolved_style_path.is_some() {
         if source_matches_tsconfig_path_mapping(source, tsconfig_path_mappings) {
             "tsconfigPathStyleModule"
+        } else if is_package_import_style_source(source) {
+            "packageImportStyleModule"
         } else if parse_package_style_source(source).is_some() {
             "packageStyleModule"
         } else {
@@ -115,6 +117,15 @@ pub fn collect_omena_resolver_style_module_source_candidates_with_tsconfig_paths
     let mut candidates = Vec::new();
     for base_path in tsconfig_style_module_base_candidates(source, tsconfig_path_mappings) {
         push_style_module_path_candidates(&mut candidates, base_path, true);
+    }
+
+    if is_package_import_style_source(source) {
+        for base_path in
+            package_import_style_module_base_candidates(from_style_path, source, package_manifests)
+        {
+            push_style_module_path_candidates(&mut candidates, base_path, true);
+        }
+        return candidates;
     }
 
     let source_path = Path::new(source);
@@ -443,6 +454,72 @@ fn package_manifest_style_module_base_candidates(
     candidates
 }
 
+fn package_import_style_module_base_candidates(
+    from_style_path: &str,
+    source: &str,
+    package_manifests: &[OmenaResolverStylePackageManifestV0],
+) -> Vec<PathBuf> {
+    let Some(from_dir) = Path::new(from_style_path).parent() else {
+        return Vec::new();
+    };
+    let manifest_by_package_dir = package_manifests
+        .iter()
+        .map(|manifest| {
+            (
+                package_dir_from_package_json_path(&manifest.package_json_path),
+                manifest.package_json_source.as_str(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    let mut candidates = Vec::new();
+    let mut current_dir = Some(from_dir);
+    while let Some(dir) = current_dir {
+        let package_dir_key = normalize_style_path(dir.to_path_buf());
+        if let Some(package_json_source) = manifest_by_package_dir.get(&package_dir_key)
+            && let Some(entry) = read_package_import_entry(package_json_source, source)
+        {
+            push_package_import_entry_candidates(
+                &mut candidates,
+                dir,
+                from_style_path,
+                &entry,
+                package_manifests,
+            );
+            break;
+        }
+        current_dir = dir.parent();
+    }
+    candidates
+}
+
+fn push_package_import_entry_candidates(
+    candidates: &mut Vec<PathBuf>,
+    package_dir: &Path,
+    from_style_path: &str,
+    entry: &str,
+    package_manifests: &[OmenaResolverStylePackageManifestV0],
+) {
+    if entry.starts_with("./") {
+        push_unique_pathbuf(
+            candidates,
+            package_dir.join(normalize_package_json_entry(entry)),
+        );
+        return;
+    }
+    if entry.starts_with('#') || is_external_style_module_source(entry) {
+        return;
+    }
+    for package_manifest_base_path in
+        package_manifest_style_module_base_candidates(from_style_path, entry, package_manifests)
+    {
+        push_unique_pathbuf(candidates, package_manifest_base_path);
+    }
+    for package_base_path in package_style_module_base_candidates(from_style_path, entry) {
+        push_unique_pathbuf(candidates, package_base_path);
+    }
+}
+
 fn package_dir_from_package_json_path(package_json_path: &str) -> String {
     Path::new(package_json_path)
         .parent()
@@ -465,6 +542,33 @@ fn read_package_manifest_style_entry(
             .or_else(|| read_package_json_string_field(package_object, "style"))
     }?;
     Some(PathBuf::from(normalize_package_json_entry(&entry)))
+}
+
+fn read_package_import_entry(package_json_source: &str, specifier: &str) -> Option<String> {
+    let package_json = serde_json::from_str::<serde_json::Value>(package_json_source).ok()?;
+    let package_object = package_json.as_object()?;
+    let imports_object = package_object.get("imports")?.as_object()?;
+    if let Some(entry) = read_package_export_entry(imports_object.get(specifier)) {
+        return Some(entry);
+    }
+    for (key, import_value) in imports_object {
+        let Some(pattern_match) = match_package_import_pattern(key, specifier) else {
+            continue;
+        };
+        let Some(entry) = read_package_export_entry(Some(import_value)) else {
+            continue;
+        };
+        return Some(substitute_package_export_pattern(&entry, &pattern_match));
+    }
+    None
+}
+
+fn match_package_import_pattern(pattern_key: &str, specifier: &str) -> Option<String> {
+    let (prefix, suffix) = pattern_key.split_once('*')?;
+    if suffix.contains('*') || !specifier.starts_with(prefix) || !specifier.ends_with(suffix) {
+        return None;
+    }
+    Some(specifier[prefix.len()..specifier.len() - suffix.len()].to_string())
 }
 
 fn read_package_export_subpath_entry(
@@ -626,6 +730,10 @@ fn parse_package_style_source(source: &str) -> Option<PackageStyleSource<'_>> {
         package_name,
         subpath,
     })
+}
+
+fn is_package_import_style_source(source: &str) -> bool {
+    source.starts_with('#')
 }
 
 fn push_unique_pathbuf(candidates: &mut Vec<PathBuf>, value: PathBuf) {

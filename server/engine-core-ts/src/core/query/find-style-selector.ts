@@ -1104,7 +1104,7 @@ function resolveSassModuleBasePath(
   fileExists?: (candidate: string) => boolean,
   options: SassModuleResolutionOptions = {},
 ): string | null {
-  const cleanSource = source.split(/[?#]/, 1)[0]!;
+  const cleanSource = stripSassModuleSpecifierSuffix(source);
   if (cleanSource.startsWith("sass:")) return null;
   if (isRelativeSpecifier(cleanSource)) {
     return path.resolve(path.dirname(styleFilePath), cleanSource);
@@ -1115,6 +1115,10 @@ function resolveSassModuleBasePath(
   const packageTarget = resolveSassPackageBasePath(styleFilePath, cleanSource, fileExists, options);
   if (packageTarget) return packageTarget;
   return resolveSassLocalBareBasePath(styleFilePath, cleanSource, fileExists);
+}
+
+function stripSassModuleSpecifierSuffix(source: string): string {
+  return source.startsWith("#") ? source.split("?", 1)[0]! : source.split(/[?#]/, 1)[0]!;
 }
 
 function expandSassModuleCandidatePaths(basePath: string): readonly string[] {
@@ -1153,6 +1157,10 @@ function resolveSassPackageBasePath(
     return null;
   }
 
+  if (isPackageImportSpecifier(packageSpecifier)) {
+    return resolveSassPackageImportBasePath(styleFilePath, packageSpecifier, fileExists, options);
+  }
+
   let current = path.dirname(styleFilePath);
   while (true) {
     const packageEntry = resolveSassPackageJsonEntryBasePath(
@@ -1170,6 +1178,31 @@ function resolveSassPackageBasePath(
     if (parent === current) return null;
     current = parent;
   }
+}
+
+function resolveSassPackageImportBasePath(
+  styleFilePath: string,
+  packageSpecifier: string,
+  fileExists: ((candidate: string) => boolean) | undefined,
+  options: SassModuleResolutionOptions,
+): string | null {
+  if (!options.readFile) return null;
+  for (const packageJsonPath of currentPackageJsonCandidatePaths(styleFilePath)) {
+    const packageJsonText = options.readFile(packageJsonPath);
+    if (!packageJsonText) continue;
+    const entry = readSassPackageImportEntry(packageJsonText, packageSpecifier);
+    if (!entry) continue;
+    if (entry.startsWith("./")) {
+      const candidate = path.resolve(
+        path.dirname(packageJsonPath),
+        normalizePackageJsonEntry(entry),
+      );
+      return !fileExists || sassPackageJsonEntryExists(candidate, fileExists) ? candidate : null;
+    }
+    if (entry.startsWith("#")) return null;
+    return resolveSassPackageBasePath(styleFilePath, entry, fileExists, options);
+  }
+  return null;
 }
 
 function resolveSassPackageJsonEntryBasePath(
@@ -1218,6 +1251,18 @@ function parsePackageSpecifier(
   };
 }
 
+function currentPackageJsonCandidatePaths(styleFilePath: string): readonly string[] {
+  const candidates: string[] = [];
+  let current = path.dirname(styleFilePath);
+  while (true) {
+    candidates.push(path.join(current, "package.json"));
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return candidates;
+}
+
 function readSassPackageJsonEntry(packageJsonText: string, subpath = ""): string | null {
   let packageJson: unknown;
   try {
@@ -1235,6 +1280,32 @@ function readSassPackageJsonEntry(packageJsonText: string, subpath = ""): string
     readStringField(packageJson, "scss") ??
     readStringField(packageJson, "style")
   );
+}
+
+function readSassPackageImportEntry(packageJsonText: string, specifier: string): string | null {
+  let packageJson: unknown;
+  try {
+    packageJson = JSON.parse(packageJsonText);
+  } catch {
+    return null;
+  }
+  if (!isRecord(packageJson) || !isRecord(packageJson.imports)) return null;
+  const exactEntry = readSassPackageExportEntry(packageJson.imports[specifier]);
+  if (exactEntry) return exactEntry;
+  for (const [key, value] of Object.entries(packageJson.imports)) {
+    const patternMatch = matchPackageImportPattern(key, specifier);
+    if (patternMatch === null) continue;
+    const entry = readSassPackageExportEntry(value);
+    if (entry) return substitutePackageExportPattern(entry, patternMatch);
+  }
+  return null;
+}
+
+function matchPackageImportPattern(patternKey: string, specifier: string): string | null {
+  const [prefix, suffix, ...rest] = patternKey.split("*");
+  if (prefix === undefined || suffix === undefined || rest.length > 0) return null;
+  if (!specifier.startsWith(prefix) || !specifier.endsWith(suffix)) return null;
+  return specifier.slice(prefix.length, specifier.length - suffix.length);
 }
 
 function readSassPackageExportSubpathEntry(exportsValue: unknown, subpath: string): string | null {
@@ -1341,6 +1412,10 @@ function normalizeSassPackageSpecifier(source: string): string {
   if (source.startsWith("pkg:")) return source.slice("pkg:".length);
   if (source.startsWith("~") && !source.startsWith("~/")) return source.slice(1);
   return source;
+}
+
+function isPackageImportSpecifier(specifier: string): boolean {
+  return specifier.startsWith("#");
 }
 
 function isStyleModuleExtension(extension: string): boolean {

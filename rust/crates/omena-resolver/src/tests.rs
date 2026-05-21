@@ -281,6 +281,57 @@ fn resolves_sass_pkg_url_package_manifest_exports() {
     );
 }
 
+#[test]
+fn resolves_package_imports_to_relative_style_targets() {
+    let available_style_paths = BTreeSet::from(["/fake/workspace/src/theme.css"]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "#theme",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/package.json".to_string(),
+            package_json_source: r##"{"imports":{"#theme":{"style":"./src/theme.css"}}}"##
+                .to_string(),
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "packageImportStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/src/theme.css")
+    );
+}
+
+#[test]
+fn resolves_package_imports_to_external_package_targets() {
+    let available_style_paths =
+        BTreeSet::from(["/fake/workspace/node_modules/@design/tokens/dist/theme.css"]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "#theme",
+        &available_style_paths,
+        &[
+            OmenaResolverStylePackageManifestV0 {
+                package_json_path: "/fake/workspace/package.json".to_string(),
+                package_json_source: r##"{"imports":{"#theme":"@design/tokens/theme"}}"##
+                    .to_string(),
+            },
+            OmenaResolverStylePackageManifestV0 {
+                package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                    .to_string(),
+                package_json_source: r#"{"exports":{"./theme":{"style":"./dist/theme.css"}}}"#
+                    .to_string(),
+            },
+        ],
+    );
+
+    assert_eq!(resolution.resolution_kind, "packageImportStyleModule");
+    assert_eq!(
+        resolution.resolved_style_path.as_deref(),
+        Some("/fake/workspace/node_modules/@design/tokens/dist/theme.css")
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn resolves_style_modules_by_canonical_filesystem_identity()
