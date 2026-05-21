@@ -43,6 +43,7 @@ pub fn summarize_omena_bridge_style_resolution_boundary() -> OmenaBridgeStyleRes
             "resolverConsumesSourceUriWorkspaceUriAndRawSpecifier",
             "relativeSpecifierExpandsStyleModuleCandidates",
             "pathAliasResolutionUsesNearestWorkspaceTsconfigOrJsconfig",
+            "pathAliasResolutionFollowsRelativeTsconfigExtends",
             "bundlerAliasResolutionUsesLiteralViteWebpackConfig",
             "packageSpecifierResolutionUsesOmenaResolver",
             "fileUriOutputIsPercentEncoded",
@@ -102,13 +103,32 @@ fn tsconfig_path_mappings_for_workspace(
 fn tsconfig_path_mappings_for_config(
     config_path: &Path,
 ) -> Vec<OmenaResolverTsconfigPathMappingV0> {
+    tsconfig_path_mappings_for_config_with_seen(config_path, &mut BTreeSet::new())
+}
+
+fn tsconfig_path_mappings_for_config_with_seen(
+    config_path: &Path,
+    seen: &mut BTreeSet<PathBuf>,
+) -> Vec<OmenaResolverTsconfigPathMappingV0> {
+    let normalized_config_path = normalize_path(config_path.to_path_buf());
+    if !seen.insert(normalized_config_path.clone()) {
+        return Vec::new();
+    }
     let Some(config_text) = fs::read_to_string(config_path).ok() else {
         return Vec::new();
     };
     let Some(config) = serde_json::from_str::<Value>(config_text.as_str()).ok() else {
         return Vec::new();
     };
-    tsconfig_path_mappings_from_value(config_path, &config).unwrap_or_default()
+    let own_mappings = tsconfig_path_mappings_from_value(config_path, &config).unwrap_or_default();
+    if !own_mappings.is_empty() {
+        return own_mappings;
+    }
+    resolve_tsconfig_extends_path(config_path, &config)
+        .map(|extends_path| {
+            tsconfig_path_mappings_for_config_with_seen(extends_path.as_path(), seen)
+        })
+        .unwrap_or_default()
 }
 
 fn tsconfig_path_mappings_from_value(
@@ -143,6 +163,28 @@ fn tsconfig_path_mappings_from_value(
         });
     }
     Some(mappings)
+}
+
+fn resolve_tsconfig_extends_path(config_path: &Path, config: &Value) -> Option<PathBuf> {
+    let extends = config.get("extends")?.as_str()?;
+    if !extends.starts_with('.') {
+        return None;
+    }
+    let config_dir = config_path.parent()?;
+    let raw_path = config_dir.join(extends);
+    for candidate in tsconfig_extends_candidates(raw_path) {
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+fn tsconfig_extends_candidates(path: PathBuf) -> Vec<PathBuf> {
+    if path.extension().is_some() {
+        return vec![path];
+    }
+    vec![path.with_extension("json"), path.join("tsconfig.json")]
 }
 
 fn package_manifests_for_specifier(
@@ -434,6 +476,84 @@ mod tests {
     }
 
     #[test]
+    fn resolves_tsconfig_extends_path_alias_style_candidates()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_style_alias_extends")?;
+        let source = root.join("src/App.tsx");
+        let style = root.join("src/shared/Button.module.scss");
+        let config_dir = root.join("config");
+        fs::create_dir_all(
+            style
+                .parent()
+                .ok_or_else(|| std::io::Error::other("parent"))?,
+        )?;
+        fs::create_dir_all(config_dir.as_path())?;
+        fs::write(&source, "")?;
+        fs::write(&style, ".root {}")?;
+        fs::write(
+            config_dir.join("base.json"),
+            r#"{"compilerOptions":{"baseUrl":"..","paths":{"$shared/*":["src/shared/*"]}}}"#,
+        )?;
+        fs::write(root.join("tsconfig.json"), r#"{"extends":"./config/base"}"#)?;
+
+        let uri = resolve_omena_bridge_style_uri_for_specifier(
+            path_to_file_uri(source.as_path()).as_str(),
+            Some(path_to_file_uri(root.as_path()).as_str()),
+            "$shared/Button.module.scss",
+        );
+
+        assert_eq!(
+            uri.as_deref(),
+            Some(path_to_file_uri(style.as_path()).as_str())
+        );
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn tsconfig_extends_child_paths_override_parent_paths() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let root = temp_dir("omena_bridge_style_alias_extends_override")?;
+        let source = root.join("src/App.tsx");
+        let parent_style = root.join("src/parent/Button.module.scss");
+        let child_style = root.join("src/child/Button.module.scss");
+        fs::create_dir_all(
+            parent_style
+                .parent()
+                .ok_or_else(|| std::io::Error::other("parent"))?,
+        )?;
+        fs::create_dir_all(
+            child_style
+                .parent()
+                .ok_or_else(|| std::io::Error::other("child"))?,
+        )?;
+        fs::write(&source, "")?;
+        fs::write(&parent_style, ".root { color: red; }")?;
+        fs::write(&child_style, ".root { color: green; }")?;
+        fs::write(
+            root.join("base.json"),
+            r#"{"compilerOptions":{"baseUrl":".","paths":{"$shared/*":["src/parent/*"]}}}"#,
+        )?;
+        fs::write(
+            root.join("tsconfig.json"),
+            r#"{"extends":"./base.json","compilerOptions":{"baseUrl":".","paths":{"$shared/*":["src/child/*"]}}}"#,
+        )?;
+
+        let uri = resolve_omena_bridge_style_uri_for_specifier(
+            path_to_file_uri(source.as_path()).as_str(),
+            Some(path_to_file_uri(root.as_path()).as_str()),
+            "$shared/Button.module.scss",
+        );
+
+        assert_eq!(
+            uri.as_deref(),
+            Some(path_to_file_uri(child_style.as_path()).as_str())
+        );
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
     fn resolves_vite_bundler_alias_style_candidates() -> Result<(), Box<dyn std::error::Error>> {
         let root = temp_dir("omena_bridge_style_bundler_alias")?;
         let source = root.join("src/App.tsx");
@@ -634,6 +754,11 @@ mod tests {
                 .contains(&"bundlerAliases")
         );
         assert!(summary.supported_specifier_kinds.contains(&"npmPackages"));
+        assert!(
+            summary
+                .request_path_policy
+                .contains(&"pathAliasResolutionFollowsRelativeTsconfigExtends")
+        );
         assert!(
             summary
                 .request_path_policy
