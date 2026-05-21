@@ -331,6 +331,63 @@ fn workspace_cross_file_summary_hash_tracks_style_edge_changes() {
 }
 
 #[test]
+fn workspace_cross_file_summary_hash_is_input_order_stable() {
+    let style_sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/base.module.scss".to_string(),
+            style_source: ".base { display: block; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_tokens.scss".to_string(),
+            style_source: ":root { --brand: red; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/Button.module.scss".to_string(),
+            style_source:
+                "@use \"./tokens\";\n.root { composes: base from \"./base.module.scss\"; color: var(--brand); }"
+                    .to_string(),
+        },
+    ];
+    let reordered_style_sources = vec![
+        style_sources[2].clone(),
+        style_sources[0].clone(),
+        style_sources[1].clone(),
+    ];
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "/tmp/Button.tsx".to_string(),
+        source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
+            .to_string(),
+    }];
+
+    let baseline = summarize_omena_query_workspace_cross_file_summary(
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+    );
+    let reordered = summarize_omena_query_workspace_cross_file_summary(
+        reordered_style_sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+    );
+    let baseline_edge_ids = baseline
+        .edges
+        .iter()
+        .map(|edge| edge.edge_id.as_str())
+        .collect::<Vec<_>>();
+    let reordered_edge_ids = reordered
+        .edges
+        .iter()
+        .map(|edge| edge.edge_id.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(baseline.summary_hash, reordered.summary_hash);
+    assert_eq!(baseline_edge_ids, reordered_edge_ids);
+    assert_eq!(baseline.edge_kind_counts, reordered.edge_kind_counts);
+    assert!(baseline.linear_provenance_round_trips_legacy_labels());
+    assert!(reordered.linear_provenance_round_trips_legacy_labels());
+}
+
+#[test]
 fn workspace_cross_file_summary_hash_tracks_package_manifest_changes() {
     let style_sources = vec![
         OmenaQueryStyleSourceInputV0 {
