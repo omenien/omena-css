@@ -105,6 +105,14 @@ const lspServerCargoToml = readFileSync(
   path.join(repoRoot, "rust/crates/omena-lsp-server/Cargo.toml"),
   "utf8",
 );
+const lspServerTestsSource = readFileSync(
+  path.join(repoRoot, "rust/crates/omena-lsp-server/src/tests.rs"),
+  "utf8",
+);
+const lspServerDiagnosticsTestsSource = readFileSync(
+  path.join(repoRoot, "rust/crates/omena-lsp-server/src/tests/diagnostics.rs"),
+  "utf8",
+);
 
 assert.equal(rustSummary.schemaVersion, "0");
 assert.equal(rustSummary.product, "omena-lsp-server.boundary");
@@ -117,6 +125,22 @@ assert.ok(
   !/^\s*omena-bridge\s*=/.test(lspServerCargoToml),
   "omena-lsp-server must consume source syntax and style URI facts through omena-query, not a direct omena-bridge dependency",
 );
+assert.ok(
+  lspServerTestsSource.includes("mod diagnostics;"),
+  "omena-lsp-server tests must keep diagnostics coverage in a split diagnostics module",
+);
+for (const requiredDiagnosticsTest of [
+  "resolves_style_diagnostics_and_code_actions_from_opened_style_documents",
+  "resolves_graph_aware_sass_diagnostics_from_opened_style_documents",
+  "resolves_unnecessary_tags_for_cascade_style_diagnostics",
+  "refreshes_open_document_diagnostics_after_initialized_indexing",
+  "dedupes_watched_style_diagnostics_notifications",
+]) {
+  assert.ok(
+    lspServerDiagnosticsTestsSource.includes(requiredDiagnosticsTest),
+    `omena-lsp-server diagnostics split must retain ${requiredDiagnosticsTest}`,
+  );
+}
 
 assert.deepEqual(rustSummary.capabilities, nodeCapabilities);
 assert.deepEqual(
