@@ -1,0 +1,376 @@
+import { spawn } from "node:child_process";
+import { strict as assert } from "node:assert";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { performance } from "node:perf_hooks";
+import { pathToFileURL } from "node:url";
+import {
+  createProtocolConnection,
+  DidOpenTextDocumentNotification,
+  InitializedNotification,
+  InitializeRequest,
+  ShutdownRequest,
+  type InitializeParams,
+  type InitializeResult,
+  type ProtocolConnection,
+} from "vscode-languageserver-protocol/node";
+import { StreamMessageReader, StreamMessageWriter } from "vscode-jsonrpc/node";
+import { resolveOmenaLspServerInvocation } from "./omena-lsp-server-invocation";
+
+const DEBUG_STATE_REQUEST = "cssModuleExplainer/rustLspState";
+const ALIAS_COUNT = parsePositiveInteger(process.env.CME_LSP_RESOLVER_CACHE_ALIASES, 360);
+const PACKAGE_COUNT = parsePositiveInteger(process.env.CME_LSP_RESOLVER_CACHE_PACKAGES, 160);
+const REFRESH_BASELINE_SAMPLES = parsePositiveInteger(
+  process.env.CME_LSP_RESOLVER_CACHE_REFRESH_SAMPLES,
+  8,
+);
+const HOT_SAMPLES = parsePositiveInteger(process.env.CME_LSP_RESOLVER_CACHE_HOT_SAMPLES, 24);
+const REQUEST_TIMEOUT_MS = parsePositiveInteger(
+  process.env.CME_LSP_RESOLVER_CACHE_REQUEST_TIMEOUT_MS,
+  10_000,
+);
+const MIN_REFRESH_TO_HOT_P50_RATIO = parsePositiveNumber(
+  process.env.CME_LSP_RESOLVER_CACHE_MIN_REFRESH_TO_HOT_P50_RATIO,
+  1.2,
+);
+const MAX_HOT_P95_MS = parsePositiveNumber(process.env.CME_LSP_RESOLVER_CACHE_MAX_HOT_P95_MS, 250);
+
+interface TimedSeriesSummary {
+  readonly count: number;
+  readonly p50Ms: number;
+  readonly p95Ms: number;
+  readonly maxMs: number;
+}
+
+interface LspStateSnapshot {
+  readonly cachedWorkspaceResolutionInputCount?: number;
+}
+
+async function main(): Promise<void> {
+  const workspaceRoot = mkdtempSync(path.join(os.tmpdir(), "cme-rust-omena-lsp-resolver-cache-"));
+  const srcDir = path.join(workspaceRoot, "src");
+  const stylesDir = path.join(srcDir, "styles");
+  const sourcePath = path.join(srcDir, "App.module.scss");
+  const targetPath = path.join(stylesDir, "_tokens.scss");
+  const configPath = path.join(workspaceRoot, "vite.config.ts");
+  const sourceUri = pathToFileURL(sourcePath).toString();
+  const targetUri = pathToFileURL(targetPath).toString();
+  const configUri = pathToFileURL(configPath).toString();
+  const workspaceUri = pathToFileURL(workspaceRoot).toString();
+  const sourceText = `@use "@styles/tokens" as tokens;
+.root { color: tokens.$brand; }
+`;
+  const targetText = "$brand: #123456;\n";
+  const definitionParams = {
+    textDocument: { uri: sourceUri },
+    position: positionForOffset(sourceText, sourceText.indexOf("$brand") + 1),
+  };
+  const invocation = resolveOmenaLspServerInvocation();
+
+  mkdirSync(stylesDir, { recursive: true });
+  writeFileSync(sourcePath, sourceText);
+  writeFileSync(targetPath, targetText);
+  writeFileSync(configPath, buildViteConfig(ALIAS_COUNT));
+  writePackageManifests(workspaceRoot, PACKAGE_COUNT);
+
+  const child = spawn(invocation.command, [...invocation.args], {
+    cwd: process.cwd(),
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const stderr: string[] = [];
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk) => stderr.push(chunk));
+
+  const connection: ProtocolConnection = createProtocolConnection(
+    new StreamMessageReader(child.stdout),
+    new StreamMessageWriter(child.stdin),
+  );
+  connection.listen();
+
+  try {
+    const initialized = await requestWithTimeout(
+      connection.sendRequest<InitializeResult>(
+        InitializeRequest.type,
+        initializeParams(workspaceRoot),
+      ),
+      "initialize",
+    );
+    assert.equal(initialized.serverInfo?.name, "css-module-explainer-rust");
+
+    await connection.sendNotification(InitializedNotification.type, {});
+    await connection.sendNotification(DidOpenTextDocumentNotification.type, {
+      textDocument: {
+        uri: targetUri,
+        languageId: "scss",
+        version: 1,
+        text: targetText,
+      },
+    });
+    await connection.sendNotification(DidOpenTextDocumentNotification.type, {
+      textDocument: {
+        uri: sourceUri,
+        languageId: "scss",
+        version: 1,
+        text: sourceText,
+      },
+    });
+
+    assertDefinitionTarget(
+      await requestWithTimeout(
+        connection.sendRequest("textDocument/definition", definitionParams),
+        "warmup definition",
+      ),
+      targetUri,
+    );
+    const state = await requestWithTimeout(
+      connection.sendRequest<LspStateSnapshot>(DEBUG_STATE_REQUEST, {}),
+      "debug state",
+    );
+    assert.ok(
+      (state.cachedWorkspaceResolutionInputCount ?? 0) >= 1,
+      "LSP runtime must expose cached workspace resolver inputs after initialization",
+    );
+
+    const refreshBaselineLatencies = await collectRefreshBaselineLatencies(
+      connection,
+      configUri,
+      definitionParams,
+      targetUri,
+    );
+    const hotLatencies = await collectHotDefinitionLatencies(
+      connection,
+      definitionParams,
+      targetUri,
+    );
+    const refreshSummary = summarizeSeries(refreshBaselineLatencies);
+    const hotSummary = summarizeSeries(hotLatencies);
+    const ratio = refreshSummary.p50Ms / Math.max(hotSummary.p50Ms, 0.01);
+
+    if (hotSummary.p95Ms > MAX_HOT_P95_MS) {
+      throw new Error(
+        [
+          "cached LSP resolver provider requests exceeded hot-path budget",
+          `hotP95=${hotSummary.p95Ms.toFixed(2)}ms`,
+          `budget=${MAX_HOT_P95_MS.toFixed(2)}ms`,
+        ].join("\n"),
+      );
+    }
+    if (ratio < MIN_REFRESH_TO_HOT_P50_RATIO) {
+      throw new Error(
+        [
+          "cached LSP resolver requests did not beat refresh baseline",
+          `refreshP50=${refreshSummary.p50Ms.toFixed(2)}ms`,
+          `hotP50=${hotSummary.p50Ms.toFixed(2)}ms`,
+          `ratio=${ratio.toFixed(2)}`,
+          `required=${MIN_REFRESH_TO_HOT_P50_RATIO.toFixed(2)}`,
+        ].join("\n"),
+      );
+    }
+
+    await requestWithTimeout(connection.sendRequest(ShutdownRequest.type), "shutdown");
+    connection.sendNotification("exit");
+    const exitCode = await waitForExit(child);
+    assert.equal(exitCode, 0, `omena-lsp-server exited with ${exitCode}\n${stderr.join("")}`);
+
+    process.stdout.write(
+      [
+        "omena-lsp-server resolver cache runtime ok:",
+        `command=${invocation.command}`,
+        `workspace=${workspaceUri}`,
+        `aliases=${ALIAS_COUNT}`,
+        `packages=${PACKAGE_COUNT}`,
+        `cachedWorkspaceResolutionInputs=${state.cachedWorkspaceResolutionInputCount ?? 0}`,
+        `refreshBaseline=${formatSummary(refreshSummary)}`,
+        `hotDefinition=${formatSummary(hotSummary)}`,
+        `p50Ratio=${ratio.toFixed(2)}`,
+      ].join(" ") + "\n",
+    );
+  } finally {
+    connection.dispose();
+    if (!child.killed && child.exitCode === null) {
+      child.kill();
+    }
+    rmSync(workspaceRoot, { force: true, recursive: true });
+  }
+}
+
+async function collectRefreshBaselineLatencies(
+  connection: ProtocolConnection,
+  configUri: string,
+  definitionParams: unknown,
+  targetUri: string,
+): Promise<readonly number[]> {
+  const latencies: number[] = [];
+  for (let index = 0; index < REFRESH_BASELINE_SAMPLES; index += 1) {
+    const started = performance.now();
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    await connection.sendNotification("workspace/didChangeWatchedFiles", {
+      changes: [{ uri: configUri, type: 2 }],
+    });
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const response = await requestWithTimeout(
+      connection.sendRequest("textDocument/definition", definitionParams),
+      `refresh-baseline-definition:${index}`,
+    );
+    latencies.push(performance.now() - started);
+    assertDefinitionTarget(response, targetUri);
+  }
+  return latencies;
+}
+
+async function collectHotDefinitionLatencies(
+  connection: ProtocolConnection,
+  definitionParams: unknown,
+  targetUri: string,
+): Promise<readonly number[]> {
+  const latencies: number[] = [];
+  for (let index = 0; index < HOT_SAMPLES; index += 1) {
+    const started = performance.now();
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    const response = await requestWithTimeout(
+      connection.sendRequest("textDocument/definition", definitionParams),
+      `hot-definition:${index}`,
+    );
+    latencies.push(performance.now() - started);
+    assertDefinitionTarget(response, targetUri);
+  }
+  return latencies;
+}
+
+function initializeParams(workspaceRoot: string): InitializeParams {
+  const workspaceUri = pathToFileURL(workspaceRoot).toString();
+  return {
+    processId: process.pid,
+    rootUri: workspaceUri,
+    workspaceFolders: [{ uri: workspaceUri, name: "cme-rust-omena-lsp-resolver-cache" }],
+    capabilities: {
+      workspace: {
+        configuration: true,
+        workspaceFolders: true,
+      },
+      textDocument: {
+        publishDiagnostics: {},
+      },
+    },
+  };
+}
+
+function buildViteConfig(aliasCount: number): string {
+  const aliases = [
+    `"@styles": "./src/styles"`,
+    ...Array.from(
+      { length: aliasCount },
+      (_, index) => `"@unused-${index}": "./src/unused-${index}"`,
+    ),
+  ].join(",\n      ");
+  return `export default {
+  resolve: {
+    alias: {
+      ${aliases}
+    }
+  }
+};
+`;
+}
+
+function writePackageManifests(workspaceRoot: string, packageCount: number): void {
+  const scopeDir = path.join(workspaceRoot, "node_modules", "@cache");
+  mkdirSync(scopeDir, { recursive: true });
+  for (let index = 0; index < packageCount; index += 1) {
+    const packageDir = path.join(scopeDir, `pkg-${index}`);
+    mkdirSync(packageDir, { recursive: true });
+    writeFileSync(
+      path.join(packageDir, "package.json"),
+      JSON.stringify({
+        name: `@cache/pkg-${index}`,
+        version: "0.0.0",
+        exports: {
+          ".": {
+            style: "./index.css",
+          },
+        },
+      }),
+    );
+  }
+}
+
+function assertDefinitionTarget(response: unknown, targetUri: string): void {
+  const values = Array.isArray(response) ? response : response ? [response] : [];
+  assert.ok(values.length > 0, "definition response must include at least one location");
+  assert.ok(
+    values.some((value) => isObject(value) && value.uri === targetUri),
+    `definition response must target ${targetUri}: ${JSON.stringify(response)}`,
+  );
+}
+
+function positionForOffset(text: string, offset: number): { line: number; character: number } {
+  assert.ok(offset >= 0, "source text must contain requested token");
+  const before = text.slice(0, offset);
+  const lines = before.split("\n");
+  return {
+    line: lines.length - 1,
+    character: lines.at(-1)!.length,
+  };
+}
+
+async function requestWithTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out`)), REQUEST_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function waitForExit(child: ReturnType<typeof spawn>): Promise<number | null> {
+  return new Promise((resolve) => {
+    child.once("exit", (code) => resolve(code));
+    child.once("close", (code) => resolve(code));
+  });
+}
+
+function summarizeSeries(values: readonly number[]): TimedSeriesSummary {
+  return {
+    count: values.length,
+    p50Ms: percentile(values, 50),
+    p95Ms: percentile(values, 95),
+    maxMs: Math.max(...values),
+  };
+}
+
+function formatSummary(summary: TimedSeriesSummary): string {
+  return `n=${summary.count},p50=${summary.p50Ms.toFixed(2)}ms,p95=${summary.p95Ms.toFixed(2)}ms,max=${summary.maxMs.toFixed(2)}ms`;
+}
+
+function percentile(values: readonly number[], p: number): number {
+  const sorted = values.toSorted((left, right) => left - right);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
+  return sorted[index] ?? 0;
+}
+
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parsePositiveNumber(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function isObject(value: unknown): value is { readonly uri?: unknown } {
+  return typeof value === "object" && value !== null;
+}
+
+void main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
