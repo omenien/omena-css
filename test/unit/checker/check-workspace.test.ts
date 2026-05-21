@@ -78,6 +78,27 @@ describe("checkWorkspace", () => {
       ]),
     );
   });
+
+  it("uses literal Vite aliases during checker workspace analysis", async () => {
+    const workspaceRoot = makeWorkspace({
+      "vite.config.ts": [
+        "export default {",
+        "  resolve: { alias: { '@styles': './src/styles' } },",
+        "};",
+        "",
+      ].join("\n"),
+      "src/App.tsx": [
+        "import styles from '@styles/Button.module.scss';",
+        "const ok = styles.button;",
+        "",
+      ].join("\n"),
+      "src/styles/Button.module.scss": ".button {}",
+    });
+
+    const result = await checkWorkspace({ workspaceRoot });
+
+    expect(result.findings).toEqual([]);
+  });
 });
 
 function makeWorkspace(files: Readonly<Record<string, string>>): string {
