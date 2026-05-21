@@ -10,6 +10,7 @@ pub use omena_semantic::{
 };
 use serde::Serialize;
 
+mod bundler_config_alias;
 mod promotion_evidence;
 mod selector_references;
 mod source_evidence;
@@ -17,6 +18,10 @@ mod source_imports;
 mod source_syntax;
 mod style_resolution;
 
+pub use bundler_config_alias::{
+    OmenaBridgeBundlerAliasUnrecognizedEntryV0, OmenaBridgeBundlerPathAliasMappingV0,
+    OmenaBridgeBundlerPathAliasSummaryV0, summarize_omena_bridge_bundler_path_aliases_for_config,
+};
 pub use promotion_evidence::{
     SemanticPromotionEvidenceItemV0, SemanticPromotionEvidenceSummaryV0,
     summarize_omena_bridge_promotion_evidence_with_source_input,

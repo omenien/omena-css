@@ -5,9 +5,10 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+use crate::bundler_config_alias::load_omena_bridge_workspace_bundler_path_alias_mappings;
 use omena_resolver::{
     OmenaResolverStylePackageManifestV0, OmenaResolverTsconfigPathMappingV0,
-    collect_omena_resolver_style_module_source_candidates_with_tsconfig_paths,
+    collect_omena_resolver_style_module_source_candidates_with_path_mappings,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -34,6 +35,7 @@ pub fn summarize_omena_bridge_style_resolution_boundary() -> OmenaBridgeStyleRes
             "relative",
             "tsconfigPaths",
             "jsconfigPaths",
+            "bundlerAliases",
             "npmPackages",
         ],
         candidate_extensions: vec!["scss", "sass", "css", "less"],
@@ -41,6 +43,7 @@ pub fn summarize_omena_bridge_style_resolution_boundary() -> OmenaBridgeStyleRes
             "resolverConsumesSourceUriWorkspaceUriAndRawSpecifier",
             "relativeSpecifierExpandsStyleModuleCandidates",
             "pathAliasResolutionUsesNearestWorkspaceTsconfigOrJsconfig",
+            "bundlerAliasResolutionUsesLiteralViteWebpackConfig",
             "packageSpecifierResolutionUsesOmenaResolver",
             "fileUriOutputIsPercentEncoded",
             "lspServerOwnsOnlyDocumentRoutingAndUriRangeMapping",
@@ -60,16 +63,22 @@ pub fn resolve_omena_bridge_style_uri_for_specifier(
         .map(normalize_path);
     let tsconfig_mappings =
         tsconfig_path_mappings_for_workspace(workspace_path.as_deref()).unwrap_or_default();
+    let bundler_path_mappings =
+        load_omena_bridge_workspace_bundler_path_alias_mappings(workspace_path.as_deref());
     let package_manifests =
         package_manifests_for_specifier(source_path.parent(), specifier).unwrap_or_default();
     let requires_existing_candidate = package_name_from_specifier(specifier).is_some()
         && !tsconfig_mappings
             .iter()
-            .any(|mapping| tsconfig_path_pattern_matches(mapping.pattern.as_str(), specifier));
-    let candidates = collect_omena_resolver_style_module_source_candidates_with_tsconfig_paths(
+            .any(|mapping| tsconfig_path_pattern_matches(mapping.pattern.as_str(), specifier))
+        && !bundler_path_mappings
+            .iter()
+            .any(|mapping| bundler_path_alias_pattern_matches(mapping.pattern.as_str(), specifier));
+    let candidates = collect_omena_resolver_style_module_source_candidates_with_path_mappings(
         source_path_text.as_str(),
         specifier,
         package_manifests.as_slice(),
+        bundler_path_mappings.as_slice(),
         tsconfig_mappings.as_slice(),
     );
 
@@ -191,6 +200,21 @@ fn tsconfig_path_pattern_matches(pattern: &str, specifier: &str) -> bool {
             && specifier.len() >= prefix.len() + suffix.len();
     }
     pattern == specifier
+}
+
+fn bundler_path_alias_pattern_matches(pattern: &str, specifier: &str) -> bool {
+    if pattern.is_empty() {
+        return false;
+    }
+    if pattern == specifier {
+        return true;
+    }
+    let prefix = if pattern.ends_with('/') {
+        pattern.to_string()
+    } else {
+        format!("{pattern}/")
+    };
+    specifier.starts_with(prefix.as_str())
 }
 
 fn is_external_style_specifier(specifier: &str) -> bool {
@@ -410,6 +434,37 @@ mod tests {
     }
 
     #[test]
+    fn resolves_vite_bundler_alias_style_candidates() -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_style_bundler_alias")?;
+        let source = root.join("src/App.tsx");
+        let style = root.join("src/styles/Button.module.scss");
+        fs::create_dir_all(
+            style
+                .parent()
+                .ok_or_else(|| std::io::Error::other("parent"))?,
+        )?;
+        fs::write(&source, "")?;
+        fs::write(&style, ".root {}")?;
+        fs::write(
+            root.join("vite.config.ts"),
+            r#"export default { resolve: { alias: { "@styles": "./src/styles" } } };"#,
+        )?;
+
+        let uri = resolve_omena_bridge_style_uri_for_specifier(
+            path_to_file_uri(source.as_path()).as_str(),
+            Some(path_to_file_uri(root.as_path()).as_str()),
+            "@styles/Button.module.scss",
+        );
+
+        assert_eq!(
+            uri.as_deref(),
+            Some(path_to_file_uri(style.as_path()).as_str())
+        );
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
     fn resolves_sass_style_candidates_without_legacy_language_filter()
     -> Result<(), Box<dyn std::error::Error>> {
         let root = temp_dir("omena_bridge_style_sass")?;
@@ -573,7 +628,17 @@ mod tests {
         assert_eq!(summary.product, "omena-bridge.style-resolution");
         assert_eq!(summary.owner_crate, "omena-bridge");
         assert!(summary.supported_specifier_kinds.contains(&"tsconfigPaths"));
+        assert!(
+            summary
+                .supported_specifier_kinds
+                .contains(&"bundlerAliases")
+        );
         assert!(summary.supported_specifier_kinds.contains(&"npmPackages"));
+        assert!(
+            summary
+                .request_path_policy
+                .contains(&"bundlerAliasResolutionUsesLiteralViteWebpackConfig")
+        );
         assert!(
             summary
                 .request_path_policy
