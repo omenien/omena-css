@@ -57,6 +57,20 @@ pub fn resolve_omena_bridge_style_uri_for_specifier(
     workspace_folder_uri: Option<&str>,
     specifier: &str,
 ) -> Option<String> {
+    resolve_omena_bridge_style_uri_for_specifier_with_package_manifests(
+        source_uri,
+        workspace_folder_uri,
+        specifier,
+        &[],
+    )
+}
+
+pub fn resolve_omena_bridge_style_uri_for_specifier_with_package_manifests(
+    source_uri: &str,
+    workspace_folder_uri: Option<&str>,
+    specifier: &str,
+    configured_package_manifests: &[OmenaResolverStylePackageManifestV0],
+) -> Option<String> {
     let source_path = normalize_path(file_uri_to_path(source_uri)?);
     let source_path_text = source_path.to_string_lossy().to_string();
     let workspace_path = workspace_folder_uri
@@ -66,8 +80,11 @@ pub fn resolve_omena_bridge_style_uri_for_specifier(
         tsconfig_path_mappings_for_workspace(workspace_path.as_deref()).unwrap_or_default();
     let bundler_path_mappings =
         load_omena_bridge_workspace_bundler_path_alias_mappings(workspace_path.as_deref());
-    let package_manifests =
-        package_manifests_for_specifier(source_path.parent(), specifier).unwrap_or_default();
+    let package_manifests = merged_package_manifests_for_specifier(
+        source_path.parent(),
+        specifier,
+        configured_package_manifests,
+    );
     let requires_existing_candidate = package_name_from_specifier(specifier).is_some()
         && !tsconfig_mappings
             .iter()
@@ -84,6 +101,24 @@ pub fn resolve_omena_bridge_style_uri_for_specifier(
     );
 
     style_uri_for_resolver_candidates(candidates.as_slice(), requires_existing_candidate)
+}
+
+fn merged_package_manifests_for_specifier(
+    source_dir: Option<&Path>,
+    specifier: &str,
+    configured_package_manifests: &[OmenaResolverStylePackageManifestV0],
+) -> Vec<OmenaResolverStylePackageManifestV0> {
+    let mut manifests = configured_package_manifests.to_vec();
+    let mut seen = manifests
+        .iter()
+        .map(|manifest| manifest.package_json_path.clone())
+        .collect::<BTreeSet<_>>();
+    for manifest in package_manifests_for_specifier(source_dir, specifier).unwrap_or_default() {
+        if seen.insert(manifest.package_json_path.clone()) {
+            manifests.push(manifest);
+        }
+    }
+    manifests
 }
 
 fn tsconfig_path_mappings_for_workspace(

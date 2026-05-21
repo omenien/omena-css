@@ -1,7 +1,8 @@
 use crate::workspace_runtime_registry::WorkspaceRuntimeRegistry;
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
-    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, ParserPositionV0, ParserRangeV0,
+    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStylePackageManifestV0,
+    ParserPositionV0, ParserRangeV0,
 };
 use omena_tsgo_client::TsgoWorkspaceProcessPoolV0;
 use serde::Serialize;
@@ -83,6 +84,7 @@ pub struct LspShellStateSnapshot {
     pub should_exit: bool,
     pub features: LspFeatureSettings,
     pub diagnostics: LspDiagnosticSettings,
+    pub resolution: LspResolutionSettings,
     pub cancelled_request_count: usize,
     pub workspace_style_index_exhausted_count: usize,
     pub document_count: usize,
@@ -128,12 +130,21 @@ impl Default for LspDiagnosticSettings {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspResolutionSettings {
+    pub package_manifest_paths: Vec<String>,
+    #[serde(skip)]
+    pub package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
+}
+
 #[derive(Debug, Default)]
 pub struct LspShellState {
     pub shutdown_requested: bool,
     pub should_exit: bool,
     pub(crate) features: LspFeatureSettings,
     pub(crate) diagnostics: LspDiagnosticSettings,
+    pub(crate) resolution: LspResolutionSettings,
     pub(crate) cancelled_request_ids: IncrementalCancellationRegistryV0,
     pub(crate) workspace_style_index_exhausted_count: usize,
     pub(crate) configuration_change_count: usize,
@@ -245,6 +256,7 @@ impl LspShellState {
             should_exit: self.should_exit,
             features: self.features.clone(),
             diagnostics: self.diagnostics.clone(),
+            resolution: self.resolution.clone(),
             cancelled_request_count: self.cancelled_request_ids.len(),
             workspace_style_index_exhausted_count: self.workspace_style_index_exhausted_count,
             document_count: self.document_count(),

@@ -1,5 +1,7 @@
-use crate::LspShellState;
+use crate::{LspShellState, file_uri_to_path, normalize_path};
+use omena_query::OmenaQueryStylePackageManifestV0;
 use serde_json::Value;
+use std::{fs, path::PathBuf};
 
 pub(crate) fn apply_feature_settings(state: &mut LspShellState, features: Option<&Value>) {
     let Some(features) = features.and_then(Value::as_object) else {
@@ -35,6 +37,39 @@ pub(crate) fn apply_diagnostic_settings(state: &mut LspShellState, diagnostics: 
     }
 }
 
+pub(crate) fn apply_resolution_settings(
+    state: &mut LspShellState,
+    resolution: Option<&Value>,
+) -> bool {
+    let Some(resolution) = resolution.and_then(Value::as_object) else {
+        return false;
+    };
+    let Some(package_manifest_paths) = resolution
+        .get("packageManifestPaths")
+        .and_then(Value::as_array)
+    else {
+        return false;
+    };
+
+    let package_manifests = package_manifest_paths
+        .iter()
+        .filter_map(Value::as_str)
+        .filter_map(read_package_manifest_setting)
+        .collect::<Vec<_>>();
+    let normalized_paths = package_manifests
+        .iter()
+        .map(|manifest| manifest.package_json_path.clone())
+        .collect::<Vec<_>>();
+
+    let changed = state.resolution.package_manifest_paths != normalized_paths
+        || state.resolution.package_manifests != package_manifests;
+    if changed {
+        state.resolution.package_manifest_paths = normalized_paths;
+        state.resolution.package_manifests = package_manifests;
+    }
+    changed
+}
+
 fn diagnostic_severity_code(value: &str) -> Option<u8> {
     match value {
         "error" => Some(1),
@@ -43,4 +78,18 @@ fn diagnostic_severity_code(value: &str) -> Option<u8> {
         "hint" => Some(4),
         _ => None,
     }
+}
+
+fn read_package_manifest_setting(value: &str) -> Option<OmenaQueryStylePackageManifestV0> {
+    let path = setting_path(value)?;
+    let package_json_path = normalize_path(path).to_string_lossy().to_string();
+    let package_json_source = fs::read_to_string(package_json_path.as_str()).ok()?;
+    Some(OmenaQueryStylePackageManifestV0 {
+        package_json_path,
+        package_json_source,
+    })
+}
+
+fn setting_path(value: &str) -> Option<PathBuf> {
+    file_uri_to_path(value).or_else(|| Some(PathBuf::from(value)))
 }

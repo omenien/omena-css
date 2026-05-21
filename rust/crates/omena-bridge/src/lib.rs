@@ -50,6 +50,7 @@ pub use source_syntax::{
 };
 pub use style_resolution::{
     OmenaBridgeStyleResolutionSummaryV0, resolve_omena_bridge_style_uri_for_specifier,
+    resolve_omena_bridge_style_uri_for_specifier_with_package_manifests,
     summarize_omena_bridge_style_resolution_boundary,
 };
 

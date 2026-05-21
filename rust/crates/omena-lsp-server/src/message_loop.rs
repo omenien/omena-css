@@ -3,14 +3,15 @@ use crate::{
     CANCEL_REQUEST_METHOD, CASCADE_AT_POSITION_REQUEST, DEBUG_STATE_REQUEST, LspShellState,
     REQUEST_CANCELLED_ERROR_CODE, RUNTIME_LOOP_PROBE_REQUEST, SOURCE_DIAGNOSTICS_REQUEST,
     STYLE_CONTEXT_INDEX_REQUEST, STYLE_DIAGNOSTICS_REQUEST, STYLE_HOVER_CANDIDATES_REQUEST,
-    apply_diagnostic_settings, apply_feature_settings, current_node_lsp_capability_contract,
-    did_change_text_document, did_change_watched_files, did_change_workspace_folders,
-    did_close_text_document, did_open_text_document, index_workspace_style_files,
-    initialize_workspace_folders, resolve_cascade_at_position, resolve_lsp_code_actions,
-    resolve_lsp_code_lens, resolve_lsp_completion, resolve_lsp_definition, resolve_lsp_hover,
-    resolve_lsp_prepare_rename, resolve_lsp_references, resolve_lsp_rename,
-    resolve_source_diagnostics, resolve_style_context_index, resolve_style_diagnostics,
-    resolve_style_hover_candidates,
+    apply_diagnostic_settings, apply_feature_settings, apply_resolution_settings,
+    current_node_lsp_capability_contract, did_change_text_document, did_change_watched_files,
+    did_change_workspace_folders, did_close_text_document, did_open_text_document,
+    index_workspace_style_files, initialize_workspace_folders,
+    refresh_source_indexes_for_resolution_settings_change, resolve_cascade_at_position,
+    resolve_lsp_code_actions, resolve_lsp_code_lens, resolve_lsp_completion,
+    resolve_lsp_definition, resolve_lsp_hover, resolve_lsp_prepare_rename, resolve_lsp_references,
+    resolve_lsp_rename, resolve_source_diagnostics, resolve_style_context_index,
+    resolve_style_diagnostics, resolve_style_hover_candidates,
 };
 use serde_json::{Value, json};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -192,6 +193,9 @@ fn did_change_configuration(state: &mut LspShellState, params: Option<&Value>) {
     };
     apply_feature_settings(state, settings.get("features"));
     apply_diagnostic_settings(state, settings.get("diagnostics"));
+    if apply_resolution_settings(state, settings.get("resolution")) {
+        refresh_source_indexes_for_resolution_settings_change(state);
+    }
 }
 
 fn cancel_lsp_request(state: &mut LspShellState, params: Option<&Value>) {

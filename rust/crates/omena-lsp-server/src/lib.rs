@@ -33,9 +33,9 @@ use omena_query::{
     resolve_omena_query_source_candidate_selector_names,
     resolve_omena_query_source_provider_candidates,
     resolve_omena_query_style_selector_definitions_for_source_candidate,
-    resolve_omena_query_style_uri_for_specifier, summarize_omena_query_refs_for_class,
-    summarize_omena_query_rename_plan, summarize_omena_query_sass_module_sources,
-    summarize_omena_query_source_completion_at_position,
+    resolve_omena_query_style_uri_for_specifier_with_package_manifests,
+    summarize_omena_query_refs_for_class, summarize_omena_query_rename_plan,
+    summarize_omena_query_sass_module_sources, summarize_omena_query_source_completion_at_position,
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_import_declarations, summarize_omena_query_source_syntax_index,
     summarize_omena_query_style_completion_at_position,
@@ -50,7 +50,9 @@ use protocol::*;
 use query_adapter::*;
 use query_reuse::refresh_document_reusable_indexes;
 use serde_json::{Value, json};
-pub(crate) use settings::{apply_diagnostic_settings, apply_feature_settings};
+pub(crate) use settings::{
+    apply_diagnostic_settings, apply_feature_settings, apply_resolution_settings,
+};
 #[cfg(test)]
 pub(crate) use source_type_facts::apply_source_type_fact_results_to_document;
 pub(crate) use source_type_facts::refresh_source_type_fact_candidates_for_document;
@@ -111,6 +113,7 @@ fn lsp_text_document_state(
     language_id: String,
     version: i64,
     text: String,
+    package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
 ) -> LspTextDocumentState {
     let mut document = LspTextDocumentState {
         uri,
@@ -123,7 +126,7 @@ fn lsp_text_document_state(
         source_syntax_index: SourceSyntaxIndex::default(),
         source_selector_candidates: Vec::new(),
     };
-    refresh_document_reusable_indexes(&mut document);
+    refresh_document_reusable_indexes(&mut document, package_manifests);
     document
 }
 
@@ -136,6 +139,7 @@ fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
     };
 
     state.insert_open_document_uri(uri);
+    let package_manifests = state.resolution.package_manifests.clone();
     state.insert_document(
         uri,
         lsp_text_document_state(
@@ -152,6 +156,7 @@ fn did_open_text_document(state: &mut LspShellState, params: Option<&Value>) {
                 .and_then(Value::as_str)
                 .unwrap_or_default()
                 .to_string(),
+            package_manifests.as_slice(),
         ),
     );
     if is_style_document_uri(uri) {
@@ -168,6 +173,7 @@ fn did_change_text_document(state: &mut LspShellState, params: Option<&Value>) {
     let Some(uri) = text_document.get("uri").and_then(Value::as_str) else {
         return;
     };
+    let package_manifests = state.resolution.package_manifests.clone();
     let Some(existing) = state.document_mut(uri) else {
         return;
     };
@@ -189,7 +195,7 @@ fn did_change_text_document(state: &mut LspShellState, params: Option<&Value>) {
         }
     }
     if text_changed {
-        refresh_document_reusable_indexes(existing);
+        refresh_document_reusable_indexes(existing, package_manifests.as_slice());
     }
     if text_changed {
         if is_style_document_uri(uri) {
@@ -372,9 +378,26 @@ fn refresh_source_indexes_for_resolution_config_change(
         })
         .map(|document| document.uri.clone())
         .collect::<Vec<_>>();
+    let package_manifests = state.resolution.package_manifests.clone();
     for source_uri in source_uris {
         if let Some(document) = state.document_mut(source_uri.as_str()) {
-            refresh_document_reusable_indexes(document);
+            refresh_document_reusable_indexes(document, package_manifests.as_slice());
+        }
+        refresh_source_type_fact_candidates_for_document(state, source_uri.as_str());
+    }
+}
+
+pub(crate) fn refresh_source_indexes_for_resolution_settings_change(state: &mut LspShellState) {
+    let source_uris = state
+        .documents
+        .values()
+        .filter(|document| !is_style_document_uri(document.uri.as_str()))
+        .map(|document| document.uri.clone())
+        .collect::<Vec<_>>();
+    let package_manifests = state.resolution.package_manifests.clone();
+    for source_uri in source_uris {
+        if let Some(document) = state.document_mut(source_uri.as_str()) {
+            refresh_document_reusable_indexes(document, package_manifests.as_slice());
         }
         refresh_source_type_fact_candidates_for_document(state, source_uri.as_str());
     }
@@ -421,6 +444,7 @@ fn reload_indexed_style_document_from_disk(state: &mut LspShellState, uri: &str)
     let Ok(text) = fs::read_to_string(path) else {
         return false;
     };
+    let package_manifests = state.resolution.package_manifests.clone();
     state.insert_document(
         uri,
         lsp_text_document_state(
@@ -432,6 +456,7 @@ fn reload_indexed_style_document_from_disk(state: &mut LspShellState, uri: &str)
                 .to_string(),
             0,
             text,
+            package_manifests.as_slice(),
         ),
     );
     true
@@ -1446,23 +1471,18 @@ fn sass_module_target_uris_for_candidate(
         &sources,
         candidate.namespace.as_deref(),
     ) {
-        if let Some(uri) = resolve_omena_query_style_uri_for_specifier(
-            document.uri.as_str(),
-            document.workspace_folder_uri.as_deref(),
-            source.as_str(),
-        ) {
+        if let Some(uri) = resolve_lsp_style_uri_for_specifier(state, document, source.as_str()) {
             uris.push(uri);
         }
     }
     for forward_source in resolve_omena_query_sass_forward_sources(&sources) {
-        if let Some(uri) = resolve_omena_query_style_uri_for_specifier(
-            document.uri.as_str(),
-            document.workspace_folder_uri.as_deref(),
-            forward_source.as_str(),
-        ) {
+        if let Some(uri) =
+            resolve_lsp_style_uri_for_specifier(state, document, forward_source.as_str())
+        {
             uris.push(uri.clone());
             if let Some(target_document) = state.document(uri.as_str()) {
                 uris.extend(sass_forward_module_target_uris(
+                    state,
                     target_document,
                     &mut BTreeSet::new(),
                 ));
@@ -1491,11 +1511,9 @@ fn sass_symbol_declarations_with_forwards(
         return definitions;
     };
     for forward_source in resolve_omena_query_sass_forward_sources(&sources) {
-        let Some(uri) = resolve_omena_query_style_uri_for_specifier(
-            document.uri.as_str(),
-            document.workspace_folder_uri.as_deref(),
-            forward_source.as_str(),
-        ) else {
+        let Some(uri) =
+            resolve_lsp_style_uri_for_specifier(state, document, forward_source.as_str())
+        else {
             continue;
         };
         let Some(target_document) = state.document(uri.as_str()) else {
@@ -1513,6 +1531,7 @@ fn sass_symbol_declarations_with_forwards(
 }
 
 fn sass_forward_module_target_uris(
+    state: &LspShellState,
     document: &LspTextDocumentState,
     visited: &mut BTreeSet<String>,
 ) -> Vec<String> {
@@ -1526,17 +1545,28 @@ fn sass_forward_module_target_uris(
     };
     let mut uris = Vec::new();
     for forward_source in resolve_omena_query_sass_forward_sources(&sources) {
-        if let Some(uri) = resolve_omena_query_style_uri_for_specifier(
-            document.uri.as_str(),
-            document.workspace_folder_uri.as_deref(),
-            forward_source.as_str(),
-        ) {
+        if let Some(uri) =
+            resolve_lsp_style_uri_for_specifier(state, document, forward_source.as_str())
+        {
             uris.push(uri.clone());
         }
     }
     uris.sort();
     uris.dedup();
     uris
+}
+
+fn resolve_lsp_style_uri_for_specifier(
+    state: &LspShellState,
+    document: &LspTextDocumentState,
+    specifier: &str,
+) -> Option<String> {
+    resolve_omena_query_style_uri_for_specifier_with_package_manifests(
+        document.uri.as_str(),
+        document.workspace_folder_uri.as_deref(),
+        specifier,
+        state.resolution.package_manifests.as_slice(),
+    )
 }
 
 fn sass_symbol_reference_matches(
@@ -2261,12 +2291,15 @@ fn source_selector_candidates_from_index(
     candidates
 }
 
-fn build_source_syntax_index(document: &LspTextDocumentState) -> SourceSyntaxIndex {
+fn build_source_syntax_index(
+    document: &LspTextDocumentState,
+    package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
+) -> SourceSyntaxIndex {
     if is_style_document_uri(document.uri.as_str()) {
         return SourceSyntaxIndex::default();
     }
 
-    let imports = collect_source_imports(document);
+    let imports = collect_source_imports(document, package_manifests);
     summarize_omena_query_source_syntax_index(
         document.text.as_str(),
         imports.imported_style_bindings,
@@ -2280,7 +2313,10 @@ struct SourceImportIndex {
     classnames_bind_bindings: Vec<String>,
 }
 
-fn collect_source_imports(document: &LspTextDocumentState) -> SourceImportIndex {
+fn collect_source_imports(
+    document: &LspTextDocumentState,
+    package_manifests: &[omena_query::OmenaQueryStylePackageManifestV0],
+) -> SourceImportIndex {
     let source = document.text.as_str();
     let mut imports = SourceImportIndex {
         imported_style_bindings: Vec::new(),
@@ -2291,11 +2327,13 @@ fn collect_source_imports(document: &LspTextDocumentState) -> SourceImportIndex 
         if import.specifier == "classnames/bind" {
             imports.classnames_bind_bindings.push(import.binding);
         } else if StyleLanguage::from_module_path(import.specifier.as_str()).is_some()
-            && let Some(style_uri) = resolve_omena_query_style_uri_for_specifier(
-                document.uri.as_str(),
-                document.workspace_folder_uri.as_deref(),
-                import.specifier.as_str(),
-            )
+            && let Some(style_uri) =
+                resolve_omena_query_style_uri_for_specifier_with_package_manifests(
+                    document.uri.as_str(),
+                    document.workspace_folder_uri.as_deref(),
+                    import.specifier.as_str(),
+                    package_manifests,
+                )
         {
             imports.imported_style_bindings.push(ImportedStyleBinding {
                 binding: import.binding,

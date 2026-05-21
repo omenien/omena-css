@@ -192,6 +192,7 @@ pub fn source_provider_direct_rust_adapter_contract() -> SourceProviderDirectRus
             "dedupeTargetAwareSourceCandidates",
             "consumeQueryStyleHoverCandidates",
             "consumeQuerySassModuleSources",
+            "consumeConfiguredPackageManifestPaths",
             "consumeTsgoTypeFactsForTypedCxProjection",
             "consumeSassPartialEvaluatorGeneratedSelectors",
             "useOpenedDocumentIndexesBeforeWorkspaceFallback",
