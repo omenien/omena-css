@@ -83,6 +83,7 @@ const OMENA_QUERY_OWNED_COMMANDS = new Map([
   ["rename-plan", ["summarize_omena_query_rename_plan_for_workspace_class"]],
   ["read-style-context-index", ["read_omena_query_style_context_index"]],
   ["style-semantic-graph-batch", ["summarize_omena_query_style_semantic_graph_batch_from_sources"]],
+  ["workspace-cross-file-summary", ["summarize_omena_query_workspace_cross_file_summary"]],
   ["transform-plan", ["summarize_omena_query_transform_plan_from_source_with_context"]],
   ["transform-context", ["summarize_omena_query_transform_context_from_sources"]],
   [

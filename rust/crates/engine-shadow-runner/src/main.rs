@@ -79,6 +79,7 @@ use omena_query::{
     summarize_omena_query_transform_context_from_sources,
     summarize_omena_query_transform_plan_from_source_with_context,
     summarize_omena_query_transform_plan_from_target_query_with_context,
+    summarize_omena_query_workspace_cross_file_summary,
 };
 use omena_resolver::{
     OmenaResolverBundlerPathAliasMappingV0, OmenaResolverModuleGraphSummaryV0,
@@ -271,6 +272,16 @@ struct StyleSemanticGraphBatchInputV0 {
     #[serde(default)]
     package_manifests: Vec<StyleSemanticGraphPackageManifestInputV0>,
     engine_input: EngineInputV2,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceCrossFileSummaryInputV0 {
+    styles: Vec<OmenaQueryStyleSourceInputV0>,
+    #[serde(default)]
+    source_documents: Vec<OmenaQuerySourceDocumentInputV0>,
+    #[serde(default)]
+    package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1401,6 +1412,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             serde_json::to_writer_pretty(io::stdout(), &output)?;
         }
+        Some("workspace-cross-file-summary") => {
+            let input: WorkspaceCrossFileSummaryInputV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_query_workspace_cross_file_summary(
+                input.styles.as_slice(),
+                input.source_documents.as_slice(),
+                input.package_manifests.as_slice(),
+            );
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("transform-plan") => {
             let input: TransformPlanInputV0 = serde_json::from_str(&stdin)?;
             let output = if let Some(target_query) = input.target_query.as_deref() {
@@ -1939,6 +1959,16 @@ fn run_daemon_selected_query_command(
                         .map(|style| (style.style_path.as_str(), style.style_source.as_str())),
                     &input.engine_input,
                     &package_manifests,
+                ),
+            )?)
+        }
+        "workspace-cross-file-summary" => {
+            let input: WorkspaceCrossFileSummaryInputV0 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_query_workspace_cross_file_summary(
+                    input.styles.as_slice(),
+                    input.source_documents.as_slice(),
+                    input.package_manifests.as_slice(),
                 ),
             )?)
         }
