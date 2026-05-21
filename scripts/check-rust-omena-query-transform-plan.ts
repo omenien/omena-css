@@ -479,7 +479,10 @@ const targetQuerySummary = JSON.parse(targetQueryResult.stdout) as TransformPlan
 assert.equal(targetQuerySummary.product, "omena-query.transform-plan");
 assert.equal(targetQuerySummary.targetQuery?.product, "omena-transform-target.query-plan");
 assert.equal(targetQuerySummary.targetQuery?.profileId, "browserslist-resolved");
-assert.equal(targetQuerySummary.targetQuery?.targetDataSource, "oxcBrowserslistV3+featureSubsetV0");
+assert.equal(
+  targetQuerySummary.targetQuery?.targetDataSource,
+  "oxcBrowserslistV3+browserThresholdsTomlV0+featureSubsetV0",
+);
 assert.deepEqual(targetQuerySummary.targetQuery?.resolvedTargets, ["ie 11"]);
 assert.equal(targetQuerySummary.targetQuery?.resolutionError, null);
 assert.deepEqual(

@@ -6,135 +6,52 @@
 //! matrix. Named profiles stay available for product defaults and conservative
 //! non-browser environments.
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::OnceLock};
 
 use browserslist::{Distrib, Opts, resolve as resolve_browserslist};
 use omena_transform_cst::TransformPassKind;
 use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct StaticBrowserFeatureThreshold {
-    browser_name: &'static str,
-    min_major: u16,
-    min_minor: u16,
+const BROWSER_THRESHOLDS_SOURCE: &str = include_str!("../data/browser-thresholds.toml");
+const PASS_FEATURE_BINDINGS_SOURCE: &str = include_str!("../data/pass-feature-bindings.toml");
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct BrowserThresholdDataV0 {
+    schema_version: String,
+    product: String,
+    refreshed_at: String,
+    quorum_min_sources: usize,
+    thresholds: Vec<BrowserFeatureThresholdV0>,
+    parse_error_count: usize,
 }
 
-const LIGHT_DARK_SUPPORT_THRESHOLDS: &[StaticBrowserFeatureThreshold] = &[
-    StaticBrowserFeatureThreshold {
-        browser_name: "chrome",
-        min_major: 123,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "edge",
-        min_major: 123,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "firefox",
-        min_major: 120,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "safari",
-        min_major: 17,
-        min_minor: 5,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "ios_saf",
-        min_major: 17,
-        min_minor: 5,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "opera",
-        min_major: 109,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "op_mob",
-        min_major: 109,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "and_chr",
-        min_major: 123,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "and_ff",
-        min_major: 120,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "samsung",
-        min_major: 27,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "android",
-        min_major: 148,
-        min_minor: 0,
-    },
-];
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct BrowserFeatureThresholdV0 {
+    table: String,
+    browser: String,
+    min_major: u16,
+    min_minor: u16,
+    caniuse_key: String,
+    source_quorum: Vec<String>,
+    last_verified: String,
+}
 
-const COLOR_MIX_SUPPORT_THRESHOLDS: &[StaticBrowserFeatureThreshold] = &[
-    StaticBrowserFeatureThreshold {
-        browser_name: "chrome",
-        min_major: 111,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "edge",
-        min_major: 111,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "firefox",
-        min_major: 113,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "safari",
-        min_major: 16,
-        min_minor: 2,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "ios_saf",
-        min_major: 16,
-        min_minor: 2,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "opera",
-        min_major: 97,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "op_mob",
-        min_major: 80,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "and_chr",
-        min_major: 111,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "and_ff",
-        min_major: 113,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "samsung",
-        min_major: 22,
-        min_minor: 0,
-    },
-    StaticBrowserFeatureThreshold {
-        browser_name: "android",
-        min_major: 148,
-        min_minor: 0,
-    },
-];
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct PassFeatureBindingDataV0 {
+    schema_version: String,
+    product: String,
+    refreshed_at: String,
+    bindings: Vec<PassFeatureBindingV0>,
+    parse_error_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct PassFeatureBindingV0 {
+    pass_id: String,
+    caniuse_keys: Vec<String>,
+    support_table: String,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -177,6 +94,13 @@ pub struct TransformTargetBoundarySummaryV0 {
     pub opt_in_pass_ids: Vec<&'static str>,
     pub target_data_source: &'static str,
     pub planner_surface: &'static str,
+    pub browser_threshold_table_count: usize,
+    pub browser_threshold_entry_count: usize,
+    pub pass_feature_binding_count: usize,
+    pub browser_data_source_files: Vec<&'static str>,
+    pub browser_data_parse_error_count: usize,
+    pub browser_data_quorum_valid: bool,
+    pub browser_data_bindings_valid: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -208,6 +132,9 @@ pub struct TransformTargetPlanV0 {
 }
 
 pub fn summarize_omena_transform_target_boundary() -> TransformTargetBoundarySummaryV0 {
+    let browser_data = browser_threshold_data();
+    let bindings = pass_feature_binding_data();
+
     TransformTargetBoundarySummaryV0 {
         schema_version: "0",
         product: "omena-transform-target.boundary",
@@ -220,8 +147,18 @@ pub fn summarize_omena_transform_target_boundary() -> TransformTargetBoundarySum
             TransformPassKind::ScopeFlatten.id(),
             TransformPassKind::LayerFlatten.id(),
         ],
-        target_data_source: "oxcBrowserslistV3+staticTargetProfileV0+explicitFeatureMatrixV0",
+        target_data_source: "oxcBrowserslistV3+browserThresholdsTomlV0+staticTargetProfileV0+explicitFeatureMatrixV0",
         planner_surface: "omena-transform-passes.plan",
+        browser_threshold_table_count: browser_threshold_table_count(browser_data),
+        browser_threshold_entry_count: browser_data.thresholds.len(),
+        pass_feature_binding_count: bindings.bindings.len(),
+        browser_data_source_files: vec![
+            "data/browser-thresholds.toml",
+            "data/pass-feature-bindings.toml",
+        ],
+        browser_data_parse_error_count: browser_data.parse_error_count + bindings.parse_error_count,
+        browser_data_quorum_valid: browser_threshold_data_is_valid(browser_data),
+        browser_data_bindings_valid: pass_feature_binding_data_is_valid(browser_data, bindings),
     }
 }
 
@@ -422,7 +359,7 @@ fn target_feature_support_for_query(normalized_query: &str) -> TargetQueryResolu
             TargetQueryResolutionV0 {
                 profile_id: "browserslist-resolved",
                 recognized_profile: true,
-                target_data_source: "oxcBrowserslistV3+featureSubsetV0",
+                target_data_source: "oxcBrowserslistV3+browserThresholdsTomlV0+featureSubsetV0",
                 support: feature_support_for_resolved_targets(&distribs),
                 resolved_targets,
                 resolution_error: None,
@@ -452,14 +389,11 @@ fn feature_support_for_resolved_targets(distribs: &[Distrib]) -> TargetFeatureSu
 
     TargetFeatureSupportV0 {
         vendor_prefix_required: !(flexbox_fully_supported && sticky_fully_supported),
-        supports_light_dark: target_set_is_subset_of_static_browser_feature(
+        supports_light_dark: target_set_is_subset_of_browser_threshold_table(
             distribs,
-            LIGHT_DARK_SUPPORT_THRESHOLDS,
+            "light_dark",
         ),
-        supports_color_mix: target_set_is_subset_of_static_browser_feature(
-            distribs,
-            COLOR_MIX_SUPPORT_THRESHOLDS,
-        ),
+        supports_color_mix: target_set_is_subset_of_browser_threshold_table(distribs, "color_mix"),
         supports_oklch_oklab: target_set_is_subset_of_fully_supported_feature(
             distribs,
             "css-lch-lab",
@@ -487,26 +421,241 @@ fn feature_support_for_resolved_targets(distribs: &[Distrib]) -> TargetFeatureSu
     }
 }
 
-fn target_set_is_subset_of_static_browser_feature(
-    distribs: &[Distrib],
-    thresholds: &[StaticBrowserFeatureThreshold],
-) -> bool {
+fn target_set_is_subset_of_browser_threshold_table(distribs: &[Distrib], table: &str) -> bool {
     !distribs.is_empty()
         && distribs
             .iter()
-            .all(|distrib| distrib_matches_static_browser_feature(distrib, thresholds))
+            .all(|distrib| distrib_matches_browser_threshold_table(distrib, table))
 }
 
-fn distrib_matches_static_browser_feature(
-    distrib: &Distrib,
-    thresholds: &[StaticBrowserFeatureThreshold],
-) -> bool {
-    thresholds
+fn distrib_matches_browser_threshold_table(distrib: &Distrib, table: &str) -> bool {
+    browser_threshold_data()
+        .thresholds
         .iter()
-        .find(|threshold| threshold.browser_name == distrib.name())
+        .filter(|threshold| threshold.table == table)
+        .find(|threshold| threshold.browser == distrib.name())
         .is_some_and(|threshold| {
             browser_version_at_least(distrib.version(), threshold.min_major, threshold.min_minor)
         })
+}
+
+fn browser_threshold_data() -> &'static BrowserThresholdDataV0 {
+    static DATA: OnceLock<BrowserThresholdDataV0> = OnceLock::new();
+    DATA.get_or_init(|| {
+        parse_browser_threshold_data(BROWSER_THRESHOLDS_SOURCE).unwrap_or_else(|_| {
+            BrowserThresholdDataV0 {
+                parse_error_count: 1,
+                ..BrowserThresholdDataV0::default()
+            }
+        })
+    })
+}
+
+fn pass_feature_binding_data() -> &'static PassFeatureBindingDataV0 {
+    static DATA: OnceLock<PassFeatureBindingDataV0> = OnceLock::new();
+    DATA.get_or_init(|| {
+        parse_pass_feature_binding_data(PASS_FEATURE_BINDINGS_SOURCE).unwrap_or_else(|_| {
+            PassFeatureBindingDataV0 {
+                parse_error_count: 1,
+                ..PassFeatureBindingDataV0::default()
+            }
+        })
+    })
+}
+
+fn parse_browser_threshold_data(source: &str) -> Result<BrowserThresholdDataV0, String> {
+    let mut data = BrowserThresholdDataV0::default();
+    let mut current_threshold: Option<BrowserFeatureThresholdV0> = None;
+
+    for line in significant_toml_lines(source) {
+        if line == "[[threshold]]" {
+            if let Some(threshold) = current_threshold.take() {
+                data.thresholds.push(threshold);
+            }
+            current_threshold = Some(BrowserFeatureThresholdV0::default());
+            continue;
+        }
+
+        let (key, value) = parse_toml_assignment(&line)?;
+        if let Some(threshold) = current_threshold.as_mut() {
+            match key {
+                "table" => threshold.table = parse_toml_string(value)?,
+                "browser" => threshold.browser = parse_toml_string(value)?,
+                "min_major" => threshold.min_major = parse_toml_u16(value)?,
+                "min_minor" => threshold.min_minor = parse_toml_u16(value)?,
+                "caniuse_key" => threshold.caniuse_key = parse_toml_string(value)?,
+                "source_quorum" => threshold.source_quorum = parse_toml_string_array(value)?,
+                "last_verified" => threshold.last_verified = parse_toml_string(value)?,
+                _ => return Err(format!("unknown browser threshold key `{key}`")),
+            }
+        } else {
+            match key {
+                "schema_version" => data.schema_version = parse_toml_string(value)?,
+                "product" => data.product = parse_toml_string(value)?,
+                "refreshed_at" => data.refreshed_at = parse_toml_string(value)?,
+                "quorum_min_sources" => data.quorum_min_sources = parse_toml_usize(value)?,
+                _ => return Err(format!("unknown browser threshold root key `{key}`")),
+            }
+        }
+    }
+
+    if let Some(threshold) = current_threshold.take() {
+        data.thresholds.push(threshold);
+    }
+
+    Ok(data)
+}
+
+fn parse_pass_feature_binding_data(source: &str) -> Result<PassFeatureBindingDataV0, String> {
+    let mut data = PassFeatureBindingDataV0::default();
+    let mut current_binding: Option<PassFeatureBindingV0> = None;
+
+    for line in significant_toml_lines(source) {
+        if line == "[[binding]]" {
+            if let Some(binding) = current_binding.take() {
+                data.bindings.push(binding);
+            }
+            current_binding = Some(PassFeatureBindingV0::default());
+            continue;
+        }
+
+        let (key, value) = parse_toml_assignment(&line)?;
+        if let Some(binding) = current_binding.as_mut() {
+            match key {
+                "pass_id" => binding.pass_id = parse_toml_string(value)?,
+                "caniuse_keys" => binding.caniuse_keys = parse_toml_string_array(value)?,
+                "support_table" => binding.support_table = parse_toml_string(value)?,
+                _ => return Err(format!("unknown pass feature binding key `{key}`")),
+            }
+        } else {
+            match key {
+                "schema_version" => data.schema_version = parse_toml_string(value)?,
+                "product" => data.product = parse_toml_string(value)?,
+                "refreshed_at" => data.refreshed_at = parse_toml_string(value)?,
+                _ => return Err(format!("unknown pass feature binding root key `{key}`")),
+            }
+        }
+    }
+
+    if let Some(binding) = current_binding.take() {
+        data.bindings.push(binding);
+    }
+
+    Ok(data)
+}
+
+fn significant_toml_lines(source: &str) -> impl Iterator<Item = String> + '_ {
+    source
+        .lines()
+        .map(|line| line.split('#').next().unwrap_or("").trim())
+        .filter(|line| !line.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn parse_toml_assignment(line: &str) -> Result<(&str, &str), String> {
+    let Some((key, value)) = line.split_once('=') else {
+        return Err(format!("invalid assignment `{line}`"));
+    };
+    Ok((key.trim(), value.trim()))
+}
+
+fn parse_toml_string(value: &str) -> Result<String, String> {
+    let value = value.trim();
+    if value.len() < 2 || !value.starts_with('"') || !value.ends_with('"') {
+        return Err(format!("expected quoted string, got `{value}`"));
+    }
+    Ok(value[1..value.len() - 1].to_string())
+}
+
+fn parse_toml_u16(value: &str) -> Result<u16, String> {
+    value
+        .trim()
+        .parse::<u16>()
+        .map_err(|error| format!("invalid u16 `{value}`: {error}"))
+}
+
+fn parse_toml_usize(value: &str) -> Result<usize, String> {
+    value
+        .trim()
+        .parse::<usize>()
+        .map_err(|error| format!("invalid usize `{value}`: {error}"))
+}
+
+fn parse_toml_string_array(value: &str) -> Result<Vec<String>, String> {
+    let value = value.trim();
+    if value.len() < 2 || !value.starts_with('[') || !value.ends_with(']') {
+        return Err(format!("expected string array, got `{value}`"));
+    }
+    let body = value[1..value.len() - 1].trim();
+    if body.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    body.split(',')
+        .map(|item| parse_toml_string(item.trim()))
+        .collect()
+}
+
+fn browser_threshold_data_is_valid(data: &BrowserThresholdDataV0) -> bool {
+    data.parse_error_count == 0
+        && data.schema_version == "0"
+        && data.product == "omena-transform-target.browser-thresholds"
+        && is_iso_date(&data.refreshed_at)
+        && data.quorum_min_sources >= 2
+        && browser_threshold_table_count(data) >= 2
+        && data.thresholds.iter().all(|threshold| {
+            !threshold.table.is_empty()
+                && !threshold.browser.is_empty()
+                && !threshold.caniuse_key.is_empty()
+                && threshold.source_quorum.len() >= data.quorum_min_sources
+                && threshold
+                    .source_quorum
+                    .iter()
+                    .all(|source| matches!(source.as_str(), "caniuse" | "web-features" | "mdn-bcd"))
+                && is_iso_date(&threshold.last_verified)
+        })
+}
+
+fn pass_feature_binding_data_is_valid(
+    browser_data: &BrowserThresholdDataV0,
+    binding_data: &PassFeatureBindingDataV0,
+) -> bool {
+    binding_data.parse_error_count == 0
+        && binding_data.schema_version == "0"
+        && binding_data.product == "omena-transform-target.pass-feature-bindings"
+        && is_iso_date(&binding_data.refreshed_at)
+        && !binding_data.bindings.is_empty()
+        && binding_data.bindings.iter().all(|binding| {
+            !binding.pass_id.is_empty()
+                && target_managed_passes()
+                    .iter()
+                    .any(|pass| pass.id() == binding.pass_id)
+                && !binding.caniuse_keys.is_empty()
+                && binding.caniuse_keys.iter().all(|key| {
+                    browser_data.thresholds.iter().any(|threshold| {
+                        threshold.table == binding.support_table && threshold.caniuse_key == *key
+                    })
+                })
+        })
+}
+
+fn browser_threshold_table_count(data: &BrowserThresholdDataV0) -> usize {
+    data.thresholds
+        .iter()
+        .map(|threshold| threshold.table.as_str())
+        .collect::<BTreeSet<_>>()
+        .len()
+}
+
+fn is_iso_date(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() == 10
+        && bytes[4] == b'-'
+        && bytes[7] == b'-'
+        && bytes
+            .iter()
+            .enumerate()
+            .all(|(index, byte)| matches!(index, 4 | 7) || byte.is_ascii_digit())
 }
 
 fn browser_version_at_least(version: &str, min_major: u16, min_minor: u16) -> bool {
@@ -595,11 +744,35 @@ mod tests {
         assert_eq!(boundary.managed_pass_ids.len(), 12);
         assert_eq!(
             boundary.target_data_source,
-            "oxcBrowserslistV3+staticTargetProfileV0+explicitFeatureMatrixV0"
+            "oxcBrowserslistV3+browserThresholdsTomlV0+staticTargetProfileV0+explicitFeatureMatrixV0"
         );
+        assert_eq!(boundary.browser_threshold_table_count, 2);
+        assert_eq!(boundary.browser_threshold_entry_count, 22);
+        assert_eq!(boundary.pass_feature_binding_count, 2);
+        assert_eq!(boundary.browser_data_parse_error_count, 0);
+        assert!(boundary.browser_data_quorum_valid);
+        assert!(boundary.browser_data_bindings_valid);
         assert!(boundary.managed_pass_ids.contains(&"vendor-prefixing"));
         assert!(boundary.managed_pass_ids.contains(&"media-static-eval"));
         assert!(boundary.opt_in_pass_ids.contains(&"scope-flatten"));
+    }
+
+    #[test]
+    fn browser_data_governance_externalizes_thresholds_and_bindings() {
+        let boundary = summarize_omena_transform_target_boundary();
+
+        assert!(
+            boundary
+                .browser_data_source_files
+                .contains(&"data/browser-thresholds.toml")
+        );
+        assert!(
+            boundary
+                .browser_data_source_files
+                .contains(&"data/pass-feature-bindings.toml")
+        );
+        assert!(boundary.browser_data_quorum_valid);
+        assert!(boundary.browser_data_bindings_valid);
     }
 
     #[test]
@@ -731,7 +904,10 @@ mod tests {
 
         assert!(plan.recognized_profile);
         assert_eq!(plan.profile_id, "browserslist-resolved");
-        assert_eq!(plan.target_data_source, "oxcBrowserslistV3+featureSubsetV0");
+        assert_eq!(
+            plan.target_data_source,
+            "oxcBrowserslistV3+browserThresholdsTomlV0+featureSubsetV0"
+        );
         assert_eq!(plan.resolved_targets, vec!["ie 11"]);
         assert_eq!(plan.resolution_error, None);
         assert!(plan.support.vendor_prefix_required);

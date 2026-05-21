@@ -1,0 +1,202 @@
+schema_version = "0"
+product = "omena-transform-target.browser-thresholds"
+refreshed_at = "2026-05-22"
+quorum_min_sources = 2
+
+[[threshold]]
+table = "light_dark"
+browser = "chrome"
+min_major = 123
+min_minor = 0
+caniuse_key = "css-light-dark-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "light_dark"
+browser = "edge"
+min_major = 123
+min_minor = 0
+caniuse_key = "css-light-dark-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "light_dark"
+browser = "firefox"
+min_major = 120
+min_minor = 0
+caniuse_key = "css-light-dark-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "light_dark"
+browser = "safari"
+min_major = 17
+min_minor = 5
+caniuse_key = "css-light-dark-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "light_dark"
+browser = "ios_saf"
+min_major = 17
+min_minor = 5
+caniuse_key = "css-light-dark-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "light_dark"
+browser = "opera"
+min_major = 109
+min_minor = 0
+caniuse_key = "css-light-dark-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "light_dark"
+browser = "op_mob"
+min_major = 109
+min_minor = 0
+caniuse_key = "css-light-dark-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "light_dark"
+browser = "and_chr"
+min_major = 123
+min_minor = 0
+caniuse_key = "css-light-dark-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "light_dark"
+browser = "and_ff"
+min_major = 120
+min_minor = 0
+caniuse_key = "css-light-dark-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "light_dark"
+browser = "samsung"
+min_major = 27
+min_minor = 0
+caniuse_key = "css-light-dark-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "light_dark"
+browser = "android"
+min_major = 148
+min_minor = 0
+caniuse_key = "css-light-dark-function"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_mix"
+browser = "chrome"
+min_major = 111
+min_minor = 0
+caniuse_key = "css-color-mix"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_mix"
+browser = "edge"
+min_major = 111
+min_minor = 0
+caniuse_key = "css-color-mix"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_mix"
+browser = "firefox"
+min_major = 113
+min_minor = 0
+caniuse_key = "css-color-mix"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_mix"
+browser = "safari"
+min_major = 16
+min_minor = 2
+caniuse_key = "css-color-mix"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_mix"
+browser = "ios_saf"
+min_major = 16
+min_minor = 2
+caniuse_key = "css-color-mix"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_mix"
+browser = "opera"
+min_major = 97
+min_minor = 0
+caniuse_key = "css-color-mix"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_mix"
+browser = "op_mob"
+min_major = 80
+min_minor = 0
+caniuse_key = "css-color-mix"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_mix"
+browser = "and_chr"
+min_major = 111
+min_minor = 0
+caniuse_key = "css-color-mix"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_mix"
+browser = "and_ff"
+min_major = 113
+min_minor = 0
+caniuse_key = "css-color-mix"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_mix"
+browser = "samsung"
+min_major = 22
+min_minor = 0
+caniuse_key = "css-color-mix"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"
+
+[[threshold]]
+table = "color_mix"
+browser = "android"
+min_major = 148
+min_minor = 0
+caniuse_key = "css-color-mix"
+source_quorum = ["caniuse", "web-features", "mdn-bcd"]
+last_verified = "2026-05-22"

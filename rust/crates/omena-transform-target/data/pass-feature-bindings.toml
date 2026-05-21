@@ -1,0 +1,13 @@
+schema_version = "0"
+product = "omena-transform-target.pass-feature-bindings"
+refreshed_at = "2026-05-22"
+
+[[binding]]
+pass_id = "light-dark-lowering"
+caniuse_keys = ["css-light-dark-function"]
+support_table = "light_dark"
+
+[[binding]]
+pass_id = "color-mix-lowering"
+caniuse_keys = ["css-color-mix"]
+support_table = "color_mix"
