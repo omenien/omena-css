@@ -112,6 +112,86 @@ describe("AliasResolver", () => {
     );
   });
 
+  it("inherits tsconfig path aliases through extends using the base config directory", () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "ts-extends-alias-"));
+    const configDir = path.join(workspace, "configs");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, "tsconfig.base.json"),
+      JSON.stringify(
+        {
+          compilerOptions: {
+            baseUrl: ".",
+            paths: {
+              "$shared/*": ["src/shared/*"],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    fs.writeFileSync(
+      path.join(workspace, "tsconfig.json"),
+      JSON.stringify(
+        {
+          extends: "./configs/tsconfig.base.json",
+        },
+        null,
+        2,
+      ),
+    );
+
+    const resolver = new AliasResolver(workspace, {}, loadWorkspaceTsconfigPathAliases(workspace));
+    expect(resolver.resolve("$shared/Button.module.scss")).toBe(
+      path.resolve(configDir, "src/shared/Button.module.scss"),
+    );
+  });
+
+  it("uses child tsconfig path aliases instead of inherited aliases when paths is overridden", () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "ts-extends-overrides-"));
+    const configDir = path.join(workspace, "configs");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, "tsconfig.base.json"),
+      JSON.stringify(
+        {
+          compilerOptions: {
+            baseUrl: ".",
+            paths: {
+              "$base/*": ["src/base/*"],
+              "$shared/*": ["src/shared/*"],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    fs.writeFileSync(
+      path.join(workspace, "tsconfig.json"),
+      JSON.stringify(
+        {
+          extends: "./configs/tsconfig.base.json",
+          compilerOptions: {
+            baseUrl: ".",
+            paths: {
+              "$shared/*": ["src/local-shared/*"],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const resolver = new AliasResolver(workspace, {}, loadWorkspaceTsconfigPathAliases(workspace));
+    expect(resolver.resolve("$shared/Button.module.scss")).toBe(
+      path.resolve(workspace, "src/local-shared/Button.module.scss"),
+    );
+    expect(resolver.resolve("$base/Button.module.scss")).toBeNull();
+  });
+
   it("falls back to jsconfig.json when tsconfig.json is absent", () => {
     const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "js-path-alias-"));
     fs.writeFileSync(
