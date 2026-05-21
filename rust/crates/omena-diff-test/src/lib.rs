@@ -920,17 +920,17 @@ mod tests {
         assert!(!report.stage2_blocking);
         assert_eq!(report.required_min_fixture_count_for_stage2, 25);
         assert_eq!(report.required_consecutive_green_runs, 5);
-        assert_eq!(report.consecutive_green_runs, 4);
-        assert_eq!(report.green_run_evidence_count, 4);
+        assert_eq!(report.consecutive_green_runs, 5);
+        assert_eq!(report.green_run_evidence_count, 5);
         assert_eq!(report.known_failure_review_interval_days, 30);
-        assert!(!report.stage2_candidate_ready);
+        assert!(report.stage2_candidate_ready);
         assert!(
             !report
                 .stage2_promotion_blockers
                 .contains(&"seedCorpusBelowStageTwoMinimum")
         );
         assert!(
-            report
+            !report
                 .stage2_promotion_blockers
                 .contains(&"insufficientConsecutiveGreenRuns")
         );
