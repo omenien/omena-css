@@ -245,9 +245,7 @@ assert.equal(
 );
 assert.equal(summary.execution.cascadeProofObligations.obligationCount, 1);
 assert.equal(summary.execution.cascadeProofObligations.acceptedCount, 1);
-assert.deepEqual(summary.execution.cascadeProofObligations.checkedPassIds, [
-  "shorthand-combining",
-]);
+assert.deepEqual(summary.execution.cascadeProofObligations.checkedPassIds, ["shorthand-combining"]);
 assert.equal(
   summary.execution.cascadeProofObligations.obligations[0]?.proofProduct,
   "omena-cascade.shorthand-combination-proof",

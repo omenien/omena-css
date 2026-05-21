@@ -1,0 +1,7 @@
+name: Sync release metadata
+description: Run scripts/release.sh to synchronize generated release metadata.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: ./scripts/release.sh

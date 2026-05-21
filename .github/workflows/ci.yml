@@ -3,8 +3,12 @@ name: CI
 on:
   pull_request:
     branches: [master, next]
+    paths-ignore:
+      - .personal_docs/**
   push:
     branches: [master, next, feat/ir-stack-base]
+    paths-ignore:
+      - .personal_docs/**
   workflow_dispatch:
 
 concurrency:
@@ -17,14 +21,11 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        with:
-          node-version-file: .nvmrc
-      - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
-      - run: pnpm install --frozen-lockfile
-      - run: ./scripts/release.sh
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/sync-release-metadata
       - run: pnpm cme-check run core/check
       - run: pnpm cme-check doctor
       - run: pnpm cme-check run tooling/orchestrator-inventory
@@ -38,64 +39,89 @@ jobs:
           if-no-files-found: error
 
   protocol-matrix:
-    needs: verify
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        with:
-          node-version-file: .nvmrc
-      - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
-      - run: pnpm install --frozen-lockfile
-      - run: ./scripts/release.sh
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/sync-release-metadata
       - run: pnpm cme-check run test/protocol
 
-  runner-matrix:
-    needs: verify
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  native-runner-matrix:
+    uses: ./.github/workflows/_build-native-binaries.yml
+
+  closure-fast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        with:
-          node-version-file: .nvmrc
-      - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
-      - run: pnpm install --frozen-lockfile
-      - run: cargo build --manifest-path rust/Cargo.toml -p engine-shadow-runner --release
-      - run: cargo build --manifest-path rust/Cargo.toml -p omena-lsp-server --release
-      - run: node ./scripts/prepare-engine-shadow-runner.mjs
-      - run: node ./scripts/prepare-omena-lsp-server.mjs
-      - run: node ./scripts/prepare-tsgo-binary.mjs
-      - id: target
-        shell: bash
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - id: m1
+        name: Run M1 runtime query/API hardening
+        run: pnpm cme-check run rust/m1-runtime-query-api-hardening
+        continue-on-error: true
+      - id: m2
+        name: Run M2 product-facing capability
+        run: pnpm cme-check run rust/m2-product-facing-capability
+        continue-on-error: true
+      - id: m3
+        name: Run M3 theoretical moat generalization
+        run: pnpm cme-check run rust/m3-theoretical-moat-generalization
+        continue-on-error: true
+      - id: query
+        name: Run omena-query boundary
+        run: pnpm cme-check run rust/omena-query/boundary
+        continue-on-error: true
+      - id: lsp
+        name: Run omena-lsp-server boundary
+        run: pnpm cme-check run rust/omena-lsp-server/boundary
+        continue-on-error: true
+      - id: cascade
+        name: Run omena-cascade boundary
+        run: pnpm cme-check run rust/omena-cascade/boundary
+        continue-on-error: true
+      - id: diff_test
+        name: Run omena-diff-test boundary
+        run: pnpm cme-check run rust/omena-diff-test-boundary
+        continue-on-error: true
+      - if: always()
+        name: Enforce closure-fast result
         run: |
-          TARGET_DIR="$(node -p "process.platform + '-' + process.arch")"
-          echo "dir=${TARGET_DIR}" >> "$GITHUB_OUTPUT"
-          tar -czf "engine-shadow-runner-${TARGET_DIR}.tgz" -C dist/bin "$TARGET_DIR"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: engine-shadow-runner-${{ steps.target.outputs.dir }}
-          path: engine-shadow-runner-${{ steps.target.outputs.dir }}.tgz
-          retention-days: 1
-          if-no-files-found: error
+          echo "m1=${{ steps.m1.outcome }}"
+          echo "m2=${{ steps.m2.outcome }}"
+          echo "m3=${{ steps.m3.outcome }}"
+          echo "query=${{ steps.query.outcome }}"
+          echo "lsp=${{ steps.lsp.outcome }}"
+          echo "cascade=${{ steps.cascade.outcome }}"
+          echo "diff_test=${{ steps.diff_test.outcome }}"
+          failed=0
+          for outcome in \
+            "${{ steps.m1.outcome }}" \
+            "${{ steps.m2.outcome }}" \
+            "${{ steps.m3.outcome }}" \
+            "${{ steps.query.outcome }}" \
+            "${{ steps.lsp.outcome }}" \
+            "${{ steps.cascade.outcome }}" \
+            "${{ steps.diff_test.outcome }}"; do
+            if [ "$outcome" != "success" ]; then
+              failed=1
+            fi
+          done
+          exit "$failed"
 
   extension-host-smoke:
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        with:
-          node-version-file: .nvmrc
-      - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-pnpm
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: build-output
@@ -104,15 +130,12 @@ jobs:
       - run: xvfb-run -a pnpm cme-check run test/extension-host
 
   package:
+    needs: [verify, native-runner-matrix]
     runs-on: ubuntu-latest
-    needs: [verify, runner-matrix]
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
-        with:
-          node-version-file: .nvmrc
-      - run: corepack enable && corepack prepare pnpm@10.30.3 --activate
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-pnpm
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: build-output

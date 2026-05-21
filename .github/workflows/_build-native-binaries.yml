@@ -1,0 +1,51 @@
+name: _Build Native Binaries
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+      artifact-prefix:
+        type: string
+        required: false
+        default: engine-shadow-runner
+      retention-days:
+        type: number
+        required: false
+        default: 1
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - run: cargo build --manifest-path rust/Cargo.toml -p engine-shadow-runner --release
+      - run: cargo build --manifest-path rust/Cargo.toml -p omena-lsp-server --release
+      - run: node ./scripts/prepare-engine-shadow-runner.mjs
+      - run: node ./scripts/prepare-omena-lsp-server.mjs
+      - run: node ./scripts/prepare-tsgo-binary.mjs
+      - id: target
+        shell: bash
+        run: |
+          TARGET_DIR="$(node -p "process.platform + '-' + process.arch")"
+          echo "dir=${TARGET_DIR}" >> "$GITHUB_OUTPUT"
+          tar -czf "${{ inputs.artifact-prefix }}-${TARGET_DIR}.tgz" -C dist/bin "$TARGET_DIR"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.artifact-prefix }}-${{ steps.target.outputs.dir }}
+          path: ${{ inputs.artifact-prefix }}-${{ steps.target.outputs.dir }}.tgz
+          retention-days: ${{ inputs.retention-days }}
+          if-no-files-found: error

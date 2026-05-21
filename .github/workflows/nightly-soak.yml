@@ -1,0 +1,70 @@
+name: Nightly Soak
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-soak-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tsgo-operational:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm cme-check run core/build
+      - run: pnpm cme-check run tsgo/release-batch
+      - run: pnpm cme-check run tsgo/real-project-corpus
+      - run: pnpm cme-check run tsgo/lsp-server-smoke
+      - run: pnpm cme-check bundle tsgo/operational/lane
+
+  ts7-phase-a:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm cme-check run core/build
+      - run: pnpm cme-check bundle ts7/phase-a/readiness
+      - run: pnpm cme-check bundle ts7/phase-a/shadow
+      - run: pnpm cme-check run ts7/phase-a/stability
+
+  selected-query-default:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm cme-check run rust/selected-query/default-candidate
+
+  checker-release-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm cme-check run rust/checker/release-gate-shadow
+
+  omena-css-full-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-pnpm
+      - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/sync-release-metadata
+      - run: pnpm cme-check run rust/omena-css/h1-readiness

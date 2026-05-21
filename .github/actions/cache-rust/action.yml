@@ -1,0 +1,19 @@
+name: Cache Rust workspace
+description: Rust workspace cache for the repository Cargo target directory.
+inputs:
+  shared-key:
+    description: Shared cache key suffix.
+    required: false
+    default: cme-rust
+  cache-targets:
+    description: Whether to cache target directories.
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      with:
+        workspaces: rust -> target
+        shared-key: ${{ inputs.shared-key }}
+        cache-targets: ${{ inputs.cache-targets }}
