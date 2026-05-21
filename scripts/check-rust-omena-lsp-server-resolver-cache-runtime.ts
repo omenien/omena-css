@@ -54,10 +54,14 @@ async function main(): Promise<void> {
   const sourcePath = path.join(srcDir, "App.module.scss");
   const targetPath = path.join(stylesDir, "_tokens.scss");
   const configPath = path.join(workspaceRoot, "vite.config.ts");
+  const webpackConfigPath = path.join(workspaceRoot, "webpack.config.js");
   const tsconfigPath = path.join(workspaceRoot, "tsconfig.json");
   const tsconfigSourcePath = path.join(srcDir, "Tsconfig.module.scss");
   const tsconfigOldTargetPath = path.join(srcDir, "tsconfig-old", "_tokens.scss");
   const tsconfigNewTargetPath = path.join(srcDir, "tsconfig-new", "_tokens.scss");
+  const webpackSourcePath = path.join(srcDir, "Webpack.module.scss");
+  const webpackOldTargetPath = path.join(srcDir, "webpack-old", "_tokens.scss");
+  const webpackNewTargetPath = path.join(srcDir, "webpack-new", "_tokens.scss");
   const packageSourcePath = path.join(srcDir, "Package.module.scss");
   const rootPackageImportSourcePath = path.join(srcDir, "RootPackageImport.module.scss");
   const rootPackageJsonPath = path.join(workspaceRoot, "package.json");
@@ -68,10 +72,14 @@ async function main(): Promise<void> {
   const sourceUri = pathToFileURL(sourcePath).toString();
   const targetUri = pathToFileURL(targetPath).toString();
   const configUri = pathToFileURL(configPath).toString();
+  const webpackConfigUri = pathToFileURL(webpackConfigPath).toString();
   const tsconfigUri = pathToFileURL(tsconfigPath).toString();
   const tsconfigSourceUri = pathToFileURL(tsconfigSourcePath).toString();
   const tsconfigOldTargetUri = pathToFileURL(tsconfigOldTargetPath).toString();
   const tsconfigNewTargetUri = pathToFileURL(tsconfigNewTargetPath).toString();
+  const webpackSourceUri = pathToFileURL(webpackSourcePath).toString();
+  const webpackOldTargetUri = pathToFileURL(webpackOldTargetPath).toString();
+  const webpackNewTargetUri = pathToFileURL(webpackNewTargetPath).toString();
   const packageSourceUri = pathToFileURL(packageSourcePath).toString();
   const rootPackageImportSourceUri = pathToFileURL(rootPackageImportSourcePath).toString();
   const rootPackageJsonUri = pathToFileURL(rootPackageJsonPath).toString();
@@ -84,6 +92,9 @@ async function main(): Promise<void> {
 `;
   const targetText = "$brand: #123456;\n";
   const tsconfigSourceText = `@use "$styles/tokens" as tokens;
+.root { color: tokens.$brand; }
+`;
+  const webpackSourceText = `@use "@web/tokens" as tokens;
 .root { color: tokens.$brand; }
 `;
   const packageSourceText = `@use "pkg:@design/tokens" as tokens;
@@ -99,6 +110,10 @@ async function main(): Promise<void> {
   const tsconfigDefinitionParams = {
     textDocument: { uri: tsconfigSourceUri },
     position: positionForOffset(tsconfigSourceText, tsconfigSourceText.indexOf("$brand") + 1),
+  };
+  const webpackDefinitionParams = {
+    textDocument: { uri: webpackSourceUri },
+    position: positionForOffset(webpackSourceText, webpackSourceText.indexOf("$brand") + 1),
   };
   const packageDefinitionParams = {
     textDocument: { uri: packageSourceUri },
@@ -116,12 +131,17 @@ async function main(): Promise<void> {
   mkdirSync(stylesDir, { recursive: true });
   mkdirSync(path.dirname(tsconfigOldTargetPath), { recursive: true });
   mkdirSync(path.dirname(tsconfigNewTargetPath), { recursive: true });
+  mkdirSync(path.dirname(webpackOldTargetPath), { recursive: true });
+  mkdirSync(path.dirname(webpackNewTargetPath), { recursive: true });
   mkdirSync(packageRoot, { recursive: true });
   writeFileSync(sourcePath, sourceText);
   writeFileSync(targetPath, targetText);
   writeFileSync(tsconfigSourcePath, tsconfigSourceText);
   writeFileSync(tsconfigOldTargetPath, "$brand: old;\n");
   writeFileSync(tsconfigNewTargetPath, "$brand: new;\n");
+  writeFileSync(webpackSourcePath, webpackSourceText);
+  writeFileSync(webpackOldTargetPath, "$brand: webpack-old;\n");
+  writeFileSync(webpackNewTargetPath, "$brand: webpack-new;\n");
   writeFileSync(packageSourcePath, packageSourceText);
   writeFileSync(rootPackageImportSourcePath, rootPackageImportSourceText);
   writeFileSync(rootPackageJsonPath, buildRootPackageJson("@design/tokens/old"));
@@ -138,6 +158,7 @@ async function main(): Promise<void> {
   writeFileSync(packageOldTargetPath, "$brand: old;\n");
   writeFileSync(packageNewTargetPath, "$brand: new;\n");
   writeFileSync(configPath, buildViteConfig(ALIAS_COUNT));
+  writeFileSync(webpackConfigPath, buildWebpackConfig("src/webpack-old"));
   writeFileSync(tsconfigPath, buildTsconfig("src/tsconfig-old/*"));
   writePackageManifests(workspaceRoot, PACKAGE_COUNT);
 
@@ -188,6 +209,9 @@ async function main(): Promise<void> {
           [tsconfigOldTargetUri, "$brand: old;\n"],
           [tsconfigNewTargetUri, "$brand: new;\n"],
           [tsconfigSourceUri, tsconfigSourceText],
+          [webpackOldTargetUri, "$brand: webpack-old;\n"],
+          [webpackNewTargetUri, "$brand: webpack-new;\n"],
+          [webpackSourceUri, webpackSourceText],
           [packageOldTargetUri, "$brand: old;\n"],
           [packageNewTargetUri, "$brand: new;\n"],
           [packageSourceUri, packageSourceText],
@@ -252,6 +276,24 @@ async function main(): Promise<void> {
         "tsconfig refreshed definition",
       ),
       tsconfigNewTargetUri,
+    );
+    assertDefinitionTarget(
+      await requestWithTimeout(
+        connection.sendRequest("textDocument/definition", webpackDefinitionParams),
+        "webpack initial definition",
+      ),
+      webpackOldTargetUri,
+    );
+    writeFileSync(webpackConfigPath, buildWebpackConfig("src/webpack-new"));
+    await connection.sendNotification("workspace/didChangeWatchedFiles", {
+      changes: [{ uri: webpackConfigUri, type: 2 }],
+    });
+    assertDefinitionTarget(
+      await requestWithTimeout(
+        connection.sendRequest("textDocument/definition", webpackDefinitionParams),
+        "webpack refreshed definition",
+      ),
+      webpackNewTargetUri,
     );
     assertDefinitionTarget(
       await requestWithTimeout(
@@ -327,7 +369,7 @@ async function main(): Promise<void> {
         `refreshBaseline=${formatSummary(refreshSummary)}`,
         `hotDefinition=${formatSummary(hotSummary)}`,
         `p50Ratio=${ratio.toFixed(2)}`,
-        "invalidations=package.json(root+package),tsconfig.json,vite.config.ts",
+        "invalidations=package.json(root+package),tsconfig.json,vite.config.ts,webpack.config.js",
       ].join(" ") + "\n",
     );
   } finally {
@@ -413,6 +455,18 @@ function buildViteConfig(aliasCount: number): string {
     alias: {
       ${aliases}
     }
+  }
+};
+`;
+}
+
+function buildWebpackConfig(webAliasTarget: string): string {
+  return `module.exports = {
+  resolve: {
+    alias: [
+      { find: "@unused", replacement: "./src/unused" },
+      { find: "@web", replacement: "./${webAliasTarget}" }
+    ]
   }
 };
 `;

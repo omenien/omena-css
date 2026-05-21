@@ -47,10 +47,11 @@ for (const marker of resolverFixtureRequirements) {
 
 const resolverCacheRequirements = [
   "cachedWorkspaceResolutionInputCount",
-  "package.json(root+package),tsconfig.json,vite.config.ts",
+  "package.json(root+package),tsconfig.json,vite.config.ts,webpack.config.js",
   "root package imports initial definition",
   "root package imports refreshed definition",
   "tsconfig refreshed definition",
+  "webpack refreshed definition",
   "package refreshed definition",
   "refreshBaseline",
   "hotDefinition",
@@ -90,7 +91,13 @@ process.stdout.write(
       },
       cacheAndInvalidation: {
         gate: "rust/omena-lsp-server/resolver-cache-runtime",
-        covers: ["package.json", "root-package-imports", "tsconfig.json", "vite.config.ts"],
+        covers: [
+          "package.json",
+          "root-package-imports",
+          "tsconfig.json",
+          "vite.config.ts",
+          "webpack.config.js",
+        ],
         compares: ["refreshBaseline", "hotDefinition"],
       },
       issue38: {
