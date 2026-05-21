@@ -1,6 +1,7 @@
 use crate::{
-    LspShellState, is_style_document_uri, resolve_document_diagnostics_for_uri,
-    resolve_source_diagnostics_for_uri, resolve_workspace_folder_uri, workspace_folder_compatible,
+    LspShellState, is_resolution_config_document_uri, is_style_document_uri,
+    resolve_document_diagnostics_for_uri, resolve_source_diagnostics_for_uri,
+    resolve_workspace_folder_uri, workspace_folder_compatible,
 };
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -25,6 +26,7 @@ pub fn rust_diagnostics_scheduler_contract() -> RustDiagnosticsSchedulerBoundary
             "publishOnOpenChangeClose",
             "refreshSourceDiagnosticsForStyleChanges",
             "dedupeWatchedStyleDiagnostics",
+            "refreshSourceDiagnosticsForResolutionConfigChanges",
             "refreshOpenDocumentsOnConfigurationChange",
             "refreshOpenDocumentsAfterWorkspaceIndexing",
         ],
@@ -113,12 +115,14 @@ fn diagnostics_for_text_document_event(
 fn diagnostics_for_watched_files(state: &LspShellState, uris: Vec<String>) -> Vec<Value> {
     let mut outputs = Vec::new();
     let mut style_uris_to_refresh = BTreeSet::new();
+    let mut config_uris_to_refresh = BTreeSet::new();
     let mut source_uris_to_refresh = BTreeSet::new();
-    for uri in uris
-        .into_iter()
-        .filter(|uri| is_style_document_uri(uri.as_str()))
-    {
-        style_uris_to_refresh.insert(uri);
+    for uri in uris {
+        if is_style_document_uri(uri.as_str()) {
+            style_uris_to_refresh.insert(uri);
+        } else if is_resolution_config_document_uri(uri.as_str()) {
+            config_uris_to_refresh.insert(uri);
+        }
     }
     for uri in style_uris_to_refresh {
         outputs.push(publish_diagnostics_notification(
@@ -126,6 +130,12 @@ fn diagnostics_for_watched_files(state: &LspShellState, uris: Vec<String>) -> Ve
             resolve_document_diagnostics_for_uri(state, uri.as_str()),
         ));
         for source_uri in source_uris_for_style_change_diagnostics(state, uri.as_str()) {
+            source_uris_to_refresh.insert(source_uri);
+        }
+    }
+    for uri in config_uris_to_refresh {
+        for source_uri in source_uris_for_resolution_config_change_diagnostics(state, uri.as_str())
+        {
             source_uris_to_refresh.insert(source_uri);
         }
     }
@@ -187,6 +197,24 @@ fn source_uris_for_style_change_diagnostics(state: &LspShellState, style_uri: &s
         .document(style_uri)
         .and_then(|document| document.workspace_folder_uri.clone())
         .or_else(|| resolve_workspace_folder_uri(state, style_uri));
+    state
+        .documents
+        .values()
+        .filter(|document| !is_style_document_uri(document.uri.as_str()))
+        .filter(|document| {
+            workspace_folder_uri.as_deref().is_none_or(|workspace_uri| {
+                workspace_folder_compatible(Some(workspace_uri), document)
+            })
+        })
+        .map(|document| document.uri.clone())
+        .collect()
+}
+
+fn source_uris_for_resolution_config_change_diagnostics(
+    state: &LspShellState,
+    config_uri: &str,
+) -> Vec<String> {
+    let workspace_folder_uri = resolve_workspace_folder_uri(state, config_uri);
     state
         .documents
         .values()

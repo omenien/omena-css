@@ -31,6 +31,7 @@ pub fn rust_query_reuse_contract() -> RustQueryReuseBoundaryV0 {
             "refreshOnDocumentOpen",
             "refreshOnDocumentContentChange",
             "refreshOnWorkspaceFileReload",
+            "refreshOnResolutionConfigChange",
         ],
         request_path_policy: vec![
             "noRawSourceRescanOnProviderRequest",

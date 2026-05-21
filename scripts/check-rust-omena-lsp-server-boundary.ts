@@ -253,6 +253,11 @@ assert.ok(
 );
 assert.ok(rustSummary.diagnosticsScheduler.eventPolicy.includes("dedupeWatchedStyleDiagnostics"));
 assert.ok(
+  rustSummary.diagnosticsScheduler.eventPolicy.includes(
+    "refreshSourceDiagnosticsForResolutionConfigChanges",
+  ),
+);
+assert.ok(
   rustSummary.diagnosticsScheduler.requestPathPolicy.includes(
     "noNodeDiagnosticsSchedulerOnRustLspPath",
   ),
@@ -267,6 +272,7 @@ assert.equal(rustSummary.queryReuse.reuseModel, "documentRevisionOwnedReusableIn
 assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("sourceSyntaxIndex"));
 assert.ok(rustSummary.queryReuse.cachedSurfaces.includes("styleHoverCandidates"));
 assert.ok(rustSummary.queryReuse.invalidationPolicy.includes("refreshOnDocumentContentChange"));
+assert.ok(rustSummary.queryReuse.invalidationPolicy.includes("refreshOnResolutionConfigChange"));
 assert.ok(
   rustSummary.queryReuse.requestPathPolicy.includes("providerRequestsConsumeDocumentIndexes"),
 );

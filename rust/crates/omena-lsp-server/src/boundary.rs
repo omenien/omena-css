@@ -224,6 +224,9 @@ pub fn thin_client_endpoint_contract() -> ThinClientEndpointV0 {
             "**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs,d.ts}",
             "**/tsconfig*.json",
             "**/jsconfig*.json",
+            "**/package.json",
+            "**/vite.config.{ts,mts,cts,js,mjs,cjs}",
+            "**/webpack.config.{ts,mts,cts,js,mjs,cjs}",
         ],
         host_responsibilities: vec![
             "resolvePackagedRustBinary",

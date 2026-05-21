@@ -337,6 +337,9 @@ fn did_change_watched_files(state: &mut LspShellState, params: Option<&Value>) {
 
 fn apply_watched_file_change_to_index(state: &mut LspShellState, uri: &str, change_type: u64) {
     if !is_style_document_uri(uri) {
+        if is_resolution_config_document_uri(uri) {
+            refresh_source_indexes_for_resolution_config_change(state, uri);
+        }
         return;
     }
     if state.has_open_document_uri(uri) {
@@ -351,6 +354,57 @@ fn apply_watched_file_change_to_index(state: &mut LspShellState, uri: &str, chan
     if reload_indexed_style_document_from_disk(state, uri) {
         refresh_source_type_fact_candidates_for_referencing_documents(state, uri);
     }
+}
+
+fn refresh_source_indexes_for_resolution_config_change(
+    state: &mut LspShellState,
+    config_uri: &str,
+) {
+    let workspace_folder_uri = resolve_workspace_folder_uri(state, config_uri);
+    let source_uris = state
+        .documents
+        .values()
+        .filter(|document| !is_style_document_uri(document.uri.as_str()))
+        .filter(|document| {
+            workspace_folder_uri.as_deref().is_none_or(|workspace_uri| {
+                workspace_folder_compatible(Some(workspace_uri), document)
+            })
+        })
+        .map(|document| document.uri.clone())
+        .collect::<Vec<_>>();
+    for source_uri in source_uris {
+        if let Some(document) = state.document_mut(source_uri.as_str()) {
+            refresh_document_reusable_indexes(document);
+        }
+        refresh_source_type_fact_candidates_for_document(state, source_uri.as_str());
+    }
+}
+
+pub(crate) fn is_resolution_config_document_uri(uri: &str) -> bool {
+    let Some(path) = file_uri_to_path(uri) else {
+        return false;
+    };
+    let Some(file_name) = path.file_name().and_then(|value| value.to_str()) else {
+        return false;
+    };
+    file_name == "package.json"
+        || file_name == "jsconfig.json"
+        || (file_name.starts_with("tsconfig") && file_name.ends_with(".json"))
+        || matches!(
+            file_name,
+            "vite.config.ts"
+                | "vite.config.mts"
+                | "vite.config.cts"
+                | "vite.config.js"
+                | "vite.config.mjs"
+                | "vite.config.cjs"
+                | "webpack.config.ts"
+                | "webpack.config.mts"
+                | "webpack.config.cts"
+                | "webpack.config.js"
+                | "webpack.config.mjs"
+                | "webpack.config.cjs"
+        )
 }
 
 pub(crate) fn ensure_style_document_loaded_from_disk(state: &mut LspShellState, uri: &str) -> bool {
