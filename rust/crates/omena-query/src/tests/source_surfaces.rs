@@ -1,14 +1,19 @@
 use crate::{
-    OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceSelectorCandidateV0,
-    OmenaQuerySourceSelectorReferenceEditTargetV0, OmenaQueryStyleSelectorDefinitionV0,
-    ParserPositionV0, ParserRangeV0, canonicalize_omena_query_source_selector_references,
+    OmenaQuerySourceImportedStyleBindingV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
+    OmenaQuerySourceSelectorCandidateV0, OmenaQuerySourceSelectorReferenceEditTargetV0,
+    OmenaQueryStyleSelectorDefinitionV0, OmenaQueryStyleSourceInputV0, ParserPositionV0,
+    ParserRangeV0, canonicalize_omena_query_source_selector_references,
     is_omena_query_sass_symbol_candidate_kind, is_omena_query_sass_symbol_reference_kind,
     omena_query_sass_symbol_kind_from_candidate_kind, omena_query_sass_symbol_target_matches,
     resolve_omena_query_sass_forward_sources,
     resolve_omena_query_sass_module_use_sources_for_candidate,
     resolve_omena_query_sass_symbol_declarations, resolve_omena_query_selector_rename_edits,
     resolve_omena_query_source_candidate_selector_names,
+    resolve_omena_query_source_provider_candidates,
+    resolve_omena_query_style_selector_definitions_for_source_candidate,
     resolve_omena_query_style_uri_for_specifier, summarize_omena_query_sass_module_sources,
+    summarize_omena_query_source_diagnostics_for_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_source_import_declarations, summarize_omena_query_source_syntax_index,
     summarize_omena_query_style_hover_candidates,
 };
@@ -99,6 +104,188 @@ fn source_syntax_index_adapter_is_query_owned_without_changing_product() {
 
     canonicalize_omena_query_source_selector_references(&mut index.selector_references);
     assert_eq!(index.selector_references.len(), 1);
+}
+
+#[test]
+fn source_diagnostics_for_file_are_query_owned() {
+    let diagnostics = summarize_omena_query_source_diagnostics_for_file(
+        "file:///workspace/src/App.tsx",
+        &[OmenaQuerySourceMissingSelectorDiagnosticCandidateV0 {
+            target_style_uri: "file:///workspace/src/App.module.scss".to_string(),
+            target_style_source: ".root {\n}\n".to_string(),
+            selector_name: "missing".to_string(),
+            source_reference_range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 2,
+                    character: 18,
+                },
+                end: ParserPositionV0 {
+                    line: 2,
+                    character: 25,
+                },
+            },
+        }],
+    );
+
+    assert_eq!(diagnostics.product, "omena-query.diagnostics-for-file");
+    assert_eq!(diagnostics.file_kind, "source");
+    assert_eq!(diagnostics.diagnostic_count, 1);
+    assert_eq!(diagnostics.diagnostics[0].code, "missingSelector");
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"crossLanguageDiagnostics")
+    );
+}
+
+#[test]
+fn source_diagnostics_for_workspace_file_are_query_owned() {
+    let diagnostics = summarize_omena_query_source_diagnostics_for_workspace_file(
+        "/workspace/src/App.tsx",
+        r#"import bind from "classnames/bind";
+import styles from "./App.module.scss";
+import missing from "./Missing.module.scss";
+const cx = bind.bind(styles);
+const variant = Math.random() > 0.5 ? "chip" : "ghost";
+const dynamicPrefix = "lost-" + suffix;
+export function App({ suffix }) {
+  return <div className={cx("ghost", variant, dynamicPrefix, `empty-${suffix}`)} data-x={styles.ghost} />;
+}"#,
+        &[OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/App.module.scss".to_string(),
+            style_source: ".root {}\n.chip {}\n".to_string(),
+        }],
+        &[],
+    );
+
+    let codes = diagnostics
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.code)
+        .collect::<Vec<_>>();
+    assert_eq!(diagnostics.product, "omena-query.diagnostics-for-file");
+    assert_eq!(diagnostics.file_kind, "source");
+    assert!(codes.contains(&"missingModule"));
+    assert!(codes.contains(&"missingStaticClass"));
+    assert!(codes.contains(&"missingResolvedClassValues"));
+    assert!(codes.contains(&"missingResolvedClassDomain"));
+    assert!(codes.contains(&"missingTemplatePrefix"));
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"sourceResolvedClassDiagnostics")
+    );
+}
+
+#[test]
+fn source_provider_candidate_resolution_is_query_owned() {
+    let source_range = ParserRangeV0 {
+        start: ParserPositionV0 {
+            line: 0,
+            character: 0,
+        },
+        end: ParserPositionV0 {
+            line: 0,
+            character: 4,
+        },
+    };
+    let definition_range = ParserRangeV0 {
+        start: ParserPositionV0 {
+            line: 1,
+            character: 1,
+        },
+        end: ParserPositionV0 {
+            line: 1,
+            character: 5,
+        },
+    };
+
+    let resolution = resolve_omena_query_source_provider_candidates(
+        vec![
+            OmenaQuerySourceSelectorCandidateV0 {
+                kind: "sourceSelectorReference",
+                name: "root".to_string(),
+                range: source_range,
+                source: "omenaQuerySourceSyntaxIndex",
+                target_style_uri: Some("file:///workspace/src/App.module.scss".to_string()),
+            },
+            OmenaQuerySourceSelectorCandidateV0 {
+                kind: "sourceSelectorPrefixReference",
+                name: "btn-".to_string(),
+                range: source_range,
+                source: "omenaQuerySourceSyntaxIndex",
+                target_style_uri: Some("file:///workspace/src/App.module.scss".to_string()),
+            },
+            OmenaQuerySourceSelectorCandidateV0 {
+                kind: "sourceSelectorReference",
+                name: "ghost".to_string(),
+                range: source_range,
+                source: "omenaQuerySourceSyntaxIndex",
+                target_style_uri: Some("file:///workspace/src/Other.module.scss".to_string()),
+            },
+        ],
+        &[
+            OmenaQueryStyleSelectorDefinitionV0 {
+                uri: "file:///workspace/src/App.module.scss".to_string(),
+                name: "root".to_string(),
+                range: definition_range,
+            },
+            OmenaQueryStyleSelectorDefinitionV0 {
+                uri: "file:///workspace/src/App.module.scss".to_string(),
+                name: "btn-primary".to_string(),
+                range: definition_range,
+            },
+        ],
+    );
+
+    assert_eq!(
+        resolution
+            .matched
+            .iter()
+            .map(|candidate| candidate.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["btn-", "root"]
+    );
+    assert_eq!(
+        resolution
+            .unresolved
+            .iter()
+            .map(|candidate| candidate.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["ghost"]
+    );
+
+    let prefix_candidate = &resolution.matched[0];
+    let definitions = vec![
+        OmenaQueryStyleSelectorDefinitionV0 {
+            uri: "file:///workspace/src/App.module.scss".to_string(),
+            name: "root".to_string(),
+            range: definition_range,
+        },
+        OmenaQueryStyleSelectorDefinitionV0 {
+            uri: "file:///workspace/src/App.module.scss".to_string(),
+            name: "btn-primary".to_string(),
+            range: definition_range,
+        },
+    ];
+    assert_eq!(
+        resolve_omena_query_source_candidate_selector_names(
+            prefix_candidate,
+            definitions.as_slice(),
+            None
+        ),
+        vec!["btn-primary".to_string()]
+    );
+    assert_eq!(
+        resolve_omena_query_style_selector_definitions_for_source_candidate(
+            prefix_candidate,
+            definitions.as_slice(),
+        )
+        .into_iter()
+        .map(|definition| definition.name)
+        .collect::<Vec<_>>(),
+        vec!["btn-primary".to_string()]
+    );
 }
 
 #[test]
