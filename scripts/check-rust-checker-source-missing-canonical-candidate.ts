@@ -1,5 +1,6 @@
 import { deepStrictEqual } from "node:assert";
 import path from "node:path";
+import { deriveCheckerCanonicalCandidate } from "../packages/cme-checker/src";
 import type { ContractParityEntry } from "./contract-parity-corpus-v1";
 import { buildContractParitySnapshot } from "./contract-parity-runtime";
 import {
@@ -126,69 +127,10 @@ void (async () => {
 function deriveTsCheckerSourceMissingCanonicalCandidate(
   snapshot: Awaited<ReturnType<typeof buildContractParitySnapshot>>,
 ): CheckerSourceMissingCanonicalCandidateBundleV0 {
-  const findings = snapshot.output.checkerReport.findings
-    .filter((finding) => finding.category === "source" && SOURCE_MISSING_CODES.has(finding.code))
-    .map((finding) => {
-      const result: CheckerSourceMissingCanonicalCandidateBundleV0["findings"][number] = {
-        filePath: finding.filePath,
-        code: finding.code,
-        severity: finding.severity,
-        range: finding.range,
-        message: finding.message,
-      };
-      if (finding.analysisReason) {
-        result.analysisReason = finding.analysisReason;
-      }
-      if (finding.valueCertaintyShapeLabel) {
-        result.valueCertaintyShapeLabel = finding.valueCertaintyShapeLabel;
-      }
-      if (finding.valueDomainDerivation) {
-        result.valueDomainDerivation = finding.valueDomainDerivation;
-      }
-      return result;
-    })
-    .toSorted(compareSourceMissingFinding);
-
-  const codeCounts = Object.fromEntries(
-    [...SOURCE_MISSING_CODES]
-      .map((code) => [code, findings.filter((finding) => finding.code === code).length] as const)
-      .filter(([, count]) => count > 0),
-  );
-
-  const warningCount = findings.filter((finding) => finding.severity === "warning").length;
-  const hintCount = findings.filter((finding) => finding.severity === "hint").length;
-  const distinctFileCount = new Set(findings.map((finding) => finding.filePath)).size;
-
-  return {
-    schemaVersion: "0",
-    inputVersion: snapshot.input.version,
-    reportVersion: snapshot.output.checkerReport.version,
+  return deriveCheckerCanonicalCandidate(snapshot, {
     bundle: "source-missing",
-    distinctFileCount,
-    codeCounts,
-    summary: {
-      warnings: warningCount,
-      hints: hintCount,
-      total: findings.length,
-    },
-    findings,
-  };
-}
-
-function compareSourceMissingFinding(
-  left: CheckerSourceMissingCanonicalCandidateBundleV0["findings"][number],
-  right: CheckerSourceMissingCanonicalCandidateBundleV0["findings"][number],
-): number {
-  return (
-    left.filePath.localeCompare(right.filePath) ||
-    left.code.localeCompare(right.code) ||
-    left.severity.localeCompare(right.severity) ||
-    left.range.start.line - right.range.start.line ||
-    left.range.start.character - right.range.start.character ||
-    left.range.end.line - right.range.end.line ||
-    left.range.end.character - right.range.end.character ||
-    left.message.localeCompare(right.message) ||
-    (left.analysisReason ?? "").localeCompare(right.analysisReason ?? "") ||
-    (left.valueCertaintyShapeLabel ?? "").localeCompare(right.valueCertaintyShapeLabel ?? "")
-  );
+    category: "source",
+    codes: SOURCE_MISSING_CODES,
+    extraFields: ["analysisReason", "valueCertaintyShapeLabel", "valueDomainDerivation"],
+  }) as CheckerSourceMissingCanonicalCandidateBundleV0;
 }

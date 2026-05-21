@@ -135,6 +135,8 @@ importers:
 
   packages/check-orchestrator: {}
 
+  packages/cme-checker: {}
+
   packages/eslint-plugin:
     dependencies:
       eslint:

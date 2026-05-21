@@ -165,6 +165,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
     id: "tooling",
     matches: (scriptName) =>
       scriptName === "cme-check" ||
+      scriptName === "check:cme-checker-boundary" ||
       scriptName === "check:orchestrator-doctor" ||
       scriptName === "check:orchestrator-inventory" ||
       scriptName === "update:check-inventory",
