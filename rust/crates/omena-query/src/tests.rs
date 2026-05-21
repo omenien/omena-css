@@ -5836,6 +5836,128 @@ fn source_selector_references_emit_cross_file_summary_edges() {
 }
 
 #[test]
+fn workspace_cross_file_summary_merges_style_and_source_edge_sets() {
+    let input = sample_input();
+    let style_sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/base.module.scss".to_string(),
+            style_source: ".base { display: block; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/Button.module.scss".to_string(),
+            style_source:
+                ".root { composes: base from \"./base.module.scss\"; color: var(--brand); }"
+                    .to_string(),
+        },
+    ];
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "/tmp/Button.tsx".to_string(),
+        source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
+            .to_string(),
+    }];
+
+    let style_batch = summarize_omena_query_style_semantic_graph_batch_from_sources(
+        style_sources
+            .iter()
+            .map(|source| (source.style_path.as_str(), source.style_source.as_str())),
+        &input,
+    );
+    let source_summary = super::summarize_omena_query_source_selector_reference_cross_file_summary(
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+    );
+    let workspace_summary = super::summarize_omena_query_workspace_cross_file_summary(
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+    );
+
+    assert_eq!(workspace_summary.product, "omena-query.cross-file-summary");
+    assert_eq!(workspace_summary.status, "workspaceSummaryEdgeSeed");
+    assert_eq!(workspace_summary.summary_scope, "workspaceStyleAndSource");
+    assert_eq!(
+        workspace_summary.summary_edge_count,
+        style_batch.cross_file_summary.summary_edge_count + source_summary.summary_edge_count
+    );
+    assert!(
+        workspace_summary
+            .capabilities
+            .css_modules_composes_edges_ready
+    );
+    assert!(
+        workspace_summary
+            .capabilities
+            .style_design_token_reference_edges_ready
+    );
+    assert!(
+        workspace_summary
+            .capabilities
+            .source_selector_reference_edges_ready
+    );
+    assert!(workspace_summary.capabilities.stable_summary_hash_ready);
+    assert!(workspace_summary.capabilities.linear_provenance_ready);
+
+    let workspace_edge_ids = workspace_summary
+        .edges
+        .iter()
+        .map(|edge| edge.edge_id.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert!(
+        style_batch
+            .cross_file_summary
+            .edges
+            .iter()
+            .all(|edge| workspace_edge_ids.contains(edge.edge_id.as_str()))
+    );
+    assert!(
+        source_summary
+            .edges
+            .iter()
+            .all(|edge| workspace_edge_ids.contains(edge.edge_id.as_str()))
+    );
+}
+
+#[test]
+fn workspace_cross_file_summary_hash_tracks_source_selector_changes() {
+    let style_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/Button.module.scss".to_string(),
+        style_source: ".root { color: red; }".to_string(),
+    }];
+    let baseline = super::summarize_omena_query_workspace_cross_file_summary(
+        style_sources.as_slice(),
+        &[OmenaQuerySourceDocumentInputV0 {
+            source_path: "/tmp/Button.tsx".to_string(),
+            source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
+                .to_string(),
+        }],
+        &[],
+    );
+    let changed = super::summarize_omena_query_workspace_cross_file_summary(
+        style_sources.as_slice(),
+        &[OmenaQuerySourceDocumentInputV0 {
+            source_path: "/tmp/Button.tsx".to_string(),
+            source_source:
+                "import styles from './Button.module.scss';\nconst cls = styles.missing;\n"
+                    .to_string(),
+        }],
+        &[],
+    );
+
+    assert_ne!(baseline.summary_hash, changed.summary_hash);
+    assert!(baseline.edges.iter().any(|edge| {
+        edge.edge_kind == "sourceSelectorReference"
+            && edge.local_name.as_deref() == Some("root")
+            && edge.status == "resolved"
+    }));
+    assert!(changed.edges.iter().any(|edge| {
+        edge.edge_kind == "sourceSelectorReference"
+            && edge.local_name.as_deref() == Some("missing")
+            && edge.status == "unresolved"
+    }));
+}
+
+#[test]
 fn rename_plan_is_query_owned_and_workspace_scoped() {
     let definition = OmenaQueryStyleSelectorDefinitionV0 {
         uri: "file:///workspace/src/Component.module.scss".to_string(),

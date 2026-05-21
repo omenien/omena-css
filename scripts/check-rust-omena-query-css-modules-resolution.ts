@@ -64,6 +64,10 @@ for (const required of [
   "styleDesignTokenReference",
   "sourceSelectorReference",
   "source_selector_reference_edges_ready: true",
+  "summarize_omena_query_workspace_cross_file_summary",
+  '"workspaceSummaryEdgeSeed"',
+  '"workspaceStyleAndSource"',
+  "workspaceSummaryHashInvalidationGate",
 ]) {
   assert.ok(
     crossFileSummarySource.includes(required),
@@ -79,6 +83,8 @@ for (const required of [
   "style_semantic_graph_batch_detects_sass_module_cycles",
   "style_semantic_graph_batch_cross_file_summary_hash_tracks_edge_changes",
   "source_selector_references_emit_cross_file_summary_edges",
+  "workspace_cross_file_summary_merges_style_and_source_edge_sets",
+  "workspace_cross_file_summary_hash_tracks_source_selector_changes",
   "transitive_composes",
   "transitive_value",
   "transitive_icss",

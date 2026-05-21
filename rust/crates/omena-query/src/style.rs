@@ -16,7 +16,10 @@ pub use cascade_position::*;
 pub use code_actions::*;
 pub use completion::*;
 use cross_file_summary::summarize_omena_query_cross_file_summary;
-pub use cross_file_summary::summarize_omena_query_source_selector_reference_cross_file_summary;
+pub use cross_file_summary::{
+    summarize_omena_query_source_selector_reference_cross_file_summary,
+    summarize_omena_query_workspace_cross_file_summary,
+};
 pub use diagnostics::*;
 use parser_facade::{
     collect_omena_query_omena_parser_style_facts_raw, omena_parser_dialect_for_style_path,

@@ -299,6 +299,100 @@ pub fn summarize_omena_query_source_selector_reference_cross_file_summary(
     }
 }
 
+pub fn summarize_omena_query_workspace_cross_file_summary(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQueryCrossFileSummaryV0 {
+    let style_pairs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = super::collect_omena_query_style_fact_entries(style_pairs.as_slice());
+    let css_modules_resolution =
+        super::summarize_css_modules_cross_file_resolution(&style_fact_entries, package_manifests);
+    let sass_module_resolution =
+        super::summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+    let style_summary = summarize_omena_query_cross_file_summary(
+        &style_fact_entries,
+        &css_modules_resolution,
+        &sass_module_resolution,
+    );
+    let source_summary = summarize_omena_query_source_selector_reference_cross_file_summary(
+        style_sources,
+        source_documents,
+        package_manifests,
+    );
+
+    merge_omena_query_cross_file_summaries(
+        "workspaceSummaryEdgeSeed",
+        "workspaceStyleAndSource",
+        style_sources.len(),
+        &[style_summary, source_summary],
+    )
+}
+
+fn merge_omena_query_cross_file_summaries(
+    status: &'static str,
+    summary_scope: &'static str,
+    style_count: usize,
+    summaries: &[OmenaQueryCrossFileSummaryV0],
+) -> OmenaQueryCrossFileSummaryV0 {
+    let mut edges = summaries
+        .iter()
+        .flat_map(|summary| summary.edges.clone())
+        .collect::<Vec<_>>();
+    edges.sort_by_key(|edge| edge.edge_id.clone());
+    edges.dedup_by(|left, right| left.edge_id == right.edge_id);
+    let summary_hash = stable_omena_query_cross_file_summary_hash(edges.as_slice());
+
+    OmenaQueryCrossFileSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.cross-file-summary",
+        status,
+        summary_scope,
+        style_count,
+        summary_edge_count: edges.len(),
+        summary_hash,
+        edges,
+        capabilities: merge_omena_query_cross_file_summary_capabilities(summaries),
+        next_priorities: vec!["workspaceSummaryHashInvalidationGate"],
+    }
+}
+
+fn merge_omena_query_cross_file_summary_capabilities(
+    summaries: &[OmenaQueryCrossFileSummaryV0],
+) -> OmenaQueryCrossFileSummaryCapabilitiesV0 {
+    OmenaQueryCrossFileSummaryCapabilitiesV0 {
+        css_modules_composes_edges_ready: summaries
+            .iter()
+            .any(|summary| summary.capabilities.css_modules_composes_edges_ready),
+        css_modules_value_edges_ready: summaries
+            .iter()
+            .any(|summary| summary.capabilities.css_modules_value_edges_ready),
+        css_modules_icss_edges_ready: summaries
+            .iter()
+            .any(|summary| summary.capabilities.css_modules_icss_edges_ready),
+        sass_module_edges_ready: summaries
+            .iter()
+            .any(|summary| summary.capabilities.sass_module_edges_ready),
+        style_design_token_reference_edges_ready: summaries.iter().any(|summary| {
+            summary
+                .capabilities
+                .style_design_token_reference_edges_ready
+        }),
+        source_selector_reference_edges_ready: summaries
+            .iter()
+            .any(|summary| summary.capabilities.source_selector_reference_edges_ready),
+        stable_summary_hash_ready: summaries
+            .iter()
+            .all(|summary| summary.capabilities.stable_summary_hash_ready),
+        linear_provenance_ready: summaries
+            .iter()
+            .all(|summary| summary.capabilities.linear_provenance_ready),
+    }
+}
+
 fn build_omena_query_cross_file_summary_edge(
     edge_kind: &'static str,
     from_kind: &'static str,
