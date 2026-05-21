@@ -6164,6 +6164,74 @@ fn workspace_cross_file_summary_hash_tracks_style_edge_changes() {
 }
 
 #[test]
+fn workspace_cross_file_summary_hash_tracks_package_manifest_changes() {
+    let style_sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/fake/workspace/node_modules/@design/tokens/dist/theme.css".to_string(),
+            style_source: ":root { --brand: theme; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/fake/workspace/node_modules/@design/tokens/dist/alt.css".to_string(),
+            style_source: ":root { --brand: alt; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/fake/workspace/src/Button.module.scss".to_string(),
+            style_source: "@use \"@design/tokens/theme\";\n.root { color: var(--brand); }"
+                .to_string(),
+        },
+    ];
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "/fake/workspace/src/Button.tsx".to_string(),
+        source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
+            .to_string(),
+    }];
+    let baseline_manifest = vec![OmenaQueryStylePackageManifestV0 {
+        package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json".to_string(),
+        package_json_source: r#"{"exports":{"./theme":{"style":"./dist/theme.css"}}}"#.to_string(),
+    }];
+    let changed_manifest = vec![OmenaQueryStylePackageManifestV0 {
+        package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json".to_string(),
+        package_json_source: r#"{"exports":{"./theme":{"style":"./dist/alt.css"}}}"#.to_string(),
+    }];
+    let baseline = super::summarize_omena_query_workspace_cross_file_summary(
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        baseline_manifest.as_slice(),
+    );
+    let changed = super::summarize_omena_query_workspace_cross_file_summary(
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        changed_manifest.as_slice(),
+    );
+
+    assert_ne!(baseline.summary_hash, changed.summary_hash);
+    assert!(baseline.edges.iter().any(|edge| {
+        edge.edge_kind == "sassUse"
+            && edge.source.as_deref() == Some("@design/tokens/theme")
+            && edge.target_path.as_deref()
+                == Some("/fake/workspace/node_modules/@design/tokens/dist/theme.css")
+            && edge.status == "resolved"
+    }));
+    assert!(changed.edges.iter().any(|edge| {
+        edge.edge_kind == "sassUse"
+            && edge.source.as_deref() == Some("@design/tokens/theme")
+            && edge.target_path.as_deref()
+                == Some("/fake/workspace/node_modules/@design/tokens/dist/alt.css")
+            && edge.status == "resolved"
+    }));
+    assert!(baseline.edges.iter().any(|edge| {
+        edge.edge_kind == "sourceSelectorReference"
+            && edge.local_name.as_deref() == Some("root")
+            && edge.status == "resolved"
+    }));
+    assert!(changed.edges.iter().any(|edge| {
+        edge.edge_kind == "sourceSelectorReference"
+            && edge.local_name.as_deref() == Some("root")
+            && edge.status == "resolved"
+    }));
+}
+
+#[test]
 fn rename_plan_is_query_owned_and_workspace_scoped() {
     let definition = OmenaQueryStyleSelectorDefinitionV0 {
         uri: "file:///workspace/src/Component.module.scss".to_string(),

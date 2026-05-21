@@ -87,6 +87,7 @@ for (const required of [
   "workspace_cross_file_summary_merges_style_and_source_edge_sets",
   "workspace_cross_file_summary_hash_tracks_source_selector_changes",
   "workspace_cross_file_summary_hash_tracks_style_edge_changes",
+  "workspace_cross_file_summary_hash_tracks_package_manifest_changes",
   "transitive_composes",
   "transitive_value",
   "transitive_icss",
