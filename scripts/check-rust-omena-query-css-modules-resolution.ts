@@ -82,6 +82,7 @@ for (const required of [
   "style_semantic_graph_batch_resolves_sass_module_graph_closure_and_filters",
   "style_semantic_graph_batch_detects_sass_module_cycles",
   "style_semantic_graph_batch_cross_file_summary_hash_tracks_edge_changes",
+  "cross_file_summary_edges_are_equivalent_to_resolution_products",
   "source_selector_references_emit_cross_file_summary_edges",
   "workspace_cross_file_summary_merges_style_and_source_edge_sets",
   "workspace_cross_file_summary_hash_tracks_source_selector_changes",

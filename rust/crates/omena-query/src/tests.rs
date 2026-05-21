@@ -4474,6 +4474,142 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
 }
 
 #[test]
+fn cross_file_summary_edges_are_equivalent_to_resolution_products() {
+    let input = sample_input();
+    let style_sources = [
+        (
+            "/tmp/base.module.scss",
+            ".foundation { display: block; } .base { composes: foundation; --brand: red; }",
+        ),
+        (
+            "/tmp/tokens.module.scss",
+            "@value primary: red; :export { raw: red; exported: raw; }",
+        ),
+        ("/tmp/_palette.scss", "$tone: red;"),
+        ("/tmp/_theme.scss", "@forward \"./palette\" show $tone;"),
+        (
+            "/tmp/App.module.scss",
+            "@use \"./theme\"; @value primary as localPrimary from \"./tokens.module.scss\"; @value accent: localPrimary; :import(\"./tokens.module.scss\") { imported: exported; } :export { forwarded: imported; } .btn { composes: base from \"./base.module.scss\"; color: var(--brand); }",
+        ),
+    ];
+    let batch =
+        summarize_omena_query_style_semantic_graph_batch_from_sources(style_sources, &input);
+    let summary = &batch.cross_file_summary;
+
+    let custom_property_reference_count = style_sources
+        .iter()
+        .filter_map(|(path, source)| summarize_omena_query_style_document(path, source))
+        .map(|summary| summary.custom_property_ref_names.len())
+        .sum::<usize>();
+    let expected_summary_edge_count = batch.css_modules_resolution.edges.len()
+        + batch.css_modules_resolution.composes_closure_edges.len()
+        + batch.css_modules_resolution.value_closure_edges.len()
+        + batch.css_modules_resolution.icss_closure_edges.len()
+        + batch.sass_module_resolution.edges.len()
+        + batch.sass_module_resolution.graph_closure_edges.len()
+        + custom_property_reference_count;
+
+    assert_eq!(summary.summary_edge_count, expected_summary_edge_count);
+    assert_eq!(summary.edges.len(), expected_summary_edge_count);
+
+    for edge in &batch.css_modules_resolution.edges {
+        let edge_kind = match edge.import_kind {
+            "composes" => "cssModulesComposesImport",
+            "value" => "cssModulesValueImport",
+            "icss" => "cssModulesIcssImport",
+            _ => "cssModulesImport",
+        };
+        assert!(
+            summary.edges.iter().any(|summary_edge| {
+                summary_edge.edge_kind == edge_kind
+                    && summary_edge.from_path == edge.from_style_path
+                    && summary_edge.source.as_deref() == Some(edge.source.as_str())
+                    && summary_edge.target_path == edge.resolved_style_path
+                    && summary_edge.target_names == edge.imported_names
+                    && summary_edge.status == edge.status
+            }),
+            "missing CSS Modules import summary edge for {edge_kind} {}",
+            edge.source
+        );
+    }
+
+    for edge in &batch.css_modules_resolution.composes_closure_edges {
+        assert!(summary.edges.iter().any(|summary_edge| {
+            summary_edge.edge_kind == "cssModulesComposesClosure"
+                && summary_edge.from_path == edge.from_style_path
+                && summary_edge.target_path.as_deref() == Some(edge.target_style_path.as_str())
+                && summary_edge.owner_selector_name.as_deref()
+                    == Some(edge.owner_selector_name.as_str())
+                && summary_edge.remote_name.as_deref() == Some(edge.target_selector_name.as_str())
+                && summary_edge.target_names == vec![edge.target_selector_name.clone()]
+                && summary_edge.status == "reachable"
+        }));
+    }
+
+    for edge in &batch.css_modules_resolution.value_closure_edges {
+        assert!(summary.edges.iter().any(|summary_edge| {
+            summary_edge.edge_kind == "cssModulesValueClosure"
+                && summary_edge.from_path == edge.from_style_path
+                && summary_edge.target_path.as_deref() == Some(edge.target_style_path.as_str())
+                && summary_edge.local_name.as_deref() == Some(edge.value_name.as_str())
+                && summary_edge.remote_name.as_deref() == Some(edge.target_value_name.as_str())
+                && summary_edge.target_names == vec![edge.target_value_name.clone()]
+                && summary_edge.status == "reachable"
+        }));
+    }
+
+    for edge in &batch.css_modules_resolution.icss_closure_edges {
+        assert!(summary.edges.iter().any(|summary_edge| {
+            summary_edge.edge_kind == "cssModulesIcssClosure"
+                && summary_edge.from_path == edge.from_style_path
+                && summary_edge.target_path.as_deref() == Some(edge.target_style_path.as_str())
+                && summary_edge.local_name.as_deref() == Some(edge.name.as_str())
+                && summary_edge.remote_name.as_deref() == Some(edge.target_name.as_str())
+                && summary_edge.target_names == vec![edge.target_name.clone()]
+                && summary_edge.status == "reachable"
+        }));
+    }
+
+    for edge in &batch.sass_module_resolution.edges {
+        assert!(summary.edges.iter().any(|summary_edge| {
+            summary_edge.edge_kind == edge.edge_kind
+                && summary_edge.from_path == edge.from_style_path
+                && summary_edge.source.as_deref() == Some(edge.source.as_str())
+                && summary_edge.target_path == edge.resolved_style_path
+                && summary_edge.local_name == edge.namespace
+                && summary_edge.remote_name == edge.forward_prefix
+                && summary_edge.target_names == edge.visibility_filter_names
+                && summary_edge.status == edge.status
+        }));
+    }
+
+    for edge in &batch.sass_module_resolution.graph_closure_edges {
+        assert!(summary.edges.iter().any(|summary_edge| {
+            summary_edge.edge_kind == "sassModuleGraphClosure"
+                && summary_edge.from_path == edge.from_style_path
+                && summary_edge.target_path.as_deref() == Some(edge.target_style_path.as_str())
+                && summary_edge.local_name == edge.namespace
+                && summary_edge.remote_name == edge.forward_prefix
+                && summary_edge.target_names == edge.visibility_filter_names
+                && summary_edge.status == "reachable"
+        }));
+    }
+
+    assert_eq!(
+        summary
+            .edges
+            .iter()
+            .filter(|edge| edge.edge_kind == "styleDesignTokenReference")
+            .count(),
+        custom_property_reference_count
+    );
+    assert!(summary.edges.iter().all(|edge| {
+        edge.linear_provenance.semiring_identifier() == "lin01"
+            && edge.linear_provenance.labels() == edge.provenance
+    }));
+}
+
+#[test]
 fn style_semantic_graph_batch_cross_file_summary_hash_tracks_edge_changes() {
     let input = sample_input();
     let baseline = summarize_omena_query_style_semantic_graph_batch_from_sources(
