@@ -147,8 +147,10 @@ pub struct OmenaQueryCrossFileSummaryV0 {
 pub struct OmenaQueryCrossFileSummaryEdgeV0 {
     pub edge_id: String,
     pub edge_kind: &'static str,
-    pub from_style_path: String,
-    pub target_style_path: Option<String>,
+    pub from_kind: &'static str,
+    pub from_path: String,
+    pub target_kind: Option<&'static str>,
+    pub target_path: Option<String>,
     pub source: Option<String>,
     pub owner_selector_name: Option<String>,
     pub local_name: Option<String>,

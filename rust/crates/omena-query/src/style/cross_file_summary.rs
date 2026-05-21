@@ -31,7 +31,9 @@ pub(super) fn summarize_omena_query_cross_file_summary(
         };
         edges.push(build_omena_query_cross_file_summary_edge(
             edge_kind,
+            "style",
             edge.from_style_path.clone(),
+            edge.resolved_style_path.as_ref().map(|_| "style"),
             edge.resolved_style_path.clone(),
             Some(edge.source.clone()),
             None,
@@ -46,7 +48,9 @@ pub(super) fn summarize_omena_query_cross_file_summary(
     for edge in &css_modules_resolution.composes_closure_edges {
         edges.push(build_omena_query_cross_file_summary_edge(
             "cssModulesComposesClosure",
+            "style",
             edge.from_style_path.clone(),
+            Some("style"),
             Some(edge.target_style_path.clone()),
             None,
             Some(edge.owner_selector_name.clone()),
@@ -64,7 +68,9 @@ pub(super) fn summarize_omena_query_cross_file_summary(
     for edge in &css_modules_resolution.value_closure_edges {
         edges.push(build_omena_query_cross_file_summary_edge(
             "cssModulesValueClosure",
+            "style",
             edge.from_style_path.clone(),
+            Some("style"),
             Some(edge.target_style_path.clone()),
             None,
             None,
@@ -82,7 +88,9 @@ pub(super) fn summarize_omena_query_cross_file_summary(
     for edge in &css_modules_resolution.icss_closure_edges {
         edges.push(build_omena_query_cross_file_summary_edge(
             "cssModulesIcssClosure",
+            "style",
             edge.from_style_path.clone(),
+            Some("style"),
             Some(edge.target_style_path.clone()),
             None,
             None,
@@ -100,7 +108,9 @@ pub(super) fn summarize_omena_query_cross_file_summary(
     for edge in &sass_module_resolution.edges {
         edges.push(build_omena_query_cross_file_summary_edge(
             edge.edge_kind,
+            "style",
             edge.from_style_path.clone(),
+            edge.resolved_style_path.as_ref().map(|_| "style"),
             edge.resolved_style_path.clone(),
             Some(edge.source.clone()),
             None,
@@ -118,7 +128,9 @@ pub(super) fn summarize_omena_query_cross_file_summary(
     for edge in &sass_module_resolution.graph_closure_edges {
         edges.push(build_omena_query_cross_file_summary_edge(
             "sassModuleGraphClosure",
+            "style",
             edge.from_style_path.clone(),
+            Some("style"),
             Some(edge.target_style_path.clone()),
             None,
             None,
@@ -153,7 +165,9 @@ pub(super) fn summarize_omena_query_cross_file_summary(
             };
             edges.push(build_omena_query_cross_file_summary_edge(
                 "styleDesignTokenReference",
+                "style",
                 entry.style_path.clone(),
+                target_style_path.as_ref().map(|_| "style"),
                 target_style_path,
                 None,
                 None,
@@ -198,10 +212,99 @@ pub(super) fn summarize_omena_query_cross_file_summary(
     }
 }
 
+pub fn summarize_omena_query_source_selector_reference_cross_file_summary(
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> OmenaQueryCrossFileSummaryV0 {
+    let definitions =
+        super::source_refs::summarize_omena_query_style_selector_definitions(style_sources);
+    let references = super::source_refs::collect_omena_query_source_selector_references(
+        style_sources,
+        source_documents,
+        package_manifests,
+    );
+    let mut edges = references
+        .into_iter()
+        .map(|reference| {
+            let candidate = reference.candidate;
+            let source_candidate = OmenaQuerySourceSelectorCandidateV0 {
+                kind: candidate.kind,
+                name: candidate.name.clone(),
+                range: candidate.range,
+                source: candidate.source,
+                target_style_uri: candidate.target_style_uri.clone(),
+            };
+            let matched_definitions =
+                resolve_omena_query_style_selector_definitions_for_source_candidate(
+                    &source_candidate,
+                    definitions.as_slice(),
+                );
+            let target_names = if candidate.kind == "sourceSelectorPrefixReference" {
+                matched_definitions
+                    .iter()
+                    .map(|definition| definition.name.clone())
+                    .collect::<Vec<_>>()
+            } else {
+                vec![candidate.name.clone()]
+            };
+            let status = if matched_definitions.is_empty() {
+                "unresolved"
+            } else {
+                "resolved"
+            };
+            build_omena_query_cross_file_summary_edge(
+                candidate.kind,
+                "source",
+                candidate.uri,
+                candidate.target_style_uri.as_ref().map(|_| "style"),
+                candidate.target_style_uri,
+                None,
+                None,
+                Some(candidate.name),
+                None,
+                target_names,
+                status,
+                vec![
+                    "omena-query.source-selector-references",
+                    "omena-query.style-selector-definitions",
+                ],
+            )
+        })
+        .collect::<Vec<_>>();
+
+    edges.sort_by_key(|edge| edge.edge_id.clone());
+    let summary_hash = stable_omena_query_cross_file_summary_hash(&edges);
+
+    OmenaQueryCrossFileSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.cross-file-summary",
+        status: "sourceSelectorSummaryEdgeSeed",
+        summary_scope: "sourceSelectorReferences",
+        style_count: style_sources.len(),
+        summary_edge_count: edges.len(),
+        summary_hash,
+        edges,
+        capabilities: OmenaQueryCrossFileSummaryCapabilitiesV0 {
+            css_modules_composes_edges_ready: false,
+            css_modules_value_edges_ready: false,
+            css_modules_icss_edges_ready: false,
+            sass_module_edges_ready: false,
+            style_design_token_reference_edges_ready: false,
+            source_selector_reference_edges_ready: true,
+            stable_summary_hash_ready: true,
+            linear_provenance_ready: true,
+        },
+        next_priorities: vec!["sourceSelectorReferenceSummaryEquivalenceGate"],
+    }
+}
+
 fn build_omena_query_cross_file_summary_edge(
     edge_kind: &'static str,
-    from_style_path: String,
-    target_style_path: Option<String>,
+    from_kind: &'static str,
+    from_path: String,
+    target_kind: Option<&'static str>,
+    target_path: Option<String>,
     source: Option<String>,
     owner_selector_name: Option<String>,
     local_name: Option<String>,
@@ -212,8 +315,10 @@ fn build_omena_query_cross_file_summary_edge(
 ) -> OmenaQueryCrossFileSummaryEdgeV0 {
     let edge_id = omena_query_cross_file_summary_edge_id(
         edge_kind,
-        from_style_path.as_str(),
-        target_style_path.as_deref(),
+        from_kind,
+        from_path.as_str(),
+        target_kind,
+        target_path.as_deref(),
         source.as_deref(),
         owner_selector_name.as_deref(),
         local_name.as_deref(),
@@ -225,8 +330,10 @@ fn build_omena_query_cross_file_summary_edge(
     OmenaQueryCrossFileSummaryEdgeV0 {
         edge_id,
         edge_kind,
-        from_style_path,
-        target_style_path,
+        from_kind,
+        from_path,
+        target_kind,
+        target_path,
         source,
         owner_selector_name,
         local_name,
@@ -240,8 +347,10 @@ fn build_omena_query_cross_file_summary_edge(
 
 fn omena_query_cross_file_summary_edge_id(
     edge_kind: &str,
-    from_style_path: &str,
-    target_style_path: Option<&str>,
+    from_kind: &str,
+    from_path: &str,
+    target_kind: Option<&str>,
+    target_path: Option<&str>,
     source: Option<&str>,
     owner_selector_name: Option<&str>,
     local_name: Option<&str>,
@@ -249,10 +358,12 @@ fn omena_query_cross_file_summary_edge_id(
     target_names: &[String],
 ) -> String {
     format!(
-        "{}|from:{}|target:{}|source:{}|owner:{}|local:{}|remote:{}|names:{}",
+        "{}|fromKind:{}|from:{}|targetKind:{}|target:{}|source:{}|owner:{}|local:{}|remote:{}|names:{}",
         edge_kind,
-        from_style_path,
-        target_style_path.unwrap_or("-"),
+        from_kind,
+        from_path,
+        target_kind.unwrap_or("-"),
+        target_path.unwrap_or("-"),
         source.unwrap_or("-"),
         owner_selector_name.unwrap_or("-"),
         local_name.unwrap_or("-"),

@@ -4185,8 +4185,10 @@ fn style_semantic_graph_batch_resolves_sass_module_graph_closure_and_filters() {
     );
     assert!(batch.cross_file_summary.edges.iter().any(|edge| {
         edge.edge_kind == "sassForward"
-            && edge.from_style_path == "/tmp/_tokens.scss"
-            && edge.target_style_path.as_deref() == Some("/tmp/_palette.scss")
+            && edge.from_kind == "style"
+            && edge.from_path == "/tmp/_tokens.scss"
+            && edge.target_kind == Some("style")
+            && edge.target_path.as_deref() == Some("/tmp/_palette.scss")
             && edge.source.as_deref() == Some("./palette")
             && edge.provenance
                 == vec![
@@ -4321,7 +4323,7 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
         return;
     };
     assert_eq!(
-        composes_summary.target_style_path.as_deref(),
+        composes_summary.target_path.as_deref(),
         Some("/tmp/base.module.scss")
     );
     assert_eq!(
@@ -4362,8 +4364,10 @@ fn style_semantic_graph_batch_resolves_css_modules_import_seed_edges() {
     );
     assert!(batch.cross_file_summary.edges.iter().any(|edge| {
         edge.edge_kind == "cssModulesComposesClosure"
-            && edge.from_style_path == "/tmp/App.module.scss"
-            && edge.target_style_path.as_deref() == Some("/tmp/base.module.scss")
+            && edge.from_kind == "style"
+            && edge.from_path == "/tmp/App.module.scss"
+            && edge.target_kind == Some("style")
+            && edge.target_path.as_deref() == Some("/tmp/base.module.scss")
             && edge.owner_selector_name.as_deref() == Some("btn")
             && edge.remote_name.as_deref() == Some("foundation")
             && edge.status == "reachable"
@@ -4494,12 +4498,12 @@ fn style_semantic_graph_batch_cross_file_summary_hash_tracks_edge_changes() {
     );
     assert!(baseline.cross_file_summary.edges.iter().any(|edge| {
         edge.edge_kind == "cssModulesComposesImport"
-            && edge.target_style_path.as_deref() == Some("/tmp/base.module.scss")
+            && edge.target_path.as_deref() == Some("/tmp/base.module.scss")
             && edge.status == "resolved"
     }));
     assert!(changed.cross_file_summary.edges.iter().any(|edge| {
         edge.edge_kind == "cssModulesComposesImport"
-            && edge.target_style_path.is_none()
+            && edge.target_path.is_none()
             && edge.status == "unresolvedSource"
     }));
 }
@@ -5787,6 +5791,48 @@ fn refs_for_class_is_query_owned_and_workspace_scoped() {
         refs.ready_surfaces
             .contains(&"workspaceWideSelectorReferences")
     );
+}
+
+#[test]
+fn source_selector_references_emit_cross_file_summary_edges() {
+    let summary = super::summarize_omena_query_source_selector_reference_cross_file_summary(
+        &[super::OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/Button.module.scss".to_string(),
+            style_source: ".root { color: red; }".to_string(),
+        }],
+        &[super::OmenaQuerySourceDocumentInputV0 {
+            source_path: "/tmp/Button.tsx".to_string(),
+            source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
+                .to_string(),
+        }],
+        &[],
+    );
+
+    assert_eq!(summary.product, "omena-query.cross-file-summary");
+    assert_eq!(summary.status, "sourceSelectorSummaryEdgeSeed");
+    assert_eq!(summary.summary_scope, "sourceSelectorReferences");
+    assert_eq!(summary.summary_edge_count, 1);
+    assert_eq!(summary.summary_hash.len(), 16);
+    assert!(summary.capabilities.source_selector_reference_edges_ready);
+    assert!(!summary.capabilities.css_modules_composes_edges_ready);
+
+    let edge = &summary.edges[0];
+    assert_eq!(edge.edge_kind, "sourceSelectorReference");
+    assert_eq!(edge.from_kind, "source");
+    assert_eq!(edge.from_path, "/tmp/Button.tsx");
+    assert_eq!(edge.target_kind, Some("style"));
+    assert_eq!(edge.target_path.as_deref(), Some("/tmp/Button.module.scss"));
+    assert_eq!(edge.local_name.as_deref(), Some("root"));
+    assert_eq!(edge.target_names, vec!["root"]);
+    assert_eq!(edge.status, "resolved");
+    assert_eq!(
+        edge.provenance,
+        vec![
+            "omena-query.source-selector-references",
+            "omena-query.style-selector-definitions",
+        ]
+    );
+    assert_eq!(edge.linear_provenance.labels(), edge.provenance);
 }
 
 #[test]

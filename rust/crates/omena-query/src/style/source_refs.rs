@@ -349,7 +349,7 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file(
     }
 }
 
-fn summarize_omena_query_style_selector_definitions(
+pub(super) fn summarize_omena_query_style_selector_definitions(
     style_sources: &[OmenaQueryStyleSourceInputV0],
 ) -> Vec<OmenaQueryStyleSelectorDefinitionV0> {
     let mut definitions = Vec::new();
@@ -419,7 +419,7 @@ fn collect_omena_query_source_selector_reference_edit_targets(
     .collect()
 }
 
-fn collect_omena_query_source_selector_references(
+pub(super) fn collect_omena_query_source_selector_references(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
@@ -511,9 +511,9 @@ fn collect_omena_query_source_selector_references(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct OmenaQueryWorkspaceSourceReferenceCandidateV0 {
-    is_exact: bool,
-    candidate: OmenaQuerySourceSelectorReferenceCandidateV0,
+pub(super) struct OmenaQueryWorkspaceSourceReferenceCandidateV0 {
+    pub(super) is_exact: bool,
+    pub(super) candidate: OmenaQuerySourceSelectorReferenceCandidateV0,
 }
 
 fn summarize_omena_query_unresolved_source_reference_diagnostic(
