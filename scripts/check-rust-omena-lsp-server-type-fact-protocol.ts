@@ -141,11 +141,22 @@ async function runTypeFactProtocolSmoke(): Promise<void> {
       position: sizePosition,
       context: { includeDeclaration: true },
     });
+    const prepareRename = await client.request("textDocument/prepareRename", {
+      textDocument: { uri: sourceUri },
+      position: sizePosition,
+    });
+    const rename = await client.request("textDocument/rename", {
+      textDocument: { uri: sourceUri },
+      position: sizePosition,
+      newName: "large",
+    });
 
     const hoverText = readString(hover, ["contents", "value"]);
     const fontSizeHoverText = readString(fontSizeHover, ["contents", "value"]);
     const definitionUris = readArray(definition).map((location) => readString(location, ["uri"]));
     const referenceUris = readArray(references).map((location) => readString(location, ["uri"]));
+    const prepareRenamePlaceholder = readString(prepareRename, ["placeholder"]);
+    const renameStyleEdits = readWorkspaceEdits(rename, styleUri);
 
     assert(
       hoverText.includes("`.medium`") && hoverText.includes("`.small`"),
@@ -165,12 +176,22 @@ async function runTypeFactProtocolSmoke(): Promise<void> {
         referenceUris.some((uri) => fileUriEquivalent(uri, sourceUri)),
       `references did not include style and source locations: ${JSON.stringify(references)}`,
     );
+    assert(
+      prepareRenamePlaceholder === "medium" || prepareRenamePlaceholder === "small",
+      `prepareRename did not route through projected selector candidates: ${JSON.stringify(prepareRename)}`,
+    );
+    assert(
+      renameStyleEdits.length > 0,
+      `rename did not produce projected style selector edits: ${JSON.stringify(rename)}`,
+    );
 
     process.stdout.write(
       [
         "validated rust omena-lsp-server type-fact protocol:",
         `definitions=${definitionUris.length}`,
         `references=${referenceUris.length}`,
+        `prepareRename=${prepareRenamePlaceholder}`,
+        `renameStyleEdits=${renameStyleEdits.length}`,
         "diskFallback=unopened-style",
         "unicodePosition=utf16",
         "union=nullish-soft-skip",
@@ -345,6 +366,30 @@ function readString(value: unknown, pathParts: readonly string[]): string {
     throw new Error(`Expected string at ${pathParts.join(".")}, got ${JSON.stringify(value)}`);
   }
   return current;
+}
+
+function readWorkspaceEdits(value: unknown, targetUri: string): readonly unknown[] {
+  const changes = readRecord(value, ["changes"]);
+  for (const [uri, edits] of Object.entries(changes)) {
+    if (fileUriEquivalent(uri, targetUri)) {
+      return readArray(edits);
+    }
+  }
+  throw new Error(`Expected workspace edits for ${targetUri}, got ${JSON.stringify(value)}`);
+}
+
+function readRecord(value: unknown, pathParts: readonly string[]): Record<string, unknown> {
+  let current = value;
+  for (const pathPart of pathParts) {
+    current =
+      current && typeof current === "object"
+        ? (current as Record<string, unknown>)[pathPart]
+        : undefined;
+  }
+  if (!current || typeof current !== "object" || Array.isArray(current)) {
+    throw new Error(`Expected object at ${pathParts.join(".")}, got ${JSON.stringify(value)}`);
+  }
+  return current as Record<string, unknown>;
 }
 
 function assert(condition: unknown, message: string): asserts condition {
