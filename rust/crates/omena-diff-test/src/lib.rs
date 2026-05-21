@@ -920,8 +920,8 @@ mod tests {
         assert!(!report.stage2_blocking);
         assert_eq!(report.required_min_fixture_count_for_stage2, 25);
         assert_eq!(report.required_consecutive_green_runs, 5);
-        assert_eq!(report.consecutive_green_runs, 2);
-        assert_eq!(report.green_run_evidence_count, 2);
+        assert_eq!(report.consecutive_green_runs, 3);
+        assert_eq!(report.green_run_evidence_count, 3);
         assert_eq!(report.known_failure_review_interval_days, 30);
         assert!(!report.stage2_candidate_ready);
         assert!(
