@@ -323,31 +323,18 @@ fn bundler_style_module_base_candidates(
     source: &str,
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
 ) -> Vec<PathBuf> {
-    let mut matches = bundler_path_mappings
-        .iter()
-        .enumerate()
-        .filter_map(|(index, mapping)| {
-            let remaining = match_bundler_path_alias_pattern(&mapping.pattern, source)?;
-            Some((index, mapping.pattern.len(), mapping, remaining))
-        })
-        .collect::<Vec<_>>();
-    matches.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
-
-    let Some(best_pattern_len) = matches.first().map(|(_, pattern_len, _, _)| *pattern_len) else {
-        return Vec::new();
-    };
-
     let mut candidates = Vec::new();
-    for (_, pattern_len, mapping, remaining) in matches {
-        if pattern_len != best_pattern_len {
-            break;
-        }
+    for mapping in bundler_path_mappings {
+        let Some(remaining) = match_bundler_path_alias_pattern(&mapping.pattern, source) else {
+            continue;
+        };
         let base_path = if remaining.is_empty() {
             PathBuf::from(&mapping.target_path)
         } else {
             Path::new(&mapping.target_path).join(remaining)
         };
         push_unique_pathbuf(&mut candidates, base_path);
+        break;
     }
     candidates
 }
@@ -367,6 +354,9 @@ fn match_bundler_path_alias_pattern<'source>(
 ) -> Option<&'source str> {
     if pattern.is_empty() {
         return None;
+    }
+    if let Some(exact_pattern) = pattern.strip_suffix('$') {
+        return (source == exact_pattern).then_some("");
     }
     if source == pattern {
         return Some("");

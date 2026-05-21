@@ -2727,20 +2727,34 @@ fn resolves_classnames_bind_source_definition_through_webpack_bundler_alias() ->
     let target_style_path = workspace_path
         .join("src")
         .join("theme")
+        .join("deep")
+        .join("some-component.module.scss");
+    let specific_style_path = workspace_path
+        .join("src")
+        .join("specific")
         .join("some-component.module.scss");
     fs::create_dir_all(fixture_parent(
         target_style_path.as_path(),
         "target style fixture path has parent directory",
     )?)?;
+    fs::create_dir_all(fixture_parent(
+        specific_style_path.as_path(),
+        "specific style fixture path has parent directory",
+    )?)?;
     fs::write(
         workspace_path.join("webpack.config.js"),
-        r#"module.exports = { resolve: { alias: [{ find: "@theme", replacement: "./src/theme" }] } };"#,
+        r#"module.exports = { resolve: { alias: [{ find: "@theme", replacement: "./src/theme" }, { find: "@theme/deep", replacement: "./src/specific" }] } };"#,
     )?;
     fs::write(target_style_path.as_path(), ".article { display: block; }")?;
+    fs::write(
+        specific_style_path.as_path(),
+        ".article { color: hotpink; }",
+    )?;
 
     let workspace_uri = path_to_file_uri(workspace_path.as_path());
     let source_uri = path_to_file_uri(workspace_path.join("src/App.tsx").as_path());
     let target_style_uri = path_to_file_uri(target_style_path.as_path());
+    let specific_style_uri = path_to_file_uri(specific_style_path.as_path());
     let unrelated_style_uri =
         path_to_file_uri(workspace_path.join("src/other.module.scss").as_path());
 
@@ -2771,7 +2785,7 @@ fn resolves_classnames_bind_source_definition_through_webpack_bundler_alias() ->
                     "uri": source_uri,
                     "languageId": "typescriptreact",
                     "version": 1,
-                    "text": "import bind from \"classnames/bind\";\nimport styles from \"@theme/some-component.module.scss\";\nconst cx = bind.bind(styles);\nexport const className = cx(\"article\");",
+                    "text": "import bind from \"classnames/bind\";\nimport styles from \"@theme/deep/some-component.module.scss\";\nconst cx = bind.bind(styles);\nexport const className = cx(\"article\");",
                 },
             },
         }),
@@ -2787,6 +2801,21 @@ fn resolves_classnames_bind_source_definition_through_webpack_bundler_alias() ->
                     "languageId": "scss",
                     "version": 1,
                     "text": ".article { display: block; }",
+                },
+            },
+        }),
+    );
+    handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": specific_style_uri,
+                    "languageId": "scss",
+                    "version": 1,
+                    "text": ".article { color: hotpink; }",
                 },
             },
         }),
