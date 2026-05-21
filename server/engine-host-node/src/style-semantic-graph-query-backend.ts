@@ -1546,10 +1546,10 @@ function readPackageManifestStyleEntry(
   if (!packageJson) return null;
   const entry = subpath
     ? readPackageExportSubpathEntry(packageJson.exports, subpath)
-    : (readPackageJsonStringField(packageJson, "sass") ??
+    : (readPackageExportEntry(packageJson.exports) ??
+      readPackageJsonStringField(packageJson, "sass") ??
       readPackageJsonStringField(packageJson, "scss") ??
-      readPackageJsonStringField(packageJson, "style") ??
-      readPackageExportEntry(packageJson.exports));
+      readPackageJsonStringField(packageJson, "style"));
   return entry ? normalizePackageJsonEntry(entry) : null;
 }
 
@@ -1617,11 +1617,16 @@ function readPackageExportEntry(exportsValue: unknown): string | null {
   if (!isObjectRecord(exportsValue)) return null;
   const rootEntry = readPackageExportEntry(exportsValue["."]);
   if (rootEntry) return rootEntry;
-  for (const key of ["sass", "scss", "style", "default", "import", "require"]) {
-    const entry = readPackageExportEntry(exportsValue[key]);
+  for (const [key, value] of Object.entries(exportsValue)) {
+    if (!isPackageStyleExportCondition(key)) continue;
+    const entry = readPackageExportEntry(value);
     if (entry) return entry;
   }
   return null;
+}
+
+function isPackageStyleExportCondition(key: string): boolean {
+  return ["sass", "scss", "style", "default", "import", "require"].includes(key);
 }
 
 function normalizePackageJsonEntry(entry: string): string {

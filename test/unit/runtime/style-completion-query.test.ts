@@ -402,6 +402,64 @@ describe("resolveStyleCompletionItems", () => {
     expect(result.map((item) => item.label)).toEqual(["--color-gray-700", "--spacing-md"]);
   });
 
+  it("respects package export condition object order for package-root completions", () => {
+    const scss = `@use "@design/tokens";
+
+.button {
+  color: var(--)
+}
+`;
+    const packageJson = `{"exports":{".":{"style":"./variables.css","sass":"./src/index.scss"}}}`;
+    const tokensCss = `:root { --color-gray-700: #767678; }`;
+    const tokensScss = `$gray700: #767678;`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const tokensCssDocument = parseStyleDocument(tokensCss, PACKAGE_VARIABLES_CSS_PATH);
+    const tokensScssDocument = parseStyleDocument(tokensScss, PACKAGE_TOKENS_INDEX_PATH);
+
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 3,
+      character: 15,
+      styleDocument,
+      styleDocumentForPath: styleDocumentMap([
+        styleDocument,
+        tokensCssDocument,
+        tokensScssDocument,
+      ]),
+      readFile: (filePath) => (filePath === PACKAGE_TOKENS_JSON_PATH ? packageJson : null),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--color-gray-700"]);
+    expect(result[0]?.sourceFilePath).toBe(PACKAGE_VARIABLES_CSS_PATH);
+  });
+
+  it("prefers package exports over legacy top-level package style fields", () => {
+    const scss = `@use "@design/tokens";
+
+.button {
+  color: var(--)
+}
+`;
+    const packageJson = `{"style":"legacy.css","exports":{".":{"style":"./variables.css"}}}`;
+    const tokensCss = `:root { --color-gray-700: #767678; }`;
+    const legacyCss = `:root { --legacy-only: #000; }`;
+    const styleDocument = parseStyleDocument(scss, SCSS_PATH);
+    const tokensDocument = parseStyleDocument(tokensCss, PACKAGE_VARIABLES_CSS_PATH);
+    const legacyDocument = parseStyleDocument(legacyCss, `${PACKAGE_TOKENS_ROOT}/legacy.css`);
+
+    const result = resolveStyleCompletionItems({
+      content: scss,
+      line: 3,
+      character: 15,
+      styleDocument,
+      styleDocumentForPath: styleDocumentMap([styleDocument, tokensDocument, legacyDocument]),
+      readFile: (filePath) => (filePath === PACKAGE_TOKENS_JSON_PATH ? packageJson : null),
+    });
+
+    expect(result.map((item) => item.label)).toEqual(["--color-gray-700"]);
+    expect(result[0]?.sourceFilePath).toBe(PACKAGE_VARIABLES_CSS_PATH);
+  });
+
   it("returns CSS custom property completions forwarded from a package root through a local utility module", () => {
     const scss = `@use "utils" as *;
 

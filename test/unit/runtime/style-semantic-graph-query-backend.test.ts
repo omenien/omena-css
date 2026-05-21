@@ -687,7 +687,7 @@ describe("style semantic graph query backend", () => {
 
   it("passes package manifests into cached multi-style graph batch reads", () => {
     const packageJsonPath = "/fake/ws/node_modules/@design/tokens/package.json";
-    const packageJsonSource = `{"exports":{"./theme":{"style":"./dist/theme.css"}}}`;
+    const packageJsonSource = `{"exports":{"./theme":{"style":"./dist/theme.css","sass":"./dist/theme.scss"}}}`;
     const packageStylePath = "/fake/ws/node_modules/@design/tokens/dist/theme.css";
     const deps = makeBaseDeps({
       selectorMapForPath: (filePath) =>

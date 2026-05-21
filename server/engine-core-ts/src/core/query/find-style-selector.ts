@@ -1230,10 +1230,10 @@ function readSassPackageJsonEntry(packageJsonText: string, subpath = ""): string
     return readSassPackageExportSubpathEntry(packageJson.exports, subpath);
   }
   return (
+    readSassPackageExportEntry(packageJson.exports) ??
     readStringField(packageJson, "sass") ??
     readStringField(packageJson, "scss") ??
-    readStringField(packageJson, "style") ??
-    readSassPackageExportEntry(packageJson.exports)
+    readStringField(packageJson, "style")
   );
 }
 
@@ -1303,11 +1303,16 @@ function readSassPackageExportEntry(exportsValue: unknown): string | null {
     if (rootEntry) return rootEntry;
   }
 
-  for (const key of ["sass", "scss", "style", "default", "import", "require"]) {
-    const entry = readSassPackageExportEntry(exportsValue[key]);
+  for (const [key, value] of Object.entries(exportsValue)) {
+    if (!isSassPackageExportCondition(key)) continue;
+    const entry = readSassPackageExportEntry(value);
     if (entry) return entry;
   }
   return null;
+}
+
+function isSassPackageExportCondition(key: string): boolean {
+  return ["sass", "scss", "style", "default", "import", "require"].includes(key);
 }
 
 function readStringField(record: Record<string, unknown>, key: string): string | null {

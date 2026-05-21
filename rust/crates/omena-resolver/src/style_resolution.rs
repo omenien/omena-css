@@ -459,10 +459,10 @@ fn read_package_manifest_style_entry(
     let entry = if let Some(subpath) = subpath {
         read_package_export_subpath_entry(package_object.get("exports"), subpath)
     } else {
-        read_package_json_string_field(package_object, "sass")
+        read_package_export_entry(package_object.get("exports"))
+            .or_else(|| read_package_json_string_field(package_object, "sass"))
             .or_else(|| read_package_json_string_field(package_object, "scss"))
             .or_else(|| read_package_json_string_field(package_object, "style"))
-            .or_else(|| read_package_export_entry(package_object.get("exports")))
     }?;
     Some(PathBuf::from(normalize_package_json_entry(&entry)))
 }
@@ -550,12 +550,22 @@ fn read_package_export_entry(exports_value: Option<&serde_json::Value>) -> Optio
     if let Some(root_entry) = read_package_export_entry(exports_object.get(".")) {
         return Some(root_entry);
     }
-    for key in ["sass", "scss", "style", "default", "import", "require"] {
-        if let Some(entry) = read_package_export_entry(exports_object.get(key)) {
+    for (key, export_value) in exports_object {
+        if !is_package_style_export_condition(key) {
+            continue;
+        }
+        if let Some(entry) = read_package_export_entry(Some(export_value)) {
             return Some(entry);
         }
     }
     None
+}
+
+fn is_package_style_export_condition(key: &str) -> bool {
+    matches!(
+        key,
+        "sass" | "scss" | "style" | "default" | "import" | "require"
+    )
 }
 
 fn read_package_json_string_field(
