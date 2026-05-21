@@ -4,10 +4,12 @@ use super::{
     ClassValueControlFlowGraphV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
     ClassValueFlowTransferV0, CompositeClassValueInputV0, ExternalStringTypeFactsV0,
     KLimitedCallSiteFlowInputV0, Lin01ProvenanceSemiringV0, LinearProvenanceV0,
-    MAX_FINITE_CLASS_VALUES, OneCfaCallSiteFlowInputV0, SelectorProjectionCertaintyV0,
-    abstract_class_value_from_facts, abstract_class_value_is_subset,
-    analyze_class_value_control_flow_graph, analyze_class_value_flow,
-    analyze_class_value_flow_incremental, analyze_class_value_flow_incremental_batch_with_reuse,
+    MAX_FINITE_CLASS_VALUES, NaturalCountProvenanceSemiringV0, OneCfaCallSiteFlowInputV0,
+    ProvenanceSemiringV0, SecurityLabelProvenanceSemiringV0, SelectorProjectionCertaintyV0,
+    TropicalProvenanceSemiringV0, ViterbiProvenanceSemiringV0, abstract_class_value_from_facts,
+    abstract_class_value_is_subset, analyze_class_value_control_flow_graph,
+    analyze_class_value_flow, analyze_class_value_flow_incremental,
+    analyze_class_value_flow_incremental_batch_with_reuse,
     analyze_class_value_flow_incremental_with_database,
     analyze_class_value_flow_incremental_with_reuse, analyze_k_limited_call_site_flows,
     analyze_one_cfa_call_site_flows, bottom_class_value, char_inclusion_class_value,
@@ -1704,9 +1706,39 @@ fn linear_provenance_round_trips_static_labels() {
     assert_eq!(provenance.schema_version, "0");
     assert_eq!(provenance.product, "omena-abstract-value.linear-provenance");
     assert_eq!(provenance.semiring, Lin01ProvenanceSemiringV0::new());
+    assert_eq!(provenance.semiring_identifier(), "lin01");
     assert_eq!(provenance.term_count, 2);
     assert_eq!(provenance.labels(), labels.to_vec());
     assert!(provenance.terms.iter().all(|term| term.coefficient == 1));
+}
+
+#[test]
+fn provenance_semiring_identifiers_are_stable_and_unique() {
+    let identifiers = [
+        Lin01ProvenanceSemiringV0::new().semiring_identifier(),
+        NaturalCountProvenanceSemiringV0::new().semiring_identifier(),
+        TropicalProvenanceSemiringV0::new().semiring_identifier(),
+        ViterbiProvenanceSemiringV0::new().semiring_identifier(),
+        SecurityLabelProvenanceSemiringV0::new().semiring_identifier(),
+    ];
+
+    assert_eq!(
+        identifiers,
+        [
+            "lin01",
+            "naturalCount",
+            "tropical",
+            "viterbi",
+            "securityLabel"
+        ]
+    );
+    assert_eq!(
+        identifiers
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        identifiers.len()
+    );
 }
 
 #[test]
