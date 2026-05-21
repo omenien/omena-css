@@ -21,6 +21,10 @@ interface WptSeedManifestV0 {
     readonly schemaVersion: string;
     readonly stage2Blocking: boolean;
   };
+  readonly generation: {
+    readonly tool: string;
+    readonly selectionPath: string;
+  };
   readonly chunks: readonly WptSeedChunkManifestV0[];
 }
 
@@ -116,6 +120,11 @@ assert.ok(isPinnedWptSha(manifest.source.pin), "WPT seed source pin must be a 40
 assert.ok(manifest.source.sparsePaths.length > 0);
 assert.ok(manifest.source.helperClasses.includes("test_valid_value"));
 assert.ok(manifest.source.layoutDependentHelpersExcluded.includes("test_computed_value"));
+assert.equal(manifest.generation.tool, "scripts/generate-rust-omena-diff-test-wpt-corpus.ts");
+assert.equal(
+  manifest.generation.selectionPath,
+  "rust/crates/omena-diff-test/wpt-corpus/selections.json",
+);
 
 const policy = readKnownFailurePolicy(path.resolve(corpusRoot, manifest.knownFailurePolicy.path));
 assert.equal(policy.schemaVersion, manifest.knownFailurePolicy.schemaVersion);
@@ -208,13 +217,23 @@ const reports = fixtures.map((fixture) => {
 const criticalRegressionCount = reports.filter((report) => report.outcomeCell === "oLW").length;
 assert.equal(criticalRegressionCount, 0, "WPT seed corpus has omena-only failures");
 
-const outcomeCube = reports.reduce<Record<string, number>>((counts, report) => {
+const outcomeCells = ["OLW", "OLw", "OlW", "Olw", "oLW", "oLw", "olW", "olw"] as const;
+const outcomeCube = Object.fromEntries(outcomeCells.map((cell) => [cell, 0])) as Record<
+  (typeof outcomeCells)[number],
+  number
+>;
+for (const report of reports) {
+  assert.ok(report.outcomeCell in outcomeCube, `unexpected outcome cell: ${report.outcomeCell}`);
+  outcomeCube[report.outcomeCell as (typeof outcomeCells)[number]] += 1;
+}
+const observedOutcomeCube = reports.reduce<Record<string, number>>((counts, report) => {
   counts[report.outcomeCell] = (counts[report.outcomeCell] ?? 0) + 1;
   return counts;
 }, {});
 
 assert.equal(reports.length, fixtures.length);
-assert.ok(Object.keys(outcomeCube).length > 0);
+assert.equal(Object.keys(outcomeCube).length, 8);
+assert.ok(Object.keys(observedOutcomeCube).length > 0);
 
 process.stdout.write(
   JSON.stringify(
@@ -224,7 +243,9 @@ process.stdout.write(
       sourcePin: manifest.source.pin,
       fixtureCount: reports.length,
       knownFailureCount: policy.subtests.length,
+      staleKnownFailureCount: 0,
       criticalRegressionCount,
+      outcomeCellCount: Object.keys(outcomeCube).length,
       outcomeCube,
     },
     null,

@@ -14,6 +14,10 @@
     "schemaVersion": "0",
     "stage2Blocking": false
   },
+  "generation": {
+    "tool": "scripts/generate-rust-omena-diff-test-wpt-corpus.ts",
+    "selectionPath": "rust/crates/omena-diff-test/wpt-corpus/selections.json"
+  },
   "chunks": [
     {
       "chunkId": "css-values-seed-v0",
