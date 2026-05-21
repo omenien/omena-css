@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.wpt-seed-corpus.chunk",
+  "chunkId": "css-values-seed-v0",
+  "sourcePin": "web-platform-tests/wpt@37b7cece2910dfe0d7f1cf872bbb1df32c21f07f",
+  "fixtures": [
+    {
+      "id": "css-color-hex-normalization",
+      "wptPath": "css/css-color/parsing/color-valid.html",
+      "wptSourceLine": 20,
+      "subtest": "test_valid_value(\"color\", \"#FEDCBA\", \"rgb(254, 220, 186)\")",
+      "helper": "test_valid_value",
+      "property": "color",
+      "wptValue": "#FEDCBA",
+      "wptExpectedValue": "rgb(254, 220, 186)",
+      "source": ".wpt-color { color: #FEDCBA; }",
+      "expectedCss": ".wpt-color{color:#fedcba}",
+      "status": "pass"
+    },
+    {
+      "id": "css-values-calc-nesting",
+      "wptPath": "css/css-values/calc-nesting.html",
+      "wptSourceLine": 40,
+      "subtest": "test_valid_value(\"left\", \"calc(20px + calc(80px))\", \"calc(100px)\")",
+      "helper": "test_valid_value",
+      "property": "left",
+      "wptValue": "calc(20px + calc(80px))",
+      "wptExpectedValue": "calc(100px)",
+      "source": ".wpt-calc { left: calc(20px + calc(80px)); }",
+      "expectedCss": ".wpt-calc{left:100px}",
+      "status": "pass"
+    },
+    {
+      "id": "css-color-opacity-clamp",
+      "wptPath": "css/css-color/parsing/opacity-valid.html",
+      "wptSourceLine": 39,
+      "subtest": "test_valid_value(\"opacity\", \"clamp(0.5, 0.6, 0.7)\", \"calc(0.6)\")",
+      "helper": "test_valid_value",
+      "property": "opacity",
+      "wptValue": "clamp(0.5, 0.6, 0.7)",
+      "wptExpectedValue": "calc(0.6)",
+      "source": ".wpt-opacity { opacity: clamp(0.5, 0.6, 0.7); }",
+      "expectedCss": ".wpt-opacity{opacity:.6}",
+      "status": "pass"
+    },
+    {
+      "id": "css-values-url-quotes",
+      "wptPath": "css/css-values/urls/url-request-modifiers-serialize.sub.html",
+      "wptSourceLine": 11,
+      "subtest": "test_valid_value('background-image', 'url(\"http://{{hosts[][]}}:{{ports[http][0]}}/css/support/1x1-green.png\")')",
+      "helper": "test_valid_value",
+      "property": "background-image",
+      "wptValue": "url(\"http://{{hosts[][]}}:{{ports[http][0]}}/css/support/1x1-green.png\")",
+      "wptExpectedValue": "url(\"http://{{hosts[][]}}:{{ports[http][0]}}/css/support/1x1-green.png\")",
+      "source": ".wpt-url { background-image: url(\"http://{{hosts[][]}}:{{ports[http][0]}}/css/support/1x1-green.png\"); }",
+      "expectedCss": ".wpt-url{background-image:url(http://{{hosts[][]}}:{{ports[http][0]}}/css/support/1x1-green.png)}",
+      "status": "pass"
+    }
+  ]
+}

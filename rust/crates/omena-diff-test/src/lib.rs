@@ -108,6 +108,12 @@ pub struct OmenaDiffTestBoundarySummary {
     pub m3_fixture_seed_count: usize,
     /// Whether every M3 fixture seed parses with the shared fixture grammar.
     pub all_m3_fixture_seeds_parse: bool,
+    /// WPT-style seed fixture count.
+    pub wpt_seed_fixture_count: usize,
+    /// Whether WPT seed corpus metadata and known-failure policy are valid.
+    pub all_wpt_seed_metadata_valid: bool,
+    /// WPT-style seed metadata report.
+    pub wpt_seed_metadata_report: WptSeedCorpusMetadataReportV0,
     /// Named evidence gates closed by this crate.
     pub closed_gates: Vec<&'static str>,
     /// Field-level reports for every seed fixture.
@@ -186,6 +192,35 @@ pub struct M3FixtureSeedCorpusReportV0 {
     /// Seed reports.
     pub reports: Vec<M3FixtureSeedReportV0>,
 }
+
+/// WPT-style seed corpus metadata summary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WptSeedCorpusMetadataReportV0 {
+    /// Schema version.
+    pub schema_version: &'static str,
+    /// Product surface name.
+    pub product: &'static str,
+    /// WPT conformance stage.
+    pub stage: String,
+    /// Upstream source pin.
+    pub source_pin: String,
+    /// Chunk count.
+    pub chunk_count: usize,
+    /// Fixture count across chunks.
+    pub fixture_count: usize,
+    /// Known-failure entry count.
+    pub known_failure_count: usize,
+    /// Whether the seed metadata is internally consistent.
+    pub all_metadata_valid: bool,
+    /// Named gates closed by this report.
+    pub closed_gates: Vec<&'static str>,
+}
+
+const WPT_SEED_MANIFEST_SOURCE: &str = include_str!("../wpt-corpus/manifest.json");
+const WPT_SEED_VALUES_CHUNK_SOURCE: &str = include_str!("../wpt-corpus/css-values.json");
+const WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE: &str =
+    include_str!("../known-failures/wpt-seed-policy.toml");
 
 /// Seed corpus that exercises the legacy-compatible parser differential path.
 pub const PARSER_LEGACY_SEED_FIXTURES: &[ParserDifferentialFixture] = &[
@@ -418,6 +453,7 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         .collect();
     let all_parser_legacy_fixtures_match = reports.iter().all(|report| report.all_fields_match);
     let m3_fixture_seed_report = summarize_m3_fixture_seed_corpus();
+    let wpt_seed_metadata_report = summarize_wpt_seed_corpus_metadata();
 
     OmenaDiffTestBoundarySummary {
         schema_version: "0",
@@ -427,14 +463,18 @@ pub fn summarize_omena_diff_test_boundary() -> OmenaDiffTestBoundarySummary {
         all_parser_legacy_fixtures_match,
         m3_fixture_seed_count: m3_fixture_seed_report.fixture_count,
         all_m3_fixture_seeds_parse: m3_fixture_seed_report.all_seeds_parse,
+        wpt_seed_fixture_count: wpt_seed_metadata_report.fixture_count,
+        all_wpt_seed_metadata_valid: wpt_seed_metadata_report.all_metadata_valid,
         closed_gates: vec![
             "parserVsLegacyOracle",
             "legacyParserQuarantinedAsOracle",
             "h1DifferentialHarnessOwnedByRustCrate",
             "m3FixtureSeedsConsumeOmenaTestkitParser",
+            "wptSeedCorpusMetadataPolicy",
         ],
         reports,
         m3_fixture_seed_report,
+        wpt_seed_metadata_report,
     }
 }
 
@@ -487,6 +527,110 @@ fn testkit_seed_from_m3_seed(seed: M3FixtureSeedV0) -> OmenaTestkitFixtureSeedV0
         expected_products: seed.expected_products,
         promotion_target: seed.promotion_target,
     }
+}
+
+/// Summarize the WPT-style seed corpus metadata.
+pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
+    let manifest = serde_json::from_str::<serde_json::Value>(WPT_SEED_MANIFEST_SOURCE).ok();
+    let chunk = serde_json::from_str::<serde_json::Value>(WPT_SEED_VALUES_CHUNK_SOURCE).ok();
+    let stage = manifest
+        .as_ref()
+        .and_then(|value| value.get("stage"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("invalid")
+        .to_string();
+    let source_pin = manifest
+        .as_ref()
+        .and_then(|value| value.pointer("/source/pin"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("invalid")
+        .to_string();
+    let chunk_count = manifest
+        .as_ref()
+        .and_then(|value| value.get("chunks"))
+        .and_then(serde_json::Value::as_array)
+        .map_or(0, Vec::len);
+    let fixture_count = chunk
+        .as_ref()
+        .and_then(|value| value.get("fixtures"))
+        .and_then(serde_json::Value::as_array)
+        .map_or(0, Vec::len);
+    let known_failure_count = WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE
+        .lines()
+        .filter(|line| line.trim() == "[[subtest]]")
+        .count();
+    let all_metadata_valid = wpt_seed_manifest_metadata_valid(
+        manifest.as_ref(),
+        chunk.as_ref(),
+        fixture_count,
+        known_failure_count,
+    );
+
+    WptSeedCorpusMetadataReportV0 {
+        schema_version: "0",
+        product: "omena-diff-test.wpt-seed-corpus-metadata",
+        stage,
+        source_pin,
+        chunk_count,
+        fixture_count,
+        known_failure_count,
+        all_metadata_valid,
+        closed_gates: vec![
+            "wptSeedSourcePin",
+            "wptSeedChunkSchema",
+            "wptSeedKnownFailurePolicy",
+            "wptSeedStageOneAdvisory",
+        ],
+    }
+}
+
+fn wpt_seed_manifest_metadata_valid(
+    manifest: Option<&serde_json::Value>,
+    chunk: Option<&serde_json::Value>,
+    fixture_count: usize,
+    known_failure_count: usize,
+) -> bool {
+    let Some(manifest) = manifest else {
+        return false;
+    };
+    let Some(chunk) = chunk else {
+        return false;
+    };
+    let manifest_source_pin = manifest
+        .pointer("/source/pin")
+        .and_then(serde_json::Value::as_str);
+    let chunk_source_pin = chunk.get("sourcePin").and_then(serde_json::Value::as_str);
+    let manifest_fixture_count = manifest
+        .pointer("/chunks/0/fixtureCount")
+        .and_then(serde_json::Value::as_u64)
+        .map(|value| value as usize);
+    manifest
+        .get("schemaVersion")
+        .and_then(serde_json::Value::as_str)
+        == Some("0")
+        && manifest.get("product").and_then(serde_json::Value::as_str)
+            == Some("omena-diff-test.wpt-seed-corpus.manifest")
+        && manifest.get("stage").and_then(serde_json::Value::as_str) == Some("stage1-advisory")
+        && manifest_source_pin.is_some_and(wpt_source_pin_is_full_sha)
+        && manifest_source_pin == chunk_source_pin
+        && manifest_fixture_count == Some(fixture_count)
+        && chunk
+            .get("schemaVersion")
+            .and_then(serde_json::Value::as_str)
+            == Some("0")
+        && chunk.get("product").and_then(serde_json::Value::as_str)
+            == Some("omena-diff-test.wpt-seed-corpus.chunk")
+        && WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE.contains("schema_version = \"0\"")
+        && WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE.contains("stage = \"advisory\"")
+        && WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE.contains("stage2_blocking = false")
+        && known_failure_count == 0
+}
+
+fn wpt_source_pin_is_full_sha(pin: &str) -> bool {
+    let Some(sha) = pin.strip_prefix("web-platform-tests/wpt@") else {
+        return false;
+    };
+    sha.len() == 40 && sha.chars().all(|char| char.is_ascii_hexdigit())
 }
 
 impl M3FixtureLaneV0 {
@@ -545,6 +689,8 @@ mod tests {
             M3_THEORETICAL_MOAT_FIXTURE_SEEDS.len()
         );
         assert!(summary.all_m3_fixture_seeds_parse);
+        assert!(summary.all_wpt_seed_metadata_valid);
+        assert_eq!(summary.wpt_seed_fixture_count, 4);
         assert!(
             summary
                 .closed_gates
@@ -554,6 +700,11 @@ mod tests {
             summary
                 .closed_gates
                 .contains(&"m3FixtureSeedsConsumeOmenaTestkitParser")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"wptSeedCorpusMetadataPolicy")
         );
     }
 
@@ -630,5 +781,20 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn wpt_seed_corpus_metadata_has_source_pin_and_policy() {
+        let report = summarize_wpt_seed_corpus_metadata();
+
+        assert_eq!(report.product, "omena-diff-test.wpt-seed-corpus-metadata");
+        assert_eq!(report.stage, "stage1-advisory");
+        assert!(wpt_source_pin_is_full_sha(report.source_pin.as_str()));
+        assert_eq!(report.chunk_count, 1);
+        assert_eq!(report.fixture_count, 4);
+        assert_eq!(report.known_failure_count, 0);
+        assert!(report.all_metadata_valid);
+        assert!(report.closed_gates.contains(&"wptSeedSourcePin"));
+        assert!(report.closed_gates.contains(&"wptSeedKnownFailurePolicy"));
     }
 }
