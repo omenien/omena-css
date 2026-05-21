@@ -13,7 +13,8 @@ It also carries the M3 `cme-fixture-v0` seed corpus for future
 Sass-language, cascade-proof, provenance, and abstract-value cases without
 turning M3 into the full M4 testkit migration.
 
-The WPT seed lane keeps a Stage 1 advisory corpus shape while its
-known-failure policy records the fixture-count and consecutive-green evidence
-required for Stage 2. Once those prerequisites are met, the policy can enable
-the Stage 2 blocking gate without hiding promotion blockers behind a boolean.
+The WPT seed lane starts as a Stage 1 advisory corpus. Once the fixture-count,
+known-failure, and consecutive-green prerequisites are met, the checked-in
+manifest records `stage2-blocking` and the known-failure policy records
+`stage = "blocking"` plus `stage2_blocking = true`. This keeps the active gate
+state visible in generated metadata rather than hiding it behind a boolean.

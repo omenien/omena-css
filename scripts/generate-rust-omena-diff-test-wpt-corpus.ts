@@ -89,7 +89,7 @@ const chunkSha256 = createHash("sha256").update(chunkSource).digest("hex");
 const manifest: WptSeedManifestV0 = {
   schemaVersion: "0",
   product: "omena-diff-test.wpt-seed-corpus.manifest",
-  stage: "stage1-advisory",
+  stage: selectionFile.knownFailurePolicy.stage2Blocking ? "stage2-blocking" : "stage1-advisory",
   source: selectionFile.source,
   knownFailurePolicy: selectionFile.knownFailurePolicy,
   generation: {

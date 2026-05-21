@@ -6,7 +6,9 @@ Top-level fields:
 
 - `schema_version`: schema version, currently `0`.
 - `corpus_manifest`: relative path to the WPT seed manifest.
-- `stage`: `advisory` or `blocking`.
+- `stage`: `advisory` or `blocking`. `blocking` must match
+  `stage2_blocking = true` and the generated manifest stage
+  `stage2-blocking`.
 - `stage2_blocking`: whether failures should block the Stage 2 conformance
   lane.
 - `source_pin`: upstream WPT source pin.
@@ -21,8 +23,8 @@ Top-level fields:
 
 `[[green_run]]` fields:
 
-- `date`: ISO date when the advisory green run was reviewed.
-- `commit`: commit that produced the reviewed advisory run.
+- `date`: ISO date when the green run was reviewed.
+- `commit`: commit that produced the reviewed run.
 - `fixture_count`: fixture count observed in the run.
 - `chunk_sha256`: generated WPT chunk hash observed in the run.
 - `outcome_olw`: count of fixtures where Omena, lightningcss, and WPT agree.

@@ -16,7 +16,9 @@ larger sparse WPT mirror is introduced.
 The known-failure policy also records Stage 2 promotion evidence. Stage 1 stays
 advisory until the generated corpus reaches the configured fixture threshold,
 known failures remain reviewed, and the configured consecutive-green run count
-is met.
+is met. Once `stage2_blocking = true`, generated `manifest.json` records
+`stage2-blocking` and the policy records `stage = "blocking"` so the checked-in
+corpus and the active gate agree.
 
 Refresh generated files with:
 

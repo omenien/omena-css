@@ -598,6 +598,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
     let stage2_promotion_blockers = wpt_seed_stage2_promotion_blockers(
         all_metadata_valid,
         stage.as_str(),
+        stage2_blocking,
         fixture_count,
         known_failure_count,
         required_min_fixture_count_for_stage2,
@@ -627,7 +628,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
             "wptSeedSourcePin",
             "wptSeedChunkSchema",
             "wptSeedKnownFailurePolicy",
-            "wptSeedStageOneAdvisory",
+            "wptSeedStageMatchesBlockingPolicy",
             "wptSeedStageTwoPromotionPolicy",
         ],
     }
@@ -664,7 +665,8 @@ fn wpt_seed_manifest_metadata_valid(
         == Some("0")
         && manifest.get("product").and_then(serde_json::Value::as_str)
             == Some("omena-diff-test.wpt-seed-corpus.manifest")
-        && manifest.get("stage").and_then(serde_json::Value::as_str) == Some("stage1-advisory")
+        && manifest.get("stage").and_then(serde_json::Value::as_str)
+            == Some(wpt_seed_expected_manifest_stage(stage2_blocking))
         && manifest_source_pin.is_some_and(wpt_source_pin_is_full_sha)
         && manifest_source_pin == chunk_source_pin
         && manifest_fixture_count == Some(fixture_count)
@@ -675,7 +677,8 @@ fn wpt_seed_manifest_metadata_valid(
         && chunk.get("product").and_then(serde_json::Value::as_str)
             == Some("omena-diff-test.wpt-seed-corpus.chunk")
         && wpt_seed_policy_string_value("schema_version") == Some("0")
-        && wpt_seed_policy_string_value("stage") == Some("advisory")
+        && wpt_seed_policy_string_value("stage")
+            == Some(wpt_seed_expected_policy_stage(stage2_blocking))
         && manifest_policy_stage2_blocking == Some(stage2_blocking)
         && wpt_seed_policy_string_value("source_pin") == manifest_source_pin
         && wpt_seed_policy_usize_value("review_interval_days").is_some_and(|days| days > 0)
@@ -690,6 +693,7 @@ fn wpt_seed_manifest_metadata_valid(
 fn wpt_seed_stage2_promotion_blockers(
     all_metadata_valid: bool,
     stage: &str,
+    stage2_blocking: bool,
     fixture_count: usize,
     known_failure_count: usize,
     required_min_fixture_count_for_stage2: usize,
@@ -700,8 +704,8 @@ fn wpt_seed_stage2_promotion_blockers(
     if !all_metadata_valid {
         blockers.push("metadataInvalid");
     }
-    if stage != "stage1-advisory" {
-        blockers.push("stageNotAdvisory");
+    if stage != wpt_seed_expected_manifest_stage(stage2_blocking) {
+        blockers.push("stageMismatch");
     }
     if known_failure_count > 0 {
         blockers.push("knownFailuresPresent");
@@ -717,6 +721,22 @@ fn wpt_seed_stage2_promotion_blockers(
         blockers.push("insufficientConsecutiveGreenRuns");
     }
     blockers
+}
+
+fn wpt_seed_expected_manifest_stage(stage2_blocking: bool) -> &'static str {
+    if stage2_blocking {
+        "stage2-blocking"
+    } else {
+        "stage1-advisory"
+    }
+}
+
+fn wpt_seed_expected_policy_stage(stage2_blocking: bool) -> &'static str {
+    if stage2_blocking {
+        "blocking"
+    } else {
+        "advisory"
+    }
 }
 
 fn wpt_seed_policy_string_value(key: &str) -> Option<&'static str> {
@@ -917,7 +937,7 @@ mod tests {
         let report = summarize_wpt_seed_corpus_metadata();
 
         assert_eq!(report.product, "omena-diff-test.wpt-seed-corpus-metadata");
-        assert_eq!(report.stage, "stage1-advisory");
+        assert_eq!(report.stage, "stage2-blocking");
         assert!(wpt_source_pin_is_full_sha(report.source_pin.as_str()));
         assert_eq!(report.chunk_count, 1);
         assert!(report.fixture_count >= 25);

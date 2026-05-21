@@ -130,7 +130,6 @@ const passIds = [
 const manifest = readJson<WptSeedManifestV0>(manifestPath);
 assert.equal(manifest.schemaVersion, "0");
 assert.equal(manifest.product, "omena-diff-test.wpt-seed-corpus.manifest");
-assert.equal(manifest.stage, "stage1-advisory");
 assert.ok(manifest.source.repository.endsWith("/web-platform-tests/wpt"));
 assert.ok(isPinnedWptSha(manifest.source.pin), "WPT seed source pin must be a 40-character SHA");
 assert.ok(manifest.source.sparsePaths.length > 0);
@@ -145,8 +144,11 @@ assert.equal(
 const policy = readKnownFailurePolicy(path.resolve(corpusRoot, manifest.knownFailurePolicy.path));
 assert.equal(policy.schemaVersion, manifest.knownFailurePolicy.schemaVersion);
 assert.equal(policy.corpusManifest, "../wpt-corpus/manifest.json");
-assert.equal(policy.stage, "advisory");
 assert.equal(policy.stage2Blocking, manifest.knownFailurePolicy.stage2Blocking);
+const expectedManifestStage = policy.stage2Blocking ? "stage2-blocking" : "stage1-advisory";
+const expectedPolicyStage = policy.stage2Blocking ? "blocking" : "advisory";
+assert.equal(manifest.stage, expectedManifestStage);
+assert.equal(policy.stage, expectedPolicyStage);
 assert.equal(policy.sourcePin, manifest.source.pin);
 assert.ok(policy.reviewIntervalDays > 0, "known-failure review interval must be positive");
 assert.ok(
@@ -271,6 +273,7 @@ const stage2PromotionBlockers = stage2Blockers({
   policyStage: policy.stage,
   fixtureCount: reports.length,
   knownFailureCount: policy.subtests.length,
+  stage2Blocking: policy.stage2Blocking,
   criticalRegressionCount,
   requiredMinFixtureCountForStage2: policy.requiredMinFixtureCountForStage2,
   requiredConsecutiveGreenRuns: policy.requiredConsecutiveGreenRuns,
@@ -440,6 +443,7 @@ function readKnownFailurePolicy(filePath: string): KnownFailurePolicyV0 {
 function stage2Blockers(input: {
   readonly manifestStage: string;
   readonly policyStage: string;
+  readonly stage2Blocking: boolean;
   readonly fixtureCount: number;
   readonly knownFailureCount: number;
   readonly criticalRegressionCount: number;
@@ -448,11 +452,13 @@ function stage2Blockers(input: {
   readonly consecutiveGreenRuns: number;
 }): string[] {
   const blockers: string[] = [];
-  if (input.manifestStage !== "stage1-advisory") {
-    blockers.push("stageNotAdvisory");
+  const expectedStageForManifest = input.stage2Blocking ? "stage2-blocking" : "stage1-advisory";
+  const expectedStageForPolicy = input.stage2Blocking ? "blocking" : "advisory";
+  if (input.manifestStage !== expectedStageForManifest) {
+    blockers.push("stageMismatch");
   }
-  if (input.policyStage !== "advisory") {
-    blockers.push("knownFailurePolicyNotAdvisory");
+  if (input.policyStage !== expectedStageForPolicy) {
+    blockers.push("knownFailurePolicyStageMismatch");
   }
   if (input.knownFailureCount > 0) {
     blockers.push("knownFailuresPresent");
