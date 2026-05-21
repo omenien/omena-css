@@ -6500,6 +6500,41 @@ fn query_resolves_symlinked_package_style_uri_to_canonical_identity()
     Ok(())
 }
 
+#[test]
+fn query_resolves_vite_bundler_alias_style_uri() -> Result<(), Box<dyn std::error::Error>> {
+    let root = std::env::temp_dir().join(format!(
+        "omena_query_vite_alias_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
+    let source = root.join("src/App.tsx");
+    let style = root.join("src/styles/Button.module.scss");
+    std::fs::create_dir_all(
+        style
+            .parent()
+            .ok_or_else(|| std::io::Error::other("style"))?,
+    )?;
+    std::fs::write(&source, "")?;
+    std::fs::write(&style, ".button { color: red; }")?;
+    std::fs::write(
+        root.join("vite.config.ts"),
+        r#"export default { resolve: { alias: { "@styles": "./src/styles" } } };"#,
+    )?;
+
+    let resolved_uri = super::resolve_omena_query_style_uri_for_specifier(
+        test_file_uri(source.as_path()).as_str(),
+        Some(test_file_uri(root.as_path()).as_str()),
+        "@styles/Button.module.scss",
+    );
+    let expected_uri = test_file_uri(std::fs::canonicalize(style)?.as_path());
+
+    assert_eq!(resolved_uri.as_deref(), Some(expected_uri.as_str()));
+    let _ = std::fs::remove_dir_all(root);
+    Ok(())
+}
+
 fn test_file_uri(path: &std::path::Path) -> String {
     format!("file://{}", path.to_string_lossy())
 }
