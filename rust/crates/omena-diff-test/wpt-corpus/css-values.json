@@ -18,6 +18,32 @@
       "status": "pass"
     },
     {
+      "id": "css-color-short-hex",
+      "wptPath": "css/css-color/parsing/color-valid.html",
+      "wptSourceLine": 19,
+      "subtest": "test_valid_value(\"color\", \"#234\", \"rgb(34, 51, 68)\")",
+      "helper": "test_valid_value",
+      "property": "color",
+      "wptValue": "#234",
+      "wptExpectedValue": "rgb(34, 51, 68)",
+      "source": ".wpt-color-short { color: #234; }",
+      "expectedCss": ".wpt-color-short{color:#234}",
+      "status": "pass"
+    },
+    {
+      "id": "css-color-rgb-percent",
+      "wptPath": "css/css-color/parsing/color-valid.html",
+      "wptSourceLine": 22,
+      "subtest": "test_valid_value(\"color\", \"rgb(100%, 0%, 0%)\", \"rgb(255, 0, 0)\")",
+      "helper": "test_valid_value",
+      "property": "color",
+      "wptValue": "rgb(100%, 0%, 0%)",
+      "wptExpectedValue": "rgb(255, 0, 0)",
+      "source": ".wpt-rgb-percent { color: rgb(100%, 0%, 0%); }",
+      "expectedCss": ".wpt-rgb-percent{color:red}",
+      "status": "pass"
+    },
+    {
       "id": "css-values-calc-nesting",
       "wptPath": "css/css-values/calc-nesting.html",
       "wptSourceLine": 40,
@@ -31,6 +57,32 @@
       "status": "pass"
     },
     {
+      "id": "css-values-calc-wrapped",
+      "wptPath": "css/css-values/calc-nesting.html",
+      "wptSourceLine": 41,
+      "subtest": "test_valid_value(\"left\", \"calc(calc(100px))\", \"calc(100px)\")",
+      "helper": "test_valid_value",
+      "property": "left",
+      "wptValue": "calc(calc(100px))",
+      "wptExpectedValue": "calc(100px)",
+      "source": ".wpt-calc-wrapped { left: calc(calc(100px)); }",
+      "expectedCss": ".wpt-calc-wrapped{left:100px}",
+      "status": "pass"
+    },
+    {
+      "id": "css-values-calc-multiply",
+      "wptPath": "css/css-values/calc-nesting.html",
+      "wptSourceLine": 42,
+      "subtest": "test_valid_value(\"left\", \"calc(calc(2) * calc(50px))\", \"calc(100px)\")",
+      "helper": "test_valid_value",
+      "property": "left",
+      "wptValue": "calc(calc(2) * calc(50px))",
+      "wptExpectedValue": "calc(100px)",
+      "source": ".wpt-calc-multiply { left: calc(calc(2) * calc(50px)); }",
+      "expectedCss": ".wpt-calc-multiply{left:100px}",
+      "status": "pass"
+    },
+    {
       "id": "css-color-opacity-clamp",
       "wptPath": "css/css-color/parsing/opacity-valid.html",
       "wptSourceLine": 39,
@@ -41,6 +93,32 @@
       "wptExpectedValue": "calc(0.6)",
       "source": ".wpt-opacity { opacity: clamp(0.5, 0.6, 0.7); }",
       "expectedCss": ".wpt-opacity{opacity:.6}",
+      "status": "pass"
+    },
+    {
+      "id": "css-opacity-calc-product",
+      "wptPath": "css/css-color/parsing/opacity-valid.html",
+      "wptSourceLine": 27,
+      "subtest": "test_valid_value(\"opacity\", \"calc(0.25 * 2)\", \"calc(0.5)\")",
+      "helper": "test_valid_value",
+      "property": "opacity",
+      "wptValue": "calc(0.25 * 2)",
+      "wptExpectedValue": "calc(0.5)",
+      "source": ".wpt-opacity-calc { opacity: calc(0.25 * 2); }",
+      "expectedCss": ".wpt-opacity-calc{opacity:.5}",
+      "status": "pass"
+    },
+    {
+      "id": "css-opacity-min-zero",
+      "wptPath": "css/css-color/parsing/opacity-valid.html",
+      "wptSourceLine": 32,
+      "subtest": "test_valid_value(\"opacity\", \"min(50%, 0%)\", \"calc(0%)\")",
+      "helper": "test_valid_value",
+      "property": "opacity",
+      "wptValue": "min(50%, 0%)",
+      "wptExpectedValue": "calc(0%)",
+      "source": ".wpt-opacity-min { opacity: min(50%, 0%); }",
+      "expectedCss": ".wpt-opacity-min{opacity:0}",
       "status": "pass"
     },
     {

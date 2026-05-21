@@ -22,8 +22,8 @@
     {
       "chunkId": "css-values-seed-v0",
       "path": "css-values.json",
-      "sha256": "011449fafc00a237d384fe8836543f40a8fa61945622be6f4244e04dc5d2d2d9",
-      "fixtureCount": 4
+      "sha256": "ba1f6d08849cd8ae199d6655795fa3cdacadb13bd1ecbf2a914233f8259f8f3c",
+      "fixtureCount": 10
     }
   ]
 }
