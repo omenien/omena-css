@@ -862,6 +862,7 @@ dependencies = [
  "omena-abstract-value",
  "omena-parser",
  "omena-semantic",
+ "serde",
  "serde_json",
 ]
 

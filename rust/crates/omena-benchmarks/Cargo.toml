@@ -15,6 +15,7 @@ engine-style-parser = { path = "../engine-style-parser" }
 omena-abstract-value = { path = "../omena-abstract-value" }
 omena-parser = { path = "../omena-parser" }
 omena-semantic = { path = "../omena-semantic" }
+serde.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true

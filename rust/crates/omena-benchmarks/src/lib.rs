@@ -1,6 +1,7 @@
 pub const Z5_PERFORMANCE_BASELINE: &str = "z5-performance-baseline";
 
 use omena_parser::StyleDialect;
+use serde::Serialize;
 
 pub struct StyleSample {
     pub name: &'static str,
@@ -29,6 +30,28 @@ pub struct OmenaParserProductMeasurementV0 {
 pub struct LegacyParserProductMeasurementV0 {
     pub boundary: ParserProductBenchmarkBoundaryV0,
     pub summary: engine_style_parser::ParserIndexSummaryV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParserProductBenchmarkReadinessSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub status: &'static str,
+    pub benchmark_family: &'static str,
+    pub lane_count: usize,
+    pub lanes: Vec<&'static str>,
+    pub sample_count: usize,
+    pub sample_names: Vec<&'static str>,
+    pub input_boundary: &'static str,
+    pub measured_operation: &'static str,
+    pub includes_parse: bool,
+    pub parse_work_measured_inside_summary: bool,
+    pub includes_product_summary: bool,
+    pub symmetric_measurement_boundary: bool,
+    pub all_samples_parse_in_both_lanes: bool,
+    pub comparison_policy: &'static str,
+    pub next_priorities: Vec<&'static str>,
 }
 
 pub fn style_corpus() -> Vec<StyleSample> {
@@ -110,6 +133,38 @@ pub fn validate_parser_product_benchmark_boundary_symmetry() -> Result<(), Strin
         );
     }
     Ok(())
+}
+
+pub fn summarize_parser_product_benchmark_readiness() -> ParserProductBenchmarkReadinessSummaryV0 {
+    let boundaries = parser_product_benchmark_boundaries();
+    let [legacy, omena] = boundaries;
+    let samples = style_corpus();
+    let all_samples_parse_in_both_lanes = samples.iter().all(|sample| {
+        validate_legacy_style_sample(sample.path, sample.source.as_str()).is_ok()
+            && validate_omena_style_sample(sample.source.as_str(), sample.dialect).is_ok()
+    });
+
+    ParserProductBenchmarkReadinessSummaryV0 {
+        schema_version: "0",
+        product: "omena-benchmarks.parser-product-readiness",
+        status: "parserProductBoundaryReady",
+        benchmark_family: Z5_PERFORMANCE_BASELINE,
+        lane_count: boundaries.len(),
+        lanes: vec![legacy.lane, omena.lane],
+        sample_count: samples.len(),
+        sample_names: samples.iter().map(|sample| sample.name).collect(),
+        input_boundary: legacy.input_boundary,
+        measured_operation: legacy.measured_operation,
+        includes_parse: legacy.includes_parse && omena.includes_parse,
+        parse_work_measured_inside_summary: legacy.parse_work_measured_inside_summary
+            && omena.parse_work_measured_inside_summary,
+        includes_product_summary: legacy.includes_product_summary && omena.includes_product_summary,
+        symmetric_measurement_boundary: validate_parser_product_benchmark_boundary_symmetry()
+            .is_ok(),
+        all_samples_parse_in_both_lanes,
+        comparison_policy: "raw-style-source-to-product-summary-for-each-lane",
+        next_priorities: vec!["refreshFullCriterionSnapshotAfterM4CorpusExpansion"],
+    }
 }
 
 pub fn parse_legacy_style_sample(
@@ -277,7 +332,8 @@ fn build_scss_heavy_design_system(count: usize) -> String {
 mod tests {
     use super::{
         measure_legacy_parser_product_sample, measure_omena_parser_product_sample,
-        parser_product_benchmark_boundaries, style_corpus, validate_legacy_style_sample,
+        parser_product_benchmark_boundaries, style_corpus,
+        summarize_parser_product_benchmark_readiness, validate_legacy_style_sample,
         validate_omena_style_sample, validate_parser_product_benchmark_boundary_symmetry,
     };
 
@@ -346,6 +402,49 @@ mod tests {
             assert!(legacy["wrappers"].as_object().is_some());
             assert!(omena["wrappers"].as_object().is_some());
         }
+        Ok(())
+    }
+
+    #[test]
+    fn parser_product_readiness_summary_is_serializable_and_honest() -> Result<(), String> {
+        let summary = summarize_parser_product_benchmark_readiness();
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(summary.product, "omena-benchmarks.parser-product-readiness");
+        assert_eq!(summary.status, "parserProductBoundaryReady");
+        assert_eq!(summary.benchmark_family, super::Z5_PERFORMANCE_BASELINE);
+        assert_eq!(summary.lanes, vec!["legacy", "omena"]);
+        assert_eq!(summary.sample_count, style_corpus().len());
+        assert_eq!(summary.input_boundary, "raw-style-source");
+        assert_eq!(summary.measured_operation, "source-to-product-summary");
+        assert!(summary.includes_parse);
+        assert!(summary.parse_work_measured_inside_summary);
+        assert!(summary.includes_product_summary);
+        assert!(summary.symmetric_measurement_boundary);
+        assert!(summary.all_samples_parse_in_both_lanes);
+        assert_eq!(
+            summary.comparison_policy,
+            "raw-style-source-to-product-summary-for-each-lane"
+        );
+        assert!(
+            summary
+                .next_priorities
+                .contains(&"refreshFullCriterionSnapshotAfterM4CorpusExpansion")
+        );
+
+        let serialized = serde_json::to_value(&summary).map_err(|error| error.to_string())?;
+        assert_eq!(
+            serialized
+                .pointer("/symmetricMeasurementBoundary")
+                .and_then(|value| value.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            serialized
+                .pointer("/allSamplesParseInBothLanes")
+                .and_then(|value| value.as_bool()),
+            Some(true)
+        );
         Ok(())
     }
 }

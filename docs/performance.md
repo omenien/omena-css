@@ -24,6 +24,12 @@ Compile the benchmark harness without executing timing loops:
 pnpm cme-check run rust/z5-performance-baseline-micro
 ```
 
+Validate the benchmark boundary contract without running timing loops:
+
+```bash
+pnpm cme-check run rust/omena-benchmarks-boundary
+```
+
 Run Criterion micro-benchmarks:
 
 ```bash
@@ -79,6 +85,8 @@ Until then, the committed benchmark surface is the contract:
 - benchmark code is versioned
 - corpus generation is versioned
 - macro request mix is versioned
+- parser-product benchmark lanes expose a machine-readable readiness summary
+  proving both lanes measure raw style source to product summary
 - parser-product cut-over ratio is enforced by `check:rust-z5-parser-product-cutover`
 - thresholds are enforced by `check:rust-z5-performance-baseline-macro`
 
