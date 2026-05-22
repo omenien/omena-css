@@ -181,6 +181,14 @@ const chunkRecords = manifest.chunks.map((chunkManifest) => {
   return { manifest: chunkManifest, chunk };
 });
 const fixtures = chunkRecords.flatMap((record) => record.chunk.fixtures);
+const sparsePathFixtureCounts = manifest.source.sparsePaths.map((sparsePath) => ({
+  sparsePath,
+  fixtureCount: fixtures.filter((fixture) => fixture.wptPath.startsWith(`${sparsePath}/`)).length,
+}));
+assert.ok(
+  sparsePathFixtureCounts.every((count) => count.fixtureCount > 0),
+  "every pinned WPT sparse path must have fixture coverage",
+);
 const blockingChunkRecords = chunkRecords.filter(
   (record) => record.manifest.stage === "stage2-blocking",
 );
@@ -322,6 +330,7 @@ process.stdout.write(
       fixtureCount: reports.length,
       blockingFixtureCount: blockingFixtures.length,
       advisoryFixtureCount: reports.length - blockingFixtures.length,
+      sparsePathFixtureCounts,
       chunkCount: chunkRecords.length,
       knownFailureCount: policy.subtests.length,
       knownFailureReviewIntervalDays: policy.reviewIntervalDays,

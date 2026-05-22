@@ -34,6 +34,12 @@ const wptChunks = wptManifest.chunks.map((chunkManifest) => {
   assert.equal(sha256, chunkManifest.sha256);
   return { manifest: chunkManifest, chunk };
 });
+const wptFixtures = wptChunks.flatMap((chunk) => chunk.chunk.fixtures);
+const wptSparsePathFixtureCounts = wptManifest.source.sparsePaths.map((sparsePath) => ({
+  sparsePath,
+  fixtureCount: wptFixtures.filter((fixture) => fixture.wptPath.startsWith(`${sparsePath}/`))
+    .length,
+}));
 const wptBlockingChunks = wptChunks.filter((chunk) => chunk.manifest.stage === "stage2-blocking");
 const wptAdvisoryFixtureCount = wptChunks
   .filter((chunk) => chunk.manifest.stage === "stage1-advisory")
@@ -58,6 +64,10 @@ assert.ok(wptBlockingFixtureCount >= wptPolicyRequiredFixtureCount);
 assert.ok(wptAdvisoryFixtureCount > 0, "M4 Axis A must keep a stage1 advisory WPT lane");
 assert.ok(wptManifest.source.sparsePaths.includes("css/css-values"));
 assert.ok(wptManifest.source.sparsePaths.includes("css/css-color"));
+assert.ok(
+  wptSparsePathFixtureCounts.every((count) => count.fixtureCount > 0),
+  "every pinned WPT sparse path must have fixture coverage",
+);
 assert.ok(wptManifest.source.helperClasses.includes("test_valid_value"));
 assert.ok(wptManifest.source.layoutDependentHelpersExcluded.includes("test_computed_value"));
 
@@ -213,6 +223,7 @@ process.stdout.write(
         fixtureCount: wptBlockingFixtureCount + wptAdvisoryFixtureCount,
         blockingFixtureCount: wptBlockingFixtureCount,
         advisoryFixtureCount: wptAdvisoryFixtureCount,
+        sparsePathFixtureCounts: wptSparsePathFixtureCounts,
         chunkCount: wptChunks.length,
         consecutiveGreenRuns: wptPolicyConsecutiveGreenRuns,
         stage2Blocking: wptPolicyStage2Blocking,
@@ -258,7 +269,9 @@ interface WptSeedManifestV0 {
 }
 
 interface WptSeedChunkV0 {
-  readonly fixtures: readonly unknown[];
+  readonly fixtures: readonly {
+    readonly wptPath: string;
+  }[];
 }
 
 interface SpecSourcePinsV0 {
