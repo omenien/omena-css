@@ -12,6 +12,8 @@ mod lifecycle;
 mod sass_resolution;
 #[path = "tests/sass_symbols.rs"]
 mod sass_symbols;
+#[path = "tests/source_completion.rs"]
+mod source_completion;
 #[path = "tests/source_resolution.rs"]
 mod source_resolution;
 #[path = "tests/source_resolution_watch.rs"]
