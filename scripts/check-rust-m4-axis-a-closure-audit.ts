@@ -12,6 +12,7 @@ const readinessScript = requiredScript("check:rust-m4-axis-a-readiness");
 for (const target of [
   "rust/omena-diff-test-boundary",
   "rust/omena-parser/style-facts-parity",
+  "rust/omena-parser/differential-corpus",
   "rust/omena-spec-audit-boundary",
   "rust/omena-meta-macros-boundary",
   "rust/omena-transform-target/boundary",
@@ -277,6 +278,30 @@ assertIncludes(
   "parser style-facts parity must compare against the legacy parser oracle",
 );
 
+const parserDifferentialCorpus = read("scripts/check-rust-omena-parser-differential-corpus.ts");
+for (const marker of [
+  "LEGACY_SUPPORTED_CORPUS",
+  "SASS_INDENTED_CORPUS",
+  "PARSER_ONLY_CORPUS",
+  "LIGHTNINGCSS_CSS_CORPUS",
+  "sass-indented-nested-bem",
+  "scss-module-config-preludes",
+  "scss-control-at-rules",
+  "less-import-options",
+  "less-detached-ruleset-and-namespaced-variable",
+  "css-modules-icss-import-export",
+  "css-modules-value-facts",
+  "css-modules-composes-facts",
+  "runLegacyIndex",
+  "summarizeLightningCss",
+] as const) {
+  assertIncludes(
+    parserDifferentialCorpus,
+    marker,
+    `M4 Axis A parser differential corpus must retain ${marker}`,
+  );
+}
+
 process.stdout.write(
   JSON.stringify(
     {
@@ -315,6 +340,25 @@ process.stdout.write(
           "icss-import-export-facts",
           "scss-sass-symbol-facts",
           "less-selector-facts",
+        ],
+      },
+      parserDifferentialCorpus: {
+        gate: "rust/omena-parser/differential-corpus",
+        requiredCorpora: [
+          "legacy-supported-css-scss-less",
+          "sass-indented",
+          "parser-only-modern-css-scss-less-css-modules",
+          "lightningcss-css",
+        ],
+        requiredFixtures: [
+          "sass-indented-nested-bem",
+          "scss-module-config-preludes",
+          "scss-control-at-rules",
+          "less-import-options",
+          "less-detached-ruleset-and-namespaced-variable",
+          "css-modules-icss-import-export",
+          "css-modules-value-facts",
+          "css-modules-composes-facts",
         ],
       },
     },
