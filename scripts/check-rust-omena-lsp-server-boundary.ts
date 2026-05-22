@@ -109,10 +109,16 @@ const lspServerTestsSource = readFileSync(
   path.join(repoRoot, "rust/crates/omena-lsp-server/src/tests.rs"),
   "utf8",
 );
-const lspServerDiagnosticsTestsSource = readFileSync(
-  path.join(repoRoot, "rust/crates/omena-lsp-server/src/tests/diagnostics.rs"),
-  "utf8",
-);
+const lspServerDiagnosticsTestsSource = [
+  "diagnostics_cascade.rs",
+  "diagnostics_publish.rs",
+  "diagnostics_sass.rs",
+  "diagnostics_style.rs",
+]
+  .map((filename) =>
+    readFileSync(path.join(repoRoot, "rust/crates/omena-lsp-server/src/tests", filename), "utf8"),
+  )
+  .join("\n");
 
 assert.equal(rustSummary.schemaVersion, "0");
 assert.equal(rustSummary.product, "omena-lsp-server.boundary");
@@ -126,8 +132,13 @@ assert.ok(
   "omena-lsp-server must consume source syntax and style URI facts through omena-query, not a direct omena-bridge dependency",
 );
 assert.ok(
-  lspServerTestsSource.includes("mod diagnostics;"),
-  "omena-lsp-server tests must keep diagnostics coverage in a split diagnostics module",
+  [
+    "mod diagnostics_cascade;",
+    "mod diagnostics_publish;",
+    "mod diagnostics_sass;",
+    "mod diagnostics_style;",
+  ].every((moduleDeclaration) => lspServerTestsSource.includes(moduleDeclaration)),
+  "omena-lsp-server tests must keep diagnostics coverage in split diagnostics modules",
 );
 for (const requiredDiagnosticsTest of [
   "resolves_style_diagnostics_and_code_actions_from_opened_style_documents",

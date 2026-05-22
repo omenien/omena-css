@@ -2,8 +2,14 @@ use super::*;
 
 #[path = "tests/code_actions.rs"]
 mod code_actions;
-#[path = "tests/diagnostics.rs"]
-mod diagnostics;
+#[path = "tests/diagnostics_cascade.rs"]
+mod diagnostics_cascade;
+#[path = "tests/diagnostics_publish.rs"]
+mod diagnostics_publish;
+#[path = "tests/diagnostics_sass.rs"]
+mod diagnostics_sass;
+#[path = "tests/diagnostics_style.rs"]
+mod diagnostics_style;
 #[path = "tests/hover.rs"]
 mod hover;
 #[path = "tests/lifecycle.rs"]
