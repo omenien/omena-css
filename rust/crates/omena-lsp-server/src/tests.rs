@@ -8,8 +8,12 @@ mod diagnostics;
 mod hover;
 #[path = "tests/lifecycle.rs"]
 mod lifecycle;
-#[path = "tests/sass_resolution.rs"]
-mod sass_resolution;
+#[path = "tests/sass_resolution_package.rs"]
+mod sass_resolution_package;
+#[path = "tests/sass_resolution_symlink.rs"]
+mod sass_resolution_symlink;
+#[path = "tests/sass_resolution_watch.rs"]
+mod sass_resolution_watch;
 #[path = "tests/sass_symbols.rs"]
 mod sass_symbols;
 #[path = "tests/source_completion.rs"]
