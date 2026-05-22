@@ -80,11 +80,27 @@ assert.equal(specSources.generatedDataReviewGate.humanReviewRequired, true);
 assert.equal(specSources.generatedDataReviewGate.changedGeneratedDataRequiresReview, true);
 assert.equal(specSources.generatedDataReviewGate.autoMergeAllowed, false);
 assert.equal(specManifest.stage, "stage1-advisory");
+const specSourceLinkedEntries = specManifest.entries.filter((entry) =>
+  sourceNames.has(entry.sourceName),
+);
 assert.ok(
   specManifest.entries
     .filter((entry) => entry.priority === "P0")
     .every((entry) => entry.status === "covered" || hasRationale(entry)),
   "P0 spec gaps must be covered or explicitly rationalized",
+);
+assert.equal(
+  specSourceLinkedEntries.length,
+  specManifest.entries.length,
+  "every spec manifest entry must link to a pinned source",
+);
+assert.ok(
+  specManifest.entries.every((entry) => entry.specUrl.startsWith("https://")),
+  "every spec manifest entry must carry a spec URL",
+);
+assert.ok(
+  specManifest.entries.every((entry) => entry.webrefId.length > 0),
+  "every spec manifest entry must carry a webref id",
 );
 
 const metaMacroSource = read("rust/crates/omena-meta-macros/src/lib.rs");
@@ -182,6 +198,7 @@ process.stdout.write(
         stage: specManifest.stage,
         sourceCount: specSources.sources.length,
         p0EntryCount: specManifest.entries.filter((entry) => entry.priority === "P0").length,
+        sourceLinkedEntryCount: specSourceLinkedEntries.length,
       },
       browserData: {
         thresholdTables: uniqueTomlValues(browserThresholds, "table").length,
@@ -237,6 +254,9 @@ interface OmenaSpecManifestV0 {
     readonly priority: string;
     readonly status: string;
     readonly rationale?: string;
+    readonly sourceName: string;
+    readonly specUrl: string;
+    readonly webrefId: string;
   }[];
 }
 

@@ -5,6 +5,7 @@
 
 use omena_meta_macros::{pass, spec};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Compile-time marker proving the spec metadata attribute is available to the
 /// spec audit layer.
@@ -35,6 +36,10 @@ pub struct OmenaSpecAuditBoundarySummaryV0 {
     pub manifest_entry_count: usize,
     /// Number of P0 manifest entries.
     pub p0_entry_count: usize,
+    /// Entries whose manifest metadata links back to a pinned source.
+    pub source_linked_entry_count: usize,
+    /// Entries sourced from the primary webref CSS package.
+    pub webref_entry_count: usize,
     /// P0 entries that are missing without an explicit rationale.
     pub blocking_p0_gap_count: usize,
     /// Whether every source has a package version, tarball, and 40-char git head.
@@ -45,6 +50,8 @@ pub struct OmenaSpecAuditBoundarySummaryV0 {
     pub generated_data_review_gate_valid: bool,
     /// Whether every P0 missing/deferred/not-applicable entry has a rationale.
     pub all_p0_gaps_have_rationale: bool,
+    /// Whether every manifest entry cross-references a pinned spec source.
+    pub manifest_cross_references_valid: bool,
     /// Named gates closed by this boundary.
     pub closed_gates: Vec<&'static str>,
 }
@@ -100,6 +107,10 @@ struct OmenaSpecManifestV0 {
 #[serde(rename_all = "camelCase")]
 struct OmenaSpecManifestEntryV0 {
     id: String,
+    webref_id: String,
+    source_name: String,
+    source_category: String,
+    spec_url: String,
     priority: String,
     status: String,
     owner: String,
@@ -124,6 +135,22 @@ pub fn summarize_omena_spec_audit_boundary() -> OmenaSpecAuditBoundarySummaryV0 
     let p0_entries = entries
         .iter()
         .filter(|entry| entry.priority.as_str() == "P0")
+        .count();
+    let source_by_name = sources
+        .iter()
+        .map(|source| (source.name.as_str(), source))
+        .collect::<BTreeMap<_, _>>();
+    let source_linked_entries = entries
+        .iter()
+        .filter(|entry| source_by_name.contains_key(entry.source_name.as_str()))
+        .count();
+    let webref_entries = entries
+        .iter()
+        .filter(|entry| {
+            source_by_name
+                .get(entry.source_name.as_str())
+                .is_some_and(|source| source.package == "@webref/css")
+        })
         .count();
     let blocking_p0_gap_count = entries
         .iter()
@@ -159,7 +186,7 @@ pub fn summarize_omena_spec_audit_boundary() -> OmenaSpecAuditBoundarySummaryV0 
         .as_ref()
         .map(|manifest| manifest.stage.clone())
         .unwrap_or_else(|| "invalid".to_string());
-    let manifest_valid = manifest
+    let manifest_shape_valid = manifest
         .as_ref()
         .is_some_and(|manifest| manifest.schema_version == "0")
         && manifest
@@ -167,6 +194,10 @@ pub fn summarize_omena_spec_audit_boundary() -> OmenaSpecAuditBoundarySummaryV0 
             .is_some_and(|manifest| manifest.product == "omena-spec-audit.single-source-manifest")
         && !entries.is_empty()
         && entries.iter().all(manifest_entry_is_valid);
+    let manifest_cross_references_valid = manifest_shape_valid
+        && entries
+            .iter()
+            .all(|entry| manifest_entry_cross_reference_is_valid(entry, &source_by_name));
 
     OmenaSpecAuditBoundarySummaryV0 {
         schema_version: "0",
@@ -175,14 +206,18 @@ pub fn summarize_omena_spec_audit_boundary() -> OmenaSpecAuditBoundarySummaryV0 
         source_count: sources.len(),
         manifest_entry_count: entries.len(),
         p0_entry_count: p0_entries,
+        source_linked_entry_count: source_linked_entries,
+        webref_entry_count: webref_entries,
         blocking_p0_gap_count,
         all_source_pins_valid,
         source_freshness_policy_valid,
         generated_data_review_gate_valid,
-        all_p0_gaps_have_rationale: manifest_valid && all_p0_gaps_have_rationale,
+        all_p0_gaps_have_rationale: manifest_shape_valid && all_p0_gaps_have_rationale,
+        manifest_cross_references_valid,
         closed_gates: vec![
             "specAuditSourcePins",
             "specAuditSingleSourceManifest",
+            "specAuditManifestSourceCrossReferences",
             "specAuditP0GapRationalePolicy",
             "specAuditSourceFreshnessPolicy",
             "generatedDataHumanReviewGate",
@@ -250,6 +285,10 @@ fn date_key(value: &str) -> Option<u32> {
 
 fn manifest_entry_is_valid(entry: &OmenaSpecManifestEntryV0) -> bool {
     !entry.id.is_empty()
+        && !entry.webref_id.is_empty()
+        && !entry.source_name.is_empty()
+        && webref_category_is_valid(entry.source_category.as_str())
+        && entry.spec_url.starts_with("https://")
         && matches!(entry.priority.as_str(), "P0" | "P1" | "P2" | "P3")
         && matches!(
             entry.status.as_str(),
@@ -257,6 +296,25 @@ fn manifest_entry_is_valid(entry: &OmenaSpecManifestEntryV0) -> bool {
         )
         && !entry.owner.is_empty()
         && (entry.status != "covered" || !entry.evidence.is_empty())
+}
+
+fn manifest_entry_cross_reference_is_valid(
+    entry: &OmenaSpecManifestEntryV0,
+    source_by_name: &BTreeMap<&str, &SpecSourcePinV0>,
+) -> bool {
+    source_by_name
+        .get(entry.source_name.as_str())
+        .is_some_and(|source| {
+            !source.version.is_empty()
+                && (source.package != "@webref/css" || entry.webref_id == entry.id)
+        })
+}
+
+fn webref_category_is_valid(category: &str) -> bool {
+    matches!(
+        category,
+        "atrules" | "descriptors" | "properties" | "selectors" | "values"
+    )
 }
 
 fn entry_has_rationale(entry: &OmenaSpecManifestEntryV0) -> bool {
@@ -283,12 +341,20 @@ mod tests {
         assert_eq!(summary.source_count, 4);
         assert_eq!(summary.manifest_entry_count, 5);
         assert_eq!(summary.p0_entry_count, 4);
+        assert_eq!(summary.source_linked_entry_count, 5);
+        assert_eq!(summary.webref_entry_count, 5);
         assert_eq!(summary.blocking_p0_gap_count, 0);
         assert!(summary.all_source_pins_valid);
         assert!(summary.source_freshness_policy_valid);
         assert!(summary.generated_data_review_gate_valid);
         assert!(summary.all_p0_gaps_have_rationale);
+        assert!(summary.manifest_cross_references_valid);
         assert!(summary.closed_gates.contains(&"specAuditSourcePins"));
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"specAuditManifestSourceCrossReferences")
+        );
         assert!(
             summary
                 .closed_gates

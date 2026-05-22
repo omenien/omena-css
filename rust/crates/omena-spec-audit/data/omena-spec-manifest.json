@@ -5,13 +5,25 @@
   "entries": [
     {
       "id": "css-color/properties/color",
+      "webrefId": "css-color/properties/color",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-color/#the-color-property",
       "priority": "P0",
       "status": "covered",
       "owner": "omena-parser",
-      "evidence": ["SyntaxKind::Declaration", "color-compression"]
+      "evidence": [
+        "SyntaxKind::Declaration",
+        "color-compression",
+        "WPT css/css-color/parsing/color-valid.html"
+      ]
     },
     {
       "id": "css-values/functions/calc",
+      "webrefId": "css-values/functions/calc",
+      "sourceName": "webref-css",
+      "sourceCategory": "values",
+      "specUrl": "https://drafts.csswg.org/css-values/#calc-notation",
       "priority": "P0",
       "status": "covered",
       "owner": "omena-transform-passes",
@@ -19,6 +31,10 @@
     },
     {
       "id": "css-color/properties/opacity",
+      "webrefId": "css-color/properties/opacity",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-color/#transparency",
       "priority": "P0",
       "status": "covered",
       "owner": "omena-transform-passes",
@@ -26,6 +42,10 @@
     },
     {
       "id": "css-values/types/url",
+      "webrefId": "css-values/types/url",
+      "sourceName": "webref-css",
+      "sourceCategory": "values",
+      "specUrl": "https://drafts.csswg.org/css-values/#urls",
       "priority": "P0",
       "status": "covered",
       "owner": "omena-transform-passes",
@@ -36,6 +56,10 @@
     },
     {
       "id": "css-mixins/atrules/@function",
+      "webrefId": "css-mixins/atrules/@function",
+      "sourceName": "webref-css",
+      "sourceCategory": "atrules",
+      "specUrl": "https://drafts.csswg.org/css-mixins-1/#function-rule",
       "priority": "P1",
       "status": "deferred",
       "owner": "omena-parser",
