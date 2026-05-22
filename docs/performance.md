@@ -30,6 +30,12 @@ Validate the benchmark boundary contract without running timing loops:
 pnpm cme-check run rust/omena-benchmarks-boundary
 ```
 
+Emit the machine-readable Criterion surface snapshot:
+
+```bash
+pnpm cme-check run rust/z5-criterion-surface-snapshot
+```
+
 Run Criterion micro-benchmarks:
 
 ```bash
@@ -87,6 +93,8 @@ Until then, the committed benchmark surface is the contract:
 - macro request mix is versioned
 - parser-product benchmark lanes expose a machine-readable readiness summary
   proving both lanes measure raw style source to product summary
+- Criterion benchmark groups expose a machine-readable surface snapshot, so M4
+  corpus expansion changes cannot silently miss a measured lane
 - parser-product cut-over ratio is enforced by `check:rust-z5-parser-product-cutover`
 - thresholds are enforced by `check:rust-z5-performance-baseline-macro`
 
@@ -110,9 +118,10 @@ The following numbers were captured on 2026-05-05 with:
 | abstract-value | `one-cfa-40-call-sites`        | 1.9678-1.9803 ms   |
 | abstract-value | `reduced-product-intersection` | 244.27-254.65 ns   |
 
-`z5/omena-parser` was added after this snapshot. Treat full-CST parser timings
-as engineering evidence, not a product cut-over claim, until the full parser
-track has a refreshed comparative snapshot.
+`z5/omena-parser` was added after this timing snapshot. The current M4 gate now
+records the Criterion surface structurally, but local timing numbers remain
+engineering evidence rather than an external speed claim until a full refreshed
+Criterion timing run is captured with host details.
 
 ## Parser-Product Cut-Over Snapshot
 

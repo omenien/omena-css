@@ -51,7 +51,42 @@ pub struct ParserProductBenchmarkReadinessSummaryV0 {
     pub symmetric_measurement_boundary: bool,
     pub all_samples_parse_in_both_lanes: bool,
     pub comparison_policy: &'static str,
+    pub criterion_surface_snapshot_available: bool,
     pub next_priorities: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CriterionBenchmarkGroupSnapshotV0 {
+    pub group: &'static str,
+    pub measured_operation: &'static str,
+    pub workload_kind: &'static str,
+    pub benchmark_count: usize,
+    pub sample_names: Vec<&'static str>,
+    pub uses_style_corpus: bool,
+    pub lane: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CriterionSurfaceSnapshotV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub benchmark_family: &'static str,
+    pub snapshot_kind: &'static str,
+    pub timing_policy: &'static str,
+    pub command: &'static str,
+    pub corpus_sample_count: usize,
+    pub benchmark_group_count: usize,
+    pub benchmark_function_count: usize,
+    pub groups: Vec<CriterionBenchmarkGroupSnapshotV0>,
+    pub includes_legacy_parser_oracle_lane: bool,
+    pub includes_omena_parser_lane: bool,
+    pub includes_parser_product_lanes: bool,
+    pub includes_semantic_lane: bool,
+    pub includes_abstract_value_lane: bool,
+    pub m4_corpus_expansion_reflected: bool,
+    pub symmetric_parser_product_boundary: bool,
 }
 
 pub fn style_corpus() -> Vec<StyleSample> {
@@ -163,7 +198,104 @@ pub fn summarize_parser_product_benchmark_readiness() -> ParserProductBenchmarkR
             .is_ok(),
         all_samples_parse_in_both_lanes,
         comparison_policy: "raw-style-source-to-product-summary-for-each-lane",
-        next_priorities: vec!["refreshFullCriterionSnapshotAfterM4CorpusExpansion"],
+        criterion_surface_snapshot_available: true,
+        next_priorities: vec!["runFullCriterionTimingSnapshotBeforeExternalSpeedClaim"],
+    }
+}
+
+pub fn summarize_criterion_surface_snapshot() -> CriterionSurfaceSnapshotV0 {
+    let sample_names = style_corpus()
+        .iter()
+        .map(|sample| sample.name)
+        .collect::<Vec<_>>();
+    let groups = vec![
+        CriterionBenchmarkGroupSnapshotV0 {
+            group: "z5/parser",
+            measured_operation: "legacy-style-parser-parse-style-module",
+            workload_kind: "style-corpus",
+            benchmark_count: sample_names.len(),
+            sample_names: sample_names.clone(),
+            uses_style_corpus: true,
+            lane: Some("legacy-parser-oracle"),
+        },
+        CriterionBenchmarkGroupSnapshotV0 {
+            group: "z5/omena-parser",
+            measured_operation: "omena-parser-parse",
+            workload_kind: "style-corpus",
+            benchmark_count: sample_names.len(),
+            sample_names: sample_names.clone(),
+            uses_style_corpus: true,
+            lane: Some("omena-parser"),
+        },
+        CriterionBenchmarkGroupSnapshotV0 {
+            group: "z5/parser-product-legacy",
+            measured_operation: "source-to-product-summary",
+            workload_kind: "style-corpus",
+            benchmark_count: sample_names.len(),
+            sample_names: sample_names.clone(),
+            uses_style_corpus: true,
+            lane: Some("legacy"),
+        },
+        CriterionBenchmarkGroupSnapshotV0 {
+            group: "z5/parser-product-omena",
+            measured_operation: "source-to-product-summary",
+            workload_kind: "style-corpus",
+            benchmark_count: sample_names.len(),
+            sample_names: sample_names.clone(),
+            uses_style_corpus: true,
+            lane: Some("omena"),
+        },
+        CriterionBenchmarkGroupSnapshotV0 {
+            group: "z5/semantic",
+            measured_operation: "source-to-semantic-boundary-summary",
+            workload_kind: "style-corpus",
+            benchmark_count: sample_names.len(),
+            sample_names: sample_names.clone(),
+            uses_style_corpus: true,
+            lane: Some("omena-semantic"),
+        },
+        CriterionBenchmarkGroupSnapshotV0 {
+            group: "z5/abstract-value",
+            measured_operation: "abstract-value-flow-analysis",
+            workload_kind: "synthetic-flow-graph",
+            benchmark_count: 3,
+            sample_names: vec![
+                "flow-1cfa-256-nodes",
+                "one-cfa-40-call-sites",
+                "reduced-product-intersection",
+            ],
+            uses_style_corpus: false,
+            lane: Some("omena-abstract-value"),
+        },
+    ];
+    let benchmark_function_count = groups.iter().map(|group| group.benchmark_count).sum();
+    let includes_group = |name: &str| groups.iter().any(|group| group.group == name);
+    let includes_legacy_parser_oracle_lane = includes_group("z5/parser");
+    let includes_omena_parser_lane = includes_group("z5/omena-parser");
+    let includes_parser_product_lanes =
+        includes_group("z5/parser-product-legacy") && includes_group("z5/parser-product-omena");
+    let includes_semantic_lane = includes_group("z5/semantic");
+    let includes_abstract_value_lane = includes_group("z5/abstract-value");
+
+    CriterionSurfaceSnapshotV0 {
+        schema_version: "0",
+        product: "omena-benchmarks.criterion-surface-snapshot",
+        benchmark_family: Z5_PERFORMANCE_BASELINE,
+        snapshot_kind: "structural-criterion-surface-after-m4-corpus-expansion",
+        timing_policy: "no-local-timing-claim-without-full-criterion-run",
+        command: "pnpm cme-check run rust/z5-criterion-surface-snapshot",
+        corpus_sample_count: sample_names.len(),
+        benchmark_group_count: groups.len(),
+        benchmark_function_count,
+        groups,
+        includes_legacy_parser_oracle_lane,
+        includes_omena_parser_lane,
+        includes_parser_product_lanes,
+        includes_semantic_lane,
+        includes_abstract_value_lane,
+        m4_corpus_expansion_reflected: sample_names.len() >= 3,
+        symmetric_parser_product_boundary: validate_parser_product_benchmark_boundary_symmetry()
+            .is_ok(),
     }
 }
 
@@ -332,7 +464,7 @@ fn build_scss_heavy_design_system(count: usize) -> String {
 mod tests {
     use super::{
         measure_legacy_parser_product_sample, measure_omena_parser_product_sample,
-        parser_product_benchmark_boundaries, style_corpus,
+        parser_product_benchmark_boundaries, style_corpus, summarize_criterion_surface_snapshot,
         summarize_parser_product_benchmark_readiness, validate_legacy_style_sample,
         validate_omena_style_sample, validate_parser_product_benchmark_boundary_symmetry,
     };
@@ -426,10 +558,11 @@ mod tests {
             summary.comparison_policy,
             "raw-style-source-to-product-summary-for-each-lane"
         );
+        assert!(summary.criterion_surface_snapshot_available);
         assert!(
             summary
                 .next_priorities
-                .contains(&"refreshFullCriterionSnapshotAfterM4CorpusExpansion")
+                .contains(&"runFullCriterionTimingSnapshotBeforeExternalSpeedClaim")
         );
 
         let serialized = serde_json::to_value(&summary).map_err(|error| error.to_string())?;
@@ -444,6 +577,51 @@ mod tests {
                 .pointer("/allSamplesParseInBothLanes")
                 .and_then(|value| value.as_bool()),
             Some(true)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn criterion_surface_snapshot_covers_current_m4_benchmark_family() -> Result<(), String> {
+        let snapshot = summarize_criterion_surface_snapshot();
+
+        assert_eq!(
+            snapshot.product,
+            "omena-benchmarks.criterion-surface-snapshot"
+        );
+        assert_eq!(snapshot.benchmark_family, super::Z5_PERFORMANCE_BASELINE);
+        assert_eq!(
+            snapshot.snapshot_kind,
+            "structural-criterion-surface-after-m4-corpus-expansion"
+        );
+        assert_eq!(snapshot.corpus_sample_count, style_corpus().len());
+        assert_eq!(snapshot.benchmark_group_count, 6);
+        assert_eq!(snapshot.benchmark_function_count, 18);
+        assert!(snapshot.includes_legacy_parser_oracle_lane);
+        assert!(snapshot.includes_omena_parser_lane);
+        assert!(snapshot.includes_parser_product_lanes);
+        assert!(snapshot.includes_semantic_lane);
+        assert!(snapshot.includes_abstract_value_lane);
+        assert!(snapshot.m4_corpus_expansion_reflected);
+        assert!(snapshot.symmetric_parser_product_boundary);
+        assert!(
+            snapshot
+                .groups
+                .iter()
+                .filter(|group| group.uses_style_corpus)
+                .all(|group| group.sample_names == snapshot.groups[0].sample_names)
+        );
+
+        let serialized = serde_json::to_value(&snapshot).map_err(|error| error.to_string())?;
+        assert_eq!(
+            serialized.pointer("/benchmarkFunctionCount"),
+            Some(&serde_json::json!(18))
+        );
+        assert_eq!(
+            serialized
+                .pointer("/timingPolicy")
+                .and_then(|value| value.as_str()),
+            Some("no-local-timing-claim-without-full-criterion-run")
         );
         Ok(())
     }

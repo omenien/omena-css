@@ -16,10 +16,10 @@ omena-abstract-value = { path = "../omena-abstract-value" }
 omena-parser = { path = "../omena-parser" }
 omena-semantic = { path = "../omena-semantic" }
 serde.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
-serde_json.workspace = true
 
 [[bench]]
 name = "z5_performance_baseline"
