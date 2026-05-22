@@ -56,6 +56,7 @@ async function main(): Promise<void> {
   const configPath = path.join(workspaceRoot, "vite.config.ts");
   const webpackConfigPath = path.join(workspaceRoot, "webpack.config.js");
   const tsconfigPath = path.join(workspaceRoot, "tsconfig.json");
+  const tsconfigBasePath = path.join(workspaceRoot, "tsconfig.base.json");
   const tsconfigSourcePath = path.join(srcDir, "Tsconfig.module.scss");
   const tsconfigOldTargetPath = path.join(srcDir, "tsconfig-old", "_tokens.scss");
   const tsconfigNewTargetPath = path.join(srcDir, "tsconfig-new", "_tokens.scss");
@@ -74,6 +75,7 @@ async function main(): Promise<void> {
   const configUri = pathToFileURL(configPath).toString();
   const webpackConfigUri = pathToFileURL(webpackConfigPath).toString();
   const tsconfigUri = pathToFileURL(tsconfigPath).toString();
+  const tsconfigBaseUri = pathToFileURL(tsconfigBasePath).toString();
   const tsconfigSourceUri = pathToFileURL(tsconfigSourcePath).toString();
   const tsconfigOldTargetUri = pathToFileURL(tsconfigOldTargetPath).toString();
   const tsconfigNewTargetUri = pathToFileURL(tsconfigNewTargetPath).toString();
@@ -160,7 +162,8 @@ async function main(): Promise<void> {
   writeFileSync(packageNewTargetPath, "$brand: new;\n");
   writeFileSync(configPath, buildViteConfig(ALIAS_COUNT));
   writeFileSync(webpackConfigPath, buildWebpackConfig("src/webpack-old"));
-  writeFileSync(tsconfigPath, buildTsconfig("src/tsconfig-old/*"));
+  writeFileSync(tsconfigPath, buildTsconfigExtendsBase());
+  writeFileSync(tsconfigBasePath, buildTsconfig("src/tsconfig-old/*"));
   writePackageManifests(workspaceRoot, PACKAGE_COUNT);
 
   const child = spawn(invocation.command, [...invocation.args], {
@@ -278,6 +281,29 @@ async function main(): Promise<void> {
       ),
       tsconfigNewTargetUri,
     );
+    writeFileSync(tsconfigPath, buildTsconfigExtendsBase());
+    writeFileSync(tsconfigBasePath, buildTsconfig("src/tsconfig-old/*"));
+    await connection.sendNotification("workspace/didChangeWatchedFiles", {
+      changes: [{ uri: tsconfigUri, type: 2 }],
+    });
+    assertDefinitionTarget(
+      await requestWithTimeout(
+        connection.sendRequest("textDocument/definition", tsconfigDefinitionParams),
+        "tsconfig extends reset definition",
+      ),
+      tsconfigOldTargetUri,
+    );
+    writeFileSync(tsconfigBasePath, buildTsconfig("src/tsconfig-new/*"));
+    await connection.sendNotification("workspace/didChangeWatchedFiles", {
+      changes: [{ uri: tsconfigBaseUri, type: 2 }],
+    });
+    assertDefinitionTarget(
+      await requestWithTimeout(
+        connection.sendRequest("textDocument/definition", tsconfigDefinitionParams),
+        "tsconfig.base refreshed definition",
+      ),
+      tsconfigNewTargetUri,
+    );
     assertDefinitionTarget(
       await requestWithTimeout(
         connection.sendRequest("textDocument/definition", webpackDefinitionParams),
@@ -370,7 +396,7 @@ async function main(): Promise<void> {
         `refreshBaseline=${formatSummary(refreshSummary)}`,
         `hotDefinition=${formatSummary(hotSummary)}`,
         `p50Ratio=${ratio.toFixed(2)}`,
-        "invalidations=package.json(root+package),tsconfig.json,vite.config.ts,webpack.config.js",
+        "invalidations=package.json(root+package),tsconfig.json,tsconfig.base.json,vite.config.ts,webpack.config.js",
       ].join(" ") + "\n",
     );
   } finally {
@@ -482,6 +508,16 @@ function buildTsconfig(stylesTarget: string): string {
           "$styles/*": [stylesTarget],
         },
       },
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+function buildTsconfigExtendsBase(): string {
+  return `${JSON.stringify(
+    {
+      extends: "./tsconfig.base.json",
     },
     null,
     2,

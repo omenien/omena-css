@@ -128,10 +128,11 @@ for (const marker of bundlerAliasFixtureRequirements) {
 
 const resolverCacheRequirements = [
   "cachedWorkspaceResolutionInputCount",
-  "package.json(root+package),tsconfig.json,vite.config.ts,webpack.config.js",
+  "package.json(root+package),tsconfig.json,tsconfig.base.json,vite.config.ts,webpack.config.js",
   "root package imports initial definition",
   "root package imports refreshed definition",
   "tsconfig refreshed definition",
+  "tsconfig.base refreshed definition",
   "webpack refreshed definition",
   "package refreshed definition",
   "refreshBaseline",
@@ -191,6 +192,7 @@ process.stdout.write(
           "package.json",
           "root-package-imports",
           "tsconfig.json",
+          "tsconfig.base.json",
           "vite.config.ts",
           "webpack.config.js",
         ],
