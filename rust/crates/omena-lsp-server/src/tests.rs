@@ -14,6 +14,8 @@ mod sass_resolution;
 mod sass_symbols;
 #[path = "tests/source_resolution.rs"]
 mod source_resolution;
+#[path = "tests/source_resolution_watch.rs"]
+mod source_resolution_watch;
 #[path = "tests/source_semantics.rs"]
 mod source_semantics;
 #[path = "tests/style_context.rs"]
