@@ -84,9 +84,9 @@ assert.ok(
 );
 assert.ok(
   wptSparsePathFixtureCounts.some(
-    (count) => count.sparsePath === "css/css-sizing" && count.fixtureCount >= 3,
+    (count) => count.sparsePath === "css/css-sizing" && count.fixtureCount >= 6,
   ),
-  "css-sizing WPT coverage must retain the width advisory fixture set",
+  "css-sizing WPT coverage must retain the width and height advisory fixture sets",
 );
 assert.ok(
   wptSparsePathFixtureCounts.some(
@@ -141,6 +141,23 @@ for (const evidence of [
 const cssBackgroundColorEntry = specManifest.entries.find(
   (entry) => entry.id === "css-backgrounds/properties/background-color",
 );
+const cssSizingHeightEntry = specManifest.entries.find(
+  (entry) => entry.id === "css-sizing/properties/height",
+);
+assert.ok(cssSizingHeightEntry, "spec audit must retain css-sizing height coverage");
+assert.equal(cssSizingHeightEntry.priority, "P0");
+assert.equal(cssSizingHeightEntry.status, "covered");
+for (const evidence of [
+  "WPT css/css-sizing/parsing/height-valid.html",
+  "css-sizing-height-min-content-advisory",
+  "css-sizing-height-calc-advisory",
+  "css-sizing-height-fit-content-advisory",
+] as const) {
+  assert.ok(
+    cssSizingHeightEntry.evidence?.includes(evidence),
+    `css-sizing height spec audit evidence must include ${evidence}`,
+  );
+}
 assert.ok(
   cssBackgroundColorEntry,
   "spec audit must retain css-backgrounds background-color coverage",
@@ -188,6 +205,12 @@ assert.ok(
     coverage.entryIds.includes("css-sizing/properties/width"),
   ),
   "cross-source spec coverage must retain css-sizing width joins",
+);
+assert.ok(
+  specManifest.sourceCoverage.every((coverage) =>
+    coverage.entryIds.includes("css-sizing/properties/height"),
+  ),
+  "cross-source spec coverage must retain css-sizing height joins",
 );
 assert.ok(
   specManifest.sourceCoverage.every((coverage) =>

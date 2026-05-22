@@ -133,6 +133,45 @@
       "source": ".css-sizing-width-fit-content-advisory { width: fit-content(10%); }",
       "expectedCss": ".css-sizing-width-fit-content-advisory{width:fit-content(10%)}",
       "status": "pass"
+    },
+    {
+      "id": "css-sizing-height-min-content-advisory",
+      "wptPath": "css/css-sizing/parsing/height-valid.html",
+      "wptSourceLine": 15,
+      "subtest": "test_valid_value(\"height\", \"min-content\")",
+      "helper": "test_valid_value",
+      "property": "height",
+      "wptValue": "min-content",
+      "wptExpectedValue": "min-content",
+      "source": ".css-sizing-height-min-content-advisory { height: min-content; }",
+      "expectedCss": ".css-sizing-height-min-content-advisory{height:min-content}",
+      "status": "pass"
+    },
+    {
+      "id": "css-sizing-height-calc-advisory",
+      "wptPath": "css/css-sizing/parsing/height-valid.html",
+      "wptSourceLine": 21,
+      "subtest": "test_valid_value(\"height\", \"calc(10% - 0.5em)\")",
+      "helper": "test_valid_value",
+      "property": "height",
+      "wptValue": "calc(10% - 0.5em)",
+      "wptExpectedValue": "calc(10% - 0.5em)",
+      "source": ".css-sizing-height-calc-advisory { height: calc(10% - 0.5em); }",
+      "expectedCss": ".css-sizing-height-calc-advisory{height:calc(10% - .5em)}",
+      "status": "pass"
+    },
+    {
+      "id": "css-sizing-height-fit-content-advisory",
+      "wptPath": "css/css-sizing/parsing/height-valid.html",
+      "wptSourceLine": 23,
+      "subtest": "test_valid_value(\"height\", \"fit-content(10%)\")",
+      "helper": "test_valid_value",
+      "property": "height",
+      "wptValue": "fit-content(10%)",
+      "wptExpectedValue": "fit-content(10%)",
+      "source": ".css-sizing-height-fit-content-advisory { height: fit-content(10%); }",
+      "expectedCss": ".css-sizing-height-fit-content-advisory{height:fit-content(10%)}",
+      "status": "pass"
     }
   ]
 }
