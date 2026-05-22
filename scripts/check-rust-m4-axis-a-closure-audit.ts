@@ -69,8 +69,18 @@ assert.ok(wptAdvisoryFixtureCount > 0, "M4 Axis A must keep a stage1 advisory WP
 assert.ok(wptManifest.source.sparsePaths.includes("css/css-values"));
 assert.ok(wptManifest.source.sparsePaths.includes("css/css-color"));
 assert.ok(
+  wptManifest.source.sparsePaths.includes("css/css-sizing"),
+  "M4 Axis A must keep css-sizing in the pinned WPT sparse path policy",
+);
+assert.ok(
   wptSparsePathFixtureCounts.every((count) => count.fixtureCount > 0),
   "every pinned WPT sparse path must have fixture coverage",
+);
+assert.ok(
+  wptSparsePathFixtureCounts.some(
+    (count) => count.sparsePath === "css/css-sizing" && count.fixtureCount >= 3,
+  ),
+  "css-sizing WPT coverage must retain the width advisory fixture set",
 );
 assert.deepEqual(
   wptManifest.sparsePathFixtureCounts,
@@ -99,6 +109,23 @@ assert.equal(specSources.generatedDataReviewGate.humanReviewRequired, true);
 assert.equal(specSources.generatedDataReviewGate.changedGeneratedDataRequiresReview, true);
 assert.equal(specSources.generatedDataReviewGate.autoMergeAllowed, false);
 assert.equal(specManifest.stage, "stage1-advisory");
+const cssSizingWidthEntry = specManifest.entries.find(
+  (entry) => entry.id === "css-sizing/properties/width",
+);
+assert.ok(cssSizingWidthEntry, "spec audit must retain css-sizing width coverage");
+assert.equal(cssSizingWidthEntry.priority, "P0");
+assert.equal(cssSizingWidthEntry.status, "covered");
+for (const evidence of [
+  "WPT css/css-sizing/parsing/width-valid.html",
+  "css-sizing-width-min-content-advisory",
+  "css-sizing-width-calc-advisory",
+  "css-sizing-width-fit-content-advisory",
+] as const) {
+  assert.ok(
+    cssSizingWidthEntry.evidence?.includes(evidence),
+    `css-sizing width spec audit evidence must include ${evidence}`,
+  );
+}
 const specSourceLinkedEntries = specManifest.entries.filter((entry) =>
   sourceNames.has(entry.sourceName),
 );
@@ -125,6 +152,12 @@ for (const coverage of specManifest.sourceCoverage) {
     "source coverage entry ids must reference manifest entries",
   );
 }
+assert.ok(
+  specManifest.sourceCoverage.every((coverage) =>
+    coverage.entryIds.includes("css-sizing/properties/width"),
+  ),
+  "cross-source spec coverage must retain css-sizing width joins",
+);
 assert.ok(
   specManifest.entries
     .filter((entry) => entry.priority === "P0")
@@ -315,6 +348,7 @@ interface OmenaSpecManifestV0 {
     readonly priority: string;
     readonly status: string;
     readonly rationale?: string;
+    readonly evidence?: readonly string[];
     readonly sourceName: string;
     readonly specUrl: string;
     readonly webrefId: string;
