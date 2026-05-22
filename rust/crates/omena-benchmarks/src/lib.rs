@@ -10,6 +10,27 @@ pub struct StyleSample {
     pub source: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleCorpusSampleSnapshotV0 {
+    pub name: &'static str,
+    pub path: &'static str,
+    pub dialect: &'static str,
+    pub byte_length: usize,
+    pub line_count: usize,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleCorpusSnapshotV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub benchmark_family: &'static str,
+    pub corpus_sample_count: usize,
+    pub samples: Vec<StyleCorpusSampleSnapshotV0>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParserProductBenchmarkBoundaryV0 {
     pub lane: &'static str,
@@ -110,6 +131,32 @@ pub fn style_corpus() -> Vec<StyleSample> {
             source: build_scss_heavy_design_system(72),
         },
     ]
+}
+
+pub fn summarize_style_corpus_snapshot() -> StyleCorpusSnapshotV0 {
+    let samples = style_corpus()
+        .into_iter()
+        .map(|sample| {
+            let line_count = sample.source.lines().count();
+            let byte_length = sample.source.len();
+            StyleCorpusSampleSnapshotV0 {
+                name: sample.name,
+                path: sample.path,
+                dialect: style_dialect_label(sample.dialect),
+                byte_length,
+                line_count,
+                source: sample.source,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    StyleCorpusSnapshotV0 {
+        schema_version: "0",
+        product: "omena-benchmarks.style-corpus-snapshot",
+        benchmark_family: Z5_PERFORMANCE_BASELINE,
+        corpus_sample_count: samples.len(),
+        samples,
+    }
 }
 
 pub fn parser_product_benchmark_boundaries() -> [ParserProductBenchmarkBoundaryV0; 2] {
@@ -460,13 +507,23 @@ fn build_scss_heavy_design_system(count: usize) -> String {
     source
 }
 
+fn style_dialect_label(dialect: StyleDialect) -> &'static str {
+    match dialect {
+        StyleDialect::Css => "css",
+        StyleDialect::Scss => "scss",
+        StyleDialect::Sass => "sass",
+        StyleDialect::Less => "less",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         measure_legacy_parser_product_sample, measure_omena_parser_product_sample,
         parser_product_benchmark_boundaries, style_corpus, summarize_criterion_surface_snapshot,
-        summarize_parser_product_benchmark_readiness, validate_legacy_style_sample,
-        validate_omena_style_sample, validate_parser_product_benchmark_boundary_symmetry,
+        summarize_parser_product_benchmark_readiness, summarize_style_corpus_snapshot,
+        validate_legacy_style_sample, validate_omena_style_sample,
+        validate_parser_product_benchmark_boundary_symmetry,
     };
 
     #[test]
@@ -577,6 +634,45 @@ mod tests {
                 .pointer("/allSamplesParseInBothLanes")
                 .and_then(|value| value.as_bool()),
             Some(true)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn style_corpus_snapshot_exposes_the_benchmark_sources() -> Result<(), String> {
+        let snapshot = summarize_style_corpus_snapshot();
+
+        assert_eq!(snapshot.schema_version, "0");
+        assert_eq!(snapshot.product, "omena-benchmarks.style-corpus-snapshot");
+        assert_eq!(snapshot.benchmark_family, super::Z5_PERFORMANCE_BASELINE);
+        assert_eq!(snapshot.corpus_sample_count, style_corpus().len());
+        assert_eq!(snapshot.samples.len(), snapshot.corpus_sample_count);
+        assert!(snapshot.samples.iter().all(|sample| sample.byte_length > 0));
+        assert!(
+            snapshot
+                .samples
+                .iter()
+                .any(|sample| sample.dialect == "css")
+        );
+        assert!(
+            snapshot
+                .samples
+                .iter()
+                .any(|sample| sample.dialect == "scss")
+        );
+
+        let serialized = serde_json::to_value(&snapshot).map_err(|error| error.to_string())?;
+        assert_eq!(
+            serialized
+                .pointer("/product")
+                .and_then(|value| value.as_str()),
+            Some("omena-benchmarks.style-corpus-snapshot")
+        );
+        assert!(
+            serialized
+                .pointer("/samples/0/source")
+                .and_then(|value| value.as_str())
+                .is_some_and(|source| !source.is_empty())
         );
         Ok(())
     }

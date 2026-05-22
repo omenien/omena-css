@@ -36,6 +36,13 @@ Emit the machine-readable Criterion surface snapshot:
 pnpm cme-check run rust/z5-criterion-surface-snapshot
 ```
 
+Validate that the same Z5 style corpus is consumable by relevant external
+comparators before making cross-tool benchmark claims:
+
+```bash
+pnpm cme-check run rust/z5-external-comparator-readiness
+```
+
 Run Criterion micro-benchmarks:
 
 ```bash
@@ -95,6 +102,9 @@ Until then, the committed benchmark surface is the contract:
   proving both lanes measure raw style source to product summary
 - Criterion benchmark groups expose a machine-readable surface snapshot, so M4
   corpus expansion changes cannot silently miss a measured lane
+- external comparator readiness proves `lightningcss` and `postcss` consume the
+  same Z5 corpus snapshot for their supported dialects before any speed ranking
+  is published
 - parser-product cut-over ratio is enforced by `check:rust-z5-parser-product-cutover`
 - thresholds are enforced by `check:rust-z5-performance-baseline-macro`
 
