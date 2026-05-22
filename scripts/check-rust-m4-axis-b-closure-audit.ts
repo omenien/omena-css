@@ -6,6 +6,10 @@ const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
 };
 
 const readinessScript = requiredScript("check:rust-m4-axis-b-readiness");
+const packageScript = requiredScript("package");
+const packagedTypeFactProtocolScript = requiredScript(
+  "check:packaged-omena-lsp-server-type-fact-protocol",
+);
 const fixtureSuiteScript = readFileSync(
   "scripts/check-rust-omena-resolver-fixture-suite.ts",
   "utf8",
@@ -18,6 +22,10 @@ const typeFactProtocolScript = readFileSync(
   "scripts/check-rust-omena-lsp-server-type-fact-protocol.ts",
   "utf8",
 );
+const packagedTypeFactProtocolFile = readFileSync(
+  "scripts/check-packaged-omena-lsp-server-type-fact-protocol.ts",
+  "utf8",
+);
 
 const requiredReadinessTargets = [
   "rust/omena-resolver/fixture-suite",
@@ -28,6 +36,21 @@ const requiredReadinessTargets = [
 for (const target of requiredReadinessTargets) {
   assertIncludes(readinessScript, target, `M4 Axis B readiness must include ${target}`);
 }
+assertIncludes(
+  packageScript,
+  "release/check/packaged-omena-lsp-server-type-fact-protocol",
+  "release package must run the packaged #38 type-fact protocol gate",
+);
+assertIncludes(
+  packagedTypeFactProtocolScript,
+  "check-packaged-omena-lsp-server-type-fact-protocol.ts",
+  "packaged #38 gate must point at its implementation file",
+);
+assertIncludes(
+  packagedTypeFactProtocolFile,
+  "check-rust-omena-lsp-server-type-fact-protocol.ts",
+  "packaged #38 gate must reuse the normal type-fact protocol fixture",
+);
 
 const resolverFixtureRequirements = [
   "resolver package exports/imports and Sass pkg URLs",
@@ -73,6 +96,9 @@ const issue38RegressionRequirements = [
 for (const marker of issue38RegressionRequirements) {
   assertIncludes(typeFactProtocolScript, marker, `#38 protocol gate must cover ${marker}`);
 }
+for (const marker of ["CME_OMENA_LSP_SERVER_PATH", "CME_OMENA_LSP_SERVER_CWD"] as const) {
+  assertIncludes(typeFactProtocolScript, marker, `#38 protocol gate must support ${marker}`);
+}
 
 process.stdout.write(
   JSON.stringify(
@@ -102,12 +128,14 @@ process.stdout.write(
       },
       issue38: {
         gate: "rust/omena-lsp-server/type-fact-protocol",
+        packagedGate: "release/check/packaged-omena-lsp-server-type-fact-protocol",
         covers: [
           "unopened-style-disk-fallback",
           "utf16-positioning",
           "nullish-union-soft-skip",
           "tsx-first-style-later-refresh",
           "hover-definition-references-rename",
+          "packaged-vsix-lsp-protocol",
         ],
         externalAcceptanceStillRequired: true,
       },

@@ -12,7 +12,11 @@ type JsonRpcMessage = {
 const repoRoot = process.cwd();
 const platformDir = `${process.platform}-${process.arch}`;
 const serverBinaryName = process.platform === "win32" ? "omena-lsp-server.exe" : "omena-lsp-server";
-const serverPath = path.join(repoRoot, "dist", "bin", platformDir, serverBinaryName);
+const serverPath = resolvePathOverride(
+  process.env.CME_OMENA_LSP_SERVER_PATH,
+  path.join(repoRoot, "dist", "bin", platformDir, serverBinaryName),
+);
+const serverCwd = resolvePathOverride(process.env.CME_OMENA_LSP_SERVER_CWD, repoRoot);
 
 if (!existsSync(serverPath)) {
   throw new Error(
@@ -105,7 +109,7 @@ async function runTypeFactProtocolSmoke(): Promise<void> {
   const styleUri = fileUri(path.join(srcDir, "App.module.scss"));
   const sizePosition = positionForOffset(sourceText, sourceText.indexOf("cx(size") + "cx(".length);
   const fontSizePosition = positionForOffset(sourceText, sourceText.lastIndexOf("fontSize"));
-  const client = new JsonRpcClient(serverPath, repoRoot);
+  const client = new JsonRpcClient(serverPath, serverCwd);
 
   try {
     await client.request("initialize", {
@@ -396,6 +400,12 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function resolvePathOverride(value: string | undefined, fallback: string): string {
+  const trimmed = value?.trim();
+  if (!trimmed) return fallback;
+  return path.isAbsolute(trimmed) ? trimmed : path.resolve(repoRoot, trimmed);
 }
 
 void main();

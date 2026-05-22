@@ -128,6 +128,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
       scriptName === "check:packaged-engine-shadow-runner-matrix" ||
       scriptName === "check:packaged-tsgo-binary" ||
       scriptName === "check:packaged-selected-query-default" ||
+      scriptName === "check:packaged-omena-lsp-server-type-fact-protocol" ||
       scriptName === "package" ||
       scriptName === "version-packages" ||
       scriptName === "changeset",
