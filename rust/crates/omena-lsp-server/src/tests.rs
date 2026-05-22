@@ -10,8 +10,10 @@ mod diagnostics_publish;
 mod diagnostics_sass;
 #[path = "tests/diagnostics_style.rs"]
 mod diagnostics_style;
-#[path = "tests/hover.rs"]
-mod hover;
+#[path = "tests/hover_sass.rs"]
+mod hover_sass;
+#[path = "tests/hover_style.rs"]
+mod hover_style;
 #[path = "tests/lifecycle.rs"]
 mod lifecycle;
 #[path = "tests/lifecycle_cancellation.rs"]
@@ -36,6 +38,12 @@ mod sass_symbols_imports;
 mod sass_symbols_maps;
 #[path = "tests/source_completion.rs"]
 mod source_completion;
+#[path = "tests/source_dynamic.rs"]
+mod source_dynamic;
+#[path = "tests/source_hover.rs"]
+mod source_hover;
+#[path = "tests/source_imports.rs"]
+mod source_imports;
 #[path = "tests/source_resolution.rs"]
 mod source_resolution;
 #[path = "tests/source_resolution_bundler.rs"]
@@ -44,8 +52,8 @@ mod source_resolution_bundler;
 mod source_resolution_tsconfig;
 #[path = "tests/source_resolution_watch.rs"]
 mod source_resolution_watch;
-#[path = "tests/source_semantics.rs"]
-mod source_semantics;
+#[path = "tests/source_text_offsets.rs"]
+mod source_text_offsets;
 #[path = "tests/source_type_facts.rs"]
 mod source_type_facts;
 #[path = "tests/style_context.rs"]
