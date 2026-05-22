@@ -20,6 +20,8 @@ mod source_resolution;
 mod source_resolution_watch;
 #[path = "tests/source_semantics.rs"]
 mod source_semantics;
+#[path = "tests/source_type_facts.rs"]
+mod source_type_facts;
 #[path = "tests/style_context.rs"]
 mod style_context;
 #[path = "tests/style_indexing.rs"]
