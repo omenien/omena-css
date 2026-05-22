@@ -31,15 +31,19 @@ const wptChunks = wptManifest.chunks.map((chunkManifest) => {
   const chunk = JSON.parse(chunkSource) as WptSeedChunkV0;
   const sha256 = createHash("sha256").update(chunkSource).digest("hex");
   assert.equal(chunk.fixtures.length, chunkManifest.fixtureCount);
+  assert.deepEqual(
+    chunkManifest.sparsePathFixtureCounts,
+    countSparsePathFixtures(wptManifest.source.sparsePaths, chunk.fixtures),
+    `${chunkManifest.path} sparse-path fixture counts drift`,
+  );
   assert.equal(sha256, chunkManifest.sha256);
   return { manifest: chunkManifest, chunk };
 });
 const wptFixtures = wptChunks.flatMap((chunk) => chunk.chunk.fixtures);
-const wptSparsePathFixtureCounts = wptManifest.source.sparsePaths.map((sparsePath) => ({
-  sparsePath,
-  fixtureCount: wptFixtures.filter((fixture) => fixture.wptPath.startsWith(`${sparsePath}/`))
-    .length,
-}));
+const wptSparsePathFixtureCounts = countSparsePathFixtures(
+  wptManifest.source.sparsePaths,
+  wptFixtures,
+);
 const wptBlockingChunks = wptChunks.filter((chunk) => chunk.manifest.stage === "stage2-blocking");
 const wptAdvisoryFixtureCount = wptChunks
   .filter((chunk) => chunk.manifest.stage === "stage1-advisory")
@@ -67,6 +71,11 @@ assert.ok(wptManifest.source.sparsePaths.includes("css/css-color"));
 assert.ok(
   wptSparsePathFixtureCounts.every((count) => count.fixtureCount > 0),
   "every pinned WPT sparse path must have fixture coverage",
+);
+assert.deepEqual(
+  wptManifest.sparsePathFixtureCounts,
+  wptSparsePathFixtureCounts,
+  "manifest sparse-path fixture counts drift",
 );
 assert.ok(wptManifest.source.helperClasses.includes("test_valid_value"));
 assert.ok(wptManifest.source.layoutDependentHelpersExcluded.includes("test_computed_value"));
@@ -224,6 +233,7 @@ process.stdout.write(
         blockingFixtureCount: wptBlockingFixtureCount,
         advisoryFixtureCount: wptAdvisoryFixtureCount,
         sparsePathFixtureCounts: wptSparsePathFixtureCounts,
+        generatedSparsePathCountsValid: true,
         chunkCount: wptChunks.length,
         consecutiveGreenRuns: wptPolicyConsecutiveGreenRuns,
         stage2Blocking: wptPolicyStage2Blocking,
@@ -257,6 +267,7 @@ interface WptSeedManifestV0 {
     readonly helperClasses: readonly string[];
     readonly layoutDependentHelpersExcluded: readonly string[];
   };
+  readonly sparsePathFixtureCounts: readonly WptSparsePathFixtureCountV0[];
   readonly knownFailurePolicy: {
     readonly stage2Blocking: boolean;
   };
@@ -265,7 +276,13 @@ interface WptSeedManifestV0 {
     readonly stage: string;
     readonly sha256: string;
     readonly fixtureCount: number;
+    readonly sparsePathFixtureCounts: readonly WptSparsePathFixtureCountV0[];
   }[];
+}
+
+interface WptSparsePathFixtureCountV0 {
+  readonly sparsePath: string;
+  readonly fixtureCount: number;
 }
 
 interface WptSeedChunkV0 {
@@ -320,6 +337,17 @@ function requiredScript(name: string): string {
 
 function assertIncludes(source: string, marker: string, message: string): void {
   assert.ok(source.includes(marker), message);
+}
+
+function countSparsePathFixtures(
+  sparsePaths: readonly string[],
+  fixtureSet: readonly { readonly wptPath: string }[],
+): readonly WptSparsePathFixtureCountV0[] {
+  return sparsePaths.map((sparsePath) => ({
+    sparsePath,
+    fixtureCount: fixtureSet.filter((fixture) => fixture.wptPath.startsWith(`${sparsePath}/`))
+      .length,
+  }));
 }
 
 function readTomlNumber(source: string, key: string): number {

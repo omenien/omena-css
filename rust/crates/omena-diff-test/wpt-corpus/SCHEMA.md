@@ -7,10 +7,12 @@ the M4 conformance lane.
 `scripts/generate-rust-omena-diff-test-wpt-corpus.ts` expands that selection
 into `manifest.json` and chunk files. `manifest.json` records the upstream
 source pin, chunk files, per-chunk stage, chunk hashes, generator metadata, and
-the known-failure policy path. Chunk files use schema version `0` and contain
-parser-only, layout-free CSS fixtures with an expected minified CSS literal.
-The boundary report also verifies that every pinned sparse WPT path is
-represented by at least one checked fixture, so sparse paths cannot drift into
+the known-failure policy path. The manifest also records generated sparse-path
+fixture counts at the corpus and chunk levels. Chunk files use schema version
+`0` and contain parser-only, layout-free CSS fixtures with an expected minified
+CSS literal. The boundary report verifies that every pinned sparse WPT path is
+represented by at least one checked fixture and that generated sparse-path
+counts match the checked fixture set, so sparse paths cannot drift into
 manifest-only metadata.
 
 This seed corpus is intentionally small. It proves the governance shape before a

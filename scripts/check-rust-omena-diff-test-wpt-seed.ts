@@ -25,6 +25,7 @@ interface WptSeedManifestV0 {
     readonly tool: string;
     readonly selectionPath: string;
   };
+  readonly sparsePathFixtureCounts: readonly WptSparsePathFixtureCountV0[];
   readonly chunks: readonly WptSeedChunkManifestV0[];
 }
 
@@ -33,6 +34,12 @@ interface WptSeedChunkManifestV0 {
   readonly path: string;
   readonly stage: string;
   readonly sha256: string;
+  readonly fixtureCount: number;
+  readonly sparsePathFixtureCounts: readonly WptSparsePathFixtureCountV0[];
+}
+
+interface WptSparsePathFixtureCountV0 {
+  readonly sparsePath: string;
   readonly fixtureCount: number;
 }
 
@@ -178,13 +185,20 @@ const chunkRecords = manifest.chunks.map((chunkManifest) => {
   assert.equal(chunk.chunkId, chunkManifest.chunkId);
   assert.equal(chunk.sourcePin, manifest.source.pin);
   assert.equal(chunk.fixtures.length, chunkManifest.fixtureCount);
+  assert.deepEqual(
+    chunkManifest.sparsePathFixtureCounts,
+    countSparsePathFixtures(manifest.source.sparsePaths, chunk.fixtures),
+    `${chunkManifest.path} sparse-path fixture counts drift`,
+  );
   return { manifest: chunkManifest, chunk };
 });
 const fixtures = chunkRecords.flatMap((record) => record.chunk.fixtures);
-const sparsePathFixtureCounts = manifest.source.sparsePaths.map((sparsePath) => ({
-  sparsePath,
-  fixtureCount: fixtures.filter((fixture) => fixture.wptPath.startsWith(`${sparsePath}/`)).length,
-}));
+const sparsePathFixtureCounts = countSparsePathFixtures(manifest.source.sparsePaths, fixtures);
+assert.deepEqual(
+  manifest.sparsePathFixtureCounts,
+  sparsePathFixtureCounts,
+  "manifest sparse-path fixture counts drift",
+);
 assert.ok(
   sparsePathFixtureCounts.every((count) => count.fixtureCount > 0),
   "every pinned WPT sparse path must have fixture coverage",
@@ -358,6 +372,17 @@ function readJson<T>(filePath: string): T {
 
 function isPinnedWptSha(pin: string): boolean {
   return /^web-platform-tests\/wpt@[0-9a-f]{40}$/.test(pin);
+}
+
+function countSparsePathFixtures(
+  sparsePaths: readonly string[],
+  fixtureSet: readonly WptSeedFixtureV0[],
+): readonly WptSparsePathFixtureCountV0[] {
+  return sparsePaths.map((sparsePath) => ({
+    sparsePath,
+    fixtureCount: fixtureSet.filter((fixture) => fixture.wptPath.startsWith(`${sparsePath}/`))
+      .length,
+  }));
 }
 
 function runOmenaTransform(fixture: WptSeedFixtureV0): TransformExecuteSummaryV0 {

@@ -35,6 +35,7 @@ interface WptSeedManifestV0 {
     readonly tool: string;
     readonly selectionPath: string;
   };
+  readonly sparsePathFixtureCounts: readonly WptSparsePathFixtureCountV0[];
   readonly chunks: readonly WptSeedChunkManifestV0[];
 }
 
@@ -43,6 +44,12 @@ interface WptSeedChunkManifestV0 {
   readonly path: string;
   readonly stage: string;
   readonly sha256: string;
+  readonly fixtureCount: number;
+  readonly sparsePathFixtureCounts: readonly WptSparsePathFixtureCountV0[];
+}
+
+interface WptSparsePathFixtureCountV0 {
+  readonly sparsePath: string;
   readonly fixtureCount: number;
 }
 
@@ -110,6 +117,10 @@ const generatedChunks = selectedChunks.map((selectedChunk) => {
     chunkPath: selectedChunk.chunkPath,
     stage: selectedChunk.stage,
     fixtures: selectedChunk.fixtures,
+    sparsePathFixtureCounts: sparsePathFixtureCounts(
+      selectionFile.source.sparsePaths,
+      selectedChunk.fixtures,
+    ),
     source,
     sha256,
   };
@@ -124,12 +135,17 @@ const manifest: WptSeedManifestV0 = {
     tool: toolPath,
     selectionPath,
   },
+  sparsePathFixtureCounts: sparsePathFixtureCounts(
+    selectionFile.source.sparsePaths,
+    selectedChunks.flatMap((chunk) => chunk.fixtures),
+  ),
   chunks: generatedChunks.map((chunk) => ({
     chunkId: chunk.chunkId,
     path: chunk.chunkPath,
     stage: chunk.stage,
     sha256: chunk.sha256,
     fixtureCount: chunk.fixtures.length,
+    sparsePathFixtureCounts: chunk.sparsePathFixtureCounts,
   })),
 };
 const manifestSource = stableJson(manifest);
@@ -246,4 +262,14 @@ function inlineStringArrays(source: string): string {
 
 function isPinnedWptSha(pin: string): boolean {
   return /^web-platform-tests\/wpt@[0-9a-f]{40}$/.test(pin);
+}
+
+function sparsePathFixtureCounts(
+  sparsePaths: readonly string[],
+  fixtures: readonly WptSeedFixtureV0[],
+): readonly WptSparsePathFixtureCountV0[] {
+  return sparsePaths.map((sparsePath) => ({
+    sparsePath,
+    fixtureCount: fixtures.filter((fixture) => fixture.wptPath.startsWith(`${sparsePath}/`)).length,
+  }));
 }

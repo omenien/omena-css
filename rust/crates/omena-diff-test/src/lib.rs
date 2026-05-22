@@ -217,6 +217,8 @@ pub struct WptSeedCorpusMetadataReportV0 {
     pub sparse_path_fixture_counts: Vec<WptSeedSparsePathFixtureCountV0>,
     /// Whether each pinned sparse path is represented by at least one fixture.
     pub all_sparse_paths_have_fixtures: bool,
+    /// Whether generated manifest sparse-path counts match checked fixtures.
+    pub manifest_sparse_path_fixture_counts_valid: bool,
     /// Known-failure entry count.
     pub known_failure_count: usize,
     /// Known-failure entries whose fixture or subtest no longer exists.
@@ -603,6 +605,11 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         && sparse_path_fixture_counts
             .iter()
             .all(|count| count.fixture_count > 0);
+    let manifest_sparse_path_fixture_counts_valid =
+        wpt_seed_manifest_sparse_path_fixture_counts_valid(
+            manifest.as_ref(),
+            sparse_path_fixture_counts.as_slice(),
+        );
     let known_failure_subtests = wpt_seed_policy_known_failure_subtests();
     let known_failure_count = known_failure_subtests.len();
     let stale_known_failure_count =
@@ -628,6 +635,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         green_run_evidence_count,
         stage2_blocking,
         all_sparse_paths_have_fixtures,
+        manifest_sparse_path_fixture_counts_valid,
     );
     let stage2_promotion_blockers = wpt_seed_stage2_promotion_blockers(
         all_metadata_valid,
@@ -653,6 +661,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         advisory_fixture_count,
         sparse_path_fixture_counts,
         all_sparse_paths_have_fixtures,
+        manifest_sparse_path_fixture_counts_valid,
         known_failure_count,
         stale_known_failure_count,
         stage2_blocking,
@@ -670,6 +679,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
             "wptSeedKnownFailurePolicy",
             "wptSeedStaleKnownFailurePruning",
             "wptSeedSparsePathCoverage",
+            "wptSeedGeneratedSparsePathCounts",
             "wptSeedStageOneAdvisoryLane",
             "wptSeedStageMatchesBlockingPolicy",
             "wptSeedStageTwoPromotionPolicy",
@@ -686,6 +696,7 @@ fn wpt_seed_manifest_metadata_valid(
     green_run_evidence_count: usize,
     stage2_blocking: bool,
     all_sparse_paths_have_fixtures: bool,
+    manifest_sparse_path_fixture_counts_valid: bool,
 ) -> bool {
     let Some(manifest) = manifest else {
         return false;
@@ -766,6 +777,7 @@ fn wpt_seed_manifest_metadata_valid(
             .is_some_and(|runs| runs > 0)
         && wpt_seed_policy_usize_value("consecutive_green_runs") == Some(green_run_evidence_count)
         && all_sparse_paths_have_fixtures
+        && manifest_sparse_path_fixture_counts_valid
         && stale_known_failure_count == 0
         && known_failure_count == 0
 }
@@ -968,6 +980,32 @@ fn wpt_seed_sparse_path_fixture_counts(
             }
         })
         .collect()
+}
+
+fn wpt_seed_manifest_sparse_path_fixture_counts_valid(
+    manifest: Option<&serde_json::Value>,
+    sparse_path_fixture_counts: &[WptSeedSparsePathFixtureCountV0],
+) -> bool {
+    let Some(manifest_counts) = manifest
+        .and_then(|value| value.get("sparsePathFixtureCounts"))
+        .and_then(serde_json::Value::as_array)
+    else {
+        return false;
+    };
+
+    manifest_counts.len() == sparse_path_fixture_counts.len()
+        && manifest_counts.iter().zip(sparse_path_fixture_counts).all(
+            |(manifest_count, expected_count)| {
+                manifest_count
+                    .get("sparsePath")
+                    .and_then(serde_json::Value::as_str)
+                    == Some(expected_count.sparse_path.as_str())
+                    && manifest_count
+                        .get("fixtureCount")
+                        .and_then(serde_json::Value::as_u64)
+                        == Some(expected_count.fixture_count as u64)
+            },
+        )
 }
 
 fn wpt_seed_stale_known_failure_count(
@@ -1193,6 +1231,7 @@ mod tests {
                 .any(|count| count.sparse_path == "css/css-color" && count.fixture_count > 0)
         );
         assert_eq!(report.known_failure_count, 0);
+        assert!(report.manifest_sparse_path_fixture_counts_valid);
         assert!(report.stage2_blocking);
         assert_eq!(report.required_min_fixture_count_for_stage2, 25);
         assert_eq!(report.required_consecutive_green_runs, 5);
@@ -1214,6 +1253,11 @@ mod tests {
         assert!(report.closed_gates.contains(&"wptSeedSourcePin"));
         assert!(report.closed_gates.contains(&"wptSeedKnownFailurePolicy"));
         assert!(report.closed_gates.contains(&"wptSeedSparsePathCoverage"));
+        assert!(
+            report
+                .closed_gates
+                .contains(&"wptSeedGeneratedSparsePathCounts")
+        );
         assert!(report.closed_gates.contains(&"wptSeedStageOneAdvisoryLane"));
         assert!(
             report
