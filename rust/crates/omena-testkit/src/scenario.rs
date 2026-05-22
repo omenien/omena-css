@@ -12,6 +12,10 @@ pub enum CmeScenarioArchetypeV0 {
     /// Transform-execution checks that require a style input and a transform
     /// product expectation.
     TransformExecute,
+    /// LSP request/response scenarios with source, style, and position markers.
+    LspScenario,
+    /// Shadow runner scenarios exposing `shadow.omena(<verb>)` intent.
+    ShadowOmenaVerb,
 }
 
 impl CmeScenarioArchetypeV0 {
@@ -20,6 +24,8 @@ impl CmeScenarioArchetypeV0 {
         match self {
             Self::Boundary => "boundary",
             Self::TransformExecute => "transform-execute",
+            Self::LspScenario => "lsp-scenario",
+            Self::ShadowOmenaVerb => "shadow-omena-verb",
         }
     }
 }
@@ -34,6 +40,11 @@ pub struct CmeScenarioReadinessV0 {
     pub has_expected_products: bool,
     /// Whether the fixture has the files required by the archetype.
     pub has_required_files: bool,
+    /// Whether the fixture has the markers required by the archetype.
+    pub has_required_markers: bool,
+    /// Whether the fixture exposes the product or introspection surface expected
+    /// by the archetype.
+    pub has_supported_introspection: bool,
     /// Whether this scenario is ready for downstream runner adoption.
     pub ready: bool,
     /// Reasons preventing runner adoption.
@@ -80,6 +91,8 @@ pub struct CmeScenarioV0 {
     pub metadata_count: usize,
     /// Product expectations declared by the fixture.
     pub expected_products: Vec<String>,
+    /// Extracted `shadow.omena(<verb>)` introspection verbs.
+    pub shadow_omena_verbs: Vec<String>,
     /// Readiness evidence.
     pub readiness: CmeScenarioReadinessV0,
     /// Macro call-site evidence, present only for macro-built scenarios.
@@ -163,6 +176,36 @@ omena-query.transform-execute
 transform-execute scenario carries a style fixture and transform product
 "#,
     },
+    OmenaTestkitScenarioMacroSeedV0 {
+        label: "lsp-hover-scenario",
+        archetype: CmeScenarioArchetypeV0::LspScenario,
+        raw: r#"--- file: src/App.tsx
+import styles from "./Button.module.scss";
+export const App = () => <div className={styles./*|*/button} />;
+--- file: src/Button.module.scss
+.button { color: red; }
+--- expect: product
+omena-lsp-server.hover
+--- expect: assertion
+lsp scenario carries source, style, and request-position marker evidence
+"#,
+    },
+    OmenaTestkitScenarioMacroSeedV0 {
+        label: "shadow-omena-verb-scenario",
+        archetype: CmeScenarioArchetypeV0::ShadowOmenaVerb,
+        raw: r#"--- file: src/App.tsx
+import styles from "./Button.module.scss";
+const cls = styles.button;
+--- file: src/Button.module.scss
+.button { color: red; }
+--- expect: product
+shadow.omena.hover
+--- expect: product
+shadow.omena.definition
+--- expect: assertion
+shadow scenario exposes product-facing omena verbs without binding to one runner
+"#,
+    },
 ];
 
 /// Build a v0.1 scenario summary from a `cme-fixture-v0` fixture.
@@ -205,6 +248,18 @@ macro_rules! cme_scenario_v0 {
             $crate::CmeScenarioArchetypeV0::TransformExecute,
         )
     };
+    (lsp_scenario, $raw:expr) => {
+        $crate::summarize_cme_scenario_at_call_site_v0(
+            $raw,
+            $crate::CmeScenarioArchetypeV0::LspScenario,
+        )
+    };
+    (shadow_omena, $raw:expr) => {
+        $crate::summarize_cme_scenario_at_call_site_v0(
+            $raw,
+            $crate::CmeScenarioArchetypeV0::ShadowOmenaVerb,
+        )
+    };
 }
 
 /// Summarize the built-in v0.1 scenario macro substrate.
@@ -231,6 +286,8 @@ pub fn summarize_omena_testkit_scenario_macro_report() -> OmenaTestkitScenarioMa
         supported_archetypes: vec![
             CmeScenarioArchetypeV0::Boundary.id(),
             CmeScenarioArchetypeV0::TransformExecute.id(),
+            CmeScenarioArchetypeV0::LspScenario.id(),
+            CmeScenarioArchetypeV0::ShadowOmenaVerb.id(),
         ],
         scenario_count: reports.len(),
         all_scenario_macros_ready,
@@ -278,11 +335,14 @@ fn build_cme_scenario_v0(
         .filter(|expectation| expectation.key == "product")
         .map(|expectation| expectation.value.clone())
         .collect::<Vec<_>>();
+    let shadow_omena_verbs = shadow_omena_verbs_from_products(expected_products.as_slice());
     let readiness = cme_scenario_readiness(
         archetype,
         style_file_count,
         source_file_count,
+        marker_count,
         expected_products.as_slice(),
+        shadow_omena_verbs.as_slice(),
     );
 
     CmeScenarioV0 {
@@ -298,6 +358,7 @@ fn build_cme_scenario_v0(
         marker_count,
         metadata_count,
         expected_products,
+        shadow_omena_verbs,
         readiness,
         call_site,
     }
@@ -307,19 +368,33 @@ fn cme_scenario_readiness(
     archetype: CmeScenarioArchetypeV0,
     style_file_count: usize,
     source_file_count: usize,
+    marker_count: usize,
     expected_products: &[String],
+    shadow_omena_verbs: &[String],
 ) -> CmeScenarioReadinessV0 {
     let has_expected_products = !expected_products.is_empty();
     let has_required_files = match archetype {
         CmeScenarioArchetypeV0::Boundary => style_file_count + source_file_count > 0,
         CmeScenarioArchetypeV0::TransformExecute => style_file_count > 0,
+        CmeScenarioArchetypeV0::LspScenario => style_file_count > 0 && source_file_count > 0,
+        CmeScenarioArchetypeV0::ShadowOmenaVerb => style_file_count + source_file_count > 0,
     };
-    let product_matches_archetype = match archetype {
+    let has_required_markers = match archetype {
+        CmeScenarioArchetypeV0::LspScenario => marker_count > 0,
+        CmeScenarioArchetypeV0::Boundary
+        | CmeScenarioArchetypeV0::TransformExecute
+        | CmeScenarioArchetypeV0::ShadowOmenaVerb => true,
+    };
+    let has_supported_introspection = match archetype {
         CmeScenarioArchetypeV0::Boundary => has_expected_products,
         CmeScenarioArchetypeV0::TransformExecute => expected_products.iter().any(|product| {
             product == "omena-query.transform-execute"
                 || product.starts_with("omena-transform-passes.")
         }),
+        CmeScenarioArchetypeV0::LspScenario => expected_products
+            .iter()
+            .any(|product| product.starts_with("omena-lsp-server.")),
+        CmeScenarioArchetypeV0::ShadowOmenaVerb => !shadow_omena_verbs.is_empty(),
     };
     let mut unsupported_reasons = Vec::new();
     if !has_expected_products {
@@ -328,17 +403,30 @@ fn cme_scenario_readiness(
     if !has_required_files {
         unsupported_reasons.push("missingRequiredFiles");
     }
-    if !product_matches_archetype {
-        unsupported_reasons.push("productDoesNotMatchArchetype");
+    if !has_required_markers {
+        unsupported_reasons.push("missingRequiredMarkers");
+    }
+    if !has_supported_introspection {
+        unsupported_reasons.push("unsupportedIntrospectionSurface");
     }
 
     CmeScenarioReadinessV0 {
         fixture_parses: true,
         has_expected_products,
         has_required_files,
+        has_required_markers,
+        has_supported_introspection,
         ready: unsupported_reasons.is_empty(),
         unsupported_reasons,
     }
+}
+
+fn shadow_omena_verbs_from_products(expected_products: &[String]) -> Vec<String> {
+    expected_products
+        .iter()
+        .filter_map(|product| product.strip_prefix("shadow.omena."))
+        .map(ToString::to_string)
+        .collect()
 }
 
 fn scenario_parse_error(archetype: CmeScenarioArchetypeV0, _error: String) -> CmeScenarioV0 {
@@ -355,10 +443,13 @@ fn scenario_parse_error(archetype: CmeScenarioArchetypeV0, _error: String) -> Cm
         marker_count: 0,
         metadata_count: 0,
         expected_products: Vec::new(),
+        shadow_omena_verbs: Vec::new(),
         readiness: CmeScenarioReadinessV0 {
             fixture_parses: false,
             has_expected_products: false,
             has_required_files: false,
+            has_required_markers: false,
+            has_supported_introspection: false,
             ready: false,
             unsupported_reasons: vec!["fixtureParseError"],
         },
@@ -412,6 +503,7 @@ omena-parser.style-facts
         assert_eq!(scenario.archetype_id, "boundary");
         assert_eq!(scenario.style_file_count, 1);
         assert_eq!(scenario.expected_products, vec!["omena-parser.style-facts"]);
+        assert!(scenario.shadow_omena_verbs.is_empty());
         assert!(scenario.readiness.ready);
         let call_site = scenario
             .call_site
@@ -467,8 +559,81 @@ omena-parser.style-facts
         assert_eq!(scenario.call_site, None);
         assert_eq!(
             scenario.readiness.unsupported_reasons,
-            vec!["productDoesNotMatchArchetype"]
+            vec!["unsupportedIntrospectionSurface"]
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn scenario_macro_builds_lsp_archetype_summary() -> Result<(), String> {
+        let scenario = crate::cme_scenario_v0!(
+            lsp_scenario,
+            r#"--- file: src/App.tsx
+import styles from "./Button.module.scss";
+styles./*|*/button;
+--- file: src/Button.module.scss
+.button { color: red; }
+--- expect: product
+omena-lsp-server.definition
+"#
+        )?;
+
+        assert_eq!(scenario.archetype_id, "lsp-scenario");
+        assert_eq!(scenario.source_file_count, 1);
+        assert_eq!(scenario.style_file_count, 1);
+        assert_eq!(scenario.marker_count, 1);
+        assert!(scenario.readiness.has_required_markers);
+        assert!(scenario.readiness.has_supported_introspection);
+        assert!(scenario.readiness.ready);
+
+        Ok(())
+    }
+
+    #[test]
+    fn lsp_scenario_requires_request_marker() -> Result<(), String> {
+        let scenario = summarize_cme_scenario_v0(
+            r#"--- file: src/App.tsx
+import styles from "./Button.module.scss";
+styles.button;
+--- file: src/Button.module.scss
+.button { color: red; }
+--- expect: product
+omena-lsp-server.definition
+"#,
+            CmeScenarioArchetypeV0::LspScenario,
+        )?;
+
+        assert!(!scenario.readiness.ready);
+        assert_eq!(scenario.marker_count, 0);
+        assert_eq!(
+            scenario.readiness.unsupported_reasons,
+            vec!["missingRequiredMarkers"]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn scenario_macro_builds_shadow_omena_verb_summary() -> Result<(), String> {
+        let scenario = crate::cme_scenario_v0!(
+            shadow_omena,
+            r#"--- file: src/App.tsx
+import styles from "./Button.module.scss";
+styles.button;
+--- file: src/Button.module.scss
+.button { color: red; }
+--- expect: product
+shadow.omena.hover
+--- expect: product
+shadow.omena.references
+"#
+        )?;
+
+        assert_eq!(scenario.archetype_id, "shadow-omena-verb");
+        assert_eq!(scenario.shadow_omena_verbs, vec!["hover", "references"]);
+        assert!(scenario.readiness.has_supported_introspection);
+        assert!(scenario.readiness.ready);
 
         Ok(())
     }

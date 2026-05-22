@@ -6,6 +6,8 @@ testkit migration work. Product crates can keep their own domain assertions,
 but they should consume this shared fixture grammar instead of redefining local
 fixture parsers.
 
-This crate is intentionally small at M4 entry: it locks the common fixture
-grammar and promotion reporting path before larger scenario macros, snapshot
-governance, or WPT corpus automation are added.
+This crate is intentionally small in M4: it locks the common fixture grammar,
+promotion reporting path, and the first scenario archetypes for boundary,
+transform execution, LSP requests, and `shadow.omena(<verb>)` introspection.
+Snapshot governance and broader WPT corpus automation remain separate Axis A
+surfaces.

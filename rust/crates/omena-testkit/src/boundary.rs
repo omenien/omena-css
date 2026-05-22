@@ -93,6 +93,8 @@ pub fn summarize_omena_testkit_boundary() -> OmenaTestkitBoundarySummaryV0 {
             "fixtureMarkerOffsets",
             "boundaryScenarioMacro",
             "transformExecuteScenarioMacro",
+            "lspScenarioMacro",
+            "shadowOmenaVerbIntrospection",
             "scenarioMacroCallSiteEvidence",
             "m4TestkitPromotionSubstrate",
         ],
@@ -133,6 +135,12 @@ mod tests {
                 .closed_gates
                 .contains(&"transformExecuteScenarioMacro")
         );
+        assert!(summary.closed_gates.contains(&"lspScenarioMacro"));
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"shadowOmenaVerbIntrospection")
+        );
         assert!(
             summary
                 .closed_gates
@@ -154,6 +162,18 @@ mod tests {
                 .call_site_probe
                 .column_non_zero
         );
-        assert_eq!(summary.scenario_macro_report.scenario_count, 2);
+        assert_eq!(summary.scenario_macro_report.scenario_count, 4);
+        assert!(
+            summary
+                .scenario_macro_report
+                .supported_archetypes
+                .contains(&"lsp-scenario")
+        );
+        assert!(
+            summary
+                .scenario_macro_report
+                .supported_archetypes
+                .contains(&"shadow-omena-verb")
+        );
     }
 }
