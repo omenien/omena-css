@@ -17,6 +17,7 @@ pub use code_actions::*;
 pub use completion::*;
 use cross_file_summary::summarize_omena_query_cross_file_summary;
 pub use cross_file_summary::{
+    summarize_omena_query_m4_axis_c_readiness,
     summarize_omena_query_source_selector_reference_cross_file_summary,
     summarize_omena_query_workspace_cross_file_summary,
 };

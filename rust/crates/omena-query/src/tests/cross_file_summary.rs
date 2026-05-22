@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleSourceInputV0,
+    OmenaQueryStyleSourceInputV0, summarize_omena_query_m4_axis_c_readiness,
     summarize_omena_query_source_selector_reference_cross_file_summary,
     summarize_omena_query_style_document,
     summarize_omena_query_style_semantic_graph_batch_from_sources,
@@ -900,4 +900,36 @@ fn cross_file_summary_linear_provenance_serializes_as_strict_superset()
                 == Some(1))
     );
     Ok(())
+}
+
+#[test]
+fn m4_axis_c_readiness_summary_proves_exit_predicate_slice() {
+    let summary = summarize_omena_query_m4_axis_c_readiness();
+
+    assert_eq!(summary.product, "omena-query.m4-axis-c-readiness");
+    assert_eq!(summary.status, "m4AxisCReady");
+    assert_eq!(summary.required_edge_kind_count, 12);
+    assert!(summary.issue_63_provenance_round_trip_ready);
+    assert!(summary.issue_65_summary_edge_equivalence_ready);
+    assert!(summary.summary_hash_invalidation_ready);
+    assert!(summary.next_priorities.is_empty());
+    assert!(
+        summary
+            .required_edge_kind_counts
+            .iter()
+            .all(|entry| entry.count > 0),
+        "all M4 Axis C edge kinds must have fixture evidence: {summary:#?}"
+    );
+    assert_ne!(
+        summary.summary_hash_samples.baseline,
+        summary.summary_hash_samples.source_selector_change
+    );
+    assert_ne!(
+        summary.summary_hash_samples.baseline,
+        summary.summary_hash_samples.style_edge_change
+    );
+    assert_ne!(
+        summary.summary_hash_samples.baseline,
+        summary.summary_hash_samples.package_manifest_change
+    );
 }

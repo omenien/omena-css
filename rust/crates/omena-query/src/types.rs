@@ -183,6 +183,32 @@ pub struct OmenaQueryCrossFileSummaryCapabilitiesV0 {
     pub linear_provenance_round_trip_ready: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryM4AxisCReadinessSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub status: &'static str,
+    pub required_edge_kind_count: usize,
+    pub required_edge_kind_counts: Vec<OmenaQueryCrossFileSummaryEdgeKindCountV0>,
+    pub workspace_edge_count: usize,
+    pub issue_63_provenance_round_trip_ready: bool,
+    pub issue_65_summary_edge_equivalence_ready: bool,
+    pub summary_hash_invalidation_ready: bool,
+    pub summary_hash_samples: OmenaQueryM4AxisCSummaryHashSamplesV0,
+    pub checked_surfaces: Vec<&'static str>,
+    pub next_priorities: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryM4AxisCSummaryHashSamplesV0 {
+    pub baseline: String,
+    pub source_selector_change: String,
+    pub style_edge_change: String,
+    pub package_manifest_change: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryStyleSemanticGraphBatchEntryV0 {

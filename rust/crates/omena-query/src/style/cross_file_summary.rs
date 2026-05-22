@@ -482,6 +482,253 @@ pub fn summarize_omena_query_workspace_cross_file_summary(
     )
 }
 
+const M4_AXIS_C_REQUIRED_EDGE_KINDS: [&str; 12] = [
+    "cssModulesComposesImport",
+    "cssModulesComposesClosure",
+    "cssModulesValueImport",
+    "cssModulesValueClosure",
+    "cssModulesIcssImport",
+    "cssModulesIcssClosure",
+    "sassUse",
+    "sassForward",
+    "sassImport",
+    "sassModuleGraphClosure",
+    "styleDesignTokenReference",
+    "sourceSelectorReference",
+];
+
+pub fn summarize_omena_query_m4_axis_c_readiness() -> OmenaQueryM4AxisCReadinessSummaryV0 {
+    let button_style_source = m4_axis_c_button_style_source("./base.module.scss");
+    let style_sources = m4_axis_c_style_sources(button_style_source.as_str());
+    let source_documents = m4_axis_c_source_documents("styles.root");
+    let package_manifests = m4_axis_c_package_manifests("./dist/theme.css");
+    let style_pairs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = super::collect_omena_query_style_fact_entries(style_pairs.as_slice());
+    let css_modules_resolution =
+        super::summarize_css_modules_cross_file_resolution(&style_fact_entries, &package_manifests);
+    let sass_module_resolution =
+        super::summarize_sass_module_cross_file_resolution(&style_fact_entries, &package_manifests);
+    let style_summary = summarize_omena_query_cross_file_summary(
+        &style_fact_entries,
+        &css_modules_resolution,
+        &sass_module_resolution,
+    );
+    let source_summary = summarize_omena_query_source_selector_reference_cross_file_summary(
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        package_manifests.as_slice(),
+    );
+    let workspace_summary = merge_omena_query_cross_file_summaries(
+        "workspaceSummaryEdgeSeed",
+        "workspaceStyleAndSource",
+        style_sources.len(),
+        &[style_summary.clone(), source_summary.clone()],
+    );
+
+    let required_edge_kind_counts =
+        m4_axis_c_required_edge_kind_counts(&workspace_summary.edge_kind_counts);
+    let required_edge_kinds_ready = required_edge_kind_counts
+        .iter()
+        .all(|entry| entry.count > 0);
+    let issue_63_provenance_round_trip_ready =
+        workspace_summary.capabilities.linear_provenance_ready
+            && workspace_summary
+                .capabilities
+                .linear_provenance_round_trip_ready
+            && workspace_summary.linear_provenance_round_trips_legacy_labels();
+    let issue_65_summary_edge_equivalence_ready = required_edge_kinds_ready
+        && style_summary.summary_edge_count
+            == m4_axis_c_expected_style_summary_edge_count(
+                &style_fact_entries,
+                &css_modules_resolution,
+                &sass_module_resolution,
+            )
+        && source_summary.edges.iter().any(|edge| {
+            edge.edge_kind == "sourceSelectorReference"
+                && edge.local_name.as_deref() == Some("root")
+                && edge.status == "resolved"
+        })
+        && workspace_summary.summary_edge_count
+            == m4_axis_c_merged_edge_id_count(&style_summary, &source_summary);
+
+    let source_changed = summarize_omena_query_workspace_cross_file_summary(
+        style_sources.as_slice(),
+        m4_axis_c_source_documents("styles.missing").as_slice(),
+        package_manifests.as_slice(),
+    );
+    let style_changed = summarize_omena_query_workspace_cross_file_summary(
+        m4_axis_c_style_sources(m4_axis_c_button_style_source("./missing.module.scss").as_str())
+            .as_slice(),
+        source_documents.as_slice(),
+        package_manifests.as_slice(),
+    );
+    let package_changed = summarize_omena_query_workspace_cross_file_summary(
+        style_sources.as_slice(),
+        source_documents.as_slice(),
+        m4_axis_c_package_manifests("./dist/alt.css").as_slice(),
+    );
+    let summary_hash_invalidation_ready = workspace_summary.summary_hash
+        != source_changed.summary_hash
+        && workspace_summary.summary_hash != style_changed.summary_hash
+        && workspace_summary.summary_hash != package_changed.summary_hash;
+    let ready = issue_63_provenance_round_trip_ready
+        && issue_65_summary_edge_equivalence_ready
+        && summary_hash_invalidation_ready;
+
+    OmenaQueryM4AxisCReadinessSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.m4-axis-c-readiness",
+        status: if ready {
+            "m4AxisCReady"
+        } else {
+            "m4AxisCNeedsWork"
+        },
+        required_edge_kind_count: M4_AXIS_C_REQUIRED_EDGE_KINDS.len(),
+        required_edge_kind_counts,
+        workspace_edge_count: workspace_summary.summary_edge_count,
+        issue_63_provenance_round_trip_ready,
+        issue_65_summary_edge_equivalence_ready,
+        summary_hash_invalidation_ready,
+        summary_hash_samples: OmenaQueryM4AxisCSummaryHashSamplesV0 {
+            baseline: workspace_summary.summary_hash,
+            source_selector_change: source_changed.summary_hash,
+            style_edge_change: style_changed.summary_hash,
+            package_manifest_change: package_changed.summary_hash,
+        },
+        checked_surfaces: vec![
+            "linear-provenance-round-trip",
+            "summary-edge-resolution-equivalence",
+            "source-selector-summary-edge",
+            "workspace-summary-hash-source-invalidation",
+            "workspace-summary-hash-style-invalidation",
+            "workspace-summary-hash-package-manifest-invalidation",
+        ],
+        next_priorities: if ready {
+            vec![]
+        } else {
+            vec![
+                "completeM4AxisCProvenanceRoundTrip",
+                "completeM4AxisCSummaryEdgeEquivalence",
+                "completeM4AxisCSummaryHashInvalidation",
+            ]
+        },
+    }
+}
+
+fn m4_axis_c_button_style_source(composes_target: &str) -> String {
+    format!(
+        r#"@use "@design/tokens/theme";
+@forward "./palette";
+@import "./legacy";
+@value primary as localPrimary from "./tokens.module.scss";
+:import("./tokens.module.scss") {{ imported: exported; }}
+:export {{ forwarded: imported; }}
+.root {{ composes: base from "{composes_target}"; color: var(--brand); }}"#
+    )
+}
+
+fn m4_axis_c_style_sources(button_style_source: &str) -> Vec<OmenaQueryStyleSourceInputV0> {
+    vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/fake/workspace/node_modules/@design/tokens/dist/theme.css".to_string(),
+            style_source: ":root { --brand: theme; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/fake/workspace/node_modules/@design/tokens/dist/alt.css".to_string(),
+            style_source: ":root { --brand: alt; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/fake/workspace/src/base.module.scss".to_string(),
+            style_source: ".base { display: block; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/fake/workspace/src/tokens.module.scss".to_string(),
+            style_source: "@value primary: red; :export { raw: red; exported: raw; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/fake/workspace/src/_palette.scss".to_string(),
+            style_source: "$tone: red;".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/fake/workspace/src/_legacy.scss".to_string(),
+            style_source: "$legacy: blue;".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/fake/workspace/src/Button.module.scss".to_string(),
+            style_source: button_style_source.to_string(),
+        },
+    ]
+}
+
+fn m4_axis_c_source_documents(class_expression: &str) -> Vec<OmenaQuerySourceDocumentInputV0> {
+    vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "/fake/workspace/src/Button.tsx".to_string(),
+        source_source: format!(
+            "import styles from './Button.module.scss';\nconst cls = {class_expression};\n"
+        ),
+    }]
+}
+
+fn m4_axis_c_package_manifests(style_export_target: &str) -> Vec<OmenaQueryStylePackageManifestV0> {
+    vec![OmenaQueryStylePackageManifestV0 {
+        package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json".to_string(),
+        package_json_source: format!(
+            r#"{{"exports":{{"./theme":{{"style":"{style_export_target}"}}}}}}"#
+        ),
+    }]
+}
+
+fn m4_axis_c_required_edge_kind_counts(
+    edge_kind_counts: &[OmenaQueryCrossFileSummaryEdgeKindCountV0],
+) -> Vec<OmenaQueryCrossFileSummaryEdgeKindCountV0> {
+    let observed = edge_kind_counts
+        .iter()
+        .map(|entry| (entry.edge_kind, entry.count))
+        .collect::<BTreeMap<_, _>>();
+    M4_AXIS_C_REQUIRED_EDGE_KINDS
+        .iter()
+        .map(|edge_kind| OmenaQueryCrossFileSummaryEdgeKindCountV0 {
+            edge_kind: *edge_kind,
+            count: observed.get(edge_kind).copied().unwrap_or(0),
+        })
+        .collect()
+}
+
+fn m4_axis_c_expected_style_summary_edge_count(
+    style_fact_entries: &[super::OmenaQueryStyleFactEntry],
+    css_modules_resolution: &OmenaQueryCssModulesCrossFileResolutionV0,
+    sass_module_resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
+) -> usize {
+    let custom_property_reference_count = style_fact_entries
+        .iter()
+        .map(|entry| entry.facts.custom_property_ref_names.len())
+        .sum::<usize>();
+
+    css_modules_resolution.edges.len()
+        + css_modules_resolution.composes_closure_edges.len()
+        + css_modules_resolution.value_closure_edges.len()
+        + css_modules_resolution.icss_closure_edges.len()
+        + sass_module_resolution.edges.len()
+        + sass_module_resolution.graph_closure_edges.len()
+        + custom_property_reference_count
+}
+
+fn m4_axis_c_merged_edge_id_count(
+    style_summary: &OmenaQueryCrossFileSummaryV0,
+    source_summary: &OmenaQueryCrossFileSummaryV0,
+) -> usize {
+    style_summary
+        .edges
+        .iter()
+        .chain(source_summary.edges.iter())
+        .map(|edge| edge.edge_id.as_str())
+        .collect::<BTreeSet<_>>()
+        .len()
+}
+
 fn merge_omena_query_cross_file_summaries(
     status: &'static str,
     summary_scope: &'static str,
