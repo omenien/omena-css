@@ -1066,4 +1066,30 @@ mod tests {
                 .contains(&"wptSeedStageTwoPromotionPolicy")
         );
     }
+
+    #[test]
+    fn wpt_seed_stale_known_failure_count_detects_orphans() {
+        let chunk = serde_json::json!({
+            "fixtures": [
+                {
+                    "id": "css/css-values/fixture-a.html",
+                    "subtest": "supported subtest"
+                },
+                {
+                    "id": "css/css-values/fixture-b.html",
+                    "subtest": "still present"
+                }
+            ]
+        });
+        let known_failure_subtests = [
+            ("css/css-values/fixture-a.html", "supported subtest"),
+            ("css/css-values/fixture-b.html", "stale subtest"),
+            ("css/css-values/removed-fixture.html", "removed fixture"),
+        ];
+
+        assert_eq!(
+            wpt_seed_stale_known_failure_count(Some(&chunk), &known_failure_subtests),
+            2
+        );
+    }
 }
