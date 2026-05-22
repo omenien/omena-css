@@ -8,6 +8,14 @@ mod diagnostics;
 mod hover;
 #[path = "tests/lifecycle.rs"]
 mod lifecycle;
+#[path = "tests/lifecycle_cancellation.rs"]
+mod lifecycle_cancellation;
+#[path = "tests/lifecycle_capabilities.rs"]
+mod lifecycle_capabilities;
+#[path = "tests/lifecycle_configuration.rs"]
+mod lifecycle_configuration;
+#[path = "tests/lifecycle_text_sync.rs"]
+mod lifecycle_text_sync;
 #[path = "tests/sass_resolution_package.rs"]
 mod sass_resolution_package;
 #[path = "tests/sass_resolution_symlink.rs"]
