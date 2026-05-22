@@ -11,6 +11,7 @@ const readinessScript = requiredScript("check:rust-m4-axis-a-readiness");
 
 for (const target of [
   "rust/omena-diff-test-boundary",
+  "rust/omena-parser/style-facts-parity",
   "rust/omena-spec-audit-boundary",
   "rust/omena-meta-macros-boundary",
   "rust/omena-transform-target/boundary",
@@ -256,6 +257,26 @@ assertIncludes(
   "cme-checker archetype gate must compare canonical candidates",
 );
 
+const parserStyleFactsParity = read("scripts/check-rust-omena-parser-style-facts-parity.ts");
+for (const marker of [
+  "css-modules-value-facts",
+  "css-modules-composes-facts",
+  "icss-import-export-facts",
+  "scss-sass-symbol-facts",
+  "less-selector-facts",
+] as const) {
+  assertIncludes(
+    parserStyleFactsParity,
+    marker,
+    `M4 Axis A parser style-facts parity must retain ${marker}`,
+  );
+}
+assertIncludes(
+  parserStyleFactsParity,
+  "legacy.customProperties.declNames",
+  "parser style-facts parity must compare against the legacy parser oracle",
+);
+
 process.stdout.write(
   JSON.stringify(
     {
@@ -285,6 +306,16 @@ process.stdout.write(
       testkit: {
         fixtureGrammar: "cme-fixture-v0",
         checkerArchetypes: ["source-missing", "style-unused", "style-recovery"],
+      },
+      parserStyleFactsParity: {
+        gate: "rust/omena-parser/style-facts-parity",
+        requiredFixtures: [
+          "css-modules-value-facts",
+          "css-modules-composes-facts",
+          "icss-import-export-facts",
+          "scss-sass-symbol-facts",
+          "less-selector-facts",
+        ],
       },
     },
     null,
