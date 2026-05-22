@@ -11,6 +11,7 @@ const readinessScript = requiredScript("check:rust-m4-axis-d-readiness");
 const requiredBehaviorGates = [
   "rust/omena-resolver/fixture-suite",
   "rust/omena-bridge/boundary",
+  "rust/omena-cascade/boundary",
   "rust/omena-query/transform-context",
   "rust/omena-query/transform-execute",
   "rust/omena-query/transform-differential",
@@ -98,6 +99,16 @@ for (const moduleName of ["paths", "syntax"] as const) {
   assertFileExists(`rust/crates/omena-bridge/src/bundler_config_alias/${moduleName}.rs`);
 }
 
+const cascadeOrchestrator = read("rust/crates/omena-cascade/src/lib.rs");
+for (const moduleName of ["computed_value", "conformance", "fuzz", "ranking"] as const) {
+  assertIncludes(
+    cascadeOrchestrator,
+    `mod ${moduleName};`,
+    `cascade orchestrator must retain ${moduleName}`,
+  );
+  assertFileExists(`rust/crates/omena-cascade/src/${moduleName}.rs`);
+}
+
 const structuralSplits = [
   {
     family: "resolver",
@@ -130,6 +141,17 @@ const structuralSplits = [
     ],
     behaviorGate: "rust/omena-bridge/boundary",
   },
+  {
+    family: "cascade-core",
+    orchestrator: "rust/crates/omena-cascade/src/lib.rs",
+    modules: [
+      "rust/crates/omena-cascade/src/ranking.rs",
+      "rust/crates/omena-cascade/src/computed_value.rs",
+      "rust/crates/omena-cascade/src/conformance.rs",
+      "rust/crates/omena-cascade/src/fuzz.rs",
+    ],
+    behaviorGate: "rust/omena-cascade/boundary",
+  },
 ] as const;
 
 process.stdout.write(
@@ -155,6 +177,7 @@ process.stdout.write(
         "queryTransformSplitCoveredByTransformGates",
         "queryStaticStylesheetScssOverrideSplitCoveredByTransformGates",
         "bridgeBundlerAliasSplitCoveredByBridgeBoundary",
+        "cascadeCoreSplitCoveredByCascadeBoundary",
         "axisDReadinessComposesBehaviorGates",
       ],
     },
