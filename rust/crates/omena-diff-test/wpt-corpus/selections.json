@@ -7,7 +7,7 @@
   "source": {
     "repository": "https://github.com/web-platform-tests/wpt",
     "pin": "web-platform-tests/wpt@37b7cece2910dfe0d7f1cf872bbb1df32c21f07f",
-    "sparsePaths": ["css/css-values", "css/css-color"],
+    "sparsePaths": ["css/css-values", "css/css-color", "css/css-sizing"],
     "helperClasses": ["test_valid_value"],
     "layoutDependentHelpersExcluded": ["test_computed_value", "test_computed_serialization"]
   },
@@ -412,6 +412,45 @@
           "wptExpectedValue": "20px",
           "source": ".css-values-width-clamp-advisory { width: clamp(10px, 20px, 30px); }",
           "expectedCss": ".css-values-width-clamp-advisory{width:20px}",
+          "status": "pass"
+        },
+        {
+          "id": "css-sizing-width-min-content-advisory",
+          "wptPath": "css/css-sizing/parsing/width-valid.html",
+          "wptSourceLine": 15,
+          "subtest": "test_valid_value(\"width\", \"min-content\")",
+          "helper": "test_valid_value",
+          "property": "width",
+          "wptValue": "min-content",
+          "wptExpectedValue": "min-content",
+          "source": ".css-sizing-width-min-content-advisory { width: min-content; }",
+          "expectedCss": ".css-sizing-width-min-content-advisory{width:min-content}",
+          "status": "pass"
+        },
+        {
+          "id": "css-sizing-width-calc-advisory",
+          "wptPath": "css/css-sizing/parsing/width-valid.html",
+          "wptSourceLine": 21,
+          "subtest": "test_valid_value(\"width\", \"calc(10% - 0.5em)\")",
+          "helper": "test_valid_value",
+          "property": "width",
+          "wptValue": "calc(10% - 0.5em)",
+          "wptExpectedValue": "calc(10% - 0.5em)",
+          "source": ".css-sizing-width-calc-advisory { width: calc(10% - 0.5em); }",
+          "expectedCss": ".css-sizing-width-calc-advisory{width:calc(10% - .5em)}",
+          "status": "pass"
+        },
+        {
+          "id": "css-sizing-width-fit-content-advisory",
+          "wptPath": "css/css-sizing/parsing/width-valid.html",
+          "wptSourceLine": 23,
+          "subtest": "test_valid_value(\"width\", \"fit-content(10%)\")",
+          "helper": "test_valid_value",
+          "property": "width",
+          "wptValue": "fit-content(10%)",
+          "wptExpectedValue": "fit-content(10%)",
+          "source": ".css-sizing-width-fit-content-advisory { width: fit-content(10%); }",
+          "expectedCss": ".css-sizing-width-fit-content-advisory{width:fit-content(10%)}",
           "status": "pass"
         }
       ]
