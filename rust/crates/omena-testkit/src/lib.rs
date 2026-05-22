@@ -150,6 +150,114 @@ pub struct OmenaTestkitBoundarySummaryV0 {
     pub closed_gates: Vec<&'static str>,
     /// Boundary seed corpus report.
     pub fixture_seed_report: OmenaTestkitFixtureSeedCorpusReportV0,
+    /// Boundary and transform-execution scenario macro substrate report.
+    pub scenario_macro_report: OmenaTestkitScenarioMacroReportV0,
+}
+
+/// v0.1 scenario archetypes supported by the Rust testkit substrate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CmeScenarioArchetypeV0 {
+    /// Boundary checks that validate a product surface without executing a
+    /// transform pipeline.
+    Boundary,
+    /// Transform-execution checks that require a style input and a transform
+    /// product expectation.
+    TransformExecute,
+}
+
+impl CmeScenarioArchetypeV0 {
+    /// Stable archetype identifier used by reports and downstream adapters.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Boundary => "boundary",
+            Self::TransformExecute => "transform-execute",
+        }
+    }
+}
+
+/// Readiness evidence for one `cme-fixture-v0` scenario.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CmeScenarioReadinessV0 {
+    /// Whether the fixture parsed successfully before scenario classification.
+    pub fixture_parses: bool,
+    /// Whether the fixture declares at least one product expectation.
+    pub has_expected_products: bool,
+    /// Whether the fixture has the files required by the archetype.
+    pub has_required_files: bool,
+    /// Whether this scenario is ready for downstream runner adoption.
+    pub ready: bool,
+    /// Reasons preventing runner adoption.
+    pub unsupported_reasons: Vec<&'static str>,
+}
+
+/// Scenario summary produced by the v0.1 testkit scenario macro substrate.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CmeScenarioV0 {
+    /// Schema version.
+    pub schema_version: &'static str,
+    /// Product surface.
+    pub product: &'static str,
+    /// Fixture grammar consumed by this scenario.
+    pub fixture_grammar: &'static str,
+    /// Scenario archetype.
+    pub archetype: CmeScenarioArchetypeV0,
+    /// Stable archetype identifier.
+    pub archetype_id: &'static str,
+    /// Parsed file count.
+    pub file_count: usize,
+    /// Parsed source file count.
+    pub source_file_count: usize,
+    /// Parsed style file count.
+    pub style_file_count: usize,
+    /// Parsed expectation count.
+    pub expectation_count: usize,
+    /// Parsed marker count.
+    pub marker_count: usize,
+    /// Parsed metadata count.
+    pub metadata_count: usize,
+    /// Product expectations declared by the fixture.
+    pub expected_products: Vec<String>,
+    /// Readiness evidence.
+    pub readiness: CmeScenarioReadinessV0,
+}
+
+/// One built-in scenario macro seed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaTestkitScenarioMacroSeedReportV0 {
+    /// Stable seed label.
+    pub label: &'static str,
+    /// Scenario summary.
+    pub scenario: CmeScenarioV0,
+}
+
+/// Built-in scenario macro substrate report.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaTestkitScenarioMacroReportV0 {
+    /// Schema version.
+    pub schema_version: &'static str,
+    /// Product surface.
+    pub product: &'static str,
+    /// Fixture grammar.
+    pub fixture_grammar: &'static str,
+    /// Supported archetype identifiers.
+    pub supported_archetypes: Vec<&'static str>,
+    /// Scenario seed count.
+    pub scenario_count: usize,
+    /// Whether every built-in scenario seed is ready.
+    pub all_scenario_macros_ready: bool,
+    /// Built-in scenario seed reports.
+    pub reports: Vec<OmenaTestkitScenarioMacroSeedReportV0>,
+}
+
+struct OmenaTestkitScenarioMacroSeedV0 {
+    label: &'static str,
+    archetype: CmeScenarioArchetypeV0,
+    raw: &'static str,
 }
 
 const BOUNDARY_FIXTURE_SEEDS: &[OmenaTestkitFixtureSeedV0] = &[
@@ -197,9 +305,55 @@ shared fixture parser strips marker text and reports clean-source offsets
     },
 ];
 
+const SCENARIO_MACRO_SEEDS: &[OmenaTestkitScenarioMacroSeedV0] = &[
+    OmenaTestkitScenarioMacroSeedV0 {
+        label: "boundary-product-scenario",
+        archetype: CmeScenarioArchetypeV0::Boundary,
+        raw: r#"--- file: src/Button.module.scss
+.button { color: red; }
+--- expect: product
+omena-parser.style-facts
+--- expect: assertion
+boundary scenario keeps the product expectation and workspace file together
+"#,
+    },
+    OmenaTestkitScenarioMacroSeedV0 {
+        label: "transform-execute-scenario",
+        archetype: CmeScenarioArchetypeV0::TransformExecute,
+        raw: r#"//- src/Button.module.scss dialect:scss layer:style
+.button { color: light-dark(red, blue); }
+--- expect: product
+omena-query.transform-execute
+--- expect: assertion
+transform-execute scenario carries a style fixture and transform product
+"#,
+    },
+];
+
+/// Build a v0.1 scenario summary from a `cme-fixture-v0` fixture.
+pub fn summarize_cme_scenario_v0(
+    raw: &str,
+    archetype: CmeScenarioArchetypeV0,
+) -> Result<CmeScenarioV0, String> {
+    let fixture = parse_cme_fixture_v0(raw)?;
+    Ok(build_cme_scenario_v0(fixture, archetype))
+}
+
+/// Construct a `cme-fixture-v0` scenario using the v0.1 archetype macro.
+#[macro_export]
+macro_rules! cme_scenario_v0 {
+    (boundary, $raw:expr) => {
+        $crate::summarize_cme_scenario_v0($raw, $crate::CmeScenarioArchetypeV0::Boundary)
+    };
+    (transform_execute, $raw:expr) => {
+        $crate::summarize_cme_scenario_v0($raw, $crate::CmeScenarioArchetypeV0::TransformExecute)
+    };
+}
+
 /// Summarize the shared Rust testkit boundary.
 pub fn summarize_omena_testkit_boundary() -> OmenaTestkitBoundarySummaryV0 {
     let fixture_seed_report = summarize_omena_testkit_fixture_seed_corpus(BOUNDARY_FIXTURE_SEEDS);
+    let scenario_macro_report = summarize_omena_testkit_scenario_macro_report();
 
     OmenaTestkitBoundarySummaryV0 {
         schema_version: "0",
@@ -212,9 +366,38 @@ pub fn summarize_omena_testkit_boundary() -> OmenaTestkitBoundarySummaryV0 {
             "crossLanguageFixtureGrammar",
             "fixtureHeaderMetadata",
             "fixtureMarkerOffsets",
+            "boundaryScenarioMacro",
+            "transformExecuteScenarioMacro",
             "m4TestkitPromotionSubstrate",
         ],
         fixture_seed_report,
+        scenario_macro_report,
+    }
+}
+
+/// Summarize the built-in v0.1 scenario macro substrate.
+pub fn summarize_omena_testkit_scenario_macro_report() -> OmenaTestkitScenarioMacroReportV0 {
+    let reports = SCENARIO_MACRO_SEEDS
+        .iter()
+        .map(|seed| OmenaTestkitScenarioMacroSeedReportV0 {
+            label: seed.label,
+            scenario: summarize_cme_scenario_v0(seed.raw, seed.archetype)
+                .unwrap_or_else(|error| scenario_parse_error(seed.archetype, error)),
+        })
+        .collect::<Vec<_>>();
+    let all_scenario_macros_ready = reports.iter().all(|report| report.scenario.readiness.ready);
+
+    OmenaTestkitScenarioMacroReportV0 {
+        schema_version: "0",
+        product: "omena-testkit.scenario-macro-report",
+        fixture_grammar: "cme-fixture-v0",
+        supported_archetypes: vec![
+            CmeScenarioArchetypeV0::Boundary.id(),
+            CmeScenarioArchetypeV0::TransformExecute.id(),
+        ],
+        scenario_count: reports.len(),
+        all_scenario_macros_ready,
+        reports,
     }
 }
 
@@ -347,6 +530,142 @@ pub fn parse_cme_fixture_v0(raw: &str) -> Result<CmeFixtureV0, String> {
         files,
         expectations,
     })
+}
+
+fn build_cme_scenario_v0(
+    fixture: CmeFixtureV0,
+    archetype: CmeScenarioArchetypeV0,
+) -> CmeScenarioV0 {
+    let source_file_count = fixture
+        .files
+        .iter()
+        .filter(|file| file_is_source(file))
+        .count();
+    let style_file_count = fixture
+        .files
+        .iter()
+        .filter(|file| file_is_style(file))
+        .count();
+    let expectation_count = fixture.expectations.len();
+    let marker_count = fixture.files.iter().map(|file| file.markers.len()).sum();
+    let metadata_count = fixture.files.iter().map(|file| file.metadata.len()).sum();
+    let expected_products = fixture
+        .expectations
+        .iter()
+        .filter(|expectation| expectation.key == "product")
+        .map(|expectation| expectation.value.clone())
+        .collect::<Vec<_>>();
+    let readiness = cme_scenario_readiness(
+        archetype,
+        style_file_count,
+        source_file_count,
+        expected_products.as_slice(),
+    );
+
+    CmeScenarioV0 {
+        schema_version: "0",
+        product: "omena-testkit.scenario",
+        fixture_grammar: "cme-fixture-v0",
+        archetype,
+        archetype_id: archetype.id(),
+        file_count: fixture.files.len(),
+        source_file_count,
+        style_file_count,
+        expectation_count,
+        marker_count,
+        metadata_count,
+        expected_products,
+        readiness,
+    }
+}
+
+fn cme_scenario_readiness(
+    archetype: CmeScenarioArchetypeV0,
+    style_file_count: usize,
+    source_file_count: usize,
+    expected_products: &[String],
+) -> CmeScenarioReadinessV0 {
+    let has_expected_products = !expected_products.is_empty();
+    let has_required_files = match archetype {
+        CmeScenarioArchetypeV0::Boundary => style_file_count + source_file_count > 0,
+        CmeScenarioArchetypeV0::TransformExecute => style_file_count > 0,
+    };
+    let product_matches_archetype = match archetype {
+        CmeScenarioArchetypeV0::Boundary => has_expected_products,
+        CmeScenarioArchetypeV0::TransformExecute => expected_products.iter().any(|product| {
+            product == "omena-query.transform-execute"
+                || product.starts_with("omena-transform-passes.")
+        }),
+    };
+    let mut unsupported_reasons = Vec::new();
+    if !has_expected_products {
+        unsupported_reasons.push("missingProductExpectation");
+    }
+    if !has_required_files {
+        unsupported_reasons.push("missingRequiredFiles");
+    }
+    if !product_matches_archetype {
+        unsupported_reasons.push("productDoesNotMatchArchetype");
+    }
+
+    CmeScenarioReadinessV0 {
+        fixture_parses: true,
+        has_expected_products,
+        has_required_files,
+        ready: unsupported_reasons.is_empty(),
+        unsupported_reasons,
+    }
+}
+
+fn scenario_parse_error(archetype: CmeScenarioArchetypeV0, _error: String) -> CmeScenarioV0 {
+    CmeScenarioV0 {
+        schema_version: "0",
+        product: "omena-testkit.scenario",
+        fixture_grammar: "cme-fixture-v0",
+        archetype,
+        archetype_id: archetype.id(),
+        file_count: 0,
+        source_file_count: 0,
+        style_file_count: 0,
+        expectation_count: 0,
+        marker_count: 0,
+        metadata_count: 0,
+        expected_products: Vec::new(),
+        readiness: CmeScenarioReadinessV0 {
+            fixture_parses: false,
+            has_expected_products: false,
+            has_required_files: false,
+            ready: false,
+            unsupported_reasons: vec!["fixtureParseError"],
+        },
+    }
+}
+
+fn file_is_source(file: &CmeFixtureFileV0) -> bool {
+    metadata_value(file, "dialect")
+        .is_some_and(|dialect| matches!(dialect, "ts" | "tsx" | "js" | "jsx"))
+        || file.path.ends_with(".ts")
+        || file.path.ends_with(".tsx")
+        || file.path.ends_with(".js")
+        || file.path.ends_with(".jsx")
+        || file.path.ends_with(".mts")
+        || file.path.ends_with(".cts")
+}
+
+fn file_is_style(file: &CmeFixtureFileV0) -> bool {
+    metadata_value(file, "dialect")
+        .is_some_and(|dialect| matches!(dialect, "css" | "scss" | "less"))
+        || file.path.ends_with(".css")
+        || file.path.ends_with(".scss")
+        || file.path.ends_with(".sass")
+        || file.path.ends_with(".less")
+}
+
+fn metadata_value<'a>(file: &'a CmeFixtureFileV0, key: &str) -> Option<&'a str> {
+    file.metadata
+        .iter()
+        .find(|metadata| metadata.key == key)
+        .map(|metadata| metadata.value.as_str())
 }
 
 fn report_fixture_seed(seed: OmenaTestkitFixtureSeedV0) -> OmenaTestkitFixtureSeedReportV0 {
@@ -557,6 +876,14 @@ mod tests {
         );
         assert!(summary.closed_gates.contains(&"fixtureHeaderMetadata"));
         assert!(summary.closed_gates.contains(&"fixtureMarkerOffsets"));
+        assert!(summary.closed_gates.contains(&"boundaryScenarioMacro"));
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"transformExecuteScenarioMacro")
+        );
+        assert!(summary.scenario_macro_report.all_scenario_macros_ready);
+        assert_eq!(summary.scenario_macro_report.scenario_count, 2);
     }
 
     #[test]
@@ -729,5 +1056,69 @@ consumer.product
         assert!(report.all_seeds_parse);
         assert_eq!(report.reports[0].file_count, 1);
         assert_eq!(report.reports[0].expectation_count, 1);
+    }
+
+    #[test]
+    fn scenario_macro_builds_boundary_archetype_summary() -> Result<(), String> {
+        let scenario = crate::cme_scenario_v0!(
+            boundary,
+            r#"--- file: src/Button.module.css
+.button { color: red; }
+--- expect: product
+omena-parser.style-facts
+"#
+        )?;
+
+        assert_eq!(scenario.product, "omena-testkit.scenario");
+        assert_eq!(scenario.archetype_id, "boundary");
+        assert_eq!(scenario.style_file_count, 1);
+        assert_eq!(scenario.expected_products, vec!["omena-parser.style-facts"]);
+        assert!(scenario.readiness.ready);
+
+        Ok(())
+    }
+
+    #[test]
+    fn scenario_macro_builds_transform_execute_archetype_summary() -> Result<(), String> {
+        let scenario = crate::cme_scenario_v0!(
+            transform_execute,
+            r#"//- src/Button.module.scss dialect:scss
+.button { color: light-dark(red, blue); }
+--- expect: product
+omena-query.transform-execute
+"#
+        )?;
+
+        assert_eq!(scenario.archetype_id, "transform-execute");
+        assert_eq!(scenario.style_file_count, 1);
+        assert_eq!(scenario.metadata_count, 1);
+        assert!(
+            scenario
+                .expected_products
+                .contains(&"omena-query.transform-execute".to_string())
+        );
+        assert!(scenario.readiness.ready);
+
+        Ok(())
+    }
+
+    #[test]
+    fn transform_execute_scenario_requires_transform_product() -> Result<(), String> {
+        let scenario = summarize_cme_scenario_v0(
+            r#"--- file: src/Button.module.scss
+.button { color: red; }
+--- expect: product
+omena-parser.style-facts
+"#,
+            CmeScenarioArchetypeV0::TransformExecute,
+        )?;
+
+        assert!(!scenario.readiness.ready);
+        assert_eq!(
+            scenario.readiness.unsupported_reasons,
+            vec!["productDoesNotMatchArchetype"]
+        );
+
+        Ok(())
     }
 }
