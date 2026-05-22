@@ -1,3 +1,4 @@
+use super::super::parser_facade::lex_omena_query_omena_parser_style_source;
 use super::context::{css_identifier_names_match, decode_css_identifier_escapes};
 use super::*;
 use omena_syntax::SyntaxKind;

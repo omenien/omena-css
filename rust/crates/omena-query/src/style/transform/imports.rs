@@ -1,5 +1,5 @@
 use super::*;
-use omena_transform_passes::TransformImportInlineV0;
+use omena_transform_passes::{TransformImportInlineV0, inline_css_imports};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) fn derive_import_inlines_for_transform_context(
