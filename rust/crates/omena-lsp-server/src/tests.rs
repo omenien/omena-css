@@ -16,6 +16,10 @@ mod sass_symbols;
 mod source_completion;
 #[path = "tests/source_resolution.rs"]
 mod source_resolution;
+#[path = "tests/source_resolution_bundler.rs"]
+mod source_resolution_bundler;
+#[path = "tests/source_resolution_tsconfig.rs"]
+mod source_resolution_tsconfig;
 #[path = "tests/source_resolution_watch.rs"]
 mod source_resolution_watch;
 #[path = "tests/source_semantics.rs"]
