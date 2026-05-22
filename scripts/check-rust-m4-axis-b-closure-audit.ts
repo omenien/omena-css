@@ -14,6 +14,14 @@ const fixtureSuiteScript = readFileSync(
   "scripts/check-rust-omena-resolver-fixture-suite.ts",
   "utf8",
 );
+const bundlerAliasSource = readFileSync(
+  "rust/crates/omena-bridge/src/bundler_config_alias.rs",
+  "utf8",
+);
+const bundlerAliasTests = readFileSync(
+  "rust/crates/omena-bridge/src/bundler_config_alias/tests.rs",
+  "utf8",
+);
 const resolverCacheScript = readFileSync(
   "scripts/check-rust-omena-lsp-server-resolver-cache-runtime.ts",
   "utf8",
@@ -68,6 +76,37 @@ for (const marker of resolverFixtureRequirements) {
   assertIncludes(fixtureSuiteScript, marker, `resolver fixture suite must cover ${marker}`);
 }
 
+const bundlerAliasExtractionRequirements = [
+  "use oxc_parser::{Parser, ParserReturn}",
+  "Parser::new(&allocator, config_source, source_type).parse()",
+  "collect_bundler_aliases_from_program",
+] as const;
+for (const marker of bundlerAliasExtractionRequirements) {
+  assertIncludes(
+    bundlerAliasSource,
+    marker,
+    `bundler alias extraction must use the OXC config AST path: ${marker}`,
+  );
+}
+
+const bundlerAliasFixtureRequirements = [
+  "extracts_vite_object_aliases_from_define_config",
+  "extracts_webpack_array_aliases_from_module_exports",
+  "preserves_webpack_array_alias_declaration_order",
+  "marks_dynamic_alias_entries_unrecognized",
+  "marks_dynamic_exported_config_unrecognized_without_top_level_fallback",
+  "marks_dynamic_module_exports_config_unrecognized",
+  "regex-alias-find",
+  "dynamic-config-export",
+] as const;
+for (const marker of bundlerAliasFixtureRequirements) {
+  assertIncludes(
+    bundlerAliasTests,
+    marker,
+    `bundler alias fixture suite must cover literal extraction and dynamic markers: ${marker}`,
+  );
+}
+
 const resolverCacheRequirements = [
   "cachedWorkspaceResolutionInputCount",
   "package.json(root+package),tsconfig.json,vite.config.ts,webpack.config.js",
@@ -113,6 +152,17 @@ process.stdout.write(
           "sass-node-package-importer-pkg-url-ordering",
           "vite-webpack-aliases",
           "lsp-product-paths",
+        ],
+      },
+      bundlerConfigAliasExtraction: {
+        owner: "omena-bridge",
+        parser: "oxc_parser-js-ts-config-only",
+        covers: [
+          "vite-define-config-object-aliases",
+          "webpack-module-exports-array-aliases",
+          "webpack-array-declaration-order",
+          "dynamic-alias-entry-markers",
+          "dynamic-config-export-markers",
         ],
       },
       cacheAndInvalidation: {
