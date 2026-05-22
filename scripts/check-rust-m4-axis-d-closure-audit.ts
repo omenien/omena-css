@@ -51,6 +51,9 @@ for (const marker of [
 }
 
 const queryTransform = read("rust/crates/omena-query/src/style/transform.rs");
+const queryStaticStylesheet = read(
+  "rust/crates/omena-query/src/style/transform/static_stylesheet.rs",
+);
 for (const moduleName of [
   "context",
   "css_modules",
@@ -60,6 +63,29 @@ for (const moduleName of [
 ] as const) {
   assertIncludes(queryTransform, `mod ${moduleName};`, `query transform must retain ${moduleName}`);
   assertFileExists(`rust/crates/omena-query/src/style/transform/${moduleName}.rs`);
+}
+assertIncludes(
+  queryStaticStylesheet,
+  "mod scss_variable_overrides;",
+  "static stylesheet split must retain scss_variable_overrides",
+);
+assertFileExists(
+  "rust/crates/omena-query/src/style/transform/static_stylesheet/scss_variable_overrides.rs",
+);
+const queryStaticScssVariableOverrides = read(
+  "rust/crates/omena-query/src/style/transform/static_stylesheet/scss_variable_overrides.rs",
+);
+for (const marker of [
+  "parse_static_scss_use_variable_override_list",
+  "static_scss_matching_right_paren",
+  "static_scss_top_level_colon_index",
+  "canonical_static_scss_variable_name",
+] as const) {
+  assertIncludes(
+    queryStaticScssVariableOverrides,
+    marker,
+    `scss variable override split must retain ${marker}`,
+  );
 }
 
 const bridgeBundlerAlias = read("rust/crates/omena-bridge/src/bundler_config_alias.rs");
@@ -91,6 +117,7 @@ const structuralSplits = [
       "rust/crates/omena-query/src/style/transform/design_tokens.rs",
       "rust/crates/omena-query/src/style/transform/imports.rs",
       "rust/crates/omena-query/src/style/transform/static_stylesheet.rs",
+      "rust/crates/omena-query/src/style/transform/static_stylesheet/scss_variable_overrides.rs",
     ],
     behaviorGate: "rust/omena-query/transform-differential",
   },
@@ -126,6 +153,7 @@ process.stdout.write(
       closedGates: [
         "resolverSplitCoveredByFixtureSuite",
         "queryTransformSplitCoveredByTransformGates",
+        "queryStaticStylesheetScssOverrideSplitCoveredByTransformGates",
         "bridgeBundlerAliasSplitCoveredByBridgeBoundary",
         "axisDReadinessComposesBehaviorGates",
       ],
