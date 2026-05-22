@@ -75,6 +75,10 @@ assert.ok(
   "M4 Axis A must keep css-sizing in the pinned WPT sparse path policy",
 );
 assert.ok(
+  wptManifest.source.sparsePaths.includes("css/css-backgrounds"),
+  "M4 Axis A must keep css-backgrounds in the pinned WPT sparse path policy",
+);
+assert.ok(
   wptSparsePathFixtureCounts.every((count) => count.fixtureCount > 0),
   "every pinned WPT sparse path must have fixture coverage",
 );
@@ -83,6 +87,12 @@ assert.ok(
     (count) => count.sparsePath === "css/css-sizing" && count.fixtureCount >= 3,
   ),
   "css-sizing WPT coverage must retain the width advisory fixture set",
+);
+assert.ok(
+  wptSparsePathFixtureCounts.some(
+    (count) => count.sparsePath === "css/css-backgrounds" && count.fixtureCount >= 1,
+  ),
+  "css-backgrounds WPT coverage must retain the background-color advisory fixture set",
 );
 assert.deepEqual(
   wptManifest.sparsePathFixtureCounts,
@@ -128,6 +138,24 @@ for (const evidence of [
     `css-sizing width spec audit evidence must include ${evidence}`,
   );
 }
+const cssBackgroundColorEntry = specManifest.entries.find(
+  (entry) => entry.id === "css-backgrounds/properties/background-color",
+);
+assert.ok(
+  cssBackgroundColorEntry,
+  "spec audit must retain css-backgrounds background-color coverage",
+);
+assert.equal(cssBackgroundColorEntry.priority, "P0");
+assert.equal(cssBackgroundColorEntry.status, "covered");
+for (const evidence of [
+  "WPT css/css-backgrounds/parsing/background-color-valid.html",
+  "css-background-color-red-advisory",
+] as const) {
+  assert.ok(
+    cssBackgroundColorEntry.evidence?.includes(evidence),
+    `css-backgrounds background-color spec audit evidence must include ${evidence}`,
+  );
+}
 const specSourceLinkedEntries = specManifest.entries.filter((entry) =>
   sourceNames.has(entry.sourceName),
 );
@@ -159,6 +187,12 @@ assert.ok(
     coverage.entryIds.includes("css-sizing/properties/width"),
   ),
   "cross-source spec coverage must retain css-sizing width joins",
+);
+assert.ok(
+  specManifest.sourceCoverage.every((coverage) =>
+    coverage.entryIds.includes("css-backgrounds/properties/background-color"),
+  ),
+  "cross-source spec coverage must retain css-backgrounds background-color joins",
 );
 assert.ok(
   specManifest.entries

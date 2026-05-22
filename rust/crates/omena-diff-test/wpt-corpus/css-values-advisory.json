@@ -70,6 +70,19 @@
       "status": "pass"
     },
     {
+      "id": "css-background-color-red-advisory",
+      "wptPath": "css/css-backgrounds/parsing/background-color-valid.html",
+      "wptSourceLine": 18,
+      "subtest": "test_valid_value(\"background-color\", \"red\")",
+      "helper": "test_valid_value",
+      "property": "background-color",
+      "wptValue": "red",
+      "wptExpectedValue": "red",
+      "source": ".css-background-color-red-advisory { background-color: red; }",
+      "expectedCss": ".css-background-color-red-advisory{background-color:red}",
+      "status": "pass"
+    },
+    {
       "id": "css-sizing-width-min-content-advisory",
       "wptPath": "css/css-sizing/parsing/width-valid.html",
       "wptSourceLine": 15,

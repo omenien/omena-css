@@ -12,6 +12,7 @@
         "css-color/properties/opacity",
         "css-values/types/url",
         "css-sizing/properties/width",
+        "css-backgrounds/properties/background-color",
         "css-mixins/atrules/@function"
       ],
       "sourceKeys": [
@@ -20,6 +21,7 @@
         "css-color/properties/opacity",
         "css-values/types/url",
         "css-sizing/properties/width",
+        "css-backgrounds/properties/background-color",
         "css-mixins/atrules/@function"
       ]
     },
@@ -32,12 +34,14 @@
         "css-color/properties/opacity",
         "css-values/types/url",
         "css-sizing/properties/width",
+        "css-backgrounds/properties/background-color",
         "css-mixins/atrules/@function"
       ],
       "sourceKeys": [
         "https://drafts.csswg.org/css-color/",
         "https://drafts.csswg.org/css-values/",
         "https://drafts.csswg.org/css-sizing/",
+        "https://drafts.csswg.org/css-backgrounds/",
         "https://drafts.csswg.org/css-mixins-1/"
       ]
     },
@@ -49,9 +53,10 @@
         "css-values/functions/calc",
         "css-color/properties/opacity",
         "css-values/types/url",
-        "css-sizing/properties/width"
+        "css-sizing/properties/width",
+        "css-backgrounds/properties/background-color"
       ],
-      "sourceKeys": ["css-color", "css-color-mix", "css-values", "css-sizing"]
+      "sourceKeys": ["css-color", "css-color-mix", "css-values", "css-sizing", "css-backgrounds"]
     },
     {
       "sourceName": "mdn-browser-compat-data",
@@ -61,14 +66,16 @@
         "css-values/functions/calc",
         "css-color/properties/opacity",
         "css-values/types/url",
-        "css-sizing/properties/width"
+        "css-sizing/properties/width",
+        "css-backgrounds/properties/background-color"
       ],
       "sourceKeys": [
         "css.properties.color",
         "css.types.calc",
         "css.properties.opacity",
         "css.types.url",
-        "css.properties.width"
+        "css.properties.width",
+        "css.properties.background-color"
       ]
     }
   ],
@@ -138,6 +145,21 @@
         "css-sizing-width-min-content-advisory",
         "css-sizing-width-calc-advisory",
         "css-sizing-width-fit-content-advisory"
+      ]
+    },
+    {
+      "id": "css-backgrounds/properties/background-color",
+      "webrefId": "css-backgrounds/properties/background-color",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-backgrounds/#background-color",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-transform-passes",
+      "evidence": [
+        "color-compression",
+        "WPT css/css-backgrounds/parsing/background-color-valid.html",
+        "css-background-color-red-advisory"
       ]
     },
     {
