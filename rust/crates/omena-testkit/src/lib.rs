@@ -192,6 +192,18 @@ pub struct CmeScenarioReadinessV0 {
     pub unsupported_reasons: Vec<&'static str>,
 }
 
+/// Rust call-site evidence captured when a scenario is built through the macro.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CmeScenarioCallSiteV0 {
+    /// Source file where the scenario macro was invoked.
+    pub file: &'static str,
+    /// 1-based source line where the scenario macro was invoked.
+    pub line: u32,
+    /// 1-based source column where the scenario macro was invoked.
+    pub column: u32,
+}
+
 /// Scenario summary produced by the v0.1 testkit scenario macro substrate.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -222,6 +234,8 @@ pub struct CmeScenarioV0 {
     pub expected_products: Vec<String>,
     /// Readiness evidence.
     pub readiness: CmeScenarioReadinessV0,
+    /// Macro call-site evidence, present only for macro-built scenarios.
+    pub call_site: Option<CmeScenarioCallSiteV0>,
 }
 
 /// One built-in scenario macro seed.
@@ -232,6 +246,20 @@ pub struct OmenaTestkitScenarioMacroSeedReportV0 {
     pub label: &'static str,
     /// Scenario summary.
     pub scenario: CmeScenarioV0,
+}
+
+/// Boundary evidence that the scenario macro preserves call-site location data.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaTestkitScenarioMacroCallSiteProbeV0 {
+    /// Whether the probe scenario carried call-site evidence.
+    pub present: bool,
+    /// Whether the captured file location points at the testkit source file.
+    pub file_suffix_matches: bool,
+    /// Whether the captured line is non-zero.
+    pub line_non_zero: bool,
+    /// Whether the captured column is non-zero.
+    pub column_non_zero: bool,
 }
 
 /// Built-in scenario macro substrate report.
@@ -250,6 +278,10 @@ pub struct OmenaTestkitScenarioMacroReportV0 {
     pub scenario_count: usize,
     /// Whether every built-in scenario seed is ready.
     pub all_scenario_macros_ready: bool,
+    /// Whether macro expansion records Rust call-site evidence.
+    pub call_site_evidence_supported: bool,
+    /// Macro call-site evidence probe.
+    pub call_site_probe: OmenaTestkitScenarioMacroCallSiteProbeV0,
     /// Built-in scenario seed reports.
     pub reports: Vec<OmenaTestkitScenarioMacroSeedReportV0>,
 }
@@ -336,17 +368,39 @@ pub fn summarize_cme_scenario_v0(
     archetype: CmeScenarioArchetypeV0,
 ) -> Result<CmeScenarioV0, String> {
     let fixture = parse_cme_fixture_v0(raw)?;
-    Ok(build_cme_scenario_v0(fixture, archetype))
+    Ok(build_cme_scenario_v0(fixture, archetype, None))
+}
+
+/// Build a v0.1 scenario summary and record the macro invocation call-site.
+#[track_caller]
+pub fn summarize_cme_scenario_at_call_site_v0(
+    raw: &str,
+    archetype: CmeScenarioArchetypeV0,
+) -> Result<CmeScenarioV0, String> {
+    let caller = std::panic::Location::caller();
+    let call_site = CmeScenarioCallSiteV0 {
+        file: caller.file(),
+        line: caller.line(),
+        column: caller.column(),
+    };
+    let fixture = parse_cme_fixture_v0(raw)?;
+    Ok(build_cme_scenario_v0(fixture, archetype, Some(call_site)))
 }
 
 /// Construct a `cme-fixture-v0` scenario using the v0.1 archetype macro.
 #[macro_export]
 macro_rules! cme_scenario_v0 {
     (boundary, $raw:expr) => {
-        $crate::summarize_cme_scenario_v0($raw, $crate::CmeScenarioArchetypeV0::Boundary)
+        $crate::summarize_cme_scenario_at_call_site_v0(
+            $raw,
+            $crate::CmeScenarioArchetypeV0::Boundary,
+        )
     };
     (transform_execute, $raw:expr) => {
-        $crate::summarize_cme_scenario_v0($raw, $crate::CmeScenarioArchetypeV0::TransformExecute)
+        $crate::summarize_cme_scenario_at_call_site_v0(
+            $raw,
+            $crate::CmeScenarioArchetypeV0::TransformExecute,
+        )
     };
 }
 
@@ -368,6 +422,7 @@ pub fn summarize_omena_testkit_boundary() -> OmenaTestkitBoundarySummaryV0 {
             "fixtureMarkerOffsets",
             "boundaryScenarioMacro",
             "transformExecuteScenarioMacro",
+            "scenarioMacroCallSiteEvidence",
             "m4TestkitPromotionSubstrate",
         ],
         fixture_seed_report,
@@ -377,6 +432,11 @@ pub fn summarize_omena_testkit_boundary() -> OmenaTestkitBoundarySummaryV0 {
 
 /// Summarize the built-in v0.1 scenario macro substrate.
 pub fn summarize_omena_testkit_scenario_macro_report() -> OmenaTestkitScenarioMacroReportV0 {
+    let call_site_probe = summarize_scenario_macro_call_site_probe();
+    let call_site_evidence_supported = call_site_probe.present
+        && call_site_probe.file_suffix_matches
+        && call_site_probe.line_non_zero
+        && call_site_probe.column_non_zero;
     let reports = SCENARIO_MACRO_SEEDS
         .iter()
         .map(|seed| OmenaTestkitScenarioMacroSeedReportV0 {
@@ -397,7 +457,23 @@ pub fn summarize_omena_testkit_scenario_macro_report() -> OmenaTestkitScenarioMa
         ],
         scenario_count: reports.len(),
         all_scenario_macros_ready,
+        call_site_evidence_supported,
+        call_site_probe,
         reports,
+    }
+}
+
+fn summarize_scenario_macro_call_site_probe() -> OmenaTestkitScenarioMacroCallSiteProbeV0 {
+    let scenario = crate::cme_scenario_v0!(boundary, SCENARIO_MACRO_SEEDS[0].raw).ok();
+    let call_site = scenario.and_then(|scenario| scenario.call_site);
+
+    OmenaTestkitScenarioMacroCallSiteProbeV0 {
+        present: call_site.is_some(),
+        file_suffix_matches: call_site
+            .as_ref()
+            .is_some_and(|site| site.file.ends_with("src/lib.rs")),
+        line_non_zero: call_site.as_ref().is_some_and(|site| site.line > 0),
+        column_non_zero: call_site.as_ref().is_some_and(|site| site.column > 0),
     }
 }
 
@@ -535,6 +611,7 @@ pub fn parse_cme_fixture_v0(raw: &str) -> Result<CmeFixtureV0, String> {
 fn build_cme_scenario_v0(
     fixture: CmeFixtureV0,
     archetype: CmeScenarioArchetypeV0,
+    call_site: Option<CmeScenarioCallSiteV0>,
 ) -> CmeScenarioV0 {
     let source_file_count = fixture
         .files
@@ -576,6 +653,7 @@ fn build_cme_scenario_v0(
         metadata_count,
         expected_products,
         readiness,
+        call_site,
     }
 }
 
@@ -638,6 +716,7 @@ fn scenario_parse_error(archetype: CmeScenarioArchetypeV0, _error: String) -> Cm
             ready: false,
             unsupported_reasons: vec!["fixtureParseError"],
         },
+        call_site: None,
     }
 }
 
@@ -882,7 +961,27 @@ mod tests {
                 .closed_gates
                 .contains(&"transformExecuteScenarioMacro")
         );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"scenarioMacroCallSiteEvidence")
+        );
         assert!(summary.scenario_macro_report.all_scenario_macros_ready);
+        assert!(summary.scenario_macro_report.call_site_evidence_supported);
+        assert!(summary.scenario_macro_report.call_site_probe.present);
+        assert!(
+            summary
+                .scenario_macro_report
+                .call_site_probe
+                .file_suffix_matches
+        );
+        assert!(summary.scenario_macro_report.call_site_probe.line_non_zero);
+        assert!(
+            summary
+                .scenario_macro_report
+                .call_site_probe
+                .column_non_zero
+        );
         assert_eq!(summary.scenario_macro_report.scenario_count, 2);
     }
 
@@ -1074,6 +1173,13 @@ omena-parser.style-facts
         assert_eq!(scenario.style_file_count, 1);
         assert_eq!(scenario.expected_products, vec!["omena-parser.style-facts"]);
         assert!(scenario.readiness.ready);
+        let call_site = scenario
+            .call_site
+            .as_ref()
+            .ok_or("macro scenario must carry call-site evidence")?;
+        assert!(call_site.file.ends_with("src/lib.rs"));
+        assert!(call_site.line > 0);
+        assert!(call_site.column > 0);
 
         Ok(())
     }
@@ -1098,6 +1204,10 @@ omena-query.transform-execute
                 .contains(&"omena-query.transform-execute".to_string())
         );
         assert!(scenario.readiness.ready);
+        assert!(
+            scenario.call_site.is_some(),
+            "macro scenario must preserve call-site evidence"
+        );
 
         Ok(())
     }
@@ -1114,6 +1224,7 @@ omena-parser.style-facts
         )?;
 
         assert!(!scenario.readiness.ready);
+        assert_eq!(scenario.call_site, None);
         assert_eq!(
             scenario.readiness.unsupported_reasons,
             vec!["productDoesNotMatchArchetype"]
