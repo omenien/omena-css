@@ -37,18 +37,22 @@ assert.equal(snapshot.schemaVersion, "0");
 assert.equal(snapshot.product, "omena-benchmarks.style-corpus-snapshot");
 assert.equal(snapshot.benchmarkFamily, "z5-performance-baseline");
 assert.equal(snapshot.samples.length, snapshot.corpusSampleCount);
-assert.ok(snapshot.corpusSampleCount >= 3, "Z5 corpus should keep M4 corpus expansion");
+assert.ok(snapshot.corpusSampleCount >= 4, "Z5 corpus should keep M4 corpus expansion");
+assert.ok(
+  snapshot.samples.some((sample) => sample.name === "css-sizing-width-corpus"),
+  "Z5 corpus should reflect M4 css-sizing WPT/spec coverage",
+);
 
 const lightningResult = validateComparator("lightningcss", ["css"], parseWithLightningCss);
 const postcssResult = validateComparator("postcss", ["css", "scss"], parseWithPostcss);
 const results = [lightningResult, postcssResult] as const;
 
 assert.ok(
-  lightningResult.parsedSampleCount >= 1,
-  "lightningcss comparator must parse at least one CSS sample from the Z5 corpus",
+  lightningResult.parsedSampleCount >= 2,
+  "lightningcss comparator must parse the CSS samples from the Z5 corpus",
 );
 assert.ok(
-  postcssResult.parsedSampleCount >= 2,
+  postcssResult.parsedSampleCount >= 3,
   "postcss comparator must parse the CSS/SCSS subset of the Z5 corpus",
 );
 

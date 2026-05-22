@@ -125,6 +125,12 @@ pub fn style_corpus() -> Vec<StyleSample> {
             source: build_vite_component_css(128),
         },
         StyleSample {
+            name: "css-sizing-width-corpus",
+            path: "SizingGrid.module.css",
+            dialect: StyleDialect::Css,
+            source: build_css_sizing_width_corpus(96),
+        },
+        StyleSample {
             name: "scss-heavy-design-system",
             path: "DesignSystem.module.scss",
             dialect: StyleDialect::Scss,
@@ -478,6 +484,30 @@ fn build_vite_component_css(count: usize) -> String {
     source
 }
 
+fn build_css_sizing_width_corpus(count: usize) -> String {
+    let width_values = [
+        "min-content",
+        "max-content",
+        "fit-content(12rem)",
+        "calc(100% - 1.5rem)",
+    ];
+    let mut source = String::new();
+    for index in 0..count {
+        let width = width_values[index % width_values.len()];
+        source.push_str(&format!(
+            r#"
+.sizingCell{index} {{
+  width: {width};
+  min-width: min(100%, {min_width}rem);
+  max-width: max-content;
+}}
+"#,
+            min_width = (index % 12) + 4,
+        ));
+    }
+    source
+}
+
 fn build_scss_heavy_design_system(count: usize) -> String {
     let mut source = String::from(
         r#"
@@ -646,6 +676,7 @@ mod tests {
         assert_eq!(snapshot.product, "omena-benchmarks.style-corpus-snapshot");
         assert_eq!(snapshot.benchmark_family, super::Z5_PERFORMANCE_BASELINE);
         assert_eq!(snapshot.corpus_sample_count, style_corpus().len());
+        assert_eq!(snapshot.corpus_sample_count, 4);
         assert_eq!(snapshot.samples.len(), snapshot.corpus_sample_count);
         assert!(snapshot.samples.iter().all(|sample| sample.byte_length > 0));
         assert!(
@@ -659,6 +690,12 @@ mod tests {
                 .samples
                 .iter()
                 .any(|sample| sample.dialect == "scss")
+        );
+        assert!(
+            snapshot
+                .samples
+                .iter()
+                .any(|sample| sample.name == "css-sizing-width-corpus")
         );
 
         let serialized = serde_json::to_value(&snapshot).map_err(|error| error.to_string())?;
@@ -692,7 +729,7 @@ mod tests {
         );
         assert_eq!(snapshot.corpus_sample_count, style_corpus().len());
         assert_eq!(snapshot.benchmark_group_count, 6);
-        assert_eq!(snapshot.benchmark_function_count, 18);
+        assert_eq!(snapshot.benchmark_function_count, 23);
         assert!(snapshot.includes_legacy_parser_oracle_lane);
         assert!(snapshot.includes_omena_parser_lane);
         assert!(snapshot.includes_parser_product_lanes);
@@ -711,7 +748,7 @@ mod tests {
         let serialized = serde_json::to_value(&snapshot).map_err(|error| error.to_string())?;
         assert_eq!(
             serialized.pointer("/benchmarkFunctionCount"),
-            Some(&serde_json::json!(18))
+            Some(&serde_json::json!(23))
         );
         assert_eq!(
             serialized
