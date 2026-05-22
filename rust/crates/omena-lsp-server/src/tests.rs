@@ -14,8 +14,12 @@ mod sass_resolution_package;
 mod sass_resolution_symlink;
 #[path = "tests/sass_resolution_watch.rs"]
 mod sass_resolution_watch;
-#[path = "tests/sass_symbols.rs"]
-mod sass_symbols;
+#[path = "tests/sass_symbols_forwarding.rs"]
+mod sass_symbols_forwarding;
+#[path = "tests/sass_symbols_imports.rs"]
+mod sass_symbols_imports;
+#[path = "tests/sass_symbols_maps.rs"]
+mod sass_symbols_maps;
 #[path = "tests/source_completion.rs"]
 mod source_completion;
 #[path = "tests/source_resolution.rs"]
