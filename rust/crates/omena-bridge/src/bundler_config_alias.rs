@@ -6,13 +6,22 @@ use std::{
 use omena_resolver::OmenaResolverBundlerPathAliasMappingV0;
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
-    Argument, ArrayExpression, ArrayExpressionElement, AssignmentOperator, AssignmentTarget,
-    BindingPattern, ExportDefaultDeclarationKind, Expression, ObjectExpression, ObjectPropertyKind,
-    Program, PropertyKey, Statement,
+    Argument, ArrayExpression, ArrayExpressionElement, AssignmentOperator,
+    ExportDefaultDeclarationKind, Expression, ObjectExpression, ObjectPropertyKind, Program,
+    Statement,
 };
 use oxc_parser::{Parser, ParserReturn};
 use oxc_span::{GetSpan, SourceType, Span};
 use serde::Serialize;
+
+mod paths;
+mod syntax;
+
+use paths::{static_replacement_path, static_string};
+use syntax::{
+    binding_pattern_identifier_name, expression_identifier_name, is_module_exports_target,
+    property_key_text,
+};
 
 const BUNDLER_CONFIG_NAMES: [&str; 12] = [
     "vite.config.ts",
@@ -587,134 +596,6 @@ fn array_element_object_expression<'a>(
     }
 }
 
-fn static_replacement_path(config_path: &Path, expression: &Expression<'_>) -> Option<String> {
-    if let Some(value) = static_string(expression) {
-        let target_path = PathBuf::from(value);
-        if target_path.is_absolute() {
-            return Some(target_path.to_string_lossy().to_string());
-        }
-        return Some(
-            normalize_path_lexical(
-                config_path
-                    .parent()
-                    .unwrap_or_else(|| Path::new("."))
-                    .join(target_path),
-            )
-            .to_string_lossy()
-            .to_string(),
-        );
-    }
-    static_path_call(config_path, expression)
-}
-
-fn static_path_call(config_path: &Path, expression: &Expression<'_>) -> Option<String> {
-    let Expression::CallExpression(call) = skip_parens_and_ts(expression) else {
-        return None;
-    };
-    let Expression::StaticMemberExpression(callee) = skip_parens_and_ts(&call.callee) else {
-        return None;
-    };
-    if expression_identifier_name(&callee.object) != Some("path")
-        || (callee.property.name.as_str() != "resolve" && callee.property.name.as_str() != "join")
-    {
-        return None;
-    }
-    let mut path = PathBuf::new();
-    for argument in &call.arguments {
-        let segment = static_path_segment(config_path, argument)?;
-        path.push(segment);
-    }
-    Some(normalize_path_lexical(path).to_string_lossy().to_string())
-}
-
-fn static_path_segment(config_path: &Path, argument: &Argument<'_>) -> Option<PathBuf> {
-    if let Argument::Identifier(identifier) = argument
-        && identifier.name.as_str() == "__dirname"
-    {
-        return Some(
-            config_path
-                .parent()
-                .unwrap_or_else(|| Path::new("."))
-                .to_path_buf(),
-        );
-    }
-    static_string_from_argument(argument).map(PathBuf::from)
-}
-
-fn static_string_from_argument(argument: &Argument<'_>) -> Option<String> {
-    match argument {
-        Argument::StringLiteral(literal) => Some(literal.value.as_str().to_string()),
-        Argument::TemplateLiteral(literal)
-            if literal.expressions.is_empty() && literal.quasis.len() == 1 =>
-        {
-            literal.quasis[0]
-                .value
-                .cooked
-                .map(|value| value.as_str().to_string())
-        }
-        Argument::ParenthesizedExpression(expression) => static_string(&expression.expression),
-        Argument::TSAsExpression(expression) => static_string(&expression.expression),
-        Argument::TSSatisfiesExpression(expression) => static_string(&expression.expression),
-        _ => None,
-    }
-}
-
-fn static_string(expression: &Expression<'_>) -> Option<String> {
-    match skip_parens_and_ts(expression) {
-        Expression::StringLiteral(literal) => Some(literal.value.as_str().to_string()),
-        Expression::TemplateLiteral(literal)
-            if literal.expressions.is_empty() && literal.quasis.len() == 1 =>
-        {
-            literal.quasis[0]
-                .value
-                .cooked
-                .map(|value| value.as_str().to_string())
-        }
-        _ => None,
-    }
-}
-
-fn skip_parens_and_ts<'a>(expression: &'a Expression<'a>) -> &'a Expression<'a> {
-    match expression {
-        Expression::ParenthesizedExpression(expression) => {
-            skip_parens_and_ts(&expression.expression)
-        }
-        Expression::TSAsExpression(expression) => skip_parens_and_ts(&expression.expression),
-        Expression::TSSatisfiesExpression(expression) => skip_parens_and_ts(&expression.expression),
-        _ => expression,
-    }
-}
-
-fn property_key_text<'a>(key: &'a PropertyKey<'a>) -> Option<&'a str> {
-    match key {
-        PropertyKey::StaticIdentifier(identifier) => Some(identifier.name.as_str()),
-        PropertyKey::StringLiteral(literal) => Some(literal.value.as_str()),
-        _ => None,
-    }
-}
-
-fn binding_pattern_identifier_name<'a>(pattern: &'a BindingPattern<'a>) -> Option<&'a str> {
-    match pattern {
-        BindingPattern::BindingIdentifier(identifier) => Some(identifier.name.as_str()),
-        _ => None,
-    }
-}
-
-fn expression_identifier_name<'a>(expression: &'a Expression<'a>) -> Option<&'a str> {
-    match skip_parens_and_ts(expression) {
-        Expression::Identifier(identifier) => Some(identifier.name.as_str()),
-        _ => None,
-    }
-}
-
-fn is_module_exports_target(target: &AssignmentTarget<'_>) -> bool {
-    let AssignmentTarget::StaticMemberExpression(member) = target else {
-        return false;
-    };
-    expression_identifier_name(&member.object) == Some("module")
-        && member.property.name.as_str() == "exports"
-}
-
 fn find_top_level_literal<'a>(
     literals: &[(String, &'a ObjectExpression<'a>)],
     name: &str,
@@ -766,24 +647,6 @@ fn push_unrecognized(
             .unwrap_or("")
             .to_string(),
     });
-}
-
-fn normalize_path_lexical(path: PathBuf) -> PathBuf {
-    let mut normalized = PathBuf::new();
-    for component in path.components() {
-        match component {
-            std::path::Component::CurDir => {}
-            std::path::Component::ParentDir => {
-                normalized.pop();
-            }
-            std::path::Component::Normal(_)
-            | std::path::Component::RootDir
-            | std::path::Component::Prefix(_) => {
-                normalized.push(component.as_os_str());
-            }
-        }
-    }
-    normalized
 }
 
 #[cfg(test)]
