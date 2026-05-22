@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "0",
+  "product": "omena-diff-test.wpt-seed-corpus.chunk",
+  "chunkId": "css-values-advisory-v0",
+  "sourcePin": "web-platform-tests/wpt@37b7cece2910dfe0d7f1cf872bbb1df32c21f07f",
+  "fixtures": [
+    {
+      "id": "css-color-blue-advisory",
+      "wptPath": "css/css-color/parsing/color-valid.html",
+      "wptSourceLine": 27,
+      "subtest": "test_valid_value(\"color\", \"blue\")",
+      "helper": "test_valid_value",
+      "property": "color",
+      "wptValue": "blue",
+      "wptExpectedValue": "blue",
+      "source": ".css-color-blue-advisory { color: blue; }",
+      "expectedCss": ".css-color-blue-advisory{color:#00f}",
+      "status": "pass"
+    },
+    {
+      "id": "css-color-rebeccapurple-advisory",
+      "wptPath": "css/css-color/parsing/color-valid.html",
+      "wptSourceLine": 28,
+      "subtest": "test_valid_value(\"color\", \"rebeccapurple\")",
+      "helper": "test_valid_value",
+      "property": "color",
+      "wptValue": "rebeccapurple",
+      "wptExpectedValue": "rebeccapurple",
+      "source": ".css-color-rebeccapurple-advisory { color: rebeccapurple; }",
+      "expectedCss": ".css-color-rebeccapurple-advisory{color:#639}",
+      "status": "pass"
+    },
+    {
+      "id": "css-color-hwb-green-advisory",
+      "wptPath": "css/css-color/parsing/color-valid.html",
+      "wptSourceLine": 29,
+      "subtest": "test_valid_value(\"color\", \"hwb(120 0% 0%)\", \"rgb(0, 255, 0)\")",
+      "helper": "test_valid_value",
+      "property": "color",
+      "wptValue": "hwb(120 0% 0%)",
+      "wptExpectedValue": "rgb(0, 255, 0)",
+      "source": ".css-color-hwb-green-advisory { color: hwb(120 0% 0%); }",
+      "expectedCss": ".css-color-hwb-green-advisory{color:#0f0}",
+      "status": "pass"
+    },
+    {
+      "id": "css-values-width-min-advisory",
+      "wptPath": "css/css-values/minmax-valid.html",
+      "wptSourceLine": 31,
+      "subtest": "test_valid_value(\"width\", \"min(10px, 20px)\", \"10px\")",
+      "helper": "test_valid_value",
+      "property": "width",
+      "wptValue": "min(10px, 20px)",
+      "wptExpectedValue": "10px",
+      "source": ".css-values-width-min-advisory { width: min(10px, 20px); }",
+      "expectedCss": ".css-values-width-min-advisory{width:10px}",
+      "status": "pass"
+    },
+    {
+      "id": "css-values-width-clamp-advisory",
+      "wptPath": "css/css-values/clamp-valid.html",
+      "wptSourceLine": 32,
+      "subtest": "test_valid_value(\"width\", \"clamp(10px, 20px, 30px)\", \"20px\")",
+      "helper": "test_valid_value",
+      "property": "width",
+      "wptValue": "clamp(10px, 20px, 30px)",
+      "wptExpectedValue": "20px",
+      "source": ".css-values-width-clamp-advisory { width: clamp(10px, 20px, 30px); }",
+      "expectedCss": ".css-values-width-clamp-advisory{width:20px}",
+      "status": "pass"
+    }
+  ]
+}

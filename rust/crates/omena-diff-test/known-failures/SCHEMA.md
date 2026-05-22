@@ -25,8 +25,10 @@ Top-level fields:
 
 - `date`: ISO date when the green run was reviewed.
 - `commit`: commit that produced the reviewed run.
-- `fixture_count`: fixture count observed in the run.
-- `chunk_sha256`: generated WPT chunk hash observed in the run.
+- `fixture_count`: Stage 2 blocking chunk fixture count observed in the run.
+- `chunk_sha256`: generated Stage 2 blocking WPT chunk hash observed in the
+  run. Stage 1 advisory chunks are checked by the WPT seed gate, but they do
+  not update reviewed green-run evidence until promoted.
 - `outcome_olw`: count of fixtures where Omena, lightningcss, and WPT agree.
 - `critical_regression_count`: count of Omena-only failures against
   lightningcss and WPT expectations.

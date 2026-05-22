@@ -31,6 +31,7 @@ interface WptSeedManifestV0 {
 interface WptSeedChunkManifestV0 {
   readonly chunkId: string;
   readonly path: string;
+  readonly stage: string;
   readonly sha256: string;
   readonly fixtureCount: number;
 }
@@ -166,7 +167,7 @@ assert.equal(
   "consecutive green runs must be backed by reviewed green-run evidence",
 );
 
-const fixtures = manifest.chunks.flatMap((chunkManifest) => {
+const chunkRecords = manifest.chunks.map((chunkManifest) => {
   const chunkPath = path.join(corpusRoot, chunkManifest.path);
   const chunkSource = readFileSync(chunkPath, "utf8");
   const actualHash = createHash("sha256").update(chunkSource).digest("hex");
@@ -177,21 +178,27 @@ const fixtures = manifest.chunks.flatMap((chunkManifest) => {
   assert.equal(chunk.chunkId, chunkManifest.chunkId);
   assert.equal(chunk.sourcePin, manifest.source.pin);
   assert.equal(chunk.fixtures.length, chunkManifest.fixtureCount);
-  return chunk.fixtures;
+  return { manifest: chunkManifest, chunk };
 });
+const fixtures = chunkRecords.flatMap((record) => record.chunk.fixtures);
+const blockingChunkRecords = chunkRecords.filter(
+  (record) => record.manifest.stage === "stage2-blocking",
+);
+assert.equal(blockingChunkRecords.length, 1, "WPT Stage 2 policy expects one blocking chunk");
+const blockingFixtures = blockingChunkRecords.flatMap((record) => record.chunk.fixtures);
 
 const fixtureKeys = new Set(fixtures.map((fixture) => fixture.id));
 const subtestKeys = new Set(fixtures.map((fixture) => `${fixture.id}\n${fixture.subtest}`));
-const currentChunkSha256 = manifest.chunks[0]?.sha256;
-assert.ok(currentChunkSha256, "WPT seed corpus must declare at least one chunk");
+const currentBlockingChunkSha256 = blockingChunkRecords[0]?.manifest.sha256;
+assert.ok(currentBlockingChunkSha256, "WPT seed corpus must declare a blocking chunk");
 for (const run of policy.greenRuns) {
   assert.ok(isIsoDate(run.date), `${run.commit} green-run date must be an ISO date`);
   assert.ok(isCommitId(run.commit), `${run.commit} must be a commit id`);
-  assert.equal(run.fixtureCount, fixtures.length, `${run.commit} fixture count drift`);
-  assert.equal(run.chunkSha256, currentChunkSha256, `${run.commit} chunk sha drift`);
+  assert.equal(run.fixtureCount, blockingFixtures.length, `${run.commit} fixture count drift`);
+  assert.equal(run.chunkSha256, currentBlockingChunkSha256, `${run.commit} chunk sha drift`);
   assert.equal(
     run.outcomeOlw,
-    fixtures.length,
+    blockingFixtures.length,
     `${run.commit} must be all-green for current corpus`,
   );
   assert.equal(run.criticalRegressionCount, 0, `${run.commit} must have no critical regressions`);
@@ -274,7 +281,7 @@ assert.equal(criticalRegressionCount, 0, "WPT seed corpus has omena-only failure
 const stage2PromotionBlockers = stage2Blockers({
   manifestStage: manifest.stage,
   policyStage: policy.stage,
-  fixtureCount: reports.length,
+  fixtureCount: blockingFixtures.length,
   knownFailureCount: policy.subtests.length,
   stage2Blocking: policy.stage2Blocking,
   staleKnownFailureCount: staleKnownFailures.length,
@@ -313,6 +320,9 @@ process.stdout.write(
       stage: manifest.stage,
       sourcePin: manifest.source.pin,
       fixtureCount: reports.length,
+      blockingFixtureCount: blockingFixtures.length,
+      advisoryFixtureCount: reports.length - blockingFixtures.length,
+      chunkCount: chunkRecords.length,
       knownFailureCount: policy.subtests.length,
       knownFailureReviewIntervalDays: policy.reviewIntervalDays,
       stage2Blocking: policy.stage2Blocking,

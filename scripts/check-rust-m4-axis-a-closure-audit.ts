@@ -25,13 +25,21 @@ const wptManifest = readJson<WptSeedManifestV0>(
   "rust/crates/omena-diff-test/wpt-corpus/manifest.json",
 );
 const wptPolicy = read("rust/crates/omena-diff-test/known-failures/wpt-seed-policy.toml");
-const wptChunkPath = path.join(
-  "rust/crates/omena-diff-test/wpt-corpus",
-  wptManifest.chunks[0]?.path ?? "",
-);
-const wptChunkSource = read(wptChunkPath);
-const wptChunk = JSON.parse(wptChunkSource) as WptSeedChunkV0;
-const wptChunkHash = createHash("sha256").update(wptChunkSource).digest("hex");
+const wptChunks = wptManifest.chunks.map((chunkManifest) => {
+  const chunkPath = path.join("rust/crates/omena-diff-test/wpt-corpus", chunkManifest.path);
+  const chunkSource = read(chunkPath);
+  const chunk = JSON.parse(chunkSource) as WptSeedChunkV0;
+  const sha256 = createHash("sha256").update(chunkSource).digest("hex");
+  assert.equal(chunk.fixtures.length, chunkManifest.fixtureCount);
+  assert.equal(sha256, chunkManifest.sha256);
+  return { manifest: chunkManifest, chunk };
+});
+const wptBlockingChunks = wptChunks.filter((chunk) => chunk.manifest.stage === "stage2-blocking");
+const wptAdvisoryFixtureCount = wptChunks
+  .filter((chunk) => chunk.manifest.stage === "stage1-advisory")
+  .reduce((count, chunk) => count + chunk.chunk.fixtures.length, 0);
+assert.equal(wptBlockingChunks.length, 1);
+const wptBlockingFixtureCount = wptBlockingChunks[0]?.chunk.fixtures.length ?? 0;
 const wptPolicyStage2Blocking = readTomlBoolean(wptPolicy, "stage2_blocking");
 const wptPolicyConsecutiveGreenRuns = readTomlNumber(wptPolicy, "consecutive_green_runs");
 const wptPolicyRequiredGreenRuns = readTomlNumber(wptPolicy, "required_consecutive_green_runs");
@@ -46,9 +54,8 @@ assert.equal(wptManifest.knownFailurePolicy.stage2Blocking, true);
 assert.equal(wptPolicyStage2Blocking, true);
 assert.equal(wptPolicyConsecutiveGreenRuns, greenRunEntries);
 assert.ok(wptPolicyConsecutiveGreenRuns >= wptPolicyRequiredGreenRuns);
-assert.ok(wptChunk.fixtures.length >= wptPolicyRequiredFixtureCount);
-assert.equal(wptChunk.fixtures.length, wptManifest.chunks[0]?.fixtureCount);
-assert.equal(wptChunkHash, wptManifest.chunks[0]?.sha256);
+assert.ok(wptBlockingFixtureCount >= wptPolicyRequiredFixtureCount);
+assert.ok(wptAdvisoryFixtureCount > 0, "M4 Axis A must keep a stage1 advisory WPT lane");
 assert.ok(wptManifest.source.sparsePaths.includes("css/css-values"));
 assert.ok(wptManifest.source.sparsePaths.includes("css/css-color"));
 assert.ok(wptManifest.source.helperClasses.includes("test_valid_value"));
@@ -164,7 +171,10 @@ process.stdout.write(
       product: "rust.m4-axis-a-closure-audit",
       wpt: {
         stage: wptManifest.stage,
-        fixtureCount: wptChunk.fixtures.length,
+        fixtureCount: wptBlockingFixtureCount + wptAdvisoryFixtureCount,
+        blockingFixtureCount: wptBlockingFixtureCount,
+        advisoryFixtureCount: wptAdvisoryFixtureCount,
+        chunkCount: wptChunks.length,
         consecutiveGreenRuns: wptPolicyConsecutiveGreenRuns,
         stage2Blocking: wptPolicyStage2Blocking,
       },
@@ -200,6 +210,7 @@ interface WptSeedManifestV0 {
   };
   readonly chunks: readonly {
     readonly path: string;
+    readonly stage: string;
     readonly sha256: string;
     readonly fixtureCount: number;
   }[];

@@ -209,6 +209,10 @@ pub struct WptSeedCorpusMetadataReportV0 {
     pub chunk_count: usize,
     /// Fixture count across chunks.
     pub fixture_count: usize,
+    /// Fixture count in Stage 2 blocking chunks.
+    pub blocking_fixture_count: usize,
+    /// Fixture count in Stage 1 advisory chunks.
+    pub advisory_fixture_count: usize,
     /// Known-failure entry count.
     pub known_failure_count: usize,
     /// Known-failure entries whose fixture or subtest no longer exists.
@@ -236,7 +240,10 @@ pub struct WptSeedCorpusMetadataReportV0 {
 }
 
 const WPT_SEED_MANIFEST_SOURCE: &str = include_str!("../wpt-corpus/manifest.json");
-const WPT_SEED_VALUES_CHUNK_SOURCE: &str = include_str!("../wpt-corpus/css-values.json");
+const WPT_SEED_CHUNK_SOURCES: &[&str] = &[
+    include_str!("../wpt-corpus/css-values.json"),
+    include_str!("../wpt-corpus/css-values-advisory.json"),
+];
 const WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE: &str =
     include_str!("../known-failures/wpt-seed-policy.toml");
 
@@ -550,7 +557,10 @@ fn testkit_seed_from_m3_seed(seed: M3FixtureSeedV0) -> OmenaTestkitFixtureSeedV0
 /// Summarize the WPT-style seed corpus metadata.
 pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
     let manifest = serde_json::from_str::<serde_json::Value>(WPT_SEED_MANIFEST_SOURCE).ok();
-    let chunk = serde_json::from_str::<serde_json::Value>(WPT_SEED_VALUES_CHUNK_SOURCE).ok();
+    let chunks = WPT_SEED_CHUNK_SOURCES
+        .iter()
+        .filter_map(|source| serde_json::from_str::<serde_json::Value>(source).ok())
+        .collect::<Vec<_>>();
     let stage = manifest
         .as_ref()
         .and_then(|value| value.get("stage"))
@@ -568,15 +578,15 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         .and_then(|value| value.get("chunks"))
         .and_then(serde_json::Value::as_array)
         .map_or(0, Vec::len);
-    let fixture_count = chunk
-        .as_ref()
-        .and_then(|value| value.get("fixtures"))
-        .and_then(serde_json::Value::as_array)
-        .map_or(0, Vec::len);
+    let fixture_count = wpt_seed_chunk_fixture_count(chunks.as_slice(), None);
+    let blocking_fixture_count =
+        wpt_seed_manifest_chunk_fixture_count(manifest.as_ref(), "stage2-blocking");
+    let advisory_fixture_count =
+        wpt_seed_manifest_chunk_fixture_count(manifest.as_ref(), "stage1-advisory");
     let known_failure_subtests = wpt_seed_policy_known_failure_subtests();
     let known_failure_count = known_failure_subtests.len();
     let stale_known_failure_count =
-        wpt_seed_stale_known_failure_count(chunk.as_ref(), known_failure_subtests.as_slice());
+        wpt_seed_stale_known_failure_count(chunks.as_slice(), known_failure_subtests.as_slice());
     let green_run_evidence_count = WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE
         .lines()
         .filter(|line| line.trim() == "[[green_run]]")
@@ -591,7 +601,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         wpt_seed_policy_usize_value("review_interval_days").unwrap_or(0);
     let all_metadata_valid = wpt_seed_manifest_metadata_valid(
         manifest.as_ref(),
-        chunk.as_ref(),
+        chunks.as_slice(),
         fixture_count,
         known_failure_count,
         stale_known_failure_count,
@@ -602,7 +612,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         all_metadata_valid,
         stage.as_str(),
         stage2_blocking,
-        fixture_count,
+        blocking_fixture_count,
         known_failure_count,
         stale_known_failure_count,
         required_min_fixture_count_for_stage2,
@@ -618,6 +628,8 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         source_pin,
         chunk_count,
         fixture_count,
+        blocking_fixture_count,
+        advisory_fixture_count,
         known_failure_count,
         stale_known_failure_count,
         stage2_blocking,
@@ -634,6 +646,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
             "wptSeedChunkSchema",
             "wptSeedKnownFailurePolicy",
             "wptSeedStaleKnownFailurePruning",
+            "wptSeedStageOneAdvisoryLane",
             "wptSeedStageMatchesBlockingPolicy",
             "wptSeedStageTwoPromotionPolicy",
         ],
@@ -642,7 +655,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
 
 fn wpt_seed_manifest_metadata_valid(
     manifest: Option<&serde_json::Value>,
-    chunk: Option<&serde_json::Value>,
+    chunks: &[serde_json::Value],
     fixture_count: usize,
     known_failure_count: usize,
     stale_known_failure_count: usize,
@@ -652,17 +665,55 @@ fn wpt_seed_manifest_metadata_valid(
     let Some(manifest) = manifest else {
         return false;
     };
-    let Some(chunk) = chunk else {
+    if chunks.is_empty() {
         return false;
-    };
+    }
     let manifest_source_pin = manifest
         .pointer("/source/pin")
         .and_then(serde_json::Value::as_str);
-    let chunk_source_pin = chunk.get("sourcePin").and_then(serde_json::Value::as_str);
-    let manifest_fixture_count = manifest
-        .pointer("/chunks/0/fixtureCount")
-        .and_then(serde_json::Value::as_u64)
-        .map(|value| value as usize);
+    let manifest_chunks = manifest
+        .get("chunks")
+        .and_then(serde_json::Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let manifest_fixture_count = manifest_chunks
+        .iter()
+        .filter_map(|chunk| {
+            chunk
+                .get("fixtureCount")
+                .and_then(serde_json::Value::as_u64)
+        })
+        .map(|value| value as usize)
+        .sum::<usize>();
+    let chunk_metadata_valid = manifest_chunks.len() == chunks.len()
+        && manifest_chunks
+            .iter()
+            .zip(chunks)
+            .all(|(manifest_chunk, chunk)| {
+                let manifest_count = manifest_chunk
+                    .get("fixtureCount")
+                    .and_then(serde_json::Value::as_u64)
+                    .map(|value| value as usize);
+                let chunk_source_pin = chunk.get("sourcePin").and_then(serde_json::Value::as_str);
+                let chunk_count = chunk
+                    .get("fixtures")
+                    .and_then(serde_json::Value::as_array)
+                    .map(Vec::len);
+                chunk
+                    .get("schemaVersion")
+                    .and_then(serde_json::Value::as_str)
+                    == Some("0")
+                    && chunk.get("product").and_then(serde_json::Value::as_str)
+                        == Some("omena-diff-test.wpt-seed-corpus.chunk")
+                    && manifest_count == chunk_count
+                    && manifest_source_pin == chunk_source_pin
+            });
+    let has_advisory_chunk = manifest_chunks.iter().any(|manifest_chunk| {
+        manifest_chunk
+            .get("stage")
+            .and_then(serde_json::Value::as_str)
+            == Some("stage1-advisory")
+    });
     let manifest_policy_stage2_blocking = manifest
         .pointer("/knownFailurePolicy/stage2Blocking")
         .and_then(serde_json::Value::as_bool);
@@ -675,14 +726,9 @@ fn wpt_seed_manifest_metadata_valid(
         && manifest.get("stage").and_then(serde_json::Value::as_str)
             == Some(wpt_seed_expected_manifest_stage(stage2_blocking))
         && manifest_source_pin.is_some_and(wpt_source_pin_is_full_sha)
-        && manifest_source_pin == chunk_source_pin
-        && manifest_fixture_count == Some(fixture_count)
-        && chunk
-            .get("schemaVersion")
-            .and_then(serde_json::Value::as_str)
-            == Some("0")
-        && chunk.get("product").and_then(serde_json::Value::as_str)
-            == Some("omena-diff-test.wpt-seed-corpus.chunk")
+        && manifest_fixture_count == fixture_count
+        && chunk_metadata_valid
+        && has_advisory_chunk
         && wpt_seed_policy_string_value("schema_version") == Some("0")
         && wpt_seed_policy_string_value("stage")
             == Some(wpt_seed_expected_policy_stage(stage2_blocking))
@@ -832,15 +878,47 @@ fn wpt_seed_policy_string_literal(value: &'static str) -> Option<&'static str> {
     value.strip_prefix('"')?.strip_suffix('"')
 }
 
+fn wpt_seed_chunk_fixture_count(chunks: &[serde_json::Value], stage: Option<&str>) -> usize {
+    chunks
+        .iter()
+        .filter(|chunk| {
+            stage.is_none_or(|expected_stage| {
+                chunk.get("stage").and_then(serde_json::Value::as_str) == Some(expected_stage)
+            })
+        })
+        .filter_map(|chunk| chunk.get("fixtures").and_then(serde_json::Value::as_array))
+        .map(Vec::len)
+        .sum()
+}
+
+fn wpt_seed_manifest_chunk_fixture_count(
+    manifest: Option<&serde_json::Value>,
+    stage: &str,
+) -> usize {
+    manifest
+        .and_then(|value| value.get("chunks"))
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|chunk| chunk.get("stage").and_then(serde_json::Value::as_str) == Some(stage))
+        .filter_map(|chunk| {
+            chunk
+                .get("fixtureCount")
+                .and_then(serde_json::Value::as_u64)
+        })
+        .map(|value| value as usize)
+        .sum()
+}
+
 fn wpt_seed_stale_known_failure_count(
-    chunk: Option<&serde_json::Value>,
+    chunks: &[serde_json::Value],
     known_failure_subtests: &[(&str, &str)],
 ) -> usize {
     let mut fixture_keys = BTreeSet::new();
     let mut subtest_keys = BTreeSet::new();
-    if let Some(fixtures) = chunk
-        .and_then(|value| value.get("fixtures"))
-        .and_then(serde_json::Value::as_array)
+    for fixtures in chunks
+        .iter()
+        .filter_map(|value| value.get("fixtures").and_then(serde_json::Value::as_array))
     {
         for fixture in fixtures {
             let Some(id) = fixture.get("id").and_then(serde_json::Value::as_str) else {
@@ -1037,8 +1115,10 @@ mod tests {
         assert_eq!(report.product, "omena-diff-test.wpt-seed-corpus-metadata");
         assert_eq!(report.stage, "stage2-blocking");
         assert!(wpt_source_pin_is_full_sha(report.source_pin.as_str()));
-        assert_eq!(report.chunk_count, 1);
-        assert!(report.fixture_count >= 25);
+        assert_eq!(report.chunk_count, 2);
+        assert!(report.fixture_count > report.blocking_fixture_count);
+        assert!(report.blocking_fixture_count >= 25);
+        assert!(report.advisory_fixture_count > 0);
         assert_eq!(report.known_failure_count, 0);
         assert!(report.stage2_blocking);
         assert_eq!(report.required_min_fixture_count_for_stage2, 25);
@@ -1060,6 +1140,7 @@ mod tests {
         assert!(report.all_metadata_valid);
         assert!(report.closed_gates.contains(&"wptSeedSourcePin"));
         assert!(report.closed_gates.contains(&"wptSeedKnownFailurePolicy"));
+        assert!(report.closed_gates.contains(&"wptSeedStageOneAdvisoryLane"));
         assert!(
             report
                 .closed_gates
@@ -1088,7 +1169,7 @@ mod tests {
         ];
 
         assert_eq!(
-            wpt_seed_stale_known_failure_count(Some(&chunk), &known_failure_subtests),
+            wpt_seed_stale_known_failure_count(&[chunk], &known_failure_subtests),
             2
         );
     }

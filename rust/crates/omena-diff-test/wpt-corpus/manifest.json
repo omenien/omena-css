@@ -22,8 +22,16 @@
     {
       "chunkId": "css-values-seed-v0",
       "path": "css-values.json",
+      "stage": "stage2-blocking",
       "sha256": "fa05d0c070961f07d3e80ef4e96dc15b139971189196b3e04ece4d11b5418142",
       "fixtureCount": 25
+    },
+    {
+      "chunkId": "css-values-advisory-v0",
+      "path": "css-values-advisory.json",
+      "stage": "stage1-advisory",
+      "sha256": "85c07e730553e150e2fd20fe4a9efeff243537b0b1950776e2cfa45a6a9860bf",
+      "fixtureCount": 5
     }
   ]
 }
