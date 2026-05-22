@@ -159,7 +159,8 @@
       "evidence": [
         "color-compression",
         "WPT css/css-backgrounds/parsing/background-color-valid.html",
-        "css-background-color-red-advisory"
+        "css-background-color-red-advisory",
+        "css-background-color-green-hex-advisory"
       ]
     },
     {

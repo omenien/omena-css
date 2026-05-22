@@ -90,7 +90,7 @@ assert.ok(
 );
 assert.ok(
   wptSparsePathFixtureCounts.some(
-    (count) => count.sparsePath === "css/css-backgrounds" && count.fixtureCount >= 1,
+    (count) => count.sparsePath === "css/css-backgrounds" && count.fixtureCount >= 2,
   ),
   "css-backgrounds WPT coverage must retain the background-color advisory fixture set",
 );
@@ -150,6 +150,7 @@ assert.equal(cssBackgroundColorEntry.status, "covered");
 for (const evidence of [
   "WPT css/css-backgrounds/parsing/background-color-valid.html",
   "css-background-color-red-advisory",
+  "css-background-color-green-hex-advisory",
 ] as const) {
   assert.ok(
     cssBackgroundColorEntry.evidence?.includes(evidence),

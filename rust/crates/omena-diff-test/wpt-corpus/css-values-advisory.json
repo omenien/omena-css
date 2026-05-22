@@ -83,6 +83,19 @@
       "status": "pass"
     },
     {
+      "id": "css-background-color-green-hex-advisory",
+      "wptPath": "css/css-backgrounds/parsing/background-color-valid.html",
+      "wptSourceLine": 19,
+      "subtest": "test_valid_value(\"background-color\", \"#00FF00\", \"rgb(0, 255, 0)\")",
+      "helper": "test_valid_value",
+      "property": "background-color",
+      "wptValue": "#00FF00",
+      "wptExpectedValue": "rgb(0, 255, 0)",
+      "source": ".css-background-color-green-hex-advisory { background-color: #00FF00; }",
+      "expectedCss": ".css-background-color-green-hex-advisory{background-color:#0f0}",
+      "status": "pass"
+    },
+    {
       "id": "css-sizing-width-min-content-advisory",
       "wptPath": "css/css-sizing/parsing/width-valid.html",
       "wptSourceLine": 15,

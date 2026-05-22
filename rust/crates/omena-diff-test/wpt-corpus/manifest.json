@@ -33,7 +33,7 @@
     },
     {
       "sparsePath": "css/css-backgrounds",
-      "fixtureCount": 1
+      "fixtureCount": 2
     }
   ],
   "chunks": [
@@ -66,8 +66,8 @@
       "chunkId": "css-values-advisory-v0",
       "path": "css-values-advisory.json",
       "stage": "stage1-advisory",
-      "sha256": "dfa17809e7d1df4607e75982686cc8dfd0cd2404d4e124ea3fa49a1f1d3651e2",
-      "fixtureCount": 9,
+      "sha256": "fd96aba3696f0568744f6ec7a93e3a08746fae1fc605d15e28f4c73baaef655f",
+      "fixtureCount": 10,
       "sparsePathFixtureCounts": [
         {
           "sparsePath": "css/css-values",
@@ -83,7 +83,7 @@
         },
         {
           "sparsePath": "css/css-backgrounds",
-          "fixtureCount": 1
+          "fixtureCount": 2
         }
       ]
     }
