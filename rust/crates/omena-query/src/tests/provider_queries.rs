@@ -1,0 +1,702 @@
+use crate::{
+    OmenaQueryCompletionCandidateV0, OmenaQuerySourceSelectorReferenceCandidateV0,
+    OmenaQuerySourceSelectorReferenceEditTargetV0, OmenaQueryStyleSelectorDefinitionV0,
+    OmenaQueryStyleSourceInputV0, ParserPositionV0, ParserRangeV0,
+    resolve_omena_query_style_uri_for_specifier, summarize_omena_query_missing_selector_diagnostic,
+    summarize_omena_query_refs_for_class, summarize_omena_query_rename_plan,
+    summarize_omena_query_source_completion_at_position,
+    summarize_omena_query_style_completion_at_position,
+    summarize_omena_query_style_extract_code_actions, summarize_omena_query_style_hover_candidates,
+    summarize_omena_query_style_hover_render_parts,
+    summarize_omena_query_style_inline_code_actions,
+};
+
+#[test]
+fn style_hover_candidates_are_query_owned() {
+    let candidates = summarize_omena_query_style_hover_candidates(
+        "Component.module.scss",
+        r#"
+@mixin variants($prefix, $map) {
+  @each $name, $value in $map {
+.#{$prefix}-#{$name} { color: $value; }
+  }
+}
+
+@use "./tokens" as tokens;
+$accent: red;
+.button { color: var(--brand); }
+:root { --brand: blue; }
+@include variants($prefix: "tone", $map: ("warm": red));
+.alert { color: tokens.$brand; @include tokens.tone(red); width: tokens.double(2px); }
+"#,
+    );
+    assert!(candidates.is_some());
+    let Some(candidates) = candidates else {
+        return;
+    };
+
+    assert_eq!(candidates.product, "omena-query.style-hover-candidates");
+    assert!(
+        candidates
+            .candidates
+            .iter()
+            .any(|candidate| candidate.kind == "selector" && candidate.name == "button")
+    );
+    assert!(candidates.candidates.iter().any(|candidate| {
+        candidate.kind == "customPropertyReference" && candidate.name == "--brand"
+    }));
+    assert!(candidates.candidates.iter().any(|candidate| {
+        candidate.kind == "sassVariableDeclaration" && candidate.name == "accent"
+    }));
+    assert!(candidates.candidates.iter().any(|candidate| {
+        candidate.kind == "sassVariableReference"
+            && candidate.name == "brand"
+            && candidate.namespace.as_deref() == Some("tokens")
+    }));
+    assert!(candidates.candidates.iter().any(|candidate| {
+        candidate.kind == "sassMixinInclude"
+            && candidate.name == "tone"
+            && candidate.namespace.as_deref() == Some("tokens")
+    }));
+    assert!(candidates.candidates.iter().any(|candidate| {
+        candidate.kind == "sassFunctionCall"
+            && candidate.name == "double"
+            && candidate.namespace.as_deref() == Some("tokens")
+    }));
+    assert!(
+        candidates
+            .candidates
+            .iter()
+            .any(
+                |candidate| candidate.source == "sassPartialEvaluatorGeneratedSelectors"
+                    && candidate.name == "tone-warm"
+            )
+    );
+}
+
+#[test]
+fn style_hover_render_parts_are_query_owned() {
+    let source = r#"$accent: red !default;
+@mixin tone($color) {
+  color: $color;
+}
+.button { color: var(--brand); }
+"#;
+
+    let variable = summarize_omena_query_style_hover_render_parts(
+        source,
+        "sassVariableDeclaration",
+        "accent",
+        ParserPositionV0 {
+            line: 0,
+            character: 1,
+        },
+    );
+    assert_eq!(variable.product, "omena-query.style-hover-render-parts");
+    assert_eq!(variable.value.as_deref(), Some("red"));
+    assert_eq!(variable.snippet, "$accent: red !default;");
+
+    let mixin = summarize_omena_query_style_hover_render_parts(
+        source,
+        "sassMixinDeclaration",
+        "tone",
+        ParserPositionV0 {
+            line: 1,
+            character: 7,
+        },
+    );
+    assert_eq!(mixin.signature.as_deref(), Some("@mixin tone($color)"));
+    assert_eq!(mixin.snippet, "color: $color;");
+    assert_eq!(mixin.render_source, "callableBlockSnippet");
+
+    let selector = summarize_omena_query_style_hover_render_parts(
+        source,
+        "selector",
+        "button",
+        ParserPositionV0 {
+            line: 4,
+            character: 1,
+        },
+    );
+    assert_eq!(selector.snippet, ".button { color: var(--brand); }");
+    assert_eq!(selector.render_source, "ruleSnippet");
+}
+
+#[test]
+fn completion_at_position_is_query_owned_for_style_and_source() -> Result<(), &'static str> {
+    let source = ":root { --brand: red; }\n.root { color: var(--br); }\n.row { display: flex; }";
+    let candidates = summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+        .ok_or("style candidates")?;
+
+    let style_completion = summarize_omena_query_style_completion_at_position(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        ParserPositionV0 {
+            line: 1,
+            character: 23,
+        },
+        candidates.candidates.as_slice(),
+    );
+    assert_eq!(style_completion.product, "omena-query.completion-at");
+    assert_eq!(
+        style_completion.context_kind,
+        "styleCustomPropertyReference"
+    );
+    assert_eq!(style_completion.prefix.as_deref(), Some("--br"));
+    assert_eq!(
+        style_completion
+            .items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["--brand"]
+    );
+
+    let source_completion = summarize_omena_query_source_completion_at_position(
+        "file:///workspace/src/App.tsx",
+        ParserPositionV0 {
+            line: 1,
+            character: 22,
+        },
+        &[
+            OmenaQueryCompletionCandidateV0 {
+                file_uri: "file:///workspace/src/Component.module.scss".to_string(),
+                name: "root".to_string(),
+                kind: "selector",
+                range: ParserRangeV0 {
+                    start: ParserPositionV0 {
+                        line: 1,
+                        character: 1,
+                    },
+                    end: ParserPositionV0 {
+                        line: 1,
+                        character: 5,
+                    },
+                },
+                source: "omenaQueryStyleHoverCandidates",
+            },
+            OmenaQueryCompletionCandidateV0 {
+                file_uri: "file:///workspace/src/Other.module.scss".to_string(),
+                name: "rootOther".to_string(),
+                kind: "selector",
+                range: ParserRangeV0 {
+                    start: ParserPositionV0 {
+                        line: 0,
+                        character: 1,
+                    },
+                    end: ParserPositionV0 {
+                        line: 0,
+                        character: 10,
+                    },
+                },
+                source: "omenaQueryStyleHoverCandidates",
+            },
+        ],
+        Some("file:///workspace/src/Component.module.scss"),
+        Some("ro"),
+        &[],
+    );
+    assert_eq!(source_completion.context_kind, "sourceCssModuleTarget");
+    assert_eq!(source_completion.item_count, 1);
+    assert_eq!(source_completion.items[0].label, "root");
+    assert_eq!(
+        source_completion.items[0].ranking_source,
+        "targetAndPrefixNarrowing"
+    );
+    assert!(
+        source_completion
+            .ready_surfaces
+            .contains(&"bridgeAwareSelectorCompletion")
+    );
+    Ok(())
+}
+
+#[test]
+fn source_completion_ranking_prefers_value_domain_projection() {
+    let candidates = [
+        OmenaQueryCompletionCandidateV0 {
+            file_uri: "file:///workspace/src/Component.module.scss".to_string(),
+            name: "item--large".to_string(),
+            kind: "selector",
+            range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 0,
+                    character: 1,
+                },
+                end: ParserPositionV0 {
+                    line: 0,
+                    character: 12,
+                },
+            },
+            source: "omenaQueryStyleHoverCandidates",
+        },
+        OmenaQueryCompletionCandidateV0 {
+            file_uri: "file:///workspace/src/Component.module.scss".to_string(),
+            name: "item--primary".to_string(),
+            kind: "selector",
+            range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 1,
+                    character: 1,
+                },
+                end: ParserPositionV0 {
+                    line: 1,
+                    character: 14,
+                },
+            },
+            source: "omenaQueryStyleHoverCandidates",
+        },
+        OmenaQueryCompletionCandidateV0 {
+            file_uri: "file:///workspace/src/Component.module.scss".to_string(),
+            name: "item--secondary".to_string(),
+            kind: "selector",
+            range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 2,
+                    character: 1,
+                },
+                end: ParserPositionV0 {
+                    line: 2,
+                    character: 16,
+                },
+            },
+            source: "omenaQueryStyleHoverCandidates",
+        },
+    ];
+    let completion = summarize_omena_query_source_completion_at_position(
+        "file:///workspace/src/App.tsx",
+        ParserPositionV0 {
+            line: 0,
+            character: 42,
+        },
+        &candidates,
+        Some("file:///workspace/src/Component.module.scss"),
+        Some("item--"),
+        &["item--secondary".to_string(), "item--primary".to_string()],
+    );
+
+    assert_eq!(completion.context_kind, "sourceCssModuleValueDomainTarget");
+    assert_eq!(
+        completion
+            .items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["item--primary", "item--secondary", "item--large"]
+    );
+    assert_eq!(
+        completion.items[0].ranking_source,
+        "valueDomainSelectorProjection"
+    );
+    assert!(
+        completion
+            .ready_surfaces
+            .contains(&"valueDomainAwareSelectorCompletion")
+    );
+}
+
+#[test]
+fn completion_ranking_uses_query_facts() -> Result<(), &'static str> {
+    let source =
+        ":root { --alpha: red; }\n.card { --zeta: blue; color: var(--); }\n.next { --omega: red; }";
+    let candidates = summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+        .ok_or("style candidates")?;
+
+    let completion = summarize_omena_query_style_completion_at_position(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        ParserPositionV0 {
+            line: 1,
+            character: 35,
+        },
+        candidates.candidates.as_slice(),
+    );
+
+    assert_eq!(completion.context_kind, "styleCustomPropertyReference");
+    assert_eq!(
+        completion
+            .items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>(),
+        vec!["--zeta", "--alpha", "--omega"]
+    );
+    assert_eq!(
+        completion.items[0].ranking_source,
+        "sameFileSourceOrderCascade"
+    );
+    assert!(completion.items[0].sort_text.starts_with("00-"));
+    Ok(())
+}
+
+#[test]
+fn style_extract_code_actions_are_query_owned() {
+    let source = ".button { color: #ff0000; margin: 1rem; }";
+    let plan = summarize_omena_query_style_extract_code_actions(
+        "file:///workspace/src/App.module.scss",
+        source,
+        ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 0,
+                character: 17,
+            },
+            end: ParserPositionV0 {
+                line: 0,
+                character: 24,
+            },
+        },
+    );
+
+    assert_eq!(plan.product, "omena-query.code-actions");
+    assert_eq!(plan.file_kind, "style");
+    assert_eq!(plan.action_count, 2);
+    assert_eq!(
+        plan.actions
+            .iter()
+            .map(|action| action.title.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "Extract CSS custom property '--extracted-color'",
+            "Extract @value 'extractedColor'",
+        ]
+    );
+    assert_eq!(plan.actions[0].kind, "refactor.extract");
+    assert_eq!(plan.actions[0].source, "omenaQueryStyleExtractCodeActions");
+    assert_eq!(
+        plan.actions[0]
+            .edits
+            .iter()
+            .map(|edit| edit.new_text.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            ":root {\n  --extracted-color: #ff0000;\n}\n\n",
+            "var(--extracted-color)"
+        ]
+    );
+    assert_eq!(
+        plan.actions[1]
+            .edits
+            .iter()
+            .map(|edit| edit.new_text.as_str())
+            .collect::<Vec<_>>(),
+        vec!["@value extractedColor: #ff0000;\n\n", "extractedColor"]
+    );
+    assert!(plan.ready_surfaces.contains(&"styleExtractRefactorActions"));
+}
+
+#[test]
+fn style_inline_code_actions_are_query_owned() {
+    let source = ".button {\n  composes: base;\n  color: red;\n}\n.base {\n  color: blue;\n  margin: 1rem;\n}";
+    let style_uri = "file:///workspace/src/App.module.scss";
+    let plan = summarize_omena_query_style_inline_code_actions(
+        style_uri,
+        &[OmenaQueryStyleSourceInputV0 {
+            style_path: style_uri.to_string(),
+            style_source: source.to_string(),
+        }],
+        ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 1,
+                character: 12,
+            },
+            end: ParserPositionV0 {
+                line: 1,
+                character: 16,
+            },
+        },
+        &[],
+    );
+
+    assert_eq!(plan.product, "omena-query.code-actions");
+    assert_eq!(plan.file_kind, "style");
+    assert_eq!(plan.action_count, 1);
+    assert_eq!(plan.actions[0].title, "Inline composed class 'base'");
+    assert_eq!(plan.actions[0].kind, "refactor.inline");
+    assert_eq!(plan.actions[0].source, "omenaQueryStyleInlineCodeActions");
+    assert_eq!(
+        plan.actions[0].edits[0].range,
+        ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 1,
+                character: 2,
+            },
+            end: ParserPositionV0 {
+                line: 1,
+                character: 17,
+            },
+        }
+    );
+    assert_eq!(
+        plan.actions[0].edits[0].new_text,
+        "color: blue;\n  margin: 1rem;"
+    );
+    assert!(plan.ready_surfaces.contains(&"styleInlineRefactorActions"));
+}
+
+#[test]
+fn refs_for_class_is_query_owned_and_workspace_scoped() {
+    let definition = OmenaQueryStyleSelectorDefinitionV0 {
+        uri: "file:///workspace/src/Component.module.scss".to_string(),
+        name: "root".to_string(),
+        range: ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 0,
+                character: 1,
+            },
+            end: ParserPositionV0 {
+                line: 0,
+                character: 5,
+            },
+        },
+    };
+    let references = vec![
+        OmenaQuerySourceSelectorReferenceCandidateV0 {
+            uri: "file:///workspace/src/App.tsx".to_string(),
+            kind: "sourceSelectorReference",
+            name: "root".to_string(),
+            range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 1,
+                    character: 31,
+                },
+                end: ParserPositionV0 {
+                    line: 1,
+                    character: 35,
+                },
+            },
+            source: "omenaQuerySourceSyntaxIndex",
+            target_style_uri: Some("file:///workspace/src/Component.module.scss".to_string()),
+        },
+        OmenaQuerySourceSelectorReferenceCandidateV0 {
+            uri: "file:///workspace/src/Other.tsx".to_string(),
+            kind: "sourceSelectorReference",
+            name: "root".to_string(),
+            range: ParserRangeV0 {
+                start: ParserPositionV0 {
+                    line: 1,
+                    character: 31,
+                },
+                end: ParserPositionV0 {
+                    line: 1,
+                    character: 35,
+                },
+            },
+            source: "omenaQuerySourceSyntaxIndex",
+            target_style_uri: Some("file:///workspace/src/Other.module.scss".to_string()),
+        },
+    ];
+
+    let refs = summarize_omena_query_refs_for_class(
+        "root",
+        Some("file:///workspace/src/Component.module.scss"),
+        true,
+        &[definition],
+        references.as_slice(),
+    );
+    assert_eq!(refs.product, "omena-query.refs-for-class");
+    assert_eq!(refs.location_count, 2);
+    assert_eq!(refs.locations[0].role, "definition");
+    assert_eq!(refs.locations[1].role, "reference");
+    assert_eq!(refs.locations[1].uri, "file:///workspace/src/App.tsx");
+    assert!(
+        refs.ready_surfaces
+            .contains(&"workspaceWideSelectorReferences")
+    );
+}
+
+#[test]
+fn rename_plan_is_query_owned_and_workspace_scoped() {
+    let definition = OmenaQueryStyleSelectorDefinitionV0 {
+        uri: "file:///workspace/src/Component.module.scss".to_string(),
+        name: "root".to_string(),
+        range: ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 0,
+                character: 1,
+            },
+            end: ParserPositionV0 {
+                line: 0,
+                character: 5,
+            },
+        },
+    };
+    let reference = OmenaQuerySourceSelectorReferenceEditTargetV0 {
+        uri: "file:///workspace/src/App.tsx".to_string(),
+        name: "root".to_string(),
+        range: ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 1,
+                character: 31,
+            },
+            end: ParserPositionV0 {
+                line: 1,
+                character: 35,
+            },
+        },
+        target_style_uri: Some("file:///workspace/src/Component.module.scss".to_string()),
+    };
+
+    let plan = summarize_omena_query_rename_plan(
+        "root",
+        "button",
+        Some("file:///workspace/src/Component.module.scss"),
+        &[definition],
+        &[reference],
+    );
+    assert_eq!(plan.product, "omena-query.rename-plan");
+    assert_eq!(plan.edit_count, 2);
+    assert_eq!(plan.edits[0].new_text, "button");
+    assert_eq!(
+        plan.edits
+            .iter()
+            .map(|edit| edit.uri.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "file:///workspace/src/App.tsx",
+            "file:///workspace/src/Component.module.scss"
+        ]
+    );
+    assert!(plan.ready_surfaces.contains(&"workspaceWideSelectorRename"));
+}
+
+#[test]
+fn missing_selector_diagnostics_are_query_owned() {
+    let diagnostic = summarize_omena_query_missing_selector_diagnostic(
+        "file:///workspace/src/App.module.scss",
+        ".root {\n}\n",
+        "missing",
+        ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 2,
+                character: 18,
+            },
+            end: ParserPositionV0 {
+                line: 2,
+                character: 25,
+            },
+        },
+    );
+
+    assert_eq!(diagnostic.code, "missingSelector");
+    assert_eq!(
+        diagnostic.message,
+        "CSS Module selector '.missing' not found in indexed style tokens."
+    );
+    assert_eq!(
+        diagnostic
+            .create_selector
+            .as_ref()
+            .map(|action| action.new_text.as_str()),
+        Some("\n\n.missing {\n}\n")
+    );
+    assert_eq!(
+        diagnostic
+            .create_selector
+            .as_ref()
+            .map(|action| action.range),
+        Some(ParserRangeV0 {
+            start: ParserPositionV0 {
+                line: 2,
+                character: 0,
+            },
+            end: ParserPositionV0 {
+                line: 2,
+                character: 0,
+            },
+        })
+    );
+    let linear_provenance = diagnostic.linear_provenance();
+    assert_eq!(
+        linear_provenance.labels(),
+        vec![
+            "omena-query.source-syntax-index",
+            "omena-query.style-selector-definitions"
+        ]
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn query_resolves_symlinked_package_style_uri_to_canonical_identity()
+-> Result<(), Box<dyn std::error::Error>> {
+    let root = std::env::temp_dir().join(format!(
+        "omena_query_symlinked_package_identity_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
+    let source = root.join("src/App.module.scss");
+    let real_package = root.join(".pnpm/@design+tokens@1.0.0/node_modules/@design/tokens");
+    let linked_scope = root.join("node_modules/@design");
+    let linked_package = linked_scope.join("tokens");
+    let style = real_package.join("src/index.scss");
+    std::fs::create_dir_all(
+        source
+            .parent()
+            .ok_or_else(|| std::io::Error::other("source"))?,
+    )?;
+    std::fs::create_dir_all(
+        style
+            .parent()
+            .ok_or_else(|| std::io::Error::other("style"))?,
+    )?;
+    std::fs::create_dir_all(linked_scope.as_path())?;
+    std::fs::write(&source, r#"@use "@design/tokens" as tokens;"#)?;
+    std::fs::write(
+        real_package.join("package.json"),
+        r#"{"sass":"src/index.scss"}"#,
+    )?;
+    std::fs::write(&style, "$brand: #fff;")?;
+    std::os::unix::fs::symlink(real_package.as_path(), linked_package.as_path())?;
+
+    let resolved_uri = resolve_omena_query_style_uri_for_specifier(
+        test_file_uri(source.as_path()).as_str(),
+        Some(test_file_uri(root.as_path()).as_str()),
+        "@design/tokens",
+    );
+    let expected_uri = test_file_uri(std::fs::canonicalize(style)?.as_path());
+
+    assert_eq!(resolved_uri.as_deref(), Some(expected_uri.as_str()));
+    let _ = std::fs::remove_dir_all(root);
+    Ok(())
+}
+
+#[test]
+fn query_resolves_vite_bundler_alias_style_uri() -> Result<(), Box<dyn std::error::Error>> {
+    let root = std::env::temp_dir().join(format!(
+        "omena_query_vite_alias_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
+    let source = root.join("src/App.tsx");
+    let style = root.join("src/styles/Button.module.scss");
+    std::fs::create_dir_all(
+        style
+            .parent()
+            .ok_or_else(|| std::io::Error::other("style"))?,
+    )?;
+    std::fs::write(&source, "")?;
+    std::fs::write(&style, ".button { color: red; }")?;
+    std::fs::write(
+        root.join("vite.config.ts"),
+        r#"export default { resolve: { alias: { "@styles": "./src/styles" } } };"#,
+    )?;
+
+    let resolved_uri = resolve_omena_query_style_uri_for_specifier(
+        test_file_uri(source.as_path()).as_str(),
+        Some(test_file_uri(root.as_path()).as_str()),
+        "@styles/Button.module.scss",
+    );
+    let expected_uri = test_file_uri(std::fs::canonicalize(style)?.as_path());
+
+    assert_eq!(resolved_uri.as_deref(), Some(expected_uri.as_str()));
+    let _ = std::fs::remove_dir_all(root);
+    Ok(())
+}
+
+fn test_file_uri(path: &std::path::Path) -> String {
+    format!("file://{}", path.to_string_lossy())
+}
