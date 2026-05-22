@@ -7,7 +7,9 @@ but they should consume this shared fixture grammar instead of redefining local
 fixture parsers.
 
 This crate is intentionally small in M4: it locks the common fixture grammar,
-promotion reporting path, and the first scenario archetypes for boundary,
-transform execution, LSP requests, and `shadow.omena(<verb>)` introspection.
-Snapshot governance and broader WPT corpus automation remain separate Axis A
-surfaces.
+promotion reporting path, the first scenario archetypes for boundary, transform
+execution, LSP requests, and `shadow.omena(<verb>)` introspection, plus the seed
+snapshot-governance policy for global-disable rejection, unreferenced snapshot
+rejection, hot-snapshot age audit, and known-failure review policy.
+
+Broader WPT corpus automation remains a separate Axis A surface.

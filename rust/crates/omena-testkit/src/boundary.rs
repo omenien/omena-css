@@ -7,6 +7,9 @@ use crate::fixture::{
 use crate::scenario::{
     OmenaTestkitScenarioMacroReportV0, summarize_omena_testkit_scenario_macro_report,
 };
+use crate::snapshot::{
+    OmenaTestkitSnapshotGovernanceReportV0, summarize_omena_testkit_snapshot_governance_report,
+};
 
 /// Boundary summary for the shared Rust testkit substrate.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -28,6 +31,8 @@ pub struct OmenaTestkitBoundarySummaryV0 {
     pub fixture_seed_report: OmenaTestkitFixtureSeedCorpusReportV0,
     /// Boundary and transform-execution scenario macro substrate report.
     pub scenario_macro_report: OmenaTestkitScenarioMacroReportV0,
+    /// Snapshot governance seed-policy report.
+    pub snapshot_governance_report: OmenaTestkitSnapshotGovernanceReportV0,
 }
 
 const BOUNDARY_FIXTURE_SEEDS: &[OmenaTestkitFixtureSeedV0] = &[
@@ -79,6 +84,7 @@ shared fixture parser strips marker text and reports clean-source offsets
 pub fn summarize_omena_testkit_boundary() -> OmenaTestkitBoundarySummaryV0 {
     let fixture_seed_report = summarize_omena_testkit_fixture_seed_corpus(BOUNDARY_FIXTURE_SEEDS);
     let scenario_macro_report = summarize_omena_testkit_scenario_macro_report();
+    let snapshot_governance_report = summarize_omena_testkit_snapshot_governance_report();
 
     OmenaTestkitBoundarySummaryV0 {
         schema_version: "0",
@@ -96,10 +102,15 @@ pub fn summarize_omena_testkit_boundary() -> OmenaTestkitBoundarySummaryV0 {
             "lspScenarioMacro",
             "shadowOmenaVerbIntrospection",
             "scenarioMacroCallSiteEvidence",
+            "snapshotGovernanceGlobalDisableRejected",
+            "snapshotGovernanceUnreferencedReject",
+            "snapshotGovernanceHotAgeAudit",
+            "snapshotGovernanceKnownFailurePolicy",
             "m4TestkitPromotionSubstrate",
         ],
         fixture_seed_report,
         scenario_macro_report,
+        snapshot_governance_report,
     }
 }
 
@@ -146,6 +157,26 @@ mod tests {
                 .closed_gates
                 .contains(&"scenarioMacroCallSiteEvidence")
         );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"snapshotGovernanceGlobalDisableRejected")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"snapshotGovernanceUnreferencedReject")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"snapshotGovernanceHotAgeAudit")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"snapshotGovernanceKnownFailurePolicy")
+        );
         assert!(summary.scenario_macro_report.all_scenario_macros_ready);
         assert!(summary.scenario_macro_report.call_site_evidence_supported);
         assert!(summary.scenario_macro_report.call_site_probe.present);
@@ -174,6 +205,24 @@ mod tests {
                 .scenario_macro_report
                 .supported_archetypes
                 .contains(&"shadow-omena-verb")
+        );
+        assert!(summary.snapshot_governance_report.global_disable_rejected);
+        assert!(summary.snapshot_governance_report.unreferenced_reject_ready);
+        assert!(
+            summary
+                .snapshot_governance_report
+                .hot_snapshot_age_audit_ready
+        );
+        assert!(
+            summary
+                .snapshot_governance_report
+                .known_failure_policy_ready
+        );
+        assert_eq!(
+            summary
+                .snapshot_governance_report
+                .rejected_unreferenced_count,
+            1
         );
     }
 }

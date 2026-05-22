@@ -7,7 +7,16 @@ fn main() -> ExitCode {
         eprintln!("failed to write omena-testkit boundary summary: {error}");
         return ExitCode::FAILURE;
     }
-    if summary.all_fixture_seeds_parse {
+    if summary.all_fixture_seeds_parse
+        && summary.snapshot_governance_report.global_disable_rejected
+        && summary.snapshot_governance_report.unreferenced_reject_ready
+        && summary
+            .snapshot_governance_report
+            .hot_snapshot_age_audit_ready
+        && summary
+            .snapshot_governance_report
+            .known_failure_policy_ready
+    {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
