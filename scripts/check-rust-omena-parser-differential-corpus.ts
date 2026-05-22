@@ -321,6 +321,30 @@ const PARSER_ONLY_CORPUS = [
     },
   },
   {
+    label: "css-scope-starting-style-and-property",
+    dialect: "css",
+    source: `@scope (.article) to (.article__end) { .article__title { color: red; } } @starting-style { .enter { opacity: 0; } } @property --tone { syntax: "<color>"; inherits: true; initial-value: red; }`,
+    expected: {
+      classSelectorNames: ["article__title", "enter"],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: ["--tone"],
+      atRuleNames: ["@property", "@scope", "@starting-style"],
+    },
+  },
+  {
+    label: "css-container-style-query-and-scope",
+    dialect: "css",
+    source: `@media (width >= 40rem) { @scope (.shell) { .panel:has(> .panel__icon) { --tone: red; } } } @container card (inline-size > 20rem) { .card { color: var(--tone); } }`,
+    expected: {
+      classSelectorNames: ["card", "panel"],
+      placeholderSelectorNames: [],
+      variableNames: [],
+      customPropertyNames: ["--tone"],
+      atRuleNames: ["@container", "@media", "@scope"],
+    },
+  },
+  {
     label: "scss-nested-property-blocks",
     dialect: "scss",
     source: `.card { font: { size: 1rem; weight: 700; } }`,
@@ -402,6 +426,18 @@ const PARSER_ONLY_CORPUS = [
       variableNames: [],
       customPropertyNames: [],
       atRuleNames: ["@import"],
+    },
+  },
+  {
+    label: "less-detached-ruleset-and-namespaced-variable",
+    dialect: "less",
+    source: `@primary: #f00; @sizes: { sm: 1rem; md: 2rem; }; .card { color: @primary; .icon() { color: blue; } }`,
+    expected: {
+      classSelectorNames: ["card", "icon"],
+      placeholderSelectorNames: [],
+      variableNames: ["@primary", "@sizes"],
+      customPropertyNames: [],
+      atRuleNames: [],
     },
   },
 ] as const satisfies readonly {
