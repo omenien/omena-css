@@ -5,7 +5,7 @@
 
 use omena_meta_macros::{pass, spec};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Compile-time marker proving the spec metadata attribute is available to the
 /// spec audit layer.
@@ -40,6 +40,8 @@ pub struct OmenaSpecAuditBoundarySummaryV0 {
     pub source_linked_entry_count: usize,
     /// Entries sourced from the primary webref CSS package.
     pub webref_entry_count: usize,
+    /// Source-coverage declarations in the single-source manifest.
+    pub source_coverage_count: usize,
     /// P0 entries that are missing without an explicit rationale.
     pub blocking_p0_gap_count: usize,
     /// Whether every source has a package version, tarball, and 40-char git head.
@@ -52,6 +54,10 @@ pub struct OmenaSpecAuditBoundarySummaryV0 {
     pub all_p0_gaps_have_rationale: bool,
     /// Whether every manifest entry cross-references a pinned spec source.
     pub manifest_cross_references_valid: bool,
+    /// Whether manifest source coverage references pinned sources and entries.
+    pub manifest_source_coverage_valid: bool,
+    /// Whether every pinned source is represented by manifest coverage metadata.
+    pub all_pinned_sources_have_manifest_coverage: bool,
     /// Named gates closed by this boundary.
     pub closed_gates: Vec<&'static str>,
 }
@@ -100,7 +106,17 @@ struct OmenaSpecManifestV0 {
     schema_version: String,
     product: String,
     stage: String,
+    source_coverage: Vec<OmenaSpecManifestSourceCoverageV0>,
     entries: Vec<OmenaSpecManifestEntryV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaSpecManifestSourceCoverageV0 {
+    source_name: String,
+    usage: String,
+    entry_ids: Vec<String>,
+    source_keys: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -132,6 +148,10 @@ pub fn summarize_omena_spec_audit_boundary() -> OmenaSpecAuditBoundarySummaryV0 
         .as_ref()
         .map(|manifest| manifest.entries.as_slice())
         .unwrap_or(&[]);
+    let source_coverage = manifest
+        .as_ref()
+        .map(|manifest| manifest.source_coverage.as_slice())
+        .unwrap_or(&[]);
     let p0_entries = entries
         .iter()
         .filter(|entry| entry.priority.as_str() == "P0")
@@ -152,6 +172,22 @@ pub fn summarize_omena_spec_audit_boundary() -> OmenaSpecAuditBoundarySummaryV0 
                 .is_some_and(|source| source.package == "@webref/css")
         })
         .count();
+    let manifest_entry_ids = entries
+        .iter()
+        .map(|entry| entry.id.as_str())
+        .collect::<BTreeSet<_>>();
+    let manifest_source_coverage_valid = !source_coverage.is_empty()
+        && source_coverage.iter().all(|coverage| {
+            manifest_source_coverage_is_valid(coverage, &source_by_name, &manifest_entry_ids)
+        });
+    let covered_source_names = source_coverage
+        .iter()
+        .map(|coverage| coverage.source_name.as_str())
+        .collect::<BTreeSet<_>>();
+    let all_pinned_sources_have_manifest_coverage = !sources.is_empty()
+        && sources
+            .iter()
+            .all(|source| covered_source_names.contains(source.name.as_str()));
     let blocking_p0_gap_count = entries
         .iter()
         .filter(|entry| entry.priority.as_str() == "P0")
@@ -194,6 +230,9 @@ pub fn summarize_omena_spec_audit_boundary() -> OmenaSpecAuditBoundarySummaryV0 
             .is_some_and(|manifest| manifest.product == "omena-spec-audit.single-source-manifest")
         && !entries.is_empty()
         && entries.iter().all(manifest_entry_is_valid);
+    let manifest_source_coverage_valid = manifest_shape_valid
+        && manifest_source_coverage_valid
+        && all_pinned_sources_have_manifest_coverage;
     let manifest_cross_references_valid = manifest_shape_valid
         && entries
             .iter()
@@ -208,16 +247,20 @@ pub fn summarize_omena_spec_audit_boundary() -> OmenaSpecAuditBoundarySummaryV0 
         p0_entry_count: p0_entries,
         source_linked_entry_count: source_linked_entries,
         webref_entry_count: webref_entries,
+        source_coverage_count: source_coverage.len(),
         blocking_p0_gap_count,
         all_source_pins_valid,
         source_freshness_policy_valid,
         generated_data_review_gate_valid,
         all_p0_gaps_have_rationale: manifest_shape_valid && all_p0_gaps_have_rationale,
         manifest_cross_references_valid,
+        manifest_source_coverage_valid,
+        all_pinned_sources_have_manifest_coverage,
         closed_gates: vec![
             "specAuditSourcePins",
             "specAuditSingleSourceManifest",
             "specAuditManifestSourceCrossReferences",
+            "specAuditCrossSourceCoverage",
             "specAuditP0GapRationalePolicy",
             "specAuditSourceFreshnessPolicy",
             "generatedDataHumanReviewGate",
@@ -310,6 +353,25 @@ fn manifest_entry_cross_reference_is_valid(
         })
 }
 
+fn manifest_source_coverage_is_valid(
+    coverage: &OmenaSpecManifestSourceCoverageV0,
+    source_by_name: &BTreeMap<&str, &SpecSourcePinV0>,
+    manifest_entry_ids: &BTreeSet<&str>,
+) -> bool {
+    source_by_name.contains_key(coverage.source_name.as_str())
+        && !coverage.usage.trim().is_empty()
+        && !coverage.entry_ids.is_empty()
+        && coverage
+            .entry_ids
+            .iter()
+            .all(|entry_id| manifest_entry_ids.contains(entry_id.as_str()))
+        && !coverage.source_keys.is_empty()
+        && coverage
+            .source_keys
+            .iter()
+            .all(|source_key| !source_key.trim().is_empty())
+}
+
 fn webref_category_is_valid(category: &str) -> bool {
     matches!(
         category,
@@ -343,17 +405,25 @@ mod tests {
         assert_eq!(summary.p0_entry_count, 4);
         assert_eq!(summary.source_linked_entry_count, 5);
         assert_eq!(summary.webref_entry_count, 5);
+        assert_eq!(summary.source_coverage_count, 4);
         assert_eq!(summary.blocking_p0_gap_count, 0);
         assert!(summary.all_source_pins_valid);
         assert!(summary.source_freshness_policy_valid);
         assert!(summary.generated_data_review_gate_valid);
         assert!(summary.all_p0_gaps_have_rationale);
         assert!(summary.manifest_cross_references_valid);
+        assert!(summary.manifest_source_coverage_valid);
+        assert!(summary.all_pinned_sources_have_manifest_coverage);
         assert!(summary.closed_gates.contains(&"specAuditSourcePins"));
         assert!(
             summary
                 .closed_gates
                 .contains(&"specAuditManifestSourceCrossReferences")
+        );
+        assert!(
+            summary
+                .closed_gates
+                .contains(&"specAuditCrossSourceCoverage")
         );
         assert!(
             summary

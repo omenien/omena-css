@@ -83,6 +83,29 @@ assert.equal(specManifest.stage, "stage1-advisory");
 const specSourceLinkedEntries = specManifest.entries.filter((entry) =>
   sourceNames.has(entry.sourceName),
 );
+const specManifestEntryIds = new Set(specManifest.entries.map((entry) => entry.id));
+const specSourceCoverageNames = new Set(
+  specManifest.sourceCoverage.map((coverage) => coverage.sourceName),
+);
+for (const sourceName of sourceNames) {
+  assert.ok(
+    specSourceCoverageNames.has(sourceName),
+    `spec manifest source coverage must include ${sourceName}`,
+  );
+}
+for (const coverage of specManifest.sourceCoverage) {
+  assert.ok(sourceNames.has(coverage.sourceName), "source coverage must reference a pinned source");
+  assert.ok(coverage.usage.trim().length > 0, "source coverage must declare usage");
+  assert.ok(coverage.sourceKeys.length > 0, "source coverage must declare source keys");
+  assert.ok(
+    coverage.sourceKeys.every((sourceKey) => sourceKey.trim().length > 0),
+    "source coverage keys must be non-empty",
+  );
+  assert.ok(
+    coverage.entryIds.every((entryId) => specManifestEntryIds.has(entryId)),
+    "source coverage entry ids must reference manifest entries",
+  );
+}
 assert.ok(
   specManifest.entries
     .filter((entry) => entry.priority === "P0")
@@ -199,6 +222,7 @@ process.stdout.write(
         sourceCount: specSources.sources.length,
         p0EntryCount: specManifest.entries.filter((entry) => entry.priority === "P0").length,
         sourceLinkedEntryCount: specSourceLinkedEntries.length,
+        sourceCoverageCount: specManifest.sourceCoverage.length,
       },
       browserData: {
         thresholdTables: uniqueTomlValues(browserThresholds, "table").length,
@@ -250,7 +274,14 @@ interface SpecSourcePinsV0 {
 
 interface OmenaSpecManifestV0 {
   readonly stage: string;
+  readonly sourceCoverage: readonly {
+    readonly sourceName: string;
+    readonly usage: string;
+    readonly entryIds: readonly string[];
+    readonly sourceKeys: readonly string[];
+  }[];
   readonly entries: readonly {
+    readonly id: string;
     readonly priority: string;
     readonly status: string;
     readonly rationale?: string;

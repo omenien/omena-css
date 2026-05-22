@@ -2,6 +2,69 @@
   "schemaVersion": "0",
   "product": "omena-spec-audit.single-source-manifest",
   "stage": "stage1-advisory",
+  "sourceCoverage": [
+    {
+      "sourceName": "webref-css",
+      "usage": "primary-css-idl-and-dfn-source",
+      "entryIds": [
+        "css-color/properties/color",
+        "css-values/functions/calc",
+        "css-color/properties/opacity",
+        "css-values/types/url",
+        "css-mixins/atrules/@function"
+      ],
+      "sourceKeys": [
+        "css-color/properties/color",
+        "css-values/functions/calc",
+        "css-color/properties/opacity",
+        "css-values/types/url",
+        "css-mixins/atrules/@function"
+      ]
+    },
+    {
+      "sourceName": "browser-specs",
+      "usage": "spec-status-join-source",
+      "entryIds": [
+        "css-color/properties/color",
+        "css-values/functions/calc",
+        "css-color/properties/opacity",
+        "css-values/types/url",
+        "css-mixins/atrules/@function"
+      ],
+      "sourceKeys": [
+        "https://drafts.csswg.org/css-color/",
+        "https://drafts.csswg.org/css-values/",
+        "https://drafts.csswg.org/css-mixins-1/"
+      ]
+    },
+    {
+      "sourceName": "web-features",
+      "usage": "baseline-and-feature-group-source",
+      "entryIds": [
+        "css-color/properties/color",
+        "css-values/functions/calc",
+        "css-color/properties/opacity",
+        "css-values/types/url"
+      ],
+      "sourceKeys": ["css-color", "css-color-mix", "css-values"]
+    },
+    {
+      "sourceName": "mdn-browser-compat-data",
+      "usage": "compat-fallback-source",
+      "entryIds": [
+        "css-color/properties/color",
+        "css-values/functions/calc",
+        "css-color/properties/opacity",
+        "css-values/types/url"
+      ],
+      "sourceKeys": [
+        "css.properties.color",
+        "css.types.calc",
+        "css.properties.opacity",
+        "css.types.url"
+      ]
+    }
+  ],
   "entries": [
     {
       "id": "css-color/properties/color",
