@@ -82,6 +82,36 @@ fn resolves_package_manifest_subpath_export_patterns_by_specificity() {
 }
 
 #[test]
+fn package_export_null_subpath_blocks_pattern_and_file_fallback() {
+    let available_style_paths = BTreeSet::from([
+        "/fake/workspace/node_modules/@design/tokens/private/theme.css",
+        "/fake/workspace/node_modules/@design/tokens/dist/private/theme.css",
+    ]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "@design/tokens/private/theme",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/node_modules/@design/tokens/package.json"
+                .to_string(),
+            package_json_source:
+                r#"{"exports":{"./private/*":null,"./*":{"style":"./dist/*.css"}}}"#.to_string(),
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "unresolved");
+    assert!(resolution.resolved_style_path.is_none());
+    assert!(
+        !resolution
+            .candidates
+            .contains(&"/fake/workspace/node_modules/@design/tokens/private/theme.css".to_string())
+    );
+    assert!(!resolution.candidates.contains(
+        &"/fake/workspace/node_modules/@design/tokens/dist/private/theme.css".to_string()
+    ));
+}
+
+#[test]
 fn resolves_package_manifest_export_conditions_in_object_order() {
     let available_style_paths = BTreeSet::from([
         "/fake/workspace/node_modules/@design/tokens/dist/theme.css",
@@ -544,5 +574,29 @@ fn resolves_package_import_patterns_by_specificity() {
     assert_eq!(
         resolution.resolved_style_path.as_deref(),
         Some("/fake/workspace/node_modules/@design/specific/dist/button.css")
+    );
+}
+
+#[test]
+fn package_import_null_exact_entry_blocks_pattern_fallback() {
+    let available_style_paths = BTreeSet::from(["/fake/workspace/src/fallback/private.css"]);
+    let resolution = summarize_omena_resolver_style_module_resolution(
+        "/fake/workspace/src/App.module.scss",
+        "#theme/private",
+        &available_style_paths,
+        &[OmenaResolverStylePackageManifestV0 {
+            package_json_path: "/fake/workspace/package.json".to_string(),
+            package_json_source:
+                r##"{"imports":{"#theme/private":null,"#theme/*":{"style":"./src/fallback/*.css"}}}"##
+                    .to_string(),
+        }],
+    );
+
+    assert_eq!(resolution.resolution_kind, "unresolved");
+    assert!(resolution.resolved_style_path.is_none());
+    assert!(
+        !resolution
+            .candidates
+            .contains(&"/fake/workspace/src/fallback/private.css".to_string())
     );
 }

@@ -5,9 +5,9 @@ mod package_resolution;
 mod path_mappings;
 
 use package_resolution::{
-    is_package_import_style_source, package_import_style_module_base_candidates,
-    package_manifest_style_module_base_candidates, package_style_module_base_candidates,
-    parse_package_style_source,
+    PackageStyleCandidateResolution, is_package_import_style_source,
+    package_import_style_module_base_candidates, package_manifest_style_module_base_candidates,
+    package_style_module_base_candidates, parse_package_style_source,
 };
 use path_mappings::{
     bundler_style_module_base_candidates, source_matches_bundler_path_mapping,
@@ -192,10 +192,17 @@ pub fn collect_omena_resolver_style_module_source_candidates_with_path_mappings(
     }
 
     if is_package_import_style_source(source) {
-        for base_path in
-            package_import_style_module_base_candidates(from_style_path, source, package_manifests)
-        {
-            push_style_module_path_candidates(&mut candidates, base_path, true);
+        match package_import_style_module_base_candidates(
+            from_style_path,
+            source,
+            package_manifests,
+        ) {
+            PackageStyleCandidateResolution::Candidates(base_paths) => {
+                for base_path in base_paths {
+                    push_style_module_path_candidates(&mut candidates, base_path, true);
+                }
+            }
+            PackageStyleCandidateResolution::Blocked => {}
         }
         return candidates;
     }
@@ -214,10 +221,20 @@ pub fn collect_omena_resolver_style_module_source_candidates_with_path_mappings(
         base_path,
         source_path.extension().is_none(),
     );
-    for package_manifest_base_path in
-        package_manifest_style_module_base_candidates(from_style_path, source, package_manifests)
+    match package_manifest_style_module_base_candidates(from_style_path, source, package_manifests)
     {
-        push_style_module_path_candidates(&mut candidates, package_manifest_base_path, true);
+        PackageStyleCandidateResolution::Candidates(base_paths) => {
+            for package_manifest_base_path in base_paths {
+                push_style_module_path_candidates(
+                    &mut candidates,
+                    package_manifest_base_path,
+                    true,
+                );
+            }
+        }
+        PackageStyleCandidateResolution::Blocked => {
+            return candidates;
+        }
     }
     for package_base_path in package_style_module_base_candidates(from_style_path, source) {
         push_style_module_path_candidates(&mut candidates, package_base_path, true);

@@ -131,6 +131,7 @@ process.stdout.write(
     "node=package-bare-and-root-fallback",
     "typescript=paths-longest-prefix-and-extends",
     "package=exports-imports-conditions-patterns",
+    "package=null-blocking-private-subpaths",
     "sass=node-package-importer-pkg-url-ordering",
     "bundler=vite-webpack-aliases",
     "lsp=product-path-fixtures",

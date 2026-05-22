@@ -34,6 +34,10 @@ const packagedTypeFactProtocolFile = readFileSync(
   "scripts/check-packaged-omena-lsp-server-type-fact-protocol.ts",
   "utf8",
 );
+const resolverPackageTests = readFileSync(
+  "rust/crates/omena-resolver/src/tests/package.rs",
+  "utf8",
+);
 
 const requiredReadinessTargets = [
   "rust/omena-resolver/fixture-suite",
@@ -69,11 +73,26 @@ const resolverFixtureRequirements = [
   "LSP product Vite/Webpack bundler aliases",
   "LSP product package manifests and imports",
   "package=exports-imports-conditions-patterns",
+  "package=null-blocking-private-subpaths",
   "sass=node-package-importer-pkg-url-ordering",
   "bundler=vite-webpack-aliases",
 ] as const;
 for (const marker of resolverFixtureRequirements) {
   assertIncludes(fixtureSuiteScript, marker, `resolver fixture suite must cover ${marker}`);
+}
+
+const resolverPackageNullBlockingRequirements = [
+  "package_export_null_subpath_blocks_pattern_and_file_fallback",
+  "package_import_null_exact_entry_blocks_pattern_fallback",
+  '"./private/*":null',
+  '"#theme/private":null',
+] as const;
+for (const marker of resolverPackageNullBlockingRequirements) {
+  assertIncludes(
+    resolverPackageTests,
+    marker,
+    `resolver package fixture suite must cover null-blocking package maps: ${marker}`,
+  );
 }
 
 const bundlerAliasExtractionRequirements = [
@@ -149,6 +168,7 @@ process.stdout.write(
           "node-package-resolution",
           "typescript-paths-and-extends",
           "package-exports-imports-conditions-patterns",
+          "package-null-blocking-private-subpaths",
           "sass-node-package-importer-pkg-url-ordering",
           "vite-webpack-aliases",
           "lsp-product-paths",

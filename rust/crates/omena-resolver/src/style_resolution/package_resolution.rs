@@ -5,6 +5,25 @@ use crate::types::OmenaResolverStylePackageManifestV0;
 
 use super::{is_external_style_module_source, normalize_style_path, push_unique_pathbuf};
 
+pub(super) enum PackageStyleCandidateResolution {
+    Candidates(Vec<PathBuf>),
+    Blocked,
+}
+
+enum PackageJsonEntryResolution {
+    Resolved(String),
+    Blocked,
+}
+
+impl PackageJsonEntryResolution {
+    fn map_resolved(self, map: impl FnOnce(String) -> String) -> Self {
+        match self {
+            Self::Resolved(entry) => Self::Resolved(map(entry)),
+            Self::Blocked => Self::Blocked,
+        }
+    }
+}
+
 pub(super) fn package_style_module_base_candidates(
     from_style_path: &str,
     source: &str,
@@ -39,12 +58,12 @@ pub(super) fn package_manifest_style_module_base_candidates(
     from_style_path: &str,
     source: &str,
     package_manifests: &[OmenaResolverStylePackageManifestV0],
-) -> Vec<PathBuf> {
+) -> PackageStyleCandidateResolution {
     let Some(package_source) = parse_package_style_source(source) else {
-        return Vec::new();
+        return PackageStyleCandidateResolution::Candidates(Vec::new());
     };
     let Some(from_dir) = Path::new(from_style_path).parent() else {
-        return Vec::new();
+        return PackageStyleCandidateResolution::Candidates(Vec::new());
     };
     let manifest_by_package_dir = package_manifests
         .iter()
@@ -68,20 +87,27 @@ pub(super) fn package_manifest_style_module_base_candidates(
                 package_source.uses_sass_node_package_importer,
             )
         {
-            push_unique_pathbuf(&mut candidates, package_root.join(entry));
+            match entry {
+                PackageJsonEntryResolution::Resolved(entry) => {
+                    push_unique_pathbuf(&mut candidates, package_root.join(entry));
+                }
+                PackageJsonEntryResolution::Blocked => {
+                    return PackageStyleCandidateResolution::Blocked;
+                }
+            }
         }
         current_dir = dir.parent();
     }
-    candidates
+    PackageStyleCandidateResolution::Candidates(candidates)
 }
 
 pub(super) fn package_import_style_module_base_candidates(
     from_style_path: &str,
     source: &str,
     package_manifests: &[OmenaResolverStylePackageManifestV0],
-) -> Vec<PathBuf> {
+) -> PackageStyleCandidateResolution {
     let Some(from_dir) = Path::new(from_style_path).parent() else {
-        return Vec::new();
+        return PackageStyleCandidateResolution::Candidates(Vec::new());
     };
     let manifest_by_package_dir = package_manifests
         .iter()
@@ -100,18 +126,27 @@ pub(super) fn package_import_style_module_base_candidates(
         if let Some(package_json_source) = manifest_by_package_dir.get(&package_dir_key)
             && let Some(entry) = read_package_import_entry(package_json_source, source)
         {
-            push_package_import_entry_candidates(
-                &mut candidates,
-                dir,
-                from_style_path,
-                &entry,
-                package_manifests,
-            );
+            match entry {
+                PackageJsonEntryResolution::Resolved(entry) => {
+                    if push_package_import_entry_candidates(
+                        &mut candidates,
+                        dir,
+                        from_style_path,
+                        &entry,
+                        package_manifests,
+                    ) {
+                        return PackageStyleCandidateResolution::Blocked;
+                    }
+                }
+                PackageJsonEntryResolution::Blocked => {
+                    return PackageStyleCandidateResolution::Blocked;
+                }
+            }
             break;
         }
         current_dir = dir.parent();
     }
-    candidates
+    PackageStyleCandidateResolution::Candidates(candidates)
 }
 
 fn push_package_import_entry_candidates(
@@ -120,25 +155,31 @@ fn push_package_import_entry_candidates(
     from_style_path: &str,
     entry: &str,
     package_manifests: &[OmenaResolverStylePackageManifestV0],
-) {
+) -> bool {
     if entry.starts_with("./") {
         push_unique_pathbuf(
             candidates,
             package_dir.join(normalize_package_json_entry(entry)),
         );
-        return;
+        return false;
     }
     if entry.starts_with('#') || is_external_style_module_source(entry) {
-        return;
+        return false;
     }
-    for package_manifest_base_path in
-        package_manifest_style_module_base_candidates(from_style_path, entry, package_manifests)
-    {
-        push_unique_pathbuf(candidates, package_manifest_base_path);
+    match package_manifest_style_module_base_candidates(from_style_path, entry, package_manifests) {
+        PackageStyleCandidateResolution::Candidates(base_paths) => {
+            for package_manifest_base_path in base_paths {
+                push_unique_pathbuf(candidates, package_manifest_base_path);
+            }
+        }
+        PackageStyleCandidateResolution::Blocked => {
+            return true;
+        }
     }
     for package_base_path in package_style_module_base_candidates(from_style_path, entry) {
         push_unique_pathbuf(candidates, package_base_path);
     }
+    false
 }
 
 fn package_dir_from_package_json_path(package_json_path: &str) -> String {
@@ -152,43 +193,58 @@ fn read_package_manifest_style_entry(
     package_json_source: &str,
     subpath: Option<&str>,
     uses_sass_node_package_importer: bool,
-) -> Option<PathBuf> {
+) -> Option<PackageJsonEntryResolution> {
     let package_json = serde_json::from_str::<serde_json::Value>(package_json_source).ok()?;
     let package_object = package_json.as_object()?;
     if uses_sass_node_package_importer {
         return read_sass_node_package_importer_style_entry(package_object, subpath)
-            .map(|entry| PathBuf::from(normalize_package_json_entry(&entry)));
+            .map(|entry| entry.map_resolved(|entry| normalize_package_json_entry(&entry)));
     }
-    let entry = if let Some(subpath) = subpath {
-        read_package_export_subpath_entry(package_object.get("exports"), subpath)
-    } else {
-        read_package_export_entry(package_object.get("exports"))
-            .or_else(|| read_package_json_string_field(package_object, "sass"))
-            .or_else(|| read_package_json_string_field(package_object, "scss"))
-            .or_else(|| read_package_json_string_field(package_object, "style"))
-    }?;
-    Some(PathBuf::from(normalize_package_json_entry(&entry)))
+    if let Some(exports_value) = package_object.get("exports") {
+        let entry = if let Some(subpath) = subpath {
+            read_package_export_subpath_entry(Some(exports_value), subpath)
+        } else {
+            read_package_export_entry(Some(exports_value))
+        };
+        return Some(entry.unwrap_or(PackageJsonEntryResolution::Blocked));
+    }
+    if subpath.is_some() {
+        return None;
+    }
+    let entry = read_package_json_string_field(package_object, "sass")
+        .or_else(|| read_package_json_string_field(package_object, "scss"))
+        .or_else(|| read_package_json_string_field(package_object, "style"))?;
+    Some(PackageJsonEntryResolution::Resolved(
+        normalize_package_json_entry(&entry),
+    ))
 }
 
 fn read_sass_node_package_importer_style_entry(
     package_object: &serde_json::Map<String, serde_json::Value>,
     subpath: Option<&str>,
-) -> Option<String> {
-    let export_entry = if let Some(subpath) = subpath {
-        read_sass_node_package_export_subpath_entry(package_object.get("exports"), subpath)
-    } else {
-        read_sass_node_package_export_entry(package_object.get("exports"))
-    };
-    export_entry.or_else(|| {
+) -> Option<PackageJsonEntryResolution> {
+    if let Some(exports_value) = package_object.get("exports") {
+        let export_entry = if let Some(subpath) = subpath {
+            read_sass_node_package_export_subpath_entry(Some(exports_value), subpath)
+        } else {
+            read_sass_node_package_export_entry(Some(exports_value))
+        };
+        return Some(export_entry.unwrap_or(PackageJsonEntryResolution::Blocked));
+    }
+    let entry = {
         if subpath.is_some() {
             return None;
         }
         read_package_json_string_field(package_object, "sass")
             .or_else(|| read_package_json_string_field(package_object, "style"))
-    })
+    }?;
+    Some(PackageJsonEntryResolution::Resolved(entry))
 }
 
-fn read_package_import_entry(package_json_source: &str, specifier: &str) -> Option<String> {
+fn read_package_import_entry(
+    package_json_source: &str,
+    specifier: &str,
+) -> Option<PackageJsonEntryResolution> {
     let package_json = serde_json::from_str::<serde_json::Value>(package_json_source).ok()?;
     let package_object = package_json.as_object()?;
     let imports_object = package_object.get("imports")?.as_object()?;
@@ -202,7 +258,9 @@ fn read_package_import_entry(package_json_source: &str, specifier: &str) -> Opti
         let Some(entry) = read_package_export_entry(Some(import_value)) else {
             continue;
         };
-        return Some(substitute_package_export_pattern(&entry, &pattern_match));
+        return Some(
+            entry.map_resolved(|entry| substitute_package_export_pattern(&entry, &pattern_match)),
+        );
     }
     None
 }
@@ -252,7 +310,7 @@ fn match_package_import_pattern(pattern_key: &str, specifier: &str) -> Option<St
 fn read_package_export_subpath_entry(
     exports_value: Option<&serde_json::Value>,
     subpath: &str,
-) -> Option<String> {
+) -> Option<PackageJsonEntryResolution> {
     let exports_object = exports_value?.as_object()?;
     for key in package_export_subpath_keys(subpath) {
         if let Some(entry) = read_package_export_entry(exports_object.get(&key)) {
@@ -266,7 +324,9 @@ fn read_package_export_subpath_entry(
         let Some(entry) = read_package_export_entry(Some(export_value)) else {
             continue;
         };
-        return Some(substitute_package_export_pattern(&entry, &pattern_match));
+        return Some(
+            entry.map_resolved(|entry| substitute_package_export_pattern(&entry, &pattern_match)),
+        );
     }
     None
 }
@@ -274,7 +334,7 @@ fn read_package_export_subpath_entry(
 fn read_sass_node_package_export_subpath_entry(
     exports_value: Option<&serde_json::Value>,
     subpath: &str,
-) -> Option<String> {
+) -> Option<PackageJsonEntryResolution> {
     let exports_object = exports_value?.as_object()?;
     for key in package_export_subpath_keys(subpath) {
         if let Some(entry) = read_sass_node_package_export_entry(exports_object.get(&key)) {
@@ -288,7 +348,9 @@ fn read_sass_node_package_export_subpath_entry(
         let Some(entry) = read_sass_node_package_export_entry(Some(export_value)) else {
             continue;
         };
-        return Some(substitute_package_export_pattern(&entry, &pattern_match));
+        return Some(
+            entry.map_resolved(|entry| substitute_package_export_pattern(&entry, &pattern_match)),
+        );
     }
     None
 }
@@ -337,17 +399,22 @@ fn substitute_package_export_pattern(entry: &str, pattern_match: &str) -> String
     }
 }
 
-fn read_package_export_entry(exports_value: Option<&serde_json::Value>) -> Option<String> {
+fn read_package_export_entry(
+    exports_value: Option<&serde_json::Value>,
+) -> Option<PackageJsonEntryResolution> {
     read_package_export_entry_with_policy(exports_value, true)
 }
 
 fn read_sass_node_package_export_entry(
     exports_value: Option<&serde_json::Value>,
-) -> Option<String> {
+) -> Option<PackageJsonEntryResolution> {
     let exports_value = exports_value?;
+    if exports_value.is_null() {
+        return Some(PackageJsonEntryResolution::Blocked);
+    }
     if let Some(entry) = exports_value.as_str() {
         if is_package_style_export_entry(entry) {
-            return Some(entry.to_string());
+            return Some(PackageJsonEntryResolution::Resolved(entry.to_string()));
         }
         return None;
     }
@@ -377,11 +444,14 @@ fn read_sass_node_package_export_entry(
 fn read_package_export_entry_with_policy(
     exports_value: Option<&serde_json::Value>,
     require_style_entry: bool,
-) -> Option<String> {
+) -> Option<PackageJsonEntryResolution> {
     let exports_value = exports_value?;
+    if exports_value.is_null() {
+        return Some(PackageJsonEntryResolution::Blocked);
+    }
     if let Some(entry) = exports_value.as_str() {
         if !require_style_entry || is_package_style_export_entry(entry) {
-            return Some(entry.to_string());
+            return Some(PackageJsonEntryResolution::Resolved(entry.to_string()));
         }
         return None;
     }

@@ -150,6 +150,7 @@ async function main(): Promise<void> {
     JSON.stringify({
       sass: "old.scss",
       exports: {
+        ".": { sass: "./old.scss" },
         "./old": { sass: "./old.scss" },
         "./new": { sass: "./new.scss" },
       },
