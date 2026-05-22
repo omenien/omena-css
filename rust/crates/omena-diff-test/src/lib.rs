@@ -211,6 +211,8 @@ pub struct WptSeedCorpusMetadataReportV0 {
     pub fixture_count: usize,
     /// Known-failure entry count.
     pub known_failure_count: usize,
+    /// Known-failure entries whose fixture or subtest no longer exists.
+    pub stale_known_failure_count: usize,
     /// Whether the current policy is already blocking Stage 2.
     pub stage2_blocking: bool,
     /// Minimum fixture count required before Stage 2 can become blocking.
@@ -571,10 +573,10 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         .and_then(|value| value.get("fixtures"))
         .and_then(serde_json::Value::as_array)
         .map_or(0, Vec::len);
-    let known_failure_count = WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE
-        .lines()
-        .filter(|line| line.trim() == "[[subtest]]")
-        .count();
+    let known_failure_subtests = wpt_seed_policy_known_failure_subtests();
+    let known_failure_count = known_failure_subtests.len();
+    let stale_known_failure_count =
+        wpt_seed_stale_known_failure_count(chunk.as_ref(), known_failure_subtests.as_slice());
     let green_run_evidence_count = WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE
         .lines()
         .filter(|line| line.trim() == "[[green_run]]")
@@ -592,6 +594,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         chunk.as_ref(),
         fixture_count,
         known_failure_count,
+        stale_known_failure_count,
         green_run_evidence_count,
         stage2_blocking,
     );
@@ -601,6 +604,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         stage2_blocking,
         fixture_count,
         known_failure_count,
+        stale_known_failure_count,
         required_min_fixture_count_for_stage2,
         required_consecutive_green_runs,
         consecutive_green_runs,
@@ -615,6 +619,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         chunk_count,
         fixture_count,
         known_failure_count,
+        stale_known_failure_count,
         stage2_blocking,
         required_min_fixture_count_for_stage2,
         required_consecutive_green_runs,
@@ -628,6 +633,7 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
             "wptSeedSourcePin",
             "wptSeedChunkSchema",
             "wptSeedKnownFailurePolicy",
+            "wptSeedStaleKnownFailurePruning",
             "wptSeedStageMatchesBlockingPolicy",
             "wptSeedStageTwoPromotionPolicy",
         ],
@@ -639,6 +645,7 @@ fn wpt_seed_manifest_metadata_valid(
     chunk: Option<&serde_json::Value>,
     fixture_count: usize,
     known_failure_count: usize,
+    stale_known_failure_count: usize,
     green_run_evidence_count: usize,
     stage2_blocking: bool,
 ) -> bool {
@@ -687,6 +694,7 @@ fn wpt_seed_manifest_metadata_valid(
         && wpt_seed_policy_usize_value("required_consecutive_green_runs")
             .is_some_and(|runs| runs > 0)
         && wpt_seed_policy_usize_value("consecutive_green_runs") == Some(green_run_evidence_count)
+        && stale_known_failure_count == 0
         && known_failure_count == 0
 }
 
@@ -696,6 +704,7 @@ fn wpt_seed_stage2_promotion_blockers(
     stage2_blocking: bool,
     fixture_count: usize,
     known_failure_count: usize,
+    stale_known_failure_count: usize,
     required_min_fixture_count_for_stage2: usize,
     required_consecutive_green_runs: usize,
     consecutive_green_runs: usize,
@@ -709,6 +718,9 @@ fn wpt_seed_stage2_promotion_blockers(
     }
     if known_failure_count > 0 {
         blockers.push("knownFailuresPresent");
+    }
+    if stale_known_failure_count > 0 {
+        blockers.push("staleKnownFailuresPresent");
     }
     if required_min_fixture_count_for_stage2 == 0 {
         blockers.push("stageTwoFixtureThresholdMissing");
@@ -773,6 +785,82 @@ fn wpt_seed_policy_raw_value(key: &str) -> Option<&'static str> {
         }
     }
     None
+}
+
+fn wpt_seed_policy_known_failure_subtests() -> Vec<(&'static str, &'static str)> {
+    let mut subtests = Vec::new();
+    let mut fixture: Option<&'static str> = None;
+    let mut name: Option<&'static str> = None;
+    let mut in_subtest = false;
+
+    for raw_line in WPT_SEED_KNOWN_FAILURE_POLICY_SOURCE.lines() {
+        let line = raw_line.split('#').next().unwrap_or("").trim();
+        if line == "[[subtest]]" {
+            if let (Some(fixture), Some(name)) = (fixture.take(), name.take()) {
+                subtests.push((fixture, name));
+            }
+            in_subtest = true;
+            continue;
+        }
+        if line.starts_with("[[") {
+            if let (Some(fixture), Some(name)) = (fixture.take(), name.take()) {
+                subtests.push((fixture, name));
+            }
+            in_subtest = false;
+            continue;
+        }
+        if !in_subtest || line.is_empty() {
+            continue;
+        }
+        let Some((candidate_key, value)) = line.split_once('=') else {
+            continue;
+        };
+        match candidate_key.trim() {
+            "fixture" => fixture = wpt_seed_policy_string_literal(value.trim()),
+            "name" => name = wpt_seed_policy_string_literal(value.trim()),
+            _ => {}
+        }
+    }
+    if let (Some(fixture), Some(name)) = (fixture, name) {
+        subtests.push((fixture, name));
+    }
+
+    subtests
+}
+
+fn wpt_seed_policy_string_literal(value: &'static str) -> Option<&'static str> {
+    value.strip_prefix('"')?.strip_suffix('"')
+}
+
+fn wpt_seed_stale_known_failure_count(
+    chunk: Option<&serde_json::Value>,
+    known_failure_subtests: &[(&str, &str)],
+) -> usize {
+    let mut fixture_keys = BTreeSet::new();
+    let mut subtest_keys = BTreeSet::new();
+    if let Some(fixtures) = chunk
+        .and_then(|value| value.get("fixtures"))
+        .and_then(serde_json::Value::as_array)
+    {
+        for fixture in fixtures {
+            let Some(id) = fixture.get("id").and_then(serde_json::Value::as_str) else {
+                continue;
+            };
+            let Some(subtest) = fixture.get("subtest").and_then(serde_json::Value::as_str) else {
+                continue;
+            };
+            fixture_keys.insert(id.to_string());
+            subtest_keys.insert(format!("{id}\n{subtest}"));
+        }
+    }
+
+    known_failure_subtests
+        .iter()
+        .filter(|(fixture, name)| {
+            !fixture_keys.contains(*fixture)
+                || !subtest_keys.contains(format!("{fixture}\n{name}").as_str())
+        })
+        .count()
 }
 
 fn wpt_source_pin_is_full_sha(pin: &str) -> bool {
@@ -840,6 +928,10 @@ mod tests {
         assert!(summary.all_m3_fixture_seeds_parse);
         assert!(summary.all_wpt_seed_metadata_valid);
         assert!(summary.wpt_seed_fixture_count >= 25);
+        assert_eq!(
+            summary.wpt_seed_metadata_report.stale_known_failure_count,
+            0
+        );
         assert!(
             summary
                 .closed_gates
@@ -854,6 +946,12 @@ mod tests {
             summary
                 .closed_gates
                 .contains(&"wptSeedCorpusMetadataPolicy")
+        );
+        assert!(
+            summary
+                .wpt_seed_metadata_report
+                .closed_gates
+                .contains(&"wptSeedStaleKnownFailurePruning")
         );
     }
 

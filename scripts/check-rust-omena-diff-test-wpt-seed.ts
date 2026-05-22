@@ -200,18 +200,21 @@ for (const run of policy.greenRuns) {
     `${run.commit} command must point at the WPT seed checker`,
   );
 }
+const staleKnownFailures: string[] = [];
 for (const subtest of policy.subtests) {
-  assert.ok(fixtureKeys.has(subtest.fixture), `orphan known failure fixture: ${subtest.fixture}`);
-  assert.ok(
-    subtestKeys.has(`${subtest.fixture}\n${subtest.name}`),
-    `stale known failure subtest: ${subtest.fixture} ${subtest.name}`,
-  );
+  if (
+    !fixtureKeys.has(subtest.fixture) ||
+    !subtestKeys.has(`${subtest.fixture}\n${subtest.name}`)
+  ) {
+    staleKnownFailures.push(`${subtest.fixture} ${subtest.name}`);
+  }
   assert.match(subtest.status, /^(fail|implementation-defined)$/);
   assert.ok(subtest.reason.length > 0);
   assert.ok(subtest.issue.length > 0);
   assert.ok(isIsoDate(subtest.since), `${subtest.fixture} since must be an ISO date`);
   assert.ok(isIsoDate(subtest.reviewAfter), `${subtest.fixture} review_after must be an ISO date`);
 }
+assert.deepEqual(staleKnownFailures, [], "known-failure policy contains stale entries");
 
 const reports = fixtures.map((fixture) => {
   assert.equal(fixture.status, "pass", fixture.id);
@@ -274,6 +277,7 @@ const stage2PromotionBlockers = stage2Blockers({
   fixtureCount: reports.length,
   knownFailureCount: policy.subtests.length,
   stage2Blocking: policy.stage2Blocking,
+  staleKnownFailureCount: staleKnownFailures.length,
   criticalRegressionCount,
   requiredMinFixtureCountForStage2: policy.requiredMinFixtureCountForStage2,
   requiredConsecutiveGreenRuns: policy.requiredConsecutiveGreenRuns,
@@ -318,7 +322,7 @@ process.stdout.write(
       consecutiveGreenRuns: policy.consecutiveGreenRuns,
       greenRunEvidenceCount: policy.greenRuns.length,
       stage2PromotionBlockers,
-      staleKnownFailureCount: 0,
+      staleKnownFailureCount: staleKnownFailures.length,
       criticalRegressionCount,
       outcomeCellCount: Object.keys(outcomeCube).length,
       outcomeCube,
@@ -446,6 +450,7 @@ function stage2Blockers(input: {
   readonly stage2Blocking: boolean;
   readonly fixtureCount: number;
   readonly knownFailureCount: number;
+  readonly staleKnownFailureCount: number;
   readonly criticalRegressionCount: number;
   readonly requiredMinFixtureCountForStage2: number;
   readonly requiredConsecutiveGreenRuns: number;
@@ -462,6 +467,9 @@ function stage2Blockers(input: {
   }
   if (input.knownFailureCount > 0) {
     blockers.push("knownFailuresPresent");
+  }
+  if (input.staleKnownFailureCount > 0) {
+    blockers.push("staleKnownFailuresPresent");
   }
   if (input.criticalRegressionCount > 0) {
     blockers.push("criticalRegressionsPresent");
