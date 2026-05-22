@@ -34,8 +34,10 @@ mod source_type_facts;
 mod style_context;
 #[path = "tests/style_indexing.rs"]
 mod style_indexing;
-#[path = "tests/workspace.rs"]
-mod workspace;
+#[path = "tests/workspace_folders.rs"]
+mod workspace_folders;
+#[path = "tests/workspace_indexing.rs"]
+mod workspace_indexing;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
