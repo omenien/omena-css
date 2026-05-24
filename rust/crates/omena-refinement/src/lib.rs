@@ -108,6 +108,16 @@ pub enum RefinementPropertyPredicateV0 {
         property_name: String,
         custom_property_name: String,
     },
+    NumericRange {
+        property_name: String,
+        min_inclusive: Option<i64>,
+        max_inclusive: Option<i64>,
+        unit: Option<String>,
+    },
+    HasPseudoState {
+        property_name: String,
+        pseudo_state: String,
+    },
     And {
         predicates: Vec<RefinementPropertyPredicateV0>,
     },
@@ -131,6 +141,19 @@ pub struct RefinementPredicateEvaluationV0 {
     pub verdict: RefinementVerdictV0,
     pub matched_clause_count: usize,
     pub witness: RefinementWitnessV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RefinementContextSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub predicate_count: usize,
+    pub context_digest: u64,
+    pub witness_provenance_count: usize,
+    pub downstream_invalidation_required: bool,
 }
 
 pub fn project_legacy_to_refined_v0<P, R>(
@@ -174,7 +197,7 @@ pub fn evaluate_refinement_property_predicate_v0(
     let witness = refinement_witness_v0(
         "property-grammar",
         verdict,
-        vec![refinement_provenance_v0("property-grammar", None)],
+        refinement_predicate_provenance_v0(predicate),
     );
 
     RefinementPredicateEvaluationV0 {
@@ -195,6 +218,36 @@ pub fn refine_declaration_in_context(
     context: &CascadeRefinementContextV0,
 ) -> RefinementWitnessV0 {
     refine_cascade_declaration_in_context(declaration, context)
+}
+
+pub fn summarize_refinement_context_v0(
+    predicates: &[RefinementPropertyPredicateV0],
+) -> RefinementContextSummaryV0 {
+    let mut expression_ids = predicates
+        .iter()
+        .map(refinement_predicate_expression_id_v0)
+        .collect::<Vec<_>>();
+    expression_ids.sort();
+
+    let witness_provenance_count = predicates
+        .iter()
+        .map(refinement_predicate_provenance_v0)
+        .flatten()
+        .map(|provenance| provenance.source)
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
+    let context_digest = deterministic_refinement_digest_v0(expression_ids.join("\n").as_bytes());
+
+    RefinementContextSummaryV0 {
+        schema_version: REFINEMENT_SCHEMA_VERSION_V0,
+        product: "omena-refinement.context-summary",
+        layer_marker: REFINEMENT_LAYER_MARKER_V0,
+        feature_gate: REFINEMENT_FEATURE_GATE_V0,
+        predicate_count: predicates.len(),
+        context_digest,
+        witness_provenance_count,
+        downstream_invalidation_required: !predicates.is_empty(),
+    }
 }
 
 pub fn abstract_property_value_shape_v0(value: &AbstractPropertyValueV0) -> AbstractValueShapeV0 {
@@ -231,6 +284,22 @@ fn evaluate_refinement_predicate_verdict_v0(
             custom_property_name,
             value,
         ),
+        RefinementPropertyPredicateV0::NumericRange {
+            property_name,
+            min_inclusive,
+            max_inclusive,
+            unit,
+        } => evaluate_numeric_range_predicate_v0(
+            property_name,
+            *min_inclusive,
+            *max_inclusive,
+            unit.as_deref(),
+            value,
+        ),
+        RefinementPropertyPredicateV0::HasPseudoState {
+            property_name,
+            pseudo_state,
+        } => evaluate_pseudo_state_predicate_v0(property_name, pseudo_state, value),
         RefinementPropertyPredicateV0::And { predicates } => combine_and_refinement_verdicts_v0(
             &predicates
                 .iter()
@@ -252,6 +321,104 @@ fn evaluate_refinement_predicate_verdict_v0(
                 }
             }
         }
+    }
+}
+
+fn evaluate_numeric_range_predicate_v0(
+    property_name: &str,
+    min_inclusive: Option<i64>,
+    max_inclusive: Option<i64>,
+    unit: Option<&str>,
+    value: &AbstractPropertyValueV0,
+) -> RefinementVerdictV0 {
+    match value {
+        AbstractPropertyValueV0::Exact {
+            property_name: actual_property,
+            value: actual_value,
+            ..
+        } if actual_property == property_name => {
+            if numeric_range_contains_value_v0(actual_value, min_inclusive, max_inclusive, unit) {
+                RefinementVerdictV0::SatisfiedAll
+            } else {
+                RefinementVerdictV0::Unsatisfiable
+            }
+        }
+        AbstractPropertyValueV0::FiniteSet {
+            property_name: actual_property,
+            values,
+            ..
+        } if actual_property == property_name => {
+            let matched = values
+                .iter()
+                .filter(|candidate| {
+                    numeric_range_contains_value_v0(candidate, min_inclusive, max_inclusive, unit)
+                })
+                .count();
+            if matched == values.len() {
+                RefinementVerdictV0::SatisfiedAll
+            } else if matched > 0 {
+                RefinementVerdictV0::SatisfiedSome
+            } else {
+                RefinementVerdictV0::Unsatisfiable
+            }
+        }
+        AbstractPropertyValueV0::Top {
+            property_name: actual_property,
+        }
+        | AbstractPropertyValueV0::CustomPropertyReference {
+            property_name: actual_property,
+            ..
+        } if actual_property == property_name => RefinementVerdictV0::Unknown,
+        _ => RefinementVerdictV0::Unsatisfiable,
+    }
+}
+
+fn evaluate_pseudo_state_predicate_v0(
+    property_name: &str,
+    expected_pseudo_state: &str,
+    value: &AbstractPropertyValueV0,
+) -> RefinementVerdictV0 {
+    match value {
+        AbstractPropertyValueV0::Exact {
+            property_name: actual_property,
+            pseudo_state,
+            ..
+        }
+        | AbstractPropertyValueV0::CustomPropertyReference {
+            property_name: actual_property,
+            pseudo_state,
+            ..
+        } if actual_property == property_name => {
+            if pseudo_state.as_deref() == Some(expected_pseudo_state) {
+                RefinementVerdictV0::SatisfiedAll
+            } else {
+                RefinementVerdictV0::Unsatisfiable
+            }
+        }
+        AbstractPropertyValueV0::FiniteSet {
+            property_name: actual_property,
+            pseudo_states,
+            ..
+        } if actual_property == property_name => {
+            if pseudo_states.len() == 1
+                && pseudo_states
+                    .iter()
+                    .any(|pseudo_state| pseudo_state == expected_pseudo_state)
+            {
+                RefinementVerdictV0::SatisfiedAll
+            } else if pseudo_states
+                .iter()
+                .any(|pseudo_state| pseudo_state == expected_pseudo_state)
+            {
+                RefinementVerdictV0::SatisfiedSome
+            } else {
+                RefinementVerdictV0::Unsatisfiable
+            }
+        }
+        AbstractPropertyValueV0::Top {
+            property_name: actual_property,
+        } if actual_property == property_name => RefinementVerdictV0::Unknown,
+        _ => RefinementVerdictV0::Unsatisfiable,
     }
 }
 
@@ -426,6 +593,25 @@ fn refinement_predicate_expression_id_v0(predicate: &RefinementPropertyPredicate
             property_name,
             custom_property_name,
         } => format!("custom-ref:{property_name}:{custom_property_name}"),
+        RefinementPropertyPredicateV0::NumericRange {
+            property_name,
+            min_inclusive,
+            max_inclusive,
+            unit,
+        } => format!(
+            "numeric-range:{property_name}:{}..{}:{}",
+            min_inclusive
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "-inf".to_string()),
+            max_inclusive
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "inf".to_string()),
+            unit.as_deref().unwrap_or("*")
+        ),
+        RefinementPropertyPredicateV0::HasPseudoState {
+            property_name,
+            pseudo_state,
+        } => format!("pseudo-state:{property_name}:{pseudo_state}"),
         RefinementPropertyPredicateV0::And { predicates } => format!(
             "and({})",
             predicates
@@ -446,6 +632,111 @@ fn refinement_predicate_expression_id_v0(predicate: &RefinementPropertyPredicate
             format!("not({})", refinement_predicate_expression_id_v0(predicate))
         }
     }
+}
+
+fn refinement_predicate_provenance_v0(
+    predicate: &RefinementPropertyPredicateV0,
+) -> Vec<omena_refinement_trait::RefinementProvenanceV0> {
+    let mut provenance = Vec::new();
+    collect_refinement_predicate_provenance_v0(predicate, &mut provenance);
+    provenance
+}
+
+fn collect_refinement_predicate_provenance_v0(
+    predicate: &RefinementPropertyPredicateV0,
+    provenance: &mut Vec<omena_refinement_trait::RefinementProvenanceV0>,
+) {
+    push_refinement_provenance_v0(provenance, "property-grammar", None);
+    match predicate {
+        RefinementPropertyPredicateV0::Any => {}
+        RefinementPropertyPredicateV0::ExactValue { .. }
+        | RefinementPropertyPredicateV0::OneOfValues { .. } => {
+            push_refinement_provenance_v0(provenance, "finite-property-domain", None);
+        }
+        RefinementPropertyPredicateV0::CustomPropertyReference { .. } => {
+            push_refinement_provenance_v0(provenance, "custom-property-reference", None);
+        }
+        RefinementPropertyPredicateV0::NumericRange { .. } => {
+            push_refinement_provenance_v0(provenance, "numeric-range-interval", None);
+        }
+        RefinementPropertyPredicateV0::HasPseudoState { .. } => {
+            push_refinement_provenance_v0(provenance, "pseudo-state-refinement", None);
+        }
+        RefinementPropertyPredicateV0::And { predicates }
+        | RefinementPropertyPredicateV0::Or { predicates } => {
+            push_refinement_provenance_v0(provenance, "predicate-composition", None);
+            for predicate in predicates {
+                collect_refinement_predicate_provenance_v0(predicate, provenance);
+            }
+        }
+        RefinementPropertyPredicateV0::Not { predicate } => {
+            push_refinement_provenance_v0(provenance, "predicate-composition", None);
+            collect_refinement_predicate_provenance_v0(predicate, provenance);
+        }
+    }
+}
+
+fn push_refinement_provenance_v0(
+    provenance: &mut Vec<omena_refinement_trait::RefinementProvenanceV0>,
+    source: &'static str,
+    legacy_proof_primitive: Option<&'static str>,
+) {
+    if provenance.iter().any(|entry| {
+        entry.source == source && entry.legacy_proof_primitive == legacy_proof_primitive
+    }) {
+        return;
+    }
+    provenance.push(refinement_provenance_v0(source, legacy_proof_primitive));
+}
+
+fn numeric_range_contains_value_v0(
+    value: &str,
+    min_inclusive: Option<i64>,
+    max_inclusive: Option<i64>,
+    expected_unit: Option<&str>,
+) -> bool {
+    let Some((magnitude, unit)) = parse_css_integer_with_unit_v0(value) else {
+        return false;
+    };
+    if let Some(expected_unit) = expected_unit {
+        if unit != expected_unit {
+            return false;
+        }
+    }
+    if let Some(min_inclusive) = min_inclusive {
+        if magnitude < min_inclusive {
+            return false;
+        }
+    }
+    if let Some(max_inclusive) = max_inclusive {
+        if magnitude > max_inclusive {
+            return false;
+        }
+    }
+    true
+}
+
+fn parse_css_integer_with_unit_v0(value: &str) -> Option<(i64, &str)> {
+    let trimmed = value.trim();
+    let mut end = 0;
+    for (index, ch) in trimmed.char_indices() {
+        if ch.is_ascii_digit() || (index == 0 && (ch == '-' || ch == '+')) {
+            end = index + ch.len_utf8();
+        } else {
+            break;
+        }
+    }
+    if end == 0 || trimmed[..end].ends_with(['-', '+']) {
+        return None;
+    }
+    let magnitude = trimmed[..end].parse::<i64>().ok()?;
+    Some((magnitude, trimmed[end..].trim()))
+}
+
+fn deterministic_refinement_digest_v0(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf29ce484222325, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+    })
 }
 
 #[cfg(feature = "refinement-smt")]
@@ -551,5 +842,90 @@ mod tests {
             evaluation.predicate_expression_id,
             "custom-ref:color:--brand"
         );
+    }
+
+    #[test]
+    fn refinement_numeric_range_and_pseudo_state_predicates_are_evaluated() {
+        let finite = AbstractPropertyValueV0::FiniteSet {
+            property_name: "opacity".to_string(),
+            values: vec!["0".to_string(), "50%".to_string(), "100%".to_string()],
+            pseudo_states: vec![":hover".to_string(), ":focus".to_string()],
+        };
+        let predicate = RefinementPropertyPredicateV0::And {
+            predicates: vec![
+                RefinementPropertyPredicateV0::NumericRange {
+                    property_name: "opacity".to_string(),
+                    min_inclusive: Some(0),
+                    max_inclusive: Some(100),
+                    unit: Some("%".to_string()),
+                },
+                RefinementPropertyPredicateV0::HasPseudoState {
+                    property_name: "opacity".to_string(),
+                    pseudo_state: ":hover".to_string(),
+                },
+            ],
+        };
+        let evaluation = evaluate_refinement_property_predicate_v0(&predicate, &finite);
+
+        assert_eq!(evaluation.value_shape, AbstractValueShapeV0::FiniteSet);
+        assert_eq!(evaluation.verdict, RefinementVerdictV0::SatisfiedSome);
+        assert_eq!(
+            evaluation.predicate_expression_id,
+            "and(numeric-range:opacity:0..100:%,pseudo-state:opacity::hover)"
+        );
+        assert!(
+            evaluation
+                .witness
+                .provenance
+                .iter()
+                .any(|entry| entry.source == "numeric-range-interval")
+        );
+        assert!(
+            evaluation
+                .witness
+                .provenance
+                .iter()
+                .any(|entry| entry.source == "pseudo-state-refinement")
+        );
+        assert!(
+            evaluation
+                .witness
+                .provenance
+                .iter()
+                .any(|entry| entry.source == "predicate-composition")
+        );
+    }
+
+    #[test]
+    fn refinement_context_digest_is_order_stable_and_invalidation_sensitive() {
+        let range = RefinementPropertyPredicateV0::NumericRange {
+            property_name: "z-index".to_string(),
+            min_inclusive: Some(0),
+            max_inclusive: Some(10),
+            unit: None,
+        };
+        let exact = RefinementPropertyPredicateV0::ExactValue {
+            property_name: "display".to_string(),
+            value: "grid".to_string(),
+        };
+        let first = summarize_refinement_context_v0(&[range.clone(), exact.clone()]);
+        let reordered = summarize_refinement_context_v0(&[exact.clone(), range.clone()]);
+        let changed = summarize_refinement_context_v0(&[
+            exact,
+            RefinementPropertyPredicateV0::NumericRange {
+                property_name: "z-index".to_string(),
+                min_inclusive: Some(0),
+                max_inclusive: Some(11),
+                unit: None,
+            },
+        ]);
+
+        assert_eq!(first.schema_version, "0");
+        assert_eq!(first.product, "omena-refinement.context-summary");
+        assert_eq!(first.predicate_count, 2);
+        assert!(first.downstream_invalidation_required);
+        assert_eq!(first.context_digest, reordered.context_digest);
+        assert_ne!(first.context_digest, changed.context_digest);
+        assert!(first.witness_provenance_count >= 3);
     }
 }

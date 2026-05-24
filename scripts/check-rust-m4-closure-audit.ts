@@ -346,6 +346,8 @@ function buildTheoryClaimGuard(): {
         "evaluate_refinement_property_predicate_v0",
         "refinement_property_grammar_evaluates_exact_and_one_of_values",
         "refinement_predicate_composition_tracks_partial_and_negative_witnesses",
+        "refinement_numeric_range_and_pseudo_state_predicates_are_evaluated",
+        "refinement_context_digest_is_order_stable_and_invalidation_sensitive",
         "project_refined_to_legacy_v0",
       ],
       nextAction: "keep partial-property wording until SMT-backed predicate discharge lands",
