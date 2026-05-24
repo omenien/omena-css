@@ -1,10 +1,10 @@
 [package]
-name = "omena-cascade"
+name = "omena-zk-circuit"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Cascade-formal substrate for Omena CSS"
+description = "Zero-knowledge cascade circuit contracts for Omena CSS"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
@@ -13,12 +13,7 @@ workspace = true
 
 [features]
 default = []
-bdd-attractor = []
-frame-rule = []
-grn = []
-naldi-lumping = []
-spin-glass = []
+zk-circuit = []
 
 [dependencies]
-omena-refinement-trait = { path = "../omena-refinement-trait" }
 serde.workspace = true

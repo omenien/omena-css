@@ -13,6 +13,7 @@ mod grn;
 mod model;
 mod proofs;
 mod ranking;
+mod refinement;
 mod selector;
 mod statistics;
 
@@ -25,6 +26,7 @@ pub use grn::*;
 pub use model::*;
 pub use proofs::*;
 pub use ranking::*;
+pub use refinement::*;
 pub use selector::*;
 pub use statistics::*;
 

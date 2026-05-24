@@ -86,6 +86,7 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
                 source_span_start: None,
                 source_span_end: None,
                 checked_obligations: vec!["closedBundleWitness"],
+                canonical_smt_input: None,
                 proof_payload: json!({
                     "product": "omena-cascade.layer-flatten-proof",
                     "accepted": false,
@@ -279,6 +280,7 @@ fn proof_obligation<T: Serialize>(
         source_span_start,
         source_span_end,
         checked_obligations,
+        canonical_smt_input: None,
         proof_payload: serde_json::to_value(proof).unwrap_or(Value::Null),
     }
 }

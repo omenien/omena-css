@@ -1,10 +1,10 @@
 [package]
-name = "omena-cascade"
+name = "omena-refinement"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Cascade-formal substrate for Omena CSS"
+description = "Refinement type system contracts for Omena cascade analysis"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
@@ -13,12 +13,11 @@ workspace = true
 
 [features]
 default = []
-bdd-attractor = []
-frame-rule = []
-grn = []
-naldi-lumping = []
-spin-glass = []
+refinement-smt = ["dep:omena-smt"]
 
 [dependencies]
+omena-abstract-value = { path = "../omena-abstract-value" }
+omena-cascade = { path = "../omena-cascade" }
 omena-refinement-trait = { path = "../omena-refinement-trait" }
+omena-smt = { path = "../omena-smt", optional = true }
 serde.workspace = true

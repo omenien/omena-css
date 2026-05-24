@@ -1,10 +1,10 @@
 [package]
-name = "omena-cascade"
+name = "omena-streaming-ifds"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Cascade-formal substrate for Omena CSS"
+description = "Streaming IFDS contracts for live Omena LSP analysis"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
@@ -13,12 +13,10 @@ workspace = true
 
 [features]
 default = []
-bdd-attractor = []
-frame-rule = []
-grn = []
-naldi-lumping = []
-spin-glass = []
+streaming-ifds = []
+with-frame-rule = []
 
 [dependencies]
-omena-refinement-trait = { path = "../omena-refinement-trait" }
+omena-abstract-value = { path = "../omena-abstract-value" }
+omena-query = { path = "../omena-query", features = ["hypergraph-ifds"] }
 serde.workspace = true

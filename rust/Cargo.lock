@@ -886,6 +886,16 @@ dependencies = [
 name = "omena-cascade"
 version = "0.1.0"
 dependencies = [
+ "omena-refinement-trait",
+ "serde",
+]
+
+[[package]]
+name = "omena-categorical"
+version = "0.1.0"
+dependencies = [
+ "omena-cascade",
+ "omena-lawvere",
  "serde",
 ]
 
@@ -1019,6 +1029,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-refinement"
+version = "0.1.0"
+dependencies = [
+ "omena-abstract-value",
+ "omena-cascade",
+ "omena-refinement-trait",
+ "omena-smt",
+ "serde",
+]
+
+[[package]]
+name = "omena-refinement-trait"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "omena-resolver"
 version = "0.1.0"
 dependencies = [
@@ -1049,12 +1077,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-smt"
+version = "0.1.0"
+dependencies = [
+ "omena-cascade",
+ "omena-refinement-trait",
+ "serde",
+]
+
+[[package]]
 name = "omena-spec-audit"
 version = "0.1.0"
 dependencies = [
  "omena-meta-macros",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "omena-streaming-ifds"
+version = "0.1.0"
+dependencies = [
+ "omena-abstract-value",
+ "omena-query",
+ "serde",
 ]
 
 [[package]]
@@ -1109,6 +1155,7 @@ dependencies = [
  "omena-incremental",
  "omena-lawvere",
  "omena-parser",
+ "omena-smt",
  "omena-syntax",
  "omena-transform-cst",
  "serde",
@@ -1143,6 +1190,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-variational"
+version = "0.1.0"
+dependencies = [
+ "omena-abstract-value",
+ "omena-cascade",
+ "serde",
+]
+
+[[package]]
 name = "omena-wasm"
 version = "0.1.0"
 dependencies = [
@@ -1151,6 +1207,22 @@ dependencies = [
  "serde-wasm-bindgen",
  "serde_json",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "omena-zk-audit"
+version = "0.1.0"
+dependencies = [
+ "omena-smt",
+ "omena-zk-circuit",
+ "serde",
+]
+
+[[package]]
+name = "omena-zk-circuit"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

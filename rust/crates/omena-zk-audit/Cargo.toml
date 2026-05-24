@@ -1,10 +1,10 @@
 [package]
-name = "omena-cascade"
+name = "omena-zk-audit"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Cascade-formal substrate for Omena CSS"
+description = "Zero-knowledge cascade audit protocol contracts for Omena CSS"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
@@ -13,12 +13,11 @@ workspace = true
 
 [features]
 default = []
-bdd-attractor = []
-frame-rule = []
-grn = []
-naldi-lumping = []
-spin-glass = []
+zk-audit = []
+zk-audit-stark = []
+zk-audit-binius = []
 
 [dependencies]
-omena-refinement-trait = { path = "../omena-refinement-trait" }
+omena-smt = { path = "../omena-smt" }
+omena-zk-circuit = { path = "../omena-zk-circuit" }
 serde.workspace = true

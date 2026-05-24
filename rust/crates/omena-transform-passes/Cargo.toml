@@ -19,6 +19,7 @@ lawvere-trace = ["dep:omena-lawvere"]
 omena-cascade = { path = "../omena-cascade" }
 omena-incremental = { path = "../omena-incremental" }
 omena-lawvere = { path = "../omena-lawvere", optional = true }
+omena-smt = { path = "../omena-smt" }
 omena-transform-cst = { path = "../omena-transform-cst" }
 omena-parser = { path = "../omena-parser" }
 omena-syntax = { path = "../omena-syntax" }

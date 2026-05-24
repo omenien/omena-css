@@ -7,6 +7,7 @@ members = [
   "crates/omena-benchmarks",
   "crates/omena-bridge",
   "crates/omena-cascade",
+  "crates/omena-categorical",
   "crates/omena-checker",
   "crates/omena-cli",
   "crates/omena-diff-test",
@@ -21,10 +22,14 @@ members = [
   "crates/omena-meta-macros",
   "crates/omena-napi",
   "crates/omena-query",
+  "crates/omena-refinement",
+  "crates/omena-refinement-trait",
   "crates/omena-rg-flow",
   "crates/omena-resolver",
   "crates/omena-semantic",
+  "crates/omena-smt",
   "crates/omena-spec-audit",
+  "crates/omena-streaming-ifds",
   "crates/omena-tsgo-client",
   "crates/omena-transform-bundle",
   "crates/omena-transform-cst",
@@ -32,7 +37,10 @@ members = [
   "crates/omena-transform-passes",
   "crates/omena-transform-print",
   "crates/omena-transform-target",
+  "crates/omena-variational",
   "crates/omena-wasm",
+  "crates/omena-zk-audit",
+  "crates/omena-zk-circuit",
 ]
 resolver = "2"
 

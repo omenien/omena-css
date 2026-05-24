@@ -7,6 +7,7 @@
 //! bindings, CLI runners, and release gates.
 
 use omena_incremental::{IncrementalComputationPlanV0, IncrementalSnapshotV0};
+use omena_smt::CanonicalSmtInputV0;
 use omena_transform_cst::{TransformDagEdgeV0, TransformPassContractV0};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -163,6 +164,8 @@ pub struct TransformCascadeProofObligationV0 {
     pub source_span_start: Option<usize>,
     pub source_span_end: Option<usize>,
     pub checked_obligations: Vec<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canonical_smt_input: Option<CanonicalSmtInputV0>,
     pub proof_payload: Value,
 }
 

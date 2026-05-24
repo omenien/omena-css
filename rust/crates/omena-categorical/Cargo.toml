@@ -1,10 +1,10 @@
 [package]
-name = "omena-cascade"
+name = "omena-categorical"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Cascade-formal substrate for Omena CSS"
+description = "Categorical cascade evidence contracts for Omena CSS"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
@@ -13,12 +13,9 @@ workspace = true
 
 [features]
 default = []
-bdd-attractor = []
-frame-rule = []
-grn = []
-naldi-lumping = []
-spin-glass = []
+categorical-evidence = []
 
 [dependencies]
-omena-refinement-trait = { path = "../omena-refinement-trait" }
+omena-cascade = { path = "../omena-cascade" }
+omena-lawvere = { path = "../omena-lawvere" }
 serde.workspace = true
