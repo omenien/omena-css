@@ -96,6 +96,58 @@
       "status": "pass"
     },
     {
+      "id": "css-background-image-none-advisory",
+      "wptPath": "css/css-backgrounds/parsing/background-image-valid.html",
+      "wptSourceLine": 15,
+      "subtest": "test_valid_value(\"background-image\", \"none\")",
+      "helper": "test_valid_value",
+      "property": "background-image",
+      "wptValue": "none",
+      "wptExpectedValue": "none",
+      "source": ".css-background-image-none-advisory { background-image: none; }",
+      "expectedCss": ".css-background-image-none-advisory{background-image:none}",
+      "status": "pass"
+    },
+    {
+      "id": "css-background-repeat-repeat-advisory",
+      "wptPath": "css/css-backgrounds/parsing/background-repeat-valid.html",
+      "wptSourceLine": 15,
+      "subtest": "test_valid_value(\"background-repeat\", \"repeat\")",
+      "helper": "test_valid_value",
+      "property": "background-repeat",
+      "wptValue": "repeat",
+      "wptExpectedValue": "repeat",
+      "source": ".css-background-repeat-repeat-advisory { background-repeat: repeat; }",
+      "expectedCss": ".css-background-repeat-repeat-advisory{background-repeat:repeat}",
+      "status": "pass"
+    },
+    {
+      "id": "css-background-position-top-left-advisory",
+      "wptPath": "css/css-backgrounds/parsing/background-position-valid.html",
+      "wptSourceLine": 39,
+      "subtest": "test_valid_value(\"background-position\", \"top left\", \"left top\")",
+      "helper": "test_valid_value",
+      "property": "background-position",
+      "wptValue": "top left",
+      "wptExpectedValue": "left top",
+      "source": ".css-background-position-top-left-advisory { background-position: top left; }",
+      "expectedCss": ".css-background-position-top-left-advisory{background-position:0 0}",
+      "status": "pass"
+    },
+    {
+      "id": "css-background-size-cover-advisory",
+      "wptPath": "css/css-backgrounds/parsing/background-size-valid.html",
+      "wptSourceLine": 22,
+      "subtest": "test_valid_value(\"background-size\", \"cover\")",
+      "helper": "test_valid_value",
+      "property": "background-size",
+      "wptValue": "cover",
+      "wptExpectedValue": "cover",
+      "source": ".css-background-size-cover-advisory { background-size: cover; }",
+      "expectedCss": ".css-background-size-cover-advisory{background-size:cover}",
+      "status": "pass"
+    },
+    {
       "id": "css-sizing-width-min-content-advisory",
       "wptPath": "css/css-sizing/parsing/width-valid.html",
       "wptSourceLine": 15,

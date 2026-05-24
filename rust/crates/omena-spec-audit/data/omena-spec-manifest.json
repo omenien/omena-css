@@ -14,6 +14,10 @@
         "css-sizing/properties/width",
         "css-sizing/properties/height",
         "css-backgrounds/properties/background-color",
+        "css-backgrounds/properties/background-image",
+        "css-backgrounds/properties/background-repeat",
+        "css-backgrounds/properties/background-position",
+        "css-backgrounds/properties/background-size",
         "css-mixins/atrules/@function"
       ],
       "sourceKeys": [
@@ -24,6 +28,10 @@
         "css-sizing/properties/width",
         "css-sizing/properties/height",
         "css-backgrounds/properties/background-color",
+        "css-backgrounds/properties/background-image",
+        "css-backgrounds/properties/background-repeat",
+        "css-backgrounds/properties/background-position",
+        "css-backgrounds/properties/background-size",
         "css-mixins/atrules/@function"
       ]
     },
@@ -38,6 +46,10 @@
         "css-sizing/properties/width",
         "css-sizing/properties/height",
         "css-backgrounds/properties/background-color",
+        "css-backgrounds/properties/background-image",
+        "css-backgrounds/properties/background-repeat",
+        "css-backgrounds/properties/background-position",
+        "css-backgrounds/properties/background-size",
         "css-mixins/atrules/@function"
       ],
       "sourceKeys": [
@@ -58,7 +70,11 @@
         "css-values/types/url",
         "css-sizing/properties/width",
         "css-sizing/properties/height",
-        "css-backgrounds/properties/background-color"
+        "css-backgrounds/properties/background-color",
+        "css-backgrounds/properties/background-image",
+        "css-backgrounds/properties/background-repeat",
+        "css-backgrounds/properties/background-position",
+        "css-backgrounds/properties/background-size"
       ],
       "sourceKeys": ["css-color", "css-color-mix", "css-values", "css-sizing", "css-backgrounds"]
     },
@@ -72,7 +88,11 @@
         "css-values/types/url",
         "css-sizing/properties/width",
         "css-sizing/properties/height",
-        "css-backgrounds/properties/background-color"
+        "css-backgrounds/properties/background-color",
+        "css-backgrounds/properties/background-image",
+        "css-backgrounds/properties/background-repeat",
+        "css-backgrounds/properties/background-position",
+        "css-backgrounds/properties/background-size"
       ],
       "sourceKeys": [
         "css.properties.color",
@@ -81,7 +101,11 @@
         "css.types.url",
         "css.properties.width",
         "css.properties.height",
-        "css.properties.background-color"
+        "css.properties.background-color",
+        "css.properties.background-image",
+        "css.properties.background-repeat",
+        "css.properties.background-position",
+        "css.properties.background-size"
       ]
     }
   ],
@@ -183,6 +207,62 @@
         "WPT css/css-backgrounds/parsing/background-color-valid.html",
         "css-background-color-red-advisory",
         "css-background-color-green-hex-advisory"
+      ]
+    },
+    {
+      "id": "css-backgrounds/properties/background-image",
+      "webrefId": "css-backgrounds/properties/background-image",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-backgrounds/#background-image",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-transform-passes",
+      "evidence": [
+        "WPT css/css-backgrounds/parsing/background-image-valid.html",
+        "css-background-image-none-advisory"
+      ]
+    },
+    {
+      "id": "css-backgrounds/properties/background-repeat",
+      "webrefId": "css-backgrounds/properties/background-repeat",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-backgrounds/#background-repeat",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-transform-passes",
+      "evidence": [
+        "WPT css/css-backgrounds/parsing/background-repeat-valid.html",
+        "css-background-repeat-repeat-advisory"
+      ]
+    },
+    {
+      "id": "css-backgrounds/properties/background-position",
+      "webrefId": "css-backgrounds/properties/background-position",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-backgrounds/#background-position",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-transform-passes",
+      "evidence": [
+        "WPT css/css-backgrounds/parsing/background-position-valid.html",
+        "css-background-position-top-left-advisory"
+      ]
+    },
+    {
+      "id": "css-backgrounds/properties/background-size",
+      "webrefId": "css-backgrounds/properties/background-size",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-backgrounds/#background-size",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-transform-passes",
+      "evidence": [
+        "WPT css/css-backgrounds/parsing/background-size-valid.html",
+        "css-background-size-cover-advisory"
       ]
     },
     {

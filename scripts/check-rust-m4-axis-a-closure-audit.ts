@@ -90,9 +90,9 @@ assert.ok(
 );
 assert.ok(
   wptSparsePathFixtureCounts.some(
-    (count) => count.sparsePath === "css/css-backgrounds" && count.fixtureCount >= 2,
+    (count) => count.sparsePath === "css/css-backgrounds" && count.fixtureCount >= 6,
   ),
-  "css-backgrounds WPT coverage must retain the background-color advisory fixture set",
+  "css-backgrounds WPT coverage must retain the background longhand advisory fixture set",
 );
 assert.deepEqual(
   wptManifest.sparsePathFixtureCounts,
@@ -141,6 +141,36 @@ for (const evidence of [
 const cssBackgroundColorEntry = specManifest.entries.find(
   (entry) => entry.id === "css-backgrounds/properties/background-color",
 );
+const cssBackgroundLonghandEntries = [
+  {
+    id: "css-backgrounds/properties/background-image",
+    evidence: [
+      "WPT css/css-backgrounds/parsing/background-image-valid.html",
+      "css-background-image-none-advisory",
+    ],
+  },
+  {
+    id: "css-backgrounds/properties/background-repeat",
+    evidence: [
+      "WPT css/css-backgrounds/parsing/background-repeat-valid.html",
+      "css-background-repeat-repeat-advisory",
+    ],
+  },
+  {
+    id: "css-backgrounds/properties/background-position",
+    evidence: [
+      "WPT css/css-backgrounds/parsing/background-position-valid.html",
+      "css-background-position-top-left-advisory",
+    ],
+  },
+  {
+    id: "css-backgrounds/properties/background-size",
+    evidence: [
+      "WPT css/css-backgrounds/parsing/background-size-valid.html",
+      "css-background-size-cover-advisory",
+    ],
+  },
+] as const;
 const cssSizingHeightEntry = specManifest.entries.find(
   (entry) => entry.id === "css-sizing/properties/height",
 );
@@ -173,6 +203,18 @@ for (const evidence of [
     cssBackgroundColorEntry.evidence?.includes(evidence),
     `css-backgrounds background-color spec audit evidence must include ${evidence}`,
   );
+}
+for (const requiredEntry of cssBackgroundLonghandEntries) {
+  const backgroundEntry = specManifest.entries.find((entry) => entry.id === requiredEntry.id);
+  assert.ok(backgroundEntry, `spec audit must retain ${requiredEntry.id} coverage`);
+  assert.equal(backgroundEntry.priority, "P0");
+  assert.equal(backgroundEntry.status, "covered");
+  for (const evidence of requiredEntry.evidence) {
+    assert.ok(
+      backgroundEntry.evidence?.includes(evidence),
+      `${requiredEntry.id} spec audit evidence must include ${evidence}`,
+    );
+  }
 }
 const specSourceLinkedEntries = specManifest.entries.filter((entry) =>
   sourceNames.has(entry.sourceName),
@@ -218,6 +260,12 @@ assert.ok(
   ),
   "cross-source spec coverage must retain css-backgrounds background-color joins",
 );
+for (const requiredEntry of cssBackgroundLonghandEntries) {
+  assert.ok(
+    specManifest.sourceCoverage.every((coverage) => coverage.entryIds.includes(requiredEntry.id)),
+    `cross-source spec coverage must retain ${requiredEntry.id} joins`,
+  );
+}
 assert.ok(
   specManifest.entries
     .filter((entry) => entry.priority === "P0")
