@@ -18,17 +18,17 @@ use super::{
     exact_class_value, finite_set_class_value, finite_values_from_facts,
     intersect_abstract_class_values, intersect_reduced_class_value_products,
     iterate_reduced_class_value_product_constraints, join_abstract_class_values,
-    join_reduced_class_value_products, narrow_abstract_property_value_for_pseudo_state,
-    prefix_class_value, prefix_suffix_class_value, project_abstract_value_selectors,
-    reduce_class_value_product, reduced_abstract_class_value_from_facts,
-    reduced_class_value_derivation_from_facts, reduced_class_value_product_is_subset,
-    reduced_class_value_product_matches_string, reduced_value_domain_kind_from_facts,
-    selector_certainty_from_facts, selector_certainty_shape_kind_from_facts,
-    selector_certainty_shape_label_from_facts, suffix_class_value,
-    summarize_abstract_class_value_provenance_tree, summarize_omena_abstract_value_domain,
-    summarize_omena_abstract_value_flow_analysis, summarize_reduced_class_value_product,
-    top_class_value, value_certainty_from_facts, value_certainty_shape_kind_from_facts,
-    value_certainty_shape_label_from_facts,
+    join_reduced_class_value_products, m4_alpha_provenance_semiring_law_reports_v0,
+    narrow_abstract_property_value_for_pseudo_state, prefix_class_value, prefix_suffix_class_value,
+    project_abstract_value_selectors, reduce_class_value_product,
+    reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
+    reduced_class_value_product_is_subset, reduced_class_value_product_matches_string,
+    reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
+    selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
+    suffix_class_value, summarize_abstract_class_value_provenance_tree,
+    summarize_omena_abstract_value_domain, summarize_omena_abstract_value_flow_analysis,
+    summarize_reduced_class_value_product, top_class_value, value_certainty_from_facts,
+    value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
 };
 use omena_incremental::OmenaIncrementalDatabaseV0;
 use std::collections::BTreeMap;
@@ -1740,6 +1740,36 @@ fn provenance_semiring_identifiers_are_stable_and_unique() {
             .collect::<std::collections::BTreeSet<_>>()
             .len(),
         identifiers.len()
+    );
+}
+
+#[test]
+fn provenance_semiring_fixture_laws_are_enforced() {
+    let reports = m4_alpha_provenance_semiring_law_reports_v0();
+
+    assert_eq!(reports.len(), 5);
+    assert!(
+        reports.iter().all(|report| report.all_fixture_laws_hold),
+        "{reports:#?}"
+    );
+    assert_eq!(
+        reports
+            .iter()
+            .map(|report| report.semiring_identifier)
+            .collect::<Vec<_>>(),
+        vec![
+            "lin01",
+            "naturalCount",
+            "tropical",
+            "viterbi",
+            "securityLabel"
+        ]
+    );
+    assert!(reports.iter().all(|report| report.schema_version == "0"));
+    assert!(
+        reports
+            .iter()
+            .all(|report| report.product == "omena-abstract-value.provenance-semiring-law-report")
     );
 }
 

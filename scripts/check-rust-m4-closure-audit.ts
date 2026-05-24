@@ -169,17 +169,20 @@ function buildTheoryClaimGuard(): {
     {
       id: "m4-alpha.qtt-semiring-algebra",
       stage: "m4-alpha",
-      status: "descriptorOnly",
-      framing: "stagedScaffold",
+      status: "partialPropertyTest",
+      framing: "partialMechanism",
       surface: "QTT provenance semiring family",
       evidencePath: "rust/crates/omena-abstract-value/src/semiring.rs",
       evidenceMarkers: [
         "pub trait ProvenanceSemiringV0",
+        "fn add(&self, lhs: &Self::Element, rhs: &Self::Element) -> Self::Element",
+        "verify_provenance_semiring_laws_on_fixtures",
+        "m4_alpha_provenance_semiring_law_reports_v0",
         "pub struct Lin01ProvenanceSemiringV0",
         "impl ProvenanceSemiringV0 for Lin01ProvenanceSemiringV0",
       ],
       nextAction:
-        "supplement algebraic operations before polynomial-semiring/ZK dependency deepening",
+        "keep partial-property wording until polynomial provenance and sheaf-valued lift land",
     },
     {
       id: "m4-alpha.grn-state-transition",
