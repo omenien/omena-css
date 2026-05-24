@@ -5,7 +5,13 @@
   "source": {
     "repository": "https://github.com/web-platform-tests/wpt",
     "pin": "web-platform-tests/wpt@37b7cece2910dfe0d7f1cf872bbb1df32c21f07f",
-    "sparsePaths": ["css/css-values", "css/css-color", "css/css-sizing", "css/css-backgrounds"],
+    "sparsePaths": [
+      "css/css-values",
+      "css/css-color",
+      "css/css-sizing",
+      "css/css-backgrounds",
+      "css/css-display"
+    ],
     "helperClasses": ["test_valid_value"],
     "layoutDependentHelpersExcluded": ["test_computed_value", "test_computed_serialization"]
   },
@@ -34,6 +40,10 @@
     {
       "sparsePath": "css/css-backgrounds",
       "fixtureCount": 6
+    },
+    {
+      "sparsePath": "css/css-display",
+      "fixtureCount": 4
     }
   ],
   "chunks": [
@@ -59,6 +69,10 @@
         {
           "sparsePath": "css/css-backgrounds",
           "fixtureCount": 0
+        },
+        {
+          "sparsePath": "css/css-display",
+          "fixtureCount": 0
         }
       ]
     },
@@ -66,8 +80,8 @@
       "chunkId": "css-values-advisory-v0",
       "path": "css-values-advisory.json",
       "stage": "stage1-advisory",
-      "sha256": "0d74803e5107d1d844920c1ceb649dd70a5da0bca46856f8df3ef47d4af99ba1",
-      "fixtureCount": 17,
+      "sha256": "ca4197f1615103d5c7bfd2e6e8b0af1b0a3554439c65dcb8abc2952295a6b666",
+      "fixtureCount": 21,
       "sparsePathFixtureCounts": [
         {
           "sparsePath": "css/css-values",
@@ -84,6 +98,10 @@
         {
           "sparsePath": "css/css-backgrounds",
           "fixtureCount": 6
+        },
+        {
+          "sparsePath": "css/css-display",
+          "fixtureCount": 4
         }
       ]
     }

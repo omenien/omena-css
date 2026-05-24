@@ -256,7 +256,8 @@ function inlineStringArrays(source: string): string {
       .trim()
       .split(/\n/)
       .map((line) => line.trim().replace(/,$/, ""));
-    return `[${values.join(", ")}]`;
+    const inlineArray = `[${values.join(", ")}]`;
+    return inlineArray.length <= 80 ? inlineArray : String(_match);
   });
 }
 

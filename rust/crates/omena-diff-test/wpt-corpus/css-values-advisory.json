@@ -148,6 +148,58 @@
       "status": "pass"
     },
     {
+      "id": "css-display-grid-advisory",
+      "wptPath": "css/css-display/parsing/display-valid.html",
+      "wptSourceLine": 19,
+      "subtest": "test_valid_value(\"display\", \"grid\")",
+      "helper": "test_valid_value",
+      "property": "display",
+      "wptValue": "grid",
+      "wptExpectedValue": "grid",
+      "source": ".css-display-grid-advisory { display: grid; }",
+      "expectedCss": ".css-display-grid-advisory{display:grid}",
+      "status": "pass"
+    },
+    {
+      "id": "css-display-inline-grid-advisory",
+      "wptPath": "css/css-display/parsing/display-valid.html",
+      "wptSourceLine": 20,
+      "subtest": "test_valid_value(\"display\", \"inline-grid\")",
+      "helper": "test_valid_value",
+      "property": "display",
+      "wptValue": "inline-grid",
+      "wptExpectedValue": "inline-grid",
+      "source": ".css-display-inline-grid-advisory { display: inline-grid; }",
+      "expectedCss": ".css-display-inline-grid-advisory{display:inline-grid}",
+      "status": "pass"
+    },
+    {
+      "id": "css-display-flex-advisory",
+      "wptPath": "css/css-display/parsing/display-valid.html",
+      "wptSourceLine": 40,
+      "subtest": "test_valid_value(\"display\", \"flex\")",
+      "helper": "test_valid_value",
+      "property": "display",
+      "wptValue": "flex",
+      "wptExpectedValue": "flex",
+      "source": ".css-display-flex-advisory { display: flex; }",
+      "expectedCss": ".css-display-flex-advisory{display:flex}",
+      "status": "pass"
+    },
+    {
+      "id": "css-display-contents-advisory",
+      "wptPath": "css/css-display/parsing/display-valid.html",
+      "wptSourceLine": 43,
+      "subtest": "test_valid_value(\"display\", \"contents\")",
+      "helper": "test_valid_value",
+      "property": "display",
+      "wptValue": "contents",
+      "wptExpectedValue": "contents",
+      "source": ".css-display-contents-advisory { display: contents; }",
+      "expectedCss": ".css-display-contents-advisory{display:contents}",
+      "status": "pass"
+    },
+    {
       "id": "css-sizing-width-min-content-advisory",
       "wptPath": "css/css-sizing/parsing/width-valid.html",
       "wptSourceLine": 15,

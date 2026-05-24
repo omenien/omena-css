@@ -79,6 +79,10 @@ assert.ok(
   "M4 Axis A must keep css-backgrounds in the pinned WPT sparse path policy",
 );
 assert.ok(
+  wptManifest.source.sparsePaths.includes("css/css-display"),
+  "M4 Axis A must keep css-display in the pinned WPT sparse path policy",
+);
+assert.ok(
   wptSparsePathFixtureCounts.every((count) => count.fixtureCount > 0),
   "every pinned WPT sparse path must have fixture coverage",
 );
@@ -93,6 +97,12 @@ assert.ok(
     (count) => count.sparsePath === "css/css-backgrounds" && count.fixtureCount >= 6,
   ),
   "css-backgrounds WPT coverage must retain the background longhand advisory fixture set",
+);
+assert.ok(
+  wptSparsePathFixtureCounts.some(
+    (count) => count.sparsePath === "css/css-display" && count.fixtureCount >= 4,
+  ),
+  "css-display WPT coverage must retain the display advisory fixture set",
 );
 assert.deepEqual(
   wptManifest.sparsePathFixtureCounts,
@@ -174,6 +184,9 @@ const cssBackgroundLonghandEntries = [
 const cssSizingHeightEntry = specManifest.entries.find(
   (entry) => entry.id === "css-sizing/properties/height",
 );
+const cssDisplayEntry = specManifest.entries.find(
+  (entry) => entry.id === "css-display/properties/display",
+);
 assert.ok(cssSizingHeightEntry, "spec audit must retain css-sizing height coverage");
 assert.equal(cssSizingHeightEntry.priority, "P0");
 assert.equal(cssSizingHeightEntry.status, "covered");
@@ -215,6 +228,21 @@ for (const requiredEntry of cssBackgroundLonghandEntries) {
       `${requiredEntry.id} spec audit evidence must include ${evidence}`,
     );
   }
+}
+assert.ok(cssDisplayEntry, "spec audit must retain css-display display coverage");
+assert.equal(cssDisplayEntry.priority, "P0");
+assert.equal(cssDisplayEntry.status, "covered");
+for (const evidence of [
+  "WPT css/css-display/parsing/display-valid.html",
+  "css-display-grid-advisory",
+  "css-display-inline-grid-advisory",
+  "css-display-flex-advisory",
+  "css-display-contents-advisory",
+] as const) {
+  assert.ok(
+    cssDisplayEntry.evidence?.includes(evidence),
+    `css-display display spec audit evidence must include ${evidence}`,
+  );
 }
 const specSourceLinkedEntries = specManifest.entries.filter((entry) =>
   sourceNames.has(entry.sourceName),
@@ -266,6 +294,12 @@ for (const requiredEntry of cssBackgroundLonghandEntries) {
     `cross-source spec coverage must retain ${requiredEntry.id} joins`,
   );
 }
+assert.ok(
+  specManifest.sourceCoverage.every((coverage) =>
+    coverage.entryIds.includes("css-display/properties/display"),
+  ),
+  "cross-source spec coverage must retain css-display display joins",
+);
 assert.ok(
   specManifest.entries
     .filter((entry) => entry.priority === "P0")
