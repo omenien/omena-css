@@ -189,10 +189,18 @@ assertIncludes(checker, "DesignerIntentInconsistency", "checker must register va
 assertIncludes(checker, "StreamingIfdsPrecisionParity", "checker must register streaming IFDS parity lint");
 
 const zkAudit = read("rust/crates/omena-zk-audit/src/lib.rs");
+const packageJson = read("package.json");
 assertIncludes(zkAudit, "SetupKindV0::Halo2Ipa", "ZK audit default must be Halo2+IPA");
 assertIncludes(zkAudit, '"default", "zk-audit", "zk-audit-stark", "zk-audit-binius"', "ZK audit must expose four CI matrix cells");
 assertIncludes(zkAudit, "zk_audit_fold_chain_v0", "ZK audit must expose fold-chain evidence");
 assertIncludes(zkAudit, 'recursion_overhead: "O(1)"', "ZK audit fold-chain must pin O(1) recursion overhead");
+assertIncludes(
+  packageJson,
+  "check:rust-m4-gamma-zk-audit-matrix",
+  "M4-gamma readiness must exercise the four ZK audit matrix cells",
+);
+assertIncludes(packageJson, "--features zk-audit-stark", "ZK audit matrix must exercise the STARK cell");
+assertIncludes(packageJson, "--features zk-audit-binius", "ZK audit matrix must exercise the Binius cell");
 const omenaCliManifest = read("rust/crates/omena-cli/Cargo.toml");
 const omenaCli = read("rust/crates/omena-cli/src/main.rs");
 assertIncludes(omenaCliManifest, 'zk-audit = ["dep:omena-zk-audit"]', "omena-cli must gate ZK audit CLI behind feature");
