@@ -32,7 +32,7 @@ const didOpenSourceNotification = {
       uri: "file:///tmp/cme-rust-lsp-shell/src/App.tsx",
       languageId: "typescriptreact",
       version: 1,
-      text: "const tone = 'blue';",
+      text: "import styles from \"./App.module.scss\"; const view = <div className={styles.root} />; const tone = 'blue';",
     },
   },
 };
@@ -47,8 +47,8 @@ const didChangeSourceNotification = {
     contentChanges: [
       {
         range: {
-          start: { line: 0, character: 14 },
-          end: { line: 0, character: 18 },
+          start: { line: 0, character: 100 },
+          end: { line: 0, character: 104 },
         },
         text: "red",
       },
@@ -231,7 +231,7 @@ assert.deepEqual(debugStateResponse.result.documents, [
     workspaceFolderUri: "file:///tmp/cme-rust-lsp-shell",
     languageId: "typescriptreact",
     version: 2,
-    text: "const tone = 'red';",
+    text: "import styles from \"./App.module.scss\"; const view = <div className={styles.root} />; const tone = 'red';",
     styleSummary: null,
   },
 ]);
@@ -255,7 +255,7 @@ assert.deepEqual(runtimeChangeResponse.result.documents, [
     workspaceFolderUri: null,
     languageId: "typescriptreact",
     version: 2,
-    text: "const tone = 'red';",
+    text: "import styles from \"./App.module.scss\"; const view = <div className={styles.root} />; const tone = 'red';",
     styleSummary: null,
   },
 ]);

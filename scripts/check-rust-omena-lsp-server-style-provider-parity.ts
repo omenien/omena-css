@@ -10,6 +10,7 @@ import { parseStyleDocument } from "../server/engine-core-ts/src/core/scss/scss-
 
 const workspaceUri = "file:///tmp/cme-rust-lsp-style-provider";
 const stylePath = "/tmp/cme-rust-lsp-style-provider/src/App.module.scss";
+const otherStylePath = "/tmp/cme-rust-lsp-style-provider/src/Other.module.scss";
 const styleUri = `${workspaceUri}/src/App.module.scss`;
 const otherStyleUri = `${workspaceUri}/src/Other.module.scss`;
 const sourceUri = `${workspaceUri}/src/App.tsx`;
@@ -81,6 +82,7 @@ const missingCustomPropertyReferenceQueryPosition = {
 };
 
 const nodeStyleDocument = parseStyleDocument(styleText, stylePath);
+const nodeOtherStyleDocument = parseStyleDocument(otherStyleText, otherStylePath);
 const nodeSelector = findSelectorAtCursor(
   nodeStyleDocument,
   selectorQueryPosition.line,
@@ -100,6 +102,14 @@ assert.ok(
   nodeConditionalSelector,
   "node conditional selector fixture did not produce a hover target",
 );
+const nodeOtherRootSelector = findSelectorAtCursor(nodeOtherStyleDocument, 0, 2);
+assert.ok(nodeOtherRootSelector, "node other root selector fixture did not produce a target");
+const nodeOtherThemeSelector = findSelectorAtCursor(nodeOtherStyleDocument, 1, 2);
+assert.ok(nodeOtherThemeSelector, "node other theme selector fixture did not produce a target");
+const nodeOtherGhostSelector = findSelectorAtCursor(nodeOtherStyleDocument, 2, 2);
+assert.ok(nodeOtherGhostSelector, "node other ghost selector fixture did not produce a target");
+const nodeOtherCardSelector = findSelectorAtCursor(nodeOtherStyleDocument, 3, 2);
+assert.ok(nodeOtherCardSelector, "node other card selector fixture did not produce a target");
 const nodeCustomPropertyReference = findCustomPropertyRefAtCursor(
   nodeStyleDocument,
   customPropertyReferenceQueryPosition.line,
@@ -178,6 +188,24 @@ const expectedMissingImportedSelectorDiagnostic = {
     },
   },
 };
+const expectedUnusedAlertSelectorDiagnostic = unusedSelectorDiagnostic(nodeAlertSelector);
+const expectedUnusedConditionalSelectorDiagnostic =
+  unusedSelectorDiagnostic(nodeConditionalSelector);
+const expectedUnusedOtherRootSelectorDiagnostic = unusedSelectorDiagnostic(nodeOtherRootSelector);
+const expectedUnusedOtherThemeSelectorDiagnostic = unusedSelectorDiagnostic(nodeOtherThemeSelector);
+const expectedUnusedOtherGhostSelectorDiagnostic = unusedSelectorDiagnostic(nodeOtherGhostSelector);
+const expectedUnusedOtherCardSelectorDiagnostic = unusedSelectorDiagnostic(nodeOtherCardSelector);
+const expectedAppStyleDiagnostics = [
+  expectedMissingCustomPropertyDiagnostic,
+  expectedUnusedAlertSelectorDiagnostic,
+  expectedUnusedConditionalSelectorDiagnostic,
+];
+const expectedOtherStyleDiagnostics = [
+  expectedUnusedOtherRootSelectorDiagnostic,
+  expectedUnusedOtherThemeSelectorDiagnostic,
+  expectedUnusedOtherGhostSelectorDiagnostic,
+  expectedUnusedOtherCardSelectorDiagnostic,
+];
 
 const initializeRequest = {
   jsonrpc: "2.0",
@@ -750,7 +778,7 @@ assert.deepEqual(diagnosticNotifications, [
     method: "textDocument/publishDiagnostics",
     params: {
       uri: styleUri,
-      diagnostics: [expectedMissingCustomPropertyDiagnostic],
+      diagnostics: expectedAppStyleDiagnostics,
     },
   },
   {
@@ -766,7 +794,7 @@ assert.deepEqual(diagnosticNotifications, [
     method: "textDocument/publishDiagnostics",
     params: {
       uri: otherStyleUri,
-      diagnostics: [],
+      diagnostics: expectedOtherStyleDiagnostics,
     },
   },
   {
@@ -844,7 +872,7 @@ assert.deepEqual(
 
 const styleDiagnosticsResponse = responses[8]!;
 assert.equal(styleDiagnosticsResponse.id, 9);
-assert.deepEqual(styleDiagnosticsResponse.result, [expectedMissingCustomPropertyDiagnostic]);
+assert.deepEqual(styleDiagnosticsResponse.result, expectedAppStyleDiagnostics);
 
 const lspCodeActionResponse = responses[9]!;
 assert.equal(lspCodeActionResponse.id, 10);
@@ -1342,6 +1370,35 @@ function documentEndRange(text: string): {
   return {
     start: position,
     end: position,
+  };
+}
+
+function unusedSelectorDiagnostic(selector: { readonly name: string; readonly range: unknown }): {
+  readonly range: unknown;
+  readonly severity: 4;
+  readonly source: "css-module-explainer";
+  readonly code: "unusedSelector";
+  readonly message: string;
+  readonly data: {
+    readonly querySeverity: "hint";
+    readonly provenance: readonly [
+      "omena-parser.selector-facts",
+      "omena-query.source-selector-usage",
+    ];
+  };
+  readonly tags: readonly [1];
+} {
+  return {
+    range: selector.range,
+    severity: 4,
+    source: "css-module-explainer",
+    code: "unusedSelector",
+    message: `Selector '.${selector.name}' is declared but never used.`,
+    data: {
+      querySeverity: "hint",
+      provenance: ["omena-parser.selector-facts", "omena-query.source-selector-usage"],
+    },
+    tags: [1],
   };
 }
 
