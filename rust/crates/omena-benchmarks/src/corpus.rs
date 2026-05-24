@@ -70,6 +70,12 @@ pub fn style_corpus() -> Vec<StyleSample> {
             source: build_css_position_layout_corpus(96),
         },
         StyleSample {
+            name: "css-ui-box-model-corpus",
+            path: "BoxModel.module.css",
+            dialect: StyleDialect::Css,
+            source: build_css_ui_box_model_corpus(96),
+        },
+        StyleSample {
             name: "scss-heavy-design-system",
             path: "DesignSystem.module.scss",
             dialect: StyleDialect::Scss,
@@ -236,6 +242,26 @@ fn build_css_position_layout_corpus(count: usize) -> String {
 "#,
             position = position_values[index % position_values.len()],
             offset = index % 24,
+        ));
+    }
+    source
+}
+
+fn build_css_ui_box_model_corpus(count: usize) -> String {
+    let box_sizing_values = ["content-box", "border-box"];
+    let mut source = String::new();
+    for index in 0..count {
+        source.push_str(&format!(
+            r#"
+.boxModel{index} {{
+  box-sizing: {box_sizing};
+  inline-size: {width}px;
+  block-size: {height}px;
+}}
+"#,
+            box_sizing = box_sizing_values[index % box_sizing_values.len()],
+            width = (index % 32) + 16,
+            height = (index % 24) + 12,
         ));
     }
     source

@@ -124,6 +124,7 @@ for (const marker of [
   "css-backgrounds-longhand-corpus",
   "css-display-layout-corpus",
   "css-position-layout-corpus",
+  "css-ui-box-model-corpus",
 ] as const) {
   assertIncludes(benchmarksCorpus, marker, `benchmark corpus split must retain ${marker}`);
 }

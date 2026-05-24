@@ -13,7 +13,8 @@
       "css/css-sizing",
       "css/css-backgrounds",
       "css/css-display",
-      "css/css-position"
+      "css/css-position",
+      "css/css-ui"
     ],
     "helperClasses": ["test_valid_value"],
     "layoutDependentHelpersExcluded": ["test_computed_value", "test_computed_serialization"]
@@ -692,6 +693,32 @@
           "wptExpectedValue": "fit-content(10%)",
           "source": ".css-sizing-height-fit-content-advisory { height: fit-content(10%); }",
           "expectedCss": ".css-sizing-height-fit-content-advisory{height:fit-content(10%)}",
+          "status": "pass"
+        },
+        {
+          "id": "css-ui-box-sizing-content-box-advisory",
+          "wptPath": "css/css-ui/parsing/box-sizing-valid.html",
+          "wptSourceLine": 15,
+          "subtest": "test_valid_value(\"box-sizing\", \"content-box\")",
+          "helper": "test_valid_value",
+          "property": "box-sizing",
+          "wptValue": "content-box",
+          "wptExpectedValue": "content-box",
+          "source": ".css-ui-box-sizing-content-box-advisory { box-sizing: content-box; }",
+          "expectedCss": ".css-ui-box-sizing-content-box-advisory{box-sizing:content-box}",
+          "status": "pass"
+        },
+        {
+          "id": "css-ui-box-sizing-border-box-advisory",
+          "wptPath": "css/css-ui/parsing/box-sizing-valid.html",
+          "wptSourceLine": 16,
+          "subtest": "test_valid_value(\"box-sizing\", \"border-box\")",
+          "helper": "test_valid_value",
+          "property": "box-sizing",
+          "wptValue": "border-box",
+          "wptExpectedValue": "border-box",
+          "source": ".css-ui-box-sizing-border-box-advisory { box-sizing: border-box; }",
+          "expectedCss": ".css-ui-box-sizing-border-box-advisory{box-sizing:border-box}",
           "status": "pass"
         }
       ]

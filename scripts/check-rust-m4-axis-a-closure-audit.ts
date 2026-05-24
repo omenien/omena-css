@@ -87,6 +87,10 @@ assert.ok(
   "M4 Axis A must keep css-position in the pinned WPT sparse path policy",
 );
 assert.ok(
+  wptManifest.source.sparsePaths.includes("css/css-ui"),
+  "M4 Axis A must keep css-ui in the pinned WPT sparse path policy",
+);
+assert.ok(
   wptSparsePathFixtureCounts.every((count) => count.fixtureCount > 0),
   "every pinned WPT sparse path must have fixture coverage",
 );
@@ -113,6 +117,12 @@ assert.ok(
     (count) => count.sparsePath === "css/css-position" && count.fixtureCount >= 5,
   ),
   "css-position WPT coverage must retain the position advisory fixture set",
+);
+assert.ok(
+  wptSparsePathFixtureCounts.some(
+    (count) => count.sparsePath === "css/css-ui" && count.fixtureCount >= 2,
+  ),
+  "css-ui WPT coverage must retain the box-sizing advisory fixture set",
 );
 assert.deepEqual(
   wptManifest.sparsePathFixtureCounts,
@@ -200,6 +210,9 @@ const cssDisplayEntry = specManifest.entries.find(
 const cssPositionEntry = specManifest.entries.find(
   (entry) => entry.id === "css-position/properties/position",
 );
+const cssUiBoxSizingEntry = specManifest.entries.find(
+  (entry) => entry.id === "css-ui/properties/box-sizing",
+);
 assert.ok(cssSizingHeightEntry, "spec audit must retain css-sizing height coverage");
 assert.equal(cssSizingHeightEntry.priority, "P0");
 assert.equal(cssSizingHeightEntry.status, "covered");
@@ -273,6 +286,19 @@ for (const evidence of [
     `css-position position spec audit evidence must include ${evidence}`,
   );
 }
+assert.ok(cssUiBoxSizingEntry, "spec audit must retain css-ui box-sizing coverage");
+assert.equal(cssUiBoxSizingEntry.priority, "P0");
+assert.equal(cssUiBoxSizingEntry.status, "covered");
+for (const evidence of [
+  "WPT css/css-ui/parsing/box-sizing-valid.html",
+  "css-ui-box-sizing-content-box-advisory",
+  "css-ui-box-sizing-border-box-advisory",
+] as const) {
+  assert.ok(
+    cssUiBoxSizingEntry.evidence?.includes(evidence),
+    `css-ui box-sizing spec audit evidence must include ${evidence}`,
+  );
+}
 const specSourceLinkedEntries = specManifest.entries.filter((entry) =>
   sourceNames.has(entry.sourceName),
 );
@@ -334,6 +360,12 @@ assert.ok(
     coverage.entryIds.includes("css-position/properties/position"),
   ),
   "cross-source spec coverage must retain css-position position joins",
+);
+assert.ok(
+  specManifest.sourceCoverage.every((coverage) =>
+    coverage.entryIds.includes("css-ui/properties/box-sizing"),
+  ),
+  "cross-source spec coverage must retain css-ui box-sizing joins",
 );
 assert.ok(
   specManifest.entries

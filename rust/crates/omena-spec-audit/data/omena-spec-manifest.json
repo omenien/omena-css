@@ -20,6 +20,7 @@
         "css-backgrounds/properties/background-size",
         "css-display/properties/display",
         "css-position/properties/position",
+        "css-ui/properties/box-sizing",
         "css-mixins/atrules/@function"
       ],
       "sourceKeys": [
@@ -36,6 +37,7 @@
         "css-backgrounds/properties/background-size",
         "css-display/properties/display",
         "css-position/properties/position",
+        "css-ui/properties/box-sizing",
         "css-mixins/atrules/@function"
       ]
     },
@@ -56,6 +58,7 @@
         "css-backgrounds/properties/background-size",
         "css-display/properties/display",
         "css-position/properties/position",
+        "css-ui/properties/box-sizing",
         "css-mixins/atrules/@function"
       ],
       "sourceKeys": [
@@ -65,6 +68,7 @@
         "https://drafts.csswg.org/css-backgrounds/",
         "https://drafts.csswg.org/css-display/",
         "https://drafts.csswg.org/css-position/",
+        "https://drafts.csswg.org/css-ui/",
         "https://drafts.csswg.org/css-mixins-1/"
       ]
     },
@@ -84,7 +88,8 @@
         "css-backgrounds/properties/background-position",
         "css-backgrounds/properties/background-size",
         "css-display/properties/display",
-        "css-position/properties/position"
+        "css-position/properties/position",
+        "css-ui/properties/box-sizing"
       ],
       "sourceKeys": [
         "css-color",
@@ -93,7 +98,8 @@
         "css-sizing",
         "css-backgrounds",
         "css-display",
-        "css-position"
+        "css-position",
+        "css-ui"
       ]
     },
     {
@@ -112,7 +118,8 @@
         "css-backgrounds/properties/background-position",
         "css-backgrounds/properties/background-size",
         "css-display/properties/display",
-        "css-position/properties/position"
+        "css-position/properties/position",
+        "css-ui/properties/box-sizing"
       ],
       "sourceKeys": [
         "css.properties.color",
@@ -127,7 +134,8 @@
         "css.properties.background-position",
         "css.properties.background-size",
         "css.properties.display",
-        "css.properties.position"
+        "css.properties.position",
+        "css.properties.box-sizing"
       ]
     }
   ],
@@ -322,6 +330,22 @@
         "css-position-absolute-advisory",
         "css-position-sticky-advisory",
         "css-position-fixed-advisory"
+      ]
+    },
+    {
+      "id": "css-ui/properties/box-sizing",
+      "webrefId": "css-ui/properties/box-sizing",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-ui-3/#box-sizing",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-parser",
+      "evidence": [
+        "SyntaxKind::Declaration",
+        "WPT css/css-ui/parsing/box-sizing-valid.html",
+        "css-ui-box-sizing-content-box-advisory",
+        "css-ui-box-sizing-border-box-advisory"
       ]
     },
     {

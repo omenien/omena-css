@@ -11,7 +11,8 @@
       "css/css-sizing",
       "css/css-backgrounds",
       "css/css-display",
-      "css/css-position"
+      "css/css-position",
+      "css/css-ui"
     ],
     "helperClasses": ["test_valid_value"],
     "layoutDependentHelpersExcluded": ["test_computed_value", "test_computed_serialization"]
@@ -49,6 +50,10 @@
     {
       "sparsePath": "css/css-position",
       "fixtureCount": 5
+    },
+    {
+      "sparsePath": "css/css-ui",
+      "fixtureCount": 2
     }
   ],
   "chunks": [
@@ -82,6 +87,10 @@
         {
           "sparsePath": "css/css-position",
           "fixtureCount": 0
+        },
+        {
+          "sparsePath": "css/css-ui",
+          "fixtureCount": 0
         }
       ]
     },
@@ -89,8 +98,8 @@
       "chunkId": "css-values-advisory-v0",
       "path": "css-values-advisory.json",
       "stage": "stage1-advisory",
-      "sha256": "1c55827fbab5381ea9f2dc5c29cef2b8a4b02ea5f1826c9d12d67a9376eb7c4f",
-      "fixtureCount": 26,
+      "sha256": "5d4c860f46a6fb58b65c4518e8c769af9950451217108c552cf6ea13ad379885",
+      "fixtureCount": 28,
       "sparsePathFixtureCounts": [
         {
           "sparsePath": "css/css-values",
@@ -115,6 +124,10 @@
         {
           "sparsePath": "css/css-position",
           "fixtureCount": 5
+        },
+        {
+          "sparsePath": "css/css-ui",
+          "fixtureCount": 2
         }
       ]
     }
