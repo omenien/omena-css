@@ -429,7 +429,8 @@
         "WPT css/css-transforms/parsing/transform-valid.html",
         "css-transforms-none-advisory",
         "css-transforms-translate-x-advisory",
-        "css-transforms-rotate-advisory"
+        "css-transforms-rotate-advisory",
+        "css-transforms-scale-advisory"
       ]
     },
     {

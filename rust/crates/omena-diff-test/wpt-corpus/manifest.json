@@ -60,7 +60,7 @@
     },
     {
       "sparsePath": "css/css-transforms",
-      "fixtureCount": 3
+      "fixtureCount": 4
     },
     {
       "sparsePath": "css/css-fonts",
@@ -125,8 +125,8 @@
       "chunkId": "css-values-advisory-v0",
       "path": "css-values-advisory.json",
       "stage": "stage1-advisory",
-      "sha256": "0d7952d278392e110a7c155c83ccd67b5770dcc2f304a959d4211229c423d435",
-      "fixtureCount": 39,
+      "sha256": "d73be60fcbbe702c7588e8caabd6f3dfbdca5475b0e4089355f211b1dc563bd7",
+      "fixtureCount": 40,
       "sparsePathFixtureCounts": [
         {
           "sparsePath": "css/css-values",
@@ -158,7 +158,7 @@
         },
         {
           "sparsePath": "css/css-transforms",
-          "fixtureCount": 3
+          "fixtureCount": 4
         },
         {
           "sparsePath": "css/css-fonts",

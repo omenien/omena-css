@@ -777,6 +777,19 @@
           "status": "pass"
         },
         {
+          "id": "css-transforms-scale-advisory",
+          "wptPath": "css/css-transforms/parsing/transform-valid.html",
+          "wptSourceLine": 28,
+          "subtest": "test_valid_value(\"transform\", \"scale(2)\")",
+          "helper": "test_valid_value",
+          "property": "transform",
+          "wptValue": "scale(2)",
+          "wptExpectedValue": "scale(2)",
+          "source": ".css-transforms-scale-advisory { transform: scale(2); }",
+          "expectedCss": ".css-transforms-scale-advisory{transform:scale(2)}",
+          "status": "pass"
+        },
+        {
           "id": "css-fonts-font-weight-normal-advisory",
           "wptPath": "css/css-fonts/parsing/font-weight-valid.html",
           "wptSourceLine": 14,

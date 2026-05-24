@@ -138,9 +138,9 @@ assert.ok(
 );
 assert.ok(
   wptSparsePathFixtureCounts.some(
-    (count) => count.sparsePath === "css/css-transforms" && count.fixtureCount >= 3,
+    (count) => count.sparsePath === "css/css-transforms" && count.fixtureCount >= 4,
   ),
-  "css-transforms WPT coverage must retain the transform advisory fixture set",
+  "css-transforms WPT coverage must retain the expanded transform advisory fixture set",
 );
 assert.ok(
   wptSparsePathFixtureCounts.some(
@@ -365,6 +365,7 @@ for (const evidence of [
   "css-transforms-none-advisory",
   "css-transforms-translate-x-advisory",
   "css-transforms-rotate-advisory",
+  "css-transforms-scale-advisory",
 ] as const) {
   assert.ok(
     cssTransformsEntry.evidence?.includes(evidence),
