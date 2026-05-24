@@ -108,6 +108,13 @@ fn read_cascade_at_position_can_attach_categorical_evidence_when_requested() {
     assert_eq!(evidence.schema_version, "0");
     assert_eq!(evidence.layer_marker, "categorical-semantic");
     assert_eq!(evidence.endpoint_count, 10);
+    assert_eq!(evidence.fixture_evidence.len(), 10);
+    assert!(
+        evidence
+            .fixture_evidence
+            .iter()
+            .all(|fixture| fixture.accepted)
+    );
     assert!(
         evidence
             .endpoints

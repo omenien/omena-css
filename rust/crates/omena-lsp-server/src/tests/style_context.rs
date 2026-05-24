@@ -99,6 +99,21 @@ fn resolves_query_owned_cascade_and_context_requests_from_opened_style_documents
             .and_then(|value| value.pointer("/result/categoricalEvidence/endpointCount")),
         Some(&json!(10)),
     );
+    assert_eq!(
+        categorical_response.as_ref().and_then(|value| {
+            value
+                .pointer("/result/categoricalEvidence/fixtureEvidence")
+                .and_then(Value::as_array)
+                .map(Vec::len)
+        }),
+        Some(10),
+    );
+    assert_eq!(
+        categorical_response.as_ref().and_then(|value| {
+            value.pointer("/result/categoricalEvidence/fixtureEvidence/0/accepted")
+        }),
+        Some(&json!(true)),
+    );
 
     let context_response = handle_lsp_message(
         &mut state,

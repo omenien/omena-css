@@ -108,8 +108,42 @@ for (const primitive of [
 }
 assertIncludes(categorical, "contract_count: 26", "omena-categorical must pin 26 V0 contracts");
 assertIncludes(categorical, "CategoricalCascadeEvidenceV0", "omena-categorical must expose cascade evidence");
+assertIncludes(
+  categorical,
+  "CategoricalEndpointFixtureEvidenceV0",
+  "omena-categorical must expose fixture-backed endpoint evidence",
+);
+assertIncludes(
+  categorical,
+  "CategoricalFixtureAssertionV0",
+  "omena-categorical must expose fixture assertions for endpoint evidence",
+);
+assertIncludes(
+  categorical,
+  "categorical_fixture_evidence_for_endpoint_v0",
+  "omena-categorical must back endpoints with fixture evidence",
+);
+assertIncludes(
+  categorical,
+  "fixture_evidence",
+  "categorical cascade evidence must include endpoint fixture evidence",
+);
 for (const endpointId of categoricalEndpointIds) {
   assertIncludes(categorical, endpointId, "omena-categorical must expose all 10 cme-check endpoints");
+}
+for (const fixtureId of [
+  "fixture.categorical.site-stability.v0",
+  "fixture.categorical.cosheaf-covariance.v0",
+  "fixture.categorical.beck-chevalley.v0",
+  "fixture.categorical.omega-truth.v0",
+  "fixture.categorical.s4-axioms.v0",
+  "fixture.categorical.modal-imperative-equivalence.v0",
+  "fixture.categorical.invariant-functoriality.v0",
+  "fixture.categorical.design-system-theory-compare.v0",
+  "fixture.categorical.kripke-frame.v0",
+  "fixture.categorical.cross-project-symmetry.v0",
+]) {
+  assertIncludes(categorical, fixtureId, "omena-categorical must expose fixture-backed evidence IDs");
 }
 
 const queryTypes = read("rust/crates/omena-query/src/types.rs");
