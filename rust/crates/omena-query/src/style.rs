@@ -20,8 +20,8 @@ pub use completion::*;
 #[cfg(feature = "hypergraph-ifds")]
 pub use cross_file_hypergraph::*;
 use cross_file_hypergraph::{
-    HypergraphClosureOptions, HypergraphClosurePath, collect_hypergraph_transitive_closure_paths,
-    collect_hypergraph_transitive_closure_paths_with_options,
+    HypergraphClosureMode, HypergraphClosurePath, collect_hypergraph_transitive_closure_paths,
+    collect_hypergraph_transitive_closure_paths_with_mode,
 };
 use cross_file_summary::summarize_omena_query_cross_file_summary;
 pub use cross_file_summary::{
@@ -408,10 +408,10 @@ fn summarize_sass_module_graph_closure(
             .or_insert_with(|| SassModuleGraphClosureStepMetadata::from(edge));
     }
 
-    let (closure_paths, cycle_paths) = collect_hypergraph_transitive_closure_paths_with_options(
+    let (closure_paths, cycle_paths) = collect_hypergraph_transitive_closure_paths_with_mode(
         &graph,
         &mut |style_path: &String| style_path.clone(),
-        HypergraphClosureOptions::raw_all_paths(),
+        HypergraphClosureMode::RawAllPaths,
     );
     let mut closure_edges = closure_paths
         .into_iter()

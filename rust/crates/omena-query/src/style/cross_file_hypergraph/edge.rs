@@ -42,22 +42,6 @@ impl UnifiedHypergraphEdgeKindV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct UnifiedHypergraphEdgeLabelV0 {
-    pub schema_version: &'static str,
-    pub product: &'static str,
-    pub layer_marker: &'static str,
-    pub feature_gate: &'static str,
-    pub source_summary_edge_id: String,
-    pub source_edge_kind: &'static str,
-    pub source_status: &'static str,
-    pub source: Option<String>,
-    pub local_name: Option<String>,
-    pub remote_name: Option<String>,
-    pub target_names: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct UnifiedHypergraphHyperedgeV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -65,33 +49,12 @@ pub struct UnifiedHypergraphHyperedgeV0 {
     pub feature_gate: &'static str,
     pub hyperedge_id: String,
     pub edge_kind: UnifiedHypergraphEdgeKindV0,
+    pub source_summary_edge_id: String,
+    pub source_edge_kind: &'static str,
+    pub source_status: &'static str,
     pub tail_node_ids: Vec<String>,
     pub head_node_id: String,
-    pub label: UnifiedHypergraphEdgeLabelV0,
-    pub lattice_effect: super::lattice::SummaryLatticeElementV0,
     pub order_significant_tail: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HypergraphIFDSProvenanceLabelV0 {
-    pub schema_version: &'static str,
-    pub product: &'static str,
-    pub layer_marker: &'static str,
-    pub feature_gate: &'static str,
-    pub semiring_payload: HypergraphIFDSSemiringPayloadV0,
-    pub legacy_labels: Vec<&'static str>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase", tag = "kind")]
-pub enum HypergraphIFDSSemiringPayloadV0 {
-    Lin01 {
-        linear_provenance: OmenaQueryLinearProvenanceV0,
-    },
-    Opaque {
-        labels: Vec<&'static str>,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -108,5 +71,6 @@ pub struct HypergraphIFDSSummaryEdgeV0 {
     pub to_node_id: String,
     pub edge_kind: UnifiedHypergraphEdgeKindV0,
     pub status: &'static str,
-    pub provenance: HypergraphIFDSProvenanceLabelV0,
+    pub provenance: Vec<&'static str>,
+    pub linear_provenance: OmenaQueryLinearProvenanceV0,
 }

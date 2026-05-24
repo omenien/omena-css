@@ -11,37 +11,9 @@ pub(in crate::style) struct HypergraphClosurePath<N> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::style) enum HypergraphClosureCycleMode {
-    Canonical,
-    Path,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::style) enum HypergraphClosureVisitMode {
-    FirstTarget,
-    AllPaths,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::style) struct HypergraphClosureOptions {
-    pub cycle_mode: HypergraphClosureCycleMode,
-    pub visit_mode: HypergraphClosureVisitMode,
-}
-
-impl HypergraphClosureOptions {
-    pub const fn canonical_first_target() -> Self {
-        Self {
-            cycle_mode: HypergraphClosureCycleMode::Canonical,
-            visit_mode: HypergraphClosureVisitMode::FirstTarget,
-        }
-    }
-
-    pub const fn raw_all_paths() -> Self {
-        Self {
-            cycle_mode: HypergraphClosureCycleMode::Path,
-            visit_mode: HypergraphClosureVisitMode::AllPaths,
-        }
-    }
+pub(in crate::style) enum HypergraphClosureMode {
+    CanonicalFirstTarget,
+    RawAllPaths,
 }
 
 pub trait OmenaUnifiedHypergraphConnectivityOracle {
@@ -64,18 +36,13 @@ impl OmenaUnifiedHypergraphConnectivityOracle for BatchHypergraphConnectivityOra
         let adjacency = build_adjacency(hyperedges);
         let mut seen = BTreeSet::new();
         let mut pending = VecDeque::from([start_node_id.to_string()]);
-
         while let Some(current) = pending.pop_front() {
-            let Some(targets) = adjacency.get(current.as_str()) else {
-                continue;
-            };
-            for target in targets {
+            for target in adjacency.get(current.as_str()).into_iter().flatten() {
                 if seen.insert(target.clone()) {
                     pending.push_back(target.clone());
                 }
             }
         }
-
         seen.into_iter().collect()
     }
 }
@@ -84,7 +51,6 @@ pub fn tabulate_hypergraph_ifds_summary_edges(
     hyperedges: &[UnifiedHypergraphHyperedgeV0],
     projected_edges: Vec<HypergraphIFDSSummaryEdgeV0>,
 ) -> Vec<HypergraphIFDSSummaryEdgeV0> {
-    let oracle = BatchHypergraphConnectivityOracle;
     let hyperedge_ids = hyperedges
         .iter()
         .map(|edge| edge.hyperedge_id.as_str())
@@ -93,13 +59,10 @@ pub fn tabulate_hypergraph_ifds_summary_edges(
         .into_iter()
         .filter(|edge| hyperedge_ids.contains(edge.hyperedge_id.as_str()))
         .collect::<Vec<_>>();
-    edges.sort_by_key(|edge| {
-        (
-            edge.projection_edge_id.clone(),
-            oracle
-                .reachable_node_ids(edge.from_node_id.as_str(), hyperedges)
-                .len(),
-        )
+    edges.sort_by(|left, right| {
+        left.projection_edge_id
+            .cmp(&right.projection_edge_id)
+            .then(left.hyperedge_id.cmp(&right.hyperedge_id))
     });
     edges
 }
@@ -112,17 +75,17 @@ where
     N: Clone + Ord,
     F: FnMut(&N) -> String,
 {
-    collect_hypergraph_transitive_closure_paths_with_options(
+    collect_hypergraph_transitive_closure_paths_with_mode(
         graph,
         &mut label,
-        HypergraphClosureOptions::canonical_first_target(),
+        HypergraphClosureMode::CanonicalFirstTarget,
     )
 }
 
-pub(in crate::style) fn collect_hypergraph_transitive_closure_paths_with_options<N, F>(
+pub(in crate::style) fn collect_hypergraph_transitive_closure_paths_with_mode<N, F>(
     graph: &BTreeMap<N, BTreeSet<N>>,
     label: &mut F,
-    options: HypergraphClosureOptions,
+    mode: HypergraphClosureMode,
 ) -> (Vec<HypergraphClosurePath<N>>, Vec<Vec<String>>)
 where
     N: Clone + Ord,
@@ -131,39 +94,28 @@ where
     let mut closure_paths = Vec::new();
     let mut cycle_paths = Vec::new();
     let mut seen_cycles = BTreeSet::new();
+    let first_target = mode == HypergraphClosureMode::CanonicalFirstTarget;
 
     for start in graph.keys() {
         let mut visited = BTreeSet::new();
         let mut pending = VecDeque::from([(start.clone(), vec![start.clone()])]);
-
         while let Some((current, path)) = pending.pop_front() {
-            let Some(targets) = graph.get(&current) else {
-                continue;
-            };
-            for target in targets {
+            for target in graph.get(&current).into_iter().flatten() {
                 if let Some(cycle_start) = path.iter().position(|node| node == target) {
-                    let mut cycle_path = path[cycle_start..].to_vec();
-                    cycle_path.push(target.clone());
-                    let cycle_labels = match options.cycle_mode {
-                        HypergraphClosureCycleMode::Canonical => canonical_hypergraph_cycle_labels(
-                            cycle_path.iter().map(&mut *label).collect::<Vec<_>>(),
-                        ),
-                        HypergraphClosureCycleMode::Path => {
-                            cycle_path.iter().map(&mut *label).collect::<Vec<_>>()
-                        }
-                    };
-                    if !cycle_labels.is_empty() && seen_cycles.insert(cycle_labels.clone()) {
-                        cycle_paths.push(cycle_labels);
+                    let mut cycle = path[cycle_start..].to_vec();
+                    cycle.push(target.clone());
+                    let mut labels = cycle.iter().map(&mut *label).collect::<Vec<_>>();
+                    if first_target {
+                        labels = canonical_hypergraph_cycle_labels(labels);
+                    }
+                    if !labels.is_empty() && seen_cycles.insert(labels.clone()) {
+                        cycle_paths.push(labels);
                     }
                     continue;
                 }
-
-                if options.visit_mode == HypergraphClosureVisitMode::FirstTarget
-                    && !visited.insert(target.clone())
-                {
+                if first_target && !visited.insert(target.clone()) {
                     continue;
                 }
-
                 let mut edge_path = path.clone();
                 edge_path.push(target.clone());
                 closure_paths.push(HypergraphClosurePath {
@@ -176,7 +128,6 @@ where
             }
         }
     }
-
     (closure_paths, cycle_paths)
 }
 
@@ -185,16 +136,13 @@ fn canonical_hypergraph_cycle_labels(mut labels: Vec<String>) -> Vec<String> {
         labels.pop();
     }
     if labels.is_empty() {
-        return Vec::new();
+        return labels;
     }
-
     let mut best = labels.clone();
     for offset in 1..labels.len() {
         let mut rotated = labels[offset..].to_vec();
         rotated.extend_from_slice(&labels[..offset]);
-        if rotated < best {
-            best = rotated;
-        }
+        best = best.min(rotated);
     }
     best.push(best[0].clone());
     best
