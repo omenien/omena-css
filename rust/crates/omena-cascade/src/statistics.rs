@@ -6,6 +6,7 @@ pub struct CascadeSpinGlassSummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub hamiltonian: CascadeSpinGlassHamiltonianV0,
     pub frustration: CascadeFrustrationV0,
     pub replica_overlap: CascadeReplicaOverlapV0,
@@ -72,6 +73,7 @@ pub struct CascadeSpinGlassTheoremV0 {
 pub struct SpinGlassMonteCarloPolicyV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub feature_gate: &'static str,
     pub advisory_only: bool,
     pub bucket_count: usize,
     pub buckets: Vec<SpinGlassMonteCarloBucketV0>,
@@ -92,6 +94,7 @@ pub fn summarize_cascade_spin_glass_statistics() -> CascadeSpinGlassSummaryV0 {
         schema_version: "0",
         product: "omena-cascade.spin-glass",
         layer_marker: "statistical-mechanics",
+        feature_gate: "spin-glass",
         hamiltonian: summarize_spin_glass_hamiltonian(&[1, 2, 3, 5]),
         frustration: summarize_cascade_frustration(0, 3),
         replica_overlap: summarize_replica_overlap(4, Some(0.5)),
@@ -176,6 +179,7 @@ pub fn spin_glass_monte_carlo_policy() -> SpinGlassMonteCarloPolicyV0 {
     SpinGlassMonteCarloPolicyV0 {
         schema_version: "0",
         product: "omena-cascade.spin-glass-monte-carlo-policy",
+        feature_gate: "spin-glass",
         advisory_only: true,
         bucket_count: 4,
         buckets: vec![
@@ -231,6 +235,7 @@ mod tests {
 
         assert_eq!(summary.schema_version, "0");
         assert_eq!(summary.layer_marker, "statistical-mechanics");
+        assert_eq!(summary.feature_gate, "spin-glass");
         assert_eq!(summary.hamiltonian.schema_version, "0");
         assert_eq!(summary.hamiltonian.unit, "bit");
         assert_eq!(summary.frustration.schema_version, "0");
@@ -256,6 +261,7 @@ mod tests {
             policy.product,
             "omena-cascade.spin-glass-monte-carlo-policy"
         );
+        assert_eq!(policy.feature_gate, "spin-glass");
         assert!(policy.advisory_only);
         assert_eq!(policy.bucket_count, 4);
         assert_eq!(policy.task_budget_ms, 200);

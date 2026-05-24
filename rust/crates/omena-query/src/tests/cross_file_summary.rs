@@ -880,6 +880,18 @@ fn cross_file_summary_linear_provenance_serializes_as_strict_superset()
     );
     assert_eq!(
         serialized
+            .pointer("/linearProvenance/layerMarker")
+            .and_then(|value| value.as_str()),
+        Some("qtt-graded-provenance")
+    );
+    assert_eq!(
+        serialized
+            .pointer("/linearProvenance/featureGate")
+            .and_then(|value| value.as_str()),
+        Some("qtt-provenance")
+    );
+    assert_eq!(
+        serialized
             .pointer("/linearProvenance/semiringIdentifier")
             .and_then(|value| value.as_str()),
         Some("lin01")

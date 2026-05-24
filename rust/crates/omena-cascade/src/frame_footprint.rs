@@ -7,6 +7,7 @@ use serde::Serialize;
 pub struct DiagnosticFrameFootprintV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub feature_gate: &'static str,
     pub diagnostic_code: String,
     pub diagnostic_instance_id: String,
     pub evidence_module_ids: Vec<String>,
@@ -64,6 +65,7 @@ pub struct ModuleFootprintV0 {
 pub struct RecheckSelectionV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub feature_gate: &'static str,
     pub selected_diagnostic_instance_ids: Vec<String>,
     pub skipped_diagnostic_instance_ids: Vec<String>,
     pub conservative: bool,
@@ -78,6 +80,7 @@ pub fn derive_frame_for_diagnostic(
     DiagnosticFrameFootprintV0 {
         schema_version: "0",
         product: "omena-cascade.diagnostic-frame-footprint",
+        feature_gate: "frame-rule",
         diagnostic_code: diagnostic_code.into(),
         diagnostic_instance_id: diagnostic_instance_id.into(),
         resolver_evidence: evidence_module_ids
@@ -141,6 +144,7 @@ pub fn select_recheck_set(
     RecheckSelectionV0 {
         schema_version: "0",
         product: "omena-cascade.recheck-selection",
+        feature_gate: "frame-rule",
         selected_diagnostic_instance_ids: selected,
         skipped_diagnostic_instance_ids: skipped,
         conservative: true,
@@ -200,6 +204,8 @@ mod tests {
         let selection = select_recheck_set(std::slice::from_ref(&frame), &footprint);
 
         assert_eq!(frame.evidence_module_ids, vec!["a", "b"]);
+        assert_eq!(frame.feature_gate, "frame-rule");
+        assert_eq!(selection.feature_gate, "frame-rule");
         assert!(frame.conservative);
         assert!(intersect_frame_with_footprint(&frame, &footprint));
         assert_eq!(selection.selected_diagnostic_instance_ids, vec!["d1"]);

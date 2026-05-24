@@ -127,6 +127,8 @@ for (const required of [
   "fromPath",
   "targetPath",
   "linearProvenance",
+  "layerMarker",
+  "featureGate",
   "semiringIdentifier",
 ]) {
   assert.ok(hostTypeSource.includes(required), `engine host type surface must expose ${required}`);

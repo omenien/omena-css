@@ -11,6 +11,10 @@ readme = "README.md"
 [lints]
 workspace = true
 
+[features]
+default = []
+qtt-provenance = []
+
 [dependencies]
 omena-incremental = { path = "../omena-incremental" }
 serde.workspace = true

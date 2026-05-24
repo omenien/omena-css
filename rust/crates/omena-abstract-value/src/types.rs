@@ -275,6 +275,8 @@ pub struct LinearProvenanceTermV0 {
 pub struct LinearProvenanceV0<K: ProvenanceSemiringV0> {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub semiring_identifier: &'static str,
     pub semiring: K,
     pub term_count: usize,
@@ -303,6 +305,8 @@ impl LinearProvenanceV0<Lin01ProvenanceSemiringV0> {
         Self {
             schema_version: "0",
             product: "omena-abstract-value.linear-provenance",
+            layer_marker: "qtt-graded-provenance",
+            feature_gate: "qtt-provenance",
             semiring_identifier: Lin01ProvenanceSemiringV0::IDENTIFIER,
             semiring: Lin01ProvenanceSemiringV0::new(),
             term_count: terms.len(),

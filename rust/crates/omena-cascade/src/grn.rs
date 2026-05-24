@@ -6,6 +6,7 @@ pub struct BooleanGRNStateV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub top_policy: GrnTopHandlingPolicyV0,
     pub vertices: Vec<GrnVertexStateV0>,
 }
@@ -56,6 +57,7 @@ pub struct GrnModeDistributionV0 {
 pub struct CascadeAttractorBasinV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub feature_gate: &'static str,
     pub basin_id: String,
     pub strategy: AttractorEnumerationStrategyV0,
     pub state_count: usize,
@@ -95,6 +97,7 @@ pub struct CascadeAttractorBasinProofV0 {
 pub struct CascadeOutcomeProjectionRecordV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub feature_gate: &'static str,
     pub lint_codes: Vec<&'static str>,
     pub mode_distribution: GrnModeDistributionV0,
 }
@@ -104,6 +107,7 @@ pub fn summarize_grn_state(vertices: Vec<GrnVertexStateV0>) -> BooleanGRNStateV0
         schema_version: "0",
         product: "omena-cascade.boolean-grn-state",
         layer_marker: "statistical-mechanics",
+        feature_gate: "grn",
         top_policy: GrnTopHandlingPolicyV0::ScBoolSeqUnknown,
         vertices,
     }
@@ -132,6 +136,7 @@ pub fn prove_cascade_attractor_basin(variable_count: usize) -> CascadeAttractorB
     CascadeAttractorBasinV0 {
         schema_version: "0",
         product: "omena-cascade.attractor-basin",
+        feature_gate: "grn",
         basin_id: format!("grn-v0-{variable_count}"),
         strategy,
         state_count: variable_count,
@@ -165,6 +170,7 @@ pub fn project_grn_outcome(vertices: &[GrnVertexStateV0]) -> CascadeOutcomeProje
     CascadeOutcomeProjectionRecordV0 {
         schema_version: "0",
         product: "omena-cascade.grn-outcome-projection",
+        feature_gate: "grn",
         lint_codes: vec!["cascade.deep-conflict", "cascade.unreachable-rule"],
         mode_distribution: GrnModeDistributionV0 {
             schema_version: "0",
@@ -193,6 +199,10 @@ mod tests {
 
     #[test]
     fn grn_strategy_policy_matches_m4_alpha_bounds() {
+        let state = summarize_grn_state(Vec::new());
+
+        assert_eq!(state.layer_marker, "statistical-mechanics");
+        assert_eq!(state.feature_gate, "grn");
         assert_eq!(
             choose_grn_attractor_strategy(16),
             AttractorEnumerationStrategyV0::Explicit
@@ -210,6 +220,7 @@ mod tests {
 
             assert_eq!(basin.schema_version, "0");
             assert_eq!(basin.product, "omena-cascade.attractor-basin");
+            assert_eq!(basin.feature_gate, "grn");
             assert_eq!(basin.strategy, AttractorEnumerationStrategyV0::Explicit);
             assert_eq!(basin.state_count, variable_count);
             assert!(basin.proof.deterministic);
@@ -227,6 +238,7 @@ mod tests {
     fn grn_projection_exposes_lint_codes() {
         let projection = project_grn_outcome(&[]);
 
+        assert_eq!(projection.feature_gate, "grn");
         assert_eq!(
             projection.lint_codes,
             vec!["cascade.deep-conflict", "cascade.unreachable-rule"]

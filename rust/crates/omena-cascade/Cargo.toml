@@ -14,7 +14,10 @@ workspace = true
 [features]
 default = []
 bdd-attractor = []
+frame-rule = []
+grn = []
 naldi-lumping = []
+spin-glass = []
 
 [dependencies]
 serde.workspace = true
