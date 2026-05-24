@@ -190,6 +190,57 @@ fn extracts_array_aliases_from_top_level_alias_identifier() -> TestResult {
 }
 
 #[test]
+fn extracts_aliases_from_top_level_resolve_identifier() -> TestResult {
+    let root = temp_dir("omena_bridge_vite_resolve_identifier")?;
+    let config_path = root.join("vite.config.ts");
+    let source = r#"
+        const resolver = {
+          alias: {
+            "@ui": "./src/ui"
+          }
+        };
+        export default {
+          resolve: resolver
+        };
+    "#;
+
+    let summary =
+        summarize_omena_bridge_bundler_path_aliases_for_config(config_path.as_path(), source);
+
+    assert_eq!(summary.unrecognized, Vec::new());
+    assert_eq!(summary.aliases.len(), 1);
+    assert_eq!(summary.aliases[0].pattern, "@ui");
+    assert_eq!(
+        summary.aliases[0].target_path,
+        root.join("src/ui").to_string_lossy()
+    );
+    let _ = fs::remove_dir_all(root);
+    Ok(())
+}
+
+#[test]
+fn marks_dynamic_resolve_identifier_unrecognized() -> TestResult {
+    let root = temp_dir("omena_bridge_dynamic_resolve_identifier")?;
+    let config_path = root.join("vite.config.ts");
+    let source = r#"
+        const resolver = buildResolver();
+        export default {
+          resolve: resolver
+        };
+    "#;
+
+    let summary =
+        summarize_omena_bridge_bundler_path_aliases_for_config(config_path.as_path(), source);
+
+    assert_eq!(summary.aliases, Vec::new());
+    assert_eq!(summary.unrecognized.len(), 1);
+    assert_eq!(summary.unrecognized[0].reason, "dynamic-alias-container");
+    assert_eq!(summary.unrecognized[0].text, "resolver");
+    let _ = fs::remove_dir_all(root);
+    Ok(())
+}
+
+#[test]
 fn marks_dynamic_alias_identifier_unrecognized() -> TestResult {
     let root = temp_dir("omena_bridge_alias_dynamic_identifier")?;
     let config_path = root.join("vite.config.ts");
