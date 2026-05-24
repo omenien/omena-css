@@ -18,14 +18,17 @@
         "css-backgrounds/properties/background-repeat",
         "css-backgrounds/properties/background-position",
         "css-backgrounds/properties/background-size",
+        "css-backgrounds/properties/border-radius",
         "css-display/properties/display",
         "css-position/properties/position",
         "css-ui/properties/box-sizing",
         "css-transforms/properties/transform",
         "css-fonts/properties/font-weight",
         "css-fonts/properties/font-style",
+        "css-fonts/properties/font-family",
         "css-text/properties/text-align",
         "css-text/properties/letter-spacing",
+        "css-text/properties/text-transform",
         "css-mixins/atrules/@function"
       ],
       "sourceKeys": [
@@ -40,14 +43,17 @@
         "css-backgrounds/properties/background-repeat",
         "css-backgrounds/properties/background-position",
         "css-backgrounds/properties/background-size",
+        "css-backgrounds/properties/border-radius",
         "css-display/properties/display",
         "css-position/properties/position",
         "css-ui/properties/box-sizing",
         "css-transforms/properties/transform",
         "css-fonts/properties/font-weight",
         "css-fonts/properties/font-style",
+        "css-fonts/properties/font-family",
         "css-text/properties/text-align",
         "css-text/properties/letter-spacing",
+        "css-text/properties/text-transform",
         "css-mixins/atrules/@function"
       ]
     },
@@ -66,14 +72,17 @@
         "css-backgrounds/properties/background-repeat",
         "css-backgrounds/properties/background-position",
         "css-backgrounds/properties/background-size",
+        "css-backgrounds/properties/border-radius",
         "css-display/properties/display",
         "css-position/properties/position",
         "css-ui/properties/box-sizing",
         "css-transforms/properties/transform",
         "css-fonts/properties/font-weight",
         "css-fonts/properties/font-style",
+        "css-fonts/properties/font-family",
         "css-text/properties/text-align",
         "css-text/properties/letter-spacing",
+        "css-text/properties/text-transform",
         "css-mixins/atrules/@function"
       ],
       "sourceKeys": [
@@ -105,14 +114,17 @@
         "css-backgrounds/properties/background-repeat",
         "css-backgrounds/properties/background-position",
         "css-backgrounds/properties/background-size",
+        "css-backgrounds/properties/border-radius",
         "css-display/properties/display",
         "css-position/properties/position",
         "css-ui/properties/box-sizing",
         "css-transforms/properties/transform",
         "css-fonts/properties/font-weight",
         "css-fonts/properties/font-style",
+        "css-fonts/properties/font-family",
         "css-text/properties/text-align",
-        "css-text/properties/letter-spacing"
+        "css-text/properties/letter-spacing",
+        "css-text/properties/text-transform"
       ],
       "sourceKeys": [
         "css-color",
@@ -143,14 +155,17 @@
         "css-backgrounds/properties/background-repeat",
         "css-backgrounds/properties/background-position",
         "css-backgrounds/properties/background-size",
+        "css-backgrounds/properties/border-radius",
         "css-display/properties/display",
         "css-position/properties/position",
         "css-ui/properties/box-sizing",
         "css-transforms/properties/transform",
         "css-fonts/properties/font-weight",
         "css-fonts/properties/font-style",
+        "css-fonts/properties/font-family",
         "css-text/properties/text-align",
-        "css-text/properties/letter-spacing"
+        "css-text/properties/letter-spacing",
+        "css-text/properties/text-transform"
       ],
       "sourceKeys": [
         "css.properties.color",
@@ -164,14 +179,17 @@
         "css.properties.background-repeat",
         "css.properties.background-position",
         "css.properties.background-size",
+        "css.properties.border-radius",
         "css.properties.display",
         "css.properties.position",
         "css.properties.box-sizing",
         "css.properties.transform",
         "css.properties.font-weight",
         "css.properties.font-style",
+        "css.properties.font-family",
         "css.properties.text-align",
-        "css.properties.letter-spacing"
+        "css.properties.letter-spacing",
+        "css.properties.text-transform"
       ]
     }
   ],
@@ -332,6 +350,20 @@
       ]
     },
     {
+      "id": "css-backgrounds/properties/border-radius",
+      "webrefId": "css-backgrounds/properties/border-radius",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-backgrounds/#border-radius",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-transform-passes",
+      "evidence": [
+        "WPT css/css-backgrounds/parsing/border-radius-valid.html",
+        "css-background-border-radius-advisory"
+      ]
+    },
+    {
       "id": "css-display/properties/display",
       "webrefId": "css-display/properties/display",
       "sourceName": "webref-css",
@@ -431,6 +463,20 @@
       ]
     },
     {
+      "id": "css-fonts/properties/font-family",
+      "webrefId": "css-fonts/properties/font-family",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-fonts-4/#font-family-prop",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-transform-passes",
+      "evidence": [
+        "WPT css/css-fonts/parsing/font-family-valid.html",
+        "css-fonts-font-family-list-advisory"
+      ]
+    },
+    {
       "id": "css-text/properties/text-align",
       "webrefId": "css-text/properties/text-align",
       "sourceName": "webref-css",
@@ -457,6 +503,20 @@
         "SyntaxKind::Declaration",
         "WPT css/css-text/parsing/letter-spacing-valid.html",
         "css-text-letter-spacing-negative-advisory"
+      ]
+    },
+    {
+      "id": "css-text/properties/text-transform",
+      "webrefId": "css-text/properties/text-transform",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-text-3/#propdef-text-transform",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-parser",
+      "evidence": [
+        "WPT css/css-text/parsing/text-transform-valid.html",
+        "css-text-text-transform-uppercase-advisory"
       ]
     },
     {

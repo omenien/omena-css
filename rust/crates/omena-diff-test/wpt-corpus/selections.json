@@ -504,6 +504,19 @@
           "status": "pass"
         },
         {
+          "id": "css-background-border-radius-advisory",
+          "wptPath": "css/css-backgrounds/parsing/border-radius-valid.html",
+          "wptSourceLine": 25,
+          "subtest": "test_valid_value(\"border-radius\", \"1px 2% / 3px 4px\")",
+          "helper": "test_valid_value",
+          "property": "border-radius",
+          "wptValue": "1px 2% / 3px 4px",
+          "wptExpectedValue": "1px 2% / 3px 4px",
+          "source": ".css-background-border-radius-advisory { border-radius: 1px 2% / 3px 4px; }",
+          "expectedCss": ".css-background-border-radius-advisory{border-radius:1px 2%/3px 4px}",
+          "status": "pass"
+        },
+        {
           "id": "css-display-grid-advisory",
           "wptPath": "css/css-display/parsing/display-valid.html",
           "wptSourceLine": 19,
@@ -803,6 +816,19 @@
           "status": "pass"
         },
         {
+          "id": "css-fonts-font-family-list-advisory",
+          "wptPath": "css/css-fonts/parsing/font-family-valid.html",
+          "wptSourceLine": 20,
+          "subtest": "test_valid_value('font-family', 'serif, sans-serif, cursive, fantasy, monospace, system-ui')",
+          "helper": "test_valid_value",
+          "property": "font-family",
+          "wptValue": "serif, sans-serif, cursive, fantasy, monospace, system-ui",
+          "wptExpectedValue": "serif, sans-serif, cursive, fantasy, monospace, system-ui",
+          "source": ".css-fonts-font-family-list-advisory { font-family: serif, sans-serif, cursive, fantasy, monospace, system-ui; }",
+          "expectedCss": ".css-fonts-font-family-list-advisory{font-family:serif,sans-serif,cursive,fantasy,monospace,system-ui}",
+          "status": "pass"
+        },
+        {
           "id": "css-text-text-align-match-parent-advisory",
           "wptPath": "css/css-text/parsing/text-align-valid.html",
           "wptSourceLine": 20,
@@ -826,6 +852,19 @@
           "wptExpectedValue": "-10px",
           "source": ".css-text-letter-spacing-negative-advisory { letter-spacing: -10px; }",
           "expectedCss": ".css-text-letter-spacing-negative-advisory{letter-spacing:-10px}",
+          "status": "pass"
+        },
+        {
+          "id": "css-text-text-transform-uppercase-advisory",
+          "wptPath": "css/css-text/parsing/text-transform-valid.html",
+          "wptSourceLine": 18,
+          "subtest": "test_valid_value(\"text-transform\", \"uppercase\")",
+          "helper": "test_valid_value",
+          "property": "text-transform",
+          "wptValue": "uppercase",
+          "wptExpectedValue": "uppercase",
+          "source": ".css-text-text-transform-uppercase-advisory { text-transform: uppercase; }",
+          "expectedCss": ".css-text-text-transform-uppercase-advisory{text-transform:uppercase}",
           "status": "pass"
         }
       ]

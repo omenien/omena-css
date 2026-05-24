@@ -44,7 +44,7 @@
     },
     {
       "sparsePath": "css/css-backgrounds",
-      "fixtureCount": 6
+      "fixtureCount": 7
     },
     {
       "sparsePath": "css/css-display",
@@ -64,11 +64,11 @@
     },
     {
       "sparsePath": "css/css-fonts",
-      "fixtureCount": 3
+      "fixtureCount": 4
     },
     {
       "sparsePath": "css/css-text",
-      "fixtureCount": 2
+      "fixtureCount": 3
     }
   ],
   "chunks": [
@@ -125,8 +125,8 @@
       "chunkId": "css-values-advisory-v0",
       "path": "css-values-advisory.json",
       "stage": "stage1-advisory",
-      "sha256": "851bf8b5a9e82d642ec55ac11110ecfcdd302dff4b2b98a83f283106f14e0099",
-      "fixtureCount": 36,
+      "sha256": "0d7952d278392e110a7c155c83ccd67b5770dcc2f304a959d4211229c423d435",
+      "fixtureCount": 39,
       "sparsePathFixtureCounts": [
         {
           "sparsePath": "css/css-values",
@@ -142,7 +142,7 @@
         },
         {
           "sparsePath": "css/css-backgrounds",
-          "fixtureCount": 6
+          "fixtureCount": 7
         },
         {
           "sparsePath": "css/css-display",
@@ -162,11 +162,11 @@
         },
         {
           "sparsePath": "css/css-fonts",
-          "fixtureCount": 3
+          "fixtureCount": 4
         },
         {
           "sparsePath": "css/css-text",
-          "fixtureCount": 2
+          "fixtureCount": 3
         }
       ]
     }

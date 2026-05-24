@@ -114,9 +114,9 @@ assert.ok(
 );
 assert.ok(
   wptSparsePathFixtureCounts.some(
-    (count) => count.sparsePath === "css/css-backgrounds" && count.fixtureCount >= 6,
+    (count) => count.sparsePath === "css/css-backgrounds" && count.fixtureCount >= 7,
   ),
-  "css-backgrounds WPT coverage must retain the background longhand advisory fixture set",
+  "css-backgrounds WPT coverage must retain the background longhand and border-radius advisory fixture set",
 );
 assert.ok(
   wptSparsePathFixtureCounts.some(
@@ -144,15 +144,15 @@ assert.ok(
 );
 assert.ok(
   wptSparsePathFixtureCounts.some(
-    (count) => count.sparsePath === "css/css-fonts" && count.fixtureCount >= 3,
+    (count) => count.sparsePath === "css/css-fonts" && count.fixtureCount >= 4,
   ),
-  "css-fonts WPT coverage must retain the font advisory fixture set",
+  "css-fonts WPT coverage must retain the font advisory fixture set including font-family",
 );
 assert.ok(
   wptSparsePathFixtureCounts.some(
-    (count) => count.sparsePath === "css/css-text" && count.fixtureCount >= 2,
+    (count) => count.sparsePath === "css/css-text" && count.fixtureCount >= 3,
   ),
-  "css-text WPT coverage must retain the text advisory fixture set",
+  "css-text WPT coverage must retain the text advisory fixture set including text-transform",
 );
 assert.deepEqual(
   wptManifest.sparsePathFixtureCounts,
@@ -230,6 +230,13 @@ const cssBackgroundLonghandEntries = [
       "css-background-size-cover-advisory",
     ],
   },
+  {
+    id: "css-backgrounds/properties/border-radius",
+    evidence: [
+      "WPT css/css-backgrounds/parsing/border-radius-valid.html",
+      "css-background-border-radius-advisory",
+    ],
+  },
 ] as const;
 const cssSizingHeightEntry = specManifest.entries.find(
   (entry) => entry.id === "css-sizing/properties/height",
@@ -252,11 +259,17 @@ const cssFontsFontWeightEntry = specManifest.entries.find(
 const cssFontsFontStyleEntry = specManifest.entries.find(
   (entry) => entry.id === "css-fonts/properties/font-style",
 );
+const cssFontsFontFamilyEntry = specManifest.entries.find(
+  (entry) => entry.id === "css-fonts/properties/font-family",
+);
 const cssTextTextAlignEntry = specManifest.entries.find(
   (entry) => entry.id === "css-text/properties/text-align",
 );
 const cssTextLetterSpacingEntry = specManifest.entries.find(
   (entry) => entry.id === "css-text/properties/letter-spacing",
+);
+const cssTextTextTransformEntry = specManifest.entries.find(
+  (entry) => entry.id === "css-text/properties/text-transform",
 );
 assert.ok(cssSizingHeightEntry, "spec audit must retain css-sizing height coverage");
 assert.equal(cssSizingHeightEntry.priority, "P0");
@@ -383,6 +396,18 @@ for (const evidence of [
     `css-fonts font-style spec audit evidence must include ${evidence}`,
   );
 }
+assert.ok(cssFontsFontFamilyEntry, "spec audit must retain css-fonts font-family coverage");
+assert.equal(cssFontsFontFamilyEntry.priority, "P0");
+assert.equal(cssFontsFontFamilyEntry.status, "covered");
+for (const evidence of [
+  "WPT css/css-fonts/parsing/font-family-valid.html",
+  "css-fonts-font-family-list-advisory",
+] as const) {
+  assert.ok(
+    cssFontsFontFamilyEntry.evidence?.includes(evidence),
+    `css-fonts font-family spec audit evidence must include ${evidence}`,
+  );
+}
 assert.ok(cssTextTextAlignEntry, "spec audit must retain css-text text-align coverage");
 assert.equal(cssTextTextAlignEntry.priority, "P0");
 assert.equal(cssTextTextAlignEntry.status, "covered");
@@ -405,6 +430,18 @@ for (const evidence of [
   assert.ok(
     cssTextLetterSpacingEntry.evidence?.includes(evidence),
     `css-text letter-spacing spec audit evidence must include ${evidence}`,
+  );
+}
+assert.ok(cssTextTextTransformEntry, "spec audit must retain css-text text-transform coverage");
+assert.equal(cssTextTextTransformEntry.priority, "P0");
+assert.equal(cssTextTextTransformEntry.status, "covered");
+for (const evidence of [
+  "WPT css/css-text/parsing/text-transform-valid.html",
+  "css-text-text-transform-uppercase-advisory",
+] as const) {
+  assert.ok(
+    cssTextTextTransformEntry.evidence?.includes(evidence),
+    `css-text text-transform spec audit evidence must include ${evidence}`,
   );
 }
 const specSourceLinkedEntries = specManifest.entries.filter((entry) =>
@@ -484,8 +521,10 @@ assert.ok(
 for (const entryId of [
   "css-fonts/properties/font-weight",
   "css-fonts/properties/font-style",
+  "css-fonts/properties/font-family",
   "css-text/properties/text-align",
   "css-text/properties/letter-spacing",
+  "css-text/properties/text-transform",
 ] as const) {
   assert.ok(
     specManifest.sourceCoverage.every((coverage) => coverage.entryIds.includes(entryId)),
