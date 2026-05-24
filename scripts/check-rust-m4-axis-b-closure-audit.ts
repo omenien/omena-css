@@ -75,6 +75,7 @@ const resolverFixtureRequirements = [
   "CLI product package manifest override",
   "package=exports-imports-conditions-patterns",
   "package=null-blocking-private-subpaths",
+  "package=array-fallbacks",
   "sass=node-package-importer-pkg-url-ordering",
   "bundler=vite-webpack-aliases",
   "cli=package-manifest-override",
@@ -94,6 +95,20 @@ for (const marker of resolverPackageNullBlockingRequirements) {
     resolverPackageTests,
     marker,
     `resolver package fixture suite must cover null-blocking package maps: ${marker}`,
+  );
+}
+
+const resolverPackageArrayFallbackRequirements = [
+  "resolves_package_manifest_export_array_fallbacks",
+  "resolves_package_import_array_fallbacks_to_relative_style_targets",
+  '[{"import":"./dist/theme.js"},{"style":"./dist/theme.css"}]',
+  '[{"node":"./src/theme.js"},{"style":"./src/theme.css"}]',
+] as const;
+for (const marker of resolverPackageArrayFallbackRequirements) {
+  assertIncludes(
+    resolverPackageTests,
+    marker,
+    `resolver package fixture suite must cover package map array fallbacks: ${marker}`,
   );
 }
 
@@ -178,6 +193,7 @@ process.stdout.write(
           "typescript-paths-and-extends",
           "package-exports-imports-conditions-patterns",
           "package-null-blocking-private-subpaths",
+          "package-map-array-fallbacks",
           "sass-node-package-importer-pkg-url-ordering",
           "vite-webpack-aliases",
           "lsp-product-paths",
