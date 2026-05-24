@@ -17,6 +17,7 @@ pub enum MdlExtractionModeV0 {
 pub struct MdlExtractionModeSummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub layer_marker: &'static str,
     pub default_mode: MdlExtractionModeV0,
     pub alternative_modes: Vec<MdlExtractionModeV0>,
     pub unit: &'static str,
@@ -90,6 +91,7 @@ pub fn summarize_mdl_extraction_mode() -> MdlExtractionModeSummaryV0 {
     MdlExtractionModeSummaryV0 {
         schema_version: "0",
         product: "omena-transform-egg.mdl-extraction",
+        layer_marker: "mdl-bits",
         default_mode: MdlExtractionModeV0::AstSize,
         alternative_modes,
         unit: "bit",

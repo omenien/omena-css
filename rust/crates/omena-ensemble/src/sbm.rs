@@ -28,6 +28,10 @@ pub fn module_graph_from_analyzed_graphs(
                 .filter(move |node| *node != &graph.style_path)
                 .take(graph.edge_count)
                 .map(move |target| ModuleGraphEdgeV0 {
+                    schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+                    product: "omena-ensemble.module-graph-edge",
+                    layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+                    feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
                     from_module: graph.style_path.clone(),
                     to_module: target.clone(),
                     edge_kind: "analyzedGraphEdge",
@@ -36,6 +40,10 @@ pub fn module_graph_from_analyzed_graphs(
         .collect::<Vec<_>>();
 
     ModuleGraphV0 {
+        schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+        product: "omena-ensemble.module-graph",
+        layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+        feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
         workspace_root: workspace_root.to_string(),
         nodes,
         edges,
@@ -151,6 +159,10 @@ fn evaluate_partition_hypothesis(
         parameter_count as f64 * (graph.nodes.len().max(1) as f64).ln() - 2.0 * log_likelihood;
 
     PartitionHypothesisResultV0 {
+        schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+        product: "omena-ensemble.partition-hypothesis-result",
+        layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+        feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
         label: label.clone(),
         partition,
         lambda_snr_per_hypothesis: lambda_snr,
@@ -179,6 +191,10 @@ fn partition_estimate(partitions: BTreeMap<String, u32>) -> PartitionEstimateV0 
         *sizes.entry(*community).or_insert(0) += 1;
     }
     PartitionEstimateV0 {
+        schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+        product: "omena-ensemble.partition-estimate",
+        layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+        feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
         partitions,
         community_size_distribution: sizes.into_values().collect(),
     }

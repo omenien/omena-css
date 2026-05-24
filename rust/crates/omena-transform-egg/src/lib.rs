@@ -792,6 +792,7 @@ mod tests {
         assert_eq!(summary.schema_version, "0");
         assert_eq!(summary.product, "omena-transform-egg.mdl-extraction");
         assert!(summary.default_preserves_ast_size);
+        assert_eq!(summary.layer_marker, "mdl-bits");
         assert_eq!(summary.unit, "bit");
         assert_eq!(summary.feature_gate, "mdl");
     }

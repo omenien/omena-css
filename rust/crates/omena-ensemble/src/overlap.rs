@@ -54,6 +54,10 @@ where
             agreeing_site_count += 1;
         } else {
             provenance_attributions.push(OverlapAttributionV0 {
+                schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+                product: "omena-ensemble.overlap-attribution",
+                layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+                feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
                 site_element_selector: site.element_selector.clone(),
                 site_property: site.property.clone(),
                 winner_alpha: alpha_projection,
@@ -283,6 +287,10 @@ fn histogram(values: &[f64], bin_count: usize) -> Vec<HistogramBinV0> {
         .into_iter()
         .enumerate()
         .map(|(index, count)| HistogramBinV0 {
+            schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+            product: "omena-ensemble.histogram-bin",
+            layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+            feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
             q_low: index as f64 / bin_count as f64,
             q_high: (index + 1) as f64 / bin_count as f64,
             count,
@@ -381,6 +389,10 @@ fn peak_q_values(values: &[f64]) -> Vec<f64> {
 
 pub fn site(element_selector: impl Into<String>, property: impl Into<String>) -> CascadeSiteKeyV0 {
     CascadeSiteKeyV0 {
+        schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+        product: "omena-ensemble.cascade-site-key",
+        layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+        feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
         element_selector: element_selector.into(),
         property: property.into(),
     }

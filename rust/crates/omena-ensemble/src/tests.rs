@@ -5,12 +5,13 @@ use omena_cascade::{
 
 use crate::{ConsumerId, ProjectionFamily, TopVariantTreatment};
 use crate::{
-    DetectabilityPhase, DistributionModality, ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode,
-    ParisiM4AlphaSource, ParisiSource, PartitionHypothesisLabel, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-    REPLICA_ENSEMBLE_LAYER_MARKER_V0, ReportOptionsV0, ReportRecommendation, SamplingPolicy,
-    SpectralMethod, build_cross_file_inconsistency_report, compute_overlap_distribution,
-    compute_replica_overlap, compute_sbm_detectability, grn_outcome_projection_policy,
-    outcome_projection_policy_for_mode, site,
+    DetectabilityPhase, DistributionModality, LinearProvenanceTagV0, ModuleGraphEdgeV0,
+    ModuleGraphV0, OutcomeMode, ParisiM4AlphaSource, ParisiSource, PartitionHypothesisLabel,
+    REPLICA_ENSEMBLE_FEATURE_GATE_V0, REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+    REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReportOptionsV0, ReportRecommendation, RgExponentHandleV0,
+    SamplingPolicy, SpectralMethod, build_cross_file_inconsistency_report,
+    compute_overlap_distribution, compute_replica_overlap, compute_sbm_detectability,
+    grn_outcome_projection_policy, outcome_projection_policy_for_mode, site,
 };
 
 #[test]
@@ -125,9 +126,19 @@ fn integrated_report_exposes_projection_registry_for_replica_and_grn_consumers()
         ReportOptionsV0::default(),
         None,
     );
+    let default_options = ReportOptionsV0::default();
 
     assert_eq!(report.schema_version, "0");
     assert_eq!(report.layer_marker, REPLICA_ENSEMBLE_LAYER_MARKER_V0);
+    assert_eq!(default_options.schema_version, "0");
+    assert_eq!(
+        default_options.layer_marker,
+        REPLICA_ENSEMBLE_LAYER_MARKER_V0
+    );
+    assert_eq!(
+        default_options.feature_gate,
+        REPLICA_ENSEMBLE_FEATURE_GATE_V0
+    );
     assert_eq!(
         report.outcome_projection_policy.consumer_id,
         ConsumerId::ReplicaOverlap
@@ -153,6 +164,95 @@ fn integrated_report_exposes_projection_registry_for_replica_and_grn_consumers()
     );
 }
 
+#[test]
+fn public_helper_v0_contracts_carry_replica_ensemble_metadata() {
+    let mut snapshot = fixture_replica("alpha.module.css", ["a", "b"]);
+    snapshot.sites[0].provenance = Some(LinearProvenanceTagV0 {
+        schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+        product: "omena-ensemble.linear-provenance-tag",
+        layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+        feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+        semiring_identifier: "lin01",
+        label: "fixture".to_string(),
+    });
+    let graph = planted_two_brand_graph();
+    let distribution = compute_overlap_distribution(
+        "/workspace",
+        vec![
+            snapshot.clone(),
+            fixture_replica("beta.module.css", ["a", "x"]),
+        ],
+        Some(SamplingPolicy::AllPairs),
+        OutcomeMode::DefiniteOnly,
+        None,
+    );
+    let detectability = compute_sbm_detectability(
+        "/workspace",
+        &graph,
+        SpectralMethod::Auto,
+        &[PartitionHypothesisLabel::AutoSpectral],
+        None,
+    );
+    let handle = RgExponentHandleV0 {
+        schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+        product: "omena-ensemble.rg-exponent-handle",
+        layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+        feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+        workspace_root: "/workspace".to_string(),
+        timestamp: "2026-05-25T00:00:00Z".to_string(),
+        digest: "fixture".to_string(),
+    };
+
+    assert_replica_contract(
+        snapshot.schema_version,
+        snapshot.layer_marker,
+        snapshot.feature_gate,
+    );
+    assert_replica_contract(
+        snapshot.sites[0].schema_version,
+        snapshot.sites[0].layer_marker,
+        snapshot.sites[0].feature_gate,
+    );
+    assert_replica_contract(
+        snapshot.sites[0].site.schema_version,
+        snapshot.sites[0].site.layer_marker,
+        snapshot.sites[0].site.feature_gate,
+    );
+    let provenance = snapshot.sites[0].provenance.as_ref().unwrap();
+    assert_replica_contract(
+        provenance.schema_version,
+        provenance.layer_marker,
+        provenance.feature_gate,
+    );
+    assert_replica_contract(graph.schema_version, graph.layer_marker, graph.feature_gate);
+    assert_replica_contract(
+        graph.edges[0].schema_version,
+        graph.edges[0].layer_marker,
+        graph.edges[0].feature_gate,
+    );
+    assert_replica_contract(
+        distribution.histogram_bins[0].schema_version,
+        distribution.histogram_bins[0].layer_marker,
+        distribution.histogram_bins[0].feature_gate,
+    );
+    let partition_result = &detectability.partition_hypothesis_results[0];
+    assert_replica_contract(
+        partition_result.schema_version,
+        partition_result.layer_marker,
+        partition_result.feature_gate,
+    );
+    assert_replica_contract(
+        partition_result.partition.schema_version,
+        partition_result.partition.layer_marker,
+        partition_result.partition.feature_gate,
+    );
+    assert_replica_contract(
+        handle.schema_version,
+        handle.layer_marker,
+        handle.feature_gate,
+    );
+}
+
 fn fixture_replica<const N: usize>(
     path: &str,
     winners: [&'static str; N],
@@ -161,6 +261,10 @@ fn fixture_replica<const N: usize>(
         .into_iter()
         .enumerate()
         .map(|(index, winner)| crate::ReplicaSiteOutcomeV0 {
+            schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+            product: "omena-ensemble.replica-site-outcome",
+            layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+            feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
             site: site(format!(".item-{index}"), "color"),
             outcome: definite_outcome(winner),
             provenance: None,
@@ -168,6 +272,10 @@ fn fixture_replica<const N: usize>(
         .collect::<Vec<_>>();
 
     crate::ReplicaSnapshotV0 {
+        schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+        product: "omena-ensemble.replica-snapshot",
+        layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+        feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
         path: path.to_string(),
         sites,
     }
@@ -199,6 +307,10 @@ fn definite_outcome(id: &str) -> CascadeOutcome {
 
 fn planted_two_brand_graph() -> ModuleGraphV0 {
     ModuleGraphV0 {
+        schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+        product: "omena-ensemble.module-graph",
+        layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+        feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
         workspace_root: "/workspace".to_string(),
         nodes: vec![
             "brand-a/a.module.css".to_string(),
@@ -208,15 +320,33 @@ fn planted_two_brand_graph() -> ModuleGraphV0 {
         ],
         edges: vec![
             ModuleGraphEdgeV0 {
+                schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+                product: "omena-ensemble.module-graph-edge",
+                layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+                feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
                 from_module: "brand-a/a.module.css".to_string(),
                 to_module: "brand-a/b.module.css".to_string(),
                 edge_kind: "composes",
             },
             ModuleGraphEdgeV0 {
+                schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+                product: "omena-ensemble.module-graph-edge",
+                layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+                feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
                 from_module: "brand-b/c.module.css".to_string(),
                 to_module: "brand-b/d.module.css".to_string(),
                 edge_kind: "composes",
             },
         ],
     }
+}
+
+fn assert_replica_contract(
+    schema_version: &'static str,
+    layer_marker: &'static str,
+    feature_gate: &'static str,
+) {
+    assert_eq!(schema_version, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0);
+    assert_eq!(layer_marker, REPLICA_ENSEMBLE_LAYER_MARKER_V0);
+    assert_eq!(feature_gate, REPLICA_ENSEMBLE_FEATURE_GATE_V0);
 }

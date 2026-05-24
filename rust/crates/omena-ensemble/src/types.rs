@@ -10,6 +10,10 @@ pub const REPLICA_ENSEMBLE_FEATURE_GATE_V0: &str = "replica-ensemble";
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeSiteKeyV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub element_selector: String,
     pub property: String,
 }
@@ -17,6 +21,10 @@ pub struct CascadeSiteKeyV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LinearProvenanceTagV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub semiring_identifier: &'static str,
     pub label: String,
 }
@@ -24,6 +32,10 @@ pub struct LinearProvenanceTagV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReplicaSiteOutcomeV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub site: CascadeSiteKeyV0,
     pub outcome: CascadeOutcome,
     pub provenance: Option<LinearProvenanceTagV0>,
@@ -32,6 +44,10 @@ pub struct ReplicaSiteOutcomeV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReplicaSnapshotV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub path: String,
     pub sites: Vec<ReplicaSiteOutcomeV0>,
 }
@@ -73,6 +89,10 @@ pub struct ReplicaOverlapV0 {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OverlapAttributionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub site_element_selector: String,
     pub site_property: String,
     pub winner_alpha: String,
@@ -114,6 +134,10 @@ pub enum ParisiSource {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HistogramBinV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub q_low: f64,
     pub q_high: f64,
     pub count: usize,
@@ -132,6 +156,10 @@ pub enum DistributionModality {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModuleGraphV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub workspace_root: String,
     pub nodes: Vec<String>,
     pub edges: Vec<ModuleGraphEdgeV0>,
@@ -140,6 +168,10 @@ pub struct ModuleGraphV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModuleGraphEdgeV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub from_module: String,
     pub to_module: String,
     pub edge_kind: &'static str,
@@ -171,6 +203,10 @@ pub struct SBMDetectabilityThresholdV0 {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PartitionHypothesisResultV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub label: PartitionHypothesisLabel,
     pub partition: PartitionEstimateV0,
     pub lambda_snr_per_hypothesis: f64,
@@ -194,6 +230,10 @@ pub enum PartitionHypothesisLabel {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PartitionEstimateV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub partitions: BTreeMap<String, u32>,
     pub community_size_distribution: Vec<usize>,
 }
@@ -248,6 +288,10 @@ pub enum AgreementVerdict {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RgExponentHandleV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub workspace_root: String,
     pub timestamp: String,
     pub digest: String,
@@ -335,6 +379,10 @@ pub enum InheritTreatment {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReportOptionsV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub partition_hypotheses: Vec<PartitionHypothesisLabel>,
     pub spectral_method: SpectralMethod,
     pub sampling_policy: Option<SamplingPolicy>,
@@ -344,6 +392,10 @@ pub struct ReportOptionsV0 {
 impl Default for ReportOptionsV0 {
     fn default() -> Self {
         Self {
+            schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+            product: "omena-ensemble.report-options",
+            layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+            feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
             partition_hypotheses: vec![
                 PartitionHypothesisLabel::AutoSpectral,
                 PartitionHypothesisLabel::ComposesCluster,

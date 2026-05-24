@@ -7,6 +7,7 @@ use serde::Serialize;
 pub struct FrameAwareRefreshReportV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub feature_gate: &'static str,
     pub selective_refresh_enabled: bool,
     pub edited_module_count: usize,
     pub selected_diagnostic_instance_ids: Vec<String>,
@@ -57,6 +58,7 @@ pub fn refresh_diagnostics_with_frame_policy(
     FrameAwareRefreshReportV0 {
         schema_version: "0",
         product: "omena-lsp-server.frame-aware-refresh",
+        feature_gate: "OMENA_LSP_ENABLE_FRAME_AWARE_REFRESH",
         selective_refresh_enabled,
         edited_module_count,
         selected_diagnostic_instance_ids: selection.selected_diagnostic_instance_ids,
@@ -139,6 +141,7 @@ mod tests {
 
         assert_eq!(report.schema_version, "0");
         assert_eq!(report.layer_marker, "frame-rule");
+        assert_eq!(report.feature_gate, "OMENA_LSP_ENABLE_FRAME_AWARE_REFRESH");
         assert_eq!(report.selected_diagnostic_instance_ids, vec!["d1"]);
     }
 
