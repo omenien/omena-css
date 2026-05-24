@@ -1,5 +1,42 @@
 use super::*;
 
+pub fn summarize_omena_query_design_system_minimum_description(
+    source_uri: impl Into<String>,
+    source_hash: impl Into<String>,
+    rule_count: usize,
+    observation_count: usize,
+) -> DesignSystemMinimumDescriptionV0 {
+    let model_bits = rule_count as f64;
+    let residual_bits = observation_count as f64;
+    DesignSystemMinimumDescriptionV0 {
+        schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+        product: "omena-query.design-system-minimum-description",
+        model_bits,
+        residual_bits,
+        total_bits: model_bits + residual_bits,
+        unit: "bit",
+        model_class: ModelClassV0::TwoPartUniform,
+        rule_count,
+        observation_count,
+        canonical_form_present: false,
+        cascade_proof_obligation_count: 0,
+        sass_namespace_partition: SassNamespaceBitsV0 {
+            namespace_count: 0,
+            partition_count: 0,
+            deterministic_partition: true,
+        },
+        generated_at_iso: "deterministic-v0",
+        source_pin: SourcePinV0 {
+            source_uri: source_uri.into(),
+            source_hash: source_hash.into(),
+        },
+        weights_calibration_pin: "uniform-v0",
+        weights_version: "0",
+        semiring_instance: "tropical",
+        layer_marker: "mdl-bits",
+    }
+}
+
 pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBoundarySummaryV0 {
     let fragment_bundle = summarize_omena_query_fragment_bundle(input);
     let expression_semantics_query_count = fragment_bundle.expression_semantics.fragments.len();
@@ -46,6 +83,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "omena-query.fast-facts",
             "omena-query.analyzed-graph",
             "omena-query.custom-property-annotations",
+            "omena-query.design-system-minimum-description",
         ],
         expression_semantics_query_count,
         source_resolution_query_count,
@@ -100,6 +138,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
             "fastFactsV0",
             "analyzedGraphV0",
             "customPropertyAnnotations",
+            "designSystemMinimumDescription",
         ],
         cme_coupled_surfaces: vec!["EngineInputV2", "producerQueryFragments"],
         next_decoupling_targets: Vec::new(),

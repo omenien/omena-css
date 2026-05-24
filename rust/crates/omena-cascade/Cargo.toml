@@ -11,5 +11,10 @@ readme = "README.md"
 [lints]
 workspace = true
 
+[features]
+default = []
+bdd-attractor = []
+naldi-lumping = []
+
 [dependencies]
 serde.workspace = true

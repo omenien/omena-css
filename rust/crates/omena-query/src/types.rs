@@ -3,6 +3,74 @@ use super::*;
 pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION: &str = "0";
 pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION_LABEL: &str = "V0";
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesignSystemMinimumDescriptionV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub model_bits: f64,
+    pub residual_bits: f64,
+    pub total_bits: f64,
+    pub unit: &'static str,
+    pub model_class: ModelClassV0,
+    pub rule_count: usize,
+    pub observation_count: usize,
+    pub canonical_form_present: bool,
+    pub cascade_proof_obligation_count: usize,
+    pub sass_namespace_partition: SassNamespaceBitsV0,
+    pub generated_at_iso: &'static str,
+    pub source_pin: SourcePinV0,
+    pub weights_calibration_pin: &'static str,
+    pub weights_version: &'static str,
+    pub semiring_instance: &'static str,
+    pub layer_marker: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ModelClassV0 {
+    TwoPartUniform,
+    TwoPartMultinomial,
+    Nml,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SassNamespaceBitsV0 {
+    pub namespace_count: usize,
+    pub partition_count: usize,
+    pub deterministic_partition: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourcePinV0 {
+    pub source_uri: String,
+    pub source_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanonicalFormV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub pass_id: &'static str,
+    pub before: String,
+    pub canonical_after: String,
+    pub fallback_after: String,
+    pub canonical_matches_fallback: bool,
+    pub mdl_bits: f64,
+    pub ast_size_bits: f64,
+    pub bits_saved_vs_fallback: f64,
+    pub unit: &'static str,
+    pub iteration_count: usize,
+    pub eclass_count: usize,
+    pub enode_count: usize,
+    pub cascade_safe_witness: &'static str,
+    pub egg_analysis_witness: &'static str,
+    pub layer_marker: &'static str,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryBoundarySummaryV0 {
@@ -496,7 +564,7 @@ pub struct OmenaQueryTransformPassSummaryV0 {
     pub reads_cascade_model: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryTransformPlanSummaryV0 {
     pub schema_version: &'static str,

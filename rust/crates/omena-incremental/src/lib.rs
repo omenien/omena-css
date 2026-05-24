@@ -10,6 +10,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use salsa::Setter;
 use serde::Serialize;
 
+mod frame_invalidation;
+pub use frame_invalidation::*;
+
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
 

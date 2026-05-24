@@ -5,12 +5,15 @@
 //! e-graph dependency into the core transform path.
 
 use egg::{
-    Applier, AstSize, EGraph, Extractor, Id, Pattern, PatternAst, RecExpr, Rewrite, Runner, Subst,
-    Symbol, Var, define_language, rewrite as egg_rewrite,
+    Applier, EGraph, Extractor, Id, Pattern, PatternAst, RecExpr, Rewrite, Runner, Subst, Symbol,
+    Var, define_language, rewrite as egg_rewrite,
 };
 use omena_transform_cst::TransformPassKind;
 use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
 use serde::Serialize;
+
+mod mdl_cost;
+pub use mdl_cost::*;
 
 define_language! {
     enum CssRewriteLanguage {
@@ -56,7 +59,7 @@ pub struct EggRewriteDecisionV0 {
     pub blocked_reason: Option<&'static str>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EggRewriteExecutionV0 {
     pub schema_version: &'static str,
@@ -73,9 +76,15 @@ pub struct EggRewriteExecutionV0 {
     pub iteration_count: usize,
     pub eclass_count: usize,
     pub enode_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mdl_bits: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mdl_residual_bits: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mdl_unit: Option<&'static str>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EggRewriteSourceWitnessV0 {
     pub pass_id: &'static str,
@@ -263,7 +272,7 @@ pub fn execute_egg_rewrite(candidate: EggRewriteCandidateV0) -> EggRewriteExecut
         .with_iter_limit(iteration_limit)
         .run(rules.as_slice());
     let root = runner.roots[0];
-    let extractor = Extractor::new(&runner.egraph, AstSize);
+    let extractor = Extractor::new(&runner.egraph, MdlExtractionCostV0::default_ast_size());
     let (_, extracted) = extractor.find_best(root);
     let after = extracted.to_string();
     let after_matches_candidate = after == candidate.after;
@@ -284,6 +293,9 @@ pub fn execute_egg_rewrite(candidate: EggRewriteCandidateV0) -> EggRewriteExecut
         iteration_count: runner.iterations.len(),
         eclass_count: runner.egraph.number_of_classes(),
         enode_count: runner.egraph.total_size(),
+        mdl_bits: None,
+        mdl_residual_bits: None,
+        mdl_unit: None,
     }
 }
 
@@ -727,6 +739,9 @@ fn blocked_execution(
         iteration_count: 0,
         eclass_count: 0,
         enode_count: 0,
+        mdl_bits: None,
+        mdl_residual_bits: None,
+        mdl_unit: None,
     }
 }
 
@@ -735,7 +750,8 @@ mod tests {
     use super::{
         EggRewriteCandidateV0, EggRewriteProofV0, decide_egg_rewrite, execute_egg_rewrite,
         execute_egg_rewrite_witnesses_for_css_source, plan_egg_rewrite_passes,
-        plan_egg_rewrite_passes_for_source, summarize_omena_transform_egg_boundary,
+        plan_egg_rewrite_passes_for_source, summarize_mdl_extraction_mode,
+        summarize_omena_transform_egg_boundary,
     };
     use omena_transform_cst::TransformPassKind;
 
@@ -749,6 +765,17 @@ mod tests {
             vec!["selector-is-where-compression", "calc-reduction"]
         );
         assert_eq!(boundary.proof_obligations.len(), 4);
+    }
+
+    #[test]
+    fn mdl_extraction_default_preserves_ast_size() {
+        let summary = summarize_mdl_extraction_mode();
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(summary.product, "omena-transform-egg.mdl-extraction");
+        assert!(summary.default_preserves_ast_size);
+        assert_eq!(summary.unit, "bit");
+        assert_eq!(summary.feature_gate, "mdl");
     }
 
     #[test]

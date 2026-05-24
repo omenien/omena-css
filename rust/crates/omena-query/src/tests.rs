@@ -9,6 +9,7 @@ use super::{
     execute_omena_query_transform_passes_from_source, list_omena_query_transform_pass_summaries,
     summarize_omena_query_analyzed_graph, summarize_omena_query_boundary,
     summarize_omena_query_custom_property_annotations,
+    summarize_omena_query_design_system_minimum_description,
     summarize_omena_query_expression_domain_call_site_flow_analysis,
     summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
@@ -259,6 +260,29 @@ fn summarizes_query_boundary_over_producer_fragments() {
             .cme_coupled_surfaces
             .contains(&"producerQueryFragments")
     );
+}
+
+#[test]
+fn summarizes_design_system_minimum_description_in_bits() {
+    let summary = summarize_omena_query_design_system_minimum_description(
+        "file:///workspace/tokens.module.css",
+        "len42-sum100",
+        3,
+        5,
+    );
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(
+        summary.product,
+        "omena-query.design-system-minimum-description"
+    );
+    assert_eq!(summary.unit, "bit");
+    assert_eq!(summary.layer_marker, "mdl-bits");
+    assert_eq!(
+        summary.model_bits + summary.residual_bits,
+        summary.total_bits
+    );
+    assert_eq!(summary.semiring_instance, "tropical");
 }
 
 #[test]

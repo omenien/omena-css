@@ -1,4 +1,6 @@
 use clap::{Parser, Subcommand};
+#[cfg(feature = "mdl")]
+use omena_query::summarize_omena_query_design_system_minimum_description;
 use omena_query::{
     OmenaQueryEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQuerySourceDiagnosticsForFileV0, OmenaQuerySourceDocumentInputV0,
@@ -100,6 +102,15 @@ enum Command {
     },
     /// List transform pass ids accepted by `omena build --pass`.
     Passes {
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Estimate an MDL minimum-description summary for a style source.
+    #[cfg(feature = "mdl")]
+    Compress {
+        /// CSS, SCSS, Sass, Less, or CSS Modules file to summarize.
+        path: PathBuf,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -276,6 +287,8 @@ fn run(cli: Cli) -> Result<(), String> {
             json,
         }),
         Command::Passes { json } => list_passes(json),
+        #[cfg(feature = "mdl")]
+        Command::Compress { path, json } => compress_file(path, json),
         Command::Context {
             path,
             engine_input_json,
@@ -570,6 +583,38 @@ fn list_passes(json: bool) -> Result<(), String> {
     for pass in passes {
         println!("{}\t{}", pass.id, pass.title);
     }
+    Ok(())
+}
+
+#[cfg(feature = "mdl")]
+fn compress_file(path: PathBuf, json: bool) -> Result<(), String> {
+    let source = read_source(&path)?;
+    let rule_count = source.matches('{').count();
+    let observation_count = source
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .count();
+    let source_hash = format!(
+        "len{}-sum{}",
+        source.len(),
+        source.bytes().map(u64::from).sum::<u64>()
+    );
+    let summary = summarize_omena_query_design_system_minimum_description(
+        path_string(&path),
+        source_hash,
+        rule_count,
+        observation_count,
+    );
+
+    if json {
+        print_json(&summary)?;
+        return Ok(());
+    }
+
+    println!("total bits: {}", summary.total_bits);
+    println!("model bits: {}", summary.model_bits);
+    println!("residual bits: {}", summary.residual_bits);
+    println!("unit: {}", summary.unit);
     Ok(())
 }
 

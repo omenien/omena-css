@@ -6,6 +6,9 @@ use omena_abstract_value::{
 };
 use serde::{Deserialize, Serialize};
 
+mod frame_emission;
+pub use frame_emission::*;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum OmenaCheckerRuleCodeV0 {
@@ -30,6 +33,9 @@ pub enum OmenaCheckerRuleCodeV0 {
     IacvtProne,
     CircularVar,
     UnspecifiedCascadeTie,
+    DesignSystemMdlBudget,
+    CascadeDeepConflict,
+    CascadeUnreachableRule,
 }
 
 impl OmenaCheckerRuleCodeV0 {
@@ -56,6 +62,9 @@ impl OmenaCheckerRuleCodeV0 {
             Self::IacvtProne => "iacvt-prone",
             Self::CircularVar => "circular-var",
             Self::UnspecifiedCascadeTie => "unspecified-cascade-tie",
+            Self::DesignSystemMdlBudget => "design-system-mdl-budget",
+            Self::CascadeDeepConflict => "cascade.deep-conflict",
+            Self::CascadeUnreachableRule => "cascade.unreachable-rule",
         }
     }
 }
@@ -82,6 +91,7 @@ pub enum OmenaCheckerRuleTierV0 {
     M,
     S,
     T,
+    I,
 }
 
 impl OmenaCheckerRuleTierV0 {
@@ -90,6 +100,7 @@ impl OmenaCheckerRuleTierV0 {
             Self::M => "m-tier",
             Self::S => "s-tier",
             Self::T => "t-tier",
+            Self::I => "i-tier",
         }
     }
 }
@@ -208,6 +219,7 @@ pub struct OmenaCheckerBoundarySummaryV0 {
     pub m_tier_rule_count: usize,
     pub s_tier_rule_count: usize,
     pub t_tier_rule_count: usize,
+    pub i_tier_rule_count: usize,
     pub bridge_policy: Vec<&'static str>,
     pub next_migration_targets: Vec<&'static str>,
 }
@@ -314,7 +326,8 @@ pub struct OmenaCheckerCascadeEvaluationV0 {
 pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0> {
     use OmenaCheckerFindingCategoryV0::{Source, Style};
     use OmenaCheckerRuleCodeV0::{
-        CircularVar, DeadCascadeLayer, IacvtProne, MissingComposedModule, MissingComposedSelector,
+        CascadeDeepConflict, CascadeUnreachableRule, CircularVar, DeadCascadeLayer,
+        DesignSystemMdlBudget, IacvtProne, MissingComposedModule, MissingComposedSelector,
         MissingCustomProperty, MissingImportedValue, MissingKeyframes, MissingModule,
         MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
         MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
@@ -494,6 +507,30 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
             &[Strict],
             "Report same-selector same-property declaration pairs that rely on source order as the final cascade tie-breaker.",
         ),
+        rule(
+            DesignSystemMdlBudget,
+            Style,
+            Hint,
+            None,
+            &[Strict],
+            "Report design-system compression candidates whose MDL budget is worse than the configured canonical fallback.",
+        ),
+        rule(
+            CascadeDeepConflict,
+            Style,
+            Warning,
+            None,
+            &[Recommended],
+            "Report cascade conflict clusters whose GRN attractor basin indicates a stable deep conflict.",
+        ),
+        rule(
+            CascadeUnreachableRule,
+            Style,
+            Hint,
+            None,
+            &[Strict],
+            "Report cascade rules that the GRN state model proves unreachable under the current fixture slice.",
+        ),
     ]
 }
 
@@ -528,8 +565,8 @@ pub fn list_omena_checker_m_tier_rule_code_names() -> Vec<&'static str> {
 
 pub fn list_omena_checker_s_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
     use OmenaCheckerRuleCodeV0::{
-        MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues, MissingStaticClass,
-        MissingTemplatePrefix,
+        CascadeDeepConflict, MissingModule, MissingResolvedClassDomain, MissingResolvedClassValues,
+        MissingStaticClass, MissingTemplatePrefix,
     };
 
     vec![
@@ -538,6 +575,7 @@ pub fn list_omena_checker_s_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
         MissingTemplatePrefix,
         MissingResolvedClassValues,
         MissingResolvedClassDomain,
+        CascadeDeepConflict,
     ]
 }
 
@@ -579,6 +617,19 @@ pub fn list_omena_checker_t_tier_rule_code_names() -> Vec<&'static str> {
         .collect()
 }
 
+pub fn list_omena_checker_i_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
+    use OmenaCheckerRuleCodeV0::{CascadeUnreachableRule, DesignSystemMdlBudget};
+
+    vec![DesignSystemMdlBudget, CascadeUnreachableRule]
+}
+
+pub fn list_omena_checker_i_tier_rule_code_names() -> Vec<&'static str> {
+    list_omena_checker_i_tier_rule_codes()
+        .into_iter()
+        .map(OmenaCheckerRuleCodeV0::as_str)
+        .collect()
+}
+
 pub fn is_omena_checker_rule_code(value: &str) -> bool {
     list_omena_checker_rule_codes()
         .into_iter()
@@ -598,7 +649,8 @@ pub fn list_omena_checker_code_bundles() -> Vec<OmenaCheckerCodeBundleV0> {
         CascadeAware, CiDefault, SourceMissing, StyleRecovery, StyleUnused,
     };
     use OmenaCheckerRuleCodeV0::{
-        CircularVar, DeadCascadeLayer, IacvtProne, MissingComposedModule, MissingComposedSelector,
+        CascadeDeepConflict, CascadeUnreachableRule, CircularVar, DeadCascadeLayer,
+        DesignSystemMdlBudget, IacvtProne, MissingComposedModule, MissingComposedSelector,
         MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
         MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
         MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
@@ -656,6 +708,9 @@ pub fn list_omena_checker_code_bundles() -> Vec<OmenaCheckerCodeBundleV0> {
                 IacvtProne,
                 CircularVar,
                 UnspecifiedCascadeTie,
+                CascadeDeepConflict,
+                CascadeUnreachableRule,
+                DesignSystemMdlBudget,
             ],
         ),
     ]
@@ -674,6 +729,7 @@ pub fn summarize_omena_checker_boundary() -> OmenaCheckerBoundarySummaryV0 {
     let m_tier_rule_count = count_rules_in_tier(&descriptors, OmenaCheckerRuleTierV0::M);
     let s_tier_rule_count = count_rules_in_tier(&descriptors, OmenaCheckerRuleTierV0::S);
     let t_tier_rule_count = count_rules_in_tier(&descriptors, OmenaCheckerRuleTierV0::T);
+    let i_tier_rule_count = count_rules_in_tier(&descriptors, OmenaCheckerRuleTierV0::I);
 
     OmenaCheckerBoundarySummaryV0 {
         schema_version: "0",
@@ -688,6 +744,7 @@ pub fn summarize_omena_checker_boundary() -> OmenaCheckerBoundarySummaryV0 {
         m_tier_rule_count,
         s_tier_rule_count,
         t_tier_rule_count,
+        i_tier_rule_count,
         bridge_policy: vec![
             "rustOwnsRuleAndBundleMetadataBeforeRuntimeMigration",
             "typescriptRuntimeMayConsumeTheSameCatalogDuringTransition",
@@ -1155,7 +1212,8 @@ fn rule(
 
 fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRuleTierV0 {
     use OmenaCheckerRuleCodeV0::{
-        CircularVar, DeadCascadeLayer, IacvtProne, MissingComposedModule, MissingComposedSelector,
+        CascadeDeepConflict, CascadeUnreachableRule, CircularVar, DeadCascadeLayer,
+        DesignSystemMdlBudget, IacvtProne, MissingComposedModule, MissingComposedSelector,
         MissingCustomProperty, MissingImportedValue, MissingKeyframes, MissingModule,
         MissingResolvedClassDomain, MissingResolvedClassValues, MissingSassSymbol,
         MissingStaticClass, MissingTemplatePrefix, MissingValueModule, NoImpossibleSelector,
@@ -1171,7 +1229,8 @@ fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRuleTierV0 {
         | MissingStaticClass
         | MissingTemplatePrefix
         | MissingResolvedClassValues
-        | MissingResolvedClassDomain => OmenaCheckerRuleTierV0::S,
+        | MissingResolvedClassDomain
+        | CascadeDeepConflict => OmenaCheckerRuleTierV0::S,
         UnusedSelector
         | MissingComposedModule
         | MissingComposedSelector
@@ -1185,6 +1244,7 @@ fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRuleTierV0 {
         | IacvtProne
         | CircularVar
         | UnspecifiedCascadeTie => OmenaCheckerRuleTierV0::T,
+        DesignSystemMdlBudget | CascadeUnreachableRule => OmenaCheckerRuleTierV0::I,
     }
 }
 
@@ -1247,6 +1307,9 @@ mod tests {
                 "iacvt-prone",
                 "circular-var",
                 "unspecified-cascade-tie",
+                "design-system-mdl-budget",
+                "cascade.deep-conflict",
+                "cascade.unreachable-rule",
             ],
         );
     }
@@ -1304,12 +1367,13 @@ mod tests {
             summary.bundle_registry_product,
             "omena-checker.code-bundles"
         );
-        assert_eq!(summary.rule_count, 21);
+        assert_eq!(summary.rule_count, 24);
         assert_eq!(summary.source_rule_count, 8);
-        assert_eq!(summary.style_rule_count, 13);
+        assert_eq!(summary.style_rule_count, 16);
         assert_eq!(summary.m_tier_rule_count, 3);
-        assert_eq!(summary.s_tier_rule_count, 5);
+        assert_eq!(summary.s_tier_rule_count, 6);
         assert_eq!(summary.t_tier_rule_count, 13);
+        assert_eq!(summary.i_tier_rule_count, 2);
         assert_eq!(summary.bundle_count, 5);
         assert!(
             summary
@@ -1391,6 +1455,7 @@ mod tests {
                 "missing-template-prefix",
                 "missing-resolved-class-values",
                 "missing-resolved-class-domain",
+                "cascade.deep-conflict",
             ]
         );
         assert_eq!(
@@ -1410,6 +1475,14 @@ mod tests {
                 "circular-var",
                 "unspecified-cascade-tie",
             ]
+        );
+    }
+
+    #[test]
+    fn lists_i_tier_rule_codes_for_m4_alpha_advisories() {
+        assert_eq!(
+            list_omena_checker_i_tier_rule_code_names(),
+            vec!["design-system-mdl-budget", "cascade.unreachable-rule"]
         );
     }
 

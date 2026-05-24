@@ -894,6 +894,8 @@ name = "omena-checker"
 version = "0.1.0"
 dependencies = [
  "omena-abstract-value",
+ "omena-cascade",
+ "omena-resolver",
  "serde",
 ]
 
@@ -922,6 +924,7 @@ dependencies = [
 name = "omena-incremental"
 version = "0.1.0"
 dependencies = [
+ "omena-cascade",
  "salsa",
  "serde",
 ]
@@ -939,6 +942,7 @@ dependencies = [
 name = "omena-lsp-server"
 version = "0.1.0"
 dependencies = [
+ "omena-cascade",
  "omena-incremental",
  "omena-query",
  "omena-tsgo-client",

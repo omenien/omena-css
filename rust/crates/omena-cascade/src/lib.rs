@@ -7,20 +7,26 @@
 mod computed_value;
 mod conformance;
 mod custom_property;
+mod frame_footprint;
 mod fuzz;
+mod grn;
 mod model;
 mod proofs;
 mod ranking;
 mod selector;
+mod statistics;
 
 pub use computed_value::*;
 pub use conformance::*;
 pub use custom_property::*;
+pub use frame_footprint::*;
 pub use fuzz::*;
+pub use grn::*;
 pub use model::*;
 pub use proofs::*;
 pub use ranking::*;
 pub use selector::*;
+pub use statistics::*;
 
 pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
     CascadeBoundarySummary {
@@ -50,6 +56,9 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
             "scopeFlattenProof",
             "layerFlattenProof",
             "wptCascadeSeedCorpus",
+            "spinGlassStatisticsV0",
+            "grnAttractorBasinV0",
+            "diagnosticFrameFootprintV0",
         ],
         not_ready_surfaces: vec!["fullInitialValueTable", "fullWptCascadeCorpus"],
     }

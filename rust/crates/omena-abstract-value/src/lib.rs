@@ -6,6 +6,7 @@ mod property_value;
 mod provenance;
 mod reduced_product;
 mod selector_projection;
+mod semiring;
 mod types;
 
 pub use algebra::*;
@@ -22,6 +23,7 @@ pub use reduced_product::{
     summarize_reduced_product_domain,
 };
 pub use selector_projection::*;
+pub use semiring::*;
 pub use types::*;
 
 #[cfg(test)]

@@ -12,6 +12,10 @@ readme = "README.md"
 [lints]
 workspace = true
 
+[features]
+default = []
+mdl = []
+
 [dependencies]
 clap.workspace = true
 omena-query = { path = "../omena-query" }

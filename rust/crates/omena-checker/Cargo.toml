@@ -13,4 +13,6 @@ workspace = true
 
 [dependencies]
 omena-abstract-value = { path = "../omena-abstract-value" }
+omena-cascade = { path = "../omena-cascade" }
+omena-resolver = { path = "../omena-resolver" }
 serde.workspace = true

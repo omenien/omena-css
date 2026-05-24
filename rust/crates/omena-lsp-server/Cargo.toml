@@ -11,6 +11,7 @@ repository = "https://github.com/yongsk0066/css-module-explainer"
 workspace = true
 
 [dependencies]
+omena-cascade = { path = "../omena-cascade" }
 omena-incremental = { path = "../omena-incremental" }
 omena-query = { path = "../omena-query" }
 omena-tsgo-client = { path = "../omena-tsgo-client" }

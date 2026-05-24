@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 mod boundary;
 mod module_graph;
+mod module_id;
 mod runtime_query;
 mod source_runtime;
 mod style_resolution;
@@ -20,6 +21,7 @@ mod types;
 
 pub use boundary::*;
 pub use module_graph::*;
+pub use module_id::*;
 pub use runtime_query::*;
 pub use source_runtime::*;
 pub use style_resolution::*;

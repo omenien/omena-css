@@ -12,5 +12,6 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
+omena-cascade = { path = "../omena-cascade" }
 serde.workspace = true
 salsa.workspace = true
