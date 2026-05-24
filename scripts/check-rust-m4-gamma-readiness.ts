@@ -181,6 +181,15 @@ assertIncludes(smt, "smt_bisimulation_fuzz_seed_corpus_covers_m3_fixture_shapes"
 const smtFuzz = read("rust/crates/omena-smt/src/fuzz.rs");
 assertIncludes(smtFuzz, "SmtBisimulationFuzzCaseV0", "SMT must expose a bisimulation fuzz case contract");
 assertIncludes(smtFuzz, "SmtBisimulationFuzzReportV0", "SMT must expose a bisimulation fuzz report contract");
+assertIncludes(smtFuzz, "smt_bisimulation_fuzz_case_v0", "SMT fuzz cases must have a schema-zero constructor");
+assertIncludes(
+  smtFuzz,
+  'product: "omena-smt.bisimulation-fuzz-case"',
+  "SMT fuzz case V0 must carry product identity",
+);
+assertIncludes(smtFuzz, "schema_version: SMT_SCHEMA_VERSION_V0", "SMT fuzz case V0 must carry schema_version");
+assertIncludes(smtFuzz, "layer_marker: SMT_LAYER_MARKER_V0", "SMT fuzz case V0 must carry layer_marker");
+assertIncludes(smtFuzz, "feature_gate: SMT_FEATURE_GATE_V0", "SMT fuzz case V0 must carry feature_gate");
 assertIncludes(smtFuzz, "m3-cascade-proof-fixtures", "SMT fuzz evidence must identify the M3 cascade proof fixture suite");
 assertIncludes(smtFuzz, "run_smt_bisimulation_fuzz_seed_corpus_v0", "SMT must expose deterministic fuzz seed corpus evidence");
 const fuzzManifest = read("rust/fuzz/Cargo.toml");

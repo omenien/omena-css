@@ -15,6 +15,10 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SmtBisimulationFuzzCaseV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub seed: u64,
 }
 
@@ -30,6 +34,16 @@ pub struct SmtBisimulationFuzzReportV0 {
     pub checked_obligation_count: usize,
     pub l1_l3_mismatch_count: usize,
     pub passed: bool,
+}
+
+pub fn smt_bisimulation_fuzz_case_v0(seed: u64) -> SmtBisimulationFuzzCaseV0 {
+    SmtBisimulationFuzzCaseV0 {
+        schema_version: SMT_SCHEMA_VERSION_V0,
+        product: "omena-smt.bisimulation-fuzz-case",
+        layer_marker: SMT_LAYER_MARKER_V0,
+        feature_gate: SMT_FEATURE_GATE_V0,
+        seed,
+    }
 }
 
 pub fn run_smt_bisimulation_fuzz_case_v0(
@@ -103,9 +117,9 @@ pub fn run_smt_bisimulation_fuzz_seed_corpus_v0(case_count: usize) -> SmtBisimul
     let mut l1_l3_mismatch_count = 0;
 
     for index in 0..case_count {
-        let report = run_smt_bisimulation_fuzz_case_v0(SmtBisimulationFuzzCaseV0 {
-            seed: stable_seed(index as u64),
-        });
+        let report = run_smt_bisimulation_fuzz_case_v0(smt_bisimulation_fuzz_case_v0(stable_seed(
+            index as u64,
+        )));
         checked_obligation_count += report.checked_obligation_count;
         l1_l3_mismatch_count += report.l1_l3_mismatch_count;
     }

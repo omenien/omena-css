@@ -17,7 +17,7 @@ pub use backend::{SmtBackendKindV0, SmtBackendV0, StubSmtBackendV0};
 pub use encoder::{CanonicalSmtInputV0, canonical_smt_input_v0};
 pub use fuzz::{
     SmtBisimulationFuzzCaseV0, SmtBisimulationFuzzReportV0, run_smt_bisimulation_fuzz_case_v0,
-    run_smt_bisimulation_fuzz_seed_corpus_v0,
+    run_smt_bisimulation_fuzz_seed_corpus_v0, smt_bisimulation_fuzz_case_v0,
 };
 pub use obligations::{
     smt_evaluate_static_supports_condition_v0, smt_prove_box_shorthand_combination_v0,
@@ -173,5 +173,14 @@ mod tests {
         assert_eq!(report.checked_obligation_count, 128 * 4);
         assert_eq!(report.l1_l3_mismatch_count, 0);
         assert!(report.passed);
+    }
+
+    #[test]
+    fn smt_bisimulation_fuzz_case_is_a_schema_zero_contract() {
+        let case = smt_bisimulation_fuzz_case_v0(42);
+        assert_eq!(case.schema_version, "0");
+        assert_eq!(case.layer_marker, "smt-cascade-verification");
+        assert_eq!(case.feature_gate, "smt-stub");
+        assert_eq!(case.seed, 42);
     }
 }

@@ -1,16 +1,16 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use omena_smt::{SmtBisimulationFuzzCaseV0, run_smt_bisimulation_fuzz_case_v0};
+use omena_smt::{run_smt_bisimulation_fuzz_case_v0, smt_bisimulation_fuzz_case_v0};
 
 fuzz_target!(|data: &[u8]| {
     if data.is_empty() {
         return;
     }
 
-    let report = run_smt_bisimulation_fuzz_case_v0(SmtBisimulationFuzzCaseV0 {
-        seed: read_u64(data, 0),
-    });
+    let report = run_smt_bisimulation_fuzz_case_v0(smt_bisimulation_fuzz_case_v0(read_u64(
+        data, 0,
+    )));
 
     assert!(report.passed);
 });
