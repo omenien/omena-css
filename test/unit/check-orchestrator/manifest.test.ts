@@ -25,6 +25,9 @@ describe("check orchestrator manifest", () => {
     expect(resolveGateTarget(manifest, "rust/selected-query/consumers")?.scriptName).toBe(
       "check:rust-selected-query-consumers",
     );
+    expect(resolveGateTarget(manifest, "rust/design-system/universality-class")?.scriptName).toBe(
+      "check:rust-design-system-universality-class",
+    );
     expect(resolveGateTarget(manifest, "rust/omena-query/adapter-capabilities")?.scriptName).toBe(
       "check:rust-omena-query-adapter-capabilities",
     );

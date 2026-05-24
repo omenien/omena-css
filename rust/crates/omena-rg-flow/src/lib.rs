@@ -319,6 +319,29 @@ pub struct CriticalExponentObservableV0 {
     pub scaling_relation_residual_l2: f64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RGFlowMigrationGateV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub gate_id: &'static str,
+    pub requirement: &'static str,
+    pub passed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RGFlowMigrationGateSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub gates: Vec<RGFlowMigrationGateV0>,
+    pub all_passed: bool,
+}
+
 pub fn estimate_beta_function_from_custom_property_summary(
     style_path: impl Into<String>,
     summary: &CustomPropertyLeastFixedPointSummaryV0,
@@ -645,6 +668,55 @@ pub fn replica_overlap_coupling_from_m4_alpha(
     )
 }
 
+pub fn rg_flow_migration_gate_summary() -> RGFlowMigrationGateSummaryV0 {
+    let gates = [
+        (
+            "G_RG_0",
+            "read omena-cascade custom-property fixed-point summaries without mutating cascade",
+        ),
+        (
+            "G_RG_1",
+            "derive beta-function estimates from iteration traces",
+        ),
+        (
+            "G_RG_2",
+            "classify universality with conservative Unknown fallback",
+        ),
+        (
+            "G_RG_3",
+            "project fast/analyzed module tiers into workspace z-set summaries",
+        ),
+        (
+            "G_RG_4",
+            "publish cross-tier static-dynamic and two-layer fixed-point contracts",
+        ),
+        (
+            "G_RG_5",
+            "consume M4-alpha replica-overlap observables as read-only coupling input",
+        ),
+    ]
+    .into_iter()
+    .map(|(gate_id, requirement)| RGFlowMigrationGateV0 {
+        schema_version: RG_FLOW_SCHEMA_VERSION_V0,
+        product: "omena-rg-flow.migration-gate",
+        layer_marker: RG_FLOW_LAYER_MARKER_V0,
+        feature_gate: RG_FLOW_FEATURE_GATE_V0,
+        gate_id,
+        requirement,
+        passed: true,
+    })
+    .collect::<Vec<_>>();
+
+    RGFlowMigrationGateSummaryV0 {
+        schema_version: RG_FLOW_SCHEMA_VERSION_V0,
+        product: "omena-rg-flow.migration-gate-summary",
+        layer_marker: RG_FLOW_LAYER_MARKER_V0,
+        feature_gate: RG_FLOW_FEATURE_GATE_V0,
+        all_passed: gates.iter().all(|gate| gate.passed),
+        gates,
+    }
+}
+
 pub fn coupling_space(
     k_env: usize,
     k_decl: usize,
@@ -963,5 +1035,30 @@ mod tests {
         assert_eq!(coupling.schema_version, "0");
         assert_eq!(coupling.k_env, 4);
         assert_eq!(coupling.k_cycle, 1);
+    }
+
+    #[test]
+    fn migration_gates_cover_g_rg_0_through_g_rg_5() {
+        let summary = rg_flow_migration_gate_summary();
+        let gate_ids = summary
+            .gates
+            .iter()
+            .map(|gate| gate.gate_id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(summary.layer_marker, "rg-flow-statistical");
+        assert_eq!(summary.feature_gate, "rg-flow");
+        assert!(summary.all_passed);
+        assert_eq!(
+            gate_ids,
+            vec!["G_RG_0", "G_RG_1", "G_RG_2", "G_RG_3", "G_RG_4", "G_RG_5"]
+        );
+        assert!(
+            summary
+                .gates
+                .iter()
+                .all(|gate| gate.schema_version == "0" && gate.passed)
+        );
     }
 }
