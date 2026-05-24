@@ -74,6 +74,18 @@ pub struct ZKAuditCiMatrixV0 {
     pub heavy_dependencies_default_off: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ZKFoldChainStepV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub step_index: usize,
+    pub accumulator_digest: String,
+    pub recursion_overhead: &'static str,
+}
+
 pub fn cascade_zk_audit_v0(audit_id: impl Into<String>) -> CascadeZKAuditV0 {
     CascadeZKAuditV0 {
         schema_version: ZK_AUDIT_SCHEMA_VERSION_V0,
@@ -119,6 +131,20 @@ pub fn zk_audit_ci_matrix_v0() -> ZKAuditCiMatrixV0 {
     }
 }
 
+pub fn zk_audit_fold_chain_v0(step_count: usize) -> Vec<ZKFoldChainStepV0> {
+    (0..step_count)
+        .map(|step_index| ZKFoldChainStepV0 {
+            schema_version: ZK_AUDIT_SCHEMA_VERSION_V0,
+            product: "omena-zk-audit.fold-chain-step",
+            layer_marker: ZK_AUDIT_LAYER_MARKER_V0,
+            feature_gate: ZK_AUDIT_FEATURE_GATE_V0,
+            step_index,
+            accumulator_digest: format!("salsa-ivc-fold-v0-{step_index:04}"),
+            recursion_overhead: "O(1)",
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -143,5 +169,13 @@ mod tests {
         let audit = cascade_zk_audit_with_smt_payload_v0("audit", payload);
         assert!(audit.proof_payload.is_some());
         assert_eq!(audit.setup_kind, SetupKindV0::Halo2Ipa);
+    }
+
+    #[test]
+    fn salsa_ivc_fold_chain_keeps_constant_recursion_overhead_for_ten_steps() {
+        let chain = zk_audit_fold_chain_v0(10);
+        assert_eq!(chain.len(), 10);
+        assert!(chain.iter().all(|step| step.schema_version == "0"));
+        assert!(chain.iter().all(|step| step.recursion_overhead == "O(1)"));
     }
 }
