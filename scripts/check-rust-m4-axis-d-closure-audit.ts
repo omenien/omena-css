@@ -15,6 +15,7 @@ const requiredBehaviorGates = [
   "rust/omena-query/transform-context",
   "rust/omena-query/transform-execute",
   "rust/omena-query/transform-differential",
+  "rust/omena-benchmarks-boundary",
   "rust/m4-axis-d-closure-audit",
 ] as const;
 
@@ -109,6 +110,22 @@ for (const moduleName of ["computed_value", "conformance", "fuzz", "ranking"] as
   assertFileExists(`rust/crates/omena-cascade/src/${moduleName}.rs`);
 }
 
+const benchmarksOrchestrator = read("rust/crates/omena-benchmarks/src/lib.rs");
+assertIncludes(
+  benchmarksOrchestrator,
+  "mod corpus;",
+  "benchmarks orchestrator must retain corpus split",
+);
+assertFileExists("rust/crates/omena-benchmarks/src/corpus.rs");
+const benchmarksCorpus = read("rust/crates/omena-benchmarks/src/corpus.rs");
+for (const marker of [
+  "pub fn style_corpus",
+  "pub fn summarize_style_corpus_snapshot",
+  "css-backgrounds-longhand-corpus",
+] as const) {
+  assertIncludes(benchmarksCorpus, marker, `benchmark corpus split must retain ${marker}`);
+}
+
 const structuralSplits = [
   {
     family: "resolver",
@@ -152,6 +169,12 @@ const structuralSplits = [
     ],
     behaviorGate: "rust/omena-cascade/boundary",
   },
+  {
+    family: "benchmarks-corpus",
+    orchestrator: "rust/crates/omena-benchmarks/src/lib.rs",
+    modules: ["rust/crates/omena-benchmarks/src/corpus.rs"],
+    behaviorGate: "rust/omena-benchmarks-boundary",
+  },
 ] as const;
 
 process.stdout.write(
@@ -178,6 +201,7 @@ process.stdout.write(
         "queryStaticStylesheetScssOverrideSplitCoveredByTransformGates",
         "bridgeBundlerAliasSplitCoveredByBridgeBoundary",
         "cascadeCoreSplitCoveredByCascadeBoundary",
+        "benchmarkCorpusSplitCoveredByBenchmarkBoundary",
         "axisDReadinessComposesBehaviorGates",
       ],
     },
