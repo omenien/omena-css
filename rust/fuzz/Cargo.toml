@@ -13,6 +13,7 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 omena-cascade = { path = "../crates/omena-cascade" }
 omena-incremental = { path = "../crates/omena-incremental" }
+omena-smt = { path = "../crates/omena-smt" }
 omena-transform-passes = { path = "../crates/omena-transform-passes" }
 
 [[bin]]
@@ -46,6 +47,13 @@ bench = false
 [[bin]]
 name = "frame_rule_overapprox"
 path = "fuzz_targets/frame_rule_overapprox.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "smt_bisimulation"
+path = "fuzz_targets/smt_bisimulation.rs"
 test = false
 doc = false
 bench = false

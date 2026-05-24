@@ -188,6 +188,7 @@ impl OmenaCheckerCodeBundleNameV0 {
 pub struct OmenaCheckerRuleDescriptorV0 {
     pub code: OmenaCheckerRuleCodeV0,
     pub code_name: &'static str,
+    pub ordinal: u16,
     pub category: OmenaCheckerFindingCategoryV0,
     pub category_name: &'static str,
     pub tier: OmenaCheckerRuleTierV0,
@@ -199,6 +200,15 @@ pub struct OmenaCheckerRuleDescriptorV0 {
     pub presets: Vec<OmenaCheckerRulePresetV0>,
     pub preset_names: Vec<&'static str>,
     pub description: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaCheckerSmtBackendKindV0 {
+    Stub,
+    Z3,
+    Cvc5,
+    Bitwuzla,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -515,12 +525,36 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
             "Report same-selector same-property declaration pairs that rely on source order as the final cascade tie-breaker.",
         ),
         rule(
+            DesignerIntentInconsistency,
+            Style,
+            Hint,
+            None,
+            &[Strict],
+            "Report variational designer-intent posterior evidence that disagrees with deterministic cascade facts.",
+        ),
+        rule(
+            CascadeSMTViolation,
+            Style,
+            Warning,
+            None,
+            &[Strict],
+            "Report cascade proof obligations whose opt-in SMT backend rejects the L1 cascade proof primitive.",
+        ),
+        rule(
             DesignSystemMdlBudget,
             Style,
             Hint,
             None,
             &[Strict],
             "Report design-system compression candidates whose MDL budget is worse than the configured canonical fallback.",
+        ),
+        rule(
+            StreamingIfdsPrecisionParity,
+            Style,
+            Hint,
+            None,
+            &[Strict],
+            "Report streaming IFDS results that fail exact parity with the batch hypergraph oracle.",
         ),
         rule(
             CascadeDeepConflict,
@@ -537,30 +571,6 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
             None,
             &[Strict],
             "Report cascade rules that the GRN state model proves unreachable under the current fixture slice.",
-        ),
-        rule(
-            CascadeSMTViolation,
-            Style,
-            Warning,
-            None,
-            &[Strict],
-            "Report cascade proof obligations whose opt-in SMT backend rejects the L1 cascade proof primitive.",
-        ),
-        rule(
-            DesignerIntentInconsistency,
-            Style,
-            Hint,
-            None,
-            &[Strict],
-            "Report variational designer-intent posterior evidence that disagrees with deterministic cascade facts.",
-        ),
-        rule(
-            StreamingIfdsPrecisionParity,
-            Style,
-            Hint,
-            None,
-            &[Strict],
-            "Report streaming IFDS results that fail exact parity with the batch hypergraph oracle.",
         ),
     ]
 }
@@ -606,8 +616,8 @@ pub fn list_omena_checker_s_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
         MissingTemplatePrefix,
         MissingResolvedClassValues,
         MissingResolvedClassDomain,
-        CascadeDeepConflict,
         CascadeSMTViolation,
+        CascadeDeepConflict,
     ]
 }
 
@@ -656,10 +666,10 @@ pub fn list_omena_checker_i_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
     };
 
     vec![
-        DesignSystemMdlBudget,
-        CascadeUnreachableRule,
         DesignerIntentInconsistency,
+        DesignSystemMdlBudget,
         StreamingIfdsPrecisionParity,
+        CascadeUnreachableRule,
     ]
 }
 
@@ -682,6 +692,22 @@ pub fn get_omena_checker_rule_descriptor(
     list_omena_checker_rule_descriptors()
         .into_iter()
         .find(|descriptor| descriptor.code == code)
+}
+
+pub fn resolve_omena_checker_rule_tier_for_smt_backend(
+    code: OmenaCheckerRuleCodeV0,
+    backend_kind: OmenaCheckerSmtBackendKindV0,
+) -> OmenaCheckerRuleTierV0 {
+    if code != OmenaCheckerRuleCodeV0::CascadeSMTViolation {
+        return rule_tier_for_code(code);
+    }
+
+    match backend_kind {
+        OmenaCheckerSmtBackendKindV0::Stub => OmenaCheckerRuleTierV0::I,
+        OmenaCheckerSmtBackendKindV0::Z3
+        | OmenaCheckerSmtBackendKindV0::Cvc5
+        | OmenaCheckerSmtBackendKindV0::Bitwuzla => OmenaCheckerRuleTierV0::S,
+    }
 }
 
 pub fn list_omena_checker_code_bundles() -> Vec<OmenaCheckerCodeBundleV0> {
@@ -1240,6 +1266,7 @@ fn rule(
     OmenaCheckerRuleDescriptorV0 {
         code,
         code_name: code.as_str(),
+        ordinal: rule_ordinal_for_code(code),
         category,
         category_name: category.as_str(),
         tier,
@@ -1251,6 +1278,49 @@ fn rule(
         presets: presets.to_vec(),
         preset_names: presets.iter().map(|preset| preset.as_str()).collect(),
         description,
+    }
+}
+
+fn rule_ordinal_for_code(code: OmenaCheckerRuleCodeV0) -> u16 {
+    use OmenaCheckerRuleCodeV0::{
+        CascadeDeepConflict, CascadeSMTViolation, CascadeUnreachableRule, CircularVar,
+        DeadCascadeLayer, DesignSystemMdlBudget, DesignerIntentInconsistency, IacvtProne,
+        MissingComposedModule, MissingComposedSelector, MissingCustomProperty,
+        MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
+        MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
+        MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
+        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie,
+        UnusedSelector,
+    };
+
+    match code {
+        NoUnknownDynamicClass => 1,
+        NoImpreciseValue => 2,
+        NoImpossibleSelector => 3,
+        MissingModule => 4,
+        MissingStaticClass => 5,
+        MissingTemplatePrefix => 6,
+        MissingResolvedClassValues => 7,
+        MissingResolvedClassDomain => 8,
+        UnusedSelector => 9,
+        MissingComposedModule => 10,
+        MissingComposedSelector => 11,
+        MissingValueModule => 12,
+        MissingImportedValue => 13,
+        MissingKeyframes => 14,
+        MissingCustomProperty => 15,
+        MissingSassSymbol => 16,
+        UnreachableDeclaration => 17,
+        DeadCascadeLayer => 18,
+        IacvtProne => 19,
+        CircularVar => 20,
+        UnspecifiedCascadeTie => 21,
+        DesignerIntentInconsistency => 22,
+        CascadeSMTViolation => 23,
+        DesignSystemMdlBudget => 24,
+        StreamingIfdsPrecisionParity => 25,
+        CascadeDeepConflict => 26,
+        CascadeUnreachableRule => 27,
     }
 }
 
@@ -1356,12 +1426,12 @@ mod tests {
                 "iacvt-prone",
                 "circular-var",
                 "unspecified-cascade-tie",
+                "designer-intent-inconsistency",
+                "cascade.smt-violation",
                 "design-system-mdl-budget",
+                "streaming-ifds-precision-parity",
                 "cascade.deep-conflict",
                 "cascade.unreachable-rule",
-                "cascade.smt-violation",
-                "designer-intent-inconsistency",
-                "streaming-ifds-precision-parity",
             ],
         );
     }
@@ -1370,9 +1440,11 @@ mod tests {
     fn descriptors_have_required_metadata_without_duplicate_codes() {
         let descriptors = list_omena_checker_rule_descriptors();
         let mut codes = BTreeSet::new();
+        let mut ordinals = BTreeSet::new();
 
         for descriptor in &descriptors {
             assert!(codes.insert(descriptor.code_name));
+            assert!(ordinals.insert(descriptor.ordinal));
             assert!(descriptor.description.len() > 20);
             assert!(!descriptor.preset_names.is_empty());
             assert_eq!(descriptor.code.as_str(), descriptor.code_name);
@@ -1391,6 +1463,11 @@ mod tests {
         }
 
         assert_eq!(descriptors.len(), codes.len());
+        assert_eq!(descriptors.len(), ordinals.len());
+        assert_eq!(
+            ordinals.into_iter().collect::<Vec<_>>(),
+            (1..=27).collect::<Vec<_>>()
+        );
         assert!(!is_omena_checker_rule_code("not-a-rule"));
     }
 
@@ -1507,8 +1584,8 @@ mod tests {
                 "missing-template-prefix",
                 "missing-resolved-class-values",
                 "missing-resolved-class-domain",
-                "cascade.deep-conflict",
                 "cascade.smt-violation",
+                "cascade.deep-conflict",
             ]
         );
         assert_eq!(
@@ -1536,11 +1613,49 @@ mod tests {
         assert_eq!(
             list_omena_checker_i_tier_rule_code_names(),
             vec![
-                "design-system-mdl-budget",
-                "cascade.unreachable-rule",
                 "designer-intent-inconsistency",
+                "design-system-mdl-budget",
                 "streaming-ifds-precision-parity",
+                "cascade.unreachable-rule",
             ]
+        );
+    }
+
+    #[test]
+    fn m4_gamma_rule_ordinals_and_smt_backend_tiers_are_explicit() {
+        assert_eq!(
+            get_omena_checker_rule_descriptor(OmenaCheckerRuleCodeV0::DesignerIntentInconsistency)
+                .map(|descriptor| (descriptor.ordinal, descriptor.tier)),
+            Some((22, OmenaCheckerRuleTierV0::I))
+        );
+        assert_eq!(
+            get_omena_checker_rule_descriptor(OmenaCheckerRuleCodeV0::CascadeSMTViolation)
+                .map(|descriptor| (descriptor.ordinal, descriptor.tier)),
+            Some((23, OmenaCheckerRuleTierV0::S))
+        );
+        assert_eq!(
+            get_omena_checker_rule_descriptor(OmenaCheckerRuleCodeV0::DesignSystemMdlBudget)
+                .map(|descriptor| descriptor.ordinal),
+            Some(24)
+        );
+        assert_eq!(
+            get_omena_checker_rule_descriptor(OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity)
+                .map(|descriptor| descriptor.ordinal),
+            Some(25)
+        );
+        assert_eq!(
+            resolve_omena_checker_rule_tier_for_smt_backend(
+                OmenaCheckerRuleCodeV0::CascadeSMTViolation,
+                OmenaCheckerSmtBackendKindV0::Stub,
+            ),
+            OmenaCheckerRuleTierV0::I
+        );
+        assert_eq!(
+            resolve_omena_checker_rule_tier_for_smt_backend(
+                OmenaCheckerRuleCodeV0::CascadeSMTViolation,
+                OmenaCheckerSmtBackendKindV0::Z3,
+            ),
+            OmenaCheckerRuleTierV0::S
         );
     }
 

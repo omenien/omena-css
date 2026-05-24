@@ -7,6 +7,7 @@
 
 pub mod backend;
 pub mod encoder;
+pub mod fuzz;
 pub mod obligations;
 pub mod proof;
 pub mod theory;
@@ -14,6 +15,10 @@ pub mod unsat_core;
 
 pub use backend::{SmtBackendKindV0, SmtBackendV0, StubSmtBackendV0};
 pub use encoder::{CanonicalSmtInputV0, canonical_smt_input_v0};
+pub use fuzz::{
+    SmtBisimulationFuzzCaseV0, SmtBisimulationFuzzReportV0, run_smt_bisimulation_fuzz_case_v0,
+    run_smt_bisimulation_fuzz_seed_corpus_v0,
+};
 pub use obligations::{
     smt_evaluate_static_supports_condition_v0, smt_prove_box_shorthand_combination_v0,
     smt_prove_layer_flatten_candidate_v0, smt_prove_scope_flatten_candidate_v0,
@@ -158,5 +163,15 @@ mod tests {
         assert_eq!(l1.verdict, StaticSupportsEvalVerdictV0::AlwaysTrue);
         assert_eq!(l3.verdict, SmtVerdictV0::Accepted);
         assert_eq!(l3.l1_primitive, "evaluate_static_supports_condition");
+    }
+
+    #[test]
+    fn smt_bisimulation_fuzz_seed_corpus_covers_m3_fixture_shapes() {
+        let report = run_smt_bisimulation_fuzz_seed_corpus_v0(128);
+        assert_eq!(report.schema_version, "0");
+        assert_eq!(report.fixture_suite, "m3-cascade-proof-fixtures");
+        assert_eq!(report.checked_obligation_count, 128 * 4);
+        assert_eq!(report.l1_l3_mismatch_count, 0);
+        assert!(report.passed);
     }
 }

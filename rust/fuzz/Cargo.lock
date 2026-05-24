@@ -94,6 +94,7 @@ dependencies = [
  "libfuzzer-sys",
  "omena-cascade",
  "omena-incremental",
+ "omena-smt",
  "omena-transform-passes",
 ]
 
@@ -264,6 +265,7 @@ dependencies = [
 name = "omena-cascade"
 version = "0.1.0"
 dependencies = [
+ "omena-refinement-trait",
  "serde",
 ]
 
@@ -298,6 +300,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-refinement-trait"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "omena-smt"
+version = "0.1.0"
+dependencies = [
+ "omena-cascade",
+ "omena-refinement-trait",
+ "serde",
+]
+
+[[package]]
 name = "omena-syntax"
 version = "0.1.0"
 dependencies = [
@@ -319,6 +337,7 @@ dependencies = [
  "omena-cascade",
  "omena-incremental",
  "omena-parser",
+ "omena-smt",
  "omena-syntax",
  "omena-transform-cst",
  "serde",
