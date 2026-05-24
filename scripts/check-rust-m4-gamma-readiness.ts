@@ -193,6 +193,15 @@ assertIncludes(zkAudit, "SetupKindV0::Halo2Ipa", "ZK audit default must be Halo2
 assertIncludes(zkAudit, '"default", "zk-audit", "zk-audit-stark", "zk-audit-binius"', "ZK audit must expose four CI matrix cells");
 assertIncludes(zkAudit, "zk_audit_fold_chain_v0", "ZK audit must expose fold-chain evidence");
 assertIncludes(zkAudit, 'recursion_overhead: "O(1)"', "ZK audit fold-chain must pin O(1) recursion overhead");
+const omenaCliManifest = read("rust/crates/omena-cli/Cargo.toml");
+const omenaCli = read("rust/crates/omena-cli/src/main.rs");
+assertIncludes(omenaCliManifest, 'zk-audit = ["dep:omena-zk-audit"]', "omena-cli must gate ZK audit CLI behind feature");
+assertIncludes(omenaCli, "AuditCommand", "omena-cli must expose audit subcommand behind feature");
+assertIncludes(omenaCli, "ZkAuditCommand", "omena-cli must expose audit zk command group");
+assertIncludes(omenaCli, "Prove", "omena audit zk must expose prove");
+assertIncludes(omenaCli, "Verify", "omena audit zk must expose verify");
+assertIncludes(omenaCli, "SetupStatus", "omena audit zk must expose setup-status");
+assertIncludes(omenaCli, "omena-cli.audit.zk.setup-status", "ZK setup-status must return product evidence");
 
 const variational = read("rust/crates/omena-variational/src/lib.rs");
 assertIncludes(variational, "ProvenancePosteriorAnnotationV0", "variational sidecar annotation must exist");

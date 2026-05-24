@@ -23,6 +23,10 @@ use omena_query::{
     summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
+#[cfg(feature = "zk-audit")]
+use omena_zk_audit::{
+    CascadeZKAuditV0, ZKAuditCiMatrixV0, cascade_zk_audit_v0, zk_audit_ci_matrix_v0,
+};
 use serde::Serialize;
 use std::{
     fs,
@@ -237,6 +241,65 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Run feature-gated audit surfaces.
+    #[cfg(feature = "zk-audit")]
+    Audit {
+        #[command(subcommand)]
+        command: AuditCommand,
+    },
+}
+
+#[cfg(feature = "zk-audit")]
+#[derive(Debug, Subcommand)]
+enum AuditCommand {
+    /// Run zero-knowledge cascade audit commands.
+    Zk {
+        #[command(subcommand)]
+        command: ZkAuditCommand,
+    },
+}
+
+#[cfg(feature = "zk-audit")]
+#[derive(Debug, Subcommand)]
+enum ZkAuditCommand {
+    /// Produce a default-off ZK cascade audit contract.
+    Prove {
+        /// Stable audit identifier.
+        #[arg(long, default_value = "cli-zk-audit")]
+        audit_id: String,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Verify the default-off ZK cascade audit contract shape.
+    Verify {
+        /// Stable audit identifier.
+        #[arg(long, default_value = "cli-zk-audit")]
+        audit_id: String,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Report the default Halo2+IPA setup status and opt-in CI cells.
+    SetupStatus {
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[cfg(feature = "zk-audit")]
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ZkAuditCliResultV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    layer_marker: &'static str,
+    feature_gate: &'static str,
+    command: &'static str,
+    audit: Option<CascadeZKAuditV0>,
+    ci_matrix: Option<ZKAuditCiMatrixV0>,
+    verified: bool,
 }
 
 fn main() -> ExitCode {
@@ -357,7 +420,91 @@ fn run(cli: Cli) -> Result<(), String> {
             package_manifest_paths,
             json,
         ),
+        #[cfg(feature = "zk-audit")]
+        Command::Audit { command } => audit_command(command),
     }
+}
+
+#[cfg(feature = "zk-audit")]
+fn audit_command(command: AuditCommand) -> Result<(), String> {
+    match command {
+        AuditCommand::Zk { command } => zk_audit_command(command),
+    }
+}
+
+#[cfg(feature = "zk-audit")]
+fn zk_audit_command(command: ZkAuditCommand) -> Result<(), String> {
+    match command {
+        ZkAuditCommand::Prove { audit_id, json } => {
+            let result = ZkAuditCliResultV0 {
+                schema_version: "0",
+                product: "omena-cli.audit.zk.prove",
+                layer_marker: "cryptographic-implementation",
+                feature_gate: "zk-audit",
+                command: "prove",
+                audit: Some(cascade_zk_audit_v0(audit_id)),
+                ci_matrix: None,
+                verified: true,
+            };
+            print_zk_audit_result(&result, json)
+        }
+        ZkAuditCommand::Verify { audit_id, json } => {
+            let audit = cascade_zk_audit_v0(audit_id);
+            let verified = audit.schema_version == "0"
+                && audit.feature_gate == "zk-audit"
+                && audit.recursion_overhead == "O(1)";
+            let result = ZkAuditCliResultV0 {
+                schema_version: "0",
+                product: "omena-cli.audit.zk.verify",
+                layer_marker: "cryptographic-implementation",
+                feature_gate: "zk-audit",
+                command: "verify",
+                audit: Some(audit),
+                ci_matrix: None,
+                verified,
+            };
+            print_zk_audit_result(&result, json)
+        }
+        ZkAuditCommand::SetupStatus { json } => {
+            let result = ZkAuditCliResultV0 {
+                schema_version: "0",
+                product: "omena-cli.audit.zk.setup-status",
+                layer_marker: "cryptographic-implementation",
+                feature_gate: "zk-audit",
+                command: "setup-status",
+                audit: None,
+                ci_matrix: Some(zk_audit_ci_matrix_v0()),
+                verified: true,
+            };
+            print_zk_audit_result(&result, json)
+        }
+    }
+}
+
+#[cfg(feature = "zk-audit")]
+fn print_zk_audit_result(result: &ZkAuditCliResultV0, json: bool) -> Result<(), String> {
+    if json {
+        print_json(result)?;
+        return Ok(());
+    }
+
+    println!("product: {}", result.product);
+    println!("command: {}", result.command);
+    println!("feature gate: {}", result.feature_gate);
+    println!("verified: {}", result.verified);
+    if let Some(audit) = &result.audit {
+        println!("audit: {}", audit.audit_id);
+        println!("setup: {:?}", audit.setup_kind);
+        println!("recursion overhead: {}", audit.recursion_overhead);
+    }
+    if let Some(ci_matrix) = &result.ci_matrix {
+        println!("ci cells: {}", ci_matrix.cells.join(","));
+        println!(
+            "heavy dependencies default off: {}",
+            ci_matrix.heavy_dependencies_default_off
+        );
+    }
+    Ok(())
 }
 
 fn check_file(path: PathBuf, json: bool) -> Result<(), String> {
@@ -1495,6 +1642,43 @@ export function App() {
 
         cleanup_dir(&workspace_path);
         Ok(())
+    }
+
+    #[cfg(feature = "zk-audit")]
+    #[test]
+    fn audit_zk_commands_are_feature_gated_surfaces() {
+        let prove_result = run(Cli {
+            command: Command::Audit {
+                command: AuditCommand::Zk {
+                    command: ZkAuditCommand::Prove {
+                        audit_id: "test-audit".to_string(),
+                        json: true,
+                    },
+                },
+            },
+        });
+        assert!(prove_result.is_ok(), "{prove_result:?}");
+
+        let verify_result = run(Cli {
+            command: Command::Audit {
+                command: AuditCommand::Zk {
+                    command: ZkAuditCommand::Verify {
+                        audit_id: "test-audit".to_string(),
+                        json: true,
+                    },
+                },
+            },
+        });
+        assert!(verify_result.is_ok(), "{verify_result:?}");
+
+        let setup_result = run(Cli {
+            command: Command::Audit {
+                command: AuditCommand::Zk {
+                    command: ZkAuditCommand::SetupStatus { json: true },
+                },
+            },
+        });
+        assert!(setup_result.is_ok(), "{setup_result:?}");
     }
 
     fn temp_path(name: &str) -> PathBuf {
