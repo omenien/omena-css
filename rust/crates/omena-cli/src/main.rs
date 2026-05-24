@@ -1,9 +1,10 @@
 use clap::{Parser, Subcommand};
 use omena_query::{
     OmenaQueryEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
-    OmenaQuerySourceDocumentInputV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
+    OmenaQuerySourceDiagnosticsForFileV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQuerySourceMissingSelectorDiagnosticCandidateV0, OmenaQueryStylePackageManifestV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
+    OmenaQueryTransformExecutionContextV0, ParserPositionV0,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
@@ -896,26 +897,13 @@ fn source_diagnostics(
     package_manifest_paths: Vec<PathBuf>,
     json: bool,
 ) -> Result<(), String> {
-    let summary = if let Some(candidates_json) = candidates_json {
-        let candidates = read_source_diagnostic_candidates_json(&candidates_json)?;
-        summarize_omena_query_source_diagnostics_for_file(
-            source_uri.as_str(),
-            candidates.as_slice(),
-        )
-    } else {
-        let source_path = source_path.ok_or_else(|| {
-            "source-diagnostics requires either --candidates-json or --source-path".to_string()
-        })?;
-        let source_source = read_source(&source_path)?;
-        let style_sources = read_style_sources(&source_paths)?;
-        let package_manifests = read_package_manifests(&package_manifest_paths)?;
-        summarize_omena_query_source_diagnostics_for_workspace_file(
-            source_uri.as_str(),
-            source_source.as_str(),
-            style_sources.as_slice(),
-            package_manifests.as_slice(),
-        )
-    };
+    let summary = source_diagnostics_summary(
+        source_uri,
+        candidates_json,
+        source_path,
+        source_paths,
+        package_manifest_paths,
+    )?;
 
     if json {
         print_json(&summary)?;
@@ -928,6 +916,35 @@ fn source_diagnostics(
         println!("{}\t{}", diagnostic.code, diagnostic.message);
     }
     Ok(())
+}
+
+fn source_diagnostics_summary(
+    source_uri: String,
+    candidates_json: Option<PathBuf>,
+    source_path: Option<PathBuf>,
+    source_paths: Vec<PathBuf>,
+    package_manifest_paths: Vec<PathBuf>,
+) -> Result<OmenaQuerySourceDiagnosticsForFileV0, String> {
+    if let Some(candidates_json) = candidates_json {
+        let candidates = read_source_diagnostic_candidates_json(&candidates_json)?;
+        Ok(summarize_omena_query_source_diagnostics_for_file(
+            source_uri.as_str(),
+            candidates.as_slice(),
+        ))
+    } else {
+        let source_path = source_path.ok_or_else(|| {
+            "source-diagnostics requires either --candidates-json or --source-path".to_string()
+        })?;
+        let source_source = read_source(&source_path)?;
+        let style_sources = read_style_sources(&source_paths)?;
+        let package_manifests = read_package_manifests(&package_manifest_paths)?;
+        Ok(summarize_omena_query_source_diagnostics_for_workspace_file(
+            source_uri.as_str(),
+            source_source.as_str(),
+            style_sources.as_slice(),
+            package_manifests.as_slice(),
+        ))
+    }
 }
 
 fn read_source(path: &Path) -> Result<String, String> {
@@ -1251,6 +1268,82 @@ export function App() {
         Ok(())
     }
 
+    #[test]
+    fn source_diagnostics_command_uses_package_manifest_override_paths() -> Result<(), String> {
+        let workspace_path = temp_dir("package-manifest-override");
+        let source_dir = workspace_path.join("src");
+        let package_dir = workspace_path.join("node_modules/@design/tokens");
+        let style_dir = package_dir.join("dist");
+        fs::create_dir_all(&source_dir)
+            .map_err(|error| format!("fixture source dir should be writable: {error}"))?;
+        fs::create_dir_all(&style_dir)
+            .map_err(|error| format!("fixture package dir should be writable: {error}"))?;
+
+        let source_path = source_dir.join("App.tsx");
+        let style_path = style_dir.join("theme.module.css");
+        let package_manifest_path = package_dir.join("package.json");
+        fs::write(
+            &source_path,
+            r#"import bind from "classnames/bind";
+import styles from "@design/tokens/theme.module.css";
+const cx = bind.bind(styles);
+export function App() {
+  return <div className={cx("ghost")} />;
+}
+"#,
+        )
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+        fs::write(&style_path, ".chip {}\n")
+            .map_err(|error| format!("fixture style should be writable: {error}"))?;
+        fs::write(
+            &package_manifest_path,
+            r#"{"exports":{"./theme.module.css":{"style":"./dist/theme.module.css"}}}"#,
+        )
+        .map_err(|error| format!("fixture package manifest should be writable: {error}"))?;
+
+        let summary = source_diagnostics_summary(
+            path_string(&source_path),
+            None,
+            Some(source_path.clone()),
+            vec![style_path.clone()],
+            vec![package_manifest_path.clone()],
+        )?;
+
+        assert!(
+            summary
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "missingModule"),
+            "{summary:?}"
+        );
+        let diagnostic = summary
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "missingStaticClass")
+            .ok_or_else(|| format!("expected missingStaticClass diagnostic: {summary:?}"))?;
+        let create_selector = diagnostic
+            .create_selector
+            .as_ref()
+            .ok_or_else(|| format!("expected create selector action: {diagnostic:?}"))?;
+        assert_eq!(create_selector.uri, path_string(&style_path));
+        assert_eq!(create_selector.selector_name, "ghost");
+
+        let result = run(Cli {
+            command: Command::SourceDiagnostics {
+                source_uri: path_string(&source_path),
+                candidates_json: None,
+                source_path: Some(source_path.clone()),
+                source_paths: vec![style_path],
+                package_manifest_paths: vec![package_manifest_path],
+                json: true,
+            },
+        });
+        assert!(result.is_ok(), "{result:?}");
+
+        cleanup_dir(&workspace_path);
+        Ok(())
+    }
+
     fn temp_path(name: &str) -> PathBuf {
         let nanos = match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(duration) => duration.as_nanos(),
@@ -1259,7 +1352,15 @@ export function App() {
         std::env::temp_dir().join(format!("omena-cli-{nanos}-{name}"))
     }
 
+    fn temp_dir(name: &str) -> PathBuf {
+        temp_path(name)
+    }
+
     fn cleanup(path: &Path) {
         let _ = fs::remove_file(path);
+    }
+
+    fn cleanup_dir(path: &Path) {
+        let _ = fs::remove_dir_all(path);
     }
 }

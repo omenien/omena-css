@@ -72,10 +72,12 @@ const resolverFixtureRequirements = [
   "LSP product TypeScript path mappings",
   "LSP product Vite/Webpack bundler aliases",
   "LSP product package manifests and imports",
+  "CLI product package manifest override",
   "package=exports-imports-conditions-patterns",
   "package=null-blocking-private-subpaths",
   "sass=node-package-importer-pkg-url-ordering",
   "bundler=vite-webpack-aliases",
+  "cli=package-manifest-override",
 ] as const;
 for (const marker of resolverFixtureRequirements) {
   assertIncludes(fixtureSuiteScript, marker, `resolver fixture suite must cover ${marker}`);
@@ -173,6 +175,7 @@ process.stdout.write(
           "sass-node-package-importer-pkg-url-ordering",
           "vite-webpack-aliases",
           "lsp-product-paths",
+          "cli-package-manifest-overrides",
         ],
       },
       bundlerConfigAliasExtraction: {
