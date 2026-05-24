@@ -159,6 +159,7 @@ for (const moduleName of [
   assertIncludes(categorical, moduleName, "omena-categorical must expose all 9 required modules");
 }
 for (const primitive of [
+  "cascade_property",
   "prove_layer_flatten_candidate",
   "prove_scope_flatten_candidate",
   "prove_box_shorthand_combination",
@@ -166,6 +167,12 @@ for (const primitive of [
 ]) {
   assertIncludes(categorical, primitive, "omena-categorical must map existing cascade primitive roles");
 }
+assertIncludes(categorical, '"ranking"', "omena-categorical must classify cascade_property as a ranking primitive");
+assertIncludes(
+  categorical,
+  "cosheaf colimit witness",
+  "omena-categorical must map cascade_property to a cosheaf colimit witness",
+);
 assertIncludes(categorical, "contract_count: 26", "omena-categorical must pin 26 V0 contracts");
 assertIncludes(categorical, "CategoricalCascadeEvidenceV0", "omena-categorical must expose cascade evidence");
 assertIncludes(

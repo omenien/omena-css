@@ -39,18 +39,19 @@ pub struct CategoricalFoundationSummaryV0 {
     pub module_names: Vec<&'static str>,
     pub top_level_contract_count: usize,
     pub support_contract_count: usize,
-    pub proof_primitive_roles: Vec<CascadeProofPrimitiveRoleV0>,
+    pub cascade_primitive_roles: Vec<CascadePrimitiveRoleV0>,
     pub lawvere_dependency_direction: &'static str,
     pub default_feature_enabled: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CascadeProofPrimitiveRoleV0 {
+pub struct CascadePrimitiveRoleV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
     pub feature_gate: &'static str,
+    pub primitive_kind: &'static str,
     pub primitive_name: &'static str,
     pub categorical_role: &'static str,
 }
@@ -109,7 +110,7 @@ pub struct CategoricalCascadeEvidenceV0 {
     pub endpoint_count: usize,
     pub endpoints: Vec<CategoricalEvidenceEndpointV0>,
     pub fixture_evidence: Vec<CategoricalEndpointFixtureEvidenceV0>,
-    pub proof_primitive_roles: Vec<CascadeProofPrimitiveRoleV0>,
+    pub cascade_primitive_roles: Vec<CascadePrimitiveRoleV0>,
     pub default_feature_enabled: bool,
 }
 
@@ -132,7 +133,7 @@ pub fn summarize_categorical_foundation_v0() -> CategoricalFoundationSummaryV0 {
         ],
         top_level_contract_count: 26,
         support_contract_count: 16,
-        proof_primitive_roles: cascade_proof_primitive_roles_v0(),
+        cascade_primitive_roles: cascade_primitive_roles_v0(),
         lawvere_dependency_direction: "omena-categorical -> omena-lawvere",
         default_feature_enabled: false,
     }
@@ -223,7 +224,7 @@ pub fn categorical_cascade_evidence_v0(
         endpoint_count: endpoints.len(),
         endpoints,
         fixture_evidence,
-        proof_primitive_roles: cascade_proof_primitive_roles_v0(),
+        cascade_primitive_roles: cascade_primitive_roles_v0(),
         default_feature_enabled: false,
     }
 }
@@ -544,32 +545,38 @@ fn endpoint_fixture_v0(
     }
 }
 
-pub fn cascade_proof_primitive_roles_v0() -> Vec<CascadeProofPrimitiveRoleV0> {
+pub fn cascade_primitive_roles_v0() -> Vec<CascadePrimitiveRoleV0> {
     [
+        ("ranking", "cascade_property", "cosheaf colimit witness"),
         (
+            "proof",
             "prove_layer_flatten_candidate",
             "Beck-Chevalley origin inversion witness",
         ),
         (
+            "proof",
             "prove_scope_flatten_candidate",
             "scope stratification morphism witness",
         ),
         (
+            "proof",
             "prove_box_shorthand_combination",
             "shorthand invariant functor witness",
         ),
         (
+            "evaluation",
             "evaluate_static_supports_condition",
             "site-axis decidability witness",
         ),
     ]
     .into_iter()
     .map(
-        |(primitive_name, categorical_role)| CascadeProofPrimitiveRoleV0 {
+        |(primitive_kind, primitive_name, categorical_role)| CascadePrimitiveRoleV0 {
             schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
-            product: "omena-categorical.proof-primitive-role",
+            product: "omena-categorical.cascade-primitive-role",
             layer_marker: CATEGORICAL_LAYER_MARKER_V0,
             feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+            primitive_kind,
             primitive_name,
             categorical_role,
         },
@@ -596,16 +603,23 @@ mod tests {
     }
 
     #[test]
-    fn maps_actual_cascade_proof_primitives_only() {
-        let roles = cascade_proof_primitive_roles_v0();
+    fn maps_actual_cascade_primitives_to_categorical_roles() {
+        let roles = cascade_primitive_roles_v0();
         let primitive_names = roles
             .iter()
             .map(|role| role.primitive_name)
             .collect::<Vec<_>>();
-        assert_eq!(primitive_names.len(), 4);
+        assert_eq!(primitive_names.len(), 5);
+        assert!(primitive_names.contains(&"cascade_property"));
         assert!(primitive_names.contains(&"prove_box_shorthand_combination"));
         assert!(primitive_names.contains(&"evaluate_static_supports_condition"));
-        assert!(!primitive_names.contains(&"cascade_property"));
+        assert!(
+            roles
+                .iter()
+                .any(|role| role.primitive_name == "cascade_property"
+                    && role.primitive_kind == "ranking"
+                    && role.categorical_role == "cosheaf colimit witness")
+        );
     }
 
     #[test]
