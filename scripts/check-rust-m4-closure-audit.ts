@@ -187,16 +187,18 @@ function buildTheoryClaimGuard(): {
     {
       id: "m4-alpha.grn-state-transition",
       stage: "m4-alpha",
-      status: "fixtureRecordOnly",
-      framing: "fixtureBound",
+      status: "propertyTestEnforced",
+      framing: "enforcedProperty",
       surface: "GRN attractor basin proof over n <= 16",
       evidencePath: "rust/crates/omena-cascade/src/grn.rs",
       evidenceMarkers: [
+        "transition_cascade_grn_state_v0",
+        "enumerate_explicit_grn_attractor_v0",
+        "GrnTransitionRecordV0",
         "prove_cascade_attractor_basin",
         "grn_explicit_attractor_basin_proof_covers_all_n_le_16",
+        "grn_explicit_transition_function_enumerates_full_state_space",
       ],
-      nextAction:
-        "supplement explicit state and transition enumeration before refinement trajectory work",
     },
     {
       id: "m4-alpha.spin-glass-property-tests",

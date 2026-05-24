@@ -63,8 +63,12 @@ pub struct CascadeAttractorBasinV0 {
     pub feature_gate: &'static str,
     pub basin_id: String,
     pub strategy: AttractorEnumerationStrategyV0,
+    pub variable_count: usize,
     pub state_count: usize,
+    pub transition_count: usize,
     pub fixed_point_count: usize,
+    pub fixed_point_states: Vec<u64>,
+    pub transition_digest: Option<String>,
     pub proof: CascadeAttractorBasinProofV0,
 }
 
@@ -97,6 +101,31 @@ pub struct CascadeAttractorBasinProofV0 {
     pub deterministic: bool,
     pub fixed_point_tag: RgFixedPointTagV0,
     pub conservative: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GrnTransitionRecordV0 {
+    pub from_state: u64,
+    pub to_state: u64,
+    pub fixed_point: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GrnExplicitAttractorEnumerationV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub variable_count: usize,
+    pub state_count: usize,
+    pub transition_count: usize,
+    pub fixed_point_count: usize,
+    pub fixed_point_states: Vec<u64>,
+    pub transition_digest: String,
+    pub complete: bool,
+    pub transitions: Vec<GrnTransitionRecordV0>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -166,6 +195,60 @@ pub fn choose_grn_attractor_strategy(variable_count: usize) -> AttractorEnumerat
     }
 }
 
+pub fn transition_cascade_grn_state_v0(variable_count: usize, state: u64) -> u64 {
+    let mask = grn_state_mask(variable_count);
+    let active = state & mask;
+    active & active.wrapping_neg()
+}
+
+pub fn enumerate_explicit_grn_attractor_v0(
+    variable_count: usize,
+) -> GrnExplicitAttractorEnumerationV0 {
+    assert!(
+        variable_count <= 16,
+        "explicit GRN state enumeration is bounded to n <= 16"
+    );
+    let state_count = 1usize << variable_count;
+    let mut fixed_point_states = Vec::new();
+    let mut transitions = Vec::with_capacity(state_count);
+
+    for from_state in 0..state_count {
+        let from_state = from_state as u64;
+        let to_state = transition_cascade_grn_state_v0(variable_count, from_state);
+        let fixed_point = from_state == to_state;
+        if fixed_point {
+            fixed_point_states.push(from_state);
+        }
+        transitions.push(GrnTransitionRecordV0 {
+            from_state,
+            to_state,
+            fixed_point,
+        });
+    }
+
+    let transition_digest = digest_grn_transitions(
+        variable_count,
+        state_count,
+        fixed_point_states.len(),
+        &transitions,
+    );
+
+    GrnExplicitAttractorEnumerationV0 {
+        schema_version: "0",
+        product: "omena-cascade.grn-explicit-attractor-enumeration",
+        layer_marker: "statistical-mechanics",
+        feature_gate: "grn",
+        variable_count,
+        state_count,
+        transition_count: transitions.len(),
+        fixed_point_count: fixed_point_states.len(),
+        fixed_point_states,
+        transition_digest,
+        complete: true,
+        transitions,
+    }
+}
+
 pub fn prove_cascade_attractor_basin(variable_count: usize) -> CascadeAttractorBasinV0 {
     let strategy = choose_grn_attractor_strategy(variable_count);
     let fixed_point_tag = match strategy {
@@ -176,6 +259,21 @@ pub fn prove_cascade_attractor_basin(variable_count: usize) -> CascadeAttractorB
         AttractorEnumerationStrategyV0::Deferred => RgFixedPointTagV0::Deferred,
         AttractorEnumerationStrategyV0::Sampled => RgFixedPointTagV0::SampledAdvisory,
     };
+    let explicit = matches!(strategy, AttractorEnumerationStrategyV0::Explicit)
+        .then(|| enumerate_explicit_grn_attractor_v0(variable_count));
+    let state_count = explicit
+        .as_ref()
+        .map_or(0, |enumeration| enumeration.state_count);
+    let transition_count = explicit
+        .as_ref()
+        .map_or(0, |enumeration| enumeration.transition_count);
+    let fixed_point_states = explicit.as_ref().map_or_else(Vec::new, |enumeration| {
+        enumeration.fixed_point_states.clone()
+    });
+    let fixed_point_count = fixed_point_states.len();
+    let transition_digest = explicit
+        .as_ref()
+        .map(|enumeration| enumeration.transition_digest.clone());
 
     CascadeAttractorBasinV0 {
         schema_version: "0",
@@ -184,8 +282,12 @@ pub fn prove_cascade_attractor_basin(variable_count: usize) -> CascadeAttractorB
         feature_gate: "grn",
         basin_id: format!("grn-v0-{variable_count}"),
         strategy,
-        state_count: variable_count,
-        fixed_point_count: usize::from(variable_count > 0),
+        variable_count,
+        state_count,
+        transition_count,
+        fixed_point_count,
+        fixed_point_states,
+        transition_digest,
         proof: CascadeAttractorBasinProofV0 {
             schema_version: "0",
             product: "omena-cascade.attractor-basin-proof",
@@ -199,6 +301,36 @@ pub fn prove_cascade_attractor_basin(variable_count: usize) -> CascadeAttractorB
             conservative: true,
         },
     }
+}
+
+fn grn_state_mask(variable_count: usize) -> u64 {
+    assert!(
+        variable_count <= 16,
+        "GRN state bitset helper is bounded to n <= 16"
+    );
+    if variable_count == 0 {
+        0
+    } else {
+        (1u64 << variable_count) - 1
+    }
+}
+
+fn digest_grn_transitions(
+    variable_count: usize,
+    state_count: usize,
+    fixed_point_count: usize,
+    transitions: &[GrnTransitionRecordV0],
+) -> String {
+    let mut digest = 0xcbf29ce484222325u64;
+    for transition in transitions {
+        digest ^= transition.from_state;
+        digest = digest.wrapping_mul(0x100000001b3);
+        digest ^= transition.to_state.rotate_left(17);
+        digest = digest.wrapping_mul(0x100000001b3);
+        digest ^= u64::from(transition.fixed_point);
+        digest = digest.wrapping_mul(0x100000001b3);
+    }
+    format!("grn-v0-{variable_count}-{state_count}-{fixed_point_count}-{digest:016x}")
 }
 
 pub fn project_grn_outcome(vertices: &[GrnVertexStateV0]) -> CascadeOutcomeProjectionRecordV0 {
@@ -301,13 +433,25 @@ mod tests {
     fn grn_explicit_attractor_basin_proof_covers_all_n_le_16() {
         for variable_count in 0..=16 {
             let basin = prove_cascade_attractor_basin(variable_count);
+            let expected_state_count = 1usize << variable_count;
 
             assert_eq!(basin.schema_version, "0");
             assert_eq!(basin.product, "omena-cascade.attractor-basin");
             assert_eq!(basin.layer_marker, "statistical-mechanics");
             assert_eq!(basin.feature_gate, "grn");
             assert_eq!(basin.strategy, AttractorEnumerationStrategyV0::Explicit);
-            assert_eq!(basin.state_count, variable_count);
+            assert_eq!(basin.variable_count, variable_count);
+            assert_eq!(basin.state_count, expected_state_count);
+            assert_eq!(basin.transition_count, expected_state_count);
+            assert_eq!(basin.fixed_point_count, variable_count + 1);
+            assert_eq!(basin.fixed_point_states.len(), variable_count + 1);
+            assert!(basin.fixed_point_states.contains(&0));
+            assert!(basin.transition_digest.as_deref().is_some_and(|digest| {
+                digest.starts_with(&format!(
+                    "grn-v0-{variable_count}-{expected_state_count}-{}-",
+                    variable_count + 1
+                ))
+            }));
             assert_eq!(basin.proof.schema_version, "0");
             assert_eq!(basin.proof.feature_gate, "grn");
             assert!(basin.proof.deterministic);
@@ -318,6 +462,33 @@ mod tests {
         assert_eq!(
             choose_grn_attractor_strategy(17),
             AttractorEnumerationStrategyV0::Deferred
+        );
+    }
+
+    #[test]
+    fn grn_explicit_transition_function_enumerates_full_state_space() {
+        let enumeration = enumerate_explicit_grn_attractor_v0(3);
+
+        assert_eq!(
+            enumeration.product,
+            "omena-cascade.grn-explicit-attractor-enumeration"
+        );
+        assert!(enumeration.complete);
+        assert_eq!(enumeration.variable_count, 3);
+        assert_eq!(enumeration.state_count, 8);
+        assert_eq!(enumeration.transition_count, 8);
+        assert_eq!(enumeration.fixed_point_states, vec![0, 1, 2, 4]);
+        assert_eq!(transition_cascade_grn_state_v0(3, 0b000), 0b000);
+        assert_eq!(transition_cascade_grn_state_v0(3, 0b001), 0b001);
+        assert_eq!(transition_cascade_grn_state_v0(3, 0b110), 0b010);
+        assert_eq!(transition_cascade_grn_state_v0(3, 0b111), 0b001);
+        assert_eq!(
+            enumeration
+                .transitions
+                .iter()
+                .filter(|transition| transition.fixed_point)
+                .count(),
+            4
         );
     }
 
