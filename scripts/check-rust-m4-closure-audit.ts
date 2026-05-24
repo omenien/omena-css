@@ -132,9 +132,8 @@ process.stdout.write(
       },
       theoryClaimGuard,
       nextPriorities: [
-        "landM4AlphaSemiringAlgebraSupplement",
-        "landM4AlphaGrnStateTransitionSupplement",
-        "expandOmenaRefinementSubstantiveContracts",
+        "keepZkRealBackendDeferredBehindOptInFeature",
+        "decideSpinGlassSupplementOrPaperTrack",
         "continueAxisARealCorpusAndSpecAuditExpansion",
         "continueAxisBResolverPerimeterEvidence",
       ],
