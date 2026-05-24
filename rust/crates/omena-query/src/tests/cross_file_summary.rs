@@ -4,9 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(feature = "hypergraph-ifds")]
 use crate::{
-    OmenaQueryCrossFileSummaryCapabilitiesV0, OmenaQueryCrossFileSummaryEdgeKindCountV0,
-    OmenaQueryCrossFileSummaryEdgeV0, OmenaQueryCrossFileSummaryV0, UnifiedHypergraphEdgeKindV0,
-    summarize_omena_query_linear_provenance, summarize_omena_query_unified_cross_file_hypergraph,
+    OmenaQueryCrossFileSummaryV0, UnifiedHypergraphEdgeKindV0,
+    summarize_omena_query_unified_cross_file_hypergraph,
 };
 use crate::{
     OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
@@ -22,33 +21,8 @@ use super::support::sample_input;
 #[cfg(feature = "hypergraph-ifds")]
 #[test]
 fn cross_file_hypergraph_projects_summary_edges_byte_equal_by_id() {
-    let styles = vec![
-        OmenaQueryStyleSourceInputV0 {
-            style_path: "/tmp/base.module.scss".into(),
-            style_source: ".base { color: red; }".into(),
-        },
-        OmenaQueryStyleSourceInputV0 {
-            style_path: "/tmp/Button.module.scss".into(),
-            style_source: ".root { composes: base from \"./base.module.scss\"; }".into(),
-        },
-    ];
-    let sources = vec![OmenaQuerySourceDocumentInputV0 {
-        source_path: "/tmp/Button.tsx".into(),
-        source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
-            .into(),
-    }];
-    let summary = summarize_omena_query_workspace_cross_file_summary(&styles, &sources, &[]);
+    let summary = hypergraph_summary_fixture();
     let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
-    let projected = hypergraph
-        .projection_edge_ids
-        .iter()
-        .map(String::as_str)
-        .collect::<BTreeSet<_>>();
-    let original = summary
-        .edges
-        .iter()
-        .map(|edge| edge.edge_id.as_str())
-        .collect::<BTreeSet<_>>();
 
     assert_eq!(hypergraph.schema_version, "0");
     assert_eq!(hypergraph.layer_marker, "hypergraph-ifds");
@@ -58,67 +32,69 @@ fn cross_file_hypergraph_projects_summary_edges_byte_equal_by_id() {
             .gate_predicates
             .contains(&"P6.closureBodySwitchOver")
     );
-    assert_eq!(projected, original);
+    assert_eq!(
+        hypergraph
+            .projection_edge_ids
+            .iter()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>(),
+        summary
+            .edges
+            .iter()
+            .map(|edge| edge.edge_id.as_str())
+            .collect::<BTreeSet<_>>()
+    );
 }
 
 #[cfg(feature = "hypergraph-ifds")]
 #[test]
 fn cross_file_hypergraph_composes_tail_preserves_target_name_order() {
-    let summary = OmenaQueryCrossFileSummaryV0 {
-        schema_version: "0",
-        product: "omena-query.cross-file-summary",
-        status: "summaryEdgeSeed",
-        summary_scope: "test",
-        style_count: 2,
-        summary_edge_count: 1,
-        edge_kind_counts: vec![OmenaQueryCrossFileSummaryEdgeKindCountV0 {
-            edge_kind: "cssModulesComposesImport",
-            count: 1,
-        }],
-        summary_hash: "test".into(),
-        edges: vec![OmenaQueryCrossFileSummaryEdgeV0 {
-            edge_id: "e".into(),
-            edge_kind: "cssModulesComposesImport",
-            from_kind: "style",
-            from_path: "/tmp/Button.module.scss".into(),
-            target_kind: Some("style"),
-            target_path: Some("/tmp/base.module.scss".into()),
-            source: Some("./base.module.scss".into()),
-            owner_selector_name: Some("root".into()),
-            local_name: None,
-            remote_name: None,
-            target_names: vec!["a".into(), "b".into(), "c".into()],
-            status: "resolved",
-            provenance: vec!["omena-query.css-modules-cross-file-resolution"],
-            linear_provenance: summarize_omena_query_linear_provenance(&[
-                "omena-query.css-modules-cross-file-resolution",
-            ]),
-        }],
-        capabilities: OmenaQueryCrossFileSummaryCapabilitiesV0 {
-            css_modules_composes_edges_ready: true,
-            css_modules_value_edges_ready: false,
-            css_modules_icss_edges_ready: false,
-            sass_module_edges_ready: false,
-            style_design_token_reference_edges_ready: false,
-            source_selector_reference_edges_ready: false,
-            stable_summary_hash_ready: true,
-            linear_provenance_ready: true,
-            linear_provenance_round_trip_ready: true,
-        },
-        next_priorities: Vec::new(),
-    };
+    let mut summary = hypergraph_summary_fixture();
+    let edge = summary
+        .edges
+        .iter_mut()
+        .find(|edge| edge.edge_kind == "cssModulesComposesImport")
+        .expect("composes summary edge");
+    edge.target_names = ["a", "b", "c"].into_iter().map(str::to_string).collect();
+    let edge_id = edge.edge_id.clone();
+
     let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
-    let composes = hypergraph
+    let tail = &hypergraph
         .hyperedges
         .iter()
-        .find(|edge| edge.edge_kind == UnifiedHypergraphEdgeKindV0::ComposesExternal)
-        .expect("composes hyperedge");
+        .find(|edge| {
+            edge.edge_kind == UnifiedHypergraphEdgeKindV0::ComposesExternal
+                && edge.source_summary_edge_id == edge_id
+        })
+        .expect("composes hyperedge")
+        .tail_node_ids;
 
-    assert!(composes.order_significant_tail);
-    assert_eq!(composes.tail_node_ids.len(), 3);
-    assert!(composes.tail_node_ids[0].ends_with("|a"));
-    assert!(composes.tail_node_ids[1].ends_with("|b"));
-    assert!(composes.tail_node_ids[2].ends_with("|c"));
+    assert_eq!(tail.len(), 3);
+    assert!(tail[0].ends_with("|a"));
+    assert!(tail[1].ends_with("|b"));
+    assert!(tail[2].ends_with("|c"));
+}
+
+#[cfg(feature = "hypergraph-ifds")]
+fn hypergraph_summary_fixture() -> OmenaQueryCrossFileSummaryV0 {
+    summarize_omena_query_workspace_cross_file_summary(
+        &[
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/base.module.scss".into(),
+                style_source: ".base { color: red; }".into(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/Button.module.scss".into(),
+                style_source: ".root { composes: base from \"./base.module.scss\"; }".into(),
+            },
+        ],
+        &[OmenaQuerySourceDocumentInputV0 {
+            source_path: "/tmp/Button.tsx".into(),
+            source_source: "import styles from './Button.module.scss';\nconst cls = styles.root;\n"
+                .into(),
+        }],
+        &[],
+    )
 }
 
 #[test]

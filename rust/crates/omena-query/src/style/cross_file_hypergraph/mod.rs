@@ -60,7 +60,7 @@ impl UnifiedCrossFileHypergraphBuilder {
                 .iter()
                 .map(|target_name| {
                     node_id(
-                        NodeKind::StyleSymbol,
+                        "styleSymbol",
                         edge.target_path
                             .as_deref()
                             .unwrap_or(edge.from_path.as_str()),
@@ -150,27 +150,6 @@ impl UnifiedCrossFileHypergraphBuilder {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum NodeKind {
-    StyleModule,
-    SourceModule,
-    StyleSymbol,
-    SourceSymbol,
-    ForeignSymbol,
-}
-
-impl NodeKind {
-    const fn label(self) -> &'static str {
-        match self {
-            Self::StyleModule => "styleModule",
-            Self::SourceModule => "sourceModule",
-            Self::StyleSymbol => "styleSymbol",
-            Self::SourceSymbol => "sourceSymbol",
-            Self::ForeignSymbol => "foreignSymbol",
-        }
-    }
-}
-
 fn endpoint_node_id(edge: &OmenaQueryCrossFileSummaryEdgeV0, target: bool) -> String {
     let (kind, path, symbol) = if target {
         (
@@ -194,17 +173,17 @@ fn endpoint_node_id(edge: &OmenaQueryCrossFileSummaryEdgeV0, target: bool) -> St
     node_id(kind, path, symbol)
 }
 
-fn node_id(kind: NodeKind, path: &str, symbol: Option<&str>) -> String {
-    format!("{}|{}|{}", kind.label(), path, symbol.unwrap_or("-"))
+fn node_id(kind: &'static str, path: &str, symbol: Option<&str>) -> String {
+    format!("{}|{}|{}", kind, path, symbol.unwrap_or("-"))
 }
 
-fn node_kind_for_summary_kind(kind: &str, target: bool) -> NodeKind {
+fn node_kind_for_summary_kind(kind: &str, target: bool) -> &'static str {
     match (kind, target) {
-        ("style", false) => NodeKind::StyleModule,
-        ("style", true) => NodeKind::StyleSymbol,
-        ("source", false) => NodeKind::SourceModule,
-        ("source", true) => NodeKind::SourceSymbol,
-        _ => NodeKind::ForeignSymbol,
+        ("style", false) => "styleModule",
+        ("style", true) => "styleSymbol",
+        ("source", false) => "sourceModule",
+        ("source", true) => "sourceSymbol",
+        _ => "foreignSymbol",
     }
 }
 
