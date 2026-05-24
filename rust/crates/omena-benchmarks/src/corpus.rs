@@ -82,6 +82,12 @@ pub fn style_corpus() -> Vec<StyleSample> {
             source: build_css_transforms_motion_corpus(96),
         },
         StyleSample {
+            name: "css-fonts-text-corpus",
+            path: "FontsText.module.css",
+            dialect: StyleDialect::Css,
+            source: build_css_fonts_text_corpus(96),
+        },
+        StyleSample {
             name: "scss-heavy-design-system",
             path: "DesignSystem.module.scss",
             dialect: StyleDialect::Scss,
@@ -291,6 +297,31 @@ fn build_css_transforms_motion_corpus(count: usize) -> String {
   will-change: transform;
 }}
 "#
+        ));
+    }
+    source
+}
+
+fn build_css_fonts_text_corpus(count: usize) -> String {
+    let font_weight_values = ["normal", "bold", "400", "700"];
+    let font_style_values = ["normal", "italic"];
+    let text_align_values = ["start", "center", "justify", "match-parent"];
+    let letter_spacing_values = ["normal", "-10px", "20px", "calc(2em + 3ex)"];
+    let mut source = String::new();
+    for index in 0..count {
+        source.push_str(&format!(
+            r#"
+.fontText{index} {{
+  font-weight: {font_weight};
+  font-style: {font_style};
+  text-align: {text_align};
+  letter-spacing: {letter_spacing};
+}}
+"#,
+            font_weight = font_weight_values[index % font_weight_values.len()],
+            font_style = font_style_values[index % font_style_values.len()],
+            text_align = text_align_values[index % text_align_values.len()],
+            letter_spacing = letter_spacing_values[index % letter_spacing_values.len()],
         ));
     }
     source

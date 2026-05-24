@@ -95,6 +95,14 @@ assert.ok(
   "M4 Axis A must keep css-transforms in the pinned WPT sparse path policy",
 );
 assert.ok(
+  wptManifest.source.sparsePaths.includes("css/css-fonts"),
+  "M4 Axis A must keep css-fonts in the pinned WPT sparse path policy",
+);
+assert.ok(
+  wptManifest.source.sparsePaths.includes("css/css-text"),
+  "M4 Axis A must keep css-text in the pinned WPT sparse path policy",
+);
+assert.ok(
   wptSparsePathFixtureCounts.every((count) => count.fixtureCount > 0),
   "every pinned WPT sparse path must have fixture coverage",
 );
@@ -133,6 +141,18 @@ assert.ok(
     (count) => count.sparsePath === "css/css-transforms" && count.fixtureCount >= 3,
   ),
   "css-transforms WPT coverage must retain the transform advisory fixture set",
+);
+assert.ok(
+  wptSparsePathFixtureCounts.some(
+    (count) => count.sparsePath === "css/css-fonts" && count.fixtureCount >= 3,
+  ),
+  "css-fonts WPT coverage must retain the font advisory fixture set",
+);
+assert.ok(
+  wptSparsePathFixtureCounts.some(
+    (count) => count.sparsePath === "css/css-text" && count.fixtureCount >= 2,
+  ),
+  "css-text WPT coverage must retain the text advisory fixture set",
 );
 assert.deepEqual(
   wptManifest.sparsePathFixtureCounts,
@@ -225,6 +245,18 @@ const cssUiBoxSizingEntry = specManifest.entries.find(
 );
 const cssTransformsEntry = specManifest.entries.find(
   (entry) => entry.id === "css-transforms/properties/transform",
+);
+const cssFontsFontWeightEntry = specManifest.entries.find(
+  (entry) => entry.id === "css-fonts/properties/font-weight",
+);
+const cssFontsFontStyleEntry = specManifest.entries.find(
+  (entry) => entry.id === "css-fonts/properties/font-style",
+);
+const cssTextTextAlignEntry = specManifest.entries.find(
+  (entry) => entry.id === "css-text/properties/text-align",
+);
+const cssTextLetterSpacingEntry = specManifest.entries.find(
+  (entry) => entry.id === "css-text/properties/letter-spacing",
 );
 assert.ok(cssSizingHeightEntry, "spec audit must retain css-sizing height coverage");
 assert.equal(cssSizingHeightEntry.priority, "P0");
@@ -326,6 +358,55 @@ for (const evidence of [
     `css-transforms transform spec audit evidence must include ${evidence}`,
   );
 }
+assert.ok(cssFontsFontWeightEntry, "spec audit must retain css-fonts font-weight coverage");
+assert.equal(cssFontsFontWeightEntry.priority, "P0");
+assert.equal(cssFontsFontWeightEntry.status, "covered");
+for (const evidence of [
+  "WPT css/css-fonts/parsing/font-weight-valid.html",
+  "css-fonts-font-weight-normal-advisory",
+  "css-fonts-font-weight-bold-advisory",
+] as const) {
+  assert.ok(
+    cssFontsFontWeightEntry.evidence?.includes(evidence),
+    `css-fonts font-weight spec audit evidence must include ${evidence}`,
+  );
+}
+assert.ok(cssFontsFontStyleEntry, "spec audit must retain css-fonts font-style coverage");
+assert.equal(cssFontsFontStyleEntry.priority, "P0");
+assert.equal(cssFontsFontStyleEntry.status, "covered");
+for (const evidence of [
+  "WPT css/css-fonts/parsing/font-style-valid.html",
+  "css-fonts-font-style-italic-advisory",
+] as const) {
+  assert.ok(
+    cssFontsFontStyleEntry.evidence?.includes(evidence),
+    `css-fonts font-style spec audit evidence must include ${evidence}`,
+  );
+}
+assert.ok(cssTextTextAlignEntry, "spec audit must retain css-text text-align coverage");
+assert.equal(cssTextTextAlignEntry.priority, "P0");
+assert.equal(cssTextTextAlignEntry.status, "covered");
+for (const evidence of [
+  "WPT css/css-text/parsing/text-align-valid.html",
+  "css-text-text-align-match-parent-advisory",
+] as const) {
+  assert.ok(
+    cssTextTextAlignEntry.evidence?.includes(evidence),
+    `css-text text-align spec audit evidence must include ${evidence}`,
+  );
+}
+assert.ok(cssTextLetterSpacingEntry, "spec audit must retain css-text letter-spacing coverage");
+assert.equal(cssTextLetterSpacingEntry.priority, "P0");
+assert.equal(cssTextLetterSpacingEntry.status, "covered");
+for (const evidence of [
+  "WPT css/css-text/parsing/letter-spacing-valid.html",
+  "css-text-letter-spacing-negative-advisory",
+] as const) {
+  assert.ok(
+    cssTextLetterSpacingEntry.evidence?.includes(evidence),
+    `css-text letter-spacing spec audit evidence must include ${evidence}`,
+  );
+}
 const specSourceLinkedEntries = specManifest.entries.filter((entry) =>
   sourceNames.has(entry.sourceName),
 );
@@ -400,6 +481,17 @@ assert.ok(
   ),
   "cross-source spec coverage must retain css-transforms transform joins",
 );
+for (const entryId of [
+  "css-fonts/properties/font-weight",
+  "css-fonts/properties/font-style",
+  "css-text/properties/text-align",
+  "css-text/properties/letter-spacing",
+] as const) {
+  assert.ok(
+    specManifest.sourceCoverage.every((coverage) => coverage.entryIds.includes(entryId)),
+    `cross-source spec coverage must retain ${entryId} joins`,
+  );
+}
 assert.ok(
   specManifest.entries
     .filter((entry) => entry.priority === "P0")

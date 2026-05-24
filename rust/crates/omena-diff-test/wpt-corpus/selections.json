@@ -15,7 +15,9 @@
       "css/css-display",
       "css/css-position",
       "css/css-ui",
-      "css/css-transforms"
+      "css/css-transforms",
+      "css/css-fonts",
+      "css/css-text"
     ],
     "helperClasses": ["test_valid_value"],
     "layoutDependentHelpersExcluded": ["test_computed_value", "test_computed_serialization"]
@@ -759,6 +761,71 @@
           "wptExpectedValue": "rotate(90deg)",
           "source": ".css-transforms-rotate-advisory { transform: rotate(90deg); }",
           "expectedCss": ".css-transforms-rotate-advisory{transform:rotate(90deg)}",
+          "status": "pass"
+        },
+        {
+          "id": "css-fonts-font-weight-normal-advisory",
+          "wptPath": "css/css-fonts/parsing/font-weight-valid.html",
+          "wptSourceLine": 14,
+          "subtest": "test_valid_value('font-weight', 'normal')",
+          "helper": "test_valid_value",
+          "property": "font-weight",
+          "wptValue": "normal",
+          "wptExpectedValue": "normal",
+          "source": ".css-fonts-font-weight-normal-advisory { font-weight: normal; }",
+          "expectedCss": ".css-fonts-font-weight-normal-advisory{font-weight:400}",
+          "status": "pass"
+        },
+        {
+          "id": "css-fonts-font-weight-bold-advisory",
+          "wptPath": "css/css-fonts/parsing/font-weight-valid.html",
+          "wptSourceLine": 15,
+          "subtest": "test_valid_value('font-weight', 'bold')",
+          "helper": "test_valid_value",
+          "property": "font-weight",
+          "wptValue": "bold",
+          "wptExpectedValue": "bold",
+          "source": ".css-fonts-font-weight-bold-advisory { font-weight: bold; }",
+          "expectedCss": ".css-fonts-font-weight-bold-advisory{font-weight:700}",
+          "status": "pass"
+        },
+        {
+          "id": "css-fonts-font-style-italic-advisory",
+          "wptPath": "css/css-fonts/parsing/font-style-valid.html",
+          "wptSourceLine": 15,
+          "subtest": "test_valid_value('font-style', 'italic')",
+          "helper": "test_valid_value",
+          "property": "font-style",
+          "wptValue": "italic",
+          "wptExpectedValue": "italic",
+          "source": ".css-fonts-font-style-italic-advisory { font-style: italic; }",
+          "expectedCss": ".css-fonts-font-style-italic-advisory{font-style:italic}",
+          "status": "pass"
+        },
+        {
+          "id": "css-text-text-align-match-parent-advisory",
+          "wptPath": "css/css-text/parsing/text-align-valid.html",
+          "wptSourceLine": 20,
+          "subtest": "test_valid_value(\"text-align\", \"match-parent\")",
+          "helper": "test_valid_value",
+          "property": "text-align",
+          "wptValue": "match-parent",
+          "wptExpectedValue": "match-parent",
+          "source": ".css-text-text-align-match-parent-advisory { text-align: match-parent; }",
+          "expectedCss": ".css-text-text-align-match-parent-advisory{text-align:match-parent}",
+          "status": "pass"
+        },
+        {
+          "id": "css-text-letter-spacing-negative-advisory",
+          "wptPath": "css/css-text/parsing/letter-spacing-valid.html",
+          "wptSourceLine": 17,
+          "subtest": "test_valid_value(\"letter-spacing\", \"-10px\")",
+          "helper": "test_valid_value",
+          "property": "letter-spacing",
+          "wptValue": "-10px",
+          "wptExpectedValue": "-10px",
+          "source": ".css-text-letter-spacing-negative-advisory { letter-spacing: -10px; }",
+          "expectedCss": ".css-text-letter-spacing-negative-advisory{letter-spacing:-10px}",
           "status": "pass"
         }
       ]

@@ -22,6 +22,10 @@
         "css-position/properties/position",
         "css-ui/properties/box-sizing",
         "css-transforms/properties/transform",
+        "css-fonts/properties/font-weight",
+        "css-fonts/properties/font-style",
+        "css-text/properties/text-align",
+        "css-text/properties/letter-spacing",
         "css-mixins/atrules/@function"
       ],
       "sourceKeys": [
@@ -40,6 +44,10 @@
         "css-position/properties/position",
         "css-ui/properties/box-sizing",
         "css-transforms/properties/transform",
+        "css-fonts/properties/font-weight",
+        "css-fonts/properties/font-style",
+        "css-text/properties/text-align",
+        "css-text/properties/letter-spacing",
         "css-mixins/atrules/@function"
       ]
     },
@@ -62,6 +70,10 @@
         "css-position/properties/position",
         "css-ui/properties/box-sizing",
         "css-transforms/properties/transform",
+        "css-fonts/properties/font-weight",
+        "css-fonts/properties/font-style",
+        "css-text/properties/text-align",
+        "css-text/properties/letter-spacing",
         "css-mixins/atrules/@function"
       ],
       "sourceKeys": [
@@ -73,6 +85,8 @@
         "https://drafts.csswg.org/css-position/",
         "https://drafts.csswg.org/css-ui/",
         "https://drafts.csswg.org/css-transforms/",
+        "https://drafts.csswg.org/css-fonts/",
+        "https://drafts.csswg.org/css-text/",
         "https://drafts.csswg.org/css-mixins-1/"
       ]
     },
@@ -94,7 +108,11 @@
         "css-display/properties/display",
         "css-position/properties/position",
         "css-ui/properties/box-sizing",
-        "css-transforms/properties/transform"
+        "css-transforms/properties/transform",
+        "css-fonts/properties/font-weight",
+        "css-fonts/properties/font-style",
+        "css-text/properties/text-align",
+        "css-text/properties/letter-spacing"
       ],
       "sourceKeys": [
         "css-color",
@@ -105,7 +123,9 @@
         "css-display",
         "css-position",
         "css-ui",
-        "css-transforms"
+        "css-transforms",
+        "css-fonts",
+        "css-text"
       ]
     },
     {
@@ -126,7 +146,11 @@
         "css-display/properties/display",
         "css-position/properties/position",
         "css-ui/properties/box-sizing",
-        "css-transforms/properties/transform"
+        "css-transforms/properties/transform",
+        "css-fonts/properties/font-weight",
+        "css-fonts/properties/font-style",
+        "css-text/properties/text-align",
+        "css-text/properties/letter-spacing"
       ],
       "sourceKeys": [
         "css.properties.color",
@@ -143,7 +167,11 @@
         "css.properties.display",
         "css.properties.position",
         "css.properties.box-sizing",
-        "css.properties.transform"
+        "css.properties.transform",
+        "css.properties.font-weight",
+        "css.properties.font-style",
+        "css.properties.text-align",
+        "css.properties.letter-spacing"
       ]
     }
   ],
@@ -370,6 +398,65 @@
         "css-transforms-none-advisory",
         "css-transforms-translate-x-advisory",
         "css-transforms-rotate-advisory"
+      ]
+    },
+    {
+      "id": "css-fonts/properties/font-weight",
+      "webrefId": "css-fonts/properties/font-weight",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-fonts-4/#font-weight-prop",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-transform-passes",
+      "evidence": [
+        "WPT css/css-fonts/parsing/font-weight-valid.html",
+        "css-fonts-font-weight-normal-advisory",
+        "css-fonts-font-weight-bold-advisory"
+      ]
+    },
+    {
+      "id": "css-fonts/properties/font-style",
+      "webrefId": "css-fonts/properties/font-style",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-fonts-4/#font-style-prop",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-parser",
+      "evidence": [
+        "SyntaxKind::Declaration",
+        "WPT css/css-fonts/parsing/font-style-valid.html",
+        "css-fonts-font-style-italic-advisory"
+      ]
+    },
+    {
+      "id": "css-text/properties/text-align",
+      "webrefId": "css-text/properties/text-align",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-text-3/#text-align-property",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-transform-passes",
+      "evidence": [
+        "WPT css/css-text/parsing/text-align-valid.html",
+        "css-text-text-align-match-parent-advisory"
+      ]
+    },
+    {
+      "id": "css-text/properties/letter-spacing",
+      "webrefId": "css-text/properties/letter-spacing",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-text-3/#letter-spacing-property",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-parser",
+      "evidence": [
+        "SyntaxKind::Declaration",
+        "WPT css/css-text/parsing/letter-spacing-valid.html",
+        "css-text-letter-spacing-negative-advisory"
       ]
     },
     {
