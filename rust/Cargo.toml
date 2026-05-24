@@ -20,6 +20,7 @@ members = [
   "crates/omena-meta-macros",
   "crates/omena-napi",
   "crates/omena-query",
+  "crates/omena-rg-flow",
   "crates/omena-resolver",
   "crates/omena-semantic",
   "crates/omena-spec-audit",

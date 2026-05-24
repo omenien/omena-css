@@ -1,0 +1,20 @@
+[package]
+name = "omena-rg-flow"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Renormalization-group flow contracts for Omena design-system complexity"
+repository = "https://github.com/yongsk0066/css-module-explainer"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[features]
+default = []
+rg-flow = []
+
+[dependencies]
+omena-cascade = { path = "../omena-cascade" }
+serde.workspace = true

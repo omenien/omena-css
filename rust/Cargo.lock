@@ -1019,6 +1019,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-rg-flow"
+version = "0.1.0"
+dependencies = [
+ "omena-cascade",
+ "serde",
+]
+
+[[package]]
 name = "omena-semantic"
 version = "0.1.0"
 dependencies = [
