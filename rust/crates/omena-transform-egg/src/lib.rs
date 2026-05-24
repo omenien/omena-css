@@ -1001,4 +1001,60 @@ mod tests {
                 && witness.execution.after == "(unit 3 px)"
         }));
     }
+
+    #[test]
+    fn mdl_default_ast_size_matches_100_fixture_differential_corpus() {
+        let selector_cases = (0..50).map(|index| {
+            (
+                TransformPassKind::SelectorIsWhereCompression.id(),
+                format!("(is token{index})"),
+                format!("token{index}"),
+                true,
+                false,
+                "single :is() argument keeps specificity",
+            )
+        });
+        let calc_cases = (0..50).map(|index| {
+            let left = index + 1;
+            let right = 50 - index;
+            (
+                TransformPassKind::CalcReduction.id(),
+                format!("(calc (+ (unit {left} px) (unit {right} px)))"),
+                format!("(unit {} px)", left + right),
+                false,
+                true,
+                "same-unit calc arithmetic preserves computed value",
+            )
+        });
+        let cases = selector_cases.chain(calc_cases).collect::<Vec<_>>();
+
+        assert_eq!(cases.len(), 100);
+        for (
+            pass_id,
+            before,
+            expected_after,
+            specificity_preserved,
+            computed_value_preserved,
+            witness,
+        ) in cases
+        {
+            let execution = execute_egg_rewrite(EggRewriteCandidateV0 {
+                pass_id,
+                before: before.clone(),
+                after: expected_after.clone(),
+                proof: EggRewriteProofV0 {
+                    specificity_preserved,
+                    computed_value_preserved,
+                    provenance_preserved: true,
+                    cascade_safe_witness: witness.to_string(),
+                },
+            });
+
+            assert!(execution.accepted, "{before} -> {expected_after}");
+            assert_eq!(execution.after, expected_after);
+            assert!(execution.after_matches_candidate);
+            assert_eq!(execution.mdl_bits, None);
+            assert_eq!(execution.mdl_unit, None);
+        }
+    }
 }

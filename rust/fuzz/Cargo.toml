@@ -42,3 +42,10 @@ path = "fuzz_targets/transform_cascade_safe.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "frame_rule_overapprox"
+path = "fuzz_targets/frame_rule_overapprox.rs"
+test = false
+doc = false
+bench = false

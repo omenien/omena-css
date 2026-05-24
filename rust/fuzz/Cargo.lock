@@ -271,6 +271,7 @@ dependencies = [
 name = "omena-incremental"
 version = "0.1.0"
 dependencies = [
+ "omena-cascade",
  "salsa",
  "serde",
 ]
