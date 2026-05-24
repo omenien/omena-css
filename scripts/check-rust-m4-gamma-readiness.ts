@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 
 function read(path: string): string {
   return readFileSync(path, "utf8");
@@ -13,6 +13,64 @@ function assert(condition: unknown, message: string): asserts condition {
 
 function assertIncludes(source: string, needle: string, message: string): void {
   assert(source.includes(needle), `${message}: missing ${needle}`);
+}
+
+function rustFilesUnder(directory: string): string[] {
+  return readdirSync(directory).flatMap((entry) => {
+    const path = `${directory}/${entry}`;
+    return statSync(path).isDirectory() ? rustFilesUnder(path) : entry.endsWith(".rs") ? [path] : [];
+  });
+}
+
+function matchingBraceOffset(source: string, openBraceOffset: number): number {
+  let depth = 0;
+  for (let index = openBraceOffset; index < source.length; index += 1) {
+    if (source[index] === "{") {
+      depth += 1;
+    } else if (source[index] === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+  return -1;
+}
+
+function assertGammaV0StructHeaders(cratePaths: readonly string[]): void {
+  const missingHeaders: string[] = [];
+  const unitStructs: string[] = [];
+  let checkedStructs = 0;
+
+  for (const cratePath of cratePaths) {
+    for (const filePath of rustFilesUnder(`rust/${cratePath}/src`)) {
+      const source = read(filePath);
+      const structPattern = /pub\s+struct\s+([A-Za-z0-9_]+V0)(?:<[^>{;]+>)?\s*([{:;])/gu;
+      for (const match of source.matchAll(structPattern)) {
+        const [, name, delimiter] = match;
+        if (!name) {
+          continue;
+        }
+        if (delimiter === ";") {
+          unitStructs.push(`${filePath}:${name}`);
+          continue;
+        }
+
+        const openBraceOffset = (match.index ?? 0) + match[0].length - 1;
+        const closeBraceOffset = matchingBraceOffset(source, openBraceOffset);
+        assert(closeBraceOffset >= 0, `could not parse V0 struct body for ${filePath}:${name}`);
+        const body = source.slice(openBraceOffset, closeBraceOffset + 1);
+        checkedStructs += 1;
+        if (!/pub\s+schema_version\s*:/.test(body) || !/pub\s+layer_marker\s*:/.test(body)) {
+          missingHeaders.push(`${filePath}:${name}`);
+        }
+      }
+    }
+  }
+
+  assert(unitStructs.length === 0, `V0 unit structs cannot carry schema/layer headers: ${unitStructs.join(", ")}`);
+  assert(missingHeaders.length === 0, `V0 structs missing schema_version/layer_marker: ${missingHeaders.join(", ")}`);
+  assert(checkedStructs >= 80, `expected to audit at least 80 M4-gamma V0 structs, got ${checkedStructs}`);
 }
 
 const workspace = read("rust/Cargo.toml");
@@ -37,6 +95,7 @@ assert(
 for (const cratePath of gammaCrates) {
   assert(workspaceMembers.includes(cratePath), `missing M4-gamma workspace member ${cratePath}`);
 }
+assertGammaV0StructHeaders(gammaCrates);
 
 const heavyDependencyNames = [
   "ark-ff",

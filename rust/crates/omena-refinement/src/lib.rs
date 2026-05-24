@@ -28,14 +28,48 @@ pub enum AbstractValueShapeV0 {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-pub struct TopPredicateV0;
+#[serde(rename_all = "camelCase")]
+pub struct TopPredicateV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+}
+
+impl Default for TopPredicateV0 {
+    fn default() -> Self {
+        Self {
+            schema_version: REFINEMENT_SCHEMA_VERSION_V0,
+            product: "omena-refinement.top-predicate",
+            layer_marker: REFINEMENT_LAYER_MARKER_V0,
+            feature_gate: REFINEMENT_FEATURE_GATE_V0,
+        }
+    }
+}
 
 impl RefinementPredicateV0 for TopPredicateV0 {
     const PREDICATE_ID: &'static str = "top";
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-pub struct AnyPropertyIndexV0;
+#[serde(rename_all = "camelCase")]
+pub struct AnyPropertyIndexV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+}
+
+impl Default for AnyPropertyIndexV0 {
+    fn default() -> Self {
+        Self {
+            schema_version: REFINEMENT_SCHEMA_VERSION_V0,
+            product: "omena-refinement.any-property-index",
+            layer_marker: REFINEMENT_LAYER_MARKER_V0,
+            feature_gate: REFINEMENT_FEATURE_GATE_V0,
+        }
+    }
+}
 
 impl PropertyIndexV0 for AnyPropertyIndexV0 {
     const PROPERTY_NAME: &'static str = "*";
@@ -119,6 +153,11 @@ mod tests {
 
     #[test]
     fn refined_value_round_trips_to_legacy_without_mutating_v0() {
+        let top = TopPredicateV0::default();
+        let any = AnyPropertyIndexV0::default();
+        assert_eq!(top.schema_version, "0");
+        assert_eq!(any.layer_marker, "refinement-cascade");
+
         let legacy = AbstractPropertyValueV0::Top {
             property_name: "color".to_string(),
         };

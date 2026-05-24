@@ -53,7 +53,7 @@ mod tests {
 
     #[test]
     fn default_stub_backend_matches_l1_proof_verdict() {
-        let backend = StubSmtBackendV0;
+        let backend = StubSmtBackendV0::default();
         let proof = smt_prove_box_shorthand_combination_v0(
             "margin",
             &[
@@ -91,7 +91,7 @@ mod tests {
 
     #[test]
     fn proof_style_bisimulation_invariant_holds_for_all_l1_primitives() {
-        let backend = StubSmtBackendV0;
+        let backend = StubSmtBackendV0::default();
         let longhands = vec![
             BoxLonghandInputV0 {
                 property: "margin-top".to_string(),
@@ -149,7 +149,7 @@ mod tests {
 
     #[test]
     fn static_supports_smt_equivalence_tracks_l1_verdict_shape() {
-        let backend = StubSmtBackendV0;
+        let backend = StubSmtBackendV0::default();
         let l1 = evaluate_static_supports_condition(
             "(display: grid)",
             StaticSupportsAssumptionV0::ModernBrowser,

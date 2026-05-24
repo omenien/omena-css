@@ -49,7 +49,7 @@ pub fn smt_bisimulation_fuzz_case_v0(seed: u64) -> SmtBisimulationFuzzCaseV0 {
 pub fn run_smt_bisimulation_fuzz_case_v0(
     case: SmtBisimulationFuzzCaseV0,
 ) -> SmtBisimulationFuzzReportV0 {
-    let backend = StubSmtBackendV0;
+    let backend = StubSmtBackendV0::default();
     let mut checked_obligation_count = 0;
     let mut l1_l3_mismatch_count = 0;
 

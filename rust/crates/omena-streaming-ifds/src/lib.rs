@@ -182,8 +182,25 @@ pub struct StreamingIfdsLatencyBudgetV0 {
     pub batch_p95_ms: u64,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ExactStreamingConnectivityOracleV0;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExactStreamingConnectivityOracleV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+}
+
+impl Default for ExactStreamingConnectivityOracleV0 {
+    fn default() -> Self {
+        Self {
+            schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+            product: "omena-streaming-ifds.exact-connectivity-oracle",
+            layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+            feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        }
+    }
+}
 
 impl OmenaUnifiedHypergraphConnectivityOracle for ExactStreamingConnectivityOracleV0 {
     fn reachable_node_ids(
@@ -195,8 +212,25 @@ impl OmenaUnifiedHypergraphConnectivityOracle for ExactStreamingConnectivityOrac
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct PolylogDynamicConnectivityBackendV0;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolylogDynamicConnectivityBackendV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+}
+
+impl Default for PolylogDynamicConnectivityBackendV0 {
+    fn default() -> Self {
+        Self {
+            schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+            product: "omena-streaming-ifds.polylog-dynamic-connectivity-backend",
+            layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+            feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        }
+    }
+}
 
 impl OmenaUnifiedHypergraphConnectivityOracle for PolylogDynamicConnectivityBackendV0 {
     fn reachable_node_ids(
@@ -654,7 +688,7 @@ mod tests {
             "a",
             &hyperedges,
             &events,
-            &PolylogDynamicConnectivityBackendV0,
+            &PolylogDynamicConnectivityBackendV0::default(),
             None,
         );
 
@@ -695,7 +729,7 @@ mod tests {
             "a",
             &hyperedges,
             &events,
-            &ExactStreamingConnectivityOracleV0,
+            &ExactStreamingConnectivityOracleV0::default(),
             None,
         );
         let second = run_streaming_ifds_exact_v0(
@@ -703,7 +737,7 @@ mod tests {
             "a",
             &hyperedges,
             &events,
-            &ExactStreamingConnectivityOracleV0,
+            &ExactStreamingConnectivityOracleV0::default(),
             Some(&first.summary_cache),
         );
 
