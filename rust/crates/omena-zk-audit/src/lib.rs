@@ -37,6 +37,14 @@ pub enum SemiringKindV0 {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ZKBackendLinkStatusV0 {
+    ProtocolOnly,
+    OptInFeatureDeclared,
+    RealBackendLinked,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeZKAuditV0 {
@@ -72,6 +80,22 @@ pub struct ZKAuditCiMatrixV0 {
     pub feature_gate: &'static str,
     pub cells: Vec<&'static str>,
     pub heavy_dependencies_default_off: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ZKBackendLinkPolicyV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub setup_kind: SetupKindV0,
+    pub cargo_feature: &'static str,
+    pub status: ZKBackendLinkStatusV0,
+    pub default_enabled: bool,
+    pub proof_generation_available: bool,
+    pub verification_available: bool,
+    pub external_dependency_family: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -131,6 +155,57 @@ pub fn zk_audit_ci_matrix_v0() -> ZKAuditCiMatrixV0 {
     }
 }
 
+pub fn zk_backend_link_policy_v0() -> Vec<ZKBackendLinkPolicyV0> {
+    vec![
+        zk_backend_link_policy_cell_v0(
+            SetupKindV0::Halo2Ipa,
+            "zk-audit",
+            "halo2",
+            ZKBackendLinkStatusV0::OptInFeatureDeclared,
+        ),
+        zk_backend_link_policy_cell_v0(
+            SetupKindV0::PlonkUniversal,
+            "zk-audit",
+            "plonk",
+            ZKBackendLinkStatusV0::ProtocolOnly,
+        ),
+        zk_backend_link_policy_cell_v0(
+            SetupKindV0::StarkFri,
+            "zk-audit-stark",
+            "winterfell",
+            ZKBackendLinkStatusV0::OptInFeatureDeclared,
+        ),
+        zk_backend_link_policy_cell_v0(
+            SetupKindV0::Binius,
+            "zk-audit-binius",
+            "binius",
+            ZKBackendLinkStatusV0::OptInFeatureDeclared,
+        ),
+    ]
+}
+
+fn zk_backend_link_policy_cell_v0(
+    setup_kind: SetupKindV0,
+    cargo_feature: &'static str,
+    external_dependency_family: &'static str,
+    status: ZKBackendLinkStatusV0,
+) -> ZKBackendLinkPolicyV0 {
+    let real_backend_linked = status == ZKBackendLinkStatusV0::RealBackendLinked;
+    ZKBackendLinkPolicyV0 {
+        schema_version: ZK_AUDIT_SCHEMA_VERSION_V0,
+        product: "omena-zk-audit.backend-link-policy",
+        layer_marker: ZK_AUDIT_LAYER_MARKER_V0,
+        feature_gate: ZK_AUDIT_FEATURE_GATE_V0,
+        setup_kind,
+        cargo_feature,
+        status,
+        default_enabled: false,
+        proof_generation_available: real_backend_linked,
+        verification_available: real_backend_linked,
+        external_dependency_family: Some(external_dependency_family),
+    }
+}
+
 pub fn zk_audit_fold_chain_v0(step_count: usize) -> Vec<ZKFoldChainStepV0> {
     (0..step_count)
         .map(|step_index| ZKFoldChainStepV0 {
@@ -177,5 +252,31 @@ mod tests {
         assert_eq!(chain.len(), 10);
         assert!(chain.iter().all(|step| step.schema_version == "0"));
         assert!(chain.iter().all(|step| step.recursion_overhead == "O(1)"));
+    }
+
+    #[test]
+    fn zk_backend_link_policy_keeps_real_backends_feature_gated() {
+        let policy = zk_backend_link_policy_v0();
+
+        assert_eq!(policy.len(), 4);
+        assert!(policy.iter().all(|cell| !cell.default_enabled));
+        assert!(policy.iter().all(|cell| cell.schema_version == "0"));
+        assert!(
+            policy
+                .iter()
+                .all(|cell| cell.status != ZKBackendLinkStatusV0::RealBackendLinked)
+        );
+        assert!(
+            policy
+                .iter()
+                .all(|cell| !cell.proof_generation_available && !cell.verification_available)
+        );
+        assert!(
+            policy
+                .iter()
+                .any(|cell| cell.setup_kind == SetupKindV0::Halo2Ipa
+                    && cell.cargo_feature == "zk-audit"
+                    && cell.external_dependency_family == Some("halo2"))
+        );
     }
 }

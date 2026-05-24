@@ -327,6 +327,8 @@ function buildTheoryClaimGuard(): {
       evidenceMarkers: [
         "SetupKindV0::Halo2Ipa",
         "CascadeZKAuditV0",
+        "ZKBackendLinkPolicyV0",
+        "zk_backend_link_policy_keeps_real_backends_feature_gated",
         "heavy_dependencies_default_off",
       ],
       nextAction: "defer real crypto library linking to opt-in backend features",
