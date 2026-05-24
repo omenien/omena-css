@@ -222,9 +222,21 @@ assertIncludes(variationalHover, "enabled_by_default: false", "variational hover
 const streaming = read("rust/crates/omena-streaming-ifds/src/lib.rs");
 assertIncludes(streaming, "OmenaUnifiedHypergraphConnectivityOracle", "streaming IFDS must consume M4-beta hypergraph oracle trait");
 assertIncludes(streaming, "PolylogDynamicConnectivityBackendV0", "streaming IFDS must expose polylog backend type");
+assertIncludes(streaming, "StreamingIFDSAnalysisReportV0", "streaming IFDS must expose a substantive analysis report");
+assertIncludes(streaming, "StreamingIFDSTransferFunctionV0", "streaming IFDS must expose transfer functions, not reachability only");
+assertIncludes(streaming, "StreamingIFDSSummaryCacheEntryV0", "streaming IFDS must expose a summary cache contract");
+assertIncludes(streaming, "run_streaming_ifds_exact_v0", "streaming IFDS must run exact streaming fact propagation");
+assertIncludes(streaming, "precision_parity_with_batch", "streaming IFDS must report batch precision parity");
+assertIncludes(streaming, "streaming_ifds_frame_rule_bridge_policy_v0", "streaming IFDS must keep the frame-rule bridge feature-gated");
 assertIncludes(streaming, "streaming_ifds_refinement_revision_bump_v0", "streaming IFDS must model refinement Salsa revision bump");
 assertIncludes(streaming, "delta: 0", "streaming IFDS default delta must be 0");
 assertIncludes(streaming, "epsilon: 0", "streaming IFDS default epsilon must be 0");
+assertIncludes(
+  packageJson,
+  "check:rust-m4-gamma-streaming-ifds",
+  "M4-gamma readiness must exercise default and frame-rule streaming IFDS cells",
+);
+assertIncludes(packageJson, "--features with-frame-rule", "streaming IFDS readiness must exercise with-frame-rule");
 
 console.log(
   JSON.stringify(
