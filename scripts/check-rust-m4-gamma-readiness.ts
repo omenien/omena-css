@@ -18,7 +18,11 @@ function assertIncludes(source: string, needle: string, message: string): void {
 function rustFilesUnder(directory: string): string[] {
   return readdirSync(directory).flatMap((entry) => {
     const path = `${directory}/${entry}`;
-    return statSync(path).isDirectory() ? rustFilesUnder(path) : entry.endsWith(".rs") ? [path] : [];
+    return statSync(path).isDirectory()
+      ? rustFilesUnder(path)
+      : entry.endsWith(".rs")
+        ? [path]
+        : [];
   });
 }
 
@@ -68,9 +72,18 @@ function assertGammaV0StructHeaders(cratePaths: readonly string[]): void {
     }
   }
 
-  assert(unitStructs.length === 0, `V0 unit structs cannot carry schema/layer headers: ${unitStructs.join(", ")}`);
-  assert(missingHeaders.length === 0, `V0 structs missing schema_version/layer_marker: ${missingHeaders.join(", ")}`);
-  assert(checkedStructs >= 80, `expected to audit at least 80 M4-gamma V0 structs, got ${checkedStructs}`);
+  assert(
+    unitStructs.length === 0,
+    `V0 unit structs cannot carry schema/layer headers: ${unitStructs.join(", ")}`,
+  );
+  assert(
+    missingHeaders.length === 0,
+    `V0 structs missing schema_version/layer_marker: ${missingHeaders.join(", ")}`,
+  );
+  assert(
+    checkedStructs >= 80,
+    `expected to audit at least 80 M4-gamma V0 structs, got ${checkedStructs}`,
+  );
 }
 
 const workspace = read("rust/Cargo.toml");
@@ -87,7 +100,10 @@ const gammaCrates = [
   "crates/omena-streaming-ifds",
 ] as const;
 
-assert(workspaceMembers.length === 41, `expected 41 workspace members, got ${workspaceMembers.length}`);
+assert(
+  workspaceMembers.length === 41,
+  `expected 41 workspace members, got ${workspaceMembers.length}`,
+);
 assert(
   workspaceMembers.filter((member) => member.includes("/omena-")).length === 38,
   "expected omena-* crate roster to be 38",
@@ -165,16 +181,28 @@ for (const primitive of [
   "prove_box_shorthand_combination",
   "evaluate_static_supports_condition",
 ]) {
-  assertIncludes(categorical, primitive, "omena-categorical must map existing cascade primitive roles");
+  assertIncludes(
+    categorical,
+    primitive,
+    "omena-categorical must map existing cascade primitive roles",
+  );
 }
-assertIncludes(categorical, '"ranking"', "omena-categorical must classify cascade_property as a ranking primitive");
+assertIncludes(
+  categorical,
+  '"ranking"',
+  "omena-categorical must classify cascade_property as a ranking primitive",
+);
 assertIncludes(
   categorical,
   "cosheaf colimit witness",
   "omena-categorical must map cascade_property to a cosheaf colimit witness",
 );
 assertIncludes(categorical, "contract_count: 26", "omena-categorical must pin 26 V0 contracts");
-assertIncludes(categorical, "CategoricalCascadeEvidenceV0", "omena-categorical must expose cascade evidence");
+assertIncludes(
+  categorical,
+  "CategoricalCascadeEvidenceV0",
+  "omena-categorical must expose cascade evidence",
+);
 assertIncludes(
   categorical,
   "CategoricalEndpointFixtureEvidenceV0",
@@ -196,7 +224,11 @@ assertIncludes(
   "categorical cascade evidence must include endpoint fixture evidence",
 );
 for (const endpointId of categoricalEndpointIds) {
-  assertIncludes(categorical, endpointId, "omena-categorical must expose all 10 cme-check endpoints");
+  assertIncludes(
+    categorical,
+    endpointId,
+    "omena-categorical must expose all 10 cme-check endpoints",
+  );
 }
 for (const fixtureId of [
   "fixture.categorical.site-stability.v0",
@@ -210,7 +242,11 @@ for (const fixtureId of [
   "fixture.categorical.kripke-frame.v0",
   "fixture.categorical.cross-project-symmetry.v0",
 ]) {
-  assertIncludes(categorical, fixtureId, "omena-categorical must expose fixture-backed evidence IDs");
+  assertIncludes(
+    categorical,
+    fixtureId,
+    "omena-categorical must expose fixture-backed evidence IDs",
+  );
 }
 
 const queryTypes = read("rust/crates/omena-query/src/types.rs");
@@ -241,99 +277,307 @@ for (const smtPath of [
 }
 
 const smt = read("rust/crates/omena-smt/src/lib.rs");
-assertIncludes(smt, "proof_style_bisimulation_invariant_holds_for_all_l1_primitives", "SMT bisimulation invariant test must be present");
-assertIncludes(smt, "static_supports_smt_equivalence_tracks_l1_verdict_shape", "SMT supports equivalence test must be present");
-assertIncludes(smt, "smt_bisimulation_fuzz_seed_corpus_covers_m3_fixture_shapes", "SMT must cover the M3 fixture-shaped fuzz seed corpus");
+assertIncludes(
+  smt,
+  "proof_style_bisimulation_invariant_holds_for_all_l1_primitives",
+  "SMT bisimulation invariant test must be present",
+);
+assertIncludes(
+  smt,
+  "static_supports_smt_equivalence_tracks_l1_verdict_shape",
+  "SMT supports equivalence test must be present",
+);
+assertIncludes(
+  smt,
+  "smt_bisimulation_fuzz_seed_corpus_covers_m3_fixture_shapes",
+  "SMT must cover the M3 fixture-shaped fuzz seed corpus",
+);
 const smtFuzz = read("rust/crates/omena-smt/src/fuzz.rs");
-assertIncludes(smtFuzz, "SmtBisimulationFuzzCaseV0", "SMT must expose a bisimulation fuzz case contract");
-assertIncludes(smtFuzz, "SmtBisimulationFuzzReportV0", "SMT must expose a bisimulation fuzz report contract");
-assertIncludes(smtFuzz, "smt_bisimulation_fuzz_case_v0", "SMT fuzz cases must have a schema-zero constructor");
+assertIncludes(
+  smtFuzz,
+  "SmtBisimulationFuzzCaseV0",
+  "SMT must expose a bisimulation fuzz case contract",
+);
+assertIncludes(
+  smtFuzz,
+  "SmtBisimulationFuzzReportV0",
+  "SMT must expose a bisimulation fuzz report contract",
+);
+assertIncludes(
+  smtFuzz,
+  "smt_bisimulation_fuzz_case_v0",
+  "SMT fuzz cases must have a schema-zero constructor",
+);
 assertIncludes(
   smtFuzz,
   'product: "omena-smt.bisimulation-fuzz-case"',
   "SMT fuzz case V0 must carry product identity",
 );
-assertIncludes(smtFuzz, "schema_version: SMT_SCHEMA_VERSION_V0", "SMT fuzz case V0 must carry schema_version");
-assertIncludes(smtFuzz, "layer_marker: SMT_LAYER_MARKER_V0", "SMT fuzz case V0 must carry layer_marker");
-assertIncludes(smtFuzz, "feature_gate: SMT_FEATURE_GATE_V0", "SMT fuzz case V0 must carry feature_gate");
-assertIncludes(smtFuzz, "m3-cascade-proof-fixtures", "SMT fuzz evidence must identify the M3 cascade proof fixture suite");
-assertIncludes(smtFuzz, "run_smt_bisimulation_fuzz_seed_corpus_v0", "SMT must expose deterministic fuzz seed corpus evidence");
+assertIncludes(
+  smtFuzz,
+  "schema_version: SMT_SCHEMA_VERSION_V0",
+  "SMT fuzz case V0 must carry schema_version",
+);
+assertIncludes(
+  smtFuzz,
+  "layer_marker: SMT_LAYER_MARKER_V0",
+  "SMT fuzz case V0 must carry layer_marker",
+);
+assertIncludes(
+  smtFuzz,
+  "feature_gate: SMT_FEATURE_GATE_V0",
+  "SMT fuzz case V0 must carry feature_gate",
+);
+assertIncludes(
+  smtFuzz,
+  "m3-cascade-proof-fixtures",
+  "SMT fuzz evidence must identify the M3 cascade proof fixture suite",
+);
+assertIncludes(
+  smtFuzz,
+  "run_smt_bisimulation_fuzz_seed_corpus_v0",
+  "SMT must expose deterministic fuzz seed corpus evidence",
+);
 const fuzzManifest = read("rust/fuzz/Cargo.toml");
-assertIncludes(fuzzManifest, 'name = "smt_bisimulation"', "cargo-fuzz must expose the SMT bisimulation target");
-assertIncludes(packageJson, "check:rust-m4-gamma-smt-verification", "M4-gamma readiness must exercise SMT verification");
-assertIncludes(packageJson, "check:rust-m4-gamma-smt-fuzz-full", "M4-gamma must expose the full 1e6 SMT fuzz command");
-assertIncludes(packageJson, "M4_GAMMA_SMT_FUZZ_RUNS:-1000000", "full SMT fuzz command must default to 1e6 runs");
+assertIncludes(
+  fuzzManifest,
+  'name = "smt_bisimulation"',
+  "cargo-fuzz must expose the SMT bisimulation target",
+);
+assertIncludes(
+  packageJson,
+  "check:rust-m4-gamma-smt-verification",
+  "M4-gamma readiness must exercise SMT verification",
+);
+assertIncludes(
+  packageJson,
+  "check:rust-m4-gamma-smt-fuzz-full",
+  "M4-gamma must expose the full 1e6 SMT fuzz command",
+);
+assertIncludes(
+  packageJson,
+  "M4_GAMMA_SMT_FUZZ_RUNS:-1000000",
+  "full SMT fuzz command must default to 1e6 runs",
+);
 
 const cascadeRefinement = read("rust/crates/omena-cascade/src/refinement.rs");
-assertIncludes(cascadeRefinement, "legacy_proofs_rs_byte_untouched", "cascade refinement must enforce proofs.rs SHA-256 invariant");
-assertIncludes(cascadeRefinement, "evaluate_static_supports_condition", "refinement must delegate to L1 supports evaluator");
-assertIncludes(cascadeRefinement, "prove_scope_flatten_candidate", "refinement must delegate to L1 scope proof");
-assertIncludes(cascadeRefinement, "prove_layer_flatten_candidate", "refinement must delegate to L1 layer proof");
+assertIncludes(
+  cascadeRefinement,
+  "legacy_proofs_rs_byte_untouched",
+  "cascade refinement must enforce proofs.rs SHA-256 invariant",
+);
+assertIncludes(
+  cascadeRefinement,
+  "evaluate_static_supports_condition",
+  "refinement must delegate to L1 supports evaluator",
+);
+assertIncludes(
+  cascadeRefinement,
+  "prove_scope_flatten_candidate",
+  "refinement must delegate to L1 scope proof",
+);
+assertIncludes(
+  cascadeRefinement,
+  "prove_layer_flatten_candidate",
+  "refinement must delegate to L1 layer proof",
+);
 
 const checker = read("rust/crates/omena-checker/src/lib.rs");
 assertIncludes(checker, "CascadeSMTViolation", "checker must register S-tier SMT violation lint");
 assertIncludes(checker, "DesignerIntentInconsistency", "checker must register variational lint");
-assertIncludes(checker, "StreamingIfdsPrecisionParity", "checker must register streaming IFDS parity lint");
+assertIncludes(
+  checker,
+  "StreamingIfdsPrecisionParity",
+  "checker must register streaming IFDS parity lint",
+);
 assertIncludes(checker, "pub ordinal: u16", "checker descriptors must expose stable rule ordinals");
-assertIncludes(checker, "DesignerIntentInconsistency => 22", "variational lint must keep R3 ordinal 22");
+assertIncludes(
+  checker,
+  "DesignerIntentInconsistency => 22",
+  "variational lint must keep R3 ordinal 22",
+);
 assertIncludes(checker, "CascadeSMTViolation => 23", "SMT lint must keep R4 expansion ordinal 23");
-assertIncludes(checker, "StreamingIfdsPrecisionParity => 25", "streaming IFDS lint must keep R4 expansion ordinal 25");
+assertIncludes(
+  checker,
+  "StreamingIfdsPrecisionParity => 25",
+  "streaming IFDS lint must keep R4 expansion ordinal 25",
+);
 assertIncludes(
   checker,
   "resolve_omena_checker_rule_tier_for_smt_backend",
   "SMT lint must expose backend-aware tier resolution",
 );
-assertIncludes(checker, "OmenaCheckerSmtBackendKindV0::Stub => OmenaCheckerRuleTierV0::I", "stub SMT backend must resolve as I-tier");
-assertIncludes(checker, "OmenaCheckerSmtBackendKindV0::Z3", "real SMT backends must be represented for S-tier resolution");
+assertIncludes(
+  checker,
+  "OmenaCheckerSmtBackendKindV0::Stub => OmenaCheckerRuleTierV0::I",
+  "stub SMT backend must resolve as I-tier",
+);
+assertIncludes(
+  checker,
+  "OmenaCheckerSmtBackendKindV0::Z3",
+  "real SMT backends must be represented for S-tier resolution",
+);
 
 const zkAudit = read("rust/crates/omena-zk-audit/src/lib.rs");
 assertIncludes(zkAudit, "SetupKindV0::Halo2Ipa", "ZK audit default must be Halo2+IPA");
-assertIncludes(zkAudit, '"default", "zk-audit", "zk-audit-stark", "zk-audit-binius"', "ZK audit must expose four CI matrix cells");
+assertIncludes(
+  zkAudit,
+  '"default", "zk-audit", "zk-audit-stark", "zk-audit-binius"',
+  "ZK audit must expose four CI matrix cells",
+);
 assertIncludes(zkAudit, "zk_audit_fold_chain_v0", "ZK audit must expose fold-chain evidence");
-assertIncludes(zkAudit, 'recursion_overhead: "O(1)"', "ZK audit fold-chain must pin O(1) recursion overhead");
+assertIncludes(
+  zkAudit,
+  'recursion_overhead: "O(1)"',
+  "ZK audit fold-chain must pin O(1) recursion overhead",
+);
 assertIncludes(
   packageJson,
   "check:rust-m4-gamma-zk-audit-matrix",
   "M4-gamma readiness must exercise the four ZK audit matrix cells",
 );
-assertIncludes(packageJson, "--features zk-audit-stark", "ZK audit matrix must exercise the STARK cell");
-assertIncludes(packageJson, "--features zk-audit-binius", "ZK audit matrix must exercise the Binius cell");
+assertIncludes(
+  packageJson,
+  "--features zk-audit-stark",
+  "ZK audit matrix must exercise the STARK cell",
+);
+assertIncludes(
+  packageJson,
+  "--features zk-audit-binius",
+  "ZK audit matrix must exercise the Binius cell",
+);
 const omenaCliManifest = read("rust/crates/omena-cli/Cargo.toml");
 const omenaCli = read("rust/crates/omena-cli/src/main.rs");
-assertIncludes(omenaCliManifest, 'zk-audit = ["dep:omena-zk-audit"]', "omena-cli must gate ZK audit CLI behind feature");
+assertIncludes(
+  omenaCliManifest,
+  'zk-audit = ["dep:omena-zk-audit"]',
+  "omena-cli must gate ZK audit CLI behind feature",
+);
 assertIncludes(omenaCli, "AuditCommand", "omena-cli must expose audit subcommand behind feature");
 assertIncludes(omenaCli, "ZkAuditCommand", "omena-cli must expose audit zk command group");
 assertIncludes(omenaCli, "Prove", "omena audit zk must expose prove");
 assertIncludes(omenaCli, "Verify", "omena audit zk must expose verify");
 assertIncludes(omenaCli, "SetupStatus", "omena audit zk must expose setup-status");
-assertIncludes(omenaCli, "omena-cli.audit.zk.setup-status", "ZK setup-status must return product evidence");
+assertIncludes(
+  omenaCli,
+  "omena-cli.audit.zk.setup-status",
+  "ZK setup-status must return product evidence",
+);
 
 const variational = read("rust/crates/omena-variational/src/lib.rs");
-assertIncludes(variational, "ProvenancePosteriorAnnotationV0", "variational sidecar annotation must exist");
-assertIncludes(variational, "DesignerIntentPosteriorModeV0", "variational posterior mode must exist");
-assertIncludes(variational, "PatternPriorKindV0::UniformDirichlet", "variational prior must expose uniform Dirichlet mode");
-assertIncludes(variational, "dirichlet_alpha", "variational prior must carry Dirichlet alpha over intents");
-assertIncludes(variational, "axis_a_schema_version", "variational calibration must pin Axis A schema version");
-assertIncludes(variational, "RgUniversalityClassRefV0", "variational prior must carry RG universality-class hook");
-assertIncludes(variational, "factor_count", "variational emission likelihood must report factor count");
-assertIncludes(variational, "log_likelihood_bits", "variational likelihood must stay in bits at V0 boundary");
-assertIncludes(variational, "ProvenancePosteriorNodeV0", "variational provenance sidecar must expose node annotations");
-assertIncludes(variational, "mutates_existing_provenance_enum: false", "variational sidecar must not mutate existing provenance enum");
+assertIncludes(
+  variational,
+  "ProvenancePosteriorAnnotationV0",
+  "variational sidecar annotation must exist",
+);
+assertIncludes(
+  variational,
+  "DesignerIntentPosteriorModeV0",
+  "variational posterior mode must exist",
+);
+assertIncludes(
+  variational,
+  "PatternPriorKindV0::UniformDirichlet",
+  "variational prior must expose uniform Dirichlet mode",
+);
+assertIncludes(
+  variational,
+  "dirichlet_alpha",
+  "variational prior must carry Dirichlet alpha over intents",
+);
+assertIncludes(
+  variational,
+  "axis_a_schema_version",
+  "variational calibration must pin Axis A schema version",
+);
+assertIncludes(
+  variational,
+  "RgUniversalityClassRefV0",
+  "variational prior must carry RG universality-class hook",
+);
+assertIncludes(
+  variational,
+  "factor_count",
+  "variational emission likelihood must report factor count",
+);
+assertIncludes(
+  variational,
+  "log_likelihood_bits",
+  "variational likelihood must stay in bits at V0 boundary",
+);
+assertIncludes(
+  variational,
+  "ProvenancePosteriorNodeV0",
+  "variational provenance sidecar must expose node annotations",
+);
+assertIncludes(
+  variational,
+  "mutates_existing_provenance_enum: false",
+  "variational sidecar must not mutate existing provenance enum",
+);
 const variationalHover = read("rust/crates/omena-variational/src/hover.rs");
-assertIncludes(variationalHover, "total_budget_ms: 25", "variational hover total budget must be 25ms");
-assertIncludes(variationalHover, "fragment_budget_ms: 6", "variational hover fragment budget must be 6ms");
-assertIncludes(variationalHover, "enabled_by_default: false", "variational hover must default disabled");
+assertIncludes(
+  variationalHover,
+  "total_budget_ms: 25",
+  "variational hover total budget must be 25ms",
+);
+assertIncludes(
+  variationalHover,
+  "fragment_budget_ms: 6",
+  "variational hover fragment budget must be 6ms",
+);
+assertIncludes(
+  variationalHover,
+  "enabled_by_default: false",
+  "variational hover must default disabled",
+);
 
 const streaming = read("rust/crates/omena-streaming-ifds/src/lib.rs");
-assertIncludes(streaming, "OmenaUnifiedHypergraphConnectivityOracle", "streaming IFDS must consume M4-beta hypergraph oracle trait");
-assertIncludes(streaming, "PolylogDynamicConnectivityBackendV0", "streaming IFDS must expose polylog backend type");
-assertIncludes(streaming, "StreamingIFDSAnalysisReportV0", "streaming IFDS must expose a substantive analysis report");
-assertIncludes(streaming, "StreamingIFDSTransferFunctionV0", "streaming IFDS must expose transfer functions, not reachability only");
-assertIncludes(streaming, "StreamingIFDSSummaryCacheEntryV0", "streaming IFDS must expose a summary cache contract");
-assertIncludes(streaming, "run_streaming_ifds_exact_v0", "streaming IFDS must run exact streaming fact propagation");
-assertIncludes(streaming, "precision_parity_with_batch", "streaming IFDS must report batch precision parity");
-assertIncludes(streaming, "streaming_ifds_frame_rule_bridge_policy_v0", "streaming IFDS must keep the frame-rule bridge feature-gated");
-assertIncludes(streaming, "streaming_ifds_refinement_revision_bump_v0", "streaming IFDS must model refinement Salsa revision bump");
+assertIncludes(
+  streaming,
+  "OmenaUnifiedHypergraphConnectivityOracle",
+  "streaming IFDS must consume M4-beta hypergraph oracle trait",
+);
+assertIncludes(
+  streaming,
+  "PolylogDynamicConnectivityBackendV0",
+  "streaming IFDS must expose polylog backend type",
+);
+assertIncludes(
+  streaming,
+  "StreamingIFDSAnalysisReportV0",
+  "streaming IFDS must expose a substantive analysis report",
+);
+assertIncludes(
+  streaming,
+  "StreamingIFDSTransferFunctionV0",
+  "streaming IFDS must expose transfer functions, not reachability only",
+);
+assertIncludes(
+  streaming,
+  "StreamingIFDSSummaryCacheEntryV0",
+  "streaming IFDS must expose a summary cache contract",
+);
+assertIncludes(
+  streaming,
+  "run_streaming_ifds_exact_v0",
+  "streaming IFDS must run exact streaming fact propagation",
+);
+assertIncludes(
+  streaming,
+  "precision_parity_with_batch",
+  "streaming IFDS must report batch precision parity",
+);
+assertIncludes(
+  streaming,
+  "streaming_ifds_frame_rule_bridge_policy_v0",
+  "streaming IFDS must keep the frame-rule bridge feature-gated",
+);
+assertIncludes(
+  streaming,
+  "streaming_ifds_refinement_revision_bump_v0",
+  "streaming IFDS must model refinement Salsa revision bump",
+);
 assertIncludes(streaming, "delta: 0", "streaming IFDS default delta must be 0");
 assertIncludes(streaming, "epsilon: 0", "streaming IFDS default epsilon must be 0");
 assertIncludes(
@@ -341,7 +585,11 @@ assertIncludes(
   "check:rust-m4-gamma-streaming-ifds",
   "M4-gamma readiness must exercise default and frame-rule streaming IFDS cells",
 );
-assertIncludes(packageJson, "--features with-frame-rule", "streaming IFDS readiness must exercise with-frame-rule");
+assertIncludes(
+  packageJson,
+  "--features with-frame-rule",
+  "streaming IFDS readiness must exercise with-frame-rule",
+);
 
 console.log(
   JSON.stringify(

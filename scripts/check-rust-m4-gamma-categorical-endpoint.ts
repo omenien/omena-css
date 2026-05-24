@@ -67,12 +67,18 @@ for (const marker of [
   }
 }
 
-if (!querySource.includes("pub categorical_evidence: Option<omena_categorical::CategoricalCascadeEvidenceV0>")) {
+if (
+  !querySource.includes(
+    "pub categorical_evidence: Option<omena_categorical::CategoricalCascadeEvidenceV0>",
+  )
+) {
   throw new Error("cascade-at-position query result must expose optional categorical evidence");
 }
 
 if (!lspSource.includes("includeCategoricalEvidence")) {
-  throw new Error("Rust LSP cascade-at-position request must expose the default-off categorical evidence gate");
+  throw new Error(
+    "Rust LSP cascade-at-position request must expose the default-off categorical evidence gate",
+  );
 }
 
 console.log(

@@ -10,6 +10,31 @@ const packageJson = JSON.parse(read("package.json")) as {
 const readinessScript = requiredScript("check:rust-m4-readiness");
 const axisBClosureAudit = read("scripts/check-rust-m4-axis-b-closure-audit.ts");
 
+const theoryClaimStatuses = [
+  "descriptorOnly",
+  "fixtureRecordOnly",
+  "partialPropertyTest",
+  "propertyTestEnforced",
+] as const;
+type TheoryClaimStatus = (typeof theoryClaimStatuses)[number];
+type TheoryClaimStage = "m4-alpha" | "m4-beta" | "m4-gamma";
+type TheoryClaimFraming =
+  | "stagedScaffold"
+  | "fixtureBound"
+  | "partialMechanism"
+  | "enforcedProperty";
+
+type TheoryClaimEntry = {
+  readonly id: string;
+  readonly stage: TheoryClaimStage;
+  readonly status: TheoryClaimStatus;
+  readonly framing: TheoryClaimFraming;
+  readonly surface: string;
+  readonly evidencePath: string;
+  readonly evidenceMarkers: readonly string[];
+  readonly nextAction?: string;
+};
+
 const requiredReadinessTargets = [
   "rust/m4-axis-a-readiness",
   "rust/m4-axis-b-readiness",
@@ -53,6 +78,8 @@ assertIncludes(
   "packagedGate",
   "M4 aggregate audit must retain packaged LSP protocol gate tracking for #38",
 );
+const theoryClaimGuard = buildTheoryClaimGuard();
+assertTheoryClaimGuard(theoryClaimGuard);
 
 const status = "m4Ready";
 
@@ -103,14 +130,11 @@ process.stdout.write(
         },
         packagedGate: "release/check/packaged-omena-lsp-server-type-fact-protocol",
       },
-      theoryClaimGuard: {
-        dynamicDyck: "notClaimed",
-        externalDatalog: "notClaimed",
-        egglogExecution: "notClaimed",
-        sheafOrModalTheorem: "notClaimed",
-        fullPerceptualTooling: "notClaimed",
-      },
+      theoryClaimGuard,
       nextPriorities: [
+        "landM4AlphaSemiringAlgebraSupplement",
+        "landM4AlphaGrnStateTransitionSupplement",
+        "expandOmenaRefinementSubstantiveContracts",
         "continueAxisARealCorpusAndSpecAuditExpansion",
         "continueAxisBResolverPerimeterEvidence",
       ],
@@ -133,4 +157,324 @@ function requiredScript(name: string): string {
 
 function assertIncludes(source: string, marker: string, message: string): void {
   assert.ok(source.includes(marker), message);
+}
+
+function buildTheoryClaimGuard(): {
+  readonly ladder: readonly TheoryClaimStatus[];
+  readonly legacyNotClaimed: Record<string, "notClaimed">;
+  readonly stages: Record<TheoryClaimStage, readonly TheoryClaimEntry[]>;
+  readonly summary: Record<TheoryClaimStatus, number>;
+} {
+  const entries: readonly TheoryClaimEntry[] = [
+    {
+      id: "m4-alpha.qtt-semiring-algebra",
+      stage: "m4-alpha",
+      status: "descriptorOnly",
+      framing: "stagedScaffold",
+      surface: "QTT provenance semiring family",
+      evidencePath: "rust/crates/omena-abstract-value/src/semiring.rs",
+      evidenceMarkers: [
+        "pub trait ProvenanceSemiringV0",
+        "pub struct Lin01ProvenanceSemiringV0",
+        "impl ProvenanceSemiringV0 for Lin01ProvenanceSemiringV0",
+      ],
+      nextAction:
+        "supplement algebraic operations before polynomial-semiring/ZK dependency deepening",
+    },
+    {
+      id: "m4-alpha.grn-state-transition",
+      stage: "m4-alpha",
+      status: "fixtureRecordOnly",
+      framing: "fixtureBound",
+      surface: "GRN attractor basin proof over n <= 16",
+      evidencePath: "rust/crates/omena-cascade/src/grn.rs",
+      evidenceMarkers: [
+        "prove_cascade_attractor_basin",
+        "grn_explicit_attractor_basin_proof_covers_all_n_le_16",
+      ],
+      nextAction:
+        "supplement explicit state and transition enumeration before refinement trajectory work",
+    },
+    {
+      id: "m4-alpha.spin-glass-property-tests",
+      stage: "m4-alpha",
+      status: "fixtureRecordOnly",
+      framing: "fixtureBound",
+      surface: "spin-glass theorem fixtures",
+      evidencePath: "rust/crates/omena-cascade/src/statistics.rs",
+      evidenceMarkers: [
+        "prove_strong_triangle_inequality",
+        "prove_ultrametric_isomorphism",
+        "deterministic_spin_glass_theorems_pass",
+      ],
+      nextAction: "defer broader metric/property harness to paper-trajectory supplement",
+    },
+    {
+      id: "m4-alpha.mdl-differential-corpus",
+      stage: "m4-alpha",
+      status: "propertyTestEnforced",
+      framing: "enforcedProperty",
+      surface: "MDL 100-fixture differential corpus",
+      evidencePath: "package.json",
+      evidenceMarkers: [
+        "check:rust-m4-alpha-mdl-differential",
+        "mdl_default_ast_size_matches_100_fixture_differential_corpus",
+      ],
+    },
+    {
+      id: "m4-alpha.frame-rule-fuzz",
+      stage: "m4-alpha",
+      status: "propertyTestEnforced",
+      framing: "enforcedProperty",
+      surface: "frame-rule overapproximation fuzz gate",
+      evidencePath: "package.json",
+      evidenceMarkers: [
+        "check:rust-m4-alpha-frame-rule-fuzz",
+        "frame_rule_overapprox",
+        "M4_ALPHA_FRAME_FUZZ_RUNS:-100000",
+      ],
+    },
+    {
+      id: "m4-beta.lawvere-equation-cluster",
+      stage: "m4-beta",
+      status: "descriptorOnly",
+      framing: "stagedScaffold",
+      surface: "Lawvere equation cluster catalog",
+      evidencePath: "rust/crates/omena-lawvere/src/lib.rs",
+      evidenceMarkers: ["LawvereEquationClusterV0", "lawvere_equation_clusters_v0"],
+      nextAction:
+        "keep staged-scaffold wording until a fixture corpus or semantic law checker lands",
+    },
+    {
+      id: "m4-beta.lawvere-reorderability-certificate",
+      stage: "m4-beta",
+      status: "fixtureRecordOnly",
+      framing: "fixtureBound",
+      surface: "Lawvere reorderability certificate",
+      evidencePath: "rust/crates/omena-lawvere/src/lib.rs",
+      evidenceMarkers: ["ReorderabilityCertificateV0", "reorderability_certificate_v0"],
+      nextAction: "promote beyond rank fixture evidence before final Lawvere semantics wording",
+    },
+    {
+      id: "m4-beta.rg-flow-fixed-point",
+      stage: "m4-beta",
+      status: "descriptorOnly",
+      framing: "stagedScaffold",
+      surface: "RG beta vector and fixed-point metric",
+      evidencePath: "rust/crates/omena-rg-flow/src/lib.rs",
+      evidenceMarkers: ["BetaVectorV0", "fixed_point_reached", "beta_vector_from_couplings"],
+      nextAction: "add Jacobian/eigenvalue mechanism before final RG-flow wording",
+    },
+    {
+      id: "m4-beta.hypergraph-ifds-summary",
+      stage: "m4-beta",
+      status: "partialPropertyTest",
+      framing: "partialMechanism",
+      surface: "hypergraph IFDS projection seed",
+      evidencePath: "rust/crates/omena-query/src/style/cross_file_hypergraph/reachability.rs",
+      evidenceMarkers: [
+        "OmenaUnifiedHypergraphConnectivityOracle",
+        "tabulate_hypergraph_ifds_summary_edges",
+      ],
+      nextAction: "treat as seed substrate; full streaming IFDS lives in m4-gamma",
+    },
+    {
+      id: "m4-beta.replica-ensemble-projection",
+      stage: "m4-beta",
+      status: "partialPropertyTest",
+      framing: "partialMechanism",
+      surface: "replica overlap and spectral ensemble projection",
+      evidencePath: "rust/crates/omena-ensemble/src/types.rs",
+      evidenceMarkers: ["LocalEmFallback", "AutoSpectral", "SpectralMethod"],
+      nextAction: "keep empirical/projection wording until real EM or spectral inference lands",
+    },
+    {
+      id: "m4-gamma.z3-cvc5-bitwuzla-backends",
+      stage: "m4-gamma",
+      status: "descriptorOnly",
+      framing: "stagedScaffold",
+      surface: "SMT backend selection surfaces",
+      evidencePath: "rust/crates/omena-smt/src/backend/bitwuzla.rs",
+      evidenceMarkers: ["BitwuzlaSmtBackendV0", "196-bit-cascade-key-bitvector"],
+      nextAction:
+        "keep solver invocation out of default path; add real backend only behind feature gates",
+    },
+    {
+      id: "m4-gamma.smt-bisimulation-fuzz",
+      stage: "m4-gamma",
+      status: "propertyTestEnforced",
+      framing: "enforcedProperty",
+      surface: "SMT bisimulation fuzz case",
+      evidencePath: "rust/crates/omena-smt/src/fuzz.rs",
+      evidenceMarkers: [
+        "smt_bisimulation_fuzz_case_v0",
+        "run_smt_bisimulation_fuzz_case_v0",
+        "SmtBisimulationFuzzReportV0",
+      ],
+    },
+    {
+      id: "m4-gamma.zk-protocol-surface",
+      stage: "m4-gamma",
+      status: "descriptorOnly",
+      framing: "stagedScaffold",
+      surface: "ZK audit setup/circuit protocol surface",
+      evidencePath: "rust/crates/omena-zk-audit/src/lib.rs",
+      evidenceMarkers: [
+        "SetupKindV0::Halo2Ipa",
+        "CascadeZKAuditV0",
+        "heavy_dependencies_default_off",
+      ],
+      nextAction: "defer real crypto library linking to opt-in backend features",
+    },
+    {
+      id: "m4-gamma.refinement-type-system",
+      stage: "m4-gamma",
+      status: "descriptorOnly",
+      framing: "stagedScaffold",
+      surface: "refinement type wrapper and predicate interface",
+      evidencePath: "rust/crates/omena-refinement/src/lib.rs",
+      evidenceMarkers: ["RefinedAbstractPropertyValueV0", "project_refined_to_legacy_v0"],
+      nextAction: "expand predicate composition, property grammar, witness, and provenance content",
+    },
+    {
+      id: "m4-gamma.variational-posterior",
+      stage: "m4-gamma",
+      status: "partialPropertyTest",
+      framing: "partialMechanism",
+      surface: "variational posterior and hover-budget surface",
+      evidencePath: "rust/crates/omena-variational/src/lib.rs",
+      evidenceMarkers: [
+        "DesignerIntentPosteriorV0",
+        "ProvenancePosteriorAnnotationV0",
+        "mutates_existing_provenance_enum: false",
+      ],
+      nextAction:
+        "keep stochastic inference disabled by default until deeper empirical calibration lands",
+    },
+    {
+      id: "m4-gamma.categorical-fixture-evidence",
+      stage: "m4-gamma",
+      status: "propertyTestEnforced",
+      framing: "enforcedProperty",
+      surface: "fixture-backed categorical evidence endpoints",
+      evidencePath: "rust/crates/omena-categorical/src/lib.rs",
+      evidenceMarkers: [
+        "CategoricalEndpointFixtureEvidenceV0",
+        "categorical_fixture_evidence_for_endpoint_v0",
+        "cascade_primitive_roles_v0",
+      ],
+    },
+    {
+      id: "m4-gamma.streaming-ifds-transfer-cache",
+      stage: "m4-gamma",
+      status: "partialPropertyTest",
+      framing: "partialMechanism",
+      surface: "streaming IFDS transfer and summary-cache substrate",
+      evidencePath: "rust/crates/omena-streaming-ifds/src/lib.rs",
+      evidenceMarkers: [
+        "StreamingIFDSTransferFunctionV0",
+        "StreamingIFDSSummaryCacheEntryV0",
+        "PolylogDynamicConnectivityBackendV0",
+      ],
+      nextAction:
+        "audit dynamic-connectivity algorithm depth separately from transfer/cache contracts",
+    },
+  ];
+
+  for (const entry of entries) {
+    assert.ok(
+      theoryClaimStatuses.includes(entry.status),
+      `${entry.id} has unknown theory claim status`,
+    );
+    assertTheoryClaimFraming(entry);
+    const evidence = read(entry.evidencePath);
+    for (const marker of entry.evidenceMarkers) {
+      assertIncludes(
+        evidence,
+        marker,
+        `${entry.id} evidence marker missing in ${entry.evidencePath}`,
+      );
+    }
+  }
+
+  const stages = groupTheoryClaimsByStage(entries);
+  const summary = summarizeTheoryClaimStatuses(entries);
+
+  return {
+    ladder: theoryClaimStatuses,
+    legacyNotClaimed: {
+      dynamicDyck: "notClaimed",
+      externalDatalog: "notClaimed",
+      egglogExecution: "notClaimed",
+      sheafOrModalTheorem: "notClaimed",
+      fullPerceptualTooling: "notClaimed",
+    },
+    stages,
+    summary,
+  };
+}
+
+function assertTheoryClaimFraming(entry: TheoryClaimEntry): void {
+  const allowedFramingByStatus: Record<TheoryClaimStatus, readonly TheoryClaimFraming[]> = {
+    descriptorOnly: ["stagedScaffold"],
+    fixtureRecordOnly: ["fixtureBound"],
+    partialPropertyTest: ["partialMechanism"],
+    propertyTestEnforced: ["enforcedProperty"],
+  };
+  assert.ok(
+    allowedFramingByStatus[entry.status].includes(entry.framing),
+    `${entry.id} has ${entry.status} but uses final/incompatible framing ${entry.framing}`,
+  );
+  if (entry.status !== "propertyTestEnforced") {
+    assert.ok(
+      entry.nextAction,
+      `${entry.id} must name nextAction while it is not propertyTestEnforced`,
+    );
+  }
+}
+
+function assertTheoryClaimGuard(guard: ReturnType<typeof buildTheoryClaimGuard>): void {
+  assert.deepEqual(
+    guard.ladder,
+    ["descriptorOnly", "fixtureRecordOnly", "partialPropertyTest", "propertyTestEnforced"],
+    "theory claim ladder must keep the post-gamma four-tier order",
+  );
+  for (const stage of ["m4-alpha", "m4-beta", "m4-gamma"] as const) {
+    assert.ok(guard.stages[stage].length >= 4, `${stage} must have explicit theory claim entries`);
+  }
+  for (const statusName of theoryClaimStatuses) {
+    assert.ok(
+      guard.summary[statusName] > 0,
+      `theory claim ladder must contain at least one ${statusName} entry`,
+    );
+  }
+  assert.ok(
+    guard.stages["m4-gamma"].some((entry) => entry.id === "m4-gamma.zk-protocol-surface"),
+    "M4-gamma ZK protocol surface must stay explicitly classified until real backend work lands",
+  );
+  assert.ok(
+    guard.stages["m4-alpha"].some((entry) => entry.id === "m4-alpha.qtt-semiring-algebra"),
+    "M4-alpha semiring algebra risk must stay explicitly classified before ZK/refinement deepening",
+  );
+}
+
+function groupTheoryClaimsByStage(
+  entries: readonly TheoryClaimEntry[],
+): Record<TheoryClaimStage, readonly TheoryClaimEntry[]> {
+  return {
+    "m4-alpha": entries.filter((entry) => entry.stage === "m4-alpha"),
+    "m4-beta": entries.filter((entry) => entry.stage === "m4-beta"),
+    "m4-gamma": entries.filter((entry) => entry.stage === "m4-gamma"),
+  };
+}
+
+function summarizeTheoryClaimStatuses(
+  entries: readonly TheoryClaimEntry[],
+): Record<TheoryClaimStatus, number> {
+  return Object.fromEntries(
+    theoryClaimStatuses.map((statusName) => [
+      statusName,
+      entries.filter((entry) => entry.status === statusName).length,
+    ]),
+  ) as Record<TheoryClaimStatus, number>;
 }
