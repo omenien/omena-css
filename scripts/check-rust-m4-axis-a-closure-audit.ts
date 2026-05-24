@@ -83,6 +83,10 @@ assert.ok(
   "M4 Axis A must keep css-display in the pinned WPT sparse path policy",
 );
 assert.ok(
+  wptManifest.source.sparsePaths.includes("css/css-position"),
+  "M4 Axis A must keep css-position in the pinned WPT sparse path policy",
+);
+assert.ok(
   wptSparsePathFixtureCounts.every((count) => count.fixtureCount > 0),
   "every pinned WPT sparse path must have fixture coverage",
 );
@@ -103,6 +107,12 @@ assert.ok(
     (count) => count.sparsePath === "css/css-display" && count.fixtureCount >= 4,
   ),
   "css-display WPT coverage must retain the display advisory fixture set",
+);
+assert.ok(
+  wptSparsePathFixtureCounts.some(
+    (count) => count.sparsePath === "css/css-position" && count.fixtureCount >= 5,
+  ),
+  "css-position WPT coverage must retain the position advisory fixture set",
 );
 assert.deepEqual(
   wptManifest.sparsePathFixtureCounts,
@@ -187,6 +197,9 @@ const cssSizingHeightEntry = specManifest.entries.find(
 const cssDisplayEntry = specManifest.entries.find(
   (entry) => entry.id === "css-display/properties/display",
 );
+const cssPositionEntry = specManifest.entries.find(
+  (entry) => entry.id === "css-position/properties/position",
+);
 assert.ok(cssSizingHeightEntry, "spec audit must retain css-sizing height coverage");
 assert.equal(cssSizingHeightEntry.priority, "P0");
 assert.equal(cssSizingHeightEntry.status, "covered");
@@ -244,6 +257,22 @@ for (const evidence of [
     `css-display display spec audit evidence must include ${evidence}`,
   );
 }
+assert.ok(cssPositionEntry, "spec audit must retain css-position position coverage");
+assert.equal(cssPositionEntry.priority, "P0");
+assert.equal(cssPositionEntry.status, "covered");
+for (const evidence of [
+  "WPT css/css-position/parsing/position-valid.html",
+  "css-position-static-advisory",
+  "css-position-relative-advisory",
+  "css-position-absolute-advisory",
+  "css-position-sticky-advisory",
+  "css-position-fixed-advisory",
+] as const) {
+  assert.ok(
+    cssPositionEntry.evidence?.includes(evidence),
+    `css-position position spec audit evidence must include ${evidence}`,
+  );
+}
 const specSourceLinkedEntries = specManifest.entries.filter((entry) =>
   sourceNames.has(entry.sourceName),
 );
@@ -299,6 +328,12 @@ assert.ok(
     coverage.entryIds.includes("css-display/properties/display"),
   ),
   "cross-source spec coverage must retain css-display display joins",
+);
+assert.ok(
+  specManifest.sourceCoverage.every((coverage) =>
+    coverage.entryIds.includes("css-position/properties/position"),
+  ),
+  "cross-source spec coverage must retain css-position position joins",
 );
 assert.ok(
   specManifest.entries

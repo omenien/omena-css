@@ -123,6 +123,7 @@ for (const marker of [
   "pub fn summarize_style_corpus_snapshot",
   "css-backgrounds-longhand-corpus",
   "css-display-layout-corpus",
+  "css-position-layout-corpus",
 ] as const) {
   assertIncludes(benchmarksCorpus, marker, `benchmark corpus split must retain ${marker}`);
 }

@@ -19,6 +19,7 @@
         "css-backgrounds/properties/background-position",
         "css-backgrounds/properties/background-size",
         "css-display/properties/display",
+        "css-position/properties/position",
         "css-mixins/atrules/@function"
       ],
       "sourceKeys": [
@@ -34,6 +35,7 @@
         "css-backgrounds/properties/background-position",
         "css-backgrounds/properties/background-size",
         "css-display/properties/display",
+        "css-position/properties/position",
         "css-mixins/atrules/@function"
       ]
     },
@@ -53,6 +55,7 @@
         "css-backgrounds/properties/background-position",
         "css-backgrounds/properties/background-size",
         "css-display/properties/display",
+        "css-position/properties/position",
         "css-mixins/atrules/@function"
       ],
       "sourceKeys": [
@@ -61,6 +64,7 @@
         "https://drafts.csswg.org/css-sizing/",
         "https://drafts.csswg.org/css-backgrounds/",
         "https://drafts.csswg.org/css-display/",
+        "https://drafts.csswg.org/css-position/",
         "https://drafts.csswg.org/css-mixins-1/"
       ]
     },
@@ -79,7 +83,8 @@
         "css-backgrounds/properties/background-repeat",
         "css-backgrounds/properties/background-position",
         "css-backgrounds/properties/background-size",
-        "css-display/properties/display"
+        "css-display/properties/display",
+        "css-position/properties/position"
       ],
       "sourceKeys": [
         "css-color",
@@ -87,7 +92,8 @@
         "css-values",
         "css-sizing",
         "css-backgrounds",
-        "css-display"
+        "css-display",
+        "css-position"
       ]
     },
     {
@@ -105,7 +111,8 @@
         "css-backgrounds/properties/background-repeat",
         "css-backgrounds/properties/background-position",
         "css-backgrounds/properties/background-size",
-        "css-display/properties/display"
+        "css-display/properties/display",
+        "css-position/properties/position"
       ],
       "sourceKeys": [
         "css.properties.color",
@@ -119,7 +126,8 @@
         "css.properties.background-repeat",
         "css.properties.background-position",
         "css.properties.background-size",
-        "css.properties.display"
+        "css.properties.display",
+        "css.properties.position"
       ]
     }
   ],
@@ -295,6 +303,25 @@
         "css-display-inline-grid-advisory",
         "css-display-flex-advisory",
         "css-display-contents-advisory"
+      ]
+    },
+    {
+      "id": "css-position/properties/position",
+      "webrefId": "css-position/properties/position",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-position/#propdef-position",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-parser",
+      "evidence": [
+        "SyntaxKind::Declaration",
+        "WPT css/css-position/parsing/position-valid.html",
+        "css-position-static-advisory",
+        "css-position-relative-advisory",
+        "css-position-absolute-advisory",
+        "css-position-sticky-advisory",
+        "css-position-fixed-advisory"
       ]
     },
     {

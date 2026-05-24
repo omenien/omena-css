@@ -401,10 +401,10 @@ mod tests {
         assert_eq!(summary.product, "omena-spec-audit.boundary");
         assert_eq!(summary.stage, "stage1-advisory");
         assert_eq!(summary.source_count, 4);
-        assert_eq!(summary.manifest_entry_count, 13);
-        assert_eq!(summary.p0_entry_count, 12);
-        assert_eq!(summary.source_linked_entry_count, 13);
-        assert_eq!(summary.webref_entry_count, 13);
+        assert_eq!(summary.manifest_entry_count, 14);
+        assert_eq!(summary.p0_entry_count, 13);
+        assert_eq!(summary.source_linked_entry_count, 14);
+        assert_eq!(summary.webref_entry_count, 14);
         assert_eq!(summary.source_coverage_count, 4);
         assert_eq!(summary.blocking_p0_gap_count, 0);
         assert!(summary.all_source_pins_valid);

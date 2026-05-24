@@ -64,6 +64,12 @@ pub fn style_corpus() -> Vec<StyleSample> {
             source: build_css_display_layout_corpus(96),
         },
         StyleSample {
+            name: "css-position-layout-corpus",
+            path: "PositionModes.module.css",
+            dialect: StyleDialect::Css,
+            source: build_css_position_layout_corpus(96),
+        },
+        StyleSample {
             name: "scss-heavy-design-system",
             path: "DesignSystem.module.scss",
             dialect: StyleDialect::Scss,
@@ -212,6 +218,24 @@ fn build_css_display_layout_corpus(count: usize) -> String {
 "#,
             display = display_values[index % display_values.len()],
             gap = (index % 16) + 1,
+        ));
+    }
+    source
+}
+
+fn build_css_position_layout_corpus(count: usize) -> String {
+    let position_values = ["static", "relative", "absolute", "sticky", "fixed"];
+    let mut source = String::new();
+    for index in 0..count {
+        source.push_str(&format!(
+            r#"
+.positionMode{index} {{
+  position: {position};
+  inset: {offset}px;
+}}
+"#,
+            position = position_values[index % position_values.len()],
+            offset = index % 24,
         ));
     }
     source
