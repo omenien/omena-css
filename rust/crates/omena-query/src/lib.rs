@@ -16,7 +16,7 @@ use engine_input_producers::{
     summarize_selector_usage_canonical_producer_signal_input,
     summarize_selector_usage_query_fragments_input,
 };
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet};
 
 use omena_abstract_value::{
     AbstractValueDomainSummaryV0, ClassValueFlowAnalysisV0, ClassValueFlowIncrementalAnalysisV0,

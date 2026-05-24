@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "hypergraph-ifds"), allow(dead_code))]
+
 use std::collections::BTreeMap;
 
 use serde::Serialize;
@@ -15,6 +17,10 @@ pub use edge::*;
 pub use lattice::*;
 pub use node::*;
 pub use reachability::*;
+pub(in crate::style) use reachability::{
+    HypergraphClosureOptions, HypergraphClosurePath, collect_hypergraph_transitive_closure_paths,
+    collect_hypergraph_transitive_closure_paths_with_options,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -230,7 +236,7 @@ impl UnifiedCrossFileHypergraphBuilder {
                 p3_scc_unification_ready: true,
                 p4_summary_edge_tabulation_ready: true,
                 p5_projection_helper_ready: true,
-                p6_closure_body_switch_over_ready: false,
+                p6_closure_body_switch_over_ready: true,
                 p7_v0_publication_ready: true,
                 batch_connectivity_oracle_ready: true,
                 streaming_oracle_wire_compatible: true,
@@ -311,7 +317,7 @@ fn unified_edge_kind_for_summary_edge(
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "hypergraph-ifds"))]
 mod tests {
     use std::collections::BTreeSet;
 
@@ -356,7 +362,7 @@ mod tests {
         assert_eq!(hypergraph.feature_gate, "hypergraph-ifds");
         assert!(hypergraph.capabilities.p1_type_introduction_ready);
         assert!(hypergraph.capabilities.p5_projection_helper_ready);
-        assert!(!hypergraph.capabilities.p6_closure_body_switch_over_ready);
+        assert!(hypergraph.capabilities.p6_closure_body_switch_over_ready);
         assert_eq!(hypergraph.summary_edge_count, summary.summary_edge_count);
 
         let projected = hypergraph
@@ -436,5 +442,46 @@ mod tests {
         assert!(composes.tail_node_ids[0].ends_with("|a"));
         assert!(composes.tail_node_ids[1].ends_with("|b"));
         assert!(composes.tail_node_ids[2].ends_with("|c"));
+    }
+
+    #[test]
+    fn p6_switch_over_projects_all_closure_edge_kinds() {
+        let style_sources = vec![
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/App.module.scss".to_string(),
+                style_source: "@use \"./tokens\"; .a { composes: b; } .b { composes: c; } .c {} @value a: b; @value b: c; @value c: red; :export { alpha: beta; beta: gamma; gamma: red; }".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/_tokens.scss".to_string(),
+                style_source: "@forward \"./palette\";".to_string(),
+            },
+            OmenaQueryStyleSourceInputV0 {
+                style_path: "/tmp/_palette.scss".to_string(),
+                style_source: ".palette { color: red; }".to_string(),
+            },
+        ];
+        let summary =
+            summarize_omena_query_workspace_cross_file_summary(style_sources.as_slice(), &[], &[]);
+        let edge_kinds = summary
+            .edge_kind_counts
+            .iter()
+            .map(|entry| entry.edge_kind)
+            .collect::<BTreeSet<_>>();
+
+        assert!(edge_kinds.contains("cssModulesComposesClosure"));
+        assert!(edge_kinds.contains("cssModulesValueClosure"));
+        assert!(edge_kinds.contains("cssModulesIcssClosure"));
+        assert!(edge_kinds.contains("sassModuleGraphClosure"));
+
+        let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
+
+        assert!(hypergraph.capabilities.p1_type_introduction_ready);
+        assert!(hypergraph.capabilities.p2_adjacency_projection_ready);
+        assert!(hypergraph.capabilities.p3_scc_unification_ready);
+        assert!(hypergraph.capabilities.p4_summary_edge_tabulation_ready);
+        assert!(hypergraph.capabilities.p5_projection_helper_ready);
+        assert!(hypergraph.capabilities.p6_closure_body_switch_over_ready);
+        assert!(hypergraph.capabilities.p7_v0_publication_ready);
+        assert_eq!(hypergraph.summary_edge_count, summary.summary_edge_count);
     }
 }

@@ -4,7 +4,6 @@ use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact
 mod cascade_position;
 mod code_actions;
 mod completion;
-#[cfg(feature = "hypergraph-ifds")]
 mod cross_file_hypergraph;
 mod cross_file_summary;
 mod diagnostics;
@@ -20,6 +19,10 @@ pub use code_actions::*;
 pub use completion::*;
 #[cfg(feature = "hypergraph-ifds")]
 pub use cross_file_hypergraph::*;
+use cross_file_hypergraph::{
+    HypergraphClosureOptions, HypergraphClosurePath, collect_hypergraph_transitive_closure_paths,
+    collect_hypergraph_transitive_closure_paths_with_options,
+};
 use cross_file_summary::summarize_omena_query_cross_file_summary;
 pub use cross_file_summary::{
     summarize_omena_query_m4_axis_c_readiness,
@@ -376,36 +379,72 @@ fn summarize_sass_module_graph_closure(
     Vec<OmenaQuerySassModuleGraphClosureEdgeV0>,
     Vec<OmenaQuerySassModuleCycleV0>,
 ) {
-    let mut adjacency: BTreeMap<&str, Vec<&OmenaQuerySassModuleEdgeResolutionV0>> = BTreeMap::new();
-    for edge in edges {
-        if edge.status != "resolved" {
+    let mut resolved_edges = edges
+        .iter()
+        .filter(|edge| edge.status == "resolved" && edge.resolved_style_path.is_some())
+        .collect::<Vec<_>>();
+    resolved_edges.sort_by_key(|edge| {
+        (
+            edge.from_style_path.clone(),
+            edge.resolved_style_path.clone().unwrap_or_default(),
+            edge.edge_kind,
+            edge.source.clone(),
+        )
+    });
+
+    let mut graph = BTreeMap::<String, BTreeSet<String>>::new();
+    let mut metadata_by_step =
+        BTreeMap::<(String, String), SassModuleGraphClosureStepMetadata>::new();
+    for edge in resolved_edges {
+        let Some(target_style_path) = edge.resolved_style_path.clone() else {
             continue;
-        }
-        if edge.resolved_style_path.is_none() {
-            continue;
-        }
-        adjacency
-            .entry(edge.from_style_path.as_str())
+        };
+        graph
+            .entry(edge.from_style_path.clone())
             .or_default()
-            .push(edge);
-    }
-    for outgoing in adjacency.values_mut() {
-        outgoing.sort_by_key(|edge| {
-            (
-                edge.resolved_style_path.clone().unwrap_or_default(),
-                edge.edge_kind,
-                edge.source.clone(),
-            )
-        });
+            .insert(target_style_path.clone());
+        metadata_by_step
+            .entry((edge.from_style_path.clone(), target_style_path))
+            .or_insert_with(|| SassModuleGraphClosureStepMetadata::from(edge));
     }
 
-    let mut collector = SassModuleGraphClosureCollector::new(&adjacency);
-    for origin in adjacency.keys() {
-        let mut path = vec![(*origin).to_string()];
-        collector.collect(origin, origin, &mut path);
-    }
-
-    let (mut closure_edges, mut cycles) = collector.finish();
+    let (closure_paths, cycle_paths) = collect_hypergraph_transitive_closure_paths_with_options(
+        &graph,
+        &mut |style_path: &String| style_path.clone(),
+        HypergraphClosureOptions::raw_all_paths(),
+    );
+    let mut closure_edges = closure_paths
+        .into_iter()
+        .filter_map(
+            |HypergraphClosurePath {
+                 origin,
+                 target,
+                 depth,
+                 path_labels,
+             }| {
+                let last_hop_from = path_labels.iter().rev().nth(1)?.clone();
+                let metadata = metadata_by_step
+                    .get(&(last_hop_from, target.clone()))?
+                    .clone();
+                Some(OmenaQuerySassModuleGraphClosureEdgeV0 {
+                    from_style_path: origin,
+                    target_style_path: target,
+                    edge_kind: metadata.edge_kind,
+                    depth,
+                    path: path_labels,
+                    namespace_kind: metadata.namespace_kind,
+                    namespace: metadata.namespace,
+                    forward_prefix: metadata.forward_prefix,
+                    visibility_filter_kind: metadata.visibility_filter_kind,
+                    visibility_filter_names: metadata.visibility_filter_names,
+                })
+            },
+        )
+        .collect::<Vec<_>>();
+    let mut cycles = cycle_paths
+        .into_iter()
+        .map(|path| OmenaQuerySassModuleCycleV0 { path })
+        .collect::<Vec<_>>();
     closure_edges.sort_by_key(|edge| {
         (
             edge.from_style_path.clone(),
@@ -419,75 +458,26 @@ fn summarize_sass_module_graph_closure(
     (closure_edges, cycles)
 }
 
-struct SassModuleGraphClosureCollector<'a> {
-    adjacency: &'a BTreeMap<&'a str, Vec<&'a OmenaQuerySassModuleEdgeResolutionV0>>,
-    seen_edges: BTreeSet<(String, String, Vec<String>)>,
-    closure_edges: Vec<OmenaQuerySassModuleGraphClosureEdgeV0>,
-    seen_cycles: BTreeSet<Vec<String>>,
-    cycles: Vec<OmenaQuerySassModuleCycleV0>,
+#[derive(Debug, Clone)]
+struct SassModuleGraphClosureStepMetadata {
+    edge_kind: &'static str,
+    namespace_kind: Option<&'static str>,
+    namespace: Option<String>,
+    forward_prefix: Option<String>,
+    visibility_filter_kind: Option<&'static str>,
+    visibility_filter_names: Vec<String>,
 }
 
-impl<'a> SassModuleGraphClosureCollector<'a> {
-    fn new(
-        adjacency: &'a BTreeMap<&'a str, Vec<&'a OmenaQuerySassModuleEdgeResolutionV0>>,
-    ) -> Self {
+impl From<&OmenaQuerySassModuleEdgeResolutionV0> for SassModuleGraphClosureStepMetadata {
+    fn from(edge: &OmenaQuerySassModuleEdgeResolutionV0) -> Self {
         Self {
-            adjacency,
-            seen_edges: BTreeSet::new(),
-            closure_edges: Vec::new(),
-            seen_cycles: BTreeSet::new(),
-            cycles: Vec::new(),
+            edge_kind: edge.edge_kind,
+            namespace_kind: edge.namespace_kind,
+            namespace: edge.namespace.clone(),
+            forward_prefix: edge.forward_prefix.clone(),
+            visibility_filter_kind: edge.visibility_filter_kind,
+            visibility_filter_names: edge.visibility_filter_names.clone(),
         }
-    }
-
-    fn collect(&mut self, origin: &str, current: &str, path: &mut Vec<String>) {
-        let Some(outgoing) = self.adjacency.get(current) else {
-            return;
-        };
-        for edge in outgoing {
-            let Some(target) = edge.resolved_style_path.as_deref() else {
-                continue;
-            };
-            let mut next_path = path.clone();
-            next_path.push(target.to_string());
-            if path.iter().any(|segment| segment == target) {
-                if self.seen_cycles.insert(next_path.clone()) {
-                    self.cycles
-                        .push(OmenaQuerySassModuleCycleV0 { path: next_path });
-                }
-                continue;
-            }
-            if self
-                .seen_edges
-                .insert((origin.to_string(), target.to_string(), next_path.clone()))
-            {
-                self.closure_edges
-                    .push(OmenaQuerySassModuleGraphClosureEdgeV0 {
-                        from_style_path: origin.to_string(),
-                        target_style_path: target.to_string(),
-                        edge_kind: edge.edge_kind,
-                        depth: next_path.len().saturating_sub(1),
-                        path: next_path.clone(),
-                        namespace_kind: edge.namespace_kind,
-                        namespace: edge.namespace.clone(),
-                        forward_prefix: edge.forward_prefix.clone(),
-                        visibility_filter_kind: edge.visibility_filter_kind,
-                        visibility_filter_names: edge.visibility_filter_names.clone(),
-                    });
-            }
-            path.push(target.to_string());
-            self.collect(origin, target, path);
-            path.pop();
-        }
-    }
-
-    fn finish(
-        self,
-    ) -> (
-        Vec<OmenaQuerySassModuleGraphClosureEdgeV0>,
-        Vec<OmenaQuerySassModuleCycleV0>,
-    ) {
-        (self.closure_edges, self.cycles)
     }
 }
 
@@ -708,53 +698,33 @@ fn summarize_css_modules_composes_closure(
         available_style_paths,
         package_manifests,
     );
-    let mut closure_edges = Vec::new();
-    let mut cycles = Vec::new();
-    let mut seen_cycles = BTreeSet::new();
-
-    for start in graph.keys() {
-        let mut visited = BTreeSet::new();
-        let mut pending = VecDeque::from([(start.clone(), vec![start.clone()])]);
-
-        while let Some((current, path)) = pending.pop_front() {
-            let Some(targets) = graph.get(&current) else {
-                continue;
-            };
-            for target in targets {
-                if let Some(cycle_start) = path.iter().position(|node| node == target) {
-                    let mut cycle_path = path[cycle_start..].to_vec();
-                    cycle_path.push(target.clone());
-                    let cycle_labels = canonical_directed_cycle_labels(&cycle_path);
-                    if !cycle_labels.is_empty() && seen_cycles.insert(cycle_labels.clone()) {
-                        cycles.push(OmenaQueryCssModulesCycleV0 {
-                            kind: "composes",
-                            path: cycle_labels,
-                        });
-                    }
-                    continue;
-                }
-
-                if !visited.insert(target.clone()) {
-                    continue;
-                }
-
-                let mut edge_path = path.clone();
-                edge_path.push(target.clone());
-                closure_edges.push(OmenaQueryCssModulesComposesClosureEdgeV0 {
-                    from_style_path: start.style_path.clone(),
-                    owner_selector_name: start.selector_name.clone(),
-                    target_style_path: target.style_path.clone(),
-                    target_selector_name: target.selector_name.clone(),
-                    depth: edge_path.len().saturating_sub(1),
-                    path: edge_path
-                        .iter()
-                        .map(css_modules_composes_node_label)
-                        .collect(),
-                });
-                pending.push_back((target.clone(), edge_path));
-            }
-        }
-    }
+    let (closure_paths, cycle_paths) =
+        collect_hypergraph_transitive_closure_paths(&graph, css_modules_composes_node_label);
+    let mut closure_edges = closure_paths
+        .into_iter()
+        .map(
+            |HypergraphClosurePath {
+                 origin,
+                 target,
+                 depth,
+                 path_labels,
+             }| OmenaQueryCssModulesComposesClosureEdgeV0 {
+                from_style_path: origin.style_path,
+                owner_selector_name: origin.selector_name,
+                target_style_path: target.style_path,
+                target_selector_name: target.selector_name,
+                depth,
+                path: path_labels,
+            },
+        )
+        .collect::<Vec<_>>();
+    let mut cycles = cycle_paths
+        .into_iter()
+        .map(|path| OmenaQueryCssModulesCycleV0 {
+            kind: "composes",
+            path,
+        })
+        .collect::<Vec<_>>();
 
     closure_edges.sort_by_key(|edge| {
         (
@@ -844,30 +814,6 @@ fn css_modules_composes_node_label(node: &CssModulesComposesNode) -> String {
     format!("{}#{}", node.style_path, node.selector_name)
 }
 
-fn canonical_directed_cycle_labels(path: &[CssModulesComposesNode]) -> Vec<String> {
-    let mut labels = path
-        .iter()
-        .map(css_modules_composes_node_label)
-        .collect::<Vec<_>>();
-    if labels.len() > 1 && labels.first() == labels.last() {
-        labels.pop();
-    }
-    if labels.is_empty() {
-        return Vec::new();
-    }
-
-    let mut best = labels.clone();
-    for offset in 1..labels.len() {
-        let mut rotated = labels[offset..].to_vec();
-        rotated.extend_from_slice(&labels[..offset]);
-        if rotated < best {
-            best = rotated;
-        }
-    }
-    best.push(best[0].clone());
-    best
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct CssModulesValueNode {
     style_path: String,
@@ -887,50 +833,33 @@ fn summarize_css_modules_value_closure(
         available_style_paths,
         package_manifests,
     );
-    let mut closure_edges = Vec::new();
-    let mut cycles = Vec::new();
-    let mut seen_cycles = BTreeSet::new();
-
-    for start in graph.keys() {
-        let mut visited = BTreeSet::new();
-        let mut pending = VecDeque::from([(start.clone(), vec![start.clone()])]);
-
-        while let Some((current, path)) = pending.pop_front() {
-            let Some(targets) = graph.get(&current) else {
-                continue;
-            };
-            for target in targets {
-                if let Some(cycle_start) = path.iter().position(|node| node == target) {
-                    let mut cycle_path = path[cycle_start..].to_vec();
-                    cycle_path.push(target.clone());
-                    let cycle_labels = canonical_directed_value_cycle_labels(&cycle_path);
-                    if !cycle_labels.is_empty() && seen_cycles.insert(cycle_labels.clone()) {
-                        cycles.push(OmenaQueryCssModulesCycleV0 {
-                            kind: "value",
-                            path: cycle_labels,
-                        });
-                    }
-                    continue;
-                }
-
-                if !visited.insert(target.clone()) {
-                    continue;
-                }
-
-                let mut edge_path = path.clone();
-                edge_path.push(target.clone());
-                closure_edges.push(OmenaQueryCssModulesValueClosureEdgeV0 {
-                    from_style_path: start.style_path.clone(),
-                    value_name: start.value_name.clone(),
-                    target_style_path: target.style_path.clone(),
-                    target_value_name: target.value_name.clone(),
-                    depth: edge_path.len().saturating_sub(1),
-                    path: edge_path.iter().map(css_modules_value_node_label).collect(),
-                });
-                pending.push_back((target.clone(), edge_path));
-            }
-        }
-    }
+    let (closure_paths, cycle_paths) =
+        collect_hypergraph_transitive_closure_paths(&graph, css_modules_value_node_label);
+    let mut closure_edges = closure_paths
+        .into_iter()
+        .map(
+            |HypergraphClosurePath {
+                 origin,
+                 target,
+                 depth,
+                 path_labels,
+             }| OmenaQueryCssModulesValueClosureEdgeV0 {
+                from_style_path: origin.style_path,
+                value_name: origin.value_name,
+                target_style_path: target.style_path,
+                target_value_name: target.value_name,
+                depth,
+                path: path_labels,
+            },
+        )
+        .collect::<Vec<_>>();
+    let mut cycles = cycle_paths
+        .into_iter()
+        .map(|path| OmenaQueryCssModulesCycleV0 {
+            kind: "value",
+            path,
+        })
+        .collect::<Vec<_>>();
 
     closure_edges.sort_by_key(|edge| {
         (
@@ -1023,30 +952,6 @@ fn css_modules_value_node_label(node: &CssModulesValueNode) -> String {
     format!("{}#{}", node.style_path, node.value_name)
 }
 
-fn canonical_directed_value_cycle_labels(path: &[CssModulesValueNode]) -> Vec<String> {
-    let mut labels = path
-        .iter()
-        .map(css_modules_value_node_label)
-        .collect::<Vec<_>>();
-    if labels.len() > 1 && labels.first() == labels.last() {
-        labels.pop();
-    }
-    if labels.is_empty() {
-        return Vec::new();
-    }
-
-    let mut best = labels.clone();
-    for offset in 1..labels.len() {
-        let mut rotated = labels[offset..].to_vec();
-        rotated.extend_from_slice(&labels[..offset]);
-        if rotated < best {
-            best = rotated;
-        }
-    }
-    best.push(best[0].clone());
-    best
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct CssModulesIcssNode {
     style_path: String,
@@ -1063,50 +968,30 @@ fn summarize_css_modules_icss_closure(
 ) {
     let graph =
         collect_css_modules_icss_adjacency(facts_by_path, available_style_paths, package_manifests);
-    let mut closure_edges = Vec::new();
-    let mut cycles = Vec::new();
-    let mut seen_cycles = BTreeSet::new();
-
-    for start in graph.keys() {
-        let mut visited = BTreeSet::new();
-        let mut pending = VecDeque::from([(start.clone(), vec![start.clone()])]);
-
-        while let Some((current, path)) = pending.pop_front() {
-            let Some(targets) = graph.get(&current) else {
-                continue;
-            };
-            for target in targets {
-                if let Some(cycle_start) = path.iter().position(|node| node == target) {
-                    let mut cycle_path = path[cycle_start..].to_vec();
-                    cycle_path.push(target.clone());
-                    let cycle_labels = canonical_directed_icss_cycle_labels(&cycle_path);
-                    if !cycle_labels.is_empty() && seen_cycles.insert(cycle_labels.clone()) {
-                        cycles.push(OmenaQueryCssModulesCycleV0 {
-                            kind: "icss",
-                            path: cycle_labels,
-                        });
-                    }
-                    continue;
-                }
-
-                if !visited.insert(target.clone()) {
-                    continue;
-                }
-
-                let mut edge_path = path.clone();
-                edge_path.push(target.clone());
-                closure_edges.push(OmenaQueryCssModulesIcssClosureEdgeV0 {
-                    from_style_path: start.style_path.clone(),
-                    name: start.name.clone(),
-                    target_style_path: target.style_path.clone(),
-                    target_name: target.name.clone(),
-                    depth: edge_path.len().saturating_sub(1),
-                    path: edge_path.iter().map(css_modules_icss_node_label).collect(),
-                });
-                pending.push_back((target.clone(), edge_path));
-            }
-        }
-    }
+    let (closure_paths, cycle_paths) =
+        collect_hypergraph_transitive_closure_paths(&graph, css_modules_icss_node_label);
+    let mut closure_edges = closure_paths
+        .into_iter()
+        .map(
+            |HypergraphClosurePath {
+                 origin,
+                 target,
+                 depth,
+                 path_labels,
+             }| OmenaQueryCssModulesIcssClosureEdgeV0 {
+                from_style_path: origin.style_path,
+                name: origin.name,
+                target_style_path: target.style_path,
+                target_name: target.name,
+                depth,
+                path: path_labels,
+            },
+        )
+        .collect::<Vec<_>>();
+    let mut cycles = cycle_paths
+        .into_iter()
+        .map(|path| OmenaQueryCssModulesCycleV0 { kind: "icss", path })
+        .collect::<Vec<_>>();
 
     closure_edges.sort_by_key(|edge| {
         (
@@ -1194,30 +1079,6 @@ fn css_modules_icss_node_label(node: &CssModulesIcssNode) -> String {
     format!("{}#{}", node.style_path, node.name)
 }
 
-fn canonical_directed_icss_cycle_labels(path: &[CssModulesIcssNode]) -> Vec<String> {
-    let mut labels = path
-        .iter()
-        .map(css_modules_icss_node_label)
-        .collect::<Vec<_>>();
-    if labels.len() > 1 && labels.first() == labels.last() {
-        labels.pop();
-    }
-    if labels.is_empty() {
-        return Vec::new();
-    }
-
-    let mut best = labels.clone();
-    for offset in 1..labels.len() {
-        let mut rotated = labels[offset..].to_vec();
-        rotated.extend_from_slice(&labels[..offset]);
-        if rotated < best {
-            best = rotated;
-        }
-    }
-    best.push(best[0].clone());
-    best
-}
-
 fn filter_import_reachable_design_token_workspace_declarations(
     target_style_path: &str,
     style_fact_entries: &[OmenaQueryStyleFactEntry],
@@ -1255,81 +1116,53 @@ fn collect_import_reachable_style_path_metadata(
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> BTreeMap<String, ImportReachability> {
-    let mut reachable_style_paths = BTreeMap::new();
     let available_style_paths = style_fact_entries
         .iter()
         .map(|entry| entry.style_path.as_str())
         .collect::<BTreeSet<_>>();
-    let mut pending_style_paths = collect_import_reachable_direct_style_paths(
-        target_style_path,
-        style_fact_entries,
-        &available_style_paths,
-        package_manifests,
-    )
-    .into_iter()
-    .map(|style_path| (style_path, 1usize))
-    .collect::<VecDeque<_>>();
-    let facts_by_path = style_fact_entries
-        .iter()
-        .map(|entry| (entry.style_path.as_str(), &entry.facts))
-        .collect::<BTreeMap<_, _>>();
+    let mut graph = BTreeMap::<String, BTreeSet<String>>::new();
+    for entry in style_fact_entries {
+        let targets = collect_sass_module_sources_from_facts(&entry.facts)
+            .into_iter()
+            .filter_map(|source| {
+                resolve_style_module_source(
+                    entry.style_path.as_str(),
+                    &source,
+                    &available_style_paths,
+                    package_manifests,
+                )
+            })
+            .collect::<BTreeSet<_>>();
+        if !targets.is_empty() {
+            graph.insert(entry.style_path.clone(), targets);
+        }
+    }
+
+    let (closure_paths, _) =
+        collect_hypergraph_transitive_closure_paths(&graph, |style_path: &String| {
+            style_path.clone()
+        });
+    let mut reachable_style_paths = BTreeMap::new();
     let mut visit_order = 0usize;
 
-    while let Some((style_path, distance)) = pending_style_paths.pop_front() {
-        if style_path == target_style_path || reachable_style_paths.contains_key(&style_path) {
+    for path in closure_paths
+        .into_iter()
+        .filter(|path| path.origin == target_style_path)
+    {
+        if path.target == target_style_path || reachable_style_paths.contains_key(&path.target) {
             continue;
         }
         reachable_style_paths.insert(
-            style_path.clone(),
+            path.target.clone(),
             ImportReachability {
-                distance,
+                distance: path.depth,
                 order: visit_order,
             },
         );
         visit_order += 1;
-
-        let Some(facts) = facts_by_path.get(style_path.as_str()) else {
-            continue;
-        };
-        for source in collect_sass_module_sources_from_facts(facts) {
-            if let Some(next_style_path) = resolve_style_module_source(
-                &style_path,
-                &source,
-                &available_style_paths,
-                package_manifests,
-            ) {
-                pending_style_paths.push_back((next_style_path, distance + 1));
-            }
-        }
     }
 
     reachable_style_paths
-}
-
-fn collect_import_reachable_direct_style_paths(
-    target_style_path: &str,
-    style_fact_entries: &[OmenaQueryStyleFactEntry],
-    available_style_paths: &BTreeSet<&str>,
-    package_manifests: &[OmenaQueryStylePackageManifestV0],
-) -> Vec<String> {
-    let Some(target_facts) = style_fact_entries
-        .iter()
-        .find(|entry| entry.style_path == target_style_path)
-        .map(|entry| &entry.facts)
-    else {
-        return Vec::new();
-    };
-    collect_sass_module_sources_from_facts(target_facts)
-        .into_iter()
-        .filter_map(|source| {
-            resolve_style_module_source(
-                target_style_path,
-                &source,
-                available_style_paths,
-                package_manifests,
-            )
-        })
-        .collect()
 }
 
 fn collect_sass_module_sources_from_facts(
