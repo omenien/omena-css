@@ -79,6 +79,13 @@ pub fn plan_transform_passes(requested: &[TransformPassKind]) -> TransformPassPl
     }
 }
 
+#[cfg(feature = "lawvere-trace")]
+pub fn plan_transform_passes_parallel_lawvere_layers(
+    requested: &[TransformPassKind],
+) -> omena_lawvere::TransformPassParallelPlanV0 {
+    omena_lawvere::plan_transform_pass_parallel_layers_v0(requested)
+}
+
 pub fn implemented_mutation_pass_ids() -> Vec<&'static str> {
     vec![
         TransformPassKind::WhitespaceStrip.id(),

@@ -54,6 +54,35 @@ pub fn execute_transform_passes_on_source_with_dialect(
     )
 }
 
+#[cfg(feature = "lawvere-trace")]
+pub fn execute_transform_passes_on_source_with_lawvere_trace(
+    source: &str,
+    requested: &[TransformPassKind],
+) -> (
+    TransformExecutionSummaryV0,
+    omena_lawvere::LawvereModelTraceV0,
+) {
+    execute_transform_passes_on_source_with_lawvere_trace_and_dialect(
+        source,
+        StyleDialect::Css,
+        requested,
+    )
+}
+
+#[cfg(feature = "lawvere-trace")]
+pub fn execute_transform_passes_on_source_with_lawvere_trace_and_dialect(
+    source: &str,
+    dialect: StyleDialect,
+    requested: &[TransformPassKind],
+) -> (
+    TransformExecutionSummaryV0,
+    omena_lawvere::LawvereModelTraceV0,
+) {
+    let summary = execute_transform_passes_on_source_with_dialect(source, dialect, requested);
+    let trace = omena_lawvere::trace_lawvere_model_v0(requested, summary.ordered_pass_ids.clone());
+    (summary, trace)
+}
+
 pub fn execute_transform_passes_on_source_with_dialect_and_context(
     source: &str,
     dialect: StyleDialect,

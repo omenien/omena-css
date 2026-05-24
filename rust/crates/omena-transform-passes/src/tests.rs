@@ -3,6 +3,11 @@ use super::{
     execute_transform_passes_on_source, execute_transform_passes_on_source_with_dialect,
     execute_transform_passes_on_source_with_dialect_and_context,
 };
+#[cfg(feature = "lawvere-trace")]
+use super::{
+    execute_transform_passes_on_source_with_lawvere_trace,
+    plan_transform_passes_parallel_lawvere_layers,
+};
 
 mod class_hashing;
 mod design_tokens;

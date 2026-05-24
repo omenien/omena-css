@@ -5,8 +5,8 @@
 //! e-graph dependency into the core transform path.
 
 use egg::{
-    Applier, EGraph, Extractor, Id, Pattern, PatternAst, RecExpr, Rewrite, Runner, Subst, Symbol,
-    Var, define_language, rewrite as egg_rewrite,
+    Analysis, Applier, EGraph, Extractor, Id, Pattern, PatternAst, RecExpr, Rewrite, Runner, Subst,
+    Symbol, Var, define_language, rewrite as egg_rewrite,
 };
 use omena_transform_cst::TransformPassKind;
 use omena_transform_passes::{TransformPassPlanV0, plan_transform_passes};
@@ -14,6 +14,10 @@ use serde::Serialize;
 
 mod mdl_cost;
 pub use mdl_cost::*;
+#[cfg(feature = "lawvere-saturation")]
+mod lawvere_analysis;
+#[cfg(feature = "lawvere-saturation")]
+pub use lawvere_analysis::*;
 
 define_language! {
     enum CssRewriteLanguage {
@@ -141,10 +145,13 @@ impl ConstFoldSameUnitApplier {
     }
 }
 
-impl Applier<CssRewriteLanguage, ()> for ConstFoldSameUnitApplier {
+impl<N> Applier<CssRewriteLanguage, N> for ConstFoldSameUnitApplier
+where
+    N: Analysis<CssRewriteLanguage>,
+{
     fn apply_one(
         &self,
-        egraph: &mut EGraph<CssRewriteLanguage, ()>,
+        egraph: &mut EGraph<CssRewriteLanguage, N>,
         eclass: Id,
         subst: &Subst,
         _searcher_ast: Option<&PatternAst<CssRewriteLanguage>>,
@@ -259,7 +266,7 @@ pub fn execute_egg_rewrite(candidate: EggRewriteCandidateV0) -> EggRewriteExecut
         Ok(expression) => expression,
         Err(_) => return blocked_execution(candidate, Some("rewrite expression could not parse")),
     };
-    let Some(rules) = rewrite_rules_for_pass(candidate.pass_id) else {
+    let Some(rules) = rewrite_rules_for_pass::<()>(candidate.pass_id) else {
         return blocked_execution(
             candidate,
             Some("pass is not managed by omena-transform-egg"),
@@ -325,7 +332,10 @@ fn is_managed_egg_pass_id(pass_id: &str) -> bool {
     managed_egg_passes().iter().any(|pass| pass.id() == pass_id)
 }
 
-fn numeric_value_from_eclass(egraph: &EGraph<CssRewriteLanguage, ()>, id: Id) -> Option<i64> {
+fn numeric_value_from_eclass<N>(egraph: &EGraph<CssRewriteLanguage, N>, id: Id) -> Option<i64>
+where
+    N: Analysis<CssRewriteLanguage>,
+{
     egraph[id].nodes.iter().find_map(|node| match node {
         CssRewriteLanguage::Num(value) => Some(*value),
         _ => None,
@@ -639,12 +649,15 @@ fn rewrite_pattern(text: &str) -> Option<Pattern<CssRewriteLanguage>> {
     text.parse().ok()
 }
 
-fn calc_const_fold_rule(
+pub(crate) fn calc_const_fold_rule<N>(
     name: &'static str,
     search: &'static str,
     operator: CalcFoldOperator,
     unit_var: Option<Var>,
-) -> Option<Rewrite<CssRewriteLanguage, ()>> {
+) -> Option<Rewrite<CssRewriteLanguage, N>>
+where
+    N: Analysis<CssRewriteLanguage>,
+{
     Rewrite::new(
         name,
         rewrite_pattern(search)?,
@@ -657,7 +670,12 @@ fn egg_var(name: &str) -> Option<Var> {
     name.parse().ok()
 }
 
-fn rewrite_rules_for_pass(pass_id: &'static str) -> Option<Vec<Rewrite<CssRewriteLanguage, ()>>> {
+pub(crate) fn rewrite_rules_for_pass<N>(
+    pass_id: &'static str,
+) -> Option<Vec<Rewrite<CssRewriteLanguage, N>>>
+where
+    N: Analysis<CssRewriteLanguage>,
+{
     if pass_id == TransformPassKind::SelectorIsWhereCompression.id() {
         return Some(vec![
             egg_rewrite!("single-is-selector"; "(is ?a)" => "?a"),

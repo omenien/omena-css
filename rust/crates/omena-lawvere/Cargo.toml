@@ -1,10 +1,10 @@
 [package]
-name = "omena-transform-egg"
+name = "omena-lawvere"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Optional e-graph rewrite boundary for Omena CSS transforms"
+description = "Enriched Lawvere theory contracts for the Omena transform catalog"
 repository = "https://github.com/yongsk0066/css-module-explainer"
 readme = "README.md"
 
@@ -13,12 +13,8 @@ workspace = true
 
 [features]
 default = []
-lawvere-saturation = ["dep:omena-lawvere"]
-mdl = []
+lawvere-saturation = []
 
 [dependencies]
-egg.workspace = true
-omena-lawvere = { path = "../omena-lawvere", optional = true }
 omena-transform-cst = { path = "../omena-transform-cst" }
-omena-transform-passes = { path = "../omena-transform-passes" }
 serde.workspace = true

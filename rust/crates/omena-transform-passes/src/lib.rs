@@ -25,10 +25,17 @@ pub use runtime::executor::{
     execute_transform_passes_on_source, execute_transform_passes_on_source_with_dialect,
     execute_transform_passes_on_source_with_dialect_and_context,
 };
+#[cfg(feature = "lawvere-trace")]
+pub use runtime::executor::{
+    execute_transform_passes_on_source_with_lawvere_trace,
+    execute_transform_passes_on_source_with_lawvere_trace_and_dialect,
+};
 pub use runtime::fuzz::{run_transform_cascade_safe_fuzz_case, run_transform_fuzz_seed_corpus};
 pub use runtime::incremental::{
     execute_transform_passes_incremental_with_database, transform_pass_incremental_graph_input,
 };
+#[cfg(feature = "lawvere-trace")]
+pub use runtime::planner::plan_transform_passes_parallel_lawvere_layers;
 pub use runtime::planner::{
     implemented_mutation_pass_ids, plan_transform_passes, summarize_omena_transform_passes_boundary,
 };

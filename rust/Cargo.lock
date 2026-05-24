@@ -939,6 +939,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-lawvere"
+version = "0.1.0"
+dependencies = [
+ "omena-transform-cst",
+ "serde",
+]
+
+[[package]]
 name = "omena-lsp-server"
 version = "0.1.0"
 dependencies = [
@@ -1070,6 +1078,7 @@ name = "omena-transform-egg"
 version = "0.1.0"
 dependencies = [
  "egg",
+ "omena-lawvere",
  "omena-transform-cst",
  "omena-transform-passes",
  "serde",
@@ -1081,6 +1090,7 @@ version = "0.1.0"
 dependencies = [
  "omena-cascade",
  "omena-incremental",
+ "omena-lawvere",
  "omena-parser",
  "omena-syntax",
  "omena-transform-cst",

@@ -3,6 +3,11 @@ use super::{
     execute_transform_passes_on_source_with_dialect,
     execute_transform_passes_on_source_with_dialect_and_context,
 };
+#[cfg(feature = "lawvere-trace")]
+use super::{
+    execute_transform_passes_on_source_with_lawvere_trace,
+    plan_transform_passes_parallel_lawvere_layers,
+};
 use omena_parser::StyleDialect;
 use omena_transform_cst::TransformPassKind;
 
@@ -104,6 +109,30 @@ fn execution_runtime_applies_conservative_whitespace_normalization() {
         execution.executed_pass_ids,
         vec!["whitespace-strip", "comment-strip", "print-css"]
     );
+}
+
+#[cfg(feature = "lawvere-trace")]
+#[test]
+fn lawvere_trace_path_preserves_existing_executor_signature_and_marks_terminal_pass() {
+    let requested = [
+        TransformPassKind::ColorCompression,
+        TransformPassKind::NumberCompression,
+        TransformPassKind::PrintCss,
+    ];
+    let plain =
+        execute_transform_passes_on_source(".a { color: #ffffff; width: 1.0px; }", &requested);
+    let (traced, trace) = execute_transform_passes_on_source_with_lawvere_trace(
+        ".a { color: #ffffff; width: 1.0px; }",
+        &requested,
+    );
+    let parallel_plan = plan_transform_passes_parallel_lawvere_layers(&requested);
+
+    assert_eq!(traced.output_css, plain.output_css);
+    assert_eq!(traced.ordered_pass_ids, plain.ordered_pass_ids);
+    assert!(trace.preserves_existing_executor_signature);
+    assert_eq!(trace.terminal_pass_ids, vec!["print-css"]);
+    assert!(!parallel_plan.executor_consumes_plan);
+    assert_eq!(parallel_plan.scheduler_status, "scaffoldOnly");
 }
 
 #[test]
