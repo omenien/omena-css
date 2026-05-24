@@ -58,6 +58,12 @@ pub fn style_corpus() -> Vec<StyleSample> {
             source: build_css_backgrounds_longhand_corpus(96),
         },
         StyleSample {
+            name: "css-display-layout-corpus",
+            path: "DisplayModes.module.css",
+            dialect: StyleDialect::Css,
+            source: build_css_display_layout_corpus(96),
+        },
+        StyleSample {
             name: "scss-heavy-design-system",
             path: "DesignSystem.module.scss",
             dialect: StyleDialect::Scss,
@@ -188,6 +194,24 @@ fn build_css_backgrounds_longhand_corpus(count: usize) -> String {
             repeat = repeat_values[index % repeat_values.len()],
             position = position_values[index % position_values.len()],
             size = size_values[index % size_values.len()],
+        ));
+    }
+    source
+}
+
+fn build_css_display_layout_corpus(count: usize) -> String {
+    let display_values = ["grid", "inline-grid", "flex", "contents"];
+    let mut source = String::new();
+    for index in 0..count {
+        source.push_str(&format!(
+            r#"
+.displayMode{index} {{
+  display: {display};
+  gap: {gap}px;
+}}
+"#,
+            display = display_values[index % display_values.len()],
+            gap = (index % 16) + 1,
         ));
     }
     source

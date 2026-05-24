@@ -487,7 +487,7 @@ mod tests {
         assert_eq!(snapshot.product, "omena-benchmarks.style-corpus-snapshot");
         assert_eq!(snapshot.benchmark_family, super::Z5_PERFORMANCE_BASELINE);
         assert_eq!(snapshot.corpus_sample_count, style_corpus().len());
-        assert_eq!(snapshot.corpus_sample_count, 5);
+        assert_eq!(snapshot.corpus_sample_count, 6);
         assert_eq!(snapshot.samples.len(), snapshot.corpus_sample_count);
         assert!(snapshot.samples.iter().all(|sample| sample.byte_length > 0));
         assert!(
@@ -513,6 +513,12 @@ mod tests {
                 .samples
                 .iter()
                 .any(|sample| sample.name == "css-backgrounds-longhand-corpus")
+        );
+        assert!(
+            snapshot
+                .samples
+                .iter()
+                .any(|sample| sample.name == "css-display-layout-corpus")
         );
 
         let serialized = serde_json::to_value(&snapshot).map_err(|error| error.to_string())?;
@@ -546,7 +552,7 @@ mod tests {
         );
         assert_eq!(snapshot.corpus_sample_count, style_corpus().len());
         assert_eq!(snapshot.benchmark_group_count, 6);
-        assert_eq!(snapshot.benchmark_function_count, 28);
+        assert_eq!(snapshot.benchmark_function_count, 33);
         assert!(snapshot.includes_legacy_parser_oracle_lane);
         assert!(snapshot.includes_omena_parser_lane);
         assert!(snapshot.includes_parser_product_lanes);
@@ -565,7 +571,7 @@ mod tests {
         let serialized = serde_json::to_value(&snapshot).map_err(|error| error.to_string())?;
         assert_eq!(
             serialized.pointer("/benchmarkFunctionCount"),
-            Some(&serde_json::json!(28))
+            Some(&serde_json::json!(33))
         );
         assert_eq!(
             serialized

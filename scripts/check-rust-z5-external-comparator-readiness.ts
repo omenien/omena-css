@@ -46,17 +46,21 @@ assert.ok(
   snapshot.samples.some((sample) => sample.name === "css-backgrounds-longhand-corpus"),
   "Z5 corpus should reflect M4 css-backgrounds WPT/spec coverage",
 );
+assert.ok(
+  snapshot.samples.some((sample) => sample.name === "css-display-layout-corpus"),
+  "Z5 corpus should reflect M4 css-display WPT/spec coverage",
+);
 
 const lightningResult = validateComparator("lightningcss", ["css"], parseWithLightningCss);
 const postcssResult = validateComparator("postcss", ["css", "scss"], parseWithPostcss);
 const results = [lightningResult, postcssResult] as const;
 
 assert.ok(
-  lightningResult.parsedSampleCount >= 3,
+  lightningResult.parsedSampleCount >= 4,
   "lightningcss comparator must parse the CSS samples from the Z5 corpus",
 );
 assert.ok(
-  postcssResult.parsedSampleCount >= 5,
+  postcssResult.parsedSampleCount >= 6,
   "postcss comparator must parse the CSS/SCSS subset of the Z5 corpus",
 );
 assert.ok(
@@ -66,6 +70,14 @@ assert.ok(
 assert.ok(
   postcssResult.parsedSampleNames.includes("css-backgrounds-longhand-corpus"),
   "postcss comparator must parse the M4 css-backgrounds benchmark sample",
+);
+assert.ok(
+  lightningResult.parsedSampleNames.includes("css-display-layout-corpus"),
+  "lightningcss comparator must parse the M4 css-display benchmark sample",
+);
+assert.ok(
+  postcssResult.parsedSampleNames.includes("css-display-layout-corpus"),
+  "postcss comparator must parse the M4 css-display benchmark sample",
 );
 
 process.stdout.write(
