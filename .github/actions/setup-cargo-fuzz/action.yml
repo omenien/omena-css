@@ -1,0 +1,21 @@
+name: Setup cargo-fuzz
+description: Install the pinned cargo-fuzz subcommand used by omena-css fuzz gates.
+inputs:
+  version:
+    description: cargo-fuzz version to install.
+    required: false
+    default: "0.13.1"
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+
+        expected="cargo-fuzz ${{ inputs.version }}"
+        if cargo fuzz --version 2>/dev/null | grep -Fq "$expected"; then
+          echo "$expected already installed"
+          exit 0
+        fi
+
+        cargo install cargo-fuzz --version "${{ inputs.version }}" --locked

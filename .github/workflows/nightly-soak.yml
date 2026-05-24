@@ -66,5 +66,6 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: ./.github/actions/setup-pnpm
       - uses: ./.github/actions/cache-rust
+      - uses: ./.github/actions/setup-cargo-fuzz
       - uses: ./.github/actions/sync-release-metadata
       - run: pnpm cme-check run rust/omena-css/h1-readiness
