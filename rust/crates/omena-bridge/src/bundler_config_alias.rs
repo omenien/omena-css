@@ -142,6 +142,7 @@ fn collect_bundler_aliases_from_program<'a>(
     unrecognized: &mut Vec<OmenaBridgeBundlerAliasUnrecognizedEntryV0>,
 ) {
     let top_level_literals = top_level_object_literals(program);
+    let top_level_arrays = top_level_array_literals(program);
     let mut exported_objects = Vec::new();
     let mut saw_config_export = false;
     for statement in &program.body {
@@ -169,9 +170,13 @@ fn collect_bundler_aliases_from_program<'a>(
     }
 
     for object in exported_objects {
-        let Some(alias_expression) =
-            resolve_alias_expression(object, config_source, config_path_text, unrecognized)
-        else {
+        let Some(alias_expression) = resolve_alias_expression(
+            object,
+            top_level_literals.as_slice(),
+            config_source,
+            config_path_text,
+            unrecognized,
+        ) else {
             continue;
         };
         collect_alias_expression(
@@ -179,6 +184,8 @@ fn collect_bundler_aliases_from_program<'a>(
             config_source,
             config_path_text,
             alias_expression,
+            top_level_literals.as_slice(),
+            top_level_arrays.as_slice(),
             aliases,
             unrecognized,
         );
@@ -202,6 +209,29 @@ fn top_level_object_literals<'a>(
             };
             if let Some(object) = unwrap_config_expression(init, literals.as_slice()) {
                 upsert_top_level_literal(&mut literals, binding.to_string(), object);
+            }
+        }
+    }
+    literals
+}
+
+fn top_level_array_literals<'a>(
+    program: &'a Program<'a>,
+) -> Vec<(String, &'a ArrayExpression<'a>)> {
+    let mut literals = Vec::new();
+    for statement in &program.body {
+        let Statement::VariableDeclaration(declaration) = statement else {
+            continue;
+        };
+        for declarator in &declaration.declarations {
+            let Some(binding) = binding_pattern_identifier_name(&declarator.id) else {
+                continue;
+            };
+            let Some(init) = declarator.init.as_ref() else {
+                continue;
+            };
+            if let Some(array) = unwrap_array_expression(init, literals.as_slice()) {
+                upsert_top_level_array_literal(&mut literals, binding.to_string(), array);
             }
         }
     }
@@ -330,12 +360,14 @@ fn unwrap_config_argument<'a>(
 
 fn resolve_alias_expression<'a>(
     object: &'a ObjectExpression<'a>,
+    top_level_literals: &[(String, &'a ObjectExpression<'a>)],
     config_source: &str,
     config_path_text: &str,
     unrecognized: &mut Vec<OmenaBridgeBundlerAliasUnrecognizedEntryV0>,
 ) -> Option<&'a Expression<'a>> {
     let resolve_expression = object_property_value(object, "resolve")?;
-    let Some(resolve_object) = unwrap_static_object_expression(resolve_expression) else {
+    let Some(resolve_object) = unwrap_config_expression(resolve_expression, top_level_literals)
+    else {
         push_unrecognized(
             config_path_text,
             "dynamic-alias-container",
@@ -387,6 +419,8 @@ fn collect_alias_expression(
     config_source: &str,
     config_path_text: &str,
     expression: &Expression<'_>,
+    top_level_literals: &[(String, &ObjectExpression<'_>)],
+    top_level_arrays: &[(String, &ArrayExpression<'_>)],
     aliases: &mut Vec<OmenaBridgeBundlerPathAliasMappingV0>,
     unrecognized: &mut Vec<OmenaBridgeBundlerAliasUnrecognizedEntryV0>,
 ) {
@@ -407,11 +441,46 @@ fn collect_alias_expression(
             aliases,
             unrecognized,
         ),
+        Expression::Identifier(identifier) => {
+            if let Some(object) =
+                find_top_level_literal(top_level_literals, identifier.name.as_str())
+            {
+                collect_object_alias_entries(
+                    config_path,
+                    config_source,
+                    config_path_text,
+                    object,
+                    aliases,
+                    unrecognized,
+                );
+            } else if let Some(array) =
+                find_top_level_array_literal(top_level_arrays, identifier.name.as_str())
+            {
+                collect_array_alias_entries(
+                    config_path,
+                    config_source,
+                    config_path_text,
+                    array,
+                    aliases,
+                    unrecognized,
+                );
+            } else {
+                push_unrecognized(
+                    config_path_text,
+                    "dynamic-alias-container",
+                    config_source,
+                    expression.span(),
+                    unrecognized,
+                );
+            }
+        }
         Expression::ParenthesizedExpression(expression) => collect_alias_expression(
             config_path,
             config_source,
             config_path_text,
             &expression.expression,
+            top_level_literals,
+            top_level_arrays,
             aliases,
             unrecognized,
         ),
@@ -420,6 +489,8 @@ fn collect_alias_expression(
             config_source,
             config_path_text,
             &expression.expression,
+            top_level_literals,
+            top_level_arrays,
             aliases,
             unrecognized,
         ),
@@ -428,6 +499,8 @@ fn collect_alias_expression(
             config_source,
             config_path_text,
             &expression.expression,
+            top_level_literals,
+            top_level_arrays,
             aliases,
             unrecognized,
         ),
@@ -596,6 +669,28 @@ fn array_element_object_expression<'a>(
     }
 }
 
+fn unwrap_array_expression<'a>(
+    expression: &'a Expression<'a>,
+    top_level_arrays: &[(String, &'a ArrayExpression<'a>)],
+) -> Option<&'a ArrayExpression<'a>> {
+    match expression {
+        Expression::ArrayExpression(array) => Some(array),
+        Expression::Identifier(identifier) => {
+            find_top_level_array_literal(top_level_arrays, identifier.name.as_str())
+        }
+        Expression::ParenthesizedExpression(expression) => {
+            unwrap_array_expression(&expression.expression, top_level_arrays)
+        }
+        Expression::TSAsExpression(expression) => {
+            unwrap_array_expression(&expression.expression, top_level_arrays)
+        }
+        Expression::TSSatisfiesExpression(expression) => {
+            unwrap_array_expression(&expression.expression, top_level_arrays)
+        }
+        _ => None,
+    }
+}
+
 fn find_top_level_literal<'a>(
     literals: &[(String, &'a ObjectExpression<'a>)],
     name: &str,
@@ -603,6 +698,15 @@ fn find_top_level_literal<'a>(
     literals
         .iter()
         .find_map(|(literal_name, object)| (literal_name == name).then_some(*object))
+}
+
+fn find_top_level_array_literal<'a>(
+    literals: &[(String, &'a ArrayExpression<'a>)],
+    name: &str,
+) -> Option<&'a ArrayExpression<'a>> {
+    literals
+        .iter()
+        .find_map(|(literal_name, array)| (literal_name == name).then_some(*array))
 }
 
 fn upsert_top_level_literal<'a>(
@@ -617,6 +721,20 @@ fn upsert_top_level_literal<'a>(
         literals.remove(index);
     }
     literals.push((name, object));
+}
+
+fn upsert_top_level_array_literal<'a>(
+    literals: &mut Vec<(String, &'a ArrayExpression<'a>)>,
+    name: String,
+    array: &'a ArrayExpression<'a>,
+) {
+    if let Some(index) = literals
+        .iter()
+        .position(|(literal_name, _)| literal_name == &name)
+    {
+        literals.remove(index);
+    }
+    literals.push((name, array));
 }
 
 fn upsert_alias(

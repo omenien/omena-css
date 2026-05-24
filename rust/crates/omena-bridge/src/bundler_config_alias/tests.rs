@@ -2,6 +2,8 @@ use std::{fs, path::PathBuf, time::SystemTime};
 
 use super::*;
 
+type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
+
 #[test]
 fn extracts_vite_object_aliases_from_define_config() -> Result<(), Box<dyn std::error::Error>> {
     let root = temp_dir("omena_bridge_vite_alias_define_config")?;
@@ -95,6 +97,118 @@ fn preserves_webpack_array_alias_declaration_order() -> Result<(), Box<dyn std::
         summary.aliases[1].target_path,
         root.join("src/second").to_string_lossy()
     );
+    let _ = fs::remove_dir_all(root);
+    Ok(())
+}
+
+#[test]
+fn extracts_vite_aliases_from_top_level_config_identifier() -> TestResult {
+    let root = temp_dir("omena_bridge_vite_alias_config_identifier")?;
+    let config_path = root.join("vite.config.ts");
+    let source = r#"
+        import { defineConfig } from "vite";
+        const config = {
+          resolve: {
+            alias: {
+              "@shared": "./src/shared"
+            }
+          }
+        };
+        export default defineConfig(config);
+    "#;
+
+    let summary =
+        summarize_omena_bridge_bundler_path_aliases_for_config(config_path.as_path(), source);
+
+    assert_eq!(summary.unrecognized, Vec::new());
+    assert_eq!(summary.aliases.len(), 1);
+    assert_eq!(summary.aliases[0].pattern, "@shared");
+    assert_eq!(
+        summary.aliases[0].target_path,
+        root.join("src/shared").to_string_lossy()
+    );
+    let _ = fs::remove_dir_all(root);
+    Ok(())
+}
+
+#[test]
+fn extracts_object_aliases_from_top_level_alias_identifier() -> TestResult {
+    let root = temp_dir("omena_bridge_vite_alias_object_identifier")?;
+    let config_path = root.join("vite.config.ts");
+    let source = r#"
+        const aliases = {
+          "@tokens": "./src/tokens"
+        };
+        export default {
+          resolve: {
+            alias: aliases
+          }
+        };
+    "#;
+
+    let summary =
+        summarize_omena_bridge_bundler_path_aliases_for_config(config_path.as_path(), source);
+
+    assert_eq!(summary.unrecognized, Vec::new());
+    assert_eq!(summary.aliases.len(), 1);
+    assert_eq!(summary.aliases[0].pattern, "@tokens");
+    assert_eq!(
+        summary.aliases[0].target_path,
+        root.join("src/tokens").to_string_lossy()
+    );
+    let _ = fs::remove_dir_all(root);
+    Ok(())
+}
+
+#[test]
+fn extracts_array_aliases_from_top_level_alias_identifier() -> TestResult {
+    let root = temp_dir("omena_bridge_webpack_alias_array_identifier")?;
+    let config_path = root.join("webpack.config.js");
+    let source = r#"
+        const aliases = [
+          { find: "@icons", replacement: "./src/icons" }
+        ];
+        module.exports = {
+          resolve: {
+            alias: aliases
+          }
+        };
+    "#;
+
+    let summary =
+        summarize_omena_bridge_bundler_path_aliases_for_config(config_path.as_path(), source);
+
+    assert_eq!(summary.unrecognized, Vec::new());
+    assert_eq!(summary.aliases.len(), 1);
+    assert_eq!(summary.aliases[0].pattern, "@icons");
+    assert_eq!(
+        summary.aliases[0].target_path,
+        root.join("src/icons").to_string_lossy()
+    );
+    let _ = fs::remove_dir_all(root);
+    Ok(())
+}
+
+#[test]
+fn marks_dynamic_alias_identifier_unrecognized() -> TestResult {
+    let root = temp_dir("omena_bridge_alias_dynamic_identifier")?;
+    let config_path = root.join("vite.config.ts");
+    let source = r#"
+        const aliases = buildAliases();
+        export default {
+          resolve: {
+            alias: aliases
+          }
+        };
+    "#;
+
+    let summary =
+        summarize_omena_bridge_bundler_path_aliases_for_config(config_path.as_path(), source);
+
+    assert_eq!(summary.aliases, Vec::new());
+    assert_eq!(summary.unrecognized.len(), 1);
+    assert_eq!(summary.unrecognized[0].reason, "dynamic-alias-container");
+    assert_eq!(summary.unrecognized[0].text, "aliases");
     let _ = fs::remove_dir_all(root);
     Ok(())
 }
