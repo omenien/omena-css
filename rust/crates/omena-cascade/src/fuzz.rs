@@ -1,3 +1,9 @@
+//! Deterministic fuzz harness entry points for cascade invariants.
+//!
+//! The public functions convert compact seed cases into repeatable cascade
+//! ranking and custom-property substitution checks used by cargo-fuzz smoke
+//! gates and the H1 readiness bundle.
+
 use crate::{
     CascadeDeclaration, CascadeEvaluationFuzzCaseV0, CascadeEvaluationFuzzResultV0,
     CascadeFuzzSeedReportV0, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue,

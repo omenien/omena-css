@@ -1,3 +1,9 @@
+//! Conservative proof builders for cascade-sensitive rewrites.
+//!
+//! The routines here do not rewrite CSS directly. They produce acceptance or
+//! blocker witnesses for shorthand combination, static supports evaluation, and
+//! scope/layer flattening so transform passes can remain proof-driven.
+
 use crate::{
     BoxLonghandInputV0, LayerFlattenInputV0, LayerFlattenProofV0, ScopeFlattenInputV0,
     ScopeFlattenProofV0, ShorthandCombinationProofV0, StaticSupportsAssumptionV0,

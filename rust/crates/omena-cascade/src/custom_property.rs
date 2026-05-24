@@ -1,3 +1,9 @@
+//! Custom-property substitution and least-fixed-point summaries.
+//!
+//! This module keeps custom-property resolution finite by exposing explicit
+//! iteration traces, monotonicity witnesses, and cycle-to-guaranteed-invalid
+//! behavior for downstream transform proof obligations.
+
 use std::collections::BTreeSet;
 
 use crate::{

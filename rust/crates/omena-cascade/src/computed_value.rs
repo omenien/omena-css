@@ -1,3 +1,8 @@
+//! Computed-value resolution over cascade winners and custom-property environments.
+//!
+//! This module owns the seed implementation for turning a cascaded declaration
+//! into a computed value witness without hiding indeterminate cascade outcomes.
+
 use crate::{
     CascadeComputedValueInputV0, CascadeComputedValueResultV0, CascadeOutcome, CascadeValue,
     ComputedCascadeValueStatusV0, cascade_property, substitute_custom_properties,

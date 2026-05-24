@@ -232,11 +232,11 @@ async function assertOmenaQueryStyleDiagnosticsAdapter() {
     );
     assertSingleWarning(
       warningsByFile.get("SassSymbolMissing.module.scss"),
-      "Sass variable '$missing' not found in this file.",
+      "Sass variable '$missing' not found",
     );
     assertSingleWarning(
       warningsByFile.get("SassSymbolMissing.module.scss"),
-      "Sass mixin '@mixin absent' not found in this file.",
+      "Sass mixin '@mixin absent' not found",
     );
   } finally {
     if (previousBackend === undefined) {

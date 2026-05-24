@@ -626,9 +626,9 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
     let consecutive_green_runs = wpt_seed_policy_usize_value("consecutive_green_runs").unwrap_or(0);
     let known_failure_review_interval_days =
         wpt_seed_policy_usize_value("review_interval_days").unwrap_or(0);
-    let all_metadata_valid = wpt_seed_manifest_metadata_valid(
-        manifest.as_ref(),
-        chunks.as_slice(),
+    let all_metadata_valid = wpt_seed_manifest_metadata_valid(WptSeedManifestValidationInput {
+        manifest: manifest.as_ref(),
+        chunks: chunks.as_slice(),
         fixture_count,
         known_failure_count,
         stale_known_failure_count,
@@ -636,18 +636,19 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
         stage2_blocking,
         all_sparse_paths_have_fixtures,
         manifest_sparse_path_fixture_counts_valid,
-    );
-    let stage2_promotion_blockers = wpt_seed_stage2_promotion_blockers(
-        all_metadata_valid,
-        stage.as_str(),
-        stage2_blocking,
-        blocking_fixture_count,
-        known_failure_count,
-        stale_known_failure_count,
-        required_min_fixture_count_for_stage2,
-        required_consecutive_green_runs,
-        consecutive_green_runs,
-    );
+    });
+    let stage2_promotion_blockers =
+        wpt_seed_stage2_promotion_blockers(WptSeedStage2PromotionInput {
+            all_metadata_valid,
+            stage: stage.as_str(),
+            stage2_blocking,
+            fixture_count: blocking_fixture_count,
+            known_failure_count,
+            stale_known_failure_count,
+            required_min_fixture_count_for_stage2,
+            required_consecutive_green_runs,
+            consecutive_green_runs,
+        });
     let stage2_candidate_ready = stage2_promotion_blockers.is_empty();
 
     WptSeedCorpusMetadataReportV0 {
@@ -687,9 +688,9 @@ pub fn summarize_wpt_seed_corpus_metadata() -> WptSeedCorpusMetadataReportV0 {
     }
 }
 
-fn wpt_seed_manifest_metadata_valid(
-    manifest: Option<&serde_json::Value>,
-    chunks: &[serde_json::Value],
+struct WptSeedManifestValidationInput<'a> {
+    manifest: Option<&'a serde_json::Value>,
+    chunks: &'a [serde_json::Value],
     fixture_count: usize,
     known_failure_count: usize,
     stale_known_failure_count: usize,
@@ -697,7 +698,20 @@ fn wpt_seed_manifest_metadata_valid(
     stage2_blocking: bool,
     all_sparse_paths_have_fixtures: bool,
     manifest_sparse_path_fixture_counts_valid: bool,
-) -> bool {
+}
+
+fn wpt_seed_manifest_metadata_valid(input: WptSeedManifestValidationInput<'_>) -> bool {
+    let WptSeedManifestValidationInput {
+        manifest,
+        chunks,
+        fixture_count,
+        known_failure_count,
+        stale_known_failure_count,
+        green_run_evidence_count,
+        stage2_blocking,
+        all_sparse_paths_have_fixtures,
+        manifest_sparse_path_fixture_counts_valid,
+    } = input;
     let Some(manifest) = manifest else {
         return false;
     };
@@ -782,9 +796,9 @@ fn wpt_seed_manifest_metadata_valid(
         && known_failure_count == 0
 }
 
-fn wpt_seed_stage2_promotion_blockers(
+struct WptSeedStage2PromotionInput<'a> {
     all_metadata_valid: bool,
-    stage: &str,
+    stage: &'a str,
     stage2_blocking: bool,
     fixture_count: usize,
     known_failure_count: usize,
@@ -792,7 +806,20 @@ fn wpt_seed_stage2_promotion_blockers(
     required_min_fixture_count_for_stage2: usize,
     required_consecutive_green_runs: usize,
     consecutive_green_runs: usize,
-) -> Vec<&'static str> {
+}
+
+fn wpt_seed_stage2_promotion_blockers(input: WptSeedStage2PromotionInput<'_>) -> Vec<&'static str> {
+    let WptSeedStage2PromotionInput {
+        all_metadata_valid,
+        stage,
+        stage2_blocking,
+        fixture_count,
+        known_failure_count,
+        stale_known_failure_count,
+        required_min_fixture_count_for_stage2,
+        required_consecutive_green_runs,
+        consecutive_green_runs,
+    } = input;
     let mut blockers = Vec::new();
     if !all_metadata_valid {
         blockers.push("metadataInvalid");

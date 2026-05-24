@@ -249,10 +249,16 @@ function parserBoundaryNotReadySurfaceBlock(source: string): string {
 
 function findLegacyReferencePaths(): string[] {
   const result = spawnSync(
-    "rg",
+    "git",
     [
+      "grep",
+      "-I",
       "-l",
-      "engine-style-parser|engine_style_parser",
+      "-e",
+      "engine-style-parser",
+      "-e",
+      "engine_style_parser",
+      "--",
       "package.json",
       "scripts",
       "rust/Cargo.toml",
@@ -265,7 +271,7 @@ function findLegacyReferencePaths(): string[] {
   );
 
   if (result.status !== 0 && result.status !== 1) {
-    throw new Error(`rg failed while scanning legacy parser references:\n${result.stderr}`);
+    throw new Error(`git grep failed while scanning legacy parser references:\n${result.stderr}`);
   }
 
   return result.stdout

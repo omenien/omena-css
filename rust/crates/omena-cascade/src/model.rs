@@ -1,3 +1,10 @@
+//! Public data model for cascade ordering, selector witnesses, and proof reports.
+//!
+//! These serializable types are the stable boundary consumed by query,
+//! transform, conformance, fuzz, and LSP surfaces. They intentionally expose
+//! evidence fields instead of opaque booleans so later passes can explain why a
+//! cascade-sensitive rewrite was accepted or blocked.
+
 use serde::Serialize;
 use std::{
     cmp::Ordering,

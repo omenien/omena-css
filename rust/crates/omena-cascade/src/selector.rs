@@ -1,3 +1,9 @@
+//! Selector-context witnesses for cascade-aware diagnostics and transforms.
+//!
+//! This module exposes conservative selector matching over explicit element
+//! signatures. Unsupported selector branches become witness data instead of
+//! silent acceptance so proof consumers can block unsafe rewrites.
+
 use std::collections::BTreeSet;
 
 use crate::{

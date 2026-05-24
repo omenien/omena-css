@@ -1,3 +1,9 @@
+//! Cascade ranking helpers shared by conformance, fuzz, and query consumers.
+//!
+//! The helpers implement the crate's lexicographic cascade key ordering while
+//! preserving non-winning declarations as evidence for diagnostics and proof
+//! reports.
+
 use std::cmp::Reverse;
 
 use crate::{CascadeDeclaration, CascadeKey, CascadeOutcome, CascadeProof};

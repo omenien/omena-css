@@ -171,6 +171,14 @@ fn collect_bundler_aliases_from_program<'a>(
         exported_objects.extend(top_level_literals.iter().map(|(_, object)| *object));
     }
 
+    let alias_context = AliasCollectionContext {
+        config_path,
+        config_source,
+        config_path_text,
+        top_level_literals: top_level_literals.as_slice(),
+        top_level_arrays: top_level_arrays.as_slice(),
+    };
+
     for object in exported_objects {
         let Some(alias_expression) = resolve_alias_expression(
             object,
@@ -181,16 +189,7 @@ fn collect_bundler_aliases_from_program<'a>(
         ) else {
             continue;
         };
-        collect_alias_expression(
-            config_path,
-            config_source,
-            config_path_text,
-            alias_expression,
-            top_level_literals.as_slice(),
-            top_level_arrays.as_slice(),
-            aliases,
-            unrecognized,
-        );
+        collect_alias_expression(&alias_context, alias_expression, aliases, unrecognized);
     }
 }
 
@@ -264,100 +263,83 @@ fn object_property_value<'a>(
     None
 }
 
-fn collect_alias_expression(
-    config_path: &Path,
-    config_source: &str,
-    config_path_text: &str,
-    expression: &Expression<'_>,
-    top_level_literals: &[(String, &ObjectExpression<'_>)],
-    top_level_arrays: &[(String, &ArrayExpression<'_>)],
+struct AliasCollectionContext<'a, 'b> {
+    config_path: &'a Path,
+    config_source: &'a str,
+    config_path_text: &'a str,
+    top_level_literals: &'a [(String, &'b ObjectExpression<'b>)],
+    top_level_arrays: &'a [(String, &'b ArrayExpression<'b>)],
+}
+
+fn collect_alias_expression<'a>(
+    context: &AliasCollectionContext<'_, 'a>,
+    expression: &Expression<'a>,
     aliases: &mut Vec<OmenaBridgeBundlerPathAliasMappingV0>,
     unrecognized: &mut Vec<OmenaBridgeBundlerAliasUnrecognizedEntryV0>,
 ) {
     match expression {
         Expression::ObjectExpression(object) => collect_object_alias_entries(
-            config_path,
-            config_source,
-            config_path_text,
+            context.config_path,
+            context.config_source,
+            context.config_path_text,
             object,
             aliases,
             unrecognized,
         ),
         Expression::ArrayExpression(array) => collect_array_alias_entries(
-            config_path,
-            config_source,
-            config_path_text,
+            context.config_path,
+            context.config_source,
+            context.config_path_text,
             array,
             aliases,
             unrecognized,
         ),
         Expression::Identifier(identifier) => {
             if let Some(object) =
-                find_top_level_literal(top_level_literals, identifier.name.as_str())
+                find_top_level_literal(context.top_level_literals, identifier.name.as_str())
             {
                 collect_object_alias_entries(
-                    config_path,
-                    config_source,
-                    config_path_text,
+                    context.config_path,
+                    context.config_source,
+                    context.config_path_text,
                     object,
                     aliases,
                     unrecognized,
                 );
             } else if let Some(array) =
-                find_top_level_array_literal(top_level_arrays, identifier.name.as_str())
+                find_top_level_array_literal(context.top_level_arrays, identifier.name.as_str())
             {
                 collect_array_alias_entries(
-                    config_path,
-                    config_source,
-                    config_path_text,
+                    context.config_path,
+                    context.config_source,
+                    context.config_path_text,
                     array,
                     aliases,
                     unrecognized,
                 );
             } else {
                 push_unrecognized(
-                    config_path_text,
+                    context.config_path_text,
                     "dynamic-alias-container",
-                    config_source,
+                    context.config_source,
                     expression.span(),
                     unrecognized,
                 );
             }
         }
-        Expression::ParenthesizedExpression(expression) => collect_alias_expression(
-            config_path,
-            config_source,
-            config_path_text,
-            &expression.expression,
-            top_level_literals,
-            top_level_arrays,
-            aliases,
-            unrecognized,
-        ),
-        Expression::TSAsExpression(expression) => collect_alias_expression(
-            config_path,
-            config_source,
-            config_path_text,
-            &expression.expression,
-            top_level_literals,
-            top_level_arrays,
-            aliases,
-            unrecognized,
-        ),
-        Expression::TSSatisfiesExpression(expression) => collect_alias_expression(
-            config_path,
-            config_source,
-            config_path_text,
-            &expression.expression,
-            top_level_literals,
-            top_level_arrays,
-            aliases,
-            unrecognized,
-        ),
+        Expression::ParenthesizedExpression(expression) => {
+            collect_alias_expression(context, &expression.expression, aliases, unrecognized)
+        }
+        Expression::TSAsExpression(expression) => {
+            collect_alias_expression(context, &expression.expression, aliases, unrecognized)
+        }
+        Expression::TSSatisfiesExpression(expression) => {
+            collect_alias_expression(context, &expression.expression, aliases, unrecognized)
+        }
         _ => push_unrecognized(
-            config_path_text,
+            context.config_path_text,
             "dynamic-alias-container",
-            config_source,
+            context.config_source,
             expression.span(),
             unrecognized,
         ),

@@ -265,9 +265,9 @@ fn read_package_import_entry(
     None
 }
 
-fn sorted_package_pattern_entries<'a>(
-    object: &'a serde_json::Map<String, serde_json::Value>,
-) -> Vec<(&'a str, &'a serde_json::Value)> {
+fn sorted_package_pattern_entries(
+    object: &serde_json::Map<String, serde_json::Value>,
+) -> Vec<(&str, &serde_json::Value)> {
     let mut entries = object
         .iter()
         .enumerate()

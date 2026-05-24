@@ -1,3 +1,9 @@
+//! Conformance seed corpora for the cascade algebra.
+//!
+//! The cases here are intentionally small and explicit so H1 gates can prove
+//! the cascade ordering and WPT-derived seed policies without claiming full WPT
+//! coverage.
+
 use crate::{
     CascadeConformanceSeedCase, CascadeConformanceSeedReport, CascadeConformanceSeedResult,
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeValue, LayerRank,

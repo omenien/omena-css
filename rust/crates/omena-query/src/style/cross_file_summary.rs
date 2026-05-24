@@ -691,7 +691,7 @@ fn m4_axis_c_required_edge_kind_counts(
     M4_AXIS_C_REQUIRED_EDGE_KINDS
         .iter()
         .map(|edge_kind| OmenaQueryCrossFileSummaryEdgeKindCountV0 {
-            edge_kind: *edge_kind,
+            edge_kind,
             count: observed.get(edge_kind).copied().unwrap_or(0),
         })
         .collect()
