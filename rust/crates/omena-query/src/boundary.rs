@@ -11,6 +11,8 @@ pub fn summarize_omena_query_design_system_minimum_description(
     DesignSystemMinimumDescriptionV0 {
         schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
         product: "omena-query.design-system-minimum-description",
+        layer_marker: "mdl-bits",
+        feature_gate: "mdl",
         model_bits,
         residual_bits,
         total_bits: model_bits + residual_bits,
@@ -33,7 +35,45 @@ pub fn summarize_omena_query_design_system_minimum_description(
         weights_calibration_pin: "uniform-v0",
         weights_version: "0",
         semiring_instance: "tropical",
+    }
+}
+
+pub struct OmenaQueryCanonicalFormInput {
+    pub pass_id: &'static str,
+    pub before: String,
+    pub canonical_after: String,
+    pub fallback_after: String,
+    pub mdl_bits: f64,
+    pub ast_size_bits: f64,
+    pub iteration_count: usize,
+    pub eclass_count: usize,
+    pub enode_count: usize,
+}
+
+pub fn summarize_omena_query_canonical_form(
+    input: OmenaQueryCanonicalFormInput,
+) -> CanonicalFormV0 {
+    let canonical_matches_fallback = input.canonical_after == input.fallback_after;
+    let bits_saved_vs_fallback = input.ast_size_bits - input.mdl_bits;
+    CanonicalFormV0 {
+        schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
+        product: "omena-query.canonical-form",
         layer_marker: "mdl-bits",
+        feature_gate: "mdl",
+        pass_id: input.pass_id,
+        before: input.before,
+        canonical_after: input.canonical_after,
+        fallback_after: input.fallback_after,
+        canonical_matches_fallback,
+        bits_saved_vs_fallback,
+        mdl_bits: input.mdl_bits,
+        ast_size_bits: input.ast_size_bits,
+        unit: "bit",
+        iteration_count: input.iteration_count,
+        eclass_count: input.eclass_count,
+        enode_count: input.enode_count,
+        cascade_safe_witness: "cascade proof obligation remains conservative",
+        egg_analysis_witness: "extracted canonical form is compared against fallback output",
     }
 }
 

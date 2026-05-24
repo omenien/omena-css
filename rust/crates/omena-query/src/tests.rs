@@ -2,13 +2,14 @@ use engine_input_producers::{EngineInputV2, StyleAnalysisInputV2, StyleDocumentV
 use omena_abstract_value::SelectorProjectionCertaintyV0;
 
 use super::{
-    OmenaQueryExpressionDomainFlowRuntimeV0, OmenaQueryStylePackageManifestV0, ParserPositionV0,
+    OmenaQueryCanonicalFormInput, OmenaQueryExpressionDomainFlowRuntimeV0,
+    OmenaQueryStylePackageManifestV0, ParserPositionV0,
     execute_omena_query_consumer_build_style_source_with_engine_input_context,
     execute_omena_query_consumer_build_style_sources,
     execute_omena_query_consumer_build_style_sources_with_context,
     execute_omena_query_transform_passes_from_source, list_omena_query_transform_pass_summaries,
     summarize_omena_query_analyzed_graph, summarize_omena_query_boundary,
-    summarize_omena_query_custom_property_annotations,
+    summarize_omena_query_canonical_form, summarize_omena_query_custom_property_annotations,
     summarize_omena_query_design_system_minimum_description,
     summarize_omena_query_expression_domain_call_site_flow_analysis,
     summarize_omena_query_expression_domain_control_flow_analysis,
@@ -278,11 +279,35 @@ fn summarizes_design_system_minimum_description_in_bits() {
     );
     assert_eq!(summary.unit, "bit");
     assert_eq!(summary.layer_marker, "mdl-bits");
+    assert_eq!(summary.feature_gate, "mdl");
     assert_eq!(
         summary.model_bits + summary.residual_bits,
         summary.total_bits
     );
     assert_eq!(summary.semiring_instance, "tropical");
+}
+
+#[test]
+fn summarizes_mdl_canonical_form_as_strict_superset_contract() {
+    let form = summarize_omena_query_canonical_form(OmenaQueryCanonicalFormInput {
+        pass_id: "selector-is-where-compression",
+        before: ".a:is(.b){}".into(),
+        canonical_after: ".a.b{}".into(),
+        fallback_after: ".a.b{}".into(),
+        mdl_bits: 3.0,
+        ast_size_bits: 5.0,
+        iteration_count: 2,
+        eclass_count: 4,
+        enode_count: 8,
+    });
+
+    assert_eq!(form.schema_version, "0");
+    assert_eq!(form.product, "omena-query.canonical-form");
+    assert_eq!(form.layer_marker, "mdl-bits");
+    assert_eq!(form.feature_gate, "mdl");
+    assert_eq!(form.unit, "bit");
+    assert!(form.canonical_matches_fallback);
+    assert_eq!(form.bits_saved_vs_fallback, 2.0);
 }
 
 #[test]

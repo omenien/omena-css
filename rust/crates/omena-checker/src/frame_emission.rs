@@ -9,6 +9,7 @@ use crate::OmenaCheckerRuleCodeV0;
 pub struct FrameAwareDiagnosticV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub feature_gate: &'static str,
     pub diagnostic_code: OmenaCheckerRuleCodeV0,
     pub diagnostic_code_name: &'static str,
     pub diagnostic_instance_id: String,
@@ -21,6 +22,8 @@ pub struct FrameAwareDiagnosticV0 {
 pub struct FrameAwareDiagnosticSetV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub diagnostic_count: usize,
     pub diagnostics: Vec<FrameAwareDiagnosticV0>,
     pub conservative: bool,
@@ -42,6 +45,7 @@ pub fn emit_frame_aware_diagnostic(
     FrameAwareDiagnosticV0 {
         schema_version: "0",
         product: "omena-checker.frame-aware-diagnostic",
+        feature_gate: "frame-rule",
         diagnostic_code: code,
         diagnostic_code_name: code.as_str(),
         diagnostic_instance_id,
@@ -56,6 +60,8 @@ pub fn emit_frame_aware_diagnostic_set(
     FrameAwareDiagnosticSetV0 {
         schema_version: "0",
         product: "omena-checker.frame-aware-diagnostic-set",
+        layer_marker: "frame-rule",
+        feature_gate: "frame-rule",
         diagnostic_count: diagnostics.len(),
         diagnostics,
         conservative: true,
@@ -78,6 +84,7 @@ mod tests {
         );
 
         assert_eq!(diagnostic.schema_version, "0");
+        assert_eq!(diagnostic.feature_gate, "frame-rule");
         assert_eq!(diagnostic.diagnostic_code_name, "missing-static-class");
         assert_eq!(diagnostic.frame.layer_marker, "frame-rule");
         assert!(diagnostic.frame.conservative);

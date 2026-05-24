@@ -305,7 +305,7 @@ impl LinearProvenanceV0<Lin01ProvenanceSemiringV0> {
         Self {
             schema_version: "0",
             product: "omena-abstract-value.linear-provenance",
-            layer_marker: "qtt-graded-provenance",
+            layer_marker: "qtt-graded",
             feature_gate: "qtt-provenance",
             semiring_identifier: Lin01ProvenanceSemiringV0::IDENTIFIER,
             semiring: Lin01ProvenanceSemiringV0::new(),

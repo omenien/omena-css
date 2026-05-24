@@ -882,7 +882,7 @@ fn cross_file_summary_linear_provenance_serializes_as_strict_superset()
         serialized
             .pointer("/linearProvenance/layerMarker")
             .and_then(|value| value.as_str()),
-        Some("qtt-graded-provenance")
+        Some("qtt-graded")
     );
     assert_eq!(
         serialized

@@ -5,6 +5,7 @@ use serde::Serialize;
 pub struct ModuleCanonicalIdV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub feature_gate: &'static str,
     pub canonical_id: String,
     pub source_uri: String,
     pub package_name: Option<String>,
@@ -17,6 +18,7 @@ pub fn canonicalize_module_id_v0(source_uri: impl Into<String>) -> ModuleCanonic
     ModuleCanonicalIdV0 {
         schema_version: "0",
         product: "omena-resolver.module-canonical-id",
+        feature_gate: "frame-rule",
         canonical_id: source_uri.clone(),
         source_uri,
         package_name: None,
@@ -35,6 +37,7 @@ mod tests {
 
         assert_eq!(module.schema_version, "0");
         assert_eq!(module.product, "omena-resolver.module-canonical-id");
+        assert_eq!(module.feature_gate, "frame-rule");
         assert_eq!(module.layer_marker, "frame-rule");
         assert_eq!(module.canonical_id, module.source_uri);
     }

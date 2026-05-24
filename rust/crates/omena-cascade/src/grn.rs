@@ -46,6 +46,8 @@ pub struct GrnVertexStateV0 {
 pub struct GrnModeDistributionV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub applied_count: usize,
     pub losing_but_eligible_count: usize,
     pub inactive_count: usize,
@@ -57,6 +59,7 @@ pub struct GrnModeDistributionV0 {
 pub struct CascadeAttractorBasinV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub layer_marker: &'static str,
     pub feature_gate: &'static str,
     pub basin_id: String,
     pub strategy: AttractorEnumerationStrategyV0,
@@ -87,6 +90,10 @@ pub enum RgFixedPointTagV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeAttractorBasinProofV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub deterministic: bool,
     pub fixed_point_tag: RgFixedPointTagV0,
     pub conservative: bool,
@@ -97,9 +104,46 @@ pub struct CascadeAttractorBasinProofV0 {
 pub struct CascadeOutcomeProjectionRecordV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub layer_marker: &'static str,
     pub feature_gate: &'static str,
     pub lint_codes: Vec<&'static str>,
     pub mode_distribution: GrnModeDistributionV0,
+    pub deep_conflict_report: CascadeDeepConflictReportV0,
+    pub kauffman_regime: KauffmanRegimeV0,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum KauffmanRegimeKindV0 {
+    Ordered,
+    Critical,
+    Chaotic,
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KauffmanRegimeV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub variable_count: usize,
+    pub regime: KauffmanRegimeKindV0,
+    pub conservative: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeDeepConflictReportV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub lint_code: &'static str,
+    pub conflicting_vertex_count: usize,
+    pub conservative: bool,
+    pub regime: KauffmanRegimeV0,
 }
 
 pub fn summarize_grn_state(vertices: Vec<GrnVertexStateV0>) -> BooleanGRNStateV0 {
@@ -136,12 +180,17 @@ pub fn prove_cascade_attractor_basin(variable_count: usize) -> CascadeAttractorB
     CascadeAttractorBasinV0 {
         schema_version: "0",
         product: "omena-cascade.attractor-basin",
+        layer_marker: "statistical-mechanics",
         feature_gate: "grn",
         basin_id: format!("grn-v0-{variable_count}"),
         strategy,
         state_count: variable_count,
         fixed_point_count: usize::from(variable_count > 0),
         proof: CascadeAttractorBasinProofV0 {
+            schema_version: "0",
+            product: "omena-cascade.attractor-basin-proof",
+            layer_marker: "statistical-mechanics",
+            feature_gate: "grn",
             deterministic: !matches!(
                 strategy,
                 AttractorEnumerationStrategyV0::Deferred | AttractorEnumerationStrategyV0::Sampled
@@ -167,19 +216,54 @@ pub fn project_grn_outcome(vertices: &[GrnVertexStateV0]) -> CascadeOutcomeProje
         }
     }
 
+    let kauffman_regime = classify_kauffman_regime(vertices.len());
+
     CascadeOutcomeProjectionRecordV0 {
         schema_version: "0",
         product: "omena-cascade.grn-outcome-projection",
+        layer_marker: "statistical-mechanics",
         feature_gate: "grn",
         lint_codes: vec!["cascade.deep-conflict", "cascade.unreachable-rule"],
         mode_distribution: GrnModeDistributionV0 {
             schema_version: "0",
             product: "omena-cascade.grn-mode-distribution",
+            layer_marker: "statistical-mechanics",
+            feature_gate: "grn",
             applied_count,
             losing_but_eligible_count,
             inactive_count,
             top_count,
         },
+        deep_conflict_report: CascadeDeepConflictReportV0 {
+            schema_version: "0",
+            product: "omena-cascade.deep-conflict-report",
+            layer_marker: "statistical-mechanics",
+            feature_gate: "grn",
+            lint_code: "cascade.deep-conflict",
+            conflicting_vertex_count: losing_but_eligible_count,
+            conservative: true,
+            regime: kauffman_regime.clone(),
+        },
+        kauffman_regime,
+    }
+}
+
+pub fn classify_kauffman_regime(variable_count: usize) -> KauffmanRegimeV0 {
+    let regime = match variable_count {
+        0..=16 => KauffmanRegimeKindV0::Ordered,
+        17..=64 => KauffmanRegimeKindV0::Critical,
+        65..=256 => KauffmanRegimeKindV0::Chaotic,
+        _ => KauffmanRegimeKindV0::Unknown,
+    };
+
+    KauffmanRegimeV0 {
+        schema_version: "0",
+        product: "omena-cascade.kauffman-regime",
+        layer_marker: "statistical-mechanics",
+        feature_gate: "grn",
+        variable_count,
+        regime,
+        conservative: true,
     }
 }
 
@@ -220,9 +304,12 @@ mod tests {
 
             assert_eq!(basin.schema_version, "0");
             assert_eq!(basin.product, "omena-cascade.attractor-basin");
+            assert_eq!(basin.layer_marker, "statistical-mechanics");
             assert_eq!(basin.feature_gate, "grn");
             assert_eq!(basin.strategy, AttractorEnumerationStrategyV0::Explicit);
             assert_eq!(basin.state_count, variable_count);
+            assert_eq!(basin.proof.schema_version, "0");
+            assert_eq!(basin.proof.feature_gate, "grn");
             assert!(basin.proof.deterministic);
             assert_eq!(basin.proof.fixed_point_tag, RgFixedPointTagV0::Exact);
             assert!(basin.proof.conservative);
@@ -239,6 +326,19 @@ mod tests {
         let projection = project_grn_outcome(&[]);
 
         assert_eq!(projection.feature_gate, "grn");
+        assert_eq!(projection.layer_marker, "statistical-mechanics");
+        assert_eq!(projection.mode_distribution.feature_gate, "grn");
+        assert_eq!(projection.deep_conflict_report.schema_version, "0");
+        assert_eq!(
+            projection.deep_conflict_report.lint_code,
+            "cascade.deep-conflict"
+        );
+        assert_eq!(projection.kauffman_regime.schema_version, "0");
+        assert_eq!(projection.kauffman_regime.feature_gate, "grn");
+        assert_eq!(
+            projection.kauffman_regime.regime,
+            KauffmanRegimeKindV0::Ordered
+        );
         assert_eq!(
             projection.lint_codes,
             vec!["cascade.deep-conflict", "cascade.unreachable-rule"]

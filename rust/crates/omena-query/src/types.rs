@@ -8,6 +8,8 @@ pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION_LABEL: &str = "V0";
 pub struct DesignSystemMinimumDescriptionV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub model_bits: f64,
     pub residual_bits: f64,
     pub total_bits: f64,
@@ -23,7 +25,6 @@ pub struct DesignSystemMinimumDescriptionV0 {
     pub weights_calibration_pin: &'static str,
     pub weights_version: &'static str,
     pub semiring_instance: &'static str,
-    pub layer_marker: &'static str,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -54,6 +55,8 @@ pub struct SourcePinV0 {
 pub struct CanonicalFormV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub pass_id: &'static str,
     pub before: String,
     pub canonical_after: String,
@@ -68,7 +71,6 @@ pub struct CanonicalFormV0 {
     pub enode_count: usize,
     pub cascade_safe_witness: &'static str,
     pub egg_analysis_witness: &'static str,
-    pub layer_marker: &'static str,
 }
 
 #[derive(Debug, Serialize)]

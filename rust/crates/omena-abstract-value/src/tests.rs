@@ -1705,7 +1705,7 @@ fn linear_provenance_round_trips_static_labels() {
 
     assert_eq!(provenance.schema_version, "0");
     assert_eq!(provenance.product, "omena-abstract-value.linear-provenance");
-    assert_eq!(provenance.layer_marker, "qtt-graded-provenance");
+    assert_eq!(provenance.layer_marker, "qtt-graded");
     assert_eq!(provenance.feature_gate, "qtt-provenance");
     assert_eq!(provenance.semiring, Lin01ProvenanceSemiringV0::new());
     assert_eq!(provenance.semiring_identifier(), "lin01");

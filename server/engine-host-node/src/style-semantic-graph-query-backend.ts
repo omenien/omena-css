@@ -372,7 +372,7 @@ export interface StyleSemanticGraphCrossFileSummaryCapabilitiesV0 {
 export interface StyleSemanticGraphLinearProvenanceV0 {
   readonly schemaVersion: "0";
   readonly product: "omena-abstract-value.linear-provenance";
-  readonly layerMarker: "qtt-graded-provenance";
+  readonly layerMarker: "qtt-graded";
   readonly featureGate: "qtt-provenance";
   readonly semiringIdentifier: "lin01";
   readonly semiring: {

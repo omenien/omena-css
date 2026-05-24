@@ -21,6 +21,7 @@ pub struct CascadeSpinGlassHamiltonianV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub unit: &'static str,
     pub energy_bits: f64,
     pub deterministic: bool,
@@ -32,6 +33,7 @@ pub struct CascadeFrustrationV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub frustrated_edge_count: usize,
     pub total_edge_count: usize,
     pub advisory_only: bool,
@@ -43,6 +45,7 @@ pub struct CascadeReplicaOverlapV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub overlap_bucket_count: usize,
     pub parisi_breakpoint_m: Option<f64>,
     pub advisory_only: bool,
@@ -54,6 +57,7 @@ pub struct CascadeStabilityScoreV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub score: f64,
     pub deterministic_component_passed: bool,
     pub advisory_only: bool,
@@ -62,6 +66,10 @@ pub struct CascadeStabilityScoreV0 {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeSpinGlassTheoremV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub theorem_id: &'static str,
     pub statement: &'static str,
     pub deterministic: bool,
@@ -73,6 +81,7 @@ pub struct CascadeSpinGlassTheoremV0 {
 pub struct SpinGlassMonteCarloPolicyV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub layer_marker: &'static str,
     pub feature_gate: &'static str,
     pub advisory_only: bool,
     pub bucket_count: usize,
@@ -84,6 +93,10 @@ pub struct SpinGlassMonteCarloPolicyV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpinGlassMonteCarloBucketV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub bucket: &'static str,
     pub max_variable_count: usize,
     pub sample_count: usize,
@@ -101,18 +114,30 @@ pub fn summarize_cascade_spin_glass_statistics() -> CascadeSpinGlassSummaryV0 {
         stability_score: summarize_cascade_stability_score(1.0),
         theorem_contracts: vec![
             CascadeSpinGlassTheoremV0 {
+                schema_version: "0",
+                product: "omena-cascade.spin-glass-theorem",
+                layer_marker: "statistical-mechanics",
+                feature_gate: "spin-glass",
                 theorem_id: "D1",
                 statement: "strong triangle inequality fixture passes",
                 deterministic: true,
                 passed: prove_strong_triangle_inequality(2, 3, 3),
             },
             CascadeSpinGlassTheoremV0 {
+                schema_version: "0",
+                product: "omena-cascade.spin-glass-theorem",
+                layer_marker: "statistical-mechanics",
+                feature_gate: "spin-glass",
                 theorem_id: "D3",
                 statement: "tropical Hamiltonian monotonicity fixture passes",
                 deterministic: true,
                 passed: prove_tropical_hamiltonian_monotone(&[1, 2, 3, 5]),
             },
             CascadeSpinGlassTheoremV0 {
+                schema_version: "0",
+                product: "omena-cascade.spin-glass-theorem",
+                layer_marker: "statistical-mechanics",
+                feature_gate: "spin-glass",
                 theorem_id: "D4",
                 statement: "ultrametric isomorphism fixture passes",
                 deterministic: true,
@@ -128,6 +153,7 @@ pub fn summarize_spin_glass_hamiltonian(energies: &[u32]) -> CascadeSpinGlassHam
         schema_version: "0",
         product: "omena-cascade.spin-glass-hamiltonian",
         layer_marker: "statistical-mechanics",
+        feature_gate: "spin-glass",
         unit: "bit",
         energy_bits: energies.iter().map(|value| f64::from(*value)).sum(),
         deterministic: true,
@@ -142,6 +168,7 @@ pub fn summarize_cascade_frustration(
         schema_version: "0",
         product: "omena-cascade.frustration",
         layer_marker: "statistical-mechanics",
+        feature_gate: "spin-glass",
         frustrated_edge_count,
         total_edge_count,
         advisory_only: true,
@@ -156,6 +183,7 @@ pub fn summarize_replica_overlap(
         schema_version: "0",
         product: "omena-cascade.replica-overlap",
         layer_marker: "statistical-mechanics",
+        feature_gate: "spin-glass",
         overlap_bucket_count,
         parisi_breakpoint_m,
         advisory_only: true,
@@ -167,6 +195,7 @@ pub fn summarize_cascade_stability_score(score: f64) -> CascadeStabilityScoreV0 
         schema_version: "0",
         product: "omena-cascade.stability-score",
         layer_marker: "statistical-mechanics",
+        feature_gate: "spin-glass",
         score,
         deterministic_component_passed: prove_strong_triangle_inequality(2, 3, 3)
             && prove_tropical_hamiltonian_monotone(&[1, 2, 3, 5])
@@ -179,26 +208,43 @@ pub fn spin_glass_monte_carlo_policy() -> SpinGlassMonteCarloPolicyV0 {
     SpinGlassMonteCarloPolicyV0 {
         schema_version: "0",
         product: "omena-cascade.spin-glass-monte-carlo-policy",
+        layer_marker: "statistical-mechanics",
         feature_gate: "spin-glass",
         advisory_only: true,
         bucket_count: 4,
         buckets: vec![
             SpinGlassMonteCarloBucketV0 {
+                schema_version: "0",
+                product: "omena-cascade.spin-glass-monte-carlo-bucket",
+                layer_marker: "statistical-mechanics",
+                feature_gate: "spin-glass",
                 bucket: "tiny",
                 max_variable_count: 16,
                 sample_count: 0,
             },
             SpinGlassMonteCarloBucketV0 {
+                schema_version: "0",
+                product: "omena-cascade.spin-glass-monte-carlo-bucket",
+                layer_marker: "statistical-mechanics",
+                feature_gate: "spin-glass",
                 bucket: "small",
                 max_variable_count: 64,
                 sample_count: 128,
             },
             SpinGlassMonteCarloBucketV0 {
+                schema_version: "0",
+                product: "omena-cascade.spin-glass-monte-carlo-bucket",
+                layer_marker: "statistical-mechanics",
+                feature_gate: "spin-glass",
                 bucket: "medium",
                 max_variable_count: 256,
                 sample_count: 512,
             },
             SpinGlassMonteCarloBucketV0 {
+                schema_version: "0",
+                product: "omena-cascade.spin-glass-monte-carlo-bucket",
+                layer_marker: "statistical-mechanics",
+                feature_gate: "spin-glass",
                 bucket: "large",
                 max_variable_count: usize::MAX,
                 sample_count: 1024,
@@ -237,16 +283,22 @@ mod tests {
         assert_eq!(summary.layer_marker, "statistical-mechanics");
         assert_eq!(summary.feature_gate, "spin-glass");
         assert_eq!(summary.hamiltonian.schema_version, "0");
+        assert_eq!(summary.hamiltonian.feature_gate, "spin-glass");
         assert_eq!(summary.hamiltonian.unit, "bit");
         assert_eq!(summary.frustration.schema_version, "0");
+        assert_eq!(summary.frustration.feature_gate, "spin-glass");
         assert_eq!(summary.replica_overlap.schema_version, "0");
+        assert_eq!(summary.replica_overlap.feature_gate, "spin-glass");
         assert_eq!(summary.stability_score.schema_version, "0");
+        assert_eq!(summary.stability_score.feature_gate, "spin-glass");
         assert!(summary.stability_score.deterministic_component_passed);
         assert!(
             summary
                 .theorem_contracts
                 .iter()
-                .all(|theorem| theorem.passed)
+                .all(|theorem| theorem.schema_version == "0"
+                    && theorem.feature_gate == "spin-glass"
+                    && theorem.passed)
         );
         assert!(summary.advisory_policy.advisory_only);
         assert_eq!(summary.advisory_policy.bucket_count, 4);
@@ -261,6 +313,7 @@ mod tests {
             policy.product,
             "omena-cascade.spin-glass-monte-carlo-policy"
         );
+        assert_eq!(policy.layer_marker, "statistical-mechanics");
         assert_eq!(policy.feature_gate, "spin-glass");
         assert!(policy.advisory_only);
         assert_eq!(policy.bucket_count, 4);

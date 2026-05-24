@@ -47,6 +47,8 @@ pub struct ResolverEvidenceV0 {
 pub struct OutcomeConjunctionWitnessV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub partition_id: String,
     pub outcome_key_count: usize,
     pub conservative: bool,
@@ -57,6 +59,8 @@ pub struct OutcomeConjunctionWitnessV0 {
 pub struct ModuleFootprintV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub module_ids: Vec<String>,
 }
 
@@ -65,6 +69,7 @@ pub struct ModuleFootprintV0 {
 pub struct RecheckSelectionV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
+    pub layer_marker: &'static str,
     pub feature_gate: &'static str,
     pub selected_diagnostic_instance_ids: Vec<String>,
     pub skipped_diagnostic_instance_ids: Vec<String>,
@@ -114,6 +119,8 @@ pub fn compute_edit_footprint(module_ids: Vec<String>) -> ModuleFootprintV0 {
     ModuleFootprintV0 {
         schema_version: "0",
         product: "omena-cascade.module-footprint",
+        layer_marker: "frame-rule",
+        feature_gate: "frame-rule",
         module_ids: canonicalize_module_ids(module_ids),
     }
 }
@@ -144,6 +151,7 @@ pub fn select_recheck_set(
     RecheckSelectionV0 {
         schema_version: "0",
         product: "omena-cascade.recheck-selection",
+        layer_marker: "frame-rule",
         feature_gate: "frame-rule",
         selected_diagnostic_instance_ids: selected,
         skipped_diagnostic_instance_ids: skipped,
@@ -166,6 +174,8 @@ pub fn outcome_conjunction_witness(module_ids: &[String]) -> OutcomeConjunctionW
     OutcomeConjunctionWitnessV0 {
         schema_version: "0",
         product: "omena-cascade.outcome-conjunction-witness",
+        layer_marker: "frame-rule",
+        feature_gate: "frame-rule",
         partition_id: module_ids.join("+"),
         outcome_key_count: module_ids.len(),
         conservative: true,
@@ -205,7 +215,15 @@ mod tests {
 
         assert_eq!(frame.evidence_module_ids, vec!["a", "b"]);
         assert_eq!(frame.feature_gate, "frame-rule");
+        assert_eq!(footprint.feature_gate, "frame-rule");
+        assert_eq!(selection.layer_marker, "frame-rule");
         assert_eq!(selection.feature_gate, "frame-rule");
+        assert!(
+            frame
+                .outcome_conjunction_witness
+                .as_ref()
+                .is_some_and(|witness| witness.feature_gate == "frame-rule")
+        );
         assert!(frame.conservative);
         assert!(intersect_frame_with_footprint(&frame, &footprint));
         assert_eq!(selection.selected_diagnostic_instance_ids, vec!["d1"]);
