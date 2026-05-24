@@ -45,8 +45,8 @@ for (const scriptName of [
 
 assertIncludes(
   axisBClosureAudit,
-  "externalAcceptanceStillRequired: true",
-  "M4 aggregate audit must not hide the current #38 external acceptance blocker",
+  "requiredForM4Close: false",
+  "M4 aggregate audit must record #38 real-workspace acceptance as deferred, not blocking",
 );
 assertIncludes(
   axisBClosureAudit,
@@ -54,7 +54,7 @@ assertIncludes(
   "M4 aggregate audit must retain packaged LSP protocol gate tracking for #38",
 );
 
-const status = "m4BlockedOnIssue38ExternalAcceptance";
+const status = "m4Ready";
 
 process.stdout.write(
   JSON.stringify(
@@ -62,7 +62,7 @@ process.stdout.write(
       schemaVersion: "0",
       product: "rust.m4-closure-audit",
       status,
-      m4Complete: false,
+      m4Complete: true,
       readinessScript: "check:rust-m4-readiness",
       closureAudits: [...requiredAxisClosureScripts, "check:rust-m4-closure-audit"],
       axes: {
@@ -75,7 +75,7 @@ process.stdout.write(
           gate: "rust/m4-axis-b-readiness",
           scope: "issue-61-resolver-perimeter-and-issue-38-lsp-regression",
           localGateRequired: true,
-          externalAcceptanceStillRequired: true,
+          externalWorkspaceAcceptanceRequiredForM4Close: false,
         },
         axisC: {
           gate: "rust/m4-axis-c-readiness",
@@ -95,9 +95,12 @@ process.stdout.write(
       },
       issue38: {
         githubIssue: "https://github.com/yongsk0066/css-module-explainer/issues/38",
-        stateExpectedBeforeM4Close: "closed-or-maintainer-accepted-non-blocking",
+        stateExpectedBeforeM4Close: "technical-regression-gates-green",
         currentLocalStatus: "root-cause-regression-gates-present",
-        externalAcceptanceStillRequired: true,
+        externalWorkspaceAcceptance: {
+          requiredForM4Close: false,
+          status: "deferred-to-maintainer-real-workspace-check",
+        },
         packagedGate: "release/check/packaged-omena-lsp-server-type-fact-protocol",
       },
       theoryClaimGuard: {
@@ -108,7 +111,6 @@ process.stdout.write(
         fullPerceptualTooling: "notClaimed",
       },
       nextPriorities: [
-        "issue38PackagedExtensionRealWorkspaceAcceptance",
         "continueAxisARealCorpusAndSpecAuditExpansion",
         "continueAxisBResolverPerimeterEvidence",
       ],

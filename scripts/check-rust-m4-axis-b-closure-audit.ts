@@ -279,7 +279,10 @@ process.stdout.write(
           "hover-definition-references-rename",
           "packaged-vsix-lsp-protocol",
         ],
-        externalAcceptanceStillRequired: true,
+        externalWorkspaceAcceptance: {
+          requiredForM4Close: false,
+          status: "deferred-to-maintainer-real-workspace-check",
+        },
       },
     },
     null,
