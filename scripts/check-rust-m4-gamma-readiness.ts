@@ -236,6 +236,14 @@ assertIncludes(omenaCli, "omena-cli.audit.zk.setup-status", "ZK setup-status mus
 const variational = read("rust/crates/omena-variational/src/lib.rs");
 assertIncludes(variational, "ProvenancePosteriorAnnotationV0", "variational sidecar annotation must exist");
 assertIncludes(variational, "DesignerIntentPosteriorModeV0", "variational posterior mode must exist");
+assertIncludes(variational, "PatternPriorKindV0::UniformDirichlet", "variational prior must expose uniform Dirichlet mode");
+assertIncludes(variational, "dirichlet_alpha", "variational prior must carry Dirichlet alpha over intents");
+assertIncludes(variational, "axis_a_schema_version", "variational calibration must pin Axis A schema version");
+assertIncludes(variational, "RgUniversalityClassRefV0", "variational prior must carry RG universality-class hook");
+assertIncludes(variational, "factor_count", "variational emission likelihood must report factor count");
+assertIncludes(variational, "log_likelihood_bits", "variational likelihood must stay in bits at V0 boundary");
+assertIncludes(variational, "ProvenancePosteriorNodeV0", "variational provenance sidecar must expose node annotations");
+assertIncludes(variational, "mutates_existing_provenance_enum: false", "variational sidecar must not mutate existing provenance enum");
 const variationalHover = read("rust/crates/omena-variational/src/hover.rs");
 assertIncludes(variationalHover, "total_budget_ms: 25", "variational hover total budget must be 25ms");
 assertIncludes(variationalHover, "fragment_budget_ms: 6", "variational hover fragment budget must be 6ms");
