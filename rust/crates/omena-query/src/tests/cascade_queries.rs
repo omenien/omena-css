@@ -1,5 +1,8 @@
 use super::*;
-use crate::read_omena_query_cascade_at_position;
+use crate::{
+    read_omena_query_cascade_at_position,
+    read_omena_query_cascade_at_position_with_categorical_evidence,
+};
 
 #[test]
 fn read_cascade_at_position_is_query_owned() {
@@ -63,6 +66,7 @@ fn read_cascade_at_position_is_query_owned() {
             .referenced_declaration_computed_value_derivation_steps
             .contains(&"computedValueResolved")
     );
+    assert!(cascade.categorical_evidence.is_none());
 
     let no_reference = read_omena_query_cascade_at_position(
         "Component.module.css",
@@ -77,6 +81,38 @@ fn read_cascade_at_position_is_query_owned() {
     assert_eq!(
         no_reference.map(|cascade| cascade.status),
         Some("noCustomPropertyReference")
+    );
+}
+
+#[test]
+fn read_cascade_at_position_can_attach_categorical_evidence_when_requested() {
+    let source = ":root { --surface: white; }\n.button { color: var(--surface); }\n";
+    let cascade = read_omena_query_cascade_at_position_with_categorical_evidence(
+        "Component.module.css",
+        source,
+        &sample_input(),
+        ParserPositionV0 {
+            line: 1,
+            character: 24,
+        },
+        true,
+    );
+    assert!(cascade.is_some());
+    let Some(cascade) = cascade else {
+        return;
+    };
+    assert!(cascade.categorical_evidence.is_some());
+    let Some(evidence) = cascade.categorical_evidence else {
+        return;
+    };
+    assert_eq!(evidence.schema_version, "0");
+    assert_eq!(evidence.layer_marker, "categorical-semantic");
+    assert_eq!(evidence.endpoint_count, 10);
+    assert!(
+        evidence
+            .endpoints
+            .iter()
+            .any(|endpoint| endpoint.endpoint_id == "rust/omena-categorical/verify-site-stability")
     );
 }
 

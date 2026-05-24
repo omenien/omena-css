@@ -73,6 +73,18 @@ assert(
 );
 
 const categorical = read("rust/crates/omena-categorical/src/lib.rs");
+const categoricalEndpointIds = [
+  "rust/omena-categorical/verify-site-stability",
+  "rust/omena-categorical/verify-cosheaf-covariance",
+  "rust/omena-categorical/verify-beck-chevalley",
+  "rust/omena-categorical/classify-omega-truth",
+  "rust/omena-categorical/verify-s4-axioms",
+  "rust/omena-categorical/verify-modal-imperative-equivalence",
+  "rust/omena-categorical/verify-invariant-functoriality",
+  "rust/omena-categorical/compare-design-system-theory",
+  "rust/omena-categorical/summarize-kripke-frame",
+  "rust/omena-categorical/verify-cross-project-symmetry",
+] as const;
 for (const moduleName of [
   "site",
   "sheaf",
@@ -95,6 +107,23 @@ for (const primitive of [
   assertIncludes(categorical, primitive, "omena-categorical must map existing cascade primitive roles");
 }
 assertIncludes(categorical, "contract_count: 26", "omena-categorical must pin 26 V0 contracts");
+assertIncludes(categorical, "CategoricalCascadeEvidenceV0", "omena-categorical must expose cascade evidence");
+for (const endpointId of categoricalEndpointIds) {
+  assertIncludes(categorical, endpointId, "omena-categorical must expose all 10 cme-check endpoints");
+}
+
+const queryTypes = read("rust/crates/omena-query/src/types.rs");
+assertIncludes(
+  queryTypes,
+  "pub categorical_evidence: Option<omena_categorical::CategoricalCascadeEvidenceV0>",
+  "cascade-at-position response must carry optional categorical evidence",
+);
+const lspServer = read("rust/crates/omena-lsp-server/src/lib.rs");
+assertIncludes(
+  lspServer,
+  "includeCategoricalEvidence",
+  "Rust LSP cascade-at-position must keep categorical evidence default-off",
+);
 
 for (const smtPath of [
   "rust/crates/omena-smt/src/theory.rs",

@@ -55,6 +55,32 @@ pub struct CascadeProofPrimitiveRoleV0 {
     pub categorical_role: &'static str,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CategoricalEvidenceEndpointV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub endpoint_id: &'static str,
+    pub evidence_product: &'static str,
+    pub fixture_focus: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CategoricalCascadeEvidenceV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub source_product: &'static str,
+    pub endpoint_count: usize,
+    pub endpoints: Vec<CategoricalEvidenceEndpointV0>,
+    pub proof_primitive_roles: Vec<CascadeProofPrimitiveRoleV0>,
+    pub default_feature_enabled: bool,
+}
+
 pub fn summarize_categorical_foundation_v0() -> CategoricalFoundationSummaryV0 {
     CategoricalFoundationSummaryV0 {
         schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
@@ -76,6 +102,91 @@ pub fn summarize_categorical_foundation_v0() -> CategoricalFoundationSummaryV0 {
         support_contract_count: 16,
         proof_primitive_roles: cascade_proof_primitive_roles_v0(),
         lawvere_dependency_direction: "omena-categorical -> omena-lawvere",
+        default_feature_enabled: false,
+    }
+}
+
+pub fn categorical_evidence_endpoints_v0() -> Vec<CategoricalEvidenceEndpointV0> {
+    [
+        (
+            "rust/omena-categorical/verify-site-stability",
+            "omena-categorical.cascade-site",
+            "site axioms",
+        ),
+        (
+            "rust/omena-categorical/verify-cosheaf-covariance",
+            "omena-categorical.cascade-cosheaf",
+            "cosheaf covariance",
+        ),
+        (
+            "rust/omena-categorical/verify-beck-chevalley",
+            "omena-categorical.beck-chevalley-check",
+            "Beck-Chevalley witnesses",
+        ),
+        (
+            "rust/omena-categorical/classify-omega-truth",
+            "omena-categorical.omega-truth-mapping",
+            "Omega truth values",
+        ),
+        (
+            "rust/omena-categorical/verify-s4-axioms",
+            "omena-categorical.modal-evaluation-witness",
+            "S4 modal axioms",
+        ),
+        (
+            "rust/omena-categorical/verify-modal-imperative-equivalence",
+            "omena-categorical.modal-diagnostic-schema",
+            "modal-imperative equivalence",
+        ),
+        (
+            "rust/omena-categorical/verify-invariant-functoriality",
+            "omena-categorical.design-system-theory",
+            "invariant functoriality",
+        ),
+        (
+            "rust/omena-categorical/compare-design-system-theory",
+            "omena-categorical.design-system-theory",
+            "cross-project design-system theory",
+        ),
+        (
+            "rust/omena-categorical/summarize-kripke-frame",
+            "omena-categorical.kripke-frame",
+            "Kripke frame valuations",
+        ),
+        (
+            "rust/omena-categorical/verify-cross-project-symmetry",
+            "omena-categorical.design-system-invariant-summary",
+            "cross-project symmetry",
+        ),
+    ]
+    .into_iter()
+    .map(
+        |(endpoint_id, evidence_product, fixture_focus)| CategoricalEvidenceEndpointV0 {
+            schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+            product: "omena-categorical.evidence-endpoint",
+            layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+            feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+            endpoint_id,
+            evidence_product,
+            fixture_focus,
+        },
+    )
+    .collect()
+}
+
+pub fn categorical_cascade_evidence_v0(
+    source_product: &'static str,
+) -> CategoricalCascadeEvidenceV0 {
+    let endpoints = categorical_evidence_endpoints_v0();
+    CategoricalCascadeEvidenceV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "omena-categorical.cascade-evidence",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        source_product,
+        endpoint_count: endpoints.len(),
+        endpoints,
+        proof_primitive_roles: cascade_proof_primitive_roles_v0(),
         default_feature_enabled: false,
     }
 }
@@ -142,5 +253,26 @@ mod tests {
         assert!(primitive_names.contains(&"prove_box_shorthand_combination"));
         assert!(primitive_names.contains(&"evaluate_static_supports_condition"));
         assert!(!primitive_names.contains(&"cascade_property"));
+    }
+
+    #[test]
+    fn categorical_endpoint_catalog_contains_required_m4_gamma_endpoints() {
+        let evidence = categorical_cascade_evidence_v0("omena-query.read-cascade-at-position");
+        let endpoint_ids = evidence
+            .endpoints
+            .iter()
+            .map(|endpoint| endpoint.endpoint_id)
+            .collect::<Vec<_>>();
+        assert_eq!(evidence.schema_version, "0");
+        assert_eq!(evidence.endpoint_count, 10);
+        assert!(!evidence.default_feature_enabled);
+        assert!(endpoint_ids.contains(&"rust/omena-categorical/verify-site-stability"));
+        assert!(endpoint_ids.contains(&"rust/omena-categorical/verify-beck-chevalley"));
+        assert!(endpoint_ids.contains(&"rust/omena-categorical/classify-omega-truth"));
+        assert!(endpoint_ids.contains(&"rust/omena-categorical/verify-s4-axioms"));
+        assert!(
+            endpoint_ids.contains(&"rust/omena-categorical/verify-modal-imperative-equivalence")
+        );
+        assert!(endpoint_ids.contains(&"rust/omena-categorical/verify-cross-project-symmetry"));
     }
 }

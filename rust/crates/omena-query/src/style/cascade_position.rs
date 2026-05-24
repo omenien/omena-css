@@ -34,6 +34,23 @@ pub fn read_omena_query_cascade_at_position(
     ))
 }
 
+pub fn read_omena_query_cascade_at_position_with_categorical_evidence(
+    style_path: &str,
+    style_source: &str,
+    input: &EngineInputV2,
+    position: ParserPositionV0,
+    include_categorical_evidence: bool,
+) -> Option<OmenaQueryCascadeAtPositionV0> {
+    let mut result =
+        read_omena_query_cascade_at_position(style_path, style_source, input, position)?;
+    if include_categorical_evidence {
+        result.categorical_evidence = Some(omena_categorical::categorical_cascade_evidence_v0(
+            "omena-query.read-cascade-at-position",
+        ));
+    }
+    Some(result)
+}
+
 pub fn read_omena_query_cascade_at_position_from_graph(
     style_path: &str,
     style_source: &str,
@@ -87,6 +104,7 @@ pub fn read_omena_query_cascade_at_position_from_graph(
                 .guaranteed_invalid_count,
             reference_custom_property_fixed_point_status: None,
             reference_custom_property_fixed_point_value: None,
+            categorical_evidence: None,
         };
     };
 
@@ -168,6 +186,7 @@ pub fn read_omena_query_cascade_at_position_from_graph(
             .map(query_custom_property_fixed_point_entry_status),
         reference_custom_property_fixed_point_value: fixed_point_entry
             .and_then(|entry| render_query_cascade_value(&entry.resolved)),
+        categorical_evidence: None,
     }
 }
 

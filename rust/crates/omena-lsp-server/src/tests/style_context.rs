@@ -60,6 +60,45 @@ fn resolves_query_owned_cascade_and_context_requests_from_opened_style_documents
             .and_then(|value| value.pointer("/result/cascadeEngine")),
         Some(&json!("omena-cascade")),
     );
+    assert_eq!(
+        cascade_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/categoricalEvidence")),
+        None,
+    );
+
+    let categorical_response = handle_lsp_message(
+        &mut state,
+        json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": CASCADE_AT_POSITION_REQUEST,
+            "params": {
+                "textDocument": {
+                    "uri": "file:///workspace-a/src/App.module.scss",
+                },
+                "position": {
+                    "line": 5,
+                    "character": 28,
+                },
+                "context": {
+                    "includeCategoricalEvidence": true,
+                },
+            },
+        }),
+    );
+    assert_eq!(
+        categorical_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/categoricalEvidence/product")),
+        Some(&json!("omena-categorical.cascade-evidence")),
+    );
+    assert_eq!(
+        categorical_response
+            .as_ref()
+            .and_then(|value| value.pointer("/result/categoricalEvidence/endpointCount")),
+        Some(&json!(10)),
+    );
 
     let context_response = handle_lsp_message(
         &mut state,

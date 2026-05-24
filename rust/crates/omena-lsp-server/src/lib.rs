@@ -30,7 +30,8 @@ use omena_query::{
     is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,
     load_omena_query_workspace_style_resolution_inputs,
     omena_query_sass_symbol_kind_from_candidate_kind as sass_symbol_kind_from_candidate_kind,
-    omena_query_sass_symbol_target_matches, read_omena_query_cascade_at_position,
+    omena_query_sass_symbol_target_matches,
+    read_omena_query_cascade_at_position_with_categorical_evidence,
     read_omena_query_style_context_index, resolve_omena_query_sass_forward_sources,
     resolve_omena_query_sass_module_use_sources_for_candidate,
     resolve_omena_query_sass_symbol_declarations,
@@ -894,11 +895,18 @@ fn resolve_cascade_at_position(state: &LspShellState, params: Option<&Value>) ->
         return Value::Null;
     };
 
-    read_omena_query_cascade_at_position(
+    let include_categorical_evidence = params
+        .and_then(|value| value.get("context"))
+        .and_then(|value| value.get("includeCategoricalEvidence"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    read_omena_query_cascade_at_position_with_categorical_evidence(
         document.uri.as_str(),
         document.text.as_str(),
         &engine_input,
         position,
+        include_categorical_evidence,
     )
     .map(|result| json!(result))
     .unwrap_or(Value::Null)

@@ -1012,6 +1012,7 @@ dependencies = [
  "omena-abstract-value",
  "omena-bridge",
  "omena-cascade",
+ "omena-categorical",
  "omena-checker",
  "omena-incremental",
  "omena-parser",
