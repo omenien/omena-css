@@ -91,6 +91,10 @@ assert.ok(
   "M4 Axis A must keep css-ui in the pinned WPT sparse path policy",
 );
 assert.ok(
+  wptManifest.source.sparsePaths.includes("css/css-transforms"),
+  "M4 Axis A must keep css-transforms in the pinned WPT sparse path policy",
+);
+assert.ok(
   wptSparsePathFixtureCounts.every((count) => count.fixtureCount > 0),
   "every pinned WPT sparse path must have fixture coverage",
 );
@@ -123,6 +127,12 @@ assert.ok(
     (count) => count.sparsePath === "css/css-ui" && count.fixtureCount >= 2,
   ),
   "css-ui WPT coverage must retain the box-sizing advisory fixture set",
+);
+assert.ok(
+  wptSparsePathFixtureCounts.some(
+    (count) => count.sparsePath === "css/css-transforms" && count.fixtureCount >= 3,
+  ),
+  "css-transforms WPT coverage must retain the transform advisory fixture set",
 );
 assert.deepEqual(
   wptManifest.sparsePathFixtureCounts,
@@ -213,6 +223,9 @@ const cssPositionEntry = specManifest.entries.find(
 const cssUiBoxSizingEntry = specManifest.entries.find(
   (entry) => entry.id === "css-ui/properties/box-sizing",
 );
+const cssTransformsEntry = specManifest.entries.find(
+  (entry) => entry.id === "css-transforms/properties/transform",
+);
 assert.ok(cssSizingHeightEntry, "spec audit must retain css-sizing height coverage");
 assert.equal(cssSizingHeightEntry.priority, "P0");
 assert.equal(cssSizingHeightEntry.status, "covered");
@@ -299,6 +312,20 @@ for (const evidence of [
     `css-ui box-sizing spec audit evidence must include ${evidence}`,
   );
 }
+assert.ok(cssTransformsEntry, "spec audit must retain css-transforms transform coverage");
+assert.equal(cssTransformsEntry.priority, "P0");
+assert.equal(cssTransformsEntry.status, "covered");
+for (const evidence of [
+  "WPT css/css-transforms/parsing/transform-valid.html",
+  "css-transforms-none-advisory",
+  "css-transforms-translate-x-advisory",
+  "css-transforms-rotate-advisory",
+] as const) {
+  assert.ok(
+    cssTransformsEntry.evidence?.includes(evidence),
+    `css-transforms transform spec audit evidence must include ${evidence}`,
+  );
+}
 const specSourceLinkedEntries = specManifest.entries.filter((entry) =>
   sourceNames.has(entry.sourceName),
 );
@@ -366,6 +393,12 @@ assert.ok(
     coverage.entryIds.includes("css-ui/properties/box-sizing"),
   ),
   "cross-source spec coverage must retain css-ui box-sizing joins",
+);
+assert.ok(
+  specManifest.sourceCoverage.every((coverage) =>
+    coverage.entryIds.includes("css-transforms/properties/transform"),
+  ),
+  "cross-source spec coverage must retain css-transforms transform joins",
 );
 assert.ok(
   specManifest.entries

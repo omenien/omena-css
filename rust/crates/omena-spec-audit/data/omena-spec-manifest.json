@@ -21,6 +21,7 @@
         "css-display/properties/display",
         "css-position/properties/position",
         "css-ui/properties/box-sizing",
+        "css-transforms/properties/transform",
         "css-mixins/atrules/@function"
       ],
       "sourceKeys": [
@@ -38,6 +39,7 @@
         "css-display/properties/display",
         "css-position/properties/position",
         "css-ui/properties/box-sizing",
+        "css-transforms/properties/transform",
         "css-mixins/atrules/@function"
       ]
     },
@@ -59,6 +61,7 @@
         "css-display/properties/display",
         "css-position/properties/position",
         "css-ui/properties/box-sizing",
+        "css-transforms/properties/transform",
         "css-mixins/atrules/@function"
       ],
       "sourceKeys": [
@@ -69,6 +72,7 @@
         "https://drafts.csswg.org/css-display/",
         "https://drafts.csswg.org/css-position/",
         "https://drafts.csswg.org/css-ui/",
+        "https://drafts.csswg.org/css-transforms/",
         "https://drafts.csswg.org/css-mixins-1/"
       ]
     },
@@ -89,7 +93,8 @@
         "css-backgrounds/properties/background-size",
         "css-display/properties/display",
         "css-position/properties/position",
-        "css-ui/properties/box-sizing"
+        "css-ui/properties/box-sizing",
+        "css-transforms/properties/transform"
       ],
       "sourceKeys": [
         "css-color",
@@ -99,7 +104,8 @@
         "css-backgrounds",
         "css-display",
         "css-position",
-        "css-ui"
+        "css-ui",
+        "css-transforms"
       ]
     },
     {
@@ -119,7 +125,8 @@
         "css-backgrounds/properties/background-size",
         "css-display/properties/display",
         "css-position/properties/position",
-        "css-ui/properties/box-sizing"
+        "css-ui/properties/box-sizing",
+        "css-transforms/properties/transform"
       ],
       "sourceKeys": [
         "css.properties.color",
@@ -135,7 +142,8 @@
         "css.properties.background-size",
         "css.properties.display",
         "css.properties.position",
-        "css.properties.box-sizing"
+        "css.properties.box-sizing",
+        "css.properties.transform"
       ]
     }
   ],
@@ -346,6 +354,22 @@
         "WPT css/css-ui/parsing/box-sizing-valid.html",
         "css-ui-box-sizing-content-box-advisory",
         "css-ui-box-sizing-border-box-advisory"
+      ]
+    },
+    {
+      "id": "css-transforms/properties/transform",
+      "webrefId": "css-transforms/properties/transform",
+      "sourceName": "webref-css",
+      "sourceCategory": "properties",
+      "specUrl": "https://drafts.csswg.org/css-transforms-2/#transform-property",
+      "priority": "P0",
+      "status": "covered",
+      "owner": "omena-transform-passes",
+      "evidence": [
+        "WPT css/css-transforms/parsing/transform-valid.html",
+        "css-transforms-none-advisory",
+        "css-transforms-translate-x-advisory",
+        "css-transforms-rotate-advisory"
       ]
     },
     {

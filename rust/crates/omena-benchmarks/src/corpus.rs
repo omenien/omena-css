@@ -76,6 +76,12 @@ pub fn style_corpus() -> Vec<StyleSample> {
             source: build_css_ui_box_model_corpus(96),
         },
         StyleSample {
+            name: "css-transforms-motion-corpus",
+            path: "TransformMotion.module.css",
+            dialect: StyleDialect::Css,
+            source: build_css_transforms_motion_corpus(96),
+        },
+        StyleSample {
             name: "scss-heavy-design-system",
             path: "DesignSystem.module.scss",
             dialect: StyleDialect::Scss,
@@ -262,6 +268,29 @@ fn build_css_ui_box_model_corpus(count: usize) -> String {
             box_sizing = box_sizing_values[index % box_sizing_values.len()],
             width = (index % 32) + 16,
             height = (index % 24) + 12,
+        ));
+    }
+    source
+}
+
+fn build_css_transforms_motion_corpus(count: usize) -> String {
+    let transform_values = [
+        "none",
+        "translateX(-4px)",
+        "rotate(90deg)",
+        "translate(1px, 2%) scale(3, 4) rotate(-90deg)",
+    ];
+    let mut source = String::new();
+    for index in 0..count {
+        let transform = transform_values[index % transform_values.len()];
+        source.push_str(&format!(
+            r#"
+.transformMotion{index} {{
+  transform: {transform};
+  transform-origin: center;
+  will-change: transform;
+}}
+"#
         ));
     }
     source

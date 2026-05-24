@@ -37,7 +37,7 @@ assert.equal(snapshot.schemaVersion, "0");
 assert.equal(snapshot.product, "omena-benchmarks.style-corpus-snapshot");
 assert.equal(snapshot.benchmarkFamily, "z5-performance-baseline");
 assert.equal(snapshot.samples.length, snapshot.corpusSampleCount);
-assert.ok(snapshot.corpusSampleCount >= 4, "Z5 corpus should keep M4 corpus expansion");
+assert.ok(snapshot.corpusSampleCount >= 9, "Z5 corpus should keep M4 corpus expansion");
 assert.ok(
   snapshot.samples.some((sample) => sample.name === "css-sizing-width-corpus"),
   "Z5 corpus should reflect M4 css-sizing WPT/spec coverage",
@@ -58,17 +58,21 @@ assert.ok(
   snapshot.samples.some((sample) => sample.name === "css-ui-box-model-corpus"),
   "Z5 corpus should reflect M4 css-ui WPT/spec coverage",
 );
+assert.ok(
+  snapshot.samples.some((sample) => sample.name === "css-transforms-motion-corpus"),
+  "Z5 corpus should reflect M4 css-transforms WPT/spec coverage",
+);
 
 const lightningResult = validateComparator("lightningcss", ["css"], parseWithLightningCss);
 const postcssResult = validateComparator("postcss", ["css", "scss"], parseWithPostcss);
 const results = [lightningResult, postcssResult] as const;
 
 assert.ok(
-  lightningResult.parsedSampleCount >= 6,
+  lightningResult.parsedSampleCount >= 7,
   "lightningcss comparator must parse the CSS samples from the Z5 corpus",
 );
 assert.ok(
-  postcssResult.parsedSampleCount >= 8,
+  postcssResult.parsedSampleCount >= 9,
   "postcss comparator must parse the CSS/SCSS subset of the Z5 corpus",
 );
 assert.ok(
@@ -102,6 +106,14 @@ assert.ok(
 assert.ok(
   postcssResult.parsedSampleNames.includes("css-ui-box-model-corpus"),
   "postcss comparator must parse the M4 css-ui benchmark sample",
+);
+assert.ok(
+  lightningResult.parsedSampleNames.includes("css-transforms-motion-corpus"),
+  "lightningcss comparator must parse the M4 css-transforms benchmark sample",
+);
+assert.ok(
+  postcssResult.parsedSampleNames.includes("css-transforms-motion-corpus"),
+  "postcss comparator must parse the M4 css-transforms benchmark sample",
 );
 
 process.stdout.write(

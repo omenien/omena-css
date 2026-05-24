@@ -14,7 +14,8 @@
       "css/css-backgrounds",
       "css/css-display",
       "css/css-position",
-      "css/css-ui"
+      "css/css-ui",
+      "css/css-transforms"
     ],
     "helperClasses": ["test_valid_value"],
     "layoutDependentHelpersExcluded": ["test_computed_value", "test_computed_serialization"]
@@ -719,6 +720,45 @@
           "wptExpectedValue": "border-box",
           "source": ".css-ui-box-sizing-border-box-advisory { box-sizing: border-box; }",
           "expectedCss": ".css-ui-box-sizing-border-box-advisory{box-sizing:border-box}",
+          "status": "pass"
+        },
+        {
+          "id": "css-transforms-none-advisory",
+          "wptPath": "css/css-transforms/parsing/transform-valid.html",
+          "wptSourceLine": 14,
+          "subtest": "test_valid_value(\"transform\", \"none\")",
+          "helper": "test_valid_value",
+          "property": "transform",
+          "wptValue": "none",
+          "wptExpectedValue": "none",
+          "source": ".css-transforms-none-advisory { transform: none; }",
+          "expectedCss": ".css-transforms-none-advisory{transform:none}",
+          "status": "pass"
+        },
+        {
+          "id": "css-transforms-translate-x-advisory",
+          "wptPath": "css/css-transforms/parsing/transform-valid.html",
+          "wptSourceLine": 24,
+          "subtest": "test_valid_value(\"transform\", \"translateX(-4px)\")",
+          "helper": "test_valid_value",
+          "property": "transform",
+          "wptValue": "translateX(-4px)",
+          "wptExpectedValue": "translateX(-4px)",
+          "source": ".css-transforms-translate-x-advisory { transform: translateX(-4px); }",
+          "expectedCss": ".css-transforms-translate-x-advisory{transform:translateX(-4px)}",
+          "status": "pass"
+        },
+        {
+          "id": "css-transforms-rotate-advisory",
+          "wptPath": "css/css-transforms/parsing/transform-valid.html",
+          "wptSourceLine": 58,
+          "subtest": "test_valid_value(\"transform\", \"rotate(90deg)\")",
+          "helper": "test_valid_value",
+          "property": "transform",
+          "wptValue": "rotate(90deg)",
+          "wptExpectedValue": "rotate(90deg)",
+          "source": ".css-transforms-rotate-advisory { transform: rotate(90deg); }",
+          "expectedCss": ".css-transforms-rotate-advisory{transform:rotate(90deg)}",
           "status": "pass"
         }
       ]
