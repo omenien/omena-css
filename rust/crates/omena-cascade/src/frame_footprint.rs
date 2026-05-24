@@ -13,7 +13,8 @@ pub struct DiagnosticFrameFootprintV0 {
     pub resolver_evidence: Vec<ResolverEvidenceV0>,
     pub cascade_evidence: Vec<CascadeEvidenceV0>,
     pub custom_property_evidence: Vec<CustomPropertyEvidenceV0>,
-    pub outcome_conjunction_witness: OutcomeConjunctionWitnessV0,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outcome_conjunction_witness: Option<OutcomeConjunctionWitnessV0>,
     pub conservative: bool,
     pub layer_marker: &'static str,
 }
@@ -88,7 +89,7 @@ pub fn derive_frame_for_diagnostic(
             .collect(),
         cascade_evidence: Vec::new(),
         custom_property_evidence: Vec::new(),
-        outcome_conjunction_witness: outcome_conjunction_witness(&evidence_module_ids),
+        outcome_conjunction_witness: Some(outcome_conjunction_witness(&evidence_module_ids)),
         evidence_module_ids,
         conservative: true,
         layer_marker: "frame-rule",
@@ -172,7 +173,7 @@ pub fn partition_into_outcome_conjunction_classes(
 ) -> Vec<OutcomeConjunctionWitnessV0> {
     frames
         .iter()
-        .map(|frame| frame.outcome_conjunction_witness.clone())
+        .filter_map(|frame| frame.outcome_conjunction_witness.clone())
         .collect()
 }
 

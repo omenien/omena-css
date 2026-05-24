@@ -111,6 +111,9 @@ enum Command {
     Compress {
         /// CSS, SCSS, Sass, Less, or CSS Modules file to summarize.
         path: PathBuf,
+        /// Fail when the estimated description length exceeds this bit budget.
+        #[arg(long)]
+        budget_bits: Option<f64>,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -288,7 +291,11 @@ fn run(cli: Cli) -> Result<(), String> {
         }),
         Command::Passes { json } => list_passes(json),
         #[cfg(feature = "mdl")]
-        Command::Compress { path, json } => compress_file(path, json),
+        Command::Compress {
+            path,
+            budget_bits,
+            json,
+        } => compress_file(path, budget_bits, json),
         Command::Context {
             path,
             engine_input_json,
@@ -587,7 +594,7 @@ fn list_passes(json: bool) -> Result<(), String> {
 }
 
 #[cfg(feature = "mdl")]
-fn compress_file(path: PathBuf, json: bool) -> Result<(), String> {
+fn compress_file(path: PathBuf, budget_bits: Option<f64>, json: bool) -> Result<(), String> {
     let source = read_source(&path)?;
     let rule_count = source.matches('{').count();
     let observation_count = source
@@ -605,6 +612,14 @@ fn compress_file(path: PathBuf, json: bool) -> Result<(), String> {
         rule_count,
         observation_count,
     );
+    if let Some(budget_bits) = budget_bits
+        && summary.total_bits > budget_bits
+    {
+        return Err(format!(
+            "MDL budget exceeded: total_bits={} budget_bits={budget_bits}",
+            summary.total_bits
+        ));
+    }
 
     if json {
         print_json(&summary)?;
@@ -1148,6 +1163,27 @@ mod tests {
 
         cleanup(&source_path);
         cleanup(&output_path);
+        Ok(())
+    }
+
+    #[cfg(feature = "mdl")]
+    #[test]
+    fn compress_command_enforces_budget_bits() -> Result<(), String> {
+        let source_path = temp_path("compress.css");
+        fs::write(&source_path, ".card { color: red; }\n")
+            .map_err(|error| format!("fixture source should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Compress {
+                path: source_path.clone(),
+                budget_bits: Some(1.0),
+                json: true,
+            },
+        });
+
+        assert!(result.is_err(), "{result:?}");
+
+        cleanup(&source_path);
         Ok(())
     }
 

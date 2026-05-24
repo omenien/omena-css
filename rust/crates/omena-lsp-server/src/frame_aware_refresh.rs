@@ -20,8 +20,20 @@ pub fn refresh_diagnostics_with_frame(
 ) -> FrameAwareRefreshReportV0 {
     let selective_refresh_enabled =
         std::env::var_os("OMENA_LSP_DISABLE_FRAME_AWARE_REFRESH").is_none();
+    refresh_diagnostics_with_frame_policy(frames, edited_module_ids, selective_refresh_enabled)
+}
+
+pub fn refresh_diagnostics_with_frame_policy(
+    frames: &[DiagnosticFrameFootprintV0],
+    edited_module_ids: Vec<String>,
+    selective_refresh_enabled: bool,
+) -> FrameAwareRefreshReportV0 {
     let edited_module_count = edited_module_ids.len();
-    let selection = select_frame_aware_recheck_set(frames, edited_module_ids);
+    let selection = if selective_refresh_enabled {
+        select_frame_aware_recheck_set(frames, edited_module_ids)
+    } else {
+        select_frame_aware_recheck_set(frames, frames_to_module_ids(frames))
+    };
 
     FrameAwareRefreshReportV0 {
         schema_version: "0",
@@ -32,6 +44,13 @@ pub fn refresh_diagnostics_with_frame(
         skipped_diagnostic_instance_ids: selection.skipped_diagnostic_instance_ids,
         layer_marker: "frame-rule",
     }
+}
+
+fn frames_to_module_ids(frames: &[DiagnosticFrameFootprintV0]) -> Vec<String> {
+    frames
+        .iter()
+        .flat_map(|frame| frame.evidence_module_ids.iter().cloned())
+        .collect()
 }
 
 #[cfg(test)]
@@ -55,5 +74,31 @@ mod tests {
         assert_eq!(report.schema_version, "0");
         assert_eq!(report.layer_marker, "frame-rule");
         assert_eq!(report.selected_diagnostic_instance_ids, vec!["d1"]);
+    }
+
+    #[test]
+    fn refresh_report_preserves_full_refresh_when_disabled() {
+        let selected = derive_frame_for_diagnostic(
+            "missing-static-class",
+            "selected",
+            vec!["file:///workspace/a.module.css".to_string()],
+        );
+        let otherwise_skipped = derive_frame_for_diagnostic(
+            "missing-static-class",
+            "otherwise-skipped",
+            vec!["file:///workspace/b.module.css".to_string()],
+        );
+        let report = refresh_diagnostics_with_frame_policy(
+            &[selected, otherwise_skipped],
+            vec!["file:///workspace/a.module.css".to_string()],
+            false,
+        );
+
+        assert!(!report.selective_refresh_enabled);
+        assert_eq!(
+            report.selected_diagnostic_instance_ids,
+            vec!["selected", "otherwise-skipped"]
+        );
+        assert!(report.skipped_diagnostic_instance_ids.is_empty());
     }
 }

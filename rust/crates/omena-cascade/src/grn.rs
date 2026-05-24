@@ -69,6 +69,7 @@ pub enum AttractorEnumerationStrategyV0 {
     Explicit,
     Bdd,
     Lumped,
+    Deferred,
     Sampled,
 }
 
@@ -77,6 +78,7 @@ pub enum AttractorEnumerationStrategyV0 {
 pub enum RgFixedPointTagV0 {
     Exact,
     Lumped,
+    Deferred,
     SampledAdvisory,
 }
 
@@ -111,8 +113,8 @@ pub fn choose_grn_attractor_strategy(variable_count: usize) -> AttractorEnumerat
     match variable_count {
         0..=16 => AttractorEnumerationStrategyV0::Explicit,
         17..=64 if cfg!(feature = "bdd-attractor") => AttractorEnumerationStrategyV0::Bdd,
-        17..=256 => AttractorEnumerationStrategyV0::Lumped,
-        _ => AttractorEnumerationStrategyV0::Sampled,
+        17..=256 if cfg!(feature = "naldi-lumping") => AttractorEnumerationStrategyV0::Lumped,
+        _ => AttractorEnumerationStrategyV0::Deferred,
     }
 }
 
@@ -123,6 +125,7 @@ pub fn prove_cascade_attractor_basin(variable_count: usize) -> CascadeAttractorB
             RgFixedPointTagV0::Exact
         }
         AttractorEnumerationStrategyV0::Lumped => RgFixedPointTagV0::Lumped,
+        AttractorEnumerationStrategyV0::Deferred => RgFixedPointTagV0::Deferred,
         AttractorEnumerationStrategyV0::Sampled => RgFixedPointTagV0::SampledAdvisory,
     };
 
@@ -134,7 +137,10 @@ pub fn prove_cascade_attractor_basin(variable_count: usize) -> CascadeAttractorB
         state_count: variable_count,
         fixed_point_count: usize::from(variable_count > 0),
         proof: CascadeAttractorBasinProofV0 {
-            deterministic: !matches!(strategy, AttractorEnumerationStrategyV0::Sampled),
+            deterministic: !matches!(
+                strategy,
+                AttractorEnumerationStrategyV0::Deferred | AttractorEnumerationStrategyV0::Sampled
+            ),
             fixed_point_tag,
             conservative: true,
         },
@@ -171,6 +177,16 @@ pub fn project_grn_outcome(vertices: &[GrnVertexStateV0]) -> CascadeOutcomeProje
     }
 }
 
+pub fn grn_shadow_omena_verbs() -> Vec<&'static str> {
+    vec![
+        "shadow.omena.grnState",
+        "shadow.omena.grnAttractorBasin",
+        "shadow.omena.grnDeepConflict",
+        "shadow.omena.grnUnreachableRule",
+        "shadow.omena.grnModeDistribution",
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,12 +198,8 @@ mod tests {
             AttractorEnumerationStrategyV0::Explicit
         );
         assert_eq!(
-            choose_grn_attractor_strategy(65),
-            AttractorEnumerationStrategyV0::Lumped
-        );
-        assert_eq!(
             choose_grn_attractor_strategy(257),
-            AttractorEnumerationStrategyV0::Sampled
+            AttractorEnumerationStrategyV0::Deferred
         );
     }
 
@@ -198,6 +210,34 @@ mod tests {
         assert_eq!(
             projection.lint_codes,
             vec!["cascade.deep-conflict", "cascade.unreachable-rule"]
+        );
+    }
+
+    #[test]
+    fn grn_shadow_omena_verbs_include_required_surface() {
+        let verbs = grn_shadow_omena_verbs();
+
+        assert_eq!(verbs.len(), 5);
+        assert!(verbs.iter().all(|verb| verb.starts_with("shadow.omena.")));
+        assert!(verbs.contains(&"shadow.omena.grnAttractorBasin"));
+        assert!(verbs.contains(&"shadow.omena.grnDeepConflict"));
+    }
+
+    #[cfg(feature = "bdd-attractor")]
+    #[test]
+    fn grn_bdd_strategy_is_feature_gated() {
+        assert_eq!(
+            choose_grn_attractor_strategy(32),
+            AttractorEnumerationStrategyV0::Bdd
+        );
+    }
+
+    #[cfg(feature = "naldi-lumping")]
+    #[test]
+    fn grn_lumping_strategy_is_feature_gated() {
+        assert_eq!(
+            choose_grn_attractor_strategy(65),
+            AttractorEnumerationStrategyV0::Lumped
         );
     }
 }
