@@ -1,0 +1,23 @@
+[package]
+name = "omena-ensemble"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Replica-overlap ensemble contracts for Omena cross-file consistency"
+repository = "https://github.com/yongsk0066/css-module-explainer"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[features]
+default = []
+replica-ensemble = ["sequential"]
+sequential = []
+hyperedge-sbm = []
+
+[dependencies]
+omena-cascade = { path = "../omena-cascade" }
+omena-query = { path = "../omena-query" }
+serde.workspace = true

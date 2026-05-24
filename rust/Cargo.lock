@@ -921,6 +921,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omena-ensemble"
+version = "0.1.0"
+dependencies = [
+ "omena-cascade",
+ "omena-query",
+ "serde",
+]
+
+[[package]]
 name = "omena-incremental"
 version = "0.1.0"
 dependencies = [

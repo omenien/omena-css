@@ -10,6 +10,7 @@ members = [
   "crates/omena-checker",
   "crates/omena-cli",
   "crates/omena-diff-test",
+  "crates/omena-ensemble",
   "crates/omena-interner",
   "crates/omena-parser",
   "crates/omena-syntax",
