@@ -108,7 +108,7 @@ const STEPS: readonly FixtureStep[] = [
     ],
   },
   {
-    label: "CLI product package manifest override",
+    label: "CLI product package manifests and imports",
     command: "cargo",
     args: [
       "test",
@@ -116,7 +116,7 @@ const STEPS: readonly FixtureStep[] = [
       CARGO_MANIFEST,
       "-p",
       "omena-cli",
-      "package_manifest",
+      "package_",
       "--",
       "--nocapture",
     ],
@@ -150,6 +150,6 @@ process.stdout.write(
     "sass=node-package-importer-pkg-url-ordering",
     "bundler=vite-webpack-aliases",
     "lsp=product-path-fixtures",
-    "cli=package-manifest-override",
+    "cli=package-manifest-override-and-import-array-fallback",
   ].join(" ") + "\n",
 );

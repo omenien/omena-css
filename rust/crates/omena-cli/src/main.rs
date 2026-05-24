@@ -1344,6 +1344,78 @@ export function App() {
         Ok(())
     }
 
+    #[test]
+    fn source_diagnostics_command_resolves_package_import_array_fallbacks() -> Result<(), String> {
+        let workspace_path = temp_dir("package-import-array-fallback");
+        let source_dir = workspace_path.join("src");
+        fs::create_dir_all(&source_dir)
+            .map_err(|error| format!("fixture source dir should be writable: {error}"))?;
+
+        let source_path = source_dir.join("App.tsx");
+        let style_path = source_dir.join("theme.module.css");
+        let package_manifest_path = workspace_path.join("package.json");
+        fs::write(
+            &source_path,
+            r##"import bind from "classnames/bind";
+import styles from "#theme.module.css";
+const cx = bind.bind(styles);
+export function App() {
+  return <div className={cx("ghost")} />;
+}
+"##,
+        )
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+        fs::write(&style_path, ".chip {}\n")
+            .map_err(|error| format!("fixture style should be writable: {error}"))?;
+        fs::write(
+            &package_manifest_path,
+            r##"{"imports":{"#theme.module.css":[{"node":"./src/theme.js"},{"style":"./src/theme.module.css"}]}}"##,
+        )
+        .map_err(|error| format!("fixture package manifest should be writable: {error}"))?;
+
+        let summary = source_diagnostics_summary(
+            path_string(&source_path),
+            None,
+            Some(source_path.clone()),
+            vec![style_path.clone()],
+            vec![package_manifest_path.clone()],
+        )?;
+
+        assert!(
+            summary
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != "missingModule"),
+            "{summary:?}"
+        );
+        let diagnostic = summary
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "missingStaticClass")
+            .ok_or_else(|| format!("expected missingStaticClass diagnostic: {summary:?}"))?;
+        let create_selector = diagnostic
+            .create_selector
+            .as_ref()
+            .ok_or_else(|| format!("expected create selector action: {diagnostic:?}"))?;
+        assert_eq!(create_selector.uri, path_string(&style_path));
+        assert_eq!(create_selector.selector_name, "ghost");
+
+        let result = run(Cli {
+            command: Command::SourceDiagnostics {
+                source_uri: path_string(&source_path),
+                candidates_json: None,
+                source_path: Some(source_path.clone()),
+                source_paths: vec![style_path],
+                package_manifest_paths: vec![package_manifest_path],
+                json: true,
+            },
+        });
+        assert!(result.is_ok(), "{result:?}");
+
+        cleanup_dir(&workspace_path);
+        Ok(())
+    }
+
     fn temp_path(name: &str) -> PathBuf {
         let nanos = match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(duration) => duration.as_nanos(),

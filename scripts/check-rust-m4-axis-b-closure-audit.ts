@@ -38,6 +38,11 @@ const resolverPackageTests = readFileSync(
   "rust/crates/omena-resolver/src/tests/package.rs",
   "utf8",
 );
+const lspPackageTests = readFileSync(
+  "rust/crates/omena-lsp-server/src/tests/sass_resolution_package.rs",
+  "utf8",
+);
+const cliSource = readFileSync("rust/crates/omena-cli/src/main.rs", "utf8");
 
 const requiredReadinessTargets = [
   "rust/omena-resolver/fixture-suite",
@@ -72,13 +77,13 @@ const resolverFixtureRequirements = [
   "LSP product TypeScript path mappings",
   "LSP product Vite/Webpack bundler aliases",
   "LSP product package manifests and imports",
-  "CLI product package manifest override",
+  "CLI product package manifests and imports",
   "package=exports-imports-conditions-patterns",
   "package=null-blocking-private-subpaths",
   "package=array-fallbacks",
   "sass=node-package-importer-pkg-url-ordering",
   "bundler=vite-webpack-aliases",
-  "cli=package-manifest-override",
+  "cli=package-manifest-override-and-import-array-fallback",
 ] as const;
 for (const marker of resolverFixtureRequirements) {
   assertIncludes(fixtureSuiteScript, marker, `resolver fixture suite must cover ${marker}`);
@@ -109,6 +114,41 @@ for (const marker of resolverPackageArrayFallbackRequirements) {
     resolverPackageTests,
     marker,
     `resolver package fixture suite must cover package map array fallbacks: ${marker}`,
+  );
+}
+
+const productPackageArrayFallbackRequirements = [
+  {
+    source: lspPackageTests,
+    marker: "resolves_sass_definition_through_package_import_and_export_array_fallbacks",
+    label: "LSP product package map array fallback",
+  },
+  {
+    source: lspPackageTests,
+    marker: '[{"node":"./src/theme.js"},{"style":"@design/tokens/theme"}]',
+    label: "LSP product package imports array fallback",
+  },
+  {
+    source: lspPackageTests,
+    marker: '[{"import":"./dist/theme.js"},{"sass":"./dist/theme.scss"}]',
+    label: "LSP product package exports array fallback",
+  },
+  {
+    source: cliSource,
+    marker: "source_diagnostics_command_resolves_package_import_array_fallbacks",
+    label: "CLI product package imports array fallback",
+  },
+  {
+    source: cliSource,
+    marker: '[{"node":"./src/theme.js"},{"style":"./src/theme.module.css"}]',
+    label: "CLI product package imports array fallback manifest",
+  },
+] as const;
+for (const requirement of productPackageArrayFallbackRequirements) {
+  assertIncludes(
+    requirement.source,
+    requirement.marker,
+    `${requirement.label} must be covered: ${requirement.marker}`,
   );
 }
 
@@ -197,7 +237,7 @@ process.stdout.write(
           "sass-node-package-importer-pkg-url-ordering",
           "vite-webpack-aliases",
           "lsp-product-paths",
-          "cli-package-manifest-overrides",
+          "cli-package-manifest-overrides-and-import-array-fallbacks",
         ],
       },
       bundlerConfigAliasExtraction: {
