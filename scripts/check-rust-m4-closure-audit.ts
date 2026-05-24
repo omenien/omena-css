@@ -133,7 +133,6 @@ process.stdout.write(
       theoryClaimGuard,
       nextPriorities: [
         "keepZkRealBackendDeferredBehindOptInFeature",
-        "decideSpinGlassSupplementOrPaperTrack",
         "continueAxisARealCorpusAndSpecAuditExpansion",
         "continueAxisBResolverPerimeterEvidence",
       ],
@@ -202,16 +201,18 @@ function buildTheoryClaimGuard(): {
     {
       id: "m4-alpha.spin-glass-property-tests",
       stage: "m4-alpha",
-      status: "fixtureRecordOnly",
-      framing: "fixtureBound",
-      surface: "spin-glass theorem fixtures",
+      status: "partialPropertyTest",
+      framing: "partialMechanism",
+      surface: "spin-glass 5-tier ultrametric corpus",
       evidencePath: "rust/crates/omena-cascade/src/statistics.rs",
       evidenceMarkers: [
-        "prove_strong_triangle_inequality",
-        "prove_ultrametric_isomorphism",
-        "deterministic_spin_glass_theorems_pass",
+        "CascadeUltrametricPathV0",
+        "cascade_ultrametric_distance_v0",
+        "verify_spin_glass_ultrametric_corpus_v0",
+        "spin_glass_ultrametric_corpus_enforces_five_tier_strong_triangle",
       ],
-      nextAction: "defer broader metric/property harness to paper-trajectory supplement",
+      nextAction:
+        "keep partial-property wording until the corpus is lifted from binary fixtures to real cascade topology extraction",
     },
     {
       id: "m4-alpha.mdl-differential-corpus",

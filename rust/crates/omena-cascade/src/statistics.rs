@@ -11,6 +11,7 @@ pub struct CascadeSpinGlassSummaryV0 {
     pub frustration: CascadeFrustrationV0,
     pub replica_overlap: CascadeReplicaOverlapV0,
     pub stability_score: CascadeStabilityScoreV0,
+    pub ultrametric_corpus: CascadeSpinGlassUltrametricCorpusV0,
     pub theorem_contracts: Vec<CascadeSpinGlassTheoremV0>,
     pub advisory_policy: SpinGlassMonteCarloPolicyV0,
 }
@@ -63,6 +64,30 @@ pub struct CascadeStabilityScoreV0 {
     pub advisory_only: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeUltrametricPathV0 {
+    pub origin: u8,
+    pub layer: u8,
+    pub scope: u8,
+    pub rule: u8,
+    pub declaration: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeSpinGlassUltrametricCorpusV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub path_count: usize,
+    pub triple_count: usize,
+    pub max_distance: u8,
+    pub exhaustive_binary_five_tier_domain: bool,
+    pub strong_triangle_passed: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeSpinGlassTheoremV0 {
@@ -103,6 +128,8 @@ pub struct SpinGlassMonteCarloBucketV0 {
 }
 
 pub fn summarize_cascade_spin_glass_statistics() -> CascadeSpinGlassSummaryV0 {
+    let ultrametric_corpus = verify_spin_glass_ultrametric_corpus_v0();
+
     CascadeSpinGlassSummaryV0 {
         schema_version: "0",
         product: "omena-cascade.spin-glass",
@@ -112,6 +139,7 @@ pub fn summarize_cascade_spin_glass_statistics() -> CascadeSpinGlassSummaryV0 {
         frustration: summarize_cascade_frustration(0, 3),
         replica_overlap: summarize_replica_overlap(4, Some(0.5)),
         stability_score: summarize_cascade_stability_score(1.0),
+        ultrametric_corpus: ultrametric_corpus.clone(),
         theorem_contracts: vec![
             CascadeSpinGlassTheoremV0 {
                 schema_version: "0",
@@ -119,9 +147,9 @@ pub fn summarize_cascade_spin_glass_statistics() -> CascadeSpinGlassSummaryV0 {
                 layer_marker: "statistical-mechanics",
                 feature_gate: "spin-glass",
                 theorem_id: "D1",
-                statement: "strong triangle inequality fixture passes",
+                statement: "5-tier cascade ultrametric strong triangle corpus passes",
                 deterministic: true,
-                passed: prove_strong_triangle_inequality(2, 3, 3),
+                passed: ultrametric_corpus.strong_triangle_passed,
             },
             CascadeSpinGlassTheoremV0 {
                 schema_version: "0",
@@ -197,7 +225,8 @@ pub fn summarize_cascade_stability_score(score: f64) -> CascadeStabilityScoreV0 
         layer_marker: "statistical-mechanics",
         feature_gate: "spin-glass",
         score,
-        deterministic_component_passed: prove_strong_triangle_inequality(2, 3, 3)
+        deterministic_component_passed: verify_spin_glass_ultrametric_corpus_v0()
+            .strong_triangle_passed
             && prove_tropical_hamiltonian_monotone(&[1, 2, 3, 5])
             && prove_ultrametric_isomorphism(&[0, 2, 2]),
         advisory_only: true,
@@ -255,6 +284,96 @@ pub fn spin_glass_monte_carlo_policy() -> SpinGlassMonteCarloPolicyV0 {
     }
 }
 
+pub fn spin_glass_ultrametric_binary_five_tier_corpus_v0() -> Vec<CascadeUltrametricPathV0> {
+    let mut paths = Vec::with_capacity(32);
+
+    for origin in 0..=1 {
+        for layer in 0..=1 {
+            for scope in 0..=1 {
+                for rule in 0..=1 {
+                    for declaration in 0..=1 {
+                        paths.push(CascadeUltrametricPathV0 {
+                            origin,
+                            layer,
+                            scope,
+                            rule,
+                            declaration,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    paths
+}
+
+pub fn cascade_ultrametric_distance_v0(
+    lhs: CascadeUltrametricPathV0,
+    rhs: CascadeUltrametricPathV0,
+) -> u8 {
+    if lhs.origin != rhs.origin {
+        5
+    } else if lhs.layer != rhs.layer {
+        4
+    } else if lhs.scope != rhs.scope {
+        3
+    } else if lhs.rule != rhs.rule {
+        2
+    } else if lhs.declaration != rhs.declaration {
+        1
+    } else {
+        0
+    }
+}
+
+pub fn prove_cascade_ultrametric_strong_triangle_v0(
+    lhs: CascadeUltrametricPathV0,
+    mid: CascadeUltrametricPathV0,
+    rhs: CascadeUltrametricPathV0,
+) -> bool {
+    let direct = cascade_ultrametric_distance_v0(lhs, rhs);
+    let via_lhs_mid = cascade_ultrametric_distance_v0(lhs, mid);
+    let via_mid_rhs = cascade_ultrametric_distance_v0(mid, rhs);
+
+    direct <= via_lhs_mid.max(via_mid_rhs)
+}
+
+pub fn verify_spin_glass_ultrametric_corpus_v0() -> CascadeSpinGlassUltrametricCorpusV0 {
+    let paths = spin_glass_ultrametric_binary_five_tier_corpus_v0();
+    let mut max_distance = 0;
+    let mut triple_count = 0;
+    let mut strong_triangle_passed = true;
+
+    for lhs in &paths {
+        for rhs in &paths {
+            max_distance = max_distance.max(cascade_ultrametric_distance_v0(*lhs, *rhs));
+        }
+    }
+
+    for lhs in &paths {
+        for mid in &paths {
+            for rhs in &paths {
+                triple_count += 1;
+                strong_triangle_passed &=
+                    prove_cascade_ultrametric_strong_triangle_v0(*lhs, *mid, *rhs);
+            }
+        }
+    }
+
+    CascadeSpinGlassUltrametricCorpusV0 {
+        schema_version: "0",
+        product: "omena-cascade.spin-glass-ultrametric-corpus",
+        layer_marker: "statistical-mechanics",
+        feature_gate: "spin-glass",
+        path_count: paths.len(),
+        triple_count,
+        max_distance,
+        exhaustive_binary_five_tier_domain: paths.len() == 32,
+        strong_triangle_passed,
+    }
+}
+
 pub fn prove_strong_triangle_inequality(a: u32, b: u32, c: u32) -> bool {
     let lhs = a.max(c);
     let rhs = a.max(b).max(b.max(c));
@@ -292,6 +411,11 @@ mod tests {
         assert_eq!(summary.stability_score.schema_version, "0");
         assert_eq!(summary.stability_score.feature_gate, "spin-glass");
         assert!(summary.stability_score.deterministic_component_passed);
+        assert_eq!(summary.ultrametric_corpus.schema_version, "0");
+        assert_eq!(summary.ultrametric_corpus.path_count, 32);
+        assert_eq!(summary.ultrametric_corpus.triple_count, 32 * 32 * 32);
+        assert_eq!(summary.ultrametric_corpus.max_distance, 5);
+        assert!(summary.ultrametric_corpus.strong_triangle_passed);
         assert!(
             summary
                 .theorem_contracts
@@ -357,5 +481,59 @@ mod tests {
     fn ultrametricity_test_enforces_theorem_fixture() {
         assert!(prove_strong_triangle_inequality(2, 3, 3));
         assert!(prove_ultrametric_isomorphism(&[0, 2, 2]));
+    }
+
+    #[test]
+    fn spin_glass_ultrametric_corpus_enforces_five_tier_strong_triangle() {
+        let corpus = verify_spin_glass_ultrametric_corpus_v0();
+
+        assert_eq!(corpus.schema_version, "0");
+        assert_eq!(
+            corpus.product,
+            "omena-cascade.spin-glass-ultrametric-corpus"
+        );
+        assert_eq!(corpus.layer_marker, "statistical-mechanics");
+        assert_eq!(corpus.feature_gate, "spin-glass");
+        assert_eq!(corpus.path_count, 32);
+        assert_eq!(corpus.triple_count, 32 * 32 * 32);
+        assert_eq!(corpus.max_distance, 5);
+        assert!(corpus.exhaustive_binary_five_tier_domain);
+        assert!(corpus.strong_triangle_passed);
+
+        let same_origin = CascadeUltrametricPathV0 {
+            origin: 0,
+            layer: 0,
+            scope: 0,
+            rule: 0,
+            declaration: 0,
+        };
+        let sibling_declaration = CascadeUltrametricPathV0 {
+            origin: 0,
+            layer: 0,
+            scope: 0,
+            rule: 0,
+            declaration: 1,
+        };
+        let different_origin = CascadeUltrametricPathV0 {
+            origin: 1,
+            layer: 0,
+            scope: 0,
+            rule: 0,
+            declaration: 0,
+        };
+
+        assert_eq!(
+            cascade_ultrametric_distance_v0(same_origin, sibling_declaration),
+            1
+        );
+        assert_eq!(
+            cascade_ultrametric_distance_v0(same_origin, different_origin),
+            5
+        );
+        assert!(prove_cascade_ultrametric_strong_triangle_v0(
+            same_origin,
+            sibling_declaration,
+            different_origin
+        ));
     }
 }
