@@ -334,12 +334,19 @@ function buildTheoryClaimGuard(): {
     {
       id: "m4-gamma.refinement-type-system",
       stage: "m4-gamma",
-      status: "descriptorOnly",
-      framing: "stagedScaffold",
+      status: "partialPropertyTest",
+      framing: "partialMechanism",
       surface: "refinement type wrapper and predicate interface",
       evidencePath: "rust/crates/omena-refinement/src/lib.rs",
-      evidenceMarkers: ["RefinedAbstractPropertyValueV0", "project_refined_to_legacy_v0"],
-      nextAction: "expand predicate composition, property grammar, witness, and provenance content",
+      evidenceMarkers: [
+        "RefinedAbstractPropertyValueV0",
+        "RefinementPropertyPredicateV0",
+        "evaluate_refinement_property_predicate_v0",
+        "refinement_property_grammar_evaluates_exact_and_one_of_values",
+        "refinement_predicate_composition_tracks_partial_and_negative_witnesses",
+        "project_refined_to_legacy_v0",
+      ],
+      nextAction: "keep partial-property wording until SMT-backed predicate discharge lands",
     },
     {
       id: "m4-gamma.variational-posterior",
