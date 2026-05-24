@@ -248,6 +248,34 @@ mod tests {
     }
 
     #[test]
+    fn spin_glass_monte_carlo_policy_enforces_m4_alpha_runtime_bounds() {
+        let policy = spin_glass_monte_carlo_policy();
+
+        assert_eq!(policy.schema_version, "0");
+        assert_eq!(
+            policy.product,
+            "omena-cascade.spin-glass-monte-carlo-policy"
+        );
+        assert!(policy.advisory_only);
+        assert_eq!(policy.bucket_count, 4);
+        assert_eq!(policy.task_budget_ms, 200);
+        assert_eq!(policy.debounce_ms, 500);
+        assert_eq!(policy.buckets.len(), policy.bucket_count);
+        assert_eq!(policy.buckets[0].bucket, "tiny");
+        assert_eq!(policy.buckets[0].max_variable_count, 16);
+        assert_eq!(policy.buckets[0].sample_count, 0);
+        assert_eq!(policy.buckets[1].bucket, "small");
+        assert_eq!(policy.buckets[1].max_variable_count, 64);
+        assert_eq!(policy.buckets[1].sample_count, 128);
+        assert_eq!(policy.buckets[2].bucket, "medium");
+        assert_eq!(policy.buckets[2].max_variable_count, 256);
+        assert_eq!(policy.buckets[2].sample_count, 512);
+        assert_eq!(policy.buckets[3].bucket, "large");
+        assert_eq!(policy.buckets[3].max_variable_count, usize::MAX);
+        assert_eq!(policy.buckets[3].sample_count, 1024);
+    }
+
+    #[test]
     fn frustration_measure_contract_is_advisory() {
         let frustration = summarize_cascade_frustration(1, 4);
 

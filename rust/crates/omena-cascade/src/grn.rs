@@ -204,6 +204,26 @@ mod tests {
     }
 
     #[test]
+    fn grn_explicit_attractor_basin_proof_covers_all_n_le_16() {
+        for variable_count in 0..=16 {
+            let basin = prove_cascade_attractor_basin(variable_count);
+
+            assert_eq!(basin.schema_version, "0");
+            assert_eq!(basin.product, "omena-cascade.attractor-basin");
+            assert_eq!(basin.strategy, AttractorEnumerationStrategyV0::Explicit);
+            assert_eq!(basin.state_count, variable_count);
+            assert!(basin.proof.deterministic);
+            assert_eq!(basin.proof.fixed_point_tag, RgFixedPointTagV0::Exact);
+            assert!(basin.proof.conservative);
+        }
+
+        assert_eq!(
+            choose_grn_attractor_strategy(17),
+            AttractorEnumerationStrategyV0::Deferred
+        );
+    }
+
+    #[test]
     fn grn_projection_exposes_lint_codes() {
         let projection = project_grn_outcome(&[]);
 
