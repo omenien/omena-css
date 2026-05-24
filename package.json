@@ -103,6 +103,7 @@
     "check:rust-m4-alpha-grn-explicit": "cargo test --manifest-path rust/Cargo.toml -p omena-cascade grn_explicit_attractor_basin_proof_covers_all_n_le_16 -- --nocapture",
     "check:rust-m4-alpha-frame-refresh-latency": "cargo test --manifest-path rust/Cargo.toml -p omena-lsp-server fixed_workspace_comparison_reports_work_reduction_when_enabled -- --nocapture",
     "check:rust-m4-alpha-frame-rule-fuzz": "cargo +nightly fuzz check --fuzz-dir rust/fuzz && cargo +nightly fuzz run --fuzz-dir rust/fuzz --sanitizer none frame_rule_overapprox -- -runs=${M4_ALPHA_FRAME_FUZZ_RUNS:-100000}",
+    "check:rust-m4-beta-hypergraph-ifds": "cargo test --manifest-path rust/Cargo.toml -p omena-query --features hypergraph-ifds cross_file_hypergraph -- --nocapture",
     "check:rust-omena-diff-test-boundary": "cargo test --manifest-path rust/Cargo.toml -p omena-diff-test && cargo run --manifest-path rust/Cargo.toml -p omena-diff-test --bin omena-diff-test-boundary --quiet && pnpm cme-check run rust/omena-diff-test-wpt-generator && pnpm cme-check run rust/omena-diff-test-wpt-seed",
     "check:rust-omena-diff-test-wpt-generator": "node --import tsx ./scripts/generate-rust-omena-diff-test-wpt-corpus.ts --check",
     "check:rust-omena-diff-test-wpt-seed": "node --import tsx ./scripts/check-rust-omena-diff-test-wpt-seed.ts",

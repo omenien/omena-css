@@ -4,6 +4,8 @@ use omena_parser::{ParsedSassIncludeFact, ParsedSelectorFact, ParsedVariableFact
 mod cascade_position;
 mod code_actions;
 mod completion;
+#[cfg(feature = "hypergraph-ifds")]
+mod cross_file_hypergraph;
 mod cross_file_summary;
 mod diagnostics;
 mod parser_facade;
@@ -16,6 +18,8 @@ mod transform;
 pub use cascade_position::*;
 pub use code_actions::*;
 pub use completion::*;
+#[cfg(feature = "hypergraph-ifds")]
+pub use cross_file_hypergraph::*;
 use cross_file_summary::summarize_omena_query_cross_file_summary;
 pub use cross_file_summary::{
     summarize_omena_query_m4_axis_c_readiness,

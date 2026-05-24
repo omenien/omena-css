@@ -11,6 +11,10 @@ readme = "README.md"
 [lints]
 workspace = true
 
+[features]
+default = []
+hypergraph-ifds = []
+
 [dependencies]
 engine-input-producers = { path = "../engine-input-producers" }
 omena-abstract-value = { path = "../omena-abstract-value" }
