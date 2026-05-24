@@ -91,7 +91,7 @@ for (const marker of [
 }
 
 const bridgeBundlerAlias = read("rust/crates/omena-bridge/src/bundler_config_alias.rs");
-for (const moduleName of ["paths", "syntax"] as const) {
+for (const moduleName of ["literals", "paths", "syntax"] as const) {
   assertIncludes(
     bridgeBundlerAlias,
     `mod ${moduleName};`,
@@ -157,6 +157,7 @@ const structuralSplits = [
     family: "bridge-bundler-alias",
     orchestrator: "rust/crates/omena-bridge/src/bundler_config_alias.rs",
     modules: [
+      "rust/crates/omena-bridge/src/bundler_config_alias/literals.rs",
       "rust/crates/omena-bridge/src/bundler_config_alias/paths.rs",
       "rust/crates/omena-bridge/src/bundler_config_alias/syntax.rs",
     ],
