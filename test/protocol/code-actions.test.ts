@@ -440,7 +440,7 @@ export const Button = () => <div className={styles.root}>hi</div>;
 
     const diagnostics = await client.waitForDiagnostics(BUTTON_SCSS_URI);
     const missingVariable = diagnostics.find((diagnostic) =>
-      diagnostic.message.includes("Sass variable '$missing' not found in this file."),
+      diagnostic.message.includes("Sass variable '$missing' not found"),
     );
     expect(missingVariable).toBeDefined();
 

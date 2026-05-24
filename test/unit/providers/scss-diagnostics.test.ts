@@ -219,6 +219,53 @@ describe("computeScssUnusedDiagnostics", () => {
     });
   });
 
+  it("keeps query-owned same-file Sass symbol diagnostics in the selected-query path", async () => {
+    const styleSource = `.button { color: $missing; }\n`;
+    const styleDoc = parseStyleDocument(styleSource, SCSS_PATH);
+
+    const diagnostics = await computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      undefined,
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        styleSource,
+        runRustSelectedQueryBackendJsonAsync: async <T>() =>
+          ({
+            product: "omena-query.diagnostics-for-file",
+            fileKind: "style",
+            diagnostics: [
+              {
+                code: "missingSassSymbol",
+                severity: "warning",
+                provenance: ["omena-parser.sass-symbol-facts", "omena-query.style-diagnostics"],
+                range: {
+                  start: { line: 0, character: 17 },
+                  end: { line: 0, character: 25 },
+                },
+                message: "Sass variable '$missing' not found in this file.",
+                tags: [],
+              },
+            ],
+          }) as T,
+      },
+    );
+
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        code: "missingSassSymbol",
+        message: "Sass variable '$missing' not found in this file.",
+        data: expect.objectContaining({
+          createSassSymbol: expect.objectContaining({
+            newText: "$missing: ;\n\n",
+          }),
+        }),
+      }),
+    ]);
+  });
+
   it("suppresses all diagnostics when an unresolvable variable targets the module", () => {
     const classMap = new Map([
       ["indicator", info("indicator", 1)],

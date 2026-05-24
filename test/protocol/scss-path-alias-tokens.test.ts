@@ -163,7 +163,12 @@ describe("SCSS path alias token protocol integration", () => {
     });
 
     const diagnostics = await client.waitForDiagnostics(COMPONENT_SCSS_URI);
-    expect(diagnostics.filter((diagnostic) => diagnostic.message.includes("Sass "))).toEqual([]);
+    expect(diagnostics.filter((diagnostic) => diagnostic.code === "missingSassSymbol")).toEqual([]);
+    expect(
+      diagnostics.find((diagnostic) => diagnostic.code === "deprecatedSassImport"),
+    ).toMatchObject({
+      message: "Sass @import is deprecated; prefer @use or @forward.",
+    });
 
     const definition = await client.definition(
       positionParams(IMPORT_ALIAS_WORKSPACE, COMPONENT_SCSS_URI, "gray200"),

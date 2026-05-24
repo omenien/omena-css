@@ -144,7 +144,7 @@ export function computeScssUnusedDiagnostics(
     );
     if (queryDiagnostics) {
       return Promise.all([queryDiagnostics, checkerDiagnostics]).then(([query, checker]) =>
-        mergeQueryOwnedStyleDiagnostics(query, checker),
+        mergeQueryOwnedStyleDiagnostics(query, checker, styleDocument),
       );
     }
     return checkerDiagnostics;
@@ -294,13 +294,16 @@ function querySeverityToLspSeverity(
 function mergeQueryOwnedStyleDiagnostics(
   queryDiagnostics: readonly Diagnostic[],
   checkerDiagnostics: readonly Diagnostic[],
+  styleDocument: StyleDocumentHIR,
 ): Diagnostic[] {
   if (queryDiagnostics.length === 0) return [...checkerDiagnostics];
   const checkerKeys = new Set(
     checkerDiagnostics.map((diagnostic) => diagnosticKey(diagnostic.code, diagnostic.range)),
   );
+  const hasSassModuleGraph =
+    styleDocument.sassModuleUses.length > 0 || styleDocument.sassModuleForwards.length > 0;
   const effectiveQueryDiagnostics = queryDiagnostics.filter((diagnostic) =>
-    shouldKeepQueryOwnedStyleDiagnostic(diagnostic, checkerKeys),
+    shouldKeepQueryOwnedStyleDiagnostic(diagnostic, checkerKeys, hasSassModuleGraph),
   );
   if (effectiveQueryDiagnostics.length === 0) return [...checkerDiagnostics];
   const queryDuplicateKeys = new Set<string>();
@@ -321,10 +324,10 @@ function mergeQueryOwnedStyleDiagnostics(
 function shouldKeepQueryOwnedStyleDiagnostic(
   diagnostic: Diagnostic,
   checkerKeys: ReadonlySet<string>,
+  hasSassModuleGraph: boolean,
 ): boolean {
   if (diagnostic.code !== "missingSassSymbol") return true;
-  // omena-query currently reports Sass symbol diagnostics from same-file parser
-  // facts; keep cross-file Sass module resolution authoritative in the checker.
+  if (!hasSassModuleGraph) return true;
   return checkerKeys.has(diagnosticKey("missing-sass-symbol", diagnostic.range));
 }
 

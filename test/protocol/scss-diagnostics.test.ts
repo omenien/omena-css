@@ -446,14 +446,10 @@ export function App(enabled: boolean) {
       "file:///fake/workspace/src/Button.module.scss",
     );
     expect(
-      diagnostics.find((d) =>
-        d.message.includes("Sass variable '$missing' not found in this file."),
-      ),
+      diagnostics.find((d) => d.message.includes("Sass variable '$missing' not found")),
     ).toBeDefined();
     expect(
-      diagnostics.find((d) =>
-        d.message.includes("Sass mixin '@mixin absent' not found in this file."),
-      ),
+      diagnostics.find((d) => d.message.includes("Sass mixin '@mixin absent' not found")),
     ).toBeDefined();
   });
 });
