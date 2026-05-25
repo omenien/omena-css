@@ -498,6 +498,56 @@ pub struct AnalyzedGraphV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct StyleEditDistanceSummaryV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub tier: &'static str,
+    pub metric_kind: &'static str,
+    pub claim_level: &'static str,
+    pub public_safety_claim_ready: bool,
+    pub left_style_path: String,
+    pub right_style_path: String,
+    pub left_fast_facts: FastFactsV0,
+    pub right_fast_facts: FastFactsV0,
+    pub left_analyzed_graph: AnalyzedGraphV0,
+    pub right_analyzed_graph: AnalyzedGraphV0,
+    pub selector_delta: usize,
+    pub custom_property_delta: usize,
+    pub sass_symbol_delta: usize,
+    pub module_edge_delta: usize,
+    pub parser_error_delta: usize,
+    pub graph_node_delta: usize,
+    pub graph_edge_delta: usize,
+    pub graph_cycle_delta: usize,
+    pub total_distance: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StyleEditDistanceCascadeMarginBridgeV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub bridge_kind: &'static str,
+    pub claim_level: &'static str,
+    pub theorem_claimed: bool,
+    pub public_safety_claim_ready: bool,
+    pub metric_product: &'static str,
+    pub metric_kind: &'static str,
+    pub margin_product: &'static str,
+    pub margin_kind: &'static str,
+    pub dominant_axis: &'static str,
+    pub edit_distance_total: usize,
+    pub cascade_margin_signed_distance: i64,
+    pub cascade_margin_abs_distance: u64,
+    pub lipschitz_constant_name: &'static str,
+    pub lipschitz_constant: Option<u64>,
+    pub lipschitz_bound: Option<u64>,
+    pub checked: bool,
+    pub calibration_stage: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OmenaQueryCustomPropertyAnnotationSummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

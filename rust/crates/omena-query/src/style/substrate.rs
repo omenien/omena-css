@@ -63,6 +63,127 @@ pub fn summarize_omena_query_analyzed_graph(
     }
 }
 
+pub fn summarize_omena_query_style_edit_distance(
+    left_style_path: &str,
+    left_style_source: &str,
+    right_style_path: &str,
+    right_style_source: &str,
+) -> StyleEditDistanceSummaryV0 {
+    let left_fast_facts = summarize_omena_query_fast_facts(left_style_path, left_style_source);
+    let right_fast_facts = summarize_omena_query_fast_facts(right_style_path, right_style_source);
+    let left_analyzed_graph =
+        summarize_omena_query_analyzed_graph(left_style_path, left_style_source);
+    let right_analyzed_graph =
+        summarize_omena_query_analyzed_graph(right_style_path, right_style_source);
+
+    let selector_delta = absolute_count_delta(
+        left_fast_facts.selector_count,
+        right_fast_facts.selector_count,
+    );
+    let custom_property_delta = absolute_count_delta(
+        left_fast_facts.custom_property_count,
+        right_fast_facts.custom_property_count,
+    );
+    let sass_symbol_delta = absolute_count_delta(
+        left_fast_facts.sass_symbol_count,
+        right_fast_facts.sass_symbol_count,
+    );
+    let module_edge_delta = absolute_count_delta(
+        left_fast_facts.module_edge_count,
+        right_fast_facts.module_edge_count,
+    );
+    let parser_error_delta = absolute_count_delta(
+        left_fast_facts.parser_error_count,
+        right_fast_facts.parser_error_count,
+    );
+    let graph_node_delta = absolute_count_delta(
+        left_analyzed_graph.node_count,
+        right_analyzed_graph.node_count,
+    );
+    let graph_edge_delta = absolute_count_delta(
+        left_analyzed_graph.edge_count,
+        right_analyzed_graph.edge_count,
+    );
+    let graph_cycle_delta = absolute_count_delta(
+        left_analyzed_graph.cycle_count,
+        right_analyzed_graph.cycle_count,
+    );
+    let total_distance = selector_delta
+        + custom_property_delta
+        + sass_symbol_delta
+        + module_edge_delta
+        + parser_error_delta
+        + graph_node_delta
+        + graph_edge_delta
+        + graph_cycle_delta;
+
+    StyleEditDistanceSummaryV0 {
+        schema_version: "0",
+        product: "omena-query.style-edit-distance",
+        tier: "fastFactsAnalyzedGraphEditDistanceV0",
+        metric_kind: "absoluteCountDeltaOverFastFactsAndAnalyzedGraph",
+        claim_level: "researchStagedMetricSubstrate",
+        public_safety_claim_ready: false,
+        left_style_path: left_style_path.to_string(),
+        right_style_path: right_style_path.to_string(),
+        left_fast_facts,
+        right_fast_facts,
+        left_analyzed_graph,
+        right_analyzed_graph,
+        selector_delta,
+        custom_property_delta,
+        sass_symbol_delta,
+        module_edge_delta,
+        parser_error_delta,
+        graph_node_delta,
+        graph_edge_delta,
+        graph_cycle_delta,
+        total_distance,
+    }
+}
+
+pub fn summarize_omena_query_style_edit_distance_cascade_margin_bridge(
+    edit_distance: &StyleEditDistanceSummaryV0,
+    cascade_margin: &omena_cascade::CascadeMarginV0,
+) -> StyleEditDistanceCascadeMarginBridgeV0 {
+    let edit_distance_total = edit_distance.total_distance as u64;
+    let cascade_margin_abs_distance = cascade_margin.signed_distance.unsigned_abs();
+    let lipschitz_constant = if cascade_margin_abs_distance == 0 {
+        Some(0)
+    } else if edit_distance_total == 0 {
+        None
+    } else {
+        Some(cascade_margin_abs_distance.div_ceil(edit_distance_total))
+    };
+    let lipschitz_bound =
+        lipschitz_constant.map(|constant| constant.saturating_mul(edit_distance_total));
+    let checked = lipschitz_bound
+        .map(|bound| cascade_margin_abs_distance <= bound)
+        .unwrap_or(false);
+
+    StyleEditDistanceCascadeMarginBridgeV0 {
+        schema_version: "0",
+        product: "omena-query.style-edit-distance-cascade-margin-bridge",
+        bridge_kind: "checkedEmpiricalLipschitzWitness",
+        claim_level: "fixtureWitnessOnly",
+        theorem_claimed: false,
+        public_safety_claim_ready: false,
+        metric_product: edit_distance.product,
+        metric_kind: edit_distance.metric_kind,
+        margin_product: cascade_margin.product,
+        margin_kind: cascade_margin.margin_kind,
+        dominant_axis: cascade_margin.dominant_axis,
+        edit_distance_total: edit_distance.total_distance,
+        cascade_margin_signed_distance: cascade_margin.signed_distance,
+        cascade_margin_abs_distance,
+        lipschitz_constant_name: "K_A",
+        lipschitz_constant,
+        lipschitz_bound,
+        checked,
+        calibration_stage: "fixtureWitnessOnlyUncalibrated",
+    }
+}
+
 pub fn summarize_omena_query_custom_property_annotations(
     style_path: &str,
     style_source: &str,
@@ -116,4 +237,8 @@ pub fn summarize_omena_query_custom_property_annotations(
         annotation_count: annotations.len(),
         annotations,
     }
+}
+
+fn absolute_count_delta(left: usize, right: usize) -> usize {
+    left.abs_diff(right)
 }

@@ -24,6 +24,8 @@ use super::{
     summarize_omena_query_omena_parser_lex, summarize_omena_query_omena_parser_style_facts,
     summarize_omena_query_selector_usage_query_fragments,
     summarize_omena_query_source_resolution_query_fragments, summarize_omena_query_style_document,
+    summarize_omena_query_style_edit_distance,
+    summarize_omena_query_style_edit_distance_cascade_margin_bridge,
     summarize_omena_query_transform_context_from_engine_input,
     summarize_omena_query_transform_context_from_sources,
     summarize_omena_query_transform_plan_from_source,
@@ -35,6 +37,7 @@ use crate::{
     OmenaQueryTransformPrintMode, OmenaQueryTransformPrintOptionsV0,
     default_omena_query_transform_print_options, modern_omena_query_target_feature_support,
 };
+use omena_cascade::{CascadeKey, CascadeLevel, CascadeMarginV0, LayerRank, Specificity};
 
 mod cascade_queries;
 mod consumer_reachability;
@@ -455,6 +458,80 @@ fn exposes_fast_facts_analyzed_graph_and_custom_property_annotations() {
             && annotation.annotation_kind == "reference"
             && !annotation.participates_in_fixed_point
     }));
+}
+
+#[test]
+fn exposes_style_edit_distance_and_cascade_margin_bridge_witness() {
+    let baseline = r#"
+      .card { color: red; }
+    "#;
+    let changed = r#"
+      @use "tokens";
+      .card { color: red; }
+      .cardPrimary { color: blue; }
+    "#;
+
+    let distance = summarize_omena_query_style_edit_distance(
+        "Card.module.scss",
+        baseline,
+        "Card.module.scss",
+        changed,
+    );
+    assert_eq!(distance.schema_version, "0");
+    assert_eq!(distance.product, "omena-query.style-edit-distance");
+    assert_eq!(distance.tier, "fastFactsAnalyzedGraphEditDistanceV0");
+    assert_eq!(
+        distance.metric_kind,
+        "absoluteCountDeltaOverFastFactsAndAnalyzedGraph"
+    );
+    assert_eq!(distance.claim_level, "researchStagedMetricSubstrate");
+    assert!(!distance.public_safety_claim_ready);
+    assert_eq!(distance.selector_delta, 1);
+    assert_eq!(distance.module_edge_delta, 1);
+    assert!(distance.total_distance >= 2);
+
+    let winner_key = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        LayerRank(0),
+        1,
+        Specificity::new(0, 1, 0),
+        2,
+    );
+    let challenger_key = CascadeKey::new(
+        CascadeLevel::AuthorNormal,
+        LayerRank(0),
+        1,
+        Specificity::new(0, 1, 0),
+        1,
+    );
+    let margin = CascadeMarginV0 {
+        schema_version: "0",
+        product: "omena-cascade.margin",
+        margin_kind: "lexicographicCascadeKeyDelta",
+        winner_declaration_id: "later".to_string(),
+        challenger_declaration_id: Some("earlier".to_string()),
+        dominant_axis: "sourceOrder",
+        signed_distance: 1,
+        winner_key,
+        challenger_key: Some(challenger_key),
+        calibration_stage: "schemaOnlyUncalibrated",
+        public_safety_claim_ready: false,
+    };
+
+    let bridge =
+        summarize_omena_query_style_edit_distance_cascade_margin_bridge(&distance, &margin);
+    assert_eq!(
+        bridge.product,
+        "omena-query.style-edit-distance-cascade-margin-bridge"
+    );
+    assert_eq!(bridge.bridge_kind, "checkedEmpiricalLipschitzWitness");
+    assert_eq!(bridge.claim_level, "fixtureWitnessOnly");
+    assert!(!bridge.theorem_claimed);
+    assert_eq!(bridge.lipschitz_constant_name, "K_A");
+    assert_eq!(bridge.lipschitz_constant, Some(1));
+    assert_eq!(bridge.cascade_margin_abs_distance, 1);
+    assert!(bridge.checked);
+    assert!(!bridge.public_safety_claim_ready);
 }
 
 #[test]
