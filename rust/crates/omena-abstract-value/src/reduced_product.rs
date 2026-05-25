@@ -1,12 +1,13 @@
 use crate::domain::{abstract_class_value_kind, composite_min_length_for_constraints};
 use crate::{
-    AbstractClassValueProvenanceV0, AbstractClassValueV0, CompositeClassValueInputV0,
-    ReducedClassValueCharInclusionAxisV0, ReducedClassValuePrefixAxisV0,
-    ReducedClassValueProductDomainV0, ReducedClassValueProductIterationStepV0,
-    ReducedClassValueProductIterationV0, ReducedClassValueProductV0, ReducedClassValueSuffixAxisV0,
-    bottom_class_value, char_set_for_string, char_set_is_subset, composite_class_value,
-    intersect_char_sets, meaningful_longest_common_prefix, meaningful_longest_common_suffix,
-    prefix_suffix_class_value, top_class_value, union_char_sets,
+    AbstractClassValueProvenanceV0, AbstractClassValueV0, BeliefPropagationIterationV0,
+    BeliefPropagationMessageV0, CompositeClassValueInputV0, ReducedClassValueCharInclusionAxisV0,
+    ReducedClassValuePrefixAxisV0, ReducedClassValueProductDomainV0,
+    ReducedClassValueProductIterationStepV0, ReducedClassValueProductIterationV0,
+    ReducedClassValueProductV0, ReducedClassValueSuffixAxisV0, bottom_class_value,
+    char_set_for_string, char_set_is_subset, composite_class_value, intersect_char_sets,
+    meaningful_longest_common_prefix, meaningful_longest_common_suffix, prefix_suffix_class_value,
+    top_class_value, union_char_sets,
 };
 
 pub fn summarize_reduced_class_value_product(
@@ -218,6 +219,40 @@ pub fn iterate_reduced_class_value_product_constraints(
         result_value,
         final_product,
         steps,
+    }
+}
+
+pub fn summarize_belief_propagation_iteration_v0(
+    values: &[AbstractClassValueV0],
+) -> BeliefPropagationIterationV0 {
+    let source_iteration = iterate_reduced_class_value_product_constraints(values);
+    let messages = source_iteration
+        .steps
+        .iter()
+        .map(|step| BeliefPropagationMessageV0 {
+            iteration: step.iteration,
+            from_factor: step.input_value_kind,
+            to_variable: step.result_kind,
+            operation: step.operation,
+            result_kind: step.result_kind,
+            monotone_with_previous: step.monotone_with_previous,
+        })
+        .collect::<Vec<_>>();
+
+    BeliefPropagationIterationV0 {
+        schema_version: "0",
+        product: "omena-abstract-value.belief-propagation-iteration",
+        algorithm_view: "reducedProductConstraintMessagePassing",
+        substrate: "omena-abstract-value.reduced-product-iteration",
+        equation_system: "Pr x Su x CI finite-height meet constraints",
+        input_count: source_iteration.input_count,
+        message_count: messages.len(),
+        iteration_count: source_iteration.iteration_count,
+        converged: source_iteration.converged,
+        monotone_witness_valid: source_iteration.monotone_witness_valid,
+        fixed_point_reached: source_iteration.converged,
+        messages,
+        source_iteration,
     }
 }
 

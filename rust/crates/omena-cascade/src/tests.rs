@@ -140,12 +140,21 @@ fn selects_definite_winner_with_proof() {
         winner,
         proof,
         also_considered,
-    } = outcome
+    } = &outcome
     {
         assert_eq!(winner.id, "later");
         assert_eq!(proof.declaration_id, "later");
         assert_eq!(also_considered.len(), 1);
     }
+
+    let margin = cascade_margin_for_outcome(&outcome).expect("definite outcome has margin");
+    assert_eq!(margin.product, "omena-cascade.margin");
+    assert_eq!(margin.margin_kind, "lexicographicCascadeKeyDelta");
+    assert_eq!(margin.winner_declaration_id, "later");
+    assert_eq!(margin.challenger_declaration_id.as_deref(), Some("earlier"));
+    assert_eq!(margin.dominant_axis, "sourceOrder");
+    assert_eq!(margin.signed_distance, 1);
+    assert!(!margin.public_safety_claim_ready);
 }
 
 #[test]
@@ -172,6 +181,19 @@ fn selects_generic_winner_with_same_cascade_ordering() {
     };
     assert_eq!(winner, "later");
     assert_eq!(also_considered, vec!["earlier"]);
+}
+
+#[test]
+fn cascade_margin_schema_is_substrate_only_until_calibrated() {
+    let schema = summarize_cascade_margin_schema_v0();
+
+    assert_eq!(schema.schema_version, "0");
+    assert_eq!(schema.product, "omena-cascade.margin-schema");
+    assert_eq!(schema.margin_kind, "lexicographicCascadeKeyDelta");
+    assert_eq!(schema.axis_order[0], "level");
+    assert_eq!(schema.axis_order.last(), Some(&"sourceOrder"));
+    assert_eq!(schema.calibration_stage, "schemaOnlyUncalibrated");
+    assert!(!schema.public_safety_claim_ready);
 }
 
 #[test]
@@ -730,6 +752,88 @@ fn proves_layer_flatten_only_for_closed_single_layer_candidates() {
         blocked.blocked_reason,
         Some("unlayered rules compete differently from layered normal rules")
     );
+}
+
+#[test]
+fn modal_check_witness_consolidates_existing_proof_witnesses_as_strict_superset() {
+    let shorthand = prove_box_shorthand_combination(
+        "margin",
+        &[
+            BoxLonghandInputV0 {
+                property: "margin-top".to_string(),
+                value: "1px".to_string(),
+                important: false,
+                source_order: 1,
+            },
+            BoxLonghandInputV0 {
+                property: "margin-right".to_string(),
+                value: "2px".to_string(),
+                important: false,
+                source_order: 2,
+            },
+            BoxLonghandInputV0 {
+                property: "margin-bottom".to_string(),
+                value: "3px".to_string(),
+                important: false,
+                source_order: 3,
+            },
+            BoxLonghandInputV0 {
+                property: "margin-left".to_string(),
+                value: "4px".to_string(),
+                important: false,
+                source_order: 4,
+            },
+        ],
+    );
+    let supports = evaluate_static_supports_condition(
+        "(display: grid)",
+        StaticSupportsAssumptionV0::ModernBrowser,
+    );
+    let scope = prove_scope_flatten_candidate(ScopeFlattenInputV0 {
+        root_selector: ":root".to_string(),
+        limit_selector: None,
+        scoped_rule_count: 1,
+        peer_scope_count: 0,
+        competing_unscoped_rule_count: 0,
+        inside_layer: false,
+    });
+    let blocked_layer = prove_layer_flatten_candidate(LayerFlattenInputV0 {
+        layer_name: Some("theme".to_string()),
+        layer_rule_count: 1,
+        peer_layer_count: 0,
+        unlayered_rule_count: 1,
+        important_declaration_count: 0,
+        closed_bundle: true,
+    });
+
+    let summary = summarize_modal_check_witness_v0(vec![
+        ModalCheckWitnessSourceV0::ShorthandCombination(shorthand.clone()),
+        ModalCheckWitnessSourceV0::StaticSupportsEval(supports.clone()),
+        ModalCheckWitnessSourceV0::ScopeFlatten(scope.clone()),
+        ModalCheckWitnessSourceV0::LayerFlatten(blocked_layer.clone()),
+    ]);
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-cascade.modal-check-witness");
+    assert_eq!(summary.modal_family, "cascadeProofObligationStrictSuperset");
+    assert_eq!(summary.substrate, "omena-cascade.proof-witnesses");
+    assert_eq!(summary.obligation_count, 4);
+    assert_eq!(summary.accepted_count, 3);
+    assert_eq!(summary.blocked_count, 1);
+    assert!(!summary.all_provenance_preserved);
+    assert_eq!(
+        summary.source_products,
+        vec![
+            shorthand.product,
+            supports.product,
+            scope.product,
+            blocked_layer.product
+        ]
+    );
+    assert!(matches!(
+        summary.witnesses[3],
+        ModalCheckWitnessSourceV0::LayerFlatten(_)
+    ));
 }
 
 #[test]

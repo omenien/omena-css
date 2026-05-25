@@ -147,6 +147,36 @@ pub struct IncrementalFuzzSeedReportV0 {
     pub results: Vec<IncrementalConsistencyFuzzResultV0>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DatalogRuleEvaluatorRuleV0 {
+    pub name: &'static str,
+    pub head: &'static str,
+    pub body: Vec<&'static str>,
+    pub source: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DatalogRuleEvaluatorV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub evaluator_kind: &'static str,
+    pub substrate: &'static str,
+    pub external_host_ready: bool,
+    pub revision: IncrementalRevisionV0,
+    pub rule_count: usize,
+    pub relation_count: usize,
+    pub input_node_count: usize,
+    pub dirty_node_count: usize,
+    pub derived_node_count: usize,
+    pub iteration_limit: usize,
+    pub fixed_point_reached: bool,
+    pub relations: Vec<&'static str>,
+    pub rules: Vec<DatalogRuleEvaluatorRuleV0>,
+    pub incremental_plan: IncrementalComputationPlanV0,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IncrementalCancellationRegistryV0 {
     limit: usize,
@@ -191,12 +221,78 @@ pub fn summarize_omena_incremental_boundary() -> OmenaIncrementalBoundarySummary
             "incrementalSnapshot",
             "incrementalComputationPlan",
             "incrementalCancellationRegistry",
+            "datalogRuleEvaluatorV0",
             "salsaPersistentDatabase",
             "salsaTrackedNodeSnapshotQuery",
             "salsaFieldGranularReuse",
             "salsaPlanAndSnapshotUpdate",
             "dependencyFixedPointEarlyExit",
         ],
+    }
+}
+
+pub fn summarize_datalog_rule_evaluator_v0(
+    input: &IncrementalGraphInputV0,
+    previous: Option<&IncrementalSnapshotV0>,
+) -> DatalogRuleEvaluatorV0 {
+    let incremental_plan = plan_incremental_computation(input, previous);
+    let relations = vec![
+        "node(id,digest)",
+        "previousNode(id,digest)",
+        "dependsOn(nodeId,dependencyId)",
+        "changedInput(nodeId)",
+        "dirty(nodeId)",
+    ];
+    let rules = vec![
+        DatalogRuleEvaluatorRuleV0 {
+            name: "newNodeIsDirty",
+            head: "dirty(Node)",
+            body: vec!["node(Node,Digest)", "not previousNode(Node,_)"],
+            source: "omena-incremental.computation-plan",
+        },
+        DatalogRuleEvaluatorRuleV0 {
+            name: "changedDigestIsDirty",
+            head: "dirty(Node)",
+            body: vec![
+                "node(Node,Digest)",
+                "previousNode(Node,PreviousDigest)",
+                "Digest != PreviousDigest",
+            ],
+            source: "omena-incremental.computation-plan",
+        },
+        DatalogRuleEvaluatorRuleV0 {
+            name: "changedDependencySetIsDirty",
+            head: "dirty(Node)",
+            body: vec!["dependsOn(Node,_)", "previousDependencySetDiffers(Node)"],
+            source: "omena-incremental.computation-plan",
+        },
+        DatalogRuleEvaluatorRuleV0 {
+            name: "dependencyDirtyFixedPoint",
+            head: "dirty(Node)",
+            body: vec!["dependsOn(Node,Dependency)", "dirty(Dependency)"],
+            source: "omena-incremental.dependency-propagation",
+        },
+    ];
+    let iteration_limit = dependency_propagation_iteration_limit(input.nodes.len());
+    let fixed_point_reached = dirty_set_is_dependency_closed(&incremental_plan);
+
+    DatalogRuleEvaluatorV0 {
+        schema_version: "0",
+        product: "omena-incremental.datalog-rule-evaluator",
+        evaluator_kind: "typedContractOverIncrementalFixedPoint",
+        substrate: "omena-incremental.salsa-backed-computation-plan",
+        external_host_ready: false,
+        revision: input.revision,
+        rule_count: rules.len(),
+        relation_count: relations.len(),
+        input_node_count: input.nodes.len(),
+        dirty_node_count: incremental_plan.dirty_node_count,
+        derived_node_count: incremental_plan.dependency_dirty_count,
+        iteration_limit,
+        fixed_point_reached,
+        relations,
+        rules,
+        incremental_plan,
     }
 }
 
@@ -438,6 +534,22 @@ fn propagate_dependency_dirty(
     }
 }
 
+fn dirty_set_is_dependency_closed(plan: &IncrementalComputationPlanV0) -> bool {
+    let dirty_ids = plan
+        .nodes
+        .iter()
+        .filter(|node| node.dirty)
+        .map(|node| node.id.as_str())
+        .collect::<BTreeSet<_>>();
+    plan.nodes.iter().all(|node| {
+        node.dirty
+            || node
+                .dependency_ids
+                .iter()
+                .all(|dependency_id| !dirty_ids.contains(dependency_id.as_str()))
+    })
+}
+
 fn generated_incremental_fuzz_graph(
     seed: u64,
     node_count: usize,
@@ -643,7 +755,8 @@ mod tests {
         IncrementalRevisionV0, OmenaIncrementalDatabaseV0, SALSA_DEPENDENCY_QUERY_RUNS,
         SALSA_DIGEST_QUERY_RUNS, plan_incremental_computation,
         read_salsa_incremental_node_dependency_ids, read_salsa_incremental_node_digest,
-        snapshot_from_graph_input, summarize_omena_incremental_boundary,
+        snapshot_from_graph_input, summarize_datalog_rule_evaluator_v0,
+        summarize_omena_incremental_boundary,
     };
     use std::sync::atomic::Ordering;
 
@@ -670,6 +783,7 @@ mod tests {
                 .ready_surfaces
                 .contains(&"incrementalCancellationRegistry")
         );
+        assert!(summary.ready_surfaces.contains(&"datalogRuleEvaluatorV0"));
         assert!(
             summary
                 .ready_surfaces
@@ -715,6 +829,39 @@ mod tests {
         assert_eq!(plan.dependency_dirty_count, 1);
         assert_eq!(node_reasons(&plan, "a"), vec!["inputDigestChanged"]);
         assert_eq!(node_reasons(&plan, "b"), vec!["dependencyDirty"]);
+    }
+
+    #[test]
+    fn datalog_rule_evaluator_contract_matches_incremental_dirty_plan() {
+        let input = sample_input("a:v1", "b:v1", 1);
+        let snapshot = snapshot_from_graph_input(&input);
+        let next_input = sample_input("a:v2", "b:v1", 2);
+        let summary = summarize_datalog_rule_evaluator_v0(&next_input, Some(&snapshot));
+
+        assert_eq!(summary.schema_version, "0");
+        assert_eq!(summary.product, "omena-incremental.datalog-rule-evaluator");
+        assert_eq!(
+            summary.evaluator_kind,
+            "typedContractOverIncrementalFixedPoint"
+        );
+        assert_eq!(
+            summary.substrate,
+            "omena-incremental.salsa-backed-computation-plan"
+        );
+        assert!(!summary.external_host_ready);
+        assert_eq!(summary.rule_count, summary.rules.len());
+        assert_eq!(summary.relation_count, summary.relations.len());
+        assert_eq!(summary.input_node_count, 2);
+        assert_eq!(summary.dirty_node_count, 2);
+        assert_eq!(summary.derived_node_count, 1);
+        assert_eq!(summary.iteration_limit, 3);
+        assert!(summary.fixed_point_reached);
+        assert_eq!(summary.incremental_plan.changed_input_count, 1);
+        assert_eq!(summary.incremental_plan.dependency_dirty_count, 1);
+        assert!(summary.rules.iter().any(|rule| {
+            rule.name == "dependencyDirtyFixedPoint"
+                && rule.body == vec!["dependsOn(Node,Dependency)", "dirty(Dependency)"]
+        }));
     }
 
     #[test]

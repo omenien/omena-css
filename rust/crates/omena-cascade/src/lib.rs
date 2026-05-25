@@ -10,6 +10,7 @@ mod custom_property;
 mod frame_footprint;
 mod fuzz;
 mod grn;
+mod modal;
 mod model;
 mod proofs;
 mod ranking;
@@ -23,6 +24,7 @@ pub use custom_property::*;
 pub use frame_footprint::*;
 pub use fuzz::*;
 pub use grn::*;
+pub use modal::*;
 pub use model::*;
 pub use proofs::*;
 pub use ranking::*;
@@ -57,6 +59,8 @@ pub fn summarize_cascade_boundary() -> CascadeBoundarySummary {
             "supportsStaticEvalWitness",
             "scopeFlattenProof",
             "layerFlattenProof",
+            "modalCheckWitnessV0",
+            "cascadeMarginSchemaV0",
             "wptCascadeSeedCorpus",
             "spinGlassStatisticsV0",
             "grnAttractorBasinV0",

@@ -583,4 +583,55 @@ pub struct LayerFlattenProofV0 {
     pub cascade_safe_witness: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "witnessKind", content = "witness", rename_all = "camelCase")]
+pub enum ModalCheckWitnessSourceV0 {
+    ShorthandCombination(ShorthandCombinationProofV0),
+    StaticSupportsEval(StaticSupportsEvalWitnessV0),
+    ScopeFlatten(ScopeFlattenProofV0),
+    LayerFlatten(LayerFlattenProofV0),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModalCheckWitnessV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub modal_family: &'static str,
+    pub substrate: &'static str,
+    pub obligation_count: usize,
+    pub accepted_count: usize,
+    pub blocked_count: usize,
+    pub all_provenance_preserved: bool,
+    pub source_products: Vec<&'static str>,
+    pub witnesses: Vec<ModalCheckWitnessSourceV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeMarginSchemaV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub margin_kind: &'static str,
+    pub axis_order: Vec<&'static str>,
+    pub calibration_stage: &'static str,
+    pub public_safety_claim_ready: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeMarginV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub margin_kind: &'static str,
+    pub winner_declaration_id: String,
+    pub challenger_declaration_id: Option<String>,
+    pub dominant_axis: &'static str,
+    pub signed_distance: i64,
+    pub winner_key: CascadeKey,
+    pub challenger_key: Option<CascadeKey>,
+    pub calibration_stage: &'static str,
+    pub public_safety_claim_ready: bool,
+}
+
 pub type CustomPropertyEnv = BTreeMap<String, CascadeValue>;

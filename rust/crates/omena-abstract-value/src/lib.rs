@@ -19,8 +19,8 @@ pub use reduced_product::{
     concatenate_reduced_class_value_products, intersect_reduced_class_value_products,
     iterate_reduced_class_value_product_constraints, join_reduced_class_value_products,
     reduce_class_value_product, reduced_class_value_product_is_subset,
-    reduced_class_value_product_matches_string, summarize_reduced_class_value_product,
-    summarize_reduced_product_domain,
+    reduced_class_value_product_matches_string, summarize_belief_propagation_iteration_v0,
+    summarize_reduced_class_value_product, summarize_reduced_product_domain,
 };
 pub use selector_projection::*;
 pub use semiring::*;

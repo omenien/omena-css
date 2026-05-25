@@ -26,9 +26,10 @@ use super::{
     reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
     selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
     suffix_class_value, summarize_abstract_class_value_provenance_tree,
-    summarize_omena_abstract_value_domain, summarize_omena_abstract_value_flow_analysis,
-    summarize_reduced_class_value_product, top_class_value, value_certainty_from_facts,
-    value_certainty_shape_kind_from_facts, value_certainty_shape_label_from_facts,
+    summarize_belief_propagation_iteration_v0, summarize_omena_abstract_value_domain,
+    summarize_omena_abstract_value_flow_analysis, summarize_reduced_class_value_product,
+    top_class_value, value_certainty_from_facts, value_certainty_shape_kind_from_facts,
+    value_certainty_shape_label_from_facts,
 };
 use omena_incremental::OmenaIncrementalDatabaseV0;
 use std::collections::BTreeMap;
@@ -668,6 +669,45 @@ fn iterates_reduced_product_constraints_with_monotone_witness() {
             .all(|step| step.operation == "meetReducedProductConstraint")
     );
     assert!(summary.steps.iter().all(|step| step.monotone_with_previous));
+}
+
+#[test]
+fn belief_propagation_iteration_is_strict_superset_of_reduced_product_iteration() {
+    let summary = summarize_belief_propagation_iteration_v0(&[
+        prefix_class_value("btn-", None),
+        suffix_class_value("-active", None),
+        char_inclusion_class_value("a", "abcde-5intv", None, false),
+    ]);
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(
+        summary.product,
+        "omena-abstract-value.belief-propagation-iteration"
+    );
+    assert_eq!(
+        summary.algorithm_view,
+        "reducedProductConstraintMessagePassing"
+    );
+    assert_eq!(
+        summary.substrate,
+        "omena-abstract-value.reduced-product-iteration"
+    );
+    assert_eq!(summary.input_count, 3);
+    assert_eq!(summary.message_count, summary.source_iteration.steps.len());
+    assert_eq!(
+        summary.iteration_count,
+        summary.source_iteration.iteration_count
+    );
+    assert!(summary.converged);
+    assert!(summary.fixed_point_reached);
+    assert!(summary.monotone_witness_valid);
+    assert_eq!(summary.source_iteration.result_kind, "composite");
+    assert!(
+        summary
+            .messages
+            .iter()
+            .all(|message| message.operation == "meetReducedProductConstraint")
+    );
 }
 
 #[test]

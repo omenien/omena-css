@@ -122,6 +122,35 @@ pub struct ReducedClassValueProductIterationStepV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BeliefPropagationMessageV0 {
+    pub iteration: usize,
+    pub from_factor: &'static str,
+    pub to_variable: &'static str,
+    pub operation: &'static str,
+    pub result_kind: &'static str,
+    pub monotone_with_previous: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BeliefPropagationIterationV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub algorithm_view: &'static str,
+    pub substrate: &'static str,
+    pub equation_system: &'static str,
+    pub input_count: usize,
+    pub message_count: usize,
+    pub iteration_count: usize,
+    pub converged: bool,
+    pub monotone_witness_valid: bool,
+    pub fixed_point_reached: bool,
+    pub messages: Vec<BeliefPropagationMessageV0>,
+    pub source_iteration: ReducedClassValueProductIterationV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReducedClassValuePrefixAxisV0 {
     pub prefix: String,
 }
