@@ -14,9 +14,9 @@ planning notes.
 
 Stable and preview releases both use numeric extension versions.
 
-For the current M5 release chapter, `5.0.0` is already published on the VS Code
+For the current release chapter, `5.0.0` is already published on the VS Code
 Marketplace and Open VSX. `5.1.0` was consumed by a local publish invocation and
-must not be used as the M5 closure artifact. The current stable release
+must not be used as the closure artifact. The current stable release
 candidate is `5.1.1`; publish it through the GitHub `Publish Extension` workflow
 so the native runner matrix is merged before upload.
 
@@ -130,7 +130,7 @@ Use these rules before publishing:
   corresponding API-freeze evidence exists.
 
 `pnpm check:release-m5-api-freeze-audit` is the release/API-freeze wording
-gate for this chapter. It verifies the M5 disposition table, the issue #61
+gate for this chapter. It verifies the release disposition table, the issue #61
 Finding-D scope boundary, Cargo `0.2.x` version policy, the theory-claim
 ladder, and the publish path's packaged Rust LSP type-fact protocol gate before
 release artifacts or publish commands are treated as release evidence.
