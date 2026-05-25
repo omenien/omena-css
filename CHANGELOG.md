@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+## [5.1.1] - 2026-05-25
+
+### Changed
+
+- **Variant recipe class-value substrate** - binder and query summaries now
+  carry a shared `ClassValueUniverseProviderV0` substrate for CSS Modules
+  fallback, vanilla-extract recipes, and cva phase 1, covering `base`,
+  `variants`, `compoundVariants`, and `defaultVariants` without introducing a
+  public plugin ABI.
+- **V0 theory contract substrate** - incremental, cascade, and abstract-value
+  crates now expose strict-superset V0 contract summaries for the rule-evaluator,
+  modal-witness, belief-propagation, and cascade-margin substrate surfaces while
+  keeping Datalog host, modal theorem, belief-propagation paper, and safety-margin
+  claims out of public release wording.
+- **Release wording discipline** - public release framing now separates shipped
+  editor/runtime behavior from internal V0 substrate evidence and avoids treating
+  staged research contracts as final APIs or completed theory claims.
+
+### Fixed
+
+- **Native matrix release artifact** - prepares the release artifact for the
+  GitHub publish workflow path so Linux, macOS, and Windows native runtime
+  binaries are merged before the Marketplace/Open VSX upload and GitHub release
+  artifact are created.
+
 ## [5.1.0] - 2026-05-25
 
 ### Changed

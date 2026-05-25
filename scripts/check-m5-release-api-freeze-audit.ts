@@ -41,7 +41,7 @@ const M5_AUDIT_TARGET = "release/check/release-m5-api-freeze-audit";
 const M5_AUDIT_SCRIPT = "check:release-m5-api-freeze-audit";
 const M5_CLASS_VALUE_MATRIX_TARGET = "release/check/release-m5-class-value-universe-matrix";
 const M5_CLASS_VALUE_MATRIX_SCRIPT = "check:release-m5-class-value-universe-matrix";
-const LAST_PUBLISHED_EXTENSION_VERSION = "5.0.0";
+const LAST_PUBLISHED_EXTENSION_VERSION = "5.1.0";
 
 const dispositionTable: readonly ReleaseDisposition[] = [
   {
@@ -178,7 +178,9 @@ assertIncludes(releaseNotes, "final APIs or completed theory claims");
 
 assertIncludes(releasing, "Release claim discipline");
 assertIncludes(releasing, "`5.0.0` is already published");
-assertIncludes(releasing, "The next stable release candidate is `5.1.0`");
+assertIncludes(releasing, "`5.1.0` was consumed by a local publish invocation");
+assertIncludes(releasing, "current stable release\ncandidate is `5.1.1`");
+assertIncludes(releasing, "Publish Extension` workflow");
 assertIncludes(releasing, "pnpm check:release-m5-api-freeze-audit");
 assertIncludes(releasing, "pnpm check:release-m5-class-value-universe-matrix");
 assertIncludes(releasing, "release/API-freeze wording\ngate");

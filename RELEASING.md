@@ -15,8 +15,10 @@ planning notes.
 Stable and preview releases both use numeric extension versions.
 
 For the current M5 release chapter, `5.0.0` is already published on the VS Code
-Marketplace and Open VSX. The next stable release candidate is `5.1.0`; do not
-attempt to publish another `5.0.0` artifact.
+Marketplace and Open VSX. `5.1.0` was consumed by a local publish invocation and
+must not be used as the M5 closure artifact. The current stable release
+candidate is `5.1.1`; publish it through the GitHub `Publish Extension` workflow
+so the native runner matrix is merged before upload.
 
 Allowed:
 
@@ -39,6 +41,7 @@ Allowed:
 - `4.1.0`
 - `5.0.0`
 - `5.1.0`
+- `5.1.1`
 
 Do not use:
 
