@@ -128,14 +128,15 @@ assert.equal(cargoToml.match(/^version = "([^"]+)"/m)?.[1], "0.2.0");
 assert.match(cargoToml, /^publish = false$/m);
 
 assertIncludes(packageJson.scripts[M5_AUDIT_SCRIPT], "check-m5-release-api-freeze-audit.ts");
-assertIncludes(packageJson.scripts.package, M5_AUDIT_TARGET);
-assertIncludes(packageJson.scripts.package, "package-extension-vsix.ts");
+assertIncludes(packageJson.scripts.package, "release/package/prepared");
+assertIncludes(packageJson.scripts["package:prepared"], M5_AUDIT_TARGET);
+assertIncludes(packageJson.scripts["package:prepared"], "package-extension-vsix.ts");
 assertIncludes(packageJson.scripts["release:verify"], M5_AUDIT_TARGET);
 assertIncludes(publishScript, `pnpm ${M5_AUDIT_SCRIPT}`);
 assertIncludes(publishScript, "package-extension-vsix.ts");
 assertIncludes(publishScript, "vsce publish --packagePath");
 assertIncludes(
-  packageJson.scripts.package,
+  packageJson.scripts["package:prepared"],
   "release/check/packaged-omena-lsp-server-type-fact-protocol",
 );
 assertIncludes(publishScript, "pnpm check:packaged-omena-lsp-server-type-fact-protocol");
@@ -185,6 +186,7 @@ process.stdout.write(
       theoryClaimGuardSummary: theoryAudit.theoryClaimGuard.summary,
       publishPath: {
         auditGate: M5_AUDIT_TARGET,
+        preparedPackageGate: "release/package/prepared",
         packagedTypeFactProtocolGate: "release/check/packaged-omena-lsp-server-type-fact-protocol",
         marketplacePublishInvoked: false,
         openVsxPublishInvoked: false,

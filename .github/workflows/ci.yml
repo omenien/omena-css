@@ -144,19 +144,7 @@ jobs:
         with:
           pattern: engine-shadow-runner-*
           path: .runner-artifacts
-      - run: node ./scripts/merge-engine-shadow-runner-artifacts.mjs
-      - run: node ./scripts/restore-native-binary-permissions.mjs
-      - run: pnpm cme-check run release/check/packaged-engine-shadow-runner-matrix
-        env:
-          CME_PACKAGED_RUNNER_MIN_TARGETS: "3"
-          CME_PACKAGED_RUNNER_REQUIRED_PLATFORMS: linux,darwin,win32
-      - run: pnpm cme-check run release/check/packaged-tsgo-binary
-        env:
-          CME_PACKAGED_TSGO_MIN_TARGETS: "3"
-          CME_PACKAGED_TSGO_REQUIRED_PLATFORMS: linux,darwin,win32
-      - run: rm -rf dist/server
-      - run: pnpm exec vsce package --no-dependencies
-      - run: pnpm cme-check run release/check/packaged-selected-query-default
+      - run: pnpm cme-check run release/package/prepared
         env:
           CME_PACKAGED_RUNNER_MIN_TARGETS: "3"
           CME_PACKAGED_RUNNER_REQUIRED_PLATFORMS: linux,darwin,win32

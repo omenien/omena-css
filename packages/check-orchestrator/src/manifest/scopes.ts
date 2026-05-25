@@ -143,6 +143,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
       scriptName === "check:packaged-selected-query-default" ||
       scriptName === "check:packaged-omena-lsp-server-type-fact-protocol" ||
       scriptName === "package" ||
+      scriptName === "package:prepared" ||
       scriptName === "version-packages" ||
       scriptName === "changeset",
     toGateId: (scriptName) => `release/${scriptName.replace(":", "/")}`,
