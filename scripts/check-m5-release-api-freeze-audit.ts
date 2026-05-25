@@ -151,6 +151,7 @@ assertIncludes(packageJson.scripts["package:prepared"], M5_CLASS_VALUE_MATRIX_TA
 assertIncludes(packageJson.scripts["package:prepared"], M5_AUDIT_TARGET);
 assertIncludes(packageJson.scripts["package:prepared"], "package-extension-vsix.ts");
 assertIncludes(packageJson.scripts["release:verify"], M5_AUDIT_TARGET);
+assertIncludes(read("scripts/package-extension-vsix.ts"), 'copyRequiredFile(".vscodeignore")');
 assertIncludes(publishScript, `pnpm ${M5_CLASS_VALUE_MATRIX_SCRIPT}`);
 assertIncludes(publishScript, `pnpm ${M5_AUDIT_SCRIPT}`);
 assertIncludes(publishScript, "package-extension-vsix.ts");

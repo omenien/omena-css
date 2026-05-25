@@ -142,9 +142,11 @@ VSIX packaging must use `scripts/package-extension-vsix.ts`, not direct
 repo-root `vsce package`. VSCE walks the full current working directory before
 applying `.vscodeignore`, so a checkout with large ignored Rust build caches can
 turn package/list into an unbounded filesystem walk. The staging packager copies
-only `package.json`, README/CHANGELOG/LICENSE, and `dist/` into a temporary
-runtime-only directory, runs VSCE there, and writes the VSIX back to the repo
-root for the packaged artifact gates.
+only `package.json`, README/CHANGELOG/LICENSE, `.vscodeignore`, and `dist/`
+into a temporary runtime-only directory, runs VSCE there, and writes the VSIX
+back to the repo root for the packaged artifact gates. The staged copy must use
+the repository `.vscodeignore`; otherwise sourcemaps or dev-only Node server
+build output can leak into the publish artifact.
 
 `pnpm release:verify` does:
 

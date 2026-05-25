@@ -1,13 +1,5 @@
 import { spawnSync } from "node:child_process";
-import {
-  copyFileSync,
-  cpSync,
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -29,11 +21,11 @@ try {
   for (const fileName of ["package.json", "README.md", "CHANGELOG.md", "LICENSE"] as const) {
     copyRequiredFile(fileName);
   }
+  copyRequiredFile(".vscodeignore");
   copyRequiredDirectory("dist");
 
   // VSCE walks the full cwd before applying .vscodeignore. Package from a
   // runtime-only staging directory so local Rust caches cannot dominate CI.
-  writeFileSync(path.join(stageRoot, ".vscodeignore"), "node_modules/**\n*.log\n", "utf8");
 
   rmSync(outputPath, { force: true });
   const result = spawnSync(
