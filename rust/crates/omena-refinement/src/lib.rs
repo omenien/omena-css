@@ -4,9 +4,9 @@
 //! strict-superset wrapper and delegating cascade checks to the byte-stable
 //! `omena-cascade` proof primitives.
 
-use std::marker::PhantomData;
+use std::{collections::BTreeSet, marker::PhantomData};
 
-use omena_abstract_value::AbstractPropertyValueV0;
+use omena_abstract_value::{AbstractPropertyValueV0, CascadeValueFamilyV0};
 use omena_cascade::{
     CascadeDeclaration, CascadeRefinementContextV0,
     refine_declaration_in_context as refine_cascade_declaration_in_context,
@@ -156,6 +156,59 @@ pub struct RefinementContextSummaryV0 {
     pub downstream_invalidation_required: bool,
 }
 
+/// M6 #69 bridge between context-indexed property values and refinement facts.
+///
+/// This is a research-staged substrate: it evaluates the existing cascade
+/// family through the existing refinement predicate evaluator. It does not
+/// claim Liquid-Haskell-style inference, SMT completeness, or a theorem.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeDimensionalRefinementBridgeV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub claim_level: &'static str,
+    pub property_name: String,
+    pub cascade_family_product: &'static str,
+    pub predicate_count: usize,
+    pub context_value_count: usize,
+    pub restriction_map_count: usize,
+    pub context_evaluation_count: usize,
+    pub satisfied_all_context_count: usize,
+    pub satisfied_some_context_count: usize,
+    pub unknown_context_count: usize,
+    pub unsatisfiable_context_count: usize,
+    pub witness_provenance_count: usize,
+    pub property_consistent: bool,
+    pub uses_existing_abstract_property_value_substrate: bool,
+    pub uses_existing_cascade_family_substrate: bool,
+    pub uses_existing_refinement_predicate_substrate: bool,
+    pub forks_unit_system: bool,
+    pub liquid_haskell_complete: bool,
+    pub smt_backend_available: bool,
+    pub smt_complete: bool,
+    pub theorem_claimed: bool,
+    pub product_path_evidence_ready: bool,
+    pub stronger_type_safety_claim_ready: bool,
+    pub evaluations: Vec<CascadeDimensionalRefinementContextEvaluationV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CascadeDimensionalRefinementContextEvaluationV0 {
+    pub context_id: String,
+    pub selector_count: usize,
+    pub condition_count: usize,
+    pub layer_count: usize,
+    pub value_shape: AbstractValueShapeV0,
+    pub combined_verdict: RefinementVerdictV0,
+    pub predicate_evaluation_count: usize,
+    pub matched_clause_count: usize,
+    pub witness_provenance_count: usize,
+    pub predicate_expression_ids: Vec<String>,
+}
+
 pub fn project_legacy_to_refined_v0<P, R>(
     legacy_value: AbstractPropertyValueV0,
 ) -> RefinedAbstractPropertyValueV0<P, R>
@@ -249,6 +302,100 @@ pub fn summarize_refinement_context_v0(
     }
 }
 
+pub fn summarize_cascade_dimensional_refinement_bridge_v0(
+    family: &CascadeValueFamilyV0,
+    predicates: &[RefinementPropertyPredicateV0],
+) -> CascadeDimensionalRefinementBridgeV0 {
+    let mut global_provenance_sources = BTreeSet::new();
+    let mut evaluations = family
+        .members
+        .iter()
+        .map(|member| {
+            let predicate_evaluations = predicates
+                .iter()
+                .map(|predicate| {
+                    evaluate_refinement_property_predicate_v0(predicate, &member.value)
+                })
+                .collect::<Vec<_>>();
+            let verdicts = predicate_evaluations
+                .iter()
+                .map(|evaluation| evaluation.verdict)
+                .collect::<Vec<_>>();
+            let combined_verdict = combine_and_refinement_verdicts_v0(&verdicts);
+            let mut context_provenance_sources = BTreeSet::new();
+            for evaluation in &predicate_evaluations {
+                for provenance in &evaluation.witness.provenance {
+                    context_provenance_sources.insert(provenance.source);
+                    global_provenance_sources.insert(provenance.source);
+                }
+            }
+
+            CascadeDimensionalRefinementContextEvaluationV0 {
+                context_id: member.context.id.clone(),
+                selector_count: member.context.selectors.len(),
+                condition_count: member.context.conditions.len(),
+                layer_count: member.context.layers.len(),
+                value_shape: abstract_property_value_shape_v0(&member.value),
+                combined_verdict,
+                predicate_evaluation_count: predicate_evaluations.len(),
+                matched_clause_count: predicate_evaluations
+                    .iter()
+                    .map(|evaluation| evaluation.matched_clause_count)
+                    .sum(),
+                witness_provenance_count: context_provenance_sources.len(),
+                predicate_expression_ids: predicate_evaluations
+                    .into_iter()
+                    .map(|evaluation| evaluation.predicate_expression_id)
+                    .collect(),
+            }
+        })
+        .collect::<Vec<_>>();
+    evaluations.sort_by(|left, right| left.context_id.cmp(&right.context_id));
+
+    CascadeDimensionalRefinementBridgeV0 {
+        schema_version: REFINEMENT_SCHEMA_VERSION_V0,
+        product: "omena-refinement.cascade-dimensional-refinement-bridge",
+        layer_marker: REFINEMENT_LAYER_MARKER_V0,
+        feature_gate: REFINEMENT_FEATURE_GATE_V0,
+        claim_level: "m6DimensionalRefinementBridgeSubstrate",
+        property_name: family.property_name.clone(),
+        cascade_family_product: family.product,
+        predicate_count: predicates.len(),
+        context_value_count: family.context_value_count,
+        restriction_map_count: family.restriction_map_count,
+        context_evaluation_count: evaluations.len(),
+        satisfied_all_context_count: count_context_verdicts_v0(
+            &evaluations,
+            RefinementVerdictV0::SatisfiedAll,
+        ),
+        satisfied_some_context_count: count_context_verdicts_v0(
+            &evaluations,
+            RefinementVerdictV0::SatisfiedSome,
+        ),
+        unknown_context_count: count_context_verdicts_v0(
+            &evaluations,
+            RefinementVerdictV0::Unknown,
+        ),
+        unsatisfiable_context_count: count_context_verdicts_v0(
+            &evaluations,
+            RefinementVerdictV0::Unsatisfiable,
+        ),
+        witness_provenance_count: global_provenance_sources.len(),
+        property_consistent: family.property_consistent,
+        uses_existing_abstract_property_value_substrate: true,
+        uses_existing_cascade_family_substrate: true,
+        uses_existing_refinement_predicate_substrate: true,
+        forks_unit_system: false,
+        liquid_haskell_complete: false,
+        smt_backend_available: refinement_smt_backend_available_v0(),
+        smt_complete: false,
+        theorem_claimed: false,
+        product_path_evidence_ready: true,
+        stronger_type_safety_claim_ready: false,
+        evaluations,
+    }
+}
+
 pub fn abstract_property_value_shape_v0(value: &AbstractPropertyValueV0) -> AbstractValueShapeV0 {
     match value {
         AbstractPropertyValueV0::Bottom { .. } => AbstractValueShapeV0::Bottom,
@@ -259,6 +406,16 @@ pub fn abstract_property_value_shape_v0(value: &AbstractPropertyValueV0) -> Abst
         }
         AbstractPropertyValueV0::Top { .. } => AbstractValueShapeV0::Top,
     }
+}
+
+fn count_context_verdicts_v0(
+    evaluations: &[CascadeDimensionalRefinementContextEvaluationV0],
+    verdict: RefinementVerdictV0,
+) -> usize {
+    evaluations
+        .iter()
+        .filter(|evaluation| evaluation.combined_verdict == verdict)
+        .count()
 }
 
 fn evaluate_refinement_predicate_verdict_v0(
@@ -744,9 +901,18 @@ pub fn refinement_smt_backend_available_v0() -> bool {
     true
 }
 
+#[cfg(not(feature = "refinement-smt"))]
+pub fn refinement_smt_backend_available_v0() -> bool {
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omena_abstract_value::{
+        CascadeContextV0, CascadeValueFamilyMemberV0, derive_cascade_restriction_maps_v0,
+        summarize_cascade_value_family_v0,
+    };
 
     #[test]
     fn refined_value_round_trips_to_legacy_without_mutating_v0() {
@@ -926,5 +1092,92 @@ mod tests {
         assert_eq!(first.context_digest, reordered.context_digest);
         assert_ne!(first.context_digest, changed.context_digest);
         assert!(first.witness_provenance_count >= 3);
+    }
+
+    #[test]
+    fn cascade_dimensional_refinement_bridge_reuses_existing_substrates() {
+        let members = vec![
+            CascadeValueFamilyMemberV0 {
+                context: CascadeContextV0 {
+                    id: "base".to_string(),
+                    parent_id: None,
+                    selectors: vec![":root".to_string()],
+                    conditions: Vec::new(),
+                    layers: vec!["tokens".to_string()],
+                },
+                value: AbstractPropertyValueV0::Exact {
+                    property_name: "width".to_string(),
+                    value: "12px".to_string(),
+                    pseudo_state: None,
+                },
+            },
+            CascadeValueFamilyMemberV0 {
+                context: CascadeContextV0 {
+                    id: "fluid".to_string(),
+                    parent_id: Some("base".to_string()),
+                    selectors: vec![":root".to_string()],
+                    conditions: vec!["@media (orientation: portrait)".to_string()],
+                    layers: vec!["tokens".to_string()],
+                },
+                value: AbstractPropertyValueV0::Exact {
+                    property_name: "width".to_string(),
+                    value: "50%".to_string(),
+                    pseudo_state: None,
+                },
+            },
+            CascadeValueFamilyMemberV0 {
+                context: CascadeContextV0 {
+                    id: "unknown".to_string(),
+                    parent_id: Some("base".to_string()),
+                    selectors: vec![":root".to_string()],
+                    conditions: vec!["@container card".to_string()],
+                    layers: vec!["tokens".to_string()],
+                },
+                value: AbstractPropertyValueV0::Top {
+                    property_name: "width".to_string(),
+                },
+            },
+        ];
+        let restrictions = derive_cascade_restriction_maps_v0(&members);
+        let family = summarize_cascade_value_family_v0("width", members, restrictions);
+        let predicate = RefinementPropertyPredicateV0::NumericRange {
+            property_name: "width".to_string(),
+            min_inclusive: Some(0),
+            max_inclusive: Some(100),
+            unit: Some("px".to_string()),
+        };
+
+        let bridge = summarize_cascade_dimensional_refinement_bridge_v0(&family, &[predicate]);
+
+        assert_eq!(
+            bridge.product,
+            "omena-refinement.cascade-dimensional-refinement-bridge"
+        );
+        assert_eq!(bridge.claim_level, "m6DimensionalRefinementBridgeSubstrate");
+        assert_eq!(bridge.cascade_family_product, family.product);
+        assert_eq!(bridge.context_evaluation_count, 3);
+        assert_eq!(bridge.restriction_map_count, 2);
+        assert_eq!(bridge.satisfied_all_context_count, 1);
+        assert_eq!(bridge.unsatisfiable_context_count, 1);
+        assert_eq!(bridge.unknown_context_count, 1);
+        assert_eq!(bridge.witness_provenance_count, 2);
+        assert!(bridge.uses_existing_abstract_property_value_substrate);
+        assert!(bridge.uses_existing_cascade_family_substrate);
+        assert!(bridge.uses_existing_refinement_predicate_substrate);
+        assert!(!bridge.forks_unit_system);
+        assert!(!bridge.liquid_haskell_complete);
+        assert!(!bridge.smt_complete);
+        assert!(!bridge.theorem_claimed);
+        assert!(bridge.product_path_evidence_ready);
+        assert!(!bridge.stronger_type_safety_claim_ready);
+        assert_eq!(bridge.evaluations[0].context_id, "base");
+        assert_eq!(
+            bridge.evaluations[0].combined_verdict,
+            RefinementVerdictV0::SatisfiedAll
+        );
+        assert_eq!(
+            bridge.evaluations[0].predicate_expression_ids,
+            vec!["numeric-range:width:0..100:px".to_string()]
+        );
     }
 }

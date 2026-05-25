@@ -936,9 +936,9 @@ evidence that must exist before publication.
   unless the caller provides closed-world evidence.
 - Evaluation: compare accepted and rejected transform candidates across real
   CSS Modules, SCSS, and Less projects.
-- Current evidence: cascade/value-family substrates and transform planning gates
-  are staged evidence. They are not a sheaf/cosheaf theorem or a global
-  correctness proof.
+- Current evidence: cascade/value-family, dimensional/refinement, and transform
+  planning gates are staged evidence. They are not a sheaf/cosheaf theorem,
+  Liquid-Haskell-style inference, or a global correctness proof.
 
 ## Candidate 2: Incremental CSS-Family Analysis
 
@@ -968,6 +968,9 @@ The current research track is evidence-backed only at the substrate level:
   script-side \`useCssModule()\` and embedded \`<style module>\` behavior.
 - Cascade-family work is framing-neutral substrate, not a sheaf or cosheaf
   theorem.
+- Dimensional/refinement work bridges cascade-family values into refinement
+  predicate witnesses. It does not fork a unit system, complete SMT refinement,
+  or claim Liquid-Haskell-style inference.
 - Edit-distance and cascade-margin work is fixture-witness substrate, not a
   calibrated Lipschitz theorem.
 - Contextual equality saturation is scaffold-only over the optional \`egg\`
