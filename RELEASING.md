@@ -89,7 +89,7 @@ pnpm check:contract-parity-v2-smoke
 pnpm check:contract-parity-v2-golden
 pnpm --dir examples exec tsc -p tsconfig.json --noEmit
 pnpm --dir examples build
-pnpm exec vsce package --no-dependencies
+pnpm package
 ```
 
 ## Release claim discipline
@@ -119,16 +119,31 @@ Use these rules before publishing:
   chapter. Do not publish or describe a Cargo `1.0.0` API-freeze line until the
   corresponding API-freeze evidence exists.
 
+`pnpm check:release-m5-api-freeze-audit` is the release/API-freeze wording
+gate for this chapter. It verifies the M5 disposition table, the issue #61
+Finding-D scope boundary, Cargo `0.2.x` version policy, the theory-claim
+ladder, and the publish path's packaged Rust LSP type-fact protocol gate before
+release artifacts or publish commands are treated as release evidence.
+
+VSIX packaging must use `scripts/package-extension-vsix.ts`, not direct
+repo-root `vsce package`. VSCE walks the full current working directory before
+applying `.vscodeignore`, so a checkout with large ignored Rust build caches can
+turn package/list into an unbounded filesystem walk. The staging packager copies
+only `package.json`, README/CHANGELOG/LICENSE, and `dist/` into a temporary
+runtime-only directory, runs VSCE there, and writes the VSIX back to the repo
+root for the packaged artifact gates.
+
 `pnpm release:verify` does:
 
 1. sync `SERVER_VERSION`
-2. run `pnpm check`
-3. run `pnpm check:plugin-consumer-example`
-4. run `pnpm check:plugin-consumers`
-5. run `pnpm check:rust-release-bundle`
-6. run `pnpm check:tsgo-release-bundle`
-7. run `pnpm test`
-8. run `pnpm package`
+2. run `pnpm check:release-m5-api-freeze-audit`
+3. run `pnpm check`
+4. run `pnpm check:plugin-consumer-example`
+5. run `pnpm check:plugin-consumers`
+6. run `pnpm check:rust-release-bundle`
+7. run `pnpm check:tsgo-release-bundle`
+8. run `pnpm test`
+9. run `pnpm package`
 
 `pnpm check:semantic-smoke` is the canonical semantic smoke pass. It is not the
 release gate yet. It gives one repeatable workspace/checker sanity check before
@@ -359,7 +374,9 @@ markers and preserving the required runner matrix. `pnpm package` and
 `./scripts/publish-extension.sh` also run
 `pnpm check:packaged-omena-lsp-server-type-fact-protocol`, which verifies that
 the packaged VSIX can run the Rust `omena-lsp-server` type-fact protocol path
-against the packaged `tsgo` binary.
+against the packaged `tsgo` binary. The publish script publishes the already
+validated VSIX with `vsce publish --packagePath` so Marketplace upload cannot
+silently re-run repo-root packaging.
 
 `pnpm check:editor-path-boundary` is the current local lock point for the
 editor-path runtime transition after the selected-query cut. It runs

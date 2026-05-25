@@ -16,7 +16,7 @@ PUBLISH_MARKETPLACE="${PUBLISH_MARKETPLACE:-true}"
 PUBLISH_OPENVSX="${PUBLISH_OPENVSX:-true}"
 
 PACKAGE_ARGS=(--no-dependencies)
-PUBLISH_ARGS=(--no-dependencies)
+PUBLISH_ARGS=()
 
 if [ "$CHANNEL" = "preview" ]; then
   PACKAGE_ARGS+=(--pre-release)
@@ -24,6 +24,7 @@ if [ "$CHANNEL" = "preview" ]; then
 fi
 
 ./scripts/release.sh
+pnpm check:release-m5-api-freeze-audit
 pnpm check
 pnpm test
 pnpm build
@@ -33,13 +34,13 @@ pnpm check:packaged-engine-shadow-runner-matrix
 pnpm check:packaged-tsgo-binary
 
 rm -f ./*.vsix
-pnpm exec vsce package "${PACKAGE_ARGS[@]}"
+node --import tsx ./scripts/package-extension-vsix.ts "${PACKAGE_ARGS[@]}"
 VSIX_FILE="$(ls -1 ./*.vsix | head -n 1)"
 pnpm check:packaged-selected-query-default
 pnpm check:packaged-omena-lsp-server-type-fact-protocol
 
 if [ "$PUBLISH_MARKETPLACE" = "true" ]; then
-  pnpm exec vsce publish "${PUBLISH_ARGS[@]}"
+  pnpm exec vsce publish --packagePath "$VSIX_FILE" "${PUBLISH_ARGS[@]}"
 fi
 
 if [ "$PUBLISH_OPENVSX" = "true" ]; then

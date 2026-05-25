@@ -48,7 +48,7 @@
 - **Bridge style resolution** - `omena-bridge` now resolves `.sass` style candidates through its own extension filter instead of depending on the legacy parser language enum for import-specifier resolution.
 - **Reduced product overlap semantics** - `omena-abstract-value` now computes prefix/suffix reduced-product minimum lengths with overlap awareness and accounts for required character constraints, so `Pr ⊗ Su` and `Pr/Su ⊗ CI` intersections no longer exclude valid selectors or understate required selector length.
 - **Query adapter status** - `omena-query.selected-query-adapter-capabilities` now reports the selected-query adapter as `runtimeBacked`, matching the packaged runner/protocol/default-candidate path instead of the older declaration-only transition status.
-- **Parser product range indexing** - `omena-parser` now builds a per-source line index for public-product range conversion, restoring the Z5 parser-product cut-over gate without weakening its ratio threshold.
+- **Parser product range indexing** - `omena-parser` now builds a per-source line index for public-product range conversion, restoring the parser product cut-over gate without weakening its ratio threshold.
 
 ## [5.0.0] - 2026-05-06
 

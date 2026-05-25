@@ -134,6 +134,7 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
     id: "release",
     matches: (scriptName) =>
       scriptName.startsWith("release:") ||
+      scriptName.startsWith("check:release-") ||
       scriptName.startsWith("check:release-batch") ||
       scriptName.startsWith("check:real-project-corpus") ||
       scriptName === "check:packaged-engine-shadow-runner" ||

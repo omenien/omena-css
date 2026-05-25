@@ -328,6 +328,7 @@
     "check:packaged-tsgo-binary": "node ./scripts/check-packaged-tsgo-binary.mjs",
     "check:packaged-selected-query-default": "node --import tsx ./scripts/check-packaged-selected-query-default.ts",
     "check:packaged-omena-lsp-server-type-fact-protocol": "node --import tsx ./scripts/check-packaged-omena-lsp-server-type-fact-protocol.ts",
+    "check:release-m5-api-freeze-audit": "node --import tsx ./scripts/check-m5-release-api-freeze-audit.ts",
     "check:editor-path-boundary": "pnpm cme-check run editor/selected-query-boundary && pnpm exec vitest run test/protocol/diagnostics.test.ts test/protocol/scss-diagnostics.test.ts test/protocol/code-actions.test.ts test/protocol/file-watcher.test.ts test/protocol/source-watcher-semantic-reference.test.ts test/protocol/workspace-folders.test.ts test/protocol/multi-root-settings.test.ts test/protocol/multi-root-settings-reload.test.ts test/protocol/reload-settings-reschedule.test.ts",
     "check:rust-gate-evidence": "node --import tsx ./scripts/check-rust-gate-evidence.ts",
     "check:real-project-corpus": "node --import tsx ./scripts/check-real-project-corpus.ts",
@@ -353,9 +354,9 @@
     "check": "pnpm cme-check run core/lint && pnpm cme-check run core/format/check && pnpm cme-check run core/typecheck",
     "update:rust-split-consumer-pins": "node --import tsx ./scripts/update-rust-split-consumer-pins.ts",
     "test:coverage": "vitest run --coverage",
-    "package": "rm -f ./*.vsix && pnpm cme-check run core/build && node ./scripts/merge-engine-shadow-runner-artifacts.mjs && pnpm cme-check run release/check/packaged-engine-shadow-runner-matrix && pnpm cme-check run release/check/packaged-tsgo-binary && rm -rf dist/server && vsce package --no-dependencies && pnpm cme-check run release/check/packaged-selected-query-default && pnpm cme-check run release/check/packaged-omena-lsp-server-type-fact-protocol",
+    "package": "rm -f ./*.vsix && pnpm cme-check run release/check/release-m5-api-freeze-audit && pnpm cme-check run core/build && node ./scripts/merge-engine-shadow-runner-artifacts.mjs && pnpm cme-check run release/check/packaged-engine-shadow-runner-matrix && pnpm cme-check run release/check/packaged-tsgo-binary && rm -rf dist/server && node --import tsx ./scripts/package-extension-vsix.ts --no-dependencies && pnpm cme-check run release/check/packaged-selected-query-default && pnpm cme-check run release/check/packaged-omena-lsp-server-type-fact-protocol",
     "version-packages": "changeset version && ./scripts/release.sh",
-    "release:verify": "./scripts/release.sh && pnpm cme-check run core/build && pnpm cme-check run core/check && pnpm cme-check run plugin/consumer-example && pnpm cme-check bundle plugin/consumers && pnpm cme-check bundle rust/release/bundle && pnpm cme-check bundle tsgo/release/bundle && pnpm cme-check run test/test && pnpm cme-check run release/package",
+    "release:verify": "./scripts/release.sh && pnpm cme-check run release/check/release-m5-api-freeze-audit && pnpm cme-check run core/build && pnpm cme-check run core/check && pnpm cme-check run plugin/consumer-example && pnpm cme-check bundle plugin/consumers && pnpm cme-check bundle rust/release/bundle && pnpm cme-check bundle tsgo/release/bundle && pnpm cme-check run test/test && pnpm cme-check run release/package",
     "release:publish": "./scripts/publish-extension.sh"
   },
   "devDependencies": {
