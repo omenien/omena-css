@@ -1,3 +1,8 @@
+//! Modal proof-obligation aggregation for cascade transform witnesses.
+//!
+//! The V0 summary turns individual proof witnesses into a single conservative
+//! surface that release gates can inspect without knowing each witness shape.
+
 use crate::{ModalCheckWitnessSourceV0, ModalCheckWitnessV0, StaticSupportsEvalVerdictV0};
 
 pub fn summarize_modal_check_witness_v0(

@@ -263,7 +263,7 @@ dependencies = [
 
 [[package]]
 name = "omena-cascade"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "omena-refinement-trait",
  "serde",
@@ -271,7 +271,7 @@ dependencies = [
 
 [[package]]
 name = "omena-incremental"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "omena-cascade",
  "salsa",
@@ -280,7 +280,7 @@ dependencies = [
 
 [[package]]
 name = "omena-interner"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "omena-syntax",
  "salsa",
@@ -289,7 +289,7 @@ dependencies = [
 
 [[package]]
 name = "omena-parser"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cstree",
  "omena-interner",
@@ -301,14 +301,14 @@ dependencies = [
 
 [[package]]
 name = "omena-refinement-trait"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "omena-smt"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "omena-cascade",
  "omena-refinement-trait",
@@ -317,14 +317,14 @@ dependencies = [
 
 [[package]]
 name = "omena-syntax"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cstree",
 ]
 
 [[package]]
 name = "omena-transform-cst"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "omena-parser",
  "serde",
@@ -332,7 +332,7 @@ dependencies = [
 
 [[package]]
 name = "omena-transform-passes"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "omena-cascade",
  "omena-incremental",

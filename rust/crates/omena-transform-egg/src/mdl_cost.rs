@@ -1,3 +1,8 @@
+//! MDL-oriented extraction cost surface for optional e-graph rewrites.
+//!
+//! The default cost preserves plain AST-size extraction, while feature-gated
+//! modes can layer additional model penalties without affecting the core path.
+
 use egg::{CostFunction, Id, Language};
 use serde::Serialize;
 

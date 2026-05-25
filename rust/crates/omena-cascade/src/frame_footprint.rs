@@ -1,3 +1,8 @@
+//! Frame-aware diagnostic recheck contracts for incremental cascade consumers.
+//!
+//! This module exposes the conservative V0 footprint records used to decide
+//! which diagnostics must be rechecked after a bounded module edit.
+
 use std::collections::BTreeSet;
 
 use serde::Serialize;

@@ -1,3 +1,8 @@
+//! Feature-gated Lawvere-style analysis data for optional e-graph execution.
+//!
+//! This module is not part of the default transform path; it documents the
+//! metadata carried when the `lawvere-saturation` experiment is enabled.
+
 use egg::{Analysis, DidMerge, EGraph, Extractor, Id, Language, RecExpr, Runner};
 use omena_lawvere::{
     AbstractDomainTagV0, LawvereSaturationExecutionV0, summarize_lawvere_saturation_execution_v0,

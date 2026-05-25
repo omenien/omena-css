@@ -1,3 +1,8 @@
+//! Spin-glass-inspired cascade statistics and advisory theorem surfaces.
+//!
+//! These records are intentionally conservative: deterministic contracts remain
+//! separate from advisory Monte Carlo and ultrametric observation surfaces.
+
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

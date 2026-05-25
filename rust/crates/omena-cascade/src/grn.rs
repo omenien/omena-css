@@ -1,3 +1,8 @@
+//! Boolean GRN-style cascade projection records.
+//!
+//! The API keeps the statistical-mechanics framing explicit while preserving a
+//! conservative V0 contract for checker and observation consumers.
+
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
