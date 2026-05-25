@@ -355,7 +355,11 @@ workflow build Linux, macOS, and Windows runner artifacts, merge them back into
 VSIX packaging they also run `pnpm check:packaged-selected-query-default`, which
 verifies the generated VSIX file set makes packaged runtime choose
 `rust-selected-query` by default while excluding checkout-only Rust/source
-markers and preserving the required runner matrix.
+markers and preserving the required runner matrix. `pnpm package` and
+`./scripts/publish-extension.sh` also run
+`pnpm check:packaged-omena-lsp-server-type-fact-protocol`, which verifies that
+the packaged VSIX can run the Rust `omena-lsp-server` type-fact protocol path
+against the packaged `tsgo` binary.
 
 `pnpm check:editor-path-boundary` is the current local lock point for the
 editor-path runtime transition after the selected-query cut. It runs

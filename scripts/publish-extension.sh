@@ -36,6 +36,7 @@ rm -f ./*.vsix
 pnpm exec vsce package "${PACKAGE_ARGS[@]}"
 VSIX_FILE="$(ls -1 ./*.vsix | head -n 1)"
 pnpm check:packaged-selected-query-default
+pnpm check:packaged-omena-lsp-server-type-fact-protocol
 
 if [ "$PUBLISH_MARKETPLACE" = "true" ]; then
   pnpm exec vsce publish "${PUBLISH_ARGS[@]}"
