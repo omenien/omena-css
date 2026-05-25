@@ -120,6 +120,30 @@ pub struct TransformEggPlanV0 {
     pub pass_plan: TransformPassPlanV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextualEqSatScaffoldV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub claim_level: &'static str,
+    pub scaffold_kind: &'static str,
+    pub execution_view: &'static str,
+    pub current_engine: &'static str,
+    pub egg_engine_ready: bool,
+    pub egglog_binding_ready: bool,
+    pub external_datalog_host_ready: bool,
+    pub three_view_fusion_ready: bool,
+    pub theorem_claimed: bool,
+    pub public_safety_claim_ready: bool,
+    pub modal_witness_product: &'static str,
+    pub modal_bridge_claim_level: &'static str,
+    pub paper_substrate_claim_level: &'static str,
+    pub managed_pass_ids: Vec<&'static str>,
+    pub substrate_products: Vec<&'static str>,
+    pub supported_claims: Vec<&'static str>,
+    pub deferred_claims: Vec<&'static str>,
+}
+
 #[derive(Debug, Clone, Copy)]
 enum CalcFoldOperator {
     Add,
@@ -226,6 +250,48 @@ pub fn plan_egg_rewrite_passes_for_source(source: &str) -> TransformEggPlanV0 {
         source.contains(":is(") || source.contains(":where("),
         source.contains("calc("),
     )
+}
+
+pub fn summarize_contextual_eqsat_scaffold_v0() -> ContextualEqSatScaffoldV0 {
+    let boundary = summarize_omena_transform_egg_boundary();
+
+    ContextualEqSatScaffoldV0 {
+        schema_version: "0",
+        product: "omena-transform-egg.contextual-eqsat-scaffold",
+        claim_level: "m6ScaffoldOnlyNoEgglogBinding",
+        scaffold_kind: "contextualEqualitySaturationExecutionView",
+        execution_view: "m6BridgeNodeExecutionView",
+        current_engine: "egg",
+        egg_engine_ready: true,
+        egglog_binding_ready: false,
+        external_datalog_host_ready: false,
+        three_view_fusion_ready: false,
+        theorem_claimed: false,
+        public_safety_claim_ready: false,
+        modal_witness_product: "omena-cascade.modal-check-witness",
+        modal_bridge_claim_level: "dependencyDeclaredOnly",
+        paper_substrate_claim_level: "draftScaffoldOnly",
+        managed_pass_ids: boundary.managed_pass_ids,
+        substrate_products: vec![
+            "omena-transform-egg.boundary",
+            "omena-transform-egg.plan",
+            "omena-transform-egg.execution",
+            "omena-cascade.modal-check-witness",
+        ],
+        supported_claims: vec![
+            "optional egg equality-saturation rewrite boundary",
+            "selector and calc rewrite proof obligations",
+            "contextual equality-saturation scaffold for M6 positioning",
+            "modal witness dependency declaration for #66/#73 paper substrate",
+        ],
+        deferred_claims: vec![
+            "egglog Rust binding",
+            "external Datalog host execution",
+            "full three-view fusion",
+            "Contextual EqSat theorem",
+            "production research-tier execution view",
+        ],
+    }
 }
 
 pub fn decide_egg_rewrite(candidate: EggRewriteCandidateV0) -> EggRewriteDecisionV0 {
@@ -768,8 +834,8 @@ mod tests {
     use super::{
         EggRewriteCandidateV0, EggRewriteProofV0, decide_egg_rewrite, execute_egg_rewrite,
         execute_egg_rewrite_witnesses_for_css_source, plan_egg_rewrite_passes,
-        plan_egg_rewrite_passes_for_source, summarize_mdl_extraction_mode,
-        summarize_omena_transform_egg_boundary,
+        plan_egg_rewrite_passes_for_source, summarize_contextual_eqsat_scaffold_v0,
+        summarize_mdl_extraction_mode, summarize_omena_transform_egg_boundary,
     };
     use omena_transform_cst::TransformPassKind;
 
@@ -817,6 +883,42 @@ mod tests {
             vec!["selector-is-where-compression", "calc-reduction"]
         );
         assert_eq!(plan.pass_plan.violated_dag_edge_count, 0);
+    }
+
+    #[test]
+    fn contextual_eqsat_scaffold_stays_no_egglog_binding() {
+        let scaffold = summarize_contextual_eqsat_scaffold_v0();
+
+        assert_eq!(scaffold.schema_version, "0");
+        assert_eq!(
+            scaffold.product,
+            "omena-transform-egg.contextual-eqsat-scaffold"
+        );
+        assert_eq!(scaffold.claim_level, "m6ScaffoldOnlyNoEgglogBinding");
+        assert_eq!(scaffold.current_engine, "egg");
+        assert!(scaffold.egg_engine_ready);
+        assert!(!scaffold.egglog_binding_ready);
+        assert!(!scaffold.external_datalog_host_ready);
+        assert!(!scaffold.three_view_fusion_ready);
+        assert!(!scaffold.theorem_claimed);
+        assert!(!scaffold.public_safety_claim_ready);
+        assert_eq!(
+            scaffold.modal_witness_product,
+            "omena-cascade.modal-check-witness"
+        );
+        assert_eq!(scaffold.modal_bridge_claim_level, "dependencyDeclaredOnly");
+        assert_eq!(scaffold.paper_substrate_claim_level, "draftScaffoldOnly");
+        assert_eq!(
+            scaffold.managed_pass_ids,
+            vec!["selector-is-where-compression", "calc-reduction"]
+        );
+        assert!(
+            scaffold
+                .supported_claims
+                .contains(&"contextual equality-saturation scaffold for M6 positioning")
+        );
+        assert!(scaffold.deferred_claims.contains(&"egglog Rust binding"));
+        assert!(scaffold.deferred_claims.contains(&"full three-view fusion"));
     }
 
     #[test]
