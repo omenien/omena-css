@@ -24,12 +24,18 @@ const omenaCssCrates = [
   "omena-testkit",
   "omena-parser",
   "omena-incremental",
+  "omena-refinement-trait",
   "omena-cascade",
   "omena-resolver",
   "omena-semantic",
   "omena-spec-audit",
   "omena-bridge",
+  "omena-zk-circuit",
+  "omena-smt",
+  "omena-zk-audit",
   "omena-transform-cst",
+  "omena-lawvere",
+  "omena-categorical",
   "omena-transform-passes",
   "omena-transform-bundle",
   "omena-transform-target",
@@ -50,12 +56,18 @@ const omenaCssPublishOrder = [
   "omena-testkit",
   "omena-interner",
   "omena-parser",
+  "omena-refinement-trait",
   "omena-cascade",
   "omena-resolver",
   "omena-semantic",
   "omena-spec-audit",
   "omena-bridge",
+  "omena-zk-circuit",
+  "omena-smt",
+  "omena-zk-audit",
   "omena-transform-cst",
+  "omena-lawvere",
+  "omena-categorical",
   "omena-transform-passes",
   "omena-transform-bundle",
   "omena-transform-target",
@@ -1199,8 +1211,13 @@ function rewriteCrateManifest(manifestPath) {
     `engine-input-producers = { package = "omena-engine-input-producers", path = "../engine-input-producers", version = "${omenaCssDependencyVersion}" }`,
   );
   manifest = manifest.replace(
-    /^((?:omena-[a-z0-9-]+) = \{ path = "\.\.\/(?:omena-[a-z0-9-]+)") \}$/gm,
-    `$1, version = "${omenaCssDependencyVersion}" }`,
+    /^((?:omena-[a-z0-9-]+) = \{ path = "\.\.\/(?:omena-[a-z0-9-]+)")((?:, [^}\n]+)*) \}$/gm,
+    (_dependency, prefix, attributes) => {
+      if (attributes.includes("version =")) {
+        return `${prefix}${attributes} }`;
+      }
+      return `${prefix}, version = "${omenaCssDependencyVersion}"${attributes} }`;
+    },
   );
   writeFileSync(manifestPath, manifest);
 }
