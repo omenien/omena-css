@@ -25,6 +25,7 @@ use omena_query::{
     OmenaQuerySourceSelectorReferenceMatchKindV0 as SourceSelectorReferenceMatchKind,
     OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStyleSourceInputV0,
     ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleLanguage,
+    collect_omena_query_vue_style_module_bindings,
     is_omena_query_sass_symbol_candidate_kind as is_sass_symbol_candidate_kind,
     is_omena_query_sass_symbol_declaration_kind as is_sass_symbol_declaration_kind,
     is_omena_query_sass_symbol_reference_kind as is_sass_symbol_reference_kind,
@@ -42,7 +43,8 @@ use omena_query::{
     summarize_omena_query_refs_for_class, summarize_omena_query_rename_plan,
     summarize_omena_query_sass_module_sources, summarize_omena_query_source_completion_at_position,
     summarize_omena_query_source_diagnostics_for_file,
-    summarize_omena_query_source_import_declarations, summarize_omena_query_source_syntax_index,
+    summarize_omena_query_source_import_declarations_for_source_language,
+    summarize_omena_query_source_syntax_index_for_source_language,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_workspace_file,
@@ -1096,7 +1098,7 @@ fn source_selector_diagnostic_target<'a>(
 ) -> Option<(String, &'a LspTextDocumentState)> {
     if let Some(target_style_uri) = candidate.target_style_uri.as_deref() {
         let target_document = state.document(target_style_uri)?;
-        if !is_style_document_uri(target_document.uri.as_str())
+        if !document_has_style_index(target_document)
             || !workspace_folder_compatible(workspace_folder_uri, target_document)
         {
             return None;
@@ -2432,8 +2434,10 @@ fn build_source_syntax_index(
     }
 
     let imports = collect_source_imports(document, resolution_inputs);
-    summarize_omena_query_source_syntax_index(
+    summarize_omena_query_source_syntax_index_for_source_language(
+        document.uri.as_str(),
         document.text.as_str(),
+        Some(document.language_id.as_str()),
         imports.imported_style_bindings,
         imports.classnames_bind_bindings,
     )
@@ -2454,7 +2458,11 @@ fn collect_source_imports(
         imported_style_bindings: Vec::new(),
         classnames_bind_bindings: Vec::new(),
     };
-    let summary = summarize_omena_query_source_import_declarations(source);
+    let summary = summarize_omena_query_source_import_declarations_for_source_language(
+        document.uri.as_str(),
+        source,
+        Some(document.language_id.as_str()),
+    );
     for import in summary.imports {
         if import.specifier == "classnames/bind" {
             imports.classnames_bind_bindings.push(import.binding);
@@ -2473,6 +2481,18 @@ fn collect_source_imports(
             });
         }
     }
+    if is_vue_document(document) && has_vue_module_style_block(source) {
+        for binding in collect_omena_query_vue_style_module_bindings(
+            document.uri.as_str(),
+            source,
+            Some(document.language_id.as_str()),
+        ) {
+            imports.imported_style_bindings.push(ImportedStyleBinding {
+                binding,
+                style_uri: document.uri.clone(),
+            });
+        }
+    }
     imports
         .imported_style_bindings
         .sort_by(|left, right| left.binding.cmp(&right.binding));
@@ -2482,6 +2502,31 @@ fn collect_source_imports(
     imports.classnames_bind_bindings.sort();
     imports.classnames_bind_bindings.dedup();
     imports
+}
+
+fn is_vue_document(document: &LspTextDocumentState) -> bool {
+    document.language_id == "vue" || document.uri.ends_with(".vue")
+}
+
+fn document_has_style_index(document: &LspTextDocumentState) -> bool {
+    is_style_document_uri(document.uri.as_str()) || document.style_summary.is_some()
+}
+
+fn has_vue_module_style_block(source: &str) -> bool {
+    let lower = source.to_ascii_lowercase();
+    let mut cursor = 0usize;
+    while let Some(relative_start) = lower[cursor..].find("<style") {
+        let tag_start = cursor + relative_start;
+        let Some(relative_tag_end) = lower[tag_start..].find('>') else {
+            break;
+        };
+        let tag = &lower[tag_start..tag_start + relative_tag_end + 1];
+        if tag.contains("module") {
+            return true;
+        }
+        cursor = tag_start + relative_tag_end + 1;
+    }
+    false
 }
 
 fn source_reference_candidate(
@@ -2511,7 +2556,7 @@ fn style_selector_definitions_from_open_documents(
 ) -> Vec<(String, LspStyleHoverCandidate)> {
     let mut definitions = Vec::new();
     for document in state.documents.values() {
-        if !is_style_document_uri(document.uri.as_str())
+        if !document_has_style_index(document)
             || !workspace_folder_compatible(workspace_folder_uri, document)
         {
             continue;
@@ -2660,7 +2705,7 @@ fn first_style_document_for_workspace<'a>(
     state
         .documents
         .values()
-        .filter(|document| is_style_document_uri(document.uri.as_str()))
+        .filter(|document| document_has_style_index(document))
         .filter(|document| workspace_folder_compatible(workspace_folder_uri, document))
         .map(|document| (document.uri.clone(), document))
         .next()

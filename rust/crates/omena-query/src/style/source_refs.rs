@@ -229,7 +229,11 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file(
         .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
         .collect::<BTreeMap<_, _>>();
     let definitions = summarize_omena_query_style_selector_definitions(style_sources);
-    let imports = summarize_omena_query_source_import_declarations(source_source);
+    let imports = summarize_omena_query_source_import_declarations_for_source_language(
+        source_path,
+        source_source,
+        None,
+    );
     let mut imported_style_bindings = Vec::new();
     let mut classnames_bind_bindings = Vec::new();
     let mut diagnostics = Vec::new();
@@ -274,8 +278,10 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file(
     }
 
     if !imported_style_bindings.is_empty() {
-        let index = summarize_omena_query_source_syntax_index(
+        let index = summarize_omena_query_source_syntax_index_for_source_language(
+            source_path,
             source_source,
+            None,
             imported_style_bindings,
             classnames_bind_bindings,
         );
@@ -431,7 +437,11 @@ pub(super) fn collect_omena_query_source_selector_references(
     let mut references = Vec::new();
 
     for document in source_documents {
-        let imports = summarize_omena_query_source_import_declarations(&document.source_source);
+        let imports = summarize_omena_query_source_import_declarations_for_source_language(
+            document.source_path.as_str(),
+            &document.source_source,
+            None,
+        );
         let mut imported_style_bindings = Vec::new();
         let mut classnames_bind_bindings = Vec::new();
 
@@ -458,8 +468,10 @@ pub(super) fn collect_omena_query_source_selector_references(
             continue;
         }
 
-        let mut index = summarize_omena_query_source_syntax_index(
+        let mut index = summarize_omena_query_source_syntax_index_for_source_language(
+            document.source_path.as_str(),
             &document.source_source,
+            None,
             imported_style_bindings,
             classnames_bind_bindings,
         );

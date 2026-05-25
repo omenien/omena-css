@@ -1,9 +1,13 @@
 use crate::{
-    LspTextDocumentState, build_source_syntax_index, collect_style_hover_candidates,
-    protocol::is_style_document_uri, source_selector_candidates_from_index,
-    summarize_style_document,
+    LspStyleDocumentSummary, LspStyleHoverCandidate, LspTextDocumentState,
+    build_source_syntax_index, collect_style_hover_candidates,
+    protocol::{
+        byte_offset_for_parser_position, is_style_document_uri, parser_range_for_byte_span,
+    },
+    source_selector_candidates_from_index, summarize_style_document,
 };
 use omena_query::OmenaQueryStyleResolutionInputsV0;
+use omena_query::ParserByteSpanV0;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -56,6 +60,10 @@ pub(crate) fn refresh_document_reusable_indexes(
             collect_style_hover_candidates(document.uri.as_str(), document.text.as_str())
                 .map(|(_, candidates)| candidates)
                 .unwrap_or_default();
+    } else if let Some((summary, candidates)) = collect_vue_embedded_module_style_indexes(document)
+    {
+        document.style_summary = Some(summary);
+        document.style_candidates = candidates;
     } else {
         document.style_summary = None;
         document.style_candidates = Vec::new();
@@ -64,4 +72,99 @@ pub(crate) fn refresh_document_reusable_indexes(
     document.source_selector_candidates =
         source_selector_candidates_from_index(document, &source_syntax_index);
     document.source_syntax_index = source_syntax_index;
+}
+
+fn collect_vue_embedded_module_style_indexes(
+    document: &LspTextDocumentState,
+) -> Option<(LspStyleDocumentSummary, Vec<LspStyleHoverCandidate>)> {
+    let embedded = embedded_vue_module_style(document)?;
+    let summary =
+        summarize_style_document(embedded.virtual_uri.as_str(), Some(embedded.style_source))?;
+    let (_, candidates) =
+        collect_style_hover_candidates(embedded.virtual_uri.as_str(), embedded.style_source)?;
+    let candidates = candidates
+        .into_iter()
+        .filter_map(|mut candidate| {
+            candidate.range = embedded_range_to_document_range(
+                document.text.as_str(),
+                embedded.style_source,
+                embedded.content_start,
+                candidate.range,
+            )?;
+            Some(candidate)
+        })
+        .collect();
+    Some((summary, candidates))
+}
+
+struct EmbeddedVueModuleStyle<'a> {
+    virtual_uri: String,
+    style_source: &'a str,
+    content_start: usize,
+}
+
+fn embedded_vue_module_style(
+    document: &LspTextDocumentState,
+) -> Option<EmbeddedVueModuleStyle<'_>> {
+    if document.language_id != "vue" && !document.uri.ends_with(".vue") {
+        return None;
+    }
+
+    let lower = document.text.to_ascii_lowercase();
+    let mut cursor = 0usize;
+    while let Some(relative_start) = lower[cursor..].find("<style") {
+        let tag_start = cursor + relative_start;
+        let relative_tag_end = lower[tag_start..].find('>')?;
+        let tag_end = tag_start + relative_tag_end + 1;
+        let tag = &lower[tag_start..tag_end];
+        let close_start = lower[tag_end..].find("</style>")? + tag_end;
+        let content_start = tag_end;
+        let content_end = close_start;
+        if tag.contains("module") {
+            return Some(EmbeddedVueModuleStyle {
+                virtual_uri: format!(
+                    "{}{}",
+                    document.uri,
+                    vue_embedded_style_virtual_extension(tag)
+                ),
+                style_source: &document.text[content_start..content_end],
+                content_start,
+            });
+        }
+        cursor = close_start + "</style>".len();
+    }
+    None
+}
+
+fn vue_embedded_style_virtual_extension(tag: &str) -> &'static str {
+    if tag.contains("lang=\"scss\"")
+        || tag.contains("lang='scss'")
+        || tag.contains("lang=scss")
+        || tag.contains("lang=\"sass\"")
+        || tag.contains("lang='sass'")
+        || tag.contains("lang=sass")
+    {
+        ".module.scss"
+    } else if tag.contains("lang=\"less\"")
+        || tag.contains("lang='less'")
+        || tag.contains("lang=less")
+    {
+        ".module.less"
+    } else {
+        ".module.css"
+    }
+}
+
+fn embedded_range_to_document_range(
+    document_source: &str,
+    embedded_source: &str,
+    content_start: usize,
+    range: omena_query::ParserRangeV0,
+) -> Option<omena_query::ParserRangeV0> {
+    let start = content_start + byte_offset_for_parser_position(embedded_source, range.start)?;
+    let end = content_start + byte_offset_for_parser_position(embedded_source, range.end)?;
+    Some(parser_range_for_byte_span(
+        document_source,
+        ParserByteSpanV0 { start, end },
+    ))
 }

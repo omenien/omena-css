@@ -1084,7 +1084,11 @@ fn collect_omena_query_source_selector_usage_by_style(
     let mut unresolved_dynamic_usage = BTreeSet::<String>::new();
 
     for document in source_documents {
-        let imports = summarize_omena_query_source_import_declarations(&document.source_source);
+        let imports = summarize_omena_query_source_import_declarations_for_source_language(
+            document.source_path.as_str(),
+            &document.source_source,
+            None,
+        );
         let mut imported_style_bindings = Vec::new();
         let mut classnames_bind_bindings = Vec::new();
         for import in imports.imports {
@@ -1109,8 +1113,10 @@ fn collect_omena_query_source_selector_usage_by_style(
             continue;
         }
 
-        let index = summarize_omena_query_source_syntax_index(
+        let index = summarize_omena_query_source_syntax_index_for_source_language(
+            document.source_path.as_str(),
             &document.source_source,
+            None,
             imported_style_bindings,
             classnames_bind_bindings,
         );

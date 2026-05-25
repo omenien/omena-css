@@ -24,4 +24,5 @@ export type SourceLanguage =
   | "javascriptreact"
   | "typescript"
   | "typescriptreact"
+  | "vue"
   | "unknown";

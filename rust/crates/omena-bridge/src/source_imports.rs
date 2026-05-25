@@ -2,8 +2,9 @@ use omena_parser::ParserByteSpanV0;
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{ImportDeclaration, ImportDeclarationSpecifier, ImportOrExportKind, Statement};
 use oxc_parser::{Parser, ParserReturn};
-use oxc_span::SourceType;
 use serde::Serialize;
+
+use crate::source_language::{project_source_for_language, source_type_for_language};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,14 +33,20 @@ pub fn summarize_omena_bridge_source_import_declarations_for_path(
     source_path: &str,
     source: &str,
 ) -> SourceImportDeclarationSummaryV0 {
+    summarize_omena_bridge_source_import_declarations_for_source_language(source_path, source, None)
+}
+
+pub fn summarize_omena_bridge_source_import_declarations_for_source_language(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+) -> SourceImportDeclarationSummaryV0 {
     let allocator = Allocator::default();
-    let source_type = match SourceType::from_path(source_path) {
-        Ok(source_type) => source_type,
-        Err(_) => SourceType::tsx(),
-    };
+    let projected_source = project_source_for_language(source_path, source, source_language);
+    let source_type = source_type_for_language(source_path, source_language);
     let ParserReturn {
         program, panicked, ..
-    } = Parser::new(&allocator, source, source_type).parse();
+    } = Parser::new(&allocator, projected_source.as_ref(), source_type).parse();
 
     let mut imports = Vec::new();
     if !panicked {
@@ -155,6 +162,33 @@ import real from "./Real.module.scss";
                 .map(|import| (import.binding.as_str(), import.specifier.as_str()))
                 .collect::<Vec<_>>(),
             vec![("real", "./Real.module.scss")],
+        );
+    }
+
+    #[test]
+    fn extracts_imports_from_vue_sfc_script_projection() {
+        let source = r#"<template><button /></template>
+<script setup lang="ts">
+import styles from "./Card.module.scss";
+const local = "not a style import";
+</script>
+<style module>
+.root {}
+</style>
+"#;
+        let summary = summarize_omena_bridge_source_import_declarations_for_source_language(
+            "Card.vue",
+            source,
+            Some("vue"),
+        );
+
+        assert_eq!(
+            summary
+                .imports
+                .iter()
+                .map(|import| (import.binding.as_str(), import.specifier.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("styles", "./Card.module.scss")],
         );
     }
 }

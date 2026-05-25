@@ -67,6 +67,7 @@ export function buildSourceDocument(args: BuildSourceDocumentArgs): SourceDocume
 }
 
 function inferSourceLanguage(filePath: string): SourceLanguage {
+  if (filePath.endsWith(".vue")) return "vue";
   if (filePath.endsWith(".tsx")) return "typescriptreact";
   if (filePath.endsWith(".ts") || filePath.endsWith(".mts") || filePath.endsWith(".cts")) {
     return "typescript";

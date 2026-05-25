@@ -3,15 +3,17 @@ use oxc_allocator::Allocator;
 use oxc_ast::ast::{
     Argument, ArrayExpression, ArrayExpressionElement, BindingPattern, CallExpression,
     ChainElement, Class, ClassElement, ComputedMemberExpression, ConditionalExpression,
-    Declaration, Expression, JSXAttributeName, JSXAttributeValue, JSXChild, JSXExpression,
-    LogicalExpression, ObjectExpression, ObjectPropertyKind, ParenthesizedExpression, Program,
-    Statement, StaticMemberExpression, TSAsExpression, TSNonNullExpression, TSSatisfiesExpression,
-    VariableDeclarator,
+    Declaration, Expression, ImportDeclarationSpecifier, ImportOrExportKind, JSXAttributeName,
+    JSXAttributeValue, JSXChild, JSXExpression, LogicalExpression, ObjectExpression,
+    ObjectPropertyKind, ParenthesizedExpression, Program, Statement, StaticMemberExpression,
+    TSAsExpression, TSNonNullExpression, TSSatisfiesExpression, VariableDeclarator,
 };
 use oxc_parser::{Parser, ParserReturn};
 use oxc_span::{GetSpan, SourceType, Span};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
+
+use crate::source_language::{project_source_for_language, source_type_for_language};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -121,10 +123,28 @@ pub fn summarize_omena_bridge_source_syntax_index(
     imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
     classnames_bind_bindings: Vec<String>,
 ) -> SourceSyntaxIndexV0 {
+    summarize_omena_bridge_source_syntax_index_for_source_language(
+        "source.tsx",
+        source,
+        None,
+        imported_style_bindings,
+        classnames_bind_bindings,
+    )
+}
+
+pub fn summarize_omena_bridge_source_syntax_index_for_source_language(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    imported_style_bindings: Vec<SourceImportedStyleBindingV0>,
+    classnames_bind_bindings: Vec<String>,
+) -> SourceSyntaxIndexV0 {
+    let projected_source = project_source_for_language(source_path, source, source_language);
     let imported_style_targets = imported_style_targets(imported_style_bindings.as_slice());
     let property_access_targets = property_access_style_targets(imported_style_bindings.as_slice());
     let ast_facts = collect_source_syntax_ast_facts(
-        source,
+        projected_source.as_ref(),
+        source_type_for_language(source_path, source_language),
         property_access_targets.as_slice(),
         imported_style_targets.as_slice(),
         classnames_bind_bindings.as_slice(),
@@ -134,7 +154,7 @@ pub fn summarize_omena_bridge_source_syntax_index(
     let class_name_expression_spans = ast_facts.class_name_expression_spans;
     let classnames_bind_targets = ast_facts.classnames_bind_utility_bindings;
     let classnames_bind_call_arguments = ast_facts.classnames_bind_call_arguments;
-    let local_class_values = collect_local_class_value_bindings(source);
+    let local_class_values = collect_local_class_value_bindings(projected_source.as_ref());
 
     let mut index = SourceSyntaxIndexV0 {
         schema_version: "0",
@@ -194,6 +214,27 @@ pub fn summarize_omena_bridge_source_syntax_index(
     canonicalize_source_selector_references(&mut index.selector_references);
 
     index
+}
+
+pub fn collect_omena_bridge_vue_style_module_bindings(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+) -> Vec<String> {
+    let projected_source = project_source_for_language(source_path, source, source_language);
+    let allocator = Allocator::default();
+    let ParserReturn {
+        program, panicked, ..
+    } = Parser::new(
+        &allocator,
+        projected_source.as_ref(),
+        source_type_for_language(source_path, source_language),
+    )
+    .parse();
+    if panicked {
+        return Vec::new();
+    }
+    collect_vue_use_css_module_bindings(&program)
 }
 
 pub fn canonicalize_source_selector_references(
@@ -266,6 +307,7 @@ struct SourceSyntaxAstFacts {
 
 fn collect_source_syntax_ast_facts(
     source: &str,
+    source_type: SourceType,
     property_access_targets: &[SourceStyleBindingTarget],
     style_targets: &[SourceStyleBindingTarget],
     classnames_bind_imports: &[String],
@@ -273,7 +315,7 @@ fn collect_source_syntax_ast_facts(
     let allocator = Allocator::default();
     let ParserReturn {
         program, panicked, ..
-    } = Parser::new(&allocator, source, SourceType::tsx()).parse();
+    } = Parser::new(&allocator, source, source_type).parse();
     if panicked {
         return SourceSyntaxAstFacts {
             class_string_literals: Vec::new(),
@@ -303,6 +345,94 @@ fn collect_source_syntax_ast_facts(
         class_name_expression_spans: collector.class_name_expression_spans,
         classnames_bind_utility_bindings: collector.classnames_bind_utility_bindings,
         classnames_bind_call_arguments: collector.classnames_bind_call_arguments,
+    }
+}
+
+fn collect_vue_use_css_module_import_names(program: &Program<'_>) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+    for statement in &program.body {
+        let Statement::ImportDeclaration(import) = statement else {
+            continue;
+        };
+        if import.import_kind != ImportOrExportKind::Value || import.source.value.as_str() != "vue"
+        {
+            continue;
+        }
+        let Some(specifiers) = import.specifiers.as_ref() else {
+            continue;
+        };
+        for specifier in specifiers {
+            if let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier {
+                let imported_name = specifier.imported.name().as_str();
+                if imported_name == "useCssModule" {
+                    names.insert(specifier.local.name.as_str().to_string());
+                }
+            }
+        }
+    }
+    names
+}
+
+fn collect_vue_use_css_module_bindings(program: &Program<'_>) -> Vec<String> {
+    let use_css_module_names = collect_vue_use_css_module_import_names(program);
+    if use_css_module_names.is_empty() {
+        return Vec::new();
+    }
+    let mut bindings = BTreeSet::new();
+    for statement in &program.body {
+        collect_vue_use_css_module_bindings_from_statement(
+            statement,
+            &use_css_module_names,
+            &mut bindings,
+        );
+    }
+    bindings.into_iter().collect()
+}
+
+fn collect_vue_use_css_module_bindings_from_statement(
+    statement: &Statement<'_>,
+    use_css_module_names: &BTreeSet<String>,
+    bindings: &mut BTreeSet<String>,
+) {
+    match statement {
+        Statement::VariableDeclaration(declaration) => {
+            collect_vue_use_css_module_bindings_from_variable_declaration(
+                declaration,
+                use_css_module_names,
+                bindings,
+            );
+        }
+        Statement::ExportNamedDeclaration(declaration) => {
+            if let Some(Declaration::VariableDeclaration(declaration)) = &declaration.declaration {
+                collect_vue_use_css_module_bindings_from_variable_declaration(
+                    declaration,
+                    use_css_module_names,
+                    bindings,
+                );
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collect_vue_use_css_module_bindings_from_variable_declaration(
+    declaration: &oxc_ast::ast::VariableDeclaration<'_>,
+    use_css_module_names: &BTreeSet<String>,
+    bindings: &mut BTreeSet<String>,
+) {
+    for declarator in &declaration.declarations {
+        let Some(binding) = binding_pattern_identifier_name(&declarator.id) else {
+            continue;
+        };
+        let Some(Expression::CallExpression(call)) = &declarator.init else {
+            continue;
+        };
+        let Some(callee) = expression_identifier_name(&call.callee) else {
+            continue;
+        };
+        if use_css_module_names.contains(callee) {
+            bindings.insert(binding.to_string());
+        }
     }
 }
 

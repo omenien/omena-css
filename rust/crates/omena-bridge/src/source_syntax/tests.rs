@@ -267,6 +267,53 @@ const view = <div className={cx("root", active && `상태-${tone}`)} />;"#;
     Ok(())
 }
 
+#[test]
+fn collects_vue_sfc_use_css_module_bindings_from_projected_script() {
+    let source = r#"<template><div :class="$style.ignored" /></template>
+<script setup lang="ts">
+import { useCssModule as useModule } from "vue";
+const styles = useModule();
+const text = ".not-style";
+</script>
+<style module>
+.root {}
+</style>
+"#;
+
+    let bindings = collect_omena_bridge_vue_style_module_bindings("Card.vue", source, Some("vue"));
+
+    assert_eq!(bindings, vec!["styles"]);
+}
+
+#[test]
+fn indexes_vue_sfc_use_css_module_property_accesses_against_vue_style_uri() {
+    let source = r#"<template><div /></template>
+<script setup lang="ts">
+import { useCssModule } from "vue";
+const styles = useCssModule();
+export const root = styles.root;
+</script>
+<style module>
+.root { color: red; }
+</style>
+"#;
+    let index = summarize_omena_bridge_source_syntax_index_for_source_language(
+        "file:///workspace/Card.vue",
+        source,
+        Some("vue"),
+        vec![SourceImportedStyleBindingV0 {
+            binding: "styles".to_string(),
+            style_uri: "file:///workspace/Card.vue".to_string(),
+        }],
+        Vec::new(),
+    );
+
+    assert!(index.selector_references.iter().any(|reference| {
+        selector_reference_name(source, reference) == "root"
+            && reference.target_style_uri.as_deref() == Some("file:///workspace/Card.vue")
+    }));
+}
+
 fn selector_reference_name<'a>(
     source: &'a str,
     reference: &'a SourceSelectorReferenceFactV0,

@@ -19,6 +19,18 @@ pub fn summarize_omena_query_source_import_declarations(
     omena_bridge::summarize_omena_bridge_source_import_declarations(source)
 }
 
+pub fn summarize_omena_query_source_import_declarations_for_source_language(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+) -> OmenaQuerySourceImportDeclarationSummaryV0 {
+    omena_bridge::summarize_omena_bridge_source_import_declarations_for_source_language(
+        source_path,
+        source,
+        source_language,
+    )
+}
+
 pub fn resolve_omena_query_style_uri_for_specifier(
     base_document_uri: &str,
     workspace_folder_uri: Option<&str>,
@@ -116,6 +128,34 @@ pub fn summarize_omena_query_source_syntax_index(
         source,
         imported_style_bindings,
         classnames_bind_bindings,
+    )
+}
+
+pub fn summarize_omena_query_source_syntax_index_for_source_language(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+    imported_style_bindings: Vec<OmenaQuerySourceImportedStyleBindingV0>,
+    classnames_bind_bindings: Vec<String>,
+) -> OmenaQuerySourceSyntaxIndexV0 {
+    omena_bridge::summarize_omena_bridge_source_syntax_index_for_source_language(
+        source_path,
+        source,
+        source_language,
+        imported_style_bindings,
+        classnames_bind_bindings,
+    )
+}
+
+pub fn collect_omena_query_vue_style_module_bindings(
+    source_path: &str,
+    source: &str,
+    source_language: Option<&str>,
+) -> Vec<String> {
+    omena_bridge::collect_omena_bridge_vue_style_module_bindings(
+        source_path,
+        source,
+        source_language,
     )
 }
 

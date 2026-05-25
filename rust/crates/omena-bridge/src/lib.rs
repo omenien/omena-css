@@ -15,6 +15,7 @@ mod promotion_evidence;
 mod selector_references;
 mod source_evidence;
 mod source_imports;
+mod source_language;
 mod source_syntax;
 mod style_resolution;
 
@@ -41,12 +42,14 @@ pub use source_imports::{
     SourceImportDeclarationSummaryV0, SourceImportDeclarationV0,
     summarize_omena_bridge_source_import_declarations,
     summarize_omena_bridge_source_import_declarations_for_path,
+    summarize_omena_bridge_source_import_declarations_for_source_language,
 };
 pub use source_syntax::{
     SourceImportedStyleBindingV0, SourceSelectorReferenceFactV0,
     SourceSelectorReferenceMatchKindV0, SourceStylePropertyAccessFactV0, SourceSyntaxIndexV0,
     SourceTypeFactTargetV0, canonicalize_source_selector_references,
-    summarize_omena_bridge_source_syntax_index,
+    collect_omena_bridge_vue_style_module_bindings, summarize_omena_bridge_source_syntax_index,
+    summarize_omena_bridge_source_syntax_index_for_source_language,
 };
 pub use style_resolution::{
     OmenaBridgeStyleResolutionInputsV0, OmenaBridgeStyleResolutionSummaryV0,

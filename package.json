@@ -493,7 +493,8 @@
     "onLanguage:less",
     "onLanguage:scss",
     "onLanguage:typescript",
-    "onLanguage:typescriptreact"
+    "onLanguage:typescriptreact",
+    "onLanguage:vue"
   ],
   "extensionKind": [
     "workspace"
