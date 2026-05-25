@@ -92,6 +92,33 @@ pnpm --dir examples build
 pnpm exec vsce package --no-dependencies
 ```
 
+## Release claim discipline
+
+Public release text should describe shipped behavior and the evidence that
+proves it. Avoid internal milestone labels, planning shorthand, and P-numbering
+in README, CHANGELOG, release notes, and Marketplace text.
+
+Use these rules before publishing:
+
+- Map every user-visible claim to a release gate, pushed commit, CI run, or
+  packaged artifact check.
+- Treat V0 Rust/TypeScript contracts as internal substrate unless a product gate
+  exercises them through the shipped extension, CLI, or public crate surface.
+- Do not describe substrate as final APIs, completed proofs, or external
+  runtime support. In particular, do not claim a Datalog host, egglog binding,
+  modal theorem prover, belief-propagation paper result, or safety
+  margin unless a later product gate directly proves that behavior.
+- For issue #61, release text may mention only the Finding-D class-value-universe
+  substrate when the CSS Modules fallback, vanilla-extract recipe, and cva phase
+  1 gates are green. Do not close or describe the broader #61 resolver/Sass/
+  workspace/paradigm RFC as completed unless it is separately evidenced.
+- Automation and testkit surfaces are release-framed only when their fixture
+  grammar, schema version, known-failure policy, and failure modes are enforced
+  by gates. Unstable automation remains internal.
+- Cargo crate versioning stays on the gradual `0.2.x` line for this release
+  chapter. Do not publish or describe a Cargo `1.0.0` API-freeze line until the
+  corresponding API-freeze evidence exists.
+
 `pnpm release:verify` does:
 
 1. sync `SERVER_VERSION`

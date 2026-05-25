@@ -80,10 +80,10 @@ the Rust selected-query runtime, and the bundled `tsgo` type-fact path; the VS
 Code host remains a thin client responsible for process orchestration, UI
 commands, and file watching.
 
-This is the milestone 5/6 declaration point: the Rust core, query-owned LSP
-boundary, value-domain completion, refactor automation, M-tier rule surfaces,
-Z5 performance baseline, full reduced-product model, and provenance hover
-surface are release-framed as the stable product baseline for the next chapter.
+Release notes should describe shipped editor/runtime behavior and the gates
+that prove it. Lower-level V0 contract substrates are kept internal unless a
+release gate maps them to user-visible behavior; they are not claims of final
+APIs, completed proofs, or external runtime support by themselves.
 
 ## Configuration
 

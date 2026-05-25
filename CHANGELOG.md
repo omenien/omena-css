@@ -4,6 +4,19 @@
 
 ### Changed
 
+- **Variant recipe class-value substrate** - binder and query summaries now
+  carry a shared `ClassValueUniverseProviderV0` substrate for CSS Modules
+  fallback, vanilla-extract recipes, and cva phase 1, covering `base`,
+  `variants`, `compoundVariants`, and `defaultVariants` without introducing a
+  public plugin ABI.
+- **V0 theory contract substrate** - incremental, cascade, and abstract-value
+  crates now expose strict-superset V0 contract summaries for the rule-evaluator,
+  modal-witness, belief-propagation, and cascade-margin substrate surfaces while
+  keeping Datalog host, modal theorem, belief-propagation paper, and safety-margin
+  claims out of public release wording.
+- **Release wording discipline** - public release framing now separates shipped
+  editor/runtime behavior from internal V0 substrate evidence and avoids treating
+  staged research contracts as final APIs or completed theory claims.
 - **Parser-owned facts CLIs** - `omena-parser-style-facts` and `omena-parser-lex` now live in `omena-parser` as parser-owned binaries, moving the parser public lane off the query/runner-owned command surface.
 - **Parser scaffold gate ownership** - `check:rust-parser-scaffold` now validates `omena-parser` directly instead of the legacy `engine-style-parser` crate, making the parser lane start from the green-field parser track.
 - **Parser-owned selected-query facts output** - the packaged `engine-shadow-runner` compatibility commands now route parser facts and lexer summaries through `omena-parser` directly and advertise the parser-owned `omena-parser.style-facts` product.
