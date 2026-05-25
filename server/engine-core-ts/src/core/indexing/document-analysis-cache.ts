@@ -4,6 +4,7 @@ import type { StyleImport } from "@css-module-explainer/shared";
 import type { SourceBindingGraph } from "../binder/source-binding-graph";
 import { buildSourceBindingGraph } from "../binder/source-binding-graph";
 import { composeBinderPluginsV0, type BinderPluginV0 } from "../binder/binder-plugin";
+import type { ClassValueUniverseEntryV0 } from "../binder/class-value-universe-provider";
 import type { SourceBinderResult } from "../binder/scope-types";
 import { buildSourceBinder } from "../binder/binder-builder";
 import type { CxBinding } from "../cx/cx-types";
@@ -54,6 +55,7 @@ export interface AnalysisEntry {
    * when the file has no such imports.
    */
   readonly classUtilNames: readonly string[];
+  readonly classValueUniverses: readonly ClassValueUniverseEntryV0[];
   readonly sourceDependencyPaths: readonly string[];
 }
 
@@ -215,6 +217,8 @@ export class DocumentAnalysisCache {
     const classExpressions = pluginAnalysis?.classExpressions ?? legacyAnalysis!.classExpressions;
     const domainClassReferences =
       pluginAnalysis?.domainClassReferences ?? legacyAnalysis!.domainClassReferences;
+    const classValueUniverses =
+      pluginAnalysis?.classValueUniverses ?? legacyAnalysis!.classValueUniverses;
     const sourceDependencyPaths = collectSourceDependencyPaths(
       sourceFile,
       filePath,
@@ -240,6 +244,7 @@ export class DocumentAnalysisCache {
       sourceDocument,
       stylesBindings,
       classUtilNames,
+      classValueUniverses,
       sourceDependencyPaths,
     };
   }
@@ -254,6 +259,7 @@ export class DocumentAnalysisCache {
     readonly classUtilNames: readonly string[];
     readonly classExpressions: readonly ClassExpressionHIR[];
     readonly domainClassReferences: readonly DomainClassReferenceHIR[];
+    readonly classValueUniverses: readonly ClassValueUniverseEntryV0[];
   } {
     if (!this.deps.scanCxImports) {
       throw new Error("DocumentAnalysisCache requires binderPlugin or scanCxImports");
@@ -277,6 +283,7 @@ export class DocumentAnalysisCache {
       classUtilNames,
       classExpressions,
       domainClassReferences: [],
+      classValueUniverses: [],
     };
   }
 

@@ -250,6 +250,7 @@ function analysisEntryFor(sourceScenario: ReturnType<typeof loadSourceScenario>)
     sourceDocument: sourceScenario.sourceDocument,
     stylesBindings: toStyleBindingsMap(sourceScenario.sourceDocument.styleImports),
     classUtilNames: [],
+    classValueUniverses: [],
   };
 }
 
@@ -268,6 +269,7 @@ function makeAnalysisEntry(
     sourceDocument,
     stylesBindings: new Map(),
     classUtilNames: [],
+    classValueUniverses: [],
   };
 }
 

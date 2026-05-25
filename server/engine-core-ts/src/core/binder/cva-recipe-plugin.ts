@@ -12,34 +12,34 @@ import {
   propertyNameText,
   rangeOfNode,
   unwrapTransparentExpression,
+  variantRecipeKey,
   type VariantRecipeBindingV0,
 } from "./variant-recipe-universe";
 
-const PLUGIN_ID = "vanilla-extract-recipe-domain";
-const DOMAIN = "vanilla-extract-recipe";
+const PLUGIN_ID = "cva-recipe-domain";
+const DOMAIN = "cva-recipe";
+const IMPORT_SOURCES = ["class-variance-authority", "cva"] as const;
 
-interface RecipeBinding {
+interface CvaBinding {
   readonly localName: string;
   readonly variants: ReadonlyMap<string, ReadonlySet<string>>;
 }
 
-export const vanillaExtractRecipeClassValueUniverseProviderV0 = makeVariantRecipeUniverseProviderV0(
-  {
-    pluginId: PLUGIN_ID,
-    domain: DOMAIN,
-    importSources: ["@vanilla-extract/recipes"],
-    importNames: ["recipe"],
-    callShape: "objectConfig",
-  },
-);
+export const cvaRecipeClassValueUniverseProviderV0 = makeVariantRecipeUniverseProviderV0({
+  pluginId: PLUGIN_ID,
+  domain: DOMAIN,
+  importSources: IMPORT_SOURCES,
+  importNames: ["cva"],
+  callShape: "baseThenConfig",
+});
 
-export const vanillaExtractRecipeBinderPluginV0: BinderPluginV0 = {
+export const cvaRecipeBinderPluginV0: BinderPluginV0 = {
   id: PLUGIN_ID,
   version: "0",
   stability: "builtIn",
-  domains: ["vanilla-extract-recipes"],
-  importTargets: ["@vanilla-extract/recipes"],
-  utilityTargets: ["recipe"],
+  domains: ["cva-recipes"],
+  importTargets: IMPORT_SOURCES,
+  utilityTargets: ["cva"],
   ownsSurfaces: ["domainClassReferenceExtraction", "classValueUniverseProvider"],
   analyzeSource(input) {
     return {
@@ -49,19 +49,17 @@ export const vanillaExtractRecipeBinderPluginV0: BinderPluginV0 = {
       cxBindings: [],
       classUtilNames: [],
       classExpressions: [],
-      domainClassReferences: collectRecipeVariantReferences(input.sourceFile),
-      classValueUniverses: vanillaExtractRecipeClassValueUniverseProviderV0.lookup(input),
+      domainClassReferences: collectCvaReferences(input.sourceFile),
+      classValueUniverses: cvaRecipeClassValueUniverseProviderV0.lookup(input),
     };
   },
 };
 
-function collectRecipeVariantReferences(
-  sourceFile: ts.SourceFile,
-): readonly DomainClassReferenceHIR[] {
-  const recipeImportNames = collectRecipeImportNames(sourceFile);
-  if (recipeImportNames.size === 0) return [];
+function collectCvaReferences(sourceFile: ts.SourceFile): readonly DomainClassReferenceHIR[] {
+  const cvaImportNames = collectCvaImportNames(sourceFile);
+  if (cvaImportNames.size === 0) return [];
 
-  const recipes = collectRecipeBindings(sourceFile);
+  const recipes = collectCvaBindings(sourceFile);
   if (recipes.size === 0) return [];
 
   const references: DomainClassReferenceHIR[] = [];
@@ -73,7 +71,7 @@ function collectRecipeVariantReferences(
       const recipe = recipes.get(node.expression.text);
       const args = node.arguments;
       if (recipe && args.length > 0) {
-        collectRecipeCallReferences(args[0]!, recipe, sourceFile, references, allocateId);
+        collectCvaCallReferences(args[0]!, recipe, sourceFile, references, allocateId);
       }
     }
     ts.forEachChild(node, visit);
@@ -83,20 +81,21 @@ function collectRecipeVariantReferences(
   return references;
 }
 
-function collectRecipeImportNames(sourceFile: ts.SourceFile): ReadonlySet<string> {
+function collectCvaImportNames(sourceFile: ts.SourceFile): ReadonlySet<string> {
   const names = new Set<string>();
+  const importSources = new Set<string>(IMPORT_SOURCES);
 
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement)) continue;
     if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
-    if (statement.moduleSpecifier.text !== "@vanilla-extract/recipes") continue;
+    if (!importSources.has(statement.moduleSpecifier.text)) continue;
 
     const namedBindings = statement.importClause?.namedBindings;
     if (!namedBindings || !ts.isNamedImports(namedBindings)) continue;
 
     for (const element of namedBindings.elements) {
       const importedName = element.propertyName?.text ?? element.name.text;
-      if (importedName === "recipe") {
+      if (importedName === "cva") {
         names.add(element.name.text);
       }
     }
@@ -105,14 +104,14 @@ function collectRecipeImportNames(sourceFile: ts.SourceFile): ReadonlySet<string
   return names;
 }
 
-function collectRecipeBindings(sourceFile: ts.SourceFile): ReadonlyMap<string, RecipeBinding> {
-  const bindings = new Map<string, RecipeBinding>();
+function collectCvaBindings(sourceFile: ts.SourceFile): ReadonlyMap<string, CvaBinding> {
+  const bindings = new Map<string, CvaBinding>();
   for (const binding of collectVariantRecipeBindings(sourceFile, {
     pluginId: PLUGIN_ID,
     domain: DOMAIN,
-    importSources: ["@vanilla-extract/recipes"],
-    importNames: ["recipe"],
-    callShape: "objectConfig",
+    importSources: IMPORT_SOURCES,
+    importNames: ["cva"],
+    callShape: "baseThenConfig",
   })) {
     const variants = variantOptionsFromRecipeBinding(binding);
     if (variants.size > 0) {
@@ -132,9 +131,9 @@ function variantOptionsFromRecipeBinding(
   return variants;
 }
 
-function collectRecipeCallReferences(
+function collectCvaCallReferences(
   arg: ts.Expression,
-  recipe: RecipeBinding,
+  recipe: CvaBinding,
   sourceFile: ts.SourceFile,
   out: DomainClassReferenceHIR[],
   allocateId: () => string,
@@ -148,8 +147,7 @@ function collectRecipeCallReferences(
     if (!variantName) continue;
     const knownOptions = recipe.variants.get(variantName);
     if (!knownOptions) continue;
-
-    collectVariantValueReferences(
+    collectCvaVariantValueReferences(
       prop.initializer,
       recipe.localName,
       variantName,
@@ -161,7 +159,7 @@ function collectRecipeCallReferences(
   }
 }
 
-function collectVariantValueReferences(
+function collectCvaVariantValueReferences(
   expression: ts.Expression,
   recipeName: string,
   variantName: string,
@@ -181,7 +179,7 @@ function collectVariantValueReferences(
         PLUGIN_ID,
         DOMAIN,
         "classUtilityCall",
-        vanillaRecipeVariantKey(recipeName, variantName, value.text),
+        variantRecipeKey(recipeName, variantName, value.text),
         innerStringRange(value, sourceFile),
       ),
     );
@@ -189,7 +187,7 @@ function collectVariantValueReferences(
   }
 
   if (ts.isConditionalExpression(value)) {
-    collectVariantValueReferences(
+    collectCvaVariantValueReferences(
       value.whenTrue,
       recipeName,
       variantName,
@@ -198,7 +196,7 @@ function collectVariantValueReferences(
       out,
       allocateId,
     );
-    collectVariantValueReferences(
+    collectCvaVariantValueReferences(
       value.whenFalse,
       recipeName,
       variantName,
@@ -220,17 +218,9 @@ function collectVariantValueReferences(
         DOMAIN,
         "classUtilityCall",
         value.getText(sourceFile),
-        vanillaRecipeVariantKey(recipeName, variantName, staticPrefix),
+        variantRecipeKey(recipeName, variantName, staticPrefix),
         rangeOfNode(value, sourceFile),
       ),
     );
   }
-}
-
-function vanillaRecipeVariantKey(
-  recipeName: string,
-  variantName: string,
-  optionName: string,
-): string {
-  return `${recipeName}.${variantName}.${optionName}`;
 }

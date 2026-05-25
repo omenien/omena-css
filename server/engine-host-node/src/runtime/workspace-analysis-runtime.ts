@@ -1,5 +1,6 @@
 import type { AliasResolver } from "../../../engine-core-ts/src/core/cx/alias-resolver";
 import { cssModulesClassnamesBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/binder-plugin";
+import { cvaRecipeBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/cva-recipe-plugin";
 import { tailwindUnoUtilityBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/tailwind-utility-plugin";
 import { vanillaExtractRecipeBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/vanilla-extract-recipe-plugin";
 import { vueStyleModuleBinderPluginV0 } from "../../../engine-core-ts/src/core/binder/vue-style-module-plugin";
@@ -30,6 +31,7 @@ export function createWorkspaceAnalysisCache(
       cssModulesClassnamesBinderPluginV0,
       tailwindUnoUtilityBinderPluginV0,
       vanillaExtractRecipeBinderPluginV0,
+      cvaRecipeBinderPluginV0,
       vueStyleModuleBinderPluginV0,
     ],
     fileExists: args.fileExists,

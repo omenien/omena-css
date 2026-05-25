@@ -28,6 +28,7 @@ export const vueStyleModuleBinderPluginV0: BinderPluginV0 = {
       classUtilNames: [],
       classExpressions: [],
       domainClassReferences: collectVueStyleModuleReferences(input.sourceFile),
+      classValueUniverses: [],
     };
   },
 };

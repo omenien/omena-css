@@ -124,6 +124,7 @@ function makeSourceEntry(
       }),
       stylesBindings: new Map(),
       classUtilNames: [],
+      classValueUniverses: [],
       sourceDependencyPaths: [],
     },
   };

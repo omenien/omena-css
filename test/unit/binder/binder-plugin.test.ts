@@ -5,6 +5,7 @@ import {
   composeBinderPluginsV0,
   cssModulesClassnamesBinderPluginV0,
 } from "../../../server/engine-core-ts/src/core/binder/binder-plugin";
+import { cvaRecipeBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/cva-recipe-plugin";
 import { tailwindUnoUtilityBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/tailwind-utility-plugin";
 import { vanillaExtractRecipeBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/vanilla-extract-recipe-plugin";
 import { vueStyleModuleBinderPluginV0 } from "../../../server/engine-core-ts/src/core/binder/vue-style-module-plugin";
@@ -76,6 +77,7 @@ describe("cssModulesClassnamesBinderPluginV0", () => {
       "styleAccess",
     ]);
     expect(result.domainClassReferences).toEqual([]);
+    expect(result.classValueUniverses).toEqual([]);
   });
 
   it("tracks Tailwind/Uno utility classes without pretending to own a CSS Module source", () => {
@@ -148,6 +150,7 @@ describe("cssModulesClassnamesBinderPluginV0", () => {
       import { recipe as defineRecipe } from '@vanilla-extract/recipes';
 
       const button = defineRecipe({
+        base: "button_base",
         variants: {
           tone: {
             primary: "button_tone_primary",
@@ -157,6 +160,15 @@ describe("cssModulesClassnamesBinderPluginV0", () => {
             sm: "button_size_sm",
             lg: "button_size_lg",
           },
+        },
+        compoundVariants: [
+          {
+            variants: { tone: "primary", size: "sm" },
+            style: "button_primary_sm",
+          },
+        ],
+        defaultVariants: {
+          tone: "primary",
         },
       });
 
@@ -192,6 +204,201 @@ describe("cssModulesClassnamesBinderPluginV0", () => {
         matchKind: "literal",
         className: "button.size.sm",
         domain: "vanilla-extract-recipe",
+      },
+    ]);
+    expect(result.classValueUniverses).toMatchObject([
+      {
+        pluginId: "vanilla-extract-recipe-domain",
+        domain: "vanilla-extract-recipe",
+        ownerName: "button",
+        universe: {
+          kind: "reduced-product",
+          baseClassNames: ["button_base"],
+          axes: [
+            {
+              axisName: "tone",
+              defaultValue: "primary",
+              role: "variant",
+              values: [
+                { name: "danger", classNames: ["button_tone_danger"] },
+                { name: "primary", classNames: ["button_tone_primary"] },
+              ],
+            },
+            {
+              axisName: "size",
+              role: "variant",
+              values: [
+                { name: "lg", classNames: ["button_size_lg"] },
+                { name: "sm", classNames: ["button_size_sm"] },
+              ],
+            },
+            {
+              axisName: "slots",
+              role: "slot",
+              reserved: true,
+              values: [],
+            },
+          ],
+          compoundVariants: [
+            {
+              conditions: [
+                { axisName: "size", value: "sm" },
+                { axisName: "tone", value: "primary" },
+              ],
+              classNames: ["button_primary_sm"],
+            },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it("does not invent a vanilla-extract base class when base is omitted", () => {
+    const sourceFile = parse(`
+      import { recipe } from '@vanilla-extract/recipes';
+
+      const badge = recipe({
+        variants: {
+          tone: {
+            info: "badge_info",
+          },
+        },
+      });
+    `);
+    const sourceBinder = buildSourceBinder(sourceFile);
+
+    const result = vanillaExtractRecipeBinderPluginV0.analyzeSource({
+      sourceFile,
+      filePath: "/fake/src/Badge.css.ts",
+      sourceBinder,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+    });
+
+    expect(result.classValueUniverses).toMatchObject([
+      {
+        pluginId: "vanilla-extract-recipe-domain",
+        domain: "vanilla-extract-recipe",
+        ownerName: "badge",
+        universe: {
+          kind: "reduced-product",
+          baseClassNames: [],
+          axes: [
+            {
+              axisName: "tone",
+              role: "variant",
+              values: [{ name: "info", classNames: ["badge_info"] }],
+            },
+            {
+              axisName: "slots",
+              role: "slot",
+              reserved: true,
+              values: [],
+            },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it("tracks cva phase-1 recipes through the class value universe provider", () => {
+    const sourceFile = parse(`
+      import { cva as defineCva } from 'class-variance-authority';
+
+      const button = defineCva("button_base", {
+        variants: {
+          tone: {
+            primary: "button_tone_primary",
+            danger: "button_tone_danger",
+          },
+          size: {
+            sm: "button_size_sm",
+            lg: "button_size_lg",
+          },
+        },
+        compoundVariants: [
+          { tone: "primary", size: "sm", class: "button_primary_sm" },
+        ],
+        defaultVariants: {
+          size: "sm",
+        },
+      });
+
+      const el = button({
+        tone: "primary",
+        size: active ? "sm" : "lg",
+      });
+    `);
+    const sourceBinder = buildSourceBinder(sourceFile);
+
+    const result = cvaRecipeBinderPluginV0.analyzeSource({
+      sourceFile,
+      filePath: "/fake/src/Button.tsx",
+      sourceBinder,
+      fileExists: () => true,
+      aliasResolver: EMPTY_ALIAS_RESOLVER,
+    });
+
+    expect(result.domainClassReferences).toMatchObject([
+      {
+        matchKind: "literal",
+        className: "button.tone.primary",
+        domain: "cva-recipe",
+      },
+      {
+        matchKind: "literal",
+        className: "button.size.sm",
+        domain: "cva-recipe",
+      },
+      {
+        matchKind: "literal",
+        className: "button.size.lg",
+        domain: "cva-recipe",
+      },
+    ]);
+    expect(result.classValueUniverses).toMatchObject([
+      {
+        pluginId: "cva-recipe-domain",
+        domain: "cva-recipe",
+        ownerName: "button",
+        universe: {
+          kind: "reduced-product",
+          baseClassNames: ["button_base"],
+          axes: [
+            {
+              axisName: "tone",
+              role: "variant",
+              values: [
+                { name: "danger", classNames: ["button_tone_danger"] },
+                { name: "primary", classNames: ["button_tone_primary"] },
+              ],
+            },
+            {
+              axisName: "size",
+              defaultValue: "sm",
+              role: "variant",
+              values: [
+                { name: "lg", classNames: ["button_size_lg"] },
+                { name: "sm", classNames: ["button_size_sm"] },
+              ],
+            },
+            {
+              axisName: "slots",
+              role: "slot",
+              reserved: true,
+              values: [],
+            },
+          ],
+          compoundVariants: [
+            {
+              conditions: [
+                { axisName: "size", value: "sm" },
+                { axisName: "tone", value: "primary" },
+              ],
+              classNames: ["button_primary_sm"],
+            },
+          ],
+        },
       },
     ]);
   });

@@ -6,6 +6,7 @@ import { parseClassExpressions } from "../cx/class-ref-parser";
 import type { CxBinding } from "../cx/cx-types";
 import { resolveCxBindings, type ResolvedCxBinding } from "../cx/resolved-bindings";
 import type { ClassExpressionHIR, DomainClassReferenceHIR } from "../hir/source-types";
+import type { ClassValueUniverseEntryV0 } from "./class-value-universe-provider";
 import type { SourceBinderResult } from "./scope-types";
 
 export interface BinderPluginAnalyzeInputV0 {
@@ -24,6 +25,7 @@ export interface BinderPluginAnalyzeResultV0 {
   readonly classUtilNames: readonly string[];
   readonly classExpressions: readonly ClassExpressionHIR[];
   readonly domainClassReferences: readonly DomainClassReferenceHIR[];
+  readonly classValueUniverses: readonly ClassValueUniverseEntryV0[];
 }
 
 export interface BinderPluginV0 {
@@ -83,6 +85,7 @@ function analyzeCssModulesClassnamesScan(
     classUtilNames,
     classExpressions,
     domainClassReferences: [],
+    classValueUniverses: [],
   };
 }
 
@@ -112,6 +115,7 @@ export function composeBinderPluginsV0(plugins: readonly BinderPluginV0[]): Bind
         classUtilNames: uniqueStrings(analyses.flatMap((analysis) => analysis.classUtilNames)),
         classExpressions: analyses.flatMap((analysis) => analysis.classExpressions),
         domainClassReferences: analyses.flatMap((analysis) => analysis.domainClassReferences),
+        classValueUniverses: analyses.flatMap((analysis) => analysis.classValueUniverses),
       };
     },
   };

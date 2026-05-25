@@ -9,7 +9,11 @@ import {
   prefixSuffixClassValue,
   suffixClassValue,
 } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-domain";
-import { resolveAbstractValueSelectors } from "../../../server/engine-core-ts/src/core/abstract-value/selector-projection";
+import { reducedProductClassValueUniverseV0 } from "../../../server/engine-core-ts/src/core/abstract-value/class-value-universe";
+import {
+  resolveAbstractValueClassNames,
+  resolveAbstractValueSelectors,
+} from "../../../server/engine-core-ts/src/core/abstract-value/selector-projection";
 import { info } from "../../_fixtures/test-helpers";
 import { buildStyleDocumentFromSelectorMap } from "../../_fixtures/style-documents";
 
@@ -108,5 +112,39 @@ describe("resolveAbstractValueSelectors", () => {
         .map((selector) => selector.name)
         .toSorted(),
     ).toEqual(["btn-primary", "btn-secondary", "button"]);
+  });
+
+  it("projects abstract values over reduced-product class value universes", () => {
+    const universe = reducedProductClassValueUniverseV0({
+      baseClassNames: ["button_base"],
+      axes: [
+        {
+          axisName: "tone",
+          role: "variant",
+          values: [
+            { name: "primary", classNames: ["button_tone_primary"] },
+            { name: "danger", classNames: ["button_tone_danger"] },
+          ],
+        },
+        { axisName: "slots", role: "slot", reserved: true, values: [] },
+      ],
+      compoundVariants: [
+        {
+          conditions: [{ axisName: "tone", value: "primary" }],
+          classNames: ["button_primary_compound"],
+        },
+      ],
+    });
+
+    expect(resolveAbstractValueClassNames(prefixClassValue("button_tone_"), universe)).toEqual([
+      "button_tone_danger",
+      "button_tone_primary",
+    ]);
+    expect(resolveAbstractValueClassNames(TOP_CLASS_VALUE, universe)).toEqual([
+      "button_base",
+      "button_primary_compound",
+      "button_tone_danger",
+      "button_tone_primary",
+    ]);
   });
 });

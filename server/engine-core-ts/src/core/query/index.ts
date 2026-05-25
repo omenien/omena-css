@@ -73,6 +73,11 @@ export {
   type DomainClassReferenceGroup,
   type DomainClassReferenceSummary,
 } from "./read-domain-class-references";
+export {
+  readClassValueUniverseSummary,
+  type ClassValueUniverseGroup,
+  type ClassValueUniverseSummary,
+} from "./read-class-value-universes";
 export { readSelectorRewriteSafetySummary } from "./read-selector-rewrite-safety";
 export {
   readSelectorStyleDependencySummary,

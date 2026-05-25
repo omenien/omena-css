@@ -372,6 +372,7 @@ function makeEntry(args: {
       ],
     ]),
     classUtilNames: [],
+    classValueUniverses: [],
     sourceDependencyPaths: [FILE_PATH, "/fake/ws/src/theme.ts"],
   };
 }

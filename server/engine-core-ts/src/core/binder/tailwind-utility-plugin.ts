@@ -28,6 +28,7 @@ export const tailwindUnoUtilityBinderPluginV0: BinderPluginV0 = {
       classUtilNames: [],
       classExpressions: [],
       domainClassReferences: collectUtilityClassReferences(input.sourceFile),
+      classValueUniverses: [],
     };
   },
 };
