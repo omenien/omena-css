@@ -147,7 +147,11 @@ fn selects_definite_winner_with_proof() {
         assert_eq!(also_considered.len(), 1);
     }
 
-    let margin = cascade_margin_for_outcome(&outcome).expect("definite outcome has margin");
+    let margin = cascade_margin_for_outcome(&outcome);
+    assert!(margin.is_some(), "definite outcome has margin");
+    let Some(margin) = margin else {
+        return;
+    };
     assert_eq!(margin.product, "omena-cascade.margin");
     assert_eq!(margin.margin_kind, "lexicographicCascadeKeyDelta");
     assert_eq!(margin.winner_declaration_id, "later");

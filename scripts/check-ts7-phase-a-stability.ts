@@ -324,9 +324,13 @@ function runCommand(
       resolve({
         label,
         exitCode: code ?? 1,
-        stdout,
-        stderr,
+        stdout: normalizeVolatileOutput(stdout),
+        stderr: normalizeVolatileOutput(stderr),
       });
     });
   });
+}
+
+function normalizeVolatileOutput(output: string) {
+  return output.replaceAll(/\(node:\d+\)/g, "(node:<pid>)");
 }

@@ -231,8 +231,7 @@ pub fn summarize_refinement_context_v0(
 
     let witness_provenance_count = predicates
         .iter()
-        .map(refinement_predicate_provenance_v0)
-        .flatten()
+        .flat_map(refinement_predicate_provenance_v0)
         .map(|provenance| provenance.source)
         .collect::<std::collections::BTreeSet<_>>()
         .len();
@@ -698,20 +697,20 @@ fn numeric_range_contains_value_v0(
     let Some((magnitude, unit)) = parse_css_integer_with_unit_v0(value) else {
         return false;
     };
-    if let Some(expected_unit) = expected_unit {
-        if unit != expected_unit {
-            return false;
-        }
+    if let Some(expected_unit) = expected_unit
+        && unit != expected_unit
+    {
+        return false;
     }
-    if let Some(min_inclusive) = min_inclusive {
-        if magnitude < min_inclusive {
-            return false;
-        }
+    if let Some(min_inclusive) = min_inclusive
+        && magnitude < min_inclusive
+    {
+        return false;
     }
-    if let Some(max_inclusive) = max_inclusive {
-        if magnitude > max_inclusive {
-            return false;
-        }
+    if let Some(max_inclusive) = max_inclusive
+        && magnitude > max_inclusive
+    {
+        return false;
     }
     true
 }

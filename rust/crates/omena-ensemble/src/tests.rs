@@ -218,7 +218,13 @@ fn public_helper_v0_contracts_carry_replica_ensemble_metadata() {
         snapshot.sites[0].site.layer_marker,
         snapshot.sites[0].site.feature_gate,
     );
-    let provenance = snapshot.sites[0].provenance.as_ref().unwrap();
+    assert!(
+        snapshot.sites[0].provenance.is_some(),
+        "fixture site has replica provenance"
+    );
+    let Some(provenance) = snapshot.sites[0].provenance.as_ref() else {
+        return;
+    };
     assert_replica_contract(
         provenance.schema_version,
         provenance.layer_marker,

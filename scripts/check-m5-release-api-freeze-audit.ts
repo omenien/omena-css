@@ -32,6 +32,7 @@ const packageJson = JSON.parse(read("package.json")) as {
 };
 const changelog = read("CHANGELOG.md");
 const unreleased = extractSection(changelog, "## [Unreleased]");
+const releaseNotes = extractSection(changelog, `## [${packageJson.version}]`);
 const releasing = read("RELEASING.md");
 const cargoToml = read("rust/Cargo.toml");
 const publishScript = read("scripts/publish-extension.sh");
@@ -40,6 +41,7 @@ const M5_AUDIT_TARGET = "release/check/release-m5-api-freeze-audit";
 const M5_AUDIT_SCRIPT = "check:release-m5-api-freeze-audit";
 const M5_CLASS_VALUE_MATRIX_TARGET = "release/check/release-m5-class-value-universe-matrix";
 const M5_CLASS_VALUE_MATRIX_SCRIPT = "check:release-m5-class-value-universe-matrix";
+const LAST_PUBLISHED_EXTENSION_VERSION = "5.0.0";
 
 const dispositionTable: readonly ReleaseDisposition[] = [
   {
@@ -127,6 +129,15 @@ const dispositionTable: readonly ReleaseDisposition[] = [
 ];
 
 assertSemver(packageJson.version);
+assert.ok(
+  compareSemver(packageJson.version, LAST_PUBLISHED_EXTENSION_VERSION) > 0,
+  `extension release version ${packageJson.version} must be greater than already-published ${LAST_PUBLISHED_EXTENSION_VERSION}`,
+);
+assert.equal(
+  unreleased.trim(),
+  "## [Unreleased]",
+  "release-bound changes must be under the package version section",
+);
 assert.equal(cargoToml.match(/^version = "([^"]+)"/m)?.[1], "0.2.0");
 assert.match(cargoToml, /^publish = false$/m);
 
@@ -150,21 +161,23 @@ assertIncludes(
 );
 assertIncludes(publishScript, "pnpm check:packaged-omena-lsp-server-type-fact-protocol");
 
-assertNoInternalMilestoneJargon(unreleased);
-assertIncludes(unreleased, "Variant recipe class-value substrate");
-assertIncludes(unreleased, "ClassValueUniverseProviderV0");
-assertIncludes(unreleased, "vanilla-extract recipes");
-assertIncludes(unreleased, "cva phase 1");
-assertIncludes(unreleased, "without introducing a\n  public plugin ABI");
-assertIncludes(unreleased, "V0 theory contract substrate");
+assertNoInternalMilestoneJargon(releaseNotes);
+assertIncludes(releaseNotes, "Variant recipe class-value substrate");
+assertIncludes(releaseNotes, "ClassValueUniverseProviderV0");
+assertIncludes(releaseNotes, "vanilla-extract recipes");
+assertIncludes(releaseNotes, "cva phase 1");
+assertIncludes(releaseNotes, "without introducing a\n  public plugin ABI");
+assertIncludes(releaseNotes, "V0 theory contract substrate");
 assertIncludes(
-  unreleased,
+  releaseNotes,
   "keeping Datalog host, modal theorem, belief-propagation paper, and safety-margin\n  claims out of public release wording",
 );
-assertIncludes(unreleased, "staged research contracts");
-assertIncludes(unreleased, "final APIs or completed theory claims");
+assertIncludes(releaseNotes, "staged research contracts");
+assertIncludes(releaseNotes, "final APIs or completed theory claims");
 
 assertIncludes(releasing, "Release claim discipline");
+assertIncludes(releasing, "`5.0.0` is already published");
+assertIncludes(releasing, "The next stable release candidate is `5.1.0`");
 assertIncludes(releasing, "pnpm check:release-m5-api-freeze-audit");
 assertIncludes(releasing, "pnpm check:release-m5-class-value-universe-matrix");
 assertIncludes(releasing, "release/API-freeze wording\ngate");
@@ -193,6 +206,7 @@ process.stdout.write(
       schemaVersion: "0",
       product: "release.m5-api-freeze-audit",
       packageVersion: packageJson.version,
+      lastPublishedExtensionVersion: LAST_PUBLISHED_EXTENSION_VERSION,
       cargoWorkspaceVersion: "0.2.0",
       releaseDisposition: dispositionTable,
       theoryClaimGuardSummary: theoryAudit.theoryClaimGuard.summary,
@@ -226,6 +240,18 @@ function assertIncludes(source: string | undefined, marker: string): void {
 
 function assertSemver(version: string): void {
   assert.match(version, /^\d+\.\d+\.\d+$/, "extension release version must be stable semver");
+}
+
+function compareSemver(left: string, right: string): number {
+  const leftParts = left.split(".").map(Number);
+  const rightParts = right.split(".").map(Number);
+  for (let index = 0; index < 3; index += 1) {
+    const delta = leftParts[index]! - rightParts[index]!;
+    if (delta !== 0) {
+      return delta;
+    }
+  }
+  return 0;
 }
 
 function extractSection(source: string, heading: string): string {

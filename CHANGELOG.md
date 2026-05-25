@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [5.1.0] - 2026-05-25
+
 ### Changed
 
 - **Variant recipe class-value substrate** - binder and query summaries now
