@@ -77,6 +77,7 @@ Before a release:
 ```bash
 pnpm install
 pnpm release:verify
+pnpm check:release-m5-class-value-universe-matrix
 pnpm check:plugin-consumer-example
 pnpm check:plugin-consumers
 pnpm test:extension-host
@@ -124,6 +125,12 @@ gate for this chapter. It verifies the M5 disposition table, the issue #61
 Finding-D scope boundary, Cargo `0.2.x` version policy, the theory-claim
 ladder, and the publish path's packaged Rust LSP type-fact protocol gate before
 release artifacts or publish commands are treated as release evidence.
+
+`pnpm check:release-m5-class-value-universe-matrix` is the release-facing
+fixture matrix for the issue #61 Finding-D slice. It verifies CSS Modules finite
+fallback, vanilla-extract recipe, and cva phase 1 class-value universes through
+the binder, analysis-cache, query-summary, and selector-projection paths. It
+also records the slots axis as reserved/deferred for this release chapter.
 
 VSIX packaging must use `scripts/package-extension-vsix.ts`, not direct
 repo-root `vsce package`. VSCE walks the full current working directory before

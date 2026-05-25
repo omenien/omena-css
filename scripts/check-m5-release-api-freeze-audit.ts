@@ -38,6 +38,8 @@ const publishScript = read("scripts/publish-extension.sh");
 
 const M5_AUDIT_TARGET = "release/check/release-m5-api-freeze-audit";
 const M5_AUDIT_SCRIPT = "check:release-m5-api-freeze-audit";
+const M5_CLASS_VALUE_MATRIX_TARGET = "release/check/release-m5-class-value-universe-matrix";
+const M5_CLASS_VALUE_MATRIX_SCRIPT = "check:release-m5-class-value-universe-matrix";
 
 const dispositionTable: readonly ReleaseDisposition[] = [
   {
@@ -50,6 +52,7 @@ const dispositionTable: readonly ReleaseDisposition[] = [
       "test/unit/binder/binder-plugin.test.ts",
       "test/unit/query/read-domain-class-references.test.ts",
       "test/unit/abstract-value/selector-projection.test.ts",
+      "scripts/check-m5-class-value-universe-matrix.ts",
     ],
   },
   {
@@ -128,10 +131,16 @@ assert.equal(cargoToml.match(/^version = "([^"]+)"/m)?.[1], "0.2.0");
 assert.match(cargoToml, /^publish = false$/m);
 
 assertIncludes(packageJson.scripts[M5_AUDIT_SCRIPT], "check-m5-release-api-freeze-audit.ts");
+assertIncludes(
+  packageJson.scripts[M5_CLASS_VALUE_MATRIX_SCRIPT],
+  "check-m5-class-value-universe-matrix.ts",
+);
 assertIncludes(packageJson.scripts.package, "release/package/prepared");
+assertIncludes(packageJson.scripts["package:prepared"], M5_CLASS_VALUE_MATRIX_TARGET);
 assertIncludes(packageJson.scripts["package:prepared"], M5_AUDIT_TARGET);
 assertIncludes(packageJson.scripts["package:prepared"], "package-extension-vsix.ts");
 assertIncludes(packageJson.scripts["release:verify"], M5_AUDIT_TARGET);
+assertIncludes(publishScript, `pnpm ${M5_CLASS_VALUE_MATRIX_SCRIPT}`);
 assertIncludes(publishScript, `pnpm ${M5_AUDIT_SCRIPT}`);
 assertIncludes(publishScript, "package-extension-vsix.ts");
 assertIncludes(publishScript, "vsce publish --packagePath");
@@ -157,7 +166,10 @@ assertIncludes(unreleased, "final APIs or completed theory claims");
 
 assertIncludes(releasing, "Release claim discipline");
 assertIncludes(releasing, "pnpm check:release-m5-api-freeze-audit");
+assertIncludes(releasing, "pnpm check:release-m5-class-value-universe-matrix");
 assertIncludes(releasing, "release/API-freeze wording\ngate");
+assertIncludes(releasing, "CSS Modules finite\nfallback");
+assertIncludes(releasing, "slots axis as reserved/deferred");
 assertIncludes(releasing, "Avoid internal milestone labels, planning shorthand, and P-numbering");
 assertIncludes(
   releasing,
@@ -187,6 +199,7 @@ process.stdout.write(
       publishPath: {
         auditGate: M5_AUDIT_TARGET,
         preparedPackageGate: "release/package/prepared",
+        classValueUniverseMatrixGate: M5_CLASS_VALUE_MATRIX_TARGET,
         packagedTypeFactProtocolGate: "release/check/packaged-omena-lsp-server-type-fact-protocol",
         marketplacePublishInvoked: false,
         openVsxPublishInvoked: false,

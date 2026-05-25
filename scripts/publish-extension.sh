@@ -24,6 +24,7 @@ if [ "$CHANNEL" = "preview" ]; then
 fi
 
 ./scripts/release.sh
+pnpm check:release-m5-class-value-universe-matrix
 pnpm check:release-m5-api-freeze-audit
 pnpm check
 pnpm test
