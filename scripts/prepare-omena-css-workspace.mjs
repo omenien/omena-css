@@ -469,6 +469,7 @@ omena build path/to/file.css --target-query "ie 11" --allow-logical-to-physical
 omena build path/to/Button.module.css --source path/to/tokens.css --pass import-inline
 omena build path/to/Button.module.css --source node_modules/@design/tokens/dist/theme.css --package-manifest node_modules/@design/tokens/package.json --pass import-inline
 omena cascade path/to/file.module.css --line 10 --character 16 --json
+omena perceptual-check path/to/file.module.css --json
 omena passes
 \`\`\`
 
@@ -482,6 +483,7 @@ cargo run -p omena-cli -- build path/to/file.css --target-query "ie 11" --allow-
 cargo run -p omena-cli -- build path/to/Button.module.css --source path/to/tokens.css --pass import-inline
 cargo run -p omena-cli -- build path/to/Button.module.css --source node_modules/@design/tokens/dist/theme.css --package-manifest node_modules/@design/tokens/package.json --pass import-inline
 cargo run -p omena-cli -- cascade path/to/file.module.css --line 10 --character 16 --json
+cargo run -p omena-cli -- perceptual-check path/to/file.module.css --json
 cargo run -p omena-cli -- passes
 \`\`\`
 
@@ -732,6 +734,9 @@ Primary consumers:
   cross-language class-value flow through the query-owned incremental runtime.
 - \`omena selector-projection --engine-input-json input.json\` projects
   expression-domain values to target style selectors.
+- \`omena perceptual-check <file> --json\` emits the downstream perceptual-tool
+  scaffold schema from Omena facts. This is not a complete WCAG/APCA/OKLab
+  perceptual algorithm.
 - \`omena passes\` lists accepted transform pass ids.
 
 ## Wasm

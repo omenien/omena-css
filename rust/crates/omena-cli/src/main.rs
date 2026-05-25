@@ -20,7 +20,7 @@ use omena_query::{
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file,
     summarize_omena_query_style_diagnostics_for_workspace_file,
-    summarize_omena_query_style_hover_candidates,
+    summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
 #[cfg(feature = "zk-audit")]
@@ -241,6 +241,14 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Emit the #72 downstream perceptual-check JSON scaffold from Omena facts.
+    PerceptualCheck {
+        /// CSS, SCSS, Sass, Less, or CSS Modules file to inspect.
+        path: PathBuf,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Run feature-gated audit surfaces.
     #[cfg(feature = "zk-audit")]
     Audit {
@@ -300,6 +308,33 @@ struct ZkAuditCliResultV0 {
     audit: Option<CascadeZKAuditV0>,
     ci_matrix: Option<ZKAuditCiMatrixV0>,
     verified: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PerceptualCheckCliReportV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    command: &'static str,
+    claim_level: &'static str,
+    style_path: String,
+    language: &'static str,
+    fact_source_products: Vec<&'static str>,
+    selector_count: usize,
+    custom_property_declaration_count: usize,
+    custom_property_reference_count: usize,
+    diagnostic_count: usize,
+    color_machinery_source: &'static str,
+    json_schema_ready: bool,
+    downstream_tool_scaffold_ready: bool,
+    consumes_omena_facts: bool,
+    wcag_algorithm_ready: bool,
+    apca_algorithm_ready: bool,
+    oklab_perceptual_operator_ready: bool,
+    full_perceptual_algorithm_ready: bool,
+    public_safety_claim_ready: bool,
+    supported_claims: Vec<&'static str>,
+    deferred_claims: Vec<&'static str>,
 }
 
 fn main() -> ExitCode {
@@ -420,6 +455,7 @@ fn run(cli: Cli) -> Result<(), String> {
             package_manifest_paths,
             json,
         ),
+        Command::PerceptualCheck { path, json } => perceptual_check(path, json),
         #[cfg(feature = "zk-audit")]
         Command::Audit { command } => audit_command(command),
     }
@@ -1125,6 +1161,84 @@ fn source_diagnostics(
     Ok(())
 }
 
+fn perceptual_check(path: PathBuf, json: bool) -> Result<(), String> {
+    let report = perceptual_check_summary(&path)?;
+
+    if json {
+        print_json(&report)?;
+        return Ok(());
+    }
+
+    println!("product: {}", report.product);
+    println!("file: {}", report.style_path);
+    println!("language: {}", report.language);
+    println!("claim level: {}", report.claim_level);
+    println!("selectors: {}", report.selector_count);
+    println!(
+        "custom property declarations: {}",
+        report.custom_property_declaration_count
+    );
+    println!(
+        "custom property references: {}",
+        report.custom_property_reference_count
+    );
+    println!("diagnostics: {}", report.diagnostic_count);
+    println!(
+        "downstream scaffold ready: {}",
+        report.downstream_tool_scaffold_ready
+    );
+    println!(
+        "full perceptual algorithm ready: {}",
+        report.full_perceptual_algorithm_ready
+    );
+    Ok(())
+}
+
+fn perceptual_check_summary(path: &Path) -> Result<PerceptualCheckCliReportV0, String> {
+    let source = read_source(path)?;
+    let style_path = path_string(path);
+    let style_document = summarize_omena_query_style_document(&style_path, &source)
+        .ok_or_else(|| format!("failed to read style document facts for {style_path}"))?;
+    let check = summarize_omena_query_consumer_check_style_source(&style_path, &source);
+
+    Ok(PerceptualCheckCliReportV0 {
+        schema_version: "0",
+        product: "omena-cli.perceptual-check.scaffold",
+        command: "perceptual-check",
+        claim_level: "m6DownstreamToolScaffoldOnly",
+        style_path,
+        language: style_document.language,
+        fact_source_products: vec![style_document.product, check.product],
+        selector_count: style_document.selector_names.len(),
+        custom_property_declaration_count: style_document.custom_property_decl_names.len(),
+        custom_property_reference_count: style_document.custom_property_ref_names.len(),
+        diagnostic_count: style_document
+            .diagnostic_count
+            .max(check.parser_error_count),
+        color_machinery_source: "omena-transform-passes.domains.color",
+        json_schema_ready: true,
+        downstream_tool_scaffold_ready: true,
+        consumes_omena_facts: true,
+        wcag_algorithm_ready: false,
+        apca_algorithm_ready: false,
+        oklab_perceptual_operator_ready: false,
+        full_perceptual_algorithm_ready: false,
+        public_safety_claim_ready: false,
+        supported_claims: vec![
+            "perceptual-check CLI scaffold",
+            "JSON output schema",
+            "Omena fact-level input consumption",
+        ],
+        deferred_claims: vec![
+            "WCAG luminance algorithm",
+            "APCA algorithm",
+            "OKLab perceptual operator",
+            "full perceptual algorithm",
+            "public safety claim",
+        ],
+    })
+}
+
 fn source_diagnostics_summary(
     source_uri: String,
     candidates_json: Option<PathBuf>,
@@ -1269,6 +1383,7 @@ fn path_string(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::CommandFactory;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -1642,6 +1757,60 @@ export function App() {
 
         cleanup_dir(&workspace_path);
         Ok(())
+    }
+
+    #[test]
+    fn perceptual_check_command_emits_scaffold_schema_from_query_facts() -> Result<(), String> {
+        let source_path = temp_path("perceptual.module.css");
+        fs::write(
+            &source_path,
+            ":root { --fg: #000; }\n.button { color: var(--fg); background: #fff; }\n",
+        )
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+
+        let report = perceptual_check_summary(&source_path)?;
+        assert_eq!(report.product, "omena-cli.perceptual-check.scaffold");
+        assert_eq!(report.claim_level, "m6DownstreamToolScaffoldOnly");
+        assert_eq!(report.command, "perceptual-check");
+        assert!(report.json_schema_ready);
+        assert!(report.downstream_tool_scaffold_ready);
+        assert!(report.consumes_omena_facts);
+        assert_eq!(report.selector_count, 1);
+        assert_eq!(report.custom_property_declaration_count, 1);
+        assert_eq!(report.custom_property_reference_count, 1);
+        assert!(!report.wcag_algorithm_ready);
+        assert!(!report.apca_algorithm_ready);
+        assert!(!report.oklab_perceptual_operator_ready);
+        assert!(!report.full_perceptual_algorithm_ready);
+        assert!(!report.public_safety_claim_ready);
+        assert!(
+            report
+                .fact_source_products
+                .contains(&"omena-query.style-document-summary")
+        );
+        assert!(
+            report
+                .fact_source_products
+                .contains(&"omena-query.consumer-check-style-source")
+        );
+
+        let result = run(Cli {
+            command: Command::PerceptualCheck {
+                path: source_path.clone(),
+                json: true,
+            },
+        });
+        assert!(result.is_ok(), "{result:?}");
+
+        cleanup(&source_path);
+        Ok(())
+    }
+
+    #[test]
+    fn perceptual_check_help_is_available() {
+        let help = Cli::command().render_long_help().to_string();
+        assert!(help.contains("perceptual-check"));
+        assert!(help.contains("downstream perceptual-check JSON scaffold"));
     }
 
     #[cfg(feature = "zk-audit")]
