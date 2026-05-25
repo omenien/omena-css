@@ -78,6 +78,15 @@ jobs:
         run: |
           pnpm dlx @cyclonedx/cyclonedx-npm --ignore-npm-errors --output-format json --output-file sbom.json 2> cyclonedx-npm.log
           node -e 'const fs = require("node:fs"); const sbom = JSON.parse(fs.readFileSync("sbom.json", "utf8")); const components = sbom.components?.length ?? 0; if (components === 0) throw new Error("Generated SBOM has no components"); console.log(`Generated SBOM: ${components} components`);'
+      - name: Upload release artifacts
+        if: github.event.inputs.create_github_release == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        with:
+          name: extension-release-${{ github.run_id }}
+          path: |
+            *.vsix
+            sbom.json
+            cyclonedx-npm.log
       - name: Attest build provenance for VSIX
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:

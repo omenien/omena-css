@@ -505,12 +505,16 @@ The workflow:
 4. runs `./scripts/publish-extension.sh`
 5. packages the VSIX with the merged runner matrix
 6. publishes to Marketplace and/or Open VSX
-7. generates a CycloneDX SBOM and build-provenance attestation
-8. optionally creates a GitHub release
+7. generates a CycloneDX SBOM
+8. uploads the generated VSIX, SBOM, and CycloneDX log as workflow artifacts
+9. generates build-provenance attestation
+10. optionally creates a GitHub release
 
 The SBOM step uses `cyclonedx-npm` with npm-tree errors ignored because this
 repository is installed with pnpm workspaces. The workflow still validates that
 the generated SBOM contains components before it can be attached to a release.
+The artifact upload keeps the matrix-built VSIX and SBOM recoverable if a
+registry or GitHub release permission fails after packaging.
 
 ## Stable release procedure
 
