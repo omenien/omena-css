@@ -75,7 +75,9 @@ jobs:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
       - name: Generate SBOM
-        run: pnpm dlx @cyclonedx/cyclonedx-npm --output-format json --output-file sbom.json
+        run: |
+          pnpm dlx @cyclonedx/cyclonedx-npm --ignore-npm-errors --output-format json --output-file sbom.json 2> cyclonedx-npm.log
+          node -e 'const fs = require("node:fs"); const sbom = JSON.parse(fs.readFileSync("sbom.json", "utf8")); const components = sbom.components?.length ?? 0; if (components === 0) throw new Error("Generated SBOM has no components"); console.log(`Generated SBOM: ${components} components`);'
       - name: Attest build provenance for VSIX
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:

@@ -505,7 +505,12 @@ The workflow:
 4. runs `./scripts/publish-extension.sh`
 5. packages the VSIX with the merged runner matrix
 6. publishes to Marketplace and/or Open VSX
-7. optionally creates a GitHub release
+7. generates a CycloneDX SBOM and build-provenance attestation
+8. optionally creates a GitHub release
+
+The SBOM step uses `cyclonedx-npm` with npm-tree errors ignored because this
+repository is installed with pnpm workspaces. The workflow still validates that
+the generated SBOM contains components before it can be attached to a release.
 
 ## Stable release procedure
 
