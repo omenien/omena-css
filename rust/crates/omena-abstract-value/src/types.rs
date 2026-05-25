@@ -133,6 +133,10 @@ pub struct BeliefPropagationMessageV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// V0 algorithm-view substrate over the reduced-product class-value iterator.
+///
+/// This records compatibility evidence for the current message-passing view; it
+/// is not a belief-propagation paper result or mechanism-completeness claim.
 pub struct BeliefPropagationIterationV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -301,6 +305,10 @@ pub struct LinearProvenanceTermV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(bound(serialize = "K: Serialize"))]
+/// V0 freeze-candidate provenance contract over the existing label vector.
+///
+/// The shape is a strict-superset bridge for staged query provenance evidence;
+/// it does not declare Cargo 1.0 API finality or a completed QTT/sheaf model.
 pub struct LinearProvenanceV0<K: ProvenanceSemiringV0> {
     pub schema_version: &'static str,
     pub product: &'static str,

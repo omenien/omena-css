@@ -594,6 +594,10 @@ pub enum ModalCheckWitnessSourceV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// V0 freeze-candidate witness aggregation over existing cascade proof outputs.
+///
+/// This is a staged strict-superset surface for release evidence. It does not
+/// claim a completed modal theorem, paper-grade proof system, or Cargo 1.0 API.
 pub struct ModalCheckWitnessV0 {
     pub schema_version: &'static str,
     pub product: &'static str,

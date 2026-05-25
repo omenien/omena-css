@@ -114,6 +114,7 @@ pub struct IncrementalDatabaseUpdateV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub incremental_plan: IncrementalComputationPlanV0,
+    pub datalog_rule_evaluator: DatalogRuleEvaluatorV0,
     pub next_snapshot: IncrementalSnapshotV0,
 }
 
@@ -158,6 +159,11 @@ pub struct DatalogRuleEvaluatorRuleV0 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// V0 freeze-candidate typed contract over the incremental dirty-plan substrate.
+///
+/// This exposes Datalog-shaped rules and relations for auditability while the
+/// product path remains the Salsa-backed fixed-point planner. It is not an
+/// external Datalog host, FlowLog/Souffle/egglog binding, or Cargo 1.0 API.
 pub struct DatalogRuleEvaluatorV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
@@ -643,6 +649,8 @@ impl OmenaIncrementalDatabaseV0 {
         input: &IncrementalGraphInputV0,
     ) -> IncrementalDatabaseUpdateV0 {
         let incremental_plan = plan_incremental_computation(input, self.current_snapshot.as_ref());
+        let datalog_rule_evaluator =
+            summarize_datalog_rule_evaluator_v0(input, self.current_snapshot.as_ref());
         let next_snapshot = self.upsert_graph_input(input);
         self.current_snapshot = Some(next_snapshot.clone());
 
@@ -650,6 +658,7 @@ impl OmenaIncrementalDatabaseV0 {
             schema_version: "0",
             product: "omena-incremental.salsa-database-update",
             incremental_plan,
+            datalog_rule_evaluator,
             next_snapshot,
         }
     }
@@ -865,6 +874,26 @@ mod tests {
     }
 
     #[test]
+    fn datalog_rule_evaluator_fixture_corpus_matches_incremental_fixed_point() {
+        for seed in [1, 2, 3, 5, 8, 13, 21, 34] {
+            let previous_input = super::generated_incremental_fuzz_graph(seed, 8, None);
+            let previous_snapshot = snapshot_from_graph_input(&previous_input);
+            let next_input = super::generated_incremental_fuzz_graph(seed, 8, Some(3));
+            let plan = plan_incremental_computation(&next_input, Some(&previous_snapshot));
+            let summary =
+                summarize_datalog_rule_evaluator_v0(&next_input, Some(&previous_snapshot));
+
+            assert_eq!(summary.incremental_plan, plan);
+            assert_eq!(summary.dirty_node_count, plan.dirty_node_count);
+            assert_eq!(summary.derived_node_count, plan.dependency_dirty_count);
+            assert!(summary.fixed_point_reached);
+            assert!(!summary.external_host_ready);
+            assert_eq!(summary.rule_count, 4);
+            assert_eq!(summary.relation_count, 5);
+        }
+    }
+
+    #[test]
     fn cyclic_dependency_graph_uses_bounded_dirty_propagation() {
         let input = cyclic_input("a:v1", "b:v1", 1);
         let snapshot = snapshot_from_graph_input(&input);
@@ -978,6 +1007,15 @@ mod tests {
         let changed = db.plan_and_upsert_graph_input(&sample_input("a:v2", "b:v1", 3));
         assert_eq!(changed.incremental_plan.changed_input_count, 1);
         assert_eq!(changed.incremental_plan.dependency_dirty_count, 1);
+        assert_eq!(changed.datalog_rule_evaluator.revision.value, 3);
+        assert_eq!(
+            changed.datalog_rule_evaluator.incremental_plan,
+            changed.incremental_plan
+        );
+        assert_eq!(changed.datalog_rule_evaluator.dirty_node_count, 2);
+        assert_eq!(changed.datalog_rule_evaluator.derived_node_count, 1);
+        assert!(changed.datalog_rule_evaluator.fixed_point_reached);
+        assert!(!changed.datalog_rule_evaluator.external_host_ready);
     }
 
     #[test]

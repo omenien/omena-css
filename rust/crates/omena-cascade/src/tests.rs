@@ -841,6 +841,30 @@ fn modal_check_witness_consolidates_existing_proof_witnesses_as_strict_superset(
 }
 
 #[test]
+fn modal_check_witness_keeps_unknown_supports_as_blocked_fixture_evidence() {
+    let unknown_supports = evaluate_static_supports_condition(
+        "future-feature(foo)",
+        StaticSupportsAssumptionV0::ModernBrowser,
+    );
+    let summary =
+        summarize_modal_check_witness_v0(vec![ModalCheckWitnessSourceV0::StaticSupportsEval(
+            unknown_supports.clone(),
+        )]);
+
+    assert_eq!(summary.schema_version, "0");
+    assert_eq!(summary.product, "omena-cascade.modal-check-witness");
+    assert_eq!(summary.obligation_count, 1);
+    assert_eq!(summary.accepted_count, 0);
+    assert_eq!(summary.blocked_count, 1);
+    assert!(!summary.all_provenance_preserved);
+    assert_eq!(summary.source_products, vec![unknown_supports.product]);
+    assert!(matches!(
+        summary.witnesses[0],
+        ModalCheckWitnessSourceV0::StaticSupportsEval(_)
+    ));
+}
+
+#[test]
 fn reports_selector_context_witness_rank() {
     let root = selector_context_witness(&[":root".to_string()], &[".button".to_string()]);
     assert_eq!(root.kind, SelectorContextMatchKind::Root);

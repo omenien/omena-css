@@ -3,6 +3,13 @@ import type { Range } from "@css-module-explainer/shared";
 import type { ClassValueUniverseLookupResultV0 } from "../abstract-value/class-value-universe";
 import type { SourceBinderResult } from "./scope-types";
 
+/**
+ * V0 class-value universe substrate for built-in CSS Modules and recipe binders.
+ *
+ * This is a staged, compatibility-preserving contract used by the current
+ * binder/query product path. It is not a public plugin ABI, mechanism-complete
+ * class intelligence claim, or v1.0 API-finality boundary.
+ */
 export interface ClassValueUniverseProviderV0 {
   readonly pluginId: string;
   readonly version: "0";

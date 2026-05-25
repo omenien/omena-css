@@ -279,6 +279,8 @@ function assertNoInternalMilestoneJargon(source: string): void {
 function assertEvidenceMarkers(): void {
   const markers: Record<string, readonly string[]> = {
     "server/engine-core-ts/src/core/binder/class-value-universe-provider.ts": [
+      "V0 class-value universe substrate",
+      "not a public plugin ABI",
       "export interface ClassValueUniverseProviderV0",
     ],
     "server/engine-core-ts/src/core/abstract-value/class-value-universe.ts": [
@@ -298,13 +300,31 @@ function assertEvidenceMarkers(): void {
       "cvaRecipeClassValueUniverseProviderV0",
     ],
     "rust/crates/omena-abstract-value/src/types.rs": [
+      "V0 freeze-candidate provenance contract",
+      "not declare Cargo 1.0 API finality",
+      "V0 algorithm-view substrate",
+      "not a belief-propagation paper result",
       "pub struct LinearProvenanceV0",
       "pub struct BeliefPropagationIterationV0",
     ],
-    "rust/crates/omena-incremental/src/lib.rs": ["pub struct DatalogRuleEvaluatorV0"],
+    "rust/crates/omena-abstract-value/src/tests.rs": [
+      "linear_provenance_preserves_ordered_legacy_labels_as_strict_superset",
+    ],
+    "rust/crates/omena-incremental/src/lib.rs": [
+      "V0 freeze-candidate typed contract",
+      "not an\n/// external Datalog host",
+      "pub struct DatalogRuleEvaluatorV0",
+      "pub datalog_rule_evaluator: DatalogRuleEvaluatorV0",
+      "datalog_rule_evaluator_fixture_corpus_matches_incremental_fixed_point",
+    ],
     "rust/crates/omena-cascade/src/model.rs": [
+      "V0 freeze-candidate witness aggregation",
+      "not\n/// claim a completed modal theorem",
       "pub struct ModalCheckWitnessV0",
       "pub struct CascadeMarginSchemaV0",
+    ],
+    "rust/crates/omena-cascade/src/tests.rs": [
+      "modal_check_witness_keeps_unknown_supports_as_blocked_fixture_evidence",
     ],
     "rust/crates/omena-query/src/types.rs": [
       "pub struct FastFactsV0",

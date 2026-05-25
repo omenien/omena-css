@@ -1755,6 +1755,29 @@ fn linear_provenance_round_trips_static_labels() {
 }
 
 #[test]
+fn linear_provenance_preserves_ordered_legacy_labels_as_strict_superset() {
+    let labels = [
+        "omena-query.cross-file-summary",
+        "omena-query.cross-file-summary",
+        "omena-lsp-server.definition",
+    ];
+    let provenance = LinearProvenanceV0::<Lin01ProvenanceSemiringV0>::from_static_labels(&labels);
+
+    assert_eq!(provenance.schema_version, "0");
+    assert_eq!(provenance.labels(), labels.to_vec());
+    assert_eq!(provenance.term_count, labels.len());
+    assert_eq!(provenance.semiring_identifier(), "lin01");
+    assert_eq!(
+        provenance
+            .terms
+            .iter()
+            .map(|term| (term.coefficient, term.label))
+            .collect::<Vec<_>>(),
+        labels.iter().map(|label| (1, *label)).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn provenance_semiring_identifiers_are_stable_and_unique() {
     let identifiers = [
         Lin01ProvenanceSemiringV0::new().semiring_identifier(),
