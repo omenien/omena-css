@@ -24,5 +24,6 @@ jobs:
       - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: rust
       - run: cargo install cargo-deny --locked
       - run: cargo deny --manifest-path rust/Cargo.toml check advisories bans sources
