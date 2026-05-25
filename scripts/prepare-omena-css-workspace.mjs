@@ -336,6 +336,7 @@ from their own Omena repositories.
 - [Quickstart](docs/quickstart.md)
 - [API reference](docs/api-reference.md)
 - [Benchmarks](docs/benchmarks.md)
+- [Positioning](docs/positioning.md)
 - [Release process](docs/release.md)
 - [Paper draft outline](docs/paper-draft.md)
 `,
@@ -840,6 +841,51 @@ cascade, transform, editor, and packaging paths each need their own evidence.
 `,
   );
   writeFileSync(
+    path.join(docsDirectory, "positioning.md"),
+    `# Positioning
+
+omena-css is a semantic CSS-family analysis workspace for parser-owned facts,
+cross-language CSS Modules evidence, cascade-aware diagnostics, conservative
+transform planning, and editor/CI feedback.
+
+It is not positioned as a build-time replacement for established CSS tools.
+
+## Role Comparison
+
+Role source anchors:
+
+- Lightning CSS: https://lightningcss.dev/
+- PostCSS: https://postcss.org/
+- Dart Sass: https://www.sasscss.com/dart-sass
+- Biome: https://biomejs.dev/
+
+| Tool | Public role | omena-css relationship |
+| --- | --- | --- |
+| Lightning CSS | Fast parser, transformer, bundler, and minifier | Complementary build-pipeline tool. omena-css should compare against it only with same-corpus benchmark evidence. |
+| PostCSS | JavaScript CSS transformation and plugin ecosystem | Adjacent ecosystem. omena-css can feed semantic facts to consumers, but it is not a general PostCSS plugin replacement claim. |
+| Dart Sass | Primary Sass implementation and compiler reference path | Compiler reference. omena-css analyzes Sass/SCSS facts but does not claim Sass compiler replacement. |
+| Biome CSS | Broad formatter/linter/assist toolchain with CSS support | Broad toolchain neighbor. omena-css focuses on CSS Modules semantics, provenance, and cascade evidence. |
+
+## Evidence-Backed Claims
+
+- Parser, cascade, transform, benchmark, and standalone workspace surfaces have
+  versioned gates in the source monorepo.
+- External speed comparisons require same-corpus, same-machine, same-request
+  evidence before publication.
+- Research-facing M6 surfaces are staged substrates unless their product path
+  and gates prove stronger behavior.
+
+## Current Non-Claims
+
+- No direct speed ranking against Lightning CSS, PostCSS, Dart Sass, or Biome.
+- No Sass compiler replacement claim.
+- No PostCSS ecosystem replacement claim.
+- No theorem-complete cascade, sheaf/cosheaf, modal, Datalog, egglog, or
+  perceptual claim.
+- No public Cargo 1.0 API freeze claim.
+`,
+  );
+  writeFileSync(
     path.join(docsDirectory, "release.md"),
     `# Release Process
 
@@ -890,6 +936,9 @@ evidence that must exist before publication.
   unless the caller provides closed-world evidence.
 - Evaluation: compare accepted and rejected transform candidates across real
   CSS Modules, SCSS, and Less projects.
+- Current evidence: cascade/value-family substrates and transform planning gates
+  are staged evidence. They are not a sheaf/cosheaf theorem or a global
+  correctness proof.
 
 ## Candidate 2: Incremental CSS-Family Analysis
 
@@ -899,6 +948,8 @@ evidence that must exist before publication.
   transform planning.
 - Evaluation: measure cold and warm editor request latency across project-size
   buckets.
+- Current evidence: the incremental layer has real invalidation and reuse
+  summaries. DBSP, Z-set, and external Datalog-host claims are later work.
 
 ## Candidate 3: Parser-Owned Style Facts
 
@@ -908,6 +959,33 @@ evidence that must exist before publication.
   CSS-family dialects.
 - Evaluation: compare diagnostics, hover, definition, references, and transform
   results before and after request handlers consume parser-owned facts.
+
+## M6 Evidence Boundary
+
+The current research track is evidence-backed only at the substrate level:
+
+- Vue SFC phase 1 proves a first source-language bridge capability for
+  script-side \`useCssModule()\` and embedded \`<style module>\` behavior.
+- Cascade-family work is framing-neutral substrate, not a sheaf or cosheaf
+  theorem.
+- Edit-distance and cascade-margin work is fixture-witness substrate, not a
+  calibrated Lipschitz theorem.
+- Contextual equality saturation is scaffold-only over the optional \`egg\`
+  boundary. It does not claim an egglog binding or full three-view fusion.
+- \`perceptual-check\` is a downstream CLI/schema scaffold over omena facts. It
+  does not implement WCAG, APCA, OKLab, a full perceptual algorithm, or a
+  public-safety claim.
+
+## Publication Requirement
+
+Before submission or public benchmarking, every claim must cite one of:
+
+- a source-controlled gate command,
+- a release artifact,
+- a fixture matrix,
+- a benchmark corpus and machine record,
+- an issue disposition,
+- or a generated standalone workspace verification.
 `,
   );
 }
