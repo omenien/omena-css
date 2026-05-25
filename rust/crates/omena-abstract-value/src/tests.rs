@@ -1,32 +1,33 @@
 use super::{
     AbstractClassValueProvenanceNodeV0, AbstractClassValueProvenanceV0, AbstractClassValueV0,
-    AbstractPropertyValueCandidateV0, AbstractPropertyValueV0, ClassValueControlFlowBlockV0,
-    ClassValueControlFlowGraphV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0,
-    ClassValueFlowTransferV0, CompositeClassValueInputV0, ExternalStringTypeFactsV0,
-    KLimitedCallSiteFlowInputV0, Lin01ProvenanceSemiringV0, LinearProvenanceV0,
-    MAX_FINITE_CLASS_VALUES, NaturalCountProvenanceSemiringV0, OneCfaCallSiteFlowInputV0,
-    ProvenanceSemiringV0, SecurityLabelProvenanceSemiringV0, SelectorProjectionCertaintyV0,
-    TropicalProvenanceSemiringV0, ViterbiProvenanceSemiringV0, abstract_class_value_from_facts,
-    abstract_class_value_is_subset, analyze_class_value_control_flow_graph,
-    analyze_class_value_flow, analyze_class_value_flow_incremental,
-    analyze_class_value_flow_incremental_batch_with_reuse,
+    AbstractPropertyValueCandidateV0, AbstractPropertyValueV0, CascadeContextV0,
+    CascadeValueFamilyMemberV0, ClassValueControlFlowBlockV0, ClassValueControlFlowGraphV0,
+    ClassValueFlowGraphV0, ClassValueFlowNodeV0, ClassValueFlowTransferV0,
+    CompositeClassValueInputV0, ExternalStringTypeFactsV0, KLimitedCallSiteFlowInputV0,
+    Lin01ProvenanceSemiringV0, LinearProvenanceV0, MAX_FINITE_CLASS_VALUES,
+    NaturalCountProvenanceSemiringV0, OneCfaCallSiteFlowInputV0, ProvenanceSemiringV0,
+    SecurityLabelProvenanceSemiringV0, SelectorProjectionCertaintyV0, TropicalProvenanceSemiringV0,
+    ViterbiProvenanceSemiringV0, abstract_class_value_from_facts, abstract_class_value_is_subset,
+    analyze_class_value_control_flow_graph, analyze_class_value_flow,
+    analyze_class_value_flow_incremental, analyze_class_value_flow_incremental_batch_with_reuse,
     analyze_class_value_flow_incremental_with_database,
     analyze_class_value_flow_incremental_with_reuse, analyze_k_limited_call_site_flows,
-    analyze_one_cfa_call_site_flows, bottom_class_value, char_inclusion_class_value,
-    composite_class_value, concatenate_abstract_class_values,
-    concatenate_reduced_class_value_products, derive_selector_projection_certainty,
-    exact_class_value, finite_set_class_value, finite_values_from_facts,
-    intersect_abstract_class_values, intersect_reduced_class_value_products,
-    iterate_reduced_class_value_product_constraints, join_abstract_class_values,
-    join_reduced_class_value_products, m4_alpha_provenance_semiring_law_reports_v0,
-    narrow_abstract_property_value_for_pseudo_state, prefix_class_value, prefix_suffix_class_value,
-    project_abstract_value_selectors, reduce_class_value_product,
-    reduced_abstract_class_value_from_facts, reduced_class_value_derivation_from_facts,
-    reduced_class_value_product_is_subset, reduced_class_value_product_matches_string,
-    reduced_value_domain_kind_from_facts, selector_certainty_from_facts,
-    selector_certainty_shape_kind_from_facts, selector_certainty_shape_label_from_facts,
-    suffix_class_value, summarize_abstract_class_value_provenance_tree,
-    summarize_belief_propagation_iteration_v0, summarize_omena_abstract_value_domain,
+    analyze_one_cfa_call_site_flows, bottom_class_value, cascade_family_context_values,
+    cascade_value_for_context, char_inclusion_class_value, composite_class_value,
+    concatenate_abstract_class_values, concatenate_reduced_class_value_products,
+    derive_cascade_restriction_maps_v0, derive_selector_projection_certainty, exact_class_value,
+    finite_set_class_value, finite_values_from_facts, intersect_abstract_class_values,
+    intersect_reduced_class_value_products, iterate_reduced_class_value_product_constraints,
+    join_abstract_class_values, join_reduced_class_value_products,
+    m4_alpha_provenance_semiring_law_reports_v0, narrow_abstract_property_value_for_pseudo_state,
+    prefix_class_value, prefix_suffix_class_value, project_abstract_value_selectors,
+    reduce_class_value_product, reduced_abstract_class_value_from_facts,
+    reduced_class_value_derivation_from_facts, reduced_class_value_product_is_subset,
+    reduced_class_value_product_matches_string, reduced_value_domain_kind_from_facts,
+    selector_certainty_from_facts, selector_certainty_shape_kind_from_facts,
+    selector_certainty_shape_label_from_facts, suffix_class_value,
+    summarize_abstract_class_value_provenance_tree, summarize_belief_propagation_iteration_v0,
+    summarize_cascade_value_family_v0, summarize_omena_abstract_value_domain,
     summarize_omena_abstract_value_flow_analysis, summarize_reduced_class_value_product,
     top_class_value, value_certainty_from_facts, value_certainty_shape_kind_from_facts,
     value_certainty_shape_label_from_facts,
@@ -66,6 +67,15 @@ fn summarizes_domain_boundary_contract() {
     assert!(summary.provenance_tree_ready);
     assert!(summary.provenance_tree_scopes.contains(&"reducedProduct"));
     assert!(summary.provenance_tree_scopes.contains(&"flowResult"));
+    assert!(summary.cascade_family_substrate_ready);
+    assert_eq!(
+        summary.cascade_family_framing,
+        "framingNeutralCascadeFamily"
+    );
+    assert_eq!(
+        summary.cascade_family_claim_level,
+        "researchStagedSubstrate"
+    );
 
     let flow_summary = summarize_omena_abstract_value_flow_analysis();
     assert_eq!(flow_summary.schema_version, "0");
@@ -86,6 +96,64 @@ fn summarizes_domain_boundary_contract() {
     );
     assert!(flow_summary.transfer_kinds.contains(&"join"));
     assert!(flow_summary.transfer_kinds.contains(&"concatFacts"));
+}
+
+#[test]
+fn summarizes_framing_neutral_cascade_value_family_substrate() {
+    let members = vec![
+        CascadeValueFamilyMemberV0 {
+            context: CascadeContextV0 {
+                id: "root".to_string(),
+                parent_id: None,
+                selectors: vec![".card".to_string()],
+                conditions: Vec::new(),
+                layers: vec!["components".to_string()],
+            },
+            value: AbstractPropertyValueV0::Exact {
+                property_name: "color".to_string(),
+                value: "black".to_string(),
+                pseudo_state: None,
+            },
+        },
+        CascadeValueFamilyMemberV0 {
+            context: CascadeContextV0 {
+                id: "hover".to_string(),
+                parent_id: Some("root".to_string()),
+                selectors: vec![".card:hover".to_string()],
+                conditions: vec![":hover".to_string()],
+                layers: vec!["components".to_string()],
+            },
+            value: AbstractPropertyValueV0::Exact {
+                property_name: "color".to_string(),
+                value: "white".to_string(),
+                pseudo_state: Some("hover".to_string()),
+            },
+        },
+    ];
+    let restrictions = derive_cascade_restriction_maps_v0(members.as_slice());
+    let family = summarize_cascade_value_family_v0("color", members, restrictions);
+
+    assert_eq!(family.product, "omena-abstract-value.cascade-value-family");
+    assert_eq!(family.framing, "framingNeutralCascadeFamily");
+    assert_eq!(family.claim_level, "researchStagedSubstrate");
+    assert_eq!(
+        family.supported_readings,
+        vec!["presheafCompatible", "cosheafCompatible"]
+    );
+    assert_eq!(family.context_value_count, 2);
+    assert_eq!(family.restriction_map_count, 1);
+    assert!(family.property_consistent);
+    assert_eq!(family.dangling_restriction_count, 0);
+    assert!(!family.theorem_claimed);
+    assert_eq!(
+        cascade_value_for_context(&family, "hover"),
+        Some(&AbstractPropertyValueV0::Exact {
+            property_name: "color".to_string(),
+            value: "white".to_string(),
+            pseudo_state: Some("hover".to_string()),
+        })
+    );
+    assert_eq!(cascade_family_context_values(&family).len(), 2);
 }
 
 #[test]

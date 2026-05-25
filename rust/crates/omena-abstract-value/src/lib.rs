@@ -1,4 +1,5 @@
 mod algebra;
+mod cascade_family;
 mod domain;
 mod facts;
 mod flow;
@@ -10,6 +11,7 @@ mod semiring;
 mod types;
 
 pub use algebra::*;
+pub use cascade_family::*;
 pub use domain::*;
 pub use facts::*;
 pub use flow::*;

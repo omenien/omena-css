@@ -19,6 +19,9 @@ pub struct AbstractValueDomainSummaryV0 {
     pub selector_projection_certainties: Vec<&'static str>,
     pub provenance_tree_ready: bool,
     pub provenance_tree_scopes: Vec<&'static str>,
+    pub cascade_family_substrate_ready: bool,
+    pub cascade_family_framing: &'static str,
+    pub cascade_family_claim_level: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

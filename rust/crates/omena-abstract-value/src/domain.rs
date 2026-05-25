@@ -41,6 +41,9 @@ pub fn summarize_omena_abstract_value_domain() -> AbstractValueDomainSummaryV0 {
             "reducedProduct",
             "flowResult",
         ],
+        cascade_family_substrate_ready: true,
+        cascade_family_framing: "framingNeutralCascadeFamily",
+        cascade_family_claim_level: "researchStagedSubstrate",
     }
 }
 

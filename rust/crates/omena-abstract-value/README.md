@@ -32,6 +32,10 @@ Current public product:
 - `summarize_abstract_class_value_provenance_tree` — self-contained V0
   explanation tree for exact, finite, constrained, widened, reduced-product,
   and flow-produced abstract class values.
+- `summarize_cascade_value_family_v0` — M6 research-staged, framing-neutral
+  cascade-family substrate for context-indexed property values and
+  parent-to-child restriction morphisms. This is not a sheaf/cosheaf theorem
+  claim.
 
 Primary check:
 
