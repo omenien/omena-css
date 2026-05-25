@@ -16,6 +16,11 @@ Current public product:
   proves field-granular reuse before callers switch fully to the Salsa runtime.
 - `IncrementalCancellationRegistryV0` — bounded cooperative cancellation state
   shared by Rust LSP and future query runtimes.
+- `summarize_incremental_layer_evidence_v0` — M6 evidence summary that limits
+  incremental claims to stable-node invalidation, fuzzed dirty-set invariants,
+  Salsa reuse, and Datalog-shaped audit contracts. It explicitly does not claim
+  DBSP, Z-set, external Datalog execution, local timing superiority, or public
+  safety.
 
 Primary check:
 

@@ -183,6 +183,31 @@ pub struct DatalogRuleEvaluatorV0 {
     pub incremental_plan: IncrementalComputationPlanV0,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncrementalLayerEvidenceV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub claim_level: &'static str,
+    pub invalidation_layer: &'static str,
+    pub real_invalidation_evidence_ready: bool,
+    pub fuzz_evidence_ready: bool,
+    pub salsa_reuse_evidence_ready: bool,
+    pub datalog_contract_evidence_ready: bool,
+    pub benchmark_surface_ready: bool,
+    pub performance_benchmark_claim_ready: bool,
+    pub external_datalog_host_ready: bool,
+    pub dbsp_zset_claim_ready: bool,
+    pub public_safety_claim_ready: bool,
+    pub benchmark_gate: &'static str,
+    pub benchmark_evidence_level: &'static str,
+    pub supported_claims: Vec<&'static str>,
+    pub deferred_claims: Vec<&'static str>,
+    pub boundary: OmenaIncrementalBoundarySummaryV0,
+    pub fuzz_report: IncrementalFuzzSeedReportV0,
+    pub sample_update: IncrementalDatabaseUpdateV0,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IncrementalCancellationRegistryV0 {
     limit: usize,
@@ -452,6 +477,83 @@ pub fn run_incremental_fuzz_seed_corpus() -> IncrementalFuzzSeedReportV0 {
         passed_count,
         failed_count: case_count - passed_count,
         results,
+    }
+}
+
+pub fn summarize_incremental_layer_evidence_v0() -> IncrementalLayerEvidenceV0 {
+    let boundary = summarize_omena_incremental_boundary();
+    let fuzz_report = run_incremental_fuzz_seed_corpus();
+    let mut database = OmenaIncrementalDatabaseV0::default();
+    let previous_input = IncrementalGraphInputV0 {
+        revision: IncrementalRevisionV0 { value: 1 },
+        nodes: vec![
+            IncrementalNodeInputV0 {
+                id: "source".to_string(),
+                digest: "source:v1".to_string(),
+                dependency_ids: Vec::new(),
+            },
+            IncrementalNodeInputV0 {
+                id: "style".to_string(),
+                digest: "style:v1".to_string(),
+                dependency_ids: vec!["source".to_string()],
+            },
+        ],
+    };
+    database.plan_and_upsert_graph_input(&previous_input);
+    let sample_update = database.plan_and_upsert_graph_input(&IncrementalGraphInputV0 {
+        revision: IncrementalRevisionV0 { value: 2 },
+        nodes: vec![
+            IncrementalNodeInputV0 {
+                id: "source".to_string(),
+                digest: "source:v2".to_string(),
+                dependency_ids: Vec::new(),
+            },
+            IncrementalNodeInputV0 {
+                id: "style".to_string(),
+                digest: "style:v1".to_string(),
+                dependency_ids: vec!["source".to_string()],
+            },
+        ],
+    });
+
+    IncrementalLayerEvidenceV0 {
+        schema_version: "0",
+        product: "omena-incremental.layer-evidence",
+        claim_level: "m6IncrementalLayerEvidenceOnly",
+        invalidation_layer: "stableNodeIdDigestDependencyGraph",
+        real_invalidation_evidence_ready: sample_update.incremental_plan.changed_input_count == 1
+            && sample_update.incremental_plan.dependency_dirty_count == 1
+            && sample_update.incremental_plan.dirty_node_count == 2,
+        fuzz_evidence_ready: fuzz_report.failed_count == 0,
+        salsa_reuse_evidence_ready: boundary
+            .ready_surfaces
+            .contains(&"salsaTrackedNodeSnapshotQuery"),
+        datalog_contract_evidence_ready: sample_update.datalog_rule_evaluator.fixed_point_reached
+            && !sample_update.datalog_rule_evaluator.external_host_ready,
+        benchmark_surface_ready: true,
+        performance_benchmark_claim_ready: false,
+        external_datalog_host_ready: false,
+        dbsp_zset_claim_ready: false,
+        public_safety_claim_ready: false,
+        benchmark_gate: "rust/z5-performance-baseline-readiness",
+        benchmark_evidence_level: "configuredCriterionSurfaceNoTimingClaim",
+        supported_claims: vec![
+            "stable node id plus digest invalidation",
+            "dependency dirty-set fixed point",
+            "Salsa-backed tracked node snapshot reuse",
+            "fuzzed dirty-set invariant corpus",
+            "Datalog-shaped audit contract over the incremental plan",
+        ],
+        deferred_claims: vec![
+            "DBSP runtime",
+            "Z-set differential dataflow semantics",
+            "external Datalog host execution",
+            "performance superiority from local timing data",
+            "public safety claim",
+        ],
+        boundary,
+        fuzz_report,
+        sample_update,
     }
 }
 
@@ -765,7 +867,7 @@ mod tests {
         SALSA_DIGEST_QUERY_RUNS, plan_incremental_computation,
         read_salsa_incremental_node_dependency_ids, read_salsa_incremental_node_digest,
         snapshot_from_graph_input, summarize_datalog_rule_evaluator_v0,
-        summarize_omena_incremental_boundary,
+        summarize_incremental_layer_evidence_v0, summarize_omena_incremental_boundary,
     };
     use std::sync::atomic::Ordering;
 
@@ -928,6 +1030,55 @@ mod tests {
                 .results
                 .iter()
                 .any(|result| result.expected_dirty_node_count > 1)
+        );
+    }
+
+    #[test]
+    fn m6_incremental_layer_evidence_is_limited_to_real_invalidation_layer() {
+        let evidence = summarize_incremental_layer_evidence_v0();
+
+        assert_eq!(evidence.schema_version, "0");
+        assert_eq!(evidence.product, "omena-incremental.layer-evidence");
+        assert_eq!(evidence.claim_level, "m6IncrementalLayerEvidenceOnly");
+        assert_eq!(
+            evidence.invalidation_layer,
+            "stableNodeIdDigestDependencyGraph"
+        );
+        assert!(evidence.real_invalidation_evidence_ready);
+        assert!(evidence.fuzz_evidence_ready);
+        assert!(evidence.salsa_reuse_evidence_ready);
+        assert!(evidence.datalog_contract_evidence_ready);
+        assert!(evidence.benchmark_surface_ready);
+        assert!(!evidence.performance_benchmark_claim_ready);
+        assert!(!evidence.external_datalog_host_ready);
+        assert!(!evidence.dbsp_zset_claim_ready);
+        assert!(!evidence.public_safety_claim_ready);
+        assert_eq!(
+            evidence.benchmark_gate,
+            "rust/z5-performance-baseline-readiness"
+        );
+        assert_eq!(evidence.fuzz_report.failed_count, 0);
+        assert_eq!(
+            evidence.sample_update.incremental_plan.changed_input_count,
+            1
+        );
+        assert_eq!(
+            evidence
+                .sample_update
+                .incremental_plan
+                .dependency_dirty_count,
+            1
+        );
+        assert!(
+            evidence
+                .supported_claims
+                .contains(&"dependency dirty-set fixed point")
+        );
+        assert!(evidence.deferred_claims.contains(&"DBSP runtime"));
+        assert!(
+            evidence
+                .deferred_claims
+                .contains(&"Z-set differential dataflow semantics")
         );
     }
 
