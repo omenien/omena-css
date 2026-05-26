@@ -65,5 +65,8 @@ process.stdout.write(
 );
 
 function assertIncludes(haystack: string, needle: string): void {
-  assert.ok(haystack.includes(needle), `expected M6 dimensional refinement surface to include ${needle}`);
+  assert.ok(
+    haystack.includes(needle),
+    `expected M6 dimensional refinement surface to include ${needle}`,
+  );
 }
