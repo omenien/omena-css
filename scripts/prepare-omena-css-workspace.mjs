@@ -80,7 +80,7 @@ const omenaCssPublishOrder = [
   "omena-napi",
   "omena-wasm",
 ];
-const externallyPublishedCrates = new Set(["omena-incremental", "engine-input-producers"]);
+const externallyPublishedCrates = new Set(["omena-incremental"]);
 const omenaCssWorkspaceVersion = "0.1.14";
 const omenaCssExternalDependencyVersion = "0.1";
 
@@ -1240,7 +1240,7 @@ ${publishCrateRows}
             package="$(crate_package_name "$manifest")"
             version="$(crate_version "$manifest")"
 
-            if [[ "$crate" == "omena-incremental" || "$crate" == "engine-input-producers" ]]; then
+            if [[ "$crate" == "omena-incremental" ]]; then
               echo "$package publishes from its own Omena repository; skipping"
               continue
             fi
