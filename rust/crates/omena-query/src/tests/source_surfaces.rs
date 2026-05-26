@@ -131,10 +131,24 @@ fn source_diagnostics_for_file_are_query_owned() {
     assert_eq!(diagnostics.file_kind, "source");
     assert_eq!(diagnostics.diagnostic_count, 1);
     assert_eq!(diagnostics.diagnostics[0].code, "missingSelector");
+    assert_eq!(
+        diagnostics.diagnostics[0].provenance.as_slice(),
+        [
+            "omena-query.source-syntax-index",
+            "omena-query.style-selector-definitions",
+            "omena-query-checker-orchestrator.product-diagnostic-gate",
+            "omena-checker.rule-registry",
+        ]
+    );
     assert!(
         diagnostics
             .ready_surfaces
             .contains(&"crossLanguageDiagnostics")
+    );
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"checkerProductDiagnosticGate")
     );
 }
 
@@ -170,10 +184,47 @@ export function App({ suffix }) {
     assert!(codes.contains(&"missingResolvedClassValues"));
     assert!(codes.contains(&"missingResolvedClassDomain"));
     assert!(codes.contains(&"missingTemplatePrefix"));
+    let checker_product_diagnostic_provenance = [
+        "omena-query.source-syntax-index",
+        "omena-query.style-selector-definitions",
+        "omena-query-checker-orchestrator.product-diagnostic-gate",
+        "omena-checker.rule-registry",
+    ];
+    for code in ["missingStaticClass", "missingTemplatePrefix"] {
+        assert_eq!(
+            diagnostics
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code == code)
+                .map(|diagnostic| diagnostic.provenance.as_slice()),
+            Some(checker_product_diagnostic_provenance.as_slice())
+        );
+    }
+    assert_eq!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "missingModule")
+            .map(|diagnostic| diagnostic.provenance.as_slice()),
+        Some(
+            [
+                "omena-query.source-import-declarations",
+                "omena-resolver.style-module-resolution",
+                "omena-query-checker-orchestrator.product-diagnostic-gate",
+                "omena-checker.rule-registry",
+            ]
+            .as_slice()
+        )
+    );
     assert!(
         diagnostics
             .ready_surfaces
             .contains(&"sourceResolvedClassDiagnostics")
+    );
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"checkerProductDiagnosticGate")
     );
 }
 

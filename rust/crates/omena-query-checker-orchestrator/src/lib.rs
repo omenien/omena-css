@@ -32,6 +32,85 @@ pub struct OmenaQueryCheckerCascadeGateV0 {
     pub ready_surfaces: Vec<&'static str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCheckerProductDiagnosticGateV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub product_diagnostic_code: String,
+    pub checker_rule_code_name: Option<&'static str>,
+    pub checker_rule_registered: bool,
+    pub checker_owned: bool,
+    pub enforcement_passed: bool,
+    pub provenance: Vec<&'static str>,
+}
+
+pub fn gate_omena_query_checker_product_diagnostic_code_v0(
+    product_diagnostic_code: &str,
+) -> OmenaQueryCheckerProductDiagnosticGateV0 {
+    let checker_rule_code_name =
+        query_product_diagnostic_checker_rule_code_name_v0(product_diagnostic_code);
+    let checker_rule_registered = checker_rule_code_name
+        .is_some_and(|rule_code| list_omena_checker_rule_code_names().contains(&rule_code));
+    let checker_owned = checker_rule_code_name.is_some();
+    let provenance = if checker_rule_registered {
+        vec![
+            "omena-query-checker-orchestrator.product-diagnostic-gate",
+            "omena-checker.rule-registry",
+        ]
+    } else {
+        Vec::new()
+    };
+
+    OmenaQueryCheckerProductDiagnosticGateV0 {
+        schema_version: "0",
+        product: "omena-query-checker-orchestrator.product-diagnostic-gate",
+        product_diagnostic_code: product_diagnostic_code.to_string(),
+        checker_rule_code_name,
+        checker_rule_registered,
+        checker_owned,
+        enforcement_passed: !checker_owned || checker_rule_registered,
+        provenance,
+    }
+}
+
+pub fn query_product_diagnostic_checker_rule_code_name_v0(
+    product_diagnostic_code: &str,
+) -> Option<&'static str> {
+    match product_diagnostic_code {
+        "missingModule" => Some(OmenaCheckerRuleCodeV0::MissingModule.as_str()),
+        "missingSelector" | "missingStaticClass" => {
+            Some(OmenaCheckerRuleCodeV0::MissingStaticClass.as_str())
+        }
+        "missingTemplatePrefix" => Some(OmenaCheckerRuleCodeV0::MissingTemplatePrefix.as_str()),
+        "missingResolvedClassValues" => {
+            Some(OmenaCheckerRuleCodeV0::MissingResolvedClassValues.as_str())
+        }
+        "missingResolvedClassDomain" => {
+            Some(OmenaCheckerRuleCodeV0::MissingResolvedClassDomain.as_str())
+        }
+        "missingComposedModule" => Some(OmenaCheckerRuleCodeV0::MissingComposedModule.as_str()),
+        "missingComposedSelector" => Some(OmenaCheckerRuleCodeV0::MissingComposedSelector.as_str()),
+        "missingValueModule" => Some(OmenaCheckerRuleCodeV0::MissingValueModule.as_str()),
+        "missingImportedValue" => Some(OmenaCheckerRuleCodeV0::MissingImportedValue.as_str()),
+        "missingKeyframes" => Some(OmenaCheckerRuleCodeV0::MissingKeyframes.as_str()),
+        "missingCustomProperty" => Some(OmenaCheckerRuleCodeV0::MissingCustomProperty.as_str()),
+        "missingSassSymbol" => Some(OmenaCheckerRuleCodeV0::MissingSassSymbol.as_str()),
+        "unusedSelector" => Some(OmenaCheckerRuleCodeV0::UnusedSelector.as_str()),
+        "unreachableDeclaration" => Some(OmenaCheckerRuleCodeV0::UnreachableDeclaration.as_str()),
+        "deadCascadeLayer" => Some(OmenaCheckerRuleCodeV0::DeadCascadeLayer.as_str()),
+        "iacvtProne" | "guaranteedInvalidCustomProperty" => {
+            Some(OmenaCheckerRuleCodeV0::IacvtProne.as_str())
+        }
+        "circularVar" => Some(OmenaCheckerRuleCodeV0::CircularVar.as_str()),
+        "unspecifiedCascadeTie" => Some(OmenaCheckerRuleCodeV0::UnspecifiedCascadeTie.as_str()),
+        "designerIntentInconsistency" => {
+            Some(OmenaCheckerRuleCodeV0::DesignerIntentInconsistency.as_str())
+        }
+        _ => None,
+    }
+}
+
 pub fn run_omena_query_checker_cascade_gate_v0(
     input: OmenaCheckerCascadeInputV0,
 ) -> OmenaQueryCheckerCascadeGateV0 {
@@ -207,6 +286,60 @@ mod tests {
         assert!(gate.enforcement_passed);
         assert_eq!(gate.evaluation_count, 0);
         assert_eq!(gate.suppressed_rule_names, gate.enabled_rule_names);
+    }
+
+    #[test]
+    fn product_diagnostic_gate_maps_query_diagnostics_to_registered_checker_rules() {
+        let product_codes = [
+            "missingModule",
+            "missingSelector",
+            "missingStaticClass",
+            "missingTemplatePrefix",
+            "missingResolvedClassValues",
+            "missingResolvedClassDomain",
+            "missingComposedModule",
+            "missingComposedSelector",
+            "missingValueModule",
+            "missingImportedValue",
+            "missingKeyframes",
+            "missingCustomProperty",
+            "missingSassSymbol",
+            "unusedSelector",
+            "unreachableDeclaration",
+            "deadCascadeLayer",
+            "iacvtProne",
+            "guaranteedInvalidCustomProperty",
+            "circularVar",
+            "unspecifiedCascadeTie",
+            "designerIntentInconsistency",
+        ];
+
+        for product_code in product_codes {
+            let gate = gate_omena_query_checker_product_diagnostic_code_v0(product_code);
+            assert!(
+                gate.enforcement_passed,
+                "{product_code} must map to a registered checker rule"
+            );
+            assert!(gate.checker_owned);
+            assert!(gate.checker_rule_registered);
+            assert_eq!(
+                gate.provenance,
+                vec![
+                    "omena-query-checker-orchestrator.product-diagnostic-gate",
+                    "omena-checker.rule-registry",
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn product_diagnostic_gate_leaves_non_checker_advisories_unowned() {
+        let gate = gate_omena_query_checker_product_diagnostic_code_v0("deprecatedSassImport");
+
+        assert!(gate.enforcement_passed);
+        assert!(!gate.checker_owned);
+        assert_eq!(gate.checker_rule_code_name, None);
+        assert!(gate.provenance.is_empty());
     }
 
     struct CascadeDeclarationFixture<'a> {

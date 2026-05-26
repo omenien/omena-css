@@ -934,6 +934,17 @@ impl OmenaQueryStyleDiagnosticV0 {
     }
 }
 
+pub(crate) fn apply_omena_query_checker_product_gate_to_style_diagnostics(
+    diagnostics: &mut [OmenaQueryStyleDiagnosticV0],
+) {
+    for diagnostic in diagnostics {
+        extend_omena_query_checker_product_gate_provenance(
+            diagnostic.code,
+            &mut diagnostic.provenance,
+        );
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OmenaQueryStyleDiagnosticsForFileV0 {
@@ -1098,6 +1109,36 @@ pub struct OmenaQuerySourceDiagnosticV0 {
 impl OmenaQuerySourceDiagnosticV0 {
     pub fn linear_provenance(&self) -> OmenaQueryLinearProvenanceV0 {
         summarize_omena_query_linear_provenance(self.provenance.as_slice())
+    }
+}
+
+pub(crate) fn apply_omena_query_checker_product_gate_to_source_diagnostics(
+    diagnostics: &mut [OmenaQuerySourceDiagnosticV0],
+) {
+    for diagnostic in diagnostics {
+        extend_omena_query_checker_product_gate_provenance(
+            diagnostic.code,
+            &mut diagnostic.provenance,
+        );
+    }
+}
+
+fn extend_omena_query_checker_product_gate_provenance(
+    product_diagnostic_code: &str,
+    provenance: &mut Vec<&'static str>,
+) {
+    let gate =
+        omena_query_checker_orchestrator::gate_omena_query_checker_product_diagnostic_code_v0(
+            product_diagnostic_code,
+        );
+    if !gate.enforcement_passed {
+        provenance.push("omena-query-checker-orchestrator.product-diagnostic-gate-failed");
+        return;
+    }
+    for label in gate.provenance {
+        if !provenance.contains(&label) {
+            provenance.push(label);
+        }
     }
 }
 

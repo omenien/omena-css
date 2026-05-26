@@ -79,6 +79,8 @@ fn missing_custom_property_diagnostics_are_query_owned() -> Result<(), serde_jso
         [
             "omena-parser.custom-property-facts",
             "omena-query.style-diagnostics",
+            "omena-query-checker-orchestrator.product-diagnostic-gate",
+            "omena-checker.rule-registry",
         ]
     );
     let linear_provenance = summary.diagnostics[0].linear_provenance();
@@ -90,7 +92,7 @@ fn missing_custom_property_diagnostics_are_query_owned() -> Result<(), serde_jso
         linear_provenance.labels(),
         summary.diagnostics[0].provenance
     );
-    assert_eq!(linear_provenance.term_count, 2);
+    assert_eq!(linear_provenance.term_count, 4);
 
     let serialized = serde_json::to_value(&summary.diagnostics[0])?;
     assert_eq!(
@@ -107,6 +109,11 @@ fn missing_custom_property_diagnostics_are_query_owned() -> Result<(), serde_jso
         summary
             .ready_surfaces
             .contains(&"missingCustomPropertyDiagnostics")
+    );
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"checkerProductDiagnosticGate")
     );
     Ok(())
 }
@@ -997,6 +1004,11 @@ export function App() {
             .ready_surfaces
             .contains(&"unusedSelectorDiagnostics")
     );
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"checkerProductDiagnosticGate")
+    );
     let unused = diagnostics
         .diagnostics
         .iter()
@@ -1016,7 +1028,9 @@ export function App() {
                 && diagnostic.provenance.as_slice()
                     == [
                         "omena-parser.selector-facts",
-                        "omena-query.source-selector-usage"
+                        "omena-query.source-selector-usage",
+                        "omena-query-checker-orchestrator.product-diagnostic-gate",
+                        "omena-checker.rule-registry"
                     ])
     );
     Ok(())

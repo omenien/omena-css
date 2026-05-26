@@ -189,7 +189,7 @@ pub fn summarize_omena_query_source_diagnostics_for_file(
     source_uri: &str,
     candidates: &[OmenaQuerySourceMissingSelectorDiagnosticCandidateV0],
 ) -> OmenaQuerySourceDiagnosticsForFileV0 {
-    let diagnostics = candidates
+    let mut diagnostics = candidates
         .iter()
         .map(|candidate| {
             summarize_omena_query_missing_selector_diagnostic(
@@ -200,6 +200,7 @@ pub fn summarize_omena_query_source_diagnostics_for_file(
             )
         })
         .collect::<Vec<_>>();
+    apply_omena_query_checker_product_gate_to_source_diagnostics(&mut diagnostics);
     OmenaQuerySourceDiagnosticsForFileV0 {
         schema_version: "0",
         product: "omena-query.diagnostics-for-file",
@@ -210,6 +211,7 @@ pub fn summarize_omena_query_source_diagnostics_for_file(
         ready_surfaces: vec![
             "sourceMissingSelectorDiagnostics",
             "crossLanguageDiagnostics",
+            "checkerProductDiagnosticGate",
         ],
     }
 }
@@ -338,6 +340,7 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file(
     diagnostics.dedup_by(|left, right| {
         left.code == right.code && left.range == right.range && left.message == right.message
     });
+    apply_omena_query_checker_product_gate_to_source_diagnostics(&mut diagnostics);
 
     OmenaQuerySourceDiagnosticsForFileV0 {
         schema_version: "0",
@@ -351,6 +354,7 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file(
             "sourceMissingSelectorDiagnostics",
             "sourceResolvedClassDiagnostics",
             "crossLanguageDiagnostics",
+            "checkerProductDiagnosticGate",
         ],
     }
 }

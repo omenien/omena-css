@@ -391,6 +391,7 @@ pub fn summarize_omena_query_style_diagnostics_for_file(
     diagnostics.extend(summarize_omena_query_missing_sass_symbol_diagnostics(
         style_uri, source,
     ));
+    apply_omena_query_checker_product_gate_to_style_diagnostics(&mut diagnostics);
     let mut summary = OmenaQueryStyleDiagnosticsForFileV0 {
         schema_version: "0",
         product: "omena-query.diagnostics-for-file",
@@ -404,6 +405,7 @@ pub fn summarize_omena_query_style_diagnostics_for_file(
             "missingKeyframesDiagnostics",
             "sassImportDeprecationHints",
             "missingSassSymbolDiagnostics",
+            "checkerProductDiagnosticGate",
         ],
     };
     apply_omena_query_style_diagnostic_suppressions(source, &mut summary);
@@ -533,6 +535,8 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
             "externalSifBoundaryDiagnostics",
         );
     }
+    apply_omena_query_checker_product_gate_to_style_diagnostics(&mut summary.diagnostics);
+    push_omena_query_ready_surface(&mut summary.ready_surfaces, "checkerProductDiagnosticGate");
     apply_omena_query_style_diagnostic_suppressions(&target.style_source, &mut summary);
     summary.diagnostic_count = summary.diagnostics.len();
     Some(summary)
