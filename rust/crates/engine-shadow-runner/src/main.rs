@@ -41,6 +41,7 @@ use omena_checker::{
     evaluate_omena_checker_grn_rules, evaluate_omena_checker_m_tier_rules,
     evaluate_omena_checker_mdl_rules, evaluate_omena_checker_smt_rules,
     evaluate_omena_checker_streaming_ifds_rules,
+    summarize_omena_checker_rule_enforcement_coverage_v0,
 };
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryCodeActionPlanV0, OmenaQueryExpressionDomainFlowRuntimeV0,
@@ -1836,6 +1837,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_omena_checker_streaming_ifds_evaluations(input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("omena-checker-rule-enforcement-coverage") => {
+            let summary = summarize_omena_checker_rule_enforcement_coverage_v0();
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("input-source-resolution-match-fragments") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_source_resolution_match_fragments_input(&input);
@@ -2296,6 +2301,9 @@ fn run_daemon_selected_query_command(
                 summarize_omena_checker_streaming_ifds_evaluations(input),
             )?)
         }
+        "omena-checker-rule-enforcement-coverage" => Ok(serde_json::to_value(
+            summarize_omena_checker_rule_enforcement_coverage_v0(),
+        )?),
         other => Err(format!("unsupported engine-shadow-runner daemon command: {other}").into()),
     }
 }

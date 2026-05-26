@@ -15,7 +15,9 @@ use omena_variational::{
 };
 use serde::{Deserialize, Serialize};
 
+mod enforcement_coverage;
 mod frame_emission;
+pub use enforcement_coverage::*;
 pub use frame_emission::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
