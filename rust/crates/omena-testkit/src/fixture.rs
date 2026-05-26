@@ -588,6 +588,10 @@ range: colorRange
 --- expect: cascade-outcome decl-1
 --- expect: cascade-witness decl-2
 --- expect: boundary-state ext-1 Resolved
+--- expect: boundary-state ext-2 Partial
+--- expect: boundary-state ext-3 Stale
+--- expect: boundary-state ext-4 Missing
+--- expect: boundary-state ext-5 Unresolved
 "#,
         )?;
 
@@ -603,6 +607,10 @@ range: colorRange
                 CmeFixtureExpectationKindV0::Count,
                 CmeFixtureExpectationKindV0::CascadeOutcome,
                 CmeFixtureExpectationKindV0::CascadeWitness,
+                CmeFixtureExpectationKindV0::BoundaryState,
+                CmeFixtureExpectationKindV0::BoundaryState,
+                CmeFixtureExpectationKindV0::BoundaryState,
+                CmeFixtureExpectationKindV0::BoundaryState,
                 CmeFixtureExpectationKindV0::BoundaryState,
             ]
         );
