@@ -4,7 +4,7 @@ use omena_checker::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeInputV0,
     OmenaCheckerCustomPropertyInputV0, evaluate_omena_checker_cascade_rules,
 };
-use omena_transform_passes::expand_css_nested_selector;
+use omena_query_transform_runner::expand_css_nested_selector;
 
 use super::{
     OmenaQueryStyleDiagnosticV0, ParserByteSpanV0, ParserRangeV0,

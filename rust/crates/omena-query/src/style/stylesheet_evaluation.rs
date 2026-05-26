@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use omena_parser::{
     LexedToken, ParsedVariableFact, ParsedVariableFactKind, StyleDialect as OmenaParserStyleDialect,
 };
+use omena_query_transform_runner::{TransformModuleEvaluationV0, reduce_static_numeric_expression};
 use omena_syntax::SyntaxKind;
-use omena_transform_passes::{TransformModuleEvaluationV0, reduce_static_numeric_expression};
 
 use super::parser_facade::{
     collect_omena_query_omena_parser_style_facts_raw, lex_omena_query_omena_parser_style_source,

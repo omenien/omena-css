@@ -1,12 +1,12 @@
 use super::super::parser_facade::lex_omena_query_omena_parser_style_source;
 use super::context::{css_identifier_names_match, decode_css_identifier_escapes};
 use super::*;
-use omena_syntax::SyntaxKind;
-use omena_transform_passes::{
+use omena_query_transform_runner::{
     TransformClassNameRewriteV0, TransformCssModuleComposesResolutionV0,
     TransformCssModuleValueResolutionV0,
     resolve_static_css_modules_local_value_resolutions_from_source,
 };
+use omena_syntax::SyntaxKind;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 pub(super) fn derive_class_name_rewrites_for_transform_context(

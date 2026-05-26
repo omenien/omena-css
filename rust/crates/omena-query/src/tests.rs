@@ -33,9 +33,10 @@ use super::{
 };
 use crate::{
     OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0,
-    OmenaQueryTransformPrintMode, OmenaQueryTransformPrintOptionsV0,
-    default_omena_query_transform_print_options, modern_omena_query_target_feature_support,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformDesignTokenRouteV0,
+    OmenaQueryTransformExecutionContextV0, OmenaQueryTransformPrintMode,
+    OmenaQueryTransformPrintOptionsV0, default_omena_query_transform_print_options,
+    modern_omena_query_target_feature_support,
 };
 use omena_cascade::{CascadeKey, CascadeLevel, CascadeMarginV0, LayerRank, Specificity};
 
@@ -164,6 +165,11 @@ fn summarizes_query_boundary_over_producer_fragments() {
     assert!(
         summary
             .delegated_fragment_products
+            .contains(&"omena-query-transform-runner.boundary")
+    );
+    assert!(
+        summary
+            .delegated_fragment_products
             .contains(&"omena-transform-bundle.source")
     );
     assert!(
@@ -220,6 +226,11 @@ fn summarizes_query_boundary_over_producer_fragments() {
         summary
             .ready_surfaces
             .contains(&"omenaParserStyleFactExtraction")
+    );
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"queryTransformRunnerBoundary")
     );
     assert!(summary.ready_surfaces.contains(&"transformPlanFacade"));
     assert!(
@@ -992,7 +1003,7 @@ fn explicit_context_extends_query_derived_transform_context()
         },
     ];
     let context = OmenaQueryTransformExecutionContextV0 {
-        design_token_routes: vec![omena_transform_passes::TransformDesignTokenRouteV0 {
+        design_token_routes: vec![OmenaQueryTransformDesignTokenRouteV0 {
             token_name: "--external".to_string(),
             routed_value: "blue".to_string(),
         }],

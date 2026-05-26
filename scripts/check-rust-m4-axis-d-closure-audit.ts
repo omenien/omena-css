@@ -144,6 +144,7 @@ const structuralSplits = [
     family: "query-transform",
     orchestrator: "rust/crates/omena-query/src/style/transform.rs",
     modules: [
+      "rust/crates/omena-query-transform-runner/src/lib.rs",
       "rust/crates/omena-query/src/style/transform/context.rs",
       "rust/crates/omena-query/src/style/transform/css_modules.rs",
       "rust/crates/omena-query/src/style/transform/design_tokens.rs",

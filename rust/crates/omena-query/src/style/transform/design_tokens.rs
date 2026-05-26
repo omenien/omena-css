@@ -1,5 +1,5 @@
 use super::*;
-use omena_transform_passes::TransformDesignTokenRouteV0;
+use omena_query_transform_runner::TransformDesignTokenRouteV0;
 use std::collections::{BTreeSet, VecDeque};
 
 pub(super) fn derive_design_token_routes_for_transform_context(

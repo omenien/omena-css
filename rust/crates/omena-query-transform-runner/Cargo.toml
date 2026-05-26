@@ -1,0 +1,21 @@
+[package]
+name = "omena-query-transform-runner"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Transform-runner boundary for the Omena query facade"
+repository = "https://github.com/yongsk0066/css-module-explainer"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+omena-transform-bundle = { path = "../omena-transform-bundle" }
+omena-transform-cst = { path = "../omena-transform-cst" }
+omena-transform-egg = { path = "../omena-transform-egg" }
+omena-transform-passes = { path = "../omena-transform-passes" }
+omena-transform-print = { path = "../omena-transform-print" }
+omena-transform-target = { path = "../omena-transform-target" }
+serde.workspace = true

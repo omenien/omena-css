@@ -1972,10 +1972,19 @@ dependencies = [
  "omena-checker",
  "omena-incremental",
  "omena-parser",
+ "omena-query-transform-runner",
  "omena-resolver",
  "omena-semantic",
  "omena-sif",
  "omena-syntax",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "omena-query-transform-runner"
+version = "0.2.0"
+dependencies = [
  "omena-transform-bundle",
  "omena-transform-cst",
  "omena-transform-egg",
@@ -1983,7 +1992,6 @@ dependencies = [
  "omena-transform-print",
  "omena-transform-target",
  "serde",
- "serde_json",
 ]
 
 [[package]]

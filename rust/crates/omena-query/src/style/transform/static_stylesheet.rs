@@ -6,12 +6,12 @@ use super::super::stylesheet_evaluation::{
     derive_static_stylesheet_module_evaluation, static_scss_variable_names_equal,
 };
 use super::*;
-use omena_syntax::SyntaxKind;
-use omena_transform_passes::{
+use omena_query_transform_runner::{
     TransformImportInlineV0, TransformLessInlineLiteralPlaceholderV0, TransformModuleEvaluationV0,
     inline_css_imports, inline_css_imports_for_static_module_evaluation,
     restore_less_inline_literal_placeholders,
 };
+use omena_syntax::SyntaxKind;
 use std::{
     borrow::Cow,
     collections::{BTreeMap, BTreeSet},

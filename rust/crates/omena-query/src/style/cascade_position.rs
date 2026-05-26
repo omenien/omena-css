@@ -9,7 +9,7 @@ use omena_cascade::{
     summarize_custom_property_least_fixed_point,
 };
 use omena_parser::{ParserByteSpanV0, ParserPositionV0, ParserRangeV0};
-use omena_transform_passes::parse_static_css_cascade_value;
+use omena_query_transform_runner::parse_static_css_cascade_value;
 
 use crate::OmenaQueryCascadeAtPositionV0;
 
