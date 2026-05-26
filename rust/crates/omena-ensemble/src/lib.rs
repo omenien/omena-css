@@ -2,6 +2,9 @@
 //!
 //! The crate is a leaf M4-beta lane: it consumes cascade outcomes and query
 //! graph summaries read-only, then emits additive V0 contracts.
+//!
+//! claim_level: opt-in replica-overlap substrate, not a default product
+//! decision mechanism.
 
 pub mod types;
 

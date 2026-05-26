@@ -3,6 +3,9 @@
 //! Stochastic evidence is isolated in this crate and disabled by default. V0
 //! contracts serialize log quantities in bits; any nats arithmetic stays behind
 //! the public boundary.
+//!
+//! claim_level: product-wired posterior inference for checker evidence, not a
+//! corpus-calibrated probabilistic design model.
 
 pub mod hover;
 pub mod unit;

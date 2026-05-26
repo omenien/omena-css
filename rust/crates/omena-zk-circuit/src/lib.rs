@@ -1,4 +1,7 @@
 //! Pure circuit-side contracts for zero-knowledge cascade audit.
+//!
+//! claim_level: constraint-generation substrate, not a standalone proving
+//! backend.
 
 use serde::Serialize;
 

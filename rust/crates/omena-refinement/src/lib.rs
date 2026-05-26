@@ -3,6 +3,9 @@
 //! The crate keeps legacy abstract property values wire-compatible by adding a
 //! strict-superset wrapper and delegating cascade checks to the byte-stable
 //! `omena-cascade` proof primitives.
+//!
+//! claim_level: cascade refinement bridge substrate, not Liquid-Haskell
+//! inference or SMT completeness.
 
 use std::{collections::BTreeSet, marker::PhantomData};
 

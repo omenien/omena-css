@@ -3,6 +3,9 @@
 //! This crate is intentionally contract-first. It records the 40-pass catalog,
 //! rank clusters, reorderability evidence, and a scaffolded parallel plan
 //! without changing the existing transform executor.
+//!
+//! claim_level: product-wired differential commutativity witness, not a global
+//! transform-catalog theorem.
 
 use std::collections::BTreeMap;
 

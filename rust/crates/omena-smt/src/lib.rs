@@ -4,6 +4,9 @@
 //! L1 cascade proof primitives remain in `omena-cascade`, L2 refinement
 //! delegates live beside the cascade crate, and this crate owns L3 encoding,
 //! proof contracts, backend selection, and unsat-core audit metadata.
+//!
+//! claim_level: default stub plus opt-in solver-backed checking, not default
+//! build SMT completeness.
 
 pub mod backend;
 pub mod encoder;

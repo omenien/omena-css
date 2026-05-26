@@ -3,6 +3,9 @@
 //! Heavy proving systems remain opt-in features. The default build records the
 //! protocol and CI matrix without linking arkworks, halo2, winterfell, or
 //! binius.
+//!
+//! claim_level: opt-in arkworks proof round-trip, while the default build stays
+//! protocol metadata only.
 
 use omena_smt::CanonicalSmtInputV0;
 use omena_zk_circuit::{

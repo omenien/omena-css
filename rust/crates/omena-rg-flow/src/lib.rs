@@ -3,6 +3,9 @@
 //! The crate is intentionally read-only with respect to `omena-cascade`: it
 //! consumes public fixed-point summaries and emits additive V0 contracts for
 //! beta vectors, tier aggregates, branching estimates, and cross-tier checks.
+//!
+//! claim_level: product-wired Jacobian-spectrum approximation, not a full
+//! renormalization-group theorem.
 
 use omena_cascade::{
     CascadeReplicaOverlapV0, CustomPropertyLeastFixedPointIterationV0,
