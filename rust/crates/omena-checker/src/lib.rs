@@ -6,6 +6,9 @@ use omena_abstract_value::{
 };
 use omena_cascade::{GrnBooleanState, GrnVertexStateV0, GrnVertexV0, project_grn_outcome};
 pub use omena_categorical::CategoricalCascadeEvidenceV0;
+use omena_smt::{
+    SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0, canonical_smt_input_v0,
+};
 use omena_variational::{
     PatternIntentV0, designer_intent_posterior_input_v0, dominant_designer_intent_v0,
     infer_designer_intent_posterior_v0,
@@ -390,6 +393,34 @@ pub struct OmenaCheckerGrnEvaluationV0 {
     pub severity: OmenaCheckerSeverityV0,
     pub severity_name: &'static str,
     pub vertex_ids: Vec<String>,
+    pub message: String,
+    pub mechanism_products: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerSmtInputV0 {
+    pub obligations: Vec<OmenaCheckerSmtObligationInputV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerSmtObligationInputV0 {
+    pub obligation_id: String,
+    pub l1_primitive: String,
+    pub canonical_terms: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerSmtEvaluationV0 {
+    pub rule_code: OmenaCheckerRuleCodeV0,
+    pub rule_code_name: &'static str,
+    pub severity: OmenaCheckerSeverityV0,
+    pub severity_name: &'static str,
+    pub obligation_id: String,
+    pub backend_kind_name: &'static str,
+    pub sat_result_name: &'static str,
     pub message: String,
     pub mechanism_products: Vec<&'static str>,
 }
@@ -1191,6 +1222,32 @@ pub fn evaluate_omena_checker_grn_rules(
     evaluations
 }
 
+pub fn evaluate_omena_checker_smt_rules(
+    input: OmenaCheckerSmtInputV0,
+) -> Vec<OmenaCheckerSmtEvaluationV0> {
+    let backend = StubSmtBackendV0::default();
+    let mut evaluations = Vec::new();
+
+    for obligation in input.obligations {
+        let canonical_input = canonical_smt_input_v0(
+            obligation.obligation_id,
+            checker_smt_l1_primitive_name(obligation.l1_primitive.as_str()),
+            obligation.canonical_terms,
+        );
+        let check = backend.check_canonical_input_v0(&canonical_input);
+        if check.sat_result == SmtBackendSatResultV0::Unsat {
+            evaluations.push(smt_evaluation(
+                canonical_input.obligation_id,
+                smt_backend_kind_name(backend.backend_kind()),
+                smt_sat_result_name(check.sat_result),
+                "SMT backend rejected the cascade proof obligation.",
+            ));
+        }
+    }
+
+    evaluations
+}
+
 fn dynamic_class_domain_evaluation(
     outcome: OmenaCheckerDynamicClassDomainOutcomeV0,
     rule_code: Option<OmenaCheckerRuleCodeV0>,
@@ -1297,6 +1354,52 @@ fn grn_vertex_ids_for_state(vertices: &[GrnVertexStateV0], state: GrnBooleanStat
         .filter(|vertex| vertex.state == state)
         .map(|vertex| vertex.vertex.vertex_id.clone())
         .collect()
+}
+
+fn smt_evaluation(
+    obligation_id: String,
+    backend_kind_name: &'static str,
+    sat_result_name: &'static str,
+    message: &'static str,
+) -> OmenaCheckerSmtEvaluationV0 {
+    OmenaCheckerSmtEvaluationV0 {
+        rule_code: OmenaCheckerRuleCodeV0::CascadeSMTViolation,
+        rule_code_name: OmenaCheckerRuleCodeV0::CascadeSMTViolation.as_str(),
+        severity: OmenaCheckerSeverityV0::Warning,
+        severity_name: OmenaCheckerSeverityV0::Warning.as_str(),
+        obligation_id,
+        backend_kind_name,
+        sat_result_name,
+        message: message.to_string(),
+        mechanism_products: vec!["omena-smt.backend-check"],
+    }
+}
+
+fn checker_smt_l1_primitive_name(value: &str) -> &'static str {
+    match value {
+        "boxShorthandCombination" => "boxShorthandCombination",
+        "scopeFlattenCandidate" => "scopeFlattenCandidate",
+        "layerFlattenCandidate" => "layerFlattenCandidate",
+        "staticSupportsCondition" => "staticSupportsCondition",
+        _ => "checkerSmtObligation",
+    }
+}
+
+fn smt_backend_kind_name(kind: SmtBackendKindV0) -> &'static str {
+    match kind {
+        SmtBackendKindV0::Stub => "stub",
+        SmtBackendKindV0::Z3 => "z3",
+        SmtBackendKindV0::Cvc5 => "cvc5",
+        SmtBackendKindV0::Bitwuzla => "bitwuzla",
+    }
+}
+
+fn smt_sat_result_name(result: SmtBackendSatResultV0) -> &'static str {
+    match result {
+        SmtBackendSatResultV0::Sat => "sat",
+        SmtBackendSatResultV0::Unsat => "unsat",
+        SmtBackendSatResultV0::Unknown => "unknown",
+    }
 }
 
 fn designer_intent_source_order_tie_is_inconsistent(
@@ -2114,6 +2217,45 @@ mod tests {
                 "color",
                 OmenaCheckerGrnVertexStateKindV0::Applied,
             )],
+        });
+        assert!(clear_evaluations.is_empty());
+    }
+
+    #[test]
+    fn evaluates_smt_rule_family_from_canonical_obligations() {
+        let evaluations = evaluate_omena_checker_smt_rules(OmenaCheckerSmtInputV0 {
+            obligations: vec![OmenaCheckerSmtObligationInputV0 {
+                obligation_id: "bad-layer-flatten".to_string(),
+                l1_primitive: "layerFlattenCandidate".to_string(),
+                canonical_terms: vec![
+                    "require:closed-bundle=true".to_string(),
+                    "require:no-unlayered-rule=false".to_string(),
+                ],
+            }],
+        });
+
+        assert_eq!(evaluations.len(), 1);
+        assert_eq!(
+            evaluations[0].rule_code,
+            OmenaCheckerRuleCodeV0::CascadeSMTViolation
+        );
+        assert_eq!(evaluations[0].obligation_id, "bad-layer-flatten");
+        assert_eq!(evaluations[0].backend_kind_name, "stub");
+        assert_eq!(evaluations[0].sat_result_name, "unsat");
+        assert_eq!(
+            evaluations[0].mechanism_products,
+            vec!["omena-smt.backend-check"]
+        );
+
+        let clear_evaluations = evaluate_omena_checker_smt_rules(OmenaCheckerSmtInputV0 {
+            obligations: vec![OmenaCheckerSmtObligationInputV0 {
+                obligation_id: "ok-layer-flatten".to_string(),
+                l1_primitive: "layerFlattenCandidate".to_string(),
+                canonical_terms: vec![
+                    "require:closed-bundle=true".to_string(),
+                    "require:no-unlayered-rule=true".to_string(),
+                ],
+            }],
         });
         assert!(clear_evaluations.is_empty());
     }

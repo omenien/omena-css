@@ -1860,6 +1860,7 @@ dependencies = [
  "omena-cascade",
  "omena-categorical",
  "omena-resolver",
+ "omena-smt",
  "omena-variational",
  "serde",
 ]

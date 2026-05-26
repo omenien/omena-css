@@ -15,6 +15,7 @@ const commandBodies = extractCommandBodies(runnerSource);
 const checkerMTierBody = commandBodies.get("omena-checker-m-tier-evaluations");
 const checkerCascadeBody = commandBodies.get("omena-checker-cascade-evaluations");
 const checkerGrnBody = commandBodies.get("omena-checker-grn-evaluations");
+const checkerSmtBody = commandBodies.get("omena-checker-smt-evaluations");
 assert.ok(
   checkerMTierBody,
   "missing engine-shadow-runner command arm: omena-checker-m-tier-evaluations",
@@ -26,6 +27,10 @@ assert.ok(
 assert.ok(
   checkerGrnBody,
   "missing engine-shadow-runner command arm: omena-checker-grn-evaluations",
+);
+assert.ok(
+  checkerSmtBody,
+  "missing engine-shadow-runner command arm: omena-checker-smt-evaluations",
 );
 assert.ok(
   checkerMTierBody.includes("OmenaCheckerMTierEvaluationInputV0"),
@@ -40,6 +45,10 @@ assert.ok(
   "omena-checker-grn-evaluations must deserialize the checker GRN input product",
 );
 assert.ok(
+  checkerSmtBody.includes("OmenaCheckerSmtInputV0"),
+  "omena-checker-smt-evaluations must deserialize the checker SMT input product",
+);
+assert.ok(
   checkerMTierBody.includes("summarize_omena_checker_m_tier_evaluations"),
   "omena-checker-m-tier-evaluations must route through the runner-owned checker summary wrapper",
 );
@@ -50,6 +59,10 @@ assert.ok(
 assert.ok(
   checkerGrnBody.includes("summarize_omena_checker_grn_evaluations"),
   "omena-checker-grn-evaluations must route through the runner-owned checker GRN summary wrapper",
+);
+assert.ok(
+  checkerSmtBody.includes("summarize_omena_checker_smt_evaluations"),
+  "omena-checker-smt-evaluations must route through the runner-owned checker SMT summary wrapper",
 );
 assert.ok(
   runnerSource.includes("evaluate_omena_checker_m_tier_rules"),
@@ -64,6 +77,10 @@ assert.ok(
   "engine-shadow-runner must call omena-checker's GRN evaluator",
 );
 assert.ok(
+  runnerSource.includes("evaluate_omena_checker_smt_rules"),
+  "engine-shadow-runner must call omena-checker's SMT evaluator",
+);
+assert.ok(
   runnerSource.includes('"omena-checker-m-tier-evaluations" =>'),
   "engine-shadow-runner daemon must support omena-checker-m-tier-evaluations",
 );
@@ -74,6 +91,10 @@ assert.ok(
 assert.ok(
   runnerSource.includes('"omena-checker-grn-evaluations" =>'),
   "engine-shadow-runner daemon must support omena-checker-grn-evaluations",
+);
+assert.ok(
+  runnerSource.includes('"omena-checker-smt-evaluations" =>'),
+  "engine-shadow-runner daemon must support omena-checker-smt-evaluations",
 );
 assert.ok(
   /^\s*omena-checker\s*=/m.test(runnerCargoToml),
@@ -117,6 +138,13 @@ for (const code of ["cascade.deep-conflict", "cascade.unreachable-rule"]) {
     `GRN runner output must include ${code}`,
   );
 }
+const smtSummary = runSmtEvaluationFixture();
+assert.equal(smtSummary.product, "omena-checker.smt-evaluations");
+assert.equal(smtSummary.obligationCount, 1);
+assert.ok(
+  smtSummary.ruleCodeNames.includes("cascade.smt-violation"),
+  "SMT runner output must include cascade.smt-violation",
+);
 
 process.stdout.write(
   [
@@ -124,6 +152,7 @@ process.stdout.write(
     "mTierCommand=omena-checker-m-tier-evaluations",
     "cascadeCommand=omena-checker-cascade-evaluations",
     "grnCommand=omena-checker-grn-evaluations",
+    "smtCommand=omena-checker-smt-evaluations",
     "runtime=engine-shadow-runner",
     "owner=omena-checker",
   ].join(" "),
@@ -166,6 +195,12 @@ interface CascadeEvaluationSummary {
 interface GrnEvaluationSummary {
   readonly product: string;
   readonly vertexCount: number;
+  readonly ruleCodeNames: readonly string[];
+}
+
+interface SmtEvaluationSummary {
+  readonly product: string;
+  readonly obligationCount: number;
   readonly ruleCodeNames: readonly string[];
 }
 
@@ -246,6 +281,46 @@ function runGrnEvaluationFixture(): GrnEvaluationSummary {
     `engine-shadow-runner GRN command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
   return JSON.parse(result.stdout) as GrnEvaluationSummary;
+}
+
+function runSmtEvaluationFixture(): SmtEvaluationSummary {
+  const input = {
+    obligations: [
+      {
+        obligationId: "bad-layer-flatten",
+        l1Primitive: "layerFlattenCandidate",
+        canonicalTerms: [
+          "require:closed-bundle=true",
+          "require:no-unlayered-rule=false",
+        ],
+      },
+    ],
+  };
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      "omena-checker-smt-evaluations",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: JSON.stringify(input),
+      maxBuffer: 1024 * 1024 * 10,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `engine-shadow-runner SMT command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return JSON.parse(result.stdout) as SmtEvaluationSummary;
 }
 
 function cascadeDeclaration(

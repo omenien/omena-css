@@ -16,5 +16,6 @@ omena-abstract-value = { path = "../omena-abstract-value" }
 omena-cascade = { path = "../omena-cascade" }
 omena-categorical = { path = "../omena-categorical" }
 omena-resolver = { path = "../omena-resolver" }
+omena-smt = { path = "../omena-smt" }
 omena-variational = { path = "../omena-variational" }
 serde.workspace = true
