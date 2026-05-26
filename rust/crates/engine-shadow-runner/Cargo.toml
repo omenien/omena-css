@@ -14,5 +14,6 @@ omena-abstract-value = { path = "../omena-abstract-value" }
 omena-checker = { path = "../omena-checker" }
 omena-query = { path = "../omena-query" }
 omena-resolver = { path = "../omena-resolver" }
+omena-streaming-ifds = { path = "../omena-streaming-ifds" }
 serde.workspace = true
 serde_json.workspace = true

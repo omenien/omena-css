@@ -34,22 +34,29 @@ use omena_abstract_value::{
 use omena_checker::{
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
     OmenaCheckerDynamicClassDomainInputV0, OmenaCheckerGrnEvaluationV0, OmenaCheckerGrnInputV0,
-    OmenaCheckerMTierEvaluationV0, OmenaCheckerSmtEvaluationV0, OmenaCheckerSmtInputV0,
-    evaluate_omena_checker_cascade_rules, evaluate_omena_checker_grn_rules,
-    evaluate_omena_checker_m_tier_rules, evaluate_omena_checker_smt_rules,
+    OmenaCheckerMTierEvaluationV0, OmenaCheckerMdlEvaluationV0, OmenaCheckerMdlInputV0,
+    OmenaCheckerMdlSummaryInputV0, OmenaCheckerSmtEvaluationV0, OmenaCheckerSmtInputV0,
+    OmenaCheckerStreamingIfdsEvaluationV0, OmenaCheckerStreamingIfdsInputV0,
+    OmenaCheckerStreamingIfdsReportInputV0, evaluate_omena_checker_cascade_rules,
+    evaluate_omena_checker_grn_rules, evaluate_omena_checker_m_tier_rules,
+    evaluate_omena_checker_mdl_rules, evaluate_omena_checker_smt_rules,
+    evaluate_omena_checker_streaming_ifds_rules,
 };
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryCodeActionPlanV0, OmenaQueryExpressionDomainFlowRuntimeV0,
     OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
     OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
     OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
+    UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0,
     default_omena_query_transform_print_options,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     execute_omena_query_transform_passes_from_source_with_context,
     list_omena_query_transform_pass_summaries, read_omena_query_cascade_at_position,
     read_omena_query_style_context_index, summarize_omena_query_boundary,
-    summarize_omena_query_consumer_check_style_source, summarize_omena_query_evaluation_runtime,
+    summarize_omena_query_consumer_check_style_source,
+    summarize_omena_query_design_system_minimum_description,
+    summarize_omena_query_evaluation_runtime,
     summarize_omena_query_expression_domain_call_site_flow_analysis,
     summarize_omena_query_expression_domain_control_flow_analysis,
     summarize_omena_query_expression_domain_flow_analysis,
@@ -90,6 +97,9 @@ use omena_resolver::{
     summarize_omena_resolver_runtime_query_boundary,
     summarize_omena_resolver_specifier_resolution_runtime_with_path_mappings,
     summarize_omena_resolver_style_module_resolution_with_path_mappings,
+};
+use omena_streaming_ifds::{
+    PolylogDynamicConnectivityBackendV0, run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
 };
 use serde::{Deserialize, Serialize};
 
@@ -656,6 +666,73 @@ struct OmenaCheckerSmtEvaluationRunnerOutputV0 {
     evaluation_count: usize,
     rule_code_names: Vec<&'static str>,
     evaluations: Vec<OmenaCheckerSmtEvaluationV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerMdlEvaluationInputV0 {
+    source_uri: String,
+    source_hash: String,
+    rule_count: usize,
+    observation_count: usize,
+    budget_bits: f64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerMdlEvaluationRunnerOutputV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    source_uri: String,
+    total_bits: f64,
+    budget_bits: f64,
+    evaluation_count: usize,
+    rule_code_names: Vec<&'static str>,
+    evaluations: Vec<OmenaCheckerMdlEvaluationV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerStreamingIfdsEvaluationInputV0 {
+    update_id: String,
+    start_node_id: String,
+    hyperedges: Vec<StreamingIfdsHyperedgeInputV0>,
+    events: Vec<StreamingIfdsEventRunnerInputV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StreamingIfdsHyperedgeInputV0 {
+    hyperedge_id: String,
+    from: String,
+    to: String,
+    #[serde(default)]
+    edge_kind: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StreamingIfdsEventRunnerInputV0 {
+    event_id: String,
+    revision: u64,
+    node_id: String,
+    value: OmenaCheckerAbstractClassValueInputV0,
+    #[serde(default)]
+    refinement_context_digest: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    report_product: &'static str,
+    event_count: usize,
+    output_fact_count: usize,
+    precision_parity_with_batch: bool,
+    evaluation_count: usize,
+    rule_code_names: Vec<&'static str>,
+    evaluations: Vec<OmenaCheckerStreamingIfdsEvaluationV0>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1749,6 +1826,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_omena_checker_smt_evaluations(input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("omena-checker-mdl-evaluations") => {
+            let input: OmenaCheckerMdlEvaluationInputV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_checker_mdl_evaluations(input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
+        Some("omena-checker-streaming-ifds-evaluations") => {
+            let input: OmenaCheckerStreamingIfdsEvaluationInputV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_checker_streaming_ifds_evaluations(input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("input-source-resolution-match-fragments") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_source_resolution_match_fragments_input(&input);
@@ -2197,6 +2284,18 @@ fn run_daemon_selected_query_command(
                 summarize_omena_checker_smt_evaluations(input),
             )?)
         }
+        "omena-checker-mdl-evaluations" => {
+            let input: OmenaCheckerMdlEvaluationInputV0 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_checker_mdl_evaluations(input),
+            )?)
+        }
+        "omena-checker-streaming-ifds-evaluations" => {
+            let input: OmenaCheckerStreamingIfdsEvaluationInputV0 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_checker_streaming_ifds_evaluations(input),
+            )?)
+        }
         other => Err(format!("unsupported engine-shadow-runner daemon command: {other}").into()),
     }
 }
@@ -2284,6 +2383,131 @@ fn summarize_omena_checker_smt_evaluations(
         evaluation_count: evaluations.len(),
         rule_code_names,
         evaluations,
+    }
+}
+
+fn summarize_omena_checker_mdl_evaluations(
+    input: OmenaCheckerMdlEvaluationInputV0,
+) -> OmenaCheckerMdlEvaluationRunnerOutputV0 {
+    let mdl_summary = summarize_omena_query_design_system_minimum_description(
+        input.source_uri.clone(),
+        input.source_hash,
+        input.rule_count,
+        input.observation_count,
+    );
+    let evaluations = evaluate_omena_checker_mdl_rules(OmenaCheckerMdlInputV0 {
+        summaries: vec![OmenaCheckerMdlSummaryInputV0 {
+            source_uri: input.source_uri.clone(),
+            total_bits: mdl_summary.total_bits,
+            budget_bits: input.budget_bits,
+        }],
+    });
+    let rule_code_names = evaluations
+        .iter()
+        .map(|evaluation| evaluation.rule_code_name)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    OmenaCheckerMdlEvaluationRunnerOutputV0 {
+        schema_version: "0",
+        product: "omena-checker.mdl-evaluations",
+        source_uri: input.source_uri,
+        total_bits: mdl_summary.total_bits,
+        budget_bits: input.budget_bits,
+        evaluation_count: evaluations.len(),
+        rule_code_names,
+        evaluations,
+    }
+}
+
+fn summarize_omena_checker_streaming_ifds_evaluations(
+    input: OmenaCheckerStreamingIfdsEvaluationInputV0,
+) -> OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
+    let hyperedges = input
+        .hyperedges
+        .into_iter()
+        .map(streaming_ifds_hyperedge)
+        .collect::<Vec<_>>();
+    let events = input
+        .events
+        .into_iter()
+        .map(|event| {
+            streaming_ifds_event_input_v0(
+                event.event_id,
+                event.revision,
+                event.node_id,
+                event.value.into_abstract_class_value(),
+                event.refinement_context_digest,
+            )
+        })
+        .collect::<Vec<_>>();
+    let report = run_streaming_ifds_exact_v0(
+        input.update_id.clone(),
+        input.start_node_id,
+        &hyperedges,
+        &events,
+        &PolylogDynamicConnectivityBackendV0::default(),
+        None,
+    );
+    let evaluations =
+        evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
+            reports: vec![OmenaCheckerStreamingIfdsReportInputV0 {
+                report_id: input.update_id,
+                precision_parity_with_batch: report.precision_parity_with_batch,
+                fallback_to_batch: report.fallback_to_batch,
+            }],
+        });
+    let rule_code_names = evaluations
+        .iter()
+        .map(|evaluation| evaluation.rule_code_name)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
+        schema_version: "0",
+        product: "omena-checker.streaming-ifds-evaluations",
+        report_product: report.product,
+        event_count: report.event_count,
+        output_fact_count: report.output_fact_count,
+        precision_parity_with_batch: report.precision_parity_with_batch,
+        evaluation_count: evaluations.len(),
+        rule_code_names,
+        evaluations,
+    }
+}
+
+fn streaming_ifds_hyperedge(input: StreamingIfdsHyperedgeInputV0) -> UnifiedHypergraphHyperedgeV0 {
+    let edge_kind = streaming_ifds_edge_kind(input.edge_kind.as_deref());
+    UnifiedHypergraphHyperedgeV0 {
+        schema_version: "0",
+        product: "omena-query.unified-hypergraph-edge",
+        layer_marker: "hypergraph-ifds",
+        feature_gate: "hypergraph-ifds",
+        source_summary_edge_id: input.hyperedge_id.clone(),
+        source_edge_kind: edge_kind.as_wire_label(),
+        source_status: "resolved",
+        order_significant_tail: edge_kind.is_order_significant(),
+        hyperedge_id: input.hyperedge_id,
+        edge_kind,
+        tail_node_ids: vec![input.from],
+        head_node_id: input.to,
+    }
+}
+
+fn streaming_ifds_edge_kind(value: Option<&str>) -> UnifiedHypergraphEdgeKindV0 {
+    match value {
+        Some("composesLocal") => UnifiedHypergraphEdgeKindV0::ComposesLocal,
+        Some("composesGlobal") => UnifiedHypergraphEdgeKindV0::ComposesGlobal,
+        Some("composesExternal") => UnifiedHypergraphEdgeKindV0::ComposesExternal,
+        Some("sassUse") => UnifiedHypergraphEdgeKindV0::SassUse,
+        Some("sassForward") => UnifiedHypergraphEdgeKindV0::SassForward,
+        Some("sassImport") => UnifiedHypergraphEdgeKindV0::SassImport,
+        Some("value") => UnifiedHypergraphEdgeKindV0::Value,
+        Some("icss") => UnifiedHypergraphEdgeKindV0::Icss,
+        Some("foreignReference") => UnifiedHypergraphEdgeKindV0::ForeignReference,
+        _ => UnifiedHypergraphEdgeKindV0::ForeignReference,
     }
 }
 

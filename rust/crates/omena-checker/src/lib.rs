@@ -425,6 +425,62 @@ pub struct OmenaCheckerSmtEvaluationV0 {
     pub mechanism_products: Vec<&'static str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerMdlInputV0 {
+    pub summaries: Vec<OmenaCheckerMdlSummaryInputV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerMdlSummaryInputV0 {
+    pub source_uri: String,
+    pub total_bits: f64,
+    pub budget_bits: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerMdlEvaluationV0 {
+    pub rule_code: OmenaCheckerRuleCodeV0,
+    pub rule_code_name: &'static str,
+    pub severity: OmenaCheckerSeverityV0,
+    pub severity_name: &'static str,
+    pub source_uri: String,
+    pub total_bits: f64,
+    pub budget_bits: f64,
+    pub message: String,
+    pub mechanism_products: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerStreamingIfdsInputV0 {
+    pub reports: Vec<OmenaCheckerStreamingIfdsReportInputV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerStreamingIfdsReportInputV0 {
+    pub report_id: String,
+    pub precision_parity_with_batch: bool,
+    pub fallback_to_batch: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerStreamingIfdsEvaluationV0 {
+    pub rule_code: OmenaCheckerRuleCodeV0,
+    pub rule_code_name: &'static str,
+    pub severity: OmenaCheckerSeverityV0,
+    pub severity_name: &'static str,
+    pub report_id: String,
+    pub precision_parity_with_batch: bool,
+    pub fallback_to_batch: bool,
+    pub message: String,
+    pub mechanism_products: Vec<&'static str>,
+}
+
 pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0> {
     use OmenaCheckerFindingCategoryV0::{Source, Style};
     use OmenaCheckerRuleCodeV0::{
@@ -1248,6 +1304,42 @@ pub fn evaluate_omena_checker_smt_rules(
     evaluations
 }
 
+pub fn evaluate_omena_checker_mdl_rules(
+    input: OmenaCheckerMdlInputV0,
+) -> Vec<OmenaCheckerMdlEvaluationV0> {
+    input
+        .summaries
+        .into_iter()
+        .filter(|summary| summary.total_bits > summary.budget_bits)
+        .map(|summary| {
+            mdl_evaluation(
+                summary.source_uri,
+                summary.total_bits,
+                summary.budget_bits,
+                "Design-system minimum-description length exceeds the configured budget.",
+            )
+        })
+        .collect()
+}
+
+pub fn evaluate_omena_checker_streaming_ifds_rules(
+    input: OmenaCheckerStreamingIfdsInputV0,
+) -> Vec<OmenaCheckerStreamingIfdsEvaluationV0> {
+    input
+        .reports
+        .into_iter()
+        .filter(|report| !report.precision_parity_with_batch)
+        .map(|report| {
+            streaming_ifds_evaluation(
+                report.report_id,
+                report.precision_parity_with_batch,
+                report.fallback_to_batch,
+                "Streaming IFDS analysis failed exact batch precision parity.",
+            )
+        })
+        .collect()
+}
+
 fn dynamic_class_domain_evaluation(
     outcome: OmenaCheckerDynamicClassDomainOutcomeV0,
     rule_code: Option<OmenaCheckerRuleCodeV0>,
@@ -1399,6 +1491,44 @@ fn smt_sat_result_name(result: SmtBackendSatResultV0) -> &'static str {
         SmtBackendSatResultV0::Sat => "sat",
         SmtBackendSatResultV0::Unsat => "unsat",
         SmtBackendSatResultV0::Unknown => "unknown",
+    }
+}
+
+fn mdl_evaluation(
+    source_uri: String,
+    total_bits: f64,
+    budget_bits: f64,
+    message: &'static str,
+) -> OmenaCheckerMdlEvaluationV0 {
+    OmenaCheckerMdlEvaluationV0 {
+        rule_code: OmenaCheckerRuleCodeV0::DesignSystemMdlBudget,
+        rule_code_name: OmenaCheckerRuleCodeV0::DesignSystemMdlBudget.as_str(),
+        severity: OmenaCheckerSeverityV0::Hint,
+        severity_name: OmenaCheckerSeverityV0::Hint.as_str(),
+        source_uri,
+        total_bits,
+        budget_bits,
+        message: message.to_string(),
+        mechanism_products: vec!["omena-query.design-system-minimum-description"],
+    }
+}
+
+fn streaming_ifds_evaluation(
+    report_id: String,
+    precision_parity_with_batch: bool,
+    fallback_to_batch: bool,
+    message: &'static str,
+) -> OmenaCheckerStreamingIfdsEvaluationV0 {
+    OmenaCheckerStreamingIfdsEvaluationV0 {
+        rule_code: OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity,
+        rule_code_name: OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity.as_str(),
+        severity: OmenaCheckerSeverityV0::Hint,
+        severity_name: OmenaCheckerSeverityV0::Hint.as_str(),
+        report_id,
+        precision_parity_with_batch,
+        fallback_to_batch,
+        message: message.to_string(),
+        mechanism_products: vec!["omena-streaming-ifds.analysis-report"],
     }
 }
 
@@ -2257,6 +2387,76 @@ mod tests {
                 ],
             }],
         });
+        assert!(clear_evaluations.is_empty());
+    }
+
+    #[test]
+    fn evaluates_mdl_budget_rule_family_from_query_mdl_summaries() {
+        let evaluations = evaluate_omena_checker_mdl_rules(OmenaCheckerMdlInputV0 {
+            summaries: vec![OmenaCheckerMdlSummaryInputV0 {
+                source_uri: "file:///workspace/Button.module.css".to_string(),
+                total_bits: 14.0,
+                budget_bits: 8.0,
+            }],
+        });
+
+        assert_eq!(evaluations.len(), 1);
+        assert_eq!(
+            evaluations[0].rule_code,
+            OmenaCheckerRuleCodeV0::DesignSystemMdlBudget
+        );
+        assert_eq!(
+            evaluations[0].source_uri,
+            "file:///workspace/Button.module.css"
+        );
+        assert_eq!(evaluations[0].total_bits, 14.0);
+        assert_eq!(evaluations[0].budget_bits, 8.0);
+        assert_eq!(
+            evaluations[0].mechanism_products,
+            vec!["omena-query.design-system-minimum-description"]
+        );
+
+        let clear_evaluations = evaluate_omena_checker_mdl_rules(OmenaCheckerMdlInputV0 {
+            summaries: vec![OmenaCheckerMdlSummaryInputV0 {
+                source_uri: "file:///workspace/Button.module.css".to_string(),
+                total_bits: 8.0,
+                budget_bits: 8.0,
+            }],
+        });
+        assert!(clear_evaluations.is_empty());
+    }
+
+    #[test]
+    fn evaluates_streaming_ifds_precision_parity_rule_family() {
+        let evaluations =
+            evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
+                reports: vec![OmenaCheckerStreamingIfdsReportInputV0 {
+                    report_id: "streaming-report-1".to_string(),
+                    precision_parity_with_batch: false,
+                    fallback_to_batch: false,
+                }],
+            });
+
+        assert_eq!(evaluations.len(), 1);
+        assert_eq!(
+            evaluations[0].rule_code,
+            OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity
+        );
+        assert_eq!(evaluations[0].report_id, "streaming-report-1");
+        assert!(!evaluations[0].precision_parity_with_batch);
+        assert_eq!(
+            evaluations[0].mechanism_products,
+            vec!["omena-streaming-ifds.analysis-report"]
+        );
+
+        let clear_evaluations =
+            evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {
+                reports: vec![OmenaCheckerStreamingIfdsReportInputV0 {
+                    report_id: "streaming-report-2".to_string(),
+                    precision_parity_with_batch: true,
+                    fallback_to_batch: false,
+                }],
+            });
         assert!(clear_evaluations.is_empty());
     }
 

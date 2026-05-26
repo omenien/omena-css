@@ -16,6 +16,8 @@ const checkerMTierBody = commandBodies.get("omena-checker-m-tier-evaluations");
 const checkerCascadeBody = commandBodies.get("omena-checker-cascade-evaluations");
 const checkerGrnBody = commandBodies.get("omena-checker-grn-evaluations");
 const checkerSmtBody = commandBodies.get("omena-checker-smt-evaluations");
+const checkerMdlBody = commandBodies.get("omena-checker-mdl-evaluations");
+const checkerStreamingIfdsBody = commandBodies.get("omena-checker-streaming-ifds-evaluations");
 assert.ok(
   checkerMTierBody,
   "missing engine-shadow-runner command arm: omena-checker-m-tier-evaluations",
@@ -31,6 +33,14 @@ assert.ok(
 assert.ok(
   checkerSmtBody,
   "missing engine-shadow-runner command arm: omena-checker-smt-evaluations",
+);
+assert.ok(
+  checkerMdlBody,
+  "missing engine-shadow-runner command arm: omena-checker-mdl-evaluations",
+);
+assert.ok(
+  checkerStreamingIfdsBody,
+  "missing engine-shadow-runner command arm: omena-checker-streaming-ifds-evaluations",
 );
 assert.ok(
   checkerMTierBody.includes("OmenaCheckerMTierEvaluationInputV0"),
@@ -49,6 +59,14 @@ assert.ok(
   "omena-checker-smt-evaluations must deserialize the checker SMT input product",
 );
 assert.ok(
+  checkerMdlBody.includes("OmenaCheckerMdlEvaluationInputV0"),
+  "omena-checker-mdl-evaluations must deserialize the runner MDL input product",
+);
+assert.ok(
+  checkerStreamingIfdsBody.includes("OmenaCheckerStreamingIfdsEvaluationInputV0"),
+  "omena-checker-streaming-ifds-evaluations must deserialize the runner streaming IFDS input product",
+);
+assert.ok(
   checkerMTierBody.includes("summarize_omena_checker_m_tier_evaluations"),
   "omena-checker-m-tier-evaluations must route through the runner-owned checker summary wrapper",
 );
@@ -63,6 +81,14 @@ assert.ok(
 assert.ok(
   checkerSmtBody.includes("summarize_omena_checker_smt_evaluations"),
   "omena-checker-smt-evaluations must route through the runner-owned checker SMT summary wrapper",
+);
+assert.ok(
+  checkerMdlBody.includes("summarize_omena_checker_mdl_evaluations"),
+  "omena-checker-mdl-evaluations must route through the runner-owned checker MDL summary wrapper",
+);
+assert.ok(
+  checkerStreamingIfdsBody.includes("summarize_omena_checker_streaming_ifds_evaluations"),
+  "omena-checker-streaming-ifds-evaluations must route through the runner-owned checker streaming IFDS summary wrapper",
 );
 assert.ok(
   runnerSource.includes("evaluate_omena_checker_m_tier_rules"),
@@ -81,6 +107,22 @@ assert.ok(
   "engine-shadow-runner must call omena-checker's SMT evaluator",
 );
 assert.ok(
+  runnerSource.includes("summarize_omena_query_design_system_minimum_description"),
+  "engine-shadow-runner must build MDL evidence from omena-query before checker evaluation",
+);
+assert.ok(
+  runnerSource.includes("run_streaming_ifds_exact_v0"),
+  "engine-shadow-runner must build streaming IFDS evidence before checker evaluation",
+);
+assert.ok(
+  runnerSource.includes("evaluate_omena_checker_mdl_rules"),
+  "engine-shadow-runner must call omena-checker's MDL evaluator",
+);
+assert.ok(
+  runnerSource.includes("evaluate_omena_checker_streaming_ifds_rules"),
+  "engine-shadow-runner must call omena-checker's streaming IFDS evaluator",
+);
+assert.ok(
   runnerSource.includes('"omena-checker-m-tier-evaluations" =>'),
   "engine-shadow-runner daemon must support omena-checker-m-tier-evaluations",
 );
@@ -97,12 +139,24 @@ assert.ok(
   "engine-shadow-runner daemon must support omena-checker-smt-evaluations",
 );
 assert.ok(
+  runnerSource.includes('"omena-checker-mdl-evaluations" =>'),
+  "engine-shadow-runner daemon must support omena-checker-mdl-evaluations",
+);
+assert.ok(
+  runnerSource.includes('"omena-checker-streaming-ifds-evaluations" =>'),
+  "engine-shadow-runner daemon must support omena-checker-streaming-ifds-evaluations",
+);
+assert.ok(
   /^\s*omena-checker\s*=/m.test(runnerCargoToml),
   "engine-shadow-runner must depend on omena-checker for M-tier evaluations",
 );
 assert.ok(
   /^\s*omena-abstract-value\s*=/m.test(runnerCargoToml),
   "engine-shadow-runner must depend on omena-abstract-value for M-tier value input construction",
+);
+assert.ok(
+  /^\s*omena-streaming-ifds\s*=/m.test(runnerCargoToml),
+  "engine-shadow-runner must depend on omena-streaming-ifds for streaming precision evidence",
 );
 assert.ok(
   packageJsonSource.includes("check:rust-omena-checker-runner-boundary"),
@@ -145,6 +199,18 @@ assert.ok(
   smtSummary.ruleCodeNames.includes("cascade.smt-violation"),
   "SMT runner output must include cascade.smt-violation",
 );
+const mdlSummary = runMdlEvaluationFixture();
+assert.equal(mdlSummary.product, "omena-checker.mdl-evaluations");
+assert.equal(mdlSummary.totalBits, 12);
+assert.ok(
+  mdlSummary.ruleCodeNames.includes("design-system-mdl-budget"),
+  "MDL runner output must include design-system-mdl-budget",
+);
+const streamingSummary = runStreamingIfdsEvaluationFixture();
+assert.equal(streamingSummary.product, "omena-checker.streaming-ifds-evaluations");
+assert.equal(streamingSummary.reportProduct, "omena-streaming-ifds.analysis-report");
+assert.equal(streamingSummary.precisionParityWithBatch, true);
+assert.equal(streamingSummary.evaluationCount, 0);
 
 process.stdout.write(
   [
@@ -153,6 +219,8 @@ process.stdout.write(
     "cascadeCommand=omena-checker-cascade-evaluations",
     "grnCommand=omena-checker-grn-evaluations",
     "smtCommand=omena-checker-smt-evaluations",
+    "mdlCommand=omena-checker-mdl-evaluations",
+    "streamingIfdsCommand=omena-checker-streaming-ifds-evaluations",
     "runtime=engine-shadow-runner",
     "owner=omena-checker",
   ].join(" "),
@@ -202,6 +270,19 @@ interface SmtEvaluationSummary {
   readonly product: string;
   readonly obligationCount: number;
   readonly ruleCodeNames: readonly string[];
+}
+
+interface MdlEvaluationSummary {
+  readonly product: string;
+  readonly totalBits: number;
+  readonly ruleCodeNames: readonly string[];
+}
+
+interface StreamingIfdsEvaluationSummary {
+  readonly product: string;
+  readonly reportProduct: string;
+  readonly precisionParityWithBatch: boolean;
+  readonly evaluationCount: number;
 }
 
 function runCascadeEvaluationFixture(): CascadeEvaluationSummary {
@@ -321,6 +402,85 @@ function runSmtEvaluationFixture(): SmtEvaluationSummary {
     `engine-shadow-runner SMT command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
   );
   return JSON.parse(result.stdout) as SmtEvaluationSummary;
+}
+
+function runMdlEvaluationFixture(): MdlEvaluationSummary {
+  const input = {
+    sourceUri: "file:///workspace/Button.module.css",
+    sourceHash: "fixture-mdl",
+    ruleCount: 8,
+    observationCount: 4,
+    budgetBits: 10,
+  };
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      "omena-checker-mdl-evaluations",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: JSON.stringify(input),
+      maxBuffer: 1024 * 1024 * 10,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `engine-shadow-runner MDL command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return JSON.parse(result.stdout) as MdlEvaluationSummary;
+}
+
+function runStreamingIfdsEvaluationFixture(): StreamingIfdsEvaluationSummary {
+  const input = {
+    updateId: "streaming-update-1",
+    startNodeId: "a",
+    hyperedges: [
+      { hyperedgeId: "edge-a-b", from: "a", to: "b", edgeKind: "foreignReference" },
+      { hyperedgeId: "edge-b-c", from: "b", to: "c", edgeKind: "foreignReference" },
+    ],
+    events: [
+      {
+        eventId: "event-a",
+        revision: 1,
+        nodeId: "a",
+        value: { kind: "exact", value: "button" },
+      },
+    ],
+  };
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      "omena-checker-streaming-ifds-evaluations",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: JSON.stringify(input),
+      maxBuffer: 1024 * 1024 * 10,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `engine-shadow-runner streaming IFDS command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return JSON.parse(result.stdout) as StreamingIfdsEvaluationSummary;
 }
 
 function cascadeDeclaration(

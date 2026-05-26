@@ -911,6 +911,7 @@ dependencies = [
  "omena-checker",
  "omena-query",
  "omena-resolver",
+ "omena-streaming-ifds",
  "serde",
  "serde_json",
 ]
