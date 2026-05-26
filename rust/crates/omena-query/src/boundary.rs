@@ -89,7 +89,7 @@ pub fn summarize_omena_query_boundary(input: &EngineInputV2) -> OmenaQueryBounda
         query_engine_name: "omena-query",
         schema_version_policy: summarize_omena_query_schema_version_policy(),
         input_version: input.version.clone(),
-        abstract_value_domain: summarize_omena_abstract_value_domain(),
+        abstract_value_domain: summarize_omena_query_core_abstract_value_domain(),
         selected_query_adapter_capabilities:
             summarize_omena_query_selected_query_adapter_capabilities(),
         delegated_fragment_products: vec![

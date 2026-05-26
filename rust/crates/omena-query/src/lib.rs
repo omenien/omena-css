@@ -1,30 +1,5 @@
-pub use engine_input_producers::EngineInputV2 as OmenaQueryEngineInputV2;
-use engine_input_producers::{
-    EngineInputV2, ExpressionDomainCallSiteFlowAnalysisV0, ExpressionDomainControlFlowAnalysisV0,
-    ExpressionDomainFlowAnalysisV0, ExpressionDomainProvenanceExplanationsV0,
-    ExpressionDomainReducedProductIterationV0, ExpressionSemanticsCanonicalProducerSignalV0,
-    ExpressionSemanticsQueryFragmentsV0, SelectorUsageCanonicalProducerSignalV0,
-    SelectorUsageQueryFragmentsV0, SourceResolutionCanonicalProducerSignalV0,
-    SourceResolutionQueryFragmentsV0, collect_expression_domain_flow_graphs,
-    summarize_expression_domain_call_site_flow_analysis_input,
-    summarize_expression_domain_control_flow_analysis_input,
-    summarize_expression_domain_flow_analysis_input,
-    summarize_expression_domain_provenance_explanations_input,
-    summarize_expression_domain_reduced_product_iteration_input,
-    summarize_expression_semantics_canonical_producer_signal_input,
-    summarize_expression_semantics_query_fragments_input,
-    summarize_selector_usage_canonical_producer_signal_input,
-    summarize_selector_usage_query_fragments_input,
-};
 use std::collections::{BTreeMap, BTreeSet};
 
-use omena_abstract_value::{
-    AbstractValueDomainSummaryV0, ClassValueFlowAnalysisV0, ClassValueFlowIncrementalAnalysisV0,
-    Lin01ProvenanceSemiringV0, LinearProvenanceV0, ReducedClassValueProductV0,
-    SelectorProjectionCertaintyV0, analyze_class_value_flow_incremental_with_database,
-    project_abstract_value_selectors, summarize_omena_abstract_value_domain,
-    summarize_reduced_class_value_product,
-};
 use omena_bridge::{
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
     StyleSemanticGraphSummaryV0,
@@ -41,7 +16,6 @@ pub use omena_bridge::{
     SourceSyntaxIndexV0 as OmenaQuerySourceSyntaxIndexV0,
     SourceTypeFactTargetV0 as OmenaQuerySourceTypeFactTargetV0,
 };
-use omena_incremental::OmenaIncrementalDatabaseV0;
 use omena_parser::{
     ParsedSassModuleEdgeFactKind, ParsedSassSymbolFactKind, ParsedSelectorFactKind,
     ParsedVariableFactKind,
@@ -50,6 +24,8 @@ pub use omena_parser::{
     ParserByteSpanV0, ParserPositionV0, ParserRangeV0, StyleDialect as OmenaParserStyleDialect,
     StyleLanguage,
 };
+pub use omena_query_core::EngineInputV2 as OmenaQueryEngineInputV2;
+pub use omena_query_core::*;
 pub use omena_query_transform_runner::{
     CustomPropertyLeastFixedPointSummaryV0 as OmenaQueryCustomPropertyLeastFixedPointSummaryV0,
     TargetFeatureSupportV0 as OmenaQueryTargetFeatureSupportV0,
@@ -81,17 +57,14 @@ use omena_query_transform_runner::{
     summarize_static_css_custom_property_fixed_point_from_source,
 };
 use omena_resolver::{
-    OmenaResolverBoundaryStateV0, OmenaResolverSourceResolutionRuntimeIndexV0,
-    OmenaResolverStylePackageManifestV0, canonicalize_omena_resolver_style_identity_path,
-    resolve_omena_resolver_style_module_source, summarize_omena_resolver_canonical_producer_signal,
-    summarize_omena_resolver_query_fragments, summarize_omena_resolver_source_resolution_runtime,
+    OmenaResolverBoundaryStateV0, OmenaResolverStylePackageManifestV0,
+    canonicalize_omena_resolver_style_identity_path, resolve_omena_resolver_style_module_source,
     summarize_omena_resolver_style_module_resolution,
 };
 use omena_semantic::StyleContextIndexV0;
 use serde::{Deserialize, Serialize};
 
 mod boundary;
-mod fragments;
 mod source;
 mod style;
 #[cfg(test)]
@@ -99,7 +72,6 @@ mod tests;
 mod types;
 
 pub use boundary::*;
-pub use fragments::*;
 pub use source::*;
 pub use style::*;
 pub use types::*;

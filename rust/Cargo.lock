@@ -1965,13 +1965,11 @@ dependencies = [
 name = "omena-query"
 version = "0.2.0"
 dependencies = [
- "engine-input-producers",
- "omena-abstract-value",
  "omena-bridge",
  "omena-cascade",
- "omena-incremental",
  "omena-parser",
  "omena-query-checker-orchestrator",
+ "omena-query-core",
  "omena-query-transform-runner",
  "omena-resolver",
  "omena-semantic",
@@ -1986,6 +1984,17 @@ name = "omena-query-checker-orchestrator"
 version = "0.2.0"
 dependencies = [
  "omena-checker",
+ "serde",
+]
+
+[[package]]
+name = "omena-query-core"
+version = "0.2.0"
+dependencies = [
+ "engine-input-producers",
+ "omena-abstract-value",
+ "omena-incremental",
+ "omena-resolver",
  "serde",
 ]
 

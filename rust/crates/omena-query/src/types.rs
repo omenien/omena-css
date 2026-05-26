@@ -1,9 +1,6 @@
 use super::*;
 use omena_sif::OmenaSifV1;
 
-pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION: &str = "0";
-pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION_LABEL: &str = "V0";
-
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DesignSystemMinimumDescriptionV0 {
@@ -111,17 +108,6 @@ pub struct OmenaQueryEvaluationRuntimeSummaryV0 {
     pub style_document_summary_source: &'static str,
     pub ready_surfaces: Vec<&'static str>,
     pub retired_couplings: Vec<&'static str>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmenaQueryFragmentBundleV0 {
-    pub schema_version: &'static str,
-    pub product: &'static str,
-    pub input_version: String,
-    pub expression_semantics: ExpressionSemanticsQueryFragmentsV0,
-    pub source_resolution: SourceResolutionQueryFragmentsV0,
-    pub selector_usage: SelectorUsageQueryFragmentsV0,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1222,56 +1208,4 @@ pub struct OmenaQuerySassModuleSourcesV0 {
 pub struct OmenaQueryStylePackageManifestV0 {
     pub package_json_path: String,
     pub package_json_source: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmenaQueryExpressionDomainIncrementalFlowAnalysisV0 {
-    pub schema_version: &'static str,
-    pub product: &'static str,
-    pub input_version: String,
-    pub revision: u64,
-    pub graph_count: usize,
-    pub dirty_graph_count: usize,
-    pub reused_graph_count: usize,
-    pub analyses: Vec<OmenaQueryExpressionDomainIncrementalFlowAnalysisEntryV0>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmenaQueryExpressionDomainIncrementalFlowAnalysisEntryV0 {
-    pub graph_id: String,
-    pub file_path: String,
-    pub analysis: ClassValueFlowIncrementalAnalysisV0,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmenaQueryExpressionDomainSelectorProjectionV0 {
-    pub schema_version: &'static str,
-    pub product: &'static str,
-    pub input_version: String,
-    pub projection_count: usize,
-    pub projections: Vec<OmenaQueryExpressionDomainSelectorProjectionEntryV0>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OmenaQueryExpressionDomainSelectorProjectionEntryV0 {
-    pub graph_id: String,
-    pub file_path: String,
-    pub node_id: String,
-    pub target_style_paths: Vec<String>,
-    pub value_kind: &'static str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reduced_product: Option<ReducedClassValueProductV0>,
-    pub selector_names: Vec<String>,
-    pub certainty: SelectorProjectionCertaintyV0,
-}
-
-#[derive(Default)]
-pub struct OmenaQueryExpressionDomainFlowRuntimeV0 {
-    pub(crate) revision: u64,
-    pub(crate) databases_by_graph_id: BTreeMap<String, OmenaIncrementalDatabaseV0>,
-    pub(crate) previous_analyses_by_graph_id: BTreeMap<String, ClassValueFlowAnalysisV0>,
 }

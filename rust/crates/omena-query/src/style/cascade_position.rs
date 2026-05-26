@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, VecDeque};
 
-use engine_input_producers::EngineInputV2;
+use crate::EngineInputV2;
 use omena_bridge::{OmenaBridgeParserRangeV0, StyleSemanticGraphSummaryV0};
 use omena_cascade::{
     CascadeComputedValueInputV0, CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue,
