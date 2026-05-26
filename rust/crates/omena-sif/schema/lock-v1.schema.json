@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omena.dev/schemas/lock-v1.schema.json",
+  "title": "Omena Lockfile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["lockfileVersion", "entries"],
+  "properties": {
+    "lockfileVersion": {
+      "const": "1"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/sifEntry"
+      }
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^blake3:[0-9a-f]{64}$"
+    },
+    "sifEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalUrl", "sifPath", "sifHash", "interfaceHash", "transitiveHash"],
+      "properties": {
+        "canonicalUrl": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sifPath": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sifHash": {
+          "$ref": "#/$defs/digest"
+        },
+        "interfaceHash": {
+          "$ref": "#/$defs/digest"
+        },
+        "transitiveHash": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    }
+  }
+}

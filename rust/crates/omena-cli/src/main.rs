@@ -23,6 +23,7 @@ use omena_query::{
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
+use omena_sif::{read_omena_lock_json_v1, verify_omena_lock_frozen_v1};
 #[cfg(feature = "zk-audit")]
 use omena_zk_audit::{
     CascadeZKAuditV0, ZKAuditCiMatrixV0, cascade_zk_audit_v0, zk_audit_ci_matrix_v0,
@@ -249,11 +250,32 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Verify local Omena lockfile integrity.
+    Lock {
+        #[command(subcommand)]
+        command: LockCommand,
+    },
     /// Run feature-gated audit surfaces.
     #[cfg(feature = "zk-audit")]
     Audit {
         #[command(subcommand)]
         command: AuditCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum LockCommand {
+    /// Verify that checked-in SIF artifacts match omena.lock.
+    Verify {
+        /// Lockfile path. Defaults to ./omena.lock.
+        #[arg(long, default_value = "omena.lock")]
+        lockfile: PathBuf,
+        /// Refuse to update lockfile state and fail on any drift.
+        #[arg(long)]
+        frozen: bool,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -456,9 +478,73 @@ fn run(cli: Cli) -> Result<(), String> {
             json,
         ),
         Command::PerceptualCheck { path, json } => perceptual_check(path, json),
+        Command::Lock { command } => lock_command(command),
         #[cfg(feature = "zk-audit")]
         Command::Audit { command } => audit_command(command),
     }
+}
+
+fn lock_command(command: LockCommand) -> Result<(), String> {
+    match command {
+        LockCommand::Verify {
+            lockfile,
+            frozen,
+            json,
+        } => lock_verify(lockfile, frozen, json),
+    }
+}
+
+fn lock_verify(lockfile: PathBuf, frozen: bool, json: bool) -> Result<(), String> {
+    if !frozen {
+        return Err("omena lock verify currently requires --frozen".to_string());
+    }
+
+    let lockfile_source = read_source(&lockfile)?;
+    let lock = read_omena_lock_json_v1(&lockfile_source)
+        .map_err(|error| format!("failed to parse {}: {error}", path_string(&lockfile)))?;
+    let report = verify_omena_lock_frozen_v1(&lock, |entry| {
+        let sif_path = resolve_lock_relative_path(&lockfile, &entry.sif_path);
+        read_source(&sif_path)
+    });
+
+    if json {
+        print_json(&report)?;
+    } else if report.verified {
+        println!(
+            "omena.lock frozen verification passed: {} SIF entr{} checked",
+            report.entries_checked,
+            if report.entries_checked == 1 {
+                "y"
+            } else {
+                "ies"
+            }
+        );
+    } else {
+        println!(
+            "omena.lock frozen verification failed: {} issue{}",
+            report.issues.len(),
+            if report.issues.len() == 1 { "" } else { "s" }
+        );
+        for issue in &report.issues {
+            println!("{} {}: {}", issue.code, issue.sif_path, issue.message);
+        }
+    }
+
+    if !report.verified {
+        return Err("omena.lock frozen verification failed".to_string());
+    }
+    Ok(())
+}
+
+fn resolve_lock_relative_path(lockfile: &Path, entry_path: &str) -> PathBuf {
+    let entry_path = Path::new(entry_path);
+    if entry_path.is_absolute() {
+        return entry_path.to_path_buf();
+    }
+    lockfile
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join(entry_path)
 }
 
 #[cfg(feature = "zk-audit")]
@@ -1813,6 +1899,91 @@ export function App() {
         assert!(help.contains("downstream perceptual-check JSON scaffold"));
     }
 
+    #[test]
+    fn lock_verify_frozen_passes_for_matching_sif_artifact() -> Result<(), String> {
+        let workspace_path = temp_dir("lock-verify-pass");
+        let sif_dir = workspace_path.join("sif");
+        fs::create_dir_all(&sif_dir)
+            .map_err(|error| format!("fixture SIF dir should be writable: {error}"))?;
+        let sif_path = sif_dir.join("design-system.sif.json");
+        let lockfile_path = workspace_path.join("omena.lock");
+        let sif = cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        fs::write(
+            &sif_path,
+            omena_sif::write_omena_sif_json_v1(&sif)
+                .map_err(|error| format!("fixture SIF should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture SIF should be writable: {error}"))?;
+        let lock = omena_sif::OmenaLockV1::new(vec![
+            omena_sif::build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+                .map_err(|error| format!("fixture lock entry should build: {error}"))?,
+        ]);
+        fs::write(
+            &lockfile_path,
+            omena_sif::write_omena_lock_json_v1(&lock)
+                .map_err(|error| format!("fixture lock should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture lock should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Lock {
+                command: LockCommand::Verify {
+                    lockfile: lockfile_path,
+                    frozen: true,
+                    json: true,
+                },
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+        cleanup_dir(&workspace_path);
+        Ok(())
+    }
+
+    #[test]
+    fn lock_verify_frozen_fails_for_changed_sif_artifact() -> Result<(), String> {
+        let workspace_path = temp_dir("lock-verify-fail");
+        let sif_dir = workspace_path.join("sif");
+        fs::create_dir_all(&sif_dir)
+            .map_err(|error| format!("fixture SIF dir should be writable: {error}"))?;
+        let sif_path = sif_dir.join("design-system.sif.json");
+        let lockfile_path = workspace_path.join("omena.lock");
+        let locked_sif =
+            cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        let changed_sif =
+            cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: blue !default;")?;
+        fs::write(
+            &sif_path,
+            omena_sif::write_omena_sif_json_v1(&changed_sif)
+                .map_err(|error| format!("fixture changed SIF should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture changed SIF should be writable: {error}"))?;
+        let lock = omena_sif::OmenaLockV1::new(vec![
+            omena_sif::build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &locked_sif)
+                .map_err(|error| format!("fixture lock entry should build: {error}"))?,
+        ]);
+        fs::write(
+            &lockfile_path,
+            omena_sif::write_omena_lock_json_v1(&lock)
+                .map_err(|error| format!("fixture lock should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture lock should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Lock {
+                command: LockCommand::Verify {
+                    lockfile: lockfile_path,
+                    frozen: true,
+                    json: true,
+                },
+            },
+        });
+
+        assert!(result.is_err(), "{result:?}");
+        cleanup_dir(&workspace_path);
+        Ok(())
+    }
+
     #[cfg(feature = "zk-audit")]
     #[test]
     fn audit_zk_commands_are_feature_gated_surfaces() {
@@ -1860,6 +2031,37 @@ export function App() {
 
     fn temp_dir(name: &str) -> PathBuf {
         temp_path(name)
+    }
+
+    fn cli_fixture_sif(
+        canonical_url: &str,
+        source_bytes: &[u8],
+    ) -> Result<omena_sif::OmenaSifV1, String> {
+        omena_sif::OmenaSifV1::from_static_exports(
+            canonical_url,
+            omena_sif::OmenaSifGeneratorV1 {
+                name: "omena-sifgen".to_string(),
+                version: "0.1.0".to_string(),
+                toolchain_id: "omena-sifgen@0.1".to_string(),
+            },
+            omena_sif::OmenaSifSourceV1 {
+                syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+            },
+            omena_sif::OmenaSifExportsV1 {
+                variables: vec![omena_sif::OmenaSifVariableExportV1 {
+                    name: "$color".to_string(),
+                    defaulted: true,
+                    value_repr: Some("red".to_string()),
+                }],
+                mixins: Vec::new(),
+                functions: Vec::new(),
+                placeholders: Vec::new(),
+                forwards: Vec::new(),
+            },
+            Vec::new(),
+            source_bytes,
+        )
+        .map_err(|error| format!("fixture SIF should build: {error}"))
     }
 
     fn cleanup(path: &Path) {

@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omena.dev/schemas/sif-v1.schema.json",
+  "title": "Omena Sass Interface File v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sifVersion",
+    "canonicalUrl",
+    "generator",
+    "source",
+    "exports",
+    "dependencies",
+    "fingerprints"
+  ],
+  "properties": {
+    "sifVersion": {
+      "const": "1"
+    },
+    "canonicalUrl": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generator": {
+      "$ref": "#/$defs/generator"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "exports": {
+      "$ref": "#/$defs/exports"
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/dependency"
+      }
+    },
+    "fingerprints": {
+      "$ref": "#/$defs/fingerprints"
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^blake3:[0-9a-f]{64}$"
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "toolchainId"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "toolchainId": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["syntax"],
+      "properties": {
+        "syntax": {
+          "enum": ["css", "scss", "sass"]
+        }
+      }
+    },
+    "exports": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["variables", "mixins", "functions", "placeholders", "forwards"],
+      "properties": {
+        "variables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/variable"
+          }
+        },
+        "mixins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/callable"
+          }
+        },
+        "functions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/callable"
+          }
+        },
+        "placeholders": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/placeholder"
+          }
+        },
+        "forwards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/forward"
+          }
+        }
+      }
+    },
+    "variable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "defaulted", "valueRepr"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "defaulted": {
+          "type": "boolean"
+        },
+        "valueRepr": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "callable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "parameters", "acceptsContent"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/parameter"
+          }
+        },
+        "acceptsContent": {
+          "type": "boolean"
+        }
+      }
+    },
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "defaultValueRepr", "variadic"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "defaultValueRepr": {
+          "type": ["string", "null"]
+        },
+        "variadic": {
+          "type": "boolean"
+        }
+      }
+    },
+    "placeholder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "forward": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalUrl", "prefix", "show", "hide"],
+      "properties": {
+        "canonicalUrl": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prefix": {
+          "type": ["string", "null"]
+        },
+        "show": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "hide": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonicalUrl", "interfaceHash"],
+      "properties": {
+        "canonicalUrl": {
+          "type": "string",
+          "minLength": 1
+        },
+        "interfaceHash": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "fingerprints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hashAlgorithm", "leafHash", "interfaceHash", "transitiveHash"],
+      "properties": {
+        "hashAlgorithm": {
+          "const": "blake3"
+        },
+        "leafHash": {
+          "$ref": "#/$defs/digest"
+        },
+        "interfaceHash": {
+          "$ref": "#/$defs/digest"
+        },
+        "transitiveHash": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    }
+  }
+}

@@ -39,6 +39,7 @@ const RUST_FAMILIES = [
   "omena-refinement-trait",
   "omena-rg-flow",
   "omena-resolver",
+  "omena-sif",
   "omena-smt",
   "omena-syntax",
   "omena-testkit",

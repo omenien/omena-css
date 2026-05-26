@@ -1,0 +1,17 @@
+[package]
+name = "omena-sif"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Sass Interface File contracts, fingerprints, and lockfile substrate for Omena CSS"
+repository = "https://github.com/yongsk0066/css-module-explainer"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+blake3.workspace = true
+serde.workspace = true
+serde_json.workspace = true
