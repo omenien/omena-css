@@ -197,6 +197,10 @@ pub struct CascadeDimensionalRefinementBridgeV0 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CascadeDimensionalRefinementContextEvaluationV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub context_id: String,
     pub selector_count: usize,
     pub condition_count: usize,
@@ -331,6 +335,10 @@ pub fn summarize_cascade_dimensional_refinement_bridge_v0(
             }
 
             CascadeDimensionalRefinementContextEvaluationV0 {
+                schema_version: REFINEMENT_SCHEMA_VERSION_V0,
+                product: "omena-refinement.cascade-dimensional-refinement-context-evaluation",
+                layer_marker: REFINEMENT_LAYER_MARKER_V0,
+                feature_gate: REFINEMENT_FEATURE_GATE_V0,
                 context_id: member.context.id.clone(),
                 selector_count: member.context.selectors.len(),
                 condition_count: member.context.conditions.len(),

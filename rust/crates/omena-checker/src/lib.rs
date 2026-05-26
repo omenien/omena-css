@@ -4,6 +4,11 @@ use omena_abstract_value::{
     AbstractClassValueV0, SelectorProjectionCertaintyV0, enumerate_finite_class_values,
     project_abstract_value_selectors,
 };
+pub use omena_categorical::CategoricalCascadeEvidenceV0;
+use omena_variational::{
+    PatternIntentV0, designer_intent_posterior_input_v0, dominant_designer_intent_v0,
+    infer_designer_intent_posterior_v0,
+};
 use serde::{Deserialize, Serialize};
 
 mod frame_emission;
@@ -337,6 +342,8 @@ pub struct OmenaCheckerCascadeEvaluationV0 {
     pub layer_name: Option<String>,
     pub custom_property_names: Vec<String>,
     pub message: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mechanism_products: Vec<&'static str>,
 }
 
 pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0> {
@@ -710,6 +717,12 @@ pub fn resolve_omena_checker_rule_tier_for_smt_backend(
     }
 }
 
+pub fn checker_categorical_cascade_evidence_v0(
+    source_product: &'static str,
+) -> CategoricalCascadeEvidenceV0 {
+    omena_categorical::categorical_cascade_evidence_v0(source_product)
+}
+
 pub fn list_omena_checker_code_bundles() -> Vec<OmenaCheckerCodeBundleV0> {
     use OmenaCheckerCodeBundleNameV0::{
         CascadeAware, CiDefault, SourceMissing, StyleRecovery, StyleUnused,
@@ -1069,6 +1082,17 @@ pub fn evaluate_omena_checker_cascade_rules(
                     Vec::new(),
                     "Declarations have equal cascade priority except source order; make the intended override explicit.",
                 ));
+                if designer_intent_source_order_tie_is_inconsistent(left, right) {
+                    evaluations.push(cascade_evaluation_with_mechanism_products(
+                        OmenaCheckerRuleCodeV0::DesignerIntentInconsistency,
+                        OmenaCheckerSeverityV0::Hint,
+                        vec![left.declaration_id.clone(), right.declaration_id.clone()],
+                        left.layer_name.clone(),
+                        Vec::new(),
+                        "Variational designer-intent posterior classifies this selector as BEM, but the declarations rely on source order as the final tie-breaker.",
+                        vec!["omena-variational.designer-intent-posterior"],
+                    ));
+                }
             }
         }
     }
@@ -1126,6 +1150,26 @@ fn cascade_evaluation(
     custom_property_names: Vec<String>,
     message: &'static str,
 ) -> OmenaCheckerCascadeEvaluationV0 {
+    cascade_evaluation_with_mechanism_products(
+        rule_code,
+        severity,
+        declaration_ids,
+        layer_name,
+        custom_property_names,
+        message,
+        Vec::new(),
+    )
+}
+
+fn cascade_evaluation_with_mechanism_products(
+    rule_code: OmenaCheckerRuleCodeV0,
+    severity: OmenaCheckerSeverityV0,
+    declaration_ids: Vec<String>,
+    layer_name: Option<String>,
+    custom_property_names: Vec<String>,
+    message: &'static str,
+    mechanism_products: Vec<&'static str>,
+) -> OmenaCheckerCascadeEvaluationV0 {
     OmenaCheckerCascadeEvaluationV0 {
         rule_code,
         rule_code_name: rule_code.as_str(),
@@ -1135,7 +1179,24 @@ fn cascade_evaluation(
         layer_name,
         custom_property_names,
         message: message.to_string(),
+        mechanism_products,
     }
+}
+
+fn designer_intent_source_order_tie_is_inconsistent(
+    left: &OmenaCheckerCascadeDeclarationInputV0,
+    right: &OmenaCheckerCascadeDeclarationInputV0,
+) -> bool {
+    let posterior = infer_designer_intent_posterior_v0(designer_intent_posterior_input_v0(
+        left.selector.clone(),
+        2,
+        1,
+        left.var_references.len() + right.var_references.len(),
+    ));
+    matches!(
+        dominant_designer_intent_v0(&posterior),
+        Some(PatternIntentV0::Bem)
+    )
 }
 
 fn declaration_outranks(
@@ -1802,6 +1863,90 @@ mod tests {
         assert!(evaluations.iter().any(|evaluation| evaluation.rule_code
             == OmenaCheckerRuleCodeV0::CircularVar
             && evaluation.custom_property_names == vec!["--a", "--b"]));
+    }
+
+    #[test]
+    fn designer_intent_inconsistency_invokes_variational_mechanism() {
+        let bem_evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "bem-a",
+                    selector: ".button--primary",
+                    property: "color",
+                    value: "red",
+                    source_order: 1,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "bem-b",
+                    selector: ".button--primary",
+                    property: "color",
+                    value: "blue",
+                    source_order: 2,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+            ],
+            custom_properties: Vec::new(),
+        });
+        let utility_evaluations =
+            evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+                declarations: vec![
+                    cascade_declaration(CascadeDeclarationFixture {
+                        declaration_id: "utility-a",
+                        selector: ".u-color-red",
+                        property: "color",
+                        value: "red",
+                        source_order: 1,
+                        condition_context: &[],
+                        layer_name: None,
+                        layer_order: None,
+                        important: false,
+                        var_references: &[],
+                    }),
+                    cascade_declaration(CascadeDeclarationFixture {
+                        declaration_id: "utility-b",
+                        selector: ".u-color-red",
+                        property: "color",
+                        value: "blue",
+                        source_order: 2,
+                        condition_context: &[],
+                        layer_name: None,
+                        layer_order: None,
+                        important: false,
+                        var_references: &[],
+                    }),
+                ],
+                custom_properties: Vec::new(),
+            });
+
+        let designer_evaluation = bem_evaluations.iter().find(|evaluation| {
+            evaluation.rule_code == OmenaCheckerRuleCodeV0::DesignerIntentInconsistency
+        });
+        assert!(
+            designer_evaluation.is_some(),
+            "BEM source-order tie should invoke variational checker"
+        );
+        let Some(designer_evaluation) = designer_evaluation else {
+            return;
+        };
+        assert_eq!(
+            designer_evaluation.mechanism_products,
+            vec!["omena-variational.designer-intent-posterior"]
+        );
+        assert!(
+            utility_evaluations.iter().all(|evaluation| {
+                evaluation.rule_code != OmenaCheckerRuleCodeV0::DesignerIntentInconsistency
+            }),
+            "same cascade tie facts with utility selector evidence must not emit the BEM posterior diagnostic"
+        );
     }
 
     #[test]

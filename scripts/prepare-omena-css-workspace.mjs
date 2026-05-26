@@ -25,6 +25,7 @@ const omenaCssCrates = [
   "omena-parser",
   "omena-incremental",
   "omena-refinement-trait",
+  "omena-refinement",
   "omena-cascade",
   "omena-resolver",
   "omena-sif",
@@ -37,6 +38,7 @@ const omenaCssCrates = [
   "omena-transform-cst",
   "omena-lawvere",
   "omena-categorical",
+  "omena-variational",
   "omena-transform-passes",
   "omena-transform-bundle",
   "omena-transform-target",
@@ -48,40 +50,42 @@ const omenaCssCrates = [
   "omena-wasm",
 ];
 const omenaCssPublishOrder = [
+  "omena-meta-macros",
+  "omena-refinement-trait",
+  "omena-cascade",
   "omena-incremental",
   "omena-abstract-value",
-  "omena-syntax",
-  "omena-meta-macros",
-  "omena-testkit",
   "engine-input-producers",
-  "omena-refinement-trait",
   "omena-resolver",
   "omena-sif",
-  "omena-zk-circuit",
+  "omena-smt",
+  "omena-refinement",
+  "omena-spec-audit",
+  "omena-syntax",
   "omena-interner",
   "omena-parser",
-  "omena-cascade",
-  "omena-spec-audit",
-  "omena-checker",
-  "omena-smt",
   "omena-semantic",
-  "omena-zk-audit",
-  "omena-transform-cst",
   "omena-bridge",
+  "omena-testkit",
+  "omena-transform-cst",
   "omena-lawvere",
   "omena-categorical",
   "omena-transform-passes",
   "omena-transform-bundle",
-  "omena-transform-target",
-  "omena-transform-print",
   "omena-transform-egg",
+  "omena-transform-print",
+  "omena-transform-target",
+  "omena-variational",
+  "omena-checker",
   "omena-query",
-  "omena-cli",
   "omena-napi",
   "omena-wasm",
+  "omena-zk-circuit",
+  "omena-zk-audit",
+  "omena-cli",
 ];
 const externallyPublishedCrates = new Set(["omena-incremental"]);
-const omenaCssWorkspaceVersion = "0.1.14";
+const omenaCssWorkspaceVersion = "0.1.15";
 const omenaCssExternalDependencyVersion = "0.1";
 
 function publicCrateName(crateName) {
@@ -337,8 +341,7 @@ cargo publish --dry-run --manifest-path crates/omena-syntax/Cargo.toml
 Publishing is manual through the \`Publish Crates\` GitHub Actions workflow.
 Run the workflow in \`dry-run\` mode first, then run \`publish\` only after CI is
 green and the crates.io order has been checked. The workflow intentionally skips
-\`omena-incremental\` and \`omena-engine-input-producers\` because they publish
-from their own Omena repositories.
+\`omena-incremental\` because it publishes from its own Omena repository.
 
 ## Documentation
 
@@ -413,6 +416,9 @@ sharing one release train.
 - Incremental substrate: \`omena-incremental\`
 - Cascade substrate: \`omena-cascade\`
 - External Sass interface substrate: \`omena-sif\`
+- Theory and proof substrates: \`omena-lawvere\`, \`omena-categorical\`,
+  \`omena-variational\`, \`omena-smt\`, \`omena-refinement\`,
+  \`omena-zk-circuit\`, \`omena-zk-audit\`
 - Semantic bridge: \`omena-resolver\`, \`omena-semantic\`, \`omena-bridge\`
 - Spec audit substrate: \`omena-spec-audit\`
 - Query facade: \`omena-query\`

@@ -69,10 +69,12 @@ for (const marker of [
 
 if (
   !querySource.includes(
-    "pub categorical_evidence: Option<omena_categorical::CategoricalCascadeEvidenceV0>",
+    "pub categorical_evidence: Option<omena_checker::CategoricalCascadeEvidenceV0>",
   )
 ) {
-  throw new Error("cascade-at-position query result must expose optional categorical evidence");
+  throw new Error(
+    "cascade-at-position query result must expose optional categorical evidence through the checker boundary",
+  );
 }
 
 if (!lspSource.includes("includeCategoricalEvidence")) {

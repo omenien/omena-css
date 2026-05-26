@@ -282,6 +282,48 @@ fn cascade_aware_lints_still_compare_duplicate_declarations_inside_same_nested_c
 }
 
 #[test]
+fn cascade_aware_lints_carry_variational_designer_intent_evidence() -> Result<(), &'static str> {
+    let source = r#"
+.button--primary {
+  color: red;
+  color: blue;
+}
+.u-color-red {
+  color: red;
+  color: blue;
+}
+"#;
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.css", source)
+            .ok_or("style candidates")?;
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.css",
+        source,
+        candidates.candidates.as_slice(),
+    );
+    let designer_diagnostics = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "designerIntentInconsistency")
+        .collect::<Vec<_>>();
+
+    assert_eq!(designer_diagnostics.len(), 1);
+    assert_eq!(designer_diagnostics[0].severity, "hint");
+    assert!(
+        designer_diagnostics[0]
+            .provenance
+            .contains(&"omena-variational.designer-intent-posterior")
+    );
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "unspecifiedCascadeTie")
+    );
+    Ok(())
+}
+
+#[test]
 fn cascade_aware_lints_preserve_flatten_invariance_for_nested_ampersand() -> Result<(), &'static str>
 {
     let nested = r#"

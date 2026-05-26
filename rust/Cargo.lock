@@ -946,7 +946,9 @@ version = "0.2.0"
 dependencies = [
  "omena-abstract-value",
  "omena-cascade",
+ "omena-categorical",
  "omena-resolver",
+ "omena-variational",
  "serde",
 ]
 
@@ -1055,7 +1057,6 @@ dependencies = [
  "omena-abstract-value",
  "omena-bridge",
  "omena-cascade",
- "omena-categorical",
  "omena-checker",
  "omena-incremental",
  "omena-parser",

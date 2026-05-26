@@ -101,12 +101,12 @@ const gammaCrates = [
 ] as const;
 
 assert(
-  workspaceMembers.length === 41,
-  `expected 41 workspace members, got ${workspaceMembers.length}`,
+  workspaceMembers.length === 42,
+  `expected 42 workspace members, got ${workspaceMembers.length}`,
 );
 assert(
-  workspaceMembers.filter((member) => member.includes("/omena-")).length === 38,
-  "expected omena-* crate roster to be 38",
+  workspaceMembers.filter((member) => member.includes("/omena-")).length === 39,
+  "expected omena-* crate roster to be 39",
 );
 for (const cratePath of gammaCrates) {
   assert(workspaceMembers.includes(cratePath), `missing M4-gamma workspace member ${cratePath}`);
@@ -252,8 +252,8 @@ for (const fixtureId of [
 const queryTypes = read("rust/crates/omena-query/src/types.rs");
 assertIncludes(
   queryTypes,
-  "pub categorical_evidence: Option<omena_categorical::CategoricalCascadeEvidenceV0>",
-  "cascade-at-position response must carry optional categorical evidence",
+  "pub categorical_evidence: Option<omena_checker::CategoricalCascadeEvidenceV0>",
+  "cascade-at-position response must carry optional categorical evidence through the checker boundary",
 );
 const lspServer = read("rust/crates/omena-lsp-server/src/lib.rs");
 assertIncludes(
