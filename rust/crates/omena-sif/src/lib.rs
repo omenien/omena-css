@@ -183,6 +183,60 @@ pub struct OmenaLockSifEntryV1 {
     pub sif_hash: OmenaSifDigestV1,
     pub interface_hash: OmenaSifDigestV1,
     pub transitive_hash: OmenaSifDigestV1,
+    #[serde(default = "default_omena_sif_trust_tier_v1")]
+    pub trust_tier: OmenaSifTrustTierV1,
+    #[serde(default)]
+    pub attestation_references: Vec<OmenaSifAttestationReferenceV1>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum OmenaSifTrustTierV1 {
+    #[serde(rename = "t0")]
+    T0,
+    #[default]
+    #[serde(rename = "t1")]
+    T1,
+    #[serde(rename = "t2")]
+    T2,
+    #[serde(rename = "t3")]
+    T3,
+}
+
+impl OmenaSifTrustTierV1 {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::T0 => "t0",
+            Self::T1 => "t1",
+            Self::T2 => "t2",
+            Self::T3 => "t3",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaSifAttestationReferenceV1 {
+    pub kind: String,
+    pub reference: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaSifProvenanceAdvisoryReportV1 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub enforcement: &'static str,
+    pub network_access: &'static str,
+    pub entries: Vec<OmenaSifProvenanceAdvisoryEntryV1>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaSifProvenanceAdvisoryEntryV1 {
+    pub canonical_url: String,
+    pub trust_tier: OmenaSifTrustTierV1,
+    pub attestation_reference_count: usize,
+    pub advisory_message: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -285,7 +339,30 @@ pub fn build_omena_lock_sif_entry_v1(
         sif_hash: compute_omena_sif_artifact_hash_v1(sif)?,
         interface_hash: sif.fingerprints.interface_hash.clone(),
         transitive_hash: sif.fingerprints.transitive_hash.clone(),
+        trust_tier: OmenaSifTrustTierV1::T1,
+        attestation_references: Vec::new(),
     })
+}
+
+pub fn summarize_omena_sif_provenance_advisory_v1(
+    lock: &OmenaLockV1,
+) -> OmenaSifProvenanceAdvisoryReportV1 {
+    OmenaSifProvenanceAdvisoryReportV1 {
+        schema_version: "0",
+        product: "omena-sif.provenance-advisory",
+        enforcement: "deferred",
+        network_access: "none",
+        entries: lock
+            .entries
+            .iter()
+            .map(|entry| OmenaSifProvenanceAdvisoryEntryV1 {
+                canonical_url: entry.canonical_url.clone(),
+                trust_tier: entry.trust_tier,
+                attestation_reference_count: entry.attestation_references.len(),
+                advisory_message: provenance_advisory_message(entry.trust_tier),
+            })
+            .collect(),
+    }
 }
 
 pub fn read_omena_lock_json_v1(source: &str) -> Result<OmenaLockV1, serde_json::Error> {
@@ -437,6 +514,22 @@ fn sorted_omena_lock_entries_v1(mut entries: Vec<OmenaLockSifEntryV1>) -> Vec<Om
             .then(left.sif_path.cmp(&right.sif_path))
     });
     entries
+}
+
+fn default_omena_sif_trust_tier_v1() -> OmenaSifTrustTierV1 {
+    OmenaSifTrustTierV1::T1
+}
+
+fn provenance_advisory_message(trust_tier: OmenaSifTrustTierV1) -> &'static str {
+    match trust_tier {
+        OmenaSifTrustTierV1::T0 => {
+            "No enforced provenance verification is available for this SIF entry."
+        }
+        OmenaSifTrustTierV1::T1 => "T1 local lock verification is the enforced M7 trust path.",
+        OmenaSifTrustTierV1::T2 | OmenaSifTrustTierV1::T3 => {
+            "T2/T3 attestation references are recorded but not verified by M7."
+        }
+    }
 }
 
 fn push_omena_lock_issue_v1(
@@ -637,6 +730,55 @@ mod tests {
         assert!(
             json.find("pkg:a/_tokens.scss") < json.find("pkg:z/_tokens.scss"),
             "{json}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn lock_entry_defaults_old_json_to_t1_without_attestations() -> Result<(), serde_json::Error> {
+        let digest = "blake3:0000000000000000000000000000000000000000000000000000000000000000";
+        let lock_json = format!(
+            r#"{{
+                "lockfileVersion": "1",
+                "entries": [{{
+                    "canonicalUrl": "pkg:design-system/_tokens.scss",
+                    "sifPath": "sif/design-system.sif.json",
+                    "sifHash": "{digest}",
+                    "interfaceHash": "{digest}",
+                    "transitiveHash": "{digest}"
+                }}]
+            }}"#
+        );
+
+        let lock = read_omena_lock_json_v1(&lock_json)?;
+        assert_eq!(lock.entries[0].trust_tier, OmenaSifTrustTierV1::T1);
+        assert!(lock.entries[0].attestation_references.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn provenance_advisory_report_records_tier_without_enforcing_t2_t3()
+    -> Result<(), serde_json::Error> {
+        let sif = fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        let mut entry = build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)?;
+        entry.trust_tier = OmenaSifTrustTierV1::T3;
+        entry
+            .attestation_references
+            .push(OmenaSifAttestationReferenceV1 {
+                kind: "sigstore-bundle".to_string(),
+                reference: "sif/design-system.sigstore.json".to_string(),
+            });
+        let lock = OmenaLockV1::new(vec![entry]);
+
+        let report = summarize_omena_sif_provenance_advisory_v1(&lock);
+
+        assert_eq!(report.enforcement, "deferred");
+        assert_eq!(report.network_access, "none");
+        assert_eq!(report.entries[0].trust_tier, OmenaSifTrustTierV1::T3);
+        assert_eq!(report.entries[0].attestation_reference_count, 1);
+        assert_eq!(
+            report.entries[0].advisory_message,
+            "T2/T3 attestation references are recorded but not verified by M7."
         );
         Ok(())
     }

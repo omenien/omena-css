@@ -25,7 +25,8 @@ use omena_query::{
 };
 use omena_sif::{
     OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, generate_static_omena_sif_v1,
-    read_omena_lock_json_v1, verify_omena_lock_frozen_v1, write_omena_sif_json_v1,
+    read_omena_lock_json_v1, summarize_omena_sif_provenance_advisory_v1,
+    verify_omena_lock_frozen_v1, write_omena_sif_json_v1,
 };
 #[cfg(feature = "zk-audit")]
 use omena_zk_audit::{
@@ -266,6 +267,11 @@ enum Command {
         #[command(subcommand)]
         command: SifCommand,
     },
+    /// Inspect deferred/advisory SIF provenance metadata without network access.
+    Provenance {
+        #[command(subcommand)]
+        command: ProvenanceCommand,
+    },
     /// Run feature-gated audit surfaces.
     #[cfg(feature = "zk-audit")]
     Audit {
@@ -306,6 +312,19 @@ enum SifCommand {
         #[arg(long)]
         syntax: Option<String>,
         /// Print generated SIF JSON even when --output is provided.
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ProvenanceCommand {
+    /// Report recorded trust tiers and attestations without verifying T2/T3 provenance.
+    Status {
+        /// Lockfile path. Defaults to ./omena.lock.
+        #[arg(long, default_value = "omena.lock")]
+        lockfile: PathBuf,
+        /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
     },
@@ -514,6 +533,7 @@ fn run(cli: Cli) -> Result<(), String> {
         Command::PerceptualCheck { path, json } => perceptual_check(path, json),
         Command::Lock { command } => lock_command(command),
         Command::Sif { command } => sif_command(command),
+        Command::Provenance { command } => provenance_command(command),
         #[cfg(feature = "zk-audit")]
         Command::Audit { command } => audit_command(command),
     }
@@ -592,6 +612,43 @@ fn sif_command(command: SifCommand) -> Result<(), String> {
             json,
         } => generate_sif(path, canonical_url, output, syntax, json),
     }
+}
+
+fn provenance_command(command: ProvenanceCommand) -> Result<(), String> {
+    match command {
+        ProvenanceCommand::Status { lockfile, json } => provenance_status(lockfile, json),
+    }
+}
+
+fn provenance_status(lockfile: PathBuf, json: bool) -> Result<(), String> {
+    let lockfile_source = read_source(&lockfile)?;
+    let lock = read_omena_lock_json_v1(&lockfile_source)
+        .map_err(|error| format!("failed to parse {}: {error}", path_string(&lockfile)))?;
+    let report = summarize_omena_sif_provenance_advisory_v1(&lock);
+
+    if json {
+        print_json(&report)?;
+    } else {
+        println!(
+            "SIF provenance enforcement is deferred; T1 lock verification remains the enforced path."
+        );
+        println!(
+            "network access: {}; entries: {}",
+            report.network_access,
+            report.entries.len()
+        );
+        for entry in &report.entries {
+            println!(
+                "{} {} attestations={}: {}",
+                entry.trust_tier.as_str(),
+                entry.canonical_url,
+                entry.attestation_reference_count,
+                entry.advisory_message
+            );
+        }
+    }
+
+    Ok(())
 }
 
 fn generate_sif(
@@ -2127,6 +2184,45 @@ export function App() {
         });
 
         assert!(result.is_err(), "{result:?}");
+        cleanup_dir(&workspace_path);
+        Ok(())
+    }
+
+    #[test]
+    fn provenance_status_reports_deferred_advisory_lock_metadata() -> Result<(), String> {
+        let workspace_path = temp_dir("provenance-status");
+        let lockfile_path = workspace_path.join("omena.lock");
+        fs::create_dir_all(&workspace_path)
+            .map_err(|error| format!("fixture workspace should be writable: {error}"))?;
+        let sif = cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        let mut entry =
+            omena_sif::build_omena_lock_sif_entry_v1("sif/design-system.sif.json", &sif)
+                .map_err(|error| format!("fixture lock entry should build: {error}"))?;
+        entry.trust_tier = omena_sif::OmenaSifTrustTierV1::T3;
+        entry
+            .attestation_references
+            .push(omena_sif::OmenaSifAttestationReferenceV1 {
+                kind: "sigstore-bundle".to_string(),
+                reference: "sif/design-system.sigstore.json".to_string(),
+            });
+        let lock = omena_sif::OmenaLockV1::new(vec![entry]);
+        fs::write(
+            &lockfile_path,
+            omena_sif::write_omena_lock_json_v1(&lock)
+                .map_err(|error| format!("fixture lock should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture lock should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Provenance {
+                command: ProvenanceCommand::Status {
+                    lockfile: lockfile_path,
+                    json: true,
+                },
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
         cleanup_dir(&workspace_path);
         Ok(())
     }

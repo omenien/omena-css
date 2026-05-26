@@ -42,6 +42,33 @@
         },
         "transitiveHash": {
           "$ref": "#/$defs/digest"
+        },
+        "trustTier": {
+          "$ref": "#/$defs/trustTier"
+        },
+        "attestationReferences": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attestationReference"
+          }
+        }
+      }
+    },
+    "trustTier": {
+      "enum": ["t0", "t1", "t2", "t3"]
+    },
+    "attestationReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "reference"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1
         }
       }
     }
