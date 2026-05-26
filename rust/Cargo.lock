@@ -1969,9 +1969,9 @@ dependencies = [
  "omena-abstract-value",
  "omena-bridge",
  "omena-cascade",
- "omena-checker",
  "omena-incremental",
  "omena-parser",
+ "omena-query-checker-orchestrator",
  "omena-query-transform-runner",
  "omena-resolver",
  "omena-semantic",
@@ -1979,6 +1979,14 @@ dependencies = [
  "omena-syntax",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "omena-query-checker-orchestrator"
+version = "0.2.0"
+dependencies = [
+ "omena-checker",
+ "serde",
 ]
 
 [[package]]

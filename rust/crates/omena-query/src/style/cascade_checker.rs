@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use omena_checker::{
+use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeInputV0,
-    OmenaCheckerCustomPropertyInputV0, evaluate_omena_checker_cascade_rules,
+    OmenaCheckerCustomPropertyInputV0, run_omena_query_checker_cascade_gate_v0,
 };
 use omena_query_transform_runner::expand_css_nested_selector;
 
@@ -22,7 +22,29 @@ pub(super) fn summarize_query_cascade_checker_diagnostics(
         collect_query_checker_cascade_input(style_uri, source);
     let mut diagnostics = Vec::new();
 
-    for evaluation in evaluate_omena_checker_cascade_rules(checker_input) {
+    let gate = run_omena_query_checker_cascade_gate_v0(checker_input);
+    if !gate.enforcement_passed {
+        return vec![OmenaQueryStyleDiagnosticV0 {
+            code: "checkerDiagnosticGateFailed",
+            severity: "warning",
+            provenance: vec![
+                "omena-query-checker-orchestrator.cascade-gate",
+                "omena-query.cascade-checker",
+            ],
+            range: parser_range_for_byte_span(
+                source,
+                ParserByteSpanV0 {
+                    start: 0,
+                    end: source.len(),
+                },
+            ),
+            message: "Checker diagnostic gate rejected unregistered rule output.".to_string(),
+            tags: Vec::new(),
+            create_custom_property: None,
+        }];
+    }
+
+    for evaluation in gate.evaluations {
         if evaluation.rule_code_name == "iacvt-prone"
             && evaluation
                 .custom_property_names
@@ -50,7 +72,11 @@ pub(super) fn summarize_query_cascade_checker_diagnostics(
                     },
                 )
             });
-        let mut provenance = vec!["omena-checker.cascade-rules", "omena-query.cascade-checker"];
+        let mut provenance = vec![
+            "omena-query-checker-orchestrator.cascade-gate",
+            "omena-checker.cascade-rules",
+            "omena-query.cascade-checker",
+        ];
         provenance.extend(evaluation.mechanism_products.iter().copied());
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {
             code: query_cascade_checker_code(evaluation.rule_code_name),

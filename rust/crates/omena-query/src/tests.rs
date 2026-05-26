@@ -165,6 +165,11 @@ fn summarizes_query_boundary_over_producer_fragments() {
     assert!(
         summary
             .delegated_fragment_products
+            .contains(&"omena-query-checker-orchestrator.cascade-gate")
+    );
+    assert!(
+        summary
+            .delegated_fragment_products
             .contains(&"omena-query-transform-runner.boundary")
     );
     assert!(
@@ -226,6 +231,11 @@ fn summarizes_query_boundary_over_producer_fragments() {
         summary
             .ready_surfaces
             .contains(&"omenaParserStyleFactExtraction")
+    );
+    assert!(
+        summary
+            .ready_surfaces
+            .contains(&"queryCheckerOrchestratorBoundary")
     );
     assert!(
         summary

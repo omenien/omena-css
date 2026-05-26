@@ -22,6 +22,7 @@ members = [
   "crates/omena-meta-macros",
   "crates/omena-napi",
   "crates/omena-query",
+  "crates/omena-query-checker-orchestrator",
   "crates/omena-query-transform-runner",
   "crates/omena-refinement",
   "crates/omena-refinement-trait",

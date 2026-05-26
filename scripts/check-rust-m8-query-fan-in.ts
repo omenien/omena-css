@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { strict as assert } from "node:assert";
 
 const QUERY_MANIFEST_PATH = "rust/crates/omena-query/Cargo.toml";
+const CHECKER_ORCHESTRATOR_MANIFEST_PATH =
+  "rust/crates/omena-query-checker-orchestrator/Cargo.toml";
 const RUNNER_MANIFEST_PATH = "rust/crates/omena-query-transform-runner/Cargo.toml";
 const WORKSPACE_MANIFEST_PATH = "rust/Cargo.toml";
 const QUERY_SRC_PATH = "rust/crates/omena-query/src";
@@ -15,10 +17,12 @@ const TRANSFORM_CRATES = [
 ] as const;
 
 const queryManifest = readFileSync(QUERY_MANIFEST_PATH, "utf8");
+const checkerOrchestratorManifest = readFileSync(CHECKER_ORCHESTRATOR_MANIFEST_PATH, "utf8");
 const runnerManifest = readFileSync(RUNNER_MANIFEST_PATH, "utf8");
 const workspaceManifest = readFileSync(WORKSPACE_MANIFEST_PATH, "utf8");
 
 const queryDeps = dependencyNames(queryManifest);
+const checkerOrchestratorDeps = dependencyNames(checkerOrchestratorManifest);
 const runnerDeps = dependencyNames(runnerManifest);
 const queryInternalDeps = queryDeps.filter(
   (dependency) => dependency.startsWith("omena-") || dependency.startsWith("engine-"),
@@ -29,12 +33,24 @@ const queryDirectTransformDeps = TRANSFORM_CRATES.filter((dependency) =>
 const runnerTransformDeps = TRANSFORM_CRATES.filter((dependency) => runnerDeps.includes(dependency));
 
 assert.ok(
+  workspaceManifest.includes('"crates/omena-query-checker-orchestrator"'),
+  "workspace must include the omena-query-checker-orchestrator split crate",
+);
+assert.ok(
   workspaceManifest.includes('"crates/omena-query-transform-runner"'),
   "workspace must include the omena-query-transform-runner split crate",
 );
 assert.ok(
+  queryDeps.includes("omena-query-checker-orchestrator"),
+  "omena-query must depend on the checker-orchestrator boundary",
+);
+assert.ok(
   queryDeps.includes("omena-query-transform-runner"),
   "omena-query must depend on the transform-runner boundary",
+);
+assert.ok(
+  !queryDeps.includes("omena-checker"),
+  "omena-query must not depend directly on omena-checker after checker-orchestrator split",
 );
 assert.deepEqual(
   queryDirectTransformDeps,
@@ -50,6 +66,15 @@ assert.ok(
   !runnerDeps.includes("omena-query"),
   "transform-runner boundary must not depend back on omena-query",
 );
+assert.deepEqual(
+  checkerOrchestratorDeps.filter((dependency) => dependency === "omena-checker"),
+  ["omena-checker"],
+  "omena-query-checker-orchestrator must own the direct omena-checker dependency",
+);
+assert.ok(
+  !checkerOrchestratorDeps.includes("omena-query"),
+  "checker-orchestrator boundary must not depend back on omena-query",
+);
 assert.ok(
   queryInternalDeps.length <= 12,
   `omena-query direct internal dependency count must be <= 12 after transform-runner split, got ${queryInternalDeps.length}`,
@@ -64,12 +89,22 @@ assert.ok(
   querySource.includes("omena_query_transform_runner"),
   "omena-query lib.rs must route transform-family imports through omena-query-transform-runner",
 );
+const queryCascadeCheckerSource = readFileSync(`${QUERY_SRC_PATH}/style/cascade_checker.rs`, "utf8");
+assert.ok(
+  !/\b(?:use|pub use)\s+omena_checker\b/u.test(queryCascadeCheckerSource),
+  "omena-query cascade checker must not import omena-checker directly",
+);
+assert.ok(
+  queryCascadeCheckerSource.includes("run_omena_query_checker_cascade_gate_v0"),
+  "omena-query cascade checker must route diagnostics through the checker gate",
+);
 
 process.stdout.write(
   [
     "validated m8 query fan-in:",
     `queryInternalDeps=${queryInternalDeps.length}`,
     `queryDirectTransformDeps=${queryDirectTransformDeps.length}`,
+    `queryDirectCheckerDeps=${queryDeps.includes("omena-checker") ? 1 : 0}`,
     `runnerCollapsedTransformDeps=${runnerTransformDeps.length}`,
   ].join(" "),
 );
