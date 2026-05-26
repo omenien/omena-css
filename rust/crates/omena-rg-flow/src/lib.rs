@@ -13,6 +13,7 @@ use serde::Serialize;
 pub const RG_FLOW_SCHEMA_VERSION_V0: &str = "0";
 pub const RG_FLOW_LAYER_MARKER_V0: &str = "rg-flow-statistical";
 pub const RG_FLOW_FEATURE_GATE_V0: &str = "rg-flow";
+const RG_FLOW_EIGEN_EPSILON: f64 = 1e-9;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,10 +39,24 @@ pub struct BetaVectorV0 {
     pub beta_decl: f64,
     pub beta_cycle: f64,
     pub beta_dirty: f64,
+    pub coupling_jacobian: CouplingJacobianSpectrumV0,
     pub eigenvalues: Vec<f64>,
     pub relevant_operator_count: usize,
     pub irrelevant_operator_count: usize,
     pub marginal_operator_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CouplingJacobianSpectrumV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub matrix: Vec<Vec<f64>>,
+    pub eigenvalues: Vec<f64>,
+    pub spectral_radius: f64,
+    pub computed_from: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -846,7 +861,8 @@ fn beta_vector_from_couplings(before: &CouplingSpaceV0, after: &CouplingSpaceV0)
     let beta_decl = signed_delta(after.k_decl, before.k_decl).min(0.0);
     let beta_cycle = signed_delta(after.k_cycle, before.k_cycle);
     let beta_dirty = signed_delta(after.k_dirty, before.k_dirty);
-    let eigenvalues = vec![beta_env, beta_decl, beta_cycle, beta_dirty];
+    let coupling_jacobian = estimate_coupling_jacobian_spectrum_v0(before, after);
+    let eigenvalues = coupling_jacobian.eigenvalues.clone();
     BetaVectorV0 {
         schema_version: RG_FLOW_SCHEMA_VERSION_V0,
         product: "omena-rg-flow.beta-vector",
@@ -856,10 +872,85 @@ fn beta_vector_from_couplings(before: &CouplingSpaceV0, after: &CouplingSpaceV0)
         beta_decl,
         beta_cycle,
         beta_dirty,
-        relevant_operator_count: eigenvalues.iter().filter(|value| **value > 0.0).count(),
-        irrelevant_operator_count: eigenvalues.iter().filter(|value| **value < 0.0).count(),
-        marginal_operator_count: eigenvalues.iter().filter(|value| **value == 0.0).count(),
+        coupling_jacobian,
+        relevant_operator_count: eigenvalues
+            .iter()
+            .filter(|value| **value > RG_FLOW_EIGEN_EPSILON)
+            .count(),
+        irrelevant_operator_count: eigenvalues
+            .iter()
+            .filter(|value| **value < -RG_FLOW_EIGEN_EPSILON)
+            .count(),
+        marginal_operator_count: eigenvalues
+            .iter()
+            .filter(|value| value.abs() <= RG_FLOW_EIGEN_EPSILON)
+            .count(),
         eigenvalues,
+    }
+}
+
+pub fn estimate_coupling_jacobian_spectrum_v0(
+    before: &CouplingSpaceV0,
+    after: &CouplingSpaceV0,
+) -> CouplingJacobianSpectrumV0 {
+    let beta_env = signed_delta(after.k_env, before.k_env);
+    let beta_decl = signed_delta(after.k_decl, before.k_decl).min(0.0);
+    let beta_cycle = signed_delta(after.k_cycle, before.k_cycle);
+    let beta_dirty = signed_delta(after.k_dirty, before.k_dirty);
+    let env_decl_cross = coupling_cross_sensitivity(before.k_decl, after.k_decl, before.k_env);
+    let decl_env_cross = coupling_cross_sensitivity(before.k_env, after.k_env, before.k_decl);
+    let cycle_dirty_cross =
+        coupling_cross_sensitivity(before.k_dirty, after.k_dirty, before.k_cycle);
+    let dirty_cycle_cross =
+        coupling_cross_sensitivity(before.k_cycle, after.k_cycle, before.k_dirty);
+    let matrix = vec![
+        vec![
+            diagonal_coupling_sensitivity(beta_env, before.k_env),
+            env_decl_cross,
+            0.0,
+            0.0,
+        ],
+        vec![
+            decl_env_cross,
+            diagonal_coupling_sensitivity(beta_decl, before.k_decl),
+            0.0,
+            0.0,
+        ],
+        vec![
+            0.0,
+            0.0,
+            diagonal_coupling_sensitivity(beta_cycle, before.k_cycle),
+            cycle_dirty_cross,
+        ],
+        vec![
+            0.0,
+            0.0,
+            dirty_cycle_cross,
+            diagonal_coupling_sensitivity(beta_dirty, before.k_dirty),
+        ],
+    ];
+    let mut eigenvalues =
+        eigenvalues_for_2x2_block(matrix[0][0], matrix[0][1], matrix[1][0], matrix[1][1]);
+    eigenvalues.extend(eigenvalues_for_2x2_block(
+        matrix[2][2],
+        matrix[2][3],
+        matrix[3][2],
+        matrix[3][3],
+    ));
+    let spectral_radius = eigenvalues
+        .iter()
+        .map(|value| value.abs())
+        .fold(0.0, f64::max);
+
+    CouplingJacobianSpectrumV0 {
+        schema_version: RG_FLOW_SCHEMA_VERSION_V0,
+        product: "omena-rg-flow.coupling-jacobian-spectrum",
+        layer_marker: RG_FLOW_LAYER_MARKER_V0,
+        feature_gate: RG_FLOW_FEATURE_GATE_V0,
+        matrix,
+        eigenvalues,
+        spectral_radius,
+        computed_from: "finite-difference-linearization-v0",
     }
 }
 
@@ -882,6 +973,29 @@ fn beta_sign_witness(
 
 fn signed_delta(after: usize, before: usize) -> f64 {
     after as f64 - before as f64
+}
+
+fn diagonal_coupling_sensitivity(beta: f64, before: usize) -> f64 {
+    beta / before.max(1) as f64
+}
+
+fn coupling_cross_sensitivity(
+    source_before: usize,
+    source_after: usize,
+    target_before: usize,
+) -> f64 {
+    let source_delta = signed_delta(source_after, source_before).abs();
+    if source_delta <= RG_FLOW_EIGEN_EPSILON {
+        0.0
+    } else {
+        source_delta / source_before.saturating_add(target_before).max(1) as f64
+    }
+}
+
+fn eigenvalues_for_2x2_block(a: f64, b: f64, c: f64, d: f64) -> Vec<f64> {
+    let trace = a + d;
+    let discriminant = ((a - d) * (a - d) + 4.0 * b * c).max(0.0).sqrt();
+    vec![(trace + discriminant) / 2.0, (trace - discriminant) / 2.0]
 }
 
 fn sign(value: f64) -> i8 {
@@ -937,6 +1051,48 @@ mod tests {
         assert!(estimate.sign_witness.monotone_kleene_certificate);
         assert_eq!(metric.feature_gate, "rg-flow");
         assert!(metric.fixed_point_reached);
+        assert_eq!(
+            estimate.beta_vector.coupling_jacobian.product,
+            "omena-rg-flow.coupling-jacobian-spectrum"
+        );
+        assert_ne!(
+            estimate.beta_vector.eigenvalues,
+            vec![
+                estimate.beta_vector.beta_env,
+                estimate.beta_vector.beta_decl,
+                estimate.beta_vector.beta_cycle,
+                estimate.beta_vector.beta_dirty
+            ]
+        );
+    }
+
+    #[test]
+    fn coupling_jacobian_computes_non_alias_eigenvalue_spectrum() {
+        let before = coupling_space(4, 3, 1, 2);
+        let after = coupling_space(2, 1, 2, 4);
+        let beta = beta_vector_from_couplings(&before, &after);
+        let direct_spectrum = estimate_coupling_jacobian_spectrum_v0(&before, &after);
+
+        assert_eq!(beta.coupling_jacobian, direct_spectrum);
+        assert_eq!(direct_spectrum.matrix.len(), 4);
+        assert_eq!(direct_spectrum.eigenvalues.len(), 4);
+        assert!(direct_spectrum.matrix[0][1] > 0.0);
+        assert!(direct_spectrum.matrix[1][0] > 0.0);
+        assert_ne!(
+            direct_spectrum.eigenvalues,
+            vec![
+                beta.beta_env,
+                beta.beta_decl,
+                beta.beta_cycle,
+                beta.beta_dirty
+            ]
+        );
+        assert_eq!(
+            beta.relevant_operator_count
+                + beta.irrelevant_operator_count
+                + beta.marginal_operator_count,
+            direct_spectrum.eigenvalues.len()
+        );
     }
 
     #[test]
