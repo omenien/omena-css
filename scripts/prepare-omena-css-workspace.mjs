@@ -27,6 +27,7 @@ const omenaCssCrates = [
   "omena-refinement-trait",
   "omena-cascade",
   "omena-resolver",
+  "omena-sif",
   "omena-semantic",
   "omena-spec-audit",
   "omena-bridge",
@@ -59,6 +60,7 @@ const omenaCssPublishOrder = [
   "omena-refinement-trait",
   "omena-cascade",
   "omena-resolver",
+  "omena-sif",
   "omena-semantic",
   "omena-spec-audit",
   "omena-bridge",
@@ -283,6 +285,7 @@ napi = "3.8.6"
 napi-derive = "3.5.5"
 serde-wasm-bindgen = "0.6.5"
 wasm-bindgen = "0.2.121"
+blake3 = "1.8.5"
 
 [workspace.lints.rust]
 unsafe_code = "deny"
@@ -402,6 +405,7 @@ sharing one release train.
 - Parser surface: \`omena-parser\`
 - Incremental substrate: \`omena-incremental\`
 - Cascade substrate: \`omena-cascade\`
+- External Sass interface substrate: \`omena-sif\`
 - Semantic bridge: \`omena-resolver\`, \`omena-semantic\`, \`omena-bridge\`
 - Spec audit substrate: \`omena-spec-audit\`
 - Query facade: \`omena-query\`

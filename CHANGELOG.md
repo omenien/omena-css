@@ -2,6 +2,40 @@
 
 ## [Unreleased]
 
+## [5.2.0] - 2026-05-26
+
+### Changed
+
+- **Variant recipe class-value substrate** - binder and query summaries now
+  carry a shared `ClassValueUniverseProviderV0` substrate for CSS Modules
+  fallback, vanilla-extract recipes, and cva phase 1, covering `base`,
+  `variants`, `compoundVariants`, and `defaultVariants` without introducing a
+  public plugin ABI.
+- **V0 theory contract substrate** - incremental, cascade, and abstract-value
+  crates now expose strict-superset V0 contract summaries for the rule-evaluator,
+  modal-witness, belief-propagation, and cascade-margin substrate surfaces while
+  keeping Datalog host, modal theorem, belief-propagation paper, and safety-margin
+  claims out of public release wording.
+- **Release wording discipline** - public release framing now separates shipped
+  editor/runtime behavior from internal V0 substrate evidence and avoids treating
+  staged research contracts as final APIs or completed theory claims.
+
+### Added
+
+- **Sass Interface File release path** - adds the `omena-sif` lockfile and
+  SIF schema substrate to the standalone `omena-css` publish workspace so query
+  and CLI consumers can resolve external Sass symbols through the release train.
+- **Resolver/query boundary states** - ships the shared resolver protocol,
+  static SIF generator path, external SIF diagnostics mode, diagnostic
+  suppressions, and provenance advisory metadata covered by the release
+  boundary checks.
+
+### Fixed
+
+- **Standalone Rust publish workspace** - includes the new SIF crate dependency
+  closure and generated `blake3` workspace dependency so the `omena-css`
+  publish dry-run matches the current query and CLI dependency graph.
+
 ## [5.1.1] - 2026-05-25
 
 ### Changed
