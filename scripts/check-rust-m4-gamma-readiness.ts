@@ -115,6 +115,9 @@ assertGammaV0StructHeaders(gammaCrates);
 
 const heavyDependencyNames = [
   "ark-ff",
+  "ark-groth16",
+  "ark-relations",
+  "ark-std",
   "ark-poly",
   "ark-bn254",
   "ark-bls12-381",
@@ -458,8 +461,30 @@ const zkAudit = read("rust/crates/omena-zk-audit/src/lib.rs");
 assertIncludes(zkAudit, "SetupKindV0::Halo2Ipa", "ZK audit default must be Halo2+IPA");
 assertIncludes(
   zkAudit,
+  "ArkworksGroth16RoundTripV0",
+  "ZK audit must expose an actual arkworks Groth16 proof round-trip result",
+);
+assertIncludes(
+  zkAudit,
+  "prove_and_verify_cascade_smt_payload_with_arkworks_v0",
+  "ZK audit must link a real opt-in proof generation and verification path",
+);
+assertIncludes(
+  zkAudit,
+  "ZKBackendLinkStatusV0::RealBackendLinked",
+  "ZK audit backend policy must distinguish real linked backends from protocol-only cells",
+);
+assertIncludes(
+  zkAudit,
   '"default", "zk-audit", "zk-audit-stark", "zk-audit-binius"',
   "ZK audit must expose four CI matrix cells",
+);
+const zkAuditManifest = read("rust/crates/omena-zk-audit/Cargo.toml");
+assertIncludes(zkAuditManifest, "ark-groth16", "ZK audit must link arkworks Groth16 behind a feature");
+assertIncludes(
+  zkAuditManifest,
+  'zk-audit = [',
+  "ZK audit real backend dependencies must remain opt-in through the zk-audit feature",
 );
 assertIncludes(zkAudit, "zk_audit_fold_chain_v0", "ZK audit must expose fold-chain evidence");
 assertIncludes(

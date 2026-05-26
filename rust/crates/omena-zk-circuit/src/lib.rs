@@ -66,6 +66,38 @@ pub fn cascade_circuit_spec_v0(
     }
 }
 
+pub fn cascade_circuit_spec_from_canonical_terms_v0(
+    circuit_id: impl Into<String>,
+    canonical_terms: &[String],
+) -> CascadeCircuitSpecV0 {
+    let constraints = cascade_r1cs_constraints_from_canonical_terms_v0(canonical_terms);
+    CascadeCircuitSpecV0 {
+        constraint_count: constraints.len(),
+        ..cascade_circuit_spec_v0(circuit_id, ArithmetizationKindV0::R1cs)
+    }
+}
+
+pub fn cascade_r1cs_constraints_from_canonical_terms_v0(
+    canonical_terms: &[String],
+) -> Vec<R1CSConstraintV0> {
+    canonical_terms
+        .iter()
+        .filter_map(|term| {
+            let (name, _value) = term.strip_prefix("require:")?.rsplit_once('=')?;
+            Some(R1CSConstraintV0 {
+                schema_version: ZK_CIRCUIT_SCHEMA_VERSION_V0,
+                product: "omena-zk-circuit.r1cs-constraint",
+                layer_marker: ZK_CIRCUIT_LAYER_MARKER_V0,
+                feature_gate: ZK_CIRCUIT_FEATURE_GATE_V0,
+                constraint_id: format!("requirement-{name}"),
+                left_wire: format!("witness.{name}"),
+                right_wire: "public.one".to_string(),
+                output_wire: "public.one".to_string(),
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,5 +107,24 @@ mod tests {
         let spec = cascade_circuit_spec_v0("cascade", ArithmetizationKindV0::Plonkish);
         assert_eq!(spec.schema_version, "0");
         assert!(spec.salsa_dependency_free);
+    }
+
+    #[test]
+    fn circuit_spec_counts_r1cs_constraints_from_canonical_terms() {
+        let terms = vec![
+            "require:supported-shorthand-property=true".to_string(),
+            "require:canonical-longhand-quartet=true".to_string(),
+            "unknown:supports-condition".to_string(),
+        ];
+        let constraints = cascade_r1cs_constraints_from_canonical_terms_v0(&terms);
+        let spec = cascade_circuit_spec_from_canonical_terms_v0("cascade-smt", &terms);
+
+        assert_eq!(constraints.len(), 2);
+        assert_eq!(spec.arithmetization, ArithmetizationKindV0::R1cs);
+        assert_eq!(spec.constraint_count, constraints.len());
+        assert_eq!(
+            constraints[0].constraint_id,
+            "requirement-supported-shorthand-property"
+        );
     }
 }

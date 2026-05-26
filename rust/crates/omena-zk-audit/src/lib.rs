@@ -5,8 +5,18 @@
 //! binius.
 
 use omena_smt::CanonicalSmtInputV0;
-use omena_zk_circuit::{ArithmetizationKindV0, CascadeCircuitSpecV0};
+use omena_zk_circuit::{
+    ArithmetizationKindV0, CascadeCircuitSpecV0, cascade_circuit_spec_from_canonical_terms_v0,
+};
 use serde::Serialize;
+
+#[cfg(feature = "zk-audit")]
+pub mod arkworks;
+
+#[cfg(feature = "zk-audit")]
+pub use arkworks::{
+    ArkworksGroth16RoundTripV0, prove_and_verify_cascade_smt_payload_with_arkworks_v0,
+};
 
 pub const ZK_AUDIT_SCHEMA_VERSION_V0: &str = "0";
 pub const ZK_AUDIT_LAYER_MARKER_V0: &str = "cryptographic-implementation";
@@ -15,6 +25,7 @@ pub const ZK_AUDIT_FEATURE_GATE_V0: &str = "zk-audit";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SetupKindV0 {
+    ArkworksGroth16,
     Halo2Ipa,
     PlonkUniversal,
     StarkFri,
@@ -138,7 +149,12 @@ pub fn cascade_zk_audit_with_smt_payload_v0(
     audit_id: impl Into<String>,
     proof_payload: CanonicalSmtInputV0,
 ) -> CascadeZKAuditV0 {
+    let circuit = cascade_circuit_spec_from_canonical_terms_v0(
+        format!("cascade-smt-{}", proof_payload.obligation_id),
+        &proof_payload.canonical_terms,
+    );
     CascadeZKAuditV0 {
+        circuit,
         proof_payload: Some(proof_payload),
         ..cascade_zk_audit_v0(audit_id)
     }
@@ -158,10 +174,10 @@ pub fn zk_audit_ci_matrix_v0() -> ZKAuditCiMatrixV0 {
 pub fn zk_backend_link_policy_v0() -> Vec<ZKBackendLinkPolicyV0> {
     vec![
         zk_backend_link_policy_cell_v0(
-            SetupKindV0::Halo2Ipa,
+            SetupKindV0::ArkworksGroth16,
             "zk-audit",
-            "halo2",
-            ZKBackendLinkStatusV0::OptInFeatureDeclared,
+            "arkworks-groth16",
+            ZKBackendLinkStatusV0::RealBackendLinked,
         ),
         zk_backend_link_policy_cell_v0(
             SetupKindV0::PlonkUniversal,
@@ -239,11 +255,16 @@ mod tests {
         let payload = omena_smt::canonical_smt_input_v0(
             "obligation",
             "prove_box_shorthand_combination",
-            vec!["margin".to_string()],
+            vec![
+                "require:supported-shorthand-property=true".to_string(),
+                "require:canonical-longhand-quartet=true".to_string(),
+            ],
         );
         let audit = cascade_zk_audit_with_smt_payload_v0("audit", payload);
         assert!(audit.proof_payload.is_some());
         assert_eq!(audit.setup_kind, SetupKindV0::Halo2Ipa);
+        assert_eq!(audit.circuit.arithmetization, ArithmetizationKindV0::R1cs);
+        assert_eq!(audit.circuit.constraint_count, 2);
     }
 
     #[test]
@@ -264,19 +285,42 @@ mod tests {
         assert!(
             policy
                 .iter()
-                .all(|cell| cell.status != ZKBackendLinkStatusV0::RealBackendLinked)
+                .any(|cell| cell.status == ZKBackendLinkStatusV0::RealBackendLinked)
         );
         assert!(
             policy
                 .iter()
-                .all(|cell| !cell.proof_generation_available && !cell.verification_available)
+                .any(|cell| cell.proof_generation_available && cell.verification_available)
         );
         assert!(
             policy
                 .iter()
-                .any(|cell| cell.setup_kind == SetupKindV0::Halo2Ipa
+                .any(|cell| cell.setup_kind == SetupKindV0::ArkworksGroth16
                     && cell.cargo_feature == "zk-audit"
-                    && cell.external_dependency_family == Some("halo2"))
+                    && cell.external_dependency_family == Some("arkworks-groth16"))
         );
+    }
+
+    #[cfg(feature = "zk-audit")]
+    #[test]
+    fn arkworks_groth16_roundtrip_generates_and_verifies_proof() {
+        let payload = omena_smt::canonical_smt_input_v0(
+            "box-shorthand-combination",
+            "prove_box_shorthand_combination",
+            vec![
+                "require:supported-shorthand-property=true".to_string(),
+                "require:canonical-longhand-quartet=true".to_string(),
+                "require:no-important-longhand=true".to_string(),
+            ],
+        );
+        let roundtrip = prove_and_verify_cascade_smt_payload_with_arkworks_v0(&payload);
+        assert!(roundtrip.is_ok(), "{roundtrip:?}");
+        if let Ok(roundtrip) = roundtrip {
+            assert_eq!(roundtrip.setup_kind, SetupKindV0::ArkworksGroth16);
+            assert_eq!(roundtrip.requirement_count, 3);
+            assert!(roundtrip.proof_generated);
+            assert!(roundtrip.proof_verified);
+            assert_eq!(roundtrip.circuit.constraint_count, 3);
+        }
     }
 }
