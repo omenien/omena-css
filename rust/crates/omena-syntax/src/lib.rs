@@ -2,6 +2,10 @@
 //!
 //! This crate is intentionally substrate-only: it defines stable syntax kind
 //! ranges and CST integration without parsing source text yet.
+//!
+//! syntax_kind_extraction_decision: keep `SyntaxKind` extracted in
+//! `omena-syntax`; parser, semantic, resolver, LSP, and checker layers consume
+//! this crate instead of re-declaring local node/token taxonomies.
 
 use cstree::{RawSyntaxKind, Syntax};
 
@@ -707,6 +711,8 @@ pub struct OmenaSyntaxBoundarySummaryV0 {
     pub schema_version: &'static str,
     pub product: &'static str,
     pub phase: &'static str,
+    pub syntax_kind_owner_crate: &'static str,
+    pub parser_consumer_policy: &'static str,
     pub syntax_kind_count: usize,
     pub token_kind_count: usize,
     pub node_kind_count: usize,
@@ -728,6 +734,8 @@ pub fn summarize_omena_syntax_boundary() -> OmenaSyntaxBoundarySummaryV0 {
         schema_version: "0",
         product: "omena-syntax.boundary",
         phase: "h1-alpha-syntax-substrate",
+        syntax_kind_owner_crate: "omena-syntax",
+        parser_consumer_policy: "parserConsumesOmenaSyntaxKindNoLocalTaxonomy",
         syntax_kind_count: SyntaxKind::ALL.len(),
         token_kind_count: SyntaxKind::ALL
             .iter()
@@ -842,6 +850,11 @@ mod tests {
 
         assert_eq!(summary.product, "omena-syntax.boundary");
         assert_eq!(summary.phase, "h1-alpha-syntax-substrate");
+        assert_eq!(summary.syntax_kind_owner_crate, "omena-syntax");
+        assert_eq!(
+            summary.parser_consumer_policy,
+            "parserConsumesOmenaSyntaxKindNoLocalTaxonomy"
+        );
         assert!(summary.syntax_kind_count >= 160);
         assert!(summary.bogus_kind_count >= 33);
         assert_eq!(summary.style_dialect_count, 4);
