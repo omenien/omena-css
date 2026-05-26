@@ -5,6 +5,7 @@ use super::{
 };
 #[cfg(feature = "lawvere-trace")]
 use super::{
+    evaluate_lawvere_reorderability_with_differential_corpus,
     execute_transform_passes_on_source_with_lawvere_trace,
     plan_transform_passes_parallel_lawvere_layers,
 };

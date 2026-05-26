@@ -116,10 +116,42 @@ pub struct ReorderabilityCertificateV0 {
     pub theory_version: &'static str,
     pub differential_tier: SaturationBudgetTierV0,
     pub commute_witness: &'static str,
+    pub differential_fixture_count: usize,
+    pub differential_equal_fixture_count: usize,
+    pub differential_mismatch_count: usize,
     pub specificity_preserved: bool,
     pub computed_value_preserved: bool,
     pub provenance_preserved: bool,
     pub cascade_safe_witness: String,
+    pub accepted: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LawvereDifferentialCommutativityCaseV0 {
+    pub label: String,
+    pub input_css: String,
+    pub left_then_right_css: String,
+    pub right_then_left_css: String,
+    pub left_then_right_mutation_count: usize,
+    pub right_then_left_mutation_count: usize,
+    pub equal_output: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LawvereDifferentialCommutativityWitnessV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
+    pub theory_version: &'static str,
+    pub left_pass_id: &'static str,
+    pub right_pass_id: &'static str,
+    pub fixture_count: usize,
+    pub equal_fixture_count: usize,
+    pub mismatch_count: usize,
+    pub cases: Vec<LawvereDifferentialCommutativityCaseV0>,
     pub accepted: bool,
 }
 
@@ -341,7 +373,6 @@ pub fn reorderability_certificate_v0(
     left: TransformPassKind,
     right: TransformPassKind,
 ) -> ReorderabilityCertificateV0 {
-    let same_rank = lawvere_execution_rank_hint(left) == lawvere_execution_rank_hint(right);
     ReorderabilityCertificateV0 {
         schema_version: "0",
         product: "omena-lawvere.reorderability-certificate",
@@ -351,21 +382,62 @@ pub fn reorderability_certificate_v0(
         right_pass_id: right.id(),
         theory_version: LAWVERE_THEORY_VERSION_V0,
         differential_tier: budget_tier_for_cluster_size(2),
-        commute_witness: if same_rank {
-            "sameExecutionRankCandidate"
-        } else {
-            "requiresSaturationEvidence"
-        },
-        specificity_preserved: same_rank,
-        computed_value_preserved: same_rank,
-        provenance_preserved: same_rank,
+        commute_witness: "requiresDifferentialCommutativityWitness",
+        differential_fixture_count: 0,
+        differential_equal_fixture_count: 0,
+        differential_mismatch_count: 0,
+        specificity_preserved: false,
+        computed_value_preserved: false,
+        provenance_preserved: false,
         cascade_safe_witness: format!(
             "{}:{}",
             cascade_safe_obligation(left),
             cascade_safe_obligation(right)
         ),
-        accepted: same_rank,
+        accepted: false,
     }
+}
+
+pub fn lawvere_differential_commutativity_witness_v0(
+    left: TransformPassKind,
+    right: TransformPassKind,
+    cases: Vec<LawvereDifferentialCommutativityCaseV0>,
+) -> LawvereDifferentialCommutativityWitnessV0 {
+    let fixture_count = cases.len();
+    let equal_fixture_count = cases.iter().filter(|case| case.equal_output).count();
+    let mismatch_count = fixture_count.saturating_sub(equal_fixture_count);
+
+    LawvereDifferentialCommutativityWitnessV0 {
+        schema_version: "0",
+        product: "omena-lawvere.differential-commutativity-witness",
+        layer_marker: "enriched-algebraic",
+        feature_gate: "lawvere-saturation",
+        theory_version: LAWVERE_THEORY_VERSION_V0,
+        left_pass_id: left.id(),
+        right_pass_id: right.id(),
+        fixture_count,
+        equal_fixture_count,
+        mismatch_count,
+        cases,
+        accepted: fixture_count > 0 && mismatch_count == 0,
+    }
+}
+
+pub fn reorderability_certificate_from_differential_v0(
+    left: TransformPassKind,
+    right: TransformPassKind,
+    witness: &LawvereDifferentialCommutativityWitnessV0,
+) -> ReorderabilityCertificateV0 {
+    let mut certificate = reorderability_certificate_v0(left, right);
+    certificate.commute_witness = "differentialCommutativityCorpus";
+    certificate.differential_fixture_count = witness.fixture_count;
+    certificate.differential_equal_fixture_count = witness.equal_fixture_count;
+    certificate.differential_mismatch_count = witness.mismatch_count;
+    certificate.specificity_preserved = witness.accepted;
+    certificate.computed_value_preserved = witness.accepted;
+    certificate.provenance_preserved = witness.accepted;
+    certificate.accepted = witness.accepted;
+    certificate
 }
 
 pub fn lawvere_differential_corpus_tiers_v0() -> Vec<LawvereDifferentialCorpusTierV0> {
@@ -568,5 +640,51 @@ mod tests {
         assert_eq!(execution.differential_fixture_count, 10);
         assert!(execution.original_unit_analysis_path_preserved);
         assert!(execution.accepted);
+    }
+
+    #[test]
+    fn rank_only_reorderability_certificate_requires_differential_witness() {
+        let certificate = reorderability_certificate_v0(
+            TransformPassKind::CommentStrip,
+            TransformPassKind::WhitespaceStrip,
+        );
+
+        assert_eq!(
+            certificate.commute_witness,
+            "requiresDifferentialCommutativityWitness"
+        );
+        assert_eq!(certificate.differential_fixture_count, 0);
+        assert!(!certificate.accepted);
+    }
+
+    #[test]
+    fn differential_reorderability_certificate_accepts_only_equal_output_corpus() {
+        let witness = lawvere_differential_commutativity_witness_v0(
+            TransformPassKind::CommentStrip,
+            TransformPassKind::WhitespaceStrip,
+            vec![LawvereDifferentialCommutativityCaseV0 {
+                label: "comment-whitespace".to_string(),
+                input_css: ".a { color : red ; /* x */ }".to_string(),
+                left_then_right_css: ".a{color:red}".to_string(),
+                right_then_left_css: ".a{color:red}".to_string(),
+                left_then_right_mutation_count: 2,
+                right_then_left_mutation_count: 2,
+                equal_output: true,
+            }],
+        );
+        let certificate = reorderability_certificate_from_differential_v0(
+            TransformPassKind::CommentStrip,
+            TransformPassKind::WhitespaceStrip,
+            &witness,
+        );
+
+        assert!(witness.accepted);
+        assert_eq!(
+            certificate.commute_witness,
+            "differentialCommutativityCorpus"
+        );
+        assert_eq!(certificate.differential_fixture_count, 1);
+        assert_eq!(certificate.differential_mismatch_count, 0);
+        assert!(certificate.accepted);
     }
 }

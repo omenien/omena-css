@@ -5,6 +5,7 @@ use super::{
 };
 #[cfg(feature = "lawvere-trace")]
 use super::{
+    evaluate_lawvere_reorderability_with_differential_corpus,
     execute_transform_passes_on_source_with_lawvere_trace,
     plan_transform_passes_parallel_lawvere_layers,
 };
@@ -133,6 +134,35 @@ fn lawvere_trace_path_preserves_existing_executor_signature_and_marks_terminal_p
     assert_eq!(trace.terminal_pass_ids, vec!["print-css"]);
     assert!(!parallel_plan.executor_consumes_plan);
     assert_eq!(parallel_plan.scheduler_status, "scaffoldOnly");
+}
+
+#[cfg(feature = "lawvere-trace")]
+#[test]
+fn lawvere_reorderability_uses_differential_commutativity_corpus() {
+    let (certificate, witness) = evaluate_lawvere_reorderability_with_differential_corpus(
+        TransformPassKind::CommentStrip,
+        TransformPassKind::WhitespaceStrip,
+        &[
+            r#".a { color : red ; /* remove */ content : "x y" ; }"#,
+            r#".b , .c { margin : 0px ; /* remove */ padding : 1px ; }"#,
+        ],
+    );
+
+    assert_eq!(
+        certificate.commute_witness,
+        "differentialCommutativityCorpus"
+    );
+    assert_eq!(witness.fixture_count, 2);
+    assert_eq!(witness.mismatch_count, 0);
+    assert_eq!(certificate.differential_equal_fixture_count, 2);
+    assert!(certificate.accepted);
+    assert!(witness.cases.iter().all(|case| case.equal_output));
+    assert!(
+        witness
+            .cases
+            .iter()
+            .all(|case| !case.left_then_right_css.contains("/*"))
+    );
 }
 
 #[test]

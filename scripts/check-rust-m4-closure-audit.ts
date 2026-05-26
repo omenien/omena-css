@@ -253,12 +253,18 @@ function buildTheoryClaimGuard(): {
     {
       id: "m4-beta.lawvere-reorderability-certificate",
       stage: "m4-beta",
-      status: "fixtureRecordOnly",
-      framing: "fixtureBound",
-      surface: "Lawvere reorderability certificate",
+      status: "partialPropertyTest",
+      framing: "partialMechanism",
+      surface: "Lawvere reorderability certificate with differential commutativity witness",
       evidencePath: "rust/crates/omena-lawvere/src/lib.rs",
-      evidenceMarkers: ["ReorderabilityCertificateV0", "reorderability_certificate_v0"],
-      nextAction: "promote beyond rank fixture evidence before final Lawvere semantics wording",
+      evidenceMarkers: [
+        "ReorderabilityCertificateV0",
+        "LawvereDifferentialCommutativityWitnessV0",
+        "reorderability_certificate_from_differential_v0",
+        "requiresDifferentialCommutativityWitness",
+        "differentialCommutativityCorpus",
+      ],
+      nextAction: "expand corpus coverage before final Lawvere semantics wording",
     },
     {
       id: "m4-beta.rg-flow-fixed-point",
@@ -469,6 +475,9 @@ function assertTheoryClaimGuard(guard: ReturnType<typeof buildTheoryClaimGuard>)
     assert.ok(guard.stages[stage].length >= 4, `${stage} must have explicit theory claim entries`);
   }
   for (const statusName of theoryClaimStatuses) {
+    if (statusName === "fixtureRecordOnly") {
+      continue;
+    }
     assert.ok(
       guard.summary[statusName] > 0,
       `theory claim ladder must contain at least one ${statusName} entry`,

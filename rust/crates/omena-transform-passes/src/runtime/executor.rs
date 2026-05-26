@@ -83,6 +83,47 @@ pub fn execute_transform_passes_on_source_with_lawvere_trace_and_dialect(
     (summary, trace)
 }
 
+#[cfg(feature = "lawvere-trace")]
+pub fn evaluate_lawvere_reorderability_with_differential_corpus(
+    left: TransformPassKind,
+    right: TransformPassKind,
+    fixtures: &[&str],
+) -> (
+    omena_lawvere::ReorderabilityCertificateV0,
+    omena_lawvere::LawvereDifferentialCommutativityWitnessV0,
+) {
+    let cases = fixtures
+        .iter()
+        .enumerate()
+        .map(|(index, source)| {
+            let left_first = execute_transform_passes_on_source(source, &[left]);
+            let left_then_right =
+                execute_transform_passes_on_source(&left_first.output_css, &[right]);
+            let right_first = execute_transform_passes_on_source(source, &[right]);
+            let right_then_left =
+                execute_transform_passes_on_source(&right_first.output_css, &[left]);
+            let left_then_right_mutation_count =
+                left_first.mutation_count + left_then_right.mutation_count;
+            let right_then_left_mutation_count =
+                right_first.mutation_count + right_then_left.mutation_count;
+
+            omena_lawvere::LawvereDifferentialCommutativityCaseV0 {
+                label: format!("fixture-{index}"),
+                input_css: (*source).to_string(),
+                left_then_right_css: left_then_right.output_css.clone(),
+                right_then_left_css: right_then_left.output_css.clone(),
+                left_then_right_mutation_count,
+                right_then_left_mutation_count,
+                equal_output: left_then_right.output_css == right_then_left.output_css,
+            }
+        })
+        .collect::<Vec<_>>();
+    let witness = omena_lawvere::lawvere_differential_commutativity_witness_v0(left, right, cases);
+    let certificate =
+        omena_lawvere::reorderability_certificate_from_differential_v0(left, right, &witness);
+    (certificate, witness)
+}
+
 pub fn execute_transform_passes_on_source_with_dialect_and_context(
     source: &str,
     dialect: StyleDialect,
