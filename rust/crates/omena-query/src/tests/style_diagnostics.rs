@@ -1,6 +1,7 @@
 use crate::{
-    OmenaQuerySourceDocumentInputV0, OmenaQueryStyleDiagnosticsForFileV0,
-    OmenaQueryStyleSourceInputV0, ParserPositionV0, ParserRangeV0,
+    OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQueryStyleDiagnosticsForFileV0, OmenaQueryStyleSourceInputV0, ParserPositionV0,
+    ParserRangeV0,
 };
 
 #[test]
@@ -752,6 +753,67 @@ fn style_diagnostics_external_sif_mode_reports_missing_sif_boundary() -> Result<
         vec![
             "External Sass module 'https://cdn.example/tokens.scss' is missing (topAny); generate or provide a SIF artifact, or use --external ignored.",
         ]
+    );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_external_sif_mode_resolves_symbols_from_sif_artifact()
+-> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; }"#
+            .to_string(),
+    }];
+    let sif = omena_sif::OmenaSifV1::from_static_exports(
+        "https://cdn.example/tokens.scss",
+        omena_sif::OmenaSifGeneratorV1 {
+            name: "fixture-sifgen".to_string(),
+            version: "0.1.0".to_string(),
+            toolchain_id: "fixture-sifgen@0.1.0".to_string(),
+        },
+        omena_sif::OmenaSifSourceV1 {
+            syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+        },
+        omena_sif::OmenaSifExportsV1 {
+            variables: vec![omena_sif::OmenaSifVariableExportV1 {
+                name: "$brand".to_string(),
+                defaulted: true,
+                value_repr: Some("red".to_string()),
+            }],
+            mixins: Vec::new(),
+            functions: Vec::new(),
+            placeholders: Vec::new(),
+            forwards: Vec::new(),
+        },
+        Vec::new(),
+        b"$brand: red !default;",
+    )
+    .map_err(|_| "sif fixture")?;
+    let external_sifs = vec![OmenaQueryExternalSifInputV0 {
+        canonical_url: "https://cdn.example/tokens.scss".to_string(),
+        sif,
+    }];
+
+    let diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+            external_sifs.as_slice(),
+        )
+        .ok_or("sif workspace diagnostics")?;
+
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingExternalSif"
+                && diagnostic.code != "missingSassSymbol")
     );
     Ok(())
 }

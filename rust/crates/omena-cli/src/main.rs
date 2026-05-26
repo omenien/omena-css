@@ -3,10 +3,11 @@ use clap::{Parser, Subcommand};
 use omena_query::summarize_omena_query_design_system_minimum_description;
 use omena_query::{
     OmenaQueryEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
-    OmenaQueryExternalModuleModeV0, OmenaQuerySourceDiagnosticsForFileV0,
-    OmenaQuerySourceDocumentInputV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
-    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
+    OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0,
+    OmenaQuerySourceDiagnosticsForFileV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQuerySourceMissingSelectorDiagnosticCandidateV0, OmenaQueryStylePackageManifestV0,
+    OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
+    OmenaQueryTransformExecutionContextV0, ParserPositionV0,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
@@ -19,13 +20,13 @@ use omena_query::{
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file,
-    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
 use omena_sif::{
     OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, generate_static_omena_sif_v1,
-    read_omena_lock_json_v1, summarize_omena_sif_provenance_advisory_v1,
+    read_omena_lock_json_v1, read_omena_sif_json_v1, summarize_omena_sif_provenance_advisory_v1,
     verify_omena_lock_frozen_v1, write_omena_sif_json_v1,
 };
 #[cfg(feature = "zk-audit")]
@@ -200,6 +201,9 @@ enum Command {
         /// package.json file used to resolve package style exports for workspace sources.
         #[arg(long = "package-manifest")]
         package_manifest_paths: Vec<PathBuf>,
+        /// SIF v1 artifact used to resolve opt-in external Sass modules.
+        #[arg(long = "sif")]
+        sif_paths: Vec<PathBuf>,
         /// External Sass module mode: ignored preserves compatibility, sif reports missing SIF boundaries.
         #[arg(long, default_value = "ignored")]
         external: String,
@@ -498,6 +502,7 @@ fn run(cli: Cli) -> Result<(), String> {
             source_paths,
             source_document_paths,
             package_manifest_paths,
+            sif_paths,
             external,
             json,
         } => style_diagnostics(
@@ -505,6 +510,7 @@ fn run(cli: Cli) -> Result<(), String> {
             source_paths,
             source_document_paths,
             package_manifest_paths,
+            sif_paths,
             external,
             json,
         ),
@@ -1273,6 +1279,7 @@ fn style_diagnostics(
     source_paths: Vec<PathBuf>,
     source_document_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
+    sif_paths: Vec<PathBuf>,
     external: String,
     json: bool,
 ) -> Result<(), String> {
@@ -1298,13 +1305,15 @@ fn style_diagnostics(
     } else {
         let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
         let source_documents = read_source_documents(&source_document_paths)?;
-        summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode(
+        let external_sifs = read_external_sifs(&sif_paths)?;
+        summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
             &style_path,
             workspace_sources.as_slice(),
             source_documents.as_slice(),
             package_manifests.as_slice(),
             None,
             parse_external_module_mode(&external)?,
+            external_sifs.as_slice(),
         )
         .ok_or_else(|| format!("failed to read workspace style diagnostics for {style_path}"))?
     };
@@ -1320,6 +1329,21 @@ fn style_diagnostics(
         println!("{}\t{}", diagnostic.code, diagnostic.message);
     }
     Ok(())
+}
+
+fn read_external_sifs(paths: &[PathBuf]) -> Result<Vec<OmenaQueryExternalSifInputV0>, String> {
+    paths
+        .iter()
+        .map(|path| {
+            let sif_json = read_source(path)?;
+            let sif = read_omena_sif_json_v1(&sif_json)
+                .map_err(|error| format!("failed to parse SIF {}: {error}", path_string(path)))?;
+            Ok(OmenaQueryExternalSifInputV0 {
+                canonical_url: sif.canonical_url.clone(),
+                sif,
+            })
+        })
+        .collect()
 }
 
 fn parse_external_module_mode(external: &str) -> Result<OmenaQueryExternalModuleModeV0, String> {
@@ -1760,6 +1784,7 @@ mod tests {
                 source_paths: Vec::new(),
                 source_document_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
+                sif_paths: Vec::new(),
                 external: "ignored".to_string(),
                 json: true,
             },
@@ -1777,7 +1802,7 @@ mod tests {
         fs::write(
             &source_path,
             r#"@use "https://cdn.example/tokens.scss" as remote;
-.button { color: remote.$brand; }"#,
+.button { color: remote.$color; }"#,
         )
         .map_err(|error| format!("fixture source should be writable: {error}"))?;
 
@@ -1787,6 +1812,7 @@ mod tests {
                 source_paths: vec![source_path.clone()],
                 source_document_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
+                sif_paths: Vec::new(),
                 external: "sif".to_string(),
                 json: true,
             },
@@ -1794,6 +1820,42 @@ mod tests {
 
         assert!(result.is_ok(), "{result:?}");
         cleanup(&source_path);
+        Ok(())
+    }
+
+    #[test]
+    fn style_diagnostics_command_reads_external_sif_artifact() -> Result<(), String> {
+        let source_path = temp_path("external-sif-resolved.module.scss");
+        let sif_path = temp_path("external-sif-resolved.sif.json");
+        fs::write(
+            &source_path,
+            r#"@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$color; }"#,
+        )
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+        let sif = cli_fixture_sif("https://cdn.example/tokens.scss", b"$color: red !default;")?;
+        fs::write(
+            &sif_path,
+            omena_sif::write_omena_sif_json_v1(&sif)
+                .map_err(|error| format!("fixture SIF should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture SIF should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::StyleDiagnostics {
+                path: source_path.clone(),
+                source_paths: vec![source_path.clone()],
+                source_document_paths: Vec::new(),
+                package_manifest_paths: Vec::new(),
+                sif_paths: vec![sif_path.clone()],
+                external: "sif".to_string(),
+                json: true,
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+        cleanup(&source_path);
+        cleanup(&sif_path);
         Ok(())
     }
 

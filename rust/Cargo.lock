@@ -1061,6 +1061,7 @@ dependencies = [
  "omena-parser",
  "omena-resolver",
  "omena-semantic",
+ "omena-sif",
  "omena-syntax",
  "omena-transform-bundle",
  "omena-transform-cst",

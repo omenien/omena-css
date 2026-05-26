@@ -1,4 +1,5 @@
 use super::*;
+use omena_sif::OmenaSifV1;
 
 pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION: &str = "0";
 pub const OMENA_QUERY_CURRENT_SCHEMA_VERSION_LABEL: &str = "V0";
@@ -715,6 +716,13 @@ pub struct OmenaQuerySemanticReachabilitySourceV0 {
 pub struct OmenaQueryStyleSourceInputV0 {
     pub style_path: String,
     pub style_source: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryExternalSifInputV0 {
+    pub canonical_url: String,
+    pub sif: OmenaSifV1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]

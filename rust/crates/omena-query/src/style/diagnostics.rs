@@ -272,6 +272,20 @@ pub fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs(
+        target_style_path,
+        style_sources,
+        package_manifests,
+        &[],
+    )
+}
+
+fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let Some(target) = style_sources
         .iter()
         .find(|source| source.style_path == target_style_path)
@@ -289,8 +303,12 @@ pub fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace(
         .collect::<BTreeMap<_, _>>();
     let resolution =
         summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
-    let visible_symbols =
-        collect_visible_sass_symbol_keys(target_style_path, &facts_by_path, &resolution);
+    let visible_symbols = collect_visible_sass_symbol_keys(
+        target_style_path,
+        &facts_by_path,
+        &resolution,
+        external_sifs,
+    );
     let facts = collect_omena_query_omena_parser_style_facts_raw(
         target.style_source.as_str(),
         omena_parser_dialect_for_style_path(target_style_path),
@@ -417,6 +435,26 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     classname_transform: Option<&str>,
     external_mode: OmenaQueryExternalModuleModeV0,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+        target_style_path,
+        style_sources,
+        source_documents,
+        package_manifests,
+        classname_transform,
+        external_mode,
+        &[],
+    )
+}
+
+pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
+    external_mode: OmenaQueryExternalModuleModeV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target = style_sources
         .iter()
         .find(|source| source.style_path == target_style_path)?;
@@ -431,10 +469,11 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         .diagnostics
         .retain(|diagnostic| diagnostic.code != "missingSassSymbol");
     summary.diagnostics.extend(
-        summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace(
+        summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs(
             target_style_path,
             style_sources,
             package_manifests,
+            external_sifs,
         ),
     );
     summary.diagnostics.extend(
@@ -475,6 +514,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
                 target_style_path,
                 style_sources,
                 package_manifests,
+                external_sifs,
             );
         summary.diagnostics.retain(|diagnostic| {
             diagnostic.code != "missingSassSymbol"
@@ -486,6 +526,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
                 target_style_path,
                 style_sources,
                 package_manifests,
+                external_sifs,
             ));
         push_omena_query_ready_surface(
             &mut summary.ready_surfaces,
@@ -501,6 +542,7 @@ fn collect_omena_query_external_top_any_sass_symbol_ranges(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    external_sifs: &[OmenaQueryExternalSifInputV0],
 ) -> BTreeSet<ParserRangeV0> {
     let Some(target) = style_sources
         .iter()
@@ -520,6 +562,7 @@ fn collect_omena_query_external_top_any_sass_symbol_ranges(
         .iter()
         .filter(|edge| edge.from_style_path == target_style_path)
         .filter(|edge| edge.status == "external")
+        .filter(|edge| find_omena_query_external_sif(edge.source.as_str(), external_sifs).is_none())
         .filter_map(|edge| match edge.edge_kind {
             "sassUse"
                 if edge.namespace_kind == Some("default")
@@ -563,6 +606,7 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
+    external_sifs: &[OmenaQueryExternalSifInputV0],
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let Some(target) = style_sources
         .iter()
@@ -582,6 +626,7 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
         .iter()
         .filter(|edge| edge.from_style_path == target_style_path)
         .filter(|edge| edge.status == "external")
+        .filter(|edge| find_omena_query_external_sif(edge.source.as_str(), external_sifs).is_none())
         .map(|edge| edge.source.as_str())
         .collect::<BTreeSet<_>>();
     if external_sources.is_empty() {
@@ -646,6 +691,7 @@ fn collect_visible_sass_symbol_keys(
     target_style_path: &str,
     facts_by_path: &BTreeMap<&str, &OmenaQueryOmenaParserStyleFactsV0>,
     resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
 ) -> BTreeSet<SassSymbolKey> {
     let mut visible = BTreeSet::new();
     if let Some(facts) = facts_by_path.get(target_style_path) {
@@ -672,9 +718,14 @@ fn collect_visible_sass_symbol_keys(
                         path,
                         facts_by_path,
                         resolution,
+                        external_sifs,
                         &mut visiting,
                     )
                 })
+                .unwrap_or_default()
+        } else if edge.status == "external" {
+            find_omena_query_external_sif(edge.source.as_str(), external_sifs)
+                .map(|sif| collect_sif_exported_sass_symbol_keys(&sif.sif))
                 .unwrap_or_default()
         } else {
             BTreeSet::new()
@@ -716,6 +767,7 @@ fn collect_exported_sass_symbol_keys(
     style_path: &str,
     facts_by_path: &BTreeMap<&str, &OmenaQueryOmenaParserStyleFactsV0>,
     resolution: &OmenaQuerySassModuleCrossFileResolutionV0,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
     visiting: &mut BTreeSet<String>,
 ) -> BTreeSet<(&'static str, String)> {
     if !visiting.insert(style_path.to_string()) {
@@ -740,8 +792,18 @@ fn collect_exported_sass_symbol_keys(
                 edge.resolved_style_path
                     .as_deref()
                     .map(|path| {
-                        collect_exported_sass_symbol_keys(path, facts_by_path, resolution, visiting)
+                        collect_exported_sass_symbol_keys(
+                            path,
+                            facts_by_path,
+                            resolution,
+                            external_sifs,
+                            visiting,
+                        )
                     })
+                    .unwrap_or_default()
+            } else if edge.status == "external" {
+                find_omena_query_external_sif(edge.source.as_str(), external_sifs)
+                    .map(|sif| collect_sif_exported_sass_symbol_keys(&sif.sif))
                     .unwrap_or_default()
             } else {
                 BTreeSet::new()
@@ -773,6 +835,40 @@ fn own_sass_symbol_declaration_keys(
         .filter(|fact| is_omena_query_sass_symbol_declaration_kind(fact.kind))
         .map(|fact| (fact.symbol_kind, fact.name.clone()))
         .collect()
+}
+
+fn collect_sif_exported_sass_symbol_keys(
+    sif: &omena_sif::OmenaSifV1,
+) -> BTreeSet<(&'static str, String)> {
+    let mut exported = BTreeSet::new();
+    exported.extend(sif.exports.variables.iter().map(|variable| {
+        (
+            "variable",
+            variable.name.trim_start_matches('$').to_string(),
+        )
+    }));
+    exported.extend(
+        sif.exports
+            .mixins
+            .iter()
+            .map(|mixin| ("mixin", mixin.name.clone())),
+    );
+    exported.extend(
+        sif.exports
+            .functions
+            .iter()
+            .map(|function| ("function", function.name.clone())),
+    );
+    exported
+}
+
+fn find_omena_query_external_sif<'a>(
+    canonical_url: &str,
+    external_sifs: &'a [OmenaQueryExternalSifInputV0],
+) -> Option<&'a OmenaQueryExternalSifInputV0> {
+    external_sifs.iter().find(|input| {
+        input.canonical_url == canonical_url || input.sif.canonical_url == canonical_url
+    })
 }
 
 fn sass_forward_visibility_allows(
