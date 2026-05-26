@@ -60,6 +60,9 @@ for (const marker of [
   "categorical_fixture_evidence_for_endpoint_v0",
   "endpoint_count: endpoints.len()",
   "fixture_evidence",
+  "functor_applications",
+  "apply_cascade_primitive_role_functor_v0",
+  "primitive-role-composition-preservation",
   fixtureId,
 ]) {
   if (!categoricalSource.includes(marker)) {

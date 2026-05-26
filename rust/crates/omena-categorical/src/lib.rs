@@ -7,6 +7,7 @@ pub mod beck_chevalley;
 pub mod colimit;
 pub mod cosheaf;
 pub mod design_system_theory;
+pub mod functor;
 pub mod kripke;
 pub mod modal;
 pub mod omega;
@@ -17,6 +18,7 @@ pub use beck_chevalley::*;
 pub use colimit::*;
 pub use cosheaf::*;
 pub use design_system_theory::*;
+pub use functor::*;
 pub use kripke::*;
 pub use modal::*;
 pub use omega::*;
@@ -77,8 +79,8 @@ pub struct CategoricalFixtureAssertionV0 {
     pub feature_gate: &'static str,
     pub assertion_id: &'static str,
     pub contract_product: &'static str,
-    pub observed: &'static str,
-    pub expected: &'static str,
+    pub observed: String,
+    pub expected: String,
     pub accepted: bool,
 }
 
@@ -110,6 +112,7 @@ pub struct CategoricalCascadeEvidenceV0 {
     pub endpoint_count: usize,
     pub endpoints: Vec<CategoricalEvidenceEndpointV0>,
     pub fixture_evidence: Vec<CategoricalEndpointFixtureEvidenceV0>,
+    pub functor_applications: Vec<CascadeFunctorApplicationV0>,
     pub cascade_primitive_roles: Vec<CascadePrimitiveRoleV0>,
     pub default_feature_enabled: bool,
 }
@@ -211,6 +214,7 @@ pub fn categorical_cascade_evidence_v0(
     source_product: &'static str,
 ) -> CategoricalCascadeEvidenceV0 {
     let endpoints = categorical_evidence_endpoints_v0();
+    let cascade_primitive_roles = cascade_primitive_roles_v0();
     let fixture_evidence = endpoints
         .iter()
         .filter_map(|endpoint| categorical_fixture_evidence_for_endpoint_v0(endpoint.endpoint_id))
@@ -224,7 +228,10 @@ pub fn categorical_cascade_evidence_v0(
         endpoint_count: endpoints.len(),
         endpoints,
         fixture_evidence,
-        cascade_primitive_roles: cascade_primitive_roles_v0(),
+        functor_applications: vec![apply_cascade_primitive_role_functor_v0(
+            &cascade_primitive_roles,
+        )],
+        cascade_primitive_roles,
         default_feature_enabled: false,
     }
 }
@@ -401,30 +408,9 @@ pub fn categorical_fixture_evidence_for_endpoint_v0(
                 ),
             ],
         )),
-        "rust/omena-categorical/verify-invariant-functoriality" => Some(endpoint_fixture_v0(
-            endpoint_id,
-            "fixture.categorical.invariant-functoriality.v0",
-            "invariant functoriality",
-            "omena-categorical.design-system-theory",
-            &[
-                "omena-categorical.design-system-theory",
-                "omena-categorical.design-system-invariant-summary",
-            ],
-            &[
-                (
-                    "shorthand-equivalence-invariant",
-                    "omena-categorical.design-system-invariant-summary",
-                    "accepted=true",
-                    "accepted=true",
-                ),
-                (
-                    "scope-stratification-invariant",
-                    "omena-categorical.design-system-invariant-summary",
-                    "accepted=true",
-                    "accepted=true",
-                ),
-            ],
-        )),
+        "rust/omena-categorical/verify-invariant-functoriality" => {
+            Some(invariant_functoriality_fixture_v0(endpoint_id))
+        }
         "rust/omena-categorical/compare-design-system-theory" => Some(endpoint_fixture_v0(
             endpoint_id,
             "fixture.categorical.design-system-theory-compare.v0",
@@ -520,12 +506,88 @@ fn endpoint_fixture_v0(
                 feature_gate: CATEGORICAL_FEATURE_GATE_V0,
                 assertion_id,
                 contract_product,
-                observed,
-                expected,
+                observed: observed.to_string(),
+                expected: expected.to_string(),
                 accepted: observed == expected,
             },
         )
         .collect::<Vec<_>>();
+    endpoint_fixture_from_assertions_v0(
+        endpoint_id,
+        fixture_id,
+        fixture_focus,
+        evidence_product,
+        exercised_contract_products,
+        assertions,
+    )
+}
+
+fn invariant_functoriality_fixture_v0(
+    endpoint_id: &'static str,
+) -> CategoricalEndpointFixtureEvidenceV0 {
+    let functor = apply_cascade_primitive_role_functor_v0(&cascade_primitive_roles_v0());
+    let assertions = vec![
+        fixture_assertion_v0(
+            "primitive-role-identity-preservation",
+            "omena-categorical.cascade-primitive-role-functor",
+            functor.identity_preserved.to_string(),
+            "true",
+        ),
+        fixture_assertion_v0(
+            "primitive-role-composition-preservation",
+            "omena-categorical.cascade-primitive-role-functor",
+            functor.composition_preserved.to_string(),
+            "true",
+        ),
+        fixture_assertion_v0(
+            "primitive-role-morphism-mapping-count",
+            "omena-categorical.cascade-primitive-role-functor",
+            functor.morphism_mapping_count.to_string(),
+            "4",
+        ),
+    ];
+    endpoint_fixture_from_assertions_v0(
+        endpoint_id,
+        "fixture.categorical.invariant-functoriality.v0",
+        "invariant functoriality",
+        "omena-categorical.design-system-theory",
+        &[
+            "omena-categorical.design-system-theory",
+            "omena-categorical.design-system-invariant-summary",
+            "omena-categorical.cascade-primitive-role-functor",
+        ],
+        assertions,
+    )
+}
+
+fn fixture_assertion_v0(
+    assertion_id: &'static str,
+    contract_product: &'static str,
+    observed: String,
+    expected: &'static str,
+) -> CategoricalFixtureAssertionV0 {
+    let accepted = observed == expected;
+    CategoricalFixtureAssertionV0 {
+        schema_version: CATEGORICAL_SCHEMA_VERSION_V0,
+        product: "omena-categorical.fixture-assertion",
+        layer_marker: CATEGORICAL_LAYER_MARKER_V0,
+        feature_gate: CATEGORICAL_FEATURE_GATE_V0,
+        assertion_id,
+        contract_product,
+        observed,
+        expected: expected.to_string(),
+        accepted,
+    }
+}
+
+fn endpoint_fixture_from_assertions_v0(
+    endpoint_id: &'static str,
+    fixture_id: &'static str,
+    fixture_focus: &'static str,
+    evidence_product: &'static str,
+    exercised_contract_products: &'static [&'static str],
+    assertions: Vec<CategoricalFixtureAssertionV0>,
+) -> CategoricalEndpointFixtureEvidenceV0 {
     let accepted = !exercised_contract_products.is_empty()
         && !assertions.is_empty()
         && assertions.iter().all(|assertion| assertion.accepted);
@@ -633,6 +695,8 @@ mod tests {
         assert_eq!(evidence.schema_version, "0");
         assert_eq!(evidence.endpoint_count, 10);
         assert_eq!(evidence.fixture_evidence.len(), 10);
+        assert_eq!(evidence.functor_applications.len(), 1);
+        assert!(evidence.functor_applications[0].accepted);
         assert!(
             evidence
                 .fixture_evidence
@@ -691,5 +755,43 @@ mod tests {
         if let Some(modal) = modal {
             assert!(modal.assertion_count >= 2);
         }
+    }
+
+    #[test]
+    fn cascade_primitive_role_functor_checks_identity_and_composition() {
+        let roles = cascade_primitive_roles_v0();
+        let functor = apply_cascade_primitive_role_functor_v0(&roles);
+        assert_eq!(functor.object_mapping_count, roles.len());
+        assert_eq!(functor.morphism_mapping_count, roles.len() - 1);
+        assert!(functor.identity_preserved);
+        assert!(functor.composition_preserved);
+        assert!(functor.accepted);
+
+        let truncated_functor = apply_cascade_primitive_role_functor_v0(&roles[..1]);
+        assert!(truncated_functor.identity_preserved);
+        assert!(!truncated_functor.composition_preserved);
+        assert!(!truncated_functor.accepted);
+    }
+
+    #[test]
+    fn invariant_functoriality_fixture_is_computed_not_literal_only() {
+        let fixture = categorical_fixture_evidence_for_endpoint_v0(
+            "rust/omena-categorical/verify-invariant-functoriality",
+        );
+        assert!(fixture.is_some());
+        let Some(fixture) = fixture else {
+            return;
+        };
+        assert!(fixture.accepted);
+        assert!(
+            fixture
+                .exercised_contract_products
+                .contains(&"omena-categorical.cascade-primitive-role-functor")
+        );
+        assert!(fixture.assertions.iter().any(|assertion| {
+            assertion.assertion_id == "primitive-role-composition-preservation"
+                && assertion.contract_product == "omena-categorical.cascade-primitive-role-functor"
+                && assertion.accepted
+        }));
     }
 }

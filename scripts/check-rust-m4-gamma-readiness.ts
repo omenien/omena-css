@@ -220,6 +220,21 @@ assertIncludes(
 );
 assertIncludes(
   categorical,
+  "CascadeFunctorApplicationV0",
+  "omena-categorical must expose real functor application evidence",
+);
+assertIncludes(
+  categorical,
+  "apply_cascade_primitive_role_functor_v0",
+  "omena-categorical must compute primitive-to-role functor evidence",
+);
+assertIncludes(
+  categorical,
+  "primitive-role-composition-preservation",
+  "omena-categorical must replace invariant functoriality tautology with computed composition evidence",
+);
+assertIncludes(
+  categorical,
   "fixture_evidence",
   "categorical cascade evidence must include endpoint fixture evidence",
 );
