@@ -12,6 +12,12 @@ use super::*;
 const LSP_DIAGNOSTIC_TAG_UNNECESSARY: u8 = 1;
 const LSP_DIAGNOSTIC_TAG_DEPRECATED: u8 = 2;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OmenaQueryExternalModuleModeV0 {
+    Ignored,
+    Sif,
+}
+
 pub fn summarize_omena_query_missing_custom_property_diagnostics(
     style_uri: &str,
     source: &str,
@@ -390,6 +396,24 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file(
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     classname_transform: Option<&str>,
 ) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode(
+        target_style_path,
+        style_sources,
+        source_documents,
+        package_manifests,
+        classname_transform,
+        OmenaQueryExternalModuleModeV0::Ignored,
+    )
+}
+
+pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    classname_transform: Option<&str>,
+    external_mode: OmenaQueryExternalModuleModeV0,
+) -> Option<OmenaQueryStyleDiagnosticsForFileV0> {
     let target = style_sources
         .iter()
         .find(|source| source.style_path == target_style_path)?;
@@ -442,7 +466,166 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file(
         &mut summary.ready_surfaces,
         "graphAwareSassSymbolDiagnostics",
     );
+    if external_mode == OmenaQueryExternalModuleModeV0::Sif {
+        let top_any_external_symbol_ranges =
+            collect_omena_query_external_top_any_sass_symbol_ranges(
+                target_style_path,
+                style_sources,
+                package_manifests,
+            );
+        summary.diagnostics.retain(|diagnostic| {
+            diagnostic.code != "missingSassSymbol"
+                || !top_any_external_symbol_ranges.contains(&diagnostic.range)
+        });
+        summary
+            .diagnostics
+            .extend(summarize_omena_query_external_sif_boundary_diagnostics(
+                target_style_path,
+                style_sources,
+                package_manifests,
+            ));
+        push_omena_query_ready_surface(
+            &mut summary.ready_surfaces,
+            "externalSifBoundaryDiagnostics",
+        );
+    }
+    summary.diagnostic_count = summary.diagnostics.len();
     Some(summary)
+}
+
+fn collect_omena_query_external_top_any_sass_symbol_ranges(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> BTreeSet<ParserRangeV0> {
+    let Some(target) = style_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)
+    else {
+        return BTreeSet::new();
+    };
+    let style_source_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    let resolution =
+        summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+    let top_any_namespaces = resolution
+        .edges
+        .iter()
+        .filter(|edge| edge.from_style_path == target_style_path)
+        .filter(|edge| edge.status == "external")
+        .filter_map(|edge| match edge.edge_kind {
+            "sassUse"
+                if edge.namespace_kind == Some("default")
+                    || edge.namespace_kind == Some("alias") =>
+            {
+                edge.namespace.clone().map(Some)
+            }
+            "sassUse" if edge.namespace_kind == Some("wildcard") => Some(None),
+            "sassImport" => Some(None),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    if top_any_namespaces.is_empty() {
+        return BTreeSet::new();
+    }
+
+    let facts = collect_omena_query_omena_parser_style_facts_raw(
+        target.style_source.as_str(),
+        omena_parser_dialect_for_style_path(target_style_path),
+    );
+    facts
+        .sass_symbols
+        .into_iter()
+        .filter(|symbol| omena_query_sass_symbol_fact_kind_is_reference(symbol.kind))
+        .filter(|symbol| top_any_namespaces.contains(&symbol.namespace))
+        .map(|symbol| {
+            let start: u32 = symbol.range.start().into();
+            let end: u32 = symbol.range.end().into();
+            parser_range_for_byte_span(
+                target.style_source.as_str(),
+                ParserByteSpanV0 {
+                    start: start as usize,
+                    end: end as usize,
+                },
+            )
+        })
+        .collect()
+}
+
+fn summarize_omena_query_external_sif_boundary_diagnostics(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let Some(target) = style_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)
+    else {
+        return Vec::new();
+    };
+    let style_source_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    let resolution =
+        summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+    let external_sources = resolution
+        .edges
+        .iter()
+        .filter(|edge| edge.from_style_path == target_style_path)
+        .filter(|edge| edge.status == "external")
+        .map(|edge| edge.source.as_str())
+        .collect::<BTreeSet<_>>();
+    if external_sources.is_empty() {
+        return Vec::new();
+    }
+
+    let facts = collect_omena_query_omena_parser_style_facts_raw(
+        target.style_source.as_str(),
+        omena_parser_dialect_for_style_path(target_style_path),
+    );
+    let mut emitted = BTreeSet::new();
+    facts
+        .sass_module_edges
+        .into_iter()
+        .filter(|edge| external_sources.contains(edge.source.as_str()))
+        .filter_map(|edge| {
+            if !emitted.insert((edge.kind, edge.source.clone())) {
+                return None;
+            }
+            let state = OmenaResolverBoundaryStateV0::missing(
+                None,
+                "SIF mode requires a local SIF artifact for this external Sass module",
+            );
+            let start: u32 = edge.range.start().into();
+            let end: u32 = edge.range.end().into();
+            Some(OmenaQueryStyleDiagnosticV0 {
+                code: "missingExternalSif",
+                severity: "warning",
+                provenance: vec![
+                    "omena-resolver.boundary-state",
+                    "omena-query.external-sif-boundary-diagnostics",
+                ],
+                range: parser_range_for_byte_span(
+                    target.style_source.as_str(),
+                    ParserByteSpanV0 {
+                        start: start as usize,
+                        end: end as usize,
+                    },
+                ),
+                message: format!(
+                    "External Sass module '{}' is {} ({}); generate or provide a SIF artifact, or use --external ignored.",
+                    edge.source, state.state_name, state.top_name
+                ),
+                tags: Vec::new(),
+                create_custom_property: None,
+            })
+        })
+        .collect()
 }
 
 type SassSymbolKey = (&'static str, Option<String>, String);

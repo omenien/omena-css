@@ -51,10 +51,10 @@ pub use omena_parser::{
     StyleLanguage,
 };
 use omena_resolver::{
-    OmenaResolverSourceResolutionRuntimeIndexV0, OmenaResolverStylePackageManifestV0,
-    canonicalize_omena_resolver_style_identity_path, resolve_omena_resolver_style_module_source,
-    summarize_omena_resolver_canonical_producer_signal, summarize_omena_resolver_query_fragments,
-    summarize_omena_resolver_source_resolution_runtime,
+    OmenaResolverBoundaryStateV0, OmenaResolverSourceResolutionRuntimeIndexV0,
+    OmenaResolverStylePackageManifestV0, canonicalize_omena_resolver_style_identity_path,
+    resolve_omena_resolver_style_module_source, summarize_omena_resolver_canonical_producer_signal,
+    summarize_omena_resolver_query_fragments, summarize_omena_resolver_source_resolution_runtime,
     summarize_omena_resolver_style_module_resolution,
 };
 use omena_semantic::StyleContextIndexV0;

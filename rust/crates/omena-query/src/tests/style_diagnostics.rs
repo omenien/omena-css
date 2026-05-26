@@ -241,7 +241,8 @@ fn cascade_aware_lints_do_not_compare_across_conditional_contexts() -> Result<()
 }
 
 #[test]
-fn cascade_aware_lints_do_not_compare_nested_ampersand_across_parent_contexts() {
+fn cascade_aware_lints_do_not_compare_nested_ampersand_across_parent_contexts()
+-> Result<(), &'static str> {
     let source = r#"
 .article {
   &.box {
@@ -252,14 +253,16 @@ fn cascade_aware_lints_do_not_compare_nested_ampersand_across_parent_contexts() 
   }
 }
 "#;
-    let diagnostic_codes = cascade_diagnostic_code_set(source);
+    let diagnostic_codes = cascade_diagnostic_code_set(source)?;
 
     assert!(!diagnostic_codes.contains("unreachableDeclaration"));
     assert!(!diagnostic_codes.contains("unspecifiedCascadeTie"));
+    Ok(())
 }
 
 #[test]
-fn cascade_aware_lints_still_compare_duplicate_declarations_inside_same_nested_context() {
+fn cascade_aware_lints_still_compare_duplicate_declarations_inside_same_nested_context()
+-> Result<(), &'static str> {
     let source = r#"
 .article {
   &.box {
@@ -270,14 +273,16 @@ fn cascade_aware_lints_still_compare_duplicate_declarations_inside_same_nested_c
   }
 }
 "#;
-    let diagnostic_codes = cascade_diagnostic_code_set(source);
+    let diagnostic_codes = cascade_diagnostic_code_set(source)?;
 
     assert!(diagnostic_codes.contains("unreachableDeclaration"));
     assert!(diagnostic_codes.contains("unspecifiedCascadeTie"));
+    Ok(())
 }
 
 #[test]
-fn cascade_aware_lints_preserve_flatten_invariance_for_nested_ampersand() {
+fn cascade_aware_lints_preserve_flatten_invariance_for_nested_ampersand() -> Result<(), &'static str>
+{
     let nested = r#"
 .article {
   &.box {
@@ -296,9 +301,10 @@ fn cascade_aware_lints_preserve_flatten_invariance_for_nested_ampersand() {
 "#;
 
     assert_eq!(
-        cascade_diagnostic_code_set(nested),
-        cascade_diagnostic_code_set(flat)
+        cascade_diagnostic_code_set(nested)?,
+        cascade_diagnostic_code_set(flat)?
     );
+    Ok(())
 }
 
 #[test]
@@ -336,17 +342,19 @@ fn cascade_aware_lints_run_without_custom_property_declarations() -> Result<(), 
     Ok(())
 }
 
-fn cascade_diagnostic_code_set(source: &str) -> std::collections::BTreeSet<&'static str> {
+fn cascade_diagnostic_code_set(
+    source: &str,
+) -> Result<std::collections::BTreeSet<&'static str>, &'static str> {
     let candidates =
         crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
-            .expect("style candidates");
+            .ok_or("style candidates")?;
     let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
         "file:///workspace/src/Component.module.scss",
         source,
         candidates.candidates.as_slice(),
     );
 
-    diagnostics
+    Ok(diagnostics
         .diagnostics
         .iter()
         .filter_map(|diagnostic| match diagnostic.code {
@@ -357,7 +365,7 @@ fn cascade_diagnostic_code_set(source: &str) -> std::collections::BTreeSet<&'sta
             | "unspecifiedCascadeTie" => Some(diagnostic.code),
             _ => None,
         })
-        .collect()
+        .collect())
 }
 
 #[test]
@@ -576,6 +584,67 @@ fn style_diagnostics_for_workspace_file_resolve_sass_module_graph_symbols()
         .filter(|diagnostic| diagnostic.code == "deprecatedSassImport")
         .collect::<Vec<_>>();
     assert_eq!(import_hints.len(), 1);
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_external_sif_mode_reports_missing_sif_boundary() -> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; }"#
+            .to_string(),
+    }];
+
+    let ignored_diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/tmp/App.module.scss",
+        sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("ignored workspace diagnostics")?;
+    assert!(
+        ignored_diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingExternalSif")
+    );
+
+    let sif_diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+        )
+        .ok_or("sif workspace diagnostics")?;
+
+    assert!(
+        sif_diagnostics
+            .ready_surfaces
+            .contains(&"externalSifBoundaryDiagnostics")
+    );
+    assert!(
+        sif_diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingSassSymbol")
+    );
+    let boundary_messages = sif_diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingExternalSif")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        boundary_messages,
+        vec![
+            "External Sass module 'https://cdn.example/tokens.scss' is missing (topAny); generate or provide a SIF artifact, or use --external ignored.",
+        ]
+    );
     Ok(())
 }
 

@@ -3,10 +3,10 @@ use clap::{Parser, Subcommand};
 use omena_query::summarize_omena_query_design_system_minimum_description;
 use omena_query::{
     OmenaQueryEngineInputV2, OmenaQueryExpressionDomainFlowRuntimeV0,
-    OmenaQuerySourceDiagnosticsForFileV0, OmenaQuerySourceDocumentInputV0,
-    OmenaQuerySourceMissingSelectorDiagnosticCandidateV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleSourceInputV0, OmenaQueryTargetTransformOptionsV0,
-    OmenaQueryTransformExecutionContextV0, ParserPositionV0,
+    OmenaQueryExternalModuleModeV0, OmenaQuerySourceDiagnosticsForFileV0,
+    OmenaQuerySourceDocumentInputV0, OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
     execute_omena_query_consumer_build_style_source_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_source_with_context,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
@@ -19,7 +19,7 @@ use omena_query::{
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file,
-    summarize_omena_query_style_diagnostics_for_workspace_file,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
@@ -199,6 +199,9 @@ enum Command {
         /// package.json file used to resolve package style exports for workspace sources.
         #[arg(long = "package-manifest")]
         package_manifest_paths: Vec<PathBuf>,
+        /// External Sass module mode: ignored preserves compatibility, sif reports missing SIF boundaries.
+        #[arg(long, default_value = "ignored")]
+        external: String,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -476,12 +479,14 @@ fn run(cli: Cli) -> Result<(), String> {
             source_paths,
             source_document_paths,
             package_manifest_paths,
+            external,
             json,
         } => style_diagnostics(
             path,
             source_paths,
             source_document_paths,
             package_manifest_paths,
+            external,
             json,
         ),
         Command::StyleHoverCandidates { path, json } => style_hover_candidates(path, json),
@@ -1211,6 +1216,7 @@ fn style_diagnostics(
     source_paths: Vec<PathBuf>,
     source_document_paths: Vec<PathBuf>,
     package_manifest_paths: Vec<PathBuf>,
+    external: String,
     json: bool,
 ) -> Result<(), String> {
     let source = read_source(&path)?;
@@ -1235,12 +1241,13 @@ fn style_diagnostics(
     } else {
         let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
         let source_documents = read_source_documents(&source_document_paths)?;
-        summarize_omena_query_style_diagnostics_for_workspace_file(
+        summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode(
             &style_path,
             workspace_sources.as_slice(),
             source_documents.as_slice(),
             package_manifests.as_slice(),
             None,
+            parse_external_module_mode(&external)?,
         )
         .ok_or_else(|| format!("failed to read workspace style diagnostics for {style_path}"))?
     };
@@ -1256,6 +1263,16 @@ fn style_diagnostics(
         println!("{}\t{}", diagnostic.code, diagnostic.message);
     }
     Ok(())
+}
+
+fn parse_external_module_mode(external: &str) -> Result<OmenaQueryExternalModuleModeV0, String> {
+    match external {
+        "ignored" => Ok(OmenaQueryExternalModuleModeV0::Ignored),
+        "sif" => Ok(OmenaQueryExternalModuleModeV0::Sif),
+        _ => Err(format!(
+            "unsupported external mode '{external}'; expected ignored or sif"
+        )),
+    }
 }
 
 fn style_hover_candidates(path: PathBuf, json: bool) -> Result<(), String> {
@@ -1686,12 +1703,39 @@ mod tests {
                 source_paths: Vec::new(),
                 source_document_paths: Vec::new(),
                 package_manifest_paths: Vec::new(),
+                external: "ignored".to_string(),
                 json: true,
             },
         });
 
         assert!(result.is_ok(), "{result:?}");
 
+        cleanup(&source_path);
+        Ok(())
+    }
+
+    #[test]
+    fn style_diagnostics_command_accepts_external_sif_mode() -> Result<(), String> {
+        let source_path = temp_path("external-sif.module.scss");
+        fs::write(
+            &source_path,
+            r#"@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; }"#,
+        )
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::StyleDiagnostics {
+                path: source_path.clone(),
+                source_paths: vec![source_path.clone()],
+                source_document_paths: Vec::new(),
+                package_manifest_paths: Vec::new(),
+                external: "sif".to_string(),
+                json: true,
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
         cleanup(&source_path);
         Ok(())
     }
