@@ -14,6 +14,7 @@ const commandBodies = extractCommandBodies(runnerSource);
 
 const checkerMTierBody = commandBodies.get("omena-checker-m-tier-evaluations");
 const checkerCascadeBody = commandBodies.get("omena-checker-cascade-evaluations");
+const checkerGrnBody = commandBodies.get("omena-checker-grn-evaluations");
 assert.ok(
   checkerMTierBody,
   "missing engine-shadow-runner command arm: omena-checker-m-tier-evaluations",
@@ -21,6 +22,10 @@ assert.ok(
 assert.ok(
   checkerCascadeBody,
   "missing engine-shadow-runner command arm: omena-checker-cascade-evaluations",
+);
+assert.ok(
+  checkerGrnBody,
+  "missing engine-shadow-runner command arm: omena-checker-grn-evaluations",
 );
 assert.ok(
   checkerMTierBody.includes("OmenaCheckerMTierEvaluationInputV0"),
@@ -31,12 +36,20 @@ assert.ok(
   "omena-checker-cascade-evaluations must deserialize the checker cascade input product",
 );
 assert.ok(
+  checkerGrnBody.includes("OmenaCheckerGrnInputV0"),
+  "omena-checker-grn-evaluations must deserialize the checker GRN input product",
+);
+assert.ok(
   checkerMTierBody.includes("summarize_omena_checker_m_tier_evaluations"),
   "omena-checker-m-tier-evaluations must route through the runner-owned checker summary wrapper",
 );
 assert.ok(
   checkerCascadeBody.includes("summarize_omena_checker_cascade_evaluations"),
   "omena-checker-cascade-evaluations must route through the runner-owned checker cascade summary wrapper",
+);
+assert.ok(
+  checkerGrnBody.includes("summarize_omena_checker_grn_evaluations"),
+  "omena-checker-grn-evaluations must route through the runner-owned checker GRN summary wrapper",
 );
 assert.ok(
   runnerSource.includes("evaluate_omena_checker_m_tier_rules"),
@@ -47,12 +60,20 @@ assert.ok(
   "engine-shadow-runner must call omena-checker's cascade-aware evaluator",
 );
 assert.ok(
+  runnerSource.includes("evaluate_omena_checker_grn_rules"),
+  "engine-shadow-runner must call omena-checker's GRN evaluator",
+);
+assert.ok(
   runnerSource.includes('"omena-checker-m-tier-evaluations" =>'),
   "engine-shadow-runner daemon must support omena-checker-m-tier-evaluations",
 );
 assert.ok(
   runnerSource.includes('"omena-checker-cascade-evaluations" =>'),
   "engine-shadow-runner daemon must support omena-checker-cascade-evaluations",
+);
+assert.ok(
+  runnerSource.includes('"omena-checker-grn-evaluations" =>'),
+  "engine-shadow-runner daemon must support omena-checker-grn-evaluations",
 );
 assert.ok(
   /^\s*omena-checker\s*=/m.test(runnerCargoToml),
@@ -87,12 +108,22 @@ for (const code of [
     `cascade runner output must include ${code}`,
   );
 }
+const grnSummary = runGrnEvaluationFixture();
+assert.equal(grnSummary.product, "omena-checker.grn-evaluations");
+assert.equal(grnSummary.vertexCount, 3);
+for (const code of ["cascade.deep-conflict", "cascade.unreachable-rule"]) {
+  assert.ok(
+    grnSummary.ruleCodeNames.includes(code),
+    `GRN runner output must include ${code}`,
+  );
+}
 
 process.stdout.write(
   [
     "validated omena-checker runner boundary:",
     "mTierCommand=omena-checker-m-tier-evaluations",
     "cascadeCommand=omena-checker-cascade-evaluations",
+    "grnCommand=omena-checker-grn-evaluations",
     "runtime=engine-shadow-runner",
     "owner=omena-checker",
   ].join(" "),
@@ -129,6 +160,12 @@ interface CascadeEvaluationSummary {
   readonly product: string;
   readonly declarationCount: number;
   readonly customPropertyCount: number;
+  readonly ruleCodeNames: readonly string[];
+}
+
+interface GrnEvaluationSummary {
+  readonly product: string;
+  readonly vertexCount: number;
   readonly ruleCodeNames: readonly string[];
 }
 
@@ -176,6 +213,41 @@ function runCascadeEvaluationFixture(): CascadeEvaluationSummary {
   return JSON.parse(result.stdout) as CascadeEvaluationSummary;
 }
 
+function runGrnEvaluationFixture(): GrnEvaluationSummary {
+  const input = {
+    vertices: [
+      grnVertex("winner", ".btn", "color", "applied"),
+      grnVertex("losing-eligible", ".btn", "color", "losingButEligible"),
+      grnVertex("inactive-rule", ".card", "display", "inactive"),
+    ],
+  };
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      "omena-checker-grn-evaluations",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: JSON.stringify(input),
+      maxBuffer: 1024 * 1024 * 10,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `engine-shadow-runner GRN command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return JSON.parse(result.stdout) as GrnEvaluationSummary;
+}
+
 function cascadeDeclaration(
   declarationId: string,
   selector: string,
@@ -197,5 +269,14 @@ function cascadeDeclaration(
     layerOrder,
     important,
     varReferences,
+  };
+}
+
+function grnVertex(vertexId: string, selector: string, property: string, state: string) {
+  return {
+    vertexId,
+    selector,
+    property,
+    state,
   };
 }

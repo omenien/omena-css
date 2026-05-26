@@ -4,6 +4,7 @@ use omena_abstract_value::{
     AbstractClassValueV0, SelectorProjectionCertaintyV0, enumerate_finite_class_values,
     project_abstract_value_selectors,
 };
+use omena_cascade::{GrnBooleanState, GrnVertexStateV0, GrnVertexV0, project_grn_outcome};
 pub use omena_categorical::CategoricalCascadeEvidenceV0;
 use omena_variational::{
     PatternIntentV0, designer_intent_posterior_input_v0, dominant_designer_intent_v0,
@@ -343,6 +344,53 @@ pub struct OmenaCheckerCascadeEvaluationV0 {
     pub custom_property_names: Vec<String>,
     pub message: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mechanism_products: Vec<&'static str>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerGrnInputV0 {
+    pub vertices: Vec<OmenaCheckerGrnVertexStateInputV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerGrnVertexStateInputV0 {
+    pub vertex_id: String,
+    pub selector: String,
+    pub property: String,
+    pub state: OmenaCheckerGrnVertexStateKindV0,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaCheckerGrnVertexStateKindV0 {
+    Applied,
+    LosingButEligible,
+    Inactive,
+    Top,
+}
+
+impl OmenaCheckerGrnVertexStateKindV0 {
+    fn into_cascade_state(self) -> GrnBooleanState {
+        match self {
+            Self::Applied => GrnBooleanState::Applied,
+            Self::LosingButEligible => GrnBooleanState::LosingButEligible,
+            Self::Inactive => GrnBooleanState::Inactive,
+            Self::Top => GrnBooleanState::Top,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerGrnEvaluationV0 {
+    pub rule_code: OmenaCheckerRuleCodeV0,
+    pub rule_code_name: &'static str,
+    pub severity: OmenaCheckerSeverityV0,
+    pub severity_name: &'static str,
+    pub vertex_ids: Vec<String>,
+    pub message: String,
     pub mechanism_products: Vec<&'static str>,
 }
 
@@ -1100,6 +1148,49 @@ pub fn evaluate_omena_checker_cascade_rules(
     evaluations
 }
 
+pub fn evaluate_omena_checker_grn_rules(
+    input: OmenaCheckerGrnInputV0,
+) -> Vec<OmenaCheckerGrnEvaluationV0> {
+    let vertices = input
+        .vertices
+        .into_iter()
+        .map(|vertex| GrnVertexStateV0 {
+            vertex: GrnVertexV0 {
+                vertex_id: vertex.vertex_id,
+                selector: vertex.selector,
+                property: vertex.property,
+            },
+            state: vertex.state.into_cascade_state(),
+        })
+        .collect::<Vec<_>>();
+    let projection = project_grn_outcome(vertices.as_slice());
+    let losing_but_eligible_vertex_ids =
+        grn_vertex_ids_for_state(vertices.as_slice(), GrnBooleanState::LosingButEligible);
+    let inactive_vertex_ids =
+        grn_vertex_ids_for_state(vertices.as_slice(), GrnBooleanState::Inactive);
+    let mut evaluations = Vec::new();
+
+    if projection.deep_conflict_report.conflicting_vertex_count > 0 {
+        evaluations.push(grn_evaluation(
+            OmenaCheckerRuleCodeV0::CascadeDeepConflict,
+            OmenaCheckerSeverityV0::Warning,
+            losing_but_eligible_vertex_ids,
+            "GRN cascade projection found losing-but-eligible vertices in a stable conflict basin.",
+        ));
+    }
+
+    if projection.mode_distribution.inactive_count > 0 {
+        evaluations.push(grn_evaluation(
+            OmenaCheckerRuleCodeV0::CascadeUnreachableRule,
+            OmenaCheckerSeverityV0::Hint,
+            inactive_vertex_ids,
+            "GRN cascade projection found inactive vertices that remain unreachable in the current basin.",
+        ));
+    }
+
+    evaluations
+}
+
 fn dynamic_class_domain_evaluation(
     outcome: OmenaCheckerDynamicClassDomainOutcomeV0,
     rule_code: Option<OmenaCheckerRuleCodeV0>,
@@ -1181,6 +1272,31 @@ fn cascade_evaluation_with_mechanism_products(
         message: message.to_string(),
         mechanism_products,
     }
+}
+
+fn grn_evaluation(
+    rule_code: OmenaCheckerRuleCodeV0,
+    severity: OmenaCheckerSeverityV0,
+    vertex_ids: Vec<String>,
+    message: &'static str,
+) -> OmenaCheckerGrnEvaluationV0 {
+    OmenaCheckerGrnEvaluationV0 {
+        rule_code,
+        rule_code_name: rule_code.as_str(),
+        severity,
+        severity_name: severity.as_str(),
+        vertex_ids,
+        message: message.to_string(),
+        mechanism_products: vec!["omena-cascade.grn-outcome-projection"],
+    }
+}
+
+fn grn_vertex_ids_for_state(vertices: &[GrnVertexStateV0], state: GrnBooleanState) -> Vec<String> {
+    vertices
+        .iter()
+        .filter(|vertex| vertex.state == state)
+        .map(|vertex| vertex.vertex.vertex_id.clone())
+        .collect()
 }
 
 fn designer_intent_source_order_tie_is_inconsistent(
@@ -1950,6 +2066,59 @@ mod tests {
     }
 
     #[test]
+    fn evaluates_grn_rule_family_from_cascade_projection() {
+        let evaluations = evaluate_omena_checker_grn_rules(OmenaCheckerGrnInputV0 {
+            vertices: vec![
+                grn_vertex(
+                    "winner",
+                    ".btn",
+                    "color",
+                    OmenaCheckerGrnVertexStateKindV0::Applied,
+                ),
+                grn_vertex(
+                    "losing-eligible",
+                    ".btn",
+                    "color",
+                    OmenaCheckerGrnVertexStateKindV0::LosingButEligible,
+                ),
+                grn_vertex(
+                    "inactive-rule",
+                    ".card",
+                    "display",
+                    OmenaCheckerGrnVertexStateKindV0::Inactive,
+                ),
+            ],
+        });
+        let rule_names = evaluations
+            .iter()
+            .map(|evaluation| evaluation.rule_code_name)
+            .collect::<BTreeSet<_>>();
+
+        assert!(rule_names.contains("cascade.deep-conflict"));
+        assert!(rule_names.contains("cascade.unreachable-rule"));
+        assert!(evaluations.iter().any(|evaluation| {
+            evaluation.rule_code == OmenaCheckerRuleCodeV0::CascadeDeepConflict
+                && evaluation.vertex_ids == vec!["losing-eligible"]
+                && evaluation.mechanism_products == vec!["omena-cascade.grn-outcome-projection"]
+        }));
+        assert!(evaluations.iter().any(|evaluation| {
+            evaluation.rule_code == OmenaCheckerRuleCodeV0::CascadeUnreachableRule
+                && evaluation.vertex_ids == vec!["inactive-rule"]
+                && evaluation.mechanism_products == vec!["omena-cascade.grn-outcome-projection"]
+        }));
+
+        let clear_evaluations = evaluate_omena_checker_grn_rules(OmenaCheckerGrnInputV0 {
+            vertices: vec![grn_vertex(
+                "winner",
+                ".btn",
+                "color",
+                OmenaCheckerGrnVertexStateKindV0::Applied,
+            )],
+        });
+        assert!(clear_evaluations.is_empty());
+    }
+
+    #[test]
     fn cascade_rules_do_not_compare_across_conditional_contexts() {
         let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
             declarations: vec![
@@ -2106,6 +2275,20 @@ mod tests {
                 .iter()
                 .map(|value| value.to_string())
                 .collect(),
+        }
+    }
+
+    fn grn_vertex(
+        vertex_id: &str,
+        selector: &str,
+        property: &str,
+        state: OmenaCheckerGrnVertexStateKindV0,
+    ) -> OmenaCheckerGrnVertexStateInputV0 {
+        OmenaCheckerGrnVertexStateInputV0 {
+            vertex_id: vertex_id.to_string(),
+            selector: selector.to_string(),
+            property: property.to_string(),
+            state,
         }
     }
 }

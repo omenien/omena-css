@@ -33,8 +33,9 @@ use omena_abstract_value::{
 };
 use omena_checker::{
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
-    OmenaCheckerDynamicClassDomainInputV0, OmenaCheckerMTierEvaluationV0,
-    evaluate_omena_checker_cascade_rules, evaluate_omena_checker_m_tier_rules,
+    OmenaCheckerDynamicClassDomainInputV0, OmenaCheckerGrnEvaluationV0, OmenaCheckerGrnInputV0,
+    OmenaCheckerMTierEvaluationV0, evaluate_omena_checker_cascade_rules,
+    evaluate_omena_checker_grn_rules, evaluate_omena_checker_m_tier_rules,
 };
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryCodeActionPlanV0, OmenaQueryExpressionDomainFlowRuntimeV0,
@@ -632,6 +633,17 @@ struct OmenaCheckerCascadeEvaluationRunnerOutputV0 {
     evaluation_count: usize,
     rule_code_names: Vec<&'static str>,
     evaluations: Vec<OmenaCheckerCascadeEvaluationV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerGrnEvaluationRunnerOutputV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    vertex_count: usize,
+    evaluation_count: usize,
+    rule_code_names: Vec<&'static str>,
+    evaluations: Vec<OmenaCheckerGrnEvaluationV0>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1715,6 +1727,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_omena_checker_cascade_evaluations(input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("omena-checker-grn-evaluations") => {
+            let input: OmenaCheckerGrnInputV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_checker_grn_evaluations(input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("input-source-resolution-match-fragments") => {
             let input: EngineInputV2 = serde_json::from_str(&stdin)?;
             let summary = summarize_source_resolution_match_fragments_input(&input);
@@ -2151,6 +2168,12 @@ fn run_daemon_selected_query_command(
                 summarize_omena_checker_cascade_evaluations(input),
             )?)
         }
+        "omena-checker-grn-evaluations" => {
+            let input: OmenaCheckerGrnInputV0 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_checker_grn_evaluations(input),
+            )?)
+        }
         other => Err(format!("unsupported engine-shadow-runner daemon command: {other}").into()),
     }
 }
@@ -2191,6 +2214,28 @@ fn summarize_omena_checker_cascade_evaluations(
         product: "omena-checker.cascade-evaluations",
         declaration_count,
         custom_property_count,
+        evaluation_count: evaluations.len(),
+        rule_code_names,
+        evaluations,
+    }
+}
+
+fn summarize_omena_checker_grn_evaluations(
+    input: OmenaCheckerGrnInputV0,
+) -> OmenaCheckerGrnEvaluationRunnerOutputV0 {
+    let vertex_count = input.vertices.len();
+    let evaluations = evaluate_omena_checker_grn_rules(input);
+    let rule_code_names = evaluations
+        .iter()
+        .map(|evaluation| evaluation.rule_code_name)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    OmenaCheckerGrnEvaluationRunnerOutputV0 {
+        schema_version: "0",
+        product: "omena-checker.grn-evaluations",
+        vertex_count,
         evaluation_count: evaluations.len(),
         rule_code_names,
         evaluations,
