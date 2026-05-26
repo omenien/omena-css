@@ -39,6 +39,7 @@ try {
   const positioning = readGenerated("docs/positioning.md");
   const paperDraft = readGenerated("docs/paper-draft.md");
   const release = readGenerated("docs/release.md");
+  const publishWorkflow = readGenerated(".github/workflows/publish.yml");
 
   assertIncludes(readme, "[Positioning](docs/positioning.md)");
   assertIncludes(readme, "[Paper draft outline](docs/paper-draft.md)");
@@ -94,6 +95,12 @@ try {
     assertIncludes(benchmarks, benchmarkBoundary);
   }
   assertIncludes(release, "Avoid private planning labels");
+  assertOrder(
+    publishWorkflow,
+    'version="$(crate_version "$manifest")"',
+    'if [[ "$PUBLISH_MODE" == "dry-run" ]]',
+  );
+  assertIncludes(publishWorkflow, 'if crate_version_exists "$package" "$version"; then');
 
   for (const unsupportedClaim of [
     "replaces Lightning CSS",
@@ -131,6 +138,14 @@ try {
 
 function assertIncludes(haystack: string, needle: string): void {
   assert.ok(haystack.includes(needle), `expected generated material to include ${needle}`);
+}
+
+function assertOrder(haystack: string, before: string, after: string): void {
+  const beforeIndex = haystack.indexOf(before);
+  const afterIndex = haystack.indexOf(after);
+  assert.ok(beforeIndex >= 0, `expected generated material to include ${before}`);
+  assert.ok(afterIndex >= 0, `expected generated material to include ${after}`);
+  assert.ok(beforeIndex < afterIndex, `expected ${before} to appear before ${after}`);
 }
 
 function assertExcludes(haystack: string, needle: string): void {

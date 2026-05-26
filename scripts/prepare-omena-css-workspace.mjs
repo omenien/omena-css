@@ -1226,9 +1226,10 @@ ${publishCrateRows}
 
           for crate in "\${crates[@]}"; do
             manifest="crates/$crate/Cargo.toml"
+            package="$(crate_package_name "$manifest")"
+            version="$(crate_version "$manifest")"
 
             if [[ "$crate" == "omena-incremental" || "$crate" == "engine-input-producers" ]]; then
-              package="$(crate_package_name "$manifest")"
               echo "$package publishes from its own Omena repository; skipping"
               continue
             fi
