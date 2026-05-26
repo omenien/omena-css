@@ -6,6 +6,7 @@ use omena_parser::{
 };
 
 use super::cascade_checker::summarize_query_cascade_checker_diagnostics;
+use super::diagnostic_suppressions::apply_omena_query_style_diagnostic_suppressions;
 use super::parser_facade::collect_omena_query_omena_parser_style_facts_raw;
 use super::*;
 
@@ -372,7 +373,7 @@ pub fn summarize_omena_query_style_diagnostics_for_file(
     diagnostics.extend(summarize_omena_query_missing_sass_symbol_diagnostics(
         style_uri, source,
     ));
-    OmenaQueryStyleDiagnosticsForFileV0 {
+    let mut summary = OmenaQueryStyleDiagnosticsForFileV0 {
         schema_version: "0",
         product: "omena-query.diagnostics-for-file",
         file_uri: style_uri.to_string(),
@@ -386,7 +387,9 @@ pub fn summarize_omena_query_style_diagnostics_for_file(
             "sassImportDeprecationHints",
             "missingSassSymbolDiagnostics",
         ],
-    }
+    };
+    apply_omena_query_style_diagnostic_suppressions(source, &mut summary);
+    summary
 }
 
 pub fn summarize_omena_query_style_diagnostics_for_workspace_file(
@@ -489,6 +492,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
             "externalSifBoundaryDiagnostics",
         );
     }
+    apply_omena_query_style_diagnostic_suppressions(&target.style_source, &mut summary);
     summary.diagnostic_count = summary.diagnostics.len();
     Some(summary)
 }

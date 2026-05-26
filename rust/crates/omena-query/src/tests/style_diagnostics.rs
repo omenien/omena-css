@@ -469,6 +469,114 @@ fn style_diagnostics_for_file_include_same_file_sass_symbol_lints() -> Result<()
 }
 
 #[test]
+fn style_diagnostics_omena_ignore_next_line_suppresses_targeted_code_only()
+-> Result<(), &'static str> {
+    let source = r#"/* omena-ignore-next-line missingSassSymbol */
+.button { color: $missing; animation: fade 1s ease; }"#;
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"diagnosticSuppressionSyntax")
+    );
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingSassSymbol")
+    );
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "missingKeyframes")
+    );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_omena_ignore_file_respects_rule_code_filters() -> Result<(), &'static str> {
+    let source = r#"/* omena-ignore-file missingSassSymbol */
+.button { color: $missing; animation: fade 1s ease; }"#;
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+
+    let codes = diagnostics
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.code)
+        .collect::<Vec<_>>();
+    assert!(!codes.contains(&"missingSassSymbol"));
+    assert!(codes.contains(&"missingKeyframes"));
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_omena_expect_error_suppresses_expected_diagnostic() -> Result<(), &'static str>
+{
+    let source = r#"/* omena-expect-error missingSassSymbol */
+.button { color: $missing; }"#;
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingSassSymbol"
+                && diagnostic.code != "unusedOmenaExpectError")
+    );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_omena_expect_error_reports_unused_directive() -> Result<(), &'static str> {
+    let source = r#"/* omena-expect-error missingSassSymbol */
+.button { color: red; }"#;
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .ok_or("style candidates")?;
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+
+    let unused = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "unusedOmenaExpectError")
+        .collect::<Vec<_>>();
+    assert_eq!(unused.len(), 1);
+    assert_eq!(unused[0].message, "Unused omena-expect-error directive.");
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_for_file_suppresses_sass_builtins_and_hints_imports()
 -> Result<(), &'static str> {
     let source = r#"@use "sass:color";
@@ -644,6 +752,41 @@ fn style_diagnostics_external_sif_mode_reports_missing_sif_boundary() -> Result<
         vec![
             "External Sass module 'https://cdn.example/tokens.scss' is missing (topAny); generate or provide a SIF artifact, or use --external ignored.",
         ]
+    );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_suppression_applies_to_external_sif_boundary() -> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"/* omena-ignore-next-line missingExternalSif */
+@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; }"#
+            .to_string(),
+    }];
+
+    let diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+        )
+        .ok_or("sif workspace diagnostics")?;
+
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"diagnosticSuppressionSyntax")
+    );
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingExternalSif")
     );
     Ok(())
 }

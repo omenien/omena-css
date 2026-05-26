@@ -6,6 +6,7 @@ mod code_actions;
 mod completion;
 mod cross_file_hypergraph;
 mod cross_file_summary;
+mod diagnostic_suppressions;
 mod diagnostics;
 mod parser_facade;
 mod sass;
