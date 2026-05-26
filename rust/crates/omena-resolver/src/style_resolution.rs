@@ -419,7 +419,7 @@ fn push_style_path_candidate(candidates: &mut Vec<String>, path: PathBuf) {
     }
 }
 
-fn normalize_style_path(path: PathBuf) -> String {
+pub(crate) fn normalize_style_path(path: PathBuf) -> String {
     let mut normalized = PathBuf::new();
     for component in path.components() {
         match component {
