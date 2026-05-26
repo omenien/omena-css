@@ -4,6 +4,7 @@ use omena_checker::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeInputV0,
     OmenaCheckerCustomPropertyInputV0, evaluate_omena_checker_cascade_rules,
 };
+use omena_transform_passes::expand_css_nested_selector;
 
 use super::{
     OmenaQueryStyleDiagnosticV0, ParserByteSpanV0, ParserRangeV0,
@@ -189,6 +190,7 @@ fn collect_query_checker_cascade_declarations(source: &str) -> Vec<QueryCheckerC
         source,
         0,
         source.len(),
+        None,
         Vec::new(),
         None,
         None,
@@ -204,6 +206,7 @@ fn collect_query_checker_cascade_blocks(
     source: &str,
     start: usize,
     end: usize,
+    parent_selector: Option<String>,
     condition_context: Vec<String>,
     layer_name: Option<String>,
     layer_order: Option<i32>,
@@ -230,6 +233,7 @@ fn collect_query_checker_cascade_blocks(
                 source,
                 body_start,
                 close_index,
+                parent_selector.clone(),
                 condition_context.clone(),
                 Some(layer),
                 Some(order),
@@ -244,6 +248,7 @@ fn collect_query_checker_cascade_blocks(
                 source,
                 body_start,
                 close_index,
+                parent_selector.clone(),
                 nested_condition_context,
                 layer_name.clone(),
                 layer_order,
@@ -252,11 +257,13 @@ fn collect_query_checker_cascade_blocks(
                 declarations,
             );
         } else if !prelude.is_empty() {
+            let canonical_selector =
+                canonical_query_checker_selector(parent_selector.as_deref(), prelude);
             collect_query_checker_direct_declarations(
                 source,
                 body_start,
                 close_index,
-                prelude,
+                &canonical_selector,
                 QueryCheckerCascadeScope {
                     condition_context: condition_context.clone(),
                     layer_name: layer_name.clone(),
@@ -268,6 +275,7 @@ fn collect_query_checker_cascade_blocks(
                 source,
                 body_start,
                 close_index,
+                Some(canonical_selector),
                 condition_context.clone(),
                 layer_name.clone(),
                 layer_order,
@@ -278,6 +286,23 @@ fn collect_query_checker_cascade_blocks(
         }
 
         index = close_index + 1;
+    }
+}
+
+fn canonical_query_checker_selector(parent_selector: Option<&str>, selector: &str) -> String {
+    let selector = selector.trim();
+    match parent_selector {
+        Some(parent_selector) => expand_css_nested_selector(parent_selector, selector)
+            .unwrap_or_else(|| fallback_expand_query_nested_selector(parent_selector, selector)),
+        None => selector.to_string(),
+    }
+}
+
+fn fallback_expand_query_nested_selector(parent_selector: &str, selector: &str) -> String {
+    if selector.contains('&') {
+        selector.replace('&', parent_selector)
+    } else {
+        format!("{parent_selector} {selector}")
     }
 }
 

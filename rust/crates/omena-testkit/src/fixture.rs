@@ -76,6 +76,53 @@ pub struct CmeFixtureExpectationV0 {
     pub value: String,
 }
 
+/// Known `cme-fixture-v0` expectation families.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CmeFixtureExpectationKindV0 {
+    /// Product-surface expectation.
+    Product,
+    /// Free-form assertion text.
+    Assertion,
+    /// Expected diagnostic with code/range/message details in the body.
+    Diagnostic,
+    /// A diagnostic code or code pattern that must not appear.
+    NoDiagnostic,
+    /// Expected diagnostic count, usually `<code>:<n>`.
+    Count,
+    /// Expected cascade winner declaration id.
+    CascadeOutcome,
+    /// Expected declaration participating in a cascade witness.
+    CascadeWitness,
+    /// Expected external-reference boundary state.
+    BoundaryState,
+    /// Unknown or product-owned expectation family.
+    Unknown,
+}
+
+impl CmeFixtureExpectationV0 {
+    /// Classify the expectation family without interpreting product-owned
+    /// expectation payloads.
+    pub fn kind(&self) -> CmeFixtureExpectationKindV0 {
+        cme_fixture_expectation_kind_from_key(&self.key)
+    }
+}
+
+/// Classify a raw expectation key by its leading keyword.
+pub fn cme_fixture_expectation_kind_from_key(key: &str) -> CmeFixtureExpectationKindV0 {
+    match key.split_whitespace().next().unwrap_or_default() {
+        "product" => CmeFixtureExpectationKindV0::Product,
+        "assertion" => CmeFixtureExpectationKindV0::Assertion,
+        "diagnostic" => CmeFixtureExpectationKindV0::Diagnostic,
+        "no-diagnostic" => CmeFixtureExpectationKindV0::NoDiagnostic,
+        "count" => CmeFixtureExpectationKindV0::Count,
+        "cascade-outcome" => CmeFixtureExpectationKindV0::CascadeOutcome,
+        "cascade-witness" => CmeFixtureExpectationKindV0::CascadeWitness,
+        "boundary-state" => CmeFixtureExpectationKindV0::BoundaryState,
+        _ => CmeFixtureExpectationKindV0::Unknown,
+    }
+}
+
 /// Parsed fixture seed evidence.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -523,6 +570,50 @@ omena-testkit.fixture-markers
         assert!(fixture.files[0].source.contains("/* regular comment */"));
         assert!(fixture.files[0].markers.is_empty());
 
+        Ok(())
+    }
+
+    #[test]
+    fn classifies_m7_diagnostic_cascade_and_boundary_expectations() -> Result<(), String> {
+        let fixture = parse_cme_fixture_v0(
+            r#"//- src/Nested.module.scss dialect:scss
+.article {
+  &.box { &.fill { padding: 1px; } }
+}
+--- expect: diagnostic
+code: unreachableDeclaration
+range: colorRange
+--- expect: no-diagnostic unspecifiedCascadeTie
+--- expect: count unreachableDeclaration:0
+--- expect: cascade-outcome decl-1
+--- expect: cascade-witness decl-2
+--- expect: boundary-state ext-1 Resolved
+"#,
+        )?;
+
+        assert_eq!(
+            fixture
+                .expectations
+                .iter()
+                .map(CmeFixtureExpectationV0::kind)
+                .collect::<Vec<_>>(),
+            vec![
+                CmeFixtureExpectationKindV0::Diagnostic,
+                CmeFixtureExpectationKindV0::NoDiagnostic,
+                CmeFixtureExpectationKindV0::Count,
+                CmeFixtureExpectationKindV0::CascadeOutcome,
+                CmeFixtureExpectationKindV0::CascadeWitness,
+                CmeFixtureExpectationKindV0::BoundaryState,
+            ]
+        );
+        assert_eq!(
+            fixture.expectations[1].key,
+            "no-diagnostic unspecifiedCascadeTie"
+        );
+        assert_eq!(
+            fixture.expectations[2].key,
+            "count unreachableDeclaration:0"
+        );
         Ok(())
     }
 

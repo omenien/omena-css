@@ -241,6 +241,67 @@ fn cascade_aware_lints_do_not_compare_across_conditional_contexts() -> Result<()
 }
 
 #[test]
+fn cascade_aware_lints_do_not_compare_nested_ampersand_across_parent_contexts() {
+    let source = r#"
+.article {
+  &.box {
+    &.fill { padding: 1px 5px; }
+  }
+  &.capsule {
+    &.fill { padding: 1px 6px; }
+  }
+}
+"#;
+    let diagnostic_codes = cascade_diagnostic_code_set(source);
+
+    assert!(!diagnostic_codes.contains("unreachableDeclaration"));
+    assert!(!diagnostic_codes.contains("unspecifiedCascadeTie"));
+}
+
+#[test]
+fn cascade_aware_lints_still_compare_duplicate_declarations_inside_same_nested_context() {
+    let source = r#"
+.article {
+  &.box {
+    &.fill {
+      padding: 1px 5px;
+      padding: 1px 6px;
+    }
+  }
+}
+"#;
+    let diagnostic_codes = cascade_diagnostic_code_set(source);
+
+    assert!(diagnostic_codes.contains("unreachableDeclaration"));
+    assert!(diagnostic_codes.contains("unspecifiedCascadeTie"));
+}
+
+#[test]
+fn cascade_aware_lints_preserve_flatten_invariance_for_nested_ampersand() {
+    let nested = r#"
+.article {
+  &.box {
+    &.fill {
+      padding: 1px 5px;
+      padding: 1px 6px;
+    }
+  }
+}
+"#;
+    let flat = r#"
+.article.box.fill {
+  padding: 1px 5px;
+  padding: 1px 6px;
+}
+"#;
+
+    assert_eq!(
+        cascade_diagnostic_code_set(nested),
+        cascade_diagnostic_code_set(flat)
+    );
+}
+
+#[test]
 fn cascade_aware_lints_run_without_custom_property_declarations() -> Result<(), &'static str> {
     let source = ".btn { color: red; color: blue; }";
     let candidates =
@@ -273,6 +334,30 @@ fn cascade_aware_lints_run_without_custom_property_declarations() -> Result<(), 
                 && diagnostic.tags.as_slice() == [1])
     );
     Ok(())
+}
+
+fn cascade_diagnostic_code_set(source: &str) -> std::collections::BTreeSet<&'static str> {
+    let candidates =
+        crate::summarize_omena_query_style_hover_candidates("Component.module.scss", source)
+            .expect("style candidates");
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Component.module.scss",
+        source,
+        candidates.candidates.as_slice(),
+    );
+
+    diagnostics
+        .diagnostics
+        .iter()
+        .filter_map(|diagnostic| match diagnostic.code {
+            "unreachableDeclaration"
+            | "deadCascadeLayer"
+            | "iacvtProne"
+            | "circularVar"
+            | "unspecifiedCascadeTie" => Some(diagnostic.code),
+            _ => None,
+        })
+        .collect()
 }
 
 #[test]

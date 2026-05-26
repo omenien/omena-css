@@ -40,5 +40,13 @@ pub use runtime::planner::{
     implemented_mutation_pass_ids, plan_transform_passes, summarize_omena_transform_passes_boundary,
 };
 
+/// Expand a CSS Nesting selector against its canonical parent selector.
+///
+/// This is exposed for analysis/query layers that must compare selectors in
+/// their resolved form without running the full transform pipeline.
+pub fn expand_css_nested_selector(parent_selector: &str, nested_selector: &str) -> Option<String> {
+    domains::nesting::expand_nested_selector(parent_selector, nested_selector)
+}
+
 #[cfg(test)]
 mod tests;

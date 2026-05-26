@@ -276,7 +276,10 @@ fn is_supported_nested_conditional_group_rule(selector: &str) -> bool {
     .any(|prefix| selector.starts_with(prefix))
 }
 
-fn expand_nested_selector(parent_selector: &str, nested_selector: &str) -> Option<String> {
+pub(crate) fn expand_nested_selector(
+    parent_selector: &str,
+    nested_selector: &str,
+) -> Option<String> {
     let parent_selectors = split_css_selector_list(parent_selector)?;
     let nested_selectors = split_css_selector_list(nested_selector)?;
     let mut expanded_selectors = Vec::new();
