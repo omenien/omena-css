@@ -9,6 +9,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+mod generator;
+
+pub use generator::*;
+
 pub const OMENA_SIF_VERSION_V1: &str = "1";
 pub const OMENA_SIF_HASH_ALGORITHM_V1: &str = "blake3";
 pub const OMENA_SIF_V1_SCHEMA_JSON: &str = include_str!("../schema/sif-v1.schema.json");

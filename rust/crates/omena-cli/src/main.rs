@@ -23,7 +23,10 @@ use omena_query::{
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
-use omena_sif::{read_omena_lock_json_v1, verify_omena_lock_frozen_v1};
+use omena_sif::{
+    OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, generate_static_omena_sif_v1,
+    read_omena_lock_json_v1, verify_omena_lock_frozen_v1, write_omena_sif_json_v1,
+};
 #[cfg(feature = "zk-audit")]
 use omena_zk_audit::{
     CascadeZKAuditV0, ZKAuditCiMatrixV0, cascade_zk_audit_v0, zk_audit_ci_matrix_v0,
@@ -255,6 +258,11 @@ enum Command {
         #[command(subcommand)]
         command: LockCommand,
     },
+    /// Generate local Sass Interface File artifacts.
+    Sif {
+        #[command(subcommand)]
+        command: SifCommand,
+    },
     /// Run feature-gated audit surfaces.
     #[cfg(feature = "zk-audit")]
     Audit {
@@ -274,6 +282,27 @@ enum LockCommand {
         #[arg(long)]
         frozen: bool,
         /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum SifCommand {
+    /// Generate a SIF v1 artifact from a Sass-family source without evaluating Sass.
+    Generate {
+        /// CSS, SCSS, or Sass source to scan.
+        path: PathBuf,
+        /// Stable canonical URL stored in the generated SIF. Defaults to the input path.
+        #[arg(long)]
+        canonical_url: Option<String>,
+        /// Output path. Prints SIF JSON to stdout when omitted.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Source syntax: css, scss, or sass. Defaults from extension.
+        #[arg(long)]
+        syntax: Option<String>,
+        /// Print generated SIF JSON even when --output is provided.
         #[arg(long)]
         json: bool,
     },
@@ -479,6 +508,7 @@ fn run(cli: Cli) -> Result<(), String> {
         ),
         Command::PerceptualCheck { path, json } => perceptual_check(path, json),
         Command::Lock { command } => lock_command(command),
+        Command::Sif { command } => sif_command(command),
         #[cfg(feature = "zk-audit")]
         Command::Audit { command } => audit_command(command),
     }
@@ -545,6 +575,79 @@ fn resolve_lock_relative_path(lockfile: &Path, entry_path: &str) -> PathBuf {
         .parent()
         .unwrap_or_else(|| Path::new("."))
         .join(entry_path)
+}
+
+fn sif_command(command: SifCommand) -> Result<(), String> {
+    match command {
+        SifCommand::Generate {
+            path,
+            canonical_url,
+            output,
+            syntax,
+            json,
+        } => generate_sif(path, canonical_url, output, syntax, json),
+    }
+}
+
+fn generate_sif(
+    path: PathBuf,
+    canonical_url: Option<String>,
+    output: Option<PathBuf>,
+    syntax: Option<String>,
+    json: bool,
+) -> Result<(), String> {
+    let source = read_source(&path)?;
+    let syntax = match syntax {
+        Some(syntax) => parse_sif_source_syntax(&syntax)?,
+        None => infer_sif_source_syntax(&path),
+    };
+    let canonical_url = canonical_url.unwrap_or_else(|| path_string(&path));
+    let sif = generate_static_omena_sif_v1(OmenaSifStaticGeneratorInputV1 {
+        canonical_url: &canonical_url,
+        source: &source,
+        syntax,
+    })
+    .map_err(|error| format!("failed to generate SIF: {error}"))?;
+    let sif_json = write_omena_sif_json_v1(&sif)
+        .map_err(|error| format!("failed to serialize SIF: {error}"))?;
+    let wrote_output = output.is_some();
+
+    if let Some(output_path) = output {
+        fs::write(&output_path, &sif_json).map_err(|error| {
+            format!(
+                "failed to write SIF artifact to {}: {error}",
+                path_string(&output_path)
+            )
+        })?;
+        if !json {
+            println!("generated SIF: {}", path_string(&output_path));
+        }
+    }
+
+    if !wrote_output || json {
+        println!("{sif_json}");
+    }
+
+    Ok(())
+}
+
+fn parse_sif_source_syntax(syntax: &str) -> Result<OmenaSifSourceSyntaxV1, String> {
+    match syntax {
+        "css" => Ok(OmenaSifSourceSyntaxV1::Css),
+        "scss" => Ok(OmenaSifSourceSyntaxV1::Scss),
+        "sass" => Ok(OmenaSifSourceSyntaxV1::Sass),
+        _ => Err(format!(
+            "unsupported SIF source syntax '{syntax}'; expected css, scss, or sass"
+        )),
+    }
+}
+
+fn infer_sif_source_syntax(path: &Path) -> OmenaSifSourceSyntaxV1 {
+    match path.extension().and_then(|extension| extension.to_str()) {
+        Some("css") => OmenaSifSourceSyntaxV1::Css,
+        Some("sass") => OmenaSifSourceSyntaxV1::Sass,
+        _ => OmenaSifSourceSyntaxV1::Scss,
+    }
 }
 
 #[cfg(feature = "zk-audit")]
@@ -1981,6 +2084,40 @@ export function App() {
 
         assert!(result.is_err(), "{result:?}");
         cleanup_dir(&workspace_path);
+        Ok(())
+    }
+
+    #[test]
+    fn sif_generate_command_writes_static_sif_artifact() -> Result<(), String> {
+        let source_path = temp_path("tokens.scss");
+        let output_path = temp_path("tokens.sif.json");
+        fs::write(
+            &source_path,
+            r#"$brand: red !default; @mixin button($size: 1rem) { @content; }"#,
+        )
+        .map_err(|error| format!("fixture source should be writable: {error}"))?;
+
+        let result = run(Cli {
+            command: Command::Sif {
+                command: SifCommand::Generate {
+                    path: source_path.clone(),
+                    canonical_url: Some("pkg:design-system/_tokens.scss".to_string()),
+                    output: Some(output_path.clone()),
+                    syntax: Some("scss".to_string()),
+                    json: false,
+                },
+            },
+        });
+
+        assert!(result.is_ok(), "{result:?}");
+        let sif_json = fs::read_to_string(&output_path)
+            .map_err(|error| format!("generated SIF should be readable: {error}"))?;
+        assert!(sif_json.contains(r#""canonicalUrl":"pkg:design-system/_tokens.scss""#));
+        assert!(sif_json.contains(r#""name":"$brand""#));
+        assert!(sif_json.contains(r#""name":"button""#));
+
+        cleanup(&source_path);
+        cleanup(&output_path);
         Ok(())
     }
 

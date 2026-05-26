@@ -46,6 +46,146 @@ pub struct OmenaResolverLoadedSourceV0 {
     pub source: String,
 }
 
+/// Five-state external boundary model used by the SIF migration path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaResolverBoundaryStateKindV0 {
+    Resolved,
+    Partial,
+    Stale,
+    Missing,
+    Unresolved,
+}
+
+impl OmenaResolverBoundaryStateKindV0 {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Resolved => "resolved",
+            Self::Partial => "partial",
+            Self::Stale => "stale",
+            Self::Missing => "missing",
+            Self::Unresolved => "unresolved",
+        }
+    }
+}
+
+/// Abstract value top used when a boundary is not fully resolved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OmenaResolverBoundaryTopV0 {
+    /// The interface is known enough to keep diagnostics scoped to declared
+    /// exported symbols.
+    TopOpaque,
+    /// The interface is unknown and diagnostics must avoid false positives
+    /// over potentially valid external symbols.
+    TopAny,
+}
+
+impl OmenaResolverBoundaryTopV0 {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::TopOpaque => "topOpaque",
+            Self::TopAny => "topAny",
+        }
+    }
+}
+
+/// Boundary-state witness for external-reference diagnostics.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaResolverBoundaryStateV0 {
+    pub state: OmenaResolverBoundaryStateKindV0,
+    pub state_name: &'static str,
+    pub top: OmenaResolverBoundaryTopV0,
+    pub top_name: &'static str,
+    pub canonical_url: Option<OmenaResolverCanonicalUrlV0>,
+    pub reason: String,
+}
+
+impl OmenaResolverBoundaryStateV0 {
+    pub fn resolved(canonical_url: OmenaResolverCanonicalUrlV0) -> Self {
+        Self::new(
+            OmenaResolverBoundaryStateKindV0::Resolved,
+            OmenaResolverBoundaryTopV0::TopOpaque,
+            Some(canonical_url),
+            "resolved local or SIF-backed interface",
+        )
+    }
+
+    pub fn partial(reason: impl Into<String>) -> Self {
+        Self::new(
+            OmenaResolverBoundaryStateKindV0::Partial,
+            OmenaResolverBoundaryTopV0::TopAny,
+            None,
+            reason,
+        )
+    }
+
+    pub fn stale(canonical_url: OmenaResolverCanonicalUrlV0, reason: impl Into<String>) -> Self {
+        Self::new(
+            OmenaResolverBoundaryStateKindV0::Stale,
+            OmenaResolverBoundaryTopV0::TopAny,
+            Some(canonical_url),
+            reason,
+        )
+    }
+
+    pub fn missing(
+        canonical_url: Option<OmenaResolverCanonicalUrlV0>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self::new(
+            OmenaResolverBoundaryStateKindV0::Missing,
+            OmenaResolverBoundaryTopV0::TopAny,
+            canonical_url,
+            reason,
+        )
+    }
+
+    pub fn unresolved(reason: impl Into<String>) -> Self {
+        Self::new(
+            OmenaResolverBoundaryStateKindV0::Unresolved,
+            OmenaResolverBoundaryTopV0::TopAny,
+            None,
+            reason,
+        )
+    }
+
+    fn new(
+        state: OmenaResolverBoundaryStateKindV0,
+        top: OmenaResolverBoundaryTopV0,
+        canonical_url: Option<OmenaResolverCanonicalUrlV0>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self {
+            state,
+            state_name: state.as_str(),
+            top,
+            top_name: top.as_str(),
+            canonical_url,
+            reason: reason.into(),
+        }
+    }
+}
+
+pub fn omena_resolver_boundary_state_from_error_v0(
+    error: &OmenaResolverErrorV0,
+) -> OmenaResolverBoundaryStateV0 {
+    match error.kind {
+        OmenaResolverErrorKindV0::ExternalIgnored => {
+            OmenaResolverBoundaryStateV0::partial(error.message.clone())
+        }
+        OmenaResolverErrorKindV0::NotFound => {
+            OmenaResolverBoundaryStateV0::missing(None, error.message.clone())
+        }
+        OmenaResolverErrorKindV0::Unresolved
+        | OmenaResolverErrorKindV0::NetworkForbidden
+        | OmenaResolverErrorKindV0::UnsupportedCanonicalUrl => {
+            OmenaResolverBoundaryStateV0::unresolved(error.message.clone())
+        }
+    }
+}
+
 /// Error family for the shared resolver protocol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -240,7 +380,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn snapshot_resolver_canonicalizes_and_loads_relative_style_modules() {
+    fn snapshot_resolver_canonicalizes_and_loads_relative_style_modules() -> Result<(), String> {
         let resolver = OmenaResolverStyleModuleSnapshotV0::new(["src/Button.module.scss"])
             .with_file_source("src/Button.module.scss", ".button { color: red; }");
         let context = OmenaResolverReferenceContextV0 {
@@ -249,30 +389,40 @@ mod tests {
 
         let canonical = resolver
             .canonicalize(&context, "./Button.module.scss")
-            .expect("canonical style URL");
+            .map_err(|error| format!("expected canonical style URL: {error:?}"))?;
         assert_eq!(canonical.url, "workspace:///src/Button.module.scss");
 
-        let loaded = resolver.load(&canonical).expect("loaded style source");
+        let loaded = resolver
+            .load(&canonical)
+            .map_err(|error| format!("expected loaded style source: {error:?}"))?;
         assert_eq!(loaded.source, ".button { color: red; }");
+        Ok(())
     }
 
     #[test]
-    fn snapshot_resolver_forbids_network_references_during_canonicalization() {
+    fn snapshot_resolver_forbids_network_references_during_canonicalization() -> Result<(), String>
+    {
         let resolver = OmenaResolverStyleModuleSnapshotV0::new(["src/Button.module.scss"]);
         let context = OmenaResolverReferenceContextV0 {
             referencing_file: "src/App.module.scss".to_string(),
         };
 
-        let error = resolver
-            .canonicalize(&context, "https://example.com/reset.css")
-            .expect_err("network references are forbidden");
+        let error = match resolver.canonicalize(&context, "https://example.com/reset.css") {
+            Ok(canonical) => {
+                return Err(format!(
+                    "expected network reference to fail, got {canonical:?}"
+                ));
+            }
+            Err(error) => error,
+        };
 
         assert_eq!(error.kind, OmenaResolverErrorKindV0::NetworkForbidden);
         assert_eq!(error.kind_name, "networkForbidden");
+        Ok(())
     }
 
     #[test]
-    fn snapshot_resolver_reports_missing_snapshot_sources() {
+    fn snapshot_resolver_reports_missing_snapshot_sources() -> Result<(), String> {
         let resolver = OmenaResolverStyleModuleSnapshotV0::new(["src/Button.module.scss"]);
         let context = OmenaResolverReferenceContextV0 {
             referencing_file: "src/App.module.scss".to_string(),
@@ -280,16 +430,58 @@ mod tests {
 
         let canonical = resolver
             .canonicalize(&context, "./Button.module.scss")
-            .expect("canonical style URL");
-        let error = resolver
-            .load(&canonical)
-            .expect_err("missing snapshot source");
+            .map_err(|error| format!("expected canonical style URL: {error:?}"))?;
+        let error = match resolver.load(&canonical) {
+            Ok(source) => return Err(format!("expected missing snapshot source, got {source:?}")),
+            Err(error) => error,
+        };
 
         assert_eq!(error.kind, OmenaResolverErrorKindV0::NotFound);
+        Ok(())
     }
 
     #[test]
-    fn snapshot_resolver_preserves_tsconfig_path_mapping_resolution() {
+    fn boundary_state_matrix_preserves_m7_external_states_and_top_semantics() {
+        let canonical = OmenaResolverCanonicalUrlV0::workspace_style_path("src/tokens.scss");
+        let states = [
+            OmenaResolverBoundaryStateV0::resolved(canonical.clone()),
+            OmenaResolverBoundaryStateV0::partial("external boundary kept in ignored mode"),
+            OmenaResolverBoundaryStateV0::stale(canonical.clone(), "lockfile hash drift"),
+            OmenaResolverBoundaryStateV0::missing(Some(canonical), "expected SIF is missing"),
+            OmenaResolverBoundaryStateV0::unresolved("specifier did not resolve"),
+        ];
+
+        assert_eq!(states[0].state_name, "resolved");
+        assert_eq!(states[0].top_name, "topOpaque");
+        assert_eq!(states[1].state_name, "partial");
+        assert_eq!(states[1].top_name, "topAny");
+        assert_eq!(states[2].state_name, "stale");
+        assert_eq!(states[2].top_name, "topAny");
+        assert_eq!(states[3].state_name, "missing");
+        assert_eq!(states[3].top_name, "topAny");
+        assert_eq!(states[4].state_name, "unresolved");
+        assert_eq!(states[4].top_name, "topAny");
+    }
+
+    #[test]
+    fn boundary_state_maps_existing_external_ignored_error_to_partial() {
+        let error = OmenaResolverErrorV0::new(
+            OmenaResolverErrorKindV0::ExternalIgnored,
+            "sass:map remains external in compatibility mode",
+        );
+
+        let state = omena_resolver_boundary_state_from_error_v0(&error);
+
+        assert_eq!(state.state, OmenaResolverBoundaryStateKindV0::Partial);
+        assert_eq!(state.top, OmenaResolverBoundaryTopV0::TopAny);
+        assert_eq!(
+            state.reason,
+            "sass:map remains external in compatibility mode"
+        );
+    }
+
+    #[test]
+    fn snapshot_resolver_preserves_tsconfig_path_mapping_resolution() -> Result<(), String> {
         let resolver = OmenaResolverStyleModuleSnapshotV0::new([
             "/fake/workspace/src/styles/Button.module.scss",
         ])
@@ -304,16 +496,17 @@ mod tests {
 
         let canonical = resolver
             .canonicalize(&context, "@styles/Button")
-            .expect("canonical style URL");
+            .map_err(|error| format!("expected canonical style URL: {error:?}"))?;
 
         assert_eq!(
             canonical.as_workspace_style_path(),
             Some("/fake/workspace/src/styles/Button.module.scss")
         );
+        Ok(())
     }
 
     #[test]
-    fn snapshot_resolver_preserves_bundler_path_mapping_precedence() {
+    fn snapshot_resolver_preserves_bundler_path_mapping_precedence() -> Result<(), String> {
         let resolver = OmenaResolverStyleModuleSnapshotV0::new([
             "/fake/workspace/src/bundler/Button.module.scss",
             "/fake/workspace/src/tsconfig/Button.module.scss",
@@ -333,16 +526,17 @@ mod tests {
 
         let canonical = resolver
             .canonicalize(&context, "@styles/Button")
-            .expect("canonical style URL");
+            .map_err(|error| format!("expected canonical style URL: {error:?}"))?;
 
         assert_eq!(
             canonical.as_workspace_style_path(),
             Some("/fake/workspace/src/bundler/Button.module.scss")
         );
+        Ok(())
     }
 
     #[test]
-    fn snapshot_resolver_preserves_package_manifest_resolution() {
+    fn snapshot_resolver_preserves_package_manifest_resolution() -> Result<(), String> {
         let resolver = OmenaResolverStyleModuleSnapshotV0::new([
             "/fake/workspace/node_modules/@design/tokens/dist/theme.css",
         ])
@@ -358,11 +552,12 @@ mod tests {
 
         let canonical = resolver
             .canonicalize(&context, "@design/tokens/theme")
-            .expect("canonical style URL");
+            .map_err(|error| format!("expected canonical style URL: {error:?}"))?;
 
         assert_eq!(
             canonical.as_workspace_style_path(),
             Some("/fake/workspace/node_modules/@design/tokens/dist/theme.css")
         );
+        Ok(())
     }
 }
