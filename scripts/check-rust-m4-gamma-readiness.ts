@@ -134,8 +134,11 @@ for (const cratePath of gammaCrates) {
   const dependencyBlock = /\[dependencies\]([\s\S]*?)(?:\n\[|$)/u.exec(manifest)?.[1] ?? "";
   for (const dependencyName of heavyDependencyNames) {
     const escapedDependencyName = dependencyName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+    const heavyDependencyLine = new RegExp(`^\\s*${escapedDependencyName}\\s*=([^\\n]+)$`, "mu").exec(
+      dependencyBlock,
+    )?.[1];
     assert(
-      !new RegExp(`^\\s*${escapedDependencyName}\\s*=`, "mu").test(dependencyBlock),
+      !heavyDependencyLine || heavyDependencyLine.includes("optional = true"),
       `${manifestPath} must not pull heavy dependency ${dependencyName} in default dependencies`,
     );
   }
@@ -306,6 +309,24 @@ assertIncludes(
   smt,
   "smt_bisimulation_fuzz_seed_corpus_covers_m3_fixture_shapes",
   "SMT must cover the M3 fixture-shaped fuzz seed corpus",
+);
+assertIncludes(
+  smt,
+  "z3_backend_solves_canonical_box_shorthand_obligation",
+  "SMT must expose a feature-gated Z3 solver round-trip test",
+);
+assertIncludes(smt, "canonical_smtlib2_script_v0", "SMT must expose SMT-LIB2 script encoding");
+assertIncludes(
+  smt,
+  "smtlib2_script",
+  "SMT backend checks must consume encoded SMT-LIB2 input rather than descriptor-only terms",
+);
+const smtManifest = read("rust/crates/omena-smt/Cargo.toml");
+assertIncludes(smtManifest, 'z3 = { version = "0.20.0"', "SMT must link the Z3 crate");
+assertIncludes(
+  smtManifest,
+  'smt-z3 = ["dep:z3", "z3/gh-release"]',
+  "SMT Z3 backend must stay opt-in and self-contained",
 );
 const smtFuzz = read("rust/crates/omena-smt/src/fuzz.rs");
 assertIncludes(

@@ -14,7 +14,7 @@ workspace = true
 [features]
 default = []
 smt-stub = []
-smt-z3 = []
+smt-z3 = ["dep:z3", "z3/gh-release"]
 smt-cvc5 = []
 smt-bitwuzla = []
 
@@ -22,3 +22,4 @@ smt-bitwuzla = []
 omena-cascade = { path = "../omena-cascade" }
 omena-refinement-trait = { path = "../omena-refinement-trait" }
 serde.workspace = true
+z3 = { version = "0.20.0", optional = true, default-features = false }

@@ -13,8 +13,12 @@ pub mod proof;
 pub mod theory;
 pub mod unsat_core;
 
-pub use backend::{SmtBackendKindV0, SmtBackendV0, StubSmtBackendV0};
-pub use encoder::{CanonicalSmtInputV0, canonical_smt_input_v0};
+#[cfg(feature = "smt-z3")]
+pub use backend::z3::Z3SmtBackendV0;
+pub use backend::{
+    SmtBackendCheckV0, SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0,
+};
+pub use encoder::{CanonicalSmtInputV0, canonical_smt_input_v0, canonical_smtlib2_script_v0};
 pub use fuzz::{
     SmtBisimulationFuzzCaseV0, SmtBisimulationFuzzReportV0, run_smt_bisimulation_fuzz_case_v0,
     run_smt_bisimulation_fuzz_seed_corpus_v0, smt_bisimulation_fuzz_case_v0,
@@ -87,6 +91,12 @@ mod tests {
         assert_eq!(proof.schema_version, "0");
         assert_eq!(proof.verdict, SmtVerdictV0::Accepted);
         assert_eq!(proof.backend, SmtBackendKindV0::Stub);
+        assert!(
+            proof
+                .canonical_input
+                .smtlib2_script
+                .contains("(set-logic QF_UF)")
+        );
     }
 
     #[test]
@@ -182,5 +192,96 @@ mod tests {
         assert_eq!(case.layer_marker, "smt-cascade-verification");
         assert_eq!(case.feature_gate, "smt-stub");
         assert_eq!(case.seed, 42);
+    }
+
+    #[cfg(feature = "smt-z3")]
+    #[test]
+    fn z3_backend_solves_canonical_box_shorthand_obligation() {
+        let backend = Z3SmtBackendV0::default();
+        let accepted = smt_prove_box_shorthand_combination_v0(
+            "margin",
+            &[
+                BoxLonghandInputV0 {
+                    property: "margin-top".to_string(),
+                    value: "1px".to_string(),
+                    important: false,
+                    source_order: 1,
+                },
+                BoxLonghandInputV0 {
+                    property: "margin-right".to_string(),
+                    value: "1px".to_string(),
+                    important: false,
+                    source_order: 2,
+                },
+                BoxLonghandInputV0 {
+                    property: "margin-bottom".to_string(),
+                    value: "1px".to_string(),
+                    important: false,
+                    source_order: 3,
+                },
+                BoxLonghandInputV0 {
+                    property: "margin-left".to_string(),
+                    value: "1px".to_string(),
+                    important: false,
+                    source_order: 4,
+                },
+            ],
+            &backend,
+        );
+        let rejected = smt_prove_box_shorthand_combination_v0(
+            "margin",
+            &[
+                BoxLonghandInputV0 {
+                    property: "margin-top".to_string(),
+                    value: "1px".to_string(),
+                    important: false,
+                    source_order: 1,
+                },
+                BoxLonghandInputV0 {
+                    property: "margin-bottom".to_string(),
+                    value: "1px".to_string(),
+                    important: false,
+                    source_order: 2,
+                },
+                BoxLonghandInputV0 {
+                    property: "margin-right".to_string(),
+                    value: "1px".to_string(),
+                    important: false,
+                    source_order: 3,
+                },
+                BoxLonghandInputV0 {
+                    property: "margin-left".to_string(),
+                    value: "1px".to_string(),
+                    important: false,
+                    source_order: 4,
+                },
+            ],
+            &backend,
+        );
+
+        assert_eq!(accepted.backend, SmtBackendKindV0::Z3);
+        assert_eq!(accepted.solver_check.sat_result, SmtBackendSatResultV0::Sat);
+        assert_eq!(accepted.verdict, SmtVerdictV0::Accepted);
+        assert!(
+            accepted
+                .canonical_input
+                .smtlib2_script
+                .contains("(assert (! true :named req_canonical_longhand_quartet))")
+        );
+        assert_eq!(
+            rejected.solver_check.sat_result,
+            SmtBackendSatResultV0::Unsat
+        );
+        assert_eq!(rejected.verdict, SmtVerdictV0::Rejected);
+        assert!(
+            rejected
+                .canonical_input
+                .smtlib2_script
+                .contains("(assert (! false :named req_canonical_longhand_quartet))")
+        );
+        assert_ne!(
+            accepted.canonical_input.canonical_terms,
+            rejected.canonical_input.canonical_terms
+        );
     }
 }
