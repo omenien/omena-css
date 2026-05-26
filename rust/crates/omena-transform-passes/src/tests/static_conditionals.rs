@@ -182,6 +182,13 @@ fn execution_runtime_evaluates_simple_supports_branches_with_cascade_witness() {
                 obligation.proof_product == "omena-cascade.supports-static-eval"
                     && obligation.accepted
                     && obligation
+                        .canonical_smt_input
+                        .as_ref()
+                        .is_some_and(|input| {
+                            input.product == "omena-smt.canonical-input"
+                                && input.l1_primitive == "evaluate_static_supports_condition"
+                        })
+                    && obligation
                         .checked_obligations
                         .contains(&"staticSupportsCondition")
             })

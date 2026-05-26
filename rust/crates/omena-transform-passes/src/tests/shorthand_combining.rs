@@ -37,6 +37,13 @@ fn execution_runtime_combines_adjacent_box_longhands_with_cascade_proof() {
                     && obligation.proof_product == "omena-cascade.shorthand-combination-proof"
                     && obligation.accepted
                     && obligation
+                        .canonical_smt_input
+                        .as_ref()
+                        .is_some_and(|input| {
+                            input.product == "omena-smt.canonical-input"
+                                && input.l1_primitive == "prove_box_shorthand_combination"
+                        })
+                    && obligation
                         .checked_obligations
                         .contains(&"canonicalLonghandSet")
             })

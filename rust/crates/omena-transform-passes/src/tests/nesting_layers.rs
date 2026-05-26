@@ -169,6 +169,12 @@ fn execution_runtime_flattens_only_root_scope_proof_candidates() {
         "omena-cascade.scope-flatten-proof"
     );
     assert!(
+        accepted.cascade_proof_obligations.obligations[0]
+            .canonical_smt_input
+            .as_ref()
+            .is_some_and(|input| input.l1_primitive == "prove_scope_flatten_candidate")
+    );
+    assert!(
         execution
             .cascade_proof_obligations
             .obligations
@@ -216,10 +222,22 @@ fn execution_runtime_flattens_layers_only_with_closed_bundle_context() {
             .as_deref(),
         Some("requires an explicit closed-style-world bundle witness before mutation")
     );
+    assert!(
+        planned.cascade_proof_obligations.obligations[0]
+            .canonical_smt_input
+            .as_ref()
+            .is_some_and(|input| input.l1_primitive == "prove_layer_flatten_candidate")
+    );
     assert_eq!(execution.cascade_proof_obligations.obligation_count, 1);
     assert_eq!(execution.cascade_proof_obligations.accepted_count, 1);
     assert_eq!(
         execution.cascade_proof_obligations.obligations[0].proof_product,
         "omena-cascade.layer-flatten-proof"
+    );
+    assert!(
+        execution.cascade_proof_obligations.obligations[0]
+            .canonical_smt_input
+            .as_ref()
+            .is_some_and(|input| input.l1_primitive == "prove_layer_flatten_candidate")
     );
 }

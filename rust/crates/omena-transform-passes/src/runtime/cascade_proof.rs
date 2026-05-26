@@ -1,10 +1,14 @@
 use std::collections::BTreeSet;
 
 use omena_cascade::{
-    LayerFlattenProofV0, ScopeFlattenProofV0, ShorthandCombinationProofV0,
+    BoxLonghandInputV0, LayerFlattenProofV0, ScopeFlattenProofV0, ShorthandCombinationProofV0,
     StaticSupportsEvalVerdictV0, StaticSupportsEvalWitnessV0,
 };
 use omena_parser::StyleDialect;
+use omena_smt::{
+    CanonicalSmtInputV0, StubSmtBackendV0, canonical_smt_input_v0,
+    smt_evaluate_static_supports_condition_v0, smt_prove_box_shorthand_combination_v0,
+};
 use omena_transform_cst::TransformPassKind;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -86,7 +90,15 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
                 source_span_start: None,
                 source_span_end: None,
                 checked_obligations: vec!["closedBundleWitness"],
-                canonical_smt_input: None,
+                canonical_smt_input: Some(canonical_smt_input_v0(
+                    "layer-flatten-candidate",
+                    "prove_layer_flatten_candidate",
+                    vec![
+                        "require:closed-bundle=false".to_string(),
+                        "require:no-peer-layer=false".to_string(),
+                        "require:no-unlayered-rule=false".to_string(),
+                    ],
+                )),
                 proof_payload: json!({
                     "product": "omena-cascade.layer-flatten-proof",
                     "accepted": false,
@@ -147,6 +159,7 @@ fn shorthand_obligation(
     let blocked_reason = proof.blocked_reason.map(str::to_string);
     let provenance_preserved = proof.provenance_preserved;
     let cascade_safe_witness = proof.cascade_safe_witness.clone();
+    let canonical_smt_input = Some(shorthand_canonical_smt_input_v0(&proof));
 
     proof_obligation(
         pass_id,
@@ -163,6 +176,7 @@ fn shorthand_obligation(
             "nonImportantDeclarations",
             "provenancePreservation",
         ],
+        canonical_smt_input,
         proof,
     )
 }
@@ -177,6 +191,7 @@ fn scope_obligation(
     let blocked_reason = proof.blocked_reason.map(str::to_string);
     let provenance_preserved = proof.provenance_preserved;
     let cascade_safe_witness = proof.cascade_safe_witness.clone();
+    let canonical_smt_input = Some(scope_canonical_smt_input_v0(&proof));
 
     proof_obligation(
         pass_id,
@@ -194,6 +209,7 @@ fn scope_obligation(
             "noUnscopedCompetition",
             "noLayerComposition",
         ],
+        canonical_smt_input,
         proof,
     )
 }
@@ -208,6 +224,7 @@ fn layer_obligation(
     let blocked_reason = proof.blocked_reason.map(str::to_string);
     let provenance_preserved = proof.provenance_preserved;
     let cascade_safe_witness = proof.cascade_safe_witness.clone();
+    let canonical_smt_input = Some(layer_canonical_smt_input_v0(&proof));
 
     proof_obligation(
         pass_id,
@@ -224,6 +241,7 @@ fn layer_obligation(
             "noUnlayeredCompetition",
             "noImportantLayerInversion",
         ],
+        canonical_smt_input,
         proof,
     )
 }
@@ -238,6 +256,7 @@ fn supports_obligation(
     let blocked_reason = (!accepted).then(|| witness.reason.to_string());
     let provenance_preserved = witness.provenance_preserved;
     let cascade_safe_witness = witness.reason.to_string();
+    let canonical_smt_input = Some(supports_canonical_smt_input_v0(&witness));
 
     proof_obligation(
         pass_id,
@@ -253,6 +272,7 @@ fn supports_obligation(
             "modernBrowserAssumption",
             "knownFeatureQueryShape",
         ],
+        canonical_smt_input,
         witness,
     )
 }
@@ -268,6 +288,7 @@ fn proof_obligation<T: Serialize>(
     source_span_start: Option<usize>,
     source_span_end: Option<usize>,
     checked_obligations: Vec<&'static str>,
+    canonical_smt_input: Option<CanonicalSmtInputV0>,
     proof: T,
 ) -> TransformCascadeProofObligationV0 {
     TransformCascadeProofObligationV0 {
@@ -280,7 +301,70 @@ fn proof_obligation<T: Serialize>(
         source_span_start,
         source_span_end,
         checked_obligations,
-        canonical_smt_input: None,
+        canonical_smt_input,
         proof_payload: serde_json::to_value(proof).unwrap_or(Value::Null),
     }
+}
+
+fn shorthand_canonical_smt_input_v0(proof: &ShorthandCombinationProofV0) -> CanonicalSmtInputV0 {
+    let longhands = proof
+        .ordered_longhand_properties
+        .iter()
+        .enumerate()
+        .map(|(index, property)| BoxLonghandInputV0 {
+            property: property.clone(),
+            value: "smt-witness".to_string(),
+            important: false,
+            source_order: index as u32,
+        })
+        .collect::<Vec<_>>();
+
+    smt_prove_box_shorthand_combination_v0(
+        proof.shorthand_property.as_str(),
+        &longhands,
+        &StubSmtBackendV0::default(),
+    )
+    .canonical_input
+}
+
+fn scope_canonical_smt_input_v0(proof: &ScopeFlattenProofV0) -> CanonicalSmtInputV0 {
+    canonical_smt_input_v0(
+        "scope-flatten-candidate",
+        "prove_scope_flatten_candidate",
+        vec![
+            format!(
+                "require:root-scope={}",
+                proof.root_selector.trim() == ":root"
+            ),
+            format!(
+                "require:provenance-preserved={}",
+                proof.provenance_preserved
+            ),
+            format!("require:l1-accepted={}", proof.accepted),
+        ],
+    )
+}
+
+fn layer_canonical_smt_input_v0(proof: &LayerFlattenProofV0) -> CanonicalSmtInputV0 {
+    canonical_smt_input_v0(
+        "layer-flatten-candidate",
+        "prove_layer_flatten_candidate",
+        vec![
+            format!("require:layer-known={}", proof.layer_name.is_some()),
+            format!(
+                "require:provenance-preserved={}",
+                proof.provenance_preserved
+            ),
+            format!("require:l1-accepted={}", proof.accepted),
+        ],
+    )
+}
+
+fn supports_canonical_smt_input_v0(witness: &StaticSupportsEvalWitnessV0) -> CanonicalSmtInputV0 {
+    smt_evaluate_static_supports_condition_v0(
+        witness.condition.as_str(),
+        witness.assumption,
+        &StubSmtBackendV0::default(),
+    )
+    .canonical_input
 }
