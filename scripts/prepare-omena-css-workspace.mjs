@@ -50,24 +50,24 @@ const omenaCssCrates = [
 const omenaCssPublishOrder = [
   "omena-incremental",
   "omena-abstract-value",
-  "omena-checker",
-  "engine-input-producers",
   "omena-syntax",
   "omena-meta-macros",
   "omena-testkit",
-  "omena-interner",
-  "omena-parser",
+  "engine-input-producers",
   "omena-refinement-trait",
-  "omena-cascade",
   "omena-resolver",
   "omena-sif",
-  "omena-semantic",
-  "omena-spec-audit",
-  "omena-bridge",
   "omena-zk-circuit",
+  "omena-interner",
+  "omena-parser",
+  "omena-cascade",
+  "omena-spec-audit",
+  "omena-checker",
   "omena-smt",
+  "omena-semantic",
   "omena-zk-audit",
   "omena-transform-cst",
+  "omena-bridge",
   "omena-lawvere",
   "omena-categorical",
   "omena-transform-passes",
@@ -82,13 +82,20 @@ const omenaCssPublishOrder = [
 ];
 const externallyPublishedCrates = new Set(["omena-incremental", "engine-input-producers"]);
 const omenaCssWorkspaceVersion = "0.1.14";
-const omenaCssDependencyVersion = "0.1";
+const omenaCssExternalDependencyVersion = "0.1";
 
 function publicCrateName(crateName) {
   if (crateName === "engine-input-producers") {
     return "omena-engine-input-producers";
   }
   return crateName;
+}
+
+function dependencyPublishVersion(crateName) {
+  if (externallyPublishedCrates.has(crateName)) {
+    return omenaCssExternalDependencyVersion;
+  }
+  return omenaCssWorkspaceVersion;
 }
 
 const cliOptions = parseArgs(process.argv.slice(2));
@@ -1299,15 +1306,13 @@ function rewriteCrateManifest(manifestPath) {
   }
   manifest = manifest.replace(
     /^engine-input-producers = \{ path = "\.\.\/engine-input-producers" \}$/gm,
-    `engine-input-producers = { package = "omena-engine-input-producers", path = "../engine-input-producers", version = "${omenaCssDependencyVersion}" }`,
+    `engine-input-producers = { package = "omena-engine-input-producers", path = "../engine-input-producers", version = "${dependencyPublishVersion("engine-input-producers")}" }`,
   );
   manifest = manifest.replace(
-    /^((?:omena-[a-z0-9-]+) = \{ path = "\.\.\/(?:omena-[a-z0-9-]+)")((?:, [^}\n]+)*) \}$/gm,
-    (_dependency, prefix, attributes) => {
-      if (attributes.includes("version =")) {
-        return `${prefix}${attributes} }`;
-      }
-      return `${prefix}, version = "${omenaCssDependencyVersion}"${attributes} }`;
+    /^((?:omena-[a-z0-9-]+) = \{ path = "\.\.\/(omena-[a-z0-9-]+)")((?:, [^}\n]+)*) \}$/gm,
+    (_dependency, prefix, dependencyCrate, attributes) => {
+      const normalizedAttributes = attributes.replace(/, version = "[^"]+"/, "");
+      return `${prefix}, version = "${dependencyPublishVersion(dependencyCrate)}"${normalizedAttributes} }`;
     },
   );
   writeFileSync(manifestPath, manifest);
@@ -1445,9 +1450,19 @@ function assertVersionedLocalDependencies(manifestPath) {
     ) ?? [];
 
   for (const dependency of localDependencies) {
-    if (!/, version = "[^"]+"/.test(dependency)) {
+    const dependencyMatch = dependency.match(
+      /^(omena-[a-z0-9-]+|engine-input-producers) = \{ .*path = "\.\.\/(omena-[a-z0-9-]+|engine-input-producers)".*version = "([^"]+)"/,
+    );
+    if (!dependencyMatch) {
       throw new Error(
         `Local omena dependency must include a publish version in ${manifestPath}: ${dependency}`,
+      );
+    }
+    const [, , dependencyCrate, dependencyVersion] = dependencyMatch;
+    const expectedVersion = dependencyPublishVersion(dependencyCrate);
+    if (dependencyVersion !== expectedVersion) {
+      throw new Error(
+        `Local omena dependency must use ${expectedVersion} in ${manifestPath}: ${dependency}`,
       );
     }
   }
