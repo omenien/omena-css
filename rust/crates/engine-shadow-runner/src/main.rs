@@ -37,12 +37,14 @@ use omena_checker::{
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
     OmenaCheckerDynamicClassDomainInputV0, OmenaCheckerGrnEvaluationV0, OmenaCheckerGrnInputV0,
     OmenaCheckerMTierEvaluationV0, OmenaCheckerMdlEvaluationV0, OmenaCheckerMdlInputV0,
-    OmenaCheckerMdlSummaryInputV0, OmenaCheckerSmtEvaluationV0, OmenaCheckerSmtInputV0,
+    OmenaCheckerMdlSummaryInputV0, OmenaCheckerRgFlowCouplingInputV0,
+    OmenaCheckerRgFlowCouplingSpaceInputV0, OmenaCheckerRgFlowEvaluationV0,
+    OmenaCheckerRgFlowInputV0, OmenaCheckerSmtEvaluationV0, OmenaCheckerSmtInputV0,
     OmenaCheckerStreamingIfdsEvaluationV0, OmenaCheckerStreamingIfdsInputV0,
     OmenaCheckerStreamingIfdsReportInputV0, evaluate_omena_checker_cascade_rules,
     evaluate_omena_checker_grn_rules, evaluate_omena_checker_m_tier_rules,
-    evaluate_omena_checker_mdl_rules, evaluate_omena_checker_smt_rules,
-    evaluate_omena_checker_streaming_ifds_rules,
+    evaluate_omena_checker_mdl_rules, evaluate_omena_checker_rg_flow_rules,
+    evaluate_omena_checker_smt_rules, evaluate_omena_checker_streaming_ifds_rules,
     summarize_omena_checker_rule_enforcement_coverage_v0,
 };
 use omena_query::{
@@ -779,6 +781,31 @@ struct OmenaCheckerStreamingIfdsEvaluationRunnerOutputV0 {
     evaluation_count: usize,
     rule_code_names: Vec<&'static str>,
     evaluations: Vec<OmenaCheckerStreamingIfdsEvaluationV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerRgFlowEvaluationInputV0 {
+    flows: Vec<OmenaCheckerRgFlowCouplingRunnerInputV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerRgFlowCouplingRunnerInputV0 {
+    workspace_path: String,
+    before: OmenaCheckerRgFlowCouplingSpaceInputV0,
+    after: OmenaCheckerRgFlowCouplingSpaceInputV0,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerRgFlowEvaluationRunnerOutputV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    flow_count: usize,
+    evaluation_count: usize,
+    rule_code_names: Vec<&'static str>,
+    evaluations: Vec<OmenaCheckerRgFlowEvaluationV0>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1888,6 +1915,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_omena_checker_streaming_ifds_evaluations(input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("omena-checker-rg-flow-evaluations") => {
+            let input: OmenaCheckerRgFlowEvaluationInputV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_checker_rg_flow_evaluations(input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("omena-checker-rule-enforcement-coverage") => {
             let summary = summarize_omena_checker_rule_enforcement_coverage_v0();
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
@@ -2359,6 +2391,12 @@ fn run_daemon_selected_query_command(
                 summarize_omena_checker_streaming_ifds_evaluations(input),
             )?)
         }
+        "omena-checker-rg-flow-evaluations" => {
+            let input: OmenaCheckerRgFlowEvaluationInputV0 = serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_checker_rg_flow_evaluations(input),
+            )?)
+        }
         "omena-checker-rule-enforcement-coverage" => Ok(serde_json::to_value(
             summarize_omena_checker_rule_enforcement_coverage_v0(),
         )?),
@@ -2706,6 +2744,39 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
         event_count: report.event_count,
         output_fact_count: report.output_fact_count,
         precision_parity_with_batch: report.precision_parity_with_batch,
+        evaluation_count: evaluations.len(),
+        rule_code_names,
+        evaluations,
+    }
+}
+
+fn summarize_omena_checker_rg_flow_evaluations(
+    input: OmenaCheckerRgFlowEvaluationInputV0,
+) -> OmenaCheckerRgFlowEvaluationRunnerOutputV0 {
+    let flow_count = input.flows.len();
+    let checker_input = OmenaCheckerRgFlowInputV0 {
+        flows: input
+            .flows
+            .into_iter()
+            .map(|flow| OmenaCheckerRgFlowCouplingInputV0 {
+                workspace_path: flow.workspace_path,
+                before: flow.before,
+                after: flow.after,
+            })
+            .collect(),
+    };
+    let evaluations = evaluate_omena_checker_rg_flow_rules(checker_input);
+    let rule_code_names = evaluations
+        .iter()
+        .map(|evaluation| evaluation.rule_code_name)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    OmenaCheckerRgFlowEvaluationRunnerOutputV0 {
+        schema_version: "0",
+        product: "omena-checker.rg-flow-evaluations",
+        flow_count,
         evaluation_count: evaluations.len(),
         rule_code_names,
         evaluations,

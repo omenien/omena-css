@@ -18,6 +18,7 @@ const checkerGrnBody = commandBodies.get("omena-checker-grn-evaluations");
 const checkerSmtBody = commandBodies.get("omena-checker-smt-evaluations");
 const checkerMdlBody = commandBodies.get("omena-checker-mdl-evaluations");
 const checkerStreamingIfdsBody = commandBodies.get("omena-checker-streaming-ifds-evaluations");
+const checkerRgFlowBody = commandBodies.get("omena-checker-rg-flow-evaluations");
 assert.ok(
   checkerMTierBody,
   "missing engine-shadow-runner command arm: omena-checker-m-tier-evaluations",
@@ -41,6 +42,10 @@ assert.ok(
 assert.ok(
   checkerStreamingIfdsBody,
   "missing engine-shadow-runner command arm: omena-checker-streaming-ifds-evaluations",
+);
+assert.ok(
+  checkerRgFlowBody,
+  "missing engine-shadow-runner command arm: omena-checker-rg-flow-evaluations",
 );
 assert.ok(
   checkerMTierBody.includes("OmenaCheckerMTierEvaluationInputV0"),
@@ -67,6 +72,10 @@ assert.ok(
   "omena-checker-streaming-ifds-evaluations must deserialize the runner streaming IFDS input product",
 );
 assert.ok(
+  checkerRgFlowBody.includes("OmenaCheckerRgFlowEvaluationInputV0"),
+  "omena-checker-rg-flow-evaluations must deserialize the runner RG-flow input product",
+);
+assert.ok(
   checkerMTierBody.includes("summarize_omena_checker_m_tier_evaluations"),
   "omena-checker-m-tier-evaluations must route through the runner-owned checker summary wrapper",
 );
@@ -89,6 +98,10 @@ assert.ok(
 assert.ok(
   checkerStreamingIfdsBody.includes("summarize_omena_checker_streaming_ifds_evaluations"),
   "omena-checker-streaming-ifds-evaluations must route through the runner-owned checker streaming IFDS summary wrapper",
+);
+assert.ok(
+  checkerRgFlowBody.includes("summarize_omena_checker_rg_flow_evaluations"),
+  "omena-checker-rg-flow-evaluations must route through the runner-owned checker RG-flow summary wrapper",
 );
 assert.ok(
   runnerSource.includes("evaluate_omena_checker_m_tier_rules"),
@@ -123,6 +136,10 @@ assert.ok(
   "engine-shadow-runner must call omena-checker's streaming IFDS evaluator",
 );
 assert.ok(
+  runnerSource.includes("evaluate_omena_checker_rg_flow_rules"),
+  "engine-shadow-runner must call omena-checker's RG-flow evaluator",
+);
+assert.ok(
   runnerSource.includes('"omena-checker-m-tier-evaluations" =>'),
   "engine-shadow-runner daemon must support omena-checker-m-tier-evaluations",
 );
@@ -145,6 +162,10 @@ assert.ok(
 assert.ok(
   runnerSource.includes('"omena-checker-streaming-ifds-evaluations" =>'),
   "engine-shadow-runner daemon must support omena-checker-streaming-ifds-evaluations",
+);
+assert.ok(
+  runnerSource.includes('"omena-checker-rg-flow-evaluations" =>'),
+  "engine-shadow-runner daemon must support omena-checker-rg-flow-evaluations",
 );
 assert.ok(
   /^\s*omena-checker\s*=/m.test(runnerCargoToml),
@@ -211,6 +232,14 @@ assert.equal(streamingSummary.product, "omena-checker.streaming-ifds-evaluations
 assert.equal(streamingSummary.reportProduct, "omena-streaming-ifds.analysis-report");
 assert.equal(streamingSummary.precisionParityWithBatch, true);
 assert.equal(streamingSummary.evaluationCount, 0);
+const rgFlowSummary = runRgFlowEvaluationFixture();
+assert.equal(rgFlowSummary.product, "omena-checker.rg-flow-evaluations");
+assert.equal(rgFlowSummary.flowCount, 2);
+assert.ok(
+  rgFlowSummary.ruleCodeNames.includes("rg-flow-relevant-operator"),
+  "RG-flow runner output must include rg-flow-relevant-operator",
+);
+assert.equal(rgFlowSummary.evaluationCount, 1);
 
 process.stdout.write(
   [
@@ -221,6 +250,7 @@ process.stdout.write(
     "smtCommand=omena-checker-smt-evaluations",
     "mdlCommand=omena-checker-mdl-evaluations",
     "streamingIfdsCommand=omena-checker-streaming-ifds-evaluations",
+    "rgFlowCommand=omena-checker-rg-flow-evaluations",
     "runtime=engine-shadow-runner",
     "owner=omena-checker",
   ].join(" "),
@@ -283,6 +313,13 @@ interface StreamingIfdsEvaluationSummary {
   readonly reportProduct: string;
   readonly precisionParityWithBatch: boolean;
   readonly evaluationCount: number;
+}
+
+interface RgFlowEvaluationSummary {
+  readonly product: string;
+  readonly flowCount: number;
+  readonly evaluationCount: number;
+  readonly ruleCodeNames: readonly string[];
 }
 
 function runCascadeEvaluationFixture(): CascadeEvaluationSummary {
@@ -483,6 +520,48 @@ function runStreamingIfdsEvaluationFixture(): StreamingIfdsEvaluationSummary {
   return JSON.parse(result.stdout) as StreamingIfdsEvaluationSummary;
 }
 
+function runRgFlowEvaluationFixture(): RgFlowEvaluationSummary {
+  const input = {
+    flows: [
+      {
+        workspacePath: "workspace://critical-token-graph",
+        before: rgFlowCoupling(1, 1, 0, 0),
+        after: rgFlowCoupling(5, 0, 0, 8),
+      },
+      {
+        workspacePath: "workspace://settled-token-graph",
+        before: rgFlowCoupling(4, 2, 0, 0),
+        after: rgFlowCoupling(3, 1, 0, 0),
+      },
+    ],
+  };
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      "omena-checker-rg-flow-evaluations",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: JSON.stringify(input),
+      maxBuffer: 1024 * 1024 * 10,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `engine-shadow-runner RG-flow command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return JSON.parse(result.stdout) as RgFlowEvaluationSummary;
+}
+
 function cascadeDeclaration(
   declarationId: string,
   selector: string,
@@ -513,5 +592,14 @@ function grnVertex(vertexId: string, selector: string, property: string, state: 
     selector,
     property,
     state,
+  };
+}
+
+function rgFlowCoupling(kEnv: number, kDecl: number, kCycle: number, kDirty: number) {
+  return {
+    kEnv,
+    kDecl,
+    kCycle,
+    kDirty,
   };
 }

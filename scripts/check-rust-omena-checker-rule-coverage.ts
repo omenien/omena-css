@@ -31,6 +31,7 @@ const REQUIRED_RULE_NAMES = [
   "cascade.smt-violation",
   "design-system-mdl-budget",
   "streaming-ifds-precision-parity",
+  "rg-flow-relevant-operator",
   "cascade.deep-conflict",
   "cascade.unreachable-rule",
 ] as const;
@@ -40,6 +41,7 @@ const MECHANISM_RULE_NAMES = [
   "cascade.smt-violation",
   "design-system-mdl-budget",
   "streaming-ifds-precision-parity",
+  "rg-flow-relevant-operator",
   "cascade.deep-conflict",
   "cascade.unreachable-rule",
 ] as const;
@@ -59,14 +61,14 @@ assert.ok(
 
 const coverage = readRuleCoverage();
 assert.equal(coverage.product, "omena-checker.rule-enforcement-coverage");
-assert.equal(coverage.registeredRuleCount, 27);
+assert.equal(coverage.registeredRuleCount, 28);
 assert.equal(coverage.mappedRuleCount, coverage.registeredRuleCount);
 assert.equal(coverage.coveragePassed, true);
 assert.deepEqual(coverage.missingRuleNames, []);
 assert.deepEqual(coverage.extraRuleNames, []);
 assert.equal(coverage.productDiagnosticGateRuleCount, 13);
 assert.equal(coverage.directEvaluatorRuleCount, 8);
-assert.equal(coverage.mechanismEvaluatorRuleCount, 6);
+assert.equal(coverage.mechanismEvaluatorRuleCount, 7);
 
 const evidenceByRule = new Map(coverage.evidence.map((entry) => [entry.ruleCodeName, entry]));
 for (const ruleName of REQUIRED_RULE_NAMES) {

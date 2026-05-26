@@ -76,8 +76,8 @@ pub fn list_omena_checker_rule_enforcement_evidence_v0()
         MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
         MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
         MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie,
-        UnusedSelector,
+        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
+        UnspecifiedCascadeTie, UnusedSelector,
     };
 
     vec![
@@ -169,6 +169,13 @@ pub fn list_omena_checker_rule_enforcement_evidence_v0()
             "evaluates_streaming_ifds_precision_parity_rule_family",
             "evaluates_streaming_ifds_precision_parity_rule_family",
             &["omena-streaming-ifds.analysis-report"],
+        ),
+        mechanism(
+            RgFlowRelevantOperator,
+            "engine-shadow-runner.omena-checker-rg-flow-evaluations",
+            "evaluates_rg_flow_relevant_operator_rule_family",
+            "evaluates_rg_flow_relevant_operator_rule_family",
+            &["omena-rg-flow.coupling-jacobian-spectrum"],
         ),
         mechanism(
             CascadeDeepConflict,
@@ -269,7 +276,7 @@ mod tests {
         let summary = summarize_omena_checker_rule_enforcement_coverage_v0();
 
         assert!(summary.coverage_passed);
-        assert_eq!(summary.registered_rule_count, 27);
+        assert_eq!(summary.registered_rule_count, 28);
         assert_eq!(summary.mapped_rule_count, summary.registered_rule_count);
         assert!(summary.missing_rule_names.is_empty());
         assert!(summary.extra_rule_names.is_empty());
@@ -293,7 +300,7 @@ mod tests {
             .filter(|entry| entry.evidence_kind == "mechanismEvaluator")
             .collect::<Vec<_>>();
 
-        assert_eq!(mechanism_evidence.len(), 6);
+        assert_eq!(mechanism_evidence.len(), 7);
         assert!(mechanism_evidence.iter().all(|entry| {
             !entry.product_path.is_empty()
                 && !entry.emit_fixture.is_empty()

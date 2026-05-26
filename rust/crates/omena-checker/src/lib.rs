@@ -6,6 +6,7 @@ use omena_abstract_value::{
 };
 use omena_cascade::{GrnBooleanState, GrnVertexStateV0, GrnVertexV0, project_grn_outcome};
 pub use omena_categorical::CategoricalCascadeEvidenceV0;
+use omena_rg_flow::{coupling_space, estimate_coupling_jacobian_spectrum_v0};
 use omena_smt::{
     SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0, canonical_smt_input_v0,
 };
@@ -50,6 +51,7 @@ pub enum OmenaCheckerRuleCodeV0 {
     CascadeSMTViolation,
     DesignerIntentInconsistency,
     StreamingIfdsPrecisionParity,
+    RgFlowRelevantOperator,
 }
 
 impl OmenaCheckerRuleCodeV0 {
@@ -82,6 +84,7 @@ impl OmenaCheckerRuleCodeV0 {
             Self::CascadeSMTViolation => "cascade.smt-violation",
             Self::DesignerIntentInconsistency => "designer-intent-inconsistency",
             Self::StreamingIfdsPrecisionParity => "streaming-ifds-precision-parity",
+            Self::RgFlowRelevantOperator => "rg-flow-relevant-operator",
         }
     }
 }
@@ -483,6 +486,43 @@ pub struct OmenaCheckerStreamingIfdsEvaluationV0 {
     pub mechanism_products: Vec<&'static str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerRgFlowInputV0 {
+    pub flows: Vec<OmenaCheckerRgFlowCouplingInputV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerRgFlowCouplingInputV0 {
+    pub workspace_path: String,
+    pub before: OmenaCheckerRgFlowCouplingSpaceInputV0,
+    pub after: OmenaCheckerRgFlowCouplingSpaceInputV0,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerRgFlowCouplingSpaceInputV0 {
+    pub k_env: usize,
+    pub k_decl: usize,
+    pub k_cycle: usize,
+    pub k_dirty: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerRgFlowEvaluationV0 {
+    pub rule_code: OmenaCheckerRuleCodeV0,
+    pub rule_code_name: &'static str,
+    pub severity: OmenaCheckerSeverityV0,
+    pub severity_name: &'static str,
+    pub workspace_path: String,
+    pub spectral_radius: f64,
+    pub eigenvalues: Vec<f64>,
+    pub message: String,
+    pub mechanism_products: Vec<&'static str>,
+}
+
 pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0> {
     use OmenaCheckerFindingCategoryV0::{Source, Style};
     use OmenaCheckerRuleCodeV0::{
@@ -492,8 +532,8 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
         MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
         MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
         MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie,
-        UnusedSelector,
+        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
+        UnspecifiedCascadeTie, UnusedSelector,
     };
     use OmenaCheckerRuleFixabilityV0::{CodeAction, None};
     use OmenaCheckerRulePresetV0::{Recommended, Strict};
@@ -701,6 +741,14 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
             "Report streaming IFDS results that fail exact parity with the batch hypergraph oracle.",
         ),
         rule(
+            RgFlowRelevantOperator,
+            Style,
+            Hint,
+            None,
+            &[Strict],
+            "Report RG-flow coupling spectra whose relevant operator indicates unstable cascade sensitivity.",
+        ),
+        rule(
             CascadeDeepConflict,
             Style,
             Warning,
@@ -806,13 +854,14 @@ pub fn list_omena_checker_t_tier_rule_code_names() -> Vec<&'static str> {
 pub fn list_omena_checker_i_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
     use OmenaCheckerRuleCodeV0::{
         CascadeUnreachableRule, DesignSystemMdlBudget, DesignerIntentInconsistency,
-        StreamingIfdsPrecisionParity,
+        RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
     };
 
     vec![
         DesignerIntentInconsistency,
         DesignSystemMdlBudget,
         StreamingIfdsPrecisionParity,
+        RgFlowRelevantOperator,
         CascadeUnreachableRule,
     ]
 }
@@ -1342,6 +1391,28 @@ pub fn evaluate_omena_checker_streaming_ifds_rules(
         .collect()
 }
 
+pub fn evaluate_omena_checker_rg_flow_rules(
+    input: OmenaCheckerRgFlowInputV0,
+) -> Vec<OmenaCheckerRgFlowEvaluationV0> {
+    input
+        .flows
+        .into_iter()
+        .filter_map(|flow| {
+            let before = checker_rg_flow_coupling_space(flow.before);
+            let after = checker_rg_flow_coupling_space(flow.after);
+            let spectrum = estimate_coupling_jacobian_spectrum_v0(&before, &after);
+            (spectrum.spectral_radius > 1.0).then(|| {
+                rg_flow_evaluation(
+                    flow.workspace_path,
+                    spectrum.spectral_radius,
+                    spectrum.eigenvalues,
+                    "RG-flow coupling Jacobian has a relevant operator; review custom-property fixed-point sensitivity.",
+                )
+            })
+        })
+        .collect()
+}
+
 fn dynamic_class_domain_evaluation(
     outcome: OmenaCheckerDynamicClassDomainOutcomeV0,
     rule_code: Option<OmenaCheckerRuleCodeV0>,
@@ -1534,6 +1605,31 @@ fn streaming_ifds_evaluation(
     }
 }
 
+fn rg_flow_evaluation(
+    workspace_path: String,
+    spectral_radius: f64,
+    eigenvalues: Vec<f64>,
+    message: &'static str,
+) -> OmenaCheckerRgFlowEvaluationV0 {
+    OmenaCheckerRgFlowEvaluationV0 {
+        rule_code: OmenaCheckerRuleCodeV0::RgFlowRelevantOperator,
+        rule_code_name: OmenaCheckerRuleCodeV0::RgFlowRelevantOperator.as_str(),
+        severity: OmenaCheckerSeverityV0::Hint,
+        severity_name: OmenaCheckerSeverityV0::Hint.as_str(),
+        workspace_path,
+        spectral_radius,
+        eigenvalues,
+        message: message.to_string(),
+        mechanism_products: vec!["omena-rg-flow.coupling-jacobian-spectrum"],
+    }
+}
+
+fn checker_rg_flow_coupling_space(
+    input: OmenaCheckerRgFlowCouplingSpaceInputV0,
+) -> omena_rg_flow::CouplingSpaceV0 {
+    coupling_space(input.k_env, input.k_decl, input.k_cycle, input.k_dirty)
+}
+
 fn designer_intent_source_order_tie_is_inconsistent(
     left: &OmenaCheckerCascadeDeclarationInputV0,
     right: &OmenaCheckerCascadeDeclarationInputV0,
@@ -1701,8 +1797,8 @@ fn rule_ordinal_for_code(code: OmenaCheckerRuleCodeV0) -> u16 {
         MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
         MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
         MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie,
-        UnusedSelector,
+        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
+        UnspecifiedCascadeTie, UnusedSelector,
     };
 
     match code {
@@ -1733,6 +1829,7 @@ fn rule_ordinal_for_code(code: OmenaCheckerRuleCodeV0) -> u16 {
         StreamingIfdsPrecisionParity => 25,
         CascadeDeepConflict => 26,
         CascadeUnreachableRule => 27,
+        RgFlowRelevantOperator => 28,
     }
 }
 
@@ -1744,8 +1841,8 @@ fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRuleTierV0 {
         MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
         MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
         MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        StreamingIfdsPrecisionParity, UnreachableDeclaration, UnspecifiedCascadeTie,
-        UnusedSelector,
+        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
+        UnspecifiedCascadeTie, UnusedSelector,
     };
 
     match code {
@@ -1775,7 +1872,8 @@ fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRuleTierV0 {
         DesignSystemMdlBudget
         | CascadeUnreachableRule
         | DesignerIntentInconsistency
-        | StreamingIfdsPrecisionParity => OmenaCheckerRuleTierV0::I,
+        | StreamingIfdsPrecisionParity
+        | RgFlowRelevantOperator => OmenaCheckerRuleTierV0::I,
     }
 }
 
@@ -1842,6 +1940,7 @@ mod tests {
                 "cascade.smt-violation",
                 "design-system-mdl-budget",
                 "streaming-ifds-precision-parity",
+                "rg-flow-relevant-operator",
                 "cascade.deep-conflict",
                 "cascade.unreachable-rule",
             ],
@@ -1878,7 +1977,7 @@ mod tests {
         assert_eq!(descriptors.len(), ordinals.len());
         assert_eq!(
             ordinals.into_iter().collect::<Vec<_>>(),
-            (1..=27).collect::<Vec<_>>()
+            (1..=28).collect::<Vec<_>>()
         );
         assert!(!is_omena_checker_rule_code("not-a-rule"));
     }
@@ -1908,13 +2007,13 @@ mod tests {
             summary.bundle_registry_product,
             "omena-checker.code-bundles"
         );
-        assert_eq!(summary.rule_count, 27);
+        assert_eq!(summary.rule_count, 28);
         assert_eq!(summary.source_rule_count, 8);
-        assert_eq!(summary.style_rule_count, 19);
+        assert_eq!(summary.style_rule_count, 20);
         assert_eq!(summary.m_tier_rule_count, 3);
         assert_eq!(summary.s_tier_rule_count, 7);
         assert_eq!(summary.t_tier_rule_count, 13);
-        assert_eq!(summary.i_tier_rule_count, 4);
+        assert_eq!(summary.i_tier_rule_count, 5);
         assert_eq!(summary.bundle_count, 5);
         assert!(
             summary
@@ -2028,6 +2127,7 @@ mod tests {
                 "designer-intent-inconsistency",
                 "design-system-mdl-budget",
                 "streaming-ifds-precision-parity",
+                "rg-flow-relevant-operator",
                 "cascade.unreachable-rule",
             ]
         );
@@ -2054,6 +2154,11 @@ mod tests {
             get_omena_checker_rule_descriptor(OmenaCheckerRuleCodeV0::StreamingIfdsPrecisionParity)
                 .map(|descriptor| descriptor.ordinal),
             Some(25)
+        );
+        assert_eq!(
+            get_omena_checker_rule_descriptor(OmenaCheckerRuleCodeV0::RgFlowRelevantOperator)
+                .map(|descriptor| descriptor.ordinal),
+            Some(28)
         );
         assert_eq!(
             resolve_omena_checker_rule_tier_for_smt_backend(
@@ -2463,6 +2568,41 @@ mod tests {
     }
 
     #[test]
+    fn evaluates_rg_flow_relevant_operator_rule_family() {
+        let evaluations = evaluate_omena_checker_rg_flow_rules(OmenaCheckerRgFlowInputV0 {
+            flows: vec![OmenaCheckerRgFlowCouplingInputV0 {
+                workspace_path: "workspace://critical-token-graph".to_string(),
+                before: rg_flow_coupling(1, 1, 0, 0),
+                after: rg_flow_coupling(5, 0, 0, 8),
+            }],
+        });
+
+        assert_eq!(evaluations.len(), 1);
+        assert_eq!(
+            evaluations[0].rule_code,
+            OmenaCheckerRuleCodeV0::RgFlowRelevantOperator
+        );
+        assert_eq!(
+            evaluations[0].workspace_path,
+            "workspace://critical-token-graph"
+        );
+        assert!(evaluations[0].spectral_radius > 1.0);
+        assert_eq!(
+            evaluations[0].mechanism_products,
+            vec!["omena-rg-flow.coupling-jacobian-spectrum"]
+        );
+
+        let clear_evaluations = evaluate_omena_checker_rg_flow_rules(OmenaCheckerRgFlowInputV0 {
+            flows: vec![OmenaCheckerRgFlowCouplingInputV0 {
+                workspace_path: "workspace://settled-token-graph".to_string(),
+                before: rg_flow_coupling(4, 2, 0, 0),
+                after: rg_flow_coupling(3, 1, 0, 0),
+            }],
+        });
+        assert!(clear_evaluations.is_empty());
+    }
+
+    #[test]
     fn cascade_rules_do_not_compare_across_conditional_contexts() {
         let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
             declarations: vec![
@@ -2619,6 +2759,20 @@ mod tests {
                 .iter()
                 .map(|value| value.to_string())
                 .collect(),
+        }
+    }
+
+    fn rg_flow_coupling(
+        k_env: usize,
+        k_decl: usize,
+        k_cycle: usize,
+        k_dirty: usize,
+    ) -> OmenaCheckerRgFlowCouplingSpaceInputV0 {
+        OmenaCheckerRgFlowCouplingSpaceInputV0 {
+            k_env,
+            k_decl,
+            k_cycle,
+            k_dirty,
         }
     }
 

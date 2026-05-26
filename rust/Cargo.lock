@@ -1861,6 +1861,7 @@ dependencies = [
  "omena-cascade",
  "omena-categorical",
  "omena-resolver",
+ "omena-rg-flow",
  "omena-smt",
  "omena-variational",
  "serde",

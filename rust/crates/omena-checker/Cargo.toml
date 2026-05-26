@@ -15,6 +15,7 @@ workspace = true
 omena-abstract-value = { path = "../omena-abstract-value" }
 omena-cascade = { path = "../omena-cascade" }
 omena-categorical = { path = "../omena-categorical" }
+omena-rg-flow = { path = "../omena-rg-flow" }
 omena-resolver = { path = "../omena-resolver" }
 omena-smt = { path = "../omena-smt" }
 omena-variational = { path = "../omena-variational" }
