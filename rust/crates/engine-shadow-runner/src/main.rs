@@ -27,7 +27,9 @@ use engine_input_producers::{
     summarize_source_side_evaluator_candidates_input, summarize_type_fact_input,
 };
 use omena_abstract_value::{
-    AbstractClassValueV0, CompositeClassValueInputV0, bottom_class_value,
+    AbstractClassValueV0, ClassValueFlowGraphV0, ClassValueFlowNodeV0, ClassValueFlowTransferV0,
+    CompositeClassValueInputV0, ExternalStringTypeFactsV0, KLimitedCallSiteFlowInputV0,
+    abstract_class_value_kind, analyze_k_limited_call_site_flows, bottom_class_value,
     char_inclusion_class_value, composite_class_value, exact_class_value, finite_set_class_value,
     prefix_class_value, prefix_suffix_class_value, suffix_class_value, top_class_value,
 };
@@ -537,6 +539,22 @@ struct OmenaCheckerMTierEvaluationInputV0 {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerKLimitedFlowMTierEvaluationInputV0 {
+    max_context_depth: usize,
+    selector_universe: Vec<String>,
+    contexts: Vec<OmenaCheckerKLimitedFlowContextInputV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerKLimitedFlowContextInputV0 {
+    callee_key: String,
+    call_site_stack: Vec<String>,
+    value: OmenaCheckerAbstractClassValueInputV0,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -632,6 +650,33 @@ struct OmenaCheckerMTierEvaluationRunnerOutputV0 {
     product: &'static str,
     selector_universe_count: usize,
     evaluation_count: usize,
+    evaluations: Vec<OmenaCheckerMTierEvaluationV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerKLimitedFlowMTierEvaluationRunnerOutputV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    flow_product: &'static str,
+    context_sensitivity: String,
+    max_context_depth: usize,
+    selector_universe_count: usize,
+    context_count: usize,
+    evaluation_count: usize,
+    contexts: Vec<OmenaCheckerKLimitedFlowMTierContextOutputV0>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerKLimitedFlowMTierContextOutputV0 {
+    callee_key: String,
+    call_site_stack: Vec<String>,
+    context_key: String,
+    exit_value_kind: &'static str,
+    exit_value: AbstractClassValueV0,
+    evaluation_count: usize,
+    rule_code_names: Vec<&'static str>,
     evaluations: Vec<OmenaCheckerMTierEvaluationV0>,
 }
 
@@ -1812,6 +1857,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_omena_checker_m_tier_evaluations(input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("omena-checker-k-limited-flow-m-tier-evaluations") => {
+            let input: OmenaCheckerKLimitedFlowMTierEvaluationInputV0 =
+                serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_checker_k_limited_flow_m_tier_evaluations(input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("omena-checker-cascade-evaluations") => {
             let input: OmenaCheckerCascadeInputV0 = serde_json::from_str(&stdin)?;
             let summary = summarize_omena_checker_cascade_evaluations(input);
@@ -2271,6 +2322,13 @@ fn run_daemon_selected_query_command(
                 summarize_omena_checker_m_tier_evaluations(input),
             )?)
         }
+        "omena-checker-k-limited-flow-m-tier-evaluations" => {
+            let input: OmenaCheckerKLimitedFlowMTierEvaluationInputV0 =
+                serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_checker_k_limited_flow_m_tier_evaluations(input),
+            )?)
+        }
         "omena-checker-cascade-evaluations" => {
             let input: OmenaCheckerCascadeInputV0 = serde_json::from_value(input)?;
             Ok(serde_json::to_value(
@@ -2323,6 +2381,174 @@ fn summarize_omena_checker_m_tier_evaluations(
         selector_universe_count,
         evaluation_count: evaluations.len(),
         evaluations,
+    }
+}
+
+fn summarize_omena_checker_k_limited_flow_m_tier_evaluations(
+    input: OmenaCheckerKLimitedFlowMTierEvaluationInputV0,
+) -> OmenaCheckerKLimitedFlowMTierEvaluationRunnerOutputV0 {
+    let selector_universe_count = input.selector_universe.len();
+    let flow_inputs = input
+        .contexts
+        .iter()
+        .map(|context| KLimitedCallSiteFlowInputV0 {
+            callee_key: context.callee_key.clone(),
+            call_site_stack: context.call_site_stack.clone(),
+            graph: checker_k_limited_flow_graph(context),
+            exit_node_id: "exit".to_string(),
+        })
+        .collect::<Vec<_>>();
+    let flow = analyze_k_limited_call_site_flows(&flow_inputs, input.max_context_depth);
+    let contexts = flow
+        .entries
+        .into_iter()
+        .map(|entry| {
+            let evaluations =
+                evaluate_omena_checker_m_tier_rules(OmenaCheckerDynamicClassDomainInputV0 {
+                    abstract_value: entry.exit_value.clone(),
+                    selector_universe: input.selector_universe.clone(),
+                });
+            let rule_code_names = evaluations
+                .iter()
+                .map(|evaluation| evaluation.rule_code_name)
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
+
+            OmenaCheckerKLimitedFlowMTierContextOutputV0 {
+                callee_key: entry.callee_key,
+                call_site_stack: entry.call_site_stack,
+                context_key: entry.context_key,
+                exit_value_kind: abstract_class_value_kind(&entry.exit_value),
+                exit_value: entry.exit_value,
+                evaluation_count: evaluations.len(),
+                rule_code_names,
+                evaluations,
+            }
+        })
+        .collect::<Vec<_>>();
+    let evaluation_count = contexts
+        .iter()
+        .map(|context| context.evaluation_count)
+        .sum();
+
+    OmenaCheckerKLimitedFlowMTierEvaluationRunnerOutputV0 {
+        schema_version: "0",
+        product: "omena-checker.k-limited-flow-m-tier-evaluations",
+        flow_product: flow.product,
+        context_sensitivity: flow.context_sensitivity,
+        max_context_depth: flow.max_context_depth,
+        selector_universe_count,
+        context_count: contexts.len(),
+        evaluation_count,
+        contexts,
+    }
+}
+
+fn checker_k_limited_flow_graph(
+    context: &OmenaCheckerKLimitedFlowContextInputV0,
+) -> ClassValueFlowGraphV0 {
+    ClassValueFlowGraphV0 {
+        context_key: None,
+        nodes: vec![ClassValueFlowNodeV0 {
+            id: "exit".to_string(),
+            predecessors: Vec::new(),
+            transfer: ClassValueFlowTransferV0::AssignFacts(checker_external_facts_from_value(
+                &context.value,
+            )),
+        }],
+    }
+}
+
+fn checker_external_facts_from_value(
+    value: &OmenaCheckerAbstractClassValueInputV0,
+) -> ExternalStringTypeFactsV0 {
+    match value {
+        OmenaCheckerAbstractClassValueInputV0::Exact { value } => {
+            let mut facts = external_string_type_facts("exact");
+            facts.values = Some(vec![value.clone()]);
+            facts
+        }
+        OmenaCheckerAbstractClassValueInputV0::FiniteSet { values } => {
+            let mut facts = external_string_type_facts("finiteSet");
+            facts.values = Some(values.clone());
+            facts
+        }
+        OmenaCheckerAbstractClassValueInputV0::Prefix { prefix } => {
+            let mut facts = external_string_type_facts("constrained");
+            facts.constraint_kind = Some("prefix".to_string());
+            facts.prefix = Some(prefix.clone());
+            facts
+        }
+        OmenaCheckerAbstractClassValueInputV0::Suffix { suffix } => {
+            let mut facts = external_string_type_facts("constrained");
+            facts.constraint_kind = Some("suffix".to_string());
+            facts.suffix = Some(suffix.clone());
+            facts
+        }
+        OmenaCheckerAbstractClassValueInputV0::PrefixSuffix {
+            prefix,
+            suffix,
+            min_length,
+        } => {
+            let mut facts = external_string_type_facts("constrained");
+            facts.constraint_kind = Some("prefixSuffix".to_string());
+            facts.prefix = Some(prefix.clone());
+            facts.suffix = Some(suffix.clone());
+            facts.min_len = *min_length;
+            facts
+        }
+        OmenaCheckerAbstractClassValueInputV0::CharInclusion {
+            must_chars,
+            may_chars,
+            may_include_other_chars,
+        } => {
+            let mut facts = external_string_type_facts("constrained");
+            facts.constraint_kind = Some("charInclusion".to_string());
+            facts.char_must = Some(must_chars.clone());
+            facts.char_may = Some(may_chars.clone());
+            facts.may_include_other_chars = Some(*may_include_other_chars);
+            facts
+        }
+        OmenaCheckerAbstractClassValueInputV0::Composite {
+            prefix,
+            suffix,
+            min_length,
+            must_chars,
+            may_chars,
+            may_include_other_chars,
+        } => {
+            let mut facts = external_string_type_facts("constrained");
+            facts.constraint_kind = Some("composite".to_string());
+            facts.prefix = prefix.clone();
+            facts.suffix = suffix.clone();
+            facts.min_len = *min_length;
+            facts.char_must = Some(must_chars.clone());
+            facts.char_may = Some(may_chars.clone());
+            facts.may_include_other_chars = Some(*may_include_other_chars);
+            facts
+        }
+        OmenaCheckerAbstractClassValueInputV0::Bottom => {
+            let mut facts = external_string_type_facts("finiteSet");
+            facts.values = Some(Vec::new());
+            facts
+        }
+        OmenaCheckerAbstractClassValueInputV0::Top => external_string_type_facts("top"),
+    }
+}
+
+fn external_string_type_facts(kind: impl Into<String>) -> ExternalStringTypeFactsV0 {
+    ExternalStringTypeFactsV0 {
+        kind: kind.into(),
+        constraint_kind: None,
+        values: None,
+        prefix: None,
+        suffix: None,
+        min_len: None,
+        max_len: None,
+        char_must: None,
+        char_may: None,
+        may_include_other_chars: None,
     }
 }
 
