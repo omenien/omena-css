@@ -1486,3 +1486,23 @@ fn range(
         },
     }
 }
+
+#[test]
+fn parser_position_uses_utf16_columns_for_non_ascii() {
+    // Regression for the byte-offset-vs-UTF-16 column divergence (same bug class
+    // as closed issue #40, tsgo position encoding): a multi-byte character before
+    // the offset must count as its UTF-16 width, not its UTF-8 byte length.
+    // "한글" = 2 chars, 3 UTF-8 bytes each (6 bytes), 1 UTF-16 code unit each.
+    let pos = super::parser_position_for_byte_offset("한글x", 6);
+    assert_eq!(pos.line, 0);
+    assert_eq!(pos.character, 2, "two UTF-16 units, not six bytes");
+
+    // Astral scalar U+1F600 is 4 UTF-8 bytes and 2 UTF-16 code units (surrogate pair).
+    let astral = super::parser_position_for_byte_offset("😀y", 4);
+    assert_eq!(astral.character, 2);
+
+    // Column resets after a newline: 'b' sits one UTF-16 unit into line 1.
+    let multiline = super::parser_position_for_byte_offset("a\n가b", 5);
+    assert_eq!(multiline.line, 1);
+    assert_eq!(multiline.character, 1);
+}

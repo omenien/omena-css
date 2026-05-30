@@ -1544,22 +1544,28 @@ fn parser_range_for_byte_span(source: &str, span: ParserByteSpanV0) -> ParserRan
 }
 
 fn parser_position_for_byte_offset(source: &str, byte_offset: usize) -> ParserPositionV0 {
+    // LSP positions count UTF-16 code units per line, not raw bytes. Walk chars
+    // and accumulate `len_utf16()` so non-ASCII source produces correct columns,
+    // matching the canonical helpers in omena-query/src/style.rs and
+    // omena-lsp-server/src/protocol.rs (previously this used a raw byte offset,
+    // which diverged on multi-byte characters).
+    let clamped_offset = byte_offset.min(source.len());
     let mut line = 0usize;
-    let mut line_start = 0usize;
-    let offset = byte_offset.min(source.len());
-    for (index, byte) in source.as_bytes().iter().enumerate() {
-        if index >= offset {
+    let mut character = 0usize;
+
+    for (index, ch) in source.char_indices() {
+        if index >= clamped_offset {
             break;
         }
-        if *byte == b'\n' {
+        if ch == '\n' {
             line += 1;
-            line_start = index + 1;
+            character = 0;
+        } else {
+            character += ch.len_utf16();
         }
     }
-    ParserPositionV0 {
-        line,
-        character: offset.saturating_sub(line_start),
-    }
+
+    ParserPositionV0 { line, character }
 }
 
 fn dialect_for_style_path(style_path: &str) -> Option<StyleDialect> {
