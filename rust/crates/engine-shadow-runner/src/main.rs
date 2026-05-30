@@ -64,11 +64,11 @@ use omena_ensemble::{
 };
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryCodeActionPlanV0, OmenaQueryExpressionDomainFlowRuntimeV0,
-    OmenaQuerySourceDocumentInputV0, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
-    OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformExecutionContextV0, ParserPositionV0,
-    UnifiedHypergraphEdgeKindV0, UnifiedHypergraphHyperedgeV0,
-    default_omena_query_transform_print_options,
+    OmenaQueryExternalModuleModeV0, OmenaQueryExternalSifInputV0, OmenaQuerySourceDocumentInputV0,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleSourceInputV0,
+    OmenaQueryTargetFeatureSupportV0, OmenaQueryTargetTransformOptionsV0,
+    OmenaQueryTransformExecutionContextV0, ParserPositionV0, UnifiedHypergraphEdgeKindV0,
+    UnifiedHypergraphHyperedgeV0, default_omena_query_transform_print_options,
     execute_omena_query_consumer_build_style_sources_for_target_query_with_context_and_options,
     execute_omena_query_consumer_build_style_sources_with_context,
     execute_omena_query_transform_passes_from_source_with_context,
@@ -99,7 +99,7 @@ use omena_query::{
     summarize_omena_query_source_resolution_query_fragments,
     summarize_omena_query_source_resolution_runtime,
     summarize_omena_query_style_completion_for_workspace_file,
-    summarize_omena_query_style_diagnostics_for_workspace_file,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_extract_code_actions,
     summarize_omena_query_style_inline_code_actions,
     summarize_omena_query_style_semantic_graph_batch_from_sources_with_package_manifests,
@@ -175,6 +175,19 @@ struct StyleDiagnosticsForFileInputV0 {
     package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
     #[serde(default)]
     classname_transform: Option<String>,
+    #[serde(default)]
+    external_sifs: Vec<OmenaQueryExternalSifInputV0>,
+    #[serde(default)]
+    external_mode: Option<String>,
+}
+
+fn style_diagnostics_external_mode_from_wire(
+    external_mode: Option<&str>,
+) -> OmenaQueryExternalModuleModeV0 {
+    match external_mode {
+        Some("sif") => OmenaQueryExternalModuleModeV0::Sif,
+        _ => OmenaQueryExternalModuleModeV0::Ignored,
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -1568,13 +1581,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some("style-diagnostics-for-file") => {
             let input: StyleDiagnosticsForFileInputV0 = serde_json::from_str(&stdin)?;
-            let Some(summary) = summarize_omena_query_style_diagnostics_for_workspace_file(
-                &input.target_style_path,
-                &input.styles,
-                &input.source_documents,
-                &input.package_manifests,
-                input.classname_transform.as_deref(),
-            ) else {
+            let external_mode =
+                style_diagnostics_external_mode_from_wire(input.external_mode.as_deref());
+            let Some(summary) =
+                summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+                    &input.target_style_path,
+                    &input.styles,
+                    &input.source_documents,
+                    &input.package_manifests,
+                    input.classname_transform.as_deref(),
+                    external_mode,
+                    input.external_sifs.as_slice(),
+                )
+            else {
                 return Err("unsupported style module path".into());
             };
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
@@ -2291,13 +2310,19 @@ fn run_daemon_selected_query_command(
         }
         "style-diagnostics-for-file" => {
             let input: StyleDiagnosticsForFileInputV0 = serde_json::from_value(input)?;
-            let Some(summary) = summarize_omena_query_style_diagnostics_for_workspace_file(
-                &input.target_style_path,
-                &input.styles,
-                &input.source_documents,
-                &input.package_manifests,
-                input.classname_transform.as_deref(),
-            ) else {
+            let external_mode =
+                style_diagnostics_external_mode_from_wire(input.external_mode.as_deref());
+            let Some(summary) =
+                summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+                    &input.target_style_path,
+                    &input.styles,
+                    &input.source_documents,
+                    &input.package_manifests,
+                    input.classname_transform.as_deref(),
+                    external_mode,
+                    input.external_sifs.as_slice(),
+                )
+            else {
                 return Err("unsupported style module path".into());
             };
             Ok(serde_json::to_value(summary)?)
