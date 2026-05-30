@@ -2837,6 +2837,65 @@ fn extracts_animation_shorthand_style_facts() {
 }
 
 #[test]
+fn ignores_interpolated_unit_suffix_in_animation_shorthand() {
+    // `#{$dur}s` lexes the trailing `s` as a bare ident; it is a duration unit, not the
+    // animation name. Regression guard for RFC 0007-L (#52) missingKeyframes FP.
+    let facts = collect_style_facts(
+        "@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } } .a { animation: #{$dur}s fadeIn; }",
+        StyleDialect::Scss,
+    );
+    let reference_names = facts
+        .animations
+        .iter()
+        .filter(|animation| animation.kind == ParsedAnimationFactKind::AnimationNameReference)
+        .map(|animation| animation.name.as_str())
+        .collect::<Vec<_>>();
+
+    // The unit `s` must NOT be picked up as an animation-name reference, but the real name must.
+    assert!(
+        !reference_names.contains(&"s"),
+        "time unit `s` must not be misread as an animation name: {reference_names:?}"
+    );
+    assert_eq!(reference_names, vec!["fadeIn"]);
+}
+
+#[test]
+fn ignores_interpolated_millisecond_unit_in_animation_shorthand() {
+    let facts = collect_style_facts(
+        "@keyframes fadeIn { to { opacity: 1; } } .a { animation: #{$dur}ms fadeIn; }",
+        StyleDialect::Scss,
+    );
+    let reference_names = facts
+        .animations
+        .iter()
+        .filter(|animation| animation.kind == ParsedAnimationFactKind::AnimationNameReference)
+        .map(|animation| animation.name.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(
+        !reference_names.contains(&"ms"),
+        "time unit `ms` must not be misread as an animation name: {reference_names:?}"
+    );
+    assert_eq!(reference_names, vec!["fadeIn"]);
+}
+
+#[test]
+fn still_extracts_real_animation_name_with_literal_duration() {
+    // Over-correction guard: a genuinely-missing `@keyframes` name (here `spinX`, never
+    // declared) must STILL be extracted as a reference so it can be flagged downstream.
+    // The literal `0.6s` duration must not suppress the real name.
+    let facts = collect_style_facts(".a { animation: 0.6s spinX; }", StyleDialect::Scss);
+    let reference_names = facts
+        .animations
+        .iter()
+        .filter(|animation| animation.kind == ParsedAnimationFactKind::AnimationNameReference)
+        .map(|animation| animation.name.as_str())
+        .collect::<Vec<_>>();
+
+    assert_eq!(reference_names, vec!["spinX"]);
+}
+
+#[test]
 fn keeps_at_rule_header_dashed_idents_out_of_custom_property_facts() {
     let facts = collect_style_facts(
         "@property --accent { syntax: \"<color>\"; inherits: false; initial-value: red; } @font-palette-values --brand { font-family: Demo; } @color-profile --display-p3 { src: url(p3.icc); } @position-try --popover { inset-area: top; }",

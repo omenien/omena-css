@@ -10444,12 +10444,32 @@ fn animation_shorthand_token_can_be_name(tokens: &[Token<'_>], index: usize) -> 
     if token.kind != SyntaxKind::Ident {
         return false;
     }
+    // A unit suffix written immediately after an interpolation boundary (`#{$dur}s`,
+    // `#{$dur}ms`, `#{$x}px`) lexes as a bare ident, but it is the trailing fragment of a
+    // value token, not an animation name. Reject it so the unit is not misread as a missing
+    // `@keyframes` reference.
+    if let Some(previous) = previous_non_trivia_token(tokens, 0, index)
+        && matches!(
+            previous.kind,
+            SyntaxKind::ScssInterpolationEnd | SyntaxKind::LessInterpolationEnd
+        )
+    {
+        return false;
+    }
+    // Standalone CSS time-unit idents (`s` / `ms`) are durations, never animation names.
+    if animation_shorthand_ident_is_time_unit(token.text) {
+        return false;
+    }
     if let Some(next_index) = next_non_trivia_token_index_until(tokens, index + 1, tokens.len())
         && tokens[next_index].kind == SyntaxKind::LeftParen
     {
         return false;
     }
     !animation_shorthand_ident_is_non_name(token.text)
+}
+
+fn animation_shorthand_ident_is_time_unit(name: &str) -> bool {
+    name.eq_ignore_ascii_case("s") || name.eq_ignore_ascii_case("ms")
 }
 
 fn animation_shorthand_ident_is_non_name(name: &str) -> bool {
