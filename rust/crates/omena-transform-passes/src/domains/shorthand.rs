@@ -45,6 +45,8 @@ use crate::{
 pub(crate) struct BoxShorthandProofCandidateV0 {
     pub(crate) source_span_start: usize,
     pub(crate) source_span_end: usize,
+    pub(crate) shorthand_property: &'static str,
+    pub(crate) longhands: Vec<BoxLonghandInputV0>,
     pub(crate) proof: ShorthandCombinationProofV0,
 }
 
@@ -352,10 +354,13 @@ fn collect_box_shorthand_proof_candidates_in_block(
                 source_order: declaration.source_order,
             })
             .collect::<Vec<_>>();
+        let proof = prove_box_shorthand_combination(shorthand_property, &proof_inputs);
         candidates.push(BoxShorthandProofCandidateV0 {
             source_span_start: window.first().map_or(0, |declaration| declaration.start),
             source_span_end: window.last().map_or(0, |declaration| declaration.end),
-            proof: prove_box_shorthand_combination(shorthand_property, &proof_inputs),
+            shorthand_property,
+            longhands: proof_inputs,
+            proof,
         });
     }
 

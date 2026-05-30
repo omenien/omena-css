@@ -17,6 +17,7 @@ use crate::helpers::{
 pub(crate) struct ScopeFlattenProofCandidateV0 {
     pub(crate) source_span_start: usize,
     pub(crate) source_span_end: usize,
+    pub(crate) input: ScopeFlattenInputV0,
     pub(crate) proof: ScopeFlattenProofV0,
 }
 
@@ -24,6 +25,7 @@ pub(crate) struct ScopeFlattenProofCandidateV0 {
 pub(crate) struct LayerFlattenProofCandidateV0 {
     pub(crate) source_span_start: usize,
     pub(crate) source_span_end: usize,
+    pub(crate) input: LayerFlattenInputV0,
     pub(crate) proof: LayerFlattenProofV0,
 }
 
@@ -128,7 +130,7 @@ pub(crate) fn collect_scope_flatten_proof_candidates_with_lexer(
                     index = block_end_index + 1;
                     continue;
                 };
-                let proof = prove_scope_flatten_candidate(ScopeFlattenInputV0 {
+                let input = ScopeFlattenInputV0 {
                     root_selector,
                     limit_selector,
                     scoped_rule_count: count_direct_ordinary_rules_in_block(
@@ -139,10 +141,12 @@ pub(crate) fn collect_scope_flatten_proof_candidates_with_lexer(
                     peer_scope_count: top_level_scope_count.saturating_sub(1),
                     competing_unscoped_rule_count,
                     inside_layer: false,
-                });
+                };
+                let proof = prove_scope_flatten_candidate(input.clone());
                 candidates.push(ScopeFlattenProofCandidateV0 {
                     source_span_start: token_start(&tokens[index]),
                     source_span_end: token_end(&tokens[block_end_index]),
+                    input,
                     proof,
                 });
                 index = block_end_index + 1;
@@ -253,7 +257,7 @@ pub(crate) fn collect_layer_flatten_proof_candidates_with_lexer(
                 let prelude = source
                     [token_end(&tokens[index])..token_start(&tokens[block_start_index])]
                     .trim();
-                let proof = prove_layer_flatten_candidate(LayerFlattenInputV0 {
+                let input = LayerFlattenInputV0 {
                     layer_name: parse_single_layer_name(prelude),
                     layer_rule_count: count_direct_ordinary_rules_in_block(
                         tokens,
@@ -267,10 +271,12 @@ pub(crate) fn collect_layer_flatten_proof_candidates_with_lexer(
                         .filter(|token| token.kind == SyntaxKind::Important)
                         .count(),
                     closed_bundle,
-                });
+                };
+                let proof = prove_layer_flatten_candidate(input.clone());
                 candidates.push(LayerFlattenProofCandidateV0 {
                     source_span_start: token_start(&tokens[index]),
                     source_span_end: token_end(&tokens[block_end_index]),
+                    input,
                     proof,
                 });
                 index = block_end_index + 1;

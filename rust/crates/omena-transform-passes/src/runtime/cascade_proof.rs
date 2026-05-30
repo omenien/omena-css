@@ -1,13 +1,16 @@
 use std::collections::BTreeSet;
 
 use omena_cascade::{
-    BoxLonghandInputV0, LayerFlattenProofV0, ScopeFlattenProofV0, ShorthandCombinationProofV0,
-    StaticSupportsEvalVerdictV0, StaticSupportsEvalWitnessV0,
+    BoxLonghandInputV0, LayerFlattenInputV0, LayerFlattenProofV0, ScopeFlattenInputV0,
+    ScopeFlattenProofV0, ShorthandCombinationProofV0, StaticSupportsEvalVerdictV0,
+    StaticSupportsEvalWitnessV0,
 };
 use omena_parser::StyleDialect;
 use omena_smt::{
-    CanonicalSmtInputV0, StubSmtBackendV0, canonical_smt_input_v0,
-    smt_evaluate_static_supports_condition_v0, smt_prove_box_shorthand_combination_v0,
+    CanonicalSmtInputV0, SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0,
+    canonical_smt_input_v0, smt_evaluate_static_supports_condition_v0,
+    smt_prove_box_shorthand_combination_v0, smt_prove_layer_flatten_candidate_v0,
+    smt_prove_scope_flatten_candidate_v0,
 };
 use omena_transform_cst::TransformPassKind;
 use serde::Serialize;
@@ -44,6 +47,8 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
                         pass_id,
                         candidate.source_span_start,
                         candidate.source_span_end,
+                        candidate.shorthand_property,
+                        &candidate.longhands,
                         candidate.proof,
                     )
                 })
@@ -57,6 +62,7 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
                         pass_id,
                         candidate.source_span_start,
                         candidate.source_span_end,
+                        candidate.input,
                         candidate.proof,
                     )
                 })
@@ -70,6 +76,7 @@ pub(crate) fn collect_cascade_proof_obligations_for_pass_input(
                         pass_id,
                         candidate.source_span_start,
                         candidate.source_span_end,
+                        candidate.input,
                         candidate.proof,
                     )
                 })
@@ -149,17 +156,42 @@ pub(crate) fn summarize_cascade_proof_obligations(
     }
 }
 
+/// Discharge the SMT obligation for a cascade-proof candidate and report whether
+/// the solver accepted it.
+///
+/// The transform records the obligation's `accepted` outcome from the SMT
+/// solver's `sat_result` (`Sat` => accepted, `Unsat`/`Unknown` => rejected),
+/// not from the L1 proof flag. The canonical input the solver consumed is
+/// returned so it can be carried on the obligation for audit.
+fn discharge_smt_obligation(
+    canonical_input: CanonicalSmtInputV0,
+    backend: &StubSmtBackendV0,
+) -> (bool, CanonicalSmtInputV0) {
+    let sat_result = backend
+        .check_canonical_input_v0(&canonical_input)
+        .sat_result;
+    let accepted = matches!(sat_result, SmtBackendSatResultV0::Sat);
+    (accepted, canonical_input)
+}
+
 fn shorthand_obligation(
     pass_id: &'static str,
     source_span_start: usize,
     source_span_end: usize,
+    shorthand_property: &str,
+    longhands: &[BoxLonghandInputV0],
     proof: ShorthandCombinationProofV0,
 ) -> TransformCascadeProofObligationV0 {
-    let accepted = proof.accepted;
-    let blocked_reason = proof.blocked_reason.map(str::to_string);
-    let provenance_preserved = proof.provenance_preserved;
+    let smt_proof = smt_prove_box_shorthand_combination_v0(
+        shorthand_property,
+        longhands,
+        &StubSmtBackendV0::default(),
+    );
+    let (accepted, canonical_smt_input) =
+        discharge_smt_obligation(smt_proof.canonical_input, &StubSmtBackendV0::default());
+    let provenance_preserved = accepted && proof.provenance_preserved;
+    let blocked_reason = smt_blocked_reason(accepted, proof.blocked_reason.map(str::to_string));
     let cascade_safe_witness = proof.cascade_safe_witness.clone();
-    let canonical_smt_input = Some(shorthand_canonical_smt_input_v0(&proof));
 
     proof_obligation(
         pass_id,
@@ -176,7 +208,7 @@ fn shorthand_obligation(
             "nonImportantDeclarations",
             "provenancePreservation",
         ],
-        canonical_smt_input,
+        Some(canonical_smt_input),
         proof,
     )
 }
@@ -185,13 +217,15 @@ fn scope_obligation(
     pass_id: &'static str,
     source_span_start: usize,
     source_span_end: usize,
+    input: ScopeFlattenInputV0,
     proof: ScopeFlattenProofV0,
 ) -> TransformCascadeProofObligationV0 {
-    let accepted = proof.accepted;
-    let blocked_reason = proof.blocked_reason.map(str::to_string);
-    let provenance_preserved = proof.provenance_preserved;
+    let smt_proof = smt_prove_scope_flatten_candidate_v0(input, &StubSmtBackendV0::default());
+    let (accepted, canonical_smt_input) =
+        discharge_smt_obligation(smt_proof.canonical_input, &StubSmtBackendV0::default());
+    let provenance_preserved = accepted && proof.provenance_preserved;
+    let blocked_reason = smt_blocked_reason(accepted, proof.blocked_reason.map(str::to_string));
     let cascade_safe_witness = proof.cascade_safe_witness.clone();
-    let canonical_smt_input = Some(scope_canonical_smt_input_v0(&proof));
 
     proof_obligation(
         pass_id,
@@ -209,7 +243,7 @@ fn scope_obligation(
             "noUnscopedCompetition",
             "noLayerComposition",
         ],
-        canonical_smt_input,
+        Some(canonical_smt_input),
         proof,
     )
 }
@@ -218,13 +252,15 @@ fn layer_obligation(
     pass_id: &'static str,
     source_span_start: usize,
     source_span_end: usize,
+    input: LayerFlattenInputV0,
     proof: LayerFlattenProofV0,
 ) -> TransformCascadeProofObligationV0 {
-    let accepted = proof.accepted;
-    let blocked_reason = proof.blocked_reason.map(str::to_string);
-    let provenance_preserved = proof.provenance_preserved;
+    let smt_proof = smt_prove_layer_flatten_candidate_v0(input, &StubSmtBackendV0::default());
+    let (accepted, canonical_smt_input) =
+        discharge_smt_obligation(smt_proof.canonical_input, &StubSmtBackendV0::default());
+    let provenance_preserved = accepted && proof.provenance_preserved;
+    let blocked_reason = smt_blocked_reason(accepted, proof.blocked_reason.map(str::to_string));
     let cascade_safe_witness = proof.cascade_safe_witness.clone();
-    let canonical_smt_input = Some(layer_canonical_smt_input_v0(&proof));
 
     proof_obligation(
         pass_id,
@@ -241,7 +277,7 @@ fn layer_obligation(
             "noUnlayeredCompetition",
             "noImportantLayerInversion",
         ],
-        canonical_smt_input,
+        Some(canonical_smt_input),
         proof,
     )
 }
@@ -252,11 +288,22 @@ fn supports_obligation(
     source_span_end: usize,
     witness: StaticSupportsEvalWitnessV0,
 ) -> TransformCascadeProofObligationV0 {
+    // The supports transform's `accepted` means "the condition is statically
+    // *decided*" (true or false), not "satisfiable", so it is not driven by the
+    // Sat/Unsat solver result the way the shorthand/scope/layer obligations are.
+    // The canonical input is still produced by the real SMT proof so it is
+    // carried for audit, but a known-false condition (`Unsat`) is still a
+    // decided, accepted dead-branch removal.
+    let smt_proof = smt_evaluate_static_supports_condition_v0(
+        witness.condition.as_str(),
+        witness.assumption,
+        &StubSmtBackendV0::default(),
+    );
     let accepted = witness.verdict != StaticSupportsEvalVerdictV0::Unknown;
     let blocked_reason = (!accepted).then(|| witness.reason.to_string());
     let provenance_preserved = witness.provenance_preserved;
     let cascade_safe_witness = witness.reason.to_string();
-    let canonical_smt_input = Some(supports_canonical_smt_input_v0(&witness));
+    let canonical_smt_input = smt_proof.canonical_input;
 
     proof_obligation(
         pass_id,
@@ -272,7 +319,7 @@ fn supports_obligation(
             "modernBrowserAssumption",
             "knownFeatureQueryShape",
         ],
-        canonical_smt_input,
+        Some(canonical_smt_input),
         witness,
     )
 }
@@ -306,65 +353,18 @@ fn proof_obligation<T: Serialize>(
     }
 }
 
-fn shorthand_canonical_smt_input_v0(proof: &ShorthandCombinationProofV0) -> CanonicalSmtInputV0 {
-    let longhands = proof
-        .ordered_longhand_properties
-        .iter()
-        .enumerate()
-        .map(|(index, property)| BoxLonghandInputV0 {
-            property: property.clone(),
-            value: "smt-witness".to_string(),
-            important: false,
-            source_order: index as u32,
-        })
-        .collect::<Vec<_>>();
-
-    smt_prove_box_shorthand_combination_v0(
-        proof.shorthand_property.as_str(),
-        &longhands,
-        &StubSmtBackendV0::default(),
-    )
-    .canonical_input
-}
-
-fn scope_canonical_smt_input_v0(proof: &ScopeFlattenProofV0) -> CanonicalSmtInputV0 {
-    canonical_smt_input_v0(
-        "scope-flatten-candidate",
-        "prove_scope_flatten_candidate",
-        vec![
-            format!(
-                "require:root-scope={}",
-                proof.root_selector.trim() == ":root"
-            ),
-            format!(
-                "require:provenance-preserved={}",
-                proof.provenance_preserved
-            ),
-            format!("require:l1-accepted={}", proof.accepted),
-        ],
-    )
-}
-
-fn layer_canonical_smt_input_v0(proof: &LayerFlattenProofV0) -> CanonicalSmtInputV0 {
-    canonical_smt_input_v0(
-        "layer-flatten-candidate",
-        "prove_layer_flatten_candidate",
-        vec![
-            format!("require:layer-known={}", proof.layer_name.is_some()),
-            format!(
-                "require:provenance-preserved={}",
-                proof.provenance_preserved
-            ),
-            format!("require:l1-accepted={}", proof.accepted),
-        ],
-    )
-}
-
-fn supports_canonical_smt_input_v0(witness: &StaticSupportsEvalWitnessV0) -> CanonicalSmtInputV0 {
-    smt_evaluate_static_supports_condition_v0(
-        witness.condition.as_str(),
-        witness.assumption,
-        &StubSmtBackendV0::default(),
-    )
-    .canonical_input
+/// Pick the blocked reason recorded on an obligation once the SMT solver has
+/// produced the `accepted` verdict.
+///
+/// When the solver rejects the obligation (`accepted == false`) and the L1
+/// proof had not already recorded a reason, the rejection is attributed to the
+/// solver so the diagnostic never claims acceptance the solver did not grant.
+fn smt_blocked_reason(accepted: bool, l1_reason: Option<String>) -> Option<String> {
+    if accepted {
+        None
+    } else {
+        Some(l1_reason.unwrap_or_else(|| {
+            "smt solver rejected the cascade-safety obligation (unsat)".to_string()
+        }))
+    }
 }
