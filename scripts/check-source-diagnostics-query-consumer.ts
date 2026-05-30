@@ -118,6 +118,8 @@ async function main(): Promise<void> {
       assert.deepEqual(diagnostic.data?.provenance, [
         "omena-query.source-syntax-index",
         "omena-query.style-selector-definitions",
+        "omena-query-checker-orchestrator.product-diagnostic-gate",
+        "omena-checker.rule-registry",
       ]);
     }
     assert.deepEqual(byCode.get("missingStaticClass")?.data?.createSelector?.selectorName, "ghost");

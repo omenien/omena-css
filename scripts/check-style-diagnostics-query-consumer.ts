@@ -71,6 +71,8 @@ async function main(): Promise<void> {
     assert.deepEqual(missingCustomProperty.data?.provenance, [
       "omena-parser.custom-property-facts",
       "omena-query.style-diagnostics",
+      "omena-query-checker-orchestrator.product-diagnostic-gate",
+      "omena-checker.rule-registry",
     ]);
     assert.deepEqual(missingCustomProperty.data?.createCustomProperty?.propertyName, "--missing");
 
@@ -78,16 +80,22 @@ async function main(): Promise<void> {
     assert.equal(unreachable.severity, DiagnosticSeverity.Hint);
     assert.deepEqual(unreachable.tags, [DiagnosticTag.Unnecessary]);
     assert.deepEqual(unreachable.data?.provenance, [
+      "omena-query-checker-orchestrator.cascade-gate",
       "omena-checker.cascade-rules",
       "omena-query.cascade-checker",
+      "omena-query-checker-orchestrator.product-diagnostic-gate",
+      "omena-checker.rule-registry",
     ]);
 
     const deadLayer = findDiagnostic(diagnostics, "deadCascadeLayer");
     assert.equal(deadLayer.severity, DiagnosticSeverity.Hint);
     assert.deepEqual(deadLayer.tags, [DiagnosticTag.Unnecessary]);
     assert.deepEqual(deadLayer.data?.provenance, [
+      "omena-query-checker-orchestrator.cascade-gate",
       "omena-checker.cascade-rules",
       "omena-query.cascade-checker",
+      "omena-query-checker-orchestrator.product-diagnostic-gate",
+      "omena-checker.rule-registry",
     ]);
 
     const unusedSelector = findDiagnostic(diagnostics, "unusedSelector", (diagnostic) =>
@@ -98,6 +106,8 @@ async function main(): Promise<void> {
     assert.deepEqual(unusedSelector.data?.provenance, [
       "omena-parser.selector-facts",
       "omena-query.source-selector-usage",
+      "omena-query-checker-orchestrator.product-diagnostic-gate",
+      "omena-checker.rule-registry",
     ]);
 
     process.stdout.write(
