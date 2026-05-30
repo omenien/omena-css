@@ -471,8 +471,24 @@ pub fn summarize_omena_resolver_specifier_resolution_runtime_with_path_mappings(
     }
 }
 
+/// True iff a specifier is a fully-qualified external module URL — one the resolver must NOT
+/// attempt to canonicalize against the in-graph `available_style_paths` and must route through the
+/// external-SIF branch (`externalIgnored` -> `status == "external"`) instead. (#33/#34)
+///
+/// The `sass:` builtin and `http(s)://` remote schemes were always external. `file://` joins them
+/// because it is the canonical-URL form that a bridge-generated SIF carries
+/// (`generate_omena_bridge_sif_for_resolved_style_path` returns `canonical_url = file://<abs>`):
+/// an `@use "file:///…"` edge is a fully-resolved on-disk URL, so it is matched 1:1 against an
+/// in-scope SIF's `canonical_url` rather than re-joined as a workspace-relative candidate. A
+/// `file://` edge with NO SIF in scope stays in the external lane and surfaces as
+/// `missingExternalSif` (the #34 boundary state) — it is never silently demoted to `unresolved`.
+/// `file://` is never an in-graph `@use` source (style files are referenced relatively), so no
+/// in-graph resolution is shadowed by this classification.
 fn is_external_style_module_source(source: &str) -> bool {
-    source.starts_with("sass:") || source.starts_with("http://") || source.starts_with("https://")
+    source.starts_with("sass:")
+        || source.starts_with("http://")
+        || source.starts_with("https://")
+        || source.starts_with("file://")
 }
 
 pub fn canonicalize_omena_resolver_style_identity_path(path: &str) -> String {

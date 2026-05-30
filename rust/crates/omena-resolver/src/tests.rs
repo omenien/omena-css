@@ -192,6 +192,38 @@ fn summarizes_specifier_resolution_runtime_for_style_batches() {
     );
 }
 
+// #33/#34: a fully-qualified `file://` `@use` edge is the canonical-URL form a bridge-generated
+// SIF carries (`generate_omena_bridge_sif_for_resolved_style_path`). It must classify as
+// `externalIgnored` (routing through the external-SIF branch where the SIF is matched 1:1 against
+// the edge source), NOT as `unresolved` and NOT mis-joined as a workspace-relative candidate. A
+// genuinely-missing workspace-relative specifier still classifies as `unresolved`.
+#[test]
+fn classifies_file_uri_use_edge_as_external_with_sif() {
+    let available_style_paths = BTreeSet::new();
+
+    let external = summarize_omena_resolver_style_module_resolution(
+        "/workspace/src/App.module.scss",
+        "file:///workspace/vendor/tokens.scss",
+        &available_style_paths,
+        &[],
+    );
+    assert_eq!(external.resolution_kind, "externalIgnored");
+    assert!(external.resolved_style_path.is_none());
+    // External edges never try to canonicalize against the in-graph paths, so no candidate is
+    // emitted (a `file://` URL must never be re-joined as a workspace-relative path).
+    assert_eq!(external.candidate_count, 0);
+
+    // A genuinely-unresolvable workspace-relative specifier stays `unresolved` (not external).
+    let missing = summarize_omena_resolver_style_module_resolution(
+        "/workspace/src/App.module.scss",
+        "./does-not-exist",
+        &available_style_paths,
+        &[],
+    );
+    assert_eq!(missing.resolution_kind, "unresolved");
+    assert!(missing.resolved_style_path.is_none());
+}
+
 #[test]
 fn builds_resolver_module_graph_index_from_engine_input() {
     let input = sample_input();

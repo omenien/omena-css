@@ -1401,6 +1401,128 @@ fn style_diagnostics_external_sif_mode_resolves_symbols_from_sif_artifact()
     Ok(())
 }
 
+// #33/#34: a cross-file `@use "file:///…"` edge — the canonical-URL form a bridge-generated SIF
+// carries — now routes through the external-SIF branch (resolver kind `externalIgnored` ->
+// `status == "external"`). With a matching SIF in scope, the referenced symbol resolves from the
+// SIF interface and `missingSassSymbol` is suppressed in-process, exactly like the `https://`
+// case. Before the resolver classification fix, the `file://` edge was demoted to `unresolved`, so
+// the SIF never engaged and `remote.$brand` was wrongly flagged.
+#[test]
+fn style_diagnostics_external_sif_mode_resolves_symbols_from_file_uri_sif()
+-> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"@use "file:///workspace/vendor/tokens.scss" as remote;
+.button { color: remote.$brand; }"#
+            .to_string(),
+    }];
+    let sif = omena_sif::OmenaSifV1::from_static_exports(
+        "file:///workspace/vendor/tokens.scss",
+        omena_sif::OmenaSifGeneratorV1 {
+            name: "fixture-sifgen".to_string(),
+            version: "0.1.0".to_string(),
+            toolchain_id: "fixture-sifgen@0.1.0".to_string(),
+        },
+        omena_sif::OmenaSifSourceV1 {
+            syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+        },
+        omena_sif::OmenaSifExportsV1 {
+            variables: vec![omena_sif::OmenaSifVariableExportV1 {
+                name: "$brand".to_string(),
+                defaulted: true,
+                value_repr: Some("red".to_string()),
+            }],
+            mixins: Vec::new(),
+            functions: Vec::new(),
+            placeholders: Vec::new(),
+            forwards: Vec::new(),
+        },
+        Vec::new(),
+        b"$brand: red !default;",
+    )
+    .map_err(|_| "sif fixture")?;
+    let external_sifs = vec![OmenaQueryExternalSifInputV0 {
+        canonical_url: "file:///workspace/vendor/tokens.scss".to_string(),
+        sif,
+    }];
+
+    let diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+            external_sifs.as_slice(),
+        )
+        .ok_or("file-uri sif workspace diagnostics")?;
+
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingExternalSif"
+                && diagnostic.code != "missingSassSymbol"),
+        "file:// @use with matching SIF must suppress both boundary and symbol diagnostics: {:?}",
+        diagnostics
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code)
+            .collect::<Vec<_>>(),
+    );
+    Ok(())
+}
+
+// #33/#34 over-correction guard: a `file://` `@use` edge with NO SIF in scope is genuinely
+// external-unresolved. It must stay in the external lane and surface `missingExternalSif` (the #34
+// boundary state) — never silently dropped, and never demoted to a workspace-local
+// `missingModule`. This proves the classification routes through the external branch rather than
+// just suppressing everything.
+#[test]
+fn style_diagnostics_external_sif_mode_file_uri_without_sif_flags_missing_boundary()
+-> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"@use "file:///workspace/vendor/tokens.scss" as remote;
+.button { color: remote.$brand; }"#
+            .to_string(),
+    }];
+
+    let diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+        )
+        .ok_or("file-uri no-sif workspace diagnostics")?;
+
+    // No workspace-local file-not-found error: a `file://` edge is external, not relative.
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingModule"),
+        "file:// @use must not be flagged as a workspace-local missingModule",
+    );
+    let boundary_messages = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingExternalSif")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        boundary_messages,
+        vec![
+            "External Sass module 'file:///workspace/vendor/tokens.scss' is missing (topAny); generate or provide a SIF artifact, or use --external ignored.",
+        ]
+    );
+    Ok(())
+}
+
 #[test]
 fn style_diagnostics_external_sif_mode_classifies_partial_boundary() -> Result<(), &'static str> {
     // The SIF in scope only exports `$brand`, but the file references both `$brand` and
