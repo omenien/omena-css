@@ -19,7 +19,7 @@ use omena_query::{
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_completion_at_position,
-    summarize_omena_query_style_diagnostics_for_file_with_local_composes,
+    summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
@@ -208,6 +208,10 @@ enum Command {
         /// External Sass module mode: ignored preserves compatibility, sif reports missing SIF boundaries.
         #[arg(long, default_value = "ignored")]
         external: String,
+        /// Opt-in deep analysis: also surface the rg-flow / categorical theory hints
+        /// (off by default; deduplicated against the circular-var warning). Single-file path only.
+        #[arg(long)]
+        deep_analysis: bool,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -515,6 +519,7 @@ fn run(cli: Cli) -> Result<(), String> {
             package_manifest_paths,
             sif_paths,
             external,
+            deep_analysis,
             json,
         } => style_diagnostics(
             path,
@@ -523,6 +528,7 @@ fn run(cli: Cli) -> Result<(), String> {
             package_manifest_paths,
             sif_paths,
             external,
+            deep_analysis,
             json,
         ),
         Command::StyleHoverCandidates { path, json } => style_hover_candidates(path, json),
@@ -1333,6 +1339,7 @@ fn context_index(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn style_diagnostics(
     path: PathBuf,
     source_paths: Vec<PathBuf>,
@@ -1340,6 +1347,7 @@ fn style_diagnostics(
     package_manifest_paths: Vec<PathBuf>,
     sif_paths: Vec<PathBuf>,
     external: String,
+    deep_analysis: bool,
     json: bool,
 ) -> Result<(), String> {
     let source = read_source(&path)?;
@@ -1356,10 +1364,11 @@ fn style_diagnostics(
                 path_string(&path)
             ));
         };
-        summarize_omena_query_style_diagnostics_for_file_with_local_composes(
+        summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis(
             &style_path,
             &source,
             candidates.candidates.as_slice(),
+            deep_analysis,
         )
     } else {
         let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
@@ -1845,6 +1854,7 @@ mod tests {
                 package_manifest_paths: Vec::new(),
                 sif_paths: Vec::new(),
                 external: "ignored".to_string(),
+                deep_analysis: false,
                 json: true,
             },
         });
@@ -1873,6 +1883,7 @@ mod tests {
                 package_manifest_paths: Vec::new(),
                 sif_paths: Vec::new(),
                 external: "sif".to_string(),
+                deep_analysis: false,
                 json: true,
             },
         });
@@ -1908,6 +1919,7 @@ mod tests {
                 package_manifest_paths: Vec::new(),
                 sif_paths: vec![sif_path.clone()],
                 external: "sif".to_string(),
+                deep_analysis: false,
                 json: true,
             },
         });

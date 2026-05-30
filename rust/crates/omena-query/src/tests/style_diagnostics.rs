@@ -377,7 +377,12 @@ fn cascade_aware_lints_carry_rg_flow_coupling_spectrum_evidence() -> Result<(), 
     // (--a -> --b -> --a), so the extracted coupling space grows its k_cycle
     // coordinate between the before/after RG step. The real
     // estimate_coupling_jacobian_spectrum_v0 linearization drives the spectral
-    // radius above one and the gate surfaces rg-flow-relevant-operator.
+    // radius above one and the rg-flow theory gate fires.
+    //
+    // WP7-b (#38): the rg-flow hint is an opt-in deep-analysis diagnostic and is
+    // deduplicated against the product `circularVar` warning. On the DEFAULT
+    // surface the hint is off entirely; with deep-analysis ON it is folded into
+    // the `circularVar` diagnostic's provenance instead of triple-firing.
     let divergent = r#"
 :root {
   --a: var(--b);
@@ -387,35 +392,63 @@ fn cascade_aware_lints_carry_rg_flow_coupling_spectrum_evidence() -> Result<(), 
     let divergent_candidates =
         crate::summarize_omena_query_style_hover_candidates("Tokens.module.css", divergent)
             .ok_or("divergent candidates")?;
-    let divergent_diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+
+    // Default surface: the rg-flow theory hint must NOT appear.
+    let default_diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
         "file:///workspace/src/Tokens.module.css",
         divergent,
         divergent_candidates.candidates.as_slice(),
     );
-    let rg_flow_diagnostics = divergent_diagnostics
+    assert!(
+        default_diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "rgFlowRelevantOperator"),
+        "rg-flow hint must be off on the default surface"
+    );
+
+    // Deep-analysis surface: the hint is deduplicated into `circularVar`, so no
+    // standalone `rgFlowRelevantOperator` diagnostic surfaces, but its provenance
+    // is folded into the surviving `circularVar` warning.
+    let deep_diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
+            "file:///workspace/src/Tokens.module.css",
+            divergent,
+            divergent_candidates.candidates.as_slice(),
+            true,
+        );
+    assert!(
+        deep_diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "rgFlowRelevantOperator"),
+        "rg-flow hint must be deduplicated against circularVar under deep analysis"
+    );
+    let circular_var = deep_diagnostics
         .diagnostics
         .iter()
-        .filter(|diagnostic| diagnostic.code == "rgFlowRelevantOperator")
-        .collect::<Vec<_>>();
-
-    assert_eq!(rg_flow_diagnostics.len(), 1);
-    assert_eq!(rg_flow_diagnostics[0].severity, "hint");
+        .find(|diagnostic| diagnostic.code == "circularVar")
+        .ok_or("circularVar must still fire on a real var cycle")?;
     assert!(
-        rg_flow_diagnostics[0]
+        circular_var
             .provenance
-            .contains(&"omena-rg-flow.coupling-jacobian-spectrum")
+            .contains(&"omena-rg-flow.coupling-jacobian-spectrum"),
+        "rg-flow coupling-spectrum provenance should be folded into circularVar: {:?}",
+        circular_var.provenance
     );
     assert!(
-        rg_flow_diagnostics[0]
+        circular_var
             .provenance
-            .contains(&"omena-query-checker-orchestrator.rg-flow-gate")
+            .contains(&"omena-query-checker-orchestrator.rg-flow-gate"),
+        "rg-flow gate provenance should be folded into circularVar: {:?}",
+        circular_var.provenance
     );
 
     // Settled stylesheet: same number of custom properties and the same
     // var-reference fan-out, but acyclic (--a -> --b, --b literal). The coupling
     // space is identical before/after, the spectral radius is zero, and the gate
-    // surfaces nothing. If the spectrum were replaced by a constant the divergent
-    // case would still emit but so would this one, breaking the assertion below.
+    // surfaces nothing even under deep analysis. If the spectrum were replaced by
+    // a constant the divergent case would still emit but so would this one.
     let settled = r#"
 :root {
   --a: var(--b);
@@ -425,11 +458,13 @@ fn cascade_aware_lints_carry_rg_flow_coupling_spectrum_evidence() -> Result<(), 
     let settled_candidates =
         crate::summarize_omena_query_style_hover_candidates("Tokens.module.css", settled)
             .ok_or("settled candidates")?;
-    let settled_diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
-        "file:///workspace/src/Tokens.module.css",
-        settled,
-        settled_candidates.candidates.as_slice(),
-    );
+    let settled_diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
+            "file:///workspace/src/Tokens.module.css",
+            settled,
+            settled_candidates.candidates.as_slice(),
+            true,
+        );
     assert!(
         settled_diagnostics
             .diagnostics
@@ -446,7 +481,12 @@ fn cascade_aware_lints_carry_categorical_functor_evidence() -> Result<(), &'stat
     // forced to play a second, conflicting categorical role. The functor object
     // mapping becomes many-valued (one primitive -> two role objects), the real
     // apply_cascade_role_mapping_functor_v0 verdict rejects the mapping, and the
-    // gate surfaces categoricalCascadeEvidenceInconsistency.
+    // categorical theory gate fires.
+    //
+    // WP7-b (#38): the categorical hint is an opt-in deep-analysis diagnostic and
+    // is deduplicated against the product `circularVar` warning — off entirely on
+    // the default surface, folded into `circularVar`'s provenance with deep
+    // analysis ON.
     let cyclic = r#"
 :root {
   --a: var(--b);
@@ -459,35 +499,61 @@ fn cascade_aware_lints_carry_categorical_functor_evidence() -> Result<(), &'stat
     let cyclic_candidates =
         crate::summarize_omena_query_style_hover_candidates("Alert.module.css", cyclic)
             .ok_or("cyclic candidates")?;
-    let cyclic_diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+
+    // Default surface: the categorical theory hint must NOT appear.
+    let default_diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
         "file:///workspace/src/Alert.module.css",
         cyclic,
         cyclic_candidates.candidates.as_slice(),
     );
-    let categorical_diagnostics = cyclic_diagnostics
+    assert!(
+        default_diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "categoricalCascadeEvidenceInconsistency"),
+        "categorical hint must be off on the default surface"
+    );
+
+    // Deep-analysis surface: deduplicated into `circularVar`'s provenance.
+    let deep_diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
+            "file:///workspace/src/Alert.module.css",
+            cyclic,
+            cyclic_candidates.candidates.as_slice(),
+            true,
+        );
+    assert!(
+        deep_diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "categoricalCascadeEvidenceInconsistency"),
+        "categorical hint must be deduplicated against circularVar under deep analysis"
+    );
+    let circular_var = deep_diagnostics
         .diagnostics
         .iter()
-        .filter(|diagnostic| diagnostic.code == "categoricalCascadeEvidenceInconsistency")
-        .collect::<Vec<_>>();
-
-    assert_eq!(categorical_diagnostics.len(), 1);
-    assert_eq!(categorical_diagnostics[0].severity, "hint");
+        .find(|diagnostic| diagnostic.code == "circularVar")
+        .ok_or("circularVar must still fire on a real var cycle")?;
     assert!(
-        categorical_diagnostics[0]
+        circular_var
             .provenance
-            .contains(&"omena-categorical.cascade-primitive-role-functor")
+            .contains(&"omena-categorical.cascade-primitive-role-functor"),
+        "categorical functor provenance should be folded into circularVar: {:?}",
+        circular_var.provenance
     );
     assert!(
-        categorical_diagnostics[0]
+        circular_var
             .provenance
-            .contains(&"omena-query-checker-orchestrator.categorical-gate")
+            .contains(&"omena-query-checker-orchestrator.categorical-gate"),
+        "categorical gate provenance should be folded into circularVar: {:?}",
+        circular_var.provenance
     );
 
     // Acyclic custom-property ranking: --a -> --b, --b literal. The ranking
     // colimit converges, the cascade-ranking primitive maps to exactly one
-    // categorical role, the functor accepts the mapping, and nothing is
-    // surfaced. If the functor verdict were a constant the cyclic case would
-    // still emit but so would this one, breaking the assertion below.
+    // categorical role, the functor accepts the mapping, and nothing is surfaced
+    // even under deep analysis. If the functor verdict were a constant the cyclic
+    // case would still emit but so would this one.
     let acyclic = r#"
 :root {
   --a: var(--b);
@@ -500,11 +566,13 @@ fn cascade_aware_lints_carry_categorical_functor_evidence() -> Result<(), &'stat
     let acyclic_candidates =
         crate::summarize_omena_query_style_hover_candidates("Alert.module.css", acyclic)
             .ok_or("acyclic candidates")?;
-    let acyclic_diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
-        "file:///workspace/src/Alert.module.css",
-        acyclic,
-        acyclic_candidates.candidates.as_slice(),
-    );
+    let acyclic_diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
+            "file:///workspace/src/Alert.module.css",
+            acyclic,
+            acyclic_candidates.candidates.as_slice(),
+            true,
+        );
     assert!(
         acyclic_diagnostics
             .diagnostics

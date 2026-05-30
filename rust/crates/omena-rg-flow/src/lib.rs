@@ -4,7 +4,8 @@
 //! consumes public fixed-point summaries and emits additive V0 contracts for
 //! beta vectors, tier aggregates, branching estimates, and cross-tier checks.
 //!
-//! claim_level: product-wired Jacobian-spectrum approximation, not a full
+//! claim_level: opt-in deep-analysis Jacobian-spectrum approximation,
+//! deduplicated against the circular-var warning, not a full
 //! renormalization-group theorem.
 
 use omena_cascade::{

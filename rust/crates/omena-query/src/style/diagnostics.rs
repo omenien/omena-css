@@ -5,7 +5,7 @@ use omena_parser::{
     ParsedSelectorFactKind, ParsedVariableFactKind,
 };
 
-use super::cascade_checker::summarize_query_cascade_checker_diagnostics;
+use super::cascade_checker::summarize_query_cascade_checker_diagnostics_with_deep_analysis;
 use super::diagnostic_suppressions::apply_omena_query_style_diagnostic_suppressions;
 use super::parser_facade::collect_omena_query_omena_parser_style_facts_raw;
 use super::*;
@@ -95,6 +95,21 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics(
     source: &str,
     candidates: &[OmenaQueryStyleHoverCandidateV0],
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(
+        style_uri, source, candidates, false,
+    )
+}
+
+/// Cascade-aware diagnostics with an explicit opt-in deep-analysis switch. With
+/// `deep_analysis == false` (the default surface) only the product cascade gate
+/// diagnostics are emitted; `deep_analysis == true` additionally surfaces the
+/// rg-flow / categorical theory hints, deduplicated against `circularVar`.
+pub fn summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(
+    style_uri: &str,
+    source: &str,
+    candidates: &[OmenaQueryStyleHoverCandidateV0],
+    deep_analysis: bool,
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let declarations_by_name = candidates
         .iter()
         .filter(|candidate| candidate.kind == "customPropertyDeclaration")
@@ -129,9 +144,13 @@ pub fn summarize_omena_query_cascade_aware_style_diagnostics(
             })
             .collect::<Vec<_>>();
 
-    diagnostics.extend(summarize_query_cascade_checker_diagnostics(
-        style_uri, source,
-    ));
+    diagnostics.extend(
+        summarize_query_cascade_checker_diagnostics_with_deep_analysis(
+            style_uri,
+            source,
+            deep_analysis,
+        ),
+    );
 
     diagnostics
 }
@@ -610,11 +629,31 @@ pub fn summarize_omena_query_style_diagnostics_for_file(
     source: &str,
     candidates: &[OmenaQueryStyleHoverCandidateV0],
 ) -> OmenaQueryStyleDiagnosticsForFileV0 {
+    summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
+        style_uri, source, candidates, false,
+    )
+}
+
+/// File-level diagnostics summary with an explicit opt-in deep-analysis switch.
+/// `deep_analysis == false` (the default LSP/CLI surface) keeps only the product
+/// cascade diagnostics; `deep_analysis == true` surfaces the rg-flow / categorical
+/// theory hints, deduplicated against `circularVar`.
+pub fn summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
+    style_uri: &str,
+    source: &str,
+    candidates: &[OmenaQueryStyleHoverCandidateV0],
+    deep_analysis: bool,
+) -> OmenaQueryStyleDiagnosticsForFileV0 {
     let mut diagnostics =
         summarize_omena_query_missing_custom_property_diagnostics(style_uri, source, candidates);
-    diagnostics.extend(summarize_omena_query_cascade_aware_style_diagnostics(
-        style_uri, source, candidates,
-    ));
+    diagnostics.extend(
+        summarize_omena_query_cascade_aware_style_diagnostics_with_deep_analysis(
+            style_uri,
+            source,
+            candidates,
+            deep_analysis,
+        ),
+    );
     diagnostics.extend(summarize_omena_query_missing_keyframes_diagnostics(
         style_uri, source,
     ));
@@ -657,8 +696,27 @@ pub fn summarize_omena_query_style_diagnostics_for_file_with_local_composes(
     source: &str,
     candidates: &[OmenaQueryStyleHoverCandidateV0],
 ) -> OmenaQueryStyleDiagnosticsForFileV0 {
-    let mut summary =
-        summarize_omena_query_style_diagnostics_for_file(style_uri, source, candidates);
+    summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis(
+        style_uri, source, candidates, false,
+    )
+}
+
+/// Single-file (local composes) diagnostics summary with an explicit opt-in
+/// deep-analysis switch. `deep_analysis == false` (the default surface) keeps only
+/// the product cascade diagnostics; `deep_analysis == true` surfaces the rg-flow /
+/// categorical theory hints, deduplicated against `circularVar`.
+pub fn summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis(
+    style_uri: &str,
+    source: &str,
+    candidates: &[OmenaQueryStyleHoverCandidateV0],
+    deep_analysis: bool,
+) -> OmenaQueryStyleDiagnosticsForFileV0 {
+    let mut summary = summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
+        style_uri,
+        source,
+        candidates,
+        deep_analysis,
+    );
     let mut local_composes =
         summarize_omena_query_css_modules_local_composes_style_diagnostics(style_uri, source);
     apply_omena_query_checker_product_gate_to_style_diagnostics(&mut local_composes);

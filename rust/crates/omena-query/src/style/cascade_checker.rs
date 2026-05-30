@@ -19,21 +19,48 @@ use super::{
 
 const LSP_DIAGNOSTIC_TAG_UNNECESSARY: u8 = 1;
 
-pub(super) fn summarize_query_cascade_checker_diagnostics(
+/// Cascade checker surface with an explicit deep-analysis switch.
+///
+/// The default surface entry passes `deep_analysis == false`: the rg-flow +
+/// categorical *theory* diagnostics are opt-in deep-analysis hints, so the
+/// default LSP/CLI surface keeps only the product cascade diagnostics (e.g.
+/// `circularVar`).
+///
+/// `deep_analysis == false` (the default) emits only the product cascade gate
+/// diagnostics. `deep_analysis == true` additionally surfaces the opt-in rg-flow
+/// (`rgFlowRelevantOperator`) and categorical
+/// (`categoricalCascadeEvidenceInconsistency`) theory hints — but those hints are
+/// *deduplicated* against the product `circularVar` warning: on a single
+/// custom-property reference cycle the product chain already emits a `circularVar`
+/// warning over the cyclic declarations, so the two whole-file-ranged theory hints
+/// that key off the same `has_reference_cycle` predicate would be a redundant
+/// triple-fire. When a theory hint's range overlaps a range where `circularVar`
+/// already fired, the hint is folded into that `circularVar` diagnostic's
+/// provenance instead of surfacing a second/third diagnostic, so a lone var cycle
+/// yields exactly one diagnostic.
+pub(super) fn summarize_query_cascade_checker_diagnostics_with_deep_analysis(
     style_uri: &str,
     source: &str,
+    deep_analysis: bool,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let (checker_input, declaration_ranges, custom_property_ranges) =
         collect_query_checker_cascade_input(style_uri, source);
     let mut diagnostics = Vec::new();
 
-    let rg_flow_diagnostics =
-        summarize_query_rg_flow_coupling_diagnostics(source, &checker_input.custom_properties);
-
-    let categorical_diagnostics = summarize_query_categorical_cascade_evidence_diagnostics(
-        source,
-        &checker_input.custom_properties,
-    );
+    // Theory diagnostics are produced eagerly only when deep-analysis is on; the
+    // default surface skips the (whole-file-ranged, non-actionable) theory hints
+    // entirely so the LSP/CLI output stays clean.
+    let (rg_flow_diagnostics, categorical_diagnostics) = if deep_analysis {
+        (
+            summarize_query_rg_flow_coupling_diagnostics(source, &checker_input.custom_properties),
+            summarize_query_categorical_cascade_evidence_diagnostics(
+                source,
+                &checker_input.custom_properties,
+            ),
+        )
+    } else {
+        (Vec::new(), Vec::new())
+    };
 
     let gate = run_omena_query_checker_cascade_gate_v0(checker_input);
     if !gate.enforcement_passed {
@@ -57,9 +84,8 @@ pub(super) fn summarize_query_cascade_checker_diagnostics(
         }];
     }
 
-    diagnostics.extend(rg_flow_diagnostics);
-    diagnostics.extend(categorical_diagnostics);
-
+    // Build the product cascade gate diagnostics first so the `circularVar`
+    // ranges are known before the theory hints are deduplicated against them.
     for evaluation in gate.evaluations {
         if evaluation.rule_code_name == "iacvt-prone"
             && evaluation
@@ -105,7 +131,73 @@ pub(super) fn summarize_query_cascade_checker_diagnostics(
         });
     }
 
+    if deep_analysis {
+        deduplicate_query_theory_hints_against_circular_var(
+            &mut diagnostics,
+            rg_flow_diagnostics,
+            categorical_diagnostics,
+        );
+    }
+
     diagnostics
+}
+
+/// Fold the opt-in rg-flow / categorical theory hints into the product
+/// `circularVar` diagnostics on any range where `circularVar` already fired,
+/// instead of surfacing a redundant second/third whole-file-ranged hint.
+///
+/// On a single custom-property reference cycle the product chain emits one
+/// `circularVar` warning anchored on the cyclic declaration, while both theory
+/// hints key off the same `has_reference_cycle` predicate and re-detect the same
+/// cycle. Surfacing all three is a triple-fire, so each theory hint whose range
+/// overlaps an already-fired `circularVar` range is suppressed and its
+/// `omena-checker.*` provenance label is merged into the matching `circularVar`
+/// diagnostic (preserving the audit trail that the theory mechanism ran without
+/// emitting a duplicate squiggle). A theory hint that does *not* overlap any
+/// `circularVar` range (e.g. a genuinely acyclic high-gain hub, if a deeper
+/// producer is later wired) is kept as a distinct diagnostic.
+fn deduplicate_query_theory_hints_against_circular_var(
+    diagnostics: &mut Vec<OmenaQueryStyleDiagnosticV0>,
+    theory_hints: impl IntoIterator<Item = OmenaQueryStyleDiagnosticV0>,
+    extra_theory_hints: impl IntoIterator<Item = OmenaQueryStyleDiagnosticV0>,
+) {
+    let circular_var_ranges = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "circularVar")
+        .map(|diagnostic| diagnostic.range)
+        .collect::<BTreeSet<_>>();
+
+    for hint in theory_hints.into_iter().chain(extra_theory_hints) {
+        // A whole-file-ranged theory hint (start-of-file origin) covers the
+        // cyclic declaration that `circularVar` already flagged, so treat
+        // "circularVar fired anywhere" as the dedup trigger and fold the hint's
+        // provenance into every `circularVar` diagnostic. A hint with an exact
+        // matching range is likewise deduplicated.
+        let overlaps = !circular_var_ranges.is_empty()
+            && (circular_var_ranges.contains(&hint.range)
+                || query_theory_hint_range_is_whole_file(&hint.range));
+        if overlaps {
+            for diagnostic in diagnostics
+                .iter_mut()
+                .filter(|diagnostic| diagnostic.code == "circularVar")
+            {
+                for label in hint.provenance.iter().copied() {
+                    if !diagnostic.provenance.contains(&label) {
+                        diagnostic.provenance.push(label);
+                    }
+                }
+            }
+        } else {
+            diagnostics.push(hint);
+        }
+    }
+}
+
+/// A theory hint is whole-file-ranged when it starts at the document origin; the
+/// rg-flow / categorical hints are always emitted over the whole-file span, so a
+/// hint starting at line/char 0 is treated as covering any in-file `circularVar`.
+fn query_theory_hint_range_is_whole_file(range: &ParserRangeV0) -> bool {
+    range.start.line == 0 && range.start.character == 0
 }
 
 /// Surface the real RG-flow coupling-Jacobian-spectrum diagnostic in the query
@@ -1296,10 +1388,25 @@ mod tests {
     }
 
     fn diagnostic_codes(source: &str) -> Vec<&'static str> {
-        summarize_query_cascade_checker_diagnostics("file:///tmp/test.scss", source)
-            .into_iter()
-            .map(|diagnostic| diagnostic.code)
-            .collect()
+        summarize_query_cascade_checker_diagnostics_with_deep_analysis(
+            "file:///tmp/test.scss",
+            source,
+            false,
+        )
+        .into_iter()
+        .map(|diagnostic| diagnostic.code)
+        .collect()
+    }
+
+    fn diagnostic_codes_with_deep_analysis(source: &str, deep_analysis: bool) -> Vec<&'static str> {
+        summarize_query_cascade_checker_diagnostics_with_deep_analysis(
+            "file:///tmp/test.scss",
+            source,
+            deep_analysis,
+        )
+        .into_iter()
+        .map(|diagnostic| diagnostic.code)
+        .collect()
     }
 
     fn cascade_codes(source: &str) -> Vec<&'static str> {
@@ -1443,5 +1550,142 @@ mod tests {
         let recorded = recorded(":is(.a, .b) { color: red; }");
         let selectors: Vec<_> = recorded.iter().map(|(selector, ..)| selector).collect();
         assert_eq!(selectors, vec![":is(.a, .b)"], "{recorded:?}");
+    }
+
+    // ---- WP7-b: de-noise rg-flow + categorical theory hints -----------
+
+    /// A two-property custom-property reference cycle that the product chain
+    /// flags as `circularVar`.
+    const VAR_CYCLE_SOURCE: &str = ":root { --a: var(--b); --b: var(--a); }";
+
+    #[test]
+    fn wp7b_var_cycle_still_fires_circular_var_warning() {
+        // Over-correction guard: the product `circularVar` warning must keep
+        // firing on a real custom-property reference cycle regardless of the
+        // deep-analysis flag — the dedup removes only the theory hints.
+        for deep_analysis in [false, true] {
+            let codes = diagnostic_codes_with_deep_analysis(VAR_CYCLE_SOURCE, deep_analysis);
+            assert!(
+                codes.contains(&"circularVar"),
+                "circularVar must still fire on a real var cycle (deep_analysis={deep_analysis}): {codes:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn wp7b_default_surface_var_cycle_emits_only_circular_var() {
+        // Default surface (deep-analysis OFF): a lone var cycle yields exactly the
+        // `circularVar` warning and no whole-file-ranged theory hints.
+        let codes = diagnostic_codes(VAR_CYCLE_SOURCE);
+        assert!(
+            codes.contains(&"circularVar"),
+            "circularVar must fire on the default surface: {codes:?}"
+        );
+        assert!(
+            !codes.contains(&"rgFlowRelevantOperator"),
+            "rg-flow theory hint must be OFF by default: {codes:?}"
+        );
+        assert!(
+            !codes.contains(&"categoricalCascadeEvidenceInconsistency"),
+            "categorical theory hint must be OFF by default: {codes:?}"
+        );
+        // No theory triple-fire: the cycle yields the product `circularVar`
+        // warning (and any other product cascade diagnostics) but neither of the
+        // two redundant, whole-file-ranged theory hints.
+        assert!(
+            codes.iter().all(|code| !matches!(
+                *code,
+                "rgFlowRelevantOperator" | "categoricalCascadeEvidenceInconsistency"
+            )),
+            "default surface must surface no theory hints for a lone var cycle: {codes:?}"
+        );
+    }
+
+    #[test]
+    fn wp7b_deep_analysis_dedups_theory_hints_into_circular_var() -> Result<(), &'static str> {
+        // Deep-analysis ON: the rg-flow + categorical hints key off the same
+        // reference-cycle predicate as `circularVar`, so they are deduplicated
+        // (folded into `circularVar`'s provenance) rather than triple-firing.
+        let codes = diagnostic_codes_with_deep_analysis(VAR_CYCLE_SOURCE, true);
+        assert!(
+            codes.contains(&"circularVar"),
+            "circularVar must fire with deep analysis ON: {codes:?}"
+        );
+        assert!(
+            !codes.contains(&"rgFlowRelevantOperator"),
+            "rg-flow hint must be deduplicated against circularVar: {codes:?}"
+        );
+        assert!(
+            !codes.contains(&"categoricalCascadeEvidenceInconsistency"),
+            "categorical hint must be deduplicated against circularVar: {codes:?}"
+        );
+
+        // The suppressed theory mechanisms' provenance is merged into the
+        // surviving `circularVar` diagnostic so the audit trail is preserved.
+        let diagnostics = summarize_query_cascade_checker_diagnostics_with_deep_analysis(
+            "file:///tmp/test.scss",
+            VAR_CYCLE_SOURCE,
+            true,
+        );
+        let circular_var = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == "circularVar")
+            .ok_or("circularVar diagnostic must exist")?;
+        assert!(
+            circular_var
+                .provenance
+                .iter()
+                .any(|label| label.contains("rg-flow")),
+            "rg-flow provenance should be folded into circularVar: {:?}",
+            circular_var.provenance
+        );
+        assert!(
+            circular_var
+                .provenance
+                .iter()
+                .any(|label| label.contains("categorical")),
+            "categorical provenance should be folded into circularVar: {:?}",
+            circular_var.provenance
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn wp7b_deep_analysis_reaches_theory_gate_on_cyclic_input() {
+        // With deep-analysis ON the theory producers are reachable (the gate runs)
+        // even though their output is deduplicated here: the rg-flow coupling and
+        // categorical mapping are both populated for a cyclic stylesheet, so the
+        // underlying mechanisms still execute (proving the opt-in path is live).
+        let (checker_input, _, _) =
+            collect_query_checker_cascade_input("file:///tmp/test.scss", VAR_CYCLE_SOURCE);
+        let rg_flow = summarize_query_rg_flow_coupling_diagnostics(
+            VAR_CYCLE_SOURCE,
+            &checker_input.custom_properties,
+        );
+        let categorical = summarize_query_categorical_cascade_evidence_diagnostics(
+            VAR_CYCLE_SOURCE,
+            &checker_input.custom_properties,
+        );
+        assert!(
+            !rg_flow.is_empty(),
+            "rg-flow theory gate should fire on a cyclic stylesheet when reached"
+        );
+        assert!(
+            !categorical.is_empty(),
+            "categorical theory gate should fire on a cyclic stylesheet when reached"
+        );
+    }
+
+    #[test]
+    fn wp7b_acyclic_stylesheet_emits_no_theory_hints_even_with_deep_analysis() {
+        // Over-correction guard (the other direction): an acyclic custom-property
+        // graph must not spuriously surface a theory hint under deep analysis.
+        let acyclic = ":root { --a: 1px; --b: var(--a); }";
+        let codes = diagnostic_codes_with_deep_analysis(acyclic, true);
+        assert!(
+            !codes.contains(&"rgFlowRelevantOperator")
+                && !codes.contains(&"categoricalCascadeEvidenceInconsistency"),
+            "acyclic stylesheet must not surface theory hints: {codes:?}"
+        );
     }
 }
