@@ -57,7 +57,8 @@ use omena_query_transform_runner::{
     summarize_static_css_custom_property_fixed_point_from_source,
 };
 use omena_resolver::{
-    OmenaResolverBoundaryStateV0, OmenaResolverStylePackageManifestV0,
+    OmenaResolverBoundaryStateKindV0, OmenaResolverBoundaryStateV0, OmenaResolverBoundaryTopV0,
+    OmenaResolverCanonicalUrlV0, OmenaResolverStylePackageManifestV0,
     canonicalize_omena_resolver_style_identity_path, resolve_omena_resolver_style_module_source,
     summarize_omena_resolver_style_module_resolution_with_load_path_roots,
 };

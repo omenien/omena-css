@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_parser::{
-    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedSassModuleEdgeFactKind,
-    ParsedSelectorFactKind, ParsedVariableFactKind,
+    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedSassModuleEdgeFact,
+    ParsedSassModuleEdgeFactKind, ParsedSelectorFactKind, ParsedVariableFactKind,
 };
 
 use super::cascade_checker::summarize_query_cascade_checker_diagnostics_with_deep_analysis;
@@ -890,25 +890,14 @@ fn collect_omena_query_external_top_any_sass_symbol_ranges(
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
     let resolution =
         summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
-    let top_any_namespaces = resolution
+    let external_sources = resolution
         .edges
         .iter()
         .filter(|edge| edge.from_style_path == target_style_path)
         .filter(|edge| edge.status == "external")
-        .filter(|edge| find_omena_query_external_sif(edge.source.as_str(), external_sifs).is_none())
-        .filter_map(|edge| match edge.edge_kind {
-            "sassUse"
-                if edge.namespace_kind == Some("default")
-                    || edge.namespace_kind == Some("alias") =>
-            {
-                edge.namespace.clone().map(Some)
-            }
-            "sassUse" if edge.namespace_kind == Some("wildcard") => Some(None),
-            "sassImport" => Some(None),
-            _ => None,
-        })
+        .map(|edge| edge.source.as_str())
         .collect::<BTreeSet<_>>();
-    if top_any_namespaces.is_empty() {
+    if external_sources.is_empty() {
         return BTreeSet::new();
     }
 
@@ -916,6 +905,37 @@ fn collect_omena_query_external_top_any_sass_symbol_ranges(
         target.style_source.as_str(),
         omena_parser_dialect_for_style_path(target_style_path),
     );
+    // The protocol lattice is the single source of truth: a namespace is TopAny iff its
+    // external edge classifies to a `top == TopAny` state (Missing/Partial/Stale). A
+    // Resolved (TopOpaque) edge — i.e. one backed by a complete SIF — is *not* TopAny, so
+    // its symbols stay subject to ordinary missing-symbol checking. (#34)
+    let top_any_namespaces = facts
+        .sass_module_edges
+        .iter()
+        .filter(|edge| external_sources.contains(edge.source.as_str()))
+        .filter(|edge| {
+            let sif = find_omena_query_external_sif(edge.source.as_str(), external_sifs);
+            classify_external_boundary_state(edge, sif, &facts, external_sifs).top
+                == OmenaResolverBoundaryTopV0::TopAny
+        })
+        .filter_map(|edge| match edge.kind {
+            ParsedSassModuleEdgeFactKind::Use
+                if edge.namespace_kind == Some("default")
+                    || edge.namespace_kind == Some("alias") =>
+            {
+                edge.namespace.clone().map(Some)
+            }
+            ParsedSassModuleEdgeFactKind::Use if edge.namespace_kind == Some("wildcard") => {
+                Some(None)
+            }
+            ParsedSassModuleEdgeFactKind::Import => Some(None),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    if top_any_namespaces.is_empty() {
+        return BTreeSet::new();
+    }
+
     facts
         .sass_symbols
         .into_iter()
@@ -933,6 +953,108 @@ fn collect_omena_query_external_top_any_sass_symbol_ranges(
             )
         })
         .collect()
+}
+
+/// Classify a single external (`status == "external"`) Sass module edge onto the
+/// resolver's five-state boundary lattice (#34).
+///
+/// Four of the five states are derivable today, with no new transport:
+/// - **Missing** — no local SIF artifact is in scope for the edge's canonical URL.
+/// - **Stale** — a SIF is present but one of its declared dependency interface
+///   hashes no longer matches the SIF actually in scope for that dependency.
+/// - **Partial** — a SIF is present but only some of the symbols referenced through
+///   this edge's namespace appear in its exported interface.
+/// - **Resolved** — a SIF is present and every referenced symbol (or no symbol at
+///   all) is covered by its exported interface.
+///
+/// The fifth state (`Unresolved`) needs the resolver-error channel that does not yet
+/// reach this layer; it stays deferred (see issue #34 "Deferred").
+fn classify_external_boundary_state(
+    edge: &ParsedSassModuleEdgeFact,
+    sif: Option<&OmenaQueryExternalSifInputV0>,
+    target_facts: &omena_parser::ParsedStyleFacts,
+    external_sifs: &[OmenaQueryExternalSifInputV0],
+) -> OmenaResolverBoundaryStateV0 {
+    let Some(sif) = sif else {
+        return OmenaResolverBoundaryStateV0::missing(
+            None,
+            "SIF mode requires a local SIF artifact for this external Sass module",
+        );
+    };
+
+    let canonical_url = OmenaResolverCanonicalUrlV0 {
+        url: edge.source.clone(),
+    };
+
+    // Stale: a declared dependency's recorded interface hash no longer agrees with the
+    // SIF currently in scope for that dependency canonical URL.
+    if let Some(dependency) = sif.sif.dependencies.iter().find(|dependency| {
+        find_omena_query_external_sif(dependency.canonical_url.as_str(), external_sifs)
+            .map(|dependency_sif| {
+                dependency_sif.sif.fingerprints.interface_hash != dependency.interface_hash
+            })
+            .unwrap_or(false)
+    }) {
+        return OmenaResolverBoundaryStateV0::stale(
+            canonical_url,
+            format!(
+                "external SIF dependency '{}' interface hash drifted from the lockfile-recorded hash",
+                dependency.canonical_url
+            ),
+        );
+    }
+
+    // Partial vs Resolved: do all symbols referenced through this edge's namespace
+    // appear in the SIF's exported interface?
+    let exported = collect_sif_exported_sass_symbol_keys(&sif.sif);
+    let mut referenced = 0usize;
+    let mut covered = 0usize;
+    for symbol in &target_facts.sass_symbols {
+        if !omena_query_sass_symbol_fact_kind_is_reference(symbol.kind) {
+            continue;
+        }
+        if !sass_symbol_reference_belongs_to_edge(edge, symbol.namespace.as_deref()) {
+            continue;
+        }
+        referenced += 1;
+        if exported.contains(&(symbol.symbol_kind, fold_sass_symbol_name(&symbol.name))) {
+            covered += 1;
+        }
+    }
+
+    if referenced > 0 && covered < referenced {
+        return OmenaResolverBoundaryStateV0::partial(format!(
+            "external SIF for '{}' exports only {}/{} referenced symbol(s)",
+            edge.source, covered, referenced
+        ));
+    }
+
+    OmenaResolverBoundaryStateV0::resolved(canonical_url)
+}
+
+/// Does a Sass symbol reference (with the given `@use` namespace) flow through `edge`?
+///
+/// Mirrors the namespace-binding rules already used by the visible-symbol collector:
+/// a default/alias `@use` binds references under its namespace, while a wildcard
+/// `@use` or an `@import`/`@forward` binds bare (namespace-less) references.
+fn sass_symbol_reference_belongs_to_edge(
+    edge: &ParsedSassModuleEdgeFact,
+    reference_namespace: Option<&str>,
+) -> bool {
+    match edge.kind {
+        ParsedSassModuleEdgeFactKind::Use
+            if edge.namespace_kind == Some("default") || edge.namespace_kind == Some("alias") =>
+        {
+            edge.namespace.as_deref() == reference_namespace
+        }
+        ParsedSassModuleEdgeFactKind::Use if edge.namespace_kind == Some("wildcard") => {
+            reference_namespace.is_none()
+        }
+        ParsedSassModuleEdgeFactKind::Import | ParsedSassModuleEdgeFactKind::Forward => {
+            reference_namespace.is_none()
+        }
+        _ => false,
+    }
 }
 
 fn summarize_omena_query_external_sif_boundary_diagnostics(
@@ -954,12 +1076,14 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
     let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
     let resolution =
         summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+    // Every external edge is now classified on the real lattice — including ones that
+    // *do* have a SIF in scope (the `.is_none()` pre-filter is gone, #34). Missing edges
+    // warn; Stale/Partial edges warn with distinct codes; Resolved edges emit nothing.
     let external_sources = resolution
         .edges
         .iter()
         .filter(|edge| edge.from_style_path == target_style_path)
         .filter(|edge| edge.status == "external")
-        .filter(|edge| find_omena_query_external_sif(edge.source.as_str(), external_sifs).is_none())
         .map(|edge| edge.source.as_str())
         .collect::<BTreeSet<_>>();
     if external_sources.is_empty() {
@@ -971,43 +1095,70 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
         omena_parser_dialect_for_style_path(target_style_path),
     );
     let mut emitted = BTreeSet::new();
-    facts
-        .sass_module_edges
-        .into_iter()
-        .filter(|edge| external_sources.contains(edge.source.as_str()))
-        .filter_map(|edge| {
-            if !emitted.insert((edge.kind, edge.source.clone())) {
-                return None;
-            }
-            let state = OmenaResolverBoundaryStateV0::missing(
-                None,
-                "SIF mode requires a local SIF artifact for this external Sass module",
-            );
-            let start: u32 = edge.range.start().into();
-            let end: u32 = edge.range.end().into();
-            Some(OmenaQueryStyleDiagnosticV0 {
-                code: "missingExternalSif",
-                severity: "warning",
-                provenance: vec![
-                    "omena-resolver.boundary-state",
-                    "omena-query.external-sif-boundary-diagnostics",
-                ],
-                range: parser_range_for_byte_span(
-                    target.style_source.as_str(),
-                    ParserByteSpanV0 {
-                        start: start as usize,
-                        end: end as usize,
-                    },
-                ),
-                message: format!(
-                    "External Sass module '{}' is {} ({}); generate or provide a SIF artifact, or use --external ignored.",
-                    edge.source, state.state_name, state.top_name
-                ),
-                tags: Vec::new(),
-                create_custom_property: None,
-            })
-        })
-        .collect()
+    let mut diagnostics = Vec::new();
+    for edge in &facts.sass_module_edges {
+        if !external_sources.contains(edge.source.as_str()) {
+            continue;
+        }
+        if !emitted.insert((edge.kind, edge.source.clone())) {
+            continue;
+        }
+        let sif = find_omena_query_external_sif(edge.source.as_str(), external_sifs);
+        let state = classify_external_boundary_state(edge, sif, &facts, external_sifs);
+        let (code, severity) = match state.state {
+            // A fully-resolved boundary has no diagnostic to emit.
+            OmenaResolverBoundaryStateKindV0::Resolved => continue,
+            OmenaResolverBoundaryStateKindV0::Stale => ("staleExternalSif", "warning"),
+            OmenaResolverBoundaryStateKindV0::Partial => ("partialExternalSif", "information"),
+            OmenaResolverBoundaryStateKindV0::Missing => ("missingExternalSif", "warning"),
+            // `Unresolved` is not reachable from this layer yet (deferred, #34).
+            OmenaResolverBoundaryStateKindV0::Unresolved => continue,
+        };
+        let start: u32 = edge.range.start().into();
+        let end: u32 = edge.range.end().into();
+        diagnostics.push(OmenaQueryStyleDiagnosticV0 {
+            code,
+            severity,
+            provenance: vec![
+                "omena-resolver.boundary-state",
+                "omena-query.external-sif-boundary-diagnostics",
+            ],
+            range: parser_range_for_byte_span(
+                target.style_source.as_str(),
+                ParserByteSpanV0 {
+                    start: start as usize,
+                    end: end as usize,
+                },
+            ),
+            message: format!(
+                "External Sass module '{}' is {} ({}); {}",
+                edge.source,
+                state.state_name,
+                state.top_name,
+                external_boundary_remediation_hint(state.state)
+            ),
+            tags: Vec::new(),
+            create_custom_property: None,
+        });
+    }
+    diagnostics
+}
+
+/// Per-state remediation hint appended to the boundary diagnostic message.
+fn external_boundary_remediation_hint(state: OmenaResolverBoundaryStateKindV0) -> &'static str {
+    match state {
+        OmenaResolverBoundaryStateKindV0::Missing => {
+            "generate or provide a SIF artifact, or use --external ignored."
+        }
+        OmenaResolverBoundaryStateKindV0::Stale => {
+            "regenerate the SIF/lockfile so its dependency interface hashes match."
+        }
+        OmenaResolverBoundaryStateKindV0::Partial => {
+            "some referenced symbols are absent from the SIF interface; regenerate the SIF or fix the reference."
+        }
+        OmenaResolverBoundaryStateKindV0::Resolved
+        | OmenaResolverBoundaryStateKindV0::Unresolved => "",
+    }
 }
 
 type SassSymbolKey = (&'static str, Option<String>, String);

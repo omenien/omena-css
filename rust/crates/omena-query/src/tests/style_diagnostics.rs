@@ -1399,6 +1399,185 @@ fn style_diagnostics_external_sif_mode_resolves_symbols_from_sif_artifact()
 }
 
 #[test]
+fn style_diagnostics_external_sif_mode_classifies_partial_boundary() -> Result<(), &'static str> {
+    // The SIF in scope only exports `$brand`, but the file references both `$brand` and
+    // `$accent` through the same namespace — a Partial boundary (#34).
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; border-color: remote.$accent; }"#
+            .to_string(),
+    }];
+    let sif = omena_sif::OmenaSifV1::from_static_exports(
+        "https://cdn.example/tokens.scss",
+        omena_sif::OmenaSifGeneratorV1 {
+            name: "fixture-sifgen".to_string(),
+            version: "0.1.0".to_string(),
+            toolchain_id: "fixture-sifgen@0.1.0".to_string(),
+        },
+        omena_sif::OmenaSifSourceV1 {
+            syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+        },
+        omena_sif::OmenaSifExportsV1 {
+            variables: vec![omena_sif::OmenaSifVariableExportV1 {
+                name: "$brand".to_string(),
+                defaulted: true,
+                value_repr: Some("red".to_string()),
+            }],
+            mixins: Vec::new(),
+            functions: Vec::new(),
+            placeholders: Vec::new(),
+            forwards: Vec::new(),
+        },
+        Vec::new(),
+        b"$brand: red !default;",
+    )
+    .map_err(|_| "sif fixture")?;
+    let external_sifs = vec![OmenaQueryExternalSifInputV0 {
+        canonical_url: "https://cdn.example/tokens.scss".to_string(),
+        sif,
+    }];
+
+    let diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+            external_sifs.as_slice(),
+        )
+        .ok_or("sif workspace diagnostics")?;
+
+    let partial = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "partialExternalSif")
+        .ok_or("expected partialExternalSif boundary diagnostic")?;
+    assert_eq!(partial.severity, "information");
+    assert!(
+        partial.message.contains("partial (topAny)"),
+        "{}",
+        partial.message
+    );
+    // A Partial boundary stays TopAny, so the still-unknown `$accent` reference is NOT
+    // double-flagged as a plain missing symbol.
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingExternalSif"
+                && diagnostic.code != "missingSassSymbol")
+    );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_external_sif_mode_classifies_stale_boundary() -> Result<(), &'static str> {
+    // The root SIF records a dependency interface hash, but the dependency SIF in scope
+    // has a different interface — a Stale boundary (#34).
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; }"#
+            .to_string(),
+    }];
+    let generator = || omena_sif::OmenaSifGeneratorV1 {
+        name: "fixture-sifgen".to_string(),
+        version: "0.1.0".to_string(),
+        toolchain_id: "fixture-sifgen@0.1.0".to_string(),
+    };
+    let source = || omena_sif::OmenaSifSourceV1 {
+        syntax: omena_sif::OmenaSifSourceSyntaxV1::Scss,
+    };
+    let brand_exports = || omena_sif::OmenaSifExportsV1 {
+        variables: vec![omena_sif::OmenaSifVariableExportV1 {
+            name: "$brand".to_string(),
+            defaulted: true,
+            value_repr: Some("red".to_string()),
+        }],
+        mixins: Vec::new(),
+        functions: Vec::new(),
+        placeholders: Vec::new(),
+        forwards: Vec::new(),
+    };
+    // Root SIF declares a dependency on `_base.scss` with a STALE interface hash.
+    let root_sif = omena_sif::OmenaSifV1::from_static_exports(
+        "https://cdn.example/tokens.scss",
+        generator(),
+        source(),
+        brand_exports(),
+        vec![omena_sif::OmenaSifDependencyInterfaceHashV1 {
+            canonical_url: "https://cdn.example/_base.scss".to_string(),
+            interface_hash: omena_sif::compute_omena_sif_interface_hash_v1(
+                "fixture-sifgen@0.1.0",
+                &omena_sif::OmenaSifExportsV1::default(),
+            )
+            .map_err(|_| "stale dep hash")?,
+        }],
+        b"$brand: red !default;",
+    )
+    .map_err(|_| "root sif fixture")?;
+    // The dependency SIF actually in scope exports `$base`, so its interface hash differs
+    // from the empty-exports hash recorded by the root SIF.
+    let dependency_sif = omena_sif::OmenaSifV1::from_static_exports(
+        "https://cdn.example/_base.scss",
+        generator(),
+        source(),
+        omena_sif::OmenaSifExportsV1 {
+            variables: vec![omena_sif::OmenaSifVariableExportV1 {
+                name: "$base".to_string(),
+                defaulted: false,
+                value_repr: Some("black".to_string()),
+            }],
+            mixins: Vec::new(),
+            functions: Vec::new(),
+            placeholders: Vec::new(),
+            forwards: Vec::new(),
+        },
+        Vec::new(),
+        b"$base: black;",
+    )
+    .map_err(|_| "dependency sif fixture")?;
+    let external_sifs = vec![
+        OmenaQueryExternalSifInputV0 {
+            canonical_url: "https://cdn.example/tokens.scss".to_string(),
+            sif: root_sif,
+        },
+        OmenaQueryExternalSifInputV0 {
+            canonical_url: "https://cdn.example/_base.scss".to_string(),
+            sif: dependency_sif,
+        },
+    ];
+
+    let diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+            external_sifs.as_slice(),
+        )
+        .ok_or("sif workspace diagnostics")?;
+
+    let stale = diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "staleExternalSif")
+        .ok_or("expected staleExternalSif boundary diagnostic")?;
+    assert_eq!(stale.severity, "warning");
+    assert!(
+        stale.message.contains("stale (topAny)"),
+        "{}",
+        stale.message
+    );
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_suppression_applies_to_external_sif_boundary() -> Result<(), &'static str> {
     let sources = vec![OmenaQueryStyleSourceInputV0 {
         style_path: "/tmp/App.module.scss".to_string(),
