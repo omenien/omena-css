@@ -977,6 +977,95 @@ fn style_diagnostics_for_file_suppresses_sass_builtins_and_hints_imports()
 }
 
 #[test]
+fn deprecated_sass_import_skips_css_form_imports_but_still_flags_partials() {
+    // #44 D1. Sass deprecated `@import` only for Sass partials. CSS-form imports
+    // (`url(...)`, `.css` targets, protocol/`//` URLs) are explicitly KEPT and must
+    // NOT be flagged. A genuine partial in the same file MUST still warn.
+    let source = r#"@import url(theme.css);
+@import "vendor.css";
+@import "//cdn.example/reset.css";
+@import "https://x.com/y.css";
+@import 'partial';
+.x { color: red; }"#;
+    let diagnostics = crate::summarize_omena_query_sass_import_deprecation_hints(
+        "file:///workspace/src/Component.module.scss",
+        source,
+    );
+    let flagged: Vec<&str> = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "deprecatedSassImport")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect();
+    // Exactly one deprecation hint: the Sass-form `'partial'`. The four CSS-form
+    // imports are suppressed.
+    assert_eq!(
+        flagged.len(),
+        1,
+        "only the Sass-form partial should warn; CSS-form imports must be skipped (got {flagged:?})"
+    );
+}
+
+#[test]
+fn deprecated_sass_import_classifies_per_target_in_multi_target_statement() {
+    // #44 D1 over-correction guard: per-target classification. In a comma-peer
+    // statement mixing a CSS target and a Sass partial, the partial MUST still warn
+    // and the CSS target MUST stay suppressed (each peer is its own Import edge).
+    let source = r#"@import "vendor.css", "partial";"#;
+    let diagnostics = crate::summarize_omena_query_sass_import_deprecation_hints(
+        "file:///workspace/src/Component.module.scss",
+        source,
+    );
+    let flagged: Vec<&str> = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "deprecatedSassImport")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect();
+    assert_eq!(
+        flagged.len(),
+        1,
+        "the Sass partial peer must still warn even when a CSS peer is suppressed (got {flagged:?})"
+    );
+}
+
+#[test]
+fn missing_sass_symbol_allows_meta_apply_and_get_mixin_but_flags_unknown() {
+    // #44 D2. `meta.apply` (mixin) and `meta.get-mixin` (function) are real
+    // `sass:meta` members in Sass 1.77 and must NOT be flagged. An actually-unknown
+    // member MUST still flag (over-correction guard).
+    let source = r#"@use "sass:meta";
+@mixin theme($c) { color: $c; }
+.x {
+  @include meta.apply(meta.get-mixin("theme"), red);
+  content: meta.not-a-real-member();
+}"#;
+    let diagnostics = crate::summarize_omena_query_missing_sass_symbol_diagnostics(
+        "file:///workspace/src/Component.module.scss",
+        source,
+    );
+    let flagged: Vec<&str> = diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingSassSymbol")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect();
+    // `meta.apply` and `meta.get-mixin` must be absent from the flagged set.
+    assert!(
+        !flagged.iter().any(|message| message.contains("apply")),
+        "meta.apply must not be flagged (got {flagged:?})"
+    );
+    assert!(
+        !flagged.iter().any(|message| message.contains("get-mixin")),
+        "meta.get-mixin must not be flagged (got {flagged:?})"
+    );
+    // The genuinely-unknown member must still flag.
+    assert!(
+        flagged
+            .iter()
+            .any(|message| message.contains("not-a-real-member")),
+        "an unknown sass:meta member must still be flagged (got {flagged:?})"
+    );
+}
+
+#[test]
 fn style_diagnostics_for_workspace_file_resolve_sass_module_graph_symbols()
 -> Result<(), &'static str> {
     let sources = vec![

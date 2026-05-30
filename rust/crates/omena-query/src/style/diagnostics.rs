@@ -272,6 +272,12 @@ pub fn summarize_omena_query_sass_import_deprecation_hints(
         .sass_module_edges
         .into_iter()
         .filter(|edge| edge.kind == ParsedSassModuleEdgeFactKind::Import)
+        // Sass deprecated `@import` only for Sass partials. CSS-form imports
+        // (`url(...)`, `.css` targets, protocol/`//` URLs) are explicitly kept and
+        // must NOT be flagged. Classify per-edge (each comma-peer target is its own
+        // Import edge), so a partial that shares a multi-target statement with a CSS
+        // import still warns. (RFC-0007 D1, #44)
+        .filter(|edge| !sass_import_is_plain_css(edge.source.as_str()))
         .map(|edge| {
             let start: u32 = edge.range.start().into();
             let end: u32 = edge.range.end().into();
@@ -295,6 +301,39 @@ pub fn summarize_omena_query_sass_import_deprecation_hints(
             }
         })
         .collect()
+}
+
+/// Classify an `@import` target as plain CSS, which Sass explicitly keeps (NOT
+/// deprecated). Operates on the `source` already captured in the Import edge fact,
+/// so cross-file resolution (the edge collector) is unaffected.
+///
+/// Detects the CSS-form imports that are recoverable from the edge fact alone:
+/// - `url(...)` (unquoted url form, source retains the `url(` wrapper),
+/// - a `.css` extension target,
+/// - protocol (`scheme://`) or scheme-relative (`//host/...`) URLs.
+///
+/// Necessary-not-sufficient: the media-qualified form (`@import "foo" screen`) and
+/// the quoted-url-without-`.css` form (`@import url("foo")`, whose `url(...)`
+/// wrapper is lost during tokenization) are NOT distinguishable from a Sass partial
+/// at the edge-fact level, so they are still treated as Sass-form imports here. Both
+/// are noted as remaining in #44 (media-qualifier Ident not captured).
+fn sass_import_is_plain_css(source: &str) -> bool {
+    let trimmed = source.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    // Unquoted `url(...)` form: the source still carries the `url(` prefix.
+    if lower.starts_with("url(") {
+        return true;
+    }
+    // Protocol (`https://`, `http://`, `data:`-less `scheme://`) and scheme-relative
+    // (`//cdn.example/...`) URLs are always plain CSS.
+    if lower.starts_with("//") || lower.contains("://") {
+        return true;
+    }
+    // Explicit `.css` extension target.
+    if lower.ends_with(".css") {
+        return true;
+    }
+    false
 }
 
 pub fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace(
@@ -1115,6 +1154,8 @@ fn sass_builtin_module_function_names(module: &str) -> &'static [&'static str] {
             "feature-exists",
             "function-exists",
             "get-function",
+            // `meta.get-mixin` is a real `sass:meta` function added in Sass 1.77. (#44 D2)
+            "get-mixin",
             "global-variable-exists",
             "inspect",
             "keywords",
@@ -1131,7 +1172,8 @@ fn sass_builtin_module_function_names(module: &str) -> &'static [&'static str] {
 
 fn sass_builtin_module_mixin_names(module: &str) -> &'static [&'static str] {
     match module {
-        "meta" => &["load-css"],
+        // `meta.apply` is a real `sass:meta` mixin added in Sass 1.77. (#44 D2)
+        "meta" => &["apply", "load-css"],
         _ => &[],
     }
 }
@@ -1573,5 +1615,87 @@ fn propagate_omena_query_composes_usage(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sass_import_is_plain_css_classifies_css_forms() {
+        // CSS-form imports Sass explicitly KEEPS (must NOT be flagged).
+        assert!(sass_import_is_plain_css("url(theme.css)"));
+        assert!(sass_import_is_plain_css("url(theme.scss)")); // unquoted url is always CSS
+        assert!(sass_import_is_plain_css("vendor.css"));
+        assert!(sass_import_is_plain_css("VENDOR.CSS")); // case-insensitive
+        assert!(sass_import_is_plain_css("//cdn.example/x.css"));
+        assert!(sass_import_is_plain_css("https://x.com/y.css"));
+        assert!(sass_import_is_plain_css("http://x.com/y")); // protocol URL, no .css
+    }
+
+    #[test]
+    fn sass_import_is_plain_css_keeps_partials_flaggable() {
+        // Over-correction guard: genuine Sass-form partials must STILL be classified
+        // as Sass imports (i.e. NOT plain CSS), so the deprecation hint still fires.
+        assert!(!sass_import_is_plain_css("partial"));
+        assert!(!sass_import_is_plain_css("./legacy"));
+        assert!(!sass_import_is_plain_css("foundation/buttons"));
+        assert!(!sass_import_is_plain_css("legacy")); // bare partial name
+    }
+
+    /// Durable CI drift check: pin the full `sass:meta` module surface against a
+    /// known-good Sass 1.77 member set. If a future edit adds or removes a member
+    /// (or the upstream module surface changes and we update one site but not the
+    /// pinned set), this fails loudly instead of silently rotting. (#44 D2)
+    ///
+    /// Functions and mixins are tracked separately because Sass distinguishes them
+    /// (`meta.get-mixin` is a function returning a mixin reference; `meta.apply` is a
+    /// mixin invoked via `@include`).
+    #[test]
+    fn sass_meta_allowlist_matches_pinned_1_77_surface() {
+        let pinned_functions: BTreeSet<&str> = [
+            "accepts-content",
+            "calc-args",
+            "calc-name",
+            "call",
+            "content-exists",
+            "feature-exists",
+            "function-exists",
+            "get-function",
+            "get-mixin",
+            "global-variable-exists",
+            "inspect",
+            "keywords",
+            "mixin-exists",
+            "module-functions",
+            "module-mixins",
+            "module-variables",
+            "type-of",
+            "variable-exists",
+        ]
+        .into_iter()
+        .collect();
+        let pinned_mixins: BTreeSet<&str> = ["apply", "load-css"].into_iter().collect();
+
+        let actual_functions: BTreeSet<&str> = sass_builtin_module_function_names("meta")
+            .iter()
+            .copied()
+            .collect();
+        let actual_mixins: BTreeSet<&str> = sass_builtin_module_mixin_names("meta")
+            .iter()
+            .copied()
+            .collect();
+
+        assert_eq!(
+            actual_functions, pinned_functions,
+            "sass:meta function allowlist drifted from pinned Sass 1.77 surface; \
+             update both the allowlist and this pinned set together"
+        );
+        assert_eq!(
+            actual_mixins, pinned_mixins,
+            "sass:meta mixin allowlist drifted from pinned Sass 1.77 surface; \
+             update both the allowlist and this pinned set together"
+        );
     }
 }
