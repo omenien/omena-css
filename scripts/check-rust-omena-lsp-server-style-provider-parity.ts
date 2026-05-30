@@ -145,7 +145,12 @@ const expectedMissingCustomPropertyDiagnostic = {
   message: "CSS custom property '--missing' not found in indexed style tokens.",
   data: {
     querySeverity: "warning",
-    provenance: ["omena-parser.custom-property-facts", "omena-query.style-diagnostics"],
+    provenance: [
+      "omena-parser.custom-property-facts",
+      "omena-query.style-diagnostics",
+      "omena-query-checker-orchestrator.product-diagnostic-gate",
+      "omena-checker.rule-registry",
+    ],
     createCustomProperty: {
       uri: styleUri,
       range: documentEndRange(styleText),
@@ -162,7 +167,12 @@ const expectedMissingSelectorDiagnostic = {
   message: "CSS Module selector '.missing' not found in indexed style tokens.",
   data: {
     querySeverity: "warning",
-    provenance: ["omena-query.source-syntax-index", "omena-query.style-selector-definitions"],
+    provenance: [
+      "omena-query.source-syntax-index",
+      "omena-query.style-selector-definitions",
+      "omena-query-checker-orchestrator.product-diagnostic-gate",
+      "omena-checker.rule-registry",
+    ],
     createSelector: {
       uri: styleUri,
       range: documentEndRange(styleText),
@@ -179,7 +189,12 @@ const expectedMissingImportedSelectorDiagnostic = {
   message: "CSS Module selector '.ghost' not found in indexed style tokens.",
   data: {
     querySeverity: "warning",
-    provenance: ["omena-query.source-syntax-index", "omena-query.style-selector-definitions"],
+    provenance: [
+      "omena-query.source-syntax-index",
+      "omena-query.style-selector-definitions",
+      "omena-query-checker-orchestrator.product-diagnostic-gate",
+      "omena-checker.rule-registry",
+    ],
     createSelector: {
       uri: styleUri,
       range: documentEndRange(styleText),
@@ -1384,6 +1399,8 @@ function unusedSelectorDiagnostic(selector: { readonly name: string; readonly ra
     readonly provenance: readonly [
       "omena-parser.selector-facts",
       "omena-query.source-selector-usage",
+      "omena-query-checker-orchestrator.product-diagnostic-gate",
+      "omena-checker.rule-registry",
     ];
   };
   readonly tags: readonly [1];
@@ -1396,7 +1413,12 @@ function unusedSelectorDiagnostic(selector: { readonly name: string; readonly ra
     message: `Selector '.${selector.name}' is declared but never used.`,
     data: {
       querySeverity: "hint",
-      provenance: ["omena-parser.selector-facts", "omena-query.source-selector-usage"],
+      provenance: [
+        "omena-parser.selector-facts",
+        "omena-query.source-selector-usage",
+        "omena-query-checker-orchestrator.product-diagnostic-gate",
+        "omena-checker.rule-registry",
+      ],
     },
     tags: [1],
   };

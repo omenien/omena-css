@@ -43,8 +43,15 @@ fn resolves_unnecessary_tags_for_cascade_style_diagnostics() -> TestResult {
         .ok_or_else(|| std::io::Error::other("unreachable declaration diagnostic"))?;
     assert_eq!(unreachable.pointer("/severity"), Some(&json!(4)));
     assert_eq!(unreachable.pointer("/tags"), Some(&json!([1])));
+    // Since the checker orchestrator boundary split (8e632aa2), the product
+    // cascade diagnostics carry the upstream orchestrator-gate product as the
+    // most-upstream provenance label, followed by the owning checker rules.
     assert_eq!(
         unreachable.pointer("/data/provenance/0"),
+        Some(&json!("omena-query-checker-orchestrator.cascade-gate")),
+    );
+    assert_eq!(
+        unreachable.pointer("/data/provenance/1"),
         Some(&json!("omena-checker.cascade-rules")),
     );
     Ok(())
