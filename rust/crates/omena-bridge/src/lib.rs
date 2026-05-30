@@ -53,6 +53,7 @@ pub use source_syntax::{
 };
 pub use style_resolution::{
     OmenaBridgeStyleResolutionInputsV0, OmenaBridgeStyleResolutionSummaryV0,
+    generate_omena_bridge_sif_for_resolved_style_path,
     load_omena_bridge_workspace_style_resolution_inputs,
     resolve_omena_bridge_style_uri_for_specifier,
     resolve_omena_bridge_style_uri_for_specifier_with_package_manifests,

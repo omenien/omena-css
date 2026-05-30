@@ -1830,6 +1830,7 @@ dependencies = [
  "omena-parser",
  "omena-resolver",
  "omena-semantic",
+ "omena-sif",
  "oxc_allocator",
  "oxc_ast",
  "oxc_parser",

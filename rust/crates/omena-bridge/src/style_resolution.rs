@@ -11,6 +11,10 @@ use omena_resolver::{
     OmenaResolverTsconfigPathMappingV0,
     collect_omena_resolver_style_module_source_candidates_with_path_mappings,
 };
+use omena_sif::{
+    OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, OmenaSifV1,
+    generate_static_omena_sif_v1,
+};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -136,6 +140,63 @@ pub fn resolve_omena_bridge_style_uri_for_specifier_with_resolution_inputs(
     );
 
     style_uri_for_resolver_candidates(candidates.as_slice(), requires_existing_candidate)
+}
+
+/// Bridges the resolver→generator hop in-process: takes a resolved external
+/// style module entry (the `file://` URI returned by
+/// `resolve_omena_bridge_style_uri_for_specifier*`, or a plain filesystem
+/// path) and produces an [`OmenaSifV1`] by reading the entry's source and
+/// running the static SIF generator.
+///
+/// The returned SIF's `canonical_url` matches the resolved entry's `file://`
+/// URI so the query layer can pair it against import targets. The CLI converts
+/// each result into an `OmenaQueryExternalSifInputV0` without a JSON round-trip.
+///
+/// Errors gracefully (never panics) when the path is unresolvable, missing, or
+/// unreadable.
+pub fn generate_omena_bridge_sif_for_resolved_style_path(
+    resolved_path: &str,
+) -> Result<OmenaSifV1, String> {
+    let path = resolved_style_entry_path(resolved_path)
+        .ok_or_else(|| format!("unresolvable style module entry path: {resolved_path}"))?;
+    let canonical_url = path_to_file_uri(path.as_path());
+    let source = fs::read_to_string(path.as_path()).map_err(|error| {
+        format!(
+            "failed to read resolved style module {}: {error}",
+            path.to_string_lossy()
+        )
+    })?;
+    let syntax = infer_omena_bridge_sif_source_syntax(path.as_path());
+    generate_static_omena_sif_v1(OmenaSifStaticGeneratorInputV1 {
+        canonical_url: canonical_url.as_str(),
+        source: source.as_str(),
+        syntax,
+    })
+    .map_err(|error| format!("failed to generate SIF for {canonical_url}: {error}"))
+}
+
+fn resolved_style_entry_path(resolved_path: &str) -> Option<PathBuf> {
+    let path = if resolved_path.starts_with("file://") {
+        file_uri_to_path(resolved_path)?
+    } else if resolved_path.is_empty() {
+        return None;
+    } else {
+        PathBuf::from(resolved_path)
+    };
+    Some(normalize_path(path))
+}
+
+fn infer_omena_bridge_sif_source_syntax(path: &Path) -> OmenaSifSourceSyntaxV1 {
+    match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("css") => OmenaSifSourceSyntaxV1::Css,
+        Some("sass") => OmenaSifSourceSyntaxV1::Sass,
+        _ => OmenaSifSourceSyntaxV1::Scss,
+    }
 }
 
 pub fn load_omena_bridge_workspace_style_resolution_inputs(
@@ -663,6 +724,84 @@ mod tests {
         );
         let _ = fs::remove_dir_all(root);
         Ok(())
+    }
+
+    #[test]
+    fn generates_sif_for_resolved_relative_style_module() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let root = temp_dir("omena_bridge_sif_resolved")?;
+        let source = root.join("src/App.tsx");
+        let style = root.join("src/theme.scss");
+        fs::create_dir_all(
+            style
+                .parent()
+                .ok_or_else(|| std::io::Error::other("parent"))?,
+        )?;
+        fs::write(&source, "")?;
+        fs::write(&style, "$brand: #0af;\n@mixin focus-ring {}\n")?;
+
+        let resolved = resolve_omena_bridge_style_uri_for_specifier(
+            path_to_file_uri(source.as_path()).as_str(),
+            Some(path_to_file_uri(root.as_path()).as_str()),
+            "./theme.scss",
+        )
+        .ok_or_else(|| std::io::Error::other("resolution failed"))?;
+
+        let sif = generate_omena_bridge_sif_for_resolved_style_path(resolved.as_str())?;
+
+        assert_eq!(sif.canonical_url, resolved);
+        assert_eq!(sif.source.syntax, OmenaSifSourceSyntaxV1::Scss);
+        assert!(
+            sif.exports
+                .variables
+                .iter()
+                .any(|variable| variable.name == "$brand"),
+            "expected $brand variable export, got {:?}",
+            sif.exports.variables
+        );
+        assert!(
+            sif.exports
+                .mixins
+                .iter()
+                .any(|mixin| mixin.name == "focus-ring"),
+            "expected focus-ring mixin export, got {:?}",
+            sif.exports.mixins
+        );
+        // The produced SIF must round-trip through the exact JSON contract the
+        // CLI's `read_external_sifs` consumes, proving it is a valid artifact.
+        let json = omena_sif::write_omena_sif_json_v1(&sif)?;
+        let parsed = omena_sif::read_omena_sif_json_v1(json.as_str())?;
+        assert_eq!(parsed, sif);
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn generates_sif_from_plain_resolved_path() -> Result<(), Box<dyn std::error::Error>> {
+        let root = temp_dir("omena_bridge_sif_plain")?;
+        let style = root.join("tokens.sass");
+        fs::write(&style, "$gap: 8px\n")?;
+
+        let sif =
+            generate_omena_bridge_sif_for_resolved_style_path(style.to_string_lossy().as_ref())?;
+
+        assert_eq!(sif.source.syntax, OmenaSifSourceSyntaxV1::Sass);
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
+
+    #[test]
+    fn errors_gracefully_for_missing_resolved_style_module() {
+        let missing = std::env::temp_dir().join("omena_bridge_sif_missing/does-not-exist.scss");
+        let result =
+            generate_omena_bridge_sif_for_resolved_style_path(missing.to_string_lossy().as_ref());
+        assert!(result.is_err(), "expected error for missing entry");
+    }
+
+    #[test]
+    fn errors_gracefully_for_empty_resolved_path() {
+        let result = generate_omena_bridge_sif_for_resolved_style_path("");
+        assert!(result.is_err(), "expected error for empty path");
     }
 
     #[test]
