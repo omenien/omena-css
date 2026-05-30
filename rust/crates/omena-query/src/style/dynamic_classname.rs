@@ -171,20 +171,51 @@ pub(super) const OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH: usize = 
 /// joined at `k = 0` but separated at the workspace default `k`. The per-target
 /// byte span becomes the diagnostic range and the distinguishing tail of the
 /// call-string, so increasing `k` genuinely re-partitions the contexts.
+///
+/// Soundness of `no-unknown-dynamic-class` requires the selector universe to be
+/// scoped to the module the className is actually bound to. A target that carries
+/// a resolved `target_style_uri` (e.g. a `cx(`prefix-${x}`)` call bound to a
+/// specific imported CSS Module) is evaluated against ONLY that module's selectors
+/// (`selector_universe_by_uri`), so a `btn-` prefix is matched against the bound
+/// module, not the union of every imported module — which would otherwise let a
+/// `btn-*` selector in a different module mask a genuinely-empty intersection. A
+/// target with no resolved URI (a bare `className={`btn-${x}`}` literal with no
+/// binding context) has no single module to scope to, so it falls back to the
+/// union (`union_selector_universe`); `no-unknown-dynamic-class` then fires only
+/// when the prefix is provably empty against the whole union, the conservative
+/// stopgap that never cross-attributes a match to the wrong module.
+///
+/// `no-imprecise-value` is suppressed for harvested affix templates: an
+/// interpolation is inherently Top/imprecise, so a hint per template is
+/// information-free noise. The k-CFA precision is used to NARROW the candidate set
+/// (drive `no-unknown-dynamic-class` / `no-impossible-selector`), not to restate
+/// that an interpolation is imprecise.
 pub(super) fn harvest_omena_query_dynamic_classname_m_tier_diagnostics(
     source_path: &str,
     source: &str,
     type_fact_targets: &[OmenaQuerySourceTypeFactTargetV0],
-    selector_universe: &[String],
+    union_selector_universe: &[String],
+    selector_universe_by_uri: &BTreeMap<String, Vec<String>>,
     max_context_depth: usize,
 ) -> Vec<OmenaQuerySourceDiagnosticV0> {
-    let call_sites = type_fact_targets
-        .iter()
-        .filter_map(|target| {
-            let exit_value =
-                harvested_abstract_class_value(target.prefix.as_str(), target.suffix.as_str())?;
-            let callee_key = harvested_callee_key(target.expression_id.as_str());
-            Some(OmenaQueryDynamicClassnameCallSiteV0 {
+    // Partition harvested call sites by the resolved module they are bound to so
+    // each scope is evaluated against its CORRECTLY-scoped selector universe. A
+    // `None` scope (no resolved binding) is evaluated against the union.
+    let mut call_sites_by_scope: BTreeMap<
+        Option<String>,
+        Vec<OmenaQueryDynamicClassnameCallSiteV0>,
+    > = BTreeMap::new();
+    for target in type_fact_targets {
+        let Some(exit_value) =
+            harvested_abstract_class_value(target.prefix.as_str(), target.suffix.as_str())
+        else {
+            continue;
+        };
+        let callee_key = harvested_callee_key(target.expression_id.as_str());
+        call_sites_by_scope
+            .entry(target.target_style_uri.clone())
+            .or_default()
+            .push(OmenaQueryDynamicClassnameCallSiteV0 {
                 callee_key,
                 call_site_stack: vec![
                     source_path.to_string(),
@@ -192,19 +223,33 @@ pub(super) fn harvest_omena_query_dynamic_classname_m_tier_diagnostics(
                 ],
                 exit_value,
                 reference_range: parser_range_for_byte_span(source, target.byte_span),
-            })
-        })
-        .collect::<Vec<_>>();
+            });
+    }
 
-    if call_sites.is_empty() {
+    if call_sites_by_scope.is_empty() {
         return Vec::new();
     }
 
-    collect_omena_query_dynamic_classname_m_tier_diagnostics(
-        &call_sites,
-        selector_universe,
-        max_context_depth,
-    )
+    let mut diagnostics = Vec::new();
+    for (scope_uri, call_sites) in &call_sites_by_scope {
+        let scoped_universe = match scope_uri {
+            Some(uri) => selector_universe_by_uri
+                .get(uri)
+                .map(Vec::as_slice)
+                .unwrap_or(union_selector_universe),
+            None => union_selector_universe,
+        };
+        diagnostics.extend(collect_omena_query_dynamic_classname_m_tier_diagnostics(
+            call_sites,
+            scoped_universe,
+            max_context_depth,
+        ));
+    }
+
+    // Suppress the information-free `no-imprecise-value` hint on harvested affix
+    // templates: an interpolation being imprecise is expected and non-actionable.
+    diagnostics.retain(|diagnostic| diagnostic.code != "noImpreciseValue");
+    diagnostics
 }
 
 /// Map a harvested template projection (`prefix${expr}suffix`) to the abstract

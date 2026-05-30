@@ -583,3 +583,134 @@ export function Button({ variant }) {
         "k-limiting must change which workspace M-tier diagnostics are emitted"
     );
 }
+
+/// Over-correction guard for the M8 k-CFA M-tier FP cleanup (WP7-a).
+///
+/// `no-imprecise-value` must NOT fire on harvested affix templates: an
+/// interpolation is inherently imprecise, so a hint per template is
+/// information-free noise. This asserts the demotion is real while the
+/// load-bearing `no-unknown-dynamic-class` true positive on the unmatched `xyz-`
+/// projection is still preserved (so the demotion did not also silence the real
+/// finding).
+#[test]
+fn workspace_source_diagnostics_suppress_imprecise_value_noise_on_harvested_templates() {
+    let source_path = "/workspace/src/Button.tsx";
+    let source = r#"import styles from "./Button.module.scss";
+export function Button({ variant }) {
+  return (
+    <div>
+      <span className={`btn-${variant}`} />
+      <span className={`xyz-${variant}`} />
+    </div>
+  );
+}"#;
+    let style_sources = [OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/Button.module.scss".to_string(),
+        style_source: ".btn-primary {}\n.btn-secondary {}\n".to_string(),
+    }];
+
+    let summary = summarize_omena_query_source_diagnostics_for_workspace_file(
+        source_path,
+        source,
+        &style_sources,
+        &[],
+    );
+
+    // FP #2 gone: no information-free `noImpreciseValue` hint on either template.
+    assert!(
+        summary
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "noImpreciseValue"),
+        "harvested affix templates must not emit information-free noImpreciseValue hints, got {:?}",
+        summary
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code)
+            .collect::<Vec<_>>()
+    );
+
+    // True positive preserved: the unmatched `xyz-` projection still flags
+    // noUnknownDynamicClass at its own reference range, and the matched `btn-`
+    // projection (line 4) stays clean.
+    let unknown_class = summary
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "noUnknownDynamicClass")
+        .collect::<Vec<_>>();
+    assert_eq!(
+        unknown_class.len(),
+        1,
+        "exactly the unmatched xyz- projection must flag noUnknownDynamicClass"
+    );
+    assert_eq!(
+        unknown_class[0].range.start.line, 5,
+        "noUnknownDynamicClass must anchor to the unmatched xyz- template, not the matched btn- one"
+    );
+}
+
+/// Over-correction guard for the SOUND module-scoping half of WP7-a.
+///
+/// A `cx(`btn-${variant}`)` call is bound (via `classnames/bind`) to a SPECIFIC
+/// imported CSS Module, so the harvested type-fact target carries that module's
+/// resolved `target_style_uri`. `no-unknown-dynamic-class` must therefore be
+/// evaluated against ONLY the bound module's selectors, not the union of every
+/// imported module:
+///
+/// - bound to a module that HAS `btn-*` selectors -> provably non-empty -> clean;
+/// - bound to a module that has NO `btn-*` selectors -> provably empty ->
+///   `no-unknown-dynamic-class` STILL fires, even though a DIFFERENT imported
+///   module happens to define `btn-*` (the union would have masked the bug).
+#[test]
+fn workspace_source_diagnostics_scope_unknown_dynamic_class_to_bound_module() {
+    let style_sources = [
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/A.module.scss".to_string(),
+            style_source: ".btn-primary {}\n.btn-secondary {}\n".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/workspace/src/B.module.scss".to_string(),
+            style_source: ".card {}\n.panel {}\n".to_string(),
+        },
+    ];
+
+    let unknown_class_count = |bind_target: &str| {
+        let source = format!(
+            r#"import bind from "classnames/bind";
+import a from "./A.module.scss";
+import b from "./B.module.scss";
+const cx = bind.bind({bind_target});
+export function App({{ variant }}) {{
+  return <div className={{cx(`btn-${{variant}}`)}} />;
+}}"#
+        );
+        summarize_omena_query_source_diagnostics_for_workspace_file(
+            "/workspace/src/App.tsx",
+            &source,
+            &style_sources,
+            &[],
+        )
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "noUnknownDynamicClass")
+        .count()
+    };
+
+    // Bound to module A, which HAS btn-* selectors: scoped intersection is
+    // non-empty -> NO false positive.
+    assert_eq!(
+        unknown_class_count("a"),
+        0,
+        "btn- bound to a module that HAS btn-* selectors must not flag noUnknownDynamicClass"
+    );
+
+    // Bound to module B, which has NO btn-* selectors: scoped intersection is
+    // provably empty -> the genuine bug STILL fires, even though module A (a
+    // different import) defines btn-* (the union universe would have masked it).
+    assert_eq!(
+        unknown_class_count("b"),
+        1,
+        "btn- bound to a module with NO btn-* selectors must still flag noUnknownDynamicClass \
+         (scoped to the bound module, not cross-matched against the union)"
+    );
+}

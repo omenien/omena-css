@@ -317,19 +317,37 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_
         // Harvest dynamic-className call sites (template-interpolation projections)
         // from the same syntax index and route them through the real k-limited
         // (k-CFA) M-tier flow gate, so the LSP-consumed default path emits the
-        // context-sensitive no-unknown-dynamic-class / no-imprecise-value /
-        // no-impossible-selector diagnostics without an external producer.
+        // context-sensitive no-unknown-dynamic-class / no-impossible-selector
+        // diagnostics without an external producer.
+        //
+        // `no-unknown-dynamic-class` is module-scoped: a target carrying a
+        // resolved `target_style_uri` is matched against ONLY that module's
+        // selectors (`selector_universe_by_uri`), so a `btn-` prefix is not
+        // cross-attributed to a `btn-*` selector in a different imported module.
+        // Targets with no resolved binding fall back to the union universe.
         let selector_universe = definitions
             .iter()
             .map(|definition| definition.name.clone())
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
+        let mut selector_universe_by_uri: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for definition in &definitions {
+            selector_universe_by_uri
+                .entry(definition.uri.clone())
+                .or_default()
+                .push(definition.name.clone());
+        }
+        for names in selector_universe_by_uri.values_mut() {
+            names.sort();
+            names.dedup();
+        }
         diagnostics.extend(harvest_omena_query_dynamic_classname_m_tier_diagnostics(
             source_path,
             source_source,
             index.type_fact_targets.as_slice(),
             selector_universe.as_slice(),
+            &selector_universe_by_uri,
             max_context_depth,
         ));
 
