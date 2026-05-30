@@ -441,6 +441,170 @@ fn summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs
     diagnostics
 }
 
+/// RFC-0007-E2 (#45): `@use`/`@forward` module cycles. dart-sass hard-errors on a module loop
+/// (`a.scss: @use 'b'`; `b.scss: @use 'a'`) or a self-loop (`@use './self'`); omena was silent.
+///
+/// The cycle facts are ALREADY computed — `summarize_sass_module_cross_file_resolution` fills
+/// `resolution.cycles` (with `cycle_detection_ready: true`), but no diagnostic ever read them.
+/// This is pure last-mile consumer wiring: read the existing `cycles`, keep the ones whose path
+/// includes the target file, and anchor one diagnostic per such cycle to the outgoing
+/// `@use`/`@forward`/`@import` statement in the target that closes the loop.
+///
+/// Anchoring: each cycle `path` is a node list `[A, B, …, A]`; for the target `A` the next node is
+/// the module it loads (`B`). We map back to the resolved edge `from == target && resolved == B`,
+/// then to the parser fact carrying its source range, so the squiggle lands on the actual
+/// `@use 'b'` statement rather than the whole file. A cycle where the target is not a participant
+/// (only reachable *through* a cycle) emits nothing here — it is reported on the file that owns the
+/// looping statement, so each cycle is surfaced exactly once per participating edge.
+fn summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let Some(target) = style_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)
+    else {
+        return Vec::new();
+    };
+    let style_source_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    let resolution =
+        summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+    if resolution.cycles.is_empty() {
+        return Vec::new();
+    }
+
+    // Parser facts for the target file: the resolution edges carry the loop topology but not source
+    // ranges, so we re-derive the `@use`/`@forward`/`@import` statement span by matching the edge's
+    // `source` text back to the fact that produced it.
+    let target_facts = collect_omena_query_omena_parser_style_facts_raw(
+        target.style_source.as_str(),
+        omena_parser_dialect_for_style_path(target_style_path),
+    );
+
+    let mut emitted = BTreeSet::new();
+    let mut diagnostics = Vec::new();
+
+    for cycle in &resolution.cycles {
+        // The target participates iff it appears in the loop node list.
+        if !cycle.path.iter().any(|node| node == target_style_path) {
+            continue;
+        }
+        // `RawAllPaths` emits every rotation of the same loop (`[a, b, a]` and `[b, a, b]`), so
+        // dedupe on a rotation-invariant key before emitting, otherwise `a <-> b` would surface
+        // twice on `a.scss`. The repeated closing node is dropped first, then we key on the
+        // lexicographically-smallest rotation of the node ring.
+        let canonical_cycle = canonical_sass_module_cycle(&cycle.path);
+        // The next node after the target in the loop is the module the target loads to close it.
+        // A self-loop (`@use './self'`) has the target as both the current and next node.
+        let Some(next_module) = cycle
+            .path
+            .windows(2)
+            .find(|window| window[0] == target_style_path)
+            .map(|window| window[1].clone())
+        else {
+            continue;
+        };
+        // Find the resolved edge target -> next_module to recover the `@use`/`@forward` source text.
+        let Some(loop_edge) = resolution.edges.iter().find(|edge| {
+            edge.from_style_path == target_style_path
+                && edge.resolved_style_path.as_deref() == Some(next_module.as_str())
+        }) else {
+            continue;
+        };
+        // Map back to the parser fact carrying the statement range (match on source text + kind).
+        let Some(fact) = target_facts.sass_module_edges.iter().find(|fact| {
+            fact.source == loop_edge.source
+                && parsed_sass_module_edge_fact_kind_matches(fact.kind, loop_edge.edge_kind)
+        }) else {
+            continue;
+        };
+        let start: u32 = fact.range.start().into();
+        let end: u32 = fact.range.end().into();
+        let byte_span = ParserByteSpanV0 {
+            start: start as usize,
+            end: end as usize,
+        };
+        if !emitted.insert((byte_span.start, byte_span.end, canonical_cycle.clone())) {
+            continue;
+        }
+        diagnostics.push(OmenaQueryStyleDiagnosticV0 {
+            code: "sassUseCycle",
+            severity: "error",
+            provenance: vec![
+                "omena-query.sass-module-cross-file-resolution",
+                "omena-query.sass-use-cycle-diagnostics",
+            ],
+            range: parser_range_for_byte_span(target.style_source.as_str(), byte_span),
+            message: format!(
+                "Sass module loop: {}. dart-sass rejects this as a hard error.",
+                render_sass_module_cycle_from(&canonical_cycle, target_style_path)
+            ),
+            tags: Vec::new(),
+            create_custom_property: None,
+        });
+    }
+
+    diagnostics
+}
+
+fn parsed_sass_module_edge_fact_kind_matches(
+    fact_kind: ParsedSassModuleEdgeFactKind,
+    edge_kind: &str,
+) -> bool {
+    matches!(
+        (fact_kind, edge_kind),
+        (ParsedSassModuleEdgeFactKind::Use, "sassUse")
+            | (ParsedSassModuleEdgeFactKind::Forward, "sassForward")
+            | (ParsedSassModuleEdgeFactKind::Import, "sassImport")
+    )
+}
+
+/// Reduce a cycle `path` (a node ring whose first and last entries repeat, e.g. `[a, b, a]`) to a
+/// rotation-invariant key: drop the repeated closing node, then return the lexicographically
+/// smallest rotation. Two rotations of the same loop (`[a, b, a]` / `[b, a, b]`) collapse to one
+/// key, so each distinct loop is surfaced exactly once per anchoring edge. A self-loop `[a, a]`
+/// reduces to `[a]`.
+fn canonical_sass_module_cycle(path: &[String]) -> Vec<String> {
+    let ring: &[String] = match path.split_last() {
+        Some((last, head)) if Some(last) == path.first() && !head.is_empty() => head,
+        _ => path,
+    };
+    if ring.is_empty() {
+        return path.to_vec();
+    }
+    let len = ring.len();
+    (0..len)
+        .map(|offset| {
+            (0..len)
+                .map(|index| ring[(offset + index) % len].clone())
+                .collect::<Vec<_>>()
+        })
+        .min()
+        .unwrap_or_else(|| ring.to_vec())
+}
+
+/// Render a canonical cycle ring as a closed `start -> … -> start` path beginning at `start`, so
+/// each participating file describes the loop from its own perspective. `start` is guaranteed to be
+/// in the ring by the caller (the target participates in the cycle).
+fn render_sass_module_cycle_from(canonical_cycle: &[String], start: &str) -> String {
+    let len = canonical_cycle.len();
+    let begin = canonical_cycle
+        .iter()
+        .position(|node| node == start)
+        .unwrap_or(0);
+    let mut ordered = (0..len)
+        .map(|index| canonical_cycle[(begin + index) % len].clone())
+        .collect::<Vec<_>>();
+    // Re-close the ring so the loop reads `a -> b -> a` (or `a -> a` for a self-loop).
+    ordered.push(canonical_cycle[begin].clone());
+    ordered.join(" -> ")
+}
+
 pub fn summarize_omena_query_style_diagnostics_for_file(
     style_uri: &str,
     source: &str,
@@ -585,6 +749,13 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
             package_manifests,
         ),
     );
+    summary.diagnostics.extend(
+        summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
+            target_style_path,
+            style_sources,
+            package_manifests,
+        ),
+    );
     summary
         .diagnostics
         .extend(summarize_omena_query_unused_selector_style_diagnostics(
@@ -605,6 +776,7 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         "cssModulesValueResolutionDiagnostics",
     );
     push_omena_query_ready_surface(&mut summary.ready_surfaces, "unusedSelectorDiagnostics");
+    push_omena_query_ready_surface(&mut summary.ready_surfaces, "sassUseCycleDiagnostics");
     push_omena_query_ready_surface(
         &mut summary.ready_surfaces,
         "graphAwareSassSymbolDiagnostics",

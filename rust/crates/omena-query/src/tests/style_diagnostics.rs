@@ -1818,3 +1818,126 @@ fn unused_selector_messages(summary: &OmenaQueryStyleDiagnosticsForFileV0) -> Ve
         .map(|diagnostic| diagnostic.message.as_str())
         .collect()
 }
+
+fn sass_use_cycle_messages(summary: &OmenaQueryStyleDiagnosticsForFileV0) -> Vec<&str> {
+    summary
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "sassUseCycle")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect()
+}
+
+// RFC-0007-E2 (#45): the `@use`/`@forward` cycle signal is already computed in
+// `summarize_sass_module_cross_file_resolution` but no diagnostic read it. The cross-file
+// resolution is `error`-severity in dart-sass; this proves the now-wired consumer fires on a real
+// `a <-> b` module loop and anchors to the `@use` statement that closes it.
+#[test]
+fn style_diagnostics_for_workspace_file_flag_sass_use_cycle() -> Result<(), &'static str> {
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_a.scss".to_string(),
+            style_source: r#"@use "./b";"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_b.scss".to_string(),
+            style_source: r#"@use "./a";"#.to_string(),
+        },
+    ];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/tmp/_a.scss",
+        sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"sassUseCycleDiagnostics")
+    );
+    let cycle_diagnostics = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "sassUseCycle")
+        .collect::<Vec<_>>();
+    assert_eq!(cycle_diagnostics.len(), 1, "exactly one cycle on _a.scss");
+    let cycle = cycle_diagnostics[0];
+    assert_eq!(cycle.severity, "error");
+    assert!(
+        cycle.message.contains("/tmp/_a.scss")
+            && cycle.message.contains("/tmp/_b.scss")
+            && cycle.message.contains("Sass module loop"),
+        "message names the loop: {}",
+        cycle.message
+    );
+    // The squiggle must land on the `@use "./b";` statement, not the whole file.
+    assert_eq!(cycle.range.start.line, 0);
+    assert!(cycle.range.end.character > cycle.range.start.character);
+    Ok(())
+}
+
+// Self-loop (`@use './self'`) is likewise a hard error in dart-sass.
+#[test]
+fn style_diagnostics_for_workspace_file_flag_sass_use_self_loop() -> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/_self.scss".to_string(),
+        style_source: r#"@use "./self";"#.to_string(),
+    }];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/tmp/_self.scss",
+        sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+
+    let messages = sass_use_cycle_messages(&diagnostics);
+    assert_eq!(messages.len(), 1, "self-loop emits one cycle: {messages:?}");
+    assert!(messages[0].contains("/tmp/_self.scss"));
+    Ok(())
+}
+
+// Over-correction guard (#45): an acyclic `a -> b -> c` `@use` chain MUST emit no cycle
+// diagnostic. A fix that silenced the FP by suppressing genuine cycles would also break the test
+// above; this proves the consumer is cycle-discriminating, not blanket-silent.
+#[test]
+fn style_diagnostics_for_workspace_file_acyclic_use_chain_has_no_cycle() -> Result<(), &'static str>
+{
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_a.scss".to_string(),
+            style_source: r#"@use "./b";"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_b.scss".to_string(),
+            style_source: r#"@use "./c";"#.to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_c.scss".to_string(),
+            style_source: r#"$gap: 1rem;"#.to_string(),
+        },
+    ];
+
+    for entry in ["/tmp/_a.scss", "/tmp/_b.scss", "/tmp/_c.scss"] {
+        let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+            entry,
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+        )
+        .ok_or("workspace diagnostics")?;
+        assert!(
+            sass_use_cycle_messages(&diagnostics).is_empty(),
+            "acyclic chain must not flag {entry}: {:?}",
+            sass_use_cycle_messages(&diagnostics)
+        );
+    }
+    Ok(())
+}
