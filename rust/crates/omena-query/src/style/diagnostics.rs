@@ -1387,7 +1387,7 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics(
         .map(|entry| (entry.style_path.as_str(), entry.facts.clone()))
         .collect::<BTreeMap<_, _>>();
     let aliases_by_path = collect_classname_transform_aliases(&facts_by_path, classname_transform);
-    let (mut used_selectors, unresolved_dynamic_usage) =
+    let (mut used_selectors, unresolved_dynamic_usage, has_unresolved_style_import) =
         collect_omena_query_source_selector_usage_by_style(
             &available_style_paths,
             source_documents,
@@ -1395,6 +1395,16 @@ pub fn summarize_omena_query_unused_selector_style_diagnostics(
             &aliases_by_path,
         );
     if unresolved_dynamic_usage.contains(target_style_path) {
+        return Vec::new();
+    }
+    // RFC-0007-J (#50): when a source document imports a style module via a specifier we cannot
+    // resolve (e.g. a workspace alias `@/styles/a.module.scss` with no tsconfig/bundler path
+    // mapping wired in), we do not know which module its `cx('foo')`/`styles.foo` references point
+    // at — so we cannot prove any selector is unused. References/goto stay lenient with that
+    // ambiguity; the negative assertion (`unusedSelector`) must be conservative to match, instead
+    // of dimming every selector in the file. Treat such documents as "possibly using" and skip the
+    // lint for this target rather than emitting a wall of false positives.
+    if has_unresolved_style_import {
         return Vec::new();
     }
 
@@ -1451,9 +1461,14 @@ fn collect_omena_query_source_selector_usage_by_style(
     source_documents: &[OmenaQuerySourceDocumentInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     aliases_by_path: &BTreeMap<String, BTreeMap<String, BTreeSet<String>>>,
-) -> (BTreeMap<String, BTreeSet<String>>, BTreeSet<String>) {
+) -> (BTreeMap<String, BTreeSet<String>>, BTreeSet<String>, bool) {
     let mut used_selectors = BTreeMap::<String, BTreeSet<String>>::new();
     let mut unresolved_dynamic_usage = BTreeSet::<String>::new();
+    // RFC-0007-J (#50): tracks whether any document imports a style-like specifier we failed to
+    // resolve (an unwired workspace alias). Such a document's selector usages cannot be attributed
+    // to a concrete module, so the caller treats the file as "possibly used" instead of dimming
+    // every selector.
+    let mut has_unresolved_style_import = false;
 
     for document in source_documents {
         let imports = summarize_omena_query_source_import_declarations_for_source_language(
@@ -1474,6 +1489,9 @@ fn collect_omena_query_source_selector_usage_by_style(
                 available_style_paths,
                 package_manifests,
             ) else {
+                if specifier_targets_style_module(&import.specifier) {
+                    has_unresolved_style_import = true;
+                }
                 continue;
             };
             imported_style_bindings.push(OmenaQuerySourceImportedStyleBindingV0 {
@@ -1514,7 +1532,26 @@ fn collect_omena_query_source_selector_usage_by_style(
         }
     }
 
-    (used_selectors, unresolved_dynamic_usage)
+    (
+        used_selectors,
+        unresolved_dynamic_usage,
+        has_unresolved_style_import,
+    )
+}
+
+/// Whether an import specifier names a CSS-family style module (so failing to resolve it is a
+/// style-resolution gap worth treating conservatively, RFC-0007-J #50) rather than an ordinary
+/// JS/TS dependency. A query string or hash on the specifier (e.g. `?inline`) is ignored.
+fn specifier_targets_style_module(specifier: &str) -> bool {
+    let path = specifier
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(specifier)
+        .to_ascii_lowercase();
+    path.ends_with(".css")
+        || path.ends_with(".scss")
+        || path.ends_with(".sass")
+        || path.ends_with(".less")
 }
 
 fn collect_classname_transform_aliases(

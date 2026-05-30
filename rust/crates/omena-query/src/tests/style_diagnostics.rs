@@ -1599,6 +1599,85 @@ export function App() {
     Ok(())
 }
 
+// RFC-0007-J (#50): a component that imports its style module through an unresolved workspace
+// alias (`@/styles/...` with no tsconfig/bundler path mapping wired in) must NOT have every
+// selector dimmed `unusedSelector`. References/goto stay lenient with the unresolved target, so
+// the negative assertion has to be conservative too: an unresolvable style import means the file
+// is "possibly using" its selectors, and the lint is suppressed for that target.
+#[test]
+fn style_diagnostics_alias_import_suppresses_unused_selector_fp() -> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/a.module.scss".to_string(),
+        style_source: ".foo { color: red; }\n.bar { color: blue; }\n".to_string(),
+    }];
+    // `@/styles/a.module.scss` is a workspace alias; without path mappings it does not resolve to
+    // any in-graph style path, so the `cx('foo')` usage cannot be attributed to a module.
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "/workspace/src/component.tsx".to_string(),
+        source_source: r#"import classNames from 'classnames/bind';
+import styles from '@/styles/a.module.scss';
+const cx = classNames.bind(styles);
+export default () => <span className={cx('foo')} />;"#
+            .to_string(),
+    }];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/workspace/src/a.module.scss",
+        sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+        None,
+    )
+    .ok_or("alias-import workspace style diagnostics")?;
+
+    // FP gone: neither selector is dimmed, even though only `.foo` is referenced — because we
+    // cannot resolve the alias we refuse to assert ANY selector is unused.
+    assert!(
+        unused_selector_messages(&diagnostics).is_empty(),
+        "alias-import doc must not dim any selector: {:?}",
+        unused_selector_messages(&diagnostics)
+    );
+    Ok(())
+}
+
+// RFC-0007-J (#50) over-correction guard: when the same style module is imported through a
+// RESOLVABLE relative specifier, a genuinely-unused selector MUST still flag `unusedSelector`.
+// The alias safety net must not silence true positives in correctly-resolved modules, and a
+// non-style unresolved import (e.g. `react`) must not trip the safety net either.
+#[test]
+fn style_diagnostics_resolved_import_still_flags_unused_selector() -> Result<(), &'static str> {
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/a.module.scss".to_string(),
+        style_source: ".foo { color: red; }\n.bar { color: blue; }\n".to_string(),
+    }];
+    // A resolvable relative import alongside a non-style unresolved import (`react`). The relative
+    // style import resolves, so usage is attributable and the safety net does NOT engage.
+    let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+        source_path: "/workspace/src/component.tsx".to_string(),
+        source_source: r#"import React from 'react';
+import styles from './a.module.scss';
+export default () => <span className={styles.foo} />;"#
+            .to_string(),
+    }];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/workspace/src/a.module.scss",
+        sources.as_slice(),
+        source_documents.as_slice(),
+        &[],
+        None,
+    )
+    .ok_or("resolved-import workspace style diagnostics")?;
+
+    // True positive preserved: `.foo` is used, `.bar` is genuinely unused and still flagged.
+    assert_eq!(
+        unused_selector_messages(&diagnostics),
+        vec!["Selector '.bar' is declared but never used."],
+        "resolved import must still flag the genuinely-unused .bar",
+    );
+    Ok(())
+}
+
 fn missing_keyframes_messages(diagnostics: &[crate::OmenaQueryStyleDiagnosticV0]) -> Vec<&str> {
     diagnostics
         .iter()
