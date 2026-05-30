@@ -7,7 +7,9 @@ use omena_parser::{
 };
 
 use super::cascade_checker::summarize_query_cascade_checker_diagnostics_with_deep_analysis;
+use super::diagnostic_suppressions::OmenaStrictnessLevelV0;
 use super::diagnostic_suppressions::apply_omena_query_style_diagnostic_suppressions;
+use super::diagnostic_suppressions::parse_omena_query_style_strictness_level;
 use super::parser_facade::collect_omena_query_omena_parser_style_facts_raw;
 use super::*;
 
@@ -1166,6 +1168,10 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
         "graphAwareSassSymbolDiagnostics",
     );
     if external_mode == OmenaQueryExternalModuleModeV0::Sif {
+        // RFC 0004 #28 / #35: the file-scoped `@omena-strict: <level>` sigil dials the
+        // external-boundary lattice behaviour. Absent/malformed sigil => `Standard`, which
+        // keeps every branch below a no-op (byte-for-byte identical to the un-sigiled flow).
+        let strictness = parse_omena_query_style_strictness_level(&target.style_source);
         let top_any_external_symbol_ranges =
             collect_omena_query_external_top_any_sass_symbol_ranges(
                 target_style_path,
@@ -1173,22 +1179,38 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
                 package_manifests,
                 external_sifs,
             );
-        summary.diagnostics.retain(|diagnostic| {
-            diagnostic.code != "missingSassSymbol"
-                || !top_any_external_symbol_ranges.contains(&diagnostic.range)
-        });
-        summary
-            .diagnostics
-            .extend(summarize_omena_query_external_sif_boundary_diagnostics(
-                target_style_path,
-                style_sources,
-                package_manifests,
-                external_sifs,
-            ));
+        if strictness.suppresses_top_any_external_symbols() {
+            summary.diagnostics.retain(|diagnostic| {
+                diagnostic.code != "missingSassSymbol"
+                    || !top_any_external_symbol_ranges.contains(&diagnostic.range)
+            });
+        } else {
+            // `Closed` (#35): `TopOpaque` everywhere — genuinely-unknown external symbols are no
+            // longer suppressed and are escalated to `error` rather than left as warnings.
+            for diagnostic in summary.diagnostics.iter_mut() {
+                if diagnostic.code == "missingSassSymbol"
+                    && top_any_external_symbol_ranges.contains(&diagnostic.range)
+                {
+                    diagnostic.severity = "error";
+                }
+            }
+        }
+        if strictness.emits_external_boundary_diagnostics() {
+            summary
+                .diagnostics
+                .extend(summarize_omena_query_external_sif_boundary_diagnostics(
+                    target_style_path,
+                    style_sources,
+                    package_manifests,
+                    external_sifs,
+                    strictness,
+                ));
+        }
         push_omena_query_ready_surface(
             &mut summary.ready_surfaces,
             "externalSifBoundaryDiagnostics",
         );
+        push_omena_query_ready_surface(&mut summary.ready_surfaces, "strictnessSigilGating");
     }
     apply_omena_query_checker_product_gate_to_style_diagnostics(&mut summary.diagnostics);
     push_omena_query_ready_surface(&mut summary.ready_surfaces, "checkerProductDiagnosticGate");
@@ -1388,6 +1410,7 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
     external_sifs: &[OmenaQueryExternalSifInputV0],
+    strictness: OmenaStrictnessLevelV0,
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let Some(target) = style_sources
         .iter()
@@ -1431,7 +1454,7 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
         }
         let sif = find_omena_query_external_sif(edge.source.as_str(), external_sifs);
         let state = classify_external_boundary_state(edge, sif, &facts, external_sifs);
-        let (code, severity) = match state.state {
+        let (code, default_severity) = match state.state {
             // A fully-resolved boundary has no diagnostic to emit.
             OmenaResolverBoundaryStateKindV0::Resolved => continue,
             OmenaResolverBoundaryStateKindV0::Stale => ("staleExternalSif", "warning"),
@@ -1440,6 +1463,9 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
             // `Unresolved` is not reachable from this layer yet (deferred, #34).
             OmenaResolverBoundaryStateKindV0::Unresolved => continue,
         };
+        // The strictness sigil (#35) multiplies into the severity decision: `Strict`/`Closed`
+        // escalate the boundary to `error`; `Standard`/`Relaxed` pass the default through.
+        let severity = strictness.boundary_severity(default_severity);
         let start: u32 = edge.range.start().into();
         let end: u32 = edge.range.end().into();
         diagnostics.push(OmenaQueryStyleDiagnosticV0 {

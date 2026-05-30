@@ -1578,6 +1578,164 @@ fn style_diagnostics_external_sif_mode_classifies_stale_boundary() -> Result<(),
 }
 
 #[test]
+fn style_diagnostics_strictness_sigil_strict_escalates_missing_boundary_to_error()
+-> Result<(), &'static str> {
+    // RFC 0004 #28 / #35: `// @omena-strict: strict` escalates a Missing boundary's severity
+    // from the default `warning` to `error`, while leaving the code/message intact.
+    let strict_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"// @omena-strict: strict
+@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; }"#
+            .to_string(),
+    }];
+    let strict =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode(
+            "/tmp/App.module.scss",
+            strict_sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+        )
+        .ok_or("strict sif workspace diagnostics")?;
+    assert!(
+        strict.ready_surfaces.contains(&"strictnessSigilGating"),
+        "strictnessSigilGating ready surface missing"
+    );
+    let strict_boundary = strict
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "missingExternalSif")
+        .ok_or("expected missingExternalSif under strict")?;
+    assert_eq!(strict_boundary.severity, "error");
+
+    // Over-correction guard: the SAME file without the sigil keeps the default `warning`.
+    let default_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; }"#
+            .to_string(),
+    }];
+    let default =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode(
+            "/tmp/App.module.scss",
+            default_sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+        )
+        .ok_or("default sif workspace diagnostics")?;
+    let default_boundary = default
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "missingExternalSif")
+        .ok_or("expected missingExternalSif under default")?;
+    assert_eq!(default_boundary.severity, "warning");
+    // Code and message are identical — only severity differs between the two levels.
+    assert_eq!(strict_boundary.code, default_boundary.code);
+    assert_eq!(strict_boundary.message, default_boundary.message);
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_strictness_sigil_relaxed_suppresses_boundary() -> Result<(), &'static str> {
+    // `// @omena-strict: relaxed` drops every external-boundary diagnostic.
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"// @omena-strict: relaxed
+@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; }"#
+            .to_string(),
+    }];
+    let diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode(
+            "/tmp/App.module.scss",
+            sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+        )
+        .ok_or("relaxed sif workspace diagnostics")?;
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingExternalSif"),
+        "relaxed must suppress missingExternalSif: {:?}",
+        diagnostics.diagnostics
+    );
+    // The TopAny suppression still ran, so the external symbol is not re-flagged either.
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingSassSymbol")
+    );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_strictness_sigil_closed_escalates_unknown_external_symbol()
+-> Result<(), &'static str> {
+    // `// @omena-strict: closed` flips the boundary to TopOpaque: the genuinely-unknown
+    // external `$brand` reference (no SIF in scope) is no longer suppressed and is escalated
+    // to `error`.
+    let closed_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"// @omena-strict: closed
+@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; }"#
+            .to_string(),
+    }];
+    let closed =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode(
+            "/tmp/App.module.scss",
+            closed_sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+        )
+        .ok_or("closed sif workspace diagnostics")?;
+    let exposed = closed
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "missingSassSymbol")
+        .ok_or("closed must expose the unknown external symbol")?;
+    assert_eq!(exposed.severity, "error");
+
+    // Default-level over-correction guard: the same file without the sigil keeps the symbol
+    // suppressed (TopAny default behaviour, unchanged).
+    let default_sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/tmp/App.module.scss".to_string(),
+        style_source: r#"@use "https://cdn.example/tokens.scss" as remote;
+.button { color: remote.$brand; }"#
+            .to_string(),
+    }];
+    let default =
+        crate::summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode(
+            "/tmp/App.module.scss",
+            default_sources.as_slice(),
+            &[],
+            &[],
+            None,
+            crate::OmenaQueryExternalModuleModeV0::Sif,
+        )
+        .ok_or("default sif workspace diagnostics")?;
+    assert!(
+        default
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingSassSymbol"),
+        "default level must keep the unknown external symbol suppressed"
+    );
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_suppression_applies_to_external_sif_boundary() -> Result<(), &'static str> {
     let sources = vec![OmenaQueryStyleSourceInputV0 {
         style_path: "/tmp/App.module.scss".to_string(),

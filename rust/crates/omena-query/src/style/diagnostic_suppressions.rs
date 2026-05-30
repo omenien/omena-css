@@ -3,6 +3,86 @@ use super::*;
 const OMENA_IGNORE_FILE: &str = "omena-ignore-file";
 const OMENA_IGNORE_NEXT_LINE: &str = "omena-ignore-next-line";
 const OMENA_EXPECT_ERROR: &str = "omena-expect-error";
+const OMENA_STRICT: &str = "@omena-strict";
+
+/// File-scoped strictness sigil parsed from `// @omena-strict: <level>` (RFC 0004 #28 / #35).
+///
+/// The level is a monotone dial over the external-boundary lattice (#34). `Standard` is the
+/// default the moment the sigil is absent, so a file *without* the directive is byte-for-byte
+/// identical to today's behaviour. Higher levels escalate boundary diagnostics; `Relaxed`
+/// suppresses them entirely.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum OmenaStrictnessLevelV0 {
+    /// Suppress every external-boundary diagnostic; `TopAny` everywhere, never emit
+    /// `missingExternalSif`/`staleExternalSif`/`partialExternalSif`.
+    Relaxed,
+    /// The default surface: `Missing`/`Stale` warn, `Partial` informs, and genuinely-unknown
+    /// `TopAny` external symbols stay suppressed.
+    Standard,
+    /// Escalate `Missing`/`Stale`/`Partial` boundaries to `error`; still suppress genuinely
+    /// unknown `TopAny` symbols.
+    Strict,
+    /// `TopOpaque` everywhere: unknown external symbols become errors too, and every
+    /// non-`Resolved` boundary is escalated to `error`.
+    Closed,
+}
+
+impl OmenaStrictnessLevelV0 {
+    /// The level in force when no sigil is present — must preserve today's behaviour exactly.
+    pub(super) const DEFAULT: Self = Self::Standard;
+
+    fn from_token(token: &str) -> Option<Self> {
+        match token {
+            "relaxed" => Some(Self::Relaxed),
+            "standard" => Some(Self::Standard),
+            "strict" => Some(Self::Strict),
+            "closed" => Some(Self::Closed),
+            _ => None,
+        }
+    }
+
+    /// Whether the `TopAny` external-symbol suppression should run at all. Only `Closed`
+    /// flips the boundary to `TopOpaque`, exposing unknown external symbols as errors.
+    pub(super) const fn suppresses_top_any_external_symbols(self) -> bool {
+        !matches!(self, Self::Closed)
+    }
+
+    /// Whether external-boundary diagnostics (`missingExternalSif` etc.) are emitted at all.
+    /// `Relaxed` drops them; every other level keeps them.
+    pub(super) const fn emits_external_boundary_diagnostics(self) -> bool {
+        !matches!(self, Self::Relaxed)
+    }
+
+    /// Multiply the level into a boundary diagnostic's default severity. `Strict`/`Closed`
+    /// escalate non-`information` severities to `error`; lower levels pass the default through.
+    pub(super) const fn boundary_severity(self, default_severity: &'static str) -> &'static str {
+        match self {
+            Self::Strict | Self::Closed => "error",
+            Self::Standard | Self::Relaxed => default_severity,
+        }
+    }
+}
+
+/// Parse the file-scoped `@omena-strict: <level>` sigil. The directive is file-scoped like
+/// `omena-ignore-file`, so the last well-formed occurrence wins; an absent or malformed sigil
+/// yields the [`OmenaStrictnessLevelV0::DEFAULT`] level (today's behaviour).
+pub(super) fn parse_omena_query_style_strictness_level(source: &str) -> OmenaStrictnessLevelV0 {
+    let mut level = OmenaStrictnessLevelV0::DEFAULT;
+    for line in source.lines() {
+        let Some(directive_offset) = line.find(OMENA_STRICT) else {
+            continue;
+        };
+        let tail = &line[directive_offset + OMENA_STRICT.len()..];
+        let codes = parse_omena_query_diagnostic_directive_codes(tail);
+        if let Some(parsed) = codes
+            .iter()
+            .find_map(|token| OmenaStrictnessLevelV0::from_token(token.as_str()))
+        {
+            level = parsed;
+        }
+    }
+    level
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OmenaDiagnosticDirectiveKindV0 {
