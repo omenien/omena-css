@@ -147,6 +147,15 @@ pub struct OmenaTestkitFixtureSeedReportV0 {
     pub expected_products: Vec<&'static str>,
     /// Promotion target for M4.
     pub promotion_target: &'static str,
+    /// Per-expectation evaluation outcomes.
+    ///
+    /// Evaluated against an empty engine output here (the seed corpus is a
+    /// parse-only substrate with no engine wired): `no-diagnostic` and
+    /// `count <code>:0` families pass, `diagnostic`/`boundary-state` families
+    /// fail as absent, and cascade families are deferred. An engine-backed
+    /// consumer supplies real diagnostics via
+    /// [`crate::fixture_eval::evaluate_cme_fixture_v0`].
+    pub expectation_outcomes: Vec<crate::fixture_eval::CmeFixtureExpectationOutcomeV0>,
 }
 
 /// Fixture seed corpus summary.
@@ -275,6 +284,11 @@ fn report_fixture_seed(seed: OmenaTestkitFixtureSeedV0) -> OmenaTestkitFixtureSe
         Ok(fixture) => {
             let metadata_count = fixture.files.iter().map(|file| file.metadata.len()).sum();
             let marker_count = fixture.files.iter().map(|file| file.markers.len()).sum();
+            // The seed corpus has no engine wired, so evaluate against empty
+            // engine output: this still exercises the evaluator at the hook
+            // point so the assertions are run, not merely parsed.
+            let expectation_outcomes =
+                crate::fixture_eval::evaluate_cme_fixture_v0(&fixture, &[], &[]);
             OmenaTestkitFixtureSeedReportV0 {
                 label: seed.label,
                 lane: seed.lane,
@@ -286,6 +300,7 @@ fn report_fixture_seed(seed: OmenaTestkitFixtureSeedV0) -> OmenaTestkitFixtureSe
                 marker_count,
                 expected_products: seed.expected_products.to_vec(),
                 promotion_target: seed.promotion_target,
+                expectation_outcomes,
             }
         }
         Err(error) => OmenaTestkitFixtureSeedReportV0 {
@@ -299,6 +314,7 @@ fn report_fixture_seed(seed: OmenaTestkitFixtureSeedV0) -> OmenaTestkitFixtureSe
             marker_count: 0,
             expected_products: seed.expected_products.to_vec(),
             promotion_target: seed.promotion_target,
+            expectation_outcomes: Vec::new(),
         },
     }
 }

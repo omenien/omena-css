@@ -6,10 +6,12 @@
 
 mod boundary;
 pub mod fixture;
+pub mod fixture_eval;
 pub mod scenario;
 pub mod snapshot;
 
 pub use boundary::*;
 pub use fixture::*;
+pub use fixture_eval::*;
 pub use scenario::*;
 pub use snapshot::*;
