@@ -2038,7 +2038,6 @@ version = "0.2.0"
 dependencies = [
  "omena-bridge",
  "omena-cascade",
- "omena-ensemble",
  "omena-parser",
  "omena-query-checker-orchestrator",
  "omena-query-core",
@@ -2057,6 +2056,7 @@ version = "0.2.0"
 dependencies = [
  "omena-abstract-value",
  "omena-checker",
+ "omena-ensemble",
  "serde",
 ]
 

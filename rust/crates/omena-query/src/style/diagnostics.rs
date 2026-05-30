@@ -1,14 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use omena_ensemble::{
-    ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
-    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSnapshotV0,
-    ReportOptionsV0, ReportRecommendation, build_cross_file_inconsistency_report,
-};
 use omena_parser::{
     ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedExtendTargetFactKind,
     ParsedSassModuleEdgeFact, ParsedSassModuleEdgeFactKind, ParsedSelectorFactKind,
     ParsedVariableFactKind,
+};
+use omena_query_checker_orchestrator::{
+    ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSnapshotV0,
+    ReportOptionsV0, ReportRecommendation, build_cross_file_inconsistency_report,
 };
 use omena_query_checker_orchestrator::{
     OmenaCheckerReplicaEnsembleInputV0, OmenaCheckerReplicaEnsembleReportInputV0,

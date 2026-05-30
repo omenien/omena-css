@@ -4,10 +4,6 @@ use omena_cascade::{
     CascadeDeclaration, CascadeKey, CascadeLevel, CascadeValue, LayerRank, Specificity,
     cascade_property, parse_simple_selector_signature,
 };
-use omena_ensemble::{
-    REPLICA_ENSEMBLE_FEATURE_GATE_V0, REPLICA_ENSEMBLE_LAYER_MARKER_V0,
-    REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSiteOutcomeV0, site as replica_ensemble_site,
-};
 use omena_query_checker_orchestrator::{
     OmenaCheckerCascadeDeclarationInputV0, OmenaCheckerCascadeInputV0,
     OmenaCheckerCategoricalInputV0, OmenaCheckerCategoricalPrimitiveRolePairInputV0,
@@ -17,6 +13,10 @@ use omena_query_checker_orchestrator::{
     checker_cascade_primitive_role_catalog_v0, run_omena_query_checker_cascade_gate_v0,
     run_omena_query_checker_categorical_gate_v0, run_omena_query_checker_rg_flow_gate_v0,
     run_omena_query_checker_smt_gate_v0,
+};
+use omena_query_checker_orchestrator::{
+    REPLICA_ENSEMBLE_FEATURE_GATE_V0, REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+    REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSiteOutcomeV0, site as replica_ensemble_site,
 };
 use omena_query_transform_runner::expand_css_nested_selector;
 

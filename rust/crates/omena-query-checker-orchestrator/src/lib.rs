@@ -36,6 +36,12 @@ use omena_checker::{
     evaluate_omena_checker_smt_rules, list_omena_checker_m_tier_rule_code_names,
     list_omena_checker_rule_code_names,
 };
+pub use omena_ensemble::{
+    ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSiteOutcomeV0,
+    ReplicaSnapshotV0, ReportOptionsV0, ReportRecommendation,
+    build_cross_file_inconsistency_report, site,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
