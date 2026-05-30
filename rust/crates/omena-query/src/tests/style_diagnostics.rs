@@ -703,6 +703,121 @@ fn style_diagnostics_for_file_include_same_file_sass_symbol_lints() -> Result<()
 }
 
 #[test]
+fn missing_sass_symbol_folds_hyphen_underscore_in_same_file() {
+    // #48 FP no-fire: Sass treats `$a-b` and `$a_b` as the *same* identifier, so a
+    // reference spelled with the opposite separator must NOT be flagged missing. This
+    // hits the single-file inline key path that previously bypassed the fold chokepoint.
+    let source = "$a-b: 1;\n.x { width: $a_b; }";
+    let diagnostics = crate::summarize_omena_query_missing_sass_symbol_diagnostics(
+        "file:///workspace/src/Component.module.scss",
+        source,
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingSassSymbol"),
+        "$a_b must resolve to the $a-b declaration (Sass identifier fold), got {:?}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+    );
+
+    // Reverse direction must also hold: declare `$a_b`, reference `$a-b`.
+    let reverse = "$a_b: 1;\n.x { width: $a-b; }";
+    let reverse_diagnostics = crate::summarize_omena_query_missing_sass_symbol_diagnostics(
+        "file:///workspace/src/Component.module.scss",
+        reverse,
+    );
+    assert!(
+        reverse_diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingSassSymbol"),
+        "$a-b must resolve to the $a_b declaration (reverse fold), got {:?}",
+        reverse_diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn missing_sass_symbol_fold_preserves_distinct_identifiers() {
+    // #48 over-correction guard: the fold collapses only `_` vs `-`. Two genuinely
+    // different identifiers ($foo vs $bar) must STILL be flagged as missing — the fix
+    // must not silence true positives.
+    let source = "$foo: 1;\n.x { width: $bar; }";
+    let messages = crate::summarize_omena_query_missing_sass_symbol_diagnostics(
+        "file:///workspace/src/Component.module.scss",
+        source,
+    )
+    .into_iter()
+    .filter(|diagnostic| diagnostic.code == "missingSassSymbol")
+    .map(|diagnostic| diagnostic.message)
+    .collect::<Vec<_>>();
+    assert_eq!(
+        messages,
+        vec!["Sass variable '$bar' not found in this file.".to_string()],
+        "$bar is a distinct identifier from $foo and must remain flagged"
+    );
+}
+
+#[test]
+fn missing_sass_symbol_folds_hyphen_underscore_across_files() {
+    // #48 FP no-fire on the cross-file/workspace key path: an imported `$ns_token`
+    // definition must satisfy a `$ns-token` reference (the real-corpus repro of a
+    // hyphenated reference against an underscored forwarded definition).
+    let style_sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_tokens.scss".to_string(),
+            style_source: "$ns_token: 1rem;".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/Button.module.scss".to_string(),
+            style_source: "@import \"./tokens\";\n.root { width: $ns-token; }".to_string(),
+        },
+    ];
+    let folded = crate::summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace(
+        "/tmp/Button.module.scss",
+        style_sources.as_slice(),
+        &[],
+    );
+    assert!(
+        folded
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingSassSymbol"),
+        "$ns-token must resolve to the imported $ns_token (cross-file fold), got {:?}",
+        folded
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+    );
+
+    // Over-correction guard on the cross-file path: a genuinely-absent symbol still fires.
+    let distinct_sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_tokens.scss".to_string(),
+            style_source: "$ns_token: 1rem;".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/Button.module.scss".to_string(),
+            style_source: "@import \"./tokens\";\n.root { width: $other-token; }".to_string(),
+        },
+    ];
+    let distinct = crate::summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace(
+        "/tmp/Button.module.scss",
+        distinct_sources.as_slice(),
+        &[],
+    );
+    assert!(
+        distinct
+            .iter()
+            .any(|diagnostic| diagnostic.code == "missingSassSymbol"),
+        "$other-token is genuinely absent and must remain flagged across files"
+    );
+}
+
+#[test]
 fn style_diagnostics_omena_ignore_next_line_suppresses_targeted_code_only()
 -> Result<(), &'static str> {
     let source = r#"/* omena-ignore-next-line missingSassSymbol */

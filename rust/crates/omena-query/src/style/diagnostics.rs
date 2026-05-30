@@ -161,12 +161,15 @@ pub fn summarize_omena_query_missing_sass_symbol_diagnostics(
 ) -> Vec<OmenaQueryStyleDiagnosticV0> {
     let dialect = omena_parser_dialect_for_style_path(style_uri);
     let facts = collect_omena_query_omena_parser_style_facts_raw(source, dialect);
-    let mut declarations = BTreeSet::<(&'static str, Option<String>, String)>::new();
+    let mut declarations = BTreeSet::<SassSymbolKey>::new();
     let mut emitted = BTreeSet::new();
     let mut diagnostics = Vec::new();
 
     for symbol in facts.sass_symbols {
-        let key = (
+        // Route the single-file key tuple through the `sass_symbol_key` chokepoint so the
+        // hyphen/underscore fold (Sass treats `$a-b` and `$a_b` as the same identifier) is
+        // applied here too, not only on the cross-file/workspace path. (#48)
+        let key = sass_symbol_key(
             symbol.symbol_kind,
             symbol.namespace.clone(),
             symbol.name.clone(),
@@ -683,12 +686,25 @@ fn summarize_omena_query_external_sif_boundary_diagnostics(
 
 type SassSymbolKey = (&'static str, Option<String>, String);
 
+/// Fold the Sass-identifier name component so `_` and `-` compare equal.
+///
+/// Sass treats `$a-b` and `$a_b` (and likewise mixin/function names) as the *same*
+/// identifier, so the symbol key must canonicalize the name before lookup; otherwise
+/// a reference spelled `$ns-token` is flagged missing against a `$ns_token` definition
+/// (and vice versa). Only the name is folded — the namespace (`@use` alias) is matched
+/// elsewhere, and CSS custom properties (`--a-b` ≠ `--a_b`) never flow through this key
+/// space, so they are untouched. (#48)
+fn fold_sass_symbol_name(name: &str) -> String {
+    name.replace('_', "-")
+}
+
 fn sass_symbol_key(
     symbol_kind: &'static str,
     namespace: Option<String>,
     name: String,
 ) -> SassSymbolKey {
-    (symbol_kind, namespace, name)
+    let folded = fold_sass_symbol_name(&name);
+    (symbol_kind, namespace, folded)
 }
 
 fn collect_visible_sass_symbol_keys(
