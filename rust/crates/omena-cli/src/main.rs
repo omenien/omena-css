@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use omena_abstract_value::AbstractClassValueV0;
 use omena_bridge::generate_omena_bridge_sif_for_resolved_style_path;
 #[cfg(feature = "mdl")]
 use omena_query::summarize_omena_query_design_system_minimum_description;
@@ -25,11 +26,20 @@ use omena_query::{
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
 };
+use omena_query::{
+    OmenaQueryStyleDiagnosticV0, ParserRangeV0,
+    summarize_omena_query_unified_cross_file_hypergraph,
+    summarize_omena_query_workspace_cross_file_summary,
+};
 use omena_sif::{
     OmenaLockV1, OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1,
     build_omena_lock_sif_entry_v1, generate_static_omena_sif_v1, read_omena_lock_json_v1,
     read_omena_sif_json_v1, summarize_omena_sif_provenance_advisory_v1,
     verify_omena_lock_frozen_v1, write_omena_lock_json_v1, write_omena_sif_json_v1,
+};
+use omena_streaming_ifds::{
+    ExactStreamingConnectivityOracleV0, StreamingIFDSFactV0, run_streaming_ifds_exact_v0,
+    streaming_ifds_event_input_v0,
 };
 #[cfg(feature = "zk-audit")]
 use omena_zk_audit::{
@@ -1460,16 +1470,33 @@ fn style_diagnostics(
             external_sifs.as_slice(),
         );
         external_sifs.extend(in_process_external_sifs);
-        summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
-            &style_path,
-            workspace_sources.as_slice(),
-            source_documents.as_slice(),
-            package_manifests.as_slice(),
-            None,
-            parse_external_module_mode(&external)?,
-            external_sifs.as_slice(),
-        )
-        .ok_or_else(|| format!("failed to read workspace style diagnostics for {style_path}"))?
+        let mut summary =
+            summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
+                &style_path,
+                workspace_sources.as_slice(),
+                source_documents.as_slice(),
+                package_manifests.as_slice(),
+                None,
+                parse_external_module_mode(&external)?,
+                external_sifs.as_slice(),
+            )
+            .ok_or_else(|| {
+                format!("failed to read workspace style diagnostics for {style_path}")
+            })?;
+        // L2 (#33/M4-gamma): drive the streaming-IFDS exact connectivity oracle
+        // (`omena-streaming-ifds::run_streaming_ifds_exact_v0`) from the REAL resolved
+        // cross-file hypergraph — not a synthetic harness — so a genuine cross-file
+        // dataflow reachability fact surfaces in the product diagnostics.
+        summary
+            .diagnostics
+            .extend(summarize_cross_file_streaming_reachability_diagnostics(
+                &style_path,
+                workspace_sources.as_slice(),
+                source_documents.as_slice(),
+                package_manifests.as_slice(),
+            ));
+        summary.diagnostic_count = summary.diagnostics.len();
+        summary
     };
 
     if json {
@@ -1483,6 +1510,126 @@ fn style_diagnostics(
         println!("{}\t{}", diagnostic.code, diagnostic.message);
     }
     Ok(())
+}
+
+/// Extract the `path` component of a unified-hypergraph node id (`"{kind}|{path}|{symbol}"`).
+/// Filesystem/module paths never contain `|`, so the middle field is unambiguous.
+fn cross_file_node_path(node_id: &str) -> Option<&str> {
+    let mut parts = node_id.splitn(3, '|');
+    let _kind = parts.next()?;
+    parts.next()
+}
+
+/// Surface a real cross-file dataflow reachability fact through the product diagnostics.
+///
+/// The resolved workspace cross-file summary is projected to the unified hypergraph
+/// (`summarize_omena_query_unified_cross_file_hypergraph`) — the SAME real `composes`/`@use`/
+/// `@forward`/`@import`/value/icss/foreign-reference edges the analyzer already resolves — and the
+/// streaming-IFDS exact connectivity oracle re-derives, from a fact seeded at every node owned by
+/// the target file, the set of nodes reachable over those edges. A target file reaches a foreign
+/// module iff a reachable node's path component differs from the target path. That reachable set is
+/// COMPUTED by `run_streaming_ifds_exact_v0`; a self-contained file has no outgoing cross-file
+/// hyperedge so its reachable set never leaves its own path and no diagnostic is emitted. No
+/// synthetic hyperedges are fed in: the empty-edge case yields an empty reachable set by the same
+/// algorithm.
+fn summarize_cross_file_streaming_reachability_diagnostics(
+    target_style_path: &str,
+    workspace_sources: &[OmenaQueryStyleSourceInputV0],
+    source_documents: &[OmenaQuerySourceDocumentInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let summary = summarize_omena_query_workspace_cross_file_summary(
+        workspace_sources,
+        source_documents,
+        package_manifests,
+    );
+    let hypergraph = summarize_omena_query_unified_cross_file_hypergraph(&summary);
+    if hypergraph.hyperedges.is_empty() {
+        return Vec::new();
+    }
+
+    // Every node owned by the target file is a candidate dataflow origin. A foreign-reference
+    // dataflow value is seeded at each and propagated by the exact oracle over the real edges.
+    let start_node_ids = hypergraph
+        .hyperedges
+        .iter()
+        .flat_map(|edge| {
+            edge.tail_node_ids
+                .iter()
+                .chain(std::iter::once(&edge.head_node_id))
+        })
+        .filter(|node_id| cross_file_node_path(node_id) == Some(target_style_path))
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>();
+    if start_node_ids.is_empty() {
+        return Vec::new();
+    }
+
+    let oracle = ExactStreamingConnectivityOracleV0::default();
+    let mut reachable_foreign_paths = std::collections::BTreeSet::<String>::new();
+    for start_node_id in &start_node_ids {
+        let report = run_streaming_ifds_exact_v0(
+            format!("cli-cross-file-reachability:{target_style_path}"),
+            start_node_id.clone(),
+            &hypergraph.hyperedges,
+            std::slice::from_ref(&streaming_ifds_event_input_v0(
+                format!("foreign-reference-seed:{start_node_id}"),
+                0,
+                start_node_id.clone(),
+                AbstractClassValueV0::Top,
+                None,
+            )),
+            &oracle,
+            None,
+        );
+        collect_reachable_foreign_paths(
+            target_style_path,
+            &report.output_facts,
+            &mut reachable_foreign_paths,
+        );
+    }
+    if reachable_foreign_paths.is_empty() {
+        return Vec::new();
+    }
+
+    let reachable_modules = reachable_foreign_paths
+        .iter()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(", ");
+    vec![OmenaQueryStyleDiagnosticV0 {
+        code: "crossFileStreamingReachability",
+        severity: "hint",
+        provenance: vec![
+            "omena-streaming-ifds.exact-connectivity-oracle",
+            "omena-streaming-ifds.analysis-report",
+            "omena-query.unified-cross-file-hypergraph",
+            "omena-query.cross-file-summary",
+        ],
+        range: ParserRangeV0::default(),
+        message: format!(
+            "cross-file dataflow reaches {} module(s) via resolved edges: {reachable_modules}",
+            reachable_foreign_paths.len()
+        ),
+        tags: Vec::new(),
+        create_custom_property: None,
+    }]
+}
+
+/// Record the path of every fact whose node belongs to a file other than the target — i.e. a
+/// genuine cross-file reachability fact produced by the streaming-IFDS propagation.
+fn collect_reachable_foreign_paths(
+    target_style_path: &str,
+    output_facts: &[StreamingIFDSFactV0],
+    reachable_foreign_paths: &mut std::collections::BTreeSet<String>,
+) {
+    for fact in output_facts {
+        if let Some(path) = cross_file_node_path(&fact.node_id)
+            && path != target_style_path
+        {
+            reachable_foreign_paths.insert(path.to_string());
+        }
+    }
 }
 
 fn read_external_sifs(paths: &[PathBuf]) -> Result<Vec<OmenaQueryExternalSifInputV0>, String> {
@@ -2685,6 +2832,54 @@ export function App() {
             );
             assert_ne!(canonical.proof_verified, reordered.proof_verified);
         }
+    }
+
+    #[test]
+    fn cross_file_streaming_reachability_fires_on_use_chain_not_self_contained() {
+        let tokens = OmenaQueryStyleSourceInputV0 {
+            style_path: "/ws/_tokens.scss".to_string(),
+            style_source: "$brand: red;\n".to_string(),
+        };
+        let importer = OmenaQueryStyleSourceInputV0 {
+            style_path: "/ws/Button.module.scss".to_string(),
+            style_source: "@use \"./tokens\" as tokens;\n.root { color: tokens.$brand; }\n"
+                .to_string(),
+        };
+        let sources = vec![tokens.clone(), importer.clone()];
+
+        // The importer reaches a foreign module over the resolved `@use` edge: the streaming-IFDS
+        // oracle propagates a seeded fact from a Button node to a `_tokens.scss` node, so the
+        // computed foreign-reachable set is non-empty.
+        let importer_diagnostics = summarize_cross_file_streaming_reachability_diagnostics(
+            &importer.style_path,
+            sources.as_slice(),
+            &[],
+            &[],
+        );
+        assert_eq!(importer_diagnostics.len(), 1);
+        assert_eq!(
+            importer_diagnostics[0].code,
+            "crossFileStreamingReachability"
+        );
+        assert!(
+            importer_diagnostics[0].message.contains("/ws/_tokens.scss"),
+            "diagnostic names the genuinely-reached foreign module: {}",
+            importer_diagnostics[0].message
+        );
+
+        // The leaf token module imports nothing: seeded at its own nodes, the same oracle never
+        // leaves its file, so no cross-file reachability diagnostic is computed. This is the
+        // discriminating negative — the value is COMPUTED, not asserted against a literal.
+        let leaf_diagnostics = summarize_cross_file_streaming_reachability_diagnostics(
+            &tokens.style_path,
+            sources.as_slice(),
+            &[],
+            &[],
+        );
+        assert!(
+            leaf_diagnostics.is_empty(),
+            "a module that reaches no foreign file must not surface a reachability fact: {leaf_diagnostics:?}"
+        );
     }
 
     fn temp_path(name: &str) -> PathBuf {

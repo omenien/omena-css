@@ -19,9 +19,11 @@ zk-audit = ["dep:omena-zk-audit", "omena-zk-audit/zk-audit"]
 
 [dependencies]
 clap.workspace = true
+omena-abstract-value = { path = "../omena-abstract-value" }
 omena-bridge = { path = "../omena-bridge" }
 omena-sif = { path = "../omena-sif" }
-omena-query = { path = "../omena-query" }
+omena-query = { path = "../omena-query", features = ["hypergraph-ifds"] }
+omena-streaming-ifds = { path = "../omena-streaming-ifds", features = ["streaming-ifds"] }
 omena-zk-audit = { path = "../omena-zk-audit", optional = true }
 serde.workspace = true
 serde_json.workspace = true
