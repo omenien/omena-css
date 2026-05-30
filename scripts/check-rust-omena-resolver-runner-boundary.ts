@@ -4,9 +4,14 @@ import { strict as assert } from "node:assert";
 
 const RUNNER_PATH = path.join(process.cwd(), "rust/crates/engine-shadow-runner/src/main.rs");
 const QUERY_SRC_DIR = path.join(process.cwd(), "rust/crates/omena-query/src");
+// The M8-2 query split relocated the source-resolution routing fragments into
+// omena-query-core, so the query layer now spans both crates.
+const QUERY_CORE_SRC_DIR = path.join(process.cwd(), "rust/crates/omena-query-core/src");
 
 const runnerSource = readFileSync(RUNNER_PATH, "utf8");
-const querySource = readRustSourceDirectory(QUERY_SRC_DIR);
+const querySource = `${readRustSourceDirectory(QUERY_SRC_DIR)}\n${readRustSourceDirectory(
+  QUERY_CORE_SRC_DIR,
+)}`;
 const commandBodies = extractCommandBodies(runnerSource);
 
 const resolverBoundaryBody = commandBodies.get("input-omena-resolver-boundary");

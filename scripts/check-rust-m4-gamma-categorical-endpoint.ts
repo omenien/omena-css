@@ -71,8 +71,9 @@ for (const marker of [
 }
 
 if (
+  !querySource.includes("pub categorical_evidence:") ||
   !querySource.includes(
-    "pub categorical_evidence: Option<omena_checker::CategoricalCascadeEvidenceV0>",
+    "Option<omena_query_checker_orchestrator::CategoricalCascadeEvidenceV0>",
   )
 ) {
   throw new Error(

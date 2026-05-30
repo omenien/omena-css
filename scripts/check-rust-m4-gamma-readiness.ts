@@ -101,12 +101,12 @@ const gammaCrates = [
 ] as const;
 
 assert(
-  workspaceMembers.length === 42,
-  `expected 42 workspace members, got ${workspaceMembers.length}`,
+  workspaceMembers.length === 45,
+  `expected 45 workspace members, got ${workspaceMembers.length}`,
 );
 assert(
-  workspaceMembers.filter((member) => member.includes("/omena-")).length === 39,
-  "expected omena-* crate roster to be 39",
+  workspaceMembers.filter((member) => member.includes("/omena-")).length === 42,
+  "expected omena-* crate roster to be 42",
 );
 for (const cratePath of gammaCrates) {
   assert(workspaceMembers.includes(cratePath), `missing M4-gamma workspace member ${cratePath}`);
@@ -273,8 +273,13 @@ for (const fixtureId of [
 const queryTypes = read("rust/crates/omena-query/src/types.rs");
 assertIncludes(
   queryTypes,
-  "pub categorical_evidence: Option<omena_checker::CategoricalCascadeEvidenceV0>",
+  "pub categorical_evidence:",
   "cascade-at-position response must carry optional categorical evidence through the checker boundary",
+);
+assertIncludes(
+  queryTypes,
+  "Option<omena_query_checker_orchestrator::CategoricalCascadeEvidenceV0>",
+  "categorical evidence must flow through the query-checker orchestrator boundary",
 );
 const lspServer = read("rust/crates/omena-lsp-server/src/lib.rs");
 assertIncludes(
@@ -511,7 +516,7 @@ const omenaCliManifest = read("rust/crates/omena-cli/Cargo.toml");
 const omenaCli = read("rust/crates/omena-cli/src/main.rs");
 assertIncludes(
   omenaCliManifest,
-  'zk-audit = ["dep:omena-zk-audit"]',
+  'zk-audit = ["dep:omena-zk-audit"',
   "omena-cli must gate ZK audit CLI behind feature",
 );
 assertIncludes(omenaCli, "AuditCommand", "omena-cli must expose audit subcommand behind feature");
