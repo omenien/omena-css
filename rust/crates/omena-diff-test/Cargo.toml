@@ -14,6 +14,7 @@ workspace = true
 [dependencies]
 engine-style-parser = { path = "../engine-style-parser" }
 omena-parser = { path = "../omena-parser" }
+omena-query = { path = "../omena-query" }
 omena-testkit = { path = "../omena-testkit" }
 serde.workspace = true
 serde_json.workspace = true

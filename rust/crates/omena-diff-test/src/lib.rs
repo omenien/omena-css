@@ -9,6 +9,12 @@ use std::collections::BTreeSet;
 
 use engine_style_parser::{parse_style_module, summarize_css_modules_intermediate};
 use omena_parser::{StyleDialect, summarize_omena_parser_style_facts};
+use omena_query::{
+    summarize_omena_query_style_diagnostics_for_file, summarize_omena_query_style_hover_candidates,
+};
+use omena_testkit::{
+    CmeFixtureDiagnosticV0, CmeFixtureExpectationOutcomeV0, evaluate_cme_fixture_v0_with,
+};
 pub use omena_testkit::{
     CmeFixtureExpectationV0, CmeFixtureFileV0, CmeFixtureV0, OmenaTestkitFixtureSeedV0,
     parse_cme_fixture_v0, summarize_omena_testkit_fixture_seed_corpus,
@@ -558,6 +564,50 @@ pub fn summarize_m3_fixture_seed_corpus() -> M3FixtureSeedCorpusReportV0 {
         all_seeds_parse,
         reports,
     }
+}
+
+/// Evaluate a parsed `cme-fixture-v0` against the diagnostics the *real* engine
+/// produces for the fixture's style files.
+///
+/// This is the missing engine-backed caller of
+/// [`omena_testkit::evaluate_cme_fixture_v0_with`] (#37): the testkit defines the
+/// evaluator but stays free of an `omena-query` dependency to preserve the
+/// workspace DAG, so it can only check fixtures against diagnostics an
+/// engine-aware consumer feeds in. `omena-diff-test` already sits above the
+/// engine, so it supplies the real chain here:
+/// [`summarize_omena_query_style_hover_candidates`] then
+/// [`summarize_omena_query_style_diagnostics_for_file`] (the exact path the LSP
+/// and CLI surfaces use), projecting each produced
+/// `OmenaQueryStyleDiagnosticV0.code` into the testkit's
+/// [`CmeFixtureDiagnosticV0`].
+///
+/// The closure is invoked once per fixture file. Non-style files (e.g. JSON
+/// `engine-input.json` seeds) where the summarizer returns `None` contribute no
+/// diagnostics, so the caller is safe across mixed-file fixtures. Boundary-state
+/// and cascade families are out of scope for this diagnostics-only caller and
+/// are passed `&[]`; a fixture that only asserts diagnostic-family expectations
+/// therefore evaluates entirely against real engine output.
+pub fn evaluate_cme_fixture_against_real_diagnostics_v0(
+    fixture: &CmeFixtureV0,
+) -> Vec<CmeFixtureExpectationOutcomeV0> {
+    evaluate_cme_fixture_v0_with(fixture, &[], &[], |file: &CmeFixtureFileV0| {
+        let Some(candidates) =
+            summarize_omena_query_style_hover_candidates(&file.path, &file.source)
+        else {
+            // Non-style file (e.g. JSON engine input): no style diagnostics.
+            return Vec::new();
+        };
+        let summary = summarize_omena_query_style_diagnostics_for_file(
+            &file.path,
+            &file.source,
+            candidates.candidates.as_slice(),
+        );
+        summary
+            .diagnostics
+            .iter()
+            .map(|diagnostic| CmeFixtureDiagnosticV0::new(diagnostic.code))
+            .collect()
+    })
 }
 
 fn testkit_seed_from_m3_seed(seed: M3FixtureSeedV0) -> OmenaTestkitFixtureSeedV0 {
@@ -1115,6 +1165,90 @@ fn normalize_sass_variable_name(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A style source the real engine deterministically diagnoses: `--missing`
+    /// is referenced but never declared, yielding exactly one
+    /// `missingCustomProperty` diagnostic (verified in
+    /// `omena-query/src/tests/style_diagnostics.rs`).
+    const REAL_DIAGNOSTIC_FIXTURE: &str = r#"//- src/Component.module.scss dialect:scss
+:root { --brand: red; }
+.alert { color: var(--missing); }
+--- expect: diagnostic
+code: missingCustomProperty
+--- expect: count missingCustomProperty:1
+--- expect: no-diagnostic missingKeyframes
+"#;
+
+    #[test]
+    fn evaluates_cme_fixture_against_real_engine_diagnostics() -> Result<(), String> {
+        let fixture = parse_cme_fixture_v0(REAL_DIAGNOSTIC_FIXTURE)?;
+        let outcomes = evaluate_cme_fixture_against_real_diagnostics_v0(&fixture);
+
+        // The three diagnostic-family expectations evaluate against the REAL
+        // engine output flowing through `evaluate_cme_fixture_v0_with`.
+        assert_eq!(outcomes.len(), 3);
+        assert!(
+            outcomes.iter().all(|outcome| outcome.evaluated),
+            "diagnostic-family expectations must be evaluated, not deferred: {outcomes:?}"
+        );
+        assert!(
+            outcomes.iter().all(|outcome| outcome.satisfied),
+            "real engine output must satisfy a correct fixture: {outcomes:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn wrong_expectation_fails_against_real_engine_diagnostics() -> Result<(), String> {
+        // Deliberately-wrong expectation: assert the engine emits NO
+        // `missingCustomProperty` for a source where it provably does. If the
+        // evaluation were stubbed, this would spuriously pass; because it runs
+        // the real engine, the assertion must fail.
+        let fixture = parse_cme_fixture_v0(
+            r#"//- src/Component.module.scss dialect:scss
+:root { --brand: red; }
+.alert { color: var(--missing); }
+--- expect: no-diagnostic missingCustomProperty
+"#,
+        )?;
+        let outcomes = evaluate_cme_fixture_against_real_diagnostics_v0(&fixture);
+
+        assert_eq!(outcomes.len(), 1);
+        assert!(
+            outcomes[0].evaluated,
+            "no-diagnostic expectation must be evaluated: {:?}",
+            outcomes[0]
+        );
+        assert!(
+            !outcomes[0].satisfied,
+            "engine emits missingCustomProperty, so `no-diagnostic missingCustomProperty` must fail: {:?}",
+            outcomes[0]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn clean_source_produces_no_diagnostics_from_real_engine() -> Result<(), String> {
+        // A fully-resolved source emits no diagnostics; a `no-diagnostic`
+        // expectation against it passes through the real engine path.
+        let fixture = parse_cme_fixture_v0(
+            r#"//- src/Component.module.scss dialect:scss
+:root { --brand: red; }
+.alert { color: var(--brand); }
+--- expect: no-diagnostic missingCustomProperty
+--- expect: count missingCustomProperty:0
+"#,
+        )?;
+        let outcomes = evaluate_cme_fixture_against_real_diagnostics_v0(&fixture);
+
+        assert!(
+            outcomes
+                .iter()
+                .all(|outcome| outcome.evaluated && outcome.satisfied),
+            "clean source must satisfy no-diagnostic expectations: {outcomes:?}"
+        );
+        Ok(())
+    }
 
     #[test]
     fn parser_legacy_seed_fixtures_match() {
