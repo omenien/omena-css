@@ -24,11 +24,13 @@
 //! Live now (backed by shipped functions):
 //! - `diagnostic` / `no-diagnostic` / `count` — matched against diagnostic codes.
 //! - `boundary-state` — matched against the resolver boundary-state lattice.
-//!
-//! Deferred behind the resolver-generator (#33, RFC-0007-E sibling sub-B):
-//! - `cascade-outcome` / `cascade-witness` — these need per-declaration winner
-//!   ids the resolver-generator has not yet wired through the fixture surface,
-//!   so they are reported as *not yet evaluated* rather than silently passing.
+//! - `cascade-outcome` / `cascade-witness` — matched against per-declaration
+//!   cascade winners/witnesses. #33's in-process bridge now generates the SIFs
+//!   the resolver-generator consumes, so a consumer can run the cascade and
+//!   project each scope's winner id plus its witness (also-considered)
+//!   declaration ids into [`CmeFixtureCascadeV0`]. The evaluator stays free of
+//!   an `omena-cascade` / `omena-query` dependency by matching only against that
+//!   projection (see "Dependency-light wiring" above).
 
 use serde::Serialize;
 
@@ -77,6 +79,51 @@ impl CmeFixtureBoundaryStateV0 {
     }
 }
 
+/// Minimal cascade-outcome projection consumed by the fixture evaluator.
+///
+/// The engine produces a `CascadeOutcome` (`omena-cascade`) per resolved scope;
+/// the consumer projects the winning declaration id and the witness set (the
+/// winner plus every also-considered/challenger declaration that participated
+/// in the cascade comparison) so `omena-testkit` need not depend on
+/// `omena-cascade`. A `cascade-outcome <id>` expectation passes when `<id>`
+/// equals [`winner_id`](Self::winner_id); a `cascade-witness <id>` expectation
+/// passes when `<id>` appears in [`witness_ids`](Self::witness_ids).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CmeFixtureCascadeV0 {
+    /// Winning declaration id for the resolved scope, e.g. `decl-1`.
+    pub winner_id: String,
+    /// Declaration ids that participated in the cascade as witnesses.
+    ///
+    /// This is the winner plus every also-considered/challenger declaration the
+    /// engine ranked, so a `cascade-witness` assertion can name any declaration
+    /// that took part in the comparison, not just the winner.
+    pub witness_ids: Vec<String>,
+}
+
+impl CmeFixtureCascadeV0 {
+    /// Build a cascade projection from a winner id and its witness declaration ids.
+    ///
+    /// The winner id is always treated as a witness, so callers need not repeat
+    /// it in `witness_ids`.
+    pub fn new(
+        winner_id: impl Into<String>,
+        witness_ids: impl IntoIterator<Item = String>,
+    ) -> Self {
+        let winner_id = winner_id.into();
+        let mut witnesses = vec![winner_id.clone()];
+        for id in witness_ids {
+            if !witnesses.contains(&id) {
+                witnesses.push(id);
+            }
+        }
+        Self {
+            winner_id,
+            witness_ids: witnesses,
+        }
+    }
+}
+
 /// Outcome of evaluating one fixture expectation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -98,18 +145,20 @@ pub struct CmeFixtureExpectationOutcomeV0 {
 ///
 /// `diagnostics` is the flattened diagnostic set the engine produced for the
 /// fixture's files; `boundary_states` is the resolver boundary-state set keyed
-/// by external reference id. The P0-independent families
-/// (`diagnostic` / `no-diagnostic` / `count` / `boundary-state`) are evaluated
-/// here; the cascade winner-id families are deferred (see module docs).
+/// by external reference id; `cascades` is the per-scope cascade projection the
+/// resolver-generator produced from #33's SIFs. All shipped families
+/// (`diagnostic` / `no-diagnostic` / `count` / `boundary-state` /
+/// `cascade-outcome` / `cascade-witness`) are evaluated here.
 pub fn evaluate_cme_fixture_v0(
     fixture: &CmeFixtureV0,
     diagnostics: &[CmeFixtureDiagnosticV0],
     boundary_states: &[CmeFixtureBoundaryStateV0],
+    cascades: &[CmeFixtureCascadeV0],
 ) -> Vec<CmeFixtureExpectationOutcomeV0> {
     fixture
         .expectations
         .iter()
-        .map(|expectation| evaluate_one(expectation, diagnostics, boundary_states))
+        .map(|expectation| evaluate_one(expectation, diagnostics, boundary_states, cascades))
         .collect()
 }
 
@@ -117,13 +166,15 @@ pub fn evaluate_cme_fixture_v0(
 /// closure, keeping the engine dependency on the *consumer* side.
 ///
 /// `produce_diagnostics` is invoked once per fixture file and the results are
-/// flattened before delegating to [`evaluate_cme_fixture_v0`]. A consumer that
-/// already depends on `omena-query` (such as `omena-diff-test`) wires the real
-/// `summarize_omena_query_style_diagnostics_for_file` here without forcing an
-/// engine dependency into this crate.
+/// flattened before delegating to [`evaluate_cme_fixture_v0`]. `cascades` is the
+/// per-scope cascade projection the resolver-generator produced from #33's SIFs.
+/// A consumer that already depends on `omena-query` (such as `omena-diff-test`)
+/// wires the real `summarize_omena_query_style_diagnostics_for_file` here
+/// without forcing an engine dependency into this crate.
 pub fn evaluate_cme_fixture_v0_with<F>(
     fixture: &CmeFixtureV0,
     boundary_states: &[CmeFixtureBoundaryStateV0],
+    cascades: &[CmeFixtureCascadeV0],
     mut produce_diagnostics: F,
 ) -> Vec<CmeFixtureExpectationOutcomeV0>
 where
@@ -134,13 +185,14 @@ where
         .iter()
         .flat_map(&mut produce_diagnostics)
         .collect::<Vec<_>>();
-    evaluate_cme_fixture_v0(fixture, &diagnostics, boundary_states)
+    evaluate_cme_fixture_v0(fixture, &diagnostics, boundary_states, cascades)
 }
 
 fn evaluate_one(
     expectation: &CmeFixtureExpectationV0,
     diagnostics: &[CmeFixtureDiagnosticV0],
     boundary_states: &[CmeFixtureBoundaryStateV0],
+    cascades: &[CmeFixtureCascadeV0],
 ) -> CmeFixtureExpectationOutcomeV0 {
     let kind = expectation.kind();
     match kind {
@@ -154,12 +206,12 @@ fn evaluate_one(
         CmeFixtureExpectationKindV0::BoundaryState => {
             evaluate_boundary_state(expectation, boundary_states, kind)
         }
-        CmeFixtureExpectationKindV0::CascadeOutcome
-        | CmeFixtureExpectationKindV0::CascadeWitness => deferred(
-            expectation,
-            kind,
-            "cascade winner-id assertion deferred until resolver-generator wiring (#33)",
-        ),
+        CmeFixtureExpectationKindV0::CascadeOutcome => {
+            evaluate_cascade_outcome(expectation, cascades, kind)
+        }
+        CmeFixtureExpectationKindV0::CascadeWitness => {
+            evaluate_cascade_witness(expectation, cascades, kind)
+        }
         CmeFixtureExpectationKindV0::Product
         | CmeFixtureExpectationKindV0::Assertion
         | CmeFixtureExpectationKindV0::Unknown => deferred(
@@ -329,6 +381,68 @@ fn parse_boundary_target(key: &str) -> Option<(String, String)> {
     Some((reference.to_string(), state.to_string()))
 }
 
+/// Extract the declaration id a cascade family targets: the first token after
+/// the keyword, e.g. `decl-1` in `cascade-outcome decl-1`.
+fn cascade_target_id(key: &str) -> Option<String> {
+    let id = key.split_whitespace().nth(1)?;
+    if id.is_empty() {
+        None
+    } else {
+        Some(id.to_string())
+    }
+}
+
+fn evaluate_cascade_outcome(
+    expectation: &CmeFixtureExpectationV0,
+    cascades: &[CmeFixtureCascadeV0],
+    kind: CmeFixtureExpectationKindV0,
+) -> CmeFixtureExpectationOutcomeV0 {
+    let Some(expected_winner) = cascade_target_id(&expectation.key) else {
+        return malformed(
+            expectation,
+            kind,
+            "cascade-outcome expectation must be `cascade-outcome <declaration-id>`",
+        );
+    };
+    let satisfied = cascades
+        .iter()
+        .any(|cascade| cascade.winner_id == expected_winner);
+    let detail = if satisfied {
+        format!("cascade winner `{expected_winner}` matches")
+    } else {
+        let observed = cascades
+            .iter()
+            .map(|cascade| cascade.winner_id.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("cascade winner `{expected_winner}` expected, observed winners [{observed}]")
+    };
+    outcome(expectation, kind, satisfied, detail)
+}
+
+fn evaluate_cascade_witness(
+    expectation: &CmeFixtureExpectationV0,
+    cascades: &[CmeFixtureCascadeV0],
+    kind: CmeFixtureExpectationKindV0,
+) -> CmeFixtureExpectationOutcomeV0 {
+    let Some(expected_witness) = cascade_target_id(&expectation.key) else {
+        return malformed(
+            expectation,
+            kind,
+            "cascade-witness expectation must be `cascade-witness <declaration-id>`",
+        );
+    };
+    let satisfied = cascades
+        .iter()
+        .any(|cascade| cascade.witness_ids.iter().any(|id| id == &expected_witness));
+    let detail = if satisfied {
+        format!("cascade witness `{expected_witness}` participated in the cascade")
+    } else {
+        format!("cascade witness `{expected_witness}` expected but never participated")
+    };
+    outcome(expectation, kind, satisfied, detail)
+}
+
 fn outcome(
     expectation: &CmeFixtureExpectationV0,
     kind: CmeFixtureExpectationKindV0,
@@ -381,6 +495,10 @@ mod tests {
         CmeFixtureBoundaryStateV0::new(reference, state)
     }
 
+    fn cascade(winner: &str, witnesses: &[&str]) -> CmeFixtureCascadeV0 {
+        CmeFixtureCascadeV0::new(winner, witnesses.iter().map(|id| id.to_string()))
+    }
+
     const DIAGNOSTIC_FIXTURE: &str = r#"//- src/Card.module.scss dialect:scss
 .card { color: red; }
 --- expect: diagnostic
@@ -394,7 +512,7 @@ code: missingSassSymbol
         let fixture = parse_cme_fixture_v0(DIAGNOSTIC_FIXTURE)?;
         // missingSassSymbol present once, missingKeyframes absent.
         let diagnostics = [diag("missingSassSymbol")];
-        let outcomes = evaluate_cme_fixture_v0(&fixture, &diagnostics, &[]);
+        let outcomes = evaluate_cme_fixture_v0(&fixture, &diagnostics, &[], &[]);
 
         assert_eq!(outcomes.len(), 3);
         assert!(outcomes.iter().all(|outcome| outcome.evaluated));
@@ -410,7 +528,7 @@ code: missingSassSymbol
         let fixture = parse_cme_fixture_v0(DIAGNOSTIC_FIXTURE)?;
         // Wrong engine output: the expected `missingSassSymbol` never appears.
         let diagnostics = [diag("missingKeyframes")];
-        let outcomes = evaluate_cme_fixture_v0(&fixture, &diagnostics, &[]);
+        let outcomes = evaluate_cme_fixture_v0(&fixture, &diagnostics, &[], &[]);
 
         let diagnostic = &outcomes[0];
         assert_eq!(diagnostic.kind, CmeFixtureExpectationKindV0::Diagnostic);
@@ -449,7 +567,7 @@ code: missingSassSymbol
         )?;
         let diagnostics = [diag("missingSassSymbol"), diag("missingSassSymbol")];
         let boundaries = [boundary("ext-1", "resolved")];
-        let outcomes = evaluate_cme_fixture_v0(&fixture, &diagnostics, &boundaries);
+        let outcomes = evaluate_cme_fixture_v0(&fixture, &diagnostics, &boundaries, &[]);
 
         let live_failures = outcomes
             .iter()
@@ -473,7 +591,7 @@ code: missingSassSymbol
         )?;
         // ext-1 matches (case-insensitive), ext-2 is Stale not Partial → fail.
         let boundaries = [boundary("ext-1", "resolved"), boundary("ext-2", "stale")];
-        let outcomes = evaluate_cme_fixture_v0(&fixture, &[], &boundaries);
+        let outcomes = evaluate_cme_fixture_v0(&fixture, &[], &boundaries, &[]);
 
         assert!(outcomes[0].satisfied, "{:?}", outcomes[0]);
         assert!(!outcomes[1].satisfied, "{:?}", outcomes[1]);
@@ -488,7 +606,7 @@ code: missingSassSymbol
 --- expect: boundary-state ext-9 Resolved
 "#,
         )?;
-        let outcomes = evaluate_cme_fixture_v0(&fixture, &[], &[]);
+        let outcomes = evaluate_cme_fixture_v0(&fixture, &[], &[], &[]);
 
         assert!(outcomes[0].evaluated);
         assert!(!outcomes[0].satisfied);
@@ -496,28 +614,119 @@ code: missingSassSymbol
         Ok(())
     }
 
-    #[test]
-    fn cascade_families_are_deferred_not_silently_passing() -> Result<(), String> {
-        let fixture = parse_cme_fixture_v0(
-            r#"//- src/Card.module.scss dialect:scss
+    const CASCADE_FIXTURE: &str = r#"//- src/Card.module.scss dialect:scss
 .card { color: red; }
 --- expect: cascade-outcome decl-1
 --- expect: cascade-witness decl-2
+"#;
+
+    #[test]
+    fn evaluates_passing_cascade_families() -> Result<(), String> {
+        let fixture = parse_cme_fixture_v0(CASCADE_FIXTURE)?;
+        // decl-1 won; decl-2 participated as an also-considered witness.
+        let cascades = [cascade("decl-1", &["decl-2"])];
+        let outcomes = evaluate_cme_fixture_v0(&fixture, &[], &[], &cascades);
+
+        assert_eq!(outcomes.len(), 2);
+        let outcome_kinds = outcomes.iter().map(|o| o.kind).collect::<Vec<_>>();
+        assert_eq!(
+            outcome_kinds,
+            vec![
+                CmeFixtureExpectationKindV0::CascadeOutcome,
+                CmeFixtureExpectationKindV0::CascadeWitness,
+            ]
+        );
+        assert!(
+            outcomes.iter().all(|outcome| outcome.evaluated),
+            "cascade families are now evaluated, not deferred: {outcomes:?}"
+        );
+        assert!(
+            outcomes.iter().all(|outcome| outcome.satisfied),
+            "correct cascade fixture must pass: {outcomes:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn fails_on_wrong_cascade_winner_and_absent_witness() -> Result<(), String> {
+        let fixture = parse_cme_fixture_v0(CASCADE_FIXTURE)?;
+        // Wrong engine output: decl-9 won (not decl-1) and decl-2 never appears.
+        let cascades = [cascade("decl-9", &["decl-7"])];
+        let outcomes = evaluate_cme_fixture_v0(&fixture, &[], &[], &cascades);
+
+        let outcome = &outcomes[0];
+        assert_eq!(outcome.kind, CmeFixtureExpectationKindV0::CascadeOutcome);
+        assert!(outcome.evaluated);
+        assert!(
+            !outcome.satisfied,
+            "wrong cascade winner must fail: {outcome:?}"
+        );
+
+        let witness = &outcomes[1];
+        assert_eq!(witness.kind, CmeFixtureExpectationKindV0::CascadeWitness);
+        assert!(witness.evaluated);
+        assert!(
+            !witness.satisfied,
+            "absent cascade witness must fail: {witness:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn cascade_winner_is_always_its_own_witness() -> Result<(), String> {
+        // Over-correction guard: a `cascade-witness` naming the winner passes
+        // even when the consumer did not repeat the winner in the witness list.
+        let fixture = parse_cme_fixture_v0(
+            r#"//- src/Card.module.scss dialect:scss
+.card { color: red; }
+--- expect: cascade-witness decl-1
 "#,
         )?;
-        let outcomes = evaluate_cme_fixture_v0(&fixture, &[], &[]);
+        let cascades = [cascade("decl-1", &[])];
+        let outcomes = evaluate_cme_fixture_v0(&fixture, &[], &[], &cascades);
+
+        assert!(outcomes[0].evaluated);
+        assert!(outcomes[0].satisfied, "{:?}", outcomes[0]);
+        Ok(())
+    }
+
+    #[test]
+    fn cascade_family_fails_when_no_cascade_supplied() -> Result<(), String> {
+        // The seed-corpus path passes no cascades: a cascade assertion must then
+        // fail as absent (evaluated), never silently pass.
+        let fixture = parse_cme_fixture_v0(CASCADE_FIXTURE)?;
+        let outcomes = evaluate_cme_fixture_v0(&fixture, &[], &[], &[]);
 
         for outcome in &outcomes {
             assert!(
-                !outcome.evaluated,
-                "cascade family must be deferred: {outcome:?}"
+                outcome.evaluated,
+                "cascade family is now evaluated: {outcome:?}"
             );
             assert!(
                 !outcome.satisfied,
-                "deferred family must not report satisfied: {outcome:?}"
+                "cascade assertion with no engine cascade must fail: {outcome:?}"
             );
-            assert!(outcome.detail.contains("#33"));
         }
+        Ok(())
+    }
+
+    #[test]
+    fn malformed_cascade_outcome_fails_as_evaluated() -> Result<(), String> {
+        let fixture = parse_cme_fixture_v0(
+            r#"//- src/Card.module.scss dialect:scss
+.card { color: red; }
+--- expect: cascade-outcome
+"#,
+        )?;
+        let cascades = [cascade("decl-1", &[])];
+        let outcomes = evaluate_cme_fixture_v0(&fixture, &[], &[], &cascades);
+
+        assert_eq!(
+            outcomes[0].kind,
+            CmeFixtureExpectationKindV0::CascadeOutcome
+        );
+        assert!(outcomes[0].evaluated);
+        assert!(!outcomes[0].satisfied);
         Ok(())
     }
 
@@ -526,7 +735,7 @@ code: missingSassSymbol
         let fixture = parse_cme_fixture_v0(DIAGNOSTIC_FIXTURE)?;
         // The consumer supplies the engine via a closure; here we emit the
         // expected diagnostic for the scss file only.
-        let outcomes = evaluate_cme_fixture_v0_with(&fixture, &[], |file| {
+        let outcomes = evaluate_cme_fixture_v0_with(&fixture, &[], &[], |file| {
             if file.path.ends_with(".scss") {
                 vec![diag("missingSassSymbol")]
             } else {
@@ -549,7 +758,7 @@ code: missingSassSymbol
 --- expect: count unreachableDeclaration:0
 "#,
         )?;
-        let outcomes = evaluate_cme_fixture_v0(&fixture, &[], &[]);
+        let outcomes = evaluate_cme_fixture_v0(&fixture, &[], &[], &[]);
 
         assert!(outcomes[0].evaluated);
         assert!(outcomes[0].satisfied, "{:?}", outcomes[0]);
@@ -564,7 +773,7 @@ code: missingSassSymbol
 --- expect: count missingSassSymbol
 "#,
         )?;
-        let outcomes = evaluate_cme_fixture_v0(&fixture, &[diag("missingSassSymbol")], &[]);
+        let outcomes = evaluate_cme_fixture_v0(&fixture, &[diag("missingSassSymbol")], &[], &[]);
 
         assert_eq!(outcomes[0].kind, CmeFixtureExpectationKindV0::Count);
         assert!(outcomes[0].evaluated);
