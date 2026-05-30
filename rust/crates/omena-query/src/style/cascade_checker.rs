@@ -605,36 +605,104 @@ fn collect_query_checker_cascade_blocks(
                 declarations,
             );
         } else if !prelude.is_empty() {
-            let canonical_selector =
-                canonical_query_checker_selector(parent_selector.as_deref(), prelude);
-            collect_query_checker_direct_declarations(
-                source,
-                body_start,
-                close_index,
-                &canonical_selector,
-                QueryCheckerCascadeScope {
-                    condition_context: condition_context.clone(),
-                    layer_name: layer_name.clone(),
+            // A selector list (`.a, .b { … }`) records one declaration set per
+            // member so each member can tie with a sibling rule on the same
+            // selector (RFC-0007 B2). Identical canonical members within one
+            // prelude are de-duplicated to avoid a spurious self-tie.
+            let mut canonical_members = Vec::new();
+            for member in split_query_selector_list(prelude) {
+                let canonical_selector =
+                    canonical_query_checker_selector(parent_selector.as_deref(), &member);
+                if !canonical_members.contains(&canonical_selector) {
+                    canonical_members.push(canonical_selector);
+                }
+            }
+
+            for canonical_selector in canonical_members {
+                collect_query_checker_direct_declarations(
+                    source,
+                    body_start,
+                    close_index,
+                    &canonical_selector,
+                    QueryCheckerCascadeScope {
+                        condition_context: condition_context.clone(),
+                        layer_name: layer_name.clone(),
+                        layer_order,
+                    },
+                    declarations,
+                );
+                collect_query_checker_cascade_blocks(
+                    source,
+                    body_start,
+                    close_index,
+                    Some(canonical_selector),
+                    condition_context.clone(),
+                    layer_name.clone(),
                     layer_order,
-                },
-                declarations,
-            );
-            collect_query_checker_cascade_blocks(
-                source,
-                body_start,
-                close_index,
-                Some(canonical_selector),
-                condition_context.clone(),
-                layer_name.clone(),
-                layer_order,
-                layer_orders,
-                next_layer_order,
-                declarations,
-            );
+                    layer_orders,
+                    next_layer_order,
+                    declarations,
+                );
+            }
         }
 
         index = close_index + 1;
     }
+}
+
+/// Splits a selector-list prelude on top-level commas, ignoring commas nested
+/// inside `()` (e.g. `:is(.a, .b)`), `[]`, or string literals (RFC-0007 B2).
+/// Returns one entry per member; a prelude with no top-level comma returns a
+/// single-element vector containing the whole (trimmed) prelude.
+fn split_query_selector_list(prelude: &str) -> Vec<String> {
+    let mut members = Vec::new();
+    let mut segment_start = 0usize;
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+    let mut paren_depth = 0usize;
+    let mut bracket_depth = 0usize;
+
+    while index < prelude.len() {
+        let Some(ch) = prelude[index..].chars().next() else {
+            break;
+        };
+        if let Some(quote_ch) = quote {
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = prelude[index..].chars().next() {
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            '[' => bracket_depth += 1,
+            ']' => bracket_depth = bracket_depth.saturating_sub(1),
+            ',' if paren_depth == 0 && bracket_depth == 0 => {
+                let member = prelude[segment_start..index].trim();
+                if !member.is_empty() {
+                    members.push(member.to_string());
+                }
+                segment_start = index + ch.len_utf8();
+            }
+            _ => {}
+        }
+        index += ch.len_utf8();
+    }
+
+    let tail = prelude[segment_start..].trim();
+    if !tail.is_empty() {
+        members.push(tail.to_string());
+    }
+    if members.is_empty() {
+        members.push(prelude.trim().to_string());
+    }
+    members
 }
 
 fn canonical_query_checker_selector(parent_selector: Option<&str>, selector: &str) -> String {
@@ -724,7 +792,14 @@ fn push_query_checker_declaration(
     let Some((trimmed_start, trimmed_end)) = trimmed_query_span(source, start, end) else {
         return;
     };
-    let statement = &source[trimmed_start..trimmed_end];
+    let raw_statement = &source[trimmed_start..trimmed_end];
+    // Strip CSS/Sass comments before the property/value split. A leading
+    // `/* */` block (or a `//` line comment) that precedes the property name
+    // otherwise poisons the property string (e.g. `/* primary */ color`), so the
+    // whitespace guard below rejects it and the declaration is silently dropped
+    // from cascade analysis (RFC-0007 B1).
+    let statement = strip_query_statement_comments(raw_statement);
+    let statement = statement.as_str();
     let Some(colon_offset) = find_query_top_level_colon(statement) else {
         return;
     };
@@ -802,6 +877,74 @@ fn trimmed_query_span(source: &str, start: usize, end: usize) -> Option<(usize, 
         trimmed_end -= source[..trimmed_end].chars().next_back()?.len_utf8();
     }
     (trimmed_start < trimmed_end).then_some((trimmed_start, trimmed_end))
+}
+
+/// Removes CSS/Sass comments from a single declaration statement, quote-aware.
+///
+/// `/* ... */` block comments are elided entirely; `//` line comments are
+/// truncated to the end of their line (Sass semantics). Comment delimiters
+/// inside string literals are preserved. The result is used for the
+/// property/value split so a comment positioned before a property name no
+/// longer poisons it (RFC-0007 B1).
+fn strip_query_statement_comments(statement: &str) -> String {
+    let mut out = String::with_capacity(statement.len());
+    let mut index = 0usize;
+    let mut quote: Option<char> = None;
+    let mut paren_depth = 0usize;
+    while index < statement.len() {
+        let Some(ch) = statement[index..].chars().next() else {
+            break;
+        };
+        if let Some(quote_ch) = quote {
+            out.push(ch);
+            index += ch.len_utf8();
+            if ch == '\\' {
+                if let Some(escaped) = statement[index..].chars().next() {
+                    out.push(escaped);
+                    index += escaped.len_utf8();
+                }
+            } else if ch == quote_ch {
+                quote = None;
+            }
+            continue;
+        }
+        if statement[index..].starts_with("/*") {
+            match statement[index + 2..].find("*/") {
+                Some(close_offset) => {
+                    // Replace the comment with a single space so adjacent tokens
+                    // (e.g. `color/* x */:`) do not get glued together.
+                    out.push(' ');
+                    index += close_offset + 4;
+                }
+                // Unterminated block comment: drop the remainder.
+                None => break,
+            }
+            continue;
+        }
+        // A `//` outside parentheses is a Sass line comment; inside parentheses
+        // (e.g. `url(http://example.com)`) it is part of a value and must be
+        // preserved, otherwise the value is corrupted into an unbalanced token.
+        if paren_depth == 0 && statement[index..].starts_with("//") {
+            // Sass line comment: skip to the next newline (or end of statement).
+            match statement[index..].find('\n') {
+                Some(newline_offset) => {
+                    out.push('\n');
+                    index += newline_offset + 1;
+                }
+                None => break,
+            }
+            continue;
+        }
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            '(' => paren_depth += 1,
+            ')' => paren_depth = paren_depth.saturating_sub(1),
+            _ => {}
+        }
+        out.push(ch);
+        index += ch.len_utf8();
+    }
+    out
 }
 
 fn find_query_top_level_colon(statement: &str) -> Option<usize> {
@@ -989,6 +1132,7 @@ fn query_function_name_starts_at(value: &str, index: usize, function_name: &str)
 fn find_query_top_level_byte(source: &str, start: usize, end: usize, needle: u8) -> Option<usize> {
     let mut index = start;
     let mut quote: Option<char> = None;
+    let mut paren_depth = 0usize;
     while index < end {
         let ch = source[index..].chars().next()?;
         if let Some(quote_ch) = quote {
@@ -1008,12 +1152,38 @@ fn find_query_top_level_byte(source: &str, start: usize, end: usize, needle: u8)
             index += close_offset + 4;
             continue;
         }
+        // Sass `//` line comments outside parentheses are not declaration
+        // boundaries, so a `;` (or `{`) buried in one must not be treated as a
+        // statement delimiter (RFC-0007 B1). Inside parens (`url(http://…)`) the
+        // `//` is part of a value, so it is left intact.
+        if paren_depth == 0 && source[index..end].starts_with("//") {
+            match source[index..end].find('\n') {
+                Some(newline_offset) => {
+                    index += newline_offset + 1;
+                    continue;
+                }
+                None => return None,
+            }
+        }
+        // Match the requested delimiter exactly as before (paren-unaware) so the
+        // existing statement-boundary behavior is unchanged; `paren_depth` is
+        // tracked only to gate the `//` line-comment skip above.
+        if ch.len_utf8() == 1 && source.as_bytes()[index] == needle {
+            return Some(index);
+        }
         match ch {
             '"' | '\'' => {
                 quote = Some(ch);
                 index += ch.len_utf8();
             }
-            _ if ch.len_utf8() == 1 && source.as_bytes()[index] == needle => return Some(index),
+            '(' => {
+                paren_depth += 1;
+                index += ch.len_utf8();
+            }
+            ')' => {
+                paren_depth = paren_depth.saturating_sub(1);
+                index += ch.len_utf8();
+            }
             _ => index += ch.len_utf8(),
         }
     }
@@ -1041,6 +1211,12 @@ fn matching_query_delimiter_end(
     let mut index = open_index + 1;
     let mut depth = 1usize;
     let mut quote: Option<char> = None;
+    // Only gate `//` line-comment skipping for brace matching, where a `}` in a
+    // comment would otherwise close the block early. A `//` inside a value's
+    // parentheses (`url(http://…)`) is part of the value, so it must be left
+    // intact — track an inner paren depth to distinguish the two.
+    let track_line_comments = open == b'{';
+    let mut inner_paren_depth = 0usize;
 
     while index < end {
         let ch = source[index..].chars().next()?;
@@ -1060,6 +1236,25 @@ fn matching_query_delimiter_end(
         {
             index += close_offset + 4;
             continue;
+        }
+        // Sass `//` line comment: skip to the next newline so a `}` (RFC-0007 B1)
+        // buried in a comment does not close the block prematurely. Restricted to
+        // brace matching, and only outside value parentheses.
+        if track_line_comments && inner_paren_depth == 0 && source[index..end].starts_with("//") {
+            match source[index..end].find('\n') {
+                Some(newline_offset) => {
+                    index += newline_offset + 1;
+                    continue;
+                }
+                None => return None,
+            }
+        }
+        if track_line_comments {
+            match ch {
+                '(' => inner_paren_depth += 1,
+                ')' => inner_paren_depth = inner_paren_depth.saturating_sub(1),
+                _ => {}
+            }
         }
         match ch {
             '"' | '\'' => {
@@ -1081,4 +1276,172 @@ fn matching_query_delimiter_end(
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn recorded(source: &str) -> Vec<(String, String, String)> {
+        collect_query_checker_cascade_declarations(source)
+            .into_iter()
+            .map(|declaration| {
+                (
+                    declaration.input.selector,
+                    declaration.input.property,
+                    declaration.input.value,
+                )
+            })
+            .collect()
+    }
+
+    fn diagnostic_codes(source: &str) -> Vec<&'static str> {
+        summarize_query_cascade_checker_diagnostics("file:///tmp/test.scss", source)
+            .into_iter()
+            .map(|diagnostic| diagnostic.code)
+            .collect()
+    }
+
+    fn cascade_codes(source: &str) -> Vec<&'static str> {
+        diagnostic_codes(source)
+            .into_iter()
+            .filter(|code| matches!(*code, "unreachableDeclaration" | "unspecifiedCascadeTie"))
+            .collect()
+    }
+
+    // ---- B1: comment poisoning ----------------------------------------
+
+    #[test]
+    fn b1_block_comment_before_property_does_not_drop_declaration() {
+        let recorded = recorded(".a { /* primary */ color: red; color: blue; }");
+        let properties: Vec<_> = recorded.iter().map(|(_, property, _)| property).collect();
+        assert_eq!(properties, vec!["color", "color"], "{recorded:?}");
+    }
+
+    #[test]
+    fn b1_block_comment_repro_fires_tie_and_unreachable() {
+        let cascade = cascade_codes(".a { /* primary */ color: red; color: blue; }");
+        assert!(
+            cascade.contains(&"unreachableDeclaration")
+                && cascade.contains(&"unspecifiedCascadeTie"),
+            "expected both cascade diagnostics, got {cascade:?}"
+        );
+    }
+
+    #[test]
+    fn b1_line_comment_before_declarations_does_not_drop_them() {
+        let cascade = cascade_codes(".a { // primary\ncolor: red; color: blue; }");
+        assert!(
+            cascade.contains(&"unreachableDeclaration")
+                && cascade.contains(&"unspecifiedCascadeTie"),
+            "expected both cascade diagnostics, got {cascade:?}"
+        );
+    }
+
+    #[test]
+    fn b1_value_comment_is_stripped_but_property_survives() {
+        let recorded = recorded(".a { color /* c */ : red /* d */; }");
+        assert_eq!(
+            recorded,
+            vec![(".a".to_string(), "color".to_string(), "red".to_string())],
+            "comment-laden declaration should still record cleanly"
+        );
+    }
+
+    // ---- B1 over-correction: commented-out declarations stay inert -----
+
+    #[test]
+    fn b1_line_commented_out_declaration_is_not_analyzed_as_live() {
+        // The override is commented out, so there is no live duplicate / tie.
+        let cascade = cascade_codes(".a { color: red; // color: blue;\n}");
+        assert!(
+            cascade.is_empty(),
+            "commented-out decl must not tie: {cascade:?}"
+        );
+    }
+
+    #[test]
+    fn b1_block_commented_out_declaration_is_not_analyzed_as_live() {
+        let cascade = cascade_codes(".a { color: red; /* color: blue; */ }");
+        assert!(
+            cascade.is_empty(),
+            "commented-out decl must not tie: {cascade:?}"
+        );
+    }
+
+    #[test]
+    fn b1_url_with_double_slash_value_is_preserved_and_later_tie_still_fires() {
+        // The `//` inside `url(http://…)` must not be treated as a line comment,
+        // and the genuine `color` duplicate that follows must still tie.
+        let source = ".a { background: url(http://example.com/a.png); color: red; color: blue; }";
+        let recorded = recorded(source);
+        assert!(
+            recorded
+                .iter()
+                .any(|(_, property, value)| property == "background"
+                    && value == "url(http://example.com/a.png)"),
+            "url value should survive intact: {recorded:?}"
+        );
+        let cascade = cascade_codes(source);
+        assert!(
+            cascade.contains(&"unspecifiedCascadeTie"),
+            "later real tie should still fire: {cascade:?}"
+        );
+    }
+
+    // ---- B2: selector-list cross-rule tie -----------------------------
+
+    #[test]
+    fn b2_selector_list_member_records_separately() {
+        let recorded = recorded(".a, .b { color: red; }");
+        let selectors: Vec<_> = recorded.iter().map(|(selector, ..)| selector).collect();
+        assert_eq!(selectors, vec![".a", ".b"], "{recorded:?}");
+    }
+
+    #[test]
+    fn b2_selector_list_member_ties_with_sibling_rule() {
+        let cascade = cascade_codes(".a, .b { color: red; }\n.a { color: blue; }");
+        assert!(
+            cascade.contains(&"unreachableDeclaration")
+                && cascade.contains(&"unspecifiedCascadeTie"),
+            "list member .a should tie with .a sibling: {cascade:?}"
+        );
+    }
+
+    // ---- B2 over-correction: no spurious ties -------------------------
+
+    #[test]
+    fn b2_distinct_list_member_does_not_tie_with_unrelated_rule() {
+        // `.a, .b` vs `.c` share no selector, so no tie may be reported.
+        let cascade = cascade_codes(".a, .b { color: red; }\n.c { color: blue; }");
+        assert!(
+            cascade.is_empty(),
+            "unrelated rule must not tie: {cascade:?}"
+        );
+    }
+
+    #[test]
+    fn b2_duplicate_member_in_one_prelude_is_deduplicated() {
+        // `.a, .a` is a single rule; the duplicated member must not self-tie.
+        let recorded = recorded(".a, .a { color: red; }");
+        assert_eq!(
+            recorded.len(),
+            1,
+            "identical members must be de-duplicated: {recorded:?}"
+        );
+        let cascade = cascade_codes(".a, .a { color: red; }");
+        assert!(
+            cascade.is_empty(),
+            "deduped member must not self-tie: {cascade:?}"
+        );
+    }
+
+    #[test]
+    fn b2_comma_inside_functional_pseudo_is_not_split() {
+        // The comma inside `:is(.a, .b)` is paren-protected, so the rule records
+        // as a single opaque-compound selector rather than two bogus members.
+        let recorded = recorded(":is(.a, .b) { color: red; }");
+        let selectors: Vec<_> = recorded.iter().map(|(selector, ..)| selector).collect();
+        assert_eq!(selectors, vec![":is(.a, .b)"], "{recorded:?}");
+    }
 }
