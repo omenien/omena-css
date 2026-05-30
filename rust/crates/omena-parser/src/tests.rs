@@ -2591,6 +2591,123 @@ fn extracts_sass_symbol_style_facts() {
 }
 
 #[test]
+fn each_loop_bindings_are_declarations_not_references() {
+    // RFC-0007 #41 FP: `@each $k, $v in $map` -> $k/$v must be declarations
+    // (bindings), and the iterable `$map` after `in` stays a reference.
+    let facts = collect_style_facts(
+        "@each $k, $v in $map { .e { color: $v; height: $k; } }",
+        StyleDialect::Scss,
+    );
+    let symbol_kinds = facts
+        .sass_symbols
+        .iter()
+        .map(|symbol| (symbol.kind, symbol.name.as_str()))
+        .collect::<Vec<_>>();
+
+    // Loop bindings are declarations.
+    assert!(
+        symbol_kinds.contains(&(ParsedSassSymbolFactKind::VariableDeclaration, "k")),
+        "$k binding should be a declaration, got {symbol_kinds:?}"
+    );
+    assert!(
+        symbol_kinds.contains(&(ParsedSassSymbolFactKind::VariableDeclaration, "v")),
+        "$v binding should be a declaration, got {symbol_kinds:?}"
+    );
+    // The iterable after `in` stays a reference (over-correction guard).
+    assert!(
+        symbol_kinds.contains(&(ParsedSassSymbolFactKind::VariableReference, "map")),
+        "$map iterable must remain a reference, got {symbol_kinds:?}"
+    );
+}
+
+#[test]
+fn for_loop_binding_is_declaration_and_bounds_stay_references() {
+    // RFC-0007 #41 FP: `@for $i from $start through $end` -> $i is a binding;
+    // $start/$end bounds remain references.
+    let facts = collect_style_facts(
+        "@for $i from $start through $end { .n { order: $i; } }",
+        StyleDialect::Scss,
+    );
+    let symbol_kinds = facts
+        .sass_symbols
+        .iter()
+        .map(|symbol| (symbol.kind, symbol.name.as_str()))
+        .collect::<Vec<_>>();
+
+    assert!(
+        symbol_kinds.contains(&(ParsedSassSymbolFactKind::VariableDeclaration, "i")),
+        "$i binding should be a declaration, got {symbol_kinds:?}"
+    );
+    // Bounds after `from`/`through` remain references (over-correction guard).
+    assert!(
+        symbol_kinds.contains(&(ParsedSassSymbolFactKind::VariableReference, "start")),
+        "$start bound must remain a reference, got {symbol_kinds:?}"
+    );
+    assert!(
+        symbol_kinds.contains(&(ParsedSassSymbolFactKind::VariableReference, "end")),
+        "$end bound must remain a reference, got {symbol_kinds:?}"
+    );
+}
+
+#[test]
+fn while_and_undefined_references_still_flag_as_references() {
+    // Over-correction guard: a genuinely undefined `$var` reference and a
+    // `@while` condition variable must REMAIN references (so missingSassSymbol
+    // still fires for true positives). Only `@each`/`@for` bindings are exempt.
+    let facts = collect_style_facts(
+        "@while $enabled { .w { color: $undefined; } }",
+        StyleDialect::Scss,
+    );
+    let symbol_kinds = facts
+        .sass_symbols
+        .iter()
+        .map(|symbol| (symbol.kind, symbol.name.as_str()))
+        .collect::<Vec<_>>();
+
+    // `@while` introduces no bindings -> condition var stays a reference.
+    assert!(
+        symbol_kinds.contains(&(ParsedSassSymbolFactKind::VariableReference, "enabled")),
+        "@while condition must remain a reference, got {symbol_kinds:?}"
+    );
+    // A genuinely undefined reference still surfaces as a reference.
+    assert!(
+        symbol_kinds.contains(&(ParsedSassSymbolFactKind::VariableReference, "undefined")),
+        "undefined var must remain a reference, got {symbol_kinds:?}"
+    );
+    // No false binding was introduced.
+    assert!(
+        !symbol_kinds
+            .iter()
+            .any(|(kind, _)| *kind == ParsedSassSymbolFactKind::VariableDeclaration),
+        "no @while binding should be synthesized, got {symbol_kinds:?}"
+    );
+}
+
+#[test]
+fn each_single_binding_and_function_iterable_classification() {
+    // Single-binding `@each $i in fn($x)` form: $i is a binding; the iterable
+    // expression `$x` (inside a function call after `in`) stays a reference.
+    let facts = collect_style_facts(
+        "@each $i in to-list($x) { .e { order: $i; } }",
+        StyleDialect::Scss,
+    );
+    let symbol_kinds = facts
+        .sass_symbols
+        .iter()
+        .map(|symbol| (symbol.kind, symbol.name.as_str()))
+        .collect::<Vec<_>>();
+
+    assert!(
+        symbol_kinds.contains(&(ParsedSassSymbolFactKind::VariableDeclaration, "i")),
+        "$i binding should be a declaration, got {symbol_kinds:?}"
+    );
+    assert!(
+        symbol_kinds.contains(&(ParsedSassSymbolFactKind::VariableReference, "x")),
+        "$x inside the iterable must remain a reference, got {symbol_kinds:?}"
+    );
+}
+
+#[test]
 fn extracts_namespaced_sass_symbol_style_facts() {
     let facts = collect_style_facts(
         r#"@use "./tokens" as tokens; .card { color: tokens.$brand; @include tokens.tone(red); width: tokens.double(2px); }"#,

@@ -8477,6 +8477,9 @@ fn collect_variable_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedVariabl
 }
 
 fn scss_variable_token_is_declaration(tokens: &[Token<'_>], index: usize) -> bool {
+    if scss_loop_variable_token_is_binding(tokens, index) {
+        return true;
+    }
     next_non_trivia_token(tokens, index + 1).is_some_and(|candidate| {
         candidate.kind == SyntaxKind::Colon
             || (matches!(candidate.kind, SyntaxKind::Comma | SyntaxKind::RightParen)
@@ -8484,6 +8487,68 @@ fn scss_variable_token_is_declaration(tokens: &[Token<'_>], index: usize) -> boo
                     name.eq_ignore_ascii_case("@mixin") || name.eq_ignore_ascii_case("@function")
                 }))
     })
+}
+
+/// Positional guard for `@each` / `@for` loop bindings.
+///
+/// In `@each $k, $v in $map` the `$k`/`$v` are *bindings* (declarations), while
+/// the iterable `$map` after `in` is a *reference*. In `@for $i from $start
+/// through $end` the `$i` is a binding, while `$start`/`$end` after `from` are
+/// references. A `$var` is a binding iff it sits in the loop header *before* the
+/// top-level separator keyword (`in` for `@each`, `from` for `@for`). `@while` /
+/// `@if` headers introduce no bindings and stay reference-only.
+fn scss_loop_variable_token_is_binding(tokens: &[Token<'_>], index: usize) -> bool {
+    let Some(header_index) = containing_at_rule_header_index(tokens, index) else {
+        return false;
+    };
+    let separator = match () {
+        _ if tokens[header_index].text.eq_ignore_ascii_case("@each") => "in",
+        _ if tokens[header_index].text.eq_ignore_ascii_case("@for") => "from",
+        _ => return false,
+    };
+    // Scan the header from just after the at-keyword up to (but excluding) the
+    // variable token. If the top-level separator keyword has already appeared,
+    // the variable is part of the iterable/bounds expression -> reference.
+    let mut paren_depth = 0usize;
+    for token in &tokens[header_index + 1..index] {
+        match token.kind {
+            SyntaxKind::LeftParen => paren_depth += 1,
+            SyntaxKind::RightParen => paren_depth = paren_depth.saturating_sub(1),
+            SyntaxKind::Ident if paren_depth == 0 && token.text.eq_ignore_ascii_case(separator) => {
+                return false;
+            }
+            _ => {}
+        }
+    }
+    true
+}
+
+/// Like [`containing_at_rule_header_name`] but returns the index of the
+/// enclosing `@`-keyword token rather than its text.
+fn containing_at_rule_header_index(tokens: &[Token<'_>], index: usize) -> Option<usize> {
+    let mut current = index;
+    while current > 0 {
+        current -= 1;
+        let token = tokens.get(current)?;
+        if token.kind.is_trivia() {
+            continue;
+        }
+        if matches!(
+            token.kind,
+            SyntaxKind::Semicolon
+                | SyntaxKind::SassOptionalSemicolon
+                | SyntaxKind::LeftBrace
+                | SyntaxKind::RightBrace
+                | SyntaxKind::SassIndent
+                | SyntaxKind::SassDedent
+        ) {
+            return None;
+        }
+        if token.kind == SyntaxKind::AtKeyword {
+            return Some(current);
+        }
+    }
+    None
 }
 
 fn collect_sass_symbol_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedSassSymbolFact> {
