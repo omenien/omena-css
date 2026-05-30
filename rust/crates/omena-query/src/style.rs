@@ -8,6 +8,7 @@ mod cross_file_hypergraph;
 mod cross_file_summary;
 mod diagnostic_suppressions;
 mod diagnostics;
+mod dynamic_classname;
 mod parser_facade;
 mod sass;
 mod source_refs;
@@ -31,6 +32,7 @@ pub use cross_file_summary::{
     summarize_omena_query_workspace_cross_file_summary,
 };
 pub use diagnostics::*;
+pub use dynamic_classname::*;
 use parser_facade::{
     collect_omena_query_omena_parser_style_facts_raw, omena_parser_dialect_for_style_path,
     omena_parser_style_dialect_label, omena_query_sass_symbol_fact_kind_is_declaration,

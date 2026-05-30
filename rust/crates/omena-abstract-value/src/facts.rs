@@ -104,6 +104,105 @@ pub fn abstract_class_value_from_facts(facts: &ExternalStringTypeFactsV0) -> Abs
     }
 }
 
+/// Lower an abstract class value back into the external-string-type facts that
+/// the flow analyser consumes as an `AssignFacts` transfer.
+///
+/// This is the inverse direction of [`abstract_class_value_from_facts`]: it lets
+/// a product-path caller seed a [`crate::ClassValueFlowGraphV0`] node from an
+/// already-computed abstract value (for example, a dynamic-className call-site
+/// exit value), so the k-limited call-string analysis can re-derive and join the
+/// value under a context key.
+pub fn external_string_type_facts_from_abstract_class_value(
+    value: &AbstractClassValueV0,
+) -> ExternalStringTypeFactsV0 {
+    let mut facts = empty_external_string_type_facts("top");
+    match value {
+        AbstractClassValueV0::Bottom => {
+            facts.kind = "finiteSet".to_string();
+            facts.values = Some(Vec::new());
+        }
+        AbstractClassValueV0::Exact { value } => {
+            facts.kind = "exact".to_string();
+            facts.values = Some(vec![value.clone()]);
+        }
+        AbstractClassValueV0::FiniteSet { values } => {
+            facts.kind = "finiteSet".to_string();
+            facts.values = Some(values.clone());
+        }
+        AbstractClassValueV0::Prefix { prefix, .. } => {
+            facts.kind = "constrained".to_string();
+            facts.constraint_kind = Some("prefix".to_string());
+            facts.prefix = Some(prefix.clone());
+        }
+        AbstractClassValueV0::Suffix { suffix, .. } => {
+            facts.kind = "constrained".to_string();
+            facts.constraint_kind = Some("suffix".to_string());
+            facts.suffix = Some(suffix.clone());
+        }
+        AbstractClassValueV0::PrefixSuffix {
+            prefix,
+            suffix,
+            min_length,
+            ..
+        } => {
+            facts.kind = "constrained".to_string();
+            facts.constraint_kind = Some("prefixSuffix".to_string());
+            facts.prefix = Some(prefix.clone());
+            facts.suffix = Some(suffix.clone());
+            facts.min_len = Some(*min_length);
+        }
+        AbstractClassValueV0::CharInclusion {
+            must_chars,
+            may_chars,
+            may_include_other_chars,
+            ..
+        } => {
+            facts.kind = "constrained".to_string();
+            facts.constraint_kind = Some("charInclusion".to_string());
+            facts.char_must = Some(must_chars.clone());
+            facts.char_may = Some(may_chars.clone());
+            facts.may_include_other_chars = Some(*may_include_other_chars);
+        }
+        AbstractClassValueV0::Composite {
+            prefix,
+            suffix,
+            min_length,
+            must_chars,
+            may_chars,
+            may_include_other_chars,
+            ..
+        } => {
+            facts.kind = "constrained".to_string();
+            facts.constraint_kind = Some("composite".to_string());
+            facts.prefix = prefix.clone();
+            facts.suffix = suffix.clone();
+            facts.min_len = *min_length;
+            facts.char_must = Some(must_chars.clone());
+            facts.char_may = Some(may_chars.clone());
+            facts.may_include_other_chars = Some(*may_include_other_chars);
+        }
+        AbstractClassValueV0::Top => {
+            facts.kind = "top".to_string();
+        }
+    }
+    facts
+}
+
+fn empty_external_string_type_facts(kind: impl Into<String>) -> ExternalStringTypeFactsV0 {
+    ExternalStringTypeFactsV0 {
+        kind: kind.into(),
+        constraint_kind: None,
+        values: None,
+        prefix: None,
+        suffix: None,
+        min_len: None,
+        max_len: None,
+        char_must: None,
+        char_may: None,
+        may_include_other_chars: None,
+    }
+}
+
 pub fn expression_value_domain_kind_from_facts(facts: &ExternalStringTypeFactsV0) -> String {
     match facts.kind.as_str() {
         "unknown" => "none".to_string(),

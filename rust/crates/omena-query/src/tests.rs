@@ -42,6 +42,7 @@ mod cascade_queries;
 mod consumer_reachability;
 mod consumer_surfaces;
 mod cross_file_summary;
+mod dynamic_classname;
 mod expression_domain;
 mod provider_queries;
 mod runtime_contracts;

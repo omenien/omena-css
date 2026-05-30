@@ -12,5 +12,6 @@ readme = "README.md"
 workspace = true
 
 [dependencies]
+omena-abstract-value = { path = "../omena-abstract-value" }
 omena-checker = { path = "../omena-checker" }
 serde.workspace = true
