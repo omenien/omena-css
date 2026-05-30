@@ -2445,6 +2445,92 @@ fn missing_extend_target_workspace_resolves_cross_file_placeholder() -> Result<(
     Ok(())
 }
 
+#[test]
+fn missing_extend_target_workspace_fires_on_unrelated_non_imported_placeholder()
+-> Result<(), &'static str> {
+    // RFC-0007-E1 (#45): an `@extend %lonely` where `%lonely` is declared ONLY in an unrelated file
+    // that the target does NOT `@use`/`@forward`/`@import` must fire — the corpus-wide union used to
+    // (wrongly) suppress it. The over-correction guard: a `%shared` placeholder that IS reachable via
+    // `@use "shared"` stays silent in the same file.
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: "@use \"shared\";\n.a { @extend %shared; }\n.b { @extend %lonely; }"
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_shared.scss".to_string(),
+            style_source: "%shared { color: red; }".to_string(),
+        },
+        // Unrelated: declares `%lonely` but is never imported by App.module.scss.
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/unrelated.module.scss".to_string(),
+            style_source: "%lonely { color: blue; }".to_string(),
+        },
+    ];
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/tmp/App.module.scss",
+        sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+    let extend_messages = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingExtendTarget")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    // Exactly the unrelated-file target fires; the reachable `%shared` stays silent.
+    assert_eq!(extend_messages.len(), 1, "got {extend_messages:?}");
+    assert!(
+        extend_messages[0].contains("'%lonely'"),
+        "got {extend_messages:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn missing_extend_target_workspace_resolves_class_through_transitive_forward()
+-> Result<(), &'static str> {
+    // RFC-0007-E1 (#45): a class reachable through a transitive `@forward` chain (App -> mid ->
+    // leaf) must NOT fire — the closure walk follows resolved `@use`/`@forward` edges transitively.
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: "@use \"mid\";\n.a { @extend .leaf; }".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_mid.scss".to_string(),
+            style_source: "@forward \"leaf\";".to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_leaf.scss".to_string(),
+            style_source: ".leaf { color: red; }".to_string(),
+        },
+    ];
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/tmp/App.module.scss",
+        sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+    let extend_messages = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingExtendTarget")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert!(
+        extend_messages.is_empty(),
+        "transitively-reachable .leaf must not fire: {extend_messages:?}"
+    );
+    Ok(())
+}
+
 // RFC-0007-E3 (#45): unresolved workspace-local Sass `@import`/`@use`.
 #[test]
 fn unresolved_sass_import_fires_on_local_path_but_not_external_or_bare() -> Result<(), &'static str>

@@ -373,10 +373,12 @@ pub fn summarize_omena_query_missing_extend_target_diagnostics(
 }
 
 /// RFC-0007-E1 (#45) workspace variant: like the file-local rule, but a target is only flagged when
-/// it is absent from EVERY in-graph style source's declared placeholders/classes, so a cross-file
-/// `@extend` of a placeholder defined in an imported partial is never a false positive. The visible
-/// set is approximated by the whole in-graph corpus (conservative: it never under-reports a real
-/// missing target, and only suppresses when *some* file declares it). Optional extends are skipped.
+/// it is absent from the placeholders/classes declared in files **reachable from the target's
+/// `@use`/`@forward`/`@import` import graph** (the target file plus its transitive module-graph
+/// closure), so a cross-file `@extend` of a placeholder defined in an imported partial is never a
+/// false positive — while an `@extend` of a placeholder that only exists in an UNRELATED,
+/// non-imported file still fires (dart-sass only sees declarations the loaded modules bring into
+/// scope, never the whole corpus). Optional extends are skipped.
 fn summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
@@ -401,10 +403,27 @@ fn summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
         return Vec::new();
     }
 
-    // Declared placeholders/classes across the whole in-graph corpus (conservative cross-file view).
+    // Resolve the import graph so visibility tracks only the modules the target actually loads,
+    // not the whole corpus. `summarize_sass_module_cross_file_resolution` already gives us the
+    // resolved edges; `collect_sass_module_graph_reachable_style_paths` walks them from the target.
+    let style_source_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    let resolution = summarize_sass_module_cross_file_resolution(&style_fact_entries, &[]);
+    let reachable_paths =
+        collect_sass_module_graph_reachable_style_paths(target_style_path, &resolution);
+
+    // Declared placeholders/classes from the target plus every file reachable through its
+    // `@use`/`@forward`/`@import` graph. A placeholder declared only in an unrelated, non-imported
+    // file is NOT in this set, so an `@extend` of it correctly fires (matching dart-sass scope).
     let mut declared_placeholders = BTreeSet::new();
     let mut declared_classes = BTreeSet::new();
     for source in style_sources {
+        if !reachable_paths.contains(source.style_path.as_str()) {
+            continue;
+        }
         let facts = collect_omena_query_omena_parser_style_facts_raw(
             source.style_source.as_str(),
             omena_parser_dialect_for_style_path(source.style_path.as_str()),
@@ -467,6 +486,34 @@ fn summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
     }
 
     diagnostics
+}
+
+/// RFC-0007-E1 (#45): the set of in-graph style paths reachable from `target_style_path` through
+/// the resolved `@use`/`@forward`/`@import` edges (the target itself plus its transitive module-graph
+/// closure). Used to scope cross-file `@extend` visibility to the modules the target actually loads
+/// rather than the whole corpus, so a placeholder declared only in an unrelated file is not
+/// (wrongly) treated as visible. Cycle-safe: each path is visited at most once.
+fn collect_sass_module_graph_reachable_style_paths<'a>(
+    target_style_path: &'a str,
+    resolution: &'a OmenaQuerySassModuleCrossFileResolutionV0,
+) -> BTreeSet<&'a str> {
+    let mut reachable = BTreeSet::new();
+    let mut stack = vec![target_style_path];
+    while let Some(current) = stack.pop() {
+        if !reachable.insert(current) {
+            continue;
+        }
+        for edge in resolution
+            .edges
+            .iter()
+            .filter(|edge| edge.from_style_path == current && edge.status == "resolved")
+        {
+            if let Some(next) = edge.resolved_style_path.as_deref() {
+                stack.push(next);
+            }
+        }
+    }
+    reachable
 }
 
 pub fn summarize_omena_query_sass_import_deprecation_hints(
