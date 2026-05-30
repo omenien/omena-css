@@ -25,9 +25,10 @@ use omena_query::{
     summarize_omena_query_transform_context_from_engine_input,
 };
 use omena_sif::{
-    OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1, generate_static_omena_sif_v1,
-    read_omena_lock_json_v1, read_omena_sif_json_v1, summarize_omena_sif_provenance_advisory_v1,
-    verify_omena_lock_frozen_v1, write_omena_sif_json_v1,
+    OmenaLockV1, OmenaSifSourceSyntaxV1, OmenaSifStaticGeneratorInputV1,
+    build_omena_lock_sif_entry_v1, generate_static_omena_sif_v1, read_omena_lock_json_v1,
+    read_omena_sif_json_v1, summarize_omena_sif_provenance_advisory_v1,
+    verify_omena_lock_frozen_v1, write_omena_lock_json_v1, write_omena_sif_json_v1,
 };
 #[cfg(feature = "zk-audit")]
 use omena_zk_audit::{
@@ -291,6 +292,18 @@ enum Command {
 
 #[derive(Debug, Subcommand)]
 enum LockCommand {
+    /// Author or refresh omena.lock from generated SIF artifacts.
+    Update {
+        /// Lockfile path. Defaults to ./omena.lock.
+        #[arg(long, default_value = "omena.lock")]
+        lockfile: PathBuf,
+        /// SIF artifact to record. Repeat for multiple entries.
+        #[arg(long = "sif")]
+        sif_paths: Vec<PathBuf>,
+        /// Print machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
     /// Verify that checked-in SIF artifacts match omena.lock.
     Verify {
         /// Lockfile path. Defaults to ./omena.lock.
@@ -564,12 +577,72 @@ fn run(cli: Cli) -> Result<(), String> {
 
 fn lock_command(command: LockCommand) -> Result<(), String> {
     match command {
+        LockCommand::Update {
+            lockfile,
+            sif_paths,
+            json,
+        } => lock_update(lockfile, sif_paths, json),
         LockCommand::Verify {
             lockfile,
             frozen,
             json,
         } => lock_verify(lockfile, frozen, json),
     }
+}
+
+fn lock_update(lockfile: PathBuf, sif_paths: Vec<PathBuf>, json: bool) -> Result<(), String> {
+    if sif_paths.is_empty() {
+        return Err("omena lock update requires at least one --sif <path>".to_string());
+    }
+
+    let mut entries = Vec::with_capacity(sif_paths.len());
+    for sif_path in &sif_paths {
+        let sif_json = read_source(sif_path)?;
+        let sif = read_omena_sif_json_v1(&sif_json)
+            .map_err(|error| format!("failed to parse SIF {}: {error}", path_string(sif_path)))?;
+        let entry_path = relativize_lock_sif_path(&lockfile, sif_path);
+        let entry = build_omena_lock_sif_entry_v1(entry_path, &sif).map_err(|error| {
+            format!(
+                "failed to build lock entry for {}: {error}",
+                path_string(sif_path)
+            )
+        })?;
+        entries.push(entry);
+    }
+
+    let lock = OmenaLockV1::new(entries);
+    let lock_json = write_omena_lock_json_v1(&lock)
+        .map_err(|error| format!("failed to serialize {}: {error}", path_string(&lockfile)))?;
+    fs::write(&lockfile, &lock_json)
+        .map_err(|error| format!("failed to write {}: {error}", path_string(&lockfile)))?;
+
+    if json {
+        print_json(&lock)?;
+    } else {
+        println!(
+            "omena.lock updated: {} SIF entr{} recorded at {}",
+            lock.entries.len(),
+            if lock.entries.len() == 1 { "y" } else { "ies" },
+            path_string(&lockfile)
+        );
+    }
+
+    Ok(())
+}
+
+/// Store `sif_path` so it round-trips through [`resolve_lock_relative_path`]:
+/// drop the lockfile's parent prefix when `sif_path` lives under it, otherwise
+/// keep the path as authored (already relative to the lockfile location).
+fn relativize_lock_sif_path(lockfile: &Path, sif_path: &Path) -> String {
+    let parent = lockfile
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty());
+    if let Some(parent) = parent
+        && let Ok(stripped) = sif_path.strip_prefix(parent)
+    {
+        return path_string(stripped);
+    }
+    path_string(sif_path)
 }
 
 fn lock_verify(lockfile: PathBuf, frozen: bool, json: bool) -> Result<(), String> {
@@ -2317,6 +2390,76 @@ export function App() {
         });
 
         assert!(result.is_err(), "{result:?}");
+        cleanup_dir(&workspace_path);
+        Ok(())
+    }
+
+    #[test]
+    fn lock_update_authors_lock_then_verify_frozen_passes_and_fails_when_tampered()
+    -> Result<(), String> {
+        let workspace_path = temp_dir("lock-update-roundtrip");
+        let sif_dir = workspace_path.join("sif");
+        fs::create_dir_all(&sif_dir)
+            .map_err(|error| format!("fixture SIF dir should be writable: {error}"))?;
+        let sif_path = sif_dir.join("design-system.sif.json");
+        let lockfile_path = workspace_path.join("omena.lock");
+        let sif = cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: red !default;")?;
+        fs::write(
+            &sif_path,
+            omena_sif::write_omena_sif_json_v1(&sif)
+                .map_err(|error| format!("fixture SIF should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("fixture SIF should be writable: {error}"))?;
+
+        // Author the lock from the generated SIF artifact.
+        let update_result = run(Cli {
+            command: Command::Lock {
+                command: LockCommand::Update {
+                    lockfile: lockfile_path.clone(),
+                    sif_paths: vec![sif_path.clone()],
+                    json: true,
+                },
+            },
+        });
+        assert!(update_result.is_ok(), "{update_result:?}");
+        assert!(
+            lockfile_path.exists(),
+            "lock update should write {}",
+            path_string(&lockfile_path)
+        );
+
+        // The authored lock verifies against the SIF it was produced from.
+        let verify_pass = run(Cli {
+            command: Command::Lock {
+                command: LockCommand::Verify {
+                    lockfile: lockfile_path.clone(),
+                    frozen: true,
+                    json: true,
+                },
+            },
+        });
+        assert!(verify_pass.is_ok(), "{verify_pass:?}");
+
+        // Tampering the SIF on disk must break frozen verification (over-correction guard).
+        let tampered =
+            cli_fixture_sif("pkg:design-system/_tokens.scss", b"$color: blue !default;")?;
+        fs::write(
+            &sif_path,
+            omena_sif::write_omena_sif_json_v1(&tampered)
+                .map_err(|error| format!("tampered SIF should serialize: {error}"))?,
+        )
+        .map_err(|error| format!("tampered SIF should be writable: {error}"))?;
+        let verify_fail = run(Cli {
+            command: Command::Lock {
+                command: LockCommand::Verify {
+                    lockfile: lockfile_path,
+                    frozen: true,
+                    json: true,
+                },
+            },
+        });
+        assert!(verify_fail.is_err(), "{verify_fail:?}");
+
         cleanup_dir(&workspace_path);
         Ok(())
     }
