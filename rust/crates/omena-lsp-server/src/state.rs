@@ -1,8 +1,9 @@
 use crate::workspace_runtime_registry::WorkspaceRuntimeRegistry;
 use omena_incremental::IncrementalCancellationRegistryV0;
 use omena_query::{
-    OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex, OmenaQueryStylePackageManifestV0,
-    OmenaQueryStyleResolutionInputsV0, ParserPositionV0, ParserRangeV0,
+    OmenaQueryExternalSifInputV0, OmenaQuerySourceSyntaxIndexV0 as SourceSyntaxIndex,
+    OmenaQueryStylePackageManifestV0, OmenaQueryStyleResolutionInputsV0, ParserPositionV0,
+    ParserRangeV0,
 };
 use omena_tsgo_client::TsgoWorkspaceProcessPoolV0;
 use serde::Serialize;
@@ -139,6 +140,12 @@ pub struct LspResolutionSettings {
     pub package_manifests: Vec<OmenaQueryStylePackageManifestV0>,
     #[serde(skip)]
     pub workspace_style_resolution_inputs: BTreeMap<String, OmenaQueryStyleResolutionInputsV0>,
+    /// External Sass-module SIF artifacts sourced from the lock/bridge (#32/#33). When non-empty
+    /// the style-diagnostics path runs in `ExternalModuleModeV0::Sif`, which surfaces the
+    /// boundary lattice and the `@omena-strict:` sigil (#35); empty preserves the legacy
+    /// `Ignored` behaviour.
+    #[serde(skip)]
+    pub external_sifs: Vec<OmenaQueryExternalSifInputV0>,
 }
 
 #[derive(Debug, Default)]

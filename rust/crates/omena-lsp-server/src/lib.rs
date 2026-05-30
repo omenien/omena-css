@@ -18,7 +18,7 @@ pub(crate) use message_loop::current_time_millis;
 pub use message_loop::{handle_lsp_message, handle_lsp_message_outputs};
 use omena_query::{
     OmenaQueryCodeActionV0, OmenaQueryCompletionCandidateV0, OmenaQueryCompletionItemV0,
-    OmenaQueryEngineInputV2, OmenaQuerySourceDocumentInputV0,
+    OmenaQueryEngineInputV2, OmenaQueryExternalModuleModeV0, OmenaQuerySourceDocumentInputV0,
     OmenaQuerySourceImportedStyleBindingV0 as ImportedStyleBinding,
     OmenaQuerySourceMissingSelectorDiagnosticCandidateV0,
     OmenaQuerySourceSelectorReferenceFactV0 as SourceSelectorReferenceFact,
@@ -47,7 +47,7 @@ use omena_query::{
     summarize_omena_query_source_syntax_index_for_source_language,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file,
-    summarize_omena_query_style_diagnostics_for_workspace_file,
+    summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_document, summarize_omena_query_style_extract_code_actions,
     summarize_omena_query_style_hover_render_parts,
     summarize_omena_query_style_inline_code_actions,
@@ -976,20 +976,33 @@ fn resolve_style_diagnostics_for_uri(state: &LspShellState, document_uri: &str) 
     );
     let source_documents =
         source_documents_from_open_documents(state, document.workspace_folder_uri.as_deref());
-    let diagnostics_summary = summarize_omena_query_style_diagnostics_for_workspace_file(
-        document.uri.as_str(),
-        style_sources.as_slice(),
-        source_documents.as_slice(),
-        state.resolution.package_manifests.as_slice(),
-        None,
-    )
-    .unwrap_or_else(|| {
-        summarize_omena_query_style_diagnostics_for_file(
+    // #35: drive the workspace path in `Sif` mode whenever external SIF artifacts are available
+    // (sourced from the lock/bridge per #32/#33). That branch is what classifies the external
+    // boundary lattice and parses the `@omena-strict:` sigil; with no SIFs present we fall back to
+    // `Ignored`, which is byte-for-byte the legacy behaviour.
+    let external_sifs = state.resolution.external_sifs.as_slice();
+    let external_mode = if external_sifs.is_empty() {
+        OmenaQueryExternalModuleModeV0::Ignored
+    } else {
+        OmenaQueryExternalModuleModeV0::Sif
+    };
+    let diagnostics_summary =
+        summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
             document.uri.as_str(),
-            document.text.as_str(),
-            query_candidates.as_slice(),
+            style_sources.as_slice(),
+            source_documents.as_slice(),
+            state.resolution.package_manifests.as_slice(),
+            None,
+            external_mode,
+            external_sifs,
         )
-    });
+        .unwrap_or_else(|| {
+            summarize_omena_query_style_diagnostics_for_file(
+                document.uri.as_str(),
+                document.text.as_str(),
+                query_candidates.as_slice(),
+            )
+        });
     let diagnostics = diagnostics_summary
         .diagnostics
         .into_iter()
