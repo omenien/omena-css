@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use omena_bridge::generate_omena_bridge_sif_for_resolved_style_path;
 #[cfg(feature = "mdl")]
 use omena_query::summarize_omena_query_design_system_minimum_description;
 use omena_query::{
@@ -16,7 +17,7 @@ use omena_query::{
     read_omena_query_style_context_index, summarize_omena_query_consumer_check_style_source,
     summarize_omena_query_expression_domain_incremental_flow_analysis,
     summarize_omena_query_expression_domain_selector_projection,
-    summarize_omena_query_source_diagnostics_for_file,
+    summarize_omena_query_sass_module_sources, summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_completion_at_position,
     summarize_omena_query_style_diagnostics_for_file_with_local_composes_and_deep_analysis,
@@ -1446,7 +1447,19 @@ fn style_diagnostics(
     } else {
         let workspace_sources = read_workspace_sources(&path, &source, &source_paths)?;
         let source_documents = read_source_documents(&source_document_paths)?;
-        let external_sifs = read_external_sifs(&sif_paths)?;
+        let mut external_sifs = read_external_sifs(&sif_paths)?;
+        // #33: an `@use "file:///…"` edge now routes through the external-SIF branch
+        // (resolver `is_external_style_module_source`). Generate the bridge SIF for each such
+        // on-disk external edge in-process so an external `missingSassSymbol` is suppressed
+        // without a manual `--sif`. Edges already covered by an explicit `--sif` (matching
+        // canonical URL) keep the user-provided artifact; unreadable edges (a genuinely-missing
+        // module, or a `http(s)://`/`sass:` scheme the bridge cannot read) are skipped so they
+        // still surface their boundary state.
+        let in_process_external_sifs = resolve_in_process_external_sifs(
+            workspace_sources.as_slice(),
+            external_sifs.as_slice(),
+        );
+        external_sifs.extend(in_process_external_sifs);
         summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs(
             &style_path,
             workspace_sources.as_slice(),
@@ -1485,6 +1498,70 @@ fn read_external_sifs(paths: &[PathBuf]) -> Result<Vec<OmenaQueryExternalSifInpu
             })
         })
         .collect()
+}
+
+/// Generate, in-process, the external SIFs for every on-disk (`file://`) external Sass module
+/// edge in the workspace so the existing SIF-mode query path can pair them against import targets
+/// without a manual `--sif`. (#33)
+///
+/// Each `file://` `@use`/`@forward`/`@import` source now classifies as an external edge
+/// (resolver `is_external_style_module_source`), so its symbols are otherwise invisible and every
+/// reference flags `missingSassSymbol`. The bridge reads the resolved on-disk module and produces an
+/// [`omena_sif::OmenaSifV1`]; we key the resulting `OmenaQueryExternalSifInputV0.canonical_url` to
+/// the *verbatim* edge source so it matches the import target 1:1 in
+/// `find_omena_query_external_sif` (the inner SIF still carries the bridge's normalized URL).
+///
+/// Skipped, never fabricated:
+/// - an edge already covered by an explicit `--sif` (matching canonical URL) — the user artifact
+///   wins, so a stale/partial `--sif` is never silently overwritten by a fresh bridge SIF;
+/// - a `file://` edge the bridge cannot read (a genuinely-missing module) — left out so it keeps
+///   surfacing its `missingExternalSif`/`missingSassSymbol` boundary state (no over-correction);
+/// - `http(s)://`/`sass:` schemes — not on-disk, so the bridge cannot read them in-process.
+fn resolve_in_process_external_sifs(
+    workspace_sources: &[OmenaQueryStyleSourceInputV0],
+    existing_external_sifs: &[OmenaQueryExternalSifInputV0],
+) -> Vec<OmenaQueryExternalSifInputV0> {
+    let mut covered = existing_external_sifs
+        .iter()
+        .map(|input| input.canonical_url.clone())
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut resolved = Vec::new();
+    for source in workspace_sources {
+        let Some(module_sources) =
+            summarize_omena_query_sass_module_sources(&source.style_path, &source.style_source)
+        else {
+            continue;
+        };
+        let edge_sources = module_sources
+            .module_use_edges
+            .iter()
+            .map(|edge| edge.source.as_str())
+            .chain(
+                module_sources
+                    .module_forward_sources
+                    .iter()
+                    .map(String::as_str),
+            );
+        for edge_source in edge_sources {
+            // Only `file://` edges are on-disk external modules the bridge can read in-process.
+            if !edge_source.starts_with("file://") {
+                continue;
+            }
+            if !covered.insert(edge_source.to_string()) {
+                // Already covered by an explicit `--sif` or an earlier edge in this workspace.
+                continue;
+            }
+            // The bridge errors gracefully (never panics) on an unreadable/missing module; we
+            // simply skip it so the boundary state still surfaces — we never fabricate a SIF.
+            if let Ok(sif) = generate_omena_bridge_sif_for_resolved_style_path(edge_source) {
+                resolved.push(OmenaQueryExternalSifInputV0 {
+                    canonical_url: edge_source.to_string(),
+                    sif,
+                });
+            }
+        }
+    }
+    resolved
 }
 
 fn parse_external_module_mode(external: &str) -> Result<OmenaQueryExternalModuleModeV0, String> {

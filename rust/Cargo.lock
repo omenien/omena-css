@@ -1940,6 +1940,7 @@ name = "omena-cli"
 version = "0.2.0"
 dependencies = [
  "clap",
+ "omena-bridge",
  "omena-query",
  "omena-sif",
  "omena-zk-audit",
