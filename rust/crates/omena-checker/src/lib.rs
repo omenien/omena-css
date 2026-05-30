@@ -1875,6 +1875,9 @@ fn declaration_outranks(
     if !declarations_share_cascade_context(candidate, declaration) {
         return false;
     }
+    if is_progressive_enhancement_pair(candidate, declaration) {
+        return false;
+    }
     if candidate.important != declaration.important {
         return candidate.important;
     }
@@ -1891,6 +1894,7 @@ fn declaration_outranks_by_layer(
 ) -> bool {
     if !declarations_share_cascade_context(candidate, declaration)
         || candidate.important != declaration.important
+        || is_progressive_enhancement_pair(candidate, declaration)
     {
         return false;
     }
@@ -1919,10 +1923,56 @@ fn declarations_rely_on_source_order_tie(
 ) -> bool {
     declarations_share_cascade_context(left, right)
         && left.value != right.value
+        && !is_progressive_enhancement_pair(left, right)
         && left.important == right.important
         && left.layer_order == right.layer_order
         && left.layer_name == right.layer_name
         && left.source_order != right.source_order
+}
+
+/// Returns true when two declarations of the same property are a deliberate
+/// vendor-prefix progressive-enhancement fallback rather than an accidental
+/// override (e.g. `-webkit-linear-gradient(...)` then `linear-gradient(...)`,
+/// or `display: flex` then `display: -ms-flexbox`).
+///
+/// The check is restricted to the *leading token* of each value (the
+/// value-function name or keyword, i.e. the text before the first `(`,
+/// whitespace, or comma). At least one side's leading token must begin with a
+/// known vendor prefix and the two values must actually differ. This avoids
+/// matching a `-webkit-`-containing substring buried mid-expression and keeps
+/// genuine accidental duplicates (`color: red; color: blue`, neither prefixed)
+/// firing as before.
+fn is_progressive_enhancement_pair(
+    left: &OmenaCheckerCascadeDeclarationInputV0,
+    right: &OmenaCheckerCascadeDeclarationInputV0,
+) -> bool {
+    if left.property != right.property || left.value == right.value {
+        return false;
+    }
+    let left_token = leading_value_token(&left.value);
+    let right_token = leading_value_token(&right.value);
+    value_token_has_vendor_prefix(left_token) || value_token_has_vendor_prefix(right_token)
+}
+
+/// Extracts the leading token of a CSS value: the slice before the first `(`,
+/// ASCII whitespace, or `,`. For `-webkit-linear-gradient(top, #fff, #000)`
+/// this is `-webkit-linear-gradient`; for `-ms-flexbox` it is the whole value.
+fn leading_value_token(value: &str) -> &str {
+    let trimmed = value.trim_start();
+    let end = trimmed
+        .find(|character: char| character == '(' || character == ',' || character.is_whitespace())
+        .unwrap_or(trimmed.len());
+    &trimmed[..end]
+}
+
+/// Returns true when a value's leading token begins with a known CSS vendor
+/// prefix. Matching is case-insensitive on the prefix only.
+fn value_token_has_vendor_prefix(token: &str) -> bool {
+    const VENDOR_PREFIXES: [&str; 4] = ["-webkit-", "-moz-", "-ms-", "-o-"];
+    let lowered = token.to_ascii_lowercase();
+    VENDOR_PREFIXES
+        .iter()
+        .any(|prefix| lowered.starts_with(prefix))
 }
 
 fn declarations_share_cascade_context(
@@ -3066,6 +3116,187 @@ mod tests {
         assert!(!evaluations.iter().any(|evaluation| evaluation.rule_code
             == OmenaCheckerRuleCodeV0::DeadCascadeLayer
             && evaluation.layer_name.as_deref() == Some("important-base")));
+    }
+
+    #[test]
+    fn cascade_rules_ignore_vendor_prefix_gradient_progressive_enhancement() {
+        let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "webkit-gradient",
+                    selector: ".x",
+                    property: "background-image",
+                    value: "-webkit-linear-gradient(top, #fff, #000)",
+                    source_order: 1,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "moz-gradient",
+                    selector: ".x",
+                    property: "background-image",
+                    value: "-moz-linear-gradient(top, #fff, #000)",
+                    source_order: 2,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "unprefixed-gradient",
+                    selector: ".x",
+                    property: "background-image",
+                    value: "linear-gradient(to bottom, #fff, #000)",
+                    source_order: 3,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+            ],
+            custom_properties: Vec::new(),
+        });
+
+        let rule_names = evaluations
+            .iter()
+            .map(|evaluation| evaluation.rule_code_name)
+            .collect::<BTreeSet<_>>();
+        assert!(!rule_names.contains("unreachable-declaration"));
+        assert!(!rule_names.contains("unspecified-cascade-tie"));
+    }
+
+    #[test]
+    fn cascade_rules_ignore_vendor_prefix_flex_progressive_enhancement() {
+        let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "flex",
+                    selector: ".y",
+                    property: "display",
+                    value: "flex",
+                    source_order: 1,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "ms-flexbox",
+                    selector: ".y",
+                    property: "display",
+                    value: "-ms-flexbox",
+                    source_order: 2,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+            ],
+            custom_properties: Vec::new(),
+        });
+
+        let rule_names = evaluations
+            .iter()
+            .map(|evaluation| evaluation.rule_code_name)
+            .collect::<BTreeSet<_>>();
+        assert!(!rule_names.contains("unreachable-declaration"));
+        assert!(!rule_names.contains("unspecified-cascade-tie"));
+    }
+
+    #[test]
+    fn cascade_rules_still_flag_accidental_duplicate_without_vendor_prefix() {
+        let evaluations = evaluate_omena_checker_cascade_rules(OmenaCheckerCascadeInputV0 {
+            declarations: vec![
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "color-red",
+                    selector: ".z",
+                    property: "color",
+                    value: "red",
+                    source_order: 1,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+                cascade_declaration(CascadeDeclarationFixture {
+                    declaration_id: "color-blue",
+                    selector: ".z",
+                    property: "color",
+                    value: "blue",
+                    source_order: 2,
+                    condition_context: &[],
+                    layer_name: None,
+                    layer_order: None,
+                    important: false,
+                    var_references: &[],
+                }),
+            ],
+            custom_properties: Vec::new(),
+        });
+
+        assert!(evaluations.iter().any(|evaluation| evaluation.rule_code
+            == OmenaCheckerRuleCodeV0::UnreachableDeclaration
+            && evaluation.declaration_ids == vec!["color-red", "color-blue"]));
+        assert!(evaluations.iter().any(
+            |evaluation| evaluation.rule_code == OmenaCheckerRuleCodeV0::UnspecifiedCascadeTie
+        ));
+    }
+
+    #[test]
+    fn progressive_enhancement_pair_requires_leading_token_prefix() {
+        // A `-webkit-` substring buried mid-expression must NOT be treated as a
+        // progressive-enhancement fallback.
+        let buried = cascade_declaration(CascadeDeclarationFixture {
+            declaration_id: "buried-a",
+            selector: ".w",
+            property: "transition",
+            value: "transform 0.2s -webkit-ease",
+            source_order: 1,
+            condition_context: &[],
+            layer_name: None,
+            layer_order: None,
+            important: false,
+            var_references: &[],
+        });
+        let plain = cascade_declaration(CascadeDeclarationFixture {
+            declaration_id: "buried-b",
+            selector: ".w",
+            property: "transition",
+            value: "transform 0.3s ease",
+            source_order: 2,
+            condition_context: &[],
+            layer_name: None,
+            layer_order: None,
+            important: false,
+            var_references: &[],
+        });
+        assert!(!is_progressive_enhancement_pair(&buried, &plain));
+
+        // Identical values are never a progressive-enhancement pair.
+        let prefixed = cascade_declaration(CascadeDeclarationFixture {
+            declaration_id: "prefixed",
+            selector: ".w",
+            property: "display",
+            value: "-ms-flexbox",
+            source_order: 1,
+            condition_context: &[],
+            layer_name: None,
+            layer_order: None,
+            important: false,
+            var_references: &[],
+        });
+        let mut prefixed_dup = prefixed.clone();
+        prefixed_dup.declaration_id = "prefixed-dup".to_string();
+        prefixed_dup.source_order = 2;
+        assert!(!is_progressive_enhancement_pair(&prefixed, &prefixed_dup));
     }
 
     struct CascadeDeclarationFixture<'a> {
