@@ -908,7 +908,9 @@ version = "0.2.0"
 dependencies = [
  "engine-input-producers",
  "omena-abstract-value",
+ "omena-cascade",
  "omena-checker",
+ "omena-ensemble",
  "omena-query",
  "omena-resolver",
  "omena-streaming-ifds",

@@ -12,6 +12,8 @@ workspace = true
 engine-input-producers = { path = "../engine-input-producers" }
 omena-abstract-value = { path = "../omena-abstract-value" }
 omena-checker = { path = "../omena-checker" }
+omena-cascade = { path = "../omena-cascade" }
+omena-ensemble = { path = "../omena-ensemble", features = ["replica-ensemble"] }
 omena-query = { path = "../omena-query" }
 omena-resolver = { path = "../omena-resolver" }
 omena-streaming-ifds = { path = "../omena-streaming-ifds" }

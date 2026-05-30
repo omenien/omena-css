@@ -52,6 +52,7 @@ pub enum OmenaCheckerRuleCodeV0 {
     DesignerIntentInconsistency,
     StreamingIfdsPrecisionParity,
     RgFlowRelevantOperator,
+    ReplicaEnsembleInconsistency,
 }
 
 impl OmenaCheckerRuleCodeV0 {
@@ -85,6 +86,7 @@ impl OmenaCheckerRuleCodeV0 {
             Self::DesignerIntentInconsistency => "designer-intent-inconsistency",
             Self::StreamingIfdsPrecisionParity => "streaming-ifds-precision-parity",
             Self::RgFlowRelevantOperator => "rg-flow-relevant-operator",
+            Self::ReplicaEnsembleInconsistency => "replica-ensemble-inconsistency",
         }
     }
 }
@@ -523,6 +525,38 @@ pub struct OmenaCheckerRgFlowEvaluationV0 {
     pub mechanism_products: Vec<&'static str>,
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerReplicaEnsembleInputV0 {
+    pub reports: Vec<OmenaCheckerReplicaEnsembleReportInputV0>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerReplicaEnsembleReportInputV0 {
+    pub workspace_root: String,
+    pub recommendation: String,
+    pub mean_q: f64,
+    pub variance_q: f64,
+    pub top_disagreement_pair_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaCheckerReplicaEnsembleEvaluationV0 {
+    pub rule_code: OmenaCheckerRuleCodeV0,
+    pub rule_code_name: &'static str,
+    pub severity: OmenaCheckerSeverityV0,
+    pub severity_name: &'static str,
+    pub workspace_root: String,
+    pub recommendation: String,
+    pub mean_q: f64,
+    pub variance_q: f64,
+    pub top_disagreement_pair_count: usize,
+    pub message: String,
+    pub mechanism_products: Vec<&'static str>,
+}
+
 pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0> {
     use OmenaCheckerFindingCategoryV0::{Source, Style};
     use OmenaCheckerRuleCodeV0::{
@@ -532,8 +566,8 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
         MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
         MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
         MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
-        UnspecifiedCascadeTie, UnusedSelector,
+        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
+        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
     };
     use OmenaCheckerRuleFixabilityV0::{CodeAction, None};
     use OmenaCheckerRulePresetV0::{Recommended, Strict};
@@ -749,6 +783,14 @@ pub fn list_omena_checker_rule_descriptors() -> Vec<OmenaCheckerRuleDescriptorV0
             "Report RG-flow coupling spectra whose relevant operator indicates unstable cascade sensitivity.",
         ),
         rule(
+            ReplicaEnsembleInconsistency,
+            Style,
+            Hint,
+            None,
+            &[Strict],
+            "Report replica-ensemble cross-file inconsistency reports that recommend investigation.",
+        ),
+        rule(
             CascadeDeepConflict,
             Style,
             Warning,
@@ -854,7 +896,7 @@ pub fn list_omena_checker_t_tier_rule_code_names() -> Vec<&'static str> {
 pub fn list_omena_checker_i_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
     use OmenaCheckerRuleCodeV0::{
         CascadeUnreachableRule, DesignSystemMdlBudget, DesignerIntentInconsistency,
-        RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
+        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
     };
 
     vec![
@@ -862,6 +904,7 @@ pub fn list_omena_checker_i_tier_rule_codes() -> Vec<OmenaCheckerRuleCodeV0> {
         DesignSystemMdlBudget,
         StreamingIfdsPrecisionParity,
         RgFlowRelevantOperator,
+        ReplicaEnsembleInconsistency,
         CascadeUnreachableRule,
     ]
 }
@@ -1413,6 +1456,30 @@ pub fn evaluate_omena_checker_rg_flow_rules(
         .collect()
 }
 
+pub fn evaluate_omena_checker_replica_ensemble_rules(
+    input: OmenaCheckerReplicaEnsembleInputV0,
+) -> Vec<OmenaCheckerReplicaEnsembleEvaluationV0> {
+    input
+        .reports
+        .into_iter()
+        .filter(|report| {
+            report.recommendation != "noActionNeeded"
+                || report.top_disagreement_pair_count > 0
+                || report.mean_q < 1.0
+        })
+        .map(|report| {
+            replica_ensemble_evaluation(
+                report.workspace_root,
+                report.recommendation,
+                report.mean_q,
+                report.variance_q,
+                report.top_disagreement_pair_count,
+                "Replica-ensemble cross-file report found inconsistent cascade outcomes that require investigation.",
+            )
+        })
+        .collect()
+}
+
 fn dynamic_class_domain_evaluation(
     outcome: OmenaCheckerDynamicClassDomainOutcomeV0,
     rule_code: Option<OmenaCheckerRuleCodeV0>,
@@ -1624,6 +1691,29 @@ fn rg_flow_evaluation(
     }
 }
 
+fn replica_ensemble_evaluation(
+    workspace_root: String,
+    recommendation: String,
+    mean_q: f64,
+    variance_q: f64,
+    top_disagreement_pair_count: usize,
+    message: &'static str,
+) -> OmenaCheckerReplicaEnsembleEvaluationV0 {
+    OmenaCheckerReplicaEnsembleEvaluationV0 {
+        rule_code: OmenaCheckerRuleCodeV0::ReplicaEnsembleInconsistency,
+        rule_code_name: OmenaCheckerRuleCodeV0::ReplicaEnsembleInconsistency.as_str(),
+        severity: OmenaCheckerSeverityV0::Hint,
+        severity_name: OmenaCheckerSeverityV0::Hint.as_str(),
+        workspace_root,
+        recommendation,
+        mean_q,
+        variance_q,
+        top_disagreement_pair_count,
+        message: message.to_string(),
+        mechanism_products: vec!["omena-ensemble.cross-file-inconsistency-report"],
+    }
+}
+
 fn checker_rg_flow_coupling_space(
     input: OmenaCheckerRgFlowCouplingSpaceInputV0,
 ) -> omena_rg_flow::CouplingSpaceV0 {
@@ -1797,8 +1887,8 @@ fn rule_ordinal_for_code(code: OmenaCheckerRuleCodeV0) -> u16 {
         MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
         MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
         MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
-        UnspecifiedCascadeTie, UnusedSelector,
+        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
+        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
     };
 
     match code {
@@ -1830,6 +1920,7 @@ fn rule_ordinal_for_code(code: OmenaCheckerRuleCodeV0) -> u16 {
         CascadeDeepConflict => 26,
         CascadeUnreachableRule => 27,
         RgFlowRelevantOperator => 28,
+        ReplicaEnsembleInconsistency => 29,
     }
 }
 
@@ -1841,8 +1932,8 @@ fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRuleTierV0 {
         MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
         MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
         MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
-        UnspecifiedCascadeTie, UnusedSelector,
+        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
+        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
     };
 
     match code {
@@ -1873,7 +1964,8 @@ fn rule_tier_for_code(code: OmenaCheckerRuleCodeV0) -> OmenaCheckerRuleTierV0 {
         | CascadeUnreachableRule
         | DesignerIntentInconsistency
         | StreamingIfdsPrecisionParity
-        | RgFlowRelevantOperator => OmenaCheckerRuleTierV0::I,
+        | RgFlowRelevantOperator
+        | ReplicaEnsembleInconsistency => OmenaCheckerRuleTierV0::I,
     }
 }
 
@@ -1941,6 +2033,7 @@ mod tests {
                 "design-system-mdl-budget",
                 "streaming-ifds-precision-parity",
                 "rg-flow-relevant-operator",
+                "replica-ensemble-inconsistency",
                 "cascade.deep-conflict",
                 "cascade.unreachable-rule",
             ],
@@ -1977,7 +2070,7 @@ mod tests {
         assert_eq!(descriptors.len(), ordinals.len());
         assert_eq!(
             ordinals.into_iter().collect::<Vec<_>>(),
-            (1..=28).collect::<Vec<_>>()
+            (1..=29).collect::<Vec<_>>()
         );
         assert!(!is_omena_checker_rule_code("not-a-rule"));
     }
@@ -2007,13 +2100,13 @@ mod tests {
             summary.bundle_registry_product,
             "omena-checker.code-bundles"
         );
-        assert_eq!(summary.rule_count, 28);
+        assert_eq!(summary.rule_count, 29);
         assert_eq!(summary.source_rule_count, 8);
-        assert_eq!(summary.style_rule_count, 20);
+        assert_eq!(summary.style_rule_count, 21);
         assert_eq!(summary.m_tier_rule_count, 3);
         assert_eq!(summary.s_tier_rule_count, 7);
         assert_eq!(summary.t_tier_rule_count, 13);
-        assert_eq!(summary.i_tier_rule_count, 5);
+        assert_eq!(summary.i_tier_rule_count, 6);
         assert_eq!(summary.bundle_count, 5);
         assert!(
             summary
@@ -2128,6 +2221,7 @@ mod tests {
                 "design-system-mdl-budget",
                 "streaming-ifds-precision-parity",
                 "rg-flow-relevant-operator",
+                "replica-ensemble-inconsistency",
                 "cascade.unreachable-rule",
             ]
         );
@@ -2159,6 +2253,11 @@ mod tests {
             get_omena_checker_rule_descriptor(OmenaCheckerRuleCodeV0::RgFlowRelevantOperator)
                 .map(|descriptor| descriptor.ordinal),
             Some(28)
+        );
+        assert_eq!(
+            get_omena_checker_rule_descriptor(OmenaCheckerRuleCodeV0::ReplicaEnsembleInconsistency)
+                .map(|descriptor| descriptor.ordinal),
+            Some(29)
         );
         assert_eq!(
             resolve_omena_checker_rule_tier_for_smt_backend(
@@ -2599,6 +2698,44 @@ mod tests {
                 after: rg_flow_coupling(3, 1, 0, 0),
             }],
         });
+        assert!(clear_evaluations.is_empty());
+    }
+
+    #[test]
+    fn evaluates_replica_ensemble_inconsistency_rule_family() {
+        let evaluations =
+            evaluate_omena_checker_replica_ensemble_rules(OmenaCheckerReplicaEnsembleInputV0 {
+                reports: vec![OmenaCheckerReplicaEnsembleReportInputV0 {
+                    workspace_root: "/workspace".to_string(),
+                    recommendation: "investigateRsbBroken".to_string(),
+                    mean_q: 0.5,
+                    variance_q: 0.25,
+                    top_disagreement_pair_count: 2,
+                }],
+            });
+
+        assert_eq!(evaluations.len(), 1);
+        assert_eq!(
+            evaluations[0].rule_code,
+            OmenaCheckerRuleCodeV0::ReplicaEnsembleInconsistency
+        );
+        assert_eq!(evaluations[0].workspace_root, "/workspace");
+        assert_eq!(evaluations[0].recommendation, "investigateRsbBroken");
+        assert_eq!(
+            evaluations[0].mechanism_products,
+            vec!["omena-ensemble.cross-file-inconsistency-report"]
+        );
+
+        let clear_evaluations =
+            evaluate_omena_checker_replica_ensemble_rules(OmenaCheckerReplicaEnsembleInputV0 {
+                reports: vec![OmenaCheckerReplicaEnsembleReportInputV0 {
+                    workspace_root: "/workspace".to_string(),
+                    recommendation: "noActionNeeded".to_string(),
+                    mean_q: 1.0,
+                    variance_q: 0.0,
+                    top_disagreement_pair_count: 0,
+                }],
+            });
         assert!(clear_evaluations.is_empty());
     }
 

@@ -33,19 +33,31 @@ use omena_abstract_value::{
     char_inclusion_class_value, composite_class_value, exact_class_value, finite_set_class_value,
     prefix_class_value, prefix_suffix_class_value, suffix_class_value, top_class_value,
 };
+use omena_cascade::{
+    CascadeDeclaration, CascadeKey, CascadeLevel, CascadeOutcome, CascadeProof, CascadeValue,
+    LayerRank, Specificity,
+};
 use omena_checker::{
     OmenaCheckerCascadeEvaluationV0, OmenaCheckerCascadeInputV0,
     OmenaCheckerDynamicClassDomainInputV0, OmenaCheckerGrnEvaluationV0, OmenaCheckerGrnInputV0,
     OmenaCheckerMTierEvaluationV0, OmenaCheckerMdlEvaluationV0, OmenaCheckerMdlInputV0,
-    OmenaCheckerMdlSummaryInputV0, OmenaCheckerRgFlowCouplingInputV0,
-    OmenaCheckerRgFlowCouplingSpaceInputV0, OmenaCheckerRgFlowEvaluationV0,
-    OmenaCheckerRgFlowInputV0, OmenaCheckerSmtEvaluationV0, OmenaCheckerSmtInputV0,
-    OmenaCheckerStreamingIfdsEvaluationV0, OmenaCheckerStreamingIfdsInputV0,
-    OmenaCheckerStreamingIfdsReportInputV0, evaluate_omena_checker_cascade_rules,
-    evaluate_omena_checker_grn_rules, evaluate_omena_checker_m_tier_rules,
-    evaluate_omena_checker_mdl_rules, evaluate_omena_checker_rg_flow_rules,
+    OmenaCheckerMdlSummaryInputV0, OmenaCheckerReplicaEnsembleEvaluationV0,
+    OmenaCheckerReplicaEnsembleInputV0, OmenaCheckerReplicaEnsembleReportInputV0,
+    OmenaCheckerRgFlowCouplingInputV0, OmenaCheckerRgFlowCouplingSpaceInputV0,
+    OmenaCheckerRgFlowEvaluationV0, OmenaCheckerRgFlowInputV0, OmenaCheckerSmtEvaluationV0,
+    OmenaCheckerSmtInputV0, OmenaCheckerStreamingIfdsEvaluationV0,
+    OmenaCheckerStreamingIfdsInputV0, OmenaCheckerStreamingIfdsReportInputV0,
+    evaluate_omena_checker_cascade_rules, evaluate_omena_checker_grn_rules,
+    evaluate_omena_checker_m_tier_rules, evaluate_omena_checker_mdl_rules,
+    evaluate_omena_checker_replica_ensemble_rules, evaluate_omena_checker_rg_flow_rules,
     evaluate_omena_checker_smt_rules, evaluate_omena_checker_streaming_ifds_rules,
     summarize_omena_checker_rule_enforcement_coverage_v0,
+};
+use omena_ensemble::{
+    ModuleGraphEdgeV0, ModuleGraphV0, OutcomeMode, REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+    REPLICA_ENSEMBLE_LAYER_MARKER_V0, REPLICA_ENSEMBLE_SCHEMA_VERSION_V0, ReplicaSiteOutcomeV0,
+    ReplicaSnapshotV0, ReportOptionsV0, ReportRecommendation,
+    build_cross_file_inconsistency_report, site,
 };
 use omena_query::{
     OmenaParserStyleDialect, OmenaQueryCodeActionPlanV0, OmenaQueryExpressionDomainFlowRuntimeV0,
@@ -806,6 +818,48 @@ struct OmenaCheckerRgFlowEvaluationRunnerOutputV0 {
     evaluation_count: usize,
     rule_code_names: Vec<&'static str>,
     evaluations: Vec<OmenaCheckerRgFlowEvaluationV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerReplicaEnsembleEvaluationInputV0 {
+    workspace_root: String,
+    replicas: Vec<ReplicaEnsembleSnapshotRunnerInputV0>,
+    graph_edges: Vec<ReplicaEnsembleGraphEdgeRunnerInputV0>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReplicaEnsembleSnapshotRunnerInputV0 {
+    path: String,
+    winners: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReplicaEnsembleGraphEdgeRunnerInputV0 {
+    from_module: String,
+    to_module: String,
+    #[serde(default)]
+    edge_kind: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OmenaCheckerReplicaEnsembleEvaluationRunnerOutputV0 {
+    schema_version: &'static str,
+    product: &'static str,
+    report_product: &'static str,
+    workspace_root: String,
+    replica_count: usize,
+    pair_count: usize,
+    mean_q: f64,
+    variance_q: f64,
+    recommendation: &'static str,
+    top_disagreement_pair_count: usize,
+    evaluation_count: usize,
+    rule_code_names: Vec<&'static str>,
+    evaluations: Vec<OmenaCheckerReplicaEnsembleEvaluationV0>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1920,6 +1974,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let summary = summarize_omena_checker_rg_flow_evaluations(input);
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
         }
+        Some("omena-checker-replica-ensemble-evaluations") => {
+            let input: OmenaCheckerReplicaEnsembleEvaluationInputV0 = serde_json::from_str(&stdin)?;
+            let summary = summarize_omena_checker_replica_ensemble_evaluations(input);
+            serde_json::to_writer_pretty(io::stdout(), &summary)?;
+        }
         Some("omena-checker-rule-enforcement-coverage") => {
             let summary = summarize_omena_checker_rule_enforcement_coverage_v0();
             serde_json::to_writer_pretty(io::stdout(), &summary)?;
@@ -2397,6 +2456,13 @@ fn run_daemon_selected_query_command(
                 summarize_omena_checker_rg_flow_evaluations(input),
             )?)
         }
+        "omena-checker-replica-ensemble-evaluations" => {
+            let input: OmenaCheckerReplicaEnsembleEvaluationInputV0 =
+                serde_json::from_value(input)?;
+            Ok(serde_json::to_value(
+                summarize_omena_checker_replica_ensemble_evaluations(input),
+            )?)
+        }
         "omena-checker-rule-enforcement-coverage" => Ok(serde_json::to_value(
             summarize_omena_checker_rule_enforcement_coverage_v0(),
         )?),
@@ -2780,6 +2846,157 @@ fn summarize_omena_checker_rg_flow_evaluations(
         evaluation_count: evaluations.len(),
         rule_code_names,
         evaluations,
+    }
+}
+
+fn summarize_omena_checker_replica_ensemble_evaluations(
+    input: OmenaCheckerReplicaEnsembleEvaluationInputV0,
+) -> OmenaCheckerReplicaEnsembleEvaluationRunnerOutputV0 {
+    let replicas = input
+        .replicas
+        .into_iter()
+        .map(replica_ensemble_snapshot)
+        .collect::<Vec<_>>();
+    let graph =
+        replica_ensemble_module_graph(input.workspace_root.as_str(), &replicas, input.graph_edges);
+    let report = build_cross_file_inconsistency_report(
+        input.workspace_root.as_str(),
+        replicas,
+        &graph,
+        OutcomeMode::DefiniteOnly,
+        ReportOptionsV0::default(),
+        None,
+    );
+    let recommendation = replica_ensemble_recommendation_name(report.recommendation);
+    let top_disagreement_pair_count = report.top_disagreement_pairs.len();
+    let evaluations =
+        evaluate_omena_checker_replica_ensemble_rules(OmenaCheckerReplicaEnsembleInputV0 {
+            reports: vec![OmenaCheckerReplicaEnsembleReportInputV0 {
+                workspace_root: input.workspace_root.clone(),
+                recommendation: recommendation.to_string(),
+                mean_q: report.distribution.mean_q,
+                variance_q: report.distribution.variance_q,
+                top_disagreement_pair_count,
+            }],
+        });
+    let rule_code_names = evaluations
+        .iter()
+        .map(|evaluation| evaluation.rule_code_name)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    OmenaCheckerReplicaEnsembleEvaluationRunnerOutputV0 {
+        schema_version: "0",
+        product: "omena-checker.replica-ensemble-evaluations",
+        report_product: report.product,
+        workspace_root: input.workspace_root,
+        replica_count: report.distribution.replica_count,
+        pair_count: report.distribution.pair_count,
+        mean_q: report.distribution.mean_q,
+        variance_q: report.distribution.variance_q,
+        recommendation,
+        top_disagreement_pair_count,
+        evaluation_count: evaluations.len(),
+        rule_code_names,
+        evaluations,
+    }
+}
+
+fn replica_ensemble_snapshot(input: ReplicaEnsembleSnapshotRunnerInputV0) -> ReplicaSnapshotV0 {
+    let sites = input
+        .winners
+        .into_iter()
+        .enumerate()
+        .map(|(index, winner)| ReplicaSiteOutcomeV0 {
+            schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+            product: "omena-ensemble.replica-site-outcome",
+            layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+            feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+            site: site(format!(".item-{index}"), "color"),
+            outcome: replica_ensemble_definite_outcome(&winner, index as u32),
+            provenance: None,
+        })
+        .collect();
+
+    ReplicaSnapshotV0 {
+        schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+        product: "omena-ensemble.replica-snapshot",
+        layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+        feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+        path: input.path,
+        sites,
+    }
+}
+
+fn replica_ensemble_module_graph(
+    workspace_root: &str,
+    replicas: &[ReplicaSnapshotV0],
+    edges: Vec<ReplicaEnsembleGraphEdgeRunnerInputV0>,
+) -> ModuleGraphV0 {
+    ModuleGraphV0 {
+        schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+        product: "omena-ensemble.module-graph",
+        layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+        feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+        workspace_root: workspace_root.to_string(),
+        nodes: replicas
+            .iter()
+            .map(|replica| replica.path.clone())
+            .collect(),
+        edges: edges
+            .into_iter()
+            .map(|edge| ModuleGraphEdgeV0 {
+                schema_version: REPLICA_ENSEMBLE_SCHEMA_VERSION_V0,
+                product: "omena-ensemble.module-graph-edge",
+                layer_marker: REPLICA_ENSEMBLE_LAYER_MARKER_V0,
+                feature_gate: REPLICA_ENSEMBLE_FEATURE_GATE_V0,
+                from_module: edge.from_module,
+                to_module: edge.to_module,
+                edge_kind: replica_ensemble_edge_kind(edge.edge_kind.as_deref()),
+            })
+            .collect(),
+    }
+}
+
+fn replica_ensemble_definite_outcome(winner: &str, source_order: u32) -> CascadeOutcome {
+    let declaration = CascadeDeclaration {
+        id: winner.to_string(),
+        property: "color".to_string(),
+        value: CascadeValue::Literal(winner.to_string()),
+        key: CascadeKey {
+            level: CascadeLevel::AuthorNormal,
+            layer_rank: LayerRank(0),
+            scope_proximity: 0,
+            specificity: Specificity {
+                ids: 0,
+                classes: 1,
+                elements: 0,
+            },
+            source_order,
+        },
+    };
+    CascadeOutcome::Definite {
+        proof: CascadeProof::from_declaration(&declaration),
+        winner: declaration,
+        also_considered: Vec::new(),
+    }
+}
+
+fn replica_ensemble_edge_kind(value: Option<&str>) -> &'static str {
+    match value {
+        Some("composes") => "composes",
+        Some("analyzedGraphEdge") => "analyzedGraphEdge",
+        Some("fixture") | None => "fixture",
+        Some(_) => "fixture",
+    }
+}
+
+fn replica_ensemble_recommendation_name(recommendation: ReportRecommendation) -> &'static str {
+    match recommendation {
+        ReportRecommendation::NoActionNeeded => "noActionNeeded",
+        ReportRecommendation::InvestigateRsbBroken => "investigateRsbBroken",
+        ReportRecommendation::UndetectablePhase => "undetectablePhase",
     }
 }
 

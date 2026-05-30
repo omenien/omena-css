@@ -76,8 +76,8 @@ pub fn list_omena_checker_rule_enforcement_evidence_v0()
         MissingImportedValue, MissingKeyframes, MissingModule, MissingResolvedClassDomain,
         MissingResolvedClassValues, MissingSassSymbol, MissingStaticClass, MissingTemplatePrefix,
         MissingValueModule, NoImpossibleSelector, NoImpreciseValue, NoUnknownDynamicClass,
-        RgFlowRelevantOperator, StreamingIfdsPrecisionParity, UnreachableDeclaration,
-        UnspecifiedCascadeTie, UnusedSelector,
+        ReplicaEnsembleInconsistency, RgFlowRelevantOperator, StreamingIfdsPrecisionParity,
+        UnreachableDeclaration, UnspecifiedCascadeTie, UnusedSelector,
     };
 
     vec![
@@ -178,6 +178,13 @@ pub fn list_omena_checker_rule_enforcement_evidence_v0()
             &["omena-rg-flow.coupling-jacobian-spectrum"],
         ),
         mechanism(
+            ReplicaEnsembleInconsistency,
+            "engine-shadow-runner.omena-checker-replica-ensemble-evaluations",
+            "evaluates_replica_ensemble_inconsistency_rule_family",
+            "evaluates_replica_ensemble_inconsistency_rule_family",
+            &["omena-ensemble.cross-file-inconsistency-report"],
+        ),
+        mechanism(
             CascadeDeepConflict,
             "engine-shadow-runner.omena-checker-grn-evaluations",
             "evaluates_grn_rule_family_from_cascade_projection",
@@ -276,7 +283,7 @@ mod tests {
         let summary = summarize_omena_checker_rule_enforcement_coverage_v0();
 
         assert!(summary.coverage_passed);
-        assert_eq!(summary.registered_rule_count, 28);
+        assert_eq!(summary.registered_rule_count, 29);
         assert_eq!(summary.mapped_rule_count, summary.registered_rule_count);
         assert!(summary.missing_rule_names.is_empty());
         assert!(summary.extra_rule_names.is_empty());
@@ -300,7 +307,7 @@ mod tests {
             .filter(|entry| entry.evidence_kind == "mechanismEvaluator")
             .collect::<Vec<_>>();
 
-        assert_eq!(mechanism_evidence.len(), 7);
+        assert_eq!(mechanism_evidence.len(), 8);
         assert!(mechanism_evidence.iter().all(|entry| {
             !entry.product_path.is_empty()
                 && !entry.emit_fixture.is_empty()

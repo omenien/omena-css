@@ -19,6 +19,7 @@ const checkerSmtBody = commandBodies.get("omena-checker-smt-evaluations");
 const checkerMdlBody = commandBodies.get("omena-checker-mdl-evaluations");
 const checkerStreamingIfdsBody = commandBodies.get("omena-checker-streaming-ifds-evaluations");
 const checkerRgFlowBody = commandBodies.get("omena-checker-rg-flow-evaluations");
+const checkerReplicaEnsembleBody = commandBodies.get("omena-checker-replica-ensemble-evaluations");
 assert.ok(
   checkerMTierBody,
   "missing engine-shadow-runner command arm: omena-checker-m-tier-evaluations",
@@ -46,6 +47,10 @@ assert.ok(
 assert.ok(
   checkerRgFlowBody,
   "missing engine-shadow-runner command arm: omena-checker-rg-flow-evaluations",
+);
+assert.ok(
+  checkerReplicaEnsembleBody,
+  "missing engine-shadow-runner command arm: omena-checker-replica-ensemble-evaluations",
 );
 assert.ok(
   checkerMTierBody.includes("OmenaCheckerMTierEvaluationInputV0"),
@@ -76,6 +81,10 @@ assert.ok(
   "omena-checker-rg-flow-evaluations must deserialize the runner RG-flow input product",
 );
 assert.ok(
+  checkerReplicaEnsembleBody.includes("OmenaCheckerReplicaEnsembleEvaluationInputV0"),
+  "omena-checker-replica-ensemble-evaluations must deserialize the runner replica-ensemble input product",
+);
+assert.ok(
   checkerMTierBody.includes("summarize_omena_checker_m_tier_evaluations"),
   "omena-checker-m-tier-evaluations must route through the runner-owned checker summary wrapper",
 );
@@ -102,6 +111,10 @@ assert.ok(
 assert.ok(
   checkerRgFlowBody.includes("summarize_omena_checker_rg_flow_evaluations"),
   "omena-checker-rg-flow-evaluations must route through the runner-owned checker RG-flow summary wrapper",
+);
+assert.ok(
+  checkerReplicaEnsembleBody.includes("summarize_omena_checker_replica_ensemble_evaluations"),
+  "omena-checker-replica-ensemble-evaluations must route through the runner-owned checker replica-ensemble summary wrapper",
 );
 assert.ok(
   runnerSource.includes("evaluate_omena_checker_m_tier_rules"),
@@ -140,6 +153,14 @@ assert.ok(
   "engine-shadow-runner must call omena-checker's RG-flow evaluator",
 );
 assert.ok(
+  runnerSource.includes("build_cross_file_inconsistency_report"),
+  "engine-shadow-runner must build replica-ensemble evidence with the real overlap-Q/SBM algorithm before checker evaluation",
+);
+assert.ok(
+  runnerSource.includes("evaluate_omena_checker_replica_ensemble_rules"),
+  "engine-shadow-runner must call omena-checker's replica-ensemble evaluator",
+);
+assert.ok(
   runnerSource.includes('"omena-checker-m-tier-evaluations" =>'),
   "engine-shadow-runner daemon must support omena-checker-m-tier-evaluations",
 );
@@ -168,6 +189,10 @@ assert.ok(
   "engine-shadow-runner daemon must support omena-checker-rg-flow-evaluations",
 );
 assert.ok(
+  runnerSource.includes('"omena-checker-replica-ensemble-evaluations" =>'),
+  "engine-shadow-runner daemon must support omena-checker-replica-ensemble-evaluations",
+);
+assert.ok(
   /^\s*omena-checker\s*=/m.test(runnerCargoToml),
   "engine-shadow-runner must depend on omena-checker for M-tier evaluations",
 );
@@ -178,6 +203,10 @@ assert.ok(
 assert.ok(
   /^\s*omena-streaming-ifds\s*=/m.test(runnerCargoToml),
   "engine-shadow-runner must depend on omena-streaming-ifds for streaming precision evidence",
+);
+assert.ok(
+  /^\s*omena-ensemble\s*=/m.test(runnerCargoToml),
+  "engine-shadow-runner must depend on omena-ensemble for replica-ensemble overlap-Q/SBM evidence",
 );
 assert.ok(
   packageJsonSource.includes("check:rust-omena-checker-runner-boundary"),
@@ -208,10 +237,7 @@ const grnSummary = runGrnEvaluationFixture();
 assert.equal(grnSummary.product, "omena-checker.grn-evaluations");
 assert.equal(grnSummary.vertexCount, 3);
 for (const code of ["cascade.deep-conflict", "cascade.unreachable-rule"]) {
-  assert.ok(
-    grnSummary.ruleCodeNames.includes(code),
-    `GRN runner output must include ${code}`,
-  );
+  assert.ok(grnSummary.ruleCodeNames.includes(code), `GRN runner output must include ${code}`);
 }
 const smtSummary = runSmtEvaluationFixture();
 assert.equal(smtSummary.product, "omena-checker.smt-evaluations");
@@ -241,6 +267,42 @@ assert.ok(
 );
 assert.equal(rgFlowSummary.evaluationCount, 1);
 
+// End-to-end mechanism-depth proof: drive the real overlap-Q/SBM algorithm with
+// two ensembles that differ ONLY in their replica winners. Disagreeing winners
+// reduce overlap-Q below 1.0 and flip the recommendation to investigateRsbBroken;
+// identical winners settle overlap-Q at 1.0 with no action. If the runner replaced
+// build_cross_file_inconsistency_report with a constant, both runs would be equal.
+const replicaDisagreeSummary = runReplicaEnsembleEvaluationFixture(false);
+const replicaAgreeSummary = runReplicaEnsembleEvaluationFixture(true);
+assert.equal(replicaDisagreeSummary.product, "omena-checker.replica-ensemble-evaluations");
+assert.equal(replicaAgreeSummary.product, "omena-checker.replica-ensemble-evaluations");
+assert.equal(
+  replicaDisagreeSummary.reportProduct,
+  "omena-ensemble.cross-file-inconsistency-report",
+);
+assert.equal(replicaDisagreeSummary.replicaCount, 5);
+assert.equal(replicaAgreeSummary.replicaCount, 5);
+// Disagreeing winners: real overlap-Q falls below 1.0 (computed 0.4) and the
+// bimodal P(q) over a detectable composes graph yields investigateRsbBroken.
+assert.ok(
+  replicaDisagreeSummary.meanQ < 1.0,
+  `disagreeing replicas must drive overlap-Q below 1.0, got ${replicaDisagreeSummary.meanQ}`,
+);
+assert.equal(replicaDisagreeSummary.meanQ, 0.4);
+assert.equal(replicaDisagreeSummary.recommendation, "investigateRsbBroken");
+assert.equal(replicaDisagreeSummary.evaluationCount, 1);
+assert.ok(
+  replicaDisagreeSummary.ruleCodeNames.includes("replica-ensemble-inconsistency"),
+  "replica-ensemble runner output must include replica-ensemble-inconsistency",
+);
+// Identical winners: overlap-Q settles at 1.0 with the unimodal distribution and
+// no recommended action. Only the load-bearing winners changed between the runs.
+assert.equal(replicaAgreeSummary.meanQ, 1.0);
+assert.equal(replicaAgreeSummary.recommendation, "noActionNeeded");
+// The discriminating fields MUST differ between the two runs.
+assert.notEqual(replicaDisagreeSummary.meanQ, replicaAgreeSummary.meanQ);
+assert.notEqual(replicaDisagreeSummary.recommendation, replicaAgreeSummary.recommendation);
+
 process.stdout.write(
   [
     "validated omena-checker runner boundary:",
@@ -251,6 +313,7 @@ process.stdout.write(
     "mdlCommand=omena-checker-mdl-evaluations",
     "streamingIfdsCommand=omena-checker-streaming-ifds-evaluations",
     "rgFlowCommand=omena-checker-rg-flow-evaluations",
+    "replicaEnsembleCommand=omena-checker-replica-ensemble-evaluations",
     "runtime=engine-shadow-runner",
     "owner=omena-checker",
   ].join(" "),
@@ -318,6 +381,16 @@ interface StreamingIfdsEvaluationSummary {
 interface RgFlowEvaluationSummary {
   readonly product: string;
   readonly flowCount: number;
+  readonly evaluationCount: number;
+  readonly ruleCodeNames: readonly string[];
+}
+
+interface ReplicaEnsembleEvaluationSummary {
+  readonly product: string;
+  readonly reportProduct: string;
+  readonly replicaCount: number;
+  readonly meanQ: number;
+  readonly recommendation: string;
   readonly evaluationCount: number;
   readonly ruleCodeNames: readonly string[];
 }
@@ -407,10 +480,7 @@ function runSmtEvaluationFixture(): SmtEvaluationSummary {
       {
         obligationId: "bad-layer-flatten",
         l1Primitive: "layerFlattenCandidate",
-        canonicalTerms: [
-          "require:closed-bundle=true",
-          "require:no-unlayered-rule=false",
-        ],
+        canonicalTerms: ["require:closed-bundle=true", "require:no-unlayered-rule=false"],
       },
     ],
   };
@@ -562,6 +632,55 @@ function runRgFlowEvaluationFixture(): RgFlowEvaluationSummary {
   return JSON.parse(result.stdout) as RgFlowEvaluationSummary;
 }
 
+function runReplicaEnsembleEvaluationFixture(agree: boolean): ReplicaEnsembleEvaluationSummary {
+  // Two replica clusters over a composes module graph. In the disagreeing case the
+  // second cluster declares different winners, so the real overlap-Q algorithm sees
+  // a bimodal P(q). In the agreeing case every replica declares the same winners,
+  // so overlap-Q is 1.0 everywhere. Only the winners of the second cluster change.
+  const secondClusterWinners = agree ? ["red", "blue"] : ["green", "orange"];
+  const input = {
+    workspaceRoot: agree ? "workspace://settled" : "workspace://rsb",
+    replicas: [
+      replicaSnapshot("src/a.module.css", ["red", "blue"]),
+      replicaSnapshot("src/b.module.css", ["red", "blue"]),
+      replicaSnapshot("src/c.module.css", ["red", "blue"]),
+      replicaSnapshot("src/d.module.css", secondClusterWinners),
+      replicaSnapshot("src/e.module.css", secondClusterWinners),
+    ],
+    graphEdges: [
+      moduleGraphEdge("src/a.module.css", "src/b.module.css", "composes"),
+      moduleGraphEdge("src/b.module.css", "src/c.module.css", "composes"),
+      moduleGraphEdge("src/a.module.css", "src/c.module.css", "composes"),
+      moduleGraphEdge("src/d.module.css", "src/e.module.css", "composes"),
+    ],
+  };
+  const result = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "-p",
+      "engine-shadow-runner",
+      "--quiet",
+      "--",
+      "omena-checker-replica-ensemble-evaluations",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      input: JSON.stringify(input),
+      maxBuffer: 1024 * 1024 * 10,
+    },
+  );
+  assert.equal(
+    result.status,
+    0,
+    `engine-shadow-runner replica-ensemble command failed\nstdout=${result.stdout}\nstderr=${result.stderr}`,
+  );
+  return JSON.parse(result.stdout) as ReplicaEnsembleEvaluationSummary;
+}
+
 function cascadeDeclaration(
   declarationId: string,
   selector: string,
@@ -601,5 +720,20 @@ function rgFlowCoupling(kEnv: number, kDecl: number, kCycle: number, kDirty: num
     kDecl,
     kCycle,
     kDirty,
+  };
+}
+
+function replicaSnapshot(modulePath: string, winners: readonly string[]) {
+  return {
+    path: modulePath,
+    winners,
+  };
+}
+
+function moduleGraphEdge(fromModule: string, toModule: string, edgeKind: string) {
+  return {
+    fromModule,
+    toModule,
+    edgeKind,
   };
 }
