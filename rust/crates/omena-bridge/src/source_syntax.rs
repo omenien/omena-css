@@ -584,16 +584,17 @@ impl<'a> SourceSyntaxAstCollector<'a> {
             oxc_ast::ast::ExportDefaultDeclarationKind::ClassDeclaration(class) => {
                 self.collect_class(class);
             }
-            oxc_ast::ast::ExportDefaultDeclarationKind::StaticMemberExpression(member) => {
-                self.collect_static_member_expression(member);
+            // Every expression-kind default export (`export default <expr>`) delegates to
+            // `collect_expression`, which already descends arrow/function/parenthesized bodies and
+            // JSX. Previously only member/call kinds were matched and the catch-all silently
+            // dropped `export default () => <JSX/>` (and parenthesized/JSX/conditional forms),
+            // so their className usages were never collected -> unusedSelector false positives.
+            // Non-expression kinds (`TSInterfaceDeclaration`) yield `None` and are correctly ignored.
+            _ => {
+                if let Some(expression) = declaration.as_expression() {
+                    self.collect_expression(expression);
+                }
             }
-            oxc_ast::ast::ExportDefaultDeclarationKind::ComputedMemberExpression(member) => {
-                self.collect_computed_member_expression(member);
-            }
-            oxc_ast::ast::ExportDefaultDeclarationKind::CallExpression(expression) => {
-                self.collect_call_expression(expression);
-            }
-            _ => {}
         }
     }
 

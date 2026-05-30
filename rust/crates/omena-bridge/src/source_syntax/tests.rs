@@ -76,6 +76,46 @@ export function View() {
 }
 
 #[test]
+fn walks_anonymous_arrow_default_export_body_for_style_property_accesses() {
+    // Regression for RFC-0007 #53: `collect_export_default_declaration` dropped every
+    // expression-kind default export except member/call, so `export default () => <JSX/>` was
+    // never walked and its `styles.foo` references were lost -> unusedSelector false positives.
+    // Cover the three failing forms; `.ghost` is never referenced and must stay absent so the
+    // fix does not silence true positives.
+    for body in [
+        "() => <i className={styles.used} />",
+        "() => { return <i className={styles.used} />; }",
+        "() => (<i className={styles.used} />)",
+    ] {
+        let source = format!("import styles from \"./App.module.scss\";\nexport default {body};");
+
+        let index = summarize_omena_bridge_source_syntax_index(
+            &source,
+            vec![SourceImportedStyleBindingV0 {
+                binding: "styles".to_string(),
+                style_uri: "file:///workspace/App.module.scss".to_string(),
+            }],
+            Vec::new(),
+        );
+
+        assert!(
+            index
+                .style_property_accesses
+                .iter()
+                .any(|access| &source[access.byte_span.start..access.byte_span.end] == "used"),
+            "anon-arrow default export should collect styles.used: {body}",
+        );
+        assert!(
+            !index
+                .selector_references
+                .iter()
+                .any(|reference| selector_reference_name(&source, reference) == "ghost"),
+            "no phantom references should appear: {body}",
+        );
+    }
+}
+
+#[test]
 fn collects_classnames_bind_utility_bindings_from_oxc_ast() {
     let source = r#"import bind from "classnames/bind";
 import styles from "./App.module.scss";

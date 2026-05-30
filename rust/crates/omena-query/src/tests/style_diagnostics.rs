@@ -1221,6 +1221,61 @@ export function App() {
 }
 
 #[test]
+fn style_diagnostics_walk_anonymous_arrow_default_export_for_unused_selector_lints()
+-> Result<(), &'static str> {
+    // Regression for RFC-0007 #53: `export default () => <JSX/>` was never walked, so every
+    // selector it referenced was wrongly flagged `unusedSelector`. Cover the three failing forms
+    // (concise JSX, block body, parenthesized) plus a genuinely-unused selector that MUST stay
+    // flagged so the fix does not silence true positives.
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/Arrow.module.css".to_string(),
+        style_source: ".arrowUsed { color: red; }\n.arrowGhost { color: blue; }\n".to_string(),
+    }];
+    let forms = [
+        // concise-expression body
+        r#"import s from "./Arrow.module.css";
+export default () => <i className={s.arrowUsed} />;"#,
+        // block body with explicit return
+        r#"import s from "./Arrow.module.css";
+export default () => { return <i className={s.arrowUsed} />; };"#,
+        // parenthesized body
+        r#"import s from "./Arrow.module.css";
+export default () => (<i className={s.arrowUsed} />);"#,
+    ];
+
+    for source_source in forms {
+        let source_documents = vec![OmenaQuerySourceDocumentInputV0 {
+            source_path: "/workspace/src/Arrow.tsx".to_string(),
+            source_source: source_source.to_string(),
+        }];
+
+        let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+            "/workspace/src/Arrow.module.css",
+            sources.as_slice(),
+            source_documents.as_slice(),
+            &[],
+            None,
+        )
+        .ok_or("anonymous arrow default export workspace style diagnostics")?;
+
+        let unused = unused_selector_messages(&diagnostics);
+        // FP gone: the referenced `.arrowUsed` is no longer flagged.
+        assert!(
+            !unused.contains(&"Selector '.arrowUsed' is declared but never used."),
+            "anon-arrow form should mark .arrowUsed as used: {source_source}",
+        );
+        // True positive preserved: the genuinely-unused `.arrowGhost` is still flagged.
+        assert_eq!(
+            unused,
+            vec!["Selector '.arrowGhost' is declared but never used."],
+            "anon-arrow form must still flag .arrowGhost: {source_source}",
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_unused_selector_respects_classname_transform_aliases()
 -> Result<(), &'static str> {
     let sources = vec![OmenaQueryStyleSourceInputV0 {
