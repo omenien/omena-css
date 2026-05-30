@@ -219,6 +219,80 @@ describe("computeScssUnusedDiagnostics", () => {
     });
   });
 
+  it("forwards external SIFs and mode to the engine wire when supplied", async () => {
+    const styleSource = `@use "design-system" as ds;\n.button { color: ds.$brand; }\n`;
+    const styleDoc = parseStyleDocument(styleSource, SCSS_PATH);
+    const externalSifs = [
+      {
+        canonicalUrl: "pkg:design-system/_tokens.scss",
+        sif: {
+          sifVersion: "1",
+          canonicalUrl: "pkg:design-system/_tokens.scss",
+          exports: { variables: [{ name: "brand", defaulted: false, valueRepr: "#0af" }] },
+        },
+      },
+    ];
+    let forwardedInput: Record<string, unknown> | null = null;
+
+    await computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      undefined,
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        styleSource,
+        externalMode: "sif",
+        externalSifs,
+        runRustSelectedQueryBackendJsonAsync: async <T>(_command: string, input: unknown) => {
+          forwardedInput = input as Record<string, unknown>;
+          return {
+            product: "omena-query.diagnostics-for-file",
+            fileKind: "style",
+            diagnostics: [],
+          } as T;
+        },
+      },
+    );
+
+    expect(forwardedInput).toMatchObject({
+      targetStylePath: SCSS_PATH,
+      externalMode: "sif",
+      externalSifs,
+    });
+  });
+
+  it("over-correction: omits externalMode/externalSifs when no SIFs are supplied", async () => {
+    const styleSource = `.button { color: red; }\n`;
+    const styleDoc = parseStyleDocument(styleSource, SCSS_PATH);
+    let forwardedInput: Record<string, unknown> | null = null;
+
+    await computeScssUnusedDiagnostics(
+      SCSS_PATH,
+      styleDoc,
+      new WorkspaceSemanticWorkspaceReferenceIndex(),
+      new WorkspaceStyleDependencyGraph(),
+      undefined,
+      {
+        env: { CME_SELECTED_QUERY_BACKEND: "rust-selected-query" } as NodeJS.ProcessEnv,
+        styleSource,
+        runRustSelectedQueryBackendJsonAsync: async <T>(_command: string, input: unknown) => {
+          forwardedInput = input as Record<string, unknown>;
+          return {
+            product: "omena-query.diagnostics-for-file",
+            fileKind: "style",
+            diagnostics: [],
+          } as T;
+        },
+      },
+    );
+
+    expect(forwardedInput).not.toBeNull();
+    expect(forwardedInput!).not.toHaveProperty("externalMode");
+    expect(forwardedInput!).not.toHaveProperty("externalSifs");
+  });
+
   it("keeps query-owned same-file Sass symbol diagnostics in the selected-query path", async () => {
     const styleSource = `.button { color: $missing; }\n`;
     const styleDoc = parseStyleDocument(styleSource, SCSS_PATH);

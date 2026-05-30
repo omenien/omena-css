@@ -15,6 +15,7 @@ import type {
   StyleSemanticGraphCache,
 } from "../../engine-host-node/src/style-semantic-graph-query-backend";
 import type { RustSelectedQueryBackendJsonRunnerAsync } from "../../engine-host-node/src/selected-query-backend";
+import { loadExternalSifsForWorkspace } from "../../engine-host-node/src/external-sif-loader";
 
 type RuntimeProviderDeps = ProviderDeps & {
   readonly styleSemanticGraphCache?: StyleSemanticGraphCache;
@@ -206,10 +207,27 @@ class DiagnosticsSchedulerImpl implements DiagnosticsScheduler {
             }
           : {}),
         sourceDocuments: this.collectReferencingSourceDocuments(providerDeps, filePath),
+        // Source external SIFs from the workspace `omena.lock` so the engine
+        // wire leaves `Ignored` mode (#32). Empty set => identical behaviour
+        // to before (no externalMode/externalSifs forwarded).
+        ...this.resolveExternalSifDeps(providerDeps.workspaceRoot),
         env: process.env,
       },
     );
     this.safeSendDiagnostics(uri, diagnostics);
+  }
+
+  private resolveExternalSifDeps(
+    workspaceRoot: string | undefined,
+  ):
+    | {
+        readonly externalMode: "sif";
+        readonly externalSifs: ReturnType<typeof loadExternalSifsForWorkspace>;
+      }
+    | Record<string, never> {
+    const externalSifs = loadExternalSifsForWorkspace(workspaceRoot);
+    if (externalSifs.length === 0) return {};
+    return { externalMode: "sif", externalSifs };
   }
 
   private collectReferencingSourceDocuments(

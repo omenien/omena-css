@@ -20,6 +20,7 @@ import {
   resolveSelectedQueryBackendKind,
   type RustSelectedQueryBackendJsonRunnerAsync,
 } from "../../../engine-host-node/src/selected-query-backend";
+import type { QueryExternalSifInputV0 } from "../../../engine-host-node/src/external-sif-loader";
 import type { ProviderDeps } from "./provider-deps";
 import { toLspRange } from "./lsp-adapters";
 
@@ -40,6 +41,8 @@ type RuntimeStyleDiagnosticsDeps = Partial<
   readonly styleSemanticGraphBatchOutputCache?: StyleDiagnosticsQueryOptions["styleSemanticGraphBatchOutputCache"];
   readonly selectorUsagePayloadCache?: StyleDiagnosticsQueryOptions["selectorUsagePayloadCache"];
   readonly sourceDocuments?: readonly QuerySourceDocumentInputV0[];
+  readonly externalMode?: "ignored" | "sif";
+  readonly externalSifs?: readonly QueryExternalSifInputV0[];
   readonly runRustSelectedQueryBackendJsonAsync?: RustSelectedQueryBackendJsonRunnerAsync;
 };
 
@@ -203,6 +206,14 @@ function resolveQueryOwnedStyleDiagnostics(
       sourceDocuments: runtimeDeps.sourceDocuments ?? [],
       packageManifests: [],
       classnameTransform: runtimeDeps.settings?.scss.classnameTransform,
+      // Omit external* entirely when no SIFs are supplied so the engine wire
+      // defaults to today's `Ignored` + empty-SIF behaviour (#32).
+      ...(runtimeDeps.externalSifs && runtimeDeps.externalSifs.length > 0
+        ? {
+            externalMode: runtimeDeps.externalMode ?? "sif",
+            externalSifs: runtimeDeps.externalSifs,
+          }
+        : {}),
     },
   ).then((summary) => {
     if (summary.product !== "omena-query.diagnostics-for-file" || summary.fileKind !== "style") {
