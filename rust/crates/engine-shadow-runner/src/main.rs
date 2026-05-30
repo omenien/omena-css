@@ -735,6 +735,9 @@ struct OmenaCheckerMdlEvaluationInputV0 {
     source_hash: String,
     rule_count: usize,
     observation_count: usize,
+    /// Empirical value-symbol frequency histogram. The runner computes the real
+    /// entropy/log MDL from these model inputs; it does NOT accept total_bits.
+    value_frequencies: Vec<usize>,
     budget_bits: f64,
 }
 
@@ -2732,6 +2735,7 @@ fn summarize_omena_checker_mdl_evaluations(
         input.source_hash,
         input.rule_count,
         input.observation_count,
+        &input.value_frequencies,
     );
     let evaluations = evaluate_omena_checker_mdl_rules(OmenaCheckerMdlInputV0 {
         summaries: vec![OmenaCheckerMdlSummaryInputV0 {

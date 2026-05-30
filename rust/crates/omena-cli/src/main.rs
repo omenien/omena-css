@@ -1046,11 +1046,17 @@ fn compress_file(path: PathBuf, budget_bits: Option<f64>, json: bool) -> Result<
         source.len(),
         source.bytes().map(u64::from).sum::<u64>()
     );
+    // Empirical value-symbol histogram: count how often each declaration value
+    // recurs across the design system. A token reused everywhere (a design token)
+    // peaks the distribution and compresses; many one-off values flatten it. This
+    // drives the real entropy term of the MDL residual.
+    let value_frequencies = css_declaration_value_histogram(&source);
     let summary = summarize_omena_query_design_system_minimum_description(
         path_string(&path),
         source_hash,
         rule_count,
         observation_count,
+        &value_frequencies,
     );
     if let Some(budget_bits) = budget_bits
         && summary.total_bits > budget_bits
@@ -1071,6 +1077,29 @@ fn compress_file(path: PathBuf, budget_bits: Option<f64>, json: bool) -> Result<
     println!("residual bits: {}", summary.residual_bits);
     println!("unit: {}", summary.unit);
     Ok(())
+}
+
+/// Build an empirical value-symbol frequency histogram from CSS declarations.
+///
+/// Each `prop: value;` declaration contributes its trimmed value string as a
+/// symbol; the returned vector is the per-symbol occurrence count. Recurring
+/// design-token values peak the histogram (low entropy / compressible); scattered
+/// one-off values flatten it. Deterministic and dependency-light.
+#[cfg(feature = "mdl")]
+fn css_declaration_value_histogram(source: &str) -> Vec<usize> {
+    let mut counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for line in source.lines() {
+        let line = line.trim();
+        let Some((_, rhs)) = line.split_once(':') else {
+            continue;
+        };
+        let value = rhs.trim().trim_end_matches([';', '}']).trim();
+        if value.is_empty() || value.contains('{') {
+            continue;
+        }
+        *counts.entry(value.to_string()).or_insert(0) += 1;
+    }
+    counts.into_values().collect()
 }
 
 fn context_from_engine_input(

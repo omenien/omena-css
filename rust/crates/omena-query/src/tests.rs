@@ -30,7 +30,7 @@ use super::{
     summarize_omena_query_transform_plan_from_target_query,
 };
 use crate::{
-    OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
+    ModelClassV0, OmenaQueryStyleSourceInputV0, OmenaQueryTargetFeatureSupportV0,
     OmenaQueryTargetTransformOptionsV0, OmenaQueryTransformDesignTokenRouteV0,
     OmenaQueryTransformExecutionContextV0, OmenaQueryTransformPrintMode,
     OmenaQueryTransformPrintOptionsV0, default_omena_query_transform_print_options,
@@ -292,6 +292,8 @@ fn summarizes_design_system_minimum_description_in_bits() {
         "len42-sum100",
         3,
         5,
+        // 4 distinct value symbols observed 4/4/4/4 times: uniform, max entropy.
+        &[4, 4, 4, 4],
     );
 
     assert_eq!(summary.schema_version, "0");
@@ -307,6 +309,43 @@ fn summarizes_design_system_minimum_description_in_bits() {
         summary.total_bits
     );
     assert_eq!(summary.semiring_instance, "tropical");
+    // 4-symbol alphabet -> log2(4)=2 bits/rule * 3 rules = 6 model bits.
+    assert_eq!(summary.model_bits, 6.0);
+    // Uniform 4-way distribution -> H=2 bits * 5 observations = 10 residual bits.
+    assert_eq!(summary.residual_bits, 10.0);
+    assert_eq!(summary.model_class, ModelClassV0::TwoPartMultinomial);
+}
+
+#[test]
+fn mdl_total_bits_is_not_the_count_sum_and_tracks_distribution_entropy() {
+    // Two inputs with IDENTICAL rule_count + observation_count but different value
+    // distributions. If MDL were the degenerate `rule_count + observation_count`
+    // sum, both would equal 12 and these assertions would fail. The real entropy/
+    // log code length distinguishes them.
+    let uniform = summarize_omena_query_design_system_minimum_description(
+        "file:///workspace/uniform.module.css",
+        "hash",
+        8,
+        4,
+        // Maximum-entropy 4-way uniform value distribution.
+        &[3, 3, 3, 3],
+    );
+    let peaked = summarize_omena_query_design_system_minimum_description(
+        "file:///workspace/peaked.module.css",
+        "hash",
+        8,
+        4,
+        // Same alphabet size + same totals, but one dominant symbol: low entropy.
+        &[9, 1, 1, 1],
+    );
+
+    // Same alphabet size => same model_bits; only residual entropy differs.
+    assert_eq!(uniform.model_bits, peaked.model_bits);
+    // Degenerate count-sum would be 8 + 4 = 12 for both. The real code is not.
+    assert_ne!(uniform.total_bits, 12.0);
+    assert_ne!(peaked.total_bits, 12.0);
+    // The more-compressible (peaked) distribution costs strictly fewer bits.
+    assert!(peaked.total_bits < uniform.total_bits);
 }
 
 #[test]

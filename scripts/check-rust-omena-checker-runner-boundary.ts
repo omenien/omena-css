@@ -246,13 +246,31 @@ assert.ok(
   smtSummary.ruleCodeNames.includes("cascade.smt-violation"),
   "SMT runner output must include cascade.smt-violation",
 );
-const mdlSummary = runMdlEvaluationFixture();
-assert.equal(mdlSummary.product, "omena-checker.mdl-evaluations");
-assert.equal(mdlSummary.totalBits, 12);
+// End-to-end mechanism-depth proof: drive the real entropy/log MDL through the
+// product path (runner builds omena-query MDL, checker gates on it). Both inputs
+// have IDENTICAL ruleCount(4) + observationCount(6); a degenerate count-sum MDL
+// would be 10 for both. Only the value distribution differs. The uniform [3,3]
+// histogram (max entropy) yields totalBits 10 > budget 9 and emits the diagnostic;
+// the peaked [15,1] histogram (low entropy / compressible) yields ~6.02 < 9 and
+// emits nothing. If the runner replaced the MDL with rule_count+observation_count,
+// both would tie and the clear case would wrongly emit.
+const mdlEmitSummary = runMdlEvaluationFixture([3, 3]);
+assert.equal(mdlEmitSummary.product, "omena-checker.mdl-evaluations");
+assert.equal(mdlEmitSummary.totalBits, 10);
+assert.equal(mdlEmitSummary.evaluationCount, 1);
 assert.ok(
-  mdlSummary.ruleCodeNames.includes("design-system-mdl-budget"),
+  mdlEmitSummary.ruleCodeNames.includes("design-system-mdl-budget"),
   "MDL runner output must include design-system-mdl-budget",
 );
+const mdlClearSummary = runMdlEvaluationFixture([15, 1]);
+assert.ok(
+  mdlClearSummary.totalBits < mdlEmitSummary.budgetBits,
+  `peaked value distribution must compress below budget, got ${mdlClearSummary.totalBits}`,
+);
+assert.equal(mdlClearSummary.evaluationCount, 0);
+// The discriminating distribution MUST move total_bits and the diagnostic outcome.
+assert.notEqual(mdlClearSummary.totalBits, mdlEmitSummary.totalBits);
+assert.notEqual(mdlClearSummary.evaluationCount, mdlEmitSummary.evaluationCount);
 const streamingSummary = runStreamingIfdsEvaluationFixture();
 assert.equal(streamingSummary.product, "omena-checker.streaming-ifds-evaluations");
 assert.equal(streamingSummary.reportProduct, "omena-streaming-ifds.analysis-report");
@@ -368,6 +386,8 @@ interface SmtEvaluationSummary {
 interface MdlEvaluationSummary {
   readonly product: string;
   readonly totalBits: number;
+  readonly budgetBits: number;
+  readonly evaluationCount: number;
   readonly ruleCodeNames: readonly string[];
 }
 
@@ -511,13 +531,16 @@ function runSmtEvaluationFixture(): SmtEvaluationSummary {
   return JSON.parse(result.stdout) as SmtEvaluationSummary;
 }
 
-function runMdlEvaluationFixture(): MdlEvaluationSummary {
+function runMdlEvaluationFixture(
+  valueFrequencies: readonly number[],
+): MdlEvaluationSummary {
   const input = {
     sourceUri: "file:///workspace/Button.module.css",
     sourceHash: "fixture-mdl",
-    ruleCount: 8,
-    observationCount: 4,
-    budgetBits: 10,
+    ruleCount: 4,
+    observationCount: 6,
+    valueFrequencies,
+    budgetBits: 9,
   };
   const result = spawnSync(
     "cargo",

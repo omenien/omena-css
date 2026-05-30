@@ -1,13 +1,68 @@
 use super::*;
 
+/// Shannon entropy (in bits) of an empirical value-frequency histogram.
+///
+/// `H(p) = -Σ p_i · log2(p_i)` over the normalised non-zero bins. A uniform
+/// histogram maximises entropy (`log2(k)` for `k` distinct symbols); a peaked /
+/// more-compressible histogram lowers it. Empty / single-symbol histograms have
+/// zero entropy. Deterministic and dependency-light (std `f64::log2` only).
+fn value_distribution_entropy_bits(value_frequencies: &[usize]) -> f64 {
+    let total: usize = value_frequencies.iter().copied().sum();
+    if total == 0 {
+        return 0.0;
+    }
+    let total = total as f64;
+    value_frequencies
+        .iter()
+        .copied()
+        .filter(|&count| count > 0)
+        .map(|count| {
+            let p = count as f64 / total;
+            -p * p.log2()
+        })
+        .sum()
+}
+
+/// Compute a genuine two-part minimum-description-length code for a design system.
+///
+/// claim_level: algorithm (real entropy/log code length, not theorem). This is an
+/// honest information-theoretic two-part code, NOT a normalized-maximum-likelihood
+/// optimality proof.
+///
+/// - `model_bits` is the structural code length: each of `rule_count` rules costs
+///   `log2(alphabet_size)` bits to point into the distinct value-symbol alphabet
+///   (`alphabet_size` = number of non-empty histogram bins). This is a real `log2`,
+///   not a count.
+/// - `residual_bits` is the multinomial description length of the observations
+///   given the model: `observation_count · H(p)` where `H(p)` is the Shannon
+///   entropy of `value_frequencies`. Lower-entropy (more compressible) value
+///   distributions cost fewer residual bits.
+///
+/// `total_bits` is therefore a non-linear function of the model structure (`log2`
+/// and entropy terms), so it is NOT reproducible by `rule_count + observation_count`.
 pub fn summarize_omena_query_design_system_minimum_description(
     source_uri: impl Into<String>,
     source_hash: impl Into<String>,
     rule_count: usize,
     observation_count: usize,
+    value_frequencies: &[usize],
 ) -> DesignSystemMinimumDescriptionV0 {
-    let model_bits = rule_count as f64;
-    let residual_bits = observation_count as f64;
+    let alphabet_size = value_frequencies.iter().filter(|&&count| count > 0).count();
+    // Structural code: bits to address each rule's value symbol in the alphabet.
+    let model_bits = if alphabet_size > 1 {
+        rule_count as f64 * (alphabet_size as f64).log2()
+    } else {
+        0.0
+    };
+    // Residual code: multinomial description length of the observations given the
+    // empirical value distribution. Uniform distributions cost more than peaked ones.
+    let entropy_bits = value_distribution_entropy_bits(value_frequencies);
+    let residual_bits = observation_count as f64 * entropy_bits;
+    let model_class = if alphabet_size > 1 {
+        ModelClassV0::TwoPartMultinomial
+    } else {
+        ModelClassV0::TwoPartUniform
+    };
     DesignSystemMinimumDescriptionV0 {
         schema_version: OMENA_QUERY_CURRENT_SCHEMA_VERSION,
         product: "omena-query.design-system-minimum-description",
@@ -17,7 +72,7 @@ pub fn summarize_omena_query_design_system_minimum_description(
         residual_bits,
         total_bits: model_bits + residual_bits,
         unit: "bit",
-        model_class: ModelClassV0::TwoPartUniform,
+        model_class,
         rule_count,
         observation_count,
         canonical_form_present: false,
