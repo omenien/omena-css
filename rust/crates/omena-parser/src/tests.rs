@@ -2809,6 +2809,36 @@ fn extracts_sass_module_edge_style_facts() {
 }
 
 #[test]
+fn captures_media_qualifier_on_sass_import_edge() {
+    // RFC-0007-D1 (#44): a trailing media qualifier keeps the import as plain CSS.
+    let facts = collect_style_facts(
+        r#"@import "foo" screen; @import "bar" (min-width: 100px); @import "partial"; @import "a", "b" screen;"#,
+        StyleDialect::Scss,
+    );
+
+    // (source, expected media_qualified): Ident qualifier (`screen`), paren
+    // media-feature qualifier (`(min-width: 100px)`), bare partial (over-correction
+    // guard — must stay unqualified), and the comma-peer pair `@import "a", "b" screen`
+    // where only `"b"` carries the trailing qualifier (per-target classification).
+    for (source, expected) in [
+        ("foo", true),
+        ("bar", true),
+        ("partial", false),
+        ("a", false),
+        ("b", true),
+    ] {
+        assert!(
+            facts.sass_module_edges.iter().any(|edge| {
+                edge.kind == ParsedSassModuleEdgeFactKind::Import
+                    && edge.source == source
+                    && edge.media_qualified == expected
+            }),
+            "@import \"{source}\" should have media_qualified == {expected}"
+        );
+    }
+}
+
+#[test]
 fn extracts_animation_name_style_facts() {
     let facts = collect_style_facts(
         "@keyframes fade { from { opacity: 0; } to { opacity: 1; } } @keyframes \"slide\" { to { opacity: 1; } } .card { animation-name: fade, \"slide\", none; }",

@@ -1047,12 +1047,15 @@ fn style_diagnostics_for_file_suppresses_sass_builtins_and_hints_imports()
 #[test]
 fn deprecated_sass_import_skips_css_form_imports_but_still_flags_partials() {
     // #44 D1. Sass deprecated `@import` only for Sass partials. CSS-form imports
-    // (`url(...)`, `.css` targets, protocol/`//` URLs) are explicitly KEPT and must
-    // NOT be flagged. A genuine partial in the same file MUST still warn.
+    // (`url(...)`, `.css` targets, protocol/`//` URLs, media-qualified targets) are
+    // explicitly KEPT and must NOT be flagged. A genuine partial in the same file
+    // MUST still warn.
     let source = r#"@import url(theme.css);
 @import "vendor.css";
 @import "//cdn.example/reset.css";
 @import "https://x.com/y.css";
+@import "print" print;
+@import "responsive" (min-width: 100px);
 @import 'partial';
 .x { color: red; }"#;
     let diagnostics = crate::summarize_omena_query_sass_import_deprecation_hints(
@@ -1064,8 +1067,8 @@ fn deprecated_sass_import_skips_css_form_imports_but_still_flags_partials() {
         .filter(|diagnostic| diagnostic.code == "deprecatedSassImport")
         .map(|diagnostic| diagnostic.message.as_str())
         .collect();
-    // Exactly one deprecation hint: the Sass-form `'partial'`. The four CSS-form
-    // imports are suppressed.
+    // Exactly one deprecation hint: the Sass-form `'partial'`. The CSS-form imports
+    // (incl. the two media-qualified ones) are suppressed.
     assert_eq!(
         flagged.len(),
         1,

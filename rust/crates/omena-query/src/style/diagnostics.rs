@@ -487,11 +487,11 @@ pub fn summarize_omena_query_sass_import_deprecation_hints(
         .into_iter()
         .filter(|edge| edge.kind == ParsedSassModuleEdgeFactKind::Import)
         // Sass deprecated `@import` only for Sass partials. CSS-form imports
-        // (`url(...)`, `.css` targets, protocol/`//` URLs) are explicitly kept and
-        // must NOT be flagged. Classify per-edge (each comma-peer target is its own
-        // Import edge), so a partial that shares a multi-target statement with a CSS
-        // import still warns. (RFC-0007 D1, #44)
-        .filter(|edge| !sass_import_is_plain_css(edge.source.as_str()))
+        // (`url(...)`, `.css` targets, protocol/`//` URLs, media-qualified targets)
+        // are explicitly kept and must NOT be flagged. Classify per-edge (each
+        // comma-peer target is its own Import edge), so a partial that shares a
+        // multi-target statement with a CSS import still warns. (RFC-0007 D1, #44)
+        .filter(|edge| !edge.media_qualified && !sass_import_is_plain_css(edge.source.as_str()))
         .map(|edge| {
             let start: u32 = edge.range.start().into();
             let end: u32 = edge.range.end().into();
@@ -526,11 +526,15 @@ pub fn summarize_omena_query_sass_import_deprecation_hints(
 /// - a `.css` extension target,
 /// - protocol (`scheme://`) or scheme-relative (`//host/...`) URLs.
 ///
-/// Necessary-not-sufficient: the media-qualified form (`@import "foo" screen`) and
-/// the quoted-url-without-`.css` form (`@import url("foo")`, whose `url(...)`
-/// wrapper is lost during tokenization) are NOT distinguishable from a Sass partial
-/// at the edge-fact level, so they are still treated as Sass-form imports here. Both
-/// are noted as remaining in #44 (media-qualifier Ident not captured).
+/// The media-qualified form (`@import "foo" screen`) is now handled upstream via the
+/// `media_qualified` flag on the Import edge (captured in the parser, where the
+/// qualifier token is still available), so it is filtered out before this predicate
+/// runs and does not need detecting here. (RFC-0007 D1, #44)
+///
+/// Necessary-not-sufficient: the quoted-url-without-`.css` form (`@import url("foo")`,
+/// whose `url(...)` wrapper is lost during tokenization) remains NOT distinguishable
+/// from a Sass partial at the edge-fact level, so it is still treated as a Sass-form
+/// import here.
 fn sass_import_is_plain_css(source: &str) -> bool {
     let trimmed = source.trim();
     let lower = trimmed.to_ascii_lowercase();
@@ -2503,6 +2507,57 @@ mod tests {
         assert!(!sass_import_is_plain_css("./legacy"));
         assert!(!sass_import_is_plain_css("foundation/buttons"));
         assert!(!sass_import_is_plain_css("legacy")); // bare partial name
+    }
+
+    #[test]
+    fn media_qualified_import_is_not_deprecated() {
+        // RFC-0007-D1 (#44): `@import "foo" screen` and `@import "foo" (min-width: ...)`
+        // are kept as plain CSS by Sass; the media qualifier must suppress the hint.
+        let screen = summarize_omena_query_sass_import_deprecation_hints(
+            "theme.scss",
+            "@import \"foo\" screen;",
+        );
+        assert!(
+            screen.is_empty(),
+            "media-qualified (Ident) @import must NOT warn deprecatedSassImport, got {screen:?}"
+        );
+        let feature = summarize_omena_query_sass_import_deprecation_hints(
+            "theme.scss",
+            "@import \"foo\" (min-width: 100px);",
+        );
+        assert!(
+            feature.is_empty(),
+            "media-feature-qualified @import must NOT warn deprecatedSassImport, got {feature:?}"
+        );
+    }
+
+    #[test]
+    fn bare_partial_import_still_deprecated() {
+        // Over-correction guard: a genuine Sass-form `@import 'partial'` (no media, no
+        // url, no `.css`) MUST still warn deprecatedSassImport.
+        let diagnostics =
+            summarize_omena_query_sass_import_deprecation_hints("theme.scss", "@import 'partial';");
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "bare Sass partial @import must still warn, got {diagnostics:?}"
+        );
+        assert_eq!(diagnostics[0].code, "deprecatedSassImport");
+    }
+
+    #[test]
+    fn media_qualified_comma_peer_classifies_per_target() {
+        // `@import "a", "b" screen`: only `"b"` is media-qualified; `"a"` stays a Sass
+        // partial and must still warn. Per-target classification, not per-statement.
+        let diagnostics = summarize_omena_query_sass_import_deprecation_hints(
+            "theme.scss",
+            "@import \"a\", \"b\" screen;",
+        );
+        assert_eq!(
+            diagnostics.len(),
+            1,
+            "exactly the bare partial peer must warn, got {diagnostics:?}"
+        );
     }
 
     /// Durable CI drift check: pin the full `sass:meta` module surface against a

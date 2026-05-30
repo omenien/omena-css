@@ -452,6 +452,13 @@ pub struct ParsedSassModuleEdgeFact {
     pub forward_prefix: Option<String>,
     pub visibility_filter_kind: Option<&'static str>,
     pub visibility_filter_names: Vec<String>,
+    /// RFC-0007-D1 (#44): whether this `@import` target carries a trailing media
+    /// qualifier (`@import "foo" screen`, `@import "foo" (min-width: 100px)`). Sass
+    /// keeps media-qualified imports as plain CSS (NOT deprecated). Recoverable only
+    /// in the parser, where the target's comma-peer segment is still tokenized: a
+    /// non-`Comma` significant token after the target String marks the qualifier.
+    /// Always `false` for `Use`/`Forward` edges (media qualifiers are `@import`-only).
+    pub media_qualified: bool,
     pub range: TextRange,
 }
 
@@ -8877,6 +8884,7 @@ fn collect_sass_module_edge_facts_from_tokens(
                 forward_prefix,
                 visibility_filter_kind,
                 visibility_filter_names,
+                media_qualified: false,
                 range: source.range,
             },
         );
@@ -8982,21 +8990,30 @@ fn collect_sass_import_module_edges(
     edges: &mut Vec<ParsedSassModuleEdgeFact>,
     seen: &mut BTreeSet<(ParsedSassModuleEdgeFactKind, String, u32, u32)>,
 ) {
-    for token in &tokens[start..end] {
+    for index in start..end {
+        let token = tokens[index];
         if !matches!(token.kind, SyntaxKind::String | SyntaxKind::Url) {
             continue;
         }
+        // RFC-0007-D1 (#44): a trailing media qualifier (`@import "foo" screen`,
+        // `@import "foo" (min-width: 100px)`) keeps the import as plain CSS. Classify
+        // per comma-peer target: the next significant token after this target marks a
+        // media qualifier iff it is present and is NOT the `,` comma-peer separator.
+        // (`@import "a", "b" screen` qualifies only `"b"`.)
+        let media_qualified = next_non_trivia_token_index_until(tokens, index + 1, end)
+            .is_some_and(|next| tokens[next].kind != SyntaxKind::Comma);
         push_sass_module_edge_fact(
             edges,
             seen,
             ParsedSassModuleEdgeFact {
                 kind: ParsedSassModuleEdgeFactKind::Import,
-                source: css_module_value_source_name(*token),
+                source: css_module_value_source_name(token),
                 namespace_kind: None,
                 namespace: None,
                 forward_prefix: None,
                 visibility_filter_kind: None,
                 visibility_filter_names: Vec::new(),
+                media_qualified,
                 range: token.range,
             },
         );
