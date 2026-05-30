@@ -22,6 +22,7 @@ pub use omena_checker::{
     OmenaCheckerCustomPropertyInputV0, OmenaCheckerMTierEvaluationV0,
     OmenaCheckerRgFlowCouplingInputV0, OmenaCheckerRgFlowCouplingSpaceInputV0,
     OmenaCheckerRgFlowEvaluationV0, OmenaCheckerRgFlowInputV0, OmenaCheckerRuleCodeV0,
+    OmenaCheckerSmtEvaluationV0, OmenaCheckerSmtInputV0, OmenaCheckerSmtObligationInputV0,
     checker_cascade_primitive_role_catalog_v0,
     checker_categorical_cascade_evidence_for_exercised_primitives_v0,
     checker_categorical_cascade_evidence_v0,
@@ -29,8 +30,8 @@ pub use omena_checker::{
 use omena_checker::{
     OmenaCheckerDynamicClassDomainInputV0, evaluate_omena_checker_cascade_rules,
     evaluate_omena_checker_categorical_rules, evaluate_omena_checker_m_tier_rules,
-    evaluate_omena_checker_rg_flow_rules, list_omena_checker_m_tier_rule_code_names,
-    list_omena_checker_rule_code_names,
+    evaluate_omena_checker_rg_flow_rules, evaluate_omena_checker_smt_rules,
+    list_omena_checker_m_tier_rule_code_names, list_omena_checker_rule_code_names,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -309,6 +310,76 @@ pub fn run_omena_query_checker_categorical_gate_v0(
         ready_surfaces: vec![
             "checkerRuleRegistry",
             "categoricalCascadeRoleFunctor",
+            "registeredRuleDiagnosticGate",
+            "queryDiagnosticHandoff",
+        ],
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OmenaQueryCheckerSmtGateV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub orchestrator_kind: &'static str,
+    pub enabled_rule_names: Vec<&'static str>,
+    pub emitted_rule_names: Vec<&'static str>,
+    pub registered_rule_count: usize,
+    pub unregistered_rule_count: usize,
+    pub evaluation_count: usize,
+    pub enforcement_passed: bool,
+    pub evaluations: Vec<OmenaCheckerSmtEvaluationV0>,
+    pub ready_surfaces: Vec<&'static str>,
+}
+
+/// Invoke the real SMT cascade proof-obligation evaluator and gate its emitted
+/// rule codes against the registered checker rule registry.
+///
+/// The obligations are produced by the caller from a real parsed cascade signal
+/// (e.g. the canonical box-shorthand combination obligation derived from a
+/// stylesheet's longhand declarations): each obligation carries the
+/// `require:name=bool` literals that encode the cascade-safety preconditions for
+/// that flatten/combination rewrite. This gate runs the genuine
+/// `evaluate_omena_checker_smt_rules` mechanism, which discharges each obligation
+/// through the default `StubSmtBackendV0` propositional backend (z3 is opt-in
+/// behind the `smt-z3` feature), and only surfaces `cascade.smt-violation`
+/// diagnostics when the backend's verdict on the conjunction is `Unsat` — i.e. a
+/// required precondition is violated. An obligation whose preconditions all hold
+/// is satisfiable and nothing is surfaced; the diagnostic therefore depends on
+/// the solver verdict over the parsed facts, not on a literal.
+pub fn run_omena_query_checker_smt_gate_v0(
+    input: OmenaCheckerSmtInputV0,
+) -> OmenaQueryCheckerSmtGateV0 {
+    let registered_rules = list_omena_checker_rule_code_names()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let enabled_rule_names = vec![OmenaCheckerRuleCodeV0::CascadeSMTViolation.as_str()];
+    let evaluations = evaluate_omena_checker_smt_rules(input);
+    let emitted_rule_names = evaluations
+        .iter()
+        .map(|evaluation| evaluation.rule_code_name)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let unregistered_rule_count = emitted_rule_names
+        .iter()
+        .filter(|rule| !registered_rules.contains(**rule))
+        .count();
+
+    OmenaQueryCheckerSmtGateV0 {
+        schema_version: "0",
+        product: "omena-query-checker-orchestrator.smt-gate",
+        orchestrator_kind: "registered-rule-diagnostic-gate",
+        enabled_rule_names,
+        emitted_rule_names,
+        registered_rule_count: registered_rules.len(),
+        unregistered_rule_count,
+        evaluation_count: evaluations.len(),
+        enforcement_passed: unregistered_rule_count == 0,
+        evaluations,
+        ready_surfaces: vec![
+            "checkerRuleRegistry",
+            "smtCascadeProofObligation",
             "registeredRuleDiagnosticGate",
             "queryDiagnosticHandoff",
         ],
@@ -732,6 +803,61 @@ mod tests {
                         primitive_name: "evaluate_static_supports_condition".to_string(),
                         categorical_role: "site-axis decidability witness".to_string(),
                     },
+                ],
+            }],
+        });
+
+        assert!(gate.enforcement_passed);
+        assert_eq!(gate.evaluation_count, 0);
+        assert!(gate.emitted_rule_names.is_empty());
+    }
+
+    #[test]
+    fn smt_gate_emits_violation_for_unsatisfiable_cascade_obligation() {
+        // A box-shorthand combination obligation whose `no-important-longhand`
+        // precondition is violated: the conjunction is `Unsat`, so the real
+        // StubSmtBackendV0 verdict drives the gate to surface
+        // `cascade.smt-violation`.
+        let gate = run_omena_query_checker_smt_gate_v0(OmenaCheckerSmtInputV0 {
+            obligations: vec![OmenaCheckerSmtObligationInputV0 {
+                obligation_id: "stylesheet://.box::box-shorthand-combination".to_string(),
+                l1_primitive: "boxShorthandCombination".to_string(),
+                canonical_terms: vec![
+                    "require:supported-shorthand-property=true".to_string(),
+                    "require:canonical-longhand-quartet=true".to_string(),
+                    "require:no-important-longhand=false".to_string(),
+                    "require:no-empty-longhand-value=true".to_string(),
+                    "require:adjacent-source-order=true".to_string(),
+                ],
+            }],
+        });
+
+        assert!(gate.enforcement_passed);
+        assert_eq!(gate.unregistered_rule_count, 0);
+        assert_eq!(gate.evaluation_count, 1);
+        assert!(gate.emitted_rule_names.contains(&"cascade.smt-violation"));
+        assert_eq!(gate.evaluations[0].backend_kind_name, "stub");
+        assert_eq!(gate.evaluations[0].sat_result_name, "unsat");
+        assert_eq!(
+            gate.evaluations[0].mechanism_products,
+            vec!["omena-smt.backend-check"]
+        );
+    }
+
+    #[test]
+    fn smt_gate_records_clear_suppression_for_satisfiable_cascade_obligation() {
+        // The same obligation shape with every precondition satisfied: the
+        // conjunction is `Sat`, so the gate surfaces nothing.
+        let gate = run_omena_query_checker_smt_gate_v0(OmenaCheckerSmtInputV0 {
+            obligations: vec![OmenaCheckerSmtObligationInputV0 {
+                obligation_id: "stylesheet://.box::box-shorthand-combination".to_string(),
+                l1_primitive: "boxShorthandCombination".to_string(),
+                canonical_terms: vec![
+                    "require:supported-shorthand-property=true".to_string(),
+                    "require:canonical-longhand-quartet=true".to_string(),
+                    "require:no-important-longhand=true".to_string(),
+                    "require:no-empty-longhand-value=true".to_string(),
+                    "require:adjacent-source-order=true".to_string(),
                 ],
             }],
         });

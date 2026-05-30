@@ -2678,3 +2678,116 @@ fn at_root_selector_block_is_included_in_cascade_analysis() {
             .collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn cascade_smt_violation_surfaces_for_unsatisfiable_box_shorthand_obligation()
+-> Result<(), &'static str> {
+    // #38 / L8: the SMT precision-checker family is wired onto the real product
+    // path. A selector that declares the complete canonical `margin` longhand
+    // quartet is a box-shorthand combination candidate; the
+    // omena-query-checker-orchestrator smt-gate builds the canonical obligation
+    // from the parsed longhands and runs the real evaluate_omena_checker_smt_rules
+    // mechanism (default StubSmtBackendV0 propositional backend).
+    //
+    // Here the last longhand is `!important`, so the obligation's
+    // `no-important-longhand` precondition is violated, the backend verdict on the
+    // conjunction is Unsat, and `cascadeSmtViolation` is surfaced. (Deep-analysis
+    // only — the diagnostic is off on the default surface.)
+    let unsat = r#"
+.box {
+  margin-top: 1px;
+  margin-right: 2px;
+  margin-bottom: 3px;
+  margin-left: 4px !important;
+}
+"#;
+    let unsat_candidates =
+        crate::summarize_omena_query_style_hover_candidates("Box.module.css", unsat)
+            .ok_or("unsat candidates")?;
+
+    // Default surface: the SMT theory diagnostic must NOT appear.
+    let default_diagnostics = crate::summarize_omena_query_style_diagnostics_for_file(
+        "file:///workspace/src/Box.module.css",
+        unsat,
+        unsat_candidates.candidates.as_slice(),
+    );
+    assert!(
+        default_diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "cascadeSmtViolation"),
+        "smt violation must be off on the default surface: {:?}",
+        default_diagnostics
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code)
+            .collect::<Vec<_>>()
+    );
+
+    // Deep-analysis surface: the real Unsat verdict surfaces the violation, with
+    // the orchestrator gate + backend-check provenance attached.
+    let deep_diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
+            "file:///workspace/src/Box.module.css",
+            unsat,
+            unsat_candidates.candidates.as_slice(),
+            true,
+        );
+    let smt_violation = deep_diagnostics
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == "cascadeSmtViolation")
+        .ok_or("cascadeSmtViolation must fire on an unsatisfiable box-shorthand obligation")?;
+    assert_eq!(smt_violation.severity, "warning");
+    assert!(
+        smt_violation
+            .provenance
+            .contains(&"omena-query-checker-orchestrator.smt-gate"),
+        "smt-gate provenance must be attached: {:?}",
+        smt_violation.provenance
+    );
+    assert!(
+        smt_violation
+            .provenance
+            .contains(&"omena-smt.backend-check"),
+        "omena-smt.backend-check mechanism provenance must be attached: {:?}",
+        smt_violation.provenance
+    );
+
+    // Satisfiable counterpart: the SAME canonical `margin` quartet with no
+    // `!important` longhand and adjacent source order. Every precondition holds,
+    // the backend verdict is Sat, and nothing is surfaced even under deep
+    // analysis. If the solver verdict were replaced by a constant the Unsat case
+    // would still emit but so would this one — so a satisfiable obligation
+    // emitting nothing is the mutation guard.
+    let sat = r#"
+.box {
+  margin-top: 1px;
+  margin-right: 2px;
+  margin-bottom: 3px;
+  margin-left: 4px;
+}
+"#;
+    let sat_candidates = crate::summarize_omena_query_style_hover_candidates("Box.module.css", sat)
+        .ok_or("sat candidates")?;
+    let sat_diagnostics =
+        crate::summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
+            "file:///workspace/src/Box.module.css",
+            sat,
+            sat_candidates.candidates.as_slice(),
+            true,
+        );
+    assert!(
+        sat_diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "cascadeSmtViolation"),
+        "a satisfiable box-shorthand obligation must surface no smt violation: {:?}",
+        sat_diagnostics
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code)
+            .collect::<Vec<_>>()
+    );
+    Ok(())
+}

@@ -152,9 +152,9 @@ pub fn list_omena_checker_rule_enforcement_evidence_v0()
         ),
         mechanism(
             CascadeSMTViolation,
-            "engine-shadow-runner.omena-checker-smt-evaluations",
-            "evaluates_smt_rule_family_from_canonical_obligations",
-            "evaluates_smt_rule_family_from_canonical_obligations",
+            "omena-query-checker-orchestrator.smt-gate",
+            "smt_gate_emits_violation_for_unsatisfiable_cascade_obligation",
+            "smt_gate_records_clear_suppression_for_satisfiable_cascade_obligation",
             &["omena-smt.backend-check"],
         ),
         mechanism(
