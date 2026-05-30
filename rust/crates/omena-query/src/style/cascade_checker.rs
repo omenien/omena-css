@@ -731,6 +731,12 @@ fn push_query_checker_declaration(
     let property = statement[..colon_offset].trim();
     if property.is_empty()
         || property.starts_with('@')
+        // Sass `$`-variable assignments are compile-time bindings that are erased
+        // before CSS emission, so they never participate in the cascade. Skip
+        // them here (symmetric to the `--custom-property` cascade path, which
+        // does belong in the cascade) so re-binding a `$`-var is not mistaken for
+        // a duplicate CSS declaration / cascade tie.
+        || property.starts_with('$')
         || property.contains(char::is_whitespace)
         || property.contains('{')
         || property.contains('}')

@@ -289,6 +289,47 @@ fn cascade_aware_lints_still_compare_duplicate_declarations_inside_same_nested_c
 }
 
 #[test]
+fn cascade_aware_lints_do_not_flag_resassigned_sass_variable_as_cascade_tie()
+-> Result<(), &'static str> {
+    // RFC-0007-K (#51): re-binding a Sass `$`-variable inside a rule is a
+    // compile-time binding (dart-sass rc=0, `.a { margin: 16px; }`). It must not
+    // be misreported as a duplicate CSS declaration / cascade tie.
+    let source = r#"
+.a {
+  $gap: 8px;
+  $gap: 16px;
+  margin: $gap;
+}
+"#;
+    let diagnostic_codes = cascade_diagnostic_code_set(source)?;
+
+    assert!(!diagnostic_codes.contains("unreachableDeclaration"));
+    assert!(!diagnostic_codes.contains("unspecifiedCascadeTie"));
+    Ok(())
+}
+
+#[test]
+fn cascade_aware_lints_still_flag_real_tie_when_rule_also_rebinds_sass_variable()
+-> Result<(), &'static str> {
+    // Over-correction guard for #51: dropping the `$`-var assignment must not
+    // suppress a genuine same-selector/same-property CSS duplicate that sits in
+    // the same rule.
+    let source = r#"
+.a {
+  $gap: 8px;
+  $gap: 16px;
+  color: red;
+  color: green;
+}
+"#;
+    let diagnostic_codes = cascade_diagnostic_code_set(source)?;
+
+    assert!(diagnostic_codes.contains("unreachableDeclaration"));
+    assert!(diagnostic_codes.contains("unspecifiedCascadeTie"));
+    Ok(())
+}
+
+#[test]
 fn cascade_aware_lints_carry_variational_designer_intent_evidence() -> Result<(), &'static str> {
     let source = r#"
 .button--primary {
