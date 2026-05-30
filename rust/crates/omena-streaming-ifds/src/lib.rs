@@ -373,13 +373,28 @@ where
         wire_compatible_with_batch_oracle: true,
     };
 
-    let output_facts = propagate_ifds_facts(hyperedges, events);
-    let output_fact_keys = fact_keys(&output_facts);
     let previous_fact_keys = previous_cache
         .into_iter()
         .flatten()
         .flat_map(|entry| entry.fact_keys.iter().cloned())
         .collect::<BTreeSet<_>>();
+
+    // Two independently-computed fact sets over the *current* graph:
+    //   * the incremental/streaming path only re-derives the dirty sub-graph
+    //     reachable from the changed (event) nodes and reuses prior facts that
+    //     fall outside that region, and
+    //   * the batch oracle recomputes every fact from scratch over all
+    //     hyperedges and events.
+    // They agree when the reused prior facts are still consistent with the
+    // current graph, and diverge when a prior fact survives in the reused
+    // region even though the current graph no longer produces it (stale fact
+    // not invalidated by the incremental dirty-set). Parity is therefore a real
+    // equality of two distinct computations, not f(x) == f(x).
+    let incremental_facts =
+        incremental_propagate_ifds_facts(hyperedges, events, &previous_fact_keys);
+    let output_fact_keys = incremental_fact_keys(hyperedges, events, &previous_fact_keys);
+    let batch_fact_keys = fact_keys(&propagate_ifds_facts(hyperedges, events));
+
     let reused_fact_count = output_fact_keys
         .iter()
         .filter(|key| previous_fact_keys.contains(*key))
@@ -391,7 +406,6 @@ where
         output_fact_keys.clone(),
         reused_fact_count > 0,
     )];
-    let batch_fact_keys = fact_keys(&propagate_ifds_facts(hyperedges, events));
 
     StreamingIFDSAnalysisReportV0 {
         schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
@@ -402,13 +416,13 @@ where
         witness,
         event_count: events.len(),
         input_fact_count: events.len(),
-        output_fact_count: output_facts.len(),
+        output_fact_count: incremental_facts.len(),
         dirty_fact_count,
         reused_fact_count,
         transfer_function_count: streaming_ifds_transfer_functions_v0(hyperedges).len(),
         fallback_to_batch: false,
         precision_parity_with_batch: output_fact_keys == batch_fact_keys,
-        output_facts,
+        output_facts: incremental_facts,
         summary_cache,
     }
 }
@@ -525,6 +539,115 @@ fn propagate_ifds_facts(
             .then(left.fact_id.cmp(&right.fact_id))
     });
     output
+}
+
+/// Nodes that the changed event nodes can still reach over the *current* graph.
+/// This is the incremental dirty sub-graph: facts at these nodes are re-derived
+/// from scratch, everything else may be reused from the prior fact set.
+fn incremental_dirty_nodes(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    events: &[StreamingIfdsEventInputV0],
+) -> BTreeSet<String> {
+    propagate_ifds_facts(hyperedges, events)
+        .into_iter()
+        .map(|fact| fact.node_id)
+        .collect()
+}
+
+/// Incremental/streaming IFDS fact-key set.
+///
+/// Distinct from [`propagate_ifds_facts`] (the batch oracle that recomputes
+/// every fact from scratch): this path re-derives only the dirty sub-graph
+/// reachable from the changed event nodes and reuses prior fact keys that fall
+/// entirely outside it. A prior fact key is reused (not recomputed) iff its node
+/// is not in the dirty region. That reuse is what makes parity with the batch
+/// oracle a real check: if a reused prior fact is stale — i.e. the current graph
+/// no longer produces it because a supporting edge was removed — the incremental
+/// key set retains it while the batch key set drops it, so the two diverge.
+fn incremental_fact_keys(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    events: &[StreamingIfdsEventInputV0],
+    previous_fact_keys: &BTreeSet<String>,
+) -> Vec<String> {
+    // Cold start (no prior facts): the dirty region is the whole reachable graph,
+    // so the incremental path coincides with a full recompute.
+    if previous_fact_keys.is_empty() {
+        return fact_keys(&propagate_ifds_facts(hyperedges, events));
+    }
+
+    let dirty_nodes = incremental_dirty_nodes(hyperedges, events);
+    let mut keys = fact_keys(&propagate_ifds_facts(hyperedges, events))
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    for key in previous_fact_keys {
+        let node_id = key.split_once('|').map(|(node, _)| node).unwrap_or(key);
+        if !dirty_nodes.contains(node_id) {
+            keys.insert(key.clone());
+        }
+    }
+    keys.into_iter().collect()
+}
+
+/// Incremental/streaming IFDS facts whose key set equals [`incremental_fact_keys`].
+/// Dirty-region facts are re-derived with full provenance; reused prior facts
+/// outside the dirty region are carried forward verbatim from their key.
+fn incremental_propagate_ifds_facts(
+    hyperedges: &[UnifiedHypergraphHyperedgeV0],
+    events: &[StreamingIfdsEventInputV0],
+    previous_fact_keys: &BTreeSet<String>,
+) -> Vec<StreamingIFDSFactV0> {
+    let mut output = propagate_ifds_facts(hyperedges, events);
+    if !previous_fact_keys.is_empty() {
+        let dirty_nodes = incremental_dirty_nodes(hyperedges, events);
+        let mut seen = output
+            .iter()
+            .map(|fact| fact_key(&fact.node_id, &fact.value))
+            .collect::<BTreeSet<_>>();
+        for key in previous_fact_keys {
+            let node_id = key.split_once('|').map(|(node, _)| node).unwrap_or(key);
+            if dirty_nodes.contains(node_id) {
+                continue;
+            }
+            if seen.insert(key.clone()) {
+                output.push(reused_fact_from_key(key));
+            }
+        }
+    }
+
+    output.sort_by(|left, right| {
+        left.node_id
+            .cmp(&right.node_id)
+            .then(left.fact_id.cmp(&right.fact_id))
+    });
+    output
+}
+
+/// Materialize a reused prior fact directly from its `node_id|value-key` key.
+/// The reconstructed value carries the verbatim value-key so the fact's own
+/// `fact_key` is byte-identical to the reused key, keeping the materialized
+/// fact set's key set equal to [`incremental_fact_keys`].
+fn reused_fact_from_key(key: &str) -> StreamingIFDSFactV0 {
+    let (node_id, value_key) = key.split_once('|').unwrap_or((key, ""));
+    let value = match value_key {
+        "bottom" => AbstractClassValueV0::Bottom,
+        "top" => AbstractClassValueV0::Top,
+        other => AbstractClassValueV0::Exact {
+            value: other.strip_prefix("exact:").unwrap_or(other).to_string(),
+        },
+    };
+    StreamingIFDSFactV0 {
+        schema_version: STREAMING_IFDS_SCHEMA_VERSION_V0,
+        product: "omena-streaming-ifds.fact",
+        layer_marker: STREAMING_IFDS_LAYER_MARKER_V0,
+        feature_gate: STREAMING_IFDS_FEATURE_GATE_V0,
+        fact_id: format!(
+            "fact:{:016x}",
+            stable_hash(std::slice::from_ref(&key.to_string()))
+        ),
+        node_id: node_id.to_string(),
+        value,
+        provenance: vec![format!("reused:{key}")],
+    }
 }
 
 fn streaming_ifds_fact_v0(
@@ -750,6 +873,107 @@ mod tests {
         assert!(second.update.refinement_context_digest.is_some());
     }
 
+    #[test]
+    fn incremental_parity_holds_when_prior_cache_is_consistent() {
+        // Old revision: a -> b -> c, fact seeded at a flows to {a, b, c}.
+        let old_graph = vec![
+            hyperedge("edge-a-b", "a", "b"),
+            hyperedge("edge-b-c", "b", "c"),
+        ];
+        let value = AbstractClassValueV0::Exact {
+            value: "button".to_string(),
+        };
+        let seed = vec![streaming_ifds_event_input_v0(
+            "event-a",
+            1,
+            "a",
+            value.clone(),
+            None,
+        )];
+        let first = run_streaming_ifds_exact_v0(
+            "update-1",
+            "a",
+            &old_graph,
+            &seed,
+            &ExactStreamingConnectivityOracleV0::default(),
+            None,
+        );
+
+        // New revision: same graph, re-seed a. The prior cache is consistent with
+        // the current graph, so the incremental reuse of the {c} fact agrees with
+        // the batch recompute and parity holds.
+        let next = vec![streaming_ifds_event_input_v0(
+            "event-a2", 2, "a", value, None,
+        )];
+        let report = run_streaming_ifds_exact_v0(
+            "update-2",
+            "a",
+            &old_graph,
+            &next,
+            &ExactStreamingConnectivityOracleV0::default(),
+            Some(&first.summary_cache),
+        );
+
+        assert!(report.precision_parity_with_batch);
+        assert_eq!(report_node_ids(&report), vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn incremental_parity_diverges_when_a_reused_prior_fact_is_stale() {
+        // Old revision: a -> b -> c. Fact seeded at a reaches {a, b, c}; cache it.
+        let old_graph = vec![
+            hyperedge("edge-a-b", "a", "b"),
+            hyperedge("edge-b-c", "b", "c"),
+        ];
+        let value = AbstractClassValueV0::Exact {
+            value: "button".to_string(),
+        };
+        let seed = vec![streaming_ifds_event_input_v0(
+            "event-a",
+            1,
+            "a",
+            value.clone(),
+            None,
+        )];
+        let first = run_streaming_ifds_exact_v0(
+            "update-1",
+            "a",
+            &old_graph,
+            &seed,
+            &ExactStreamingConnectivityOracleV0::default(),
+            None,
+        );
+        assert!(first.precision_parity_with_batch);
+
+        // New revision: the b -> c edge is removed (edge deletion). Re-seeding a
+        // makes the dirty region {a, b}; c is no longer reachable. The batch
+        // oracle recomputes {a, b}. The incremental path reuses the prior {c}
+        // fact because c lies outside the dirty region and was never invalidated,
+        // so the incremental set is {a, b, c}. The two distinct computations
+        // disagree and parity is false.
+        let new_graph = vec![hyperedge("edge-a-b", "a", "b")];
+        let next = vec![streaming_ifds_event_input_v0(
+            "event-a2", 2, "a", value, None,
+        )];
+        let report = run_streaming_ifds_exact_v0(
+            "update-2",
+            "a",
+            &new_graph,
+            &next,
+            &ExactStreamingConnectivityOracleV0::default(),
+            Some(&first.summary_cache),
+        );
+
+        assert!(!report.precision_parity_with_batch);
+        // Batch (ground truth over the current graph) drops c; the stale reused
+        // fact keeps it in the incremental set.
+        assert_eq!(report_node_ids(&report), vec!["a", "b", "c"]);
+        assert_eq!(
+            fact_keys(&propagate_ifds_facts(&new_graph, &next)),
+            vec!["a|exact:button".to_string(), "b|exact:button".to_string()]
+        );
+    }
+
     #[cfg(feature = "with-frame-rule")]
     #[test]
     fn frame_rule_bridge_policy_is_feature_gated() {
@@ -757,6 +981,14 @@ mod tests {
         assert_eq!(policy.schema_version, "0");
         assert_eq!(policy.feature_gate, "with-frame-rule");
         assert_eq!(policy.coarse_policy, "frameFootprintReachability");
+    }
+
+    fn report_node_ids(report: &StreamingIFDSAnalysisReportV0) -> Vec<&str> {
+        report
+            .output_facts
+            .iter()
+            .map(|fact| fact.node_id.as_str())
+            .collect()
     }
 
     fn hyperedge(id: &str, from: &str, to: &str) -> UnifiedHypergraphHyperedgeV0 {

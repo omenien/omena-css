@@ -116,7 +116,8 @@ use omena_resolver::{
     summarize_omena_resolver_style_module_resolution_with_path_mappings,
 };
 use omena_streaming_ifds::{
-    PolylogDynamicConnectivityBackendV0, run_streaming_ifds_exact_v0, streaming_ifds_event_input_v0,
+    PolylogDynamicConnectivityBackendV0, run_streaming_ifds_exact_v0,
+    streaming_ifds_event_input_v0, streaming_ifds_summary_cache_entry_v0,
 };
 use serde::{Deserialize, Serialize};
 
@@ -761,6 +762,12 @@ struct OmenaCheckerStreamingIfdsEvaluationInputV0 {
     start_node_id: String,
     hyperedges: Vec<StreamingIfdsHyperedgeInputV0>,
     events: Vec<StreamingIfdsEventRunnerInputV0>,
+    /// Prior streaming summary fact keys (`node_id|value-key`) carried from an
+    /// earlier revision. When present, the incremental path reuses prior facts
+    /// outside the dirty region; a stale key (a fact the current graph no longer
+    /// produces) makes the incremental result diverge from the batch oracle.
+    #[serde(default)]
+    previous_fact_keys: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2784,13 +2791,23 @@ fn summarize_omena_checker_streaming_ifds_evaluations(
             )
         })
         .collect::<Vec<_>>();
+    let previous_cache = if input.previous_fact_keys.is_empty() {
+        Vec::new()
+    } else {
+        vec![streaming_ifds_summary_cache_entry_v0(
+            input.start_node_id.clone(),
+            Vec::new(),
+            input.previous_fact_keys.clone(),
+            true,
+        )]
+    };
     let report = run_streaming_ifds_exact_v0(
         input.update_id.clone(),
         input.start_node_id,
         &hyperedges,
         &events,
         &PolylogDynamicConnectivityBackendV0::default(),
-        None,
+        (!previous_cache.is_empty()).then_some(previous_cache.as_slice()),
     );
     let evaluations =
         evaluate_omena_checker_streaming_ifds_rules(OmenaCheckerStreamingIfdsInputV0 {

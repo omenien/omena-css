@@ -271,11 +271,31 @@ assert.equal(mdlClearSummary.evaluationCount, 0);
 // The discriminating distribution MUST move total_bits and the diagnostic outcome.
 assert.notEqual(mdlClearSummary.totalBits, mdlEmitSummary.totalBits);
 assert.notEqual(mdlClearSummary.evaluationCount, mdlEmitSummary.evaluationCount);
-const streamingSummary = runStreamingIfdsEvaluationFixture();
+// End-to-end mechanism-depth proof: parity is a real equality of two distinct
+// computations (incremental reuse vs batch recompute), not f(x) == f(x). Both
+// runs carry the SAME prior fact-key cache {a, b, c}; only the current graph
+// differs by ONE load-bearing hyperedge (edge-b-c). When edge-b-c is present the
+// batch oracle still produces c, so the reused prior c agrees and parity holds.
+// When edge-b-c is removed the batch oracle drops c while the incremental path
+// reuses the now-stale c (it is outside the dirty region), so the two fact sets
+// diverge and the diagnostic fires. No precisionParityWithBatch literal is fed
+// in; the runner computes it from the two real runs.
+const streamingSummary = runStreamingIfdsEvaluationFixture(true);
 assert.equal(streamingSummary.product, "omena-checker.streaming-ifds-evaluations");
 assert.equal(streamingSummary.reportProduct, "omena-streaming-ifds.analysis-report");
 assert.equal(streamingSummary.precisionParityWithBatch, true);
 assert.equal(streamingSummary.evaluationCount, 0);
+const streamingDivergeSummary = runStreamingIfdsEvaluationFixture(false);
+assert.equal(streamingDivergeSummary.product, "omena-checker.streaming-ifds-evaluations");
+assert.equal(streamingDivergeSummary.precisionParityWithBatch, false);
+assert.equal(streamingDivergeSummary.evaluationCount, 1);
+// The load-bearing edge change MUST move both the parity verdict and the
+// diagnostic outcome between the two runs.
+assert.notEqual(
+  streamingDivergeSummary.precisionParityWithBatch,
+  streamingSummary.precisionParityWithBatch,
+);
+assert.notEqual(streamingDivergeSummary.evaluationCount, streamingSummary.evaluationCount);
 const rgFlowSummary = runRgFlowEvaluationFixture();
 assert.equal(rgFlowSummary.product, "omena-checker.rg-flow-evaluations");
 assert.equal(rgFlowSummary.flowCount, 2);
@@ -569,22 +589,37 @@ function runMdlEvaluationFixture(
   return JSON.parse(result.stdout) as MdlEvaluationSummary;
 }
 
-function runStreamingIfdsEvaluationFixture(): StreamingIfdsEvaluationSummary {
+function runStreamingIfdsEvaluationFixture(consistent: boolean): StreamingIfdsEvaluationSummary {
+  // Both variants re-seed node a with the same exact value and carry the same
+  // prior fact-key cache {a, b, c} from an earlier revision. The ONLY difference
+  // is whether the current graph still has edge-b-c. With it, c is reachable and
+  // the reused prior c is consistent (parity holds). Without it, c is no longer
+  // reachable from the batch oracle, but the incremental path still reuses the
+  // stale prior c, so the two computations diverge (parity false, diagnostic).
+  const hyperedges = [
+    { hyperedgeId: "edge-a-b", from: "a", to: "b", edgeKind: "foreignReference" },
+  ];
+  if (consistent) {
+    hyperedges.push({
+      hyperedgeId: "edge-b-c",
+      from: "b",
+      to: "c",
+      edgeKind: "foreignReference",
+    });
+  }
   const input = {
-    updateId: "streaming-update-1",
+    updateId: consistent ? "streaming-update-consistent" : "streaming-update-stale",
     startNodeId: "a",
-    hyperedges: [
-      { hyperedgeId: "edge-a-b", from: "a", to: "b", edgeKind: "foreignReference" },
-      { hyperedgeId: "edge-b-c", from: "b", to: "c", edgeKind: "foreignReference" },
-    ],
+    hyperedges,
     events: [
       {
         eventId: "event-a",
-        revision: 1,
+        revision: 2,
         nodeId: "a",
         value: { kind: "exact", value: "button" },
       },
     ],
+    previousFactKeys: ["a|exact:button", "b|exact:button", "c|exact:button"],
   };
   const result = spawnSync(
     "cargo",
