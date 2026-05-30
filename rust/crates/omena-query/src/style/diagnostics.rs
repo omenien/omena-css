@@ -481,6 +481,36 @@ pub fn summarize_omena_query_style_diagnostics_for_file(
     summary
 }
 
+/// RFC-0007-F (#46): single-file `style-diagnostics` (no `--source`) used to skip composes-target
+/// validation entirely, so a bare invocation and one with any unrelated `--source` produced
+/// different diagnostics for the same file. This variant augments the single-file summary with the
+/// composes outcomes that are fully resolvable without cross-file context — only `composes: x`
+/// (Local edges) against the file's own selectors. Global edges produce nothing and External edges
+/// (`composes: x from './other'`) are deliberately left to the `--source`-backed workspace path, so
+/// no false `missingComposedSelector`/`missingComposedModule` is invented for an unseen sibling.
+pub fn summarize_omena_query_style_diagnostics_for_file_with_local_composes(
+    style_uri: &str,
+    source: &str,
+    candidates: &[OmenaQueryStyleHoverCandidateV0],
+) -> OmenaQueryStyleDiagnosticsForFileV0 {
+    let mut summary =
+        summarize_omena_query_style_diagnostics_for_file(style_uri, source, candidates);
+    let mut local_composes =
+        summarize_omena_query_css_modules_local_composes_style_diagnostics(style_uri, source);
+    apply_omena_query_checker_product_gate_to_style_diagnostics(&mut local_composes);
+    if !local_composes.is_empty() {
+        summary.diagnostics.extend(local_composes);
+        push_omena_query_ready_surface(
+            &mut summary.ready_surfaces,
+            "cssModulesComposesResolutionDiagnostics",
+        );
+        // Re-run suppressions so the appended composes diagnostics honour the same inline directives.
+        apply_omena_query_style_diagnostic_suppressions(source, &mut summary);
+        summary.diagnostic_count = summary.diagnostics.len();
+    }
+    summary
+}
+
 pub fn summarize_omena_query_style_diagnostics_for_workspace_file(
     target_style_path: &str,
     style_sources: &[OmenaQueryStyleSourceInputV0],
@@ -1185,6 +1215,67 @@ fn sass_builtin_module_variable_names(module: &str) -> &'static [&'static str] {
     }
 }
 
+/// RFC-0007-F (#46): composes-target validation restricted to outcomes that are fully resolvable
+/// from a single file with no cross-file `--source` context. Only `composes: x` / `composes: x, y`
+/// (Local edges) target the file's own selectors and can be checked here; `composes: x from global`
+/// (Global edges) reference no concrete selector and produce nothing; `composes: x from './other'`
+/// (External edges) require the sibling module's facts, which a single-file invocation does not have,
+/// so they are deliberately skipped to avoid a false `missingComposedSelector`/`missingComposedModule`.
+/// @value imports are always cross-file and are likewise excluded.
+pub fn summarize_omena_query_css_modules_local_composes_style_diagnostics(
+    target_style_path: &str,
+    target_source: &str,
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let dialect = omena_parser_dialect_for_style_path(target_style_path);
+    let target_facts = collect_omena_query_omena_parser_style_facts_raw(target_source, dialect);
+    let target_class_names = target_facts
+        .selectors
+        .iter()
+        .filter(|selector| selector.kind == ParsedSelectorFactKind::Class)
+        .map(|selector| selector.name.as_str())
+        .collect::<BTreeSet<_>>();
+    let mut diagnostics = Vec::new();
+
+    for edge in target_facts.css_module_composes_edges {
+        // Global edges resolve to no concrete selector; External edges need cross-file facts.
+        // Both are outside the single-file-resolvable surface, so only Local edges are validated.
+        if edge.kind != ParsedCssModuleComposesEdgeKind::Local {
+            continue;
+        }
+        let start: u32 = edge.range.start().into();
+        let end: u32 = edge.range.end().into();
+        let range = parser_range_for_byte_span(
+            target_source,
+            ParserByteSpanV0 {
+                start: start as usize,
+                end: end as usize,
+            },
+        );
+        for target_name in edge.target_names {
+            if target_class_names.contains(target_name.as_str()) {
+                continue;
+            }
+            diagnostics.push(OmenaQueryStyleDiagnosticV0 {
+                code: "missingComposedSelector",
+                severity: "warning",
+                provenance: vec![
+                    "omena-parser.css-modules-composes-facts",
+                    "omena-query.css-modules-resolution-diagnostics",
+                ],
+                range,
+                message: format!(
+                    "Selector '.{}' not found in this file for composes.",
+                    target_name
+                ),
+                tags: Vec::new(),
+                create_custom_property: None,
+            });
+        }
+    }
+
+    diagnostics
+}
+
 pub fn summarize_omena_query_css_modules_resolution_style_diagnostics(
     target_style_path: &str,
     target_source: &str,
@@ -1734,5 +1825,119 @@ mod tests {
             "sass:meta mixin allowlist drifted from pinned Sass 1.77 surface; \
              update both the allowlist and this pinned set together"
         );
+    }
+
+    // RFC-0007-F (#46): single-file local-composes validation.
+
+    #[test]
+    fn local_composes_flags_real_same_file_typo() {
+        // True positive: `composes: missing` references a class that does not exist in this
+        // file. With no cross-file context, this is fully resolvable and MUST be flagged.
+        let source = ".base { color: red; }\n.button { composes: missing; }\n";
+        let diagnostics = summarize_omena_query_css_modules_local_composes_style_diagnostics(
+            "/tmp/foo.module.scss",
+            source,
+        );
+        assert_eq!(diagnostics.len(), 1, "expected one missingComposedSelector");
+        assert_eq!(diagnostics[0].code, "missingComposedSelector");
+        assert!(
+            diagnostics[0].message.contains("not found in this file"),
+            "message should reference same-file resolution, got: {}",
+            diagnostics[0].message
+        );
+    }
+
+    #[test]
+    fn local_composes_keeps_resolvable_target_silent() {
+        // A local composes target that DOES exist in the file must NOT be flagged.
+        let source = ".base { color: red; }\n.button { composes: base; }\n";
+        let diagnostics = summarize_omena_query_css_modules_local_composes_style_diagnostics(
+            "/tmp/foo.module.scss",
+            source,
+        );
+        assert!(
+            diagnostics.is_empty(),
+            "resolvable local composes target should not be flagged, got: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn local_composes_does_not_flag_external_target_without_source() {
+        // Over-correction guard: `composes: x from './other'` is an External edge that needs the
+        // sibling module's facts. In single-file mode we have no access to `./other`, so we must
+        // NOT invent a missingComposedSelector/missingComposedModule for it.
+        let source = ".button { composes: shared from './other.module.scss'; color: blue; }\n";
+        let diagnostics = summarize_omena_query_css_modules_local_composes_style_diagnostics(
+            "/tmp/foo.module.scss",
+            source,
+        );
+        assert!(
+            diagnostics.is_empty(),
+            "external composes target must not be flagged without cross-file source, got: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn local_composes_does_not_flag_global_target() {
+        // `composes: x from global` references no concrete selector and must produce nothing.
+        let source = ".button { composes: someGlobal from global; color: blue; }\n";
+        let diagnostics = summarize_omena_query_css_modules_local_composes_style_diagnostics(
+            "/tmp/foo.module.scss",
+            source,
+        );
+        assert!(
+            diagnostics.is_empty(),
+            "global composes target must not be flagged, got: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn single_file_summary_includes_local_composes_typo() -> Result<(), String> {
+        // The CLI bare path (`style-diagnostics foo` with no --source) routes through this
+        // wrapper. A real same-file composes typo must surface even without --source, closing
+        // the invocation-mode inconsistency the issue describes.
+        let style_uri = "/tmp/foo.module.scss";
+        let source = ".base { color: red; }\n.button { composes: missing; }\n";
+        let candidates = summarize_omena_query_style_hover_candidates(style_uri, source)
+            .ok_or("hover candidates")?;
+        let summary = summarize_omena_query_style_diagnostics_for_file_with_local_composes(
+            style_uri,
+            source,
+            candidates.candidates.as_slice(),
+        );
+        assert!(
+            summary
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "missingComposedSelector"),
+            "bare single-file summary should surface the local composes typo, got: {:?}",
+            summary.diagnostics
+        );
+        assert_eq!(summary.diagnostic_count, summary.diagnostics.len());
+        Ok(())
+    }
+
+    #[test]
+    fn single_file_summary_does_not_flag_external_composes() -> Result<(), String> {
+        // Over-correction guard at the wrapper level: a clean file whose only composes target is
+        // cross-file must stay free of composes diagnostics in single-file mode.
+        let style_uri = "/tmp/foo.module.scss";
+        let source = ".button { composes: shared from './other.module.scss'; color: blue; }\n";
+        let candidates = summarize_omena_query_style_hover_candidates(style_uri, source)
+            .ok_or("hover candidates")?;
+        let summary = summarize_omena_query_style_diagnostics_for_file_with_local_composes(
+            style_uri,
+            source,
+            candidates.candidates.as_slice(),
+        );
+        assert!(
+            !summary.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "missingComposedSelector"
+                    || diagnostic.code == "missingComposedModule"
+            }),
+            "external composes target must not be flagged in single-file mode, got: {:?}",
+            summary.diagnostics
+        );
+        Ok(())
     }
 }

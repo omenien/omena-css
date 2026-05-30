@@ -19,7 +19,7 @@ use omena_query::{
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
     summarize_omena_query_style_completion_at_position,
-    summarize_omena_query_style_diagnostics_for_file,
+    summarize_omena_query_style_diagnostics_for_file_with_local_composes,
     summarize_omena_query_style_diagnostics_for_workspace_file_with_external_mode_and_sifs,
     summarize_omena_query_style_document, summarize_omena_query_style_hover_candidates,
     summarize_omena_query_transform_context_from_engine_input,
@@ -1356,7 +1356,7 @@ fn style_diagnostics(
                 path_string(&path)
             ));
         };
-        summarize_omena_query_style_diagnostics_for_file(
+        summarize_omena_query_style_diagnostics_for_file_with_local_composes(
             &style_path,
             &source,
             candidates.candidates.as_slice(),
