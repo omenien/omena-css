@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+pub use omena_bridge::generate_omena_bridge_sif_for_resolved_style_path;
 use omena_bridge::{
     DesignTokenExternalDeclarationCandidateScopeV0, DesignTokenWorkspaceDeclarationFactV0,
     StyleSemanticGraphSummaryV0,

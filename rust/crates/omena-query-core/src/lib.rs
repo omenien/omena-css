@@ -29,9 +29,9 @@ use engine_input_producers::{
     summarize_selector_usage_query_fragments_input,
 };
 pub use omena_abstract_value::{
-    AbstractValueDomainSummaryV0, ClassValueFlowAnalysisV0, ClassValueFlowIncrementalAnalysisV0,
-    Lin01ProvenanceSemiringV0, LinearProvenanceV0, ReducedClassValueProductV0,
-    SelectorProjectionCertaintyV0,
+    AbstractClassValueV0, AbstractValueDomainSummaryV0, ClassValueFlowAnalysisV0,
+    ClassValueFlowIncrementalAnalysisV0, Lin01ProvenanceSemiringV0, LinearProvenanceV0,
+    ReducedClassValueProductV0, SelectorProjectionCertaintyV0,
 };
 use omena_abstract_value::{
     analyze_class_value_flow_incremental_with_database, project_abstract_value_selectors,

@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
-use omena_abstract_value::AbstractClassValueV0;
-use omena_bridge::generate_omena_bridge_sif_for_resolved_style_path;
+use omena_query::AbstractClassValueV0;
+use omena_query::generate_omena_bridge_sif_for_resolved_style_path;
 #[cfg(feature = "mdl")]
 use omena_query::summarize_omena_query_design_system_minimum_description;
 use omena_query::{
