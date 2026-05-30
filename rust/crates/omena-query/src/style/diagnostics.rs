@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omena_parser::{
-    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedSassModuleEdgeFact,
-    ParsedSassModuleEdgeFactKind, ParsedSelectorFactKind, ParsedVariableFactKind,
+    ParsedAnimationFactKind, ParsedCssModuleComposesEdgeKind, ParsedExtendTargetFactKind,
+    ParsedSassModuleEdgeFact, ParsedSassModuleEdgeFactKind, ParsedSelectorFactKind,
+    ParsedVariableFactKind,
 };
 
 use super::cascade_checker::summarize_query_cascade_checker_diagnostics_with_deep_analysis;
@@ -265,6 +266,198 @@ pub fn summarize_omena_query_missing_sass_symbol_diagnostics(
             message: format!(
                 "{} not found in this file.",
                 format_query_sass_symbol_label(symbol.symbol_kind, symbol.name.as_str())
+            ),
+            tags: Vec::new(),
+            create_custom_property: None,
+        });
+    }
+
+    diagnostics
+}
+
+/// RFC-0007-E1 (#45): `@extend` target validation. dart-sass hard-errors on `@extend %nonexistent`
+/// / `@extend .missing` (`"%nonexistent" does not exist`); omena was silent because the
+/// `ScssExtendRule` target was parsed and discarded. The parser now captures each target as a
+/// `ParsedExtendTargetFact` (kind + name + `!optional` flag + range); this rule mirrors
+/// `missingSassSymbol`'s file-local structure: an `@extend` target that does not resolve to a
+/// declared placeholder/class **in this file** is flagged.
+///
+/// Scope and non-over-correction:
+/// - `!optional` targets are NEVER flagged — dart-sass permits a missing optional extend, and
+///   omena already (correctly) emitted nothing for them, so the flag is honored here.
+/// - A placeholder target is checked only against declared placeholders; a class target only
+///   against declared classes (Sass keeps the two namespaces distinct).
+/// - This is file-local (single-file surface), like the `missingSassSymbol` companion. A target
+///   declared in another file reachable via `@use`/`@forward`/`@import` is NOT yet validated here,
+///   so cross-file `@extend` resolution is out of scope for v0 (recorded as remaining) — that keeps
+///   the rule from inventing a false positive for a placeholder defined in an imported partial.
+pub fn summarize_omena_query_missing_extend_target_diagnostics(
+    style_uri: &str,
+    source: &str,
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let dialect = omena_parser_dialect_for_style_path(style_uri);
+    if !matches!(
+        dialect,
+        OmenaParserStyleDialect::Scss | OmenaParserStyleDialect::Sass
+    ) {
+        return Vec::new();
+    }
+
+    let facts = collect_omena_query_omena_parser_style_facts_raw(source, dialect);
+    if facts.extend_targets.is_empty() {
+        return Vec::new();
+    }
+
+    let mut declared_placeholders = BTreeSet::new();
+    let mut declared_classes = BTreeSet::new();
+    for selector in &facts.selectors {
+        match selector.kind {
+            ParsedSelectorFactKind::Placeholder => {
+                declared_placeholders.insert(selector.name.clone());
+            }
+            ParsedSelectorFactKind::Class => {
+                declared_classes.insert(selector.name.clone());
+            }
+            ParsedSelectorFactKind::Id => {}
+        }
+    }
+
+    let mut emitted = BTreeSet::new();
+    let mut diagnostics = Vec::new();
+    for target in &facts.extend_targets {
+        // An optional extend (`@extend %x !optional`) is allowed to miss — never flag it.
+        if target.optional {
+            continue;
+        }
+        let (resolved, label) = match target.kind {
+            ParsedExtendTargetFactKind::Placeholder => (
+                declared_placeholders.contains(&target.name),
+                format!("%{}", target.name),
+            ),
+            ParsedExtendTargetFactKind::Class => (
+                declared_classes.contains(&target.name),
+                format!(".{}", target.name),
+            ),
+        };
+        if resolved {
+            continue;
+        }
+        let start: u32 = target.range.start().into();
+        let end: u32 = target.range.end().into();
+        let byte_span = ParserByteSpanV0 {
+            start: start as usize,
+            end: end as usize,
+        };
+        if !emitted.insert((byte_span.start, byte_span.end)) {
+            continue;
+        }
+        diagnostics.push(OmenaQueryStyleDiagnosticV0 {
+            code: "missingExtendTarget",
+            severity: "error",
+            provenance: vec![
+                "omena-parser.extend-target-facts",
+                "omena-query.missing-extend-target-diagnostics",
+            ],
+            range: parser_range_for_byte_span(source, byte_span),
+            message: format!(
+                "@extend target '{label}' does not exist in this file. dart-sass rejects this as a hard error."
+            ),
+            tags: Vec::new(),
+            create_custom_property: None,
+        });
+    }
+
+    diagnostics
+}
+
+/// RFC-0007-E1 (#45) workspace variant: like the file-local rule, but a target is only flagged when
+/// it is absent from EVERY in-graph style source's declared placeholders/classes, so a cross-file
+/// `@extend` of a placeholder defined in an imported partial is never a false positive. The visible
+/// set is approximated by the whole in-graph corpus (conservative: it never under-reports a real
+/// missing target, and only suppresses when *some* file declares it). Optional extends are skipped.
+fn summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let Some(target) = style_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)
+    else {
+        return Vec::new();
+    };
+    let dialect = omena_parser_dialect_for_style_path(target_style_path);
+    if !matches!(
+        dialect,
+        OmenaParserStyleDialect::Scss | OmenaParserStyleDialect::Sass
+    ) {
+        return Vec::new();
+    }
+
+    let target_facts =
+        collect_omena_query_omena_parser_style_facts_raw(target.style_source.as_str(), dialect);
+    if target_facts.extend_targets.is_empty() {
+        return Vec::new();
+    }
+
+    // Declared placeholders/classes across the whole in-graph corpus (conservative cross-file view).
+    let mut declared_placeholders = BTreeSet::new();
+    let mut declared_classes = BTreeSet::new();
+    for source in style_sources {
+        let facts = collect_omena_query_omena_parser_style_facts_raw(
+            source.style_source.as_str(),
+            omena_parser_dialect_for_style_path(source.style_path.as_str()),
+        );
+        for selector in facts.selectors {
+            match selector.kind {
+                ParsedSelectorFactKind::Placeholder => {
+                    declared_placeholders.insert(selector.name);
+                }
+                ParsedSelectorFactKind::Class => {
+                    declared_classes.insert(selector.name);
+                }
+                ParsedSelectorFactKind::Id => {}
+            }
+        }
+    }
+
+    let mut emitted = BTreeSet::new();
+    let mut diagnostics = Vec::new();
+    for extend_target in &target_facts.extend_targets {
+        if extend_target.optional {
+            continue;
+        }
+        let (resolved, label) = match extend_target.kind {
+            ParsedExtendTargetFactKind::Placeholder => (
+                declared_placeholders.contains(&extend_target.name),
+                format!("%{}", extend_target.name),
+            ),
+            ParsedExtendTargetFactKind::Class => (
+                declared_classes.contains(&extend_target.name),
+                format!(".{}", extend_target.name),
+            ),
+        };
+        if resolved {
+            continue;
+        }
+        let start: u32 = extend_target.range.start().into();
+        let end: u32 = extend_target.range.end().into();
+        let byte_span = ParserByteSpanV0 {
+            start: start as usize,
+            end: end as usize,
+        };
+        if !emitted.insert((byte_span.start, byte_span.end)) {
+            continue;
+        }
+        diagnostics.push(OmenaQueryStyleDiagnosticV0 {
+            code: "missingExtendTarget",
+            severity: "error",
+            provenance: vec![
+                "omena-parser.extend-target-facts",
+                "omena-query.missing-extend-target-diagnostics",
+            ],
+            range: parser_range_for_byte_span(target.style_source.as_str(), byte_span),
+            message: format!(
+                "@extend target '{label}' does not exist in the visible Sass module graph. dart-sass rejects this as a hard error."
             ),
             tags: Vec::new(),
             create_custom_property: None,
@@ -571,6 +764,104 @@ fn summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
     diagnostics
 }
 
+/// RFC-0007-E3 (#45): an unresolved Sass module reference to a **workspace-local** path.
+/// dart-sass hard-errors on `@import './missing'` / `@use '../gone'` (file not found); omena was
+/// silent — only `deprecatedSassImport` ever surfaced, and the `missingModule` rule existed only
+/// for the JS/TS-imports-CSS-Modules direction.
+///
+/// The resolution facts are ALREADY computed: `summarize_sass_module_cross_file_resolution` marks
+/// each edge `status == "unresolved"` (resolver kind `unresolved`), `"external"` (the resolver
+/// kind `externalIgnored` for `sass:`/`http(s)://`), or `"resolved"`. We read the existing
+/// `unresolved` edges and emit a `missingModule` diagnostic, but ONLY for relative/absolute
+/// specifiers (`./`, `../`, `/`):
+///
+/// - A relative/absolute specifier is unambiguously a workspace-local file reference — it can never
+///   be an `npm` package or a `sass:` builtin — so an unresolved one is a genuine file-not-found
+///   error, matching dart-sass.
+/// - A *bare* specifier (`'no-such-file'`, `'bootstrap'`) is left untouched: it is indistinguishable
+///   at this layer from an external bare-package import that has no SIF in scope (the #32/#34
+///   external-wiring known limitation, NOT an error in `Ignored` mode). Flagging it would regress
+///   the external case, so bare unresolved partials stay deferred (reported as a remaining item).
+/// - `status == "external"` edges (`sass:`/`http(s)://`) are never flagged.
+///
+/// Anchoring mirrors the use-cycle rule: re-derive the statement span from the parser
+/// `sass_module_edges` fact whose `source` + kind match the resolution edge.
+fn summarize_omena_query_unresolved_sass_import_diagnostics_for_workspace(
+    target_style_path: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+) -> Vec<OmenaQueryStyleDiagnosticV0> {
+    let Some(target) = style_sources
+        .iter()
+        .find(|source| source.style_path == target_style_path)
+    else {
+        return Vec::new();
+    };
+    let style_source_refs = style_sources
+        .iter()
+        .map(|source| (source.style_path.as_str(), source.style_source.as_str()))
+        .collect::<Vec<_>>();
+    let style_fact_entries = collect_omena_query_style_fact_entries(style_source_refs.as_slice());
+    let resolution =
+        summarize_sass_module_cross_file_resolution(&style_fact_entries, package_manifests);
+
+    let target_facts = collect_omena_query_omena_parser_style_facts_raw(
+        target.style_source.as_str(),
+        omena_parser_dialect_for_style_path(target_style_path),
+    );
+
+    let mut emitted = BTreeSet::new();
+    let mut diagnostics = Vec::new();
+
+    for edge in resolution.edges.iter().filter(|edge| {
+        edge.from_style_path == target_style_path
+            && edge.status == "unresolved"
+            && sass_module_source_is_workspace_local(edge.source.as_str())
+    }) {
+        let Some(fact) = target_facts.sass_module_edges.iter().find(|fact| {
+            fact.source == edge.source
+                && parsed_sass_module_edge_fact_kind_matches(fact.kind, edge.edge_kind)
+        }) else {
+            continue;
+        };
+        let start: u32 = fact.range.start().into();
+        let end: u32 = fact.range.end().into();
+        let byte_span = ParserByteSpanV0 {
+            start: start as usize,
+            end: end as usize,
+        };
+        if !emitted.insert((byte_span.start, byte_span.end)) {
+            continue;
+        }
+        diagnostics.push(OmenaQueryStyleDiagnosticV0 {
+            code: "missingModule",
+            severity: "error",
+            provenance: vec![
+                "omena-query.sass-module-cross-file-resolution",
+                "omena-query.unresolved-sass-import-diagnostics",
+            ],
+            range: parser_range_for_byte_span(target.style_source.as_str(), byte_span),
+            message: format!(
+                "Cannot resolve Sass module '{}'. dart-sass rejects this as a hard error.",
+                edge.source
+            ),
+            tags: Vec::new(),
+            create_custom_property: None,
+        });
+    }
+
+    diagnostics
+}
+
+/// A Sass module specifier is workspace-local — and so a genuine file-not-found error when it does
+/// not resolve — iff it is relative (`./`, `../`) or root-absolute (`/`). Bare specifiers
+/// (`'partial'`, `'pkg'`) are excluded: they cannot be distinguished here from an external
+/// bare-package import with no SIF in scope (RFC-0007-E3, #45).
+fn sass_module_source_is_workspace_local(source: &str) -> bool {
+    let trimmed = source.trim();
+    trimmed.starts_with("./") || trimmed.starts_with("../") || trimmed.starts_with('/')
+}
+
 fn parsed_sass_module_edge_fact_kind_matches(
     fact_kind: ParsedSassModuleEdgeFactKind,
     edge_kind: &str,
@@ -663,6 +954,9 @@ pub fn summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
     diagnostics.extend(summarize_omena_query_missing_sass_symbol_diagnostics(
         style_uri, source,
     ));
+    diagnostics.extend(summarize_omena_query_missing_extend_target_diagnostics(
+        style_uri, source,
+    ));
     apply_omena_query_checker_product_gate_to_style_diagnostics(&mut diagnostics);
     let mut summary = OmenaQueryStyleDiagnosticsForFileV0 {
         schema_version: "0",
@@ -677,6 +971,7 @@ pub fn summarize_omena_query_style_diagnostics_for_file_with_deep_analysis(
             "missingKeyframesDiagnostics",
             "sassImportDeprecationHints",
             "missingSassSymbolDiagnostics",
+            "missingExtendTargetDiagnostics",
             "checkerProductDiagnosticGate",
         ],
     };
@@ -791,6 +1086,22 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     summary
         .diagnostics
         .retain(|diagnostic| diagnostic.code != "missingSassSymbol");
+    // RFC-0007-E1 (#45): the file-local `missingExtendTarget` rule cannot see a placeholder/class
+    // declared in another in-graph file reachable via `@use`/`@forward`/`@import`, so it would
+    // false-positive on a cross-file `@extend`. In workspace mode we drop the file-local result and
+    // re-emit only those whose target is also absent from EVERY other in-graph style source — a
+    // conservative cross-file-aware pass that keeps a genuinely-missing target flagged while never
+    // inventing a false positive for a target defined in an imported partial. (Single-file surface
+    // keeps the file-local rule unchanged.)
+    summary
+        .diagnostics
+        .retain(|diagnostic| diagnostic.code != "missingExtendTarget");
+    summary.diagnostics.extend(
+        summarize_omena_query_missing_extend_target_diagnostics_for_workspace(
+            target_style_path,
+            style_sources,
+        ),
+    );
     summary.diagnostics.extend(
         summarize_omena_query_missing_sass_symbol_diagnostics_for_workspace_with_sifs(
             target_style_path,
@@ -809,6 +1120,13 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     );
     summary.diagnostics.extend(
         summarize_omena_query_sass_use_cycle_diagnostics_for_workspace(
+            target_style_path,
+            style_sources,
+            package_manifests,
+        ),
+    );
+    summary.diagnostics.extend(
+        summarize_omena_query_unresolved_sass_import_diagnostics_for_workspace(
             target_style_path,
             style_sources,
             package_manifests,
@@ -835,6 +1153,14 @@ pub fn summarize_omena_query_style_diagnostics_for_workspace_file_with_external_
     );
     push_omena_query_ready_surface(&mut summary.ready_surfaces, "unusedSelectorDiagnostics");
     push_omena_query_ready_surface(&mut summary.ready_surfaces, "sassUseCycleDiagnostics");
+    push_omena_query_ready_surface(
+        &mut summary.ready_surfaces,
+        "unresolvedSassImportDiagnostics",
+    );
+    push_omena_query_ready_surface(
+        &mut summary.ready_surfaces,
+        "missingExtendTargetDiagnostics",
+    );
     push_omena_query_ready_surface(
         &mut summary.ready_surfaces,
         "graphAwareSassSymbolDiagnostics",

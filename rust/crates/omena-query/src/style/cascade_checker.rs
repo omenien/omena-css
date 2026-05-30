@@ -681,6 +681,51 @@ fn collect_query_checker_cascade_blocks(
                 next_layer_order,
                 declarations,
             );
+        } else if let Some(at_root_selector) = query_at_root_selector_from_prelude(prelude) {
+            // RFC-0007-E4 (#45): `@at-root <selector> { … }` resets the cascade context to the
+            // document root and applies `<selector>` as the new context — the inner block's
+            // declarations belong to `<selector>`, NOT to the enclosing parent. The walker
+            // previously hit the generic `@`-rule arm below, which kept `parent_selector` and
+            // recursed without ever recording the block's declarations against a selector, so a
+            // nested `@at-root .b { … }` was dropped from cascade analysis (the bare
+            // `@at-root { … }` block form already worked because its inner `.b` is a plain
+            // selector rule). We re-root by clearing `parent_selector` (root context) and treating
+            // the trailing selector list exactly like an ordinary nested rule: emit its direct
+            // declarations and recurse for any further nesting.
+            let mut canonical_members = Vec::new();
+            for member in split_query_selector_list(&at_root_selector) {
+                let canonical_selector = canonical_query_checker_selector(None, &member);
+                if !canonical_members.contains(&canonical_selector) {
+                    canonical_members.push(canonical_selector);
+                }
+            }
+
+            for canonical_selector in canonical_members {
+                collect_query_checker_direct_declarations(
+                    source,
+                    body_start,
+                    close_index,
+                    &canonical_selector,
+                    QueryCheckerCascadeScope {
+                        condition_context: condition_context.clone(),
+                        layer_name: layer_name.clone(),
+                        layer_order,
+                    },
+                    declarations,
+                );
+                collect_query_checker_cascade_blocks(
+                    source,
+                    body_start,
+                    close_index,
+                    Some(canonical_selector),
+                    condition_context.clone(),
+                    layer_name.clone(),
+                    layer_order,
+                    layer_orders,
+                    next_layer_order,
+                    declarations,
+                );
+            }
         } else if prelude.starts_with('@') {
             let mut nested_condition_context = condition_context.clone();
             nested_condition_context.push(normalize_query_condition_prelude(prelude));
@@ -1101,6 +1146,28 @@ fn query_layer_name_from_prelude(prelude: &str) -> Option<String> {
 
 fn normalize_query_condition_prelude(prelude: &str) -> String {
     prelude.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// RFC-0007-E4 (#45): recognize the `@at-root <selector>` form and return the trailing selector
+/// list. Returns `None` for the bare block form (`@at-root { … }`, no selector) — which already
+/// works via the generic selector recursion — and for the `@at-root (with: …) <selector>` /
+/// `@at-root (without: …) <selector>` query forms, whose leading `(...)` clause we do not yet
+/// model; those keep falling through to the generic at-rule handling rather than risk mis-rooting.
+/// Any other at-rule returns `None`.
+fn query_at_root_selector_from_prelude(prelude: &str) -> Option<String> {
+    let rest = prelude.trim_start().strip_prefix("@at-root")?;
+    // Require a boundary after the keyword so `@at-rootish` never matches.
+    if let Some(next) = rest.chars().next()
+        && !next.is_ascii_whitespace()
+    {
+        return None;
+    }
+    let selector = rest.trim();
+    // Bare block form (no selector) or the `(with:/without:)` query form: defer to generic handling.
+    if selector.is_empty() || selector.starts_with('(') {
+        return None;
+    }
+    Some(selector.to_string())
 }
 
 fn collect_query_var_references_in_value(value: &str) -> Vec<String> {

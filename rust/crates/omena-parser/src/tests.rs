@@ -1873,6 +1873,26 @@ fn parses_scss_placeholder_selectors_and_extend_refs() {
 }
 
 #[test]
+fn captures_extend_target_facts_with_kind_and_optional_flag() {
+    // RFC-0007-E1 (#45): the `@extend` target is captured as a fact (previously discarded).
+    let facts = collect_style_facts(
+        ".a { @extend %surface; } .b { @extend .missing; } .c { @extend %gone !optional; }",
+        StyleDialect::Scss,
+    );
+
+    assert_eq!(facts.extend_target_count, 3);
+    let captured = facts
+        .extend_targets
+        .iter()
+        .map(|target| (target.kind, target.name.as_str(), target.optional))
+        .collect::<Vec<_>>();
+    assert!(captured.contains(&(ParsedExtendTargetFactKind::Placeholder, "surface", false)));
+    assert!(captured.contains(&(ParsedExtendTargetFactKind::Class, "missing", false)));
+    // `!optional` is recorded on the target so the validation rule can skip it.
+    assert!(captured.contains(&(ParsedExtendTargetFactKind::Placeholder, "gone", true)));
+}
+
+#[test]
 fn parses_structured_scss_at_rule_bodies() {
     let result = parse(
         "@mixin card($gap) { .item { gap: $gap; } } @function double($x) { @return $x * 2; } @if $enabled { .on { color: green; } } @for $i from 1 through 3 { .n { order: $i; } } @each $k, $v in $map { .e { color: $v; } } @while $enabled { .w { color: red; } }",

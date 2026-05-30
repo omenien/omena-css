@@ -354,6 +354,8 @@ pub struct ParsedStyleFacts {
     pub sass_includes: Vec<ParsedSassIncludeFact>,
     pub sass_module_edge_count: usize,
     pub sass_module_edges: Vec<ParsedSassModuleEdgeFact>,
+    pub extend_target_count: usize,
+    pub extend_targets: Vec<ParsedExtendTargetFact>,
     pub animation_count: usize,
     pub animations: Vec<ParsedAnimationFact>,
     pub css_module_value_count: usize,
@@ -458,6 +460,25 @@ pub enum ParsedSassModuleEdgeFactKind {
     Use,
     Forward,
     Import,
+}
+
+/// RFC-0007-E1 (#45): the target of an `@extend` rule. The `ScssExtendRule` node previously
+/// parsed and then discarded its target, so an `@extend %nonexistent` / `@extend .missing`
+/// (a dart-sass hard error) went unreported. This fact captures the (simple) target selector,
+/// whether it carries the `!optional` flag (an optional extend must NOT be validated — dart-sass
+/// allows a missing optional target), and its source range for diagnostic anchoring.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedExtendTargetFact {
+    pub kind: ParsedExtendTargetFactKind,
+    pub name: String,
+    pub optional: bool,
+    pub range: TextRange,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ParsedExtendTargetFactKind {
+    Class,
+    Placeholder,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2008,6 +2029,7 @@ pub fn collect_style_facts_with_extension(
     let sass_symbols = collect_sass_symbol_facts_from_tokens(&tokens);
     let sass_includes = collect_sass_include_facts_from_tokens(text, &tokens);
     let sass_module_edges = collect_sass_module_edge_facts_from_tokens(&tokens);
+    let extend_targets = collect_extend_target_facts_from_tokens(&tokens);
     let animations = collect_animation_facts_from_tokens(&tokens);
     let css_module_values = collect_css_module_value_facts_from_tokens(&tokens);
     let css_module_value_import_edges =
@@ -2034,6 +2056,8 @@ pub fn collect_style_facts_with_extension(
         sass_includes,
         sass_module_edge_count: sass_module_edges.len(),
         sass_module_edges,
+        extend_target_count: extend_targets.len(),
+        extend_targets,
         animation_count: animations.len(),
         animations,
         css_module_value_count: css_module_values.len(),
@@ -8870,6 +8894,85 @@ fn sass_module_edge_kind(text: &str) -> Option<ParsedSassModuleEdgeFactKind> {
         text if text.eq_ignore_ascii_case("@import") => Some(ParsedSassModuleEdgeFactKind::Import),
         _ => None,
     }
+}
+
+/// RFC-0007-E1 (#45): capture the target of each `@extend` rule. For each `@extend` keyword, the
+/// statement runs to the next `;`/`}`/indent boundary (`css_module_value_statement_end`). Within
+/// it we capture the FIRST simple target — a `%placeholder` (one `ScssPlaceholder` token) or a
+/// `.class` (`Dot` + `Ident`) — and record whether the statement carries the `!optional` flag
+/// (`!` `optional`, anywhere in the statement). A compound target (`.a.b`) records only its first
+/// simple selector; dart-sass rejects compound `@extend` targets outright, so the first-simple
+/// capture is sufficient for the missing-target check and never over-reports. Interpolated targets
+/// (`#{...}`) produce no simple token here and are skipped (not statically checkable).
+fn collect_extend_target_facts_from_tokens(tokens: &[Token<'_>]) -> Vec<ParsedExtendTargetFact> {
+    let mut targets = Vec::new();
+
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != SyntaxKind::AtKeyword || !token.text.eq_ignore_ascii_case("@extend") {
+            continue;
+        }
+        let start = skip_trivia_tokens(tokens, index + 1, tokens.len());
+        let end = css_module_value_statement_end(tokens, start);
+
+        // `!optional` may appear after the target; scan the whole statement for it first.
+        let optional = extend_statement_has_optional_flag(tokens, start, end);
+
+        // First simple target within the statement.
+        let mut cursor = start;
+        let mut captured: Option<ParsedExtendTargetFact> = None;
+        while cursor < end {
+            let current = tokens[cursor];
+            if current.kind == SyntaxKind::ScssPlaceholder {
+                captured = Some(ParsedExtendTargetFact {
+                    kind: ParsedExtendTargetFactKind::Placeholder,
+                    name: current.text.trim_start_matches('%').to_string(),
+                    optional,
+                    range: current.range,
+                });
+                break;
+            }
+            if current.kind == SyntaxKind::Dot
+                && let Some(name_index) = next_non_trivia_token_index_until(tokens, cursor + 1, end)
+                && tokens[name_index].kind == SyntaxKind::Ident
+            {
+                let name_token = tokens[name_index];
+                let range = TextRange::new(current.range.start(), name_token.range.end());
+                captured = Some(ParsedExtendTargetFact {
+                    kind: ParsedExtendTargetFactKind::Class,
+                    name: name_token.text.to_string(),
+                    optional,
+                    range,
+                });
+                break;
+            }
+            cursor += 1;
+        }
+
+        if let Some(target) = captured {
+            targets.push(target);
+        }
+    }
+
+    targets
+}
+
+/// Detect a trailing `!optional` flag in an `@extend` statement span. The flag tokenizes as a
+/// `Delim "!"` followed by an `Ident "optional"` (case-insensitive), matching the `!important`
+/// tokenization shape observed for value flags.
+fn extend_statement_has_optional_flag(tokens: &[Token<'_>], start: usize, end: usize) -> bool {
+    let mut index = start;
+    while index < end {
+        if tokens[index].kind == SyntaxKind::Delim
+            && tokens[index].text == "!"
+            && let Some(next_index) = next_non_trivia_token_index_until(tokens, index + 1, end)
+            && tokens[next_index].kind == SyntaxKind::Ident
+            && tokens[next_index].text.eq_ignore_ascii_case("optional")
+        {
+            return true;
+        }
+        index += 1;
+    }
+    false
 }
 
 fn collect_sass_import_module_edges(

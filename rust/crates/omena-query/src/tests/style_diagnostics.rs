@@ -2188,3 +2188,193 @@ fn style_diagnostics_for_workspace_file_acyclic_use_chain_has_no_cycle() -> Resu
     }
     Ok(())
 }
+
+// RFC-0007-E1 (#45): `@extend` target validation.
+#[test]
+fn missing_extend_target_fires_on_unresolved_non_optional_targets() {
+    let messages = crate::summarize_omena_query_missing_extend_target_diagnostics(
+        "App.module.scss",
+        ".a { @extend %nonexistent; } .b { @extend .missing; }",
+    )
+    .into_iter()
+    .map(|diagnostic| {
+        assert_eq!(diagnostic.code, "missingExtendTarget");
+        assert_eq!(diagnostic.severity, "error");
+        diagnostic.message
+    })
+    .collect::<Vec<_>>();
+    assert_eq!(messages.len(), 2);
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("'%nonexistent'"))
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("'.missing'"))
+    );
+}
+
+#[test]
+fn missing_extend_target_skips_valid_targets_and_optional_flag() {
+    // A resolvable `%real` / `.base`, and a missing-but-`!optional` target, all stay silent.
+    let diagnostics = crate::summarize_omena_query_missing_extend_target_diagnostics(
+        "App.module.scss",
+        "%real { color: red; } .base { color: blue; } \
+         .a { @extend %real; } .b { @extend .base; } .c { @extend %gone !optional; }",
+    );
+    assert!(
+        diagnostics.is_empty(),
+        "valid + optional extends must not fire: {:?}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn missing_extend_target_keeps_placeholder_and_class_namespaces_distinct() {
+    // `%foo` declared but `.foo` extended: dart-sass errors (the class selector does not exist).
+    let diagnostics = crate::summarize_omena_query_missing_extend_target_diagnostics(
+        "App.module.scss",
+        "%foo { color: red; } .b { @extend .foo; }",
+    );
+    assert_eq!(diagnostics.len(), 1);
+    assert!(diagnostics[0].message.contains("'.foo'"));
+}
+
+#[test]
+fn missing_extend_target_workspace_resolves_cross_file_placeholder() -> Result<(), &'static str> {
+    // A `%base` declared in an imported partial must NOT false-positive; a target declared nowhere
+    // in the corpus still fires.
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: "@use \"base\";\n.a { @extend %base; }\n.b { @extend %gone; }"
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_base.scss".to_string(),
+            style_source: "%base { color: red; }".to_string(),
+        },
+    ];
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/tmp/App.module.scss",
+        sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+    let extend_messages = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingExtendTarget")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(extend_messages.len(), 1, "got {extend_messages:?}");
+    assert!(extend_messages[0].contains("'%gone'"));
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"missingExtendTargetDiagnostics")
+    );
+    Ok(())
+}
+
+// RFC-0007-E3 (#45): unresolved workspace-local Sass `@import`/`@use`.
+#[test]
+fn unresolved_sass_import_fires_on_local_path_but_not_external_or_bare() -> Result<(), &'static str>
+{
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/App.module.scss".to_string(),
+            style_source: "@import \"./missing\";\n@use \"../gone\";\n@use \"sass:math\";\n\
+                           @import \"https://cdn.example/x.css\";\n@import \"bare-partial\";\n\
+                           @use \"./present\";\n.a { color: red; }"
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/tmp/_present.scss".to_string(),
+            style_source: "$x: 1;".to_string(),
+        },
+    ];
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/tmp/App.module.scss",
+        sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+    let module_messages = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingModule")
+        .map(|diagnostic| {
+            assert_eq!(diagnostic.severity, "error");
+            diagnostic.message.as_str()
+        })
+        .collect::<Vec<_>>();
+    // Only the relative `./missing` and `../gone` fire; sass:/https/bare-partial/resolved stay silent.
+    assert_eq!(module_messages.len(), 2, "got {module_messages:?}");
+    assert!(
+        module_messages
+            .iter()
+            .any(|message| message.contains("'./missing'"))
+    );
+    assert!(
+        module_messages
+            .iter()
+            .any(|message| message.contains("'../gone'"))
+    );
+    assert!(
+        diagnostics
+            .ready_surfaces
+            .contains(&"unresolvedSassImportDiagnostics")
+    );
+    Ok(())
+}
+
+// RFC-0007-E4 (#45): nested `@at-root <selector> {}` is included in cascade analysis.
+#[test]
+fn at_root_selector_block_is_included_in_cascade_analysis() {
+    let candidates = crate::summarize_omena_query_style_hover_candidates("App.module.scss", "")
+        .map(|summary| summary.candidates)
+        .unwrap_or_default();
+    let fired = crate::summarize_omena_query_style_diagnostics_for_file(
+        "App.module.scss",
+        ".a { @at-root .b { color: red; color: blue; } }",
+        candidates.as_slice(),
+    );
+    let codes = fired
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.code)
+        .collect::<Vec<_>>();
+    assert!(
+        codes.contains(&"unreachableDeclaration"),
+        "duplicate `color` inside @at-root .b must be analyzed: {codes:?}"
+    );
+
+    // Control: a non-duplicate @at-root selector block must NOT fire.
+    let clean = crate::summarize_omena_query_style_diagnostics_for_file(
+        "App.module.scss",
+        ".a { @at-root .b { color: red; } }",
+        candidates.as_slice(),
+    );
+    assert!(
+        clean
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "unreachableDeclaration"),
+        "non-duplicate @at-root block must stay clean: {:?}",
+        clean
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.code)
+            .collect::<Vec<_>>()
+    );
+}
