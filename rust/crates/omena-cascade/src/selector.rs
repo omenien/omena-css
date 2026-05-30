@@ -309,11 +309,23 @@ fn parse_simple_selector_signature_inner(selector: &str) -> Option<SelectorSigna
                     index += 1;
                     let (name, next) = read_identifier(&chars, index)?;
                     if matches!(chars.get(next), Some('(')) {
-                        return None;
+                        // Functional pseudo-class, e.g. `:is(...)`, `:where(...)`, `:not(...)`.
+                        // Parse the argument selector list and fold its specificity in per
+                        // Selectors L4 §15 instead of bailing out of the whole selector.
+                        let close = find_closing_paren(&chars, next)?;
+                        let arguments = chars[next + 1..close].iter().collect::<String>();
+                        let argument_specificity =
+                            functional_pseudo_specificity(name.as_str(), arguments.as_str())?;
+                        specificity.ids += argument_specificity.ids;
+                        specificity.classes += argument_specificity.classes;
+                        specificity.elements += argument_specificity.elements;
+                        required_pseudo_states.insert(name);
+                        index = close + 1;
+                    } else {
+                        specificity.classes += 1;
+                        required_pseudo_states.insert(name);
+                        index = next;
                     }
-                    specificity.classes += 1;
-                    required_pseudo_states.insert(name);
-                    index = next;
                 }
             }
             ch if is_identifier_start(ch) => {
@@ -394,6 +406,51 @@ fn find_closing_bracket(chars: &[char], open_index: usize) -> Option<usize> {
         .enumerate()
         .skip(open_index + 1)
         .find_map(|(index, ch)| if *ch == ']' { Some(index) } else { None })
+}
+
+fn find_closing_paren(chars: &[char], open_index: usize) -> Option<usize> {
+    let mut depth: usize = 0;
+    for (index, ch) in chars.iter().enumerate().skip(open_index) {
+        match ch {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Specificity contribution of a functional pseudo-class per Selectors L4 §15.
+///
+/// `:is()`/`:not()` contribute the specificity of their most specific argument;
+/// `:where()` always contributes zero. Unknown functional pseudo-classes return
+/// `None` so the caller keeps treating them as unsupported rather than guessing.
+fn functional_pseudo_specificity(name: &str, arguments: &str) -> Option<Specificity> {
+    match name.to_ascii_lowercase().as_str() {
+        "where" => Some(Specificity::ZERO),
+        "is" | "not" | "matches" => Some(most_specific_argument_specificity(arguments)),
+        _ => None,
+    }
+}
+
+/// Highest specificity among a comma-separated argument selector list. Arguments
+/// that the conservative parser cannot model contribute `Specificity::ZERO`,
+/// which keeps the estimate sound (never over-counts) without dropping the rule.
+fn most_specific_argument_specificity(arguments: &str) -> Specificity {
+    split_selector_list(arguments)
+        .iter()
+        .map(|argument| {
+            parse_simple_selector_signature_inner(argument.trim())
+                .map(|signature| signature.specificity)
+                .unwrap_or(Specificity::ZERO)
+        })
+        .max()
+        .unwrap_or(Specificity::ZERO)
 }
 
 fn read_attribute_name(attribute: &str) -> Option<String> {

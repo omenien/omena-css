@@ -903,6 +903,66 @@ fn parses_simple_selector_specificity() {
 }
 
 #[test]
+fn where_pseudo_contributes_zero_specificity() {
+    // RFC-0007-B B3: `:where(.box)` must parse (not drop the rule) and contribute
+    // zero specificity, so a bare `.box` still beats it.
+    let Some(plain) = parse_simple_selector_signature(".box") else {
+        unreachable!("plain class parses")
+    };
+    let Some(where_box) = parse_simple_selector_signature(":where(.box)") else {
+        unreachable!(":where(.box) parses")
+    };
+
+    assert_eq!(where_box.specificity, Specificity::ZERO);
+    assert!(plain.specificity > where_box.specificity);
+    assert!(where_box.required_pseudo_states.contains("where"));
+}
+
+#[test]
+fn is_pseudo_takes_most_specific_argument_specificity() {
+    // RFC-0007-B B3: `:is(.a, #b)` takes `#b`'s specificity (the most specific
+    // argument), not the first or the sum.
+    let Some(signature) = parse_simple_selector_signature(":is(.a, #b)") else {
+        unreachable!(":is(...) parses")
+    };
+    assert_eq!(signature.specificity, Specificity::new(1, 0, 0));
+    assert!(signature.required_pseudo_states.contains("is"));
+}
+
+#[test]
+fn not_pseudo_takes_most_specific_argument_specificity() {
+    // RFC-0007-B B3: `:not()` mirrors `:is()` for specificity.
+    let Some(signature) = parse_simple_selector_signature(":not(.a, #b)") else {
+        unreachable!(":not(...) parses")
+    };
+    assert_eq!(signature.specificity, Specificity::new(1, 0, 0));
+    assert!(signature.required_pseudo_states.contains("not"));
+}
+
+#[test]
+fn functional_pseudo_folds_into_compound_specificity() {
+    // The functional-pseudo specificity adds to the rest of the compound, and a
+    // bare pseudo-state (`:hover`) is unchanged by this lane (over-correction guard).
+    let Some(compound) = parse_simple_selector_signature(".card:not(#x):hover") else {
+        unreachable!("compound parses")
+    };
+    // `.card` (0,1,0) + `:not(#x)` (1,0,0) + `:hover` (0,1,0) = (1,2,0).
+    assert_eq!(compound.specificity, Specificity::new(1, 2, 0));
+
+    let Some(plain_hover) = parse_simple_selector_signature(".card:hover") else {
+        unreachable!("plain pseudo parses")
+    };
+    assert_eq!(plain_hover.specificity, Specificity::new(0, 2, 0));
+}
+
+#[test]
+fn unknown_functional_pseudo_is_still_unsupported() {
+    // Over-correction guard: only the standardized functional pseudos gain
+    // specificity modeling; unknown ones stay conservative (rule still dropped).
+    assert!(parse_simple_selector_signature(":nth-child(2n)").is_none());
+}
+
+#[test]
 fn matches_simple_compound_selectors_against_concrete_signature() {
     let mut element =
         ElementSignature::concrete(Some("button"), Some("save"), ["primary", "active"]);
