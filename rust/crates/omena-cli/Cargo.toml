@@ -15,7 +15,7 @@ workspace = true
 [features]
 default = []
 mdl = []
-zk-audit = ["dep:omena-zk-audit"]
+zk-audit = ["dep:omena-zk-audit", "omena-zk-audit/zk-audit"]
 
 [dependencies]
 clap.workspace = true

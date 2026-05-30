@@ -31,7 +31,8 @@ use omena_sif::{
 };
 #[cfg(feature = "zk-audit")]
 use omena_zk_audit::{
-    CascadeZKAuditV0, ZKAuditCiMatrixV0, cascade_zk_audit_v0, zk_audit_ci_matrix_v0,
+    ArkworksGroth16RoundTripV0, CascadeZKAuditV0, ZKAuditCiMatrixV0, cascade_zk_audit_v0,
+    prove_and_verify_canonical_margin_cascade_with_arkworks_v0, zk_audit_ci_matrix_v0,
 };
 use serde::Serialize;
 use std::{
@@ -347,20 +348,28 @@ enum AuditCommand {
 #[cfg(feature = "zk-audit")]
 #[derive(Debug, Subcommand)]
 enum ZkAuditCommand {
-    /// Produce a default-off ZK cascade audit contract.
+    /// Generate a real arkworks Groth16 proof from a cascade obligation.
     Prove {
         /// Stable audit identifier.
         #[arg(long, default_value = "cli-zk-audit")]
         audit_id: String,
+        /// Reorder the margin longhand quartet so the cascade obligation is
+        /// unsatisfiable (no verified proof is produced).
+        #[arg(long)]
+        reorder: bool,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
     },
-    /// Verify the default-off ZK cascade audit contract shape.
+    /// Verify a real arkworks Groth16 proof generated from a cascade obligation.
     Verify {
         /// Stable audit identifier.
         #[arg(long, default_value = "cli-zk-audit")]
         audit_id: String,
+        /// Reorder the margin longhand quartet so the cascade obligation is
+        /// unsatisfiable (verification fails).
+        #[arg(long)]
+        reorder: bool,
         /// Print machine-readable JSON.
         #[arg(long)]
         json: bool,
@@ -384,6 +393,8 @@ struct ZkAuditCliResultV0 {
     command: &'static str,
     audit: Option<CascadeZKAuditV0>,
     ci_matrix: Option<ZKAuditCiMatrixV0>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    groth16_roundtrip: Option<ArkworksGroth16RoundTripV0>,
     verified: bool,
 }
 
@@ -728,7 +739,13 @@ fn audit_command(command: AuditCommand) -> Result<(), String> {
 #[cfg(feature = "zk-audit")]
 fn zk_audit_command(command: ZkAuditCommand) -> Result<(), String> {
     match command {
-        ZkAuditCommand::Prove { audit_id, json } => {
+        ZkAuditCommand::Prove {
+            audit_id,
+            reorder,
+            json,
+        } => {
+            let roundtrip = prove_and_verify_canonical_margin_cascade_with_arkworks_v0(reorder)?;
+            let verified = roundtrip.proof_generated && roundtrip.proof_verified;
             let result = ZkAuditCliResultV0 {
                 schema_version: "0",
                 product: "omena-cli.audit.zk.prove",
@@ -737,23 +754,27 @@ fn zk_audit_command(command: ZkAuditCommand) -> Result<(), String> {
                 command: "prove",
                 audit: Some(cascade_zk_audit_v0(audit_id)),
                 ci_matrix: None,
-                verified: true,
+                groth16_roundtrip: Some(roundtrip),
+                verified,
             };
             print_zk_audit_result(&result, json)
         }
-        ZkAuditCommand::Verify { audit_id, json } => {
-            let audit = cascade_zk_audit_v0(audit_id);
-            let verified = audit.schema_version == "0"
-                && audit.feature_gate == "zk-audit"
-                && audit.recursion_overhead == "O(1)";
+        ZkAuditCommand::Verify {
+            audit_id,
+            reorder,
+            json,
+        } => {
+            let roundtrip = prove_and_verify_canonical_margin_cascade_with_arkworks_v0(reorder)?;
+            let verified = roundtrip.proof_generated && roundtrip.proof_verified;
             let result = ZkAuditCliResultV0 {
                 schema_version: "0",
                 product: "omena-cli.audit.zk.verify",
                 layer_marker: "cryptographic-implementation",
                 feature_gate: "zk-audit",
                 command: "verify",
-                audit: Some(audit),
+                audit: Some(cascade_zk_audit_v0(audit_id)),
                 ci_matrix: None,
+                groth16_roundtrip: Some(roundtrip),
                 verified,
             };
             print_zk_audit_result(&result, json)
@@ -767,6 +788,7 @@ fn zk_audit_command(command: ZkAuditCommand) -> Result<(), String> {
                 command: "setup-status",
                 audit: None,
                 ci_matrix: Some(zk_audit_ci_matrix_v0()),
+                groth16_roundtrip: None,
                 verified: true,
             };
             print_zk_audit_result(&result, json)
@@ -789,6 +811,14 @@ fn print_zk_audit_result(result: &ZkAuditCliResultV0, json: bool) -> Result<(), 
         println!("audit: {}", audit.audit_id);
         println!("setup: {:?}", audit.setup_kind);
         println!("recursion overhead: {}", audit.recursion_overhead);
+    }
+    if let Some(roundtrip) = &result.groth16_roundtrip {
+        println!("backend: {}", roundtrip.backend);
+        println!("obligation: {}", roundtrip.obligation_id);
+        println!("constraint count: {}", roundtrip.circuit.constraint_count);
+        println!("requirement count: {}", roundtrip.requirement_count);
+        println!("proof generated: {}", roundtrip.proof_generated);
+        println!("proof verified: {}", roundtrip.proof_verified);
     }
     if let Some(ci_matrix) = &result.ci_matrix {
         println!("ci cells: {}", ci_matrix.cells.join(","));
@@ -2360,6 +2390,7 @@ export function App() {
                 command: AuditCommand::Zk {
                     command: ZkAuditCommand::Prove {
                         audit_id: "test-audit".to_string(),
+                        reorder: false,
                         json: true,
                     },
                 },
@@ -2372,6 +2403,7 @@ export function App() {
                 command: AuditCommand::Zk {
                     command: ZkAuditCommand::Verify {
                         audit_id: "test-audit".to_string(),
+                        reorder: false,
                         json: true,
                     },
                 },
@@ -2387,6 +2419,40 @@ export function App() {
             },
         });
         assert!(setup_result.is_ok(), "{setup_result:?}");
+    }
+
+    /// Mechanism-depth test for the CLI zk-audit product path: the exact function
+    /// the `prove`/`verify` arms invoke must verify a satisfiable cascade
+    /// obligation and reject an unsatisfiable one. The discriminating
+    /// `require:canonical-longhand-quartet` term is computed by the cascade
+    /// algorithm; this test only flips the longhand order via `reorder`, so it
+    /// fails if `proof_verified` were a constant.
+    #[cfg(feature = "zk-audit")]
+    #[test]
+    fn cli_zk_prove_emits_verified_proof_only_for_satisfiable_cascade_obligation() {
+        let canonical = prove_and_verify_canonical_margin_cascade_with_arkworks_v0(false);
+        let reordered = prove_and_verify_canonical_margin_cascade_with_arkworks_v0(true);
+        assert!(canonical.is_ok(), "{canonical:?}");
+        assert!(reordered.is_ok(), "{reordered:?}");
+
+        if let (Ok(canonical), Ok(reordered)) = (canonical, reordered) {
+            // Satisfiable cascade obligation -> verified proof with real R1CS.
+            assert!(canonical.proof_generated);
+            assert!(canonical.proof_verified);
+            assert!(canonical.circuit.constraint_count > 0);
+
+            // Unsatisfiable cascade obligation -> proof rejected, no panic.
+            assert!(!reordered.proof_generated);
+            assert!(!reordered.proof_verified);
+
+            // Same R1CS shape, opposite proof outcome: the verdict is driven by
+            // the cascade obligation, not by the circuit size.
+            assert_eq!(
+                canonical.requirement_count, reordered.requirement_count,
+                "both obligations encode the same requirement set"
+            );
+            assert_ne!(canonical.proof_verified, reordered.proof_verified);
+        }
     }
 
     fn temp_path(name: &str) -> PathBuf {

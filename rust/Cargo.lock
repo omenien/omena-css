@@ -2217,6 +2217,7 @@ dependencies = [
  "ark-groth16",
  "ark-relations",
  "ark-std",
+ "omena-cascade",
  "omena-smt",
  "omena-zk-circuit",
  "serde",

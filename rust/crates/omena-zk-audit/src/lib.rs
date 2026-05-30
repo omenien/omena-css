@@ -18,7 +18,9 @@ pub mod arkworks;
 
 #[cfg(feature = "zk-audit")]
 pub use arkworks::{
-    ArkworksGroth16RoundTripV0, prove_and_verify_cascade_smt_payload_with_arkworks_v0,
+    ArkworksGroth16RoundTripV0, prove_and_verify_box_shorthand_cascade_with_arkworks_v0,
+    prove_and_verify_canonical_margin_cascade_with_arkworks_v0,
+    prove_and_verify_cascade_smt_payload_with_arkworks_v0,
 };
 
 pub const ZK_AUDIT_SCHEMA_VERSION_V0: &str = "0";
