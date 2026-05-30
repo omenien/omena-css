@@ -14,6 +14,7 @@ use crate::{
     resolve_omena_query_style_uri_for_specifier, summarize_omena_query_sass_module_sources,
     summarize_omena_query_source_diagnostics_for_file,
     summarize_omena_query_source_diagnostics_for_workspace_file,
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_context_depth,
     summarize_omena_query_source_import_declarations, summarize_omena_query_source_syntax_index,
     summarize_omena_query_style_hover_candidates,
 };
@@ -469,5 +470,116 @@ fn sass_module_sources_are_query_owned() {
     assert_eq!(
         resolve_omena_query_sass_forward_sources(&sources),
         vec!["./theme".to_string()]
+    );
+}
+
+/// Non-tautological mechanism-depth test on the REAL default workspace product
+/// path (`summarize_omena_query_source_diagnostics_for_workspace_file`, the
+/// function the napi/wasm/CLI consumers forward to).
+///
+/// The fixture has two dynamic className template projections that interpolate
+/// the same `variant` binding: `btn-${variant}` (whose `btn-` prefix matches the
+/// indexed `btn-primary` / `btn-secondary` selectors) and `xyz-${variant}`
+/// (whose `xyz-` prefix matches no indexed selector). Both call sites are
+/// harvested from the syntax index inside the default path and flowed through the
+/// real k-limited (k-CFA) M-tier gate.
+///
+/// At the context-insensitive baseline `k = 0` the two call sites share the
+/// `variant` callee and collapse into one `<root>` context: their `btn-` and
+/// `xyz-` prefixes join to the longest-common-prefix `""`, i.e. `Top`, which
+/// projects across the whole selector universe and never raises
+/// `noUnknownDynamicClass`. At the context-sensitive default `k` the call sites
+/// stay separate, so the `xyz-` projection narrows to the empty selector set and
+/// the harvested default path raises `noUnknownDynamicClass` at the `xyz-`
+/// reference range.
+///
+/// The load-bearing assertion is the differential between the default
+/// (context-sensitive) path and the `k = 0` baseline. If `analyze_k_limited_call_site_flows`
+/// were replaced by a constant/identity (always k = 0 collapse, or never
+/// joining), both runs would emit the same diagnostic set and the differential
+/// would fail — so this is not a tautology.
+#[test]
+fn workspace_source_diagnostics_harvest_context_sensitive_m_tier_flow() {
+    let source_path = "/workspace/src/Button.tsx";
+    let source = r#"import styles from "./Button.module.scss";
+export function Button({ variant }) {
+  return (
+    <div>
+      <span className={`btn-${variant}`} />
+      <span className={`xyz-${variant}`} />
+    </div>
+  );
+}"#;
+    let style_sources = [OmenaQueryStyleSourceInputV0 {
+        style_path: "/workspace/src/Button.module.scss".to_string(),
+        style_source: ".btn-primary {}\n.btn-secondary {}\n".to_string(),
+    }];
+
+    let context_sensitive = summarize_omena_query_source_diagnostics_for_workspace_file(
+        source_path,
+        source,
+        &style_sources,
+        &[],
+    );
+    let context_insensitive =
+        summarize_omena_query_source_diagnostics_for_workspace_file_with_context_depth(
+            source_path,
+            source,
+            &style_sources,
+            &[],
+            0,
+        );
+
+    assert_eq!(context_sensitive.file_kind, "source");
+
+    // The harvested M-tier diagnostics carry the k-limited flow provenance, so
+    // they are demonstrably the real mechanism, not a hardcoded source warning.
+    let context_sensitive_m_tier = context_sensitive
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            diagnostic
+                .provenance
+                .contains(&"omena-abstract-value.k-limited-call-site-flow")
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !context_sensitive_m_tier.is_empty(),
+        "default workspace path must emit harvested k-CFA M-tier diagnostics without an external producer"
+    );
+
+    // Context-sensitive default k: the `xyz-` site separates and trips
+    // noUnknownDynamicClass; the context-insensitive baseline joins it into Top
+    // and never does.
+    let unknown_class_present = |summary: &crate::OmenaQuerySourceDiagnosticsForFileV0| {
+        summary
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == "noUnknownDynamicClass")
+    };
+    assert!(
+        unknown_class_present(&context_sensitive),
+        "context-sensitive flow must raise noUnknownDynamicClass for the unmatched xyz- projection"
+    );
+    assert!(
+        !unknown_class_present(&context_insensitive),
+        "context-insensitive (k=0) collapse joins the prefixes to Top and must NOT raise noUnknownDynamicClass"
+    );
+
+    // The differential: the emitted diagnostic set must change with the
+    // context-depth bound, not just metadata.
+    let context_sensitive_codes = context_sensitive
+        .diagnostics
+        .iter()
+        .map(|diagnostic| (diagnostic.code, diagnostic.range.start.line))
+        .collect::<Vec<_>>();
+    let context_insensitive_codes = context_insensitive
+        .diagnostics
+        .iter()
+        .map(|diagnostic| (diagnostic.code, diagnostic.range.start.line))
+        .collect::<Vec<_>>();
+    assert_ne!(
+        context_sensitive_codes, context_insensitive_codes,
+        "k-limiting must change which workspace M-tier diagnostics are emitted"
     );
 }

@@ -1,6 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, PathBuf};
 
+use super::dynamic_classname::{
+    OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH,
+    harvest_omena_query_dynamic_classname_m_tier_diagnostics,
+};
 use super::*;
 
 pub fn summarize_omena_query_refs_for_class(
@@ -222,6 +226,28 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file(
     style_sources: &[OmenaQueryStyleSourceInputV0],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
 ) -> OmenaQuerySourceDiagnosticsForFileV0 {
+    summarize_omena_query_source_diagnostics_for_workspace_file_with_context_depth(
+        source_path,
+        source_source,
+        style_sources,
+        package_manifests,
+        OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH,
+    )
+}
+
+/// Workspace source diagnostics with an explicit call-string bound `k` for the
+/// harvested dynamic-className M-tier flow. The default LSP entry pins
+/// `k = OMENA_QUERY_WORKSPACE_DYNAMIC_CLASSNAME_CONTEXT_DEPTH`; this variant
+/// exposes `k` so the context-sensitivity of the harvested k-CFA flow is
+/// observable (a context-insensitive `k = 0` run joins call sites that share a
+/// callee binding and emits a different M-tier diagnostic set).
+pub fn summarize_omena_query_source_diagnostics_for_workspace_file_with_context_depth(
+    source_path: &str,
+    source_source: &str,
+    style_sources: &[OmenaQueryStyleSourceInputV0],
+    package_manifests: &[OmenaQueryStylePackageManifestV0],
+    max_context_depth: usize,
+) -> OmenaQuerySourceDiagnosticsForFileV0 {
     let available_style_paths = style_sources
         .iter()
         .map(|source| source.style_path.as_str())
@@ -287,6 +313,26 @@ pub fn summarize_omena_query_source_diagnostics_for_workspace_file(
             imported_style_bindings,
             classnames_bind_bindings,
         );
+
+        // Harvest dynamic-className call sites (template-interpolation projections)
+        // from the same syntax index and route them through the real k-limited
+        // (k-CFA) M-tier flow gate, so the LSP-consumed default path emits the
+        // context-sensitive no-unknown-dynamic-class / no-imprecise-value /
+        // no-impossible-selector diagnostics without an external producer.
+        let selector_universe = definitions
+            .iter()
+            .map(|definition| definition.name.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        diagnostics.extend(harvest_omena_query_dynamic_classname_m_tier_diagnostics(
+            source_path,
+            source_source,
+            index.type_fact_targets.as_slice(),
+            selector_universe.as_slice(),
+            max_context_depth,
+        ));
+
         for reference in index.selector_references {
             let Some(target_style_uri) = reference.target_style_uri.as_deref() else {
                 continue;
