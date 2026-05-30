@@ -274,6 +274,34 @@ fn collect_omena_query_style_fact_entries(
         .collect()
 }
 
+/// Derive the load-path roots to try when joining a load-path-rooted `@use` (dart-sass
+/// `--load-path`). Each in-graph style file contributes its ancestor directories: a path-shaped
+/// specifier `src/scss/design-system.scss` is then joinable under any root `<R>` for which
+/// `<R>/src/scss/design-system.scss` is itself in-graph. The resolver accepts only such existing
+/// candidates, so over-collecting roots cannot fabricate a spurious edge. (RFC-0007-I, #49)
+fn collect_load_path_roots(available_style_paths: &BTreeSet<&str>) -> Vec<String> {
+    let mut roots = BTreeSet::new();
+    for path in available_style_paths {
+        let mut current = *path;
+        // Walk up the directory chain on the normalized `/` separator. Style paths flowing
+        // through the query layer are already forward-slash normalized by the resolver.
+        while let Some(parent_end) = current.rfind('/') {
+            if parent_end == 0 {
+                // Keep the filesystem root (`/`) as a candidate load-path root.
+                roots.insert("/".to_string());
+                break;
+            }
+            let parent = &current[..parent_end];
+            if !roots.insert(parent.to_string()) {
+                // This ancestor (and therefore all of its ancestors) is already recorded.
+                break;
+            }
+            current = parent;
+        }
+    }
+    roots.into_iter().collect()
+}
+
 fn summarize_sass_module_cross_file_resolution(
     style_fact_entries: &[OmenaQueryStyleFactEntry],
     package_manifests: &[OmenaQueryStylePackageManifestV0],
@@ -282,6 +310,16 @@ fn summarize_sass_module_cross_file_resolution(
         .iter()
         .map(|entry| entry.style_path.as_str())
         .collect::<BTreeSet<_>>();
+    // Load-path roots are the ancestor directories of the in-graph style files. A
+    // load-path-rooted `@use 'src/scss/design-system.scss'` (dart-sass `--load-path`) is joined
+    // only when `<root>/src/scss/design-system.scss` is itself an in-graph file, so deriving
+    // roots from `available_style_paths` keeps the join sound without new configuration input,
+    // and never shadows the file-relative or bare-package routes. (RFC-0007-I, #49)
+    let load_path_roots = collect_load_path_roots(&available_style_paths);
+    let load_path_root_refs = load_path_roots
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
     let resolver_package_manifests = package_manifests
         .iter()
         .map(|manifest| OmenaResolverStylePackageManifestV0 {
@@ -293,11 +331,14 @@ fn summarize_sass_module_cross_file_resolution(
 
     for entry in style_fact_entries {
         for edge in &entry.facts.sass_module_edges {
-            let resolution = summarize_omena_resolver_style_module_resolution(
+            let resolution = summarize_omena_resolver_style_module_resolution_with_load_path_roots(
                 entry.style_path.as_str(),
                 edge.source.as_str(),
                 &available_style_paths,
                 &resolver_package_manifests,
+                &[],
+                &[],
+                &load_path_root_refs,
             );
             let status = if resolution.resolution_kind == "externalIgnored" {
                 "external"

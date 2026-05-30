@@ -59,7 +59,7 @@ use omena_query_transform_runner::{
 use omena_resolver::{
     OmenaResolverBoundaryStateV0, OmenaResolverStylePackageManifestV0,
     canonicalize_omena_resolver_style_identity_path, resolve_omena_resolver_style_module_source,
-    summarize_omena_resolver_style_module_resolution,
+    summarize_omena_resolver_style_module_resolution_with_load_path_roots,
 };
 use omena_semantic::StyleContextIndexV0;
 use serde::{Deserialize, Serialize};

@@ -18,6 +18,7 @@ use super::{
     summarize_omena_resolver_specifier_resolution_runtime,
     summarize_omena_resolver_specifier_resolution_runtime_with_path_mappings,
     summarize_omena_resolver_style_module_resolution,
+    summarize_omena_resolver_style_module_resolution_with_load_path_roots,
     summarize_omena_resolver_style_module_resolution_with_path_mappings,
     summarize_omena_resolver_style_module_resolution_with_tsconfig_paths,
 };

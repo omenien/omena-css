@@ -1134,6 +1134,81 @@ fn style_diagnostics_for_workspace_file_resolve_sass_module_graph_symbols()
 }
 
 #[test]
+fn style_diagnostics_resolve_load_path_rooted_use_symbols() -> Result<(), &'static str> {
+    // RFC-0007-I (#49): a load-path-rooted `@use 'src/scss/design-system.scss' as *` (dart-sass
+    // `--load-path=<pkg-root>`) must join the in-graph producer, so its symbols are visible and
+    // do NOT become `missingSassSymbol` false positives. The consumer lives in a subdirectory so
+    // the file-relative join misses; only the load-path root reaches the target.
+    let sources = vec![
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/pkg-root/components/consumer.scss".to_string(),
+            style_source: r#"@use "src/scss/design-system.scss" as *;
+.x { color: $brand; }"#
+                .to_string(),
+        },
+        OmenaQueryStyleSourceInputV0 {
+            style_path: "/pkg-root/src/scss/design-system.scss".to_string(),
+            style_source: r#"$brand: #c00;"#.to_string(),
+        },
+    ];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/pkg-root/components/consumer.scss",
+        sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+
+    assert!(
+        diagnostics
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != "missingSassSymbol"),
+        "load-path-rooted @use should make $brand visible: {:?}",
+        diagnostics.diagnostics
+    );
+    Ok(())
+}
+
+#[test]
+fn style_diagnostics_still_flag_missing_load_path_rooted_target() -> Result<(), &'static str> {
+    // Over-correction guard: when the load-path-rooted target is genuinely absent from the graph
+    // (no in-graph file at any root), the symbol it would have provided MUST still flag as
+    // `missingSassSymbol`. The fix must not blanket-suppress path-shaped @use specifiers.
+    let sources = vec![OmenaQueryStyleSourceInputV0 {
+        style_path: "/pkg-root/components/consumer.scss".to_string(),
+        style_source: r#"@use "src/scss/design-system.scss" as *;
+.x { color: $brand; }"#
+            .to_string(),
+    }];
+
+    let diagnostics = crate::summarize_omena_query_style_diagnostics_for_workspace_file(
+        "/pkg-root/components/consumer.scss",
+        sources.as_slice(),
+        &[],
+        &[],
+        None,
+    )
+    .ok_or("workspace diagnostics")?;
+
+    let missing_messages = diagnostics
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == "missingSassSymbol")
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        missing_messages,
+        vec!["Sass variable '$brand' not found in the visible Sass module graph."],
+        "{:?}",
+        diagnostics.diagnostics
+    );
+    Ok(())
+}
+
+#[test]
 fn style_diagnostics_external_sif_mode_reports_missing_sif_boundary() -> Result<(), &'static str> {
     let sources = vec![OmenaQueryStyleSourceInputV0 {
         style_path: "/tmp/App.module.scss".to_string(),

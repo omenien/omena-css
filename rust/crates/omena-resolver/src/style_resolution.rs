@@ -105,22 +105,59 @@ pub fn summarize_omena_resolver_style_module_resolution_with_path_mappings(
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> OmenaResolverStyleModuleResolutionV0 {
-    let candidates = collect_omena_resolver_style_module_source_candidates_with_path_mappings(
+    summarize_omena_resolver_style_module_resolution_with_load_path_roots(
+        from_style_path,
+        source,
+        available_style_paths,
+        package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+        &[],
+    )
+}
+
+/// Resolve a style-module specifier, additionally trying each `load_path_roots` entry as a
+/// load-path root for **path-shaped, non-`./`-relative, non-package** specifiers (the dart-sass
+/// `--load-path` behavior). File-relative, alias, and bare-package routing are unchanged: the
+/// load-path candidates are appended last and only accepted when they exist in
+/// `available_style_paths`, so a genuinely missing module still flags and a real external package
+/// import still routes through the package resolver. (RFC-0007-I, #49)
+pub fn summarize_omena_resolver_style_module_resolution_with_load_path_roots(
+    from_style_path: &str,
+    source: &str,
+    available_style_paths: &BTreeSet<&str>,
+    package_manifests: &[OmenaResolverStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    load_path_roots: &[&str],
+) -> OmenaResolverStyleModuleResolutionV0 {
+    let candidates = collect_omena_resolver_style_module_source_candidates_with_load_path_roots(
         from_style_path,
         source,
         package_manifests,
         bundler_path_mappings,
         tsconfig_path_mappings,
+        load_path_roots,
     );
     let resolved_style_path =
         resolve_style_module_candidate_from_available_paths(&candidates, available_style_paths);
-    let resolution_kind = if resolved_style_path.is_some() {
+    let resolution_kind = if let Some(resolved_style_path) = resolved_style_path.as_deref() {
         if source_matches_bundler_path_mapping(source, bundler_path_mappings) {
             "bundlerPathStyleModule"
         } else if source_matches_tsconfig_path_mapping(source, tsconfig_path_mappings) {
             "tsconfigPathStyleModule"
         } else if is_package_import_style_source(source) {
             "packageImportStyleModule"
+        } else if resolved_via_load_path_root_candidate(
+            from_style_path,
+            source,
+            resolved_style_path,
+            load_path_roots,
+        ) {
+            // A load-path-rooted resolution can `parse_package_style_source` (a path-shaped
+            // specifier like `src/scss/design-system.scss` reads as package `src`), so this
+            // probe must precede the bare-package classification to avoid mislabeling. (#49)
+            "loadPathStyleModule"
         } else if parse_package_style_source(source).is_some() {
             "packageStyleModule"
         } else {
@@ -179,6 +216,24 @@ pub fn collect_omena_resolver_style_module_source_candidates_with_path_mappings(
     bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
     tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
 ) -> Vec<String> {
+    collect_omena_resolver_style_module_source_candidates_with_load_path_roots(
+        from_style_path,
+        source,
+        package_manifests,
+        bundler_path_mappings,
+        tsconfig_path_mappings,
+        &[],
+    )
+}
+
+pub fn collect_omena_resolver_style_module_source_candidates_with_load_path_roots(
+    from_style_path: &str,
+    source: &str,
+    package_manifests: &[OmenaResolverStylePackageManifestV0],
+    bundler_path_mappings: &[OmenaResolverBundlerPathAliasMappingV0],
+    tsconfig_path_mappings: &[OmenaResolverTsconfigPathMappingV0],
+    load_path_roots: &[&str],
+) -> Vec<String> {
     if is_external_style_module_source(source) {
         return Vec::new();
     }
@@ -233,14 +288,101 @@ pub fn collect_omena_resolver_style_module_source_candidates_with_path_mappings(
             }
         }
         PackageStyleCandidateResolution::Blocked => {
+            // Append load-path candidates even when package-manifest resolution is blocked: a
+            // path-shaped specifier whose leading segment is misread as a package (`src/...`)
+            // is exactly the load-path case, and the file-relative candidate above is the only
+            // other route. Load-path candidates are appended last so file-relative wins. (#49)
+            push_load_path_rooted_candidates(&mut candidates, source, load_path_roots);
             return candidates;
         }
     }
     for package_base_path in package_style_module_base_candidates(from_style_path, source) {
         push_style_module_path_candidates(&mut candidates, package_base_path, true);
     }
+    push_load_path_rooted_candidates(&mut candidates, source, load_path_roots);
 
     candidates
+}
+
+/// True iff a non-`./`-relative, non-package-import specifier is path-shaped, i.e. eligible for
+/// load-path rooting (dart-sass `--load-path`). Bare-package specifiers (`pkg`, `@scope/pkg`)
+/// and explicit relative/absolute specifiers are excluded so the package and file-relative
+/// routes are never shadowed. A specifier qualifies when it carries a recognized style
+/// extension (`.scss`/`.sass`/`.css`/`.less`) — that is the dart-sass load-path form that the
+/// design-system corpus uses (`'src/scss/design-system.scss'`). (#49)
+fn is_load_path_shaped_style_specifier(source: &str) -> bool {
+    if source.starts_with("./")
+        || source.starts_with("../")
+        || source.starts_with('/')
+        || source.starts_with('#')
+        || source.starts_with('@')
+        || source.starts_with("pkg:")
+        || is_external_style_module_source(source)
+    {
+        return false;
+    }
+    // Require a directory segment so a single bare filename never reroutes through load paths.
+    if !source.contains('/') {
+        return false;
+    }
+    let extension = Path::new(source)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase);
+    matches!(extension.as_deref(), Some("scss" | "sass" | "css" | "less"))
+}
+
+fn push_load_path_rooted_candidates(
+    candidates: &mut Vec<String>,
+    source: &str,
+    load_path_roots: &[&str],
+) {
+    if load_path_roots.is_empty() || !is_load_path_shaped_style_specifier(source) {
+        return;
+    }
+    for root in load_path_roots {
+        let base_path = Path::new(root).join(source);
+        // The specifier already carries an explicit style extension, so emit exactly that path
+        // (plus its `_partial` sibling) without re-appending extension variants.
+        push_style_module_path_candidates(candidates, base_path, false);
+    }
+}
+
+/// Determine whether `resolved_style_path` was reached through a load-path root rather than the
+/// file-relative or bare-package routes, used only to classify `resolution_kind`. (#49)
+fn resolved_via_load_path_root_candidate(
+    from_style_path: &str,
+    source: &str,
+    resolved_style_path: &str,
+    load_path_roots: &[&str],
+) -> bool {
+    if load_path_roots.is_empty() || !is_load_path_shaped_style_specifier(source) {
+        return false;
+    }
+    // If the file-relative candidate already produced this path, it is not a load-path resolution.
+    let relative_base = Path::new(from_style_path)
+        .parent()
+        .map(|parent| parent.join(source))
+        .unwrap_or_else(|| PathBuf::from(source));
+    let mut relative_candidates = Vec::new();
+    push_style_module_path_candidates(&mut relative_candidates, relative_base, false);
+    if relative_candidates
+        .iter()
+        .any(|candidate| style_paths_share_identity(candidate, resolved_style_path))
+    {
+        return false;
+    }
+    let mut load_path_candidates = Vec::new();
+    push_load_path_rooted_candidates(&mut load_path_candidates, source, load_path_roots);
+    load_path_candidates
+        .iter()
+        .any(|candidate| style_paths_share_identity(candidate, resolved_style_path))
+}
+
+fn style_paths_share_identity(left: &str, right: &str) -> bool {
+    left == right
+        || canonicalize_omena_resolver_style_identity_path(left)
+            == canonicalize_omena_resolver_style_identity_path(right)
 }
 
 pub fn summarize_omena_resolver_specifier_resolution_runtime(
