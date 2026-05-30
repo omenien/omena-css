@@ -39,7 +39,8 @@ pub use fuzz::{
 };
 pub use layer_inversion::{
     LayerFlattenInversionVerdictV0, LayerInversionDeclarationV0,
-    canonical_layer_flatten_inversion_input_v0, smt_check_layer_flatten_inversion_v0,
+    canonical_layer_flatten_inversion_input_v0, layer_inversion_declaration_v0,
+    smt_check_layer_flatten_inversion_v0,
 };
 pub use obligations::{
     smt_evaluate_static_supports_condition_v0, smt_prove_box_shorthand_combination_v0,
@@ -214,21 +215,9 @@ mod tests {
 
     fn three_layer_declarations() -> [LayerInversionDeclarationV0; 3] {
         [
-            LayerInversionDeclarationV0 {
-                declaration_id: "base".to_string(),
-                layer_rank: 0,
-                source_order: 0,
-            },
-            LayerInversionDeclarationV0 {
-                declaration_id: "components".to_string(),
-                layer_rank: 1,
-                source_order: 1,
-            },
-            LayerInversionDeclarationV0 {
-                declaration_id: "utilities".to_string(),
-                layer_rank: 2,
-                source_order: 2,
-            },
+            layer_inversion_declaration_v0("base", 0, 0),
+            layer_inversion_declaration_v0("components", 1, 1),
+            layer_inversion_declaration_v0("utilities", 2, 2),
         ]
     }
 

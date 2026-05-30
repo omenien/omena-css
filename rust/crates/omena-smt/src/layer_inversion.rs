@@ -16,10 +16,11 @@
 //! inversion exists, so the flatten is unsafe; `Unsat` means no ordering inverts,
 //! so the flatten is cascade-safe.
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::{
-    CanonicalSmtInputV0, SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, SmtVerdictV0,
+    CanonicalSmtInputV0, SMT_FEATURE_GATE_V0, SMT_LAYER_MARKER_V0, SMT_SCHEMA_VERSION_V0,
+    SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, SmtVerdictV0,
     encoder::canonical_smt_input_with_script_v0,
 };
 
@@ -28,12 +29,33 @@ use crate::{
 /// `layer_rank` is the cascade rank contributed by the declaration's `@layer`
 /// (higher rank wins before flattening); `source_order` is its position in
 /// source order (higher position wins after the layer boundary is erased).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LayerInversionDeclarationV0 {
+    pub schema_version: &'static str,
+    pub product: &'static str,
+    pub layer_marker: &'static str,
+    pub feature_gate: &'static str,
     pub declaration_id: String,
     pub layer_rank: i64,
     pub source_order: i64,
+}
+
+/// Schema-zero constructor for a layered-bundle declaration.
+pub fn layer_inversion_declaration_v0(
+    declaration_id: impl Into<String>,
+    layer_rank: i64,
+    source_order: i64,
+) -> LayerInversionDeclarationV0 {
+    LayerInversionDeclarationV0 {
+        schema_version: SMT_SCHEMA_VERSION_V0,
+        product: "omena-smt.layer-inversion-declaration",
+        layer_marker: SMT_LAYER_MARKER_V0,
+        feature_gate: SMT_FEATURE_GATE_V0,
+        declaration_id: declaration_id.into(),
+        layer_rank,
+        source_order,
+    }
 }
 
 /// Verdict of the layer-flatten inversion search.
