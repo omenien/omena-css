@@ -5,12 +5,20 @@
 //! delegates live beside the cascade crate, and this crate owns L3 encoding,
 //! proof contracts, backend selection, and unsat-core audit metadata.
 //!
-//! claim_level: default stub plus opt-in solver-backed checking, not default
-//! build SMT completeness.
+//! Most obligations are propositional (`require:name=bool`) conjunctions the
+//! Rust code already decided; the [`layer_inversion`] obligation is the
+//! exception, emitting a QF_LIA cascade-ordering search the opt-in `smt-z3`
+//! backend genuinely solves and the propositional stub cannot.
+//!
+//! claim_level: default stub plus opt-in solver-backed checking, where the
+//! opt-in z3 backend genuinely solves one non-trivial QF_LIA cascade-ordering
+//! obligation the stub cannot, while the remaining obligations stay
+//! propositional and not default build SMT completeness.
 
 pub mod backend;
 pub mod encoder;
 pub mod fuzz;
+pub mod layer_inversion;
 pub mod obligations;
 pub mod proof;
 pub mod theory;
@@ -21,10 +29,17 @@ pub use backend::z3::Z3SmtBackendV0;
 pub use backend::{
     SmtBackendCheckV0, SmtBackendKindV0, SmtBackendSatResultV0, SmtBackendV0, StubSmtBackendV0,
 };
-pub use encoder::{CanonicalSmtInputV0, canonical_smt_input_v0, canonical_smtlib2_script_v0};
+pub use encoder::{
+    CanonicalSmtInputV0, canonical_smt_input_v0, canonical_smt_input_with_script_v0,
+    canonical_smtlib2_script_v0,
+};
 pub use fuzz::{
     SmtBisimulationFuzzCaseV0, SmtBisimulationFuzzReportV0, run_smt_bisimulation_fuzz_case_v0,
     run_smt_bisimulation_fuzz_seed_corpus_v0, smt_bisimulation_fuzz_case_v0,
+};
+pub use layer_inversion::{
+    LayerFlattenInversionVerdictV0, LayerInversionDeclarationV0,
+    canonical_layer_flatten_inversion_input_v0, smt_check_layer_flatten_inversion_v0,
 };
 pub use obligations::{
     smt_evaluate_static_supports_condition_v0, smt_prove_box_shorthand_combination_v0,
@@ -195,6 +210,111 @@ mod tests {
         assert_eq!(case.layer_marker, "smt-cascade-verification");
         assert_eq!(case.feature_gate, "smt-stub");
         assert_eq!(case.seed, 42);
+    }
+
+    fn three_layer_declarations() -> [LayerInversionDeclarationV0; 3] {
+        [
+            LayerInversionDeclarationV0 {
+                declaration_id: "base".to_string(),
+                layer_rank: 0,
+                source_order: 0,
+            },
+            LayerInversionDeclarationV0 {
+                declaration_id: "components".to_string(),
+                layer_rank: 1,
+                source_order: 1,
+            },
+            LayerInversionDeclarationV0 {
+                declaration_id: "utilities".to_string(),
+                layer_rank: 2,
+                source_order: 2,
+            },
+        ]
+    }
+
+    #[test]
+    fn layer_inversion_encoder_emits_real_qf_lia_search() {
+        // The body is an arithmetic search, not a conjunction of pre-decided
+        // booleans: the encoder never evaluates whether an inversion exists.
+        let input = canonical_layer_flatten_inversion_input_v0(&three_layer_declarations());
+        assert!(input.smtlib2_script.contains("(set-logic QF_LIA)"));
+        assert!(input.smtlib2_script.contains("(declare-const rank_0 Int)"));
+        assert!(
+            input
+                .smtlib2_script
+                .contains(":named cascade_layer_flatten_inversion")
+        );
+        assert!(input.smtlib2_script.contains("(> rank_"));
+        assert!(input.smtlib2_script.contains("(> source_"));
+        // No `require:name=bool` literal terms: the propositional stub has
+        // nothing to evaluate and degenerates to Sat.
+        assert!(
+            input
+                .canonical_terms
+                .iter()
+                .all(|term| !term.starts_with("require:"))
+        );
+    }
+
+    #[test]
+    fn stub_backend_cannot_reason_about_layer_inversion() {
+        // The propositional stub does not model integer ordering, so it returns
+        // Sat for *every* layer-inversion formula regardless of whether an
+        // inversion actually exists. Both a real inversion and a safe ordering
+        // collapse to the same stub verdict, which is exactly why z3 is needed.
+        let backend = StubSmtBackendV0::default();
+
+        let mut inverted = three_layer_declarations();
+        // Make `utilities` (highest layer rank) lose in source order -> inversion.
+        inverted[2].source_order = -1;
+        let stub_inverted = smt_check_layer_flatten_inversion_v0(&inverted, &backend);
+
+        let safe = three_layer_declarations();
+        let stub_safe = smt_check_layer_flatten_inversion_v0(&safe, &backend);
+
+        assert_eq!(stub_inverted.backend, SmtBackendKindV0::Stub);
+        assert_eq!(stub_inverted.sat_result, SmtBackendSatResultV0::Sat);
+        assert_eq!(stub_safe.sat_result, SmtBackendSatResultV0::Sat);
+        // The stub gives the identical verdict for an unsafe and a safe ordering.
+        assert_eq!(stub_inverted.verdict, stub_safe.verdict);
+    }
+
+    #[cfg(feature = "smt-z3")]
+    #[test]
+    fn z3_decides_layer_inversion_and_disagrees_with_stub() {
+        let z3 = Z3SmtBackendV0::default();
+        let stub = StubSmtBackendV0::default();
+
+        // Emit case: `utilities` has the highest layer rank but is moved before
+        // `base`/`components` in source order, so flattening inverts the winner.
+        // Only `source_order` of one declaration differs from the clear case.
+        let mut inverted = three_layer_declarations();
+        inverted[2].source_order = -1;
+        let z3_inverted = smt_check_layer_flatten_inversion_v0(&inverted, &z3);
+
+        // Clear case: same declarations, restored source order -> layered and
+        // flattened winners coincide, so no inversion exists.
+        let safe = three_layer_declarations();
+        let z3_safe = smt_check_layer_flatten_inversion_v0(&safe, &z3);
+
+        // z3 actually solves the QF_LIA search and the verdict flips on the one
+        // changed source_order field.
+        assert_eq!(z3_inverted.backend, SmtBackendKindV0::Z3);
+        assert_eq!(z3_inverted.sat_result, SmtBackendSatResultV0::Sat);
+        assert!(z3_inverted.inversion_exists);
+        assert_eq!(z3_inverted.verdict, SmtVerdictV0::Rejected);
+
+        assert_eq!(z3_safe.sat_result, SmtBackendSatResultV0::Unsat);
+        assert!(!z3_safe.inversion_exists);
+        assert_eq!(z3_safe.verdict, SmtVerdictV0::Accepted);
+
+        // z3 adds reasoning: on the safe ordering z3 proves Unsat while the
+        // propositional stub degenerates to Sat. They disagree, which is only
+        // possible because z3 solves the formula the stub cannot.
+        let stub_safe = smt_check_layer_flatten_inversion_v0(&safe, &stub);
+        assert_eq!(stub_safe.sat_result, SmtBackendSatResultV0::Sat);
+        assert_ne!(z3_safe.sat_result, stub_safe.sat_result);
+        assert_ne!(z3_safe.verdict, stub_safe.verdict);
     }
 
     #[cfg(feature = "smt-z3")]

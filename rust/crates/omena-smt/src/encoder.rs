@@ -33,6 +33,32 @@ pub fn canonical_smt_input_v0(
     }
 }
 
+/// Build a canonical input whose SMT-LIB2 body is supplied directly rather than
+/// derived from propositional `require:name=bool` terms.
+///
+/// This is used for obligations whose satisfiability is *not* a conjunction of
+/// pre-decided booleans (e.g. the QF_LIA layer-ordering inversion search), so
+/// the formula a solver consumes carries real arithmetic the encoder did not
+/// evaluate. `canonical_terms` still records human-readable provenance for the
+/// audit trail; the load-bearing reasoning lives in `smtlib2_script`.
+pub fn canonical_smt_input_with_script_v0(
+    obligation_id: impl Into<String>,
+    l1_primitive: &'static str,
+    canonical_terms: Vec<String>,
+    smtlib2_script: String,
+) -> CanonicalSmtInputV0 {
+    CanonicalSmtInputV0 {
+        schema_version: SMT_SCHEMA_VERSION_V0,
+        product: "omena-smt.canonical-input",
+        layer_marker: SMT_LAYER_MARKER_V0,
+        feature_gate: SMT_FEATURE_GATE_V0,
+        obligation_id: obligation_id.into(),
+        l1_primitive,
+        canonical_terms,
+        smtlib2_script,
+    }
+}
+
 pub fn canonical_smtlib2_script_v0(canonical_terms: &[String]) -> String {
     let mut script = String::from("(set-logic QF_UF)\n");
     for term in canonical_terms {
